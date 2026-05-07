@@ -27711,17 +27711,47 @@ app.component('view-backup', {
 
     async function _uploadBatch(table, rows, batchSize = 100) {
       let inserted = 0, failed = 0;
+      // Cache of columns to drop for this table (discovered via errors)
+      const dropCols = new Set();
+
+      function _stripUnknown(rs) {
+        if (dropCols.size === 0) return rs;
+        return rs.map(r => {
+          const out = { ...r };
+          dropCols.forEach(c => delete out[c]);
+          return out;
+        });
+      }
+
       for (let i = 0; i < rows.length; i += batchSize) {
-        const chunk = rows.slice(i, i + batchSize);
-        const { error } = await window.sb.from(table).upsert(chunk, { onConflict: 'id' });
-        if (error) {
+        let chunk = rows.slice(i, i + batchSize);
+        let attempts = 0;
+        let success = false;
+        while (attempts < 8 && !success) {
+          attempts++;
+          chunk = _stripUnknown(chunk);
+          const { error } = await window.sb.from(table).upsert(chunk, { onConflict: 'id' });
+          if (!error) {
+            success = true;
+            inserted += chunk.length;
+            migrateProgress.value = { ...migrateProgress.value, current: migrateProgress.value.current + chunk.length };
+            break;
+          }
+          // Try to extract column name from error
+          const m = error.message.match(/column ['"]?([a-zA-Z0-9_]+)['"]?|'([a-zA-Z0-9_]+)' column/);
+          const badCol = m ? (m[1] || m[2]) : null;
+          if (badCol && !dropCols.has(badCol)) {
+            dropCols.add(badCol);
+            _logMig(`  🔧 drop column "${badCol}" และลองใหม่...`, 'warn');
+            continue; // retry
+          }
+          // Can't recover
           failed += chunk.length;
           _logMig(`  ❌ batch ${i}-${i+chunk.length}: ${error.message}`, 'error');
-        } else {
-          inserted += chunk.length;
-          migrateProgress.value = { ...migrateProgress.value, current: migrateProgress.value.current + chunk.length };
+          break;
         }
       }
+      if (dropCols.size) _logMig(`  ⓘ drop columns ทั้งหมด: ${[...dropCols].join(', ')}`, 'info');
       return { inserted, failed };
     }
 
