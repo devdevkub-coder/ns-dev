@@ -142,6 +142,16 @@
           <option value="">ทุกสาขา</option>
           <option v-for="b in db.branches" :value="b.id">{{ b.name }}</option>
         </select>
+        <!-- Cloud Sync Indicator (Phase C) -->
+        <div v-if="syncStatus.enabled" :title="syncStatus.tooltip"
+          :class="['text-xs px-2 py-1 rounded font-medium flex items-center gap-1 cursor-default',
+            syncStatus.state==='syncing' ? 'bg-blue-100 text-blue-700' :
+            syncStatus.state==='ok' ? 'bg-emerald-100 text-emerald-700' :
+            syncStatus.state==='error' ? 'bg-red-100 text-red-700' :
+            'bg-slate-100 text-slate-600']">
+          <span>{{syncStatus.state==='syncing'?'⏳':syncStatus.state==='ok'?'☁️✓':syncStatus.state==='error'?'☁️✗':'☁️'}}</span>
+          <span class="hidden md:inline">{{syncStatus.label}}</span>
+        </div>
         <div class="text-right hidden sm:block">
           <div class="text-sm font-medium text-slate-800">{{ currentUser.username }}</div>
           <div class="text-xs text-slate-500">{{ currentUser.role }}</div>
@@ -3376,8 +3386,21 @@ const app = createApp({
     const loginError = ref('');
     const toast = reactive({ show:false, msg:'', type:'success' });
 
+    /* Cloud Sync Status — Phase C */
+    const syncStatus = reactive({
+      enabled: false,         // true หลัง login สำเร็จกับ Supabase
+      state: 'idle',          // idle / syncing / ok / error
+      label: 'พร้อม',
+      tooltip: 'ระบบ Cloud Sync',
+      lastSyncAt: '',
+    });
+    let _dbDirty = true;     // dirty flag — set true เมื่อข้อมูลเปลี่ยน
+
     /* persist */
-    watch(db, () => { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }, { deep:true });
+    watch(db, () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+      _dbDirty = true;        // mark dirty for cloud sync
+    }, { deep:true });
 
     function showToast(msg, type='success') {
       toast.msg = msg; toast.type = type; toast.show = true;
@@ -3442,6 +3465,12 @@ const app = createApp({
           loginForm.password = '';
           window.$erp.logActivity('LOGIN', '-', currentUser.value.username, 'role='+currentUser.value.role+' (Supabase)');
           showToast('เข้าสู่ระบบสำเร็จ ☁️ (Supabase)','success');
+          // Enable cloud sync indicator
+          syncStatus.enabled = true;
+          syncStatus.state = 'ok';
+          syncStatus.label = 'Synced';
+          syncStatus.tooltip = 'Cloud Sync: เชื่อมต่อ Supabase สำเร็จ';
+          syncStatus.lastSyncAt = new Date().toISOString();
           return;
         } catch(e) {
           // Fallback: try local login below
@@ -27865,11 +27894,102 @@ app.component('view-backup', {
     const supabaseUrl = computed(() => window.SUPABASE_CONFIG?.url || '-');
     setInterval(() => { supabaseReady.value = !!window.sb; }, 2000);
 
+    /* ============================================================
+       SYNC DOWN — Pull from Supabase → LocalStorage (Phase C)
+       ============================================================ */
+    const pulling = ref(false);
+    const pullLog = ref([]);
+    const pullProgress = ref({ current: 0, total: 0, table: '' });
+
+    function _snakeToCamel(s) {
+      return s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    }
+    function _mapKeysReverse(obj, customMap = {}) {
+      // Reverse map snake_case → camelCase using customMap as: { localKey: 'snake_key' }
+      // We need invMap: { snake_key: localKey }
+      const invMap = {};
+      for (const [k, v] of Object.entries(customMap)) invMap[v] = k;
+      const out = {};
+      for (const [k, v] of Object.entries(obj || {})) {
+        if (v === undefined || v === null) continue;
+        const localKey = invMap[k] || _snakeToCamel(k);
+        out[localKey] = v;
+      }
+      return out;
+    }
+
+    function _logPull(msg, type='info') {
+      pullLog.value.unshift({ at: new Date().toISOString().slice(11,19), msg, type });
+      if (pullLog.value.length > 200) pullLog.value.length = 200;
+    }
+
+    async function pullFromSupabase() {
+      if (!window.sb) { erp.showToast('Supabase ยังไม่พร้อม','error'); return; }
+      if (!confirm('📥 ดึงข้อมูลจาก Supabase Cloud ใส่ใน LocalStorage?\n\n⚠ ข้อมูลปัจจุบันใน Browser นี้จะถูกเขียนทับ\nแนะนำให้ Export Backup ก่อน\n\nดำเนินการต่อ?')) return;
+
+      pulling.value = true;
+      pullLog.value = [];
+      pullProgress.value = { current: 0, total: _MIGRATION_ORDER.length, table: '' };
+      _logPull('📥 เริ่ม Pull ข้อมูลจาก Supabase...', 'info');
+
+      let totalRows = 0;
+      const newDb = JSON.parse(JSON.stringify(db)); // clone current db as base
+
+      for (let i = 0; i < _MIGRATION_ORDER.length; i++) {
+        const localKey = _MIGRATION_ORDER[i];
+        const cfg = _MIGRATION_MAP[localKey];
+        if (!cfg) continue;
+
+        pullProgress.value = { ...pullProgress.value, current: i, table: `${cfg.target} → ${localKey}` };
+        _logPull(`📥 ${cfg.target} → ${localKey}`);
+
+        try {
+          // Fetch all rows (paginated 1000 each)
+          let allRows = [];
+          let from = 0;
+          const pageSize = 1000;
+          while (true) {
+            const { data, error } = await window.sb.from(cfg.target).select('*').range(from, from + pageSize - 1);
+            if (error) throw error;
+            if (!data || data.length === 0) break;
+            allRows = allRows.concat(data);
+            if (data.length < pageSize) break;
+            from += pageSize;
+          }
+
+          // Reverse map → camelCase
+          const localRows = allRows.map(r => _mapKeysReverse(r, cfg.keyMap || {}));
+          newDb[localKey] = localRows;
+          totalRows += localRows.length;
+          _logPull(`  ✓ ${cfg.target}: ${localRows.length} rows`, 'ok');
+        } catch(e) {
+          _logPull(`  ❌ ${cfg.target}: ${e.message}`, 'error');
+        }
+        await new Promise(r => setTimeout(r, 50));
+      }
+
+      pullProgress.value.current = pullProgress.value.total;
+      _logPull(`✅ ดึงข้อมูลเสร็จ — ${totalRows} rows`, 'ok');
+
+      // Save to localStorage
+      try {
+        localStorage.setItem('ns_erp_db_v1_pre_pull', localStorage.getItem('ns_erp_db_v1') || '');
+        localStorage.setItem('ns_erp_db_v1', JSON.stringify(newDb));
+        _logPull('💾 บันทึกลง LocalStorage แล้ว — กรุณา refresh หน้า', 'info');
+        pulling.value = false;
+        if (confirm('✅ Sync Down เสร็จ — Refresh หน้าเดี๋ยวนี้?')) location.reload();
+      } catch(e) {
+        _logPull('❌ Save error: '+e.message, 'error');
+        pulling.value = false;
+      }
+    }
+
     return { erp, db, fmt, storageInfo, stats, lastBackupAt, autoBackupEnabled, autoBackupHistory,
       localSnapshots, importPreview, importError,
       exportFull, previewImport, applyImport, resetAll, toggleAutoBackup,
       restoreLocalSnapshot, deleteLocalSnapshot,
       migrating, migrateLog, migrateProgress, migrateToSupabase,
+      pulling, pullLog, pullProgress, pullFromSupabase,
       supabaseReady, supabaseUrl };
   },
   template: `
@@ -27992,16 +28112,22 @@ app.component('view-backup', {
         </div>
       </div>
 
-      <button @click="migrateToSupabase" :disabled="migrating || !supabaseReady"
-        class="bg-cyan-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed">
-        {{migrating ? '⏳ กำลัง Migrate...' : '☁️ Migrate ทั้งหมดไป Supabase'}}
-      </button>
+      <div class="flex flex-wrap gap-2">
+        <button @click="migrateToSupabase" :disabled="migrating || pulling || !supabaseReady"
+          class="bg-cyan-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed">
+          {{migrating ? '⏳ กำลัง Push...' : '☁️ ⬆ Push (LocalStorage → Cloud)'}}
+        </button>
+        <button @click="pullFromSupabase" :disabled="migrating || pulling || !supabaseReady"
+          class="bg-emerald-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed">
+          {{pulling ? '⏳ กำลัง Pull...' : '☁️ ⬇ Pull (Cloud → LocalStorage)'}}
+        </button>
+      </div>
 
-      <!-- Progress Bar -->
+      <!-- Push Progress Bar -->
       <div v-if="migrating || migrateLog.length" class="mt-3 space-y-2">
         <div v-if="migrateProgress.total > 0" class="bg-white rounded p-2 border">
           <div class="flex justify-between text-xs mb-1">
-            <span>{{migrateProgress.table || 'เสร็จสิ้น'}}</span>
+            <span>⬆ Push: {{migrateProgress.table || 'เสร็จสิ้น'}}</span>
             <span class="font-bold">{{migrateProgress.current}} / {{migrateProgress.total}}</span>
           </div>
           <div class="bg-slate-200 rounded-full h-2">
@@ -28011,6 +28137,25 @@ app.component('view-backup', {
 
         <div v-if="migrateLog.length" class="bg-slate-900 text-slate-100 rounded p-3 font-mono text-xs max-h-72 overflow-y-auto">
           <div v-for="(l,i) in migrateLog" :key="i" :class="l.type==='error'?'text-red-300':l.type==='warn'?'text-amber-300':l.type==='ok'?'text-emerald-300':'text-slate-200'">
+            <span class="text-slate-500">[{{l.at}}]</span> {{l.msg}}
+          </div>
+        </div>
+      </div>
+
+      <!-- Pull Progress Bar -->
+      <div v-if="pulling || pullLog.length" class="mt-3 space-y-2">
+        <div v-if="pullProgress.total > 0" class="bg-white rounded p-2 border">
+          <div class="flex justify-between text-xs mb-1">
+            <span>⬇ Pull: {{pullProgress.table || 'เสร็จสิ้น'}}</span>
+            <span class="font-bold">{{pullProgress.current}} / {{pullProgress.total}}</span>
+          </div>
+          <div class="bg-slate-200 rounded-full h-2">
+            <div class="bg-emerald-500 h-2 rounded-full transition-all" :style="{width: ((pullProgress.current/pullProgress.total)*100)+'%'}"></div>
+          </div>
+        </div>
+
+        <div v-if="pullLog.length" class="bg-slate-900 text-slate-100 rounded p-3 font-mono text-xs max-h-72 overflow-y-auto">
+          <div v-for="(l,i) in pullLog" :key="i" :class="l.type==='error'?'text-red-300':l.type==='warn'?'text-amber-300':l.type==='ok'?'text-emerald-300':'text-slate-200'">
             <span class="text-slate-500">[{{l.at}}]</span> {{l.msg}}
           </div>
         </div>
