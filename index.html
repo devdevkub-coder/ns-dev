@@ -3608,13 +3608,15 @@ window.$erp = {
 
   /* Date-like field names — empty string in these fields → cast to null (กัน "invalid input syntax for type date") */
   const _DATE_HINT = /(_date|_at|date|expectedDelivery|paidAt|approvedAt|cancelledAt|createdAt|updatedAt|warrantyExpireDate|purchaseDate)$/i;
+  /* Numeric-like field names — empty string → null (กัน "invalid input syntax for type numeric") */
+  const _NUMERIC_HINT = /(amount|qty|weight|price|cost|balance|total|paid|received|payable|receivable|discount|vat|wht|fee|tax|rate|pct|percent|commission|months|salary|opening|limit|principal|interest|installment|gain|loss|deduction|points|score)$/i;
   function _mapKeysS(obj, customMap = {}) {
     const out = {};
     for (const [k, v] of Object.entries(obj || {})) {
       if (v === undefined) continue;
       const sk = customMap[k] || _camelToSnake(k);
-      // 🔧 Convert empty strings to null for date-like fields
-      if (v === '' && (_DATE_HINT.test(k) || _DATE_HINT.test(sk))) {
+      // 🔧 Convert empty strings to null for date or numeric fields
+      if (v === '' && (_DATE_HINT.test(k) || _DATE_HINT.test(sk) || _NUMERIC_HINT.test(k) || _NUMERIC_HINT.test(sk))) {
         out[sk] = null;
       } else {
         out[sk] = v;
@@ -3767,7 +3769,33 @@ window.$erp = {
             break;
           }
 
-          // 5. Network / RLS / unrecoverable
+          // 5. Duplicate UNIQUE constraint (เช่น doc_no) → bump unique field และลองใหม่
+          const uniqueMatch = msg.match(/duplicate key value violates unique constraint ['"]?([a-z_]+)['"]?/);
+          if (uniqueMatch) {
+            const constraintName = uniqueMatch[1];
+            // Extract column name from constraint (pattern: tablename_column_key)
+            const colMatch = constraintName.match(/_([a-z_]+)_key$/);
+            if (colMatch) {
+              const col = colMatch[1];
+              // Bump value with random suffix
+              chunk = chunk.map(r => {
+                if (r[col]) {
+                  return { ...r, [col]: r[col] + '-' + Math.random().toString(36).slice(2,5).toUpperCase() };
+                }
+                return r;
+              });
+              _logErr(cfg.target, '⚠ duplicate "'+col+'" — bumped with suffix, retrying');
+              continue;  // retry
+            }
+          }
+
+          // 6. Deadlock detected → wait + retry once
+          if (msg.includes('deadlock detected') && attempts < 5) {
+            await new Promise(r => setTimeout(r, 500));
+            continue;  // retry
+          }
+
+          // 7. Network / RLS / unrecoverable
           fail += chunk.length;
           _logErr(cfg.target, msg.slice(0, 150));
           break;
