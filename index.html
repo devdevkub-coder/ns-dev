@@ -2508,7 +2508,7 @@ function seedData() {
         seeCost:true, seeProfit:false, seeCash:false, seeFinancials:false, seeOpening:false,
         branchScope:'all' },
       { id:'R-POOPAE', name:'Poopae', desc:'Role พิเศษ — เข้าถึงพิเศษ + Production + Asset + Loan', isSystem:false,
-        menus:['dashboard','changePassword','purchase','sales','stockIssue','paymentApproval','payment','receipt','expense','ar','ap','bank','cashPosition','stockBalance','stockLedger','transactionLedger','mdCustomer','mdSupplier','mdProduct','mdChannel','importTxn','pendingSales','poOutstanding','poBuy','poSell','tradingDashboard','tradingMatching','reports','plStatement','balanceSheet','cashFlowStatement','production','productionReport','wipReport','productionCostReport','yieldLossReport','machineUtil','loanContracts','loanDashboard','assetRegister','depreciation','assetDisposal','equityMaint','openingBalance','audit','anomalyDetector','backup','companyProfile'],
+        menus:['dashboard','changePassword','purchase','sales','stockIssue','paymentApproval','payment','receipt','expense','ar','ap','bank','cashPosition','stockBalance','stockLedger','transactionLedger','mdCustomer','mdSupplier','mdProduct','mdChannel','mdAccount','importTxn','pendingSales','poOutstanding','poBuy','poSell','tradingDashboard','tradingMatching','reports','plStatement','balanceSheet','cashFlowStatement','production','productionReport','wipReport','productionCostReport','yieldLossReport','machineUtil','loanContracts','loanDashboard','assetRegister','depreciation','assetDisposal','equityMaint','openingBalance','audit','anomalyDetector','backup','companyProfile'],
         actions:{'*':['view','create','edit','post','export']},
         seeCost:true, seeProfit:true, seeCash:true, seeFinancials:true, seeOpening:true,
         branchScope:'all' },
@@ -10346,6 +10346,7 @@ app.component('view-sales', {
         salesman:erp.currentUser.value?.username||'', creditTerm:0, note:'', items:[],
         licensePlate:'',                 // 🚗 ทะเบียนรถส่งของ
         contactPhone:'', contactName:'', // 📞 ผู้ติดต่อรับของ
+        salesId:'',                       // 🆕 เซลที่ดูแลลูกค้า (FK → salespersons.id)
         subtotal:0, discountTotal:0, hasVat:false, vatAmount:0,
         vatInvoiceIssued:false,           // 🔥 ออกใบกำกับภาษีตัวจริงให้ลูกค้าแล้ว
         vatInvoiceNo:'',
@@ -10379,6 +10380,52 @@ app.component('view-sales', {
           .filter(x => x.remainingAmt > 0.01);
       } catch (e) { return []; }
     });
+
+    /* 🆕 Auto-prefill ข้อมูลจาก Customer master เมื่อเลือก customer */
+    watch(() => form.customerId, (newId, oldId) => {
+      if (!newId || newId === oldId) return;
+      const c = (db.customers||[]).find(x => x && x.id === newId);
+      if (!c) return;
+      // Prefill phone — เฉพาะถ้าฟอร์มยังว่าง
+      if (!form.contactPhone && c.phone) form.contactPhone = c.phone;
+      // Prefill salesId — เฉพาะถ้าฟอร์มยังว่าง
+      if (!form.salesId && c.salesId) form.salesId = c.salesId;
+      // Prefill credit term
+      if (!form.creditTerm && c.creditTerm) form.creditTerm = Number(c.creditTerm);
+    });
+    /* 🆕 Save salesId กลับเข้า customer master เมื่อ user เปลี่ยน */
+    function updateCustomerSalesId(custId, val) {
+      const c = (db.customers||[]).find(x => x && x.id === custId);
+      if (!c) return;
+      const newVal = String(val||'').trim();
+      if ((c.salesId||'') === newVal) return;
+      c.salesId = newVal;
+      try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+      const sp = (db.salespersons||[]).find(s => s && s.id === newVal);
+      erp.logAudit('UPDATE_CUSTOMER_SALES','customers',{id:custId},{salesId:newVal,salesName:sp?.name||'-'});
+      erp.showToast('✓ บันทึกเซลที่ดูแลเข้า Master Data Customer แล้ว');
+    }
+    function getCustomerSalesId(custId) {
+      const c = (db.customers||[]).find(x => x && x.id === custId);
+      return c?.salesId || '';
+    }
+    function quickAddSalesForCustomer() {
+      const name = (prompt('ชื่อเซลที่ดูแล:') || '').trim();
+      if (!name) return;
+      const existing = (db.salespersons||[]).find(s => s && (s.name||'').trim().toLowerCase() === name.toLowerCase());
+      if (existing) {
+        form.salesId = existing.id;
+        if (form.customerId) updateCustomerSalesId(form.customerId, existing.id);
+        return;
+      }
+      if (!Array.isArray(db.salespersons)) db.salespersons = [];
+      const id = 'SP'+String(((db.salespersons||[]).length+1)).padStart(3,'0');
+      const code = 'S'+String(((db.salespersons||[]).length+1)).padStart(2,'0');
+      db.salespersons.push({ id, code, name, phone:'', email:'', commissionPct:0, baseSalary:0, active:true, note:'เพิ่มจากบิลขาย' });
+      form.salesId = id;
+      if (form.customerId) updateCustomerSalesId(form.customerId, id);
+      erp.showToast('✓ เพิ่มเซล "'+name+'" + บันทึกเข้า Master Customer');
+    }
 
     /* Load items from Trading Purchase Bill — same product/qty, user enters sale price */
     function loadFromTradingPurchase() {
@@ -10841,7 +10888,9 @@ app.component('view-sales', {
       filterMode, filterDateFrom, filterDateTo,
       open, save, addItem, removeItem, recalcLine, cancelBill, deleteBill, filtered, statusBadge, statusText,
       loadFromPOSell, availableTradingPurchases, loadFromTradingPurchase, billTotals, toggleVatIssued, goToPendingSale, fmt:erp.fmt,
-      addTradingPurchase, removeTradingPurchase };
+      addTradingPurchase, removeTradingPurchase,
+      // 🆕 Customer salesId helpers
+      getCustomerSalesId, updateCustomerSalesId, quickAddSalesForCustomer };
   },
   template: `
   <div>
@@ -15393,11 +15442,23 @@ app.component('view-stockIssue', {
                 <div class="col-span-2"><label class="block text-xs mb-1">ต้นทุน WAC</label><input type="number" step="0.01" v-model.number="it.unitCost" class="w-full px-2 py-1 border rounded text-xs text-right bg-amber-50"></div>
                 <div class="col-span-2"><label class="block text-xs mb-1">ราคาขายคาด</label><input type="number" step="0.01" v-model.number="it.estPrice" class="w-full px-2 py-1 border rounded text-xs text-right bg-emerald-50"></div>
                 <div class="col-span-1 text-right"><button @click="removeItem(i)" class="text-red-500 text-lg">×</button></div>
-                <div v-if="it.productId && form.warehouseId" class="col-span-12 text-xs text-slate-500 -mt-1">
-                  Stock คงเหลือ: <b>{{fmt(erp.stockOnHand(it.productId, form.branchId, form.warehouseId))}}</b> กก.
-                  <span v-if="Number(it.qty)>0" :class="erp.stockOnHand(it.productId, form.branchId, form.warehouseId) - Number(it.qty) < 0 ? 'text-red-600 font-bold' : 'text-emerald-700'">
-                    → หลังเบิก: {{fmt(erp.stockOnHand(it.productId, form.branchId, form.warehouseId) - Number(it.qty))}} กก.
-                  </span>
+                <!-- 📦 Stock before/after (เห็นเด่นชัด) -->
+                <div v-if="it.productId && form.warehouseId" class="col-span-12 bg-gradient-to-r from-blue-50 to-amber-50 border border-blue-200 rounded p-2 grid grid-cols-3 gap-2 text-xs">
+                  <div class="bg-blue-100 rounded p-2 text-center">
+                    <div class="text-blue-700 text-[10px]">📦 Stock ก่อนเบิก</div>
+                    <div class="font-bold text-blue-700 text-sm">{{fmt(erp.stockOnHand(it.productId, form.branchId, form.warehouseId))}} กก.</div>
+                  </div>
+                  <div class="bg-amber-100 rounded p-2 text-center">
+                    <div class="text-amber-700 text-[10px]">➖ จะเบิกออก</div>
+                    <div class="font-bold text-amber-700 text-sm">{{fmt(Number(it.qty||0))}} กก.</div>
+                  </div>
+                  <div :class="['rounded p-2 text-center', (erp.stockOnHand(it.productId, form.branchId, form.warehouseId) - Number(it.qty||0)) < 0 ? 'bg-red-100' : 'bg-emerald-100']">
+                    <div :class="['text-[10px]', (erp.stockOnHand(it.productId, form.branchId, form.warehouseId) - Number(it.qty||0)) < 0 ? 'text-red-700' : 'text-emerald-700']">📊 Stock หลังเบิก</div>
+                    <div :class="['font-bold text-sm', (erp.stockOnHand(it.productId, form.branchId, form.warehouseId) - Number(it.qty||0)) < 0 ? 'text-red-700' : 'text-emerald-700']">
+                      {{fmt(erp.stockOnHand(it.productId, form.branchId, form.warehouseId) - Number(it.qty||0))}} กก.
+                      <span v-if="(erp.stockOnHand(it.productId, form.branchId, form.warehouseId) - Number(it.qty||0)) < 0">⚠️</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -25644,8 +25705,209 @@ app.component('view-openingBalance', {
       } catch (e) { erp.showToast('Unlock ผิดพลาด','error'); }
     }
 
+    /* 🆕 EXCEL IMPORT — รองรับการ Bulk import opening balance */
+    const importLog = ref([]);
+    function _logImp(msg, type='info') {
+      importLog.value.unshift({ at: new Date().toISOString().slice(11,19), msg, type });
+      if (importLog.value.length > 100) importLog.value.length = 100;
+    }
+    function _readExcel(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const wb = XLSX.read(e.target.result, { type:'binary', cellDates:true });
+            const sheet = wb.Sheets[wb.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet, { defval:'' });
+            resolve(rows);
+          } catch(err) { reject(err); }
+        };
+        reader.onerror = () => reject(new Error('อ่านไฟล์ไม่ได้'));
+        reader.readAsBinaryString(file);
+      });
+    }
+    function _findCustomer(text) {
+      const v = String(text||'').trim().toLowerCase();
+      if (!v) return null;
+      return (db.customers||[]).find(c => c && (
+        (c.code||'').toLowerCase() === v ||
+        (c.id||'').toLowerCase() === v ||
+        (c.name||'').toLowerCase() === v ||
+        (c.name||'').toLowerCase().includes(v)
+      ));
+    }
+    function _findSupplier(text) {
+      const v = String(text||'').trim().toLowerCase();
+      if (!v) return null;
+      return (db.suppliers||[]).find(s => s && (
+        (s.code||'').toLowerCase() === v ||
+        (s.id||'').toLowerCase() === v ||
+        (s.name||'').toLowerCase() === v ||
+        (s.name||'').toLowerCase().includes(v)
+      ));
+    }
+    function _findProduct(text) {
+      const v = String(text||'').trim().toLowerCase();
+      if (!v) return null;
+      return (db.products||[]).find(p => p && (
+        (p.code||'').toLowerCase() === v ||
+        (p.id||'').toLowerCase() === v ||
+        (p.name||'').toLowerCase() === v
+      ));
+    }
+    function _findBranch(text) {
+      const v = String(text||'').trim().toLowerCase();
+      if (!v) return null;
+      return (db.branches||[]).find(b => b && (
+        (b.code||'').toLowerCase() === v || (b.id||'').toLowerCase() === v || (b.name||'').toLowerCase() === v
+      ));
+    }
+    function _findWarehouse(text, branchId) {
+      const v = String(text||'').trim().toLowerCase();
+      if (!v) return null;
+      return (db.warehouses||[]).find(w => w && (!branchId || w.branchId === branchId) && (
+        (w.code||'').toLowerCase() === v || (w.id||'').toLowerCase() === v || (w.name||'').toLowerCase() === v
+      ));
+    }
+    function _toDateStr(v) {
+      if (!v) return '';
+      if (v instanceof Date) return v.toISOString().slice(0,10);
+      const s = String(v).trim();
+      // Try parse YYYY-MM-DD or DD/MM/YYYY
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+      const m = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+      if (m) return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+      return s.slice(0,10);
+    }
+
+    async function importExcel(type, file) {
+      try {
+        importLog.value = [];
+        _logImp('📂 อ่านไฟล์ '+file.name+'...');
+        const rows = await _readExcel(file);
+        _logImp('  พบ '+rows.length+' rows');
+        let added = 0, skipped = 0;
+
+        if (type === 'ar') {
+          rows.forEach((r,i) => {
+            const cust = _findCustomer(r.customerCode || r.code || r.customer || r.ลูกค้า);
+            const amt = Number(r.amount || r.ยอด || r.ยอดค้าง || 0);
+            if (!cust) { _logImp('  ⊘ row '+(i+2)+': ไม่พบลูกค้า "'+(r.customerCode||r.customer||'-')+'"', 'warn'); skipped++; return; }
+            if (amt <= 0) { _logImp('  ⊘ row '+(i+2)+': ยอด <= 0', 'warn'); skipped++; return; }
+            ob.value.arItems.push({
+              id:'OB-AR-'+Date.now()+'-'+i+'-'+Math.random().toString(36).slice(2,5),
+              customerId: cust.id,
+              billNo: String(r.billNo || r.bill || ''),
+              billDate: _toDateStr(r.billDate || r.date || ob.value.cutoffDate),
+              amount: amt,
+              dueDate: _toDateStr(r.dueDate || ''),
+              note: String(r.note || r.หมายเหตุ || '')
+            });
+            added++;
+          });
+        } else if (type === 'ap') {
+          rows.forEach((r,i) => {
+            const sup = _findSupplier(r.supplierCode || r.code || r.supplier || r.ผู้ขาย);
+            const amt = Number(r.amount || r.ยอด || r.ยอดค้าง || 0);
+            if (!sup) { _logImp('  ⊘ row '+(i+2)+': ไม่พบ supplier "'+(r.supplierCode||r.supplier||'-')+'"', 'warn'); skipped++; return; }
+            if (amt <= 0) { _logImp('  ⊘ row '+(i+2)+': ยอด <= 0', 'warn'); skipped++; return; }
+            ob.value.apItems.push({
+              id:'OB-AP-'+Date.now()+'-'+i+'-'+Math.random().toString(36).slice(2,5),
+              supplierId: sup.id,
+              billNo: String(r.billNo || r.bill || ''),
+              billDate: _toDateStr(r.billDate || r.date || ob.value.cutoffDate),
+              amount: amt,
+              dueDate: _toDateStr(r.dueDate || ''),
+              note: String(r.note || r.หมายเหตุ || '')
+            });
+            added++;
+          });
+        } else if (type === 'stock') {
+          rows.forEach((r,i) => {
+            const prod = _findProduct(r.productCode || r.code || r.product || r.สินค้า);
+            const qty = Number(r.qty || r.quantity || r.น้ำหนัก || 0);
+            const cost = Number(r.unitCost || r.wac || r.cost || r.ต้นทุน || 0);
+            if (!prod) { _logImp('  ⊘ row '+(i+2)+': ไม่พบสินค้า "'+(r.productCode||r.product||'-')+'"', 'warn'); skipped++; return; }
+            if (qty <= 0) { _logImp('  ⊘ row '+(i+2)+': qty <= 0', 'warn'); skipped++; return; }
+            const branch = _findBranch(r.branchCode || r.branch || r.สาขา);
+            const wh = _findWarehouse(r.warehouseCode || r.warehouse || r.คลัง, branch?.id);
+            ob.value.stockItems.push({
+              id:'OB-ST-'+Date.now()+'-'+i+'-'+Math.random().toString(36).slice(2,5),
+              productId: prod.id,
+              itemStatus: String(r.itemStatus || r.status || prod.itemStatus || 'RM').toUpperCase(),
+              branchId: branch?.id || '',
+              warehouseId: wh?.id || '',
+              lotNo: String(r.lotNo || r.lot || 'OPENING'),
+              qty, unitCost: cost,
+              paid: r.paid === true || r.paid === 'true' || r.paid === 1 || r.paid === 'TRUE',
+              note: String(r.note || r.หมายเหตุ || '')
+            });
+            added++;
+          });
+        } else if (type === 'or') {
+          rows.forEach((r,i) => {
+            const amt = Number(r.amount || r.ยอด || 0);
+            if (amt <= 0) { skipped++; return; }
+            ob.value.otherReceivables.push({
+              id:'OB-OR-'+Date.now()+'-'+i+'-'+Math.random().toString(36).slice(2,5),
+              type: String(r.type || 'Other Receivable'),
+              name: String(r.name || r.รายการ || ''),
+              amount: amt,
+              dueDate: _toDateStr(r.dueDate || ''),
+              note: String(r.note || '')
+            });
+            added++;
+          });
+        } else if (type === 'op') {
+          rows.forEach((r,i) => {
+            const amt = Number(r.amount || r.ยอด || 0);
+            if (amt <= 0) { skipped++; return; }
+            ob.value.otherPayables.push({
+              id:'OB-OP-'+Date.now()+'-'+i+'-'+Math.random().toString(36).slice(2,5),
+              type: String(r.type || 'Other Payable'),
+              name: String(r.name || r.รายการ || ''),
+              amount: amt,
+              dueDate: _toDateStr(r.dueDate || ''),
+              note: String(r.note || '')
+            });
+            added++;
+          });
+        }
+
+        _logImp('✅ Import เสร็จ — เพิ่ม '+added+' rows · ข้าม '+skipped+' rows', 'ok');
+        try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+        erp.showToast('✓ Import '+type.toUpperCase()+' สำเร็จ — เพิ่ม '+added+' rows ('+skipped+' skip)', 'success');
+      } catch(e) {
+        _logImp('❌ '+e.message, 'error');
+        erp.showToast('Import ผิดพลาด: '+e.message, 'error');
+      }
+    }
+
+    function downloadTemplate(type) {
+      const templates = {
+        'ar': [{ customerCode:'C001', billNo:'OPN-AR-001', billDate:'2026-04-30', amount:100000, dueDate:'2026-05-30', note:'ค้างจ่าย' }],
+        'ap': [{ supplierCode:'S001', billNo:'OPN-AP-001', billDate:'2026-04-30', amount:50000, dueDate:'2026-05-30', note:'ค้างจ่าย' }],
+        'stock': [{ productCode:'P001', itemStatus:'RM', branchCode:'BR001', warehouseCode:'WH001', lotNo:'OPENING', qty:1000, unitCost:250, paid:true, note:'ทองแดง' }],
+        'or': [{ type:'Customer Advance Receivable', name:'มัดจำลูกค้า A', amount:50000, dueDate:'', note:'' }],
+        'op': [{ type:'Customer Advance', name:'รับมัดจำจาก B', amount:30000, dueDate:'', note:'' }],
+      };
+      const ws = XLSX.utils.json_to_sheet(templates[type]||[]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, type.toUpperCase());
+      XLSX.writeFile(wb, 'opening-template-'+type+'.xlsx');
+    }
+
+    function handleImportFile(type, ev) {
+      const file = ev.target.files?.[0];
+      if (!file) return;
+      importExcel(type, file);
+      ev.target.value = '';  // reset input
+    }
+
     return { erp, db, fmt, tab, ob, summary, addAR, addAP, addStock, addOR, addOP,
-      removeFromList, save, forceSyncPush, lockOpening, unlockOpening, showLockResult };
+      removeFromList, save, forceSyncPush, lockOpening, unlockOpening, showLockResult,
+      // 🆕 Excel import
+      importLog, downloadTemplate, handleImportFile };
   },
   template:`
   <div class="space-y-4">
@@ -25753,8 +26015,12 @@ app.component('view-openingBalance', {
     <div v-if="tab==='ar'" class="bg-white rounded-xl shadow p-5">
       <div class="flex justify-between items-center mb-3">
         <h2 class="text-lg font-bold">📥 AR Opening — ลูกหนี้ค้างรับ</h2>
-        <div class="flex gap-2">
+        <div class="flex gap-2 flex-wrap">
           <span class="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm font-bold">รวม {{fmt(summary.arTotal)}}</span>
+          <button v-if="!ob.locked" @click="downloadTemplate('ar')" class="px-3 py-1.5 text-xs bg-slate-200 text-slate-700 rounded">📥 Template</button>
+          <label v-if="!ob.locked" class="px-3 py-1.5 text-xs bg-blue-600 text-white rounded cursor-pointer">📂 Import Excel
+            <input type="file" accept=".xlsx,.xls,.csv" class="hidden" @change="handleImportFile('ar', $event)">
+          </label>
           <button v-if="!ob.locked" @click="addAR" class="px-3 py-1.5 text-sm bg-emerald-600 text-white rounded">+ เพิ่ม</button>
         </div>
       </div>
@@ -25779,8 +26045,12 @@ app.component('view-openingBalance', {
     <div v-if="tab==='ap'" class="bg-white rounded-xl shadow p-5">
       <div class="flex justify-between items-center mb-3">
         <h2 class="text-lg font-bold">📤 AP Opening — เจ้าหนี้ค้างจ่าย</h2>
-        <div class="flex gap-2">
+        <div class="flex gap-2 flex-wrap">
           <span class="px-3 py-1 bg-red-100 text-red-700 rounded text-sm font-bold">รวม {{fmt(summary.apTotal)}}</span>
+          <button v-if="!ob.locked" @click="downloadTemplate('ap')" class="px-3 py-1.5 text-xs bg-slate-200 text-slate-700 rounded">📥 Template</button>
+          <label v-if="!ob.locked" class="px-3 py-1.5 text-xs bg-blue-600 text-white rounded cursor-pointer">📂 Import Excel
+            <input type="file" accept=".xlsx,.xls,.csv" class="hidden" @change="handleImportFile('ap', $event)">
+          </label>
           <button v-if="!ob.locked" @click="addAP" class="px-3 py-1.5 text-sm bg-emerald-600 text-white rounded">+ เพิ่ม</button>
         </div>
       </div>
@@ -25809,7 +26079,17 @@ app.component('view-openingBalance', {
           <span class="px-3 py-1 bg-amber-100 text-amber-700 rounded text-sm font-bold">รวม {{fmt(summary.stockTotal)}}</span>
           <span class="px-3 py-1 bg-emerald-100 text-emerald-700 rounded text-sm">จ่ายแล้ว {{fmt(summary.stockPaid)}}</span>
           <span class="px-3 py-1 bg-red-100 text-red-700 rounded text-sm">ยังไม่จ่าย {{fmt(summary.stockUnpaid)}}</span>
+          <button v-if="!ob.locked" @click="downloadTemplate('stock')" class="px-3 py-1.5 text-xs bg-slate-200 text-slate-700 rounded">📥 Template</button>
+          <label v-if="!ob.locked" class="px-3 py-1.5 text-xs bg-blue-600 text-white rounded cursor-pointer">📂 Import Excel
+            <input type="file" accept=".xlsx,.xls,.csv" class="hidden" @change="handleImportFile('stock', $event)">
+          </label>
           <button v-if="!ob.locked" @click="addStock" class="px-3 py-1.5 text-sm bg-emerald-600 text-white rounded">+ เพิ่ม</button>
+        </div>
+      </div>
+      <!-- Import log -->
+      <div v-if="importLog && importLog.length" class="bg-slate-50 border rounded p-2 mb-2 text-xs max-h-32 overflow-y-auto">
+        <div v-for="l in importLog.slice(0,15)" :key="l.at" :class="{'text-emerald-700':l.type==='ok','text-amber-700':l.type==='warn','text-red-700':l.type==='error'}">
+          [{{l.at}}] {{l.msg}}
         </div>
       </div>
       <p class="text-xs text-slate-500 mb-2">หมายเหตุ: เมื่อ Lock ระบบจะสร้าง Stock Ledger movement <code>OPENING_STOCK_IN</code> และ WAC คำนวณอัตโนมัติ</p>
