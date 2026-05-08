@@ -135,8 +135,8 @@
           <option value="">ทุกสาขา</option>
           <option v-for="b in db.branches" :value="b.id">{{ b.name }}</option>
         </select>
-        <!-- Cloud Sync Indicator (คลิกเพื่อ force sync ทันที) -->
-        <button v-if="syncStatus.enabled" @click="manualSyncNow" :title="syncStatus.tooltip + ' — คลิกเพื่อ Sync ทันที'"
+        <!-- Cloud Sync Indicator (คลิก: error ดู errors / สำเร็จ force sync) -->
+        <button v-if="syncStatus.enabled" @click="syncStatus.state==='error' ? (showSyncErrors=true) : manualSyncNow()" :title="syncStatus.state==='error'?'คลิกเพื่อดู errors':syncStatus.tooltip + ' — คลิกเพื่อ Sync ทันที'"
           :class="['text-xs px-2 py-1 rounded font-medium flex items-center gap-1 cursor-pointer hover:opacity-80 transition',
             syncStatus.state==='syncing' ? 'bg-blue-100 text-blue-700' :
             syncStatus.state==='ok' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' :
@@ -144,7 +144,7 @@
             'bg-slate-100 text-slate-600']">
           <span>{{syncStatus.state==='syncing'?'⏳':syncStatus.state==='ok'?'☁️✓':syncStatus.state==='error'?'☁️✗':'☁️'}}</span>
           <span class="hidden md:inline">{{syncStatus.label}}</span>
-          <span class="text-[10px] opacity-70 hidden lg:inline">🔄</span>
+          <span class="text-[10px] opacity-70 hidden lg:inline">{{syncStatus.state==='error'?'⚠':'🔄'}}</span>
         </button>
         <div class="text-right hidden sm:block">
           <div class="text-sm font-medium text-slate-800">{{ currentUser.username }}</div>
@@ -194,6 +194,60 @@
 <!-- TOAST -->
 <div v-if="toast.show" :class="['fixed bottom-6 right-6 px-4 py-3 rounded-lg shadow-lg text-white z-50 transition', toast.type === 'error' ? 'bg-red-600' : toast.type === 'warn' ? 'bg-amber-600' : 'bg-emerald-600']">
   {{ toast.msg }}
+</div>
+
+<!-- 🆕 Sync Errors Modal -->
+<div v-if="showSyncErrors" class="fixed inset-0 bg-black/50 z-50 overflow-y-auto" @click.self="showSyncErrors=false">
+  <div class="bg-white rounded-xl shadow-2xl max-w-3xl mx-auto my-8">
+    <div class="px-5 py-3 border-b bg-red-50 flex justify-between items-center">
+      <h3 class="font-bold text-red-700 text-lg">☁️✗ Sync Errors — รายการที่ Push ไม่ได้</h3>
+      <button @click="showSyncErrors=false" class="text-2xl text-slate-400 leading-none">&times;</button>
+    </div>
+    <div class="p-5 space-y-3 text-sm">
+      <div class="bg-amber-50 border border-amber-200 rounded p-3 text-amber-800">
+        <b>📊 สถานะ:</b> {{syncStatus.label}} · <b>{{getErrorList().length}}</b> errors ล่าสุด
+      </div>
+      <div v-if="getErrorList().length === 0" class="text-center py-8 text-slate-400">
+        ไม่มี error log
+      </div>
+      <div v-else class="border rounded overflow-y-auto" style="max-height:400px">
+        <table class="w-full text-xs">
+          <thead class="bg-slate-100 sticky top-0">
+            <tr>
+              <th class="p-2 text-left">เวลา</th>
+              <th class="p-2 text-left">ตาราง</th>
+              <th class="p-2 text-left">ข้อความ</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(e, idx) in getErrorList()" :key="idx" class="border-t hover:bg-red-50">
+              <td class="p-2 font-mono text-slate-500 whitespace-nowrap">{{e.at}}</td>
+              <td class="p-2 font-bold text-red-700">{{e.table}}</td>
+              <td class="p-2 text-slate-700">{{e.msg}}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <!-- Tips -->
+      <div class="bg-blue-50 border border-blue-200 rounded p-3 text-xs text-blue-800">
+        <b>💡 วิธีแก้:</b>
+        <ul class="list-disc ml-4 mt-1 space-y-0.5">
+          <li><b>"column does not exist"</b> — local มีฟิลด์ที่ Supabase schema ไม่มี → ระบบ drop ให้อัตโนมัติแล้ว</li>
+          <li><b>"NOT NULL"</b> — บิลขาดข้อมูลที่ Cloud บังคับ → เปิดบิล + Save อีกครั้ง</li>
+          <li><b>"foreign key constraint"</b> — อ้างถึงข้อมูลที่ยังไม่ได้ push (เช่น supplier ใหม่) → ระบบ retry ครั้งถัดไป</li>
+          <li><b>"row-level security"</b> — RLS block — ติดต่อ admin ตั้ง policy</li>
+          <li><b>Network error</b> — ลอง Sync ใหม่หรือ refresh</li>
+        </ul>
+      </div>
+    </div>
+    <div class="px-5 py-3 border-t bg-slate-50 flex justify-between gap-2">
+      <button @click="clearSyncErrors" class="text-sm text-red-600 hover:underline">🗑 ล้าง error log</button>
+      <div class="flex gap-2">
+        <button @click="manualSyncNow" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-sm">🔄 Try Again</button>
+        <button @click="showSyncErrors=false" class="px-4 py-2 bg-slate-300 hover:bg-slate-400 rounded text-sm">ปิด</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 </div>
@@ -3557,34 +3611,125 @@ window.$erp = {
     if (state === 'ok') ss.lastSyncAt = new Date().toISOString();
   }
 
-  /* Push 1 table (silent) */
+  /* 🆕 Error log — เก็บ error ล่าสุดเพื่อ debug ผ่าน window.$autoSync.lastErrors() */
+  const errorLog = [];
+  function _logErr(table, msg) {
+    errorLog.unshift({ at: new Date().toISOString().slice(11,19), table, msg });
+    if (errorLog.length > 50) errorLog.length = 50;
+  }
+  const NEVER_DROP = new Set(['id','code','created_at']);
+
+  /* Push 1 table — Smart retry on schema/FK errors (เหมือน manual migrate) */
   async function _pushTable(localKey) {
     const cfg = AS_MAP[localKey]; if (!cfg) return { ok:0, fail:0 };
     const rows = (_GLOBAL_DB[localKey] || []).filter(r => r && r.id);
     if (!rows.length) return { ok:0, fail:0 };
     const conflictCol = AS_CONFLICT_COL[cfg.target] || 'id';
-    const mapped = _dedupeS(rows.map(r => {
+    let mapped = _dedupeS(rows.map(r => {
       const out = _mapKeysS(r, cfg.keyMap || {});
-      delete out._normalized; delete out._migrated; delete out._dirty;
+      delete out._normalized; delete out._migrated; delete out._dirty; delete out._cutPoIds;
       return out;
     }), conflictCol);
     let ok = 0, fail = 0;
-    const batchSize = 100;
+    const batchSize = 50;
+    const dropCols = new Set();   // columns ที่ไม่มีใน Supabase → drop ออก
+
+    function _stripUnknown(rs) {
+      if (dropCols.size === 0) return rs;
+      return rs.map(r => {
+        const out = { ...r };
+        dropCols.forEach(c => delete out[c]);
+        return out;
+      });
+    }
+
     for (let i = 0; i < mapped.length; i += batchSize) {
-      const chunk = mapped.slice(i, i + batchSize);
-      try {
-        const { error } = await window.sb.from(cfg.target).upsert(chunk, { onConflict: conflictCol });
-        if (error) {
+      let chunk = mapped.slice(i, i + batchSize);
+      let attempts = 0;
+      let success = false;
+      while (attempts < 12 && !success) {
+        attempts++;
+        chunk = _stripUnknown(chunk);
+        try {
+          const { error } = await window.sb.from(cfg.target).upsert(chunk, { onConflict: conflictCol });
+          if (!error) {
+            success = true;
+            ok += chunk.length;
+            break;
+          }
+          // 🔍 พยายาม recover ตาม error pattern (เหมือน manual migrate)
+          const msg = error.message || '';
+
+          // 1. Column doesn't exist → drop column แล้วลองใหม่
+          let badCol = null;
+          const colPatterns = [
+            /Could not find the ['"]?([a-zA-Z0-9_]+)['"]? column/,
+            /column ['"]?([a-zA-Z0-9_]+)['"]? does not exist/,
+          ];
+          for (const p of colPatterns) {
+            const m = msg.match(p);
+            if (m) { badCol = m[1]; break; }
+          }
+          if (badCol && NEVER_DROP.has(badCol)) {
+            _logErr(cfg.target, '⛔ ห้าม drop "'+badCol+'" (PK) — skip batch: '+msg);
+            fail += chunk.length;
+            break;
+          }
+          if (badCol && !dropCols.has(badCol)) {
+            dropCols.add(badCol);
+            console.warn('[autoSync] '+cfg.target+': drop column "'+badCol+'" และลองใหม่');
+            continue; // retry
+          }
+
+          // 2. NOT NULL violation → required field หาย → skip batch
+          const nnMatch = msg.match(/null value in column ['"]?([a-zA-Z0-9_]+)['"]?/);
+          if (nnMatch) {
+            _logErr(cfg.target, 'NOT NULL "'+nnMatch[1]+'" required — skip batch');
+            fail += chunk.length;
+            break;
+          }
+
+          // 3. FK violation → set FK column to null and retry
+          const fkMatch = msg.match(/foreign key constraint ['"]?([a-z_]+?)_([a-z_]+_id)_fkey/);
+          if (fkMatch) {
+            const fkCol = fkMatch[2];
+            if (NEVER_DROP.has(fkCol)) {
+              _logErr(cfg.target, 'FK on "'+fkCol+'" — ห้ามตั้ง null');
+              fail += chunk.length;
+              break;
+            }
+            chunk = chunk.map(r => ({ ...r, [fkCol]: null }));
+            console.warn('[autoSync] '+cfg.target+': FK violation '+fkCol+' → set null');
+            continue;
+          }
+
+          // 4. Duplicate ID in batch → split ทีละ row
+          if (msg.includes('cannot affect row a second time') && batchSize > 1) {
+            let okC = 0, failC = 0;
+            for (const single of chunk) {
+              try {
+                const { error: e2 } = await window.sb.from(cfg.target).upsert([single], { onConflict: conflictCol });
+                if (e2) failC++; else okC++;
+              } catch(e3) { failC++; }
+            }
+            ok += okC; fail += failC;
+            success = true;
+            if (failC > 0) _logErr(cfg.target, 'split batch: '+failC+' rows fail individually');
+            break;
+          }
+
+          // 5. Network / RLS / unrecoverable
           fail += chunk.length;
-          console.warn('[autoSync] push '+cfg.target+' batch error:', error.message);
-        } else {
-          ok += chunk.length;
+          _logErr(cfg.target, msg.slice(0, 150));
+          break;
+        } catch(e) {
+          fail += chunk.length;
+          _logErr(cfg.target, 'EXCEPTION: '+e.message);
+          break;
         }
-      } catch(e) {
-        fail += chunk.length;
-        console.warn('[autoSync] push '+cfg.target+' exception:', e.message);
       }
     }
+    if (dropCols.size > 0) console.warn('[autoSync] '+cfg.target+' dropped columns: '+[...dropCols].join(', '));
     return { ok, fail };
   }
 
@@ -3636,14 +3781,26 @@ window.$erp = {
           if (data.length < pageSize) break;
           from += pageSize;
         }
-        const localRows = allRows.map(r => _mapKeysReverseS(r, cfg.keyMap || {}));
+        const cloudRows = allRows.map(r => _mapKeysReverseS(r, cfg.keyMap || {}));
         // SMART: skip if cloud is empty but local has data (don't wipe local)
         if (allRows.length === 0 && (_GLOBAL_DB[localKey] || []).length > 0) continue;
-        // Replace IN PLACE for Vue reactivity (don't break existing array reference)
+        // 🆕 MERGE strategy (ไม่ลบ local rows ที่ cloud ไม่มี — จะถูก push ขึ้นรอบถัดไป)
         const arr = _GLOBAL_DB[localKey] = _GLOBAL_DB[localKey] || [];
-        arr.length = 0;
-        localRows.forEach(r => arr.push(r));
-        totalRows += localRows.length;
+        const conflictCol = AS_CONFLICT_COL[cfg.target] || 'id';
+        const cloudById = new Map();
+        cloudRows.forEach(r => { if (r && r[conflictCol] != null) cloudById.set(r[conflictCol], r); });
+        // STEP 1: Update existing local rows — ถ้า id มีใน cloud → เอา cloud version แทน
+        for (let j = 0; j < arr.length; j++) {
+          const localKey2 = arr[j] && arr[j][conflictCol];
+          if (localKey2 != null && cloudById.has(localKey2)) {
+            arr[j] = cloudById.get(localKey2);
+            cloudById.delete(localKey2);
+          }
+        }
+        // STEP 2: Add cloud-only rows (id ที่ local ยังไม่มี)
+        cloudById.forEach(r => arr.push(r));
+        // STEP 3: KEEP local-only rows (cloud ยังไม่มี) — จะถูก push ใน cycle ถัดไป
+        totalRows += cloudRows.length;
       } catch(e) {
         errors++;
         console.warn('[autoSync] pull '+cfg.target+' error:', e.message);
@@ -3730,7 +3887,9 @@ window.$erp = {
     pullNow: () => pullAll(),
     isEnabled: () => enabled,
     dirtyTables: () => Array.from(dirtyTables),
-    status: () => ({ enabled, isPushing, isPulling, lastSyncMsg, dirty:Array.from(dirtyTables) }),
+    lastErrors: () => errorLog.slice(),
+    clearErrors: () => { errorLog.length = 0; },
+    status: () => ({ enabled, isPushing, isPulling, lastSyncMsg, dirty:Array.from(dirtyTables), errorCount: errorLog.length }),
   };
 })();
 
@@ -4330,9 +4489,18 @@ const app = createApp({
       }
     }
 
+    /* 🆕 Sync Errors Modal */
+    const showSyncErrors = ref(false);
+    function getErrorList() { return window.$autoSync?.lastErrors() || []; }
+    function clearSyncErrors() {
+      if (window.$autoSync?.clearErrors) window.$autoSync.clearErrors();
+      showToast('🗑 ล้าง error log แล้ว');
+    }
+
     return { db, currentUser, currentView, currentBranchId, sidebarOpen, loginForm, loginError, canViewCurrent,
       menuGroups: visibleMenuGroups, currentTitle, toast, login, logout, resetDemo,
-      syncStatus, dataEmptyBanner, forcePulling, forcePull, manualSyncNow };
+      syncStatus, dataEmptyBanner, forcePulling, forcePull, manualSyncNow,
+      showSyncErrors, getErrorList, clearSyncErrors };
   }
 });
 
