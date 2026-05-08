@@ -3471,10 +3471,19 @@ const app = createApp({
       if (useSupabase) {
         try {
           const { authUser, profile } = await loginWithSupabase(loginForm.username, loginForm.password);
+          // Look up local role by NAME (Supabase role name → local roleId)
+          const roleName = profile.role || 'User';
+          const localRole = (db.roles||[]).find(r => r && (
+            r.name === roleName ||
+            r.id === 'R-'+roleName.toUpperCase() ||
+            r.id?.toUpperCase() === ('R-'+roleName).toUpperCase()
+          ));
+          const resolvedRoleId = localRole?.id || ('R-'+roleName.toUpperCase());
+          const resolvedRoleName = localRole?.name || roleName;
           currentUser.value = {
             username: profile.username || loginForm.username,
-            role: profile.role || 'User',
-            roleId: 'R-'+(profile.role||'USER').toUpperCase(),
+            role: resolvedRoleName,
+            roleId: resolvedRoleId,
             userId: profile.user_id,
             authId: authUser.id,
             email: profile.email || authUser.email,
@@ -3485,8 +3494,8 @@ const app = createApp({
             authSource: 'supabase',
           };
           loginForm.password = '';
-          window.$erp.logActivity('LOGIN', '-', currentUser.value.username, 'role='+currentUser.value.role+' (Supabase)');
-          showToast('เข้าสู่ระบบสำเร็จ ☁️ (Supabase)','success');
+          window.$erp.logActivity('LOGIN', '-', currentUser.value.username, 'role='+currentUser.value.role+' (Supabase, roleId='+resolvedRoleId+')');
+          showToast('เข้าสู่ระบบสำเร็จ ☁️ '+resolvedRoleName,'success');
           // Enable cloud sync indicator
           syncStatus.enabled = true;
           syncStatus.state = 'ok';
