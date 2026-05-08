@@ -2441,6 +2441,9 @@ function seedData() {
     /* INTL FINANCE — Transactions */
     supplierAdvances: [],
     customerAdvances: [],
+    /* 🆕 เงินสำรองจ่าย / กู้กรรมการ — เงินที่บริษัทจ่ายล่วงหน้าให้ผู้รับ (กรรมการ/พนักงาน) ไปใช้จ่าย */
+    pettyAdvances: [],         // [{id, docNo, date, type:'DIRECTOR_LOAN'|'PETTY_CASH', recipientName, amount, accountId, status:'active'|'closed', notes, returnedAmount, returnedAt, createdBy, createdAt}]
+    pettyReturns: [],          // [{id, advanceId, date, amount, accountId, notes, createdBy, createdAt}] — บันทึกการคืนเงิน
     advanceAllocations: [],   // หัก advance กับ bill
     intlTransfers: [],
     overseasReceipts: [],
@@ -2498,7 +2501,7 @@ function seedData() {
         branchScope:'all' },
       /* === Custom Roles ที่ใช้จริงในบริษัท (แก้/ลบได้) === */
       { id:'R-ACCOUNTANT', name:'บัญชี', desc:'บัญชี — งบการเงิน, AR/AP, ภาษี + บิลซื้อ/ขาย', isSystem:false,
-        menus:['changePassword','purchase','sales','stockIssue','payment','receipt','transfer','expense','paymentApproval','billSwapHistory','stockBalance','stockLedger','tradingDashboard','tradingMatching','poBuy','poSell','poOutstanding','reports','audit','salesPlan','pendingSales','ar','ap','bank','cashPosition','plStatement','balanceSheet','cashFlowStatement','cashFlowAnalysis','workingCapital','taxVAT','transactionLedger','mdCustomer','mdSupplier','mdProduct','mdAccount','mdExpense','mdImport','equityMaint','backup','companyProfile'],
+        menus:['changePassword','purchase','sales','stockIssue','payment','receipt','transfer','expense','pettyAdvance','expenseDashboard','paymentApproval','billSwapHistory','stockBalance','stockLedger','tradingDashboard','tradingMatching','poBuy','poSell','poOutstanding','reports','audit','salesPlan','pendingSales','ar','ap','bank','cashPosition','plStatement','balanceSheet','cashFlowStatement','cashFlowAnalysis','workingCapital','taxVAT','transactionLedger','mdCustomer','mdSupplier','mdProduct','mdAccount','mdExpense','mdImport','equityMaint','backup','companyProfile'],
         actions:{'*':['view','create','edit','post','export']},
         seeCost:true, seeProfit:true, seeCash:true, seeFinancials:true, seeOpening:false,
         branchScope:'all' },
@@ -2508,7 +2511,7 @@ function seedData() {
         seeCost:true, seeProfit:false, seeCash:false, seeFinancials:false, seeOpening:false,
         branchScope:'all' },
       { id:'R-POOPAE', name:'Poopae', desc:'Role พิเศษ — เข้าถึงพิเศษ + Production + Asset + Loan', isSystem:false,
-        menus:['dashboard','changePassword','purchase','sales','stockIssue','paymentApproval','payment','receipt','expense','ar','ap','bank','cashPosition','stockBalance','stockLedger','transactionLedger','mdCustomer','mdSupplier','mdProduct','mdChannel','mdAccount','importTxn','pendingSales','poOutstanding','poBuy','poSell','tradingDashboard','tradingMatching','reports','plStatement','balanceSheet','cashFlowStatement','production','productionReport','wipReport','productionCostReport','yieldLossReport','machineUtil','loanContracts','loanDashboard','assetRegister','depreciation','assetDisposal','equityMaint','openingBalance','audit','anomalyDetector','backup','companyProfile'],
+        menus:['dashboard','changePassword','purchase','sales','stockIssue','paymentApproval','payment','receipt','expense','pettyAdvance','expenseDashboard','ar','ap','bank','cashPosition','stockBalance','stockLedger','transactionLedger','mdCustomer','mdSupplier','mdProduct','mdChannel','mdAccount','importTxn','pendingSales','poOutstanding','poBuy','poSell','tradingDashboard','tradingMatching','reports','plStatement','balanceSheet','cashFlowStatement','production','productionReport','wipReport','productionCostReport','yieldLossReport','machineUtil','loanContracts','loanDashboard','assetRegister','depreciation','assetDisposal','equityMaint','openingBalance','audit','anomalyDetector','backup','companyProfile'],
         actions:{'*':['view','create','edit','post','export']},
         seeCost:true, seeProfit:true, seeCash:true, seeFinancials:true, seeOpening:true,
         branchScope:'all' },
@@ -2533,8 +2536,8 @@ function seedData() {
       ownerEquityAdjustment: 0,
     },
     companyProfile: {       // ข้อมูลบริษัท สำหรับพิมพ์ในใบรับ/ใบส่ง
-      name: 'บริษัท เอ็นเอส รีไซเคิล จำกัด',
-      nameEn: 'NS Recycle Co., Ltd.',
+      name: 'บริษัท นิวโซลูชั่นส์ (ไทยแลนด์) จำกัด',
+      nameEn: 'New Solutions (Thailand) Co., Ltd.',
       taxId: '0000000000000',
       branchCode: '00000',
       address: 'กรุณาแก้ไขที่ Setup → ข้อมูลบริษัท',
@@ -2749,6 +2752,12 @@ function loadDB() {
     /* migration: suppliers ต้องมี salesId field (สำหรับ Sales-Supplier tracking) */
     if (Array.isArray(d.suppliers)) {
       d.suppliers.forEach(s => { if (s && s.salesId === undefined) s.salesId = ''; });
+    }
+    /* 🆕 migration: auto-update company name (เฉพาะถ้ายังเป็น default เก่า) */
+    if (d.companyProfile && (d.companyProfile.name === 'บริษัท เอ็นเอส รีไซเคิล จำกัด' || !d.companyProfile.name || d.companyProfile.name === 'NS Recycle Co., Ltd.')) {
+      d.companyProfile.name = 'บริษัท นิวโซลูชั่นส์ (ไทยแลนด์) จำกัด';
+      d.companyProfile.nameEn = 'New Solutions (Thailand) Co., Ltd.';
+      console.log('✓ Migration: company name updated to New Solutions (Thailand)');
     }
     return d;
   } catch(e) {
@@ -3076,6 +3085,39 @@ window.$erp = {
      Walks chronologically using current stockLedger entries. Updates each downstream
      transaction's unitCost, totalCost, profit, and its stockLedger entry's valueOut.
      Use after edit/delete of purchase bills. */
+  /* 🆕 Recalc AR/AP balances — ใช้แก้กรณี paidAmount/receivedAmount ไม่ตรงกับ payments/receipts จริง
+     เกิดจาก sync race condition (push/pull ตอนละช่วงเวลาทำให้ field ไม่ตรง)
+     เรียกใช้หลัง Pull หรือคลิกปุ่ม "🔄 รีเฟรชยอดค้าง" */
+  recalcBillBalances: () => {
+    try {
+      let fixedPB = 0, fixedSB = 0;
+      // Recalc Purchase Bills (AP)
+      _safeArr(_GLOBAL_DB.purchaseBills).forEach(b => {
+        if (!b || b.status === 'cancelled' || b.id?.startsWith('PB-OPN-')) return;
+        const payments = _safeArr(_GLOBAL_DB.payments).filter(p => p && p.billId === b.id);
+        const paid = payments.reduce((s,p) => s + Number(p.amount||0) + Number(p.withholdingTax||0) + Number(p.discount||0), 0);
+        const oldPaid = Number(b.paidAmount||0);
+        const oldBal = Number(b.payableBalance||0);
+        b.paidAmount = paid;
+        b.payableBalance = Math.max(0, Number(b.totalAmount||0) - paid);
+        b.status = paid <= 0 ? 'unpaid' : (b.payableBalance <= 0.01 ? 'paid' : 'partial');
+        if (Math.abs(oldPaid - paid) > 0.01 || Math.abs(oldBal - b.payableBalance) > 0.01) fixedPB++;
+      });
+      // Recalc Sales Bills (AR)
+      _safeArr(_GLOBAL_DB.salesBills).forEach(b => {
+        if (!b || b.status === 'cancelled' || b.id?.startsWith('SB-OPN-')) return;
+        const receipts = _safeArr(_GLOBAL_DB.receipts).filter(r => r && r.billId === b.id);
+        const received = receipts.reduce((s,r) => s + Number(r.amount||0), 0);
+        const oldRec = Number(b.receivedAmount||0);
+        const oldBal = Number(b.receivableBalance||0);
+        b.receivedAmount = received;
+        b.receivableBalance = Math.max(0, Number(b.totalAmount||0) - received);
+        b.status = received <= 0 ? 'unreceived' : (b.receivableBalance <= 0.01 ? 'received' : 'partial');
+        if (Math.abs(oldRec - received) > 0.01 || Math.abs(oldBal - b.receivableBalance) > 0.01) fixedSB++;
+      });
+      return { fixedPB, fixedSB };
+    } catch(e) { console.error('recalcBillBalances:', e); return { fixedPB:0, fixedSB:0 }; }
+  },
   recalcDownstreamCosts: (productIds = null) => {
     try {
       const products = productIds ? new Set(productIds) : null;
@@ -3267,6 +3309,7 @@ window.$erp = {
                   if (party.salesRep || party.salesPerson) return '<br>🧑‍💼 เซลที่ดูแล: <b>'+(party.salesRep || party.salesPerson)+'</b>';
                   return '<br>🏢 ลูกค้าบริษัท';
                 })()}
+                ${(isReceipt && party.bankAccount) ? '<br>💳 เลขบัญชี: <b style="font-family:monospace;background:#fef9c3;padding:2px 6px;border-radius:4px">'+party.bankAccount+'</b>'+(party.bankName?' ('+party.bankName+')':'') : ''}
                 ${isReceipt ? '' : (party.address?'<br>'+party.address:'') + (party.taxId?'<br>เลขผู้เสียภาษี: '+party.taxId:'')}
               </div>
             </div>
@@ -3338,8 +3381,7 @@ window.$erp = {
           </div>
 
           <div class="footer-note">
-            ${co.footerNote||''}<br>
-            ${co.bankInfo?'ธนาคาร: '+co.bankInfo:''}
+            ${co.footerNote||''}
           </div>
         </div>
 
@@ -3817,6 +3859,13 @@ window.$erp = {
       }
     }
     isPulling = false;
+    // 🆕 Auto-recalc AR/AP balances หลัง pull (กัน sync race ทำให้ paidAmount เพี้ยน)
+    try {
+      const r = window.$erp?.recalcBillBalances?.();
+      if (r && (r.fixedPB > 0 || r.fixedSB > 0)) {
+        console.log('[autoSync] Recalc balances: fixed '+r.fixedPB+' PBs, '+r.fixedSB+' SBs');
+      }
+    } catch(e) { console.warn('recalc after pull:', e); }
     if (errors > 0) {
       _updateStatus('error', '⚠ Pull '+errors+' errors', 'บางตาราง pull ไม่ได้');
     } else {
@@ -4111,6 +4160,8 @@ const app = createApp({
         {view:'receipt', label:'รับเงิน Customer', icon:'💰'},
         {view:'transfer', label:'โอนเงินระหว่างบัญชี', icon:'🔄'},
         {view:'expense', label:'ค่าใช้จ่าย', icon:'🧾'},
+        {view:'pettyAdvance', label:'เงินสำรองจ่าย / กู้กรรมการ', icon:'🏦'},
+        {view:'expenseDashboard', label:'Dashboard ค่าใช้จ่าย', icon:'📊'},
         {view:'stockTransfer', label:'โอนสินค้าระหว่างสาขา', icon:'🚚'},
         {view:'billSwapHistory', label:'📜 ประวัติเปลี่ยน Supplier ในบิล', icon:'🔄'},
       ]},
@@ -6044,29 +6095,42 @@ app.component('view-stockLedger', {
       <span class="ml-auto text-xs text-slate-500 bg-slate-100 px-3 py-1.5 rounded">📊 พบ <b>{{list.length}}</b> รายการ</span>
     </div>
     <div class="bg-white rounded-xl shadow overflow-x-auto">
-      <table class="w-full text-sm table-zebra">
-        <thead class="bg-slate-100"><tr><th class="p-2 text-left">วันที่</th><th class="p-2 text-left">เลขบิล</th><th class="p-2 text-left">ผู้ขาย / ผู้ซื้อ</th><th class="p-2 text-left">ประเภท</th><th class="p-2 text-left">สินค้า</th><th class="p-2 text-right">เข้า</th><th class="p-2 text-right">ออก</th><th class="p-2 text-right">ต้นทุน/หน่วย</th><th class="p-2 text-right">มูลค่าเข้า</th><th class="p-2 text-right">มูลค่าออก</th></tr></thead>
+      <table class="w-full text-sm table-zebra" style="min-width:1100px">
+        <thead class="bg-slate-100">
+          <tr>
+            <th class="p-2 text-left whitespace-nowrap" style="width:90px">วันที่</th>
+            <th class="p-2 text-left whitespace-nowrap" style="width:120px">เลขบิล</th>
+            <th class="p-2 text-left" style="min-width:240px">ผู้ขาย / ผู้ซื้อ (ชื่อ)</th>
+            <th class="p-2 text-left whitespace-nowrap" style="width:130px">ประเภท</th>
+            <th class="p-2 text-left" style="min-width:200px">สินค้า</th>
+            <th class="p-2 text-right" style="width:90px">เข้า (กก.)</th>
+            <th class="p-2 text-right" style="width:90px">ออก (กก.)</th>
+            <th class="p-2 text-right" style="width:110px">ต้นทุน/หน่วย</th>
+            <th class="p-2 text-right" style="width:110px">มูลค่าเข้า</th>
+            <th class="p-2 text-right" style="width:110px">มูลค่าออก</th>
+          </tr>
+        </thead>
         <tbody>
           <tr v-for="m in list" :key="m.id" class="border-t hover:bg-slate-50">
-            <td class="p-2">{{m.date}}</td>
-            <td class="p-2">
+            <td class="p-2 whitespace-nowrap">{{m.date}}</td>
+            <td class="p-2 whitespace-nowrap">
               <button v-if="m._cp.clickable" @click.stop="openDetail(m)" class="font-mono text-xs text-blue-600 hover:text-blue-800 hover:underline cursor-pointer">{{m.refNo}} 🔍</button>
               <span v-else class="font-mono text-xs text-slate-500">{{m.refNo||'-'}}</span>
             </td>
             <td class="p-2">
-              <div v-if="m._cp.clickable">
-                <span class="text-xs px-1.5 py-0.5 rounded mr-1" :class="m._cp.kind==='ผู้ขาย'?'bg-emerald-100 text-emerald-700':'bg-blue-100 text-blue-700'">{{m._cp.kind}}</span>
-                <span class="font-medium" :class="m._cp.kind==='ผู้ขาย'?'text-emerald-700':'text-blue-700'">{{m._cp.name}}</span>
+              <div v-if="m._cp.clickable" class="flex items-center gap-1.5 flex-wrap">
+                <span class="text-[10px] px-1.5 py-0.5 rounded font-bold whitespace-nowrap" :class="m._cp.kind==='ผู้ขาย'?'bg-emerald-100 text-emerald-700':'bg-blue-100 text-blue-700'">{{m._cp.kind}}</span>
+                <span class="font-semibold text-sm" :class="m._cp.kind==='ผู้ขาย'?'text-emerald-800':'text-blue-800'">{{m._cp.name}}</span>
               </div>
-              <span v-else class="text-xs text-slate-500">{{m._cp.name}}</span>
+              <span v-else class="text-xs text-slate-500 italic">{{m._cp.name}}</span>
             </td>
-            <td class="p-2"><span class="text-xs px-2 py-0.5 rounded" :class="m.qtyIn>0?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-700'">{{m.movementType}}</span></td>
-            <td class="p-2">{{erp.productName(m.productId)}}<span v-if="m.lotNo" class="text-xs text-slate-400 ml-1">[{{m.lotNo}}]</span></td>
-            <td class="p-2 text-right text-emerald-600">{{m.qtyIn?fmt(m.qtyIn):'-'}}</td>
-            <td class="p-2 text-right text-red-600">{{m.qtyOut?fmt(m.qtyOut):'-'}}</td>
-            <td class="p-2 text-right text-slate-500">{{fmt(m.unitCost)}}</td>
-            <td class="p-2 text-right">{{m.valueIn?fmt(m.valueIn):'-'}}</td>
-            <td class="p-2 text-right">{{m.valueOut?fmt(m.valueOut):'-'}}</td>
+            <td class="p-2 whitespace-nowrap"><span class="text-xs px-2 py-0.5 rounded font-medium" :class="m.qtyIn>0?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-700'">{{m.movementType}}</span></td>
+            <td class="p-2"><span class="font-medium">{{erp.productName(m.productId)}}</span><span v-if="m.lotNo && m.lotNo!=='OPENING'" class="text-xs text-slate-400 ml-1">[{{m.lotNo}}]</span></td>
+            <td class="p-2 text-right text-emerald-600 font-mono">{{m.qtyIn?fmt(m.qtyIn):'-'}}</td>
+            <td class="p-2 text-right text-red-600 font-mono">{{m.qtyOut?fmt(m.qtyOut):'-'}}</td>
+            <td class="p-2 text-right text-slate-500 font-mono">{{fmt(m.unitCost)}}</td>
+            <td class="p-2 text-right font-mono">{{m.valueIn?fmt(m.valueIn):'-'}}</td>
+            <td class="p-2 text-right font-mono">{{m.valueOut?fmt(m.valueOut):'-'}}</td>
           </tr>
           <tr v-if="list.length===0"><td colspan="10" class="text-center py-8 text-slate-400">ยังไม่มี Stock Movement</td></tr>
         </tbody>
@@ -7301,7 +7365,23 @@ app.component('view-purchase', {
       return { id: newId('LN'), productId:'',
         displayName:'',     // 📝 ชื่อสินค้า custom สำหรับโชว์ในบิล (ถ้าว่าง = ใช้ชื่อ master)
         poBuyId:'',         // 📋 PO Buy ที่ตัดต่อรายการ (เลือกได้คนละ PO ใน 1 บิล)
-        netWeight:0, price:0, netAmount:0 };
+        netWeight:0, price:0, netAmount:0,
+        facePrice:0,        // 🆕 ราคาหน้าใบ (สำหรับคิดค่าคอมเซล) — ใช้เมื่อ supplier มี salesId
+        commission:0        // 🆕 ค่าคอมที่คำนวณได้ (1,000 บาท/ตัน ถ้าซื้อไม่เกินราคาหน้าใบ)
+      };
+    }
+    /* 🆕 คำนวณค่าคอมต่อรายการ — กฎ:
+       1. ซื้อไม่เกินราคาหน้าใบ
+       2. ยอดซื้อรายการต้อง > 1,000,000 บาท
+       → ค่าคอม = ยอด × 0.1% (ล้านละ 1,000) · ไม่ผ่านเงื่อนไข → 0 */
+    function _calcCommission(it) {
+      if (!it || !it.facePrice || Number(it.facePrice) <= 0) return 0;
+      const actual = Number(it.price||0);
+      const face = Number(it.facePrice||0);
+      if (actual > face) return 0;  // ซื้อเกินราคาหน้าใบ — ไม่ได้คอม
+      const amount = Number(it.netAmount||0) || (Number(it.netWeight||0) * actual);
+      if (amount <= 1000000) return 0;  // 🆕 ยอดต้องเกิน 1 ล้าน
+      return Math.round(amount / 1000000 * 1000 * 100) / 100;
     }
     const form = ref({
       docNo: '', date: todayStr(),
@@ -7364,7 +7444,9 @@ app.component('view-purchase', {
           poBuyId: it.poBuyId || '',              // 📋 preserve item-level PO selection
           netWeight: Number(it.netWeight || it.grossWeight || 0),
           price: Number(it.price || 0),
-          netAmount: Number(it.netAmount || 0)
+          netAmount: Number(it.netAmount || 0),
+          facePrice: Number(it.facePrice || 0),   // 🆕 preserve face price
+          commission: Number(it.commission || 0)  // 🆕 preserve commission
         })) : [blankItem()];
         form.value = {
           docNo: b.docNo, date: b.date,
@@ -7394,6 +7476,8 @@ app.component('view-purchase', {
     }
     function recalcItem(it) {
       it.netAmount = num(it.netWeight) * num(it.price);
+      // 🆕 คำนวณค่าคอม (เฉพาะเมื่อมี facePrice > 0)
+      it.commission = _calcCommission(it);
     }
     /* Bill-level totals */
     const billTotals = computed(() => {
@@ -7402,7 +7486,8 @@ app.component('view-purchase', {
       const afterDiscount = Math.max(0, subtotal - num(form.value.discountTotal));
       const vatAmount = form.value.hasVat ? afterDiscount * 0.07 : 0;
       const grandTotal = afterDiscount + vatAmount;
-      return { subtotal, afterDiscount, vatAmount, grandTotal };
+      const totalCommission = items.reduce((s,it) => s + _calcCommission(it), 0);
+      return { subtotal, afterDiscount, vatAmount, grandTotal, totalCommission };
     });
 
     /* Available PO Buys (open/partial only) — pre-computed for dropdown */
@@ -7537,11 +7622,14 @@ app.component('view-purchase', {
             amount: num(it.netAmount),
             discount: 0,
             netAmount: num(it.netAmount),
+            facePrice: num(it.facePrice),                // 🆕 ราคาหน้าใบ
+            commission: _calcCommission(it),             // 🆕 ค่าคอม (recalc to be sure)
             note: ''
           })),
           subtotal, discountTotal,
           hasVat: !!f.hasVat, vatAmount,
           totalAmount: grandTotal,
+          totalCommission: items.reduce((s,it) => s + _calcCommission(it), 0),  // 🆕 รวมค่าคอมทั้งบิล
           // Preserve paidAmount on edit
           paidAmount: isEdit ? Number((safeArr(db.purchaseBills).find(x=>x && x.id===id)||{}).paidAmount||0) : 0,
           payableBalance: grandTotal - (isEdit ? Number((safeArr(db.purchaseBills).find(x=>x && x.id===id)||{}).paidAmount||0) : 0),
@@ -8237,6 +8325,8 @@ app.component('view-purchase', {
                     <th class="p-3 text-left w-52 text-indigo-700">📋 PO ที่ตัด <span class="text-xs font-normal text-slate-500">(เว้น = Spot)</span></th>
                     <th class="p-3 text-right w-28 text-slate-700">น้ำหนัก (กก.)</th>
                     <th class="p-3 text-right w-28 text-slate-700">ราคา/กก.</th>
+                    <th v-if="form.salesId" class="p-3 text-right w-28 text-purple-700 bg-purple-50">💼 ราคาหน้าใบ</th>
+                    <th v-if="form.salesId" class="p-3 text-right w-28 text-emerald-700 bg-emerald-50">💰 ค่าคอม</th>
                     <th class="p-3 text-right w-32 text-slate-700">ยอดรวม</th>
                     <th class="p-3 w-10"></th>
                   </tr>
@@ -8260,6 +8350,18 @@ app.component('view-purchase', {
                     </td>
                     <td class="p-2"><input type="number" step="0.01" v-model.number="it.netWeight" @input="recalcItem(it)" class="w-full px-2 py-1.5 border rounded text-right font-mono"></td>
                     <td class="p-2"><input type="number" step="0.01" v-model.number="it.price" @input="recalcItem(it)" class="w-full px-2 py-1.5 border rounded text-right font-mono"></td>
+                    <!-- 🆕 ราคาหน้าใบ + ค่าคอม (เฉพาะถ้า supplier มีเซลดูแล) -->
+                    <td v-if="form.salesId" class="p-2 bg-purple-50">
+                      <input type="number" step="0.01" v-model.number="it.facePrice" @input="recalcItem(it)" placeholder="0.00" class="w-full px-2 py-1.5 border rounded text-right font-mono bg-white">
+                    </td>
+                    <td v-if="form.salesId" class="p-2 text-right bg-emerald-50">
+                      <div v-if="it.facePrice > 0">
+                        <div v-if="Number(it.price||0) > Number(it.facePrice||0)" class="text-red-600 text-xs font-bold">⊘ เกินราคาหน้าใบ</div>
+                        <div v-else-if="num(it.netAmount) <= 1000000" class="text-amber-600 text-xs font-bold">⊘ ยอด ≤ 1 ล้าน</div>
+                        <div v-else class="font-bold text-emerald-700">{{fmt(num(it.netAmount)/1000000 * 1000)}}</div>
+                      </div>
+                      <div v-else class="text-xs text-slate-400 italic">-</div>
+                    </td>
                     <td class="p-2 text-right font-bold text-blue-700 bg-blue-50 px-3 rounded">{{fmt(it.netAmount)}}</td>
                     <td class="p-2 text-center">
                       <button type="button" v-if="form.items.length>1" @click="removeItem(idx)" class="text-red-500 hover:bg-red-100 rounded-full w-8 h-8" title="ลบรายการ">×</button>
@@ -8267,6 +8369,25 @@ app.component('view-purchase', {
                   </tr>
                 </tbody>
               </table>
+            </div>
+            <!-- 🆕 Commission Summary Banner — เฉพาะถ้า supplier มีเซลดูแล -->
+            <div v-if="form.salesId" class="mt-3 bg-gradient-to-r from-purple-50 to-emerald-50 border-2 border-purple-300 rounded-lg p-3 grid grid-cols-1 md:grid-cols-3 gap-2 items-center">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl">💼</span>
+                <div>
+                  <div class="text-xs text-slate-600">เซลที่ดูแล</div>
+                  <div class="font-bold text-purple-700">{{(db.salespersons||[]).find(s=>s&&s.id===form.salesId)?.name || '-'}}</div>
+                </div>
+              </div>
+              <div class="text-center">
+                <div class="text-xs text-slate-600">📋 กฎค่าคอม</div>
+                <div class="text-xs text-slate-700"><b>ยอด > 1 ล้าน</b> + ราคา ≤ หน้าใบ → ล้านละ 1,000 (0.1%)</div>
+                <div class="text-[10px] text-slate-500 mt-0.5">ตัวอย่าง: 1.5 ล้าน = 1,500 ฿ · 1 ล้าน = 0 ฿ (ต้องเกิน)</div>
+              </div>
+              <div class="text-center bg-emerald-100 rounded p-2">
+                <div class="text-xs text-emerald-700">💰 ค่าคอมรวมบิลนี้</div>
+                <div class="text-2xl font-bold text-emerald-700">{{fmt(billTotals.totalCommission)}}</div>
+              </div>
             </div>
           </div>
 
@@ -8784,16 +8905,34 @@ app.component('view-payment', {
 
     const showOutstandingPanel = ref(true);
 
+    /* 🆕 Recalc balances button — แก้กรณี sync race ทำให้ paidAmount เพี้ยน */
+    function recalcBalances() {
+      try {
+        const r = erp.recalcBillBalances();
+        if (r.fixedPB > 0 || r.fixedSB > 0) {
+          erp.showToast('✓ รีเฟรชยอดสำเร็จ — แก้ '+r.fixedPB+' บิลซื้อ + '+r.fixedSB+' บิลขาย', 'success');
+        } else {
+          erp.showToast('✓ ยอดทุกบิลตรงอยู่แล้ว ไม่มีอะไรต้องแก้', 'success');
+        }
+        // trigger localStorage save
+        try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+      } catch(e) {
+        console.error(e);
+        erp.showToast('Error: '+e.message, 'error');
+      }
+    }
+
     return { db, erp, form, showForm, search, filterDateFrom, filterDateTo, filterAccount, list, totals, num, editingVoucherId,
       open, openEdit, close: close_, save, remove, addLine, removeLine, pickBill, availableBills,
       getBillDisplay, onBillTyped, actualPayable: _actualPayable, fmt: erp.fmt,
       outstandingBills, apSummary, quickPayBill, showOutstandingPanel,
-      addSplit, removeSplit };
+      addSplit, removeSplit, recalcBalances };
   },
   template: `
   <div>
-    <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-sm text-blue-800">
-      <strong>💸 จ่ายเงิน Supplier</strong> — Payment Voucher (รองรับหลายบิลใน 1 voucher)
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-sm text-blue-800 flex items-center justify-between gap-2 flex-wrap">
+      <div><strong>💸 จ่ายเงิน Supplier</strong> — Payment Voucher (รองรับหลายบิลใน 1 voucher)</div>
+      <button @click="recalcBalances" class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded text-xs font-bold whitespace-nowrap" title="แก้กรณีจ่ายแล้วแต่ยอดค้างยังขึ้น">🔄 รีเฟรชยอดค้าง (sync fix)</button>
     </div>
 
     <!-- 📊 SUMMARY DASHBOARD: ค้างจ่าย / เจ้าหนี้ -->
@@ -9884,6 +10023,7 @@ app.component('view-expense', {
     const filterCategory = ref('');
     const filterPayee = ref('');
     const filterAccount = ref('');
+    const filterPaidStatus = ref('pending');   // 🆕 default: pending only (hide paid)
 
     const list = computed(() => {
       try {
@@ -9900,6 +10040,10 @@ app.component('view-expense', {
           if (e.paidStatus !== 'pending') groups[vid].paidCount++;
         });
         let arr = Object.values(groups).map(g => ({ ...g, categoryIds: Array.from(g.categories), paidStatus: g.paidCount === g.count ? 'paid' : (g.paidCount === 0 ? 'pending' : 'partial') }));
+        // 🆕 Filter by paid status (default: pending — ซ่อนรายการที่จ่ายแล้ว)
+        if (filterPaidStatus.value && filterPaidStatus.value !== 'all') {
+          arr = arr.filter(g => g.paidStatus === filterPaidStatus.value);
+        }
         // Apply filters
         if (filterDateFrom.value) arr = arr.filter(g => (g.date||'') >= filterDateFrom.value);
         if (filterDateTo.value) arr = arr.filter(g => (g.date||'') <= filterDateTo.value);
@@ -9963,10 +10107,24 @@ app.component('view-expense', {
       };
     });
 
+    /* 🆕 Payee suggestions — รวมจาก expenses เก่า + suppliers + customers (unique names) */
+    const payeeSuggestions = computed(() => {
+      const set = new Set();
+      // From past expenses (most recent first)
+      safeArr(db.expenses).forEach(e => { if (e?.payee) set.add(e.payee); });
+      // From suppliers (active only)
+      safeArr(db.suppliers).filter(s => s && s.active).forEach(s => { if (s.name) set.add(s.name); });
+      // From customers (active only)
+      safeArr(db.customers).filter(c => c && c.active).forEach(c => { if (c.name) set.add(c.name); });
+      // From salespersons (in case ผู้รับ = พนักงาน)
+      safeArr(db.salespersons).filter(s => s && s.active!==false).forEach(s => { if (s.name) set.add(s.name); });
+      return Array.from(set).sort();
+    });
+
     return { db, erp, form, showForm, list, totals, num, editingVoucherId,
-      search, filterDateFrom, filterDateTo, filterCategory, filterPayee, filterAccount,
+      search, filterDateFrom, filterDateTo, filterCategory, filterPayee, filterAccount, filterPaidStatus,
       open, openEdit, close: close_, save, remove, addLine, removeLine, recalcLineVat, fmt: erp.fmt,
-      payNow, quickPay, expSummary };
+      payNow, quickPay, expSummary, payeeSuggestions };
   },
   template: `
   <div>
@@ -10058,7 +10216,14 @@ app.component('view-expense', {
           <option value="">💳 ทุกบัญชี</option>
           <option v-for="a in db.accounts.filter(x=>x && x.active)" :key="a.id" :value="a.id">{{a.name}}</option>
         </select>
-        <button v-if="search||filterDateFrom||filterDateTo||filterCategory||filterPayee||filterAccount" @click="search='';filterDateFrom='';filterDateTo='';filterCategory='';filterPayee='';filterAccount=''" class="px-3 py-2 text-xs bg-slate-100 hover:bg-slate-200 rounded">✕ ล้าง</button>
+        <!-- 🆕 Filter by paid status — default ซ่อนรายการที่จ่ายแล้ว -->
+        <div class="flex gap-1 border rounded-lg p-0.5">
+          <button @click="filterPaidStatus='pending'" :class="['px-2 py-1 text-xs rounded', filterPaidStatus==='pending'?'bg-amber-500 text-white':'text-amber-700 hover:bg-amber-50']">⏳ รอจ่าย</button>
+          <button @click="filterPaidStatus='partial'" :class="['px-2 py-1 text-xs rounded', filterPaidStatus==='partial'?'bg-blue-500 text-white':'text-blue-700 hover:bg-blue-50']">⚙ บางส่วน</button>
+          <button @click="filterPaidStatus='paid'" :class="['px-2 py-1 text-xs rounded', filterPaidStatus==='paid'?'bg-emerald-500 text-white':'text-emerald-700 hover:bg-emerald-50']">✓ จ่ายแล้ว</button>
+          <button @click="filterPaidStatus='all'" :class="['px-2 py-1 text-xs rounded', filterPaidStatus==='all'?'bg-slate-700 text-white':'text-slate-600 hover:bg-slate-100']">ทั้งหมด</button>
+        </div>
+        <button v-if="search||filterDateFrom||filterDateTo||filterCategory||filterPayee||filterAccount||filterPaidStatus!=='pending'" @click="search='';filterDateFrom='';filterDateTo='';filterCategory='';filterPayee='';filterAccount='';filterPaidStatus='pending'" class="px-3 py-2 text-xs bg-slate-100 hover:bg-slate-200 rounded">✕ ล้าง</button>
         <button @click="open" class="ml-auto bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm">+ Expense Voucher</button>
       </div>
       <div class="mt-2 flex flex-wrap gap-3 text-xs text-slate-600">
@@ -10099,7 +10264,12 @@ app.component('view-expense', {
           <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div><label class="block text-xs mb-1">เลขที่</label><input v-model="form.docNo" class="w-full px-2 py-1.5 border rounded bg-slate-50 font-mono" readonly></div>
             <div><label class="block text-xs mb-1">วันที่</label><input type="date" v-model="form.date" class="w-full px-2 py-1.5 border rounded"></div>
-            <div><label class="block text-xs mb-1">ผู้รับเงิน</label><input v-model="form.payeeName" class="w-full px-2 py-1.5 border rounded"></div>
+            <div><label class="block text-xs mb-1">👤 ผู้รับเงิน <span class="text-slate-400 font-normal">(พิมพ์ค้นหาหรือใช้ของเก่า)</span></label>
+              <input v-model="form.payeeName" list="expense-payees" placeholder="🔍 พิมพ์ชื่อผู้รับเงิน..." class="w-full px-2 py-1.5 border rounded">
+              <datalist id="expense-payees">
+                <option v-for="p in payeeSuggestions" :key="p" :value="p"></option>
+              </datalist>
+            </div>
             <div><label class="block text-xs mb-1">วิธีจ่าย</label><select v-model="form.method" class="w-full px-2 py-1.5 border rounded"><option>โอน</option><option>เงินสด</option><option>เช็ค</option></select></div>
             <div class="md:col-span-2"><label class="block text-xs mb-1">บัญชีจ่าย *</label>
               <select v-model="form.accountId" class="w-full px-2 py-1.5 border rounded">
@@ -15519,26 +15689,47 @@ app.component('view-paymentApproval', {
     });
 
     /* Source 2: Operating Expenses — voucher-grouped, with paidAmount tracking */
+    /* 🆕 Lookup payee → supplier → bankAccount + ปรับ paid status filter (default ซ่อนรายการที่จ่ายแล้ว) */
+    function _payeeBank(payee) {
+      if (!payee || payee === '-') return '';
+      const v = String(payee).trim().toLowerCase();
+      const sup = (db.suppliers||[]).find(s => s && (s.name||'').trim().toLowerCase() === v);
+      return sup?.bankAccount || '';
+    }
+    function _payeeBankName(payee) {
+      if (!payee || payee === '-') return '';
+      const v = String(payee).trim().toLowerCase();
+      const sup = (db.suppliers||[]).find(s => s && (s.name||'').trim().toLowerCase() === v);
+      return sup?.bankName || '';
+    }
     const expenseList = computed(() => {
-      // expenses are recorded as paid immediately, but allow tracking via approval system
-      // group by voucherId
+      // group by voucherId (or e.id if voucherId missing — กัน duplicate)
       const groups = new Map();
       (db.expenses||[]).forEach(e => {
         if (!e) return;
-        const key = e.voucherId || e.id;
+        // 🔧 Dedupe: ใช้ voucherId หรือ docNo (สำหรับ legacy rows ที่ไม่มี voucherId)
+        const key = e.voucherId || e.docNo || e.id;
         if (!groups.has(key)) {
           groups.set(key, {
             id: key, docNo: e.docNo, date: e.date, payee: e.payee||'-',
             accountId: e.accountId, branchId: e.branchId, notes: e.notes||'',
-            totalAmount: 0, items: []
+            paidStatus: e.paidStatus || 'pending',
+            totalAmount: 0, items: [],
+            _payeeBank: _payeeBank(e.payee),
+            _payeeBankName: _payeeBankName(e.payee),
+            _recipientBank: e.recipientBank || ''   // 🆕 manual override
           });
         }
         const g = groups.get(key);
         g.totalAmount += Number(e.amount||0) + Number(e.vat||0) - Number(e.wht||0);
         g.items.push(e);
+        // Use most-paid status across lines (paid if all paid)
+        if (e.paidStatus === 'paid' && g.paidStatus === 'pending') g.paidStatus = 'paid';
       });
       const q = (search.value||'').toLowerCase();
       return Array.from(groups.values()).filter(g => {
+        // 🆕 ซ่อนรายการที่จ่ายแล้วโดย default
+        if (g.paidStatus === 'paid') return false;
         if (filterDateFrom.value && (g.date||'') < filterDateFrom.value) return false;
         if (filterDateTo.value && (g.date||'') > filterDateTo.value) return false;
         if (q) { const t = ((g.docNo||'')+' '+(g.payee||'')).toLowerCase(); if (!t.includes(q)) return false; }
@@ -15622,7 +15813,7 @@ app.component('view-paymentApproval', {
       const rowsHtml = selected.map(item => {
         const pay = Number(selectedIds.value[item.id]?.payAmount||0);
         if (tab.value === 'cost') {
-          return '<tr><td>'+item.date+'</td><td>'+item._supplierName+'</td><td style="font-family:monospace">'+(item._supplierBank||'<span style="color:red">⚠ ไม่มี</span>')+'</td><td style="text-align:right">'+fmt(item.totalAmount)+'</td><td style="text-align:right">'+fmt(item.paidAmount)+'</td><td style="text-align:right">'+fmt(item.payableBalance)+'</td><td style="text-align:right;font-weight:bold;background:#fef3c7">'+fmt(pay)+'</td></tr>';
+          return '<tr><td>'+item.date+'</td><td>'+item._supplierName+'</td><td style="font-family:monospace;font-weight:bold;font-size:14px;background:#fef9c3;padding:6px 10px">'+(item._supplierBank||'<span style="color:red">⚠ ไม่มี</span>')+'</td><td style="text-align:right">'+fmt(item.totalAmount)+'</td><td style="text-align:right">'+fmt(item.paidAmount)+'</td><td style="text-align:right">'+fmt(item.payableBalance)+'</td><td style="text-align:right;font-weight:bold;background:#fef3c7">'+fmt(pay)+'</td></tr>';
         } else {
           return '<tr><td>'+item.date+'</td><td>'+item.payee+'</td><td>'+(item.notes||'')+'</td><td style="text-align:right">'+fmt(item.totalAmount)+'</td><td style="text-align:right;font-weight:bold;background:#fef3c7">'+fmt(pay)+'</td></tr>';
         }
@@ -15713,7 +15904,7 @@ app.component('view-paymentApproval', {
             <td class="p-2 font-mono text-xs">{{b.docNo}}</td>
             <td class="p-2 text-xs">{{b.date}}</td>
             <td class="p-2"><b>{{b._supplierName}}</b></td>
-            <td class="p-2 font-mono text-xs"><span v-if="b._supplierBank">{{b._supplierBank}}</span><span v-else class="text-red-500 text-xs">⚠ ไม่ระบุ</span></td>
+            <td class="p-2"><span v-if="b._supplierBank" class="font-mono font-bold text-base text-blue-900 bg-yellow-100 px-2 py-1 rounded select-all whitespace-nowrap">{{b._supplierBank}}</span><span v-else class="text-red-500 text-xs">⚠ ไม่ระบุ</span></td>
             <td class="p-2 text-right">{{fmt(b.totalAmount)}}</td>
             <td class="p-2 text-right text-emerald-700">{{fmt(b.paidAmount)}}</td>
             <td class="p-2 text-right text-red-700 font-bold">{{fmt(b.payableBalance)}}</td>
@@ -15739,6 +15930,7 @@ app.component('view-paymentApproval', {
             <th class="p-2 text-left">เลขที่</th>
             <th class="p-2 text-left">วันที่</th>
             <th class="p-2 text-left">ผู้รับเงิน</th>
+            <th class="p-2 text-left">เลขบัญชี / ธนาคาร</th>
             <th class="p-2 text-left">หมายเหตุ</th>
             <th class="p-2 text-right">ยอดเต็ม</th>
             <th class="p-2 text-right">ยอดที่จะจ่าย</th>
@@ -15751,6 +15943,14 @@ app.component('view-paymentApproval', {
             <td class="p-2 font-mono text-xs">{{g.docNo}}</td>
             <td class="p-2 text-xs">{{g.date}}</td>
             <td class="p-2"><b>{{g.payee}}</b></td>
+            <!-- 🆕 เลขบัญชี: lookup จาก supplier ที่ตรงกับ payee name -->
+            <td class="p-2">
+              <div v-if="g._payeeBank">
+                <span class="font-mono font-bold text-base text-blue-900 bg-yellow-100 px-2 py-1 rounded select-all whitespace-nowrap">{{g._payeeBank}}</span>
+                <div v-if="g._payeeBankName" class="text-[10px] text-slate-500 mt-0.5">{{g._payeeBankName}}</div>
+              </div>
+              <span v-else class="text-xs text-amber-600">⚠ ไม่มี — ตรวจ Master Data</span>
+            </td>
             <td class="p-2 text-xs text-slate-500">{{g.notes}}</td>
             <td class="p-2 text-right">{{fmt(g.totalAmount)}}</td>
             <td class="p-2 text-right">
@@ -15761,7 +15961,7 @@ app.component('view-paymentApproval', {
               <button v-if="g._approved" @click="unapprove('EXP', g.id)" class="text-red-500 text-xs ml-1" title="ยกเลิก">×</button>
             </td>
           </tr>
-          <tr v-if="expenseList.length===0"><td colspan="8" class="text-center py-8 text-slate-400">ไม่มีค่าใช้จ่าย</td></tr>
+          <tr v-if="expenseList.length===0"><td colspan="9" class="text-center py-8 text-slate-400">ไม่มีค่าใช้จ่ายค้างจ่าย</td></tr>
         </tbody>
       </table>
     </div>
@@ -20383,6 +20583,629 @@ app.component('view-assetDisposal', {
         </div>
         <div class="px-5 py-3 border-t bg-slate-50 flex justify-end gap-2"><button @click="showModal=false" class="px-4 py-2 text-sm hover:bg-slate-200 rounded">ยกเลิก</button><button @click="save" class="px-4 py-2 text-sm bg-slate-700 text-white rounded">บันทึก</button></div>
       </div>
+    </div>
+  </div>`
+});
+
+/* =================================================================
+   🏦 PETTY ADVANCE / DIRECTOR LOAN — เงินสำรองจ่าย / กู้กรรมการ
+   ================================================================= */
+app.component('view-pettyAdvance', {
+  setup() {
+    const erp = window.$erp; const db = erp.db; const fmt = erp.fmt;
+    const showForm = ref(false);
+    const showReturnModal = ref(false);
+    const showDetailModal = ref(false);
+    const editing = ref(null);
+    const detailAdv = ref(null);
+    const search = ref('');
+    const filterStatus = ref('active');
+    const filterType = ref('');
+    const form = reactive({});
+    const returnForm = reactive({});
+
+    function blank() {
+      return {
+        docNo: erp.nextDocNo ? erp.nextDocNo('PADV') : ('PADV-'+Date.now().toString(36).toUpperCase()),
+        date: erp.today(),
+        type: 'DIRECTOR_LOAN',         // DIRECTOR_LOAN | PETTY_CASH
+        recipientName: '',
+        amount: 0,
+        accountId: '',
+        status: 'active',
+        notes: '',
+        returnedAmount: 0,
+        createdBy: erp.currentUser.value?.username||'-',
+        createdAt: new Date().toISOString(),
+      };
+    }
+    function open(item=null) {
+      Object.keys(form).forEach(k => delete form[k]);
+      if (item) {
+        Object.assign(form, JSON.parse(JSON.stringify(item)));
+        editing.value = item;
+      } else {
+        Object.assign(form, blank());
+        editing.value = null;
+      }
+      showForm.value = true;
+    }
+    function save() {
+      if (!form.recipientName) { erp.showToast('กรอกชื่อผู้รับเงิน','error'); return; }
+      if (!form.amount || form.amount <= 0) { erp.showToast('กรอกจำนวนเงิน','error'); return; }
+      if (!form.accountId) { erp.showToast('เลือกบัญชีจ่ายออก','error'); return; }
+      const isEdit = !!editing.value;
+      const id = isEdit ? editing.value.id : ('PADV-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,5));
+      const rec = JSON.parse(JSON.stringify({ ...form, id }));
+      if (!Array.isArray(db.pettyAdvances)) db.pettyAdvances = [];
+      // Remove old bank statement entry if edit
+      if (isEdit) {
+        db.bankStatement = db.bankStatement.filter(s => !(s && s.refType === 'PADV' && s.refId === id));
+        const idx = db.pettyAdvances.findIndex(a => a && a.id === id);
+        if (idx >= 0) db.pettyAdvances[idx] = rec;
+      } else {
+        db.pettyAdvances.push(rec);
+      }
+      // Create bank statement entry — เงินออกจากบริษัท
+      db.bankStatement.push({
+        id: erp.uid('BS'), date: rec.date, accountId: rec.accountId,
+        type: rec.type === 'DIRECTOR_LOAN' ? 'กู้กรรมการ' : 'เงินสำรองจ่าย',
+        desc: rec.docNo + ' - ' + rec.recipientName + (rec.notes ? ' ('+rec.notes+')' : ''),
+        in: 0, out: Number(rec.amount),
+        refType: 'PADV', refId: id, refNo: rec.docNo,
+        createdBy: rec.createdBy
+      });
+      try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+      erp.logAudit(isEdit?'update':'create', 'pettyAdvance', editing.value, rec);
+      erp.showToast(isEdit ? '✏️ แก้ไขเงินสำรองจ่ายแล้ว' : '✓ บันทึกเงินสำรองจ่ายแล้ว');
+      showForm.value = false;
+      editing.value = null;
+    }
+    function openReturn(adv) {
+      Object.keys(returnForm).forEach(k => delete returnForm[k]);
+      Object.assign(returnForm, {
+        advanceId: adv.id, advance: adv,
+        date: erp.today(),
+        amount: Math.max(0, Number(adv.amount||0) - Number(adv.returnedAmount||0) - _spentOnAdvance(adv.id)),
+        accountId: adv.accountId,
+        notes: ''
+      });
+      showReturnModal.value = true;
+    }
+    function saveReturn() {
+      if (!returnForm.amount || returnForm.amount <= 0) { erp.showToast('กรอกจำนวนเงินคืน','error'); return; }
+      if (!returnForm.accountId) { erp.showToast('เลือกบัญชีรับคืน','error'); return; }
+      if (!Array.isArray(db.pettyReturns)) db.pettyReturns = [];
+      const id = 'PRET-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,5);
+      const rec = {
+        id, advanceId: returnForm.advanceId,
+        date: returnForm.date,
+        amount: Number(returnForm.amount),
+        accountId: returnForm.accountId,
+        notes: returnForm.notes,
+        createdBy: erp.currentUser.value?.username||'-',
+        createdAt: new Date().toISOString()
+      };
+      db.pettyReturns.push(rec);
+      // Bank statement: เงินเข้าบัญชี
+      db.bankStatement.push({
+        id: erp.uid('BS'), date: rec.date, accountId: rec.accountId,
+        type: 'คืนเงินสำรองจ่าย',
+        desc: 'คืน '+returnForm.advance.docNo+' โดย '+returnForm.advance.recipientName,
+        in: rec.amount, out: 0,
+        refType: 'PRET', refId: id, refNo: returnForm.advance.docNo,
+        createdBy: rec.createdBy
+      });
+      // Update advance returnedAmount + check status
+      const adv = db.pettyAdvances.find(a => a && a.id === rec.advanceId);
+      if (adv) {
+        adv.returnedAmount = Number(adv.returnedAmount||0) + rec.amount;
+        const spent = _spentOnAdvance(adv.id);
+        const total = Number(adv.amount||0);
+        if (Math.abs(adv.returnedAmount + spent - total) < 1) {
+          adv.status = 'closed';
+          adv.closedAt = new Date().toISOString();
+        }
+      }
+      try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+      erp.logAudit('return','pettyAdvance',null,rec);
+      erp.showToast('✓ คืนเงิน '+fmt(rec.amount)+' แล้ว');
+      showReturnModal.value = false;
+    }
+    function _spentOnAdvance(advId) {
+      // คำนวณจาก expenses ที่ link กับ advance นี้
+      return (db.expenses||[]).filter(e => e && e.advanceId === advId).reduce((s,e) => s + Number(e.amount||0) + Number(e.vat||0), 0);
+    }
+    function _expensesForAdv(advId) {
+      return (db.expenses||[]).filter(e => e && e.advanceId === advId);
+    }
+    function _returnsForAdv(advId) {
+      return (db.pettyReturns||[]).filter(r => r && r.advanceId === advId);
+    }
+    function openDetail(adv) {
+      detailAdv.value = adv;
+      showDetailModal.value = true;
+    }
+    function deleteAdv(adv) {
+      const spent = _spentOnAdvance(adv.id);
+      const ret = (db.pettyReturns||[]).filter(r => r.advanceId === adv.id).length;
+      if (spent > 0 || ret > 0) { alert('ลบไม่ได้ — มี expense '+spent+' บาท หรือ return '+ret+' รายการ ที่ link อยู่'); return; }
+      if (!confirm('ลบ '+adv.docNo+' ?')) return;
+      db.pettyAdvances = db.pettyAdvances.filter(a => a.id !== adv.id);
+      db.bankStatement = db.bankStatement.filter(s => !(s.refType === 'PADV' && s.refId === adv.id));
+      erp.showToast('ลบสำเร็จ');
+    }
+
+    const enriched = computed(() => {
+      return safeArr(db.pettyAdvances).map(a => {
+        const spent = _spentOnAdvance(a.id);
+        const returned = Number(a.returnedAmount||0);
+        const total = Number(a.amount||0);
+        const remaining = total - spent - returned;
+        return { ...a, _spent:spent, _returned:returned, _remaining:remaining,
+          _expenseCount: _expensesForAdv(a.id).length };
+      });
+    });
+    const filtered = computed(() => {
+      const q = (search.value||'').toLowerCase();
+      return enriched.value
+        .filter(a => !filterStatus.value || a.status === filterStatus.value)
+        .filter(a => !filterType.value || a.type === filterType.value)
+        .filter(a => !q || (a.docNo+' '+a.recipientName+' '+(a.notes||'')).toLowerCase().includes(q))
+        .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    });
+    const stats = computed(() => {
+      const all = enriched.value.filter(a => a.status !== 'cancelled');
+      return {
+        total: all.length,
+        active: all.filter(a => a.status === 'active').length,
+        totalAmount: all.reduce((s,a) => s+Number(a.amount||0), 0),
+        totalSpent: all.reduce((s,a) => s+a._spent, 0),
+        totalReturned: all.reduce((s,a) => s+a._returned, 0),
+        totalRemaining: all.filter(a => a.status === 'active').reduce((s,a) => s+a._remaining, 0),
+        byRecipient: (() => {
+          const m = new Map();
+          all.forEach(a => {
+            const k = a.recipientName;
+            if (!m.has(k)) m.set(k, { name:k, count:0, totalAmt:0, remain:0, active:0 });
+            const v = m.get(k);
+            v.count++; v.totalAmt += Number(a.amount||0);
+            if (a.status === 'active') { v.remain += a._remaining; v.active++; }
+          });
+          return Array.from(m.values()).sort((a,b)=>b.remain-a.remain).slice(0,10);
+        })(),
+      };
+    });
+
+    return { erp, db, fmt, form, returnForm, showForm, showReturnModal, showDetailModal,
+      editing, detailAdv, search, filterStatus, filterType,
+      filtered, stats, open, save, openReturn, saveReturn, openDetail, deleteAdv,
+      _expensesForAdv, _returnsForAdv };
+  },
+  template: `
+  <div class="space-y-4">
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-purple-700 to-pink-600 text-white rounded-xl p-5 shadow">
+      <h1 class="text-2xl font-bold">🏦 เงินสำรองจ่าย / กู้กรรมการ</h1>
+      <p class="text-sm opacity-90 mt-1">ติดตามเงินที่จ่ายล่วงหน้าให้กรรมการ/พนักงานไปใช้จ่าย — รายละเอียดบิลที่จ่ายแต่ละก้อน + การคืนเงิน</p>
+    </div>
+
+    <!-- KPIs -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div class="bg-white rounded-xl p-3 shadow"><div class="text-xs text-slate-500">📋 รายการทั้งหมด</div><div class="text-2xl font-bold">{{stats.total}}</div></div>
+      <div class="bg-amber-50 rounded-xl p-3 shadow"><div class="text-xs text-amber-700">⏰ ค้างคืน (active)</div><div class="text-2xl font-bold text-amber-700">{{stats.active}}</div></div>
+      <div class="bg-blue-50 rounded-xl p-3 shadow"><div class="text-xs text-blue-700">💸 จ่ายไปทั้งหมด</div><div class="text-xl font-bold text-blue-700">{{fmt(stats.totalAmount)}}</div></div>
+      <div class="bg-emerald-50 rounded-xl p-3 shadow"><div class="text-xs text-emerald-700">✓ ใช้จ่าย/คืนแล้ว</div><div class="text-xl font-bold text-emerald-700">{{fmt(stats.totalSpent + stats.totalReturned)}}</div></div>
+      <div class="bg-red-50 rounded-xl p-3 shadow"><div class="text-xs text-red-700">⚠ ค้างคืน</div><div class="text-xl font-bold text-red-700">{{fmt(stats.totalRemaining)}}</div></div>
+    </div>
+
+    <!-- Top recipients -->
+    <div v-if="stats.byRecipient.length" class="bg-white rounded-xl shadow p-4">
+      <div class="font-bold text-slate-700 mb-2">👥 Top 10 ผู้รับเงินที่ค้างคืน</div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+        <div v-for="r in stats.byRecipient" :key="r.name" class="flex justify-between border rounded p-2 bg-slate-50">
+          <div><b>{{r.name}}</b> · <span class="text-xs text-slate-500">{{r.count}} ครั้ง</span></div>
+          <div :class="r.remain>0?'text-red-700 font-bold':'text-emerald-600'">{{fmt(r.remain)}} ค้าง</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="bg-white rounded-xl shadow p-3 flex flex-wrap gap-2 items-center">
+      <input v-model="search" placeholder="🔍 ค้นหา..." class="flex-1 min-w-[200px] px-3 py-2 border rounded text-sm">
+      <select v-model="filterType" class="px-2 py-2 border rounded text-sm">
+        <option value="">ทุกประเภท</option>
+        <option value="DIRECTOR_LOAN">👔 กู้กรรมการ</option>
+        <option value="PETTY_CASH">💵 เงินสำรองจ่าย</option>
+      </select>
+      <select v-model="filterStatus" class="px-2 py-2 border rounded text-sm">
+        <option value="">ทุกสถานะ</option>
+        <option value="active">⏰ ค้างคืน</option>
+        <option value="closed">✓ ปิดแล้ว</option>
+        <option value="cancelled">⊘ ยกเลิก</option>
+      </select>
+      <button @click="open()" class="ml-auto bg-purple-600 text-white px-4 py-2 rounded text-sm font-bold">+ จ่ายล่วงหน้าใหม่</button>
+    </div>
+
+    <!-- List -->
+    <div class="bg-white rounded-xl shadow overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100">
+          <tr>
+            <th class="p-2 text-left">เลขที่</th>
+            <th class="p-2 text-left">วันที่</th>
+            <th class="p-2 text-left">ประเภท</th>
+            <th class="p-2 text-left">ผู้รับเงิน</th>
+            <th class="p-2 text-right">ยอดจ่าย</th>
+            <th class="p-2 text-right">ใช้ไปแล้ว</th>
+            <th class="p-2 text-right">คืนแล้ว</th>
+            <th class="p-2 text-right">คงค้าง</th>
+            <th class="p-2 text-center">สถานะ</th>
+            <th class="p-2 text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="a in filtered" :key="a.id" class="border-t hover:bg-purple-50">
+            <td class="p-2 font-mono text-xs">{{a.docNo}}</td>
+            <td class="p-2">{{a.date}}</td>
+            <td class="p-2">
+              <span :class="['text-xs px-2 py-0.5 rounded', a.type==='DIRECTOR_LOAN'?'bg-purple-100 text-purple-700':'bg-amber-100 text-amber-700']">
+                {{a.type==='DIRECTOR_LOAN'?'👔 กู้กรรมการ':'💵 เงินสำรองจ่าย'}}
+              </span>
+            </td>
+            <td class="p-2 font-bold">{{a.recipientName}}</td>
+            <td class="p-2 text-right">{{fmt(a.amount)}}</td>
+            <td class="p-2 text-right text-blue-700">
+              <button v-if="a._spent>0" @click="openDetail(a)" class="hover:underline">{{fmt(a._spent)}} ({{a._expenseCount}} บิล)</button>
+              <span v-else>-</span>
+            </td>
+            <td class="p-2 text-right text-emerald-700">{{fmt(a._returned)}}</td>
+            <td class="p-2 text-right font-bold" :class="a._remaining>1?'text-red-700':'text-emerald-700'">{{fmt(a._remaining)}}</td>
+            <td class="p-2 text-center">
+              <span v-if="a.status==='active'" class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs">⏰ ค้างคืน</span>
+              <span v-else-if="a.status==='closed'" class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs">✓ ปิดแล้ว</span>
+              <span v-else class="px-2 py-0.5 rounded-full bg-slate-200 text-slate-500 text-xs">⊘ ยกเลิก</span>
+            </td>
+            <td class="p-2 text-right whitespace-nowrap">
+              <button @click="openDetail(a)" class="text-blue-600 text-xs hover:underline mr-1" title="ดูรายละเอียด">🔍</button>
+              <button v-if="a.status==='active' && a._remaining>1" @click="openReturn(a)" class="bg-emerald-600 text-white px-2 py-1 rounded text-xs mr-1">💵 คืนเงิน</button>
+              <button v-if="a.status==='active'" @click="open(a)" class="text-blue-600 text-xs hover:underline mr-1">แก้</button>
+              <button v-if="a._expenseCount===0" @click="deleteAdv(a)" class="text-red-600 text-xs hover:underline">🗑</button>
+            </td>
+          </tr>
+          <tr v-if="filtered.length===0"><td colspan="10" class="text-center py-8 text-slate-400">ยังไม่มีรายการ</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Form Modal -->
+    <div v-if="showForm" class="fixed inset-0 z-50 modal-backdrop p-4 overflow-y-auto">
+      <div class="bg-white rounded-xl shadow-2xl max-w-2xl mx-auto my-4">
+        <div class="px-5 py-3 border-b flex justify-between bg-purple-50">
+          <h3 class="font-semibold">{{editing?'✏️ แก้ไข':'+ จ่ายเงินสำรอง/กู้'}}</h3>
+          <button @click="showForm=false" class="text-2xl text-slate-400">&times;</button>
+        </div>
+        <div class="p-5 space-y-3 text-sm">
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div><label class="block text-xs mb-1">เลขที่</label><input v-model="form.docNo" class="w-full px-2 py-1.5 border rounded font-mono bg-slate-50" readonly></div>
+            <div><label class="block text-xs mb-1">วันที่ *</label><input type="date" v-model="form.date" class="w-full px-2 py-1.5 border rounded"></div>
+            <div><label class="block text-xs mb-1">ประเภท *</label>
+              <select v-model="form.type" class="w-full px-2 py-1.5 border rounded">
+                <option value="DIRECTOR_LOAN">👔 กู้กรรมการ</option>
+                <option value="PETTY_CASH">💵 เงินสำรองจ่าย</option>
+              </select>
+            </div>
+            <div class="md:col-span-2"><label class="block text-xs mb-1">ผู้รับเงิน *</label>
+              <input v-model="form.recipientName" placeholder="ชื่อกรรมการ/พนักงาน" class="w-full px-2 py-1.5 border rounded" list="petty-recipients">
+              <datalist id="petty-recipients">
+                <option v-for="s in (db.salespersons||[])" :key="s.id" :value="s.name"></option>
+              </datalist>
+            </div>
+            <div><label class="block text-xs mb-1">จำนวนเงิน *</label><input type="number" v-model.number="form.amount" class="w-full px-2 py-1.5 border rounded text-right font-bold"></div>
+            <div class="md:col-span-2"><label class="block text-xs mb-1">บัญชีจ่ายออก *</label>
+              <select v-model="form.accountId" class="w-full px-2 py-1.5 border rounded">
+                <option value="">--</option>
+                <option v-for="a in (db.accounts||[]).filter(x=>x && x.active)" :key="a.id" :value="a.id">{{a.name}} (คงเหลือ {{fmt(erp.accountBalance(a.id))}})</option>
+              </select>
+            </div>
+            <div class="md:col-span-3"><label class="block text-xs mb-1">หมายเหตุ</label><textarea v-model="form.notes" rows="2" class="w-full px-2 py-1.5 border rounded"></textarea></div>
+          </div>
+        </div>
+        <div class="px-5 py-3 border-t bg-slate-50 flex justify-end gap-2">
+          <button @click="showForm=false" class="px-4 py-2 hover:bg-slate-200 rounded">ยกเลิก</button>
+          <button @click="save" class="bg-purple-600 text-white px-5 py-2 rounded font-bold">💾 บันทึก + จ่ายเงิน</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Return Modal -->
+    <div v-if="showReturnModal" class="fixed inset-0 z-50 modal-backdrop p-4 overflow-y-auto">
+      <div class="bg-white rounded-xl shadow-2xl max-w-lg mx-auto my-4">
+        <div class="px-5 py-3 border-b bg-emerald-50">
+          <h3 class="font-semibold text-emerald-700">💵 คืนเงิน — {{returnForm.advance?.docNo}} / {{returnForm.advance?.recipientName}}</h3>
+        </div>
+        <div class="p-5 space-y-3 text-sm">
+          <div class="bg-amber-50 border border-amber-200 rounded p-2 text-xs">
+            ยอดจ่ายล่วงหน้า: <b>{{fmt(returnForm.advance?.amount||0)}}</b> ·
+            ใช้ไปแล้ว: <b>{{fmt(returnForm.advance?._spent||0)}}</b> ·
+            คืนแล้ว: <b>{{fmt(returnForm.advance?._returned||0)}}</b> ·
+            <span class="text-red-700 font-bold">คงค้าง: {{fmt(returnForm.advance?._remaining||0)}}</span>
+          </div>
+          <div><label class="block text-xs mb-1">วันที่คืน</label><input type="date" v-model="returnForm.date" class="w-full px-2 py-1.5 border rounded"></div>
+          <div><label class="block text-xs mb-1">จำนวนเงินคืน</label><input type="number" v-model.number="returnForm.amount" class="w-full px-2 py-1.5 border rounded text-right font-bold text-lg"></div>
+          <div><label class="block text-xs mb-1">บัญชีรับคืน</label>
+            <select v-model="returnForm.accountId" class="w-full px-2 py-1.5 border rounded">
+              <option value="">--</option>
+              <option v-for="a in (db.accounts||[]).filter(x=>x && x.active)" :key="a.id" :value="a.id">{{a.name}}</option>
+            </select>
+          </div>
+          <div><label class="block text-xs mb-1">หมายเหตุ</label><textarea v-model="returnForm.notes" rows="2" class="w-full px-2 py-1.5 border rounded"></textarea></div>
+        </div>
+        <div class="px-5 py-3 border-t bg-slate-50 flex justify-end gap-2">
+          <button @click="showReturnModal=false" class="px-4 py-2 hover:bg-slate-200 rounded">ยกเลิก</button>
+          <button @click="saveReturn" class="bg-emerald-600 text-white px-5 py-2 rounded font-bold">💵 บันทึกคืนเงิน</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detail Modal — รายละเอียดบิลที่จ่ายจากเงินก้อนนี้ -->
+    <div v-if="showDetailModal && detailAdv" class="fixed inset-0 z-50 modal-backdrop p-4 overflow-y-auto" @click.self="showDetailModal=false">
+      <div class="bg-white rounded-xl shadow-2xl max-w-4xl mx-auto my-4">
+        <div class="px-5 py-3 border-b bg-purple-50 flex justify-between">
+          <div>
+            <h3 class="font-bold text-lg">📋 รายละเอียด {{detailAdv.docNo}} — {{detailAdv.recipientName}}</h3>
+            <div class="text-xs text-slate-600 mt-0.5">{{detailAdv.type==='DIRECTOR_LOAN'?'👔 กู้กรรมการ':'💵 เงินสำรองจ่าย'}} · {{detailAdv.date}} · จำนวน {{fmt(detailAdv.amount)}} บาท</div>
+          </div>
+          <button @click="showDetailModal=false" class="text-2xl text-slate-400">&times;</button>
+        </div>
+        <div class="p-5 space-y-4 text-sm">
+          <!-- Summary -->
+          <div class="grid grid-cols-4 gap-2">
+            <div class="bg-blue-50 p-2 rounded text-center"><div class="text-xs text-blue-700">จ่ายล่วงหน้า</div><div class="font-bold">{{fmt(detailAdv.amount)}}</div></div>
+            <div class="bg-amber-50 p-2 rounded text-center"><div class="text-xs text-amber-700">ใช้ไปแล้ว</div><div class="font-bold">{{fmt(_expensesForAdv(detailAdv.id).reduce((s,e)=>s+Number(e.amount||0)+Number(e.vat||0),0))}}</div></div>
+            <div class="bg-emerald-50 p-2 rounded text-center"><div class="text-xs text-emerald-700">คืนแล้ว</div><div class="font-bold">{{fmt(detailAdv.returnedAmount||0)}}</div></div>
+            <div class="bg-red-50 p-2 rounded text-center"><div class="text-xs text-red-700">คงค้าง</div><div class="font-bold">{{fmt(Number(detailAdv.amount||0) - _expensesForAdv(detailAdv.id).reduce((s,e)=>s+Number(e.amount||0)+Number(e.vat||0),0) - Number(detailAdv.returnedAmount||0))}}</div></div>
+          </div>
+          <!-- Linked expenses -->
+          <div>
+            <div class="font-bold mb-2 text-purple-700">📝 บิลค่าใช้จ่ายที่จ่ายจากเงินก้อนนี้ ({{_expensesForAdv(detailAdv.id).length}} รายการ)</div>
+            <div v-if="_expensesForAdv(detailAdv.id).length === 0" class="text-center py-4 text-slate-400">ยังไม่มีบิล</div>
+            <table v-else class="w-full text-xs border">
+              <thead class="bg-slate-100"><tr>
+                <th class="p-2 text-left">วันที่</th>
+                <th class="p-2 text-left">เลขที่</th>
+                <th class="p-2 text-left">ผู้รับเงิน</th>
+                <th class="p-2 text-left">หมวด</th>
+                <th class="p-2 text-left">รายละเอียด</th>
+                <th class="p-2 text-right">จำนวน</th>
+                <th class="p-2 text-right">VAT</th>
+                <th class="p-2 text-right">รวม</th>
+              </tr></thead>
+              <tbody>
+                <tr v-for="e in _expensesForAdv(detailAdv.id)" :key="e.id" class="border-t">
+                  <td class="p-2">{{e.date}}</td>
+                  <td class="p-2 font-mono">{{e.docNo}}</td>
+                  <td class="p-2">{{e.payee||'-'}}</td>
+                  <td class="p-2">{{(db.expenseCategories||[]).find(c=>c&&c.id===e.categoryId)?.name||'-'}}</td>
+                  <td class="p-2">{{e.desc||'-'}}</td>
+                  <td class="p-2 text-right">{{fmt(e.amount)}}</td>
+                  <td class="p-2 text-right text-amber-700">{{fmt(e.vat)}}</td>
+                  <td class="p-2 text-right font-bold">{{fmt(Number(e.amount||0)+Number(e.vat||0))}}</td>
+                </tr>
+              </tbody>
+              <tfoot class="bg-slate-50 font-bold"><tr>
+                <td colspan="5" class="p-2 text-right">รวมทั้งสิ้น</td>
+                <td class="p-2 text-right">{{fmt(_expensesForAdv(detailAdv.id).reduce((s,e)=>s+Number(e.amount||0),0))}}</td>
+                <td class="p-2 text-right">{{fmt(_expensesForAdv(detailAdv.id).reduce((s,e)=>s+Number(e.vat||0),0))}}</td>
+                <td class="p-2 text-right">{{fmt(_expensesForAdv(detailAdv.id).reduce((s,e)=>s+Number(e.amount||0)+Number(e.vat||0),0))}}</td>
+              </tr></tfoot>
+            </table>
+          </div>
+          <!-- Returns -->
+          <div v-if="_returnsForAdv(detailAdv.id).length > 0">
+            <div class="font-bold mb-2 text-emerald-700">💵 ประวัติการคืนเงิน ({{_returnsForAdv(detailAdv.id).length}} ครั้ง)</div>
+            <table class="w-full text-xs border">
+              <thead class="bg-slate-100"><tr>
+                <th class="p-2 text-left">วันที่</th>
+                <th class="p-2 text-right">จำนวน</th>
+                <th class="p-2 text-left">บัญชีรับ</th>
+                <th class="p-2 text-left">หมายเหตุ</th>
+              </tr></thead>
+              <tbody>
+                <tr v-for="r in _returnsForAdv(detailAdv.id)" :key="r.id" class="border-t">
+                  <td class="p-2">{{r.date}}</td>
+                  <td class="p-2 text-right text-emerald-700 font-bold">{{fmt(r.amount)}}</td>
+                  <td class="p-2">{{erp.accountName(r.accountId)}}</td>
+                  <td class="p-2">{{r.notes||'-'}}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="px-5 py-3 border-t bg-slate-50 flex justify-end">
+          <button @click="showDetailModal=false" class="px-4 py-2 bg-slate-300 rounded">ปิด</button>
+        </div>
+      </div>
+    </div>
+  </div>`
+});
+
+/* =================================================================
+   📊 EXPENSE DASHBOARD — สรุปค่าใช้จ่ายแต่ละหมวดเทียบเดือน + Anomaly Detection
+   ================================================================= */
+app.component('view-expenseDashboard', {
+  setup() {
+    const erp = window.$erp; const db = erp.db; const fmt = erp.fmt;
+    const today = erp.today();
+    const months = ref(6);   // จำนวนเดือนย้อนหลังที่จะแสดง
+
+    // Get last N months as YYYY-MM strings (oldest first)
+    const monthList = computed(() => {
+      const arr = [];
+      const d = new Date(today.slice(0,7) + '-01');
+      for (let i = months.value - 1; i >= 0; i--) {
+        const dx = new Date(d);
+        dx.setMonth(dx.getMonth() - i);
+        arr.push(dx.toISOString().slice(0,7));
+      }
+      return arr;
+    });
+
+    // Group expenses by category × month
+    const byCatMonth = computed(() => {
+      const cats = (db.expenseCategories||[]).filter(c => c && c.active !== false);
+      const result = {};
+      cats.forEach(c => {
+        result[c.id] = { id: c.id, name: c.name || c.id, byMonth: {}, total: 0, avg: 0 };
+        monthList.value.forEach(m => result[c.id].byMonth[m] = 0);
+      });
+      // Add "uncategorized"
+      result['_uncat'] = { id:'_uncat', name:'ไม่ระบุหมวด', byMonth:{}, total:0, avg:0 };
+      monthList.value.forEach(m => result['_uncat'].byMonth[m] = 0);
+      // Sum up
+      (db.expenses||[]).forEach(e => {
+        if (!e || !e.date) return;
+        const ym = e.date.slice(0,7);
+        if (!monthList.value.includes(ym)) return;
+        const k = result[e.categoryId] ? e.categoryId : '_uncat';
+        const amt = Number(e.amount||0) + Number(e.vat||0);
+        result[k].byMonth[ym] = (result[k].byMonth[ym]||0) + amt;
+        result[k].total += amt;
+      });
+      // Compute average per category
+      Object.values(result).forEach(r => {
+        r.avg = r.total / months.value;
+        // Latest month
+        r.latest = r.byMonth[monthList.value[monthList.value.length-1]] || 0;
+        // Detect anomaly: latest > 1.5 × avg AND latest > 5000
+        r.anomaly = r.avg > 0 && r.latest > Math.max(r.avg * 1.5, 5000) ? 'high' :
+                    (r.avg > 0 && r.latest > 0 && r.latest < r.avg * 0.3) ? 'low' : null;
+        r.deviation = r.avg > 0 ? ((r.latest - r.avg) / r.avg * 100) : 0;
+      });
+      return Object.values(result).filter(r => r.total > 0).sort((a,b)=>b.total-a.total);
+    });
+
+    const grandByMonth = computed(() => {
+      const out = {};
+      monthList.value.forEach(m => out[m] = 0);
+      byCatMonth.value.forEach(c => {
+        Object.entries(c.byMonth).forEach(([m, v]) => { out[m] += v; });
+      });
+      return out;
+    });
+
+    const anomalies = computed(() => byCatMonth.value.filter(c => c.anomaly));
+
+    const grandStats = computed(() => {
+      const arr = Object.values(grandByMonth.value);
+      const total = arr.reduce((s,v)=>s+v, 0);
+      const avg = total / arr.length;
+      const latest = arr[arr.length - 1] || 0;
+      const prev = arr[arr.length - 2] || 0;
+      return {
+        total, avg, latest, prev,
+        deviation: prev > 0 ? ((latest - prev) / prev * 100) : 0,
+        vsAvg: avg > 0 ? ((latest - avg) / avg * 100) : 0,
+      };
+    });
+
+    function fmtMonth(m) {
+      const dt = new Date(m + '-01');
+      return dt.toLocaleString('th-TH', { month:'short', year:'2-digit' });
+    }
+
+    return { erp, db, fmt, today, months, monthList, byCatMonth, grandByMonth, grandStats, anomalies, fmtMonth };
+  },
+  template: `
+  <div class="space-y-4">
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-rose-700 to-orange-600 text-white rounded-xl p-5 shadow">
+      <h1 class="text-2xl font-bold">📊 Dashboard ค่าใช้จ่าย</h1>
+      <p class="text-sm opacity-90 mt-1">สรุปแต่ละหมวดเทียบเดือนย้อนหลัง + ตรวจหาความผิดปกติ (สูง/ต่ำเกินค่าเฉลี่ย)</p>
+    </div>
+
+    <!-- Period selector -->
+    <div class="bg-white rounded-xl shadow p-3 flex flex-wrap gap-2 items-center text-sm">
+      <span class="text-slate-600">📅 ดูย้อนหลัง:</span>
+      <button v-for="n in [3,6,12]" :key="n" @click="months=n" :class="['px-3 py-1.5 rounded text-xs', months===n?'bg-rose-600 text-white':'bg-slate-100 text-slate-600']">{{n}} เดือน</button>
+    </div>
+
+    <!-- KPIs -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div class="bg-white rounded-xl p-3 shadow"><div class="text-xs text-slate-500">💸 รวม {{months}} เดือน</div><div class="text-2xl font-bold">{{fmt(grandStats.total)}}</div></div>
+      <div class="bg-blue-50 rounded-xl p-3 shadow"><div class="text-xs text-blue-700">📈 เฉลี่ย/เดือน</div><div class="text-2xl font-bold text-blue-700">{{fmt(grandStats.avg)}}</div></div>
+      <div class="bg-amber-50 rounded-xl p-3 shadow"><div class="text-xs text-amber-700">📅 เดือนนี้</div><div class="text-2xl font-bold text-amber-700">{{fmt(grandStats.latest)}}</div></div>
+      <div :class="['rounded-xl p-3 shadow', Math.abs(grandStats.vsAvg)>20?(grandStats.vsAvg>0?'bg-red-50':'bg-emerald-50'):'bg-slate-50']">
+        <div :class="['text-xs', grandStats.vsAvg>20?'text-red-700':grandStats.vsAvg<-20?'text-emerald-700':'text-slate-700']">เทียบเฉลี่ย</div>
+        <div :class="['text-2xl font-bold', grandStats.vsAvg>20?'text-red-700':grandStats.vsAvg<-20?'text-emerald-700':'text-slate-700']">
+          {{grandStats.vsAvg>0?'+':''}}{{grandStats.vsAvg.toFixed(1)}}%
+        </div>
+      </div>
+    </div>
+
+    <!-- 🚨 Anomaly Alert Cards -->
+    <div v-if="anomalies.length > 0" class="bg-gradient-to-r from-red-50 to-amber-50 border-2 border-red-300 rounded-xl p-4">
+      <h3 class="font-bold text-red-700 mb-2">🚨 ตรวจพบความผิดปกติ {{anomalies.length}} หมวด</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <div v-for="a in anomalies" :key="a.id" :class="['rounded p-3 border', a.anomaly==='high'?'bg-red-50 border-red-300':'bg-amber-50 border-amber-300']">
+          <div class="flex justify-between items-start">
+            <div>
+              <div class="font-bold" :class="a.anomaly==='high'?'text-red-700':'text-amber-700'">{{a.anomaly==='high'?'⬆ สูงผิดปกติ':'⬇ ต่ำผิดปกติ'}}: {{a.name}}</div>
+              <div class="text-xs text-slate-600 mt-1">เดือนนี้: <b>{{fmt(a.latest)}}</b> · เฉลี่ย: <b>{{fmt(a.avg)}}</b></div>
+            </div>
+            <div :class="['text-2xl font-bold', a.anomaly==='high'?'text-red-700':'text-amber-700']">
+              {{a.deviation>0?'+':''}}{{a.deviation.toFixed(0)}}%
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div v-else class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-emerald-700">
+      ✓ ไม่พบความผิดปกติ — ค่าใช้จ่ายแต่ละหมวดอยู่ในช่วงค่าเฉลี่ย
+    </div>
+
+    <!-- Heatmap Table -->
+    <div class="bg-white rounded-xl shadow overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead class="bg-slate-100">
+          <tr>
+            <th class="p-2 text-left sticky left-0 bg-slate-100">หมวด</th>
+            <th v-for="m in monthList" :key="m" class="p-2 text-right">{{fmtMonth(m)}}</th>
+            <th class="p-2 text-right bg-blue-100">เฉลี่ย</th>
+            <th class="p-2 text-right bg-rose-100">รวม</th>
+            <th class="p-2 text-center">สถานะ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="c in byCatMonth" :key="c.id" class="border-t hover:bg-slate-50">
+            <td class="p-2 font-medium sticky left-0 bg-white">{{c.name}}</td>
+            <td v-for="m in monthList" :key="m" class="p-2 text-right" :class="{'bg-red-100 text-red-700 font-bold': c.byMonth[m] > c.avg*1.5 && c.avg>0, 'bg-emerald-50 text-emerald-700': c.byMonth[m]>0 && c.byMonth[m] < c.avg*0.5}">
+              {{c.byMonth[m]>0?fmt(c.byMonth[m]):'-'}}
+            </td>
+            <td class="p-2 text-right bg-blue-50 text-blue-700">{{fmt(c.avg)}}</td>
+            <td class="p-2 text-right bg-rose-50 text-rose-700 font-bold">{{fmt(c.total)}}</td>
+            <td class="p-2 text-center">
+              <span v-if="c.anomaly==='high'" class="px-2 py-0.5 rounded bg-red-100 text-red-700 text-xs">⬆ สูง</span>
+              <span v-else-if="c.anomaly==='low'" class="px-2 py-0.5 rounded bg-amber-100 text-amber-700 text-xs">⬇ ต่ำ</span>
+              <span v-else class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 text-xs">✓ ปกติ</span>
+            </td>
+          </tr>
+          <tr v-if="byCatMonth.length===0"><td :colspan="monthList.length+4" class="text-center py-8 text-slate-400">ยังไม่มีข้อมูลค่าใช้จ่าย</td></tr>
+        </tbody>
+        <tfoot v-if="byCatMonth.length > 0" class="bg-slate-100 font-bold">
+          <tr>
+            <td class="p-2 sticky left-0 bg-slate-100">รวมทุกหมวด</td>
+            <td v-for="m in monthList" :key="m" class="p-2 text-right">{{fmt(grandByMonth[m])}}</td>
+            <td class="p-2 text-right text-blue-700">{{fmt(grandStats.avg)}}</td>
+            <td class="p-2 text-right text-rose-700">{{fmt(grandStats.total)}}</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="bg-slate-50 border border-slate-200 rounded p-3 text-xs text-slate-600">
+      <b>📋 หมายเหตุ:</b> ความผิดปกติ = เดือนนี้ <b>มากกว่า 1.5×</b> ค่าเฉลี่ยและเกิน 5,000 บาท (สูง) หรือ <b>น้อยกว่า 30%</b> ของค่าเฉลี่ย (ต่ำ — อาจลืมบันทึก)
     </div>
   </div>`
 });
@@ -26352,7 +27175,7 @@ function _allMenuItems() {
   // เมื่อเพิ่ม view ใหม่ ต้องมาเพิ่มในนี้ด้วยเพื่อให้เลือกใน Role permission ได้
   const known = [
     // หน้าหลัก / Dashboard
-    'dashboard','ownerDaily','reports','salesPlan','pendingSales','poOutstanding','salesCommission','mdSalesperson','dailyReport','anomalyDetector',
+    'dashboard','ownerDaily','reports','salesPlan','pendingSales','poOutstanding','salesCommission','mdSalesperson','dailyReport','anomalyDetector','pettyAdvance','expenseDashboard',
     // ซื้อ-ขาย-เงิน
     'purchase','sales','stockIssue','paymentApproval','customerReturn','payment','receipt','transfer','expense','stockTransfer','billSwapHistory',
     // Trading
@@ -29857,7 +30680,7 @@ app.component('view-companyProfile', {
       </div>
       <div class="md:col-span-2">
         <label class="block text-xs font-bold text-slate-700 mb-1">ข้อมูลธนาคาร / เลขบัญชี (สำหรับใบส่งของ)</label>
-        <input v-model="f.bankInfo" placeholder="เช่น KBank 123-4-56789-0 บริษัท เอ็นเอส รีไซเคิล จำกัด" class="w-full px-3 py-2 border rounded">
+        <input v-model="f.bankInfo" placeholder="เช่น KBank 123-4-56789-0 บริษัท นิวโซลูชั่นส์ (ไทยแลนด์) จำกัด" class="w-full px-3 py-2 border rounded">
       </div>
       <div class="md:col-span-2">
         <label class="block text-xs font-bold text-slate-700 mb-1">ข้อความท้ายเอกสาร</label>
@@ -30482,18 +31305,32 @@ app.component('view-salesCommission', {
       return sup?.salesId || '';
     }
 
+    /* 🆕 คำนวณค่าคอมต่อ item — กฎ:
+       1. ซื้อ ≤ ราคาหน้าใบ
+       2. ยอดซื้อ > 1 ล้านบาท
+       → ค่าคอม = ยอด × 0.1% (ล้านละ 1,000 บาท) */
+    function _itemCommission(it) {
+      if (!it || !it.facePrice || Number(it.facePrice) <= 0) return 0;
+      if (Number(it.price||0) > Number(it.facePrice||0)) return 0;
+      const amount = Number(it.netAmount||0) || (Number(it.netWeight||0) * Number(it.price||0));
+      if (amount <= 1000000) return 0;  // ต้องเกิน 1 ล้าน
+      return amount / 1000000 * 1000;  // 0.1% ของยอดซื้อ
+    }
+
     /* Per-Sales summary (cards) — ใช้ "บิลซื้อ" */
     const salesSummary = computed(() => {
       const sps = (db.salespersons||[]).filter(s => s && s.active !== false);
       const map = new Map();
       sps.forEach(s => map.set(s.id, {
         id: s.id, name: s.name, code: s.code, phone: s.phone, email: s.email, note: s.note,
-        billCount: 0, qty: 0, purchaseAmt: 0,
+        billCount: 0, qty: 0, purchaseAmt: 0, commission: 0,
+        eligibleItems: 0, ineligibleItems: 0,
         suppliers: new Set()
       }));
       map.set('_UNASSIGNED_', {
         id:'_UNASSIGNED_', name:'(ไม่ได้กำหนด Sales)', code:'-',
-        billCount:0, qty:0, purchaseAmt:0, suppliers:new Set()
+        billCount:0, qty:0, purchaseAmt:0, commission:0,
+        eligibleItems:0, ineligibleItems:0, suppliers:new Set()
       });
       filteredBills.value.forEach(b => {
         const sid = getBillSalesId(b) || '_UNASSIGNED_';
@@ -30503,12 +31340,19 @@ app.component('view-salesCommission', {
         x.qty += (b.items||[]).reduce((s,i)=>s+Number(i.netWeight||0),0);
         x.purchaseAmt += Number(b.totalAmount||0);
         x.suppliers.add(b.supplierId);
+        // 🆕 คำนวณค่าคอม per item
+        (b.items||[]).forEach(it => {
+          if (!it.facePrice || Number(it.facePrice) <= 0) return;  // ไม่มีราคาหน้าใบ — ไม่นับ
+          const c = _itemCommission(it);
+          x.commission += c;
+          if (c > 0) x.eligibleItems++; else x.ineligibleItems++;
+        });
       });
       return Array.from(map.values()).map(x => ({
         ...x,
         supplierCount: x.suppliers.size,
         avgPrice: x.qty > 0 ? x.purchaseAmt / x.qty : 0,
-      })).sort((a,b) => b.purchaseAmt - a.purchaseAmt);
+      })).sort((a,b) => b.commission - a.commission);
     });
 
     /* Drill-down data — เมื่อคลิกการ์ด */
@@ -30773,11 +31617,43 @@ app.component('view-salesCommission', {
           <div class="text-3xl font-bold text-amber-700 font-mono leading-tight">{{fmt(s.qty)}}</div>
           <div class="text-xs text-amber-600">กิโลกรัม</div>
         </div>
-        <div class="bg-gradient-to-br from-blue-100 to-indigo-100 rounded-xl p-3 text-center">
+        <div class="bg-gradient-to-br from-blue-100 to-indigo-100 rounded-xl p-3 text-center mb-2">
           <div class="text-xs text-blue-700 font-medium">💰 ยอดรับซื้อรวม</div>
-          <div class="text-3xl font-bold text-blue-700 font-mono leading-tight">{{fmt(s.purchaseAmt)}}</div>
+          <div class="text-2xl font-bold text-blue-700 font-mono leading-tight">{{fmt(s.purchaseAmt)}}</div>
           <div v-if="s.avgPrice>0" class="text-xs text-blue-600">เฉลี่ย {{fmt(s.avgPrice)}} ฿/กก.</div>
         </div>
+        <!-- 💼 ค่าคอม (กฎ: ราคาซื้อ ≤ ราคาหน้าใบ → ตันละ 1,000) -->
+        <div class="bg-gradient-to-br from-emerald-100 to-green-100 rounded-xl p-3 text-center border-2 border-emerald-300">
+          <div class="text-xs text-emerald-700 font-medium">💼 ค่าคอมที่ได้</div>
+          <div class="text-3xl font-bold text-emerald-700 font-mono leading-tight">{{fmt(s.commission)}}</div>
+          <div class="text-xs text-emerald-600 mt-0.5">
+            <span class="text-emerald-700">✓ {{s.eligibleItems}} ได้</span> ·
+            <span class="text-red-600">⊘ {{s.ineligibleItems}} เกินราคาใบ</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 💼 Commission Comparison Chart -->
+    <div v-if="salesSummary.filter(s=>s.commission>0).length>0" class="bg-white rounded-2xl shadow p-5">
+      <h3 class="font-bold mb-3 text-emerald-700">💼 เทียบค่าคอมระหว่างเซล (ช่วง {{dateFrom}} ถึง {{dateTo}})</h3>
+      <div class="space-y-2">
+        <div v-for="s in salesSummary.filter(x=>x.commission>0).sort((a,b)=>b.commission-a.commission)" :key="s.id" class="flex items-center gap-3">
+          <div class="w-32 text-sm font-medium truncate">{{s.name}}</div>
+          <div class="flex-1 bg-slate-100 rounded-full h-7 overflow-hidden relative">
+            <div class="bg-gradient-to-r from-emerald-500 to-emerald-600 h-full rounded-full transition-all flex items-center justify-end pr-3"
+                 :style="{width: ((s.commission / Math.max(...salesSummary.map(x=>x.commission||0))) * 100) + '%'}">
+              <span class="text-white text-xs font-bold whitespace-nowrap">{{fmt(s.commission)}}</span>
+            </div>
+          </div>
+          <div class="w-32 text-right text-xs text-slate-500">
+            ✓{{s.eligibleItems}} / ⊘{{s.ineligibleItems}}
+          </div>
+        </div>
+      </div>
+      <div class="mt-3 text-xs text-slate-500 italic">
+        💡 กฎ: <b>(1)</b> ราคาซื้อ ≤ ราคาหน้าใบ <b>(2)</b> ยอดซื้อรายการ > 1 ล้าน → ค่าคอม = <b>0.1% ของยอด (ล้านละ 1,000)</b><br>
+        ตัวอย่าง: ยอด 1.5 ล้าน = 1,500 ฿ · ยอด 5 ล้าน = 5,000 ฿ · ยอด ≤ 1 ล้าน = 0
       </div>
     </div>
 
