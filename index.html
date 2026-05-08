@@ -3612,13 +3612,18 @@ window.$erp = {
   const _DATE_HINT = /(_date|_at|date|expectedDelivery|paidAt|approvedAt|cancelledAt|createdAt|updatedAt|warrantyExpireDate|purchaseDate)$/i;
   /* Numeric-like field names — empty string → null (กัน "invalid input syntax for type numeric") */
   const _NUMERIC_HINT = /(amount|qty|weight|price|cost|balance|total|paid|received|payable|receivable|discount|vat|wht|fee|tax|rate|pct|percent|commission|months|salary|opening|limit|principal|interest|installment|gain|loss|deduction|points|score)$/i;
+  /* 🔧 BUG FIX: FK-like field names (anything ending in _id / Id) — empty string → null
+     กัน FK violation แบบ branch_id="" หรือ supplier_id="" (Supabase หา id='' ไม่เจอ) */
+  const _FK_HINT = /(_id|Id)$/;
   function _mapKeysS(obj, customMap = {}) {
     const out = {};
     for (const [k, v] of Object.entries(obj || {})) {
       if (v === undefined) continue;
       const sk = customMap[k] || _camelToSnake(k);
-      // 🔧 Convert empty strings to null for date or numeric fields
-      if (v === '' && (_DATE_HINT.test(k) || _DATE_HINT.test(sk) || _NUMERIC_HINT.test(k) || _NUMERIC_HINT.test(sk))) {
+      // 🔧 Convert empty strings to null for date, numeric, OR FK fields
+      if (v === '' && (_DATE_HINT.test(k) || _DATE_HINT.test(sk)
+                    || _NUMERIC_HINT.test(k) || _NUMERIC_HINT.test(sk)
+                    || _FK_HINT.test(k) || _FK_HINT.test(sk))) {
         out[sk] = null;
       } else {
         out[sk] = v;
