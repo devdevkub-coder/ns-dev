@@ -3733,14 +3733,17 @@ window.$erp = {
     return { ok, fail };
   }
 
-  /* Push all dirty tables */
-  async function pushDirty() {
+  /* Push all dirty tables (force=true → push ALL tables regardless of dirty) */
+  async function pushDirty(force = false) {
     if (isPushing || !window.sb || !enabled) return;
-    if (dirtyTables.size === 0) return;
+    // 🆕 Force mode: push ทุกตาราง ไม่สนว่า dirty หรือไม่ (สำหรับ manual sync หลัง refresh)
+    const toPush = force || dirtyTables.size === 0
+      ? AS_TABLES.slice()    // push ทุกตาราง
+      : Array.from(dirtyTables);
+    if (toPush.length === 0) return;
     isPushing = true;
-    _updateStatus('syncing', '⬆ Pushing...', 'Auto-Push: '+Array.from(dirtyTables).join(', '));
+    _updateStatus('syncing', '⬆ Pushing... ('+toPush.length+' tables)', 'Auto-Push: '+toPush.slice(0,5).join(', ')+(toPush.length>5?'...':''));
     let totalOk = 0, totalFail = 0;
-    const toPush = Array.from(dirtyTables);
     dirtyTables.clear();
     for (const t of toPush) {
       const { ok, fail } = await _pushTable(t);
@@ -3748,8 +3751,8 @@ window.$erp = {
     }
     isPushing = false;
     if (totalFail > 0) {
-      _updateStatus('error', '⚠ Push '+totalFail+' fail', 'บางตารางพุชไม่สำเร็จ — ลองอีกครั้งใน 30 วิ');
-      // Re-mark for retry next cycle
+      _updateStatus('error', '⚠ Push '+totalFail+' fail', 'บางตารางพุชไม่สำเร็จ — คลิกดูรายละเอียด');
+      // Re-mark for retry next cycle (เฉพาะ table ที่ fail)
       toPush.forEach(t => dirtyTables.add(t));
     } else {
       _updateStatus('ok', '☁️✓ Synced', 'Push สำเร็จ ('+totalOk+' rows · '+toPush.length+' tables)');
@@ -3883,7 +3886,8 @@ window.$erp = {
   // Expose API
   window.$autoSync = {
     boot, shutdown,
-    pushNow: () => { if (pushTimer) clearTimeout(pushTimer); return pushDirty(); },
+    pushNow: () => { if (pushTimer) clearTimeout(pushTimer); return pushDirty(false); },     // dirty หรือ force
+    pushAll: () => { if (pushTimer) clearTimeout(pushTimer); return pushDirty(true); },     // 🆕 บังคับ push ทุกตาราง
     pullNow: () => pullAll(),
     isEnabled: () => enabled,
     dirtyTables: () => Array.from(dirtyTables),
@@ -4474,16 +4478,17 @@ const app = createApp({
       }
     }
 
-    /* 🆕 Manual Sync Now (เรียกจากปุ่ม indicator) — Push pending + Pull latest ทันที */
+    /* 🆕 Manual Sync Now (เรียกจากปุ่ม indicator) — Force Push ALL + Pull latest ทันที */
     async function manualSyncNow() {
       if (!window.$autoSync) { showToast('Auto-Sync ยังไม่พร้อม','error'); return; }
       try {
-        showToast('⏳ กำลัง Sync ด่วน...', 'success');
-        // Push pending changes ก่อน
-        await window.$autoSync.pushNow();
+        showToast('⏳ กำลัง Push ทุกตารางขึ้น Cloud...', 'success');
+        // Force push ทุกตาราง (ไม่สนว่า dirty หรือไม่)
+        await window.$autoSync.pushAll();
         // แล้ว Pull ข้อมูลล่าสุดทันที
+        showToast('⏳ กำลัง Pull ข้อมูลล่าสุด...', 'success');
         await window.$autoSync.pullNow();
-        showToast('✓ Sync สำเร็จ — ข้อมูลล่าสุดแล้ว', 'success');
+        showToast('✓ Sync สำเร็จ — ข้อมูลทั้งหมดล่าสุดแล้ว', 'success');
       } catch(e) {
         showToast('❌ Sync ล้มเหลว: '+e.message, 'error');
       }
