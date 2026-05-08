@@ -2427,23 +2427,23 @@ function seedData() {
         seeCost:true, seeProfit:true, seeCash:true, seeFinancials:true, seeOpening:true,
         branchScope:'all' },
       /* === Custom Roles ที่ใช้จริงในบริษัท (แก้/ลบได้) === */
-      { id:'R-ACCOUNTANT', name:'บัญชี', desc:'บัญชี — งบการเงิน, AR/AP, ภาษี', isSystem:false,
-        menus:['dashboard','changePassword','finDashboard','plStatement','balanceSheet','cashFlowStatement','cashFlowAnalysis','workingCapital','taxVAT','ar','ap','bank','cashPosition','reports','audit','mdCustomer','mdSupplier','mdProduct','mdAccount','mdExpense','mdImport','equityMaint','payment','receipt','transfer','expense','paymentApproval','billSwapHistory'],
-        actions:{'*':['view','create','edit','export']},
+      { id:'R-ACCOUNTANT', name:'บัญชี', desc:'บัญชี — งบการเงิน, AR/AP, ภาษี + บิลซื้อ/ขาย', isSystem:false,
+        menus:['changePassword','purchase','sales','stockIssue','payment','receipt','transfer','expense','paymentApproval','billSwapHistory','stockBalance','stockLedger','tradingDashboard','tradingMatching','poBuy','poSell','poOutstanding','reports','audit','salesPlan','pendingSales','ar','ap','bank','cashPosition','plStatement','balanceSheet','cashFlowStatement','cashFlowAnalysis','workingCapital','taxVAT','mdCustomer','mdSupplier','mdProduct','mdAccount','mdExpense','mdImport','equityMaint'],
+        actions:{'*':['view','create','edit','post','export']},
         seeCost:true, seeProfit:true, seeCash:true, seeFinancials:true, seeOpening:false,
         branchScope:'all' },
-      { id:'R-COORDINATOR', name:'ประสานงาน', desc:'ประสานงาน — กรอกบิลซื้อ/ขาย, ดู AR/AP, Stock', isSystem:false,
-        menus:['dashboard','ownerDaily','changePassword','purchase','sales','stockIssue','paymentApproval','payment','receipt','expense','ar','ap','bank','stockBalance','stockLedger','customerTracking','supplierTracking','productTracking','mdCustomer','mdSupplier','mdProduct','mdChannel','importTxn','salesPlan','pendingSales','poOutstanding','poBuy','poSell','tradingDashboard','tradingMatching','reports'],
+      { id:'R-COORDINATOR', name:'ประสานงาน', desc:'ประสานงาน — กรอกบิลซื้อ/ขาย, Stock, Trading, PO', isSystem:false,
+        menus:['changePassword','purchase','sales','stockIssue','paymentApproval','payment','receipt','stockBalance','stockLedger','mdCustomer','mdSupplier','mdProduct','mdChannel','importTxn','pendingSales','poOutstanding','poBuy','poSell','tradingDashboard','tradingMatching','reports'],
         actions:{'*':['view','create','edit','post','export']},
         seeCost:true, seeProfit:false, seeCash:false, seeFinancials:false, seeOpening:false,
         branchScope:'all' },
-      { id:'R-POOPAE', name:'Poopae', desc:'Role พิเศษ — เข้าถึงพิเศษ', isSystem:false,
-        menus:['dashboard','ownerDaily','changePassword','purchase','sales','stockIssue','paymentApproval','payment','receipt','expense','ar','ap','bank','cashPosition','stockBalance','stockLedger','customerTracking','supplierTracking','productTracking','mdCustomer','mdSupplier','mdProduct','mdChannel','importTxn','salesPlan','pendingSales','poOutstanding','poBuy','poSell','tradingDashboard','tradingMatching','reports','finDashboard','plStatement','balanceSheet','cashFlowStatement','cashFlowAnalysis'],
+      { id:'R-POOPAE', name:'Poopae', desc:'Role พิเศษ — เข้าถึงพิเศษ + Production + Asset + Loan', isSystem:false,
+        menus:['dashboard','changePassword','purchase','sales','stockIssue','paymentApproval','payment','receipt','expense','ar','ap','bank','cashPosition','stockBalance','stockLedger','mdCustomer','mdSupplier','mdProduct','mdChannel','importTxn','pendingSales','poOutstanding','poBuy','poSell','tradingDashboard','tradingMatching','reports','plStatement','balanceSheet','cashFlowStatement','production','productionReport','wipReport','productionCostReport','yieldLossReport','machineUtil','loanContracts','loanDashboard','assetRegister','depreciation','assetDisposal','equityMaint','openingBalance','audit'],
         actions:{'*':['view','create','edit','post','export']},
-        seeCost:true, seeProfit:true, seeCash:true, seeFinancials:true, seeOpening:false,
+        seeCost:true, seeProfit:true, seeCash:true, seeFinancials:true, seeOpening:true,
         branchScope:'all' },
-      { id:'R-WAREHOUSE', name:'คลัง', desc:'คลังสินค้า — Stock, Production, Transfer', isSystem:false,
-        menus:['dashboard','changePassword','stockBalance','stockLedger','stockTransfer','production','productionReport','wipReport','machineUtil','mdProduct','mdBranch','productTracking','gradeAdjustment','statusConvert','customerReturn'],
+      { id:'R-WAREHOUSE', name:'คลัง', desc:'คลังสินค้า — Stock, Production, Transfer (เฉพาะสาขาตัวเอง)', isSystem:false,
+        menus:['changePassword','stockBalance','stockLedger','stockTransfer','production','productionReport','wipReport','machineUtil','mdProduct','mdBranch','gradeAdjustment','statusConvert','customerReturn'],
         actions:{'stockTransfer':['view','create','edit','post','export'],'production':['view','create','edit','post','export'],'gradeAdjustment':['view','create','edit','export'],'*':['view','export']},
         seeCost:false, seeProfit:false, seeCash:false, seeFinancials:false, seeOpening:false,
         branchScope:'own' },
@@ -2640,31 +2640,37 @@ function loadDB() {
         }
       });
     }
-    /* migration v2: cleanup roles — keep only Admin/Owner as SYSTEM, ลบ role เก่าที่ไม่ใช้ */
-    if (Array.isArray(d.roles) && !d._roleCleanupDone) {
+    /* migration v3: cleanup roles + reset menus from seed (run every time to apply updates) */
+    if (Array.isArray(d.roles)) {
       // เปลี่ยน isSystem = false สำหรับทุก role ยกเว้น Admin/Owner
       d.roles.forEach(r => {
         if (r && r.id !== 'R-ADMIN' && r.id !== 'R-OWNER') {
           r.isSystem = false;
         }
       });
-      // อัปเดตชื่อ + add 4 custom roles ที่ใช้จริง (จาก seed)
+      // RESET menus ของ 4 custom roles จาก seed ทุกครั้ง (เพื่อให้ update ใหม่ถึง user)
       const customRoles = seed.roles.filter(r => !['R-ADMIN','R-OWNER'].includes(r.id));
       customRoles.forEach(newR => {
         const idx = d.roles.findIndex(r => r && r.id === newR.id);
         if (idx >= 0) {
-          // อัปเดตชื่อให้ตรงกับ seed (เช่น Accountant → บัญชี, Warehouse → คลัง)
-          d.roles[idx].name = newR.name;
-          d.roles[idx].desc = newR.desc;
-          d.roles[idx].isSystem = false;
+          // อัปเดต full role definition จาก seed (menus, actions, see*, branchScope)
+          // KEEP user-modified parts: name (ถ้า user แก้ชื่อ), desc (ถ้า user แก้)
+          const userName = d.roles[idx].name;
+          const userDesc = d.roles[idx].desc;
+          d.roles[idx] = { ...newR };
+          // ถ้า user เคยแก้ชื่อ/desc ให้ keep
+          if (userName && userName !== newR.name && !d._roleCleanupV3) d.roles[idx].name = newR.name; // first time: use seed
+          else if (userName) d.roles[idx].name = userName;
+          if (userDesc && !d._roleCleanupV3) d.roles[idx].desc = newR.desc;
+          else if (userDesc) d.roles[idx].desc = userDesc;
         } else {
           d.roles.push(newR);
         }
       });
       // ลบ R-CASHIER, R-PURCHASER, R-SALES (ไม่ได้ใช้ในไทย)
       d.roles = d.roles.filter(r => r && !['R-CASHIER','R-PURCHASER','R-SALES'].includes(r.id));
-      d._roleCleanupDone = true;
-      console.log('✓ Migration: cleaned up roles');
+      d._roleCleanupV3 = true;
+      console.log('✓ Migration v3: roles updated from seed');
     }
     /* migration: customers ต้องมี salesId field (default '') */
     if (Array.isArray(d.customers)) {
