@@ -3564,12 +3564,19 @@ window.$erp = {
     'purchaseBills','salesBills','payments','receipts','transfers','expenses',
     'stockLedger','bankStatement','poBuys','poSells','tradingDeals'];
 
+  /* Date-like field names — empty string in these fields → cast to null (กัน "invalid input syntax for type date") */
+  const _DATE_HINT = /(_date|_at|date|expectedDelivery|paidAt|approvedAt|cancelledAt|createdAt|updatedAt|warrantyExpireDate|purchaseDate)$/i;
   function _mapKeysS(obj, customMap = {}) {
     const out = {};
     for (const [k, v] of Object.entries(obj || {})) {
       if (v === undefined) continue;
       const sk = customMap[k] || _camelToSnake(k);
-      out[sk] = v;
+      // 🔧 Convert empty strings to null for date-like fields
+      if (v === '' && (_DATE_HINT.test(k) || _DATE_HINT.test(sk))) {
+        out[sk] = null;
+      } else {
+        out[sk] = v;
+      }
     }
     return out;
   }
