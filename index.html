@@ -4195,6 +4195,58 @@ window.$erp = {
       console.log('[autoSync] unstuck — was:', was);
       return was;
     },
+    // 🆕 forceCloudTruth: wipe local + reload from cloud (bypass SMART skip)
+    // ใช้เมื่อ: ลบใน cloud แล้วแต่ local ของอีกเครื่องยังมี (multi-device race)
+    // ผลลัพธ์: local จะตรงกับ cloud 100% — ของที่ cloud ลบไปจะหายจาก local ด้วย
+    forceCloudTruth: async (tablesToReset) => {
+      // ถ้าไม่ส่ง tablesToReset → reset ทุก master tables
+      const targets = Array.isArray(tablesToReset) && tablesToReset.length
+        ? tablesToReset
+        : ['suppliers','customers','products','salespersons','accounts','branches','warehouses','purchaseChannels','salesChannels','expenseCategories'];
+      console.log('[forceCloudTruth] เริ่ม reset tables:', targets);
+      // 1) Stop sync
+      const wasEnabled = enabled;
+      shutdown();
+      // 2) Wipe local + pull from cloud
+      _applyingCloudUpdate = true;
+      try {
+        for (const localKey of targets) {
+          const cfg = AS_MAP[localKey]; if (!cfg) continue;
+          // Wipe local
+          if (Array.isArray(_GLOBAL_DB[localKey])) {
+            _GLOBAL_DB[localKey].splice(0, _GLOBAL_DB[localKey].length);
+          }
+          // Fetch all from cloud
+          try {
+            const conflictCol = AS_CONFLICT_COL[cfg.target] || 'id';
+            let allRows = [];
+            let from = 0;
+            while (true) {
+              const { data, error } = await window.sb.from(cfg.target)
+                .select('*').order(conflictCol, { ascending: true })
+                .range(from, from + 999);
+              if (error) { console.warn('[forceCloudTruth] '+cfg.target+':', error.message); break; }
+              if (!data || data.length === 0) break;
+              allRows = allRows.concat(data);
+              if (data.length < 1000) break;
+              from += 1000;
+            }
+            const cloudRows = allRows.map(r => _mapKeysReverseS(r, cfg.keyMap || {}));
+            if (!Array.isArray(_GLOBAL_DB[localKey])) _GLOBAL_DB[localKey] = [];
+            _GLOBAL_DB[localKey].push(...cloudRows);
+            console.log('[forceCloudTruth] '+localKey+': loaded '+cloudRows.length+' from cloud');
+          } catch(e) { console.warn('[forceCloudTruth] '+localKey, e); }
+        }
+      } finally {
+        _applyingCloudUpdate = false;
+      }
+      // 3) Save to localStorage
+      try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(_GLOBAL_DB)); } catch(e) {}
+      // 4) Re-enable sync
+      if (wasEnabled) boot();
+      console.log('[forceCloudTruth] ✅ เสร็จ — local ตรงกับ cloud แล้ว');
+      return targets.map(t => ({ table: t, count: (_GLOBAL_DB[t]||[]).length }));
+    },
   };
 })();
 
