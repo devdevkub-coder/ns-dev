@@ -5095,31 +5095,56 @@ function makeMasterComponent(opts) {
         selectedIds.value = s;
       }
       function clearSelection() { selectedIds.value = new Set(); }
-      /* 🆕 Export to Excel — ใช้ XLSX จาก CDN ที่ load อยู่แล้ว */
+      /* 🆕 Export to Excel — ใช้ XLSX จาก CDN ที่ load อยู่แล้ว
+         📋 Logic: union ของ keys ใน data จริง + label จาก opts.fields ถ้ามี
+         เพื่อให้ครอบคลุมทุก field รวมถึง id/code ที่ auto-gen */
       function exportExcel() {
         try {
           const all = list.value || [];
           if (all.length === 0) { erp.showToast('ไม่มีข้อมูลให้ export','warning'); return; }
-          // Header (column labels)
-          const headers = (opts.fields || opts.columns || []).map(f => f.label || f.key);
-          const keys = (opts.fields || opts.columns || []).map(f => f.key);
-          // Rows
-          const rows = all.map(item => keys.map(k => {
+
+          // 1) เก็บทุก keys ที่มีใน records จริง (union)
+          const keySet = new Set();
+          all.forEach(r => Object.keys(r || {}).forEach(k => keySet.add(k)));
+
+          // 2) สร้าง label map จาก opts.fields/opts.columns
+          const labelMap = {};
+          (opts.fields || []).forEach(f => { if (f.key) labelMap[f.key] = (f.label || f.key).replace(/\s*\*+$/,''); });
+          (opts.columns || []).forEach(c => { if (c.key && !labelMap[c.key]) labelMap[c.key] = c.label || c.key; });
+
+          // 3) เรียง keys: id, code, name ก่อน — ที่เหลือตามลำดับ field
+          const priorityKeys = ['id', 'code', 'name'];
+          const allKeys = Array.from(keySet);
+          const orderedKeys = [
+            ...priorityKeys.filter(k => allKeys.includes(k)),
+            ...(opts.fields||[]).map(f => f.key).filter(k => allKeys.includes(k) && !priorityKeys.includes(k)),
+            ...allKeys.filter(k => !priorityKeys.includes(k) && !(opts.fields||[]).some(f => f.key === k))
+          ];
+          // กรอง dedupe
+          const seen = new Set();
+          const finalKeys = orderedKeys.filter(k => { if (seen.has(k)) return false; seen.add(k); return true; });
+
+          // 4) Headers — ใช้ label ถ้ามี ไม่งั้นใช้ key
+          const headers = finalKeys.map(k => labelMap[k] || k);
+
+          // 5) Rows
+          const rows = all.map(item => finalKeys.map(k => {
             const v = item[k];
             if (v === null || v === undefined) return '';
             if (typeof v === 'boolean') return v ? 'true' : 'false';
             if (typeof v === 'object') return JSON.stringify(v);
             return v;
           }));
-          // Build sheet
+
+          // 6) Build sheet
           const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-          ws['!cols'] = headers.map(() => ({ wch: 18 }));
+          ws['!cols'] = finalKeys.map(k => ({ wch: k === 'id' ? 24 : k === 'address' ? 30 : 18 }));
           ws['!freeze'] = { xSplit: 0, ySplit: 1 };
           const wb = XLSX.utils.book_new();
-          XLSX.utils.book_append_sheet(wb, ws, opts.title || opts.collection);
+          XLSX.utils.book_append_sheet(wb, ws, (opts.title || opts.collection).slice(0,30));
           const fname = (opts.collection || 'master') + '_' + new Date().toISOString().slice(0,10) + '.xlsx';
           XLSX.writeFile(wb, fname);
-          erp.showToast('✓ Export '+all.length+' รายการ → '+fname, 'success');
+          erp.showToast('✓ Export '+all.length+' รายการ ('+finalKeys.length+' columns) → '+fname, 'success');
         } catch(e) {
           console.error('export:', e);
           erp.showToast('Export fail: '+e.message, 'error');
