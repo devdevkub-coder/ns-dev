@@ -2939,40 +2939,95 @@ window.$erp = {
     console.warn('[docNo-collision] '+docNo+' → '+newDocNo+' (table='+tableName+')');
     return newDocNo;
   },
-  /* 🔧 NEW: Cloud-aware uniqueness check — Async — สำคัญมากตอน multi-device
-     เช็คทั้ง local + Supabase cloud ก่อนคืน docNo จริง
-     ถ้า cloud มีบิลใช้เลขนี้แล้ว (เพราะอีกเครื่องสร้างพร้อมกัน) → re-generate ใหม่จาก max(local, cloud)+1 */
+  /* 🔧 ROBUST: Cloud-aware uniqueness — query MAX จาก cloud + retry on conflict
+     สำคัญมากตอน multi-device — เก่ารุ่นก่อนยังเจอเลขซ้ำเพราะใช้แค่ local counter
+     วิธีใหม่:
+       1. Query MAX(doc_no) จาก cloud ที่มี prefix ตรงกัน → ได้ cloudMax (sequence ล่าสุดในระบบ)
+       2. Query MAX(doc_no) จาก local → ได้ localMax
+       3. next = max(cloudMax, localMax, in-flight reserved) + 1
+       4. ตรวจ cloud อีกครั้งว่า next ซ้ำหรือไม่ — ถ้าซ้ำ → bump +1 retry (max 10x) */
   ensureUniqueDocNoCloud: async (docNo, prefix, currentBillId) => {
-    // Step 1: ตรวจ local ก่อน (เร็ว) — ถ้าซ้ำ regenerate
-    let result = window.$erp.ensureUniqueDocNo(docNo, prefix, currentBillId);
-    // Step 2: ถ้า Supabase ใช้งานได้ → ตรวจ cloud ด้วย
-    if (!window.sb) return result;
+    const tableMapLocal = {
+      'PB': 'purchaseBills', 'SB': 'salesBills', 'PMT': 'payments', 'RCP': 'receipts',
+      'TRF': 'transfers', 'EXP': 'expenses', 'POB': 'poBuys', 'POS': 'poSells', 'RV': 'receiptVouchers'
+    };
     const tableMapCloud = {
       'PB': 'purchase_bills', 'SB': 'sales_bills', 'PMT': 'payments', 'RCP': 'receipts',
-      'TRF': 'transfers', 'EXP': 'expenses', 'POB': 'po_buys', 'POS': 'po_sells'
+      'TRF': 'transfers', 'EXP': 'expenses', 'POB': 'po_buys', 'POS': 'po_sells', 'RV': 'receipt_vouchers'
     };
+    const localCol = tableMapLocal[prefix];
     const cloudTable = tableMapCloud[prefix];
-    if (!cloudTable) return result;
-    try {
-      // Loop จน docNo ไม่ซ้ำใน cloud (max 5 retries กัน loop ไม่จบ)
-      for (let attempt = 0; attempt < 5; attempt++) {
-        const { data, error } = await window.sb.from(cloudTable)
-          .select('id, doc_no').eq('doc_no', result).limit(2);
-        if (error) { console.warn('[docNo-cloud-check] error:', error.message); return result; }
-        // ไม่ซ้ำ หรือ ซ้ำแต่เป็นบิลเดียวกัน (currentBillId) → ผ่าน
-        const collision = (data || []).some(r => r && r.id !== currentBillId);
-        if (!collision) return result;
-        // ซ้ำ → regenerate ใหม่ (skip ตัวเลขที่ collide)
-        const oldNo = result;
-        result = window.$erp.nextDocNo(prefix);
-        console.warn('[docNo-cloud-collision] '+oldNo+' ซ้ำใน cloud → '+result);
+    if (!localCol) return docNo;
+
+    // ดึง prefix string จาก docNo เดิม (เช่น "PB2605-")
+    const m = String(docNo || '').match(/^([A-Z]+\d+-)/);
+    const docPrefix = m ? m[1] : (prefix + new Date().toISOString().slice(2,7).replace('-','') + '-');
+
+    // helper: extract sequence number from docNo
+    const seqOf = (s) => {
+      const sm = String(s || '').match(/-(\d+)$/);
+      return sm ? parseInt(sm[1], 10) : 0;
+    };
+    const buildDoc = (n) => docPrefix + String(n).padStart(4, '0');
+
+    // 1) หา max sequence ใน LOCAL
+    let localMax = 0;
+    const localRows = _safeArr(_GLOBAL_DB[localCol]);
+    localRows.forEach(r => {
+      if (!r || !r.docNo || (currentBillId && r.id === currentBillId)) return;
+      if (typeof r.docNo === 'string' && r.docNo.startsWith(docPrefix)) {
+        const n = seqOf(r.docNo);
+        if (n > localMax) localMax = n;
       }
-      console.error('[docNo-cloud-collision] EXHAUSTED 5 retries — กำลังใช้ '+result+' (อาจซ้ำ)');
-      return result;
-    } catch(e) {
-      console.warn('[docNo-cloud-check] exception:', e.message);
-      return result;
+    });
+
+    // 2) หา max sequence ใน CLOUD (ถ้า Supabase ออนไลน์)
+    let cloudMax = 0;
+    if (window.sb && cloudTable) {
+      try {
+        const { data, error } = await window.sb.from(cloudTable)
+          .select('doc_no').like('doc_no', docPrefix + '%')
+          .order('doc_no', { ascending: false }).limit(1);
+        if (!error && data && data.length > 0) {
+          cloudMax = seqOf(data[0].doc_no);
+        }
+      } catch(e) { console.warn('[docNo-cloud-max]', e.message); }
     }
+
+    // 3) Reserved counter (in-flight numbers ใน session นี้ที่ยังไม่ save)
+    if (!_GLOBAL_DB._docReserved) _GLOBAL_DB._docReserved = {};
+    const reserved = Number(_GLOBAL_DB._docReserved[docPrefix] || 0);
+
+    // 4) คำนวณ next = max(local, cloud, reserved) + 1
+    let next = Math.max(localMax, cloudMax, reserved) + 1;
+    let candidate = buildDoc(next);
+
+    // 5) Verify candidate ไม่ซ้ำใน cloud — retry ถ้าซ้ำ (กัน race เครื่องอื่นใช้ wave เดียวกัน)
+    if (window.sb && cloudTable) {
+      for (let attempt = 0; attempt < 10; attempt++) {
+        try {
+          const { data, error } = await window.sb.from(cloudTable)
+            .select('id, doc_no').eq('doc_no', candidate).limit(2);
+          if (error) { console.warn('[docNo-verify]', error.message); break; }
+          const collision = (data || []).some(r => r && r.id !== currentBillId);
+          if (!collision) break;     // ✓ ไม่ซ้ำ — ใช้ได้
+          // ซ้ำ → bump
+          next++;
+          candidate = buildDoc(next);
+          console.warn('[docNo] ซ้ำ → bump เป็น ' + candidate);
+        } catch(e) { console.warn('[docNo-verify]', e.message); break; }
+      }
+    }
+
+    // 6) Reserve เลขนี้ — กันถัดไปใช้ซ้ำใน session
+    _GLOBAL_DB._docReserved[docPrefix] = next;
+    if (!_GLOBAL_DB.docCounters) _GLOBAL_DB.docCounters = {};
+    _GLOBAL_DB.docCounters[prefix] = next + 1;
+
+    if (candidate !== docNo) {
+      console.log('[docNo] ' + docNo + ' → ' + candidate + ' (localMax=' + localMax + ', cloudMax=' + cloudMax + ')');
+    }
+    return candidate;
   },
   logAudit: (action, entity, before, after) => {
     try {
@@ -19410,16 +19465,18 @@ const IMPORT_SCHEMAS = {
     label: 'ผู้ขาย', collection: 'suppliers', idPrefix: 'SUP',
     keyField: 'name',                                                          // 🔥 ใช้ชื่อเป็น key (ไม่ใช่ code)
     columns: [
-      { key:'name',         label:'ชื่อผู้ขาย',          required:true,  type:'string' },
-      { key:'bankAccount',  label:'เลขบัญชีธนาคาร',      required:false, type:'string' },
-      { key:'salesId',      label:'เซลที่ดูแล (ชื่อ/รหัส)', required:false, type:'string' },     // map ไปยัง salespersons
-      { key:'phone',        label:'โทรศัพท์',            required:false, type:'string' },
-      { key:'active',       label:'สถานะ (true/false)',  required:false, type:'bool',   default:true },
+      { key:'name',         label:'ชื่อ',                         required:true,  type:'string' },
+      { key:'taxId',        label:'เลขประจำตัวบัตรประชาชน',       required:false, type:'string' },     // 🆕 เลขบัตร ปชช. 13 หลัก
+      { key:'address',      label:'ที่อยู่',                       required:false, type:'string' },     // 🆕
+      { key:'bankAccount',  label:'เลขบัญชี',                     required:false, type:'string' },
+      { key:'phone',        label:'เบอร์โทร',                     required:false, type:'string' },
+      { key:'salesId',      label:'เซลที่ดูแล (ชื่อ/รหัส)',         required:false, type:'string' },     // map ไปยัง salespersons
+      { key:'active',       label:'สถานะ (true/false)',           required:false, type:'bool',   default:true },
     ],
     sample: [
-      ['ร้านเศษเหล็กAA','SCB 123-4-56789-0','พนักงานขาย 1','0811111111','true'],
-      ['คุณสมชาย','','พนักงานขาย 2','0822222222','true'],
-      ['บจ.เมทัลคอปเปอร์','KBANK 001-2-34567-8','พนักงานขาย 1','021234567','true'],
+      ['ร้านเศษเหล็กAA',     '1101700123456', '99 หมู่ 5 ต.บางขุนเทียน เขตจอมทอง กรุงเทพฯ', 'SCB 123-4-56789-0', '0811111111', 'พนักงานขาย 1', 'true'],
+      ['นายสุวิทย์ ทองนาค',  '3102101157181', '126/29 หมู่ 3 จอมทอง กรุงเทพฯ',           'KBANK 121-3-83830-6', '0614253215',  'ศิริวรรณ',         'true'],
+      ['บจ.เมทัลคอปเปอร์',   '0105556001234', 'สมุทรสาคร',                              'KBANK 001-2-34567-8', '021234567',   'พนักงานขาย 1',  'true'],
     ],
   },
   product: {
@@ -19481,7 +19538,7 @@ app.component('view-mdImport', {
     const rawRows = ref([]); // รายแถวที่อ่านจาก file (header row จะถูกตัดออก)
     const headers = ref([]);
     const previewRows = ref([]); // หลัง validate
-    const onDuplicate = ref('skip'); // skip | update
+    const onDuplicate = ref('skip'); // skip | update | replace_all
     const importing = ref(false);
     const showResultModal = ref(false);
     const lastResult = ref(null);
@@ -19537,15 +19594,29 @@ app.component('view-mdImport', {
           sc.columns.forEach(c => { labelToKey[c.label.replace(/\s*\*$/,'').trim()] = c.key; });
           // 🔧 รองรับ alternate labels ที่ user อาจเขียน
           const aliasMap = {
-            // Customer
+            // Customer/Supplier general
             'รหัส':'code', 'รหัสลูกค้า':'code', 'รหัสผู้ขาย':'code', 'รหัสสินค้า':'code',
             'ชื่อ':'name', 'ชื่อลูกค้า':'name', 'ชื่อผู้ขาย':'name', 'ชื่อสินค้า':'name',
+            'name':'name',
+            // 🆕 Tax ID / บัตรประชาชน
             'เลขผู้เสียภาษี':'taxId', 'เลขบัตร/ภาษี':'taxId', 'เลขผู้เสียภาษี/บัตร':'taxId',
-            'โทร':'phone', 'โทรศัพท์':'phone', 'เบอร์':'phone', 'เบอร์โทร':'phone',
-            'ที่อยู่':'address', 'ผู้ติดต่อ':'contact', 'ประเภท':'type',
+            'เลขประจำตัวบัตรประชาชน':'taxId', 'เลขบัตรประชาชน':'taxId', 'เลขบัตรปชช':'taxId',
+            'บัตรประชาชน':'taxId', 'เลขบัตรประชาชน/ภาษี':'taxId', 'taxid':'taxId',
+            // Phone
+            'โทร':'phone', 'โทรศัพท์':'phone', 'เบอร์':'phone', 'เบอร์โทร':'phone', 'phone':'phone', 'tel':'phone',
+            // Address
+            'ที่อยู่':'address', 'address':'address',
+            // Customer-only
+            'ผู้ติดต่อ':'contact', 'ประเภท':'type',
             'Credit Term':'creditTerm', 'credit term (วัน)':'creditTerm', 'เครดิตเทอม':'creditTerm',
             'วงเงินเครดิต':'creditLimit', 'วงเงิน':'creditLimit',
-            'บัญชีธนาคาร':'bankAccount', 'เลขบัญชีธนาคาร':'bankAccount',
+            // 🆕 Bank account (รองรับหลายชื่อ)
+            'บัญชีธนาคาร':'bankAccount', 'เลขบัญชีธนาคาร':'bankAccount', 'เลขบัญชี':'bankAccount',
+            'เลขที่บัญชี':'bankAccount', 'bank account':'bankAccount', 'bankaccount':'bankAccount',
+            // 🆕 Sales rep
+            'เซล':'salesId', 'เซลที่ดูแล':'salesId', 'เซลล์ที่ดูแล':'salesId', 'sales':'salesId',
+            'พนักงานขาย':'salesId',
+            // Active
             'สถานะ':'active', 'active':'active', 'สถานะ (true/false)':'active',
             // Product
             'หน่วย':'unit', 'เกรด':'grade', 'กลุ่มโลหะ':'metalGroup',
@@ -19656,16 +19727,51 @@ app.component('view-mdImport', {
     });
 
     /* ---------- Confirm Import ---------- */
-    function confirmImport() {
+    async function confirmImport() {
       const sc = schema.value;
-      const valid = previewRows.value.filter(r => r.action !== 'error' && r.action !== 'skip');
+      const isReplaceAll = onDuplicate.value === 'replace_all';
+      // ในโหมด replace_all: ทุกแถวที่ไม่ error → จะเป็น create ใหม่หมด (เพราะลบเก่าก่อน)
+      const valid = isReplaceAll
+        ? previewRows.value.filter(r => r.action !== 'error')
+        : previewRows.value.filter(r => r.action !== 'error' && r.action !== 'skip');
       if (!valid.length) { erp.showToast('ไม่มีรายการที่ import ได้', 'error'); return; }
-      if (!confirm(`ยืนยัน Import ${valid.length} แถว? (Create ${stats.value.toCreate} / Update ${stats.value.toUpdate})`)) return;
+
+      const oldCount = (_trkSafe(db[sc.collection]) || []).length;
+      let confirmMsg;
+      if (isReplaceAll) {
+        confirmMsg = '⚠ REPLACE ALL MODE\n\n' +
+          'จะลบข้อมูล '+sc.label+' เก่าทั้งหมด '+oldCount+' รายการ ทั้ง local + Supabase Cloud\n' +
+          'แล้ว import ใหม่ '+valid.length+' รายการจากไฟล์\n\n' +
+          'ดำเนินการต่อ?';
+      } else {
+        confirmMsg = `ยืนยัน Import ${valid.length} แถว? (Create ${stats.value.toCreate} / Update ${stats.value.toUpdate})`;
+      }
+      if (!confirm(confirmMsg)) return;
 
       importing.value = true;
       try {
         // build snapshot สำหรับ Rollback
         const snapshotCollection = JSON.parse(JSON.stringify(_trkSafe(db[sc.collection])));
+
+        // 🆕 REPLACE ALL: ลบข้อมูลเก่าทั้งหมดก่อน import (local + cloud)
+        if (isReplaceAll) {
+          const oldIds = (db[sc.collection] || []).map(r => r && r.id).filter(Boolean);
+          // ลบ local
+          if (Array.isArray(db[sc.collection])) {
+            db[sc.collection].splice(0, db[sc.collection].length);
+          }
+          // ลบ cloud — ใช้ table name ตาม AS_MAP
+          if (window.sb && oldIds.length > 0) {
+            const cloudTbl = ({customers:'customers', suppliers:'suppliers', products:'products'})[sc.collection];
+            if (cloudTbl) {
+              try {
+                const { error } = await window.sb.from(cloudTbl).delete().in('id', oldIds);
+                if (error) console.warn('[import-replace] cloud delete fail:', error.message);
+                else console.log('[import-replace] ลบ cloud '+cloudTbl+' '+oldIds.length+' rows');
+              } catch(e) { console.warn('[import-replace] cloud delete exception:', e); }
+            }
+          }
+        }
         const snapshotLedger = entityType.value === 'product'
           ? JSON.parse(JSON.stringify(_trkSafe(db.stockLedger).filter(s => s && s.refType === 'OPENING')))
           : null;
@@ -19687,7 +19793,9 @@ app.component('view-mdImport', {
 
         valid.forEach(r => {
           const obj = r.data;
-          if (r.action === 'create') {
+          // 🆕 ใน replace_all mode → treat ทุกแถวเป็น create (เพราะลบของเก่าไปแล้ว)
+          const effectiveAction = isReplaceAll ? 'create' : r.action;
+          if (effectiveAction === 'create') {
             const newId = `${sc.idPrefix}-${importId.slice(4,12)}-${created.length+1}`;
             const newRec = { id: newId };
             sc.columns.forEach(c => {
@@ -19737,7 +19845,7 @@ app.component('view-mdImport', {
                 stockEntries.push(slId);
               }
             }
-          } else if (r.action === 'update' && r.existingId) {
+          } else if (effectiveAction === 'update' && r.existingId) {
             const target = db[sc.collection].find(x => x && x.id === r.existingId);
             if (target) {
               const before = JSON.parse(JSON.stringify(target));
@@ -20151,13 +20259,22 @@ app.component('view-mdImport', {
             <span v-if="rawRows.length" class="text-sm text-slate-500">({{rawRows.length}} แถว)</span>
             <span class="flex-1"></span>
             <label class="text-sm flex items-center gap-2">
-              <span class="text-slate-500">เมื่อพบรหัสซ้ำ:</span>
-              <select v-model="onDuplicate" @change="validate" class="px-2 py-1 text-sm border rounded">
-                <option value="skip">ข้าม (Skip)</option>
-                <option value="update">อัปเดต (Update Existing)</option>
+              <span class="text-slate-500">โหมด Import:</span>
+              <select v-model="onDuplicate" @change="validate" :class="['px-2 py-1 text-sm border rounded', onDuplicate === 'replace_all' ? 'border-red-500 bg-red-50 text-red-700 font-bold' : '']">
+                <option value="skip">ข้าม รหัสซ้ำ (Skip)</option>
+                <option value="update">อัปเดตรหัสซ้ำ (Update Existing)</option>
+                <option value="replace_all">🚨 ลบเก่าทั้งหมด + Import ใหม่ (Replace All)</option>
               </select>
             </label>
             <button v-if="rawRows.length" @click="clearPreview" class="text-sm text-slate-500 hover:text-red-600">✕ ล้าง</button>
+          </div>
+          <!-- 🆕 Warning banner เมื่อเลือก replace_all -->
+          <div v-if="onDuplicate === 'replace_all'" class="mx-4 mb-4 bg-red-50 border-2 border-red-300 rounded p-3 text-sm">
+            <div class="font-bold text-red-700 mb-1">⚠ Replace All Mode — อันตราย</div>
+            <div class="text-red-600 text-xs">
+              เมื่อกด Import: ระบบจะ <b>ลบ {{schema.label}} เก่าทั้งหมด</b> ใน local + Supabase Cloud
+              แล้ว create ใหม่จากไฟล์ Excel — <b>ใช้ตอนเริ่มคีย์ข้อมูลครั้งแรก หรือต้องการ replace ข้อมูลเก่าหมด</b>
+            </div>
           </div>
         </div>
 
