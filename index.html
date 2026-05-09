@@ -7686,19 +7686,10 @@ app.component('view-purchase', {
         commission:0        // 🆕 ค่าคอมที่คำนวณได้ (1,000 บาท/ตัน ถ้าซื้อไม่เกินราคาหน้าใบ)
       };
     }
-    /* 🆕 คำนวณค่าคอมต่อรายการ — กฎ:
-       1. ซื้อไม่เกินราคาหน้าใบ
-       2. ยอดซื้อรายการต้อง > 1,000,000 บาท
-       → ค่าคอม = ยอด × 0.1% (ล้านละ 1,000) · ไม่ผ่านเงื่อนไข → 0 */
-    function _calcCommission(it) {
-      if (!it || !it.facePrice || Number(it.facePrice) <= 0) return 0;
-      const actual = Number(it.price||0);
-      const face = Number(it.facePrice||0);
-      if (actual > face) return 0;  // ซื้อเกินราคาหน้าใบ — ไม่ได้คอม
-      const amount = Number(it.netAmount||0) || (Number(it.netWeight||0) * actual);
-      if (amount <= 1000000) return 0;  // 🆕 ยอดต้องเกิน 1 ล้าน
-      return Math.round(amount / 1000000 * 1000 * 100) / 100;
-    }
+    /* 🚫 DEPRECATED: ไม่ใช้คำนวณ commission ที่บิลซื้อแล้ว
+       ค่าคอมคำนวณเฉพาะใน Sales Tracking Dashboard (รวมเดือน ก่อน VAT)
+       เก็บฟังก์ชั่นไว้เพื่อ backward compat แต่ไม่ถูกเรียก */
+    function _calcCommission(it) { return 0; }
     const form = ref({
       docNo: '', date: todayStr(),
       refNo: '',                                  // 🔥 เลขที่อ้างอิง (เลขใบส่งของ/บิล supplier)
@@ -32741,15 +32732,33 @@ app.component('view-salesCommission', {
     /* 🆕 NEW RULE: คำนวณค่าคอม "รวมทั้งเดือน" (ไม่ใช่ต่อ item)
        ถ้ายอดซื้อรวมเดือน ≥ 1 ล้านบาท → ค่าคอม = ยอด × 0.1% (ล้านละ 1,000)
        ถ้า < 1 ล้าน → ค่าคอม = 0 (ไม่ได้)
-       ตัวอย่าง: รวมเดือน 800k = 0 ฿ · รวมเดือน 1.5M = 1,500 ฿ */
+       ตัวอย่าง:
+         800,000   → 0 (ไม่ครบเป้า)
+         1,000,000 → 1,000
+         1,500,000 → 1,500
+         2,000,000 → 2,000
+         3,000,000 → 3,000
+       🔧 BUG FIX: ใช้ "ยอดก่อน VAT" (subtotal ของ items) — เพราะ VAT เป็นเงินรัฐ ไม่นับเป็นยอดซื้อ */
     const COMMISSION_THRESHOLD = 1000000;
     const COMMISSION_RATE = 0.001;  // 0.1%
     function _calcMonthlyCommission(totalAmount) {
       if (totalAmount < COMMISSION_THRESHOLD) return 0;
       return Math.round(totalAmount * COMMISSION_RATE);
     }
+    /* helper — คำนวณยอดบิล "ก่อน VAT" (ใช้ subtotal ถ้ามี ไม่งั้น fallback netAmount sum หรือ totalAmount) */
+    function _billAmountBeforeVat(b) {
+      if (!b) return 0;
+      // ลำดับความสำคัญ: subtotal (ของระบบใหม่) > sum items.netAmount > totalAmount - vatAmount
+      if (b.subtotal != null && Number(b.subtotal) > 0) return Number(b.subtotal);
+      const itemSum = (b.items||[]).reduce((s,i) => s + Number(i.netAmount || 0), 0);
+      if (itemSum > 0) return itemSum;
+      // Fallback: ตัด VAT ออก
+      const total = Number(b.totalAmount || 0);
+      const vat = Number(b.vatAmount || 0);
+      return Math.max(0, total - vat);
+    }
 
-    /* Per-Sales summary (cards) — ใช้ "บิลซื้อ" — กฎใหม่: รวมเดือน */
+    /* Per-Sales summary (cards) — ใช้ "บิลซื้อ" — กฎใหม่: รวมเดือน (ก่อน VAT) */
     const salesSummary = computed(() => {
       const sps = (db.salespersons||[]).filter(s => s && s.active !== false);
       const map = new Map();
@@ -32770,11 +32779,12 @@ app.component('view-salesCommission', {
         const x = map.get(sid);
         x.billCount++;
         x.qty += (b.items||[]).reduce((s,i)=>s+Number(i.netWeight||0),0);
-        x.purchaseAmt += Number(b.totalAmount||0);
+        // 🔧 ใช้ยอดก่อน VAT ตาม policy ค่าคอม
+        x.purchaseAmt += _billAmountBeforeVat(b);
         x.suppliers.add(b.supplierId);
       });
       return Array.from(map.values()).map(x => {
-        // 🆕 คำนวณค่าคอมจากยอดรวมเดือน
+        // 🆕 คำนวณค่าคอมจากยอดรวมเดือน (ก่อน VAT)
         x.commission = _calcMonthlyCommission(x.purchaseAmt);
         x.progressPct = Math.min(100, Math.round(x.purchaseAmt / COMMISSION_THRESHOLD * 100));
         x.remainingToTarget = Math.max(0, COMMISSION_THRESHOLD - x.purchaseAmt);
