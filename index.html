@@ -4921,6 +4921,16 @@ function makeMasterComponent(opts) {
             return;
           }
         }
+        // 🆕 Auto-generate code ถ้าตั้ง opts.autoCode + ยังไม่มี code
+        if (opts.autoCode && !form.code) {
+          const existing = (db[opts.collection]||[]).map(r => r && r.code).filter(c => c && /^[A-Z]\d+$/.test(c));
+          const maxNum = existing.reduce((max, c) => {
+            const n = parseInt(c.slice(1), 10);
+            return Number.isFinite(n) && n > max ? n : max;
+          }, 0);
+          const codePrefix = (opts.collection === 'suppliers' ? 'S' : opts.collection === 'customers' ? 'C' : opts.collection.charAt(0).toUpperCase());
+          form.code = codePrefix + String(maxNum + 1).padStart(4,'0');
+        }
         if (editing.value) {
           const idx = db[opts.collection].findIndex(x=>x.id===editing.value.id);
           const before = JSON.parse(JSON.stringify(db[opts.collection][idx]));
@@ -5048,6 +5058,11 @@ function makeMasterComponent(opts) {
                 <select v-if="f.type==='select'" v-model="form[f.key]" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
                   <option value="">--</option>
                   <option v-for="o in (typeof f.options==='function' ? f.options(db) : f.options)" :key="o.value||o.id" :value="o.value||o.id">{{ o.label||o.name }}</option>
+                </select>
+                <!-- 🆕 select-dynamic: dropdown จาก collection อื่น (เช่น salespersons) -->
+                <select v-else-if="f.type==='select-dynamic'" v-model="form[f.key]" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                  <option value="">— ไม่ระบุ —</option>
+                  <option v-for="o in (db[f.source]||[]).filter(x => x && x.active !== false)" :key="o[f.valueField||'id']" :value="o[f.valueField||'id']">{{ o[f.labelField||'name'] }}{{ o.code ? ' ('+o.code+')' : '' }}</option>
                 </select>
                 <textarea v-else-if="f.type==='textarea'" v-model="form[f.key]" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"></textarea>
                 <label v-else-if="f.type==='bool'" class="flex items-center gap-2">
@@ -5188,24 +5203,34 @@ app.component('view-mdCustomer', makeMasterComponent({
   validate: (f) => { const e=[]; if(!f.code)e.push('กรุณาใส่รหัส'); if(!f.name)e.push('กรุณาใส่ชื่อ'); return e; },
 }));
 
+/* 🔧 SYNC กับ Import Template — 6 fields หลัก: ชื่อ / เลขบัตร / ที่อยู่ / เลขบัญชี / เบอร์โทร / เซลที่ดูแล + active
+   ใช้ตอนสร้าง 📥 บิลซื้อ + 💸 จ่ายเงิน Supplier */
 app.component('view-mdSupplier', makeMasterComponent({
   collection:'suppliers', title:'ผู้ขาย', idPrefix:'SUP',
-  defaults: () => ({code:'', name:'', type:'บุคคล', taxId:'', address:'', phone:'', contact:'', creditTerm:0, bankAccount:'', active:true}),
+  defaults: () => ({code:'', name:'', taxId:'', address:'', bankAccount:'', phone:'', salesId:'', type:'บุคคล', creditTerm:0, active:true}),
   columns: [
-    {key:'code', label:'รหัส'}, {key:'name', label:'ชื่อ'}, {key:'type', label:'ประเภท'},
-    {key:'phone', label:'โทร'}, {key:'creditTerm', label:'Term'}, {key:'active', label:'สถานะ', format:'bool'},
+    {key:'name', label:'ชื่อ'},
+    {key:'taxId', label:'เลขบัตรประชาชน'},
+    {key:'phone', label:'เบอร์โทร'},
+    {key:'bankAccount', label:'เลขบัญชี'},
+    {key:'salesId', label:'เซลที่ดูแล', format:'lookup', lookup:(id)=> { try { return (window.$erp.db.salespersons||[]).find(s=>s&&s.id===id)?.name || '-'; } catch(e){ return '-'; } }},
+    {key:'active', label:'สถานะ', format:'bool'},
   ],
   fields: [
-    {key:'code', label:'รหัสผู้ขาย', required:true}, {key:'name', label:'ชื่อผู้ขาย', required:true},
-    {key:'type', label:'ประเภท', type:'select', options:[{value:'บุคคล',label:'บุคคล'},{value:'นิติบุคคล',label:'นิติบุคคล'},{value:'ร้านค้า',label:'ร้านค้า'}]},
-    {key:'taxId', label:'เลขบัตรประชาชน / เลขภาษี'},
+    {key:'name', label:'ชื่อ', required:true},
+    {key:'taxId', label:'เลขประจำตัวบัตรประชาชน (13 หลัก)'},
     {key:'address', label:'ที่อยู่', type:'textarea'},
-    {key:'phone', label:'เบอร์โทร'}, {key:'contact', label:'ผู้ติดต่อ'},
+    {key:'bankAccount', label:'เลขบัญชี (ระบุธนาคาร เช่น KBANK 121-3-83830-6)'},
+    {key:'phone', label:'เบอร์โทร'},
+    // เซลที่ดูแล — dropdown จาก salespersons
+    {key:'salesId', label:'เซลที่ดูแล', type:'select-dynamic', source:'salespersons', valueField:'id', labelField:'name'},
+    // ฟิลด์เสริม (optional, เก็บไว้เพื่อ backward compat)
+    {key:'type', label:'ประเภท', type:'select', options:[{value:'บุคคล',label:'บุคคล'},{value:'นิติบุคคล',label:'นิติบุคคล'},{value:'ร้านค้า',label:'ร้านค้า'}]},
     {key:'creditTerm', label:'Credit Term (วัน)', type:'number'},
-    {key:'bankAccount', label:'บัญชีธนาคาร'},
     {key:'active', label:'สถานะ', type:'bool'},
   ],
-  validate: (f) => { const e=[]; if(!f.code)e.push('กรุณาใส่รหัส'); if(!f.name)e.push('กรุณาใส่ชื่อ'); return e; },
+  validate: (f) => { const e=[]; if(!f.name)e.push('กรุณาใส่ชื่อ'); return e; },
+  autoCode: true,    // 🆕 ระบบจะ auto-generate code ถ้าว่าง (S0001, S0002, ...)
 }));
 
 app.component('view-mdProduct', makeMasterComponent({
@@ -20242,8 +20267,17 @@ app.component('view-mdImport', {
           <div v-if="entityType==='product'" class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2 mt-2">
             💡 <strong>Product Opening Stock</strong>: ถ้ากรอก openingQty &gt; 0 ระบบจะสร้าง <code>OPENING_STOCK_IN</code> ใน Stock Ledger พร้อม WAC เริ่มต้นจาก openingUnitCost ใช้ได้เฉพาะรหัส<strong>ใหม่</strong>เท่านั้น (Update จะข้าม)
           </div>
-          <div v-if="entityType==='supplier'" class="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded p-2 mt-2">
-            💡 <strong>Tip:</strong> ใส่แค่ <b>ชื่อผู้ขาย</b> ก็ Upload ได้เลย — ระบบจะ auto-gen รหัสให้ · ส่วน "เซลที่ดูแล" ใส่ชื่อหรือรหัสพนักงานขาย (สร้างที่ Master Data → 👨‍💼 พนักงานขาย ก่อน)
+          <div v-if="entityType==='supplier'" class="text-xs text-blue-700 bg-blue-50 border-2 border-blue-300 rounded p-3 mt-2 space-y-1.5">
+            <div class="font-bold text-blue-900">🏭 ผู้ขาย (Supplier) — คน/ร้านที่ขายเศษโลหะให้เรา</div>
+            <div>📌 <b>หลัง Upload</b> ข้อมูลจะเข้า <b>Master Data → ผู้ขาย</b> — ใช้เลือกตอนทำ <b>📥 บิลซื้อ + 💸 จ่ายเงิน Supplier</b></div>
+            <div class="border-t border-blue-200 pt-1.5 mt-1.5">
+              <b>Template (7 columns):</b> ชื่อ * | เลขบัตรประชาชน | ที่อยู่ | เลขบัญชี | เบอร์โทร | เซลที่ดูแล | สถานะ
+            </div>
+            <div>💡 <b>Tips:</b></div>
+            <div class="ml-4">• ใส่แค่ <b>ชื่อ</b> ก็ Upload ได้ — ระบบ auto-gen รหัส (S0001, S0002, ...)</div>
+            <div class="ml-4">• <b>เซลที่ดูแล</b> = พิมพ์ชื่อหรือรหัสพนักงานขาย (สร้างที่ Master Data → 👨‍💼 พนักงานขาย ก่อน)</div>
+            <div class="ml-4">• <b>เลขบัญชี</b> = ระบุธนาคาร เช่น "KBANK 121-3-83830-6" — ใช้ตอนจ่ายเงินอัตโนมัติ</div>
+            <div class="ml-4">• อยากลบของเก่าทั้งหมดก่อน import? → เลือก <b>"🚨 Replace All"</b> ใน "โหมด Import" ด้านล่าง</div>
           </div>
         </div>
 
