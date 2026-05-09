@@ -7371,10 +7371,10 @@ app.component('view-dashboard', {
       fmt:erp.fmt };
   },
   template: `
-  <div class="space-y-6">
+  <div class="space-y-3">
     <!-- 🎚 INTERACTIVE FILTER BAR (moved to top — applies to ALL dashboards below) -->
-    <div class="bg-gradient-to-r from-slate-800 to-slate-900 text-white rounded-2xl p-4 shadow-xl">
-      <div class="flex flex-wrap items-center gap-2 mb-3">
+    <div class="bg-gradient-to-r from-slate-800 to-slate-900 text-white rounded-xl p-3 shadow-lg">
+      <div class="flex flex-wrap items-center gap-2 mb-2">
         <span class="text-xs font-bold opacity-80">📅 ช่วงเวลา:</span>
         <button @click="setPeriod('year')" :class="['px-3 py-1.5 rounded-lg text-xs font-bold', period==='year'?'bg-amber-400 text-slate-900':'bg-white/10 hover:bg-white/20']">📊 ปีนี้</button>
         <button @click="setPeriod('quarter')" :class="['px-3 py-1.5 rounded-lg text-xs font-bold', period==='quarter'?'bg-amber-400 text-slate-900':'bg-white/10 hover:bg-white/20']">ไตรมาส</button>
@@ -7397,12 +7397,12 @@ app.component('view-dashboard', {
       </div>
     </div>
 
-    <!-- 🌟 SUMMIT-STYLE Financial Dashboard -->
-    <div class="bg-gradient-to-r from-slate-50 to-blue-50 rounded-2xl p-4 border-2 border-slate-200">
-      <div class="flex items-baseline justify-between mb-4">
+    <!-- 🌟 SUMMIT-STYLE Financial Dashboard — COMPACT MODERN -->
+    <div class="bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl p-3 border border-slate-200">
+      <div class="flex items-baseline justify-between mb-2">
         <div>
-          <h2 class="text-2xl font-bold text-slate-800">Financial Dashboard</h2>
-          <p class="text-xs text-slate-500">ภาพรวมทางการเงิน · Real-time overview of financial performance</p>
+          <h2 class="text-lg font-bold text-slate-800">📊 Financial Dashboard</h2>
+          <p class="text-[10px] text-slate-500">ภาพรวมทางการเงิน Real-time</p>
         </div>
         <div class="text-xs text-slate-500">📅 {{dateFrom}} → {{dateTo}}</div>
       </div>
@@ -7419,100 +7419,97 @@ app.component('view-dashboard', {
         ℹ️ ยังไม่มีข้อมูล Historical — ไปที่เมนู <b>📅 ข้อมูลย้อนหลัง</b> เพื่อคีย์ยอด ม.ค.-เม.ย. 2026
       </div>
 
-      <!-- 6 KPI Cards (Top Row) -->
-      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+      <!-- 6 KPI Cards (Top Row) — Icon บน + Center Aligned -->
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
         <!-- Revenue -->
-        <div class="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
-          <div class="flex items-start justify-between">
-            <div>
-              <div class="text-xs text-slate-500">Revenue</div>
-              <div class="flex items-baseline gap-0.5 mt-1"><span class="text-xs font-bold text-slate-700">฿</span><div class="text-xl font-bold text-slate-800">{{fmt(monthSales)}}</div></div>
-            </div>
-            <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-lg">📈</div>
+        <div class="bg-white rounded-lg shadow-sm p-3 border border-slate-100 text-center hover:shadow-md transition-shadow">
+          <div class="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-base mx-auto mb-1.5">📈</div>
+          <div class="text-[10px] text-slate-500 font-medium uppercase tracking-wide">Revenue</div>
+          <div class="flex items-baseline justify-center gap-0.5 mt-1">
+            <span class="text-[10px] font-bold text-slate-700">฿</span>
+            <div class="text-sm font-bold text-slate-800 truncate">{{fmt(monthSales)}}</div>
           </div>
-          <div class="text-xs mt-2" :class="pctChange(monthSales, prevSales)>=0?'text-emerald-600':'text-red-600'">
-            {{pctChange(monthSales, prevSales)>=0?'▲':'▼'}} {{Math.abs(pctChange(monthSales, prevSales)).toFixed(1)}}% <span class="text-slate-400">vs prev</span>
+          <div class="text-[10px] mt-1 font-medium" :class="pctChange(monthSales, prevSales)>=0?'text-emerald-600':'text-red-600'">
+            {{pctChange(monthSales, prevSales)>=0?'▲':'▼'}}{{Math.abs(pctChange(monthSales, prevSales)).toFixed(1)}}% <span class="text-slate-400 font-normal">vs prev</span>
           </div>
-          <div v-if="histRevenue > 0" class="text-[10px] mt-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded inline-block">
-            📅 รวม Historical {{fmt(histRevenue)}}
+          <div v-if="histRevenue > 0" class="text-[9px] mt-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded inline-block leading-tight">
+            📅 +Hist {{fmt(histRevenue)}}
           </div>
         </div>
 
         <!-- Expenses -->
-        <div class="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
-          <div class="flex items-start justify-between">
-            <div>
-              <div class="text-xs text-slate-500">Expenses</div>
-              <div class="flex items-baseline gap-0.5 mt-1"><span class="text-xs font-bold text-slate-700">฿</span><div class="text-xl font-bold text-slate-800">{{fmt(monthExpenses + monthCost)}}</div></div>
-            </div>
-            <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-lg">💸</div>
+        <div class="bg-white rounded-lg shadow-sm p-3 border border-slate-100 text-center hover:shadow-md transition-shadow">
+          <div class="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-base mx-auto mb-1.5">💸</div>
+          <div class="text-[10px] text-slate-500 font-medium uppercase tracking-wide">Expenses</div>
+          <div class="flex items-baseline justify-center gap-0.5 mt-1">
+            <span class="text-[10px] font-bold text-slate-700">฿</span>
+            <div class="text-sm font-bold text-slate-800 truncate">{{fmt(monthExpenses + monthCost)}}</div>
           </div>
-          <div class="text-xs mt-2" :class="pctChange(monthExpenses+monthCost, prevMonthExpenses+prevCost)<=0?'text-emerald-600':'text-red-600'">
-            {{pctChange(monthExpenses+monthCost, prevMonthExpenses+prevCost)>=0?'▲':'▼'}} {{Math.abs(pctChange(monthExpenses+monthCost, prevMonthExpenses+prevCost)).toFixed(1)}}% <span class="text-slate-400">vs prev</span>
+          <div class="text-[10px] mt-1 font-medium" :class="pctChange(monthExpenses+monthCost, prevMonthExpenses+prevCost)<=0?'text-emerald-600':'text-red-600'">
+            {{pctChange(monthExpenses+monthCost, prevMonthExpenses+prevCost)>=0?'▲':'▼'}}{{Math.abs(pctChange(monthExpenses+monthCost, prevMonthExpenses+prevCost)).toFixed(1)}}% <span class="text-slate-400 font-normal">vs prev</span>
           </div>
-          <div v-if="(histExpenses + histCogs) > 0" class="text-[10px] mt-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded inline-block">
-            📅 รวม Historical {{fmt(histExpenses + histCogs)}}
+          <div v-if="(histExpenses + histCogs) > 0" class="text-[9px] mt-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded inline-block leading-tight">
+            📅 +Hist {{fmt(histExpenses + histCogs)}}
           </div>
         </div>
 
         <!-- Net Profit -->
-        <div class="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
-          <div class="flex items-start justify-between">
-            <div>
-              <div class="text-xs text-slate-500">Net Profit</div>
-              <div class="flex items-baseline gap-0.5 mt-1"><span class="text-xs font-bold text-slate-700">฿</span><div class="text-xl font-bold" :class="netProfit>=0?'text-emerald-700':'text-red-700'">{{fmt(netProfit)}}</div></div>
-            </div>
-            <div class="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 text-lg">🥧</div>
+        <div class="bg-white rounded-lg shadow-sm p-3 border border-slate-100 text-center hover:shadow-md transition-shadow">
+          <div class="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 text-base mx-auto mb-1.5">🥧</div>
+          <div class="text-[10px] text-slate-500 font-medium uppercase tracking-wide">Net Profit</div>
+          <div class="flex items-baseline justify-center gap-0.5 mt-1">
+            <span class="text-[10px] font-bold text-slate-700">฿</span>
+            <div class="text-sm font-bold truncate" :class="netProfit>=0?'text-emerald-700':'text-red-700'">{{fmt(netProfit)}}</div>
           </div>
-          <div class="text-xs mt-2" :class="pctChange(netProfit, prevNetProfit)>=0?'text-emerald-600':'text-red-600'">
-            {{pctChange(netProfit, prevNetProfit)>=0?'▲':'▼'}} {{Math.abs(pctChange(netProfit, prevNetProfit)).toFixed(1)}}% <span class="text-slate-400">vs prev</span>
+          <div class="text-[10px] mt-1 font-medium" :class="pctChange(netProfit, prevNetProfit)>=0?'text-emerald-600':'text-red-600'">
+            {{pctChange(netProfit, prevNetProfit)>=0?'▲':'▼'}}{{Math.abs(pctChange(netProfit, prevNetProfit)).toFixed(1)}}% <span class="text-slate-400 font-normal">vs prev</span>
           </div>
         </div>
 
         <!-- Cash Balance -->
-        <div class="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
-          <div class="flex items-start justify-between">
-            <div>
-              <div class="text-xs text-slate-500">Cash Balance</div>
-              <div class="flex items-baseline gap-0.5 mt-1"><span class="text-xs font-bold text-slate-700">฿</span><div class="text-xl font-bold text-slate-800">{{fmt(cashBalance)}}</div></div>
-            </div>
-            <div class="w-10 h-10 rounded-full bg-cyan-100 flex items-center justify-center text-cyan-600 text-lg">💵</div>
+        <div class="bg-white rounded-lg shadow-sm p-3 border border-slate-100 text-center hover:shadow-md transition-shadow">
+          <div class="w-9 h-9 rounded-full bg-cyan-100 flex items-center justify-center text-cyan-600 text-base mx-auto mb-1.5">💵</div>
+          <div class="text-[10px] text-slate-500 font-medium uppercase tracking-wide">Cash Balance</div>
+          <div class="flex items-baseline justify-center gap-0.5 mt-1">
+            <span class="text-[10px] font-bold text-slate-700">฿</span>
+            <div class="text-sm font-bold text-slate-800 truncate">{{fmt(cashBalance)}}</div>
           </div>
-          <div class="text-xs mt-2 text-slate-500">{{db.accounts.filter(a=>a.active && (a.type==='เงินสด'||a.type==='ธนาคาร')).length}} active accounts</div>
+          <div class="text-[10px] mt-1 text-slate-500">{{db.accounts.filter(a=>a.active && (a.type==='เงินสด'||a.type==='ธนาคาร')).length}} active accounts</div>
         </div>
 
         <!-- AR -->
-        <div class="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
-          <div class="flex items-start justify-between">
-            <div>
-              <div class="text-xs text-slate-500">Accounts Receivable</div>
-              <div class="text-xs text-slate-400">ลูกหนี้</div>
-              <div class="flex items-baseline gap-0.5 mt-1"><span class="text-xs font-bold text-slate-700">฿</span><div class="text-xl font-bold text-slate-800">{{fmt(arTotal)}}</div></div>
-            </div>
-            <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 text-lg">👤</div>
+        <div class="bg-white rounded-lg shadow-sm p-3 border border-slate-100 text-center hover:shadow-md transition-shadow">
+          <div class="w-9 h-9 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 text-base mx-auto mb-1.5">👤</div>
+          <div class="text-[10px] text-slate-500 font-medium uppercase tracking-wide">AR <span class="text-slate-400 normal-case">ลูกหนี้</span></div>
+          <div class="flex items-baseline justify-center gap-0.5 mt-1">
+            <span class="text-[10px] font-bold text-slate-700">฿</span>
+            <div class="text-sm font-bold text-slate-800 truncate">{{fmt(arTotal)}}</div>
           </div>
-          <div class="text-xs mt-2 text-slate-400">เกินกำหนด: <b class="text-amber-600">{{fmt(arAgingSummary['1-30']+arAgingSummary['31-60']+arAgingSummary['61-90']+arAgingSummary.over90)}}</b></div>
+          <div class="text-[10px] mt-1 text-slate-400">เกินกำหนด: <b class="text-amber-600">{{fmt(arAgingSummary['1-30']+arAgingSummary['31-60']+arAgingSummary['61-90']+arAgingSummary.over90)}}</b></div>
         </div>
 
         <!-- AP -->
-        <div class="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
-          <div class="flex items-start justify-between">
-            <div>
-              <div class="text-xs text-slate-500">Accounts Payable</div>
-              <div class="text-xs text-slate-400">เจ้าหนี้</div>
-              <div class="flex items-baseline gap-0.5 mt-1"><span class="text-xs font-bold text-slate-700">฿</span><div class="text-xl font-bold text-slate-800">{{fmt(apTotal)}}</div></div>
-            </div>
-            <div class="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 text-lg">📋</div>
+        <div class="bg-white rounded-lg shadow-sm p-3 border border-slate-100 text-center hover:shadow-md transition-shadow">
+          <div class="w-9 h-9 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 text-base mx-auto mb-1.5">📋</div>
+          <div class="text-[10px] text-slate-500 font-medium uppercase tracking-wide">AP <span class="text-slate-400 normal-case">เจ้าหนี้</span></div>
+          <div class="flex items-baseline justify-center gap-0.5 mt-1">
+            <span class="text-[10px] font-bold text-slate-700">฿</span>
+            <div class="text-sm font-bold text-slate-800 truncate">{{fmt(apTotal)}}</div>
           </div>
-          <div class="text-xs mt-2 text-slate-400">เกินกำหนด: <b class="text-red-600">{{fmt(apAgingSummary['1-30']+apAgingSummary['31-60']+apAgingSummary['61-90']+apAgingSummary.over90)}}</b></div>
+          <div class="text-[10px] mt-1 text-slate-400">เกินกำหนด: <b class="text-red-600">{{fmt(apAgingSummary['1-30']+apAgingSummary['31-60']+apAgingSummary['61-90']+apAgingSummary.over90)}}</b></div>
         </div>
       </div>
 
+      <!-- 🆕 MAIN GRID: Left (Charts+Tables) col-span-3 + Right (Insights/Alerts sidebar) col-span-1 -->
+      <div class="grid grid-cols-1 lg:grid-cols-4 gap-3">
+        <!-- LEFT MAIN AREA -->
+        <div class="lg:col-span-3 space-y-3">
+
       <!-- 3 Charts Row -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-2">
         <!-- Revenue vs Expense Line Chart -->
-        <div class="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
-          <div class="text-sm font-bold text-slate-700 mb-3">Revenue vs Expense (Monthly)</div>
+        <div class="bg-white rounded-lg shadow-sm p-3 border border-slate-100">
+          <div class="text-xs font-bold text-slate-700 mb-2">📈 Revenue vs Expense</div>
           <svg viewBox="0 0 380 200" style="width:100%;height:180px">
             <!-- Y axis -->
             <line x1="40" y1="20" x2="40" y2="170" stroke="#e2e8f0"/>
@@ -7548,8 +7545,8 @@ app.component('view-dashboard', {
         </div>
 
         <!-- Cash Flow Overview Combo -->
-        <div class="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
-          <div class="text-sm font-bold text-slate-700 mb-3">Cash Flow Overview <span class="text-xs text-slate-400">(กระแสเงินสด)</span></div>
+        <div class="bg-white rounded-lg shadow-sm p-3 border border-slate-100">
+          <div class="text-xs font-bold text-slate-700 mb-2">💵 Cash Flow <span class="text-[10px] text-slate-400">(กระแสเงินสด)</span></div>
           <svg viewBox="0 0 380 200" style="width:100%;height:180px">
             <line x1="40" y1="20" x2="40" y2="170" stroke="#e2e8f0"/>
             <line x1="40" y1="100" x2="370" y2="100" stroke="#e2e8f0" stroke-dasharray="3 3"/>
@@ -7582,8 +7579,8 @@ app.component('view-dashboard', {
         </div>
 
         <!-- Expense Breakdown Donut -->
-        <div class="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
-          <div class="text-sm font-bold text-slate-700 mb-3">Expense Breakdown <span class="text-xs text-slate-400">(ค่าใช้จ่าย)</span></div>
+        <div class="bg-white rounded-lg shadow-sm p-3 border border-slate-100">
+          <div class="text-xs font-bold text-slate-700 mb-2">💸 Expense Breakdown <span class="text-[10px] text-slate-400">(ค่าใช้จ่าย)</span></div>
           <div class="flex items-center gap-3">
             <svg viewBox="0 0 200 200" style="width:130px;height:130px;flex-shrink:0">
               <template v-if="expenseBreakdown.length > 0 && expenseBreakdown.reduce((s,c)=>s+c.val,0) > 0">
@@ -7611,11 +7608,11 @@ app.component('view-dashboard', {
         </div>
       </div>
 
-      <!-- Bottom Row: Aging + Branch + Quick Insights -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+      <!-- Bottom Row: Aging + Branch (2 col only — Quick Insights moved to right sidebar) -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <!-- AR/AP Aging -->
-        <div class="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
-          <div class="text-sm font-bold text-slate-700 mb-3">Receivables & Payables Aging</div>
+        <div class="bg-white rounded-lg shadow-sm p-3 border border-slate-100">
+          <div class="text-xs font-bold text-slate-700 mb-2">📥 Receivables & Payables Aging</div>
           <table class="w-full text-xs">
             <thead class="text-slate-500"><tr><th class="text-left py-1">Type</th><th class="text-right">Current</th><th class="text-right">1-30</th><th class="text-right">31-60</th><th class="text-right">61-90</th><th class="text-right">>90</th><th class="text-right">Total</th></tr></thead>
             <tbody>
@@ -7640,8 +7637,8 @@ app.component('view-dashboard', {
         </div>
 
         <!-- Channel Performance — Trading vs NS Scrap branches -->
-        <div class="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
-          <div class="text-sm font-bold text-slate-700 mb-3">Channel Performance <span class="text-xs text-slate-400 font-normal">(Trading / NS Scrap แยกสาขา)</span></div>
+        <div class="bg-white rounded-lg shadow-sm p-3 border border-slate-100">
+          <div class="text-xs font-bold text-slate-700 mb-2">🏪 Channel Performance <span class="text-[10px] text-slate-400 font-normal">(Trading / NS Scrap)</span></div>
           <table class="w-full text-xs">
             <thead class="text-slate-500"><tr><th class="text-left py-1">Channel</th><th class="text-right">Revenue</th><th class="text-right">Net Profit</th><th class="text-right">NP %</th><th class="text-right">vs Prev</th></tr></thead>
             <tbody>
@@ -7657,49 +7654,63 @@ app.component('view-dashboard', {
           </table>
         </div>
 
-        <!-- Quick Insights -->
-        <div class="bg-white rounded-xl shadow-sm p-4 border border-slate-100">
-          <div class="text-sm font-bold text-slate-700 mb-3">Quick Insights</div>
-          <div class="space-y-2 text-xs">
-            <div class="flex items-center justify-between">
-              <span class="text-slate-600">Gross Margin</span>
-              <span class="font-bold text-slate-800">{{quickInsights.grossMargin.toFixed(1)}}%</span>
-              <span :class="quickInsights.gmDelta>=0?'text-emerald-600':'text-red-600'">{{quickInsights.gmDelta>=0?'▲':'▼'}}{{Math.abs(quickInsights.gmDelta).toFixed(1)}}</span>
-            </div>
-            <div class="flex items-center justify-between">
-              <span class="text-slate-600">Operating Margin</span>
-              <span class="font-bold text-slate-800">{{quickInsights.opMargin.toFixed(1)}}%</span>
-              <span :class="quickInsights.opDelta>=0?'text-emerald-600':'text-red-600'">{{quickInsights.opDelta>=0?'▲':'▼'}}{{Math.abs(quickInsights.opDelta).toFixed(1)}}</span>
-            </div>
-            <div class="flex items-center justify-between">
-              <span class="text-slate-600">Net Profit Margin</span>
-              <span class="font-bold text-slate-800">{{quickInsights.npMargin.toFixed(1)}}%</span>
-              <span :class="quickInsights.npDelta>=0?'text-emerald-600':'text-red-600'">{{quickInsights.npDelta>=0?'▲':'▼'}}{{Math.abs(quickInsights.npDelta).toFixed(1)}}</span>
-            </div>
-            <div class="flex items-center justify-between">
-              <span class="text-slate-600">AR Turnover (Days)</span>
-              <span class="font-bold text-slate-800">{{quickInsights.arDays.toFixed(0)}}</span>
-              <span class="text-xs text-slate-400">วัน</span>
-            </div>
-            <div class="flex items-center justify-between">
-              <span class="text-slate-600">AP Turnover (Days)</span>
-              <span class="font-bold text-slate-800">{{quickInsights.apDays.toFixed(0)}}</span>
-              <span class="text-xs text-slate-400">วัน</span>
-            </div>
-            <div class="flex items-center justify-between">
-              <span class="text-slate-600">Cash Conversion Cycle</span>
-              <span class="font-bold text-slate-800">{{quickInsights.ccc.toFixed(0)}}</span>
-              <span class="text-xs text-slate-400">วัน</span>
+      </div><!-- /Bottom Row 2-col -->
+
+        </div><!-- /LEFT MAIN AREA col-span-3 -->
+
+        <!-- 🆕 RIGHT SIDEBAR: Quick Insights + Alerts -->
+        <div class="lg:col-span-1 space-y-3">
+          <!-- Quick Insights -->
+          <div class="bg-white rounded-lg shadow-sm p-3 border border-slate-100">
+            <div class="text-xs font-bold text-slate-700 mb-2 flex items-center gap-1">⚡ Quick Insights</div>
+            <div class="space-y-1.5 text-[11px]">
+              <div class="flex items-center justify-between border-b pb-1">
+                <span class="text-slate-600">Gross Margin</span>
+                <div class="flex items-center gap-1">
+                  <span class="font-bold text-slate-800">{{quickInsights.grossMargin.toFixed(1)}}%</span>
+                  <span class="text-[10px]" :class="quickInsights.gmDelta>=0?'text-emerald-600':'text-red-600'">{{quickInsights.gmDelta>=0?'▲':'▼'}}{{Math.abs(quickInsights.gmDelta).toFixed(1)}}</span>
+                </div>
+              </div>
+              <div class="flex items-center justify-between border-b pb-1">
+                <span class="text-slate-600">Operating Margin</span>
+                <div class="flex items-center gap-1">
+                  <span class="font-bold text-slate-800">{{quickInsights.opMargin.toFixed(1)}}%</span>
+                  <span class="text-[10px]" :class="quickInsights.opDelta>=0?'text-emerald-600':'text-red-600'">{{quickInsights.opDelta>=0?'▲':'▼'}}{{Math.abs(quickInsights.opDelta).toFixed(1)}}</span>
+                </div>
+              </div>
+              <div class="flex items-center justify-between border-b pb-1">
+                <span class="text-slate-600">NP Margin</span>
+                <div class="flex items-center gap-1">
+                  <span class="font-bold text-slate-800">{{quickInsights.npMargin.toFixed(1)}}%</span>
+                  <span class="text-[10px]" :class="quickInsights.npDelta>=0?'text-emerald-600':'text-red-600'">{{quickInsights.npDelta>=0?'▲':'▼'}}{{Math.abs(quickInsights.npDelta).toFixed(1)}}</span>
+                </div>
+              </div>
+              <div class="flex items-center justify-between border-b pb-1">
+                <span class="text-slate-600">AR Days</span>
+                <span class="font-bold text-slate-800">{{quickInsights.arDays.toFixed(0)}} วัน</span>
+              </div>
+              <div class="flex items-center justify-between border-b pb-1">
+                <span class="text-slate-600">AP Days</span>
+                <span class="font-bold text-slate-800">{{quickInsights.apDays.toFixed(0)}} วัน</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-slate-600">CCC</span>
+                <span class="font-bold text-slate-800">{{quickInsights.ccc.toFixed(0)}} วัน</span>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
 
-    <!-- ALERT BAR -->
-    <div v-if="alerts.length" class="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-1">
-      <div class="font-semibold text-amber-800 text-sm">🔔 การแจ้งเตือน ({{alerts.length}})</div>
-      <div v-for="(a,i) in alerts" :key="i" :class="['text-sm', a.type==='error'?'text-red-700':'text-amber-700']">{{a.icon}} {{a.text}}</div>
+          <!-- Alerts (moved into sidebar) -->
+          <div v-if="alerts.length" class="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-1">
+            <div class="font-bold text-amber-800 text-xs flex items-center gap-1">🔔 แจ้งเตือน ({{alerts.length}})</div>
+            <div v-for="(a,i) in alerts" :key="i" :class="['text-[11px] leading-tight', a.type==='error'?'text-red-700':'text-amber-700']">{{a.icon}} {{a.text}}</div>
+          </div>
+          <div v-else class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-700">
+            ✓ ไม่มี Alert — ระบบปกติ
+          </div>
+        </div><!-- /RIGHT SIDEBAR -->
+
+      </div><!-- /MAIN GRID 4-col -->
     </div>
 
     <!-- 🏆 TOP SUPPLIERS / CUSTOMERS -->
