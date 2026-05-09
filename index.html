@@ -6969,25 +6969,52 @@ app.component('view-dashboard', {
     const groupOptions = computed(() => Array.from(new Set(db.products.map(p=>p.metalGroup||'อื่นๆ'))).sort());
 
     /* 🆕 Historical Baseline merge — รวมยอด ม.ค.-เม.ย. 2026 เข้ากับ live data
-       ใช้เฉพาะตอนไม่ filter Branch/Supplier/Customer/Product (เพราะ historical เก็บแบบ aggregate รายเดือน) */
-    const useHistorical = computed(() => !fBranch.value && !fSupplier.value && !fCustomer.value && !fProduct.value && !fGroup.value && !fChannel.value);
+       รวม "เสมอ" — ไม่ตรวจ filter เพื่อให้ Dashboard เห็นภาพรวม Year-to-Date จริง
+       Fallback: ถ้า erp.historical ไม่มี ใช้ db.historicalMonthly ตรงๆ */
     const histRange = computed(() => ({ from: dateFrom.value, to: dateTo.value }));
-    const histRevenue = computed(() => {
-      if (!useHistorical.value || !erp.historical) return 0;
-      return erp.historical.sumRange('pnl', 'revenue', histRange.value.from, histRange.value.to);
-    });
-    const histCogs = computed(() => {
-      if (!useHistorical.value || !erp.historical) return 0;
-      return erp.historical.sumRange('pnl', 'cogs', histRange.value.from, histRange.value.to);
-    });
-    const histPurchase = computed(() => {
-      if (!useHistorical.value || !erp.historical) return 0;
-      // ใช้ cogs เป็น proxy สำหรับ purchase ฝั่งซื้อ (ใน historical เก็บเป็น cogs)
-      return erp.historical.sumRange('pnl', 'cogs', histRange.value.from, histRange.value.to);
-    });
-    const histExpenses = computed(() => {
-      if (!useHistorical.value || !erp.historical) return 0;
-      return erp.historical.sumAllByType('expense', histRange.value.from, histRange.value.to);
+    function _sumHist(metricType, categoryId, fromDate, toDate) {
+      try {
+        // ลอง erp.historical ก่อน
+        if (erp.historical && typeof erp.historical.sumRange === 'function') {
+          return Number(erp.historical.sumRange(metricType, categoryId, fromDate, toDate)) || 0;
+        }
+        // Fallback: read directly
+        const arr = db.historicalMonthly || [];
+        const fy = parseInt(fromDate.slice(0,4),10), fm = parseInt(fromDate.slice(5,7),10);
+        const ty = parseInt(toDate.slice(0,4),10),   tm = parseInt(toDate.slice(5,7),10);
+        return arr.filter(h => {
+          if (!h || h.metricType !== metricType || h.categoryId !== categoryId) return false;
+          const yy = h.year, mm = h.month;
+          if (yy < fy || (yy === fy && mm < fm)) return false;
+          if (yy > ty || (yy === ty && mm > tm)) return false;
+          return true;
+        }).reduce((s,h) => s + Number(h.amount||0), 0);
+      } catch(e) { console.warn('[_sumHist]', e); return 0; }
+    }
+    function _sumHistAll(metricType, fromDate, toDate) {
+      try {
+        if (erp.historical && typeof erp.historical.sumAllByType === 'function') {
+          return Number(erp.historical.sumAllByType(metricType, fromDate, toDate)) || 0;
+        }
+        const arr = db.historicalMonthly || [];
+        const fy = parseInt(fromDate.slice(0,4),10), fm = parseInt(fromDate.slice(5,7),10);
+        const ty = parseInt(toDate.slice(0,4),10),   tm = parseInt(toDate.slice(5,7),10);
+        return arr.filter(h => {
+          if (!h || h.metricType !== metricType) return false;
+          const yy = h.year, mm = h.month;
+          if (yy < fy || (yy === fy && mm < fm)) return false;
+          if (yy > ty || (yy === ty && mm > tm)) return false;
+          return true;
+        }).reduce((s,h) => s + Number(h.amount||0), 0);
+      } catch(e) { console.warn('[_sumHistAll]', e); return 0; }
+    }
+    const histRevenue  = computed(() => _sumHist('pnl', 'revenue', histRange.value.from, histRange.value.to));
+    const histCogs     = computed(() => _sumHist('pnl', 'cogs',    histRange.value.from, histRange.value.to));
+    const histPurchase = computed(() => _sumHist('pnl', 'cogs',    histRange.value.from, histRange.value.to));
+    const histExpenses = computed(() => _sumHistAll('expense',     histRange.value.from, histRange.value.to));
+    /* 🆕 Indicator ว่ามีข้อมูล historical แค่ไหน */
+    const histRowCount = computed(() => {
+      try { return (db.historicalMonthly || []).length; } catch(e) { return 0; }
     });
 
     /* PURCHASE */
@@ -7339,6 +7366,8 @@ app.component('view-dashboard', {
       monthExpenses, netProfit, prevSales, prevMonthExpenses, prevNetProfit, prevGP, pctChange,
       cashBalance, arAgingSummary, apAgingSummary, branchPerformance, channelPerformance, expenseBreakdown,
       revVsExpMonthly, cashFlowByMonth, quickInsights,
+      // 🆕 Historical baseline indicators
+      histRevenue, histCogs, histExpenses, histPurchase, histRowCount,
       fmt:erp.fmt };
   },
   template: `
@@ -7378,6 +7407,18 @@ app.component('view-dashboard', {
         <div class="text-xs text-slate-500">📅 {{dateFrom}} → {{dateTo}}</div>
       </div>
 
+      <!-- 🆕 Historical Baseline indicator -->
+      <div v-if="histRowCount > 0" class="bg-amber-50 border border-amber-200 rounded-lg p-2 mb-3 text-xs flex items-center gap-2 flex-wrap">
+        <span class="font-bold text-amber-800">📅 รวมยอด Historical (ม.ค.-เม.ย. 2026):</span>
+        <span class="px-2 py-0.5 bg-white rounded">Revenue <b class="text-emerald-700">{{fmt(histRevenue)}}</b></span>
+        <span class="px-2 py-0.5 bg-white rounded">COGS <b class="text-red-700">{{fmt(histCogs)}}</b></span>
+        <span class="px-2 py-0.5 bg-white rounded">Expenses <b class="text-amber-700">{{fmt(histExpenses)}}</b></span>
+        <span class="text-slate-500">({{histRowCount}} rows)</span>
+      </div>
+      <div v-else class="bg-slate-50 border border-slate-200 rounded-lg p-2 mb-3 text-xs text-slate-500">
+        ℹ️ ยังไม่มีข้อมูล Historical — ไปที่เมนู <b>📅 ข้อมูลย้อนหลัง</b> เพื่อคีย์ยอด ม.ค.-เม.ย. 2026
+      </div>
+
       <!-- 6 KPI Cards (Top Row) -->
       <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
         <!-- Revenue -->
@@ -7392,6 +7433,9 @@ app.component('view-dashboard', {
           <div class="text-xs mt-2" :class="pctChange(monthSales, prevSales)>=0?'text-emerald-600':'text-red-600'">
             {{pctChange(monthSales, prevSales)>=0?'▲':'▼'}} {{Math.abs(pctChange(monthSales, prevSales)).toFixed(1)}}% <span class="text-slate-400">vs prev</span>
           </div>
+          <div v-if="histRevenue > 0" class="text-[10px] mt-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded inline-block">
+            📅 รวม Historical {{fmt(histRevenue)}}
+          </div>
         </div>
 
         <!-- Expenses -->
@@ -7405,6 +7449,9 @@ app.component('view-dashboard', {
           </div>
           <div class="text-xs mt-2" :class="pctChange(monthExpenses+monthCost, prevMonthExpenses+prevCost)<=0?'text-emerald-600':'text-red-600'">
             {{pctChange(monthExpenses+monthCost, prevMonthExpenses+prevCost)>=0?'▲':'▼'}} {{Math.abs(pctChange(monthExpenses+monthCost, prevMonthExpenses+prevCost)).toFixed(1)}}% <span class="text-slate-400">vs prev</span>
+          </div>
+          <div v-if="(histExpenses + histCogs) > 0" class="text-[10px] mt-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded inline-block">
+            📅 รวม Historical {{fmt(histExpenses + histCogs)}}
           </div>
         </div>
 
