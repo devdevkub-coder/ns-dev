@@ -27007,13 +27007,20 @@ app.component('view-importTxn', {
           const ws = wb.Sheets[wb.SheetNames[0]];
           const arr = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
           if (!arr.length) { erp.showToast('ไฟล์ว่าง','error'); return; }
-          let head = arr[0].map(h => String(h||'').trim());
+          // 🆕 Normalize header — trim space + ลบ ` *` ท้าย (เครื่องหมาย required ใน template)
+          let head = arr[0].map(h => String(h||'').trim().replace(/\s*\*$/, '').trim());
           const sc = schema.value;
           const labelToKey = {};
-          allCols.value.forEach(c => { labelToKey[c.label.replace(/\s*\*$/,'')] = c.key; });
+          allCols.value.forEach(c => { labelToKey[c.label.replace(/\s*\*$/,'').trim()] = c.key; });
           const keySet = new Set(allCols.value.map(c=>c.key));
           headers.value = head.map(h => keySet.has(h) ? h : (labelToKey[h] || h));
           rawRows.value = arr.slice(1).filter(r => r && r.some(c => String(c||'').trim() !== ''));
+          // Debug log สำหรับ troubleshoot — แสดงใน Console ว่า map header สำเร็จกี่ตัว
+          const matched = headers.value.filter(h => keySet.has(h)).length;
+          console.log(`[Import] Headers: ${head.length} | Matched: ${matched}/${allCols.value.length} | Rows: ${rawRows.value.length}`);
+          if (matched === 0) {
+            erp.showToast('⚠ ไม่พบ column ที่ตรงกับ template — ดู Console (F12)','error');
+          }
           validate();
         } catch (err) {
           console.error(err);
