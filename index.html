@@ -31025,6 +31025,134 @@ app.component('view-backup', {
       setTimeout(() => location.reload(), 1500);
     }
 
+    /* 🆕 Reset Transactions — เคลียร์เฉพาะข้อมูล transactions แต่เก็บ Master Data ไว้
+       ใช้ตอนเริ่มคีย์ข้อมูลจริง (Go-Live) — เก็บ suppliers/customers/products/accounts/branches/sales
+       ลบ: บิลซื้อ, บิลขาย, payment, receipt, transfer, expense, stock ledger, การผลิต, ฯลฯ
+       ลบทั้ง local + Supabase cloud (เพื่อกันไม่ให้ pull กลับมา) */
+    const resettingTxn = ref(false);
+    const resetTxnLog = ref([]);
+    function _logReset(msg, type='info') { resetTxnLog.value.push({ at: new Date().toLocaleTimeString(), msg, type }); }
+    /* รายการ collections ที่จะถูกลบ (transactions) — แยกจาก master data ที่จะเก็บไว้ */
+    const TXN_COLLECTIONS = [
+      // Bills
+      'purchaseBills','salesBills','receiptVouchers',
+      // Cash flow
+      'payments','receipts','transfers','expenses','pettyAdvances','pettyReturns','advanceAllocations',
+      'supplierAdvances','customerAdvances','intlTransfers','overseasReceipts',
+      // Stock
+      'stockLedger','stockIssues','gradeAdjustments','customerReturns',
+      // Production
+      'productionOrders','productionInputs','productionOutputs','processCosts',
+      // PO + Trading
+      'poBuys','poSells','tradingDeals',
+      // Banking
+      'bankStatement','fxGainLoss',
+      // Loan/Asset (รักษา contracts ให้คงอยู่ — แต่ลบ payments)
+      'loanPayments','depreciations','assetDisposals',
+      // Audit/Logs
+      'auditLog','importLogs','userActivityLog'
+    ];
+    /* Supabase table names สำหรับ DELETE — ตรงกับ AS_MAP target */
+    const TXN_CLOUD_TABLES = [
+      'purchase_bills','sales_bills','receipt_vouchers',
+      'payments','receipts','transfers','expenses',
+      'stock_ledger','grade_adjustments',
+      'production_orders','production_inputs','production_outputs','process_costs',
+      'po_buys','po_sells','trading_deals',
+      'bank_statement','fx_gain_loss',
+      'loan_payments','depreciations','asset_disposals'
+    ];
+
+    async function resetTransactions() {
+      const msg = '🧹 Reset Transactions — เริ่มต้นคีย์ข้อมูลจริง\n\n' +
+        '✅ จะเก็บไว้: Master Data (Supplier, Customer, Product, Sales, Account, Branch ฯลฯ)\n' +
+        '❌ จะลบ: บิลซื้อ, บิลขาย, จ่าย/รับเงิน, ค่าใช้จ่าย, การผลิต, Stock Ledger, Audit Log\n\n' +
+        '⚠ จะลบทั้งใน เครื่องนี้ + Supabase Cloud — เครื่องอื่นจะไม่เห็นข้อมูลเก่าอีก\n\n' +
+        'ก่อน Reset:\n' +
+        '1. ✅ กด Export Backup ทันที (ปุ่มสีน้ำเงินด้านบน)\n' +
+        '2. ✅ Pre-reset snapshot จะเก็บใน localStorage อัตโนมัติ\n' +
+        '3. ✅ พิมพ์ "RESET-TXN" เพื่อยืนยัน';
+      const ans = prompt(msg);
+      if (ans !== 'RESET-TXN') { erp.showToast('ยกเลิก Reset Transactions', 'info'); return; }
+      // Pre-reset backup local
+      try {
+        localStorage.setItem('ns_erp_pre_reset_txn_'+Date.now(), localStorage.getItem('ns_erp_db_v1') || '');
+      } catch(e){ console.warn('pre-reset backup fail:', e); }
+
+      resettingTxn.value = true;
+      resetTxnLog.value = [];
+      _logReset('🚀 เริ่มต้น Reset Transactions...');
+
+      // 1) Clear local arrays (เก็บเฉพาะ structure ไว้ — ไม่ delete property)
+      let localCount = 0;
+      TXN_COLLECTIONS.forEach(name => {
+        if (Array.isArray(db[name])) {
+          localCount += db[name].length;
+          db[name].splice(0, db[name].length);   // mutate in place เพื่อ trigger reactivity + sync watch
+        }
+      });
+      _logReset('✓ Clear local: ลบ '+localCount+' records ใน '+TXN_COLLECTIONS.length+' collections', 'ok');
+
+      // 2) Reset Opening Balance lock (ต้องตั้งใหม่)
+      if (db.openingBalance) {
+        db.openingBalance.locked = false;
+        db.openingBalance.lockedAt = null;
+        db.openingBalance.lockedBy = null;
+        db.openingBalance.lockId = null;
+        _logReset('✓ Unlock Opening Balance (ตั้งใหม่ได้)', 'ok');
+      }
+
+      // 3) Reset doc counters (เลขเริ่มจาก 1 ใหม่)
+      if (db.docCounters) {
+        Object.keys(db.docCounters).forEach(k => delete db.docCounters[k]);
+        _logReset('✓ Reset doc number counters', 'ok');
+      }
+
+      // 4) Reset paidAmount, payableBalance ของ bills — ไม่ใช้แล้วเพราะลบบิล แต่กันเหนียว
+      // (skip — บิลถูกลบหมดแล้ว)
+
+      // 5) DELETE จาก Supabase cloud — กัน pull กลับมา
+      if (window.sb) {
+        _logReset('☁️ ลบจาก Supabase Cloud...');
+        for (const tbl of TXN_CLOUD_TABLES) {
+          try {
+            // PostgREST ต้องมี filter: ใช้ neq ฟิลด์ที่ไม่มีจริงเพื่อ delete ทั้งตาราง
+            const { error } = await window.sb.from(tbl).delete().neq('id', '__never_match_xyz__');
+            if (error) {
+              _logReset('  ⚠ '+tbl+': '+error.message, 'warn');
+            } else {
+              _logReset('  ✓ '+tbl+' cleared', 'ok');
+            }
+          } catch(e) {
+            _logReset('  ⚠ '+tbl+' exception: '+e.message, 'warn');
+          }
+        }
+        _logReset('✓ Cloud cleanup เสร็จ', 'ok');
+      } else {
+        _logReset('⚠ Supabase ไม่พร้อม — skip cloud cleanup (อาจ pull ของเก่ากลับ)', 'warn');
+      }
+
+      // 6) Save local
+      try {
+        localStorage.setItem('ns_erp_db_v1', JSON.stringify(db));
+        _logReset('💾 บันทึก local เสร็จ', 'ok');
+      } catch(e) {
+        _logReset('⚠ Save local fail: '+e.message, 'warn');
+      }
+
+      // 7) Force push cleared state เพื่อ overwrite cloud
+      if (window.$autoSync) {
+        try {
+          await window.$autoSync.pushAll();
+          _logReset('✓ Push cleared state ไป cloud สำเร็จ', 'ok');
+        } catch(e) { _logReset('⚠ Push cleared fail: '+e.message, 'warn'); }
+      }
+
+      _logReset('🎉 Reset Transactions สำเร็จ — รีเฟรชเครื่องอื่นทุกเครื่อง', 'ok');
+      resettingTxn.value = false;
+      erp.showToast('✓ Reset Transactions สำเร็จ — เริ่มคีย์ข้อมูลจริงได้เลย','success');
+    }
+
     /* Auto-backup toggle — saves to localStorage daily */
     function toggleAutoBackup() {
       autoBackupEnabled.value = !autoBackupEnabled.value;
@@ -31613,6 +31741,7 @@ app.component('view-backup', {
     return { erp, db, fmt, storageInfo, stats, lastBackupAt, autoBackupEnabled, autoBackupHistory,
       localSnapshots, importPreview, importError,
       exportFull, previewImport, applyImport, resetAll, toggleAutoBackup,
+      resetTransactions, resettingTxn, resetTxnLog,
       restoreLocalSnapshot, deleteLocalSnapshot,
       migrating, migrateLog, migrateProgress, migrateToSupabase,
       pulling, pullLog, pullProgress, pullFromSupabase,
@@ -31821,11 +31950,64 @@ app.component('view-backup', {
       </div>
     </div>
 
-    <!-- Danger Zone -->
+    <!-- 🆕 Reset Transactions Zone — เริ่มต้นคีย์ข้อมูลจริง (Go-Live) -->
+    <div class="bg-orange-50 border-2 border-orange-300 rounded-xl p-4">
+      <h2 class="font-bold text-orange-700 mb-2">🧹 Reset Transactions — เริ่มคีย์ข้อมูลจริง (Go-Live)</h2>
+      <p class="text-sm text-orange-700 mb-2">
+        ลบเฉพาะข้อมูล <b>transactions</b> (บิลซื้อ/ขาย, จ่าย/รับเงิน, การผลิต, ค่าใช้จ่าย, stock ledger)
+        — <b>เก็บ Master Data ทั้งหมด</b> (Supplier, Customer, Product, Sales, Account, Branch, ฯลฯ)
+      </p>
+      <div class="bg-white rounded p-3 mb-3 text-xs grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <div class="font-bold text-red-600 mb-1">❌ จะถูกลบ:</div>
+          <ul class="space-y-0.5 text-red-700">
+            <li>• บิลซื้อ + บิลขาย + ใบสำคัญรับเงิน</li>
+            <li>• Payment + Receipt + Transfer</li>
+            <li>• ค่าใช้จ่าย + เงินสำรองจ่าย</li>
+            <li>• Stock Ledger + Stock Issues</li>
+            <li>• ใบสั่งผลิต + Production Inputs/Outputs</li>
+            <li>• PO Buy/Sell + Trading Deals</li>
+            <li>• Bank Statement + FX Gain/Loss</li>
+            <li>• Audit Log + Import Log</li>
+          </ul>
+        </div>
+        <div>
+          <div class="font-bold text-emerald-600 mb-1">✅ จะถูกเก็บไว้:</div>
+          <ul class="space-y-0.5 text-emerald-700">
+            <li>• Suppliers ทั้งหมด</li>
+            <li>• Customers ทั้งหมด</li>
+            <li>• Products ทั้งหมด</li>
+            <li>• Salespersons</li>
+            <li>• Accounts (บัญชีธนาคาร)</li>
+            <li>• Branches + Warehouses</li>
+            <li>• Channels + Expense Categories</li>
+            <li>• Loan Contracts + Asset Register</li>
+            <li>• Users + Roles + Permissions</li>
+            <li>• Company Profile + Equity</li>
+          </ul>
+        </div>
+      </div>
+      <div class="bg-amber-100 border border-amber-300 rounded p-2 text-xs text-amber-800 mb-3">
+        ⚠ <b>สำคัญ:</b> ระบบจะ ลบข้อมูลทั้งใน <b>เครื่องนี้ + Supabase Cloud</b>
+        — เครื่องอื่น hard refresh ใหม่จะไม่เห็นข้อมูลเก่าอีก
+      </div>
+      <button @click="resetTransactions" :disabled="resettingTxn"
+        class="bg-orange-600 hover:bg-orange-700 text-white px-5 py-2.5 rounded font-bold disabled:bg-slate-400">
+        {{ resettingTxn ? '⏳ กำลัง Reset...' : '🧹 Reset Transactions (เก็บ Master)' }}
+      </button>
+      <!-- Reset log -->
+      <div v-if="resetTxnLog.length" class="mt-3 bg-slate-900 text-slate-100 rounded p-3 font-mono text-xs max-h-72 overflow-y-auto">
+        <div v-for="(l,i) in resetTxnLog" :key="i" :class="l.type==='warn'?'text-amber-300':l.type==='ok'?'text-emerald-300':'text-slate-200'">
+          <span class="text-slate-500">[{{l.at}}]</span> {{l.msg}}
+        </div>
+      </div>
+    </div>
+
+    <!-- Danger Zone — Reset ทั้งหมด (รวม Master) -->
     <div class="bg-red-50 border-2 border-red-300 rounded-xl p-4">
-      <h2 class="font-bold text-red-700 mb-2">⚠️ Danger Zone — Reset ข้อมูล</h2>
-      <p class="text-sm text-red-600 mb-3">ลบข้อมูลทั้งหมดและกลับไปใช้ค่าเริ่มต้น (seed) — ใช้เมื่อต้องการเริ่มต้นใหม่</p>
-      <button @click="resetAll" class="bg-red-600 text-white px-4 py-2 rounded font-bold hover:bg-red-700">🚨 Reset ข้อมูลทั้งหมด</button>
+      <h2 class="font-bold text-red-700 mb-2">⚠️ Danger Zone — Reset ทั้งหมด (รวม Master Data)</h2>
+      <p class="text-sm text-red-600 mb-3">ลบข้อมูลทั้งหมด <b>รวม Master Data</b> และกลับไปใช้ค่าเริ่มต้น (seed) — ใช้เมื่อต้องการเริ่มต้นใหม่ทั้งระบบ</p>
+      <button @click="resetAll" class="bg-red-600 text-white px-4 py-2 rounded font-bold hover:bg-red-700">🚨 Reset ข้อมูลทั้งหมด (รวม Suppliers/Customers/Products)</button>
     </div>
 
     <!-- Help -->
