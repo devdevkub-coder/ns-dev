@@ -8749,22 +8749,14 @@ app.component('view-purchase', {
                 <input type="date" v-model="form.date" class="w-full px-3 py-2 border rounded-lg">
               </div>
               <div class="md:col-span-3">
-                <label class="block text-xs font-medium text-slate-600 mb-1">🏭 Supplier * <span class="text-slate-400 font-normal text-[11px]">({{(db.suppliers||[]).filter(x=>x && x.active).length}} ราย — พิมพ์ค้นหาที่ช่อง search ด้านล่าง)</span></label>
-                <!-- 🆕 Robust supplier picker — search + native select (ไม่พึ่ง custom component) -->
+                <label class="block text-xs font-medium text-slate-600 mb-1">🏭 Supplier * <span class="text-slate-400 font-normal text-[11px]">({{(db.suppliers||[]).filter(x=>x && x.active).length}} ราย)</span></label>
+                <!-- 🆕 ช่องเดียว — Native select แสดงทุก supplier (sort name) + ปุ่มเพิ่ม -->
                 <div class="flex gap-2">
-                  <input type="text" v-model="supplierSearchTerm" placeholder="🔍 พิมพ์ชื่อ/รหัส Supplier เพื่อค้นหา..." class="flex-1 px-3 py-2 border rounded-lg" list="supplier-list-pb">
-                  <datalist id="supplier-list-pb">
-                    <option v-for="s in (db.suppliers||[]).filter(x=>x && x.active)" :key="s.id" :value="s.name + (s.code ? ' ('+s.code+')' : '') + (s.phone ? ' · '+s.phone : '')">{{s.name}}</option>
-                  </datalist>
-                  <button type="button" @click="quickAddSupplier" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded text-xs whitespace-nowrap">+ เพิ่ม Supplier</button>
-                </div>
-                <!-- Native select เป็น fallback หลัก — ใช้ได้แน่นอน -->
-                <select v-model="form.supplierId" @change="onSupplierPicked" class="w-full px-3 py-2 border rounded-lg mt-2 text-sm" size="1">
-                  <option value="">-- เลือก Supplier --</option>
-                  <option v-for="s in filteredSuppliers" :key="s.id" :value="s.id">{{s.name}}{{s.code ? ' ('+s.code+')' : ''}}{{s.phone ? ' · '+s.phone : ''}}</option>
-                </select>
-                <div v-if="form.supplierId" class="text-xs text-emerald-700 mt-1">
-                  ✓ เลือกแล้ว: <b>{{ (db.suppliers||[]).find(s => s && s.id === form.supplierId)?.name || '-' }}</b>
+                  <select v-model="form.supplierId" @change="onSupplierPicked" class="flex-1 px-3 py-2 border rounded-lg text-sm">
+                    <option value="">-- เลือก Supplier --</option>
+                    <option v-for="s in filteredSuppliers" :key="s.id" :value="s.id">{{s.name}}{{s.code ? ' ('+s.code+')' : ''}}{{s.phone ? ' · '+s.phone : ''}}</option>
+                  </select>
+                  <button type="button" @click="quickAddSupplier" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded text-xs whitespace-nowrap">+ เพิ่ม</button>
                 </div>
                 <!-- 💳 Bank Account inline -->
                 <div v-if="form.supplierId" class="mt-2 bg-slate-50 border border-slate-200 rounded p-2 text-xs">
@@ -10464,6 +10456,7 @@ app.component('view-expense', {
             amount: num(r.amount),
             hasVat: num(r.vat) > 0,
             vatAmount: num(r.vat),
+            whtPct: num(r.whtPct) || 0,    // 🆕 ป้องกัน undefined ตอน load บิลเก่า
             whtAmount: num(r.wht)
           }))
         };
@@ -10877,7 +10870,7 @@ app.component('view-expense', {
                       </select>
                     </td>
                     <td class="p-1 bg-amber-50">
-                      <input type="number" step="0.01" v-model.number="line.whtAmount" class="w-full px-1 py-1 border rounded text-right font-mono" :class="line.whtPct > 0 ? 'bg-amber-100 font-bold text-amber-800' : ''" :readonly="line.whtPct > 0" :title="line.whtPct > 0 ? 'คำนวณอัตโนมัติจาก ' + line.whtPct + '% — เปลี่ยนเป็น \'ไม่หัก\' เพื่อกรอกเอง' : 'พิมพ์ยอดหัก ณ ที่จ่ายเอง'">
+                      <input type="number" step="0.01" v-model.number="line.whtAmount" :class="['w-full px-1 py-1 border rounded text-right font-mono', line.whtPct > 0 ? 'bg-amber-100 font-bold text-amber-800' : '']" :readonly="line.whtPct > 0">
                     </td>
                     <td class="p-1 text-center"><button @click="removeLine(idx)" type="button" class="text-red-500 px-1">×</button></td>
                   </tr>
