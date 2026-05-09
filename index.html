@@ -2916,10 +2916,12 @@ window.$erp = {
         }
       });
     }
-    const counterN = Number(_GLOBAL_DB.docCounters[prefix] || 1);
-    // Use max(counter, scannedMax+1) → always pick higher
-    const n = Math.max(counterN, scannedMax + 1);
-    _GLOBAL_DB.docCounters[prefix] = n + 1;
+    // 🔧 BUG FIX: ไม่ increment counter ที่ตอนเปิด form
+    //   เดิม: เปิดบิลใหม่ → docCounters[prefix] = n+1 → ยกเลิก → เปิดใหม่ได้เลขถัดไป
+    //   ใหม่: นับจาก scannedMax + reserved (ที่ยังไม่ save) — counter จะเลื่อนตอน save จริงเท่านั้น (ผ่าน ensureUniqueDocNoCloud)
+    if (!_GLOBAL_DB._docReserved) _GLOBAL_DB._docReserved = {};
+    const reserved = Number(_GLOBAL_DB._docReserved[docPrefix] || 0);
+    const n = Math.max(scannedMax + 1, reserved + 1);
     return docPrefix + String(n).padStart(4,'0');
   },
   /* 🆕 Pre-save uniqueness check — call before save() to avoid collision */
@@ -6892,9 +6894,10 @@ app.component('view-dashboard', {
     const erp = window.$erp; const db = erp.db;
     const today = erp.today();
 
-    /* 🎚 FILTERS — Interactive Dashboard */
-    const period = ref('month');                           // today/week/month/quarter/year/custom
-    const dateFrom = ref(today.slice(0,7) + '-01');
+    /* 🎚 FILTERS — Interactive Dashboard
+       🆕 Default = 'year' เพื่อให้รวม Historical Data (ม.ค.-เม.ย. 2026) อัตโนมัติ */
+    const period = ref('year');                            // today/week/month/quarter/year/custom
+    const dateFrom = ref(today.slice(0,4) + '-01-01');     // 🆕 ตั้งต้นปี ครอบคลุม historical
     const dateTo = ref(today);
     const fBranch = ref(''); const fSupplier = ref('');
     const fCustomer = ref(''); const fProduct = ref('');
@@ -22958,7 +22961,8 @@ app.component('view-plStatement', {
   setup() {
     const erp = window.$erp; const db = erp.db; const fmt = erp.fmt;
     const viewMode = ref('period');  // 'period' | 'month' | 'yearly'
-    const fromD = ref(erp.today().slice(0,8)+'01');
+    // 🆕 Default = Year-to-Date เพื่อรวม Historical Data (ม.ค.-เม.ย. 2026)
+    const fromD = ref(erp.today().slice(0,4)+'-01-01');
     const toD = ref(erp.today());
     const selMonth = ref(erp.today().slice(5,7));
     const selYear = ref(String(new Date().getFullYear()));
@@ -23114,15 +23118,51 @@ app.component('view-plStatement', {
       XLSX.writeFile(wb, 'PL_'+r.from+'_'+r.to+'.xlsx');
     }
 
+    /* 🆕 Historical Baseline — รวม historical ทั้งหมด (ม.ค.-เม.ย. 2026) แสดงเสมอ */
+    const historicalBaseline = computed(() => {
+      try {
+        const arr = _trkSafe(db.historicalMonthly);
+        if (!arr.length) return { hasData: false };
+        const sumByType = (mt, catId) => arr.filter(h => h && h.metricType === mt && h.categoryId === catId)
+          .reduce((s,h) => s + Number(h.amount||0), 0);
+        const sumAllExp = arr.filter(h => h && h.metricType === 'expense')
+          .reduce((s,h) => s + Number(h.amount||0), 0);
+        const revenue = sumByType('pnl', 'revenue');
+        const cogs = sumByType('pnl', 'cogs');
+        const opex = sumByType('pnl', 'opex') || sumAllExp;   // ใช้ pnl.opex หรือรวม expense ทุก category
+        const interest = sumByType('pnl', 'interest');
+        const otherInc = sumByType('pnl', 'other_inc');
+        const tax = sumByType('pnl', 'tax');
+        const netProfit = revenue - cogs - opex - interest + otherInc - tax;
+        const hasData = (revenue + cogs + opex + interest + otherInc + tax + sumAllExp) > 0;
+        return { hasData, revenue, cogs, opex, interest, otherInc, tax, netProfit };
+      } catch(e) { console.warn('[historicalBaseline]', e); return { hasData: false }; }
+    });
+
     return { erp, db, fmt, viewMode, fromD, toD, selMonth, selYear, branchId, txnModeFilter,
       effRange, data, yearlyData, yearOptions, drill, showDrill, exportXLSX,
-      TRACKING_MONTHS };
+      TRACKING_MONTHS, historicalBaseline };
   },
   template:`
   <div class="space-y-4">
     <div class="bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-xl p-5 shadow">
       <h1 class="text-2xl font-bold">📈 Profit &amp; Loss Statement / งบกำไรขาดทุน</h1>
       <p class="text-sm opacity-80 mt-1">รายได้จาก Sales Bills · COGS จาก WAC · ค่าใช้จ่ายจาก Expense · ค่าเสื่อม · ดอกเบี้ย · FX</p>
+    </div>
+
+    <!-- 🆕 Historical Baseline (ก่อน Go-Live) — แสดงเสมอ ไม่ขึ้นกับ date range -->
+    <div v-if="historicalBaseline.hasData" class="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-xl p-4 shadow-sm">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-bold text-amber-900 text-sm">📅 Historical Baseline (ก่อน Go-Live: ม.ค.-เม.ย. 2026)</h3>
+        <span class="text-xs text-amber-700">⚠ ตัวเลขเหล่านี้รวมอยู่ในรายงานด้านล่างเสมอ ถ้า date range ครอบคลุม ม.ค.-เม.ย.</span>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+        <div class="bg-white rounded p-2"><div class="text-xs text-slate-500">💰 Revenue</div><div class="text-lg font-bold text-emerald-700">{{fmt(historicalBaseline.revenue)}}</div></div>
+        <div class="bg-white rounded p-2"><div class="text-xs text-slate-500">📦 COGS</div><div class="text-lg font-bold text-red-700">{{fmt(historicalBaseline.cogs)}}</div></div>
+        <div class="bg-white rounded p-2"><div class="text-xs text-slate-500">📊 Gross Profit</div><div class="text-lg font-bold text-blue-700">{{fmt(historicalBaseline.revenue - historicalBaseline.cogs)}}</div></div>
+        <div class="bg-white rounded p-2"><div class="text-xs text-slate-500">💼 Operating Expenses</div><div class="text-lg font-bold text-amber-700">{{fmt(historicalBaseline.opex)}}</div></div>
+        <div class="bg-white rounded p-2 border-2" :class="historicalBaseline.netProfit >= 0 ? 'border-emerald-400 bg-emerald-50' : 'border-red-400 bg-red-50'"><div class="text-xs text-slate-500">💎 Net Profit (Hist)</div><div class="text-xl font-bold" :class="historicalBaseline.netProfit >= 0 ? 'text-emerald-700' : 'text-red-700'">{{fmt(historicalBaseline.netProfit)}}</div></div>
+      </div>
     </div>
 
     <!-- View mode tabs -->
@@ -24046,6 +24086,8 @@ app.component('view-finDashboard', {
   setup() {
     const erp = window.$erp; const db = erp.db; const fmt = erp.fmt;
     const today = erp.today();
+    // 🆕 ใช้ Year-to-Date เป็น default เพื่อรวม Historical (ม.ค.-เม.ย. 2026)
+    const yearStart = today.slice(0,4)+'-01-01';
     const monthStart = today.slice(0,8)+'01';
     const next7 = (() => { const d = new Date(); d.setDate(d.getDate()+7); return d.toISOString().slice(0,10); })();
     const next30 = (() => { const d = new Date(); d.setDate(d.getDate()+30); return d.toISOString().slice(0,10); })();
@@ -24061,11 +24103,12 @@ app.component('view-finDashboard', {
     }
 
     const k = computed(() => {
-      const rev = _finRevenue(db, monthStart, today).net;
-      const cogs = _finCOGS(db, monthStart, today).total;
-      const exp = _finExpenses(db, monthStart, today).total;
-      const dep = _finDepreciation(db, monthStart, today).total;
-      const intExp = _finInterestExp(db, monthStart, today).total;
+      // 🆕 ใช้ Year-to-Date เพื่อให้รวม Historical Data
+      const rev = _finRevenue(db, yearStart, today).net;
+      const cogs = _finCOGS(db, yearStart, today).total;
+      const exp = _finExpenses(db, yearStart, today).total;
+      const dep = _finDepreciation(db, yearStart, today).total;
+      const intExp = _finInterestExp(db, yearStart, today).total;
       const gp = rev - cogs;
       const np = gp - exp - dep - intExp;
 
@@ -26765,8 +26808,31 @@ app.component('view-importTxn', {
     const lastResult = ref(null);
     const importing = ref(false);
 
+    /* 🆕 Excluded bills (user un-ticked in preview) */
+    const excludedDocs = ref(new Set());
+    /* 🆕 Sample modal (full preview before confirm) */
+    const showSampleModal = ref(false);
+    /* 🆕 Log tab — expand row + select bills for delete */
+    const expandedLogId = ref('');
+    const selectedBillIds = ref(new Set());
+    const deletingBills = ref(false);
+
     const schema = computed(() => TXN_IMPORT_SCHEMAS[txnType.value]);
     const allCols = computed(() => [...schema.value.headerCols, ...schema.value.lineCols]);
+
+    /* 🆕 Toggle exclude on preview row */
+    function toggleExclude(docNo) {
+      const s = new Set(excludedDocs.value);
+      if (s.has(docNo)) s.delete(docNo); else s.add(docNo);
+      excludedDocs.value = s;
+    }
+    function isExcluded(docNo) { return excludedDocs.value.has(docNo); }
+    function selectAllValid() { excludedDocs.value = new Set(); }
+    function deselectAllValid() {
+      const s = new Set();
+      previewBills.value.forEach(b => { if (b.action !== 'error') s.add(b.docNo); });
+      excludedDocs.value = s;
+    }
 
     /* Download Template */
     function downloadTemplate() {
@@ -26980,6 +27046,9 @@ app.component('view-importTxn', {
     const stats = computed(() => {
       const r = previewBills.value;
       const totalLines = r.reduce((s,b)=>s+b.lines.length, 0);
+      const eligible = r.filter(b => b.action !== 'error' && b.action !== 'skip' && !excludedDocs.value.has(b.docNo));
+      const eligibleLines = eligible.reduce((s,b)=>s+b.lines.length, 0);
+      const eligibleAmount = eligible.reduce((s,b)=>s+(b.totalAmount||0), 0);
       return {
         totalBills: r.length, totalLines,
         validBills: r.filter(b=>b.action!=='error').length,
@@ -26987,22 +27056,38 @@ app.component('view-importTxn', {
         toCreate: r.filter(b=>b.action==='create').length,
         toUpdate: r.filter(b=>b.action==='update').length,
         toSkip: r.filter(b=>b.action==='skip').length,
-        willPost: importMode.value==='post' || importMode.value==='valid_only'
-          ? r.filter(b=>b.action==='create' || b.action==='update').length : 0,
-        willDraft: importMode.value==='draft' || importMode.value==='create_or_update'
-          ? r.filter(b=>b.action==='create' || b.action==='update').length : 0,
+        excludedCount: r.filter(b => excludedDocs.value.has(b.docNo)).length,
+        eligibleBills: eligible.length,
+        eligibleLines,
+        eligibleAmount,
+        willPost: importMode.value==='post' || importMode.value==='valid_only' ? eligible.length : 0,
+        willDraft: importMode.value==='draft' || importMode.value==='create_or_update' ? eligible.length : 0,
       };
     });
 
-    /* Confirm Import */
+    /* 🆕 Sample preview — top 5 eligible bills shown in detail modal */
+    const sampleBills = computed(() => {
+      return previewBills.value
+        .filter(b => b.action !== 'error' && b.action !== 'skip' && !excludedDocs.value.has(b.docNo))
+        .slice(0, 5);
+    });
+
+    /* 🆕 Open Sample Preview Modal (Step ก่อน Confirm จริง) */
+    function openSamplePreview() {
+      const eligible = previewBills.value.filter(b => b.action !== 'error' && b.action !== 'skip' && !excludedDocs.value.has(b.docNo));
+      if (!eligible.length) { erp.showToast('ไม่มีบิลที่ Import ได้ (ทุกบิลถูก ❌ uncheck หรือ error)','error'); return; }
+      showSampleModal.value = true;
+    }
+
+    /* Confirm Import — เรียกจริงใน Sample Modal */
     function confirmImport() {
       const sc = schema.value;
-      let bills = previewBills.value.filter(b => b.action !== 'error' && b.action !== 'skip');
+      let bills = previewBills.value.filter(b => b.action !== 'error' && b.action !== 'skip' && !excludedDocs.value.has(b.docNo));
       if (importMode.value === 'valid_only') {
         // same — only valid bills (already filtered)
       }
       if (!bills.length) { erp.showToast('ไม่มีบิลที่ Import ได้','error'); return; }
-      if (!confirm(`ยืนยัน Import ${bills.length} บิล (${bills.reduce((s,b)=>s+b.lines.length,0)} บรรทัด)?\nMode: ${importMode.value}`)) return;
+      showSampleModal.value = false;
 
       importing.value = true;
       try {
@@ -27288,10 +27373,117 @@ app.component('view-importTxn', {
     /* Filtered logs (only IMPTXN- prefix logs) */
     const txnLogs = computed(() => _trkSafe(db.importLogs).filter(l => l && (l.id||'').startsWith('IMPTXN-')));
 
+    /* 🆕 Log row expand/collapse */
+    function toggleExpandLog(logId) {
+      if (expandedLogId.value === logId) { expandedLogId.value = ''; selectedBillIds.value = new Set(); }
+      else { expandedLogId.value = logId; selectedBillIds.value = new Set(); }
+    }
+
+    /* 🆕 Get current bills that exist in db for a given log (filtered by importId) */
+    function getLogBills(log) {
+      if (!log) return [];
+      const coll = log.txnType === 'purchase' ? 'purchaseBills' : 'salesBills';
+      return _trkSafe(db[coll]).filter(b => b && b.importId === log.id);
+    }
+
+    function toggleSelectBill(billId) {
+      const s = new Set(selectedBillIds.value);
+      if (s.has(billId)) s.delete(billId); else s.add(billId);
+      selectedBillIds.value = s;
+    }
+    function isBillSelected(id) { return selectedBillIds.value.has(id); }
+    function selectAllInLog(log) {
+      const ids = getLogBills(log).map(b => b.id);
+      selectedBillIds.value = new Set(ids);
+    }
+    function clearLogSelection() { selectedBillIds.value = new Set(); }
+
+    /* 🆕 Delete bills from a log — local + cloud + stock_ledger cleanup */
+    async function deleteBillsFromImport(log, billIds) {
+      if (!log || !Array.isArray(billIds) || !billIds.length) return;
+      const coll = log.txnType === 'purchase' ? 'purchaseBills' : 'salesBills';
+      const idSet = new Set(billIds);
+
+      // Find stock ledger ids tied to those bills (refId match)
+      const ledgerIds = _trkSafe(db.stockLedger)
+        .filter(s => s && idSet.has(s.refId))
+        .map(s => s.id);
+
+      // Find downstream payments/receipts referencing these bills (warning only)
+      const downstream = [];
+      if (log.txnType === 'purchase') {
+        _trkSafe(db.payments).forEach(p => {
+          if (!p) return;
+          if (idSet.has(p.billId) || (p.lines||[]).some(l => idSet.has(l.billId))) downstream.push('Payment '+(p.docNo||p.id));
+        });
+      } else {
+        _trkSafe(db.receipts).forEach(r => {
+          if (!r) return;
+          if (idSet.has(r.billId) || (r.lines||[]).some(l => idSet.has(l.billId))) downstream.push('Receipt '+(r.docNo||r.id));
+        });
+      }
+      if (downstream.length) {
+        if (!confirm(`พบเอกสารต่อเนื่อง ${downstream.length} รายการที่อ้างถึงบิลเหล่านี้:\n${downstream.slice(0,5).join('\n')}${downstream.length>5?'\n...':''}\n\nลบบิลต่อ? (Payment/Receipt จะไม่ถูกลบ — แนะนำให้ตรวจ/ลบเองก่อน)`)) return;
+      } else {
+        if (!confirm(`ยืนยันลบ ${billIds.length} บิล + Stock Ledger ${ledgerIds.length} รายการ?\nการกระทำนี้จะลบจาก Cloud ด้วย — กู้คืนไม่ได้`)) return;
+      }
+
+      deletingBills.value = true;
+      try {
+        // Local delete
+        db[coll] = _trkSafe(db[coll]).filter(b => !b || !idSet.has(b.id));
+        if (ledgerIds.length) {
+          const ledSet = new Set(ledgerIds);
+          db.stockLedger = _trkSafe(db.stockLedger).filter(s => !s || !ledSet.has(s.id));
+        }
+        // Update log: remove deleted ids
+        const lIdx = _trkSafe(db.importLogs).findIndex(l => l && l.id === log.id);
+        if (lIdx >= 0) {
+          db.importLogs[lIdx].createdIds = (db.importLogs[lIdx].createdIds||[]).filter(id => !idSet.has(id));
+          db.importLogs[lIdx].stockLedgerIds = (db.importLogs[lIdx].stockLedgerIds||[]).filter(id => !ledgerIds.includes(id));
+          db.importLogs[lIdx].partiallyDeleted = true;
+          db.importLogs[lIdx].lastDeletedAt = new Date().toISOString();
+          if (!db.importLogs[lIdx].createdIds.length) {
+            db.importLogs[lIdx].rolledBack = true;
+            db.importLogs[lIdx].rolledBackAt = new Date().toISOString();
+          }
+        }
+        // Persist local
+        try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+
+        // Cloud delete
+        await erp.deleteCloud(coll, billIds);
+        if (ledgerIds.length) await erp.deleteCloud('stockLedger', ledgerIds);
+
+        erp.logAudit('IMPORT_TXN_DELETE_BILLS', coll, {importId: log.id, count: billIds.length}, null);
+        erp.showToast(`✓ ลบ ${billIds.length} บิล + ${ledgerIds.length} stock entries สำเร็จ`,'success');
+
+        selectedBillIds.value = new Set();
+      } catch (e) {
+        console.error(e); erp.showToast('ลบล้มเหลว: '+e.message, 'error');
+      } finally { deletingBills.value = false; }
+    }
+
+    function deleteSelectedFromLog(log) {
+      const ids = Array.from(selectedBillIds.value);
+      if (!ids.length) { erp.showToast('ยังไม่ได้เลือกบิล','error'); return; }
+      deleteBillsFromImport(log, ids);
+    }
+    function deleteAllFromLog(log) {
+      const allIds = getLogBills(log).map(b => b.id);
+      if (!allIds.length) { erp.showToast('ไม่มีบิลในการ Import นี้แล้ว','error'); return; }
+      deleteBillsFromImport(log, allIds);
+    }
+
     return { erp, db, fmt, tab, txnType, importMode, fileName, headers, rawRows, previewBills,
-      stats, downloadTemplate, onFileChange, validate, confirmImport, rollback, exportErrors,
+      stats, downloadTemplate, onFileChange, validate, openSamplePreview, confirmImport, rollback, exportErrors,
       clearAll, schema, allCols, importing, lastResult, showResultModal, txnLogs,
-      actionBadge, actionLabel, TXN_IMPORT_SCHEMAS };
+      actionBadge, actionLabel, TXN_IMPORT_SCHEMAS,
+      excludedDocs, toggleExclude, isExcluded, selectAllValid, deselectAllValid,
+      showSampleModal, sampleBills,
+      expandedLogId, selectedBillIds, deletingBills,
+      toggleExpandLog, getLogBills, toggleSelectBill, isBillSelected,
+      selectAllInLog, clearLogSelection, deleteSelectedFromLog, deleteAllFromLog };
   },
   template:`
   <div class="space-y-4">
@@ -27352,13 +27544,15 @@ app.component('view-importTxn', {
             <span class="px-2 py-0.5 text-xs rounded bg-slate-200">บรรทัด {{stats.totalLines}}</span>
             <span class="px-2 py-0.5 text-xs rounded bg-emerald-100 text-emerald-700">✓ ถูกต้อง {{stats.validBills}}</span>
             <span class="px-2 py-0.5 text-xs rounded" :class="stats.errorBills>0?'bg-red-100 text-red-700':'bg-emerald-100 text-emerald-700'">⚠ Error {{stats.errorBills}}</span>
-            <span class="px-2 py-0.5 text-xs rounded bg-blue-100 text-blue-700">จะ Post: {{stats.willPost}}</span>
-            <span class="px-2 py-0.5 text-xs rounded bg-amber-100 text-amber-700">จะเป็น Draft: {{stats.willDraft}}</span>
+            <span v-if="stats.excludedCount>0" class="px-2 py-0.5 text-xs rounded bg-orange-100 text-orange-700">☐ ยกเว้น {{stats.excludedCount}}</span>
+            <span class="px-2 py-0.5 text-xs rounded bg-fuchsia-100 text-fuchsia-700 font-bold">→ จะ Import {{stats.eligibleBills}} บิล / {{fmt(stats.eligibleAmount)}} บาท</span>
             <span class="flex-1"></span>
+            <button @click="selectAllValid" class="text-xs px-2 py-1 border rounded text-emerald-700 hover:bg-emerald-50">☑ เลือกทั้งหมด</button>
+            <button @click="deselectAllValid" class="text-xs px-2 py-1 border rounded text-slate-600 hover:bg-slate-100">☐ ไม่เลือก</button>
             <button v-if="stats.errorBills>0" @click="exportErrors" class="px-3 py-1.5 text-sm bg-red-600 text-white rounded">📥 Export Errors</button>
-            <button @click="confirmImport" :disabled="importing || stats.validBills===0"
+            <button @click="openSamplePreview" :disabled="importing || stats.eligibleBills===0"
               class="px-4 py-1.5 text-sm bg-fuchsia-600 text-white rounded font-bold disabled:opacity-50">
-              {{importing?'กำลัง Import...':'✓ Confirm Import ('+stats.validBills+' บิล)'}}
+              👁 Preview Sample → Confirm ({{stats.eligibleBills}} บิล)
             </button>
           </div>
 
@@ -27367,6 +27561,7 @@ app.component('view-importTxn', {
             <table class="w-full text-xs">
               <thead class="bg-slate-100 sticky top-0">
                 <tr>
+                  <th class="p-2 text-center w-10">เลือก</th>
                   <th class="p-2 text-left">docNo</th>
                   <th class="p-2 text-center">Action</th>
                   <th class="p-2 text-left">วันที่</th>
@@ -27380,7 +27575,13 @@ app.component('view-importTxn', {
               </thead>
               <tbody>
                 <template v-for="b in previewBills" :key="b.docNo">
-                  <tr class="border-t" :class="b.action==='error'?'bg-red-50':(b.action==='skip'?'bg-slate-50':'')">
+                  <tr class="border-t" :class="b.action==='error'?'bg-red-50':(isExcluded(b.docNo)?'bg-orange-50 opacity-60':(b.action==='skip'?'bg-slate-50':''))">
+                    <td class="p-2 text-center">
+                      <input v-if="b.action !== 'error' && b.action !== 'skip'" type="checkbox"
+                        :checked="!isExcluded(b.docNo)" @change="toggleExclude(b.docNo)"
+                        class="w-4 h-4 cursor-pointer">
+                      <span v-else class="text-slate-300">—</span>
+                    </td>
                     <td class="p-2 font-mono">{{b.docNo}}</td>
                     <td class="p-2 text-center"><span :class="['px-2 py-0.5 rounded text-xs font-medium', actionBadge(b.action)]">{{actionLabel(b.action)}}</span></td>
                     <td class="p-2">{{b.header.date}}</td>
@@ -27395,7 +27596,7 @@ app.component('view-importTxn', {
                     </td>
                   </tr>
                   <tr v-if="b.action!=='error'" class="bg-slate-50/50 border-t">
-                    <td colspan="9" class="p-1 pl-6">
+                    <td colspan="10" class="p-1 pl-6">
                       <div class="text-xs text-slate-500">รายการ:</div>
                       <table class="w-full text-xs">
                         <thead><tr class="text-slate-500"><th class="p-1 text-left">สินค้า</th><th class="p-1 text-left">Lot</th><th class="p-1 text-right">{{txnType==='purchase'?'Net':'Weight'}}</th><th class="p-1 text-right">ราคา</th><th class="p-1 text-right">รวม</th></tr></thead>
@@ -27425,10 +27626,12 @@ app.component('view-importTxn', {
 
       <!-- LOG TAB -->
       <div v-if="tab==='log'" class="p-5">
+        <div class="text-xs text-slate-500 mb-2">📌 คลิก ▶ เพื่อดู/ลบบิลรายตัว · กด Rollback เพื่อยกเลิก import ทั้งชุด · ลบจาก Cloud ด้วย (กู้คืนไม่ได้)</div>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead class="bg-slate-100">
               <tr>
+                <th class="p-2 w-8"></th>
                 <th class="p-2 text-left">เวลา</th>
                 <th class="p-2 text-left">User</th>
                 <th class="p-2 text-left">ประเภท</th>
@@ -27441,25 +27644,201 @@ app.component('view-importTxn', {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="log in txnLogs" :key="log.id" class="border-t hover:bg-slate-50">
-                <td class="p-2 text-xs">{{log.at.slice(0,16).replace('T',' ')}}</td>
-                <td class="p-2">{{log.user}}</td>
-                <td class="p-2"><span class="px-2 py-0.5 bg-fuchsia-100 text-fuchsia-700 rounded text-xs">{{log.txnLabel}}</span></td>
-                <td class="p-2 text-xs">{{log.mode}}</td>
-                <td class="p-2 text-right font-bold">{{log.totalBills}}</td>
-                <td class="p-2 text-right">{{log.totalLines}}</td>
-                <td class="p-2 text-right text-amber-700">{{log.stockLedgerIds?.length||0}}</td>
-                <td class="p-2 text-center">
-                  <span v-if="log.rolledBack" class="px-2 py-0.5 bg-slate-200 text-slate-600 rounded text-xs">↶ Rolled back</span>
-                  <span v-else class="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded text-xs">✓ Completed</span>
-                </td>
-                <td class="p-2 text-center">
-                  <button v-if="!log.rolledBack" @click="rollback(log)" class="text-xs text-red-600 hover:underline">Rollback</button>
-                </td>
-              </tr>
-              <tr v-if="!txnLogs.length"><td colspan="9" class="text-center py-8 text-slate-400">ยังไม่มี Import Log</td></tr>
+              <template v-for="log in txnLogs" :key="log.id">
+                <tr class="border-t hover:bg-slate-50">
+                  <td class="p-2 text-center">
+                    <button @click="toggleExpandLog(log.id)" class="text-fuchsia-600 hover:text-fuchsia-800 font-bold">
+                      {{expandedLogId===log.id?'▼':'▶'}}
+                    </button>
+                  </td>
+                  <td class="p-2 text-xs">{{log.at.slice(0,16).replace('T',' ')}}</td>
+                  <td class="p-2">{{log.user}}</td>
+                  <td class="p-2"><span class="px-2 py-0.5 bg-fuchsia-100 text-fuchsia-700 rounded text-xs">{{log.txnLabel}}</span></td>
+                  <td class="p-2 text-xs">{{log.mode}}</td>
+                  <td class="p-2 text-right font-bold">{{(log.createdIds||[]).length}} <span v-if="log.partiallyDeleted" class="text-xs text-slate-400">/{{log.totalBills}}</span></td>
+                  <td class="p-2 text-right">{{log.totalLines}}</td>
+                  <td class="p-2 text-right text-amber-700">{{log.stockLedgerIds?.length||0}}</td>
+                  <td class="p-2 text-center">
+                    <span v-if="log.rolledBack" class="px-2 py-0.5 bg-slate-200 text-slate-600 rounded text-xs">↶ Rolled back</span>
+                    <span v-else-if="log.partiallyDeleted" class="px-2 py-0.5 bg-orange-100 text-orange-700 rounded text-xs">⚠ ลบบางส่วน</span>
+                    <span v-else class="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded text-xs">✓ Completed</span>
+                  </td>
+                  <td class="p-2 text-center">
+                    <button v-if="!log.rolledBack" @click="rollback(log)" class="text-xs text-red-600 hover:underline">Rollback ทั้งชุด</button>
+                  </td>
+                </tr>
+                <!-- Expanded: bill list with checkboxes -->
+                <tr v-if="expandedLogId===log.id" class="bg-slate-50">
+                  <td colspan="10" class="p-3">
+                    <div v-if="getLogBills(log).length===0" class="text-center py-6 text-slate-400 text-sm">
+                      ไม่มีบิลในการ Import นี้แล้ว (ถูกลบครบแล้ว)
+                    </div>
+                    <div v-else>
+                      <div class="flex items-center gap-2 mb-2 flex-wrap">
+                        <span class="text-xs text-slate-600">เลือกบิลที่ต้องการลบ:</span>
+                        <span class="text-xs px-2 py-0.5 bg-fuchsia-100 text-fuchsia-700 rounded">เลือก {{selectedBillIds.size}} / {{getLogBills(log).length}}</span>
+                        <button @click="selectAllInLog(log)" class="text-xs px-2 py-1 border rounded hover:bg-slate-100">☑ เลือกทั้งหมด</button>
+                        <button @click="clearLogSelection" class="text-xs px-2 py-1 border rounded hover:bg-slate-100">☐ ล้างเลือก</button>
+                        <span class="flex-1"></span>
+                        <button @click="deleteSelectedFromLog(log)" :disabled="deletingBills || selectedBillIds.size===0"
+                          class="px-3 py-1 text-xs bg-orange-600 text-white rounded font-bold hover:bg-orange-700 disabled:opacity-50">
+                          🗑 ลบที่เลือก ({{selectedBillIds.size}})
+                        </button>
+                        <button @click="deleteAllFromLog(log)" :disabled="deletingBills"
+                          class="px-3 py-1 text-xs bg-red-600 text-white rounded font-bold hover:bg-red-700 disabled:opacity-50">
+                          🗑 Delete All ({{getLogBills(log).length}})
+                        </button>
+                      </div>
+                      <div class="overflow-x-auto bg-white rounded border">
+                        <table class="w-full text-xs">
+                          <thead class="bg-slate-100">
+                            <tr>
+                              <th class="p-2 text-center w-10"></th>
+                              <th class="p-2 text-left">docNo</th>
+                              <th class="p-2 text-left">วันที่</th>
+                              <th class="p-2 text-left">{{log.txnType==='purchase'?'Supplier':'Customer'}}</th>
+                              <th class="p-2 text-right">บรรทัด</th>
+                              <th class="p-2 text-right">มูลค่า</th>
+                              <th class="p-2 text-center">สถานะ</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr v-for="b in getLogBills(log)" :key="b.id" class="border-t hover:bg-slate-50"
+                              :class="isBillSelected(b.id)?'bg-orange-50':''">
+                              <td class="p-2 text-center">
+                                <input type="checkbox" :checked="isBillSelected(b.id)" @change="toggleSelectBill(b.id)"
+                                  class="w-4 h-4 cursor-pointer">
+                              </td>
+                              <td class="p-2 font-mono">{{b.docNo}}</td>
+                              <td class="p-2">{{b.date}}</td>
+                              <td class="p-2 text-xs">
+                                <template v-if="log.txnType==='purchase'">
+                                  {{(db.suppliers.find(s=>s&&s.id===b.supplierId)||{}).name || b.supplierId || '-'}}
+                                </template>
+                                <template v-else>
+                                  {{(db.customers.find(c=>c&&c.id===b.customerId)||{}).name || b.customerId || '-'}}
+                                </template>
+                              </td>
+                              <td class="p-2 text-right">{{(b.items||[]).length}}</td>
+                              <td class="p-2 text-right font-bold">{{fmt(b.totalAmount)}}</td>
+                              <td class="p-2 text-center"><span class="px-2 py-0.5 rounded text-xs"
+                                :class="b.status==='draft'?'bg-amber-100 text-amber-700':'bg-emerald-100 text-emerald-700'">{{b.status}}</span></td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+              <tr v-if="!txnLogs.length"><td colspan="10" class="text-center py-8 text-slate-400">ยังไม่มี Import Log</td></tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 🆕 Sample Preview Modal — ดูตัวอย่างก่อน Confirm จริง -->
+    <div v-if="showSampleModal" class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 p-4">
+      <div class="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+        <div class="px-5 py-4 border-b bg-fuchsia-50 flex items-center justify-between flex-shrink-0">
+          <div>
+            <h3 class="text-lg font-bold text-fuchsia-700">👁 ตัวอย่างบิลก่อน Import</h3>
+            <p class="text-xs text-slate-600 mt-1">ตรวจรายละเอียด {{sampleBills.length}} บิลแรก จากทั้งหมด {{stats.eligibleBills}} บิล — ถ้าถูกต้อง กด Confirm</p>
+          </div>
+          <button @click="showSampleModal=false" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">×</button>
+        </div>
+
+        <div class="p-5 overflow-y-auto flex-1 space-y-4">
+          <!-- Summary -->
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="bg-fuchsia-50 border border-fuchsia-200 rounded-lg p-3">
+              <div class="text-xs text-slate-500">ประเภท</div>
+              <div class="font-bold text-fuchsia-700">{{schema.label}}</div>
+            </div>
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div class="text-xs text-slate-500">Mode</div>
+              <div class="font-bold text-blue-700">{{importMode}}</div>
+            </div>
+            <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+              <div class="text-xs text-slate-500">จำนวนบิล</div>
+              <div class="font-bold text-emerald-700 text-lg">{{stats.eligibleBills}} บิล / {{stats.eligibleLines}} บรรทัด</div>
+            </div>
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <div class="text-xs text-slate-500">มูลค่ารวม</div>
+              <div class="font-bold text-amber-700 text-lg">{{fmt(stats.eligibleAmount)}} ฿</div>
+            </div>
+          </div>
+
+          <!-- Sample Bills (first 5) -->
+          <div class="space-y-3">
+            <div class="text-sm font-bold text-slate-700">📋 ตัวอย่างบิล (แสดง {{sampleBills.length}} บิลแรก):</div>
+            <div v-for="(b, bi) in sampleBills" :key="b.docNo" class="border-2 border-fuchsia-100 rounded-lg overflow-hidden">
+              <div class="bg-fuchsia-50 px-4 py-2 flex items-center justify-between">
+                <div class="flex items-center gap-3 flex-wrap">
+                  <span class="px-2 py-0.5 bg-fuchsia-200 text-fuchsia-800 rounded text-xs font-bold">บิล #{{bi+1}}</span>
+                  <span class="font-mono font-bold">{{b.docNo}}</span>
+                  <span class="text-sm text-slate-600">{{b.header.date}}</span>
+                  <span class="px-2 py-0.5 bg-white border rounded text-xs">{{b.header.billType}}</span>
+                </div>
+                <div class="font-bold text-fuchsia-700">{{fmt(b.totalAmount)}} ฿</div>
+              </div>
+              <div class="p-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs bg-slate-50 border-b">
+                <div><span class="text-slate-500">{{txnType==='purchase'?'Supplier:':'Customer:'}}</span> <span class="font-medium">{{txnType==='purchase'?(b.supplier?.name||'?'):(b.customer?.name||'?')}}</span></div>
+                <div><span class="text-slate-500">สาขา:</span> <span class="font-medium">{{b.branch?.name||'?'}}</span></div>
+                <div><span class="text-slate-500">คลัง:</span> <span class="font-medium">{{b.warehouse?.name||'?'}}</span></div>
+                <div v-if="b.channel"><span class="text-slate-500">ช่องทาง:</span> <span class="font-medium">{{b.channel.name}}</span></div>
+              </div>
+              <table class="w-full text-xs">
+                <thead class="bg-white border-b">
+                  <tr class="text-slate-500">
+                    <th class="p-2 text-left">สินค้า</th>
+                    <th class="p-2 text-left">Lot</th>
+                    <th class="p-2 text-right">{{txnType==='purchase'?'Net Weight':'Weight'}}</th>
+                    <th class="p-2 text-right">ราคา</th>
+                    <th class="p-2 text-right">รวม</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(ln,li) in b.lines" :key="li" class="border-t">
+                    <td class="p-2">{{ln.productCode}}</td>
+                    <td class="p-2">{{ln.lotNo||'-'}}</td>
+                    <td class="p-2 text-right">{{fmt(txnType==='purchase'?ln.netWeight:ln.weight)}}</td>
+                    <td class="p-2 text-right">{{fmt(ln.price)}}</td>
+                    <td class="p-2 text-right font-medium">{{fmt(ln.netAmount)}}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div v-if="b.warnings.length" class="bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                <div v-for="(w,i) in b.warnings" :key="i">ⓘ {{w}}</div>
+              </div>
+            </div>
+            <div v-if="stats.eligibleBills > sampleBills.length" class="text-center text-xs text-slate-500 py-2">
+              ... และอีก {{stats.eligibleBills - sampleBills.length}} บิล
+            </div>
+          </div>
+
+          <!-- Warning -->
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+            <div class="font-bold mb-1">⚠ ก่อนกด Confirm — โปรดตรวจ:</div>
+            <ul class="list-disc list-inside space-y-0.5">
+              <li>เลขที่บิล (docNo) ไม่ซ้ำกับในระบบ</li>
+              <li>Supplier/Customer · Product · Branch ถูกต้อง</li>
+              <li>น้ำหนัก × ราคา = มูลค่ารวม</li>
+              <li v-if="importMode==='post' || importMode==='valid_only'">⚡ Mode = "Post" → จะตัด Stock + สร้าง AP/AR ทันที</li>
+              <li v-else>📝 Mode = "Draft" → บิลจะอยู่ในสถานะ Draft รอ post ภายหลัง</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="px-5 py-4 border-t bg-slate-50 flex justify-between items-center flex-shrink-0">
+          <button @click="showSampleModal=false" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-200 rounded">
+            ← กลับไปแก้ไข
+          </button>
+          <button @click="confirmImport" :disabled="importing"
+            class="px-6 py-2 text-sm bg-fuchsia-600 hover:bg-fuchsia-700 text-white rounded font-bold disabled:opacity-50">
+            {{importing?'กำลัง Import...':'✓ ยืนยัน Import '+stats.eligibleBills+' บิล'}}
+          </button>
         </div>
       </div>
     </div>
