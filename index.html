@@ -2508,8 +2508,9 @@ function seedData() {
         seeCost:true, seeProfit:true, seeCash:true, seeFinancials:true, seeOpening:true,
         branchScope:'all' },
       /* === Custom Roles ที่ใช้จริงในบริษัท (แก้/ลบได้) === */
-      { id:'R-ACCOUNTANT', name:'บัญชี', desc:'บัญชี — งบการเงิน, AR/AP, ภาษี + บิลซื้อ/ขาย', isSystem:false,
-        menus:['changePassword','purchase','sales','stockIssue','payment','receipt','transfer','expense','pettyAdvance','expenseDashboard','paymentApproval','billSwapHistory','stockBalance','stockLedger','tradingDashboard','tradingMatching','poBuy','poSell','poOutstanding','reports','audit','salesPlan','pendingSales','ar','ap','bank','cashPosition','plStatement','balanceSheet','cashFlowStatement','cashFlowAnalysis','workingCapital','taxVAT','transactionLedger','mdCustomer','mdSupplier','mdProduct','mdAccount','mdExpense','mdImport','equityMaint','backup','companyProfile'],
+      { id:'R-ACCOUNTANT', name:'บัญชี', desc:'บัญชี — งบการเงิน, AR/AP, ภาษี + บิลซื้อ/ขาย + ข้อมูลย้อนหลัง', isSystem:false,
+        // 🆕 ADD: historicalData
+        menus:['changePassword','purchase','sales','stockIssue','payment','receipt','transfer','expense','pettyAdvance','expenseDashboard','paymentApproval','billSwapHistory','stockBalance','stockLedger','tradingDashboard','tradingMatching','poBuy','poSell','poOutstanding','reports','audit','salesPlan','pendingSales','ar','ap','bank','cashPosition','plStatement','balanceSheet','cashFlowStatement','cashFlowAnalysis','workingCapital','taxVAT','transactionLedger','mdCustomer','mdSupplier','mdProduct','mdAccount','mdExpense','mdImport','equityMaint','historicalData','backup','companyProfile'],
         actions:{'*':['view','create','edit','post','export']},
         seeCost:true, seeProfit:true, seeCash:true, seeFinancials:true, seeOpening:false,
         branchScope:'all' },
@@ -8264,6 +8265,34 @@ app.component('view-purchase', {
       } catch (e) { return []; }
     }
 
+    /* 🆕 Toggle visibility ของ warehouse + channel selectors (ปกติซ่อน auto-fill จาก branch) */
+    const showBranchDeps = ref(false);
+
+    /* 🆕 เลือกสาขา + auto-fill warehouse + channel ตาม default ของสาขานั้น */
+    function pickBranch(branchId) {
+      form.value.branchId = branchId;
+      // Auto-fill warehouse — เลือก warehouse ตัวแรกที่ active ของสาขานี้
+      const warehouses = safeArr(db.warehouses).filter(w => w && w.active && w.branchId === branchId);
+      if (warehouses.length > 0) {
+        // ถ้ามี warehouse ที่ตั้ง isDefault=true ใช้อันนั้น ไม่งั้นใช้ตัวแรก
+        const defaultWh = warehouses.find(w => w.isDefault) || warehouses[0];
+        form.value.warehouseId = defaultWh.id;
+      } else {
+        form.value.warehouseId = '';
+      }
+      // Auto-fill channel — ใช้ channel แรกที่ active (ถ้ามี isDefault ใช้อันนั้น)
+      // ถ้ามี channel ที่ผูกกับ branchId เฉพาะนี้ — ใช้ตัวนั้นก่อน
+      const channels = safeArr(db.purchaseChannels).filter(c => c && c.active);
+      const branchSpecific = channels.filter(c => c.branchId === branchId);
+      const pool = branchSpecific.length > 0 ? branchSpecific : channels;
+      if (pool.length > 0) {
+        const defaultCh = pool.find(c => c.isDefault) || pool[0];
+        form.value.channelId = defaultCh.id;
+      } else {
+        form.value.channelId = '';
+      }
+    }
+
     /* ============ 🔄 SWAP SUPPLIER ============ */
     const showSwapModal = ref(false);
     const swapTarget = ref(null);
@@ -8496,6 +8525,8 @@ app.component('view-purchase', {
       db, erp, form, showForm, search, filtered, billTotals, editingId,
       filterMode, filterSource, filterDateFrom, filterDateTo,
       open, openEdit, save, cancelBill, deleteBill, toggleVatReceived, warehousesForBranch, num,
+      // 🆕 Branch picker (one-click + auto-fill warehouse + channel)
+      pickBranch, showBranchDeps,
       addItem, removeItem, recalcItem,
       fmt, supplierName, branchName, channelName, accountName, productName,
       availablePOBuys, loadFromPO, setSource,
@@ -8679,25 +8710,36 @@ app.component('view-purchase', {
                   </div>
                 </div>
               </div>
-              <!-- 🏢 สาขา — ซ่อนถ้าเป็น Trading (Trading เป็นของมันเอง) -->
-              <div v-if="form.transactionMode !== 'TRADING'">
-                <label class="block text-xs font-medium text-slate-600 mb-1">🏢 สาขา *</label>
-                <select v-model="form.branchId" @change="form.warehouseId = ''" class="w-full px-3 py-2 border rounded-lg">
-                  <option value="">-- เลือกสาขา --</option>
-                  <option v-for="b in (db.branches || []).filter(x => x && x.active)" :key="b.id" :value="b.id">{{ b.name }}</option>
-                </select>
+              <!-- 🆕 🏢 สาขา — Toggle ปุ่ม (กดเลือกสาขาแล้ว auto-fill คลัง+ช่องทาง) -->
+              <div v-if="form.transactionMode !== 'TRADING'" class="md:col-span-2">
+                <label class="block text-xs font-medium text-slate-600 mb-2">🏢 สาขา * <span class="text-slate-400 font-normal text-[11px]">(เลือกแล้วระบบจะ auto-fill คลัง + ช่องทางให้)</span></label>
+                <div class="flex flex-wrap gap-2">
+                  <button v-for="b in (db.branches || []).filter(x => x && x.active)" :key="b.id"
+                    type="button"
+                    @click="pickBranch(b.id)"
+                    :class="['px-5 py-3 border-2 rounded-lg font-bold text-base transition flex items-center gap-2', form.branchId === b.id ? 'bg-blue-600 border-blue-700 text-white shadow-lg scale-105' : 'bg-white border-slate-300 text-slate-700 hover:border-blue-400']">
+                    <span class="text-xl">{{ form.branchId === b.id ? '🟢' : '⚪' }}</span>
+                    <span>{{ b.name }}</span>
+                  </button>
+                </div>
+                <!-- แสดง warehouse + channel ที่ auto-fill ไว้ (read-only info) -->
+                <div v-if="form.branchId" class="mt-2 bg-blue-50 border border-blue-200 rounded p-2 text-xs text-blue-800 flex flex-wrap gap-3">
+                  <span>🏬 คลัง: <b>{{ (db.warehouses||[]).find(w => w && w.id === form.warehouseId)?.name || '-' }}</b></span>
+                  <span>🛒 ช่องทาง: <b>{{ (db.purchaseChannels||[]).find(c => c && c.id === form.channelId)?.name || '-' }}</b></span>
+                  <button type="button" @click="showBranchDeps = !showBranchDeps" class="text-blue-700 hover:underline ml-auto">{{ showBranchDeps ? '▲ ซ่อน' : '▼ เปลี่ยนเอง' }}</button>
+                </div>
               </div>
-              <!-- 🏬 คลัง — ซ่อนถ้าเป็น Trading -->
-              <div v-if="form.transactionMode !== 'TRADING'">
-                <label class="block text-xs font-medium text-slate-600 mb-1">🏬 คลัง *</label>
+              <!-- 🏬 คลัง — ซ่อนปกติ (auto-filled), แสดงเมื่อ user กด "เปลี่ยนเอง" -->
+              <div v-if="form.transactionMode !== 'TRADING' && showBranchDeps">
+                <label class="block text-xs font-medium text-slate-600 mb-1">🏬 คลัง</label>
                 <select v-model="form.warehouseId" class="w-full px-3 py-2 border rounded-lg">
                   <option value="">-- เลือกคลัง --</option>
                   <option v-for="w in warehousesForBranch()" :key="w.id" :value="w.id">{{ w.name }}</option>
                 </select>
               </div>
-              <!-- 🛒 ช่องทางรับซื้อ — ซ่อนถ้าเป็น Trading (Trading คือช่องทางในตัว) -->
-              <div v-if="form.transactionMode !== 'TRADING'">
-                <label class="block text-xs font-medium text-slate-600 mb-1">🛒 ช่องทางรับซื้อ *</label>
+              <!-- 🛒 ช่องทางรับซื้อ — ซ่อนปกติ -->
+              <div v-if="form.transactionMode !== 'TRADING' && showBranchDeps">
+                <label class="block text-xs font-medium text-slate-600 mb-1">🛒 ช่องทางรับซื้อ</label>
                 <select v-model="form.channelId" class="w-full px-3 py-2 border rounded-lg">
                   <option value="">-- เลือกช่องทาง --</option>
                   <option v-for="c in (db.purchaseChannels || []).filter(x => x && x.active)" :key="c.id" :value="c.id">{{ c.name }}</option>
@@ -10302,7 +10344,7 @@ app.component('view-expense', {
     const erp = window.$erp; const db = erp.db;
     const showForm = ref(false);
     const form = ref(makeBlankForm());
-    function emptyLine() { return { id: newId('EXL'), categoryId:'', description:'', amount:0, hasVat: false, vatAmount:0, whtAmount:0 }; }
+    function emptyLine() { return { id: newId('EXL'), categoryId:'', description:'', amount:0, hasVat: false, vatAmount:0, whtPct: 0, whtAmount:0 }; }
     function makeBlankForm() {
       return { docNo:'', date: todayStr(), payeeName:'', accountId:'', method:'โอน', branchId:'', notes:'', lines:[emptyLine()] };
     }
@@ -10313,6 +10355,18 @@ app.component('view-expense', {
       } else {
         line.vatAmount = 0;
       }
+      // 🆕 Auto-compute WHT — คำนวณจาก % ของยอด (ก่อน VAT)
+      recalcLineWht(line);
+    }
+    /* 🆕 Auto-compute WHT — รับ whtPct (%, เช่น 1, 3, 5) → คำนวณ whtAmount */
+    function recalcLineWht(line) {
+      const pct = num(line.whtPct);
+      if (pct > 0 && num(line.amount) > 0) {
+        line.whtAmount = Math.round(num(line.amount) * pct / 100 * 100) / 100;  // ปัด 2 ทศนิยม
+      } else if (pct === 0) {
+        line.whtAmount = 0;
+      }
+      // ถ้า whtPct = 0 แต่ user พิมพ์ whtAmount ตรงๆ → เคารพค่า manual (ไม่เคลียร์)
     }
     const editingVoucherId = ref(null);
     function open() {
@@ -10553,7 +10607,7 @@ app.component('view-expense', {
 
     return { db, erp, form, showForm, list, totals, num, editingVoucherId,
       search, filterDateFrom, filterDateTo, filterCategory, filterPayee, filterAccount, filterPaidStatus,
-      open, openEdit, close: close_, save, remove, addLine, removeLine, recalcLineVat, fmt: erp.fmt,
+      open, openEdit, close: close_, save, remove, addLine, removeLine, recalcLineVat, recalcLineWht, fmt: erp.fmt,
       payNow, quickPay, expSummary, payeeSuggestions };
   },
   template: `
@@ -10721,7 +10775,16 @@ app.component('view-expense', {
             </div>
             <div class="overflow-x-auto border rounded-lg">
               <table class="w-full text-xs">
-                <thead class="bg-slate-100"><tr><th class="p-2 text-left w-44">หมวด</th><th class="p-2 text-left">รายละเอียด</th><th class="p-2 text-right w-24">จำนวน</th><th class="p-2 text-center w-16">มี VAT</th><th class="p-2 text-right w-20">VAT 7%</th><th class="p-2 text-right w-20">WHT</th><th class="p-2 w-12"></th></tr></thead>
+                <thead class="bg-slate-100"><tr>
+                  <th class="p-2 text-left w-44">หมวด</th>
+                  <th class="p-2 text-left">รายละเอียด</th>
+                  <th class="p-2 text-right w-24">จำนวน</th>
+                  <th class="p-2 text-center w-14">VAT</th>
+                  <th class="p-2 text-right w-20">VAT 7%</th>
+                  <th class="p-2 text-center w-20 bg-amber-50 text-amber-800">WHT %</th>
+                  <th class="p-2 text-right w-24 bg-amber-50 text-amber-800">หัก ณ ที่จ่าย</th>
+                  <th class="p-2 w-12"></th>
+                </tr></thead>
                 <tbody>
                   <tr v-for="(line, idx) in (form.lines||[])" :key="line.id" class="border-t">
                     <td class="p-1">
@@ -10735,13 +10798,27 @@ app.component('view-expense', {
                     <td class="p-1"><input type="number" step="0.01" v-model.number="line.amount" @input="recalcLineVat(line)" class="w-full px-1 py-1 border rounded text-right"></td>
                     <td class="p-1 text-center"><input type="checkbox" v-model="line.hasVat" @change="recalcLineVat(line)" class="w-4 h-4"></td>
                     <td class="p-1 text-right" :class="line.hasVat?'bg-emerald-50':'bg-slate-100 text-slate-400'">{{line.hasVat?fmt(line.vatAmount):'-'}}</td>
-                    <td class="p-1"><input type="number" step="0.01" v-model.number="line.whtAmount" class="w-full px-1 py-1 border rounded text-right"></td>
+                    <!-- 🆕 WHT % dropdown + auto-calc — เลือก % แล้วยอด WHT คำนวณอัตโนมัติ -->
+                    <td class="p-1 bg-amber-50">
+                      <select v-model.number="line.whtPct" @change="recalcLineWht(line)" class="w-full px-1 py-1 border rounded text-xs">
+                        <option :value="0">- ไม่หัก -</option>
+                        <option :value="1">1% (ขนส่ง/รับเหมา)</option>
+                        <option :value="2">2% (โฆษณา)</option>
+                        <option :value="3">3% (บริการ)</option>
+                        <option :value="5">5% (ค่าเช่า)</option>
+                        <option :value="10">10% (ต่างชาติ)</option>
+                        <option :value="15">15% (ดอกเบี้ย/เงินปันผล)</option>
+                      </select>
+                    </td>
+                    <td class="p-1 bg-amber-50">
+                      <input type="number" step="0.01" v-model.number="line.whtAmount" class="w-full px-1 py-1 border rounded text-right font-mono" :class="line.whtPct > 0 ? 'bg-amber-100 font-bold text-amber-800' : ''" :readonly="line.whtPct > 0" :title="line.whtPct > 0 ? 'คำนวณอัตโนมัติจาก ' + line.whtPct + '% — เปลี่ยนเป็น \'ไม่หัก\' เพื่อกรอกเอง' : 'พิมพ์ยอดหัก ณ ที่จ่ายเอง'">
+                    </td>
                     <td class="p-1 text-center"><button @click="removeLine(idx)" type="button" class="text-red-500 px-1">×</button></td>
                   </tr>
                 </tbody>
                 <tfoot class="bg-slate-50 font-semibold">
-                  <tr><td colspan="2" class="p-2 text-right">รวม</td><td class="p-2 text-right text-red-700">{{fmt(totals.totalAmount)}}</td><td></td><td class="p-2 text-right">{{fmt(totals.totalVat)}}</td><td class="p-2 text-right">{{fmt(totals.totalWHT)}}</td><td></td></tr>
-                  <tr><td colspan="7" class="p-2 text-right">Net Pay: <span class="text-red-700 text-base font-bold">{{fmt(totals.netPaid)}}</span></td></tr>
+                  <tr><td colspan="2" class="p-2 text-right">รวม</td><td class="p-2 text-right text-red-700">{{fmt(totals.totalAmount)}}</td><td></td><td class="p-2 text-right">{{fmt(totals.totalVat)}}</td><td></td><td class="p-2 text-right text-amber-800">{{fmt(totals.totalWHT)}}</td><td></td></tr>
+                  <tr><td colspan="8" class="p-2 text-right">Net Pay: <span class="text-red-700 text-base font-bold">{{fmt(totals.netPaid)}}</span></td></tr>
                 </tfoot>
               </table>
             </div>
