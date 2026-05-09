@@ -3591,6 +3591,77 @@ window.$erp = {
       return _safeArr(_GLOBAL_DB.roles).find(x => x && x.id === 'R-ADMIN') || null;
     } catch (e) { return null; }
   },
+  /* 🆕 Historical Data Helpers — ใช้กับ P&L / Cash Flow / Expense Dashboard
+     Q1+Apr 2026 (ม.ค.-เม.ย.) เป็นข้อมูล baseline ก่อน Go-Live (พ.ค. 2026)
+     ก่อนใช้ — ตั้ง goLiveDate ที่ openingBalance.goLiveDate (default: 2026-05-01) */
+  historical: {
+    /* เป็นเดือน historical หรือไม่ — เดือนก่อน goLiveDate */
+    isHistoricalMonth: (year, month) => {
+      try {
+        const goLive = window.$erp.db.openingBalance?.goLiveDate || '2026-05-01';
+        const goY = parseInt(goLive.slice(0,4), 10);
+        const goM = parseInt(goLive.slice(5,7), 10);
+        return (year < goY) || (year === goY && month < goM);
+      } catch(e) { return false; }
+    },
+    /* ดึงตัวเลข — metricType: 'expense'|'pnl'|'cashflow', categoryId คือ EX001 หรือ revenue/cogs/opex/etc. */
+    getMonth: (metricType, categoryId, year, month) => {
+      try {
+        const arr = _safeArr(window.$erp.db.historicalMonthly);
+        const rec = arr.find(h => h && h.year === year && h.month === month
+          && h.metricType === metricType && h.categoryId === categoryId);
+        return rec ? Number(rec.amount || 0) : 0;
+      } catch(e) { return 0; }
+    },
+    /* ผลรวม category ใน date range (string YYYY-MM-DD) */
+    sumRange: (metricType, categoryId, fromDate, toDate) => {
+      try {
+        const arr = _safeArr(window.$erp.db.historicalMonthly);
+        const fy = parseInt(fromDate.slice(0,4),10), fm = parseInt(fromDate.slice(5,7),10);
+        const ty = parseInt(toDate.slice(0,4),10),   tm = parseInt(toDate.slice(5,7),10);
+        return arr.filter(h => {
+          if (!h || h.metricType !== metricType || h.categoryId !== categoryId) return false;
+          const yy = h.year, mm = h.month;
+          if (yy < fy || (yy === fy && mm < fm)) return false;
+          if (yy > ty || (yy === ty && mm > tm)) return false;
+          return true;
+        }).reduce((s,h) => s + Number(h.amount||0), 0);
+      } catch(e) { return 0; }
+    },
+    /* ผลรวม metricType ทั้งหมด (ทุก category) ใน date range */
+    sumAllByType: (metricType, fromDate, toDate) => {
+      try {
+        const arr = _safeArr(window.$erp.db.historicalMonthly);
+        const fy = parseInt(fromDate.slice(0,4),10), fm = parseInt(fromDate.slice(5,7),10);
+        const ty = parseInt(toDate.slice(0,4),10),   tm = parseInt(toDate.slice(5,7),10);
+        return arr.filter(h => {
+          if (!h || h.metricType !== metricType) return false;
+          const yy = h.year, mm = h.month;
+          if (yy < fy || (yy === fy && mm < fm)) return false;
+          if (yy > ty || (yy === ty && mm > tm)) return false;
+          return true;
+        }).reduce((s,h) => s + Number(h.amount||0), 0);
+      } catch(e) { return 0; }
+    },
+    /* รายการเดือน historical ใน range (สำหรับ loop) */
+    monthsInRange: (fromDate, toDate) => {
+      const out = [];
+      try {
+        const fy = parseInt(fromDate.slice(0,4),10), fm = parseInt(fromDate.slice(5,7),10);
+        const ty = parseInt(toDate.slice(0,4),10),   tm = parseInt(toDate.slice(5,7),10);
+        for (let y = fy; y <= ty; y++) {
+          const startM = (y === fy) ? fm : 1;
+          const endM = (y === ty) ? tm : 12;
+          for (let m = startM; m <= endM; m++) {
+            if (window.$erp.historical.isHistoricalMonth(y, m)) {
+              out.push({ year: y, month: m });
+            }
+          }
+        }
+      } catch(e) {}
+      return out;
+    }
+  },
   /* 🆕 ลบ records จาก Supabase ตาม collection name + ids array
      ใช้ทุกครั้งที่ลบ local เพื่อกัน auto-pull ดึงของเก่ากลับมา */
   deleteCloud: async (localCollection, ids) => {
@@ -20848,6 +20919,16 @@ function _finRevenue(db, fromD, toD, branchId=null, mode=null) {
       out.gross += amt; out.net += amt;
       out.items.push({ id:b.id, date:b.date, no:b.docNo, party:b.customerId, amt, ref:'SB', mode:b.transactionMode||'STOCK' });
     });
+  // 🆕 รวม Historical Revenue (ก่อน Go-Live)
+  if (!branchId && !mode) {
+    try {
+      const histAmt = window.$erp.historical.sumRange('pnl', 'revenue', fromD, toD);
+      if (histAmt > 0) {
+        out.gross += histAmt; out.net += histAmt;
+        out.items.push({ id:'HIST-REV', date:fromD, no:'HISTORICAL', party:'(Pre Go-Live baseline)', amt:histAmt, ref:'HIST', isHistorical:true });
+      }
+    } catch(e) {}
+  }
   return out;
 }
 function _finCOGS(db, fromD, toD, branchId=null, mode=null) {
@@ -20860,7 +20941,6 @@ function _finCOGS(db, fromD, toD, branchId=null, mode=null) {
       return true;
     })
     .forEach(b => {
-      // For Trading: use matched cost from tradingDeals; for Stock: use totalCost (WAC)
       let c = 0;
       if (b.transactionMode === 'TRADING') {
         c = window.$erp.tradingMatchedCost(b.id);
@@ -20870,6 +20950,16 @@ function _finCOGS(db, fromD, toD, branchId=null, mode=null) {
       out.total += c;
       out.items.push({ id:b.id, date:b.date, no:b.docNo, party:b.customerId, amt:c, ref:'SB', mode:b.transactionMode||'STOCK' });
     });
+  // 🆕 รวม Historical COGS (ก่อน Go-Live)
+  if (!branchId && !mode) {
+    try {
+      const histCogs = window.$erp.historical.sumRange('pnl', 'cogs', fromD, toD);
+      if (histCogs > 0) {
+        out.total += histCogs;
+        out.items.push({ id:'HIST-COGS', date:fromD, no:'HISTORICAL', party:'(Pre Go-Live baseline)', amt:histCogs, ref:'HIST', isHistorical:true });
+      }
+    } catch(e) {}
+  }
   return out;
 }
 function _finExpenses(db, fromD, toD, branchId=null) {
@@ -20881,6 +20971,29 @@ function _finExpenses(db, fromD, toD, branchId=null) {
       byCat[cat] = (byCat[cat]||0) + amt;
       items.push({ id:e.id, date:e.date, no:e.docNo, party:e.payee, amt, ref:'EXP', cat });
     });
+  // 🆕 รวม Historical Data ของเดือนก่อน Go-Live (ม.ค.-เม.ย. 2026) ที่อยู่ใน range
+  // ❌ ไม่กรอง branchId เพราะ historical data ไม่มี branch dimension
+  if (!branchId) {
+    try {
+      const histMonths = window.$erp.historical.monthsInRange(fromD, toD);
+      const historicalEntries = _trkSafe(db.historicalMonthly).filter(h =>
+        h && h.metricType === 'expense' &&
+        histMonths.some(m => m.year === h.year && m.month === h.month)
+      );
+      historicalEntries.forEach(h => {
+        const cat = h.categoryId || 'OTHER';
+        const amt = Number(h.amount||0);
+        if (amt === 0) return;
+        byCat[cat] = (byCat[cat]||0) + amt;
+        items.push({
+          id: h.id, date: h.year+'-'+String(h.month).padStart(2,'0')+'-01',
+          no: 'HIST-'+h.year+'/'+String(h.month).padStart(2,'0'),
+          party: '(Historical baseline)', amt, ref:'HIST', cat,
+          isHistorical: true
+        });
+      });
+    } catch(e) { console.warn('[_finExpenses] historical merge:', e); }
+  }
   return { byCat, items, total: Object.values(byCat).reduce((a,b)=>a+b,0) };
 }
 function _finDepreciation(db, fromD, toD, branchId=null) {
@@ -23589,6 +23702,24 @@ app.component('view-cashFlowStatement', {
       });
 
       function sum(g) { return g.reduce((s,i)=>s+i.amt,0); }
+      // 🆕 รวม Historical Cash Flow ของเดือนก่อน Go-Live เข้าตามประเภท
+      try {
+        const hist = window.$erp.historical;
+        const histOpIn  = hist.sumRange('cashflow', 'cf_op_in',  fromD.value, toD.value);
+        const histOpOut = hist.sumRange('cashflow', 'cf_op_out', fromD.value, toD.value);
+        const histInv   = hist.sumRange('cashflow', 'cf_inv',    fromD.value, toD.value);
+        const histFinIn = hist.sumRange('cashflow', 'cf_fin_in', fromD.value, toD.value);
+        const histFinOut= hist.sumRange('cashflow', 'cf_fin_out',fromD.value, toD.value);
+        const histDate = fromD.value;
+        if (histOpIn > 0)  groups.OP_IN.push({  id:'HIST-OPIN',  date:histDate, no:'HISTORICAL', party:'(Pre Go-Live)', amt:histOpIn,    cfCat:'OP_IN_OTHER',     label:'Historical Operating Inflow', isHistorical:true });
+        if (histOpOut > 0) groups.OP_OUT.push({ id:'HIST-OPOUT', date:histDate, no:'HISTORICAL', party:'(Pre Go-Live)', amt:-histOpOut,  cfCat:'OP_OUT_EXPENSE',  label:'Historical Operating Outflow', isHistorical:true });
+        if (histInv !== 0) {
+          const dir = histInv >= 0 ? 'IN' : 'OUT';
+          groups['INV_'+dir].push({ id:'HIST-INV', date:histDate, no:'HISTORICAL', party:'(Pre Go-Live)', amt:histInv, cfCat:'INV_'+dir+'_OTHER', label:'Historical Investing', isHistorical:true });
+        }
+        if (histFinIn > 0)  groups.FIN_IN.push({  id:'HIST-FININ',  date:histDate, no:'HISTORICAL', party:'(Pre Go-Live)', amt:histFinIn,   cfCat:'FIN_IN_OTHER',  label:'Historical Financing Inflow', isHistorical:true });
+        if (histFinOut > 0) groups.FIN_OUT.push({ id:'HIST-FINOUT', date:histDate, no:'HISTORICAL', party:'(Pre Go-Live)', amt:-histFinOut, cfCat:'FIN_OUT_OTHER', label:'Historical Financing Outflow', isHistorical:true });
+      } catch(e) { console.warn('[CF historical merge]', e); }
       const opIn = sum(groups.OP_IN);
       const opOut = sum(groups.OP_OUT); // amounts are already negative
       const opNet = opIn + opOut;
