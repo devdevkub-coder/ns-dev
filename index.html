@@ -7340,8 +7340,10 @@ app.component('view-dashboard', {
     /* Match purchase bill against filters */
     function matchPurchase(b) {
       if (!b || b.status === 'cancelled') return false;
-      // 🚫 Pre-Go-Live bills (date < 2026-05-01) — ไม่นับเลย เพราะรวมใน historicalMonthly แล้ว (ป้องกัน double-count)
+      // 🚫 Exclude opening bills (status='opening' OR id เริ่มด้วย PB-OPN- OR isOpening=true OR date < goLive)
+      //    เพราะรวมใน historicalMonthly แล้ว (ป้องกัน double-count)
       const goLive = (db.openingBalance && db.openingBalance.goLiveDate) || '2026-05-01';
+      if (b.status === 'opening' || b.isOpening === true || String(b.id||'').startsWith('PB-OPN-')) return false;
       if (b.date && b.date < goLive) return false;
       if (!inDateRange(b.date)) return false;
       if (fBranch.value && b.branchId !== fBranch.value) return false;
@@ -7363,8 +7365,10 @@ app.component('view-dashboard', {
     }
     function matchSales(b) {
       if (!b || b.status === 'cancelled') return false;
-      // 🚫 Pre-Go-Live bills (date < 2026-05-01) — ไม่นับเลย เพราะรวมใน historicalMonthly แล้ว (ป้องกัน double-count)
+      // 🚫 Exclude opening bills (status='opening' OR id เริ่มด้วย SB-OPN- OR isOpening=true OR date < goLive)
+      //    เพราะรวมใน historicalMonthly แล้ว (ป้องกัน double-count)
       const goLive = (db.openingBalance && db.openingBalance.goLiveDate) || '2026-05-01';
+      if (b.status === 'opening' || b.isOpening === true || String(b.id||'').startsWith('SB-OPN-')) return false;
       if (b.date && b.date < goLive) return false;
       if (!inDateRange(b.date)) return false;
       if (fBranch.value && b.branchId !== fBranch.value) return false;
@@ -22098,9 +22102,11 @@ const CASHFLOW_CATEGORIES = {
 function _finRevenue(db, fromD, toD, branchId=null, mode=null) {
   // mode: null=all, 'STOCK', 'TRADING'
   const out = { gross:0, net:0, items:[] };
-  // 🚫 Pre-Go-Live cutoff — บิลก่อน goLiveDate ไม่นับ เพราะรวมใน historicalMonthly แล้ว (ป้องกัน double-count)
+  // 🚫 Pre-Go-Live cutoff — exclude opening bills (status='opening' OR id เริ่มด้วย SB-OPN- OR isOpening=true OR date < goLive)
+  //    เพราะรวมใน historicalMonthly แล้ว (ป้องกัน double-count)
   const _goLive = (db.openingBalance && db.openingBalance.goLiveDate) || '2026-05-01';
-  _trkSafe(db.salesBills).filter(b => b && b.status !== 'cancelled' && b.date >= fromD && b.date <= toD && b.date >= _goLive && (!branchId || b.branchId===branchId))
+  const _isOpening = (b) => b && (b.status === 'opening' || b.isOpening === true || String(b.id||'').startsWith('SB-OPN-') || (b.date && b.date < _goLive));
+  _trkSafe(db.salesBills).filter(b => b && b.status !== 'cancelled' && b.date >= fromD && b.date <= toD && !_isOpening(b) && (!branchId || b.branchId===branchId))
     .filter(b => {
       const m = b.transactionMode || 'STOCK';
       if (mode === 'STOCK') return m === 'STOCK';
@@ -22126,9 +22132,10 @@ function _finRevenue(db, fromD, toD, branchId=null, mode=null) {
 }
 function _finCOGS(db, fromD, toD, branchId=null, mode=null) {
   const out = { total:0, items:[] };
-  // 🚫 Pre-Go-Live cutoff — บิลก่อน goLiveDate ไม่นับ เพราะรวมใน historicalMonthly แล้ว
+  // 🚫 Pre-Go-Live cutoff — exclude opening bills (รวมใน historicalMonthly แล้ว)
   const _goLive = (db.openingBalance && db.openingBalance.goLiveDate) || '2026-05-01';
-  _trkSafe(db.salesBills).filter(b => b && b.status !== 'cancelled' && b.date >= fromD && b.date <= toD && b.date >= _goLive && (!branchId || b.branchId===branchId))
+  const _isOpening = (b) => b && (b.status === 'opening' || b.isOpening === true || String(b.id||'').startsWith('SB-OPN-') || (b.date && b.date < _goLive));
+  _trkSafe(db.salesBills).filter(b => b && b.status !== 'cancelled' && b.date >= fromD && b.date <= toD && !_isOpening(b) && (!branchId || b.branchId===branchId))
     .filter(b => {
       const m = b.transactionMode || 'STOCK';
       if (mode === 'STOCK') return m === 'STOCK';
@@ -28070,19 +28077,20 @@ const TXN_IMPORT_SCHEMAS = {
     label: 'บิลซื้อ', collection: 'purchaseBills', idPrefix: 'PB',
     docPrefix: 'PB',
     headerCols: [
-      { key:'docNo',         label:'เลขที่บิล',                required:true,  type:'string' },
-      { key:'date',          label:'วันที่ (YYYY-MM-DD)',     required:true,  type:'date' },
-      { key:'supplierCode',  label:'รหัสผู้ขาย',               required:true,  type:'string' },
-      { key:'branchCode',    label:'รหัสสาขา',                 required:true,  type:'string' },
-      { key:'warehouseCode', label:'รหัสคลัง',                 required:true,  type:'string' },
-      { key:'channelCode',   label:'รหัสช่องทางซื้อ',          required:false, type:'string' },
-      { key:'purchaseType',  label:'ประเภท (เงินสด/เครดิต)',   required:false, type:'enum', options:['เงินสด','เครดิต'], default:'เงินสด' },
-      { key:'creditTerm',    label:'Credit Term (วัน)',        required:false, type:'number', default:0 },
-      { key:'billType',      label:'Bill Type (SPOT_BUY/PO_RECEIPT)', required:false, type:'enum', options:['SPOT_BUY','PO_RECEIPT'], default:'SPOT_BUY' },
-      { key:'poBuyNo',       label:'PO Buy No (ถ้า PO_RECEIPT)', required:false, type:'string' },
-      { key:'vatAmount',     label:'VAT',                      required:false, type:'number', default:0 },
-      { key:'taxInvoiceNo',  label:'เลขใบกำกับภาษี',           required:false, type:'string' },
-      { key:'note',          label:'หมายเหตุ',                  required:false, type:'string' },
+      { key:'docNo',          label:'เลขที่บิล',                required:true,  type:'string' },
+      { key:'date',           label:'วันที่ (YYYY-MM-DD)',     required:true,  type:'date' },
+      { key:'supplierCode',   label:'รหัสผู้ขาย',               required:true,  type:'string' },
+      { key:'branchCode',     label:'รหัสสาขา',                 required:true,  type:'string' },
+      { key:'warehouseCode',  label:'รหัสคลัง',                 required:true,  type:'string' },
+      { key:'channelCode',    label:'รหัสช่องทางซื้อ',          required:false, type:'string' },
+      { key:'transactionMode',label:'Mode (STOCK/TRADING)',     required:false, type:'enum', options:['STOCK','TRADING'], default:'STOCK' },
+      { key:'purchaseType',   label:'ประเภท (เงินสด/เครดิต)',   required:false, type:'enum', options:['เงินสด','เครดิต'], default:'เงินสด' },
+      { key:'creditTerm',     label:'Credit Term (วัน)',        required:false, type:'number', default:0 },
+      { key:'billType',       label:'Bill Type (SPOT_BUY/PO_RECEIPT)', required:false, type:'enum', options:['SPOT_BUY','PO_RECEIPT'], default:'SPOT_BUY' },
+      { key:'poBuyNo',        label:'PO Buy No (ถ้า PO_RECEIPT)', required:false, type:'string' },
+      { key:'vatAmount',      label:'VAT',                      required:false, type:'number', default:0 },
+      { key:'taxInvoiceNo',   label:'เลขใบกำกับภาษี',           required:false, type:'string' },
+      { key:'note',           label:'หมายเหตุ',                  required:false, type:'string' },
     ],
     lineCols: [
       { key:'productCode',   label:'รหัสสินค้า',                required:true,  type:'string' },
@@ -28095,30 +28103,35 @@ const TXN_IMPORT_SCHEMAS = {
       { key:'lineNote',      label:'หมายเหตุบรรทัด',           required:false, type:'string' },
     ],
     sample: [
-      // 2 lines for one bill
-      ['PBIMP-001','2026-05-01','SUP001','BR002','WH002','PC002','เครดิต','30','SPOT_BUY','','0','','ทดสอบ Import','P001','LOT-IMP-1','1050','50','1000','18.5','0',''],
-      ['PBIMP-001','2026-05-01','SUP001','BR002','WH002','PC002','เครดิต','30','SPOT_BUY','','0','','ทดสอบ Import','P002','LOT-IMP-2','530','30','500','14','0',''],
-      ['PBIMP-002','2026-05-02','SUP002','BR003','WH003','PC001','เงินสด','0','SPOT_BUY','','0','','','P004','CU-LOT-IMP','520','20','500','295','0',''],
+      // 🔵 STOCK SPOT_BUY (2 lines for one bill) — ซื้อเศษเข้าคลัง
+      ['PBIMP-001','2026-05-01','SUP001','BR002','WH002','PC002','STOCK','เครดิต','30','SPOT_BUY','','0','','ซื้อสต๊อกปกติ — ทำลังขาย','P001','LOT-IMP-1','1050','50','1000','18.5','0',''],
+      ['PBIMP-001','2026-05-01','SUP001','BR002','WH002','PC002','STOCK','เครดิต','30','SPOT_BUY','','0','','ซื้อสต๊อกปกติ — ทำลังขาย','P002','LOT-IMP-2','530','30','500','14','0',''],
+      // 🟢 STOCK PO_RECEIPT — รับของตาม PO Buy ที่เปิดไว้แล้ว
+      ['PBIMP-002','2026-05-02','SUP002','BR003','WH003','PC001','STOCK','เงินสด','0','PO_RECEIPT','POB2605-0001','0','','รับของตาม PO Buy','P004','CU-LOT-IMP','520','20','500','295','0',''],
+      // 🟣 TRADING — ซื้อเพื่อขายต่อทันที (Trading Deal) — ราคาขายมา match ภายหลัง
+      ['PBIMP-003','2026-05-03','SUP001','BR002','WH002','PC002','TRADING','เครดิต','15','SPOT_BUY','','0','','Trading Deal — ซื้อมาขายไป','P001','TRD-LOT-001','2000','0','2000','17.8','0','รอ Match บิลขาย'],
     ],
   },
   sales: {
     label: 'บิลขาย', collection: 'salesBills', idPrefix: 'SB',
     docPrefix: 'SB',
     headerCols: [
-      { key:'docNo',         label:'เลขที่บิล',                required:true,  type:'string' },
-      { key:'date',          label:'วันที่',                    required:true,  type:'date' },
-      { key:'customerCode',  label:'รหัสลูกค้า',                required:true,  type:'string' },
-      { key:'branchCode',    label:'รหัสสาขา',                  required:true,  type:'string' },
-      { key:'warehouseCode', label:'รหัสคลัง',                  required:true,  type:'string' },
-      { key:'channelCode',   label:'รหัสช่องทางขาย',           required:false, type:'string' },
-      { key:'salesman',      label:'Salesman',                  required:false, type:'string' },
-      { key:'creditTerm',    label:'Credit Term (วัน)',         required:false, type:'number', default:0 },
-      { key:'billType',      label:'Bill Type (SPOT_SALES/PO_DELIVERY)', required:false, type:'enum', options:['SPOT_SALES','PO_DELIVERY'], default:'SPOT_SALES' },
-      { key:'poSellNo',      label:'PO Sell No (ถ้า PO_DELIVERY)', required:false, type:'string' },
+      { key:'docNo',          label:'เลขที่บิล',                required:true,  type:'string' },
+      { key:'date',           label:'วันที่',                    required:true,  type:'date' },
+      { key:'customerCode',   label:'รหัสลูกค้า',                required:true,  type:'string' },
+      { key:'branchCode',     label:'รหัสสาขา',                  required:true,  type:'string' },
+      { key:'warehouseCode',  label:'รหัสคลัง',                  required:true,  type:'string' },
+      { key:'channelCode',    label:'รหัสช่องทางขาย',           required:false, type:'string' },
+      { key:'transactionMode',label:'Mode (STOCK/TRADING)',      required:false, type:'enum', options:['STOCK','TRADING'], default:'STOCK' },
+      { key:'tradingFromPurchaseNo', label:'Trading จากบิลซื้อ (docNo)', required:false, type:'string' },
+      { key:'salesman',       label:'Salesman',                  required:false, type:'string' },
+      { key:'creditTerm',     label:'Credit Term (วัน)',         required:false, type:'number', default:0 },
+      { key:'billType',       label:'Bill Type (SPOT_SALES/PO_DELIVERY)', required:false, type:'enum', options:['SPOT_SALES','PO_DELIVERY'], default:'SPOT_SALES' },
+      { key:'poSellNo',       label:'PO Sell No (ถ้า PO_DELIVERY)', required:false, type:'string' },
       { key:'stockCutOption', label:'Stock Cut (FG/RM/FG_THEN_RM)', required:false, type:'enum', options:['FG','RM','FG_THEN_RM'], default:'FG_THEN_RM' },
-      { key:'vatAmount',     label:'VAT',                       required:false, type:'number', default:0 },
-      { key:'taxInvoiceNo',  label:'เลขใบกำกับภาษี',           required:false, type:'string' },
-      { key:'note',          label:'หมายเหตุ',                  required:false, type:'string' },
+      { key:'vatAmount',      label:'VAT',                       required:false, type:'number', default:0 },
+      { key:'taxInvoiceNo',   label:'เลขใบกำกับภาษี',           required:false, type:'string' },
+      { key:'note',           label:'หมายเหตุ',                  required:false, type:'string' },
     ],
     lineCols: [
       { key:'productCode',   label:'รหัสสินค้า',                required:true,  type:'string' },
@@ -28129,9 +28142,13 @@ const TXN_IMPORT_SCHEMAS = {
       { key:'lineNote',      label:'หมายเหตุบรรทัด',           required:false, type:'string' },
     ],
     sample: [
-      ['SBIMP-001','2026-05-03','CUS002','BR002','WH002','SC002','Sales-Team','30','SPOT_SALES','','FG_THEN_RM','0','','','P001','LOT-IMP-1','600','21','0',''],
-      ['SBIMP-001','2026-05-03','CUS002','BR002','WH002','SC002','Sales-Team','30','SPOT_SALES','','FG_THEN_RM','0','','','P002','LOT-IMP-2','300','16.5','0',''],
-      ['SBIMP-002','2026-05-04','CUS001','BR003','WH003','SC001','Sales-Team','45','SPOT_SALES','','FG_THEN_RM','0','','','P004','CU-LOT-IMP','300','310','0',''],
+      // 🔵 STOCK SPOT_SALES (2 lines for one bill) — ขายของจากสต๊อก ใช้ WAC
+      ['SBIMP-001','2026-05-03','CUS002','BR002','WH002','SC002','STOCK','','Sales-Team','30','SPOT_SALES','','FG_THEN_RM','0','','ขายปกติ — WAC','P001','LOT-IMP-1','600','21','0',''],
+      ['SBIMP-001','2026-05-03','CUS002','BR002','WH002','SC002','STOCK','','Sales-Team','30','SPOT_SALES','','FG_THEN_RM','0','','ขายปกติ — WAC','P002','LOT-IMP-2','300','16.5','0',''],
+      // 🟢 STOCK PO_DELIVERY — ส่งของตาม PO Sell ที่เปิดไว้
+      ['SBIMP-002','2026-05-04','CUS001','BR003','WH003','SC001','STOCK','','Sales-Team','45','PO_DELIVERY','POS2605-0001','FG_THEN_RM','0','','ส่งของตาม PO','P004','CU-LOT-IMP','300','310','0',''],
+      // 🟣 TRADING — ขายของ Trading (ต้นทุน match จากบิลซื้อ Trading) — ใส่ tradingFromPurchaseNo
+      ['SBIMP-003','2026-05-05','CUS002','BR002','WH002','SC002','TRADING','PBIMP-003','Sales-Team','15','SPOT_SALES','','FG_THEN_RM','0','','Trading Deal — match จากบิลซื้อ PBIMP-003','P001','TRD-LOT-001','2000','19.2','0',''],
     ],
   }
 };
@@ -28199,9 +28216,20 @@ app.component('view-importTxn', {
       meta.push(['1. หนึ่งบิล สามารถมีหลายบรรทัด — ใส่เลขที่บิลเดียวกัน Header เหมือนกัน เปลี่ยนเฉพาะ line item','','','','']);
       meta.push(['2. ระบบจะ Group ตาม docNo เป็น 1 บิล','','','','']);
       meta.push(['3. Branch/Warehouse/Supplier/Customer/Product ใช้ Code (ที่มีในระบบ)','','','','']);
-      meta.push(['4. SPOT_BUY = ซื้อปกติ · PO_RECEIPT = ตัด PO Buy (ใส่ poBuyNo)','','','','']);
-      meta.push(['5. SPOT_SALES = ขายปกติ · PO_DELIVERY = ส่งของตาม PO Sell','','','','']);
-      meta.push(['6. Stock Cut Option: FG / RM / FG_THEN_RM (ตัด FG ก่อน ถ้าไม่พอตัด RM)','','','','']);
+      meta.push(['','','','','']);
+      meta.push(['🔀 Mode (transactionMode) — สำคัญมาก!','','','','']);
+      meta.push(['STOCK = ซื้อ/ขายปกติ — เข้า/ออกคลัง · ใช้ WAC คำนวณกำไร','','','','']);
+      meta.push(['TRADING = ซื้อมาขายไป — Match กันแบบ 1:1 · กำไร = ราคาขาย - ราคาซื้อ deal นั้น (ไม่ใช้ WAC)','','','','']);
+      meta.push(['','','','','']);
+      meta.push(['📋 Bill Type (billType)','','','','']);
+      meta.push(['SPOT_BUY = ซื้อปกติ · PO_RECEIPT = ตัด PO Buy (ใส่ poBuyNo)','','','','']);
+      meta.push(['SPOT_SALES = ขายปกติ · PO_DELIVERY = ส่งของตาม PO Sell (ใส่ poSellNo)','','','','']);
+      meta.push(['','','','','']);
+      meta.push(['📦 Stock Cut Option: FG / RM / FG_THEN_RM (ตัด FG ก่อน ถ้าไม่พอตัด RM) — เฉพาะ STOCK mode','','','','']);
+      meta.push(['','','','','']);
+      meta.push(['🔁 Trading Match — ตอน import บิลขาย TRADING','','','','']);
+      meta.push(['ใส่ tradingFromPurchaseNo = docNo ของบิลซื้อ TRADING ที่ต้องการ match','','','','']);
+      meta.push(['ระบบจะ link เข้าด้วยกันอัตโนมัติ (1 บิลขายอาจ match 1 บิลซื้อ Trading)','','','','']);
       const wsm = XLSX.utils.aoa_to_sheet(meta);
       wsm['!cols'] = [{wch:18},{wch:30},{wch:10},{wch:8},{wch:50}];
       XLSX.utils.book_append_sheet(wb, wsm, 'README');
@@ -28474,10 +28502,12 @@ app.component('view-importTxn', {
               note: ln.lineNote||''
             }));
             const totalAmount = items.reduce((s,it)=>s+it.netAmount,0);
+            const txnMode = (h.transactionMode === 'TRADING') ? 'TRADING' : 'STOCK';
             const billRec = {
               id: billId, docNo: h.docNo, date: h.date,
               supplierId: b.supplier?.id || '', branchId: b.branch?.id || '', warehouseId: b.warehouse?.id || '',
               channelId: b.channel?.id || '',
+              transactionMode: txnMode,                        // 🔥 STOCK | TRADING
               purchaseType: h.purchaseType, creditTerm: Number(h.creditTerm||0),
               billType: h.billType, poBuyId: b.poRef?.id || '', poBuyNo: h.poBuyNo || '',
               vatAmount: Number(h.vatAmount||0), taxInvoiceNo: h.taxInvoiceNo || '',
@@ -28525,31 +28555,53 @@ app.component('view-importTxn', {
             }
           } else {
             // Sales bill
+            const isTrading = (b.header.transactionMode === 'TRADING');
+            // 🔥 TRADING: ค้นหาบิลซื้อ TRADING ที่ match (ใช้ราคาซื้อจาก deal เป็น cost — ไม่ใช้ WAC)
+            const tradingPB = isTrading && b.header.tradingFromPurchaseNo
+              ? _trkSafe(db.purchaseBills).find(p => p && p.docNo === b.header.tradingFromPurchaseNo) : null;
             const items = b.lines.map((ln,i) => {
               const weight = Number(ln.weight||0);
               const price = Number(ln.price||0);
               const discount = Number(ln.discount||0);
               const amount = weight * price;
               const netAmount = amount - discount;
-              const wac = willPost ? erp.avgCost(ln.productId) : 0;
-              const totalCost = wac * weight;
+              let unitCost = 0;
+              if (isTrading && tradingPB) {
+                // ใช้ราคาซื้อจาก purchase bill ที่ match (ตาม productId + lotNo ถ้ามี)
+                const pbItem = (tradingPB.items||[]).find(pi =>
+                  pi && pi.productId === ln.productId && (!ln.lotNo || pi.lotNo === ln.lotNo));
+                unitCost = pbItem ? Number(pbItem.price||0) : 0;
+              } else if (!isTrading && willPost) {
+                unitCost = erp.avgCost(ln.productId);  // STOCK: ใช้ WAC
+              }
+              const totalCost = unitCost * weight;
               const profit = netAmount - totalCost;
               return {
                 id: 'SL-'+billId+'-'+(i+1),
                 productId: ln.productId,
                 lotNo: ln.lotNo||'',
                 weight, price, amount, discount, netAmount,
-                unitCost: wac, totalCost, profit,
+                unitCost, totalCost, profit,
                 note: ln.lineNote||''
               };
             });
             const totalAmount = items.reduce((s,it)=>s+it.netAmount,0);
             const totalCost = items.reduce((s,it)=>s+it.totalCost,0);
             const grossProfit = totalAmount - totalCost;
+            const txnMode = (h.transactionMode === 'TRADING') ? 'TRADING' : 'STOCK';
+            // 🔥 Trading match — หา purchaseBill ตาม docNo (ที่ user ระบุใน tradingFromPurchaseNo)
+            let tradingFromIds = [];
+            if (txnMode === 'TRADING' && h.tradingFromPurchaseNo) {
+              const pbMatch = _trkSafe(db.purchaseBills).find(p => p && p.docNo === h.tradingFromPurchaseNo);
+              if (pbMatch) tradingFromIds = [pbMatch.id];
+            }
             const billRec = {
               id: billId, docNo: h.docNo, date: h.date,
               customerId: b.customer?.id || '', branchId: b.branch?.id || '', warehouseId: b.warehouse?.id || '',
               channelId: b.channel?.id || '',
+              transactionMode: txnMode,                                // 🔥 STOCK | TRADING
+              tradingFromPurchaseId: tradingFromIds[0] || '',          // legacy single
+              tradingFromPurchaseIds: tradingFromIds,                  // multi-match
               salesman: h.salesman||'', creditTerm: Number(h.creditTerm||0),
               billType: h.billType, poSellId: b.poRef?.id || '', poSellNo: h.poSellNo || '',
               stockCutOption: h.stockCutOption || 'FG_THEN_RM',
