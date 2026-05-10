@@ -21118,7 +21118,12 @@ function _impCoerce(val, col) {
   }
   if (col.type === 'enum') {
     if (val === '') return col.default !== undefined ? col.default : '';
-    return col.options.includes(val) ? val : '__INVALID__';
+    // 🆕 Case-insensitive match — รองรับ "trading"/"TRADING"/"Trading" → 'TRADING'
+    const exact = col.options.find(o => o === val);
+    if (exact) return exact;
+    const ci = col.options.find(o => String(o).toLowerCase() === val.toLowerCase());
+    if (ci) return ci;
+    return '__INVALID__';
   }
   if (val === '' && col.default !== undefined) return col.default;
   return val;
@@ -28303,6 +28308,13 @@ app.component('view-importTxn', {
           // Debug log สำหรับ troubleshoot — แสดงใน Console ว่า map header สำเร็จกี่ตัว
           const matched = headers.value.filter(h => keySet.has(h)).length;
           console.log(`[Import] Headers: ${head.length} | Matched: ${matched}/${allCols.value.length} | Rows: ${rawRows.value.length}`);
+          console.log('[Import] Headers (mapped keys):', headers.value);
+          // 🔍 ตรวจ Mode column — ถ้าไม่พบ → user ใช้ template เก่า
+          const hasModeCol = headers.value.includes('transactionMode');
+          if (!hasModeCol) {
+            console.warn('[Import] ⚠ ไม่พบคอลัมน์ "Mode (STOCK/TRADING)" → ใช้ STOCK เป็น default ทุก row → จะต้องใส่สาขา/คลัง');
+            erp.showToast('⚠ Template ไม่มีคอลัมน์ Mode → ดาวน์โหลดใหม่ (กดปุ่ม Template ด้านบน)','error');
+          }
           if (matched === 0) {
             erp.showToast('⚠ ไม่พบ column ที่ตรงกับ template — ดู Console (F12)','error');
           }
@@ -28352,7 +28364,10 @@ app.component('view-importTxn', {
         const errors = []; const warnings = [];
         const h = bill.header;
         // 🆕 TRADING bills — สาขา/คลัง/ช่องทาง ไม่จำเป็น (ไม่เข้าคลัง)
-        const isTrading = (h.transactionMode === 'TRADING');
+        // 🔧 รองรับ TRADING ทั้งตัวพิมพ์ใหญ่/เล็ก/ภาษาไทย เผื่อ user พิมพ์ผิด
+        const modeRaw = String(h.transactionMode || '').trim().toUpperCase();
+        const isTrading = (modeRaw === 'TRADING' || modeRaw === 'T' || modeRaw === 'TRD');
+        const modeBadge = isTrading ? '🟣 TRADING' : '🔵 STOCK';
 
         // Header validation
         sc.headerCols.forEach(col => {
@@ -28360,7 +28375,7 @@ app.component('view-importTxn', {
           // 🚫 Skip required check สำหรับ branch/warehouse/channel ถ้าเป็น TRADING
           const isLocationCol = ['branchCode','warehouseCode','channelCode'].includes(col.key);
           const isRequired = col.required && !(isTrading && isLocationCol);
-          if (isRequired && (v === '' || v === null || v === undefined)) errors.push(`Header: ${col.label} จำเป็น`);
+          if (isRequired && (v === '' || v === null || v === undefined)) errors.push(`[${modeBadge}] Header: ${col.label} จำเป็น`);
           if (col.type === 'number' && Number.isNaN(v)) errors.push(`Header: ${col.label} ต้องเป็นตัวเลข`);
           if (col.type === 'enum' && v === '__INVALID__') errors.push(`Header: ${col.label} ค่าไม่ถูก (${col.options.join('/')})`);
           if (col.type === 'date' && v === '__INVALID_DATE__') errors.push(`Header: ${col.label} รูปแบบวันที่ไม่ถูก`);
@@ -28378,15 +28393,15 @@ app.component('view-importTxn', {
         // 🚫 TRADING — branch/warehouse/channel เป็น optional (ถ้าใส่มาก็ lookup, ถ้าไม่ใส่ก็ปล่อยว่าง)
         if (h.branchCode) {
           branch = _trkSafe(db.branches).find(x => x && x.code === h.branchCode);
-          if (!branch && !isTrading) errors.push(`รหัสสาขา "${h.branchCode}" ไม่พบ`);
+          if (!branch && !isTrading) errors.push(`[${modeBadge}] รหัสสาขา "${h.branchCode}" ไม่พบ`);
         } else if (!isTrading) {
-          errors.push('Header: รหัสสาขา จำเป็น (STOCK mode)');
+          errors.push(`[${modeBadge}] รหัสสาขา จำเป็น — ถ้าเป็น Trading ใส่คอลัมน์ "Mode" = TRADING`);
         }
         if (h.warehouseCode) {
           warehouse = _trkSafe(db.warehouses).find(x => x && x.code === h.warehouseCode);
-          if (!warehouse && !isTrading) errors.push(`รหัสคลัง "${h.warehouseCode}" ไม่พบ`);
+          if (!warehouse && !isTrading) errors.push(`[${modeBadge}] รหัสคลัง "${h.warehouseCode}" ไม่พบ`);
         } else if (!isTrading) {
-          errors.push('Header: รหัสคลัง จำเป็น (STOCK mode)');
+          errors.push(`[${modeBadge}] รหัสคลัง จำเป็น — ถ้าเป็น Trading ใส่คอลัมน์ "Mode" = TRADING`);
         }
         if (h.channelCode) {
           const channelList = txnType.value === 'purchase' ? db.purchaseChannels : db.salesChannels;
@@ -29331,7 +29346,44 @@ app.component('view-openingBalance', {
 
     /* Helper to mutate arrays directly with reactivity */
     function addAR() { ob.value.arItems.push({ id:'OB-AR-'+Date.now()+'-'+Math.random().toString(36).slice(2,5), customerId:'', billNo:'', billDate:ob.value.cutoffDate, amount:0, dueDate:'', note:'' }); }
-    function addAP() { ob.value.apItems.push({ id:'OB-AP-'+Date.now()+'-'+Math.random().toString(36).slice(2,5), supplierId:'', billNo:'', billDate:ob.value.cutoffDate, amount:0, dueDate:'', note:'' }); }
+    function addAP() { ob.value.apItems.push({ id:'OB-AP-'+Date.now()+'-'+Math.random().toString(36).slice(2,5), supplierId:'', billNo:'', billDate:ob.value.cutoffDate, amount:0, dueDate:'', note:'', apType:'Cost' }); }
+    /* 🆕 AP filter — All / Cost / Expense */
+    const apFilter = ref('all');  // 'all' | 'cost' | 'expense'
+    const apFiltered = computed(() => {
+      const items = ob.value.apItems || [];
+      if (apFilter.value === 'cost') return items.filter(x => x && (x.apType || 'Cost') === 'Cost');
+      if (apFilter.value === 'expense') return items.filter(x => x && x.apType === 'Expense');
+      return items;
+    });
+    const apCounts = computed(() => {
+      const items = ob.value.apItems || [];
+      const cost = items.filter(x => x && (x.apType||'Cost') === 'Cost');
+      const exp  = items.filter(x => x && x.apType === 'Expense');
+      return {
+        all: items.length,
+        cost: cost.length, costTotal: cost.reduce((s,x)=>s+Number(x.amount||0),0),
+        expense: exp.length, expenseTotal: exp.reduce((s,x)=>s+Number(x.amount||0),0),
+      };
+    });
+    /* 🆕 Bulk delete by type — ลบทั้งหมดในประเภทที่เลือก (Cost หรือ Expense) */
+    function bulkDeleteAP(type) {
+      const items = ob.value.apItems || [];
+      const toDelete = items.filter(x => {
+        const t = x.apType || 'Cost';
+        return type === 'Cost' ? t === 'Cost' : t === 'Expense';
+      });
+      if (!toDelete.length) { erp.showToast('ไม่มีรายการใน "'+type+'"','error'); return; }
+      if (!confirm(`ลบ AP ประเภท "${type}" ทั้งหมด ${toDelete.length} รายการ?\n\n• Auto-Linked rows (จาก Stock) จะข้าม\n• ที่ Apply แล้วจะ Unapply ก่อนลบ`)) return;
+      let removed = 0, skipped = 0;
+      toDelete.forEach(item => {
+        if (item.autoLinked) { skipped++; return; }  // skip shadow AP
+        if (item.applied) { try { _unapplyItem(item, 'AP'); } catch(e){} }
+        const idx = items.findIndex(x => x && x.id === item.id);
+        if (idx >= 0) { items.splice(idx, 1); removed++; }
+      });
+      try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+      erp.showToast(`✓ ลบ ${removed} รายการ${skipped?' · ข้าม '+skipped+' (Auto-Linked)':''}`, 'success');
+    }
     function addStock() { ob.value.stockItems.push({ id:'OB-ST-'+Date.now()+'-'+Math.random().toString(36).slice(2,5), productId:'', itemStatus:'RM', branchId:'', warehouseId:'', lotNo:'OPENING', qty:0, unitCost:0, paid:true, supplierId:'', linkedBillNo:'', note:'' }); }
     function addOR() { ob.value.otherReceivables.push({ id:'OB-OR-'+Date.now()+'-'+Math.random().toString(36).slice(2,5), name:'', type:'Other Receivable', amount:0, dueDate:'', note:'' }); }
     function addOP() { ob.value.otherPayables.push({ id:'OB-OP-'+Date.now()+'-'+Math.random().toString(36).slice(2,5), name:'', type:'Other Payable', amount:0, dueDate:'', note:'' }); }
@@ -30199,9 +30251,13 @@ app.component('view-openingBalance', {
             const amt = Number(r.amount || r.ยอด || r.ยอดค้าง || 0);
             if (!sup) { _logImp('  ⊘ row '+(i+2)+': ไม่พบ supplier "'+(r.supplierCode||r.supplier||'-')+'"', 'warn'); skipped++; return; }
             if (amt <= 0) { _logImp('  ⊘ row '+(i+2)+': ยอด <= 0', 'warn'); skipped++; return; }
+            // 🆕 apType: 'Cost' (เจ้าหนี้ต้นทุน — บิลซื้อ) หรือ 'Expense' (เจ้าหนี้ค่าใช้จ่าย)
+            const rawType = String(r.apType || r.type || r.ประเภท || 'Cost').trim().toLowerCase();
+            const apType = (rawType === 'expense' || rawType === 'exp' || rawType.includes('ค่าใช้จ่าย')) ? 'Expense' : 'Cost';
             ob.value.apItems.push({
               id:'OB-AP-'+Date.now()+'-'+i+'-'+Math.random().toString(36).slice(2,5),
               supplierId: sup.id,
+              apType: apType,
               billNo: String(r.billNo || r.bill || ''),
               billDate: _toDateStr(r.billDate || r.date || ob.value.cutoffDate),
               amount: amt,
@@ -30274,7 +30330,10 @@ app.component('view-openingBalance', {
     function downloadTemplate(type) {
       const templates = {
         'ar': [{ customerCode:'C001', billNo:'OPN-AR-001', billDate:'2026-04-30', amount:100000, dueDate:'2026-05-30', note:'ค้างจ่าย' }],
-        'ap': [{ supplierCode:'S001', billNo:'OPN-AP-001', billDate:'2026-04-30', amount:50000, dueDate:'2026-05-30', note:'ค้างจ่าย' }],
+        'ap': [
+          { supplierCode:'S001', apType:'Cost',    billNo:'OPN-AP-001', billDate:'2026-04-30', amount:50000, dueDate:'2026-05-30', note:'ค่าซื้อเศษทองแดง' },
+          { supplierCode:'S002', apType:'Expense', billNo:'OPN-AP-002', billDate:'2026-04-30', amount:12000, dueDate:'2026-05-30', note:'ค่าน้ำมัน · ค่าขนส่ง' },
+        ],
         'stock': [{ productCode:'P001', itemStatus:'RM', branchCode:'BR001', warehouseCode:'WH001', lotNo:'OPENING', qty:1000, unitCost:250, paid:true, note:'ทองแดง' }],
         'or': [{ type:'Customer Advance Receivable', name:'มัดจำลูกค้า A', amount:50000, dueDate:'', note:'' }],
         'op': [{ type:'Customer Advance', name:'รับมัดจำจาก B', amount:30000, dueDate:'', note:'' }],
@@ -30293,6 +30352,8 @@ app.component('view-openingBalance', {
     }
 
     return { erp, db, fmt, tab, ob, summary, addAR, addAP, addStock, addOR, addOP,
+      // 🆕 AP Cost vs Expense
+      apFilter, apFiltered, apCounts, bulkDeleteAP,
       removeFromList, save, forceSyncPush, lockOpening, unlockOpening, showLockResult,
       // 🆕 Per-item apply
       toggleApply, reApply, resetAllOpening, dedupStockOpening, forcePullOpening, deleteStockByBranch,
@@ -30454,11 +30515,63 @@ app.component('view-openingBalance', {
           <button v-if="!ob.locked" @click="addAP" class="px-3 py-1.5 text-sm bg-emerald-600 text-white rounded">+ เพิ่ม</button>
         </div>
       </div>
-      <p class="text-xs text-slate-500 mb-2">💡 กด "Apply" ทีละ row เพื่อให้ AP ขึ้นในระบบทันที · <span class="text-amber-700">🔗 Auto-Linked rows = สร้างจาก Stock Opening ที่ paid=false</span></p>
+
+      <!-- 🆕 Filter buttons + bulk delete -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
+        <button type="button" @click="apFilter='all'"
+          :class="['p-3 rounded-xl border-2 text-left transition', apFilter==='all'?'border-slate-700 bg-slate-100 ring-2 ring-slate-300':'border-slate-200 bg-white hover:border-slate-400']">
+          <div class="flex items-center justify-between">
+            <div class="font-bold text-sm">📋 ทั้งหมด</div>
+            <div class="text-xl font-extrabold text-slate-700">{{apCounts.all}}</div>
+          </div>
+          <div class="text-xs text-slate-500 mt-0.5">รวม Cost + Expense</div>
+        </button>
+        <button type="button" @click="apFilter='cost'"
+          :class="['p-3 rounded-xl border-2 text-left transition', apFilter==='cost'?'border-rose-600 bg-rose-50 ring-2 ring-rose-200':'border-slate-200 bg-white hover:border-rose-300']">
+          <div class="flex items-center justify-between">
+            <div class="font-bold text-sm">📦 Cost — เจ้าหนี้ต้นทุน</div>
+            <div class="text-xl font-extrabold" :class="apFilter==='cost'?'text-rose-700':'text-slate-700'">{{apCounts.cost}}</div>
+          </div>
+          <div class="text-xs text-slate-500 mt-0.5">บิลซื้อค้างจ่าย · {{fmt(apCounts.costTotal)}} ฿</div>
+        </button>
+        <button type="button" @click="apFilter='expense'"
+          :class="['p-3 rounded-xl border-2 text-left transition', apFilter==='expense'?'border-amber-600 bg-amber-50 ring-2 ring-amber-200':'border-slate-200 bg-white hover:border-amber-300']">
+          <div class="flex items-center justify-between">
+            <div class="font-bold text-sm">💸 Expense — เจ้าหนี้ค่าใช้จ่าย</div>
+            <div class="text-xl font-extrabold" :class="apFilter==='expense'?'text-amber-700':'text-slate-700'">{{apCounts.expense}}</div>
+          </div>
+          <div class="text-xs text-slate-500 mt-0.5">ค่าน้ำ/ไฟ/ขนส่ง/อื่นๆ · {{fmt(apCounts.expenseTotal)}} ฿</div>
+        </button>
+      </div>
+
+      <!-- 🆕 Bulk delete buttons -->
+      <div v-if="!ob.locked" class="flex gap-2 mb-3 text-xs">
+        <button @click="bulkDeleteAP('Cost')" class="px-3 py-1.5 bg-rose-100 text-rose-700 rounded hover:bg-rose-200">🗑 ลบ Cost ทั้งหมด ({{apCounts.cost}})</button>
+        <button @click="bulkDeleteAP('Expense')" class="px-3 py-1.5 bg-amber-100 text-amber-700 rounded hover:bg-amber-200">🗑 ลบ Expense ทั้งหมด ({{apCounts.expense}})</button>
+        <span class="text-slate-500 italic ml-auto self-center">💡 ลบ Expense ที่นี่ → แล้วไปกรอกใหม่ที่หน้า "ค่าใช้จ่าย"</span>
+      </div>
+
+      <p class="text-xs text-slate-500 mb-2">💡 กด "Apply" ทีละ row เพื่อให้ AP ขึ้นในระบบทันที · <span class="text-amber-700">🔗 Auto-Linked rows = สร้างจาก Stock Opening (paid=false) — ไม่สามารถลบ/เปลี่ยน type</span></p>
       <table class="w-full text-sm">
-        <thead class="bg-slate-100"><tr><th class="p-2 text-left">Supplier</th><th class="p-2 text-left">เลขที่บิล</th><th class="p-2 text-left">วันที่บิล</th><th class="p-2 text-right">ยอดค้าง</th><th class="p-2 text-left">วันครบกำหนด</th><th class="p-2">หมายเหตุ</th><th class="p-2 text-center">สถานะ</th><th></th></tr></thead>
+        <thead class="bg-slate-100"><tr>
+          <th class="p-2 text-left">ประเภท</th>
+          <th class="p-2 text-left">Supplier</th>
+          <th class="p-2 text-left">เลขที่บิล</th>
+          <th class="p-2 text-left">วันที่บิล</th>
+          <th class="p-2 text-right">ยอดค้าง</th>
+          <th class="p-2 text-left">วันครบกำหนด</th>
+          <th class="p-2">หมายเหตุ</th>
+          <th class="p-2 text-center">สถานะ</th>
+          <th></th>
+        </tr></thead>
         <tbody>
-          <tr v-for="x in ob.apItems" :key="x.id" class="border-t" :class="[x.applied?'bg-emerald-50/40':'', x.autoLinked?'bg-amber-50/30':'']">
+          <tr v-for="x in apFiltered" :key="x.id" class="border-t" :class="[x.applied?'bg-emerald-50/40':'', x.autoLinked?'bg-amber-50/30':'']">
+            <td class="p-2">
+              <select v-model="x.apType" :disabled="ob.locked || x.autoLinked" class="w-full px-1 py-1 border rounded text-xs">
+                <option value="Cost">📦 Cost</option>
+                <option value="Expense">💸 Expense</option>
+              </select>
+            </td>
             <td class="p-2">
               <select v-model="x.supplierId" :disabled="ob.locked || x.autoLinked" class="w-full px-1 py-1 border rounded"><option value="">-เลือก-</option><option v-for="s in db.suppliers" :key="s.id" :value="s.id">{{s.code}} - {{s.name}}</option></select>
               <div v-if="x.autoLinked" class="text-[10px] text-amber-700 mt-0.5">🔗 Auto จาก Stock</div>
@@ -30476,10 +30589,10 @@ app.component('view-openingBalance', {
               <button v-if="!ob.locked && !x.applied" @click="toggleApply(x,'AP')" class="text-[10px] px-2 py-0.5 bg-emerald-600 text-white rounded font-bold">✓ Apply</button>
               <button v-if="!ob.locked && x.applied" @click="reApply(x,'AP')" class="text-[10px] px-2 py-0.5 bg-blue-600 text-white rounded font-bold" title="Update changes">🔄</button>
               <button v-if="!ob.locked && x.applied" @click="toggleApply(x,'AP')" class="text-[10px] px-1 py-0.5 bg-slate-200 text-slate-600 rounded" title="Unapply">↶</button>
-              <button v-if="!ob.locked" @click="removeFromList(ob.apItems, x.id, 'AP')" class="text-red-600 text-xs">✕</button>
+              <button v-if="!ob.locked" @click="removeFromList(ob.apItems, x.id, 'AP')" class="text-red-600 text-xs" title="ลบ row นี้">✕</button>
             </td>
           </tr>
-          <tr v-if="!ob.apItems.length"><td colspan="8" class="text-center py-4 text-slate-400">ยังไม่มีรายการ</td></tr>
+          <tr v-if="!apFiltered.length"><td colspan="9" class="text-center py-4 text-slate-400">ไม่มีรายการในประเภทที่เลือก</td></tr>
         </tbody>
       </table>
     </div>
