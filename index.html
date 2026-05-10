@@ -9341,6 +9341,56 @@ app.component('view-purchase', {
       finally { try { if (window.$autoSync && window.$autoSync.start) window.$autoSync.start(); } catch(e){} }
     }
 
+    /* 🆕 Export Excel — บิลซื้อ (header sheet + items sheet) */
+    function exportPurchaseBills() {
+      try {
+        const list = filtered.value || [];
+        if (!list.length) { erp.showToast('ไม่มีข้อมูลให้ export','error'); return; }
+        const wb = XLSX.utils.book_new();
+        // Sheet 1: Header (1 row per bill)
+        const hdrRows = [['Doc No','Ref No','Date','Mode','Bill Type','Supplier Code','Supplier Name','Branch','Warehouse','Channel','Credit Term','Subtotal','VAT','Total Amount','Paid','Balance','Status','VAT Invoice','Created By','Created At','Updated At','Note']];
+        list.forEach(r => {
+          const b = r.raw || r;
+          const sup = (db.suppliers||[]).find(s => s && s.id === b.supplierId);
+          hdrRows.push([
+            b.docNo||'', b.refNo||'', b.date||'',
+            b.transactionMode||'STOCK', b.billType||'SPOT_BUY',
+            sup?.code||'', sup?.name||'', erp.branchName(b.branchId), erp.warehouseName(b.warehouseId), erp.channelName?.(b.channelId)||'',
+            Number(b.creditTerm||0), Number(b.subtotal||0), Number(b.vatAmount||0), Number(b.totalAmount||0),
+            Number(b.paidAmount||0), Number(b.payableBalance||0), b.status||'',
+            b.vatInvoiceReceived ? '✓ '+(b.vatInvoiceNo||'') : '', b.createdBy||'', b.createdAt||'', b.updatedAt||'', b.note||''
+          ]);
+        });
+        const ws1 = XLSX.utils.aoa_to_sheet(hdrRows);
+        ws1['!cols'] = hdrRows[0].map(()=>({wch:14}));
+        XLSX.utils.book_append_sheet(wb, ws1, 'Bills_Header');
+
+        // Sheet 2: Line Items (1 row per item)
+        const lnRows = [['Doc No','Date','Supplier','Product Code','Product Name','Lot No','Gross Wt','Deduct Wt','Net Wt','Unit Price','Amount','Discount','Net Amount','PO Buy No','Note']];
+        list.forEach(r => {
+          const b = r.raw || r;
+          const sup = (db.suppliers||[]).find(s => s && s.id === b.supplierId);
+          (b.items||[]).forEach(it => {
+            const p = (db.products||[]).find(pp => pp && pp.id === it.productId);
+            lnRows.push([
+              b.docNo||'', b.date||'', sup?.name||'',
+              p?.code||'', p?.name||'', it.lotNo||'',
+              Number(it.grossWeight||0), Number(it.deductWeight||0), Number(it.netWeight||0),
+              Number(it.price||0), Number(it.amount||0), Number(it.discount||0), Number(it.netAmount||0),
+              it.poBuyNo||'', it.note||''
+            ]);
+          });
+        });
+        const ws2 = XLSX.utils.aoa_to_sheet(lnRows);
+        ws2['!cols'] = lnRows[0].map(()=>({wch:14}));
+        XLSX.utils.book_append_sheet(wb, ws2, 'Bills_LineItems');
+
+        const fname = `บิลซื้อ_${erp.today()}_${list.length}บิล.xlsx`;
+        XLSX.writeFile(wb, fname);
+        erp.showToast(`✓ Export ${list.length} บิล (${lnRows.length-1} items) สำเร็จ`,'success');
+      } catch(e) { console.error(e); erp.showToast('Export error: '+e.message,'error'); }
+    }
+
     /* 🚨 Force Delete ALL Imported Bills — เรียกจากหน้าบิลซื้อ */
     async function forceDeleteImportedHere() {
       const billsToDel = (db.purchaseBills||[]).filter(b => b && String(b.id||'').startsWith('PB-IMP-'));
@@ -9398,6 +9448,8 @@ app.component('view-purchase', {
       forceDeleteImportedHere,
       // 🆕 Multi-select
       selectedBillIds, toggleBillSelect, clearBillSelection, selectAllBillsInFilter, bulkDeleteBills,
+      // 🆕 Export
+      exportPurchaseBills,
     };
   },
   template: `
@@ -9424,7 +9476,8 @@ app.component('view-purchase', {
         <span class="text-slate-400">→</span>
         <input type="date" v-model="filterDateTo" class="px-2 py-2 border rounded-lg text-sm" title="ถึงวันที่">
         <button v-if="search||filterDateFrom||filterDateTo||filterMode||filterSource" @click="search='';filterDateFrom='';filterDateTo='';filterMode='';filterSource=''" type="button" class="px-3 py-2 text-xs bg-slate-100 hover:bg-slate-200 rounded">✕ ล้าง Filter</button>
-        <button type="button" @click="open" class="ml-auto bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm">+ บิลรับซื้อใหม่</button>
+        <button type="button" @click="exportPurchaseBills" class="ml-auto px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold" title="Export ตามที่ filter ปัจจุบัน">📥 Export Excel ({{filtered.length}})</button>
+        <button type="button" @click="open" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm">+ บิลรับซื้อใหม่</button>
       </div>
       <div class="flex flex-wrap gap-2 items-center">
         <span class="text-xs text-slate-500">ประเภท:</span>
@@ -11505,10 +11558,66 @@ app.component('view-expense', {
       return Array.from(set).sort();
     });
 
+    /* 🆕 Export Excel — Expense Vouchers (header sheet + lines sheet) */
+    function exportExpenses() {
+      try {
+        const vouchers = list.value || [];
+        if (!vouchers.length) { erp.showToast('ไม่มีข้อมูลให้ export','error'); return; }
+        const wb = XLSX.utils.book_new();
+        // Sheet 1: Vouchers (1 row per voucher)
+        const hdrRows = [['Doc No','Date','ผู้รับ (Payee)','บัญชี (Account)','สถานะ','จำนวนรายการ','รวม','ผู้บันทึก','วันที่บันทึก','หมายเหตุ']];
+        vouchers.forEach(g => {
+          hdrRows.push([
+            g.docNo||'', g.date||'', g.payee||'',
+            erp.accountName(g.accountId) || '-',
+            g.paidStatus==='paid' ? 'จ่ายแล้ว' : g.paidStatus==='pending' ? 'รอจ่าย' : 'บางส่วน',
+            Number(g.count||0), Number(g.total||0),
+            g.createdBy||'', g.createdAt||'', g.note||''
+          ]);
+        });
+        const ws1 = XLSX.utils.aoa_to_sheet(hdrRows);
+        ws1['!cols'] = hdrRows[0].map(()=>({wch:14}));
+        XLSX.utils.book_append_sheet(wb, ws1, 'Vouchers');
+
+        // Sheet 2: Line Items (1 row per expense line)
+        const lnRows = [['Voucher No','Date','ผู้รับ','หมวด (Category)','รายละเอียด','ยอดก่อน VAT','VAT','ยอด WHT','ยอดสุทธิ','สาขา','เลขใบกำกับภาษี','สถานะ','ผู้อนุมัติ','หมายเหตุ']];
+        vouchers.forEach(g => {
+          // g.items อาจเป็น array หรือ g อาจมี multiple expenses ภายใต้ docNo เดียวกัน
+          const expsInVoucher = (db.expenses||[]).filter(e => e && e.docNo === g.docNo);
+          (expsInVoucher.length ? expsInVoucher : [g]).forEach(e => {
+            const cat = (db.expenseCategories||[]).find(c => c && c.id === e.categoryId);
+            lnRows.push([
+              e.docNo||g.docNo||'', e.date||g.date||'', e.payee||g.payee||'',
+              cat?.name || e.categoryId || '',
+              e.detail || e.description || e.note || '',
+              Number(e.netAmount||e.amount||0),
+              Number(e.vatAmount||0),
+              Number(e.withholdingTax||0),
+              Number(e.amount||0),
+              erp.branchName(e.branchId)||'',
+              e.taxInvoiceNo||'',
+              e.paidStatus||g.paidStatus||'',
+              e.approvedBy||'',
+              e.note||''
+            ]);
+          });
+        });
+        const ws2 = XLSX.utils.aoa_to_sheet(lnRows);
+        ws2['!cols'] = lnRows[0].map(()=>({wch:14}));
+        XLSX.utils.book_append_sheet(wb, ws2, 'Expense_Lines');
+
+        const fname = `ค่าใช้จ่าย_${erp.today()}_${vouchers.length}voucher.xlsx`;
+        XLSX.writeFile(wb, fname);
+        erp.showToast(`✓ Export ${vouchers.length} voucher (${lnRows.length-1} lines) สำเร็จ`,'success');
+      } catch(e) { console.error(e); erp.showToast('Export error: '+e.message,'error'); }
+    }
+
     return { db, erp, form, showForm, list, totals, num, editingVoucherId,
       search, filterDateFrom, filterDateTo, filterCategory, filterPayee, filterAccount, filterPaidStatus,
       open, openEdit, close: close_, save, remove, addLine, removeLine, recalcLineVat, recalcLineWht, fmt: erp.fmt,
-      payNow, quickPay, expSummary, payeeSuggestions };
+      payNow, quickPay, expSummary, payeeSuggestions,
+      // 🆕 Export
+      exportExpenses };
   },
   template: `
   <div>
@@ -11608,7 +11717,8 @@ app.component('view-expense', {
           <button @click="filterPaidStatus='all'" :class="['px-2 py-1 text-xs rounded', filterPaidStatus==='all'?'bg-slate-700 text-white':'text-slate-600 hover:bg-slate-100']">ทั้งหมด</button>
         </div>
         <button v-if="search||filterDateFrom||filterDateTo||filterCategory||filterPayee||filterAccount||filterPaidStatus!=='pending'" @click="search='';filterDateFrom='';filterDateTo='';filterCategory='';filterPayee='';filterAccount='';filterPaidStatus='pending'" class="px-3 py-2 text-xs bg-slate-100 hover:bg-slate-200 rounded">✕ ล้าง</button>
-        <button @click="open" class="ml-auto bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm">+ Expense Voucher</button>
+        <button @click="exportExpenses" class="ml-auto px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold" title="Export ตามที่ filter ปัจจุบัน">📥 Export Excel ({{list.length}})</button>
+        <button @click="open" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm">+ Expense Voucher</button>
       </div>
       <div class="mt-2 flex flex-wrap gap-3 text-xs text-slate-600">
         <span class="bg-blue-50 rounded px-2 py-1">📊 พบ <b class="text-blue-700">{{list.length}}</b> Voucher</span>
@@ -12466,6 +12576,58 @@ app.component('view-sales', {
 
     function goToPendingSale() { if (window._setView) window._setView('stockIssue'); }
 
+    /* 🆕 Export Excel — บิลขาย (header sheet + items sheet) */
+    function exportSalesBills() {
+      try {
+        const list = filtered.value || [];
+        if (!list.length) { erp.showToast('ไม่มีข้อมูลให้ export','error'); return; }
+        const wb = XLSX.utils.book_new();
+        const hdrRows = [['Doc No','Ref No','Date','Mode','Bill Type','Customer Code','Customer Name','Branch','Warehouse','Channel','Salesman','Credit Term','Subtotal','VAT','Total Amount','Total Cost','Gross Profit','Margin %','Received','Balance','Status','VAT Invoice','Created By','Created At','Updated At','Note']];
+        list.forEach(b => {
+          const cust = (db.customers||[]).find(c => c && c.id === b.customerId);
+          const margin = Number(b.totalAmount||0) > 0 ? (Number(b.grossProfit||0)/Number(b.totalAmount)*100) : 0;
+          hdrRows.push([
+            b.docNo||'', b.refNo||'', b.date||'',
+            b.transactionMode||'STOCK', b.billType||'SPOT_SALES',
+            cust?.code||'', cust?.name||'',
+            erp.branchName(b.branchId), erp.warehouseName(b.warehouseId), erp.channelName?.(b.channelId)||'',
+            b.salesman||'', Number(b.creditTerm||0),
+            Number(b.subtotal||0), Number(b.vatAmount||0), Number(b.totalAmount||0),
+            Number(b.totalCost||0), Number(b.grossProfit||0), margin.toFixed(2),
+            Number(b.receivedAmount||0), Number(b.receivableBalance||0), b.status||'',
+            b.vatInvoiceIssued ? '✓ '+(b.vatInvoiceNo||'') : '',
+            b.createdBy||'', b.createdAt||'', b.updatedAt||'', b.note||''
+          ]);
+        });
+        const ws1 = XLSX.utils.aoa_to_sheet(hdrRows);
+        ws1['!cols'] = hdrRows[0].map(()=>({wch:14}));
+        XLSX.utils.book_append_sheet(wb, ws1, 'Bills_Header');
+
+        const lnRows = [['Doc No','Date','Customer','Product Code','Product Name','Lot No','Weight','Unit Price','Amount','Discount','Net Amount','Unit Cost','Total Cost','Profit','PO Sell No','Note']];
+        list.forEach(b => {
+          const cust = (db.customers||[]).find(c => c && c.id === b.customerId);
+          (b.items||[]).forEach(it => {
+            const p = (db.products||[]).find(pp => pp && pp.id === it.productId);
+            lnRows.push([
+              b.docNo||'', b.date||'', cust?.name||'',
+              p?.code||'', p?.name||'', it.lotNo||'',
+              Number(it.weight||0), Number(it.price||0), Number(it.amount||0),
+              Number(it.discount||0), Number(it.netAmount||0),
+              Number(it.unitCost||0), Number(it.totalCost||0), Number(it.profit||0),
+              it.poSellNo||'', it.note||''
+            ]);
+          });
+        });
+        const ws2 = XLSX.utils.aoa_to_sheet(lnRows);
+        ws2['!cols'] = lnRows[0].map(()=>({wch:14}));
+        XLSX.utils.book_append_sheet(wb, ws2, 'Bills_LineItems');
+
+        const fname = `บิลขาย_${erp.today()}_${list.length}บิล.xlsx`;
+        XLSX.writeFile(wb, fname);
+        erp.showToast(`✓ Export ${list.length} บิล (${lnRows.length-1} items) สำเร็จ`,'success');
+      } catch(e) { console.error(e); erp.showToast('Export error: '+e.message,'error'); }
+    }
+
     /* 🆕 Recalculate กำไร — สำหรับบิลขายที่ขายก่อนซื้อ (WAC=0 → ผิด)
        ใช้ WAC ปัจจุบันคำนวนใหม่ + อัพเดท stock_ledger valueOut */
     async function recalcProfitForBill(b) {
@@ -12633,6 +12795,8 @@ app.component('view-sales', {
       selectedSalesIds, toggleSalesSelect, clearSalesSelection, selectAllSalesInFilter, bulkDeleteSales,
       // 🆕 Recalc profit
       recalcProfitOne, bulkRecalcProfit,
+      // 🆕 Export
+      exportSalesBills,
       // 🆕 Customer salesId helpers
       getCustomerSalesId, updateCustomerSalesId, quickAddSalesForCustomer };
   },
@@ -12657,7 +12821,8 @@ app.component('view-sales', {
         <span class="text-slate-400">→</span>
         <input type="date" v-model="filterDateTo" class="px-2 py-2 border rounded-lg text-sm" title="ถึงวันที่">
         <button v-if="search||filterDateFrom||filterDateTo||filterMode||filterStatus||filterChannel" @click="search='';filterDateFrom='';filterDateTo='';filterMode='';filterStatus='';filterChannel=''" type="button" class="px-3 py-2 text-xs bg-slate-100 hover:bg-slate-200 rounded">✕ ล้าง Filter</button>
-        <button @click="bulkRecalcProfit" class="ml-auto bg-amber-600 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-amber-700" title="หาบิลขายที่ cost=0 (ขายก่อนซื้อ) → คำนวนใหม่ตาม WAC ปัจจุบัน">🔄 Recalc กำไรบิลที่ขายก่อนซื้อ</button>
+        <button @click="bulkRecalcProfit" class="ml-auto bg-amber-600 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-amber-700" title="หาบิลขายที่ cost=0 (ขายก่อนซื้อ) → คำนวนใหม่ตาม WAC ปัจจุบัน">🔄 Recalc กำไร</button>
+        <button @click="exportSalesBills" class="bg-emerald-600 text-white px-3 py-2 rounded-lg text-xs font-bold hover:bg-emerald-700" title="Export ตามที่ filter ปัจจุบัน">📥 Export Excel ({{filtered.length}})</button>
         <button @click="open()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">+ บิลขายใหม่</button>
       </div>
       <div class="flex flex-wrap gap-2 items-center">
@@ -14965,7 +15130,7 @@ app.component('view-poBuy', {
       erp.logAudit('cancel','poBuy', before, p); erp.showToast('ยกเลิกแล้ว');
     }
     /* 🆕 ย้าย PO Buy ระหว่าง 2 ประเภท: ส่งของจริง ↔ Cost Pool */
-    function togglePurpose(p) {
+    async function togglePurpose(p) {
       const isCurrentlyDelivery = p.requireDelivery !== false;
       const targetType = isCurrentlyDelivery ? 'Cost Pool / Deal Costing' : 'ส่งของจริง';
       const sourceType = isCurrentlyDelivery ? 'ส่งของจริง' : 'Cost Pool / Deal Costing';
@@ -15022,6 +15187,10 @@ app.component('view-poBuy', {
       }
       try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
       erp.logAudit('CHANGE_PURPOSE','poBuy', before, p);
+      // 🆕 Push to cloud immediately (await) — กัน refresh แล้วโดน pull ทับ
+      try {
+        if (window.$autoSync && window.$autoSync.pushNow) await window.$autoSync.pushNow();
+      } catch(e) { console.warn('[togglePurpose] push failed:', e); }
       erp.showToast(`✓ ย้าย ${p.docNo}: ${sourceType} → ${targetType}`,'success');
     }
 
@@ -15038,7 +15207,7 @@ app.component('view-poBuy', {
       const ids = filtered.value.filter(p => p.status !== 'Cancelled').map(p => p.id);
       selectedPOIds.value = new Set(ids);
     }
-    function bulkMoveToCosting() {
+    async function bulkMoveToCosting() {
       const ids = Array.from(selectedPOIds.value);
       const items = (db.poBuys||[]).filter(p => p && ids.includes(p.id) && p.requireDelivery !== false);
       if (!items.length) { erp.showToast('ไม่มี PO ที่ย้ายได้ (อาจเป็น Costing อยู่แล้ว)', 'error'); return; }
@@ -15057,9 +15226,11 @@ app.component('view-poBuy', {
       });
       try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
       selectedPOIds.value = new Set();
+      // 🆕 Push to cloud immediately
+      try { if (window.$autoSync && window.$autoSync.pushNow) await window.$autoSync.pushNow(); } catch(e) { console.warn('[bulkMove] push failed:', e); }
       erp.showToast(`✓ ย้าย ${moved} PO → Cost Pool`,'success');
     }
-    function bulkMoveToDelivery() {
+    async function bulkMoveToDelivery() {
       const ids = Array.from(selectedPOIds.value);
       const items = (db.poBuys||[]).filter(p => p && ids.includes(p.id) && p.requireDelivery === false);
       if (!items.length) { erp.showToast('ไม่มี PO ที่ย้ายกลับได้ (อาจเป็น Delivery อยู่แล้ว)', 'error'); return; }
@@ -15079,6 +15250,8 @@ app.component('view-poBuy', {
       });
       try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
       selectedPOIds.value = new Set();
+      // 🆕 Push to cloud immediately
+      try { if (window.$autoSync && window.$autoSync.pushNow) await window.$autoSync.pushNow(); } catch(e) { console.warn('[bulkMove] push failed:', e); }
       erp.showToast(`✓ ย้าย ${moved} PO → Delivery`,'success');
     }
 
