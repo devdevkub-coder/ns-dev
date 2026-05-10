@@ -23603,19 +23603,228 @@ app.component('view-loanContracts', {
       return 'bg-slate-100 text-slate-600';
     }
 
+    /* 🆕 EXCEL IMPORT — Loan / Leasing / BSL Contracts */
+    const IMPORT_COLS = [
+      { key:'contractNo',         label:'เลขสัญญา *',                   required:true,  type:'string' },
+      { key:'loanNo',             label:'เลข Loan (ภายใน)',             required:false, type:'string' },
+      { key:'lenderName',         label:'ผู้ให้กู้ *',                   required:true,  type:'string' },
+      { key:'lenderType',         label:'ประเภทผู้ให้กู้ (Bank/Leasing/BSL/Director/Other)', required:false, type:'enum', options:FIN_LENDER_TYPES, default:'Bank' },
+      { key:'loanType',           label:'ประเภทเงินกู้ *',               required:true,  type:'enum', options:FIN_LOAN_TYPES },
+      { key:'startDate',          label:'วันเริ่มสัญญา (YYYY-MM-DD)',   required:false, type:'date' },
+      { key:'endDate',            label:'วันสิ้นสุดสัญญา (YYYY-MM-DD)', required:false, type:'date' },
+      { key:'firstDueDate',       label:'วันครบงวดแรก (YYYY-MM-DD)',    required:false, type:'date' },
+      { key:'principalAmount',    label:'วงเงินรวม (Principal)',         required:true,  type:'number', default:0 },
+      { key:'downPayment',        label:'เงินดาวน์',                     required:false, type:'number', default:0 },
+      { key:'financedAmount',     label:'ยอด Financed (auto = principal-down)', required:false, type:'number', default:0 },
+      { key:'interestRate',       label:'อัตราดอกเบี้ย % ต่อปี',          required:false, type:'number', default:0 },
+      { key:'interestMethod',     label:'วิธีคิดดอกเบี้ย (Flat Rate/Effective/Fixed)', required:false, type:'enum', options:FIN_INTEREST_METHODS, default:'Flat Rate' },
+      { key:'installmentAmount',  label:'ค่างวดต่อเดือน',                required:false, type:'number', default:0 },
+      { key:'installmentCount',   label:'จำนวนงวด (เดือน)',              required:false, type:'number', default:0 },
+      { key:'paymentDay',         label:'วันชำระ (1-31)',                required:false, type:'number', default:1 },
+      { key:'collateral',         label:'หลักประกัน',                    required:false, type:'string' },
+      { key:'guarantor',          label:'ผู้ค้ำประกัน',                  required:false, type:'string' },
+      { key:'status',             label:'สถานะ (Active/Closed/Cancelled)', required:false, type:'enum', options:FIN_LOAN_STATUSES, default:'Active' },
+      { key:'notes',              label:'หมายเหตุ',                      required:false, type:'string' },
+    ];
+
+    function downloadLoanTemplate() {
+      const labels = IMPORT_COLS.map(c => c.label);
+      const sample = [
+        // ตัวอย่าง 3 บรรทัด
+        ['LOAN-2026-001','','ธ.กรุงเทพ จก.','Bank','Bank Loan','2026-01-15','2031-01-15','2026-02-15',5000000,500000,4500000,4.5,'Flat Rate',85000,60,15,'รถยนต์ ทะเบียน 1กข-1234','คุณสมชาย','Active','สินเชื่อรถยนต์'],
+        ['LEAS-2026-005','','BSL Leasing','Leasing','Hire Purchase','2026-03-01','2030-03-01','2026-04-01',2400000,200000,2200000,5.25,'Flat Rate',45000,48,1,'รถบรรทุก 6 ล้อ','-','Active','สัญญาเช่าซื้อ'],
+        ['BSL-2026-010','','BSL Capital','BSL','BSL Contract','2026-04-01','2027-04-01','2026-05-01',1000000,0,1000000,12,'Flat Rate',95000,12,5,'-','คุณวรพล','Active','BSL หมุนเวียน'],
+      ];
+      const ws = XLSX.utils.aoa_to_sheet([labels, ...sample]);
+      ws['!cols'] = IMPORT_COLS.map(()=>({wch:18}));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Loans');
+      // README sheet
+      const meta = [['Key','Label','Type','Required','Note']];
+      IMPORT_COLS.forEach(c => {
+        let note = '';
+        if (c.type === 'enum') note = 'ค่าที่ยอมรับ: ' + c.options.join(' / ');
+        if (c.type === 'date') note = 'รูปแบบ: YYYY-MM-DD';
+        if (c.default !== undefined) note += (note?' · ':'') + 'default: '+c.default;
+        meta.push([c.key, c.label, c.type, c.required?'YES':'-', note]);
+      });
+      meta.push(['','','','','']);
+      meta.push(['คำแนะนำ:','','','','']);
+      meta.push(['1. เลขสัญญา (contractNo) ห้ามซ้ำกับสัญญาเดิม','','','','']);
+      meta.push(['2. financedAmount ถ้าไม่ระบุ → ระบบคำนวณ = principalAmount - downPayment','','','','']);
+      meta.push(['3. installmentAmount ถ้าไม่ระบุ → ระบบประมาณการแบบ Flat Rate','','','','']);
+      meta.push(['4. หลัง Import ต้องไปกด "Generate Schedule" ในแต่ละสัญญาเพื่อสร้างตารางผ่อน','','','','']);
+      meta.push(['5. lenderType: '+FIN_LENDER_TYPES.join(' / '),'','','','']);
+      meta.push(['6. loanType: '+FIN_LOAN_TYPES.join(' / '),'','','','']);
+      const wsm = XLSX.utils.aoa_to_sheet(meta);
+      wsm['!cols'] = [{wch:18},{wch:35},{wch:10},{wch:8},{wch:60}];
+      XLSX.utils.book_append_sheet(wb, wsm, 'README');
+      XLSX.writeFile(wb, 'Template_Loan_'+erp.today()+'.xlsx');
+      erp.showToast('ดาวน์โหลด Template สำเร็จ','success');
+    }
+
+    function _coerceLoan(raw, col) {
+      if (raw === null || raw === undefined || raw === '') {
+        return col.default !== undefined ? col.default : (col.type === 'number' ? 0 : '');
+      }
+      if (col.type === 'number') return Number(raw) || 0;
+      if (col.type === 'enum') {
+        const v = String(raw).trim();
+        return col.options.includes(v) ? v : (col.default || col.options[0]);
+      }
+      if (col.type === 'date') {
+        const s = String(raw).trim();
+        // accept YYYY-MM-DD, DD/MM/YYYY, etc.
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+        const d = new Date(s);
+        return isNaN(d.getTime()) ? '' : d.toISOString().slice(0,10);
+      }
+      return String(raw).trim();
+    }
+
+    const importPreview = ref([]);
+    const importFile = ref(null);
+    function handleImportFile(ev) {
+      const file = ev.target.files[0]; if (!file) return;
+      importFile.value = file.name;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const wb = XLSX.read(data, { type:'array' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const arr = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+          if (!arr.length) { erp.showToast('ไฟล์ว่าง','error'); return; }
+          // Normalize header — ลบ ' *' และ trim
+          const head = arr[0].map(h => String(h||'').trim().replace(/\s*\*+$/,'').trim());
+          const labelToKey = {};
+          IMPORT_COLS.forEach(c => { labelToKey[c.label.replace(/\s*\*$/,'').trim()] = c.key; });
+          const keySet = new Set(IMPORT_COLS.map(c=>c.key));
+          const headers = head.map(h => keySet.has(h) ? h : (labelToKey[h] || h));
+          const rows = arr.slice(1).filter(r => r && r.some(c => String(c||'').trim() !== ''));
+
+          const existingNos = new Set(_trkSafe(db.loans).map(l => l && l.contractNo).filter(Boolean));
+          const preview = rows.map((row, idx) => {
+            const obj = {}; const errors = [];
+            IMPORT_COLS.forEach(col => {
+              const hi = headers.indexOf(col.key);
+              const raw = hi >= 0 ? row[hi] : '';
+              obj[col.key] = _coerceLoan(raw, col);
+              if (col.required && (obj[col.key] === '' || obj[col.key] === null || obj[col.key] === undefined)) {
+                errors.push(col.label.replace(/\s*\*$/,'') + ' จำเป็น');
+              }
+            });
+            // financed auto-calc
+            if (!Number(obj.financedAmount) && Number(obj.principalAmount)) {
+              obj.financedAmount = Number(obj.principalAmount) - Number(obj.downPayment||0);
+            }
+            // duplicate check
+            if (existingNos.has(obj.contractNo)) errors.push('contractNo "'+obj.contractNo+'" มีอยู่แล้ว');
+            return { row: idx+2, obj, errors, action: errors.length ? 'error' : 'create' };
+          });
+          importPreview.value = preview;
+          const errCount = preview.filter(p => p.action === 'error').length;
+          const okCount = preview.filter(p => p.action === 'create').length;
+          erp.showToast(`อ่านไฟล์: ${preview.length} แถว · OK ${okCount} · Error ${errCount}`, errCount > 0 ? 'warning' : 'success');
+        } catch (err) {
+          console.error(err);
+          erp.showToast('อ่านไฟล์ไม่สำเร็จ: '+err.message,'error');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function confirmImport() {
+      const valid = importPreview.value.filter(p => p.action === 'create');
+      if (!valid.length) { erp.showToast('ไม่มีบรรทัดที่ Import ได้','error'); return; }
+      if (!confirm(`Import ${valid.length} สัญญา?\n(บรรทัดที่ error จะถูกข้าม)`)) return;
+      const username = erp.currentUser.value?.username || 'system';
+      const ts = new Date().toISOString();
+      let added = 0;
+      valid.forEach(p => {
+        db.loans.push({
+          ...p.obj,
+          id: erp.uid('LOAN'),
+          createdAt: ts, createdBy: username
+        });
+        added++;
+      });
+      try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+      erp.logAudit('LOAN_IMPORT','loans',null,{count:added});
+      erp.showToast(`✓ Import สำเร็จ ${added} สัญญา — ไปกด "Generate Schedule" ในแต่ละสัญญาเพื่อสร้างตารางผ่อน`,'success');
+      importPreview.value = [];
+      importFile.value = null;
+    }
+    function clearImport() { importPreview.value = []; importFile.value = null; }
+
     return { erp, db, fmt, search, filterType, filterStatus, list, totals,
       showModal, editId, form, openAdd, openEdit, save, calcFinanced,
       generateSchedule, viewSchedule, showSchedule, scheduleRows, openPay,
       showPayModal, payForm, confirmPay, statusBadge,
       lenderTypes:FIN_LENDER_TYPES, loanTypes:FIN_LOAN_TYPES,
-      interestMethods:FIN_INTEREST_METHODS, loanStatuses:FIN_LOAN_STATUSES };
+      interestMethods:FIN_INTEREST_METHODS, loanStatuses:FIN_LOAN_STATUSES,
+      // 🆕 Import
+      downloadLoanTemplate, handleImportFile, importPreview, importFile, confirmImport, clearImport };
   },
   template:`
   <div class="space-y-4">
     <div class="bg-gradient-to-r from-blue-700 to-cyan-700 text-white rounded-xl p-5 shadow flex justify-between items-start">
       <div><h1 class="text-2xl font-bold">🏦 Loan / Leasing / BSL Contracts</h1>
       <p class="text-sm opacity-80 mt-1">BSL · Leasing · Hire Purchase · Bank Loan · OD · FCD Loan · Director Loan</p></div>
-      <button @click="openAdd" class="bg-white text-blue-700 px-4 py-2 rounded-lg font-bold">+ เพิ่มสัญญา</button>
+      <div class="flex gap-2 flex-wrap">
+        <button @click="downloadLoanTemplate" class="bg-white/20 text-white border border-white/40 px-3 py-2 rounded-lg text-sm font-medium hover:bg-white/30">📥 Template</button>
+        <label class="bg-white/20 text-white border border-white/40 px-3 py-2 rounded-lg text-sm font-medium hover:bg-white/30 cursor-pointer">
+          📂 Import Excel
+          <input type="file" accept=".xlsx,.xls,.csv" class="hidden" @change="handleImportFile">
+        </label>
+        <button @click="openAdd" class="bg-white text-blue-700 px-4 py-2 rounded-lg font-bold">+ เพิ่มสัญญา</button>
+      </div>
+    </div>
+
+    <!-- 🆕 IMPORT PREVIEW -->
+    <div v-if="importPreview.length" class="bg-white rounded-xl shadow border-2 border-blue-200">
+      <div class="p-3 border-b bg-blue-50 flex justify-between items-center flex-wrap gap-2">
+        <div>
+          <div class="font-bold text-blue-700">📂 Import Preview — {{importFile}}</div>
+          <div class="text-xs text-slate-500">รวม {{importPreview.length}} แถว · OK {{importPreview.filter(p=>p.action==='create').length}} · Error {{importPreview.filter(p=>p.action==='error').length}}</div>
+        </div>
+        <div class="flex gap-2">
+          <button @click="clearImport" class="px-3 py-1.5 text-sm text-slate-600 border rounded">✕ ล้าง</button>
+          <button @click="confirmImport" :disabled="importPreview.filter(p=>p.action==='create').length===0" class="px-4 py-1.5 text-sm bg-blue-600 text-white rounded font-bold disabled:opacity-50">✓ Confirm Import</button>
+        </div>
+      </div>
+      <div class="overflow-x-auto max-h-96">
+        <table class="w-full text-xs">
+          <thead class="bg-slate-100 sticky top-0">
+            <tr>
+              <th class="p-2 text-left">Row</th>
+              <th class="p-2 text-left">Status</th>
+              <th class="p-2 text-left">เลขสัญญา</th>
+              <th class="p-2 text-left">ผู้ให้กู้</th>
+              <th class="p-2 text-left">ประเภท</th>
+              <th class="p-2 text-right">วงเงิน</th>
+              <th class="p-2 text-right">งวด</th>
+              <th class="p-2 text-right">ค่างวด</th>
+              <th class="p-2 text-left">Errors</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="p in importPreview" :key="p.row" class="border-t" :class="p.action==='error'?'bg-red-50':''">
+              <td class="p-2">{{p.row}}</td>
+              <td class="p-2"><span :class="['px-2 py-0.5 rounded text-xs', p.action==='create'?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-700']">{{p.action==='create'?'✓ สร้างใหม่':'⚠ Error'}}</span></td>
+              <td class="p-2 font-mono">{{p.obj.contractNo}}</td>
+              <td class="p-2">{{p.obj.lenderName}}</td>
+              <td class="p-2"><span class="text-xs px-1.5 py-0.5 bg-slate-200 rounded">{{p.obj.loanType}}</span></td>
+              <td class="p-2 text-right">{{fmt(p.obj.financedAmount)}}</td>
+              <td class="p-2 text-right">{{p.obj.installmentCount}}</td>
+              <td class="p-2 text-right">{{fmt(p.obj.installmentAmount)}}</td>
+              <td class="p-2 text-xs text-red-700">
+                <div v-for="(e,i) in p.errors" :key="i">⚠ {{e}}</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
