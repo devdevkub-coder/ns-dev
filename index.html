@@ -2633,6 +2633,9 @@ function seedData() {
     importLogs: [],   // Master Data Import history (with rollback snapshots)
     tradingDeals: [], // Trading Deal / Matching records
     gradeAdjustments: [], // Grade Adjustment / ปรับเกรดสินค้า records
+    stockAdjustments: [], // 🆕 Stock Count Adjustment / ปรับสต๊อกจากการนับจริง — Quick Adjust + Note-only (ไม่ลง P&L)
+    // structure: { id, docNo, date, branchId, warehouseId, productId, lotNo, systemQty, countedQty, diffQty, adjustType ('LOSS'|'GAIN'),
+    //   reason, remark, unitCostUsed, valueNote, status('posted'|'reversed'), stockLedgerId, createdBy, createdAt, reversedAt, reversedBy }
     historicalMonthly: [], // 🆕 ข้อมูลย้อนหลังรายเดือน (ก่อน Go-Live) — Q1 2026 baseline สำหรับเทียบ
     // structure: { id, year, month, metricType: 'expense'|'pnl'|'cashflow', categoryId, amount, note, updatedBy, updatedAt }
     receiptVouchers: [], // 🆕 ใบสำคัญรับเงิน (Receipt Voucher) — ออกให้ Supplier บุคคลธรรมดาเซ็นรับเงิน
@@ -2682,7 +2685,7 @@ function seedData() {
       { id:'R-COORDINATOR', name:'ประสานงาน', desc:'ประสานงาน — กรอกบิลซื้อ/ขาย, Stock, Trading, PO, ใบสำคัญรับเงิน, ปรับสถานะ/เกรด, Sales Tracking', isSystem:false,
         // 🆕 ADD: receiptVoucher, statusConvert, gradeAdjustment, customerReturn, salesCommission, costPool, costAllocator, matchLog
         // 🚫 REMOVE: paymentApproval
-        menus:['changePassword','purchase','sales','stockIssue','payment','receipt','receiptVoucher','statusConvert','gradeAdjustment','customerReturn','stockBalance','stockLedger','mdCustomer','mdSupplier','mdProduct','mdChannel','importTxn','pendingSales','poOutstanding','poBuy','poSell','tradingDashboard','tradingMatching','salesCommission','costPool','costAllocator','matchLog','reports','backup','companyProfile'],
+        menus:['changePassword','purchase','sales','stockIssue','payment','receipt','receiptVoucher','statusConvert','gradeAdjustment','stockAdjust','customerReturn','stockBalance','stockLedger','mdCustomer','mdSupplier','mdProduct','mdChannel','importTxn','pendingSales','poOutstanding','poBuy','poSell','tradingDashboard','tradingMatching','salesCommission','costPool','costAllocator','matchLog','reports','backup','companyProfile'],
         actions:{'*':['view','create','edit','post','export']},
         seeCost:true, seeProfit:false, seeCash:false, seeFinancials:false, seeOpening:false,
         branchScope:'all' },
@@ -2694,8 +2697,8 @@ function seedData() {
         seeCost:true, seeProfit:true, seeCash:true, seeFinancials:true, seeOpening:true,
         branchScope:'all' },
       { id:'R-WAREHOUSE', name:'คลัง', desc:'คลังสินค้า — Stock, Production, Transfer (เฉพาะสาขาตัวเอง)', isSystem:false,
-        menus:['changePassword','stockBalance','stockLedger','stockTransfer','pendingSales','production','productionReport','wipReport','machineUtil','mdProduct','mdBranch','gradeAdjustment','statusConvert','customerReturn','backup','companyProfile'],
-        actions:{'stockTransfer':['view','create','edit','post','export'],'production':['view','create','edit','post','export'],'gradeAdjustment':['view','create','edit','export'],'*':['view','export']},
+        menus:['changePassword','stockBalance','stockLedger','stockTransfer','pendingSales','production','productionReport','wipReport','machineUtil','mdProduct','mdBranch','gradeAdjustment','stockAdjust','statusConvert','customerReturn','backup','companyProfile'],
+        actions:{'stockTransfer':['view','create','edit','post','export'],'production':['view','create','edit','post','export'],'gradeAdjustment':['view','create','edit','export'],'stockAdjust':['view','create','edit','export'],'*':['view','export']},
         seeCost:false, seeProfit:false, seeCash:false, seeFinancials:false, seeOpening:false,
         branchScope:'own' },
     ],
@@ -2858,7 +2861,7 @@ function loadDB() {
       'intlTransfers','overseasReceipts','fxGainLoss','bankRecons','bankImports','transferStocks',
       'directors','auditLog','importLogs',
       'assets','depreciations','assetDisposals','loans','loanSchedules','loanPayments',
-      'users','roles','userActivityLog','tradingDeals','gradeAdjustments','salesPlans','salespersons','stockIssues','billSwapHistory','paymentApprovals'];
+      'users','roles','userActivityLog','tradingDeals','gradeAdjustments','stockAdjustments','salesPlans','salespersons','stockIssues','billSwapHistory','paymentApprovals'];
     criticalArrays.forEach(k => { if (!Array.isArray(d[k])) d[k] = []; });
     if (!d.docCounters || typeof d.docCounters !== 'object') d.docCounters = seed.docCounters;
     if (!d.equity || typeof d.equity !== 'object') d.equity = seed.equity;
@@ -3954,7 +3957,7 @@ window.$erp = {
       productionOrders:'production_orders', productionInputs:'production_inputs',
       productionOutputs:'production_outputs', processCosts:'process_costs',
       // Misc
-      stockIssues:'stock_issues', gradeAdjustments:'grade_adjustments',
+      stockIssues:'stock_issues', gradeAdjustments:'grade_adjustments', stockAdjustments:'stock_adjustments',
       assetDisposals:'asset_disposals', loanPayments:'loan_payments',
       depreciations:'depreciations',
       // Users
@@ -5046,6 +5049,7 @@ const app = createApp({
         {view:'stockLedger', label:'Stock Ledger', icon:'📋'},
         {view:'statusConvert', label:'🔄 ปรับสถานะสินค้า (RM→FG)', icon:'🔄'},
         {view:'gradeAdjustment', label:'Grade Adjustment / ปรับเกรด', icon:'🔀'},
+        {view:'stockAdjust', label:'นับสต๊อก / Stock Count Adjust', icon:'🔢'},
         {view:'customerReturn', label:'Customer Return / ของคืน', icon:'↩️'},
       ]},
       { label:'Trading / ซื้อมาขายไป', items:[
@@ -30684,7 +30688,7 @@ function _allMenuItems() {
     // Dual Costing
     'poBuy','poSell','costPool','costAllocator','dualMargin','matchLog','dealMargin','compareMargin',
     // Grade Adjustment + Status Convert
-    'gradeAdjustment','statusConvert',
+    'gradeAdjustment','stockAdjust','statusConvert',
     // International / FX
     'intlTransfer','overseasReceipt','supplierAdvance','customerAdvance','fxRate','fcdLedger','fxGainLossReport','bankRecon',
     // Stock & AR/AP & Bank
@@ -32107,6 +32111,485 @@ app.component('view-customerReturn', {
         <li>ของคืนเหล่านี้ <strong>ไม่นับ</strong>ใน Stock พร้อมขายในหน้าบิลขาย</li>
         <li>กดปุ่ม <strong>📤 ส่งคืน</strong> เมื่อส่งของคืนออกให้ลูกค้าหรือ Supplier — สถานะจะเปลี่ยนเป็น "ส่งคืนหมดแล้ว" + ลด stock</li>
         <li>ถ้าต้องการเอามาขาย → เปิดใบสั่งผลิตใหม่เพื่อ <strong>Reprocess / ปรับเกรด</strong> output category เป็น <code>FG</code>/<code>RM</code></li>
+      </ul>
+    </div>
+  </div>`
+});
+
+/* =================================================================
+   🔢 STOCK COUNT ADJUSTMENT — ปรับสต๊อกจากการนับจริง
+   Quick Adjust (ทีละ row) · Note-only (ไม่ลง P&L)
+   Use cases: หาของไม่เจอ · สต๊อกตัด 0 แล้ว แต่ในระบบยังมี
+   ================================================================= */
+app.component('view-stockAdjust', {
+  setup() {
+    const erp = window.$erp; const db = erp.db; const fmt = erp.fmt;
+    const showForm = ref(false);
+    const search = ref('');
+    const filterBranch = ref('');
+    const filterType = ref(''); // ''|'LOSS'|'GAIN'
+    const filterFromDate = ref('');
+    const filterToDate = ref('');
+
+    const blank = () => ({
+      docNo:'', date: erp.today(),
+      branchId:'', warehouseId:'',
+      productId:'', lotNo:'',
+      systemQty: 0,           // ระบบมี (auto จาก stockOnHand)
+      countedQty: 0,          // นับจริง (user input)
+      reason: '',             // หาของไม่เจอ / นับเกิน / สูญหาย / ผิดสาขา / อื่นๆ
+      remark: '',
+    });
+    const form = ref(blank());
+
+    function openAdd() {
+      const f = blank(); f.docNo = erp.nextDocNo('SCA');
+      form.value = f; showForm.value = true;
+    }
+
+    function close_() { showForm.value = false; }
+
+    /* คำนวณคงเหลือในระบบ — auto ทันทีที่เลือก product+branch+warehouse */
+    const systemQtyAuto = computed(() => {
+      const f = form.value;
+      if (!f.productId) return 0;
+      try {
+        return erp.stockOnHand(f.productId, f.branchId || null, f.warehouseId || null);
+      } catch(e) { return 0; }
+    });
+
+    /* WAC — ใช้เป็น unitCost note (ไม่กระทบ P&L) */
+    const unitCostAuto = computed(() => {
+      const f = form.value;
+      if (!f.productId) return 0;
+      try { return erp.avgCost(f.productId); } catch(e) { return 0; }
+    });
+
+    /* Diff = counted - system */
+    const diffAuto = computed(() => Number(form.value.countedQty||0) - Number(systemQtyAuto.value||0));
+    const adjustTypeAuto = computed(() => {
+      const d = diffAuto.value;
+      if (Math.abs(d) < 0.001) return 'NONE';
+      return d < 0 ? 'LOSS' : 'GAIN';
+    });
+    const valueNoteAuto = computed(() => Math.abs(diffAuto.value) * Number(unitCostAuto.value||0));
+
+    /* Auto-update form.systemQty เมื่อ productId/branch/warehouse เปลี่ยน */
+    watch([() => form.value.productId, () => form.value.branchId, () => form.value.warehouseId], () => {
+      form.value.systemQty = systemQtyAuto.value;
+    });
+
+    /* รายการสาขา/คลัง */
+    const branches = computed(() => (db.branches || []).filter(b => b));
+    const warehouses = computed(() => {
+      const f = form.value;
+      return (db.warehouses || []).filter(w => w && (!f.branchId || w.branchId === f.branchId));
+    });
+
+    /* Reasons preset */
+    const reasonOptions = [
+      'หาของไม่เจอ (Missing)',
+      'นับจริง 0 แต่ระบบมี (Lost/Damaged)',
+      'นับได้เกินระบบ (Found Excess)',
+      'สูญหาย (Lost)',
+      'เสียหาย (Damaged)',
+      'ผิดสาขา/คลัง (Wrong Branch)',
+      'อื่นๆ (Other)',
+    ];
+
+    function save() {
+      try {
+        const f = form.value;
+        const sysQty = Number(systemQtyAuto.value||0);
+        const cntQty = Number(f.countedQty||0);
+        const diff = cntQty - sysQty;
+        const adjType = adjustTypeAuto.value;
+        const unitCost = Number(unitCostAuto.value||0);
+
+        if (!f.branchId) { alert('เลือกสาขา'); return; }
+        if (!f.warehouseId) { alert('เลือกคลัง'); return; }
+        if (!f.productId) { alert('เลือกสินค้า'); return; }
+        if (cntQty < 0) { alert('นับจริงต้อง ≥ 0'); return; }
+        if (adjType === 'NONE') { alert('นับได้เท่าระบบ — ไม่ต้องปรับ'); return; }
+        if (!f.reason) { alert('กรอกเหตุผล'); return; }
+
+        // คำเตือนถ้าจำนวน diff เยอะ
+        const diffPct = sysQty > 0 ? Math.abs(diff) / sysQty * 100 : 100;
+        if (diffPct > 20) {
+          if (!confirm(`⚠ ต่างจากระบบ ${fmt(Math.abs(diff))} กก. (${diffPct.toFixed(1)}%) — มากผิดปกติ ดำเนินการต่อ?`)) return;
+        }
+
+        const id = erp.uid('SCA');
+        const slId = erp.uid('SL');
+        const username = erp.currentUser.value?.username || '-';
+        const valueNote = Math.abs(diff) * unitCost;
+
+        // 1. Stock Ledger entry — ปรับ qty จริง แต่ value = 0 (Note-only ไม่ลง P&L)
+        // - LOSS (diff<0): qtyOut = |diff|, valueOut = 0
+        // - GAIN (diff>0): qtyIn = diff, valueIn = 0
+        const slEntry = {
+          id: slId, date: f.date,
+          refType:'SCA', refId: id, refNo: f.docNo,
+          movementType: adjType === 'LOSS' ? 'STOCK_COUNT_LOSS' : 'STOCK_COUNT_GAIN',
+          productId: f.productId, lotNo: f.lotNo || '-COUNT',
+          branchId: f.branchId, warehouseId: f.warehouseId,
+          qtyIn: adjType === 'GAIN' ? Math.abs(diff) : 0,
+          qtyOut: adjType === 'LOSS' ? Math.abs(diff) : 0,
+          unitCost: unitCost,
+          valueIn: 0, valueOut: 0,    // ⭐ value=0 — Note-only · ไม่กระทบ stock value · ไม่ลง P&L
+          note: `📒 ${adjType === 'LOSS' ? 'นับขาด' : 'นับเกิน'} ${fmt(Math.abs(diff))} กก. ` +
+                `· มูลค่า ${fmt(valueNote)} (Note-only ไม่ลง P&L) · ` +
+                `เหตุผล: ${f.reason}${f.remark ? ' · '+f.remark : ''}`,
+          createdBy: username,
+        };
+        db.stockLedger.push(slEntry);
+
+        // 2. Stock Adjustment record (สำหรับ history + reverse)
+        const rec = {
+          id, docNo: f.docNo, date: f.date,
+          branchId: f.branchId, warehouseId: f.warehouseId,
+          productId: f.productId, lotNo: f.lotNo || '',
+          systemQty: sysQty,
+          countedQty: cntQty,
+          diffQty: diff,
+          adjustType: adjType,           // 'LOSS' | 'GAIN'
+          reason: f.reason,
+          remark: f.remark || '',
+          unitCostUsed: unitCost,        // WAC ณ ตอนนับ — note only
+          valueNote: valueNote,          // |diff| × unitCost — note only
+          status: 'posted',
+          stockLedgerId: slId,
+          createdBy: username,
+          createdAt: new Date().toISOString(),
+        };
+        db.stockAdjustments.push(rec);
+
+        try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e) {}
+        erp.logAudit('STOCK_COUNT_ADJUST','stockAdjustments', null, {
+          docNo: f.docNo, productId: f.productId, diff, adjType, valueNote
+        });
+        erp.showToast(`✓ ปรับสต๊อก ${f.docNo} — ${adjType === 'LOSS' ? '➖' : '➕'} ${fmt(Math.abs(diff))} กก.`, 'success');
+        showForm.value = false;
+      } catch(e) {
+        console.error('[stockAdjust] save error:', e);
+        alert('Save error: '+e.message);
+      }
+    }
+
+    function reverse(r) {
+      if (r.status === 'reversed') { erp.showToast('ถูก reverse แล้ว','error'); return; }
+      if (!confirm(`Reverse ${r.docNo} ?\n• คืน Stock ${fmt(Math.abs(r.diffQty))} กก. (${r.adjustType === 'LOSS' ? 'เพิ่มกลับ' : 'ตัดกลับ'})`)) return;
+      const username = erp.currentUser.value?.username || '-';
+      const slIdRev = erp.uid('SL');
+      // Reverse direction
+      db.stockLedger.push({
+        id: slIdRev, date: erp.today(),
+        refType:'SCA-REV', refId: r.id, refNo: 'REV-'+r.docNo,
+        movementType: r.adjustType === 'LOSS' ? 'STOCK_COUNT_REVERSE_IN' : 'STOCK_COUNT_REVERSE_OUT',
+        productId: r.productId, lotNo: r.lotNo || '-COUNT',
+        branchId: r.branchId, warehouseId: r.warehouseId,
+        qtyIn: r.adjustType === 'LOSS' ? Math.abs(r.diffQty) : 0,
+        qtyOut: r.adjustType === 'GAIN' ? Math.abs(r.diffQty) : 0,
+        unitCost: r.unitCostUsed || 0,
+        valueIn: 0, valueOut: 0,
+        note: `📒 Reverse ${r.docNo} — ${r.reason}`,
+        createdBy: username,
+      });
+      const idx = db.stockAdjustments.findIndex(x => x && x.id === r.id);
+      if (idx >= 0) {
+        db.stockAdjustments[idx].status = 'reversed';
+        db.stockAdjustments[idx].reversedAt = new Date().toISOString();
+        db.stockAdjustments[idx].reversedBy = username;
+      }
+      try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e) {}
+      erp.logAudit('STOCK_COUNT_ADJUST_REVERSE','stockAdjustments', null, { docNo: r.docNo });
+      erp.showToast('✓ Reverse '+r.docNo+' สำเร็จ','success');
+    }
+
+    /* รายการ — ใช้ filter */
+    const list = computed(() => {
+      const arr = (db.stockAdjustments || []).filter(r => r);
+      const s = search.value.toLowerCase();
+      return arr.filter(r => {
+        if (filterBranch.value && r.branchId !== filterBranch.value) return false;
+        if (filterType.value && r.adjustType !== filterType.value) return false;
+        if (filterFromDate.value && (r.date||'') < filterFromDate.value) return false;
+        if (filterToDate.value && (r.date||'') > filterToDate.value) return false;
+        if (s) {
+          const productName = erp.productName(r.productId).toLowerCase();
+          const branch = erp.branchName(r.branchId).toLowerCase();
+          const reason = (r.reason||'').toLowerCase();
+          if (!(r.docNo+' '+productName+' '+branch+' '+reason+' '+(r.lotNo||'')).toLowerCase().includes(s)) return false;
+        }
+        return true;
+      }).map(r => ({
+        ...r,
+        productName: erp.productName(r.productId),
+        productCode: (db.products||[]).find(p => p && p.id === r.productId)?.code || '-',
+        branchName: erp.branchName(r.branchId),
+        warehouseName: erp.warehouseName(r.warehouseId),
+      })).sort((a,b) => (b.date||'').localeCompare(a.date||'') || (b.createdAt||'').localeCompare(a.createdAt||''));
+    });
+
+    const totals = computed(() => {
+      const arr = list.value.filter(r => r.status !== 'reversed');
+      return {
+        count: arr.length,
+        lossQty: arr.filter(r => r.adjustType === 'LOSS').reduce((s,r)=>s+Math.abs(r.diffQty), 0),
+        lossValue: arr.filter(r => r.adjustType === 'LOSS').reduce((s,r)=>s+Math.abs(r.valueNote||0), 0),
+        gainQty: arr.filter(r => r.adjustType === 'GAIN').reduce((s,r)=>s+Math.abs(r.diffQty), 0),
+        gainValue: arr.filter(r => r.adjustType === 'GAIN').reduce((s,r)=>s+Math.abs(r.valueNote||0), 0),
+      };
+    });
+
+    function exportCSV() {
+      const head = ['Doc No','วันที่','สาขา','คลัง','รหัสสินค้า','สินค้า','Lot','ระบบ','นับจริง','Diff','ประเภท','มูลค่า (Note)','เหตุผล','หมายเหตุ','สถานะ','ผู้บันทึก'];
+      const rows = list.value.map(r => [r.docNo, r.date, r.branchName, r.warehouseName, r.productCode, r.productName,
+        r.lotNo, r.systemQty, r.countedQty, r.diffQty,
+        r.adjustType === 'LOSS' ? 'นับขาด' : 'นับเกิน',
+        r.valueNote, r.reason, r.remark||'', r.status, r.createdBy]);
+      const csv = '﻿' + [head, ...rows].map(r => r.map(c => '"'+String(c==null?'':c).replace(/"/g,'""')+'"').join(',')).join('\n');
+      const blob = new Blob([csv], {type:'text/csv'}); const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'stock_adjust_'+erp.today()+'.csv'; a.click();
+    }
+
+    return { erp, db, fmt, showForm, openAdd, close_, save, reverse, form,
+      systemQtyAuto, unitCostAuto, diffAuto, adjustTypeAuto, valueNoteAuto,
+      branches, warehouses, reasonOptions,
+      search, filterBranch, filterType, filterFromDate, filterToDate,
+      list, totals, exportCSV };
+  },
+  template:`
+  <div class="space-y-4">
+    <div class="bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-xl p-5 shadow">
+      <h1 class="text-2xl font-bold flex items-center gap-2">🔢 Stock Count Adjustment / ปรับสต๊อกจากการนับจริง</h1>
+      <p class="text-sm opacity-90 mt-1">หาของไม่เจอ · สต๊อกตัด 0 แล้ว แต่ในระบบยังมี · นับเกินระบบ — <strong>Quick Adjust ทีละ row · Note-only ไม่ลง P&amp;L</strong></p>
+    </div>
+
+    <div class="bg-amber-50 border-l-4 border-amber-500 rounded p-3 text-xs text-slate-700">
+      <div class="font-bold mb-1">📒 หลักการทำงาน — Note-only (ไม่ลง P&amp;L)</div>
+      <ul class="list-disc ml-5 space-y-0.5">
+        <li>ปรับสต๊อกจริง (qty) ตาม "นับจริง" ของคุณ — ตัดออกหรือเพิ่มเข้า stock_ledger</li>
+        <li><strong>มูลค่า (value) = 0</strong> ใน ledger — ไม่กระทบ Stock Value · ไม่ลง P&amp;L · ไม่กระโดด WAC</li>
+        <li>มูลค่าที่หาย/เกิน เก็บเป็น <strong>Note</strong> (สำหรับ analysis เท่านั้น) — เห็นใน column "มูลค่า Note"</li>
+        <li>ใช้เมื่อ "หาของไม่เจอ" / "นับจริง 0 แต่ระบบมี" / "นับเกินระบบ"</li>
+      </ul>
+    </div>
+
+    <!-- KPI -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div class="bg-white rounded-xl shadow p-3">
+        <div class="text-xs text-slate-500">รายการทั้งหมด</div>
+        <div class="text-xl font-bold">{{totals.count}}</div>
+      </div>
+      <div class="bg-white rounded-xl shadow p-3">
+        <div class="text-xs text-slate-500">นับขาด (LOSS)</div>
+        <div class="text-xl font-bold text-red-600">-{{fmt(totals.lossQty)}} กก.</div>
+      </div>
+      <div class="bg-white rounded-xl shadow p-3">
+        <div class="text-xs text-slate-500">มูลค่าขาด (Note)</div>
+        <div class="text-lg font-bold text-red-600">{{fmt(totals.lossValue)}}</div>
+      </div>
+      <div class="bg-white rounded-xl shadow p-3">
+        <div class="text-xs text-slate-500">นับเกิน (GAIN)</div>
+        <div class="text-xl font-bold text-emerald-700">+{{fmt(totals.gainQty)}} กก.</div>
+      </div>
+      <div class="bg-white rounded-xl shadow p-3">
+        <div class="text-xs text-slate-500">มูลค่าเกิน (Note)</div>
+        <div class="text-lg font-bold text-emerald-700">{{fmt(totals.gainValue)}}</div>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="bg-white rounded-xl shadow p-3 flex flex-wrap gap-2 items-center">
+      <button @click="openAdd" class="bg-amber-600 text-white px-4 py-2 rounded font-bold hover:bg-amber-700">+ ปรับสต๊อกใหม่ (Quick Adjust)</button>
+      <input v-model="search" placeholder="ค้นหา doc/สินค้า/เหตุผล..." class="flex-1 min-w-[200px] px-3 py-2 border rounded text-sm">
+      <select v-model="filterBranch" class="px-3 py-2 border rounded text-sm">
+        <option value="">ทุกสาขา</option>
+        <option v-for="b in branches" :key="b.id" :value="b.id">{{b.name}}</option>
+      </select>
+      <select v-model="filterType" class="px-3 py-2 border rounded text-sm">
+        <option value="">ทุกประเภท</option>
+        <option value="LOSS">📉 นับขาด</option>
+        <option value="GAIN">📈 นับเกิน</option>
+      </select>
+      <input type="date" v-model="filterFromDate" class="px-3 py-2 border rounded text-sm" title="จากวันที่">
+      <input type="date" v-model="filterToDate" class="px-3 py-2 border rounded text-sm" title="ถึงวันที่">
+      <button @click="exportCSV" class="px-3 py-2 text-sm bg-slate-700 text-white rounded">📥 CSV</button>
+    </div>
+
+    <!-- List -->
+    <div class="bg-white rounded-xl shadow overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100">
+          <tr>
+            <th class="p-2 text-left">Doc No</th>
+            <th class="p-2 text-left">วันที่</th>
+            <th class="p-2 text-left">สาขา/คลัง</th>
+            <th class="p-2 text-left">สินค้า</th>
+            <th class="p-2 text-left">Lot</th>
+            <th class="p-2 text-right">ระบบ</th>
+            <th class="p-2 text-right">นับจริง</th>
+            <th class="p-2 text-right">Diff</th>
+            <th class="p-2 text-center">ประเภท</th>
+            <th class="p-2 text-right">มูลค่า Note</th>
+            <th class="p-2 text-left">เหตุผล</th>
+            <th class="p-2 text-center">สถานะ</th>
+            <th class="p-2 text-center">การกระทำ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="r in list" :key="r.id" class="border-t hover:bg-amber-50/30" :class="r.status==='reversed'?'opacity-50':''">
+            <td class="p-2 font-mono text-xs font-bold">{{r.docNo}}</td>
+            <td class="p-2 text-xs">{{r.date}}</td>
+            <td class="p-2 text-xs">{{r.branchName}}<br><span class="text-slate-500">{{r.warehouseName}}</span></td>
+            <td class="p-2"><div class="text-xs font-mono text-slate-500">{{r.productCode}}</div><div>{{r.productName}}</div></td>
+            <td class="p-2 font-mono text-xs">{{r.lotNo||'-'}}</td>
+            <td class="p-2 text-right">{{fmt(r.systemQty)}}</td>
+            <td class="p-2 text-right font-bold">{{fmt(r.countedQty)}}</td>
+            <td class="p-2 text-right font-bold" :class="r.adjustType==='LOSS'?'text-red-600':'text-emerald-700'">
+              {{r.diffQty>0?'+':''}}{{fmt(r.diffQty)}}
+            </td>
+            <td class="p-2 text-center">
+              <span :class="['text-xs px-2 py-0.5 rounded font-medium', r.adjustType==='LOSS'?'bg-red-100 text-red-700':'bg-emerald-100 text-emerald-700']">
+                {{r.adjustType==='LOSS'?'📉 ขาด':'📈 เกิน'}}
+              </span>
+            </td>
+            <td class="p-2 text-right text-xs text-slate-600">{{fmt(r.valueNote||0)}}</td>
+            <td class="p-2 text-xs">
+              <div>{{r.reason}}</div>
+              <div v-if="r.remark" class="text-slate-500">{{r.remark}}</div>
+            </td>
+            <td class="p-2 text-center">
+              <span v-if="r.status==='posted'" class="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700">posted</span>
+              <span v-else class="text-xs px-2 py-0.5 rounded bg-slate-200 text-slate-500">reversed</span>
+            </td>
+            <td class="p-2 text-center">
+              <button v-if="r.status==='posted'" @click="reverse(r)" class="text-xs text-red-600 hover:underline">↺ Reverse</button>
+            </td>
+          </tr>
+          <tr v-if="!list.length"><td colspan="13" class="text-center py-8 text-slate-400">ยังไม่มีรายการปรับสต๊อก</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Form Modal — Quick Adjust -->
+    <div v-if="showForm" class="fixed inset-0 z-50 modal-backdrop p-4 overflow-y-auto" style="background:rgba(0,0,0,0.5)">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl mx-auto my-8">
+        <div class="px-5 py-3 border-b bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-t-2xl flex justify-between items-center">
+          <div>
+            <h3 class="font-bold text-lg">🔢 ปรับสต๊อกจากการนับจริง — {{form.docNo}}</h3>
+            <div class="text-xs opacity-90">Note-only · ไม่ลง P&amp;L · ไม่กระโดด WAC</div>
+          </div>
+          <button @click="close_" class="text-2xl text-white/80 hover:text-white">&times;</button>
+        </div>
+        <div class="p-5 space-y-3 text-sm">
+          <!-- วันที่ + สาขา -->
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs font-bold mb-1">📅 วันที่นับ *</label>
+              <input type="date" v-model="form.date" class="w-full px-3 py-2 border rounded">
+            </div>
+            <div>
+              <label class="block text-xs font-bold mb-1">🏢 สาขา *</label>
+              <select v-model="form.branchId" class="w-full px-3 py-2 border rounded">
+                <option value="">-- เลือก --</option>
+                <option v-for="b in branches" :key="b.id" :value="b.id">{{b.name}}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold mb-1">📦 คลัง *</label>
+              <select v-model="form.warehouseId" class="w-full px-3 py-2 border rounded" :disabled="!form.branchId">
+                <option value="">-- เลือก --</option>
+                <option v-for="w in warehouses" :key="w.id" :value="w.id">{{w.name}}</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- สินค้า + Lot -->
+          <div class="grid grid-cols-3 gap-3">
+            <div class="col-span-2">
+              <label class="block text-xs font-bold mb-1">📦 สินค้า *</label>
+              <select v-model="form.productId" class="w-full px-3 py-2 border rounded">
+                <option value="">-- เลือกสินค้า --</option>
+                <option v-for="p in db.products" :key="p.id" :value="p.id">{{p.code}} — {{p.name}}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold mb-1">🏷️ Lot (optional)</label>
+              <input v-model="form.lotNo" placeholder="ระบุ Lot ถ้ามี" class="w-full px-3 py-2 border rounded">
+            </div>
+          </div>
+
+          <!-- คงเหลือในระบบ + นับจริง + Diff -->
+          <div class="grid grid-cols-3 gap-3 bg-slate-50 rounded p-3">
+            <div>
+              <label class="block text-xs font-bold mb-1 text-slate-600">📊 ระบบมี (Auto)</label>
+              <div class="px-3 py-2 bg-white border rounded text-right text-lg font-bold text-slate-700">
+                {{fmt(systemQtyAuto)}} <span class="text-xs">กก.</span>
+              </div>
+              <div class="text-xs text-slate-500 mt-1">WAC: {{fmt(unitCostAuto)}} บ./กก.</div>
+            </div>
+            <div>
+              <label class="block text-xs font-bold mb-1 text-amber-700">✏️ นับจริง *</label>
+              <input type="number" step="0.01" v-model.number="form.countedQty"
+                class="w-full px-3 py-2 border-2 border-amber-300 rounded text-right text-lg font-bold text-amber-700 focus:border-amber-500"
+                placeholder="ใส่จำนวนที่นับได้">
+              <div class="text-xs text-slate-500 mt-1">นับ 0 = ไม่มีของจริง</div>
+            </div>
+            <div>
+              <label class="block text-xs font-bold mb-1" :class="adjustTypeAuto==='LOSS'?'text-red-600':adjustTypeAuto==='GAIN'?'text-emerald-700':'text-slate-600'">
+                Diff
+              </label>
+              <div class="px-3 py-2 border-2 rounded text-right text-lg font-bold"
+                :class="adjustTypeAuto==='LOSS'?'border-red-300 bg-red-50 text-red-600':adjustTypeAuto==='GAIN'?'border-emerald-300 bg-emerald-50 text-emerald-700':'border-slate-200 bg-white text-slate-500'">
+                {{diffAuto>0?'+':''}}{{fmt(diffAuto)}}
+              </div>
+              <div class="text-xs mt-1" :class="adjustTypeAuto==='LOSS'?'text-red-600':adjustTypeAuto==='GAIN'?'text-emerald-700':'text-slate-500'">
+                {{adjustTypeAuto==='LOSS'?'📉 นับขาด':adjustTypeAuto==='GAIN'?'📈 นับเกิน':'⚖ เท่ากัน — ไม่ต้องปรับ'}}
+              </div>
+            </div>
+          </div>
+
+          <!-- มูลค่า Note (preview) -->
+          <div v-if="adjustTypeAuto!=='NONE'" class="bg-blue-50 border border-blue-200 rounded p-3 text-xs">
+            <div class="font-bold text-blue-700 mb-1">📒 มูลค่า Note (track only · ไม่ลง P&amp;L)</div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>มูลค่าโดยประมาณ: <strong>{{fmt(valueNoteAuto)}} บาท</strong> ({{fmt(unitCostAuto)}} × {{fmt(Math.abs(diffAuto))}} กก.)</div>
+              <div class="text-slate-600">⚠ ไม่กระทบ COGS · ไม่กระทบ Stock Value · เก็บเป็น Note ใน Stock Ledger</div>
+            </div>
+          </div>
+
+          <!-- เหตุผล + หมายเหตุ -->
+          <div>
+            <label class="block text-xs font-bold mb-1">💬 เหตุผล *</label>
+            <select v-model="form.reason" class="w-full px-3 py-2 border rounded mb-2">
+              <option value="">-- เลือกเหตุผล --</option>
+              <option v-for="r in reasonOptions" :key="r" :value="r">{{r}}</option>
+            </select>
+            <input v-if="form.reason==='อื่นๆ (Other)'" v-model="form.reason" placeholder="ระบุเหตุผลอื่น..." class="w-full px-3 py-2 border rounded">
+          </div>
+          <div>
+            <label class="block text-xs font-bold mb-1">📝 หมายเหตุเพิ่มเติม</label>
+            <textarea v-model="form.remark" rows="2" placeholder="เช่น: นับเมื่อสิ้นเดือน · ตู้ที่ 3 ชั้นบน · สินค้ามีรอยขีด" class="w-full px-3 py-2 border rounded"></textarea>
+          </div>
+        </div>
+
+        <div class="px-5 py-3 border-t bg-slate-50 rounded-b-2xl flex gap-2 justify-end">
+          <button @click="close_" class="px-4 py-2 border rounded">ยกเลิก</button>
+          <button @click="save" class="px-4 py-2 bg-amber-600 text-white rounded font-bold hover:bg-amber-700">💾 บันทึก (Note-only)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ข้อแนะนำ -->
+    <div class="bg-blue-50 border-l-4 border-blue-500 rounded p-4 text-sm">
+      <h3 class="font-bold mb-1">💡 ใช้เมื่อไหร่</h3>
+      <ul class="list-disc ml-5 space-y-1 text-slate-700">
+        <li><strong>หาของไม่เจอ</strong> — ระบบมี 100 กก. แต่นับจริงเหลือ 80 → ใส่ "นับจริง" 80 → ขาด 20 กก. (Note)</li>
+        <li><strong>สต๊อกตัด 0 แต่ในระบบยังมี</strong> — ระบบมี 50 กก. แต่นับจริง 0 → ใส่ "นับจริง" 0 → ขาด 50 กก. (Note)</li>
+        <li><strong>นับเกินระบบ</strong> — ระบบมี 10 กก. แต่นับจริงได้ 25 → ใส่ "นับจริง" 25 → เกิน 15 กก. (Note)</li>
+        <li>เคลื่อนไหวจะเข้า Stock Ledger เป็น <code>STOCK_COUNT_LOSS</code> หรือ <code>STOCK_COUNT_GAIN</code> · qty จริง · value=0</li>
       </ul>
     </div>
   </div>`
@@ -34718,7 +35201,7 @@ app.component('view-backup', {
       'payments','receipts','transfers','expenses','pettyAdvances','pettyReturns','advanceAllocations',
       'supplierAdvances','customerAdvances','intlTransfers','overseasReceipts',
       // Stock
-      'stockLedger','stockIssues','gradeAdjustments','customerReturns',
+      'stockLedger','stockIssues','gradeAdjustments','stockAdjustments','customerReturns',
       // Production
       'productionOrders','productionInputs','productionOutputs','processCosts',
       // PO + Trading
@@ -34949,6 +35432,8 @@ app.component('view-backup', {
         keyMap: { docNo:'doc_no', customerId:'customer_id', branchId:'branch_id', warehouseId:'warehouse_id', totalCost:'total_cost', totalEstAmount:'total_est_amount', convertedToBillId:'converted_to_bill_id', createdBy:'created_by', createdAt:'created_at' } },
       gradeAdjustments: { source:'gradeAdjustments', target:'grade_adjustments',
         keyMap: { docNo:'doc_no', productId:'product_id', warehouseId:'warehouse_id', qtyDiff:'qty_diff', valueDiff:'value_diff', approvedBy:'approved_by', createdAt:'created_at' } },
+      stockAdjustments: { source:'stockAdjustments', target:'stock_adjustments',
+        keyMap: { docNo:'doc_no', productId:'product_id', branchId:'branch_id', warehouseId:'warehouse_id', lotNo:'lot_no', systemQty:'system_qty', countedQty:'counted_qty', diffQty:'diff_qty', adjustType:'adjust_type', unitCostUsed:'unit_cost_used', valueNote:'value_note', stockLedgerId:'stock_ledger_id', createdBy:'created_by', createdAt:'created_at', reversedAt:'reversed_at', reversedBy:'reversed_by' } },
       productionOrders: { source:'productionOrders', target:'production_orders',
         keyMap: { docNo:'doc_no', productId:'product_id', qtyPlanned:'qty_planned', branchId:'branch_id', warehouseId:'warehouse_id', totalInputCost:'total_input_cost', totalOutputValue:'total_output_value', closedAt:'closed_at', closedBy:'closed_by', createdAt:'created_at' } },
       productionInputs: { source:'productionInputs', target:'production_inputs',
@@ -34980,7 +35465,7 @@ app.component('view-backup', {
       'branches','warehouses','suppliers','customers','products','accounts',
       'purchaseChannels','salesChannels','expenseCategories','currencies','overseasRecipients',
       'purchaseBills','salesBills','payments','receipts','transfers','expenses',
-      'stockLedger','bankStatement','stockIssues','gradeAdjustments',
+      'stockLedger','bankStatement','stockIssues','gradeAdjustments','stockAdjustments',
       'productionOrders','productionInputs','productionOutputs',
       'poBuyOrders','poSellOrders',
       'assets','depreciations','loans','loanSchedules','loanPayments',
