@@ -8634,7 +8634,9 @@ app.component('view-purchase', {
     const availablePOBuys = computed(() => {
       try {
         return safeArr(db.poBuys)
-          .filter(p => p && p.status !== 'Cancelled' && p.status !== 'Received' && num(p.remainingQty || p.qty) > 0)
+          // 🚫 Exclude Costing-only POs (imported สำหรับ Cost Pool / Deal Costing) — ไม่ใช่ PO ที่ supplier ส่งของ
+          .filter(p => p && p.requireDelivery !== false && p.isOpeningPool !== true)
+          .filter(p => p.status !== 'Cancelled' && p.status !== 'Received' && num(p.remainingQty || p.qty) > 0)
           .map(p => ({
             id: p.id,
             docNo: p.docNo || '-',
@@ -14689,13 +14691,25 @@ app.component('view-poBuy', {
       erp.logAudit('cancel','poBuy', before, p); erp.showToast('ยกเลิกแล้ว');
     }
     const filterDateFrom = ref(''); const filterDateTo = ref('');
-    const filterPurpose = ref('');           // '' / 'delivery' / 'costing'
+    // 🆕 Default: show เฉพาะ "ส่งของจริง" — Costing-only PO มีเยอะ + ใช้คนละ flow
+    const filterPurpose = ref('delivery');   // 'delivery' (ส่งของจริง) | 'costing' (Cost Pool) | '' (ทั้งหมด)
+    /* 🆕 Counts สำหรับ tab buttons */
+    const purposeCounts = computed(() => {
+      const all = (db.poBuys||[]).filter(p => p && p.status !== 'Cancelled');
+      return {
+        all: all.length,
+        delivery: all.filter(p => p.requireDelivery !== false && p.isOpeningPool !== true).length,
+        costing:  all.filter(p => p.requireDelivery === false || p.isOpeningPool === true).length,
+      };
+    });
     const filtered = computed(() => {
       const q = search.value.toLowerCase().trim();
       return db.poBuys.filter(p => {
         if (filterStatus.value && p.status !== filterStatus.value) return false;
-        if (filterPurpose.value === 'delivery' && p.requireDelivery === false) return false;
-        if (filterPurpose.value === 'costing' && p.requireDelivery !== false) return false;
+        // 🆕 รวม isOpeningPool=true ใน "Costing" ด้วย (เผื่อ requireDelivery ไม่ได้ตั้งให้)
+        const isCostingOnly = p.requireDelivery === false || p.isOpeningPool === true;
+        if (filterPurpose.value === 'delivery' && isCostingOnly) return false;
+        if (filterPurpose.value === 'costing' && !isCostingOnly) return false;
         if (filterDateFrom.value && (p.date||'') < filterDateFrom.value) return false;
         if (filterDateTo.value && (p.date||'') > filterDateTo.value) return false;
         if (q) {
@@ -14773,7 +14787,7 @@ app.component('view-poBuy', {
       return out.sort((a,b)=>(a.deliveryDate||a.date||'').localeCompare(b.deliveryDate||b.date||''));
     });
 
-    return { db, erp, form, showForm, editing, search, filterStatus, filterPurpose, filterDateFrom, filterDateTo, filtered, open, save, cancel, statusBadge,
+    return { db, erp, form, showForm, editing, search, filterStatus, filterPurpose, purposeCounts, filterDateFrom, filterDateTo, filtered, open, save, cancel, statusBadge,
       addItem, removeItem, recalcItem, formTotals, dashboard, outstandingList, fmt:erp.fmt };
   },
   template:`
@@ -14880,13 +14894,39 @@ app.component('view-poBuy', {
         <button type="button" @click="filterStatus='Partially Received'" :class="['px-3 py-1 rounded text-xs font-medium border', filterStatus==='Partially Received'?'bg-amber-600 text-white border-amber-600':'bg-white border-slate-300 hover:bg-amber-50']">Partial</button>
         <button type="button" @click="filterStatus='Received'" :class="['px-3 py-1 rounded text-xs font-medium border', filterStatus==='Received'?'bg-emerald-600 text-white border-emerald-600':'bg-white border-slate-300 hover:bg-emerald-50']">Received</button>
         <button type="button" @click="filterStatus='Cancelled'" :class="['px-3 py-1 rounded text-xs font-medium border', filterStatus==='Cancelled'?'bg-slate-500 text-white border-slate-500':'bg-white border-slate-300 hover:bg-slate-100']">Cancelled</button>
-        <span class="mx-2 text-slate-300">|</span>
-        <span class="text-xs text-slate-500">วัตถุประสงค์:</span>
-        <button type="button" @click="filterPurpose=''" :class="['px-3 py-1 rounded text-xs font-medium border', filterPurpose===''?'bg-slate-700 text-white border-slate-700':'bg-white border-slate-300']">ทั้งหมด</button>
-        <button type="button" @click="filterPurpose='delivery'" :class="['px-3 py-1 rounded text-xs font-medium border', filterPurpose==='delivery'?'bg-indigo-600 text-white border-indigo-600':'bg-white border-slate-300 hover:bg-indigo-50']">📦 ส่งของจริง</button>
-        <button type="button" @click="filterPurpose='costing'" :class="['px-3 py-1 rounded text-xs font-medium border', filterPurpose==='costing'?'bg-emerald-600 text-white border-emerald-600':'bg-white border-slate-300 hover:bg-emerald-50']">💰 Costing-only</button>
         <span class="ml-auto text-xs text-slate-500">📊 พบ <b class="text-slate-700">{{filtered.length}}</b> PO</span>
       </div>
+    </div>
+
+    <!-- 🆕 Big Tab — แยก 2 ประเภท PO Buy ชัดเจน -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+      <button type="button" @click="filterPurpose='delivery'"
+        :class="['p-3 rounded-xl border-2 text-left transition shadow-sm',
+                 filterPurpose==='delivery'?'border-indigo-600 bg-indigo-50 ring-2 ring-indigo-200':'border-slate-200 bg-white hover:border-indigo-300']">
+        <div class="flex items-center justify-between">
+          <div class="font-bold text-sm">📦 ส่งของจริง</div>
+          <div class="text-2xl font-extrabold" :class="filterPurpose==='delivery'?'text-indigo-700':'text-slate-700'">{{purposeCounts.delivery}}</div>
+        </div>
+        <div class="text-xs text-slate-500 mt-0.5">PO ที่ supplier ต้องส่งของ · เข้า PO Outstanding · ตัดบิลรับซื้อ</div>
+      </button>
+      <button type="button" @click="filterPurpose='costing'"
+        :class="['p-3 rounded-xl border-2 text-left transition shadow-sm',
+                 filterPurpose==='costing'?'border-emerald-600 bg-emerald-50 ring-2 ring-emerald-200':'border-slate-200 bg-white hover:border-emerald-300']">
+        <div class="flex items-center justify-between">
+          <div class="font-bold text-sm">💰 Cost Pool / Deal Costing</div>
+          <div class="text-2xl font-extrabold" :class="filterPurpose==='costing'?'text-emerald-700':'text-slate-700'">{{purposeCounts.costing}}</div>
+        </div>
+        <div class="text-xs text-slate-500 mt-0.5">Imported · ไม่เข้า PO Outstanding · matching กับ PO Sell เท่านั้น</div>
+      </button>
+      <button type="button" @click="filterPurpose=''"
+        :class="['p-3 rounded-xl border-2 text-left transition shadow-sm',
+                 filterPurpose===''?'border-slate-700 bg-slate-100 ring-2 ring-slate-300':'border-slate-200 bg-white hover:border-slate-400']">
+        <div class="flex items-center justify-between">
+          <div class="font-bold text-sm">📋 ทั้งหมด</div>
+          <div class="text-2xl font-extrabold text-slate-700">{{purposeCounts.all}}</div>
+        </div>
+        <div class="text-xs text-slate-500 mt-0.5">รวมทั้ง 2 ประเภท</div>
+      </button>
     </div>
     <div class="bg-white rounded-xl shadow overflow-x-auto">
       <table class="w-full text-sm table-zebra">
@@ -28108,8 +28148,8 @@ const TXN_IMPORT_SCHEMAS = {
       ['PBIMP-001','2026-05-01','SUP001','BR002','WH002','PC002','STOCK','เครดิต','30','SPOT_BUY','','0','','ซื้อสต๊อกปกติ — ทำลังขาย','P002','LOT-IMP-2','530','30','500','14','0',''],
       // 🟢 STOCK PO_RECEIPT — รับของตาม PO Buy ที่เปิดไว้แล้ว
       ['PBIMP-002','2026-05-02','SUP002','BR003','WH003','PC001','STOCK','เงินสด','0','PO_RECEIPT','POB2605-0001','0','','รับของตาม PO Buy','P004','CU-LOT-IMP','520','20','500','295','0',''],
-      // 🟣 TRADING — ซื้อเพื่อขายต่อทันที (Trading Deal) — ราคาขายมา match ภายหลัง
-      ['PBIMP-003','2026-05-03','SUP001','BR002','WH002','PC002','TRADING','เครดิต','15','SPOT_BUY','','0','','Trading Deal — ซื้อมาขายไป','P001','TRD-LOT-001','2000','0','2000','17.8','0','รอ Match บิลขาย'],
+      // 🟣 TRADING — ซื้อเพื่อขายต่อทันที (ไม่เข้าคลัง — ปล่อย branchCode/warehouseCode/channelCode ว่างได้)
+      ['PBIMP-003','2026-05-03','SUP001','','','','TRADING','เครดิต','15','SPOT_BUY','','0','','Trading Deal — ซื้อมาขายไป','P001','TRD-LOT-001','2000','0','2000','17.8','0','รอ Match บิลขาย'],
     ],
   },
   sales: {
@@ -28147,8 +28187,8 @@ const TXN_IMPORT_SCHEMAS = {
       ['SBIMP-001','2026-05-03','CUS002','BR002','WH002','SC002','STOCK','','Sales-Team','30','SPOT_SALES','','FG_THEN_RM','0','','ขายปกติ — WAC','P002','LOT-IMP-2','300','16.5','0',''],
       // 🟢 STOCK PO_DELIVERY — ส่งของตาม PO Sell ที่เปิดไว้
       ['SBIMP-002','2026-05-04','CUS001','BR003','WH003','SC001','STOCK','','Sales-Team','45','PO_DELIVERY','POS2605-0001','FG_THEN_RM','0','','ส่งของตาม PO','P004','CU-LOT-IMP','300','310','0',''],
-      // 🟣 TRADING — ขายของ Trading (ต้นทุน match จากบิลซื้อ Trading) — ใส่ tradingFromPurchaseNo
-      ['SBIMP-003','2026-05-05','CUS002','BR002','WH002','SC002','TRADING','PBIMP-003','Sales-Team','15','SPOT_SALES','','FG_THEN_RM','0','','Trading Deal — match จากบิลซื้อ PBIMP-003','P001','TRD-LOT-001','2000','19.2','0',''],
+      // 🟣 TRADING — ขายของ Trading (ไม่เข้าคลัง — ปล่อย branchCode/warehouseCode/channelCode ว่างได้)
+      ['SBIMP-003','2026-05-05','CUS002','','','','TRADING','PBIMP-003','Sales-Team','15','SPOT_SALES','','','0','','Trading Deal — match จากบิลซื้อ PBIMP-003','P001','TRD-LOT-001','2000','19.2','0',''],
     ],
   }
 };
@@ -28218,8 +28258,8 @@ app.component('view-importTxn', {
       meta.push(['3. Branch/Warehouse/Supplier/Customer/Product ใช้ Code (ที่มีในระบบ)','','','','']);
       meta.push(['','','','','']);
       meta.push(['🔀 Mode (transactionMode) — สำคัญมาก!','','','','']);
-      meta.push(['STOCK = ซื้อ/ขายปกติ — เข้า/ออกคลัง · ใช้ WAC คำนวณกำไร','','','','']);
-      meta.push(['TRADING = ซื้อมาขายไป — Match กันแบบ 1:1 · กำไร = ราคาขาย - ราคาซื้อ deal นั้น (ไม่ใช้ WAC)','','','','']);
+      meta.push(['STOCK = ซื้อ/ขายปกติ — เข้า/ออกคลัง · ใช้ WAC คำนวณกำไร · ต้องใส่ branchCode + warehouseCode + channelCode','','','','']);
+      meta.push(['TRADING = ซื้อมาขายไป — ไม่เข้าคลัง · กำไร = ราคาขาย - ราคาซื้อ deal นั้น (ไม่ใช้ WAC) · ปล่อย branchCode/warehouseCode/channelCode ว่างได้','','','','']);
       meta.push(['','','','','']);
       meta.push(['📋 Bill Type (billType)','','','','']);
       meta.push(['SPOT_BUY = ซื้อปกติ · PO_RECEIPT = ตัด PO Buy (ใส่ poBuyNo)','','','','']);
@@ -28311,11 +28351,16 @@ app.component('view-importTxn', {
       billsMap.forEach((bill, docNo) => {
         const errors = []; const warnings = [];
         const h = bill.header;
+        // 🆕 TRADING bills — สาขา/คลัง/ช่องทาง ไม่จำเป็น (ไม่เข้าคลัง)
+        const isTrading = (h.transactionMode === 'TRADING');
 
         // Header validation
         sc.headerCols.forEach(col => {
           const v = h[col.key];
-          if (col.required && (v === '' || v === null || v === undefined)) errors.push(`Header: ${col.label} จำเป็น`);
+          // 🚫 Skip required check สำหรับ branch/warehouse/channel ถ้าเป็น TRADING
+          const isLocationCol = ['branchCode','warehouseCode','channelCode'].includes(col.key);
+          const isRequired = col.required && !(isTrading && isLocationCol);
+          if (isRequired && (v === '' || v === null || v === undefined)) errors.push(`Header: ${col.label} จำเป็น`);
           if (col.type === 'number' && Number.isNaN(v)) errors.push(`Header: ${col.label} ต้องเป็นตัวเลข`);
           if (col.type === 'enum' && v === '__INVALID__') errors.push(`Header: ${col.label} ค่าไม่ถูก (${col.options.join('/')})`);
           if (col.type === 'date' && v === '__INVALID_DATE__') errors.push(`Header: ${col.label} รูปแบบวันที่ไม่ถูก`);
@@ -28330,10 +28375,19 @@ app.component('view-importTxn', {
           customer = _trkSafe(db.customers).find(x => x && x.code === h.customerCode);
           if (!customer) errors.push(`รหัสลูกค้า "${h.customerCode}" ไม่พบ`);
         }
-        branch = _trkSafe(db.branches).find(x => x && x.code === h.branchCode);
-        if (!branch) errors.push(`รหัสสาขา "${h.branchCode}" ไม่พบ`);
-        warehouse = _trkSafe(db.warehouses).find(x => x && x.code === h.warehouseCode);
-        if (!warehouse) errors.push(`รหัสคลัง "${h.warehouseCode}" ไม่พบ`);
+        // 🚫 TRADING — branch/warehouse/channel เป็น optional (ถ้าใส่มาก็ lookup, ถ้าไม่ใส่ก็ปล่อยว่าง)
+        if (h.branchCode) {
+          branch = _trkSafe(db.branches).find(x => x && x.code === h.branchCode);
+          if (!branch && !isTrading) errors.push(`รหัสสาขา "${h.branchCode}" ไม่พบ`);
+        } else if (!isTrading) {
+          errors.push('Header: รหัสสาขา จำเป็น (STOCK mode)');
+        }
+        if (h.warehouseCode) {
+          warehouse = _trkSafe(db.warehouses).find(x => x && x.code === h.warehouseCode);
+          if (!warehouse && !isTrading) errors.push(`รหัสคลัง "${h.warehouseCode}" ไม่พบ`);
+        } else if (!isTrading) {
+          errors.push('Header: รหัสคลัง จำเป็น (STOCK mode)');
+        }
         if (h.channelCode) {
           const channelList = txnType.value === 'purchase' ? db.purchaseChannels : db.salesChannels;
           channel = _trkSafe(channelList).find(x => x && x.code === h.channelCode);
