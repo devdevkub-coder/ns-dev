@@ -21005,6 +21005,51 @@ const IMPORT_SCHEMAS = {
 
 function _impCoerce(val, col) {
   if (val === undefined || val === null) val = '';
+
+  // 🆕 Date column — handle BEFORE String() conversion
+  if (col.type === 'date') {
+    if (val === '' || val === null || val === undefined) return '';
+    // 1. Date object จาก SheetJS (Excel auto-converts text → Date)
+    if (val instanceof Date) {
+      if (isNaN(val.getTime())) return '__INVALID_DATE__';
+      // Use local date (avoid timezone shift)
+      const y = val.getFullYear();
+      const m = String(val.getMonth()+1).padStart(2,'0');
+      const d = String(val.getDate()).padStart(2,'0');
+      return y+'-'+m+'-'+d;
+    }
+    // 2. Excel serial number (เช่น 45657)
+    if (typeof val === 'number' && val > 25569 && val < 100000) {
+      const ms = Math.round((val - 25569) * 86400000);
+      const dd = new Date(ms);
+      if (!isNaN(dd.getTime())) {
+        const y = dd.getUTCFullYear();
+        const m = String(dd.getUTCMonth()+1).padStart(2,'0');
+        const d = String(dd.getUTCDate()).padStart(2,'0');
+        return y+'-'+m+'-'+d;
+      }
+    }
+    // 3. String formats
+    const s = String(val).trim();
+    if (s === '') return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    // DD/MM/YYYY or DD-MM-YYYY
+    const m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+    if (m) return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+    // ISO with time: 2025-12-31T00:00:00...
+    const isoM = s.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (isoM) return isoM[1];
+    // Try JS Date parser as fallback (handles "Wed Dec 31 2025 ...")
+    const dd = new Date(s);
+    if (!isNaN(dd.getTime())) {
+      const y = dd.getFullYear();
+      const mm = String(dd.getMonth()+1).padStart(2,'0');
+      const d = String(dd.getDate()).padStart(2,'0');
+      return y+'-'+mm+'-'+d;
+    }
+    return '__INVALID_DATE__';
+  }
+
   // 🔧 รองรับ JS boolean จาก Excel (TRUE/FALSE cell type)
   if (typeof val === 'boolean') val = val ? 'true' : 'false';
   if (typeof val !== 'string') val = String(val);
@@ -21024,13 +21069,6 @@ function _impCoerce(val, col) {
   if (col.type === 'enum') {
     if (val === '') return col.default !== undefined ? col.default : '';
     return col.options.includes(val) ? val : '__INVALID__';
-  }
-  if (col.type === 'date') {
-    if (val === '') return '';
-    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
-    const m = val.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
-    if (m) return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
-    return '__INVALID_DATE__';
   }
   if (val === '' && col.default !== undefined) return col.default;
   return val;
@@ -23673,11 +23711,9 @@ app.component('view-loanContracts', {
         return col.options.includes(v) ? v : (col.default || col.options[0]);
       }
       if (col.type === 'date') {
-        const s = String(raw).trim();
-        // accept YYYY-MM-DD, DD/MM/YYYY, etc.
-        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-        const d = new Date(s);
-        return isNaN(d.getTime()) ? '' : d.toISOString().slice(0,10);
+        // Reuse _impCoerce date logic — handles Date object + serial + string formats
+        const r = _impCoerce(raw, { type:'date' });
+        return r === '__INVALID_DATE__' ? '' : r;
       }
       return String(raw).trim();
     }
