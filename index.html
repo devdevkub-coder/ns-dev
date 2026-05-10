@@ -28781,8 +28781,8 @@ app.component('view-importTxn', {
       } finally { importing.value = false; }
     }
 
-    /* Rollback */
-    function rollback(log) {
+    /* Rollback — async, awaits cloud delete to prevent autoSync pull-back */
+    async function rollback(log) {
       if (log.rolledBack) { erp.showToast('Rolled back ไปแล้ว','error'); return; }
       // Check downstream — payments/receipts referencing these bills
       const affectedBills = log.createdIds || [];
@@ -28817,17 +28817,24 @@ app.component('view-importTxn', {
           db.stockLedger = _trkSafe(db.stockLedger).filter(s => !(s && log.stockLedgerIds.includes(s.id)));
         }
 
-        // 🆕 CRITICAL: ลบ cloud ด้วย — ไม่งั้น autoSync จะ pull กลับมา
+        // 🆕 CRITICAL: ลบ cloud — await ป้องกัน race กับ autoSync
+        // 🛑 หยุด autoSync ชั่วคราว
+        try { if (window.$autoSync && window.$autoSync.stop) window.$autoSync.stop(); } catch(e){}
+
         if (erp.deleteCloud && idsToDeleteCloud.length) {
-          erp.deleteCloud(collection, idsToDeleteCloud)
-            .then(() => console.log('[Rollback] cloud delete', collection, idsToDeleteCloud.length, 'rows ✓'))
-            .catch(e => console.warn('[Rollback] cloud delete error:', e));
+          try {
+            await erp.deleteCloud(collection, idsToDeleteCloud);
+            console.log('[Rollback] cloud delete', collection, idsToDeleteCloud.length, 'rows ✓');
+          } catch(e) { console.warn('[Rollback] cloud delete error:', e); }
         }
         if (erp.deleteCloud && log.stockLedgerIds && log.stockLedgerIds.length) {
-          erp.deleteCloud('stockLedger', log.stockLedgerIds)
-            .then(() => console.log('[Rollback] cloud stock_ledger delete', log.stockLedgerIds.length, 'rows ✓'))
-            .catch(e => console.warn('[Rollback] cloud stockLedger delete error:', e));
+          try {
+            await erp.deleteCloud('stockLedger', log.stockLedgerIds);
+            console.log('[Rollback] cloud stock_ledger delete', log.stockLedgerIds.length, 'rows ✓');
+          } catch(e) { console.warn('[Rollback] cloud stockLedger delete error:', e); }
         }
+        // ✅ resume autoSync
+        try { if (window.$autoSync && window.$autoSync.start) window.$autoSync.start(); } catch(e){}
         // PO updates revert
         (log.updatedPOs||[]).forEach(po => {
           if (po.type === 'POBuy') {
@@ -28947,6 +28954,8 @@ app.component('view-importTxn', {
       }
 
       deletingBills.value = true;
+      // 🛑 ATOMIC: หยุด autoSync ก่อน — กัน race ระหว่าง delete-local + delete-cloud
+      try { if (window.$autoSync && window.$autoSync.stop) window.$autoSync.stop(); } catch(e){}
       try {
         // Local delete
         db[coll] = _trkSafe(db[coll]).filter(b => !b || !idSet.has(b.id));
@@ -28969,7 +28978,7 @@ app.component('view-importTxn', {
         // Persist local
         try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
 
-        // Cloud delete
+        // Cloud delete (await ทั้ง 2)
         await erp.deleteCloud(coll, billIds);
         if (ledgerIds.length) await erp.deleteCloud('stockLedger', ledgerIds);
 
@@ -28979,7 +28988,58 @@ app.component('view-importTxn', {
         selectedBillIds.value = new Set();
       } catch (e) {
         console.error(e); erp.showToast('ลบล้มเหลว: '+e.message, 'error');
-      } finally { deletingBills.value = false; }
+      } finally {
+        deletingBills.value = false;
+        // ✅ resume autoSync
+        try { if (window.$autoSync && window.$autoSync.start) window.$autoSync.start(); } catch(e){}
+      }
+    }
+
+    /* 🚨 EMERGENCY: Force Delete ALL imported bills + stock_ledger ที่มีรหัส LIKE 'PB-IMP-%' / 'SB-IMP-%' / 'SL-IMP-%'
+       ใช้ตอนบิลที่ import มา orphan (ไม่มี log แล้ว) แต่ยังโผล่ */
+    async function forceDeleteAllImported() {
+      const tType = txnType.value;  // 'purchase' | 'sales'
+      const coll = tType === 'purchase' ? 'purchaseBills' : 'salesBills';
+      const prefix = tType === 'purchase' ? 'PB-IMP-' : 'SB-IMP-';
+      const billsToDel = _trkSafe(db[coll]).filter(b => b && String(b.id||'').startsWith(prefix));
+      const billIds = billsToDel.map(b => b.id);
+      const slToDel = _trkSafe(db.stockLedger).filter(s => s && (
+        String(s.id||'').startsWith('SL-IMP-') || billIds.includes(s.refId)
+      ));
+      const slIds = slToDel.map(s => s.id);
+
+      if (!billIds.length && !slIds.length) {
+        erp.showToast('ไม่มีบิล Import ค้างอยู่', 'error'); return;
+      }
+      const msg = `🚨 EMERGENCY DELETE\n\nจะลบ:\n• ${coll} ${billIds.length} บิล (id ขึ้นต้น "${prefix}")\n• stock_ledger ${slIds.length} entries (id ขึ้นต้น "SL-IMP-" หรือ link บิลพวกนี้)\n\nลบทั้ง local + cloud — กู้คืนไม่ได้!\nดำเนินการต่อ?`;
+      if (!confirm(msg)) return;
+
+      deletingBills.value = true;
+      try { if (window.$autoSync && window.$autoSync.stop) window.$autoSync.stop(); } catch(e){}
+      try {
+        // Local
+        if (billIds.length) {
+          const set = new Set(billIds);
+          db[coll] = _trkSafe(db[coll]).filter(b => !b || !set.has(b.id));
+        }
+        if (slIds.length) {
+          const set = new Set(slIds);
+          db.stockLedger = _trkSafe(db.stockLedger).filter(s => !s || !set.has(s.id));
+        }
+        try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+
+        // Cloud
+        if (billIds.length) await erp.deleteCloud(coll, billIds);
+        if (slIds.length) await erp.deleteCloud('stockLedger', slIds);
+
+        erp.logAudit('FORCE_DELETE_IMPORTED', coll, null, {bills: billIds.length, stockLedger: slIds.length});
+        erp.showToast(`✅ ลบ ${billIds.length} บิล + ${slIds.length} stock entries สำเร็จ`, 'success');
+      } catch (e) {
+        console.error(e); erp.showToast('Force delete error: '+e.message, 'error');
+      } finally {
+        deletingBills.value = false;
+        try { if (window.$autoSync && window.$autoSync.start) window.$autoSync.start(); } catch(e){}
+      }
     }
 
     function deleteSelectedFromLog(log) {
@@ -28996,7 +29056,7 @@ app.component('view-importTxn', {
     return { erp, db, fmt, tab, txnType, importMode, fileName, headers, rawRows, previewBills,
       stats, downloadTemplate, onFileChange, validate, openSamplePreview, confirmImport, rollback, exportErrors,
       clearAll, schema, allCols, importing, lastResult, showResultModal, txnLogs,
-      actionBadge, actionLabel, TXN_IMPORT_SCHEMAS,
+      actionBadge, actionLabel, TXN_IMPORT_SCHEMAS, forceDeleteAllImported,
       excludedDocs, toggleExclude, isExcluded, selectAllValid, deselectAllValid,
       showSampleModal, sampleBills,
       expandedLogId, selectedBillIds, deletingBills,
@@ -29145,6 +29205,18 @@ app.component('view-importTxn', {
       <!-- LOG TAB -->
       <div v-if="tab==='log'" class="p-5">
         <div class="text-xs text-slate-500 mb-2">📌 คลิก ▶ เพื่อดู/ลบบิลรายตัว · กด Rollback เพื่อยกเลิก import ทั้งชุด · ลบจาก Cloud ด้วย (กู้คืนไม่ได้)</div>
+
+        <!-- 🚨 Emergency Force Delete -->
+        <div class="bg-red-50 border-2 border-red-300 rounded-lg p-3 mb-3">
+          <div class="flex items-center justify-between gap-3">
+            <div class="text-xs text-red-700">
+              <strong>🚨 EMERGENCY:</strong> ถ้า Rollback แล้วบิลยังกลับมา → ใช้ปุ่มนี้ลบบิล <code>{{txnType==='purchase'?'PB-IMP-':'SB-IMP-'}}</code>* ทั้งหมด (ทั้ง local + cloud + stock_ledger)
+            </div>
+            <button @click="forceDeleteAllImported" class="px-4 py-2 bg-red-600 text-white rounded font-bold text-sm hover:bg-red-700 whitespace-nowrap">
+              🗑 Force Delete ALL Imported
+            </button>
+          </div>
+        </div>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead class="bg-slate-100">
