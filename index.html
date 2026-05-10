@@ -29216,7 +29216,7 @@ app.component('view-openingBalance', {
     /* Helper to mutate arrays directly with reactivity */
     function addAR() { ob.value.arItems.push({ id:'OB-AR-'+Date.now()+'-'+Math.random().toString(36).slice(2,5), customerId:'', billNo:'', billDate:ob.value.cutoffDate, amount:0, dueDate:'', note:'' }); }
     function addAP() { ob.value.apItems.push({ id:'OB-AP-'+Date.now()+'-'+Math.random().toString(36).slice(2,5), supplierId:'', billNo:'', billDate:ob.value.cutoffDate, amount:0, dueDate:'', note:'' }); }
-    function addStock() { ob.value.stockItems.push({ id:'OB-ST-'+Date.now()+'-'+Math.random().toString(36).slice(2,5), productId:'', itemStatus:'RM', branchId:'', warehouseId:'', lotNo:'OPENING', qty:0, unitCost:0, paid:true, note:'' }); }
+    function addStock() { ob.value.stockItems.push({ id:'OB-ST-'+Date.now()+'-'+Math.random().toString(36).slice(2,5), productId:'', itemStatus:'RM', branchId:'', warehouseId:'', lotNo:'OPENING', qty:0, unitCost:0, paid:true, supplierId:'', linkedBillNo:'', note:'' }); }
     function addOR() { ob.value.otherReceivables.push({ id:'OB-OR-'+Date.now()+'-'+Math.random().toString(36).slice(2,5), name:'', type:'Other Receivable', amount:0, dueDate:'', note:'' }); }
     function addOP() { ob.value.otherPayables.push({ id:'OB-OP-'+Date.now()+'-'+Math.random().toString(36).slice(2,5), name:'', type:'Other Payable', amount:0, dueDate:'', note:'' }); }
     function removeFromList(list, id, type) {
@@ -29264,6 +29264,54 @@ app.component('view-openingBalance', {
       }
       return '';
     }
+    /* 🆕 Sync Shadow AP — Stock Opening (paid=false + supplier) ↔ AP Opening
+       - paid=false + supplierId → ensure AP shadow item exists (autoLinked)
+       - paid=true OR no supplier → remove AP shadow item ถ้ามี
+       Shadow AP id pattern: 'OB-AP-FROM-' + stockItem.id */
+    function _syncShadowAP(stockItem) {
+      try {
+        const apList = ob.value.apItems = ob.value.apItems || [];
+        const shadowId = 'OB-AP-FROM-' + stockItem.id;
+        const idx = apList.findIndex(x => x && x.id === shadowId);
+        const shouldExist = !stockItem.paid && stockItem.supplierId && Number(stockItem.qty||0) > 0;
+        const amount = Number(stockItem.qty||0) * Number(stockItem.unitCost||0);
+
+        if (shouldExist) {
+          const productName = (db.products.find(p => p && p.id === stockItem.productId)||{}).name || stockItem.productId || '';
+          const apData = {
+            id: shadowId,
+            supplierId: stockItem.supplierId,
+            billNo: stockItem.linkedBillNo || ('STK-OPN-' + (stockItem.productCode || stockItem.id.slice(-6))),
+            billDate: ob.value.cutoffDate,
+            amount: amount,
+            dueDate: '',
+            note: '🔗 Auto จาก Stock Opening: ' + productName + ' (' + (stockItem.qty||0) + ' กก. × ' + (stockItem.unitCost||0) + ')',
+            autoLinked: true,
+            linkedStockItemId: stockItem.id,
+          };
+          if (idx >= 0) {
+            // Update existing shadow — preserve applied state
+            const old = apList[idx];
+            Object.assign(old, apData);
+            // Re-apply เพื่อ update purchaseBill ใน cloud
+            if (old.applied) _applyItem(old, 'AP');
+          } else {
+            // Insert new shadow
+            apList.push(apData);
+            // Apply ใหม่ทันที
+            _applyItem(apData, 'AP');
+          }
+        } else {
+          // ไม่ควรมี shadow → ลบถ้ามี
+          if (idx >= 0) {
+            const old = apList[idx];
+            if (old.applied) _unapplyItem(old, 'AP');
+            apList.splice(idx, 1);
+          }
+        }
+      } catch(e) { console.warn('[_syncShadowAP]', e); }
+    }
+
     function _applyItem(item, type) {
       const o = ob.value;
       const cutoff = o.cutoffDate;
@@ -29360,6 +29408,8 @@ app.component('view-openingBalance', {
               if (prod && prod.itemStatus !== item.itemStatus) prod.itemStatus = item.itemStatus;
             }
             item.applied = true; item.appliedRefId = refId; item.appliedAt = ts;
+            // 🆕 Sync shadow AP (กรณี existing stock item แก้ไข paid/supplier)
+            _syncShadowAP(item);
             return false;
           }
           const qty = Number(item.qty||0); const cost = Number(item.unitCost||0);
@@ -29382,6 +29432,9 @@ app.component('view-openingBalance', {
             if (prod && prod.itemStatus !== item.itemStatus) prod.itemStatus = item.itemStatus;
           }
           item.applied = true; item.appliedRefId = refId; item.appliedAt = ts;
+
+          // 🆕 Auto-link AP — ถ้ายังไม่ชำระ + มี supplier → สร้าง shadow AP item
+          _syncShadowAP(item);
           return true;
         }
         if (type === 'OR' || type === 'OP') {
@@ -30233,12 +30286,15 @@ app.component('view-openingBalance', {
           <button v-if="!ob.locked" @click="addAP" class="px-3 py-1.5 text-sm bg-emerald-600 text-white rounded">+ เพิ่ม</button>
         </div>
       </div>
-      <p class="text-xs text-slate-500 mb-2">💡 กด "Apply" ทีละ row เพื่อให้ AP ขึ้นในระบบทันที</p>
+      <p class="text-xs text-slate-500 mb-2">💡 กด "Apply" ทีละ row เพื่อให้ AP ขึ้นในระบบทันที · <span class="text-amber-700">🔗 Auto-Linked rows = สร้างจาก Stock Opening ที่ paid=false</span></p>
       <table class="w-full text-sm">
         <thead class="bg-slate-100"><tr><th class="p-2 text-left">Supplier</th><th class="p-2 text-left">เลขที่บิล</th><th class="p-2 text-left">วันที่บิล</th><th class="p-2 text-right">ยอดค้าง</th><th class="p-2 text-left">วันครบกำหนด</th><th class="p-2">หมายเหตุ</th><th class="p-2 text-center">สถานะ</th><th></th></tr></thead>
         <tbody>
-          <tr v-for="x in ob.apItems" :key="x.id" class="border-t" :class="x.applied?'bg-emerald-50/40':''">
-            <td class="p-2"><select v-model="x.supplierId" :disabled="ob.locked" class="w-full px-1 py-1 border rounded"><option value="">-เลือก-</option><option v-for="s in db.suppliers" :key="s.id" :value="s.id">{{s.code}} - {{s.name}}</option></select></td>
+          <tr v-for="x in ob.apItems" :key="x.id" class="border-t" :class="[x.applied?'bg-emerald-50/40':'', x.autoLinked?'bg-amber-50/30':'']">
+            <td class="p-2">
+              <select v-model="x.supplierId" :disabled="ob.locked || x.autoLinked" class="w-full px-1 py-1 border rounded"><option value="">-เลือก-</option><option v-for="s in db.suppliers" :key="s.id" :value="s.id">{{s.code}} - {{s.name}}</option></select>
+              <div v-if="x.autoLinked" class="text-[10px] text-amber-700 mt-0.5">🔗 Auto จาก Stock</div>
+            </td>
             <td class="p-2"><input v-model="x.billNo" :disabled="ob.locked" class="w-full px-1 py-1 border rounded" placeholder="OPN-AP-001"></td>
             <td class="p-2"><input type="date" v-model="x.billDate" :disabled="ob.locked" class="w-full px-1 py-1 border rounded"></td>
             <td class="p-2"><input type="number" v-model.number="x.amount" :disabled="ob.locked" class="w-full px-1 py-1 border rounded text-right"></td>
@@ -30281,10 +30337,10 @@ app.component('view-openingBalance', {
           [{{l.at}}] {{l.msg}}
         </div>
       </div>
-      <p class="text-xs text-slate-500 mb-2">💡 กด "Apply" ทีละ row เพื่อสร้าง Stock Ledger <code>OPENING_STOCK_IN</code> ทันที (ไม่ต้องรอ Lock) · ขึ้นใน Stock Balance + COGS ใช้ได้เลย</p>
+      <p class="text-xs text-slate-500 mb-2">💡 กด "Apply" ทีละ row เพื่อสร้าง Stock Ledger <code>OPENING_STOCK_IN</code> ทันที · <span class="text-amber-700">ถ้ายังไม่ชำระ + เลือก Supplier → ระบบ <b>auto-สร้าง AP</b> ในแท็บ AP เจ้าหนี้ให้</span></p>
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
-          <thead class="bg-slate-100"><tr><th class="p-2 text-left">สินค้า</th><th class="p-2 text-left">RM/WIP/FG</th><th class="p-2 text-left">สาขา</th><th class="p-2 text-left">คลัง</th><th class="p-2 text-left">Lot</th><th class="p-2 text-right">Qty</th><th class="p-2 text-right">WAC/หน่วย</th><th class="p-2 text-right">มูลค่า</th><th class="p-2 text-center">จ่ายแล้ว</th><th class="p-2 text-center">สถานะ</th><th></th></tr></thead>
+          <thead class="bg-slate-100"><tr><th class="p-2 text-left">สินค้า</th><th class="p-2 text-left">Status</th><th class="p-2 text-left">สาขา</th><th class="p-2 text-left">คลัง</th><th class="p-2 text-left">Lot</th><th class="p-2 text-right">Qty</th><th class="p-2 text-right">WAC/หน่วย</th><th class="p-2 text-right">มูลค่า</th><th class="p-2 text-center">จ่ายแล้ว</th><th class="p-2 text-left bg-amber-50">🔗 Supplier (ถ้ายังไม่จ่าย)</th><th class="p-2 text-left bg-amber-50">เลขบิลซื้อ</th><th class="p-2 text-center">สถานะ</th><th></th></tr></thead>
           <tbody>
             <tr v-for="x in ob.stockItems" :key="x.id" class="border-t" :class="x.applied?'bg-emerald-50/40':''">
               <td class="p-2"><searchable-select v-model="x.productId" :options="db.products" label-field="name" code-field="code" :disabled="ob.locked" placeholder="🔍 พิมพ์รหัส/ชื่อสินค้า..." input-class="w-full px-1 py-1 border rounded" @change="x.itemStatus = (db.products.find(p=>p && p.id===x.productId)?.itemStatus) || x.itemStatus || 'RM'"></searchable-select></td>
@@ -30296,6 +30352,14 @@ app.component('view-openingBalance', {
               <td class="p-2"><input type="number" v-model.number="x.unitCost" :disabled="ob.locked" step="0.01" class="w-24 px-1 py-1 border rounded text-right"></td>
               <td class="p-2 text-right font-bold">{{fmt(Number(x.qty||0)*Number(x.unitCost||0))}}</td>
               <td class="p-2 text-center"><input type="checkbox" v-model="x.paid" :disabled="ob.locked"></td>
+              <td class="p-2 bg-amber-50/30">
+                <searchable-select v-if="!x.paid" v-model="x.supplierId" :options="db.suppliers.filter(s=>s && s.active!==false)" label-field="name" code-field="code" :disabled="ob.locked" placeholder="🔍 เลือก supplier..." input-class="w-full px-1 py-1 border rounded text-xs"></searchable-select>
+                <span v-else class="text-xs text-slate-400 italic">— จ่ายแล้ว —</span>
+              </td>
+              <td class="p-2 bg-amber-50/30">
+                <input v-if="!x.paid" v-model="x.linkedBillNo" :disabled="ob.locked" placeholder="(auto: STK-OPN-...)" class="w-full px-1 py-1 border rounded text-xs">
+                <span v-else class="text-xs text-slate-300">-</span>
+              </td>
               <td class="p-2 text-center">
                 <span v-if="x.applied" class="text-[10px] px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 font-bold">✓ Applied</span>
                 <span v-else class="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-700">⏳ Pending</span>
@@ -30307,7 +30371,7 @@ app.component('view-openingBalance', {
                 <button v-if="!ob.locked" @click="removeFromList(ob.stockItems, x.id, 'STOCK')" class="text-red-600 text-xs">✕</button>
               </td>
             </tr>
-            <tr v-if="!ob.stockItems.length"><td colspan="11" class="text-center py-4 text-slate-400">ยังไม่มีรายการ</td></tr>
+            <tr v-if="!ob.stockItems.length"><td colspan="13" class="text-center py-4 text-slate-400">ยังไม่มีรายการ</td></tr>
           </tbody>
         </table>
       </div>
