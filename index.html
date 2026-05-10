@@ -29181,17 +29181,29 @@ app.component('view-openingBalance', {
       } catch(e) { console.warn('[_cleanupOrphaned]', e); return 0; }
     }
 
-    /* 🆕 DEDUP — หา stock_ledger opening ที่ productId+branch+warehouse+lot ซ้ำ + ลบ
-       (เก็บอันแรก/เก่าสุด, ลบที่เหลือ ทั้ง local + cloud + cleanup OB.stockItems) */
+    /* 🆕 DEDUP — หา stock_ledger opening ที่ COMPOSITE KEY ซ้ำ + ลบ
+       Key ครบ 6 ส่วน: productId+branch+warehouse+lot+itemStatus+paid
+       → FG vs RM ของ product เดียวกัน = ไม่ถือว่าซ้ำ (key ต่าง)
+       → จ่ายแล้ว vs ยังไม่จ่าย = ไม่ถือว่าซ้ำ (key ต่าง) */
     async function dedupStockOpening() {
       try {
-        // 1. Group ledger by product+branch+warehouse+lot
+        // Helper: build composite key (ตรงกับ _refIdFor STOCK)
+        const slKey = (s) => {
+          const itemStatus = s.outputCategory || 'RM';
+          const paid = s.paid ? 'P' : 'U';
+          return (s.productId||'')+'|'+(s.branchId||'')+'|'+(s.warehouseId||'')+'|'+(s.lotNo||'')+'|'+itemStatus+'|'+paid;
+        };
+        const itemKey = (x) => {
+          return (x.productId||'')+'|'+(x.branchId||'')+'|'+(x.warehouseId||'')+'|'+(x.lotNo||'')+'|'+(x.itemStatus||'RM')+'|'+(x.paid?'P':'U');
+        };
+
+        // 1. Group ledger by composite key
         const opening = db.stockLedger.filter(s => s && s.refType === 'OPENING');
         const groups = {};
         opening.forEach(s => {
-          const key = (s.productId||'')+'|'+(s.branchId||'')+'|'+(s.warehouseId||'')+'|'+(s.lotNo||'');
-          if (!groups[key]) groups[key] = [];
-          groups[key].push(s);
+          const k = slKey(s);
+          if (!groups[k]) groups[k] = [];
+          groups[k].push(s);
         });
         // 2. Find duplicates (keep oldest, delete rest)
         const slToDelete = [];
@@ -29201,11 +29213,11 @@ app.component('view-openingBalance', {
             slToDelete.push(...groups[k].slice(1).map(s => s.id));
           }
         });
-        // 3. Dedup OB.stockItems by same key
+        // 3. Dedup OB.stockItems by same composite key
         const seenP = new Set();
         const obDups = [];
         (ob.value.stockItems||[]).forEach(x => {
-          const k = (x.productId||'')+'|'+(x.branchId||'')+'|'+(x.warehouseId||'')+'|'+(x.lotNo||'');
+          const k = itemKey(x);
           if (seenP.has(k)) obDups.push(x.id);
           else seenP.add(k);
         });
