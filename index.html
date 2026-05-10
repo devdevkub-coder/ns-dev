@@ -29157,6 +29157,61 @@ app.component('view-openingBalance', {
       } catch(e) { console.warn('[_cleanupOrphaned]', e); return 0; }
     }
 
+    /* 🆕 DEDUP — หา stock_ledger opening ที่ productId+branch+warehouse+lot ซ้ำ + ลบ
+       (เก็บอันแรก/เก่าสุด, ลบที่เหลือ ทั้ง local + cloud + cleanup OB.stockItems) */
+    async function dedupStockOpening() {
+      try {
+        // 1. Group ledger by product+branch+warehouse+lot
+        const opening = db.stockLedger.filter(s => s && s.refType === 'OPENING');
+        const groups = {};
+        opening.forEach(s => {
+          const key = (s.productId||'')+'|'+(s.branchId||'')+'|'+(s.warehouseId||'')+'|'+(s.lotNo||'');
+          if (!groups[key]) groups[key] = [];
+          groups[key].push(s);
+        });
+        // 2. Find duplicates (keep oldest, delete rest)
+        const slToDelete = [];
+        Object.keys(groups).forEach(k => {
+          if (groups[k].length > 1) {
+            groups[k].sort((a,b) => (a.createdAt||'').localeCompare(b.createdAt||''));
+            slToDelete.push(...groups[k].slice(1).map(s => s.id));
+          }
+        });
+        // 3. Dedup OB.stockItems by same key
+        const seenP = new Set();
+        const obDups = [];
+        (ob.value.stockItems||[]).forEach(x => {
+          const k = (x.productId||'')+'|'+(x.branchId||'')+'|'+(x.warehouseId||'')+'|'+(x.lotNo||'');
+          if (seenP.has(k)) obDups.push(x.id);
+          else seenP.add(k);
+        });
+
+        if (slToDelete.length === 0 && obDups.length === 0) {
+          erp.showToast('✓ ไม่พบ duplicate','success');
+          return;
+        }
+        if (!confirm(`พบ duplicate:\n• Stock Ledger: ${slToDelete.length}\n• Opening Items: ${obDups.length}\n\nลบ duplicates (เก็บอันแรก) ทั้ง local + cloud?`)) return;
+
+        // 4. Local cleanup
+        if (slToDelete.length) db.stockLedger = db.stockLedger.filter(s => !s || !slToDelete.includes(s.id));
+        if (obDups.length) db.openingBalance.stockItems = db.openingBalance.stockItems.filter(x => !obDups.includes(x.id));
+        try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+
+        // 5. Cloud cleanup
+        if (slToDelete.length && erp.deleteCloud) {
+          await erp.deleteCloud('stockLedger', slToDelete);
+        }
+        if (obDups.length && window.$autoSync?.pushOpeningBalance) {
+          await window.$autoSync.pushOpeningBalance();
+        }
+
+        erp.logAudit('OPENING_DEDUP','openingBalance',null,{slRemoved:slToDelete.length, obRemoved:obDups.length});
+        erp.showToast(`✓ ลบ duplicate สำเร็จ — SL:${slToDelete.length} · OB items:${obDups.length}`,'success');
+      } catch (e) {
+        console.error(e); erp.showToast('Dedup ผิดพลาด: '+e.message,'error');
+      }
+    }
+
     /* 🆕 RESET ALL OPENING — ลบทุก opening entries ทั้งหมด (local + cloud) + reset items */
     async function resetAllOpening() {
       if (!confirm('🗑 RESET Opening Balance ทั้งหมด?\n\n• ลบ Stock Ledger opening · Sales/Purchase Bills opening (local + cloud)\n• Reset applied=false ทุก item\n• กด Save & Apply All ใหม่หลังจากนี้\n\nดำเนินการต่อ?')) return;
@@ -29652,7 +29707,7 @@ app.component('view-openingBalance', {
     return { erp, db, fmt, tab, ob, summary, addAR, addAP, addStock, addOR, addOP,
       removeFromList, save, forceSyncPush, lockOpening, unlockOpening, showLockResult,
       // 🆕 Per-item apply
-      toggleApply, reApply, resetAllOpening,
+      toggleApply, reApply, resetAllOpening, dedupStockOpening,
       // 🆕 Excel import
       importLog, downloadTemplate, handleImportFile };
   },
@@ -30098,7 +30153,8 @@ app.component('view-openingBalance', {
         </p>
         <div class="flex gap-2 flex-wrap">
           <button @click="save" :disabled="ob.locked" class="px-5 py-2 bg-emerald-600 text-white rounded font-bold hover:bg-emerald-700 disabled:opacity-50">💾 Save & Apply All</button>
-          <button v-if="!ob.locked" @click="resetAllOpening" class="px-5 py-2 bg-red-600 text-white rounded font-bold hover:bg-red-700" title="ลบ stock_ledger / sales_bills / purchase_bills opening ทั้ง local + cloud + reset apply state">🗑 Reset All Opening</button>
+          <button v-if="!ob.locked" @click="dedupStockOpening" class="px-5 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700" title="ลบ stock_ledger + items ที่ productId+branch+warehouse+lot ซ้ำ (เก็บอันแรก)">🔍 ลบ Duplicate</button>
+          <button v-if="!ob.locked" @click="resetAllOpening" class="px-5 py-2 bg-red-600 text-white rounded font-bold hover:bg-red-700" title="ลบ opening entries ทั้งหมด (local + cloud) + reset apply state">🗑 Reset All Opening</button>
           <button v-if="!ob.locked" @click="lockOpening" class="px-5 py-2 bg-amber-600 text-white rounded font-bold hover:bg-amber-700">🔒 Final Lock</button>
           <button v-else @click="unlockOpening" class="px-5 py-2 bg-red-600 text-white rounded font-bold hover:bg-red-700">🔓 Unlock</button>
         </div>
