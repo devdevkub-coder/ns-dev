@@ -28203,7 +28203,8 @@ app.component('view-importTxn', {
     const erp = window.$erp; const db = erp.db; const fmt = erp.fmt;
     const tab = ref('import');
     const txnType = ref('purchase'); // 'purchase' | 'sales'
-    const importMode = ref('preview'); // 'draft' | 'post' | 'valid_only' | 'create_or_update'
+    const importMode = ref('post'); // 🔧 default = 'post' → ครบทุกขั้น (สร้าง stock_ledger + status=unpaid)
+    // เก่า: 'preview' (ไม่ match dropdown → fallback = draft behavior → ไม่สร้าง stock_ledger + payableBalance=0)
     const fileName = ref('');
     const headers = ref([]);
     const rawRows = ref([]);
@@ -28381,24 +28382,29 @@ app.component('view-importTxn', {
           if (col.type === 'date' && v === '__INVALID_DATE__') errors.push(`Header: ${col.label} รูปแบบวันที่ไม่ถูก`);
         });
 
-        // Lookup master data
+        // Lookup master data — 🔧 case-insensitive + trim
+        const _findByCode = (list, codeRaw) => {
+          if (!codeRaw) return null;
+          const norm = String(codeRaw).trim().toUpperCase();
+          return _trkSafe(list).find(x => x && (x.code === codeRaw || String(x.code||'').trim().toUpperCase() === norm));
+        };
         let supplier = null, customer = null, branch = null, warehouse = null, channel = null;
         if (txnType.value === 'purchase') {
-          supplier = _trkSafe(db.suppliers).find(x => x && x.code === h.supplierCode);
+          supplier = _findByCode(db.suppliers, h.supplierCode);
           if (!supplier) errors.push(`รหัสผู้ขาย "${h.supplierCode}" ไม่พบ`);
         } else {
-          customer = _trkSafe(db.customers).find(x => x && x.code === h.customerCode);
+          customer = _findByCode(db.customers, h.customerCode);
           if (!customer) errors.push(`รหัสลูกค้า "${h.customerCode}" ไม่พบ`);
         }
         // 🚫 TRADING — branch/warehouse/channel เป็น optional (ถ้าใส่มาก็ lookup, ถ้าไม่ใส่ก็ปล่อยว่าง)
         if (h.branchCode) {
-          branch = _trkSafe(db.branches).find(x => x && x.code === h.branchCode);
+          branch = _findByCode(db.branches, h.branchCode);
           if (!branch && !isTrading) errors.push(`[${modeBadge}] รหัสสาขา "${h.branchCode}" ไม่พบ`);
         } else if (!isTrading) {
           errors.push(`[${modeBadge}] รหัสสาขา จำเป็น — ถ้าเป็น Trading ใส่คอลัมน์ "Mode" = TRADING`);
         }
         if (h.warehouseCode) {
-          warehouse = _trkSafe(db.warehouses).find(x => x && x.code === h.warehouseCode);
+          warehouse = _findByCode(db.warehouses, h.warehouseCode);
           if (!warehouse && !isTrading) errors.push(`[${modeBadge}] รหัสคลัง "${h.warehouseCode}" ไม่พบ`);
         } else if (!isTrading) {
           errors.push(`[${modeBadge}] รหัสคลัง จำเป็น — ถ้าเป็น Trading ใส่คอลัมน์ "Mode" = TRADING`);
@@ -28443,7 +28449,12 @@ app.component('view-importTxn', {
             if (col.required && (v === '' || v === null || v === undefined || (col.type==='number' && Number(v)<=0))) lineErr.push(`บรรทัด ${li+1}: ${col.label}`);
             if (col.type === 'number' && Number.isNaN(v)) lineErr.push(`บรรทัด ${li+1}: ${col.label} ต้องเป็นตัวเลข`);
           });
-          const product = _trkSafe(db.products).find(p => p && p.code === ln.productCode);
+          // 🔧 Product lookup — case-insensitive + trim เพื่อให้ "p001" / "P001 " / "P001" match กันได้
+          const codeNorm = String(ln.productCode||'').trim().toUpperCase();
+          const product = _trkSafe(db.products).find(p =>
+            p && (p.code === ln.productCode ||
+                  String(p.code||'').trim().toUpperCase() === codeNorm)
+          );
           if (!product) lineErr.push(`บรรทัด ${li+1}: รหัสสินค้า "${ln.productCode}" ไม่พบ`);
           if (lineErr.length) errors.push(...lineErr);
 
@@ -28547,6 +28558,15 @@ app.component('view-importTxn', {
         };
         const importId = 'IMPTXN-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,5);
         const createdIds = []; const stockEntries = []; const updatedPOs = [];
+        // 🆕 Diagnostic: บอก user ชัดว่ารัน mode อะไร
+        const _willPostGlobal = (importMode.value === 'post' || importMode.value === 'valid_only');
+        console.log('[Import Commit]', {
+          importMode: importMode.value, willPost: _willPostGlobal,
+          billCount: bills.length, txnType: txnType.value, importId
+        });
+        if (!_willPostGlobal) {
+          console.warn('[Import Commit] ⚠ DRAFT mode — บิลจะถูก save แต่ไม่สร้าง stock_ledger! กรุณาเลือก "Post" mode ถ้าต้องการ stock movement');
+        }
 
         bills.forEach(b => {
           const h = b.header;
@@ -28572,6 +28592,10 @@ app.component('view-importTxn', {
             }));
             const totalAmount = items.reduce((s,it)=>s+it.netAmount,0);
             const txnMode = (h.transactionMode === 'TRADING') ? 'TRADING' : 'STOCK';
+            // 🔍 Diagnostic per-bill — show items count + total
+            console.log(`[Import] ${h.docNo} (${txnMode}) → items: ${items.length} · total: ${totalAmount.toFixed(2)} · willPost: ${willPost}`);
+            if (items.length === 0) console.warn(`[Import] ⚠ ${h.docNo} — ไม่มี items! (b.lines.length=${b.lines.length})`, b.lines);
+            if (totalAmount === 0) console.warn(`[Import] ⚠ ${h.docNo} — ยอดรวม=0 (อาจจะเป็นเพราะ price=0 หรือ netWeight=0)`, items);
             const billRec = {
               id: billId, docNo: h.docNo, date: h.date,
               supplierId: b.supplier?.id || '', branchId: b.branch?.id || '', warehouseId: b.warehouse?.id || '',
@@ -28741,6 +28765,15 @@ app.component('view-importTxn', {
         erp.logAudit('IMPORT_TXN', sc.collection, {file:fileName.value}, {bills:bills.length, mode:importMode.value});
         try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
         lastResult.value = log;
+        // 🆕 Final summary log + clearer toast
+        const totalItems = bills.reduce((s,b)=>s+(b.lines?.length||0), 0);
+        const totalAmt   = bills.reduce((s,b)=>s+(b.totalAmount||0), 0);
+        console.log(`[Import] ✅ DONE — ${bills.length} bills · ${totalItems} items · ฿${totalAmt.toFixed(2)} · stock_ledger entries: ${stockEntries.length}`);
+        if (stockEntries.length === 0 && _willPostGlobal) {
+          console.warn('[Import] ⚠ stock_ledger ว่าง! ทั้งที่อยู่ใน Post mode — ตรวจ console ว่ามี items: 0 หรือไม่');
+        }
+        const modeLabel = _willPostGlobal ? 'POST (มี Stock Ledger)' : 'DRAFT (ไม่มี Stock Ledger)';
+        erp.showToast(`✅ Import ${bills.length} บิล · ${totalItems} items · ${modeLabel}`, 'success');
         showResultModal.value = true;
         clearAll();
       } catch (e) {
