@@ -21421,6 +21421,12 @@ app.component('view-mdImport', {
               newRec.totalAmount = qty * price;
               newRec.remainingQty = qty;       // เริ่มต้น = qty (ยังไม่ตัด)
               newRec.status = 'Open';
+              // 🆕 Cost-Pool only — Import PO Buy ใช้สำหรับ Deal Costing เท่านั้น
+              // ไม่เข้า PO Outstanding · ไม่ track การส่งของจริง · ไม่กระทบ stock
+              // ใช้สำหรับ match กับ PO Sell ใน Cost Pool
+              newRec.requireDelivery = false;
+              newRec.isOpeningPool = true;     // mark ว่าเป็น opening pool entry
+              newRec.purpose = newRec.purpose || 'Trading';   // default = Trading (จับคู่ขาย)
               newRec.createdAt = new Date().toISOString();
               newRec.createdBy = erp.currentUser?.value?.username || 'import';
             }
@@ -21861,16 +21867,21 @@ app.component('view-mdImport', {
             💡 <strong>Product Opening Stock</strong>: ถ้ากรอก openingQty &gt; 0 ระบบจะสร้าง <code>OPENING_STOCK_IN</code> ใน Stock Ledger พร้อม WAC เริ่มต้นจาก openingUnitCost ใช้ได้เฉพาะรหัส<strong>ใหม่</strong>เท่านั้น (Update จะข้าม)
           </div>
           <div v-if="entityType==='poBuy'" class="text-xs text-purple-700 bg-purple-50 border-2 border-purple-300 rounded p-3 mt-2 space-y-1.5">
-            <div class="font-bold text-purple-900">📋 PO Buy — สำหรับตั้งต้น Dual Costing</div>
-            <div>📌 <b>Use case:</b> ตั้งต้นข้อมูลก่อน Go-Live — ระบบจะใช้ PO Buy เป็น "ของจองไว้" ที่บิลซื้อจริงจะมา <b>"ตัด PO"</b> ในภายหลัง</div>
+            <div class="font-bold text-purple-900">📋 PO Buy Import — ตั้งต้น Cost Pool (สำหรับ Deal Costing)</div>
+            <div>📌 <b>Use case:</b> นำเข้าข้อมูล PO Buy เพื่อใช้เป็น <b>cost source ใน Cost Pool</b> สำหรับ match กับ PO Sell</div>
+            <div class="bg-amber-50 border border-amber-300 rounded p-2 mt-2">
+              ⚠ <b>สำคัญ:</b> Imported PO Buy <b>ไม่เข้า PO Outstanding</b> · ไม่ track delivery · ไม่กระทบ Stock<br>
+              ใช้สำหรับ <b>Cost Pool / Deal Costing</b> เท่านั้น (matching กับ PO Sell)<br>
+              <span class="text-amber-900">PO ของจริง</span> (ที่ supplier ต้องส่งของ) → สร้างผ่านหน้า <b>📋 PO Buy</b> โดยตรง (ไม่ใช่ที่นี่)
+            </div>
             <div class="border-t border-purple-200 pt-1.5 mt-1.5">
               <b>Template (11 columns):</b> เลขที่ PO | วันที่ | Supplier | สินค้า | จำนวน | ราคา | คาดส่ง | สาขา | ช่องทาง | วัตถุประสงค์ | หมายเหตุ
             </div>
             <div>💡 <b>Tips:</b></div>
             <div class="ml-4">• <b>ชื่อ Supplier/สินค้า/สาขา</b> = ระบบจะ resolve เป็น id อัตโนมัติ (ต้องมี master data ก่อน)</div>
-            <div class="ml-4">• <b>วัตถุประสงค์</b> = "Stock" (เข้า WAC) หรือ "Trading" (จับคู่ขาย)</div>
-            <div class="ml-4">• <b>totalAmount + remainingQty</b> ระบบคำนวณให้อัตโนมัติ (qty × unitPrice, remaining = qty)</div>
-            <div class="ml-4">• <b>Status</b> = Open ตอน import — เปลี่ยนเป็น Partial/Closed อัตโนมัติเมื่อมีบิลตัด</div>
+            <div class="ml-4">• <b>วัตถุประสงค์</b> = "Trading" (default — จับคู่ขาย) หรือ "Stock" (เข้า WAC)</div>
+            <div class="ml-4">• Auto-set: <code>requireDelivery=false</code>, <code>isOpeningPool=true</code> → ไม่ขึ้น PO Outstanding</div>
+            <div class="ml-4">• พร้อม match กับ PO Sell ทันทีในหน้า <b>💰 Cost Pool / 🤝 Cost Allocator</b></div>
           </div>
           <div v-if="entityType==='supplier'" class="text-xs text-blue-700 bg-blue-50 border-2 border-blue-300 rounded p-3 mt-2 space-y-1.5">
             <div class="font-bold text-blue-900">🏭 ผู้ขาย (Supplier) — คน/ร้านที่ขายเศษโลหะให้เรา</div>
