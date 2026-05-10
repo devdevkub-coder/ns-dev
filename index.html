@@ -31774,18 +31774,22 @@ app.component('view-gradeAdjustment', {
       branchId:'', warehouseId:'',
       sourceProductId:'',
       sourceQty: 0,
-      allocationMode: 'FIFO',         // 🆕 FIFO | LIFO | Highest | Lowest | Manual
-      sourceLots: [],                 // 🆕 จาก matchPoolLots() — array of {cost_pool_id, source_no, lotNo, qty, unitCost, totalCost}
-      manualLots: [],                 // 🆕 user-edit version (Manual mode)
+      allocationMode: 'FIFO',         // FIFO | LIFO | Highest | Lowest | Manual
+      sourceLots: [],                 // จาก matchPoolLots() — array of {cost_pool_id, source_no, lotNo, qty, unitCost, totalCost}
+      manualLots: [],                 // user-edit version (Manual mode)
       sourceUnitCost: 0,              // weighted avg
       sourceTotalCost: 0,
       targetProductId:'', targetLotNo:'',
       targetQty: 0,
-      targetUnitCost: 0,              // 🆕 = sourceUnitCost (ไม่กระโดด)
+      targetUnitCost: 0,              // = sourceUnitCost (ไม่กระโดด)
       targetTotalCost: 0,
-      lossQty: 0, lossReason: '', lossValue: 0,
-      yieldDiff: 0,                   // 🆕 input - output diff
-      costAdjustment: 0,              // 🆕 ค่าแรง process / รวม diff manual
+      // 📒 NOTE-ONLY tracking (ไม่ลง P&L จริง)
+      lossQty: 0, lossReason: '',
+      lossValueNote: 0,               // มูลค่า loss (track only)
+      yieldDiffNote: 0,               // input - output diff (track only)
+      overQty: 0, overValueNote: 0,   // กรณี output > input (เบิกเกิน)
+      // 💰 ลง P&L จริง
+      costAdjustment: 0,              // process cost / ค่าแรง
       costAdjustmentReason: '',
       reason: '', remark: '',
       status: 'draft',
@@ -31834,7 +31838,7 @@ app.component('view-gradeAdjustment', {
       }
     });
 
-    /* Cost Summary — แยก 3 ส่วน */
+    /* Cost Summary — แยกชัด: P&L Impact (Cost Adj เท่านั้น) vs Note-Only Tracking (Loss/Diff) */
     const costSummary = computed(() => {
       const f = form.value;
       const lots = previewLots.value;
@@ -31844,14 +31848,20 @@ app.component('view-gradeAdjustment', {
       // 🎯 KEY: targetUnitCost = sourceUnitCost (ไม่กระโดด!)
       const targetQty = Number(f.targetQty||0);
       const lossQty = Math.max(0, sourceQty - targetQty);
-      const targetUnitCost = sourceUnitCost; // ใช้ต้นทุนเดิม
+      const overQty = Math.max(0, targetQty - sourceQty);  // 🆕 output > input
+      const targetUnitCost = sourceUnitCost;                // ใช้ต้นทุนเดิม
       const targetTotalCost = targetQty * targetUnitCost;
-      const lossValue = lossQty * sourceUnitCost; // → P&L expense
-      const yieldDiff = sourceTotalCost - targetTotalCost - lossValue; // ปกติ = 0
+      // 📒 NOTE-ONLY (ไม่ลง P&L) — แค่ track เพื่อ analysis
+      const lossValueNote = lossQty * sourceUnitCost;        // มูลค่าของที่หายไป (track only)
+      const yieldDiffNote = sourceTotalCost - targetTotalCost; // diff input vs output (track only)
+      const overValueNote = overQty * sourceUnitCost;        // 🆕 มูลค่าของที่เกิน (ถ้ามี)
+      // 💰 P&L IMPACT จริง — เฉพาะ Cost Adjustment
       const costAdjustment = Number(f.costAdjustment||0);
-      const totalPLImpact = -(lossValue + Math.abs(yieldDiff) + Math.max(0, costAdjustment));
+      const realPLImpact = -costAdjustment;  // negative = expense, positive = gain
       return { sourceTotalCost, sourceUnitCost, targetUnitCost, targetTotalCost,
-        lossQty, lossValue, yieldDiff, costAdjustment, totalPLImpact };
+        lossQty, overQty,
+        lossValueNote, yieldDiffNote, overValueNote,   // note-only
+        costAdjustment, realPLImpact };
     });
 
     /* Auto-update form when costSummary changes */
@@ -31862,8 +31872,10 @@ app.component('view-gradeAdjustment', {
       f.targetUnitCost = cs.targetUnitCost;
       f.targetTotalCost = cs.targetTotalCost;
       f.lossQty = cs.lossQty;
-      f.lossValue = cs.lossValue;
-      f.yieldDiff = cs.yieldDiff;
+      f.overQty = cs.overQty;
+      f.lossValueNote = cs.lossValueNote;
+      f.yieldDiffNote = cs.yieldDiffNote;
+      f.overValueNote = cs.overValueNote;
     }, { deep: true });
 
     /* Manual mode helper — add/remove lot */
@@ -31911,11 +31923,16 @@ app.component('view-gradeAdjustment', {
           sourceLots: lots.map(l => ({...l})), // snapshot
           sourceUnitCost: cs.sourceUnitCost,
           sourceTotalCost: cs.sourceTotalCost,
-          targetUnitCost: cs.targetUnitCost,
+          targetUnitCost: cs.targetUnitCost,    // = sourceUnitCost (ไม่กระโดด)
           targetTotalCost: cs.targetTotalCost,
+          // 📒 NOTE-ONLY tracking (ไม่ลง P&L)
           lossQty: cs.lossQty,
-          lossValue: cs.lossValue,
-          yieldDiff: cs.yieldDiff,
+          lossValueNote: cs.lossValueNote,
+          yieldDiffNote: cs.yieldDiffNote,
+          overQty: cs.overQty,
+          overValueNote: cs.overValueNote,
+          // 💰 ลง P&L จริง
+          costAdjustment: cs.costAdjustment,
           stockLedgerIds: [],
           matchLogIds: [],
           postedAt: new Date().toISOString(),
@@ -31978,21 +31995,26 @@ app.component('view-gradeAdjustment', {
         });
         rec.stockLedgerIds.push(slIn);
 
-        // 4. Stock Ledger LOSS — qty-only audit + value (write-off → P&L)
-        if (cs.lossQty > 0) {
-          const slLoss = erp.uid('SL');
+        // 4. Stock Ledger LOSS — NOTE-ONLY (ไม่กระทบ qty + value ใน stock ledger)
+        // ตามที่ user กำหนด: Loss ไม่ลง P&L · ไม่กระทบ COGS ของ FG · เก็บแค่ tracking note
+        if (cs.lossQty > 0 || cs.overQty > 0) {
+          const slNote = erp.uid('SL');
+          const isOver = cs.overQty > 0;
           db.stockLedger.push({
-            id: slLoss, date: f.date,
+            id: slNote, date: f.date,
             refType:'GA', refId: id, refNo: f.docNo,
-            movementType:'GRADE_ADJUST_LOSS',
-            productId: f.sourceProductId, lotNo: '-LOSS',
+            movementType: isOver ? 'GRADE_ADJUST_OVER_NOTE' : 'GRADE_ADJUST_LOSS_NOTE',
+            productId: f.sourceProductId, lotNo: isOver ? '-OVER' : '-LOSS',
             branchId: f.branchId, warehouseId: f.warehouseId,
-            qtyIn: 0, qtyOut: 0,
-            unitCost: cs.sourceUnitCost, valueIn: 0, valueOut: cs.lossValue,
-            note: `Loss ${cs.lossQty} กก. = ${fmt(cs.lossValue)} ฿ — ${f.lossReason||''}`,
+            qtyIn: 0, qtyOut: 0,            // ⭐ qty=0 — ของถูกตัดใน OUT entries แล้ว
+            unitCost: cs.sourceUnitCost,
+            valueIn: 0, valueOut: 0,         // ⭐ value=0 — ไม่กระทบ stock value (note-only)
+            note: isOver
+              ? `📒 NOTE: Output > Input ${cs.overQty} กก. = ${fmt(cs.overValueNote)} ฿ (เบิกเกิน) — ${f.lossReason||''}`
+              : `📒 NOTE: Loss ${cs.lossQty} กก. = ${fmt(cs.lossValueNote)} ฿ (ไม่ลง P&L · เก็บ track เท่านั้น) — ${f.lossReason||''}`,
             createdBy: username
           });
-          rec.stockLedgerIds.push(slLoss);
+          rec.stockLedgerIds.push(slNote);
         }
 
         db.gradeAdjustments.push(rec);
@@ -32261,40 +32283,79 @@ app.component('view-gradeAdjustment', {
             </div>
           </div>
 
-          <!-- LOSS (auto) -->
-          <div v-if="costSummary.lossQty > 0" class="bg-amber-50 border-l-4 border-amber-500 rounded p-3">
-            <h4 class="font-bold text-amber-700 mb-2">⚠ Loss / Waste (auto จาก Source - Target)</h4>
+          <!-- LOSS / OVER — NOTE ONLY (ไม่ลง P&L) -->
+          <div v-if="costSummary.lossQty > 0 || costSummary.overQty > 0" class="bg-amber-50 border-l-4 border-amber-500 rounded p-3">
+            <h4 class="font-bold text-amber-700 mb-2">📒 Loss / Yield Tracking <span class="text-xs font-normal text-slate-500">(Note-Only · ไม่ลง P&L)</span></h4>
             <div class="grid grid-cols-3 gap-3">
-              <div><label class="text-xs">Loss Qty</label><input :value="fmt(costSummary.lossQty) + ' กก.'" readonly class="w-full px-2 py-1.5 border rounded bg-slate-100 text-right font-bold text-red-700"></div>
-              <div><label class="text-xs">Loss Value (P&L)</label><input :value="fmt(costSummary.lossValue) + ' ฿'" readonly class="w-full px-2 py-1.5 border rounded bg-slate-100 text-right font-bold text-red-700"></div>
-              <div><label class="text-xs">เหตุผล *</label><input v-model="form.lossReason" placeholder="เช่น เกิด Scrap จาก process" class="w-full px-2 py-1.5 border rounded"></div>
+              <div v-if="costSummary.lossQty > 0">
+                <label class="text-xs text-red-700">เบิกขาด (Loss)</label>
+                <input :value="fmt(costSummary.lossQty) + ' กก. = ' + fmt(costSummary.lossValueNote) + ' ฿'" readonly class="w-full px-2 py-1.5 border rounded bg-slate-100 text-right font-bold text-red-700">
+              </div>
+              <div v-if="costSummary.overQty > 0">
+                <label class="text-xs text-blue-700">เบิกเกิน (Over)</label>
+                <input :value="fmt(costSummary.overQty) + ' กก. = ' + fmt(costSummary.overValueNote) + ' ฿'" readonly class="w-full px-2 py-1.5 border rounded bg-slate-100 text-right font-bold text-blue-700">
+              </div>
+              <div :class="(costSummary.lossQty>0 && costSummary.overQty>0) ? '' : 'col-span-2'">
+                <label class="text-xs">เหตุผล *</label>
+                <input v-model="form.lossReason" placeholder="เช่น เกิด Scrap จาก process / เบิกผิด" class="w-full px-2 py-1.5 border rounded">
+              </div>
             </div>
-            <div class="text-[10px] text-amber-700 mt-1">⚠ Loss Value จะถูก write-off เป็น P&L Expense — ไม่กระทบ WAC ของ FG</div>
+            <div class="text-[10px] text-amber-700 mt-1">
+              ⓘ ตัวเลขนี้เก็บไว้สำหรับ <b>track Yield/Loss เท่านั้น</b> · ไม่กระทบ COGS · ไม่ลง P&L · WAC ของ FG ไม่เปลี่ยน
+            </div>
           </div>
 
-          <!-- COST ADJUSTMENT (optional) -->
+          <!-- COST ADJUSTMENT (optional) — ลง P&L จริง -->
           <div class="bg-purple-50 border-l-4 border-purple-500 rounded p-3">
-            <h4 class="font-bold text-purple-700 mb-2">💼 Cost Adjustment (แยก ไม่กระทบ WAC)</h4>
+            <h4 class="font-bold text-purple-700 mb-2">💼 Cost Adjustment <span class="text-xs font-normal text-slate-500">(ลง P&L จริง · เช่น ค่าแรง process)</span></h4>
             <div class="grid grid-cols-2 gap-3">
               <div><label class="text-xs">Adjustment (+/-) ฿</label><input type="number" step="0.01" v-model.number="form.costAdjustment" placeholder="0" class="w-full px-2 py-1.5 border rounded text-right"></div>
-              <div><label class="text-xs">เหตุผล</label><input v-model="form.costAdjustmentReason" placeholder="เช่น ค่าแรง process / ค่าแรง" class="w-full px-2 py-1.5 border rounded"></div>
+              <div><label class="text-xs">เหตุผล</label><input v-model="form.costAdjustmentReason" placeholder="เช่น ค่าแรง process / ค่าน้ำค่าไฟ" class="w-full px-2 py-1.5 border rounded"></div>
             </div>
-            <div class="text-[10px] text-purple-700 mt-1">💡 ตัวเลขนี้ลง P&L แยก ไม่เข้า FG cost — ทำให้ WAC FG ไม่กระโดด</div>
+            <div class="text-[10px] text-purple-700 mt-1">💡 Cost Adjustment <b>ลง P&L แยก</b> ไม่เข้า FG cost → WAC FG ไม่กระโดด</div>
           </div>
 
-          <!-- P&L IMPACT SUMMARY -->
-          <div class="bg-slate-100 rounded p-3 border-2 border-slate-300">
-            <h4 class="font-bold text-slate-700 mb-2">📊 สรุป P&L Impact (แยก ไม่ปนกัน)</h4>
-            <table class="w-full text-xs">
-              <tbody>
-                <tr><td class="py-1 text-slate-600">มูลค่า Source ตัดออก (input)</td><td class="text-right font-mono">{{fmt(costSummary.sourceTotalCost)}}</td></tr>
-                <tr><td class="py-1 text-slate-600">- มูลค่า Target รับเข้า (output)</td><td class="text-right font-mono text-emerald-700">{{fmt(costSummary.targetTotalCost)}}</td></tr>
-                <tr><td class="py-1 text-slate-600">- มูลค่า Loss (write-off → P&L)</td><td class="text-right font-mono text-red-700">{{fmt(costSummary.lossValue)}}</td></tr>
-                <tr class="border-t"><td class="py-1 text-slate-600 font-medium">= Yield Diff (ปกติ = 0)</td><td class="text-right font-mono" :class="Math.abs(costSummary.yieldDiff)<0.01?'text-emerald-600':'text-amber-600'">{{fmt(costSummary.yieldDiff)}}</td></tr>
-                <tr class="border-t"><td class="py-1 text-purple-700 font-medium">+ Cost Adjustment (แยก)</td><td class="text-right font-mono text-purple-700">{{fmt(costSummary.costAdjustment)}}</td></tr>
-                <tr class="border-t-2 border-slate-400 font-bold bg-white"><td class="py-1 text-slate-800">P&L Impact รวม</td><td class="text-right font-mono" :class="costSummary.totalPLImpact<0?'text-red-700':'text-emerald-700'">{{fmt(costSummary.totalPLImpact)}} ฿</td></tr>
-              </tbody>
-            </table>
+          <!-- COST FLOW SUMMARY — แยก 2 ส่วนชัด -->
+          <div class="bg-slate-100 rounded p-3 border-2 border-slate-300 space-y-3">
+            <h4 class="font-bold text-slate-700">📊 สรุปการเคลื่อนต้นทุน</h4>
+
+            <!-- Section 1: Stock/Cost Flow -->
+            <div class="bg-white rounded p-2">
+              <div class="text-xs font-bold text-slate-600 mb-1">🔄 Stock & Cost Flow (ใน Cost Pool / Stock)</div>
+              <table class="w-full text-xs">
+                <tbody>
+                  <tr><td class="py-1 text-slate-600">มูลค่า Source ตัดออกจาก Pool (input)</td><td class="text-right font-mono">{{fmt(costSummary.sourceTotalCost)}}</td></tr>
+                  <tr><td class="py-1 text-slate-600">มูลค่า Target รับเข้า Pool (output) <span class="text-[10px] text-slate-400">@ {{fmt(costSummary.targetUnitCost)}} ฿/กก.</span></td><td class="text-right font-mono text-emerald-700">{{fmt(costSummary.targetTotalCost)}}</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Section 2: Note-Only Tracking -->
+            <div v-if="costSummary.lossQty>0 || costSummary.overQty>0 || Math.abs(costSummary.yieldDiffNote)>0.01" class="bg-amber-50 rounded p-2">
+              <div class="text-xs font-bold text-amber-700 mb-1">📒 Note-Only Tracking (ไม่ลง P&L · เก็บไว้ track เท่านั้น)</div>
+              <table class="w-full text-xs">
+                <tbody>
+                  <tr v-if="costSummary.lossQty>0"><td class="py-1 text-slate-600">เบิกขาด (Loss)</td><td class="text-right font-mono text-red-700">{{fmt(costSummary.lossQty)}} กก. = {{fmt(costSummary.lossValueNote)}} ฿</td></tr>
+                  <tr v-if="costSummary.overQty>0"><td class="py-1 text-slate-600">เบิกเกิน (Over)</td><td class="text-right font-mono text-blue-700">{{fmt(costSummary.overQty)}} กก. = {{fmt(costSummary.overValueNote)}} ฿</td></tr>
+                  <tr><td class="py-1 text-slate-600">Yield Diff (Source - Target)</td><td class="text-right font-mono">{{fmt(costSummary.yieldDiffNote)}}</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Section 3: REAL P&L Impact (Cost Adjustment เท่านั้น) -->
+            <div class="bg-purple-50 rounded p-2 border-2 border-purple-300">
+              <div class="text-xs font-bold text-purple-700 mb-1">💰 P&L Impact จริง (เฉพาะ Cost Adjustment)</div>
+              <table class="w-full text-xs">
+                <tbody>
+                  <tr><td class="py-1 text-slate-600">Cost Adjustment</td><td class="text-right font-mono text-purple-700">{{fmt(costSummary.costAdjustment)}}</td></tr>
+                  <tr class="border-t-2 border-purple-400 font-bold"><td class="py-1 text-slate-800">P&L Impact รวม</td><td class="text-right font-mono" :class="costSummary.realPLImpact<0?'text-red-700':costSummary.realPLImpact>0?'text-emerald-700':'text-slate-500'">{{fmt(costSummary.realPLImpact)}} ฿</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="text-[10px] text-slate-500 italic">
+              ⚖ Stock Ledger value: source out = {{fmt(costSummary.sourceTotalCost)}} · target in = {{fmt(costSummary.targetTotalCost)}} · diff = {{fmt(costSummary.yieldDiffNote)}} (off-book — ไม่ลงบัญชี)
+            </div>
           </div>
 
           <div><label class="text-xs">เหตุผล / Reason</label><input v-model="form.reason" placeholder="เช่น คัดเกรดใหม่ / รวม Lot / เปลี่ยน Status RM→FG" class="w-full px-2 py-1.5 border rounded"></div>
