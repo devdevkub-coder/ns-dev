@@ -29379,13 +29379,24 @@ app.component('view-openingBalance', {
 
     /* Helper to mutate arrays directly with reactivity */
     function addAR() { ob.value.arItems.push({ id:'OB-AR-'+Date.now()+'-'+Math.random().toString(36).slice(2,5), customerId:'', billNo:'', billDate:ob.value.cutoffDate, amount:0, dueDate:'', note:'' }); }
-    function addAP() { ob.value.apItems.push({ id:'OB-AP-'+Date.now()+'-'+Math.random().toString(36).slice(2,5), supplierId:'', billNo:'', billDate:ob.value.cutoffDate, amount:0, dueDate:'', note:'', apType:'Cost' }); }
-    /* 🆕 AP filter — All / Cost / Expense */
+    function addAP() {
+      // 🆕 Auto-set apType ตาม tab ปัจจุบัน
+      const defaultType = (tab.value === 'apExpense') ? 'Expense' : 'Cost';
+      ob.value.apItems.push({ id:'OB-AP-'+Date.now()+'-'+Math.random().toString(36).slice(2,5), supplierId:'', billNo:'', billDate:ob.value.cutoffDate, amount:0, dueDate:'', note:'', apType:defaultType });
+    }
+    /* 🆕 AP filter — All / Cost / Expense — auto-sync จาก top tab (apCost/apExpense) */
     const apFilter = ref('all');  // 'all' | 'cost' | 'expense'
+    const apEffectiveFilter = computed(() => {
+      // Top-level tab override → ถ้าอยู่ใน tab แยกแล้ว บังคับ filter ตาม tab
+      if (tab.value === 'apCost') return 'cost';
+      if (tab.value === 'apExpense') return 'expense';
+      return apFilter.value;
+    });
     const apFiltered = computed(() => {
       const items = ob.value.apItems || [];
-      if (apFilter.value === 'cost') return items.filter(x => x && (x.apType || 'Cost') === 'Cost');
-      if (apFilter.value === 'expense') return items.filter(x => x && x.apType === 'Expense');
+      const f = apEffectiveFilter.value;
+      if (f === 'cost') return items.filter(x => x && (x.apType || 'Cost') === 'Cost');
+      if (f === 'expense') return items.filter(x => x && x.apType === 'Expense');
       return items;
     });
     const apCounts = computed(() => {
@@ -30425,7 +30436,8 @@ app.component('view-openingBalance', {
         {k:'setup', l:'⚙️ Setup'},
         {k:'cash', l:'💵 Cash/Bank/FCD/OD'},
         {k:'ar', l:'📥 AR ลูกหนี้ ('+ob.arItems.length+')'},
-        {k:'ap', l:'📤 AP เจ้าหนี้ ('+ob.apItems.length+')'},
+        {k:'apCost', l:'📦 AP ต้นทุน ('+apCounts.cost+')'},
+        {k:'apExpense', l:'💸 AP ค่าใช้จ่าย ('+apCounts.expense+')'},
         {k:'stock', l:'📦 Stock ('+ob.stockItems.length+')'},
         {k:'asset', l:'🏗️ Fixed Asset'},
         {k:'loan', l:'🏦 Loan'},
@@ -30535,10 +30547,14 @@ app.component('view-openingBalance', {
       </table>
     </div>
 
-    <!-- ===== AP ===== -->
-    <div v-if="tab==='ap'" class="bg-white rounded-xl shadow p-5">
+    <!-- ===== AP COST ===== -->
+    <div v-if="tab==='apCost' || tab==='apExpense' || tab==='ap'" class="bg-white rounded-xl shadow p-5">
       <div class="flex justify-between items-center mb-3">
-        <h2 class="text-lg font-bold">📤 AP Opening — เจ้าหนี้ค้างจ่าย</h2>
+        <h2 class="text-lg font-bold">
+          <span v-if="tab==='apCost'">📦 AP ต้นทุน — เจ้าหนี้บิลซื้อ</span>
+          <span v-else-if="tab==='apExpense'">💸 AP ค่าใช้จ่าย — เจ้าหนี้ค่าใช้จ่าย</span>
+          <span v-else>📤 AP Opening — เจ้าหนี้ค้างจ่าย (ทั้งหมด)</span>
+        </h2>
         <div class="flex gap-2 flex-wrap">
           <span class="px-3 py-1 bg-red-100 text-red-700 rounded text-sm font-bold">รวม {{fmt(summary.apTotal)}}</span>
           <button v-if="!ob.locked" @click="downloadTemplate('ap')" class="px-3 py-1.5 text-xs bg-slate-200 text-slate-700 rounded">📥 Template</button>
@@ -30549,39 +30565,54 @@ app.component('view-openingBalance', {
         </div>
       </div>
 
-      <!-- 🆕 Filter buttons + bulk delete -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
-        <button type="button" @click="apFilter='all'"
-          :class="['p-3 rounded-xl border-2 text-left transition', apFilter==='all'?'border-slate-700 bg-slate-100 ring-2 ring-slate-300':'border-slate-200 bg-white hover:border-slate-400']">
-          <div class="flex items-center justify-between">
-            <div class="font-bold text-sm">📋 ทั้งหมด</div>
-            <div class="text-xl font-extrabold text-slate-700">{{apCounts.all}}</div>
-          </div>
-          <div class="text-xs text-slate-500 mt-0.5">รวม Cost + Expense</div>
-        </button>
-        <button type="button" @click="apFilter='cost'"
-          :class="['p-3 rounded-xl border-2 text-left transition', apFilter==='cost'?'border-rose-600 bg-rose-50 ring-2 ring-rose-200':'border-slate-200 bg-white hover:border-rose-300']">
-          <div class="flex items-center justify-between">
-            <div class="font-bold text-sm">📦 Cost — เจ้าหนี้ต้นทุน</div>
-            <div class="text-xl font-extrabold" :class="apFilter==='cost'?'text-rose-700':'text-slate-700'">{{apCounts.cost}}</div>
-          </div>
-          <div class="text-xs text-slate-500 mt-0.5">บิลซื้อค้างจ่าย · {{fmt(apCounts.costTotal)}} ฿</div>
-        </button>
-        <button type="button" @click="apFilter='expense'"
-          :class="['p-3 rounded-xl border-2 text-left transition', apFilter==='expense'?'border-amber-600 bg-amber-50 ring-2 ring-amber-200':'border-slate-200 bg-white hover:border-amber-300']">
-          <div class="flex items-center justify-between">
-            <div class="font-bold text-sm">💸 Expense — เจ้าหนี้ค่าใช้จ่าย</div>
-            <div class="text-xl font-extrabold" :class="apFilter==='expense'?'text-amber-700':'text-slate-700'">{{apCounts.expense}}</div>
-          </div>
-          <div class="text-xs text-slate-500 mt-0.5">ค่าน้ำ/ไฟ/ขนส่ง/อื่นๆ · {{fmt(apCounts.expenseTotal)}} ฿</div>
-        </button>
+      <!-- 🆕 Summary banner — แสดง total ของ tab ปัจจุบัน + link ไป tab อื่น -->
+      <div v-if="tab==='apCost'" class="bg-rose-50 border-l-4 border-rose-500 rounded p-3 mb-3 text-sm flex items-center justify-between">
+        <div>
+          <strong class="text-rose-700">📦 AP ต้นทุน:</strong> {{apCounts.cost}} รายการ · รวม <b>{{fmt(apCounts.costTotal)}}</b> ฿
+        </div>
+        <button @click="tab='apExpense'" class="text-xs text-amber-700 hover:underline">→ ดู AP ค่าใช้จ่าย ({{apCounts.expense}})</button>
       </div>
+      <div v-else-if="tab==='apExpense'" class="bg-amber-50 border-l-4 border-amber-500 rounded p-3 mb-3 text-sm flex items-center justify-between">
+        <div>
+          <strong class="text-amber-700">💸 AP ค่าใช้จ่าย:</strong> {{apCounts.expense}} รายการ · รวม <b>{{fmt(apCounts.expenseTotal)}}</b> ฿
+        </div>
+        <button @click="tab='apCost'" class="text-xs text-rose-700 hover:underline">→ ดู AP ต้นทุน ({{apCounts.cost}})</button>
+      </div>
+      <!-- Filter buttons + bulk delete (เฉพาะ tab "ap" ที่รวมทุก type) -->
+      <template v-if="tab==='ap'">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
+          <button type="button" @click="apFilter='all'"
+            :class="['p-3 rounded-xl border-2 text-left transition', apFilter==='all'?'border-slate-700 bg-slate-100 ring-2 ring-slate-300':'border-slate-200 bg-white hover:border-slate-400']">
+            <div class="flex items-center justify-between">
+              <div class="font-bold text-sm">📋 ทั้งหมด</div>
+              <div class="text-xl font-extrabold text-slate-700">{{apCounts.all}}</div>
+            </div>
+            <div class="text-xs text-slate-500 mt-0.5">รวม Cost + Expense</div>
+          </button>
+          <button type="button" @click="apFilter='cost'"
+            :class="['p-3 rounded-xl border-2 text-left transition', apFilter==='cost'?'border-rose-600 bg-rose-50 ring-2 ring-rose-200':'border-slate-200 bg-white hover:border-rose-300']">
+            <div class="flex items-center justify-between">
+              <div class="font-bold text-sm">📦 Cost — เจ้าหนี้ต้นทุน</div>
+              <div class="text-xl font-extrabold" :class="apFilter==='cost'?'text-rose-700':'text-slate-700'">{{apCounts.cost}}</div>
+            </div>
+            <div class="text-xs text-slate-500 mt-0.5">บิลซื้อค้างจ่าย · {{fmt(apCounts.costTotal)}} ฿</div>
+          </button>
+          <button type="button" @click="apFilter='expense'"
+            :class="['p-3 rounded-xl border-2 text-left transition', apFilter==='expense'?'border-amber-600 bg-amber-50 ring-2 ring-amber-200':'border-slate-200 bg-white hover:border-amber-300']">
+            <div class="flex items-center justify-between">
+              <div class="font-bold text-sm">💸 Expense — เจ้าหนี้ค่าใช้จ่าย</div>
+              <div class="text-xl font-extrabold" :class="apFilter==='expense'?'text-amber-700':'text-slate-700'">{{apCounts.expense}}</div>
+            </div>
+            <div class="text-xs text-slate-500 mt-0.5">ค่าน้ำ/ไฟ/ขนส่ง/อื่นๆ · {{fmt(apCounts.expenseTotal)}} ฿</div>
+          </button>
+        </div>
+      </template>
 
-      <!-- 🆕 Bulk delete buttons -->
+      <!-- 🆕 Bulk delete — context-aware ตาม tab -->
       <div v-if="!ob.locked" class="flex gap-2 mb-3 text-xs">
-        <button @click="bulkDeleteAP('Cost')" class="px-3 py-1.5 bg-rose-100 text-rose-700 rounded hover:bg-rose-200">🗑 ลบ Cost ทั้งหมด ({{apCounts.cost}})</button>
-        <button @click="bulkDeleteAP('Expense')" class="px-3 py-1.5 bg-amber-100 text-amber-700 rounded hover:bg-amber-200">🗑 ลบ Expense ทั้งหมด ({{apCounts.expense}})</button>
-        <span class="text-slate-500 italic ml-auto self-center">💡 ลบ Expense ที่นี่ → แล้วไปกรอกใหม่ที่หน้า "ค่าใช้จ่าย"</span>
+        <button v-if="tab==='apCost' || tab==='ap'" @click="bulkDeleteAP('Cost')" class="px-3 py-1.5 bg-rose-100 text-rose-700 rounded hover:bg-rose-200">🗑 ลบ Cost ทั้งหมด ({{apCounts.cost}})</button>
+        <button v-if="tab==='apExpense' || tab==='ap'" @click="bulkDeleteAP('Expense')" class="px-3 py-1.5 bg-amber-100 text-amber-700 rounded hover:bg-amber-200">🗑 ลบ Expense ทั้งหมด ({{apCounts.expense}})</button>
+        <span v-if="tab==='apExpense'" class="text-slate-500 italic ml-auto self-center">💡 ลบที่นี่ → กรอกใหม่ที่หน้า "ค่าใช้จ่าย"</span>
       </div>
 
       <p class="text-xs text-slate-500 mb-2">💡 กด "Apply" ทีละ row เพื่อให้ AP ขึ้นในระบบทันที · <span class="text-amber-700">🔗 Auto-Linked rows = สร้างจาก Stock Opening (paid=false) — ไม่สามารถลบ/เปลี่ยน type</span></p>
