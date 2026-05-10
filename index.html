@@ -13064,6 +13064,67 @@ app.component('view-production', {
             console.log('[saveOutput] อัปเดต product.itemStatus: '+prod.name+' → '+cat);
           }
         }
+
+        // 🆕 Phase B: AUTO-GENERATE Grade Adjustment ถ้า output product ≠ ทุก input product
+        // เงื่อนไข: ไม่ใช่ Loss/CustomerReturn + output product ไม่อยู่ใน input productIds
+        try {
+          const inputProductIds = new Set(inputsActive.map(i => i.productId).filter(Boolean));
+          const isNewProduct = out.productId && !inputProductIds.has(out.productId);
+          if (isNewProduct && Number(out.qtyNet||0) > 0) {
+            // หา primary input เพื่อใช้เป็น sourceProductId (input ที่ qty มากสุด)
+            const primaryInput = inputsActive.slice().sort((a,b)=>Number(b.qtyNet||0)-Number(a.qtyNet||0))[0];
+            if (primaryInput) {
+              const gaId = erp.uid('GA');
+              const gaDocNo = erp.nextDocNo('GA');
+              // คำนวณ source qty ตามสัดส่วน (เพื่อให้ตรงกับ input ที่ใช้ผลิต output นี้)
+              const proportionalSourceQty = totalInQty > 0
+                ? Number(out.qtyNet||0) * (Number(primaryInput.qtyNet||0) / totalInQty)
+                : Number(out.qtyNet||0);
+              const ga = {
+                id: gaId, docNo: gaDocNo, date: out.date,
+                branchId: o.branchId, warehouseId: out.warehouseDestId || o.warehouseToId,
+                // 🆕 Source tracking
+                sourceType: 'Production Order',
+                sourceRefId: o.id,
+                sourceRefNo: o.docNo || o.id,
+                // SOURCE
+                sourceProductId: primaryInput.productId,
+                sourceQty: proportionalSourceQty,
+                allocationMode: 'FIFO',
+                sourceLots: [],          // empty — ยังไม่ confirm cost
+                manualLots: [],
+                sourceUnitCost: 0,
+                sourceTotalCost: 0,
+                // TARGET
+                targetProductId: out.productId,
+                targetLotNo: out.lotNo || ('GA-'+gaDocNo),
+                targetQty: Number(out.qtyNet||0),
+                targetUnitCost: 0,        // จะคำนวณตอน confirm cost
+                targetTotalCost: 0,
+                // Note-only tracking
+                lossQty: 0, lossReason: '', lossValueNote: 0, yieldDiffNote: 0, overQty: 0, overValueNote: 0,
+                costAdjustment: 0, costAdjustmentReason: '',
+                // 🆕 Cost status — pending! รอให้คนไป confirm cost
+                costStatus: 'pending_cost',
+                partialMode: '',
+                pendingQty: proportionalSourceQty,
+                reason: 'Auto from Production Order ' + (o.docNo || o.id),
+                remark: 'สร้างอัตโนมัติเมื่อ output ('+(out.productCode || out.productId)+') ≠ input ('+(primaryInput.productCode || primaryInput.productId)+')',
+                status: 'draft',          // draft until cost confirmed
+                stockLedgerIds: [], matchLogIds: [],
+                createdBy: out.createdBy || nowUser,
+                createdAt: new Date().toISOString(),
+              };
+              if (!Array.isArray(db.gradeAdjustments)) db.gradeAdjustments = [];
+              db.gradeAdjustments.push(ga);
+              console.log('[Auto-GA] Created Grade Adjustment '+gaDocNo+' from Production '+(o.docNo||o.id)+' (pending cost)');
+              erp.logAudit('AUTO_GA','gradeAdjustments',null,
+                {docNo:gaDocNo, sourceRef:o.docNo, source:primaryInput.productId, target:out.productId, qty:out.qtyNet});
+            }
+          }
+        } catch (gaErr) {
+          console.warn('[Auto-GA] error:', gaErr);
+        }
       }
       // 🔥 ห้าม auto-close — ต้องกดปิดงานเอง (changeStatus → Completed)
       if (o.status === 'Approved') changeStatus(o, 'In Production');
@@ -31772,6 +31833,11 @@ app.component('view-gradeAdjustment', {
     const blank = () => ({
       docNo:'', date: erp.today(),
       branchId:'', warehouseId:'',
+      // 🆕 Source tracking
+      sourceType: 'Manual',           // Manual | Production Order
+      sourceRefId: '',                // ref id ของ production order (auto)
+      sourceRefNo: '',                // docNo ของ production order (auto)
+      // SOURCE
       sourceProductId:'',
       sourceQty: 0,
       allocationMode: 'FIFO',         // FIFO | LIFO | Highest | Lowest | Manual
@@ -31779,20 +31845,25 @@ app.component('view-gradeAdjustment', {
       manualLots: [],                 // user-edit version (Manual mode)
       sourceUnitCost: 0,              // weighted avg
       sourceTotalCost: 0,
+      // TARGET
       targetProductId:'', targetLotNo:'',
       targetQty: 0,
       targetUnitCost: 0,              // = sourceUnitCost (ไม่กระโดด)
       targetTotalCost: 0,
       // 📒 NOTE-ONLY tracking (ไม่ลง P&L จริง)
       lossQty: 0, lossReason: '',
-      lossValueNote: 0,               // มูลค่า loss (track only)
-      yieldDiffNote: 0,               // input - output diff (track only)
-      overQty: 0, overValueNote: 0,   // กรณี output > input (เบิกเกิน)
+      lossValueNote: 0,
+      yieldDiffNote: 0,
+      overQty: 0, overValueNote: 0,
       // 💰 ลง P&L จริง
-      costAdjustment: 0,              // process cost / ค่าแรง
+      costAdjustment: 0,
       costAdjustmentReason: '',
+      // 🆕 Cost allocation status
+      costStatus: 'allocated',        // allocated | pending_cost | partial
+      partialMode: '',                // partial | pending | discard (เมื่อของไม่พอ)
+      pendingQty: 0,                  // qty ที่ยังรอ cost
       reason: '', remark: '',
-      status: 'draft',
+      status: 'draft',                // draft | posted | reversed
       createdBy: erp.currentUser.value?.username || '-',
       createdAt: new Date().toISOString(),
     });
@@ -32081,6 +32152,10 @@ app.component('view-gradeAdjustment', {
       erp.showToast('Reverse สำเร็จ — ทุกอย่างถูกคืน','success');
     }
 
+    /* 🆕 Phase A — filter Source Type + Cost Status */
+    const filterSourceType = ref('');                  // '' | Manual | Production Order
+    const filterCostStatus = ref('');                  // '' | allocated | pending_cost | partial
+
     const list = computed(() => {
       const s = search.value.toLowerCase();
       return _trkSafe(db.gradeAdjustments).map(g => ({
@@ -32089,22 +32164,205 @@ app.component('view-gradeAdjustment', {
         targetName: erp.productName(g.targetProductId),
         branchName: erp.branchName(g.branchId),
         warehouseName: erp.warehouseName(g.warehouseId),
-      })).filter(g => !s || ((g.docNo||'')+' '+(g.sourceName||'')+' '+(g.targetName||'')).toLowerCase().includes(s))
-        .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+        sourceType: g.sourceType || 'Manual',
+        costStatus: g.costStatus || (g.status === 'posted' ? 'allocated' : 'allocated'),
+      })).filter(g => {
+        if (s && !((g.docNo||'')+' '+(g.sourceName||'')+' '+(g.targetName||'')+' '+(g.sourceRefNo||'')).toLowerCase().includes(s)) return false;
+        if (filterSourceType.value && g.sourceType !== filterSourceType.value) return false;
+        if (filterCostStatus.value && g.costStatus !== filterCostStatus.value) return false;
+        return true;
+      }).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
     });
 
     const totals = computed(() => ({
       count: list.value.length,
       posted: list.value.filter(g=>g.status==='posted').length,
       reversed: list.value.filter(g=>g.status==='reversed').length,
+      pendingCost: list.value.filter(g=>g.costStatus==='pending_cost' && g.status!=='reversed').length,
+      manualCount: list.value.filter(g=>g.sourceType==='Manual').length,
+      autoCount: list.value.filter(g=>g.sourceType==='Production Order').length,
       totalLoss: list.value.filter(g=>g.status==='posted').reduce((s,g)=>s+Number(g.lossQty||0),0),
       totalAdjusted: list.value.filter(g=>g.status==='posted').reduce((s,g)=>s+Number(g.sourceQty||0),0),
     }));
 
+    /* 🆕 Phase C — Confirm Cost flow for pending_cost GA */
+    const showConfirmCost = ref(false);
+    const confirmTarget = ref(null);                   // GA record being confirmed
+    const confirmMode = ref('FIFO');
+    const confirmManualLots = ref([]);
+    const confirmInsufficientChoice = ref('');         // partial | pending | discard
+
+    function openConfirmCost(g) {
+      confirmTarget.value = g;
+      confirmMode.value = 'FIFO';
+      confirmManualLots.value = [];
+      confirmInsufficientChoice.value = '';
+      showConfirmCost.value = true;
+    }
+    function closeConfirmCost() { showConfirmCost.value = false; confirmTarget.value = null; }
+
+    /* Lots available สำหรับ confirm modal */
+    const confirmAvailableLots = computed(() => {
+      if (!confirmTarget.value) return [];
+      try {
+        return erp.buildCostPool().filter(p => p && p.product_id === confirmTarget.value.sourceProductId && p.available_qty > 0);
+      } catch(e) { return []; }
+    });
+
+    /* Preview lots ที่ confirm จะใช้ */
+    const confirmPreviewLots = computed(() => {
+      const g = confirmTarget.value;
+      if (!g) return { lots: [], shortQty: 0, hasShortage: false };
+      const needQty = Number(g.sourceQty||0);
+      try {
+        if (confirmMode.value === 'Manual') {
+          const lots = confirmManualLots.value.filter(x => Number(x.qty||0) > 0);
+          const total = lots.reduce((s,l)=>s+Number(l.qty||0), 0);
+          const short = Math.max(0, needQty - total);
+          return { lots, shortQty: short, hasShortage: short > 0.001 };
+        }
+        const lots = erp.matchPoolLots(g.sourceProductId, needQty, confirmMode.value);
+        return { lots, shortQty: 0, hasShortage: false };
+      } catch(e) {
+        // Pool not enough — try to match what's available
+        const pool = confirmAvailableLots.value;
+        const totalAvail = pool.reduce((s,p)=>s+p.available_qty, 0);
+        if (totalAvail > 0) {
+          try {
+            const partialLots = erp.matchPoolLots(g.sourceProductId, totalAvail, confirmMode.value === 'Manual' ? 'FIFO' : confirmMode.value);
+            return { lots: partialLots, shortQty: needQty - totalAvail, hasShortage: true };
+          } catch(e2) { return { lots:[], shortQty: needQty, hasShortage: true, error: e2.message }; }
+        }
+        return { lots:[], shortQty: needQty, hasShortage: true, error: e.message };
+      }
+    });
+
+    function confirmAddManualLot() { confirmManualLots.value.push({ cost_pool_id:'', lotNo:'', qty:0 }); }
+    function confirmRemoveManualLot(i) { confirmManualLots.value.splice(i, 1); }
+
+    function doConfirmCost() {
+      const g = confirmTarget.value;
+      if (!g) return;
+      const preview = confirmPreviewLots.value;
+      const username = erp.currentUser.value?.username || '-';
+
+      // Check insufficient — need user choice
+      if (preview.hasShortage && !confirmInsufficientChoice.value) {
+        alert('สินค้าใน Pool ไม่พอ — กรุณาเลือกวิธีจัดการ (Partial/Pending/Discard)');
+        return;
+      }
+
+      const idx = db.gradeAdjustments.findIndex(x => x && x.id === g.id);
+      if (idx < 0) { alert('ไม่พบ GA record'); return; }
+
+      const choice = preview.hasShortage ? confirmInsufficientChoice.value : 'partial';
+
+      if (preview.hasShortage && choice === 'pending') {
+        // Wait for next round — keep status='pending_cost', save partial lots if any
+        db.gradeAdjustments[idx].costStatus = 'pending_cost';
+        db.gradeAdjustments[idx].partialMode = 'pending';
+        db.gradeAdjustments[idx].pendingQty = preview.shortQty;
+        try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+        erp.showToast('⏳ เก็บไว้รอ Pool รอบหน้า — ขาด '+fmt(preview.shortQty)+' กก.','warning');
+        showConfirmCost.value = false;
+        return;
+      }
+
+      // Allocate cost from selected lots
+      const lotsToUse = preview.lots;
+      const sourceTotalCost = lotsToUse.reduce((s,l)=>s+Number(l.totalCost||0), 0);
+      const matchedQty = lotsToUse.reduce((s,l)=>s+Number(l.qty||0), 0);
+      const sourceUnitCost = matchedQty > 0 ? sourceTotalCost / matchedQty : 0;
+      // Adjust target qty if partial
+      const targetQty = (preview.hasShortage && choice === 'partial')
+        ? Math.min(Number(g.targetQty||0), matchedQty)
+        : Number(g.targetQty||0);
+      const targetUnitCost = sourceUnitCost;
+      const targetTotalCost = targetQty * targetUnitCost;
+      const lossQty = Math.max(0, matchedQty - targetQty);
+      const lossValueNote = lossQty * sourceUnitCost;
+
+      // Create stock_ledger OUT per lot
+      const slIds = []; const mlIds = [];
+      lotsToUse.forEach(lot => {
+        const slId = erp.uid('SL');
+        db.stockLedger.push({
+          id: slId, date: g.date,
+          refType:'GA', refId: g.id, refNo: g.docNo,
+          movementType:'GRADE_ADJUST_OUT',
+          productId: g.sourceProductId, lotNo: lot.lotNo || lot.source_no || '-',
+          branchId: g.branchId, warehouseId: g.warehouseId,
+          qtyIn: 0, qtyOut: lot.qty,
+          unitCost: lot.unitCost,
+          valueIn: 0, valueOut: lot.totalCost,
+          note: `Confirm Cost: ${lot.source_type} ${lot.source_no}`,
+          createdBy: username
+        });
+        slIds.push(slId);
+
+        const mlId = erp.uid('ML');
+        db.matchLogs.push({
+          id: mlId, match_type:'regrade', regrade_id: g.id, target_product_id: g.targetProductId,
+          date: g.date, cost_pool_id: lot.cost_pool_id,
+          source_type: lot.source_type, source_id: lot.source_id, source_no: lot.source_no,
+          product_id: g.sourceProductId,
+          qty_used: lot.qty, unit_cost: lot.unitCost, total_cost: lot.totalCost,
+          allocation_mode: confirmMode.value, status:'approved',
+          createdBy: username, createdAt: new Date().toISOString()
+        });
+        mlIds.push(mlId);
+      });
+
+      // Stock_ledger IN target
+      const slIn = erp.uid('SL');
+      db.stockLedger.push({
+        id: slIn, date: g.date,
+        refType:'GA', refId: g.id, refNo: g.docNo,
+        movementType:'GRADE_ADJUST_IN',
+        productId: g.targetProductId, lotNo: g.targetLotNo || ('GA-'+g.docNo),
+        branchId: g.branchId, warehouseId: g.warehouseId,
+        qtyIn: targetQty, qtyOut: 0,
+        unitCost: targetUnitCost, valueIn: targetTotalCost, valueOut: 0,
+        note: `Confirm Cost (${confirmMode.value})`,
+        createdBy: username
+      });
+      slIds.push(slIn);
+
+      // Update GA record
+      const updated = db.gradeAdjustments[idx];
+      updated.sourceLots = lotsToUse.map(l => ({...l}));
+      updated.sourceUnitCost = sourceUnitCost;
+      updated.sourceTotalCost = sourceTotalCost;
+      updated.sourceQty = matchedQty; // 🆕 อัปเดต sourceQty ให้ตรงกับที่ match จริง
+      updated.targetQty = targetQty;
+      updated.targetUnitCost = targetUnitCost;
+      updated.targetTotalCost = targetTotalCost;
+      updated.lossQty = lossQty;
+      updated.lossValueNote = lossValueNote;
+      updated.allocationMode = confirmMode.value;
+      updated.costStatus = (preview.hasShortage && choice === 'discard') ? 'allocated' : 'allocated';
+      updated.partialMode = preview.hasShortage ? choice : '';
+      updated.pendingQty = (preview.hasShortage && choice === 'discard') ? 0 : 0;
+      updated.status = 'posted';
+      updated.postedAt = new Date().toISOString();
+      updated.stockLedgerIds = (updated.stockLedgerIds||[]).concat(slIds);
+      updated.matchLogIds = (updated.matchLogIds||[]).concat(mlIds);
+
+      try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+      erp.logAudit('GRADE_ADJUST_CONFIRM_COST','gradeAdjustments',null,{docNo:g.docNo, mode:confirmMode.value, lots:lotsToUse.length, choice});
+      erp.showToast(`✓ Confirm Cost สำเร็จ — ${g.docNo}${preview.hasShortage?' ('+choice+')':''}`,'success');
+      showConfirmCost.value = false;
+    }
+
     return { erp, db, fmt, search, list, totals, showForm, form, editId,
       openAdd, close: close_, save, reverse, availableSourceStock,
-      // 🆕 Phase 2-3
-      matchError, availableLots, previewLots, costSummary, addManualLot, removeManualLot, onModeChange };
+      matchError, availableLots, previewLots, costSummary, addManualLot, removeManualLot, onModeChange,
+      // 🆕 Phase A: filters
+      filterSourceType, filterCostStatus,
+      // 🆕 Phase C: confirm cost
+      showConfirmCost, confirmTarget, confirmMode, confirmManualLots, confirmInsufficientChoice,
+      openConfirmCost, closeConfirmCost, confirmAvailableLots, confirmPreviewLots,
+      confirmAddManualLot, confirmRemoveManualLot, doConfirmCost };
   },
   template:`
   <div class="space-y-4">
@@ -32116,52 +32374,188 @@ app.component('view-gradeAdjustment', {
       <button @click="openAdd" class="bg-white text-cyan-700 px-4 py-2 rounded-lg font-bold hover:bg-cyan-50">+ ปรับเกรดใหม่</button>
     </div>
 
-    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+    <div class="grid grid-cols-2 md:grid-cols-7 gap-3">
       <div class="bg-white rounded-xl shadow p-3"><div class="text-xs text-slate-500">รายการทั้งหมด</div><div class="text-xl font-bold">{{totals.count}}</div></div>
       <div class="bg-emerald-50 rounded-xl shadow p-3"><div class="text-xs text-emerald-700">Posted</div><div class="text-xl font-bold text-emerald-700">{{totals.posted}}</div></div>
+      <div class="bg-amber-50 rounded-xl shadow p-3"><div class="text-xs text-amber-700">⏳ Pending Cost</div><div class="text-xl font-bold text-amber-700">{{totals.pendingCost}}</div></div>
+      <div class="bg-blue-50 rounded-xl shadow p-3"><div class="text-xs text-blue-700">📝 Manual</div><div class="text-xl font-bold text-blue-700">{{totals.manualCount}}</div></div>
+      <div class="bg-purple-50 rounded-xl shadow p-3"><div class="text-xs text-purple-700">🏭 Auto (Production)</div><div class="text-xl font-bold text-purple-700">{{totals.autoCount}}</div></div>
+      <div class="bg-white rounded-xl shadow p-3"><div class="text-xs text-slate-500">น้ำหนักรวม</div><div class="text-xl font-bold">{{fmt(totals.totalAdjusted)}} กก.</div></div>
       <div class="bg-slate-50 rounded-xl shadow p-3"><div class="text-xs text-slate-500">Reversed</div><div class="text-xl font-bold text-slate-500">{{totals.reversed}}</div></div>
-      <div class="bg-white rounded-xl shadow p-3"><div class="text-xs text-slate-500">น้ำหนักปรับเกรดรวม</div><div class="text-xl font-bold">{{fmt(totals.totalAdjusted)}} กก.</div></div>
-      <div class="bg-red-50 rounded-xl shadow p-3"><div class="text-xs text-red-700">Loss รวม</div><div class="text-xl font-bold text-red-700">{{fmt(totals.totalLoss)}} กก.</div></div>
     </div>
 
-    <div class="bg-white rounded-xl shadow p-3 flex gap-2 items-center">
-      <input v-model="search" placeholder="ค้นหา..." class="flex-1 px-3 py-2 border rounded text-sm">
+    <div class="bg-white rounded-xl shadow p-3 flex gap-2 items-center flex-wrap">
+      <input v-model="search" placeholder="ค้นหา doc/source/target/ref..." class="flex-1 min-w-[200px] px-3 py-2 border rounded text-sm">
+      <select v-model="filterSourceType" class="px-3 py-2 border rounded text-sm bg-amber-50 font-medium">
+        <option value="">ทุก Source Type</option>
+        <option value="Manual">📝 Manual</option>
+        <option value="Production Order">🏭 Production Order</option>
+      </select>
+      <select v-model="filterCostStatus" class="px-3 py-2 border rounded text-sm">
+        <option value="">ทุก Cost Status</option>
+        <option value="allocated">✓ Allocated</option>
+        <option value="pending_cost">⏳ Pending Cost</option>
+        <option value="partial">📋 Partial</option>
+      </select>
     </div>
 
     <div class="bg-white rounded-xl shadow overflow-x-auto">
       <table class="w-full text-sm">
         <thead class="bg-slate-100"><tr>
-          <th class="p-2 text-left">เลขที่</th>
+          <th class="p-2 text-left">Source Type</th>
+          <th class="p-2 text-left">เลขที่ / Ref</th>
           <th class="p-2 text-left">วันที่</th>
           <th class="p-2 text-left">สาขา / คลัง</th>
           <th class="p-2 text-left bg-red-50">Source (ออก)</th>
           <th class="p-2 text-right bg-red-50">Qty</th>
-          <th class="p-2 text-right bg-red-50">WAC/กก.</th>
+          <th class="p-2 text-right bg-red-50">฿/กก.</th>
           <th class="p-2 text-left bg-emerald-50">Target (เข้า)</th>
           <th class="p-2 text-right bg-emerald-50">Qty</th>
-          <th class="p-2 text-right bg-emerald-50">Cost/กก.</th>
+          <th class="p-2 text-right bg-emerald-50">฿/กก.</th>
           <th class="p-2 text-right">Loss</th>
+          <th class="p-2 text-center">Cost Status</th>
           <th class="p-2 text-center">สถานะ</th>
           <th></th>
         </tr></thead>
         <tbody>
-          <tr v-for="g in list" :key="g.id" class="border-t hover:bg-cyan-50/30" :class="g.status==='reversed'?'opacity-50':''">
-            <td class="p-2 font-mono text-xs">{{g.docNo}}</td>
+          <tr v-for="g in list" :key="g.id" class="border-t hover:bg-cyan-50/30" :class="g.status==='reversed'?'opacity-50':(g.costStatus==='pending_cost'?'bg-amber-50/30':'')">
+            <td class="p-2"><span class="text-[10px] px-2 py-0.5 rounded font-medium" :class="g.sourceType==='Production Order'?'bg-purple-100 text-purple-700':'bg-blue-100 text-blue-700'">{{g.sourceType==='Production Order'?'🏭 Auto':'📝 Manual'}}</span></td>
+            <td class="p-2 font-mono text-xs">
+              {{g.docNo}}
+              <div v-if="g.sourceRefNo" class="text-purple-600 text-[10px]">→ {{g.sourceRefNo}}</div>
+            </td>
             <td class="p-2 text-xs">{{g.date}}</td>
             <td class="p-2 text-xs">{{g.branchName}}<div class="text-slate-400">{{g.warehouseName}}</div></td>
-            <td class="p-2 text-xs">{{g.sourceName}}<div class="text-slate-400 font-mono">{{g.sourceLotNo||'-'}}</div></td>
+            <td class="p-2 text-xs">{{g.sourceName}}</td>
             <td class="p-2 text-right text-red-700 font-bold">{{fmt(g.sourceQty)}}</td>
-            <td class="p-2 text-right text-xs">{{fmt(g.sourceUnitCost)}}</td>
+            <td class="p-2 text-right text-xs">{{g.costStatus==='pending_cost'?'-':fmt(g.sourceUnitCost)}}</td>
             <td class="p-2 text-xs">{{g.targetName}}<div class="text-slate-400 font-mono">{{g.targetLotNo||'-'}}</div></td>
             <td class="p-2 text-right text-emerald-700 font-bold">{{fmt(g.targetQty)}}</td>
-            <td class="p-2 text-right text-xs">{{fmt(g.targetUnitCost)}}</td>
+            <td class="p-2 text-right text-xs">{{g.costStatus==='pending_cost'?'-':fmt(g.targetUnitCost)}}</td>
             <td class="p-2 text-right" :class="Number(g.lossQty||0)>0?'text-red-600 font-medium':'text-slate-400'">{{Number(g.lossQty||0)>0?fmt(g.lossQty):'-'}}</td>
-            <td class="p-2 text-center"><span :class="['px-2 py-0.5 rounded text-xs', g.status==='posted'?'bg-emerald-100 text-emerald-700':'bg-slate-200 text-slate-500']">{{g.status}}</span></td>
-            <td class="p-2 text-right"><button v-if="g.status==='posted'" @click="reverse(g)" class="text-xs text-red-600 hover:underline">Reverse</button></td>
+            <td class="p-2 text-center">
+              <span v-if="g.costStatus==='pending_cost'" class="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-700">⏳ Pending</span>
+              <span v-else-if="g.costStatus==='partial'" class="text-[10px] px-2 py-0.5 rounded bg-orange-100 text-orange-700">📋 Partial</span>
+              <span v-else class="text-[10px] px-2 py-0.5 rounded bg-emerald-100 text-emerald-700">✓ Allocated</span>
+            </td>
+            <td class="p-2 text-center"><span :class="['px-2 py-0.5 rounded text-xs', g.status==='posted'?'bg-emerald-100 text-emerald-700':g.status==='reversed'?'bg-red-100 text-red-700':'bg-slate-200 text-slate-500']">{{g.status}}</span></td>
+            <td class="p-2 text-right">
+              <button v-if="g.costStatus==='pending_cost' && g.status!=='reversed'" @click="openConfirmCost(g)" class="text-xs text-amber-700 hover:underline font-bold">⏳ Confirm Cost</button>
+              <button v-else-if="g.status==='posted'" @click="reverse(g)" class="text-xs text-red-600 hover:underline">Reverse</button>
+            </td>
           </tr>
-          <tr v-if="!list.length"><td colspan="12" class="text-center py-8 text-slate-400">ยังไม่มีรายการปรับเกรด</td></tr>
+          <tr v-if="!list.length"><td colspan="14" class="text-center py-8 text-slate-400">ยังไม่มีรายการปรับเกรด</td></tr>
         </tbody>
       </table>
+    </div>
+
+    <!-- 🆕 CONFIRM COST MODAL — สำหรับ pending_cost GA -->
+    <div v-if="showConfirmCost && confirmTarget" class="fixed inset-0 z-50 modal-backdrop p-4 overflow-y-auto">
+      <div class="bg-white rounded-xl shadow-2xl max-w-3xl mx-auto my-4 flex flex-col" style="max-height:92vh">
+        <div class="px-5 py-3 border-b bg-amber-50 flex justify-between flex-shrink-0">
+          <h3 class="font-bold">⏳ Confirm Cost — {{confirmTarget.docNo}}</h3>
+          <button @click="closeConfirmCost" class="text-2xl text-slate-400">&times;</button>
+        </div>
+        <div class="p-5 space-y-4 text-sm overflow-y-auto flex-1">
+          <!-- Header info -->
+          <div class="bg-slate-50 rounded p-3 grid grid-cols-2 gap-2 text-xs">
+            <div><span class="text-slate-500">Source Type:</span> <b>{{confirmTarget.sourceType}}</b></div>
+            <div v-if="confirmTarget.sourceRefNo"><span class="text-slate-500">Source Ref:</span> <b class="text-purple-700 font-mono">{{confirmTarget.sourceRefNo}}</b></div>
+            <div><span class="text-slate-500">Source Product:</span> <b>{{erp.productName(confirmTarget.sourceProductId)}}</b></div>
+            <div><span class="text-slate-500">Target Product:</span> <b>{{erp.productName(confirmTarget.targetProductId)}}</b></div>
+            <div><span class="text-slate-500">Source Qty (ที่ต้องการ):</span> <b class="text-red-700">{{fmt(confirmTarget.sourceQty)}} กก.</b></div>
+            <div><span class="text-slate-500">Target Qty:</span> <b class="text-emerald-700">{{fmt(confirmTarget.targetQty)}} กก.</b></div>
+          </div>
+
+          <!-- Allocation mode -->
+          <div>
+            <label class="text-xs">วิธีตัดต้นทุน *</label>
+            <select v-model="confirmMode" class="w-full px-2 py-2 border rounded">
+              <option value="FIFO">FIFO (มาก่อน-ออกก่อน)</option>
+              <option value="LIFO">LIFO (มาทีหลัง-ออกก่อน)</option>
+              <option value="Highest">Highest Cost</option>
+              <option value="Lowest">Lowest Cost</option>
+              <option value="Manual">Manual (เลือก lot เอง)</option>
+            </select>
+          </div>
+
+          <!-- Manual lots -->
+          <div v-if="confirmMode==='Manual'" class="bg-white rounded p-2 border">
+            <div class="text-xs font-bold mb-1">🎯 Manual Lot Selection</div>
+            <table class="w-full text-xs">
+              <thead class="bg-slate-100"><tr><th class="p-1 text-left">Cost Pool Lot</th><th class="p-1 text-left">Lot No</th><th class="p-1 text-right">Qty</th><th class="p-1 text-right">Available</th><th class="p-1 text-right">฿/กก.</th><th></th></tr></thead>
+              <tbody>
+                <tr v-for="(ml, idx) in confirmManualLots" :key="idx" class="border-t">
+                  <td class="p-1"><select v-model="ml.cost_pool_id" class="w-full px-1 py-0.5 border rounded text-xs">
+                    <option value="">-เลือก-</option>
+                    <option v-for="lot in confirmAvailableLots" :key="lot.cost_pool_id" :value="lot.cost_pool_id">
+                      {{lot.source_type}} {{lot.source_no}} · {{fmt(lot.unit_cost)}} ฿ · เหลือ {{fmt(lot.available_qty)}}
+                    </option>
+                  </select></td>
+                  <td class="p-1"><input v-model="ml.lotNo" class="w-full px-1 py-0.5 border rounded text-xs"></td>
+                  <td class="p-1"><input type="number" step="0.01" v-model.number="ml.qty" class="w-full px-1 py-0.5 border rounded text-xs text-right"></td>
+                  <td class="p-1 text-right text-slate-500">{{ml.cost_pool_id ? fmt((confirmAvailableLots.find(x=>x.cost_pool_id===ml.cost_pool_id)||{}).available_qty||0) : '-'}}</td>
+                  <td class="p-1 text-right text-slate-500">{{ml.cost_pool_id ? fmt((confirmAvailableLots.find(x=>x.cost_pool_id===ml.cost_pool_id)||{}).unit_cost||0) : '-'}}</td>
+                  <td class="p-1"><button @click="confirmRemoveManualLot(idx)" class="text-red-600">✕</button></td>
+                </tr>
+              </tbody>
+            </table>
+            <button @click="confirmAddManualLot" class="mt-1 text-xs text-blue-600 hover:underline">+ เพิ่ม lot</button>
+          </div>
+
+          <!-- Preview lots -->
+          <div v-if="confirmPreviewLots.lots.length" class="bg-white rounded p-2 border">
+            <div class="text-xs font-bold mb-1">🎯 Lots ที่จะใช้:</div>
+            <table class="w-full text-xs">
+              <thead class="bg-slate-100"><tr><th class="p-1 text-left">Source</th><th class="p-1 text-right">Qty</th><th class="p-1 text-right">฿/กก.</th><th class="p-1 text-right">มูลค่า</th></tr></thead>
+              <tbody>
+                <tr v-for="(l,i) in confirmPreviewLots.lots" :key="i" class="border-t">
+                  <td class="p-1"><span class="font-mono">{{l.source_type}}</span> {{l.source_no}}</td>
+                  <td class="p-1 text-right">{{fmt(l.qty)}}</td>
+                  <td class="p-1 text-right">{{fmt(l.unitCost)}}</td>
+                  <td class="p-1 text-right font-medium">{{fmt(l.totalCost)}}</td>
+                </tr>
+                <tr class="border-t-2 font-bold bg-slate-50"><td class="p-1">รวม</td>
+                  <td class="p-1 text-right">{{fmt(confirmPreviewLots.lots.reduce((s,l)=>s+l.qty,0))}}</td>
+                  <td colspan="2" class="p-1 text-right text-red-700">{{fmt(confirmPreviewLots.lots.reduce((s,l)=>s+l.totalCost,0))}}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Insufficient stock — 3 options -->
+          <div v-if="confirmPreviewLots.hasShortage" class="bg-red-50 border-2 border-red-300 rounded p-3">
+            <div class="font-bold text-red-700 mb-2">⚠ สินค้าใน Pool ไม่พอ — ขาด {{fmt(confirmPreviewLots.shortQty)}} กก.</div>
+            <div class="space-y-2 text-sm">
+              <label class="flex items-start gap-2 cursor-pointer">
+                <input type="radio" v-model="confirmInsufficientChoice" value="partial" class="mt-1">
+                <div>
+                  <div class="font-bold text-orange-700">📋 Partial — ปรับเกรดเฉพาะที่มี</div>
+                  <div class="text-xs text-slate-600">ตัด lots ที่มีจริง · target qty ลดลงตาม · ส่วนที่ขาด {{fmt(confirmPreviewLots.shortQty)}} กก. ไม่รวมในรอบนี้</div>
+                </div>
+              </label>
+              <label class="flex items-start gap-2 cursor-pointer">
+                <input type="radio" v-model="confirmInsufficientChoice" value="pending" class="mt-1">
+                <div>
+                  <div class="font-bold text-amber-700">⏳ Pending — รอ Pool รอบหน้า</div>
+                  <div class="text-xs text-slate-600">เก็บ GA นี้ status='pending_cost' ต่อ · รอเมื่อมี lots ใหม่ค่อย confirm</div>
+                </div>
+              </label>
+              <label class="flex items-start gap-2 cursor-pointer">
+                <input type="radio" v-model="confirmInsufficientChoice" value="discard" class="mt-1">
+                <div>
+                  <div class="font-bold text-red-700">🗑 Discard — ตัดทิ้ง</div>
+                  <div class="text-xs text-slate-600">ทำ partial + ส่วนที่ขาดถือเป็น loss (note-only) · ไม่ลง P&L · GA = posted</div>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="px-5 py-3 border-t bg-slate-50 flex justify-end gap-2 flex-shrink-0">
+          <button @click="closeConfirmCost" class="px-4 py-2 text-sm hover:bg-slate-200 rounded">ยกเลิก</button>
+          <button @click="doConfirmCost" class="px-5 py-2 bg-amber-600 text-white rounded font-bold hover:bg-amber-700">✓ Confirm Cost</button>
+        </div>
+      </div>
     </div>
 
     <!-- FORM MODAL -->
