@@ -9029,13 +9029,14 @@ app.component('view-purchase', {
             raw: b
           });
         }
-        // เรียงเอกสารล่าสุดขึ้นก่อน (date desc → createdAt desc → docNo desc)
+        // 🆕 เรียงตามเลขที่บิล desc (เลขใหม่ขึ้นก่อน) — fallback ตาม date + createdAt
         result.sort((a, b) => {
+          const docA = String(a.docNo||''); const docB = String(b.docNo||'');
+          if (docA !== docB) return docB.localeCompare(docA, undefined, { numeric: true });
           const da = String(a.raw?.date||''); const dbb = String(b.raw?.date||'');
           if (da !== dbb) return dbb.localeCompare(da);
           const ca = String(a.raw?.createdAt||''); const cbb = String(b.raw?.createdAt||'');
-          if (ca !== cbb) return cbb.localeCompare(ca);
-          return String(b.docNo||'').localeCompare(String(a.docNo||''));
+          return cbb.localeCompare(ca);
         });
         return result;
       } catch (e) {
@@ -12583,12 +12584,13 @@ app.component('view-sales', {
           if (q) { const txt = ((b.docNo||'')+' '+(b.refNo||'')+' '+(erp.customerName(b.customerId)||'')+' '+(b.note||'')).toLowerCase(); if(!txt.includes(q)) return false; }
           return true;
         }).sort((a,b) => {
-          // เรียงเอกสารล่าสุดขึ้นก่อน (date desc → createdAt desc → docNo desc)
+          // 🆕 เรียงตามเลขที่บิล desc (เลขใหม่ขึ้นก่อน) — fallback ตาม date + createdAt
+          const docA = String(a.docNo||''); const docB = String(b.docNo||'');
+          if (docA !== docB) return docB.localeCompare(docA, undefined, { numeric: true });
           const da = String(a.date||''); const dbb = String(b.date||'');
           if (da !== dbb) return dbb.localeCompare(da);
           const ca = String(a.createdAt||''); const cbb = String(b.createdAt||'');
-          if (ca !== cbb) return cbb.localeCompare(ca);
-          return String(b.docNo||'').localeCompare(String(a.docNo||''));
+          return cbb.localeCompare(ca);
         });
       } catch (e) { console.error('sales filtered error:', e); return []; }
     });
