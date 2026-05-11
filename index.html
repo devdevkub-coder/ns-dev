@@ -8685,13 +8685,23 @@ app.component('view-purchase', {
           facePrice: Number(it.facePrice || 0),   // 🆕 preserve face price
           commission: Number(it.commission || 0)  // 🆕 preserve commission
         })) : [blankItem()];
+        // 🆕 Auto-fill channel ถ้าบิลเก่าไม่มี (กัน save validation error)
+        let autoChannelId = b.channelId || '';
+        if (!autoChannelId && b.branchId && (b.transactionMode||'STOCK') !== 'TRADING') {
+          autoChannelId = pickChannelForBranch(b.branchId, 'purchase');
+        }
+        let autoWarehouseId = b.warehouseId || '';
+        if (!autoWarehouseId && b.branchId && (b.transactionMode||'STOCK') !== 'TRADING') {
+          const whs = safeArr(db.warehouses).filter(w => w && w.active && w.branchId === b.branchId);
+          if (whs.length > 0) autoWarehouseId = (whs.find(w => w.isDefault) || whs[0]).id;
+        }
         form.value = {
           docNo: b.docNo, date: b.date,
           refNo: b.refNo || '',
           transactionMode: b.transactionMode || 'STOCK',
           purchaseSource: b.purchaseSource || 'SPOT_BUY', poBuyId: b.poBuyId || '',
           supplierId: b.supplierId, branchId: b.branchId,
-          warehouseId: b.warehouseId || '', channelId: b.channelId || '',
+          warehouseId: autoWarehouseId, channelId: autoChannelId,
           licensePlate: b.licensePlate || '',
           contactPhone: b.contactPhone || '',
           salesId: b.salesId || '',                 // 🆕 load saved sales rep
@@ -9166,23 +9176,47 @@ app.component('view-purchase', {
       // Auto-fill warehouse — เลือก warehouse ตัวแรกที่ active ของสาขานี้
       const warehouses = safeArr(db.warehouses).filter(w => w && w.active && w.branchId === branchId);
       if (warehouses.length > 0) {
-        // ถ้ามี warehouse ที่ตั้ง isDefault=true ใช้อันนั้น ไม่งั้นใช้ตัวแรก
         const defaultWh = warehouses.find(w => w.isDefault) || warehouses[0];
         form.value.warehouseId = defaultWh.id;
       } else {
         form.value.warehouseId = '';
       }
-      // Auto-fill channel — ใช้ channel แรกที่ active (ถ้ามี isDefault ใช้อันนั้น)
-      // ถ้ามี channel ที่ผูกกับ branchId เฉพาะนี้ — ใช้ตัวนั้นก่อน
-      const channels = safeArr(db.purchaseChannels).filter(c => c && c.active);
-      const branchSpecific = channels.filter(c => c.branchId === branchId);
-      const pool = branchSpecific.length > 0 ? branchSpecific : channels;
-      if (pool.length > 0) {
-        const defaultCh = pool.find(c => c.isDefault) || pool[0];
-        form.value.channelId = defaultCh.id;
-      } else {
-        form.value.channelId = '';
+      // 🆕 Smart Auto-fill channel — ลำดับ priority:
+      //   1. channel ที่ผูก branchId === branchId
+      //   2. channel ชื่อเหมือนสาขา หรือมีคำในชื่อสาขา (เช่น สาขา "NS สมุทรสาคร" → channel "NS สมุทรสาคร")
+      //   3. channel ที่ isDefault
+      //   4. channel ตัวแรกที่ active
+      form.value.channelId = pickChannelForBranch(branchId, 'purchase');
+    }
+    /* 🆕 Helper: หา channel ที่เหมาะกับสาขา (สำหรับ purchase หรือ sales) */
+    function pickChannelForBranch(branchId, type='purchase') {
+      const allChannels = safeArr(type === 'sales' ? db.salesChannels : db.purchaseChannels)
+        .filter(c => c && c.active !== false);
+      if (!allChannels.length) return '';
+      // 1. exact branch link
+      const branchLinked = allChannels.filter(c => c.branchId === branchId);
+      if (branchLinked.length > 0) {
+        return (branchLinked.find(c => c.isDefault) || branchLinked[0]).id;
       }
+      // 2. ชื่อตรงกับสาขา หรือมีคำในชื่อสาขา
+      const branch = safeArr(db.branches).find(b => b && b.id === branchId);
+      if (branch && branch.name) {
+        const bn = String(branch.name).toLowerCase().trim();
+        // exact name match
+        let match = allChannels.find(c => String(c.name||'').toLowerCase().trim() === bn);
+        if (match) return match.id;
+        // partial match (channel name contains branch name OR vice versa)
+        match = allChannels.find(c => {
+          const cn = String(c.name||'').toLowerCase().trim();
+          return cn && (cn.includes(bn) || bn.includes(cn));
+        });
+        if (match) return match.id;
+      }
+      // 3. isDefault
+      const defaultCh = allChannels.find(c => c.isDefault);
+      if (defaultCh) return defaultCh.id;
+      // 4. fallback ตัวแรก
+      return allChannels[0].id;
     }
 
     /* ============ 🔄 SWAP SUPPLIER ============ */
