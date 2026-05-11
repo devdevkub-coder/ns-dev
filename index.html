@@ -5826,7 +5826,7 @@ app.component('view-mdCustomer', makeMasterComponent({
     {key:'creditLimit', label:'วงเงินเครดิต', format:'money'}, {key:'active', label:'สถานะ', format:'bool'},
   ],
   fields: [
-    {key:'code', label:'รหัสลูกค้า', required:true},
+    {key:'code', label:'รหัสลูกค้า (เว้นว่าง = auto-gen)', placeholder:'เว้นว่างให้ระบบสร้างให้อัตโนมัติ (C0001, C0002, ...)'},
     {key:'name', label:'ชื่อลูกค้า', required:true},
     {key:'type', label:'ประเภท', type:'select', options:[{value:'นิติบุคคล', label:'นิติบุคคล'},{value:'บุคคล', label:'บุคคล'},{value:'ต่างประเทศ', label:'ต่างประเทศ'}]},
     {key:'taxId', label:'เลขประจำตัวผู้เสียภาษี'},
@@ -5836,7 +5836,8 @@ app.component('view-mdCustomer', makeMasterComponent({
     {key:'creditLimit', label:'วงเงินเครดิต (บาท)', type:'number'},
     {key:'active', label:'สถานะ', type:'bool'},
   ],
-  validate: (f) => { const e=[]; if(!f.code)e.push('กรุณาใส่รหัส'); if(!f.name)e.push('กรุณาใส่ชื่อ'); return e; },
+  validate: (f) => { const e=[]; if(!f.name)e.push('กรุณาใส่ชื่อ'); return e; },
+  autoCode: true,    // 🆕 auto-generate code ถ้าว่าง (C0001, C0002, ...)
 }));
 
 /* 🔧 SYNC กับ Import Template — 6 fields หลัก: ชื่อ / เลขบัตร / ที่อยู่ / เลขบัญชี / เบอร์โทร / เซลที่ดูแล + active
@@ -9628,12 +9629,11 @@ app.component('view-purchase', {
               </div>
               <div class="md:col-span-3">
                 <label class="block text-xs font-medium text-slate-600 mb-1">🏭 Supplier * <span class="text-slate-400 font-normal text-[11px]">({{(db.suppliers||[]).filter(x=>x && x.active).length}} ราย)</span></label>
-                <!-- 🆕 ช่องเดียว — Native select แสดงทุก supplier (sort name) + ปุ่มเพิ่ม -->
+                <!-- 🆕 Searchable Supplier picker — พิมพ์ชื่อ/รหัส/เบอร์ค้นหาได้ -->
                 <div class="flex gap-2">
-                  <select v-model="form.supplierId" @change="onSupplierPicked" class="flex-1 px-3 py-2 border rounded-lg text-sm">
-                    <option value="">-- เลือก Supplier --</option>
-                    <option v-for="s in filteredSuppliers" :key="s.id" :value="s.id">{{s.name}}{{s.code ? ' ('+s.code+')' : ''}}{{s.phone ? ' · '+s.phone : ''}}</option>
-                  </select>
+                  <div class="flex-1">
+                    <searchable-select v-model="form.supplierId" @change="onSupplierPicked" :options="filteredSuppliers" label-field="name" code-field="code" extra-field="phone" placeholder="🔍 พิมพ์ชื่อ/รหัส/เบอร์ Supplier..." input-class="w-full px-3 py-2 border rounded-lg text-sm"></searchable-select>
+                  </div>
                   <button type="button" @click="quickAddSupplier" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded text-xs whitespace-nowrap">+ เพิ่ม</button>
                 </div>
                 <!-- 💳 Bank Account inline -->
