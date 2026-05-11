@@ -4430,11 +4430,22 @@ window.$erp = {
           const arr = _GLOBAL_DB[localKey] = _GLOBAL_DB[localKey] || [];
           const cloudById = new Map();
           cloudRows.forEach(r => { if (r && r[conflictCol] != null) cloudById.set(r[conflictCol], r); });
-          // STEP 1: Update existing local rows — ถ้า id มีใน cloud → เอา cloud version แทน
+          // STEP 1: Update existing local rows — LWW (Last-Write-Wins) — ห้าม pull ทับ local ที่ใหม่กว่า
           for (let j = 0; j < arr.length; j++) {
             const localKey2 = arr[j] && arr[j][conflictCol];
             if (localKey2 != null && cloudById.has(localKey2)) {
-              arr[j] = cloudById.get(localKey2);
+              const cloudRow = cloudById.get(localKey2);
+              const localRow = arr[j];
+              // 🆕 LWW: ถ้า local มี updatedAt ใหม่กว่า cloud → เก็บ local (กัน pull ทับ edit ที่เพิ่ง save)
+              const cloudTs = String(cloudRow?.updatedAt || cloudRow?.updated_at || cloudRow?.createdAt || cloudRow?.created_at || '');
+              const localTs = String(localRow?.updatedAt || localRow?.updated_at || localRow?.createdAt || localRow?.created_at || '');
+              if (cloudTs && localTs && localTs > cloudTs) {
+                // Local ใหม่กว่า → ไม่ overwrite + mark ให้ push ใน cycle ถัดไป
+                dirtyTables.add(localKey);
+                console.log(`[pull-LWW] skip ${cfg.target} ${localKey2}: local newer (${localTs}) than cloud (${cloudTs})`);
+              } else {
+                arr[j] = cloudRow;
+              }
               cloudById.delete(localKey2);
             }
           }
