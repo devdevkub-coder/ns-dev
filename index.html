@@ -2682,17 +2682,17 @@ function seedData() {
         actions:{'*':['view','create','edit','post','export']},
         seeCost:true, seeProfit:true, seeCash:true, seeFinancials:true, seeOpening:false,
         branchScope:'all' },
-      { id:'R-COORDINATOR', name:'ประสานงาน', desc:'ประสานงาน — กรอกบิลซื้อ/ขาย, Stock, Trading, PO, ใบสำคัญรับเงิน, ปรับสถานะ/เกรด, Sales Tracking', isSystem:false,
-        // 🆕 ADD: receiptVoucher, statusConvert, gradeAdjustment, customerReturn, salesCommission, costPool, costAllocator, matchLog
-        // 🚫 REMOVE: paymentApproval
-        menus:['changePassword','purchase','sales','stockIssue','payment','receipt','receiptVoucher','statusConvert','gradeAdjustment','stockAdjust','customerReturn','stockBalance','stockLedger','mdCustomer','mdSupplier','mdProduct','mdChannel','importTxn','pendingSales','poOutstanding','poBuy','poSell','tradingDashboard','tradingMatching','salesCommission','costPool','costAllocator','matchLog','reports','backup','companyProfile'],
+      { id:'R-COORDINATOR', name:'ประสานงาน', desc:'ประสานงาน — กรอกบิลซื้อ/ขาย, Stock, Trading, PO, ใบสำคัญรับเงิน, ปรับสถานะ/เกรด', isSystem:false,
+        // 🆕 ADD: receiptVoucher, statusConvert, gradeAdjustment, customerReturn, costPool, costAllocator, matchLog
+        // 🚫 REMOVE: paymentApproval, salesCommission (จำกัด Sales Tracking ให้ Poopae เท่านั้น)
+        menus:['changePassword','purchase','sales','stockIssue','payment','receipt','receiptVoucher','statusConvert','gradeAdjustment','stockAdjust','customerReturn','stockBalance','stockLedger','mdCustomer','mdSupplier','mdProduct','mdChannel','importTxn','pendingSales','poOutstanding','poBuy','poSell','tradingDashboard','tradingMatching','costPool','costAllocator','matchLog','reports','backup','companyProfile'],
         actions:{'*':['view','create','edit','post','export']},
         seeCost:true, seeProfit:false, seeCash:false, seeFinancials:false, seeOpening:false,
         branchScope:'all' },
       { id:'R-POOPAE', name:'Poopae', desc:'Role พิเศษ — เข้าถึงพิเศษ + Production + Asset + Loan + ใบสำคัญรับเงิน + Bank Recon + Import Master', isSystem:false,
         // 🆕 ADD: receiptVoucher, bankRecon, mdExpense, historicalData, mdImport
         // 🚫 REMOVE: dashboard, cashPosition
-        menus:['changePassword','purchase','sales','stockIssue','paymentApproval','payment','receipt','receiptVoucher','expense','pettyAdvance','expenseDashboard','bankRecon','ar','ap','bank','stockBalance','stockLedger','transactionLedger','mdCustomer','mdSupplier','mdProduct','mdChannel','mdAccount','mdExpense','mdImport','importTxn','pendingSales','poOutstanding','poBuy','poSell','tradingDashboard','tradingMatching','reports','plStatement','balanceSheet','cashFlowStatement','production','productionReport','wipReport','productionCostReport','yieldLossReport','machineUtil','loanContracts','loanDashboard','assetRegister','depreciation','assetDisposal','equityMaint','openingBalance','historicalData','audit','anomalyDetector','backup','companyProfile'],
+        menus:['changePassword','purchase','sales','stockIssue','paymentApproval','payment','receipt','receiptVoucher','expense','pettyAdvance','expenseDashboard','bankRecon','ar','ap','bank','stockBalance','stockLedger','transactionLedger','mdCustomer','mdSupplier','mdProduct','mdChannel','mdAccount','mdExpense','mdImport','importTxn','pendingSales','poOutstanding','poBuy','poSell','tradingDashboard','tradingMatching','salesCommission','reports','plStatement','balanceSheet','cashFlowStatement','production','productionReport','wipReport','productionCostReport','yieldLossReport','machineUtil','loanContracts','loanDashboard','assetRegister','depreciation','assetDisposal','equityMaint','openingBalance','historicalData','audit','anomalyDetector','backup','companyProfile'],
         actions:{'*':['view','create','edit','post','export']},
         seeCost:true, seeProfit:true, seeCash:true, seeFinancials:true, seeOpening:true,
         branchScope:'all' },
