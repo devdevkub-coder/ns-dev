@@ -14135,6 +14135,18 @@ app.component('view-sales', {
       // Prefill credit term
       if (!form.creditTerm && c.creditTerm) form.creditTerm = Number(c.creditTerm);
     });
+    /* 🆕 Auto-regenerate docNo เมื่อเปลี่ยนวันที่บิล (เฉพาะตอนสร้างใหม่) */
+    watch(() => form.date, (newDate, oldDate) => {
+      if (!newDate || newDate === oldDate) return;
+      if (editing.value) return;   // ไม่ regenerate ตอนแก้บิลเก่า
+      if (!form.docNo) return;
+      try {
+        const newNo = erp.nextDocNo('SB', newDate);
+        if (newNo && newNo !== form.docNo) {
+          form.docNo = newNo;
+        }
+      } catch(e){}
+    });
     /* 🆕 Save salesId กลับเข้า customer master เมื่อ user เปลี่ยน */
     function updateCustomerSalesId(custId, val) {
       const c = (db.customers||[]).find(x => x && x.id === custId);
@@ -14704,11 +14716,13 @@ app.component('view-sales', {
           if (q) { const txt = ((b.docNo||'')+' '+(b.refNo||'')+' '+(erp.customerName(b.customerId)||'')+' '+(b.note||'')).toLowerCase(); if(!txt.includes(q)) return false; }
           return true;
         }).sort((a,b) => {
-          // 🆕 เรียงตามเลขที่บิล desc (เลขใหม่ขึ้นก่อน) — fallback ตาม date + createdAt
-          const docA = String(a.docNo||''); const docB = String(b.docNo||'');
-          if (docA !== docB) return docB.localeCompare(docA, undefined, { numeric: true });
+          // 🔧 BUG FIX: เรียงตาม "วันที่บิล" desc ก่อน (วันใหม่ขึ้น) — แล้ว fallback ที่ docNo
           const da = String(a.date||''); const dbb = String(b.date||'');
           if (da !== dbb) return dbb.localeCompare(da);
+          // วันเดียวกัน → เรียง docNo desc
+          const docA = String(a.docNo||''); const docB = String(b.docNo||'');
+          if (docA !== docB) return docB.localeCompare(docA, undefined, { numeric: true });
+          // tiebreaker — createdAt
           const ca = String(a.createdAt||''); const cbb = String(b.createdAt||'');
           return cbb.localeCompare(ca);
         });
@@ -15073,7 +15087,7 @@ app.component('view-sales', {
           <th class="px-3 py-2 text-right">ค้างรับ</th>
           <th class="px-3 py-2 text-center">สถานะ</th>
           <th class="px-3 py-2 text-center">🧾 ใบกำกับ</th>
-          <th class="px-3 py-2 text-left">👤 ผู้ทำ / ⏰ เวลา</th>
+          <th class="px-3 py-2 text-left whitespace-nowrap">👤 ผู้ทำ</th>
           <th></th>
         </tr></thead>
         <tbody>
@@ -15102,10 +15116,12 @@ app.component('view-sales', {
               </button>
               <span v-else class="text-xs text-slate-400">No VAT</span>
             </td>
-            <td class="px-3 py-2 text-xs">
-              <div class="text-slate-700">👤 <b>{{b.createdBy||'-'}}</b></div>
-              <div class="text-slate-500">📅 สร้าง: {{b.createdAt?String(b.createdAt).slice(0,16).replace('T',' '):'-'}}</div>
-              <div v-if="b.updatedAt" class="text-amber-700">✏️ แก้: {{String(b.updatedAt).slice(0,16).replace('T',' ')}} <span v-if="b.updatedBy && b.updatedBy !== b.createdBy">({{b.updatedBy}})</span></div>
+            <!-- 🆕 compact: 1 บรรทัด + tooltip รายละเอียดเต็ม -->
+            <td class="px-2 py-2 text-[11px] whitespace-nowrap"
+              :title="'สร้างโดย: '+(b.createdBy||'-')+'\n'+(b.createdAt?'📅 '+String(b.createdAt).slice(0,16).replace('T',' '):'')+(b.updatedAt?'\n✏️ แก้: '+String(b.updatedAt).slice(0,16).replace('T',' ')+(b.updatedBy && b.updatedBy !== b.createdBy ? ' โดย '+b.updatedBy : ''):'')">
+              <div class="font-semibold text-slate-700">{{b.createdBy||'-'}}</div>
+              <div class="text-[10px] text-slate-500">{{b.createdAt?String(b.createdAt).slice(2,10).replace('-','/'):'-'}}</div>
+              <div v-if="b.updatedAt" class="text-[10px] text-amber-700">✏️ {{String(b.updatedAt).slice(5,10).replace('-','/')}}</div>
             </td>
             <td class="px-3 py-2 text-right whitespace-nowrap">
               <button @click="showDetail=b" class="text-blue-600 text-xs hover:underline mr-2">ดู</button>
