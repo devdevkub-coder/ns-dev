@@ -10834,6 +10834,12 @@ app.component('view-payment', {
         // 🆕 Split-aware bank statement: 1 entry per account
         // ⚠ Defense: ลบของเก่าซ้ำที่อาจหลงเหลือก่อน push ใหม่ (กัน duplicate จาก auto-pull race)
         db.bankStatement = (db.bankStatement||[]).filter(s => !(s && s.refType === 'PMT' && s.refId === voucherId));
+        // 🆕 ลบจาก Cloud ด้วย — กัน random-id ของเก่าหลงเหลือ
+        try {
+          if (window.sb) {
+            await window.sb.from('bank_statement').delete().eq('ref_type','PMT').eq('ref_id', voucherId);
+          }
+        } catch(e) { console.warn('[clear cloud bs PMT]', e); }
         const splitsToWrite = validSplits.length > 0
           ? validSplits
           : [{ accountId: f.accountId, amount: totals.value.netCashOut }];
@@ -11456,6 +11462,12 @@ app.component('view-receipt', {
         const customerLabel = Array.from(customerNames).join(', ').slice(0,80) || 'หลายราย';
         // 🆕 Defense + deterministic id — กัน duplicate
         db.bankStatement = (db.bankStatement||[]).filter(s => !(s && s.refType === 'RCP' && s.refId === voucherId));
+        // 🆕 ลบจาก Cloud ด้วย — กัน random-id ของเก่าหลงเหลือ
+        try {
+          if (window.sb) {
+            await window.sb.from('bank_statement').delete().eq('ref_type','RCP').eq('ref_id', voucherId);
+          }
+        } catch(e) { console.warn('[clear cloud bs RCP]', e); }
         db.bankStatement.push({
           id: 'BS-RCP-' + voucherId,   // ⭐ deterministic id
           date: f.date, accountId: f.accountId,
