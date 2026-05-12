@@ -4096,7 +4096,7 @@ window.$erp = {
     payments: { target:'payments', keyMap:{ docNo:'doc_no', billId:'bill_id', supplierId:'supplier_id', accountId:'account_id', withholdingTax:'withholding_tax', netAmount:'net_amount', branchId:'branch_id', voucherId:'voucher_id', createdBy:'created_by', createdAt:'created_at' } },
     receipts: { target:'receipts', keyMap:{ docNo:'doc_no', billId:'bill_id', customerId:'customer_id', accountId:'account_id', withholdingTax:'withholding_tax', netAmount:'net_amount', branchId:'branch_id', voucherId:'voucher_id', createdBy:'created_by', createdAt:'created_at' } },
     transfers: { target:'transfers', keyMap:{ docNo:'doc_no', fromAccountId:'from_account_id', toAccountId:'to_account_id', createdBy:'created_by', createdAt:'created_at' } },
-    expenses: { target:'expenses', keyMap:{ docNo:'doc_no', categoryId:'category_id', netAmount:'net_amount', accountId:'account_id', branchId:'branch_id', taxInvoiceNo:'tax_invoice_no', approvedBy:'approved_by', approvedAt:'approved_at', paidAt:'paid_at', createdBy:'created_by', createdAt:'created_at' } },
+    expenses: { target:'expenses', keyMap:{ docNo:'doc_no', categoryId:'category_id', netAmount:'net_amount', accountId:'account_id', branchId:'branch_id', taxInvoiceNo:'tax_invoice_no', approvedBy:'approved_by', approvedAt:'approved_at', paidAt:'paid_at', paidStatus:'paid_status', voucherId:'voucher_id', dueDate:'due_date', refDocNo:'ref_doc_no', whtPct:'wht_pct', createdBy:'created_by', createdAt:'created_at', updatedAt:'updated_at' } },
     stockLedger: { target:'stock_ledger', keyMap:{ productId:'product_id', warehouseId:'warehouse_id', branchId:'branch_id', movementType:'movement_type', refType:'ref_type', refId:'ref_id', refNo:'ref_no', qtyIn:'qty_in', qtyOut:'qty_out', valueIn:'value_in', valueOut:'value_out', unitCost:'unit_cost', purchaseChannelId:'purchase_channel_id', salesChannelId:'sales_channel_id', createdBy:'created_by', createdAt:'created_at' } },
     bankStatement: { target:'bank_statement', keyMap:{ accountId:'account_id', refType:'ref_type', refId:'ref_id', refNo:'ref_no', cashFlowCategory:'cash_flow_category', createdBy:'created_by', createdAt:'created_at', in:'amount_in', out:'amount_out' } },
     poBuys: { target:'po_buys', keyMap:{ docNo:'doc_no', supplierId:'supplier_id', productId:'product_id', branchId:'branch_id', channelId:'channel_id', expectedDelivery:'expected_delivery', unitPrice:'unit_price', totalAmount:'total_amount', remainingQty:'remaining_qty', createdAt:'created_at' } },
@@ -12190,7 +12190,7 @@ app.component('view-expense', {
     const form = ref(makeBlankForm());
     function emptyLine() { return { id: newId('EXL'), categoryId:'', description:'', amount:0, hasVat: false, vatAmount:0, whtPct: 0, whtAmount:0 }; }
     function makeBlankForm() {
-      return { docNo:'', date: todayStr(), payeeName:'', accountId:'', method:'โอน', branchId:'', notes:'', lines:[emptyLine()] };
+      return { docNo:'', date: todayStr(), dueDate:'', refDocNo:'', payeeName:'', accountId:'', method:'โอน', branchId:'', notes:'', lines:[emptyLine()] };
     }
     /* Auto-compute VAT 7% per line if hasVat checked */
     function recalcLineVat(line) {
@@ -12230,6 +12230,8 @@ app.component('view-expense', {
         form.value = {
           docNo: first.docNo,
           date: first.date,
+          dueDate: first.dueDate || '',
+          refDocNo: first.refDocNo || '',
           payeeName: first.payee || '',
           accountId: first.accountId || '',
           method: first.method || 'โอน',
@@ -12280,13 +12282,16 @@ app.component('view-expense', {
         validLines.forEach(line => {
           db.expenses.push({
             id: newId('EXP-L'), voucherId: id, docNo: f.docNo, date: f.date,
+            dueDate: f.dueDate || '', refDocNo: f.refDocNo || '',
             categoryId: line.categoryId, desc: line.description,
             amount: num(line.amount), vat: num(line.vatAmount), wht: num(line.whtAmount),
+            whtPct: num(line.whtPct) || 0,
             hasVat: !!line.hasVat,
             accountId: f.accountId, payee: f.payeeName, branchId: f.branchId,
             method: f.method || 'โอน', notes: f.notes || '',
             paidStatus, paidAt,
-            createdBy: erp.currentUser.value?.username || '-'
+            createdBy: erp.currentUser.value?.username || '-',
+            updatedAt: new Date().toISOString()
           });
         });
         if (isPay && f.accountId) {
@@ -12340,9 +12345,12 @@ app.component('view-expense', {
       } catch(e) { alert('Error: '+e.message); }
     }
     async function remove(g) {
-      if (!confirm('ลบ '+g.docNo+' ?\n• ลบทั้ง Local + Cloud (ทุก lines + bankStatement)')) return;
+      if (!confirm(`ลบ ${g.docNo} (${fmt(g.total)} บาท) ?\n• ผู้รับ: ${g.payee}\n• ${g.count} รายการ\n• ลบทั้ง Local + Cloud (รวม bankStatement)`)) return;
       const expIds = db.expenses.filter(e => (e.voucherId||e.id) === g.id).map(e => e.id);
       const bsIds = db.bankStatement.filter(s => s.refType==='EXP' && s.refId===g.id).map(s => s.id);
+      // 🔧 ใส่ tombstone ทันที (ก่อน splice) — กัน pull restore แบบ race
+      try { window.$autoSync?.addTombstones?.('expenses', expIds); } catch(e){}
+      try { window.$autoSync?.addTombstones?.('bankStatement', bsIds); } catch(e){}
       db.expenses = db.expenses.filter(e => (e.voucherId||e.id) !== g.id);
       db.bankStatement = db.bankStatement.filter(s => !(s.refType==='EXP' && s.refId===g.id));
       // 🆕 BUG FIX: ลบใน cloud ทั้ง by id + by voucher_id (กรณี cloud มี rows ที่ local ไม่มี)
@@ -12394,11 +12402,13 @@ app.component('view-expense', {
           const vid = e.voucherId || e.id || 'unk';
           if (!groups[vid]) groups[vid] = {
             id:vid, docNo:e.docNo||'-', date:e.date||'', payee:e.payee||'-',
-            accountId:e.accountId||'', categories: new Set(), count:0, total:0, paidCount:0
+            accountId:e.accountId||'', categories: new Set(), count:0, total:0, paidCount:0,
+            dueDate: e.dueDate || '', refDocNo: e.refDocNo || ''   // 🆕
           };
           if (e.categoryId) groups[vid].categories.add(e.categoryId);
           groups[vid].count++; groups[vid].total += num(e.amount);
-          if (e.paidStatus !== 'pending') groups[vid].paidCount++;
+          // 🔧 BUG FIX: count เฉพาะ paidStatus==='paid' (เดิม !== 'pending' → undefined ถูกนับเป็นจ่าย → bug)
+          if (e.paidStatus === 'paid') groups[vid].paidCount++;
         });
         let arr = Object.values(groups).map(g => ({ ...g, categoryIds: Array.from(g.categories), paidStatus: g.paidCount === g.count ? 'paid' : (g.paidCount === 0 ? 'pending' : 'partial') }));
         // 🆕 Filter by paid status (default: pending — ซ่อนรายการที่จ่ายแล้ว)
@@ -12657,11 +12667,31 @@ app.component('view-expense', {
     </div>
     <div class="bg-white rounded-xl shadow overflow-x-auto">
       <table class="w-full text-sm">
-        <thead class="bg-slate-100"><tr><th class="p-2 text-left">เลขที่</th><th class="p-2 text-left">วันที่</th><th class="p-2 text-left">ผู้รับ</th><th class="p-2 text-left">บัญชี</th><th class="p-2 text-center">สถานะ</th><th class="p-2 text-right">รายการ</th><th class="p-2 text-right">รวม</th><th></th></tr></thead>
+        <thead class="bg-slate-100"><tr>
+          <th class="p-2 text-left">เลขที่</th>
+          <th class="p-2 text-left">วันที่</th>
+          <th class="p-2 text-left">⏰ ครบกำหนด</th>
+          <th class="p-2 text-left">📄 อ้างอิง</th>
+          <th class="p-2 text-left">ผู้รับ</th>
+          <th class="p-2 text-left">บัญชี</th>
+          <th class="p-2 text-center">สถานะ</th>
+          <th class="p-2 text-right">รายการ</th>
+          <th class="p-2 text-right">รวม</th>
+          <th class="p-2 text-center">การกระทำ</th>
+        </tr></thead>
         <tbody>
           <tr v-for="g in list" :key="g.id" class="border-t" :class="g.paidStatus==='pending' ? 'bg-amber-50/40' : ''">
             <td class="p-2 font-mono">{{g.docNo}}</td>
             <td class="p-2">{{g.date}}</td>
+            <!-- 🆕 ครบกำหนด — ถ้าเกินวันแล้วยังไม่จ่าย → แดง -->
+            <td class="p-2 text-xs">
+              <span v-if="g.dueDate" :class="g.paidStatus!=='paid' && g.dueDate < (new Date().toISOString().slice(0,10)) ? 'text-red-600 font-bold' : 'text-slate-700'">
+                {{g.dueDate}}
+                <span v-if="g.paidStatus!=='paid' && g.dueDate < (new Date().toISOString().slice(0,10))" class="block text-[10px] text-red-500">⚠ เลยกำหนด</span>
+              </span>
+              <span v-else class="text-slate-300">-</span>
+            </td>
+            <td class="p-2 text-xs font-mono text-slate-600">{{g.refDocNo || '-'}}</td>
             <td class="p-2">{{g.payee}}</td>
             <td class="p-2">{{erp.accountName(g.accountId) || '-'}}</td>
             <td class="p-2 text-center text-xs">
@@ -12671,13 +12701,13 @@ app.component('view-expense', {
             </td>
             <td class="p-2 text-right">{{g.count}}</td>
             <td class="p-2 text-right font-medium" :class="g.paidStatus==='pending' ? 'text-amber-700' : 'text-red-600'">{{fmt(g.total)}}</td>
-            <td class="p-2 text-right whitespace-nowrap">
-              <button v-if="g.paidStatus!=='paid'" @click="quickPay(g)" class="bg-emerald-600 text-white text-xs px-2 py-1 rounded mr-1 font-bold" title="จ่ายเงินทันที">💸 จ่าย</button>
-              <button @click="openEdit(g)" class="text-blue-600 text-xs hover:underline mr-2">✏️ แก้</button>
-              <button @click="remove(g)" class="text-red-600 text-xs hover:underline">🗑 ลบ</button>
+            <td class="p-2 text-center whitespace-nowrap">
+              <button v-if="g.paidStatus!=='paid'" @click="quickPay(g)" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2 py-1 rounded mr-1 font-bold" title="จ่ายเงินทันที">💸 จ่าย</button>
+              <button @click="openEdit(g)" class="bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs px-2 py-1 rounded mr-1 font-bold" title="แก้ไข">✏️</button>
+              <button @click="remove(g)" class="bg-red-100 hover:bg-red-600 hover:text-white text-red-700 text-xs px-2 py-1 rounded font-bold" title="ลบบิล">🗑 ลบ</button>
             </td>
           </tr>
-          <tr v-if="list.length===0"><td colspan="8" class="text-center py-8 text-slate-400">ยังไม่มีรายการ</td></tr>
+          <tr v-if="list.length===0"><td colspan="10" class="text-center py-8 text-slate-400">ยังไม่มีรายการ</td></tr>
         </tbody>
       </table>
     </div>
@@ -12687,7 +12717,16 @@ app.component('view-expense', {
         <div class="p-5 space-y-4 text-sm">
           <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div><label class="block text-xs mb-1">เลขที่</label><input v-model="form.docNo" class="w-full px-2 py-1.5 border rounded bg-slate-50 font-mono" readonly></div>
-            <div><label class="block text-xs mb-1">วันที่</label><input type="date" v-model="form.date" class="w-full px-2 py-1.5 border rounded"></div>
+            <div><label class="block text-xs mb-1">📅 วันที่บิล</label><input type="date" v-model="form.date" class="w-full px-2 py-1.5 border rounded"></div>
+            <!-- 🆕 วันครบกำหนดชำระ (เครดิต) -->
+            <div><label class="block text-xs mb-1">⏰ วันครบกำหนดชำระ <span class="text-slate-400 font-normal">(เครดิต)</span></label>
+              <input type="date" v-model="form.dueDate" class="w-full px-2 py-1.5 border rounded" :min="form.date">
+              <div v-if="form.dueDate && form.date" class="text-[10px] text-slate-500 mt-0.5">เครดิต: {{Math.max(0, Math.round((new Date(form.dueDate)-new Date(form.date))/86400000))}} วัน</div>
+            </div>
+            <!-- 🆕 อ้างอิงเอกสาร (Invoice No / ใบเสร็จเลขที่...) -->
+            <div><label class="block text-xs mb-1">📄 อ้างอิงเอกสาร <span class="text-slate-400 font-normal">(Invoice / ใบเสร็จ)</span></label>
+              <input v-model="form.refDocNo" placeholder="เช่น INV-2026-0123" class="w-full px-2 py-1.5 border rounded">
+            </div>
             <div><label class="block text-xs mb-1">👤 ผู้รับเงิน <span class="text-slate-400 font-normal">(พิมพ์ค้นหาหรือใช้ของเก่า)</span></label>
               <input v-model="form.payeeName" list="expense-payees" placeholder="🔍 พิมพ์ชื่อผู้รับเงิน..." class="w-full px-2 py-1.5 border rounded">
               <datalist id="expense-payees">
