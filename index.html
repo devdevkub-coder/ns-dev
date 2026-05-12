@@ -3936,9 +3936,10 @@ window.$erp = {
     }
   },
   /* 🆕 ลบ records จาก Supabase ตาม collection name + ids array
-     ใช้ทุกครั้งที่ลบ local เพื่อกัน auto-pull ดึงของเก่ากลับมา */
+     ใช้ทุกครั้งที่ลบ local เพื่อกัน auto-pull ดึงของเก่ากลับมา
+     🔧 BUG FIX: return {ok, error, deleted} เพื่อให้ caller รู้ผล + แจ้ง user */
   deleteCloud: async (localCollection, ids) => {
-    if (!window.sb || !Array.isArray(ids) || ids.length === 0) return;
+    if (!window.sb || !Array.isArray(ids) || ids.length === 0) return { ok:true, deleted:0 };
     const map = {
       // Master
       suppliers:'suppliers', customers:'customers', products:'products',
@@ -3963,12 +3964,33 @@ window.$erp = {
       users:'users', roles:'roles',
     };
     const cloudTbl = map[localCollection];
-    if (!cloudTbl) { console.warn('[deleteCloud] no cloud table for:', localCollection); return; }
+    if (!cloudTbl) { console.warn('[deleteCloud] no cloud table for:', localCollection); return { ok:false, error:'no_table' }; }
     try {
-      const { error } = await window.sb.from(cloudTbl).delete().in('id', ids);
-      if (error) console.warn('[deleteCloud] '+cloudTbl+': '+error.message);
-      else console.log('[deleteCloud] '+cloudTbl+' '+ids.length+' rows ✓');
-    } catch(e) { console.warn('[deleteCloud] exception:', e); }
+      // 🆕 ใช้ .select() เพื่อรู้จำนวน rows ที่ลบจริง
+      const { data, error } = await window.sb.from(cloudTbl).delete().in('id', ids).select('id');
+      if (error) {
+        console.warn('[deleteCloud] '+cloudTbl+': '+error.message);
+        // 🆕 เพิ่ม tombstone — กัน pull ดึงกลับมา
+        try {
+          if (window.$autoSync && window.$autoSync.addTombstones) {
+            window.$autoSync.addTombstones(localCollection, ids);
+          }
+        } catch(e){}
+        return { ok:false, error:error.message, deleted:0 };
+      }
+      const deleted = Array.isArray(data) ? data.length : ids.length;
+      console.log('[deleteCloud] '+cloudTbl+' '+deleted+'/'+ids.length+' rows ✓');
+      // 🆕 เพิ่ม tombstone เสมอ (กัน race condition ระหว่าง pull กับ delete)
+      try {
+        if (window.$autoSync && window.$autoSync.addTombstones) {
+          window.$autoSync.addTombstones(localCollection, ids);
+        }
+      } catch(e){}
+      return { ok:true, deleted };
+    } catch(e) {
+      console.warn('[deleteCloud] exception:', e);
+      return { ok:false, error:e.message, deleted:0 };
+    }
   },
   /* Check menu/view access */
   canView: (view) => {
@@ -4414,10 +4436,17 @@ window.$erp = {
             'currencies','overseasRecipients','users','roles'];
           if (MASTER_REPLACE_MODE.includes(localKey)) {
             // REPLACE: wipe local + insert all cloud rows
+            // 🆕 Skip tombstoned IDs (เพิ่งลบ — กัน restore ก่อน cloud delete มาถึง)
             const arrM = _GLOBAL_DB[localKey] = _GLOBAL_DB[localKey] || [];
             const beforeCount = arrM.length;
             arrM.length = 0; // wipe
-            cloudRows.forEach(r => { if (r) arrM.push(r); });
+            let skippedTomb = 0;
+            cloudRows.forEach(r => {
+              if (!r) return;
+              if (r.id && isTombstoned(localKey, r.id)) { skippedTomb++; return; }
+              arrM.push(r);
+            });
+            if (skippedTomb) console.log(`[pull-tombstone] ${localKey}: skipped ${skippedTomb} recently-deleted rows`);
             const after = arrM.length;
             const delta = after - beforeCount;
             if (delta > 0) newRowCount += delta;
@@ -4428,7 +4457,14 @@ window.$erp = {
           // 🆕 MERGE strategy (สำหรับ transactional tables — ไม่ลบ local rows ที่ cloud ไม่มี)
           const arr = _GLOBAL_DB[localKey] = _GLOBAL_DB[localKey] || [];
           const cloudById = new Map();
-          cloudRows.forEach(r => { if (r && r[conflictCol] != null) cloudById.set(r[conflictCol], r); });
+          let mergeSkippedTomb = 0;
+          cloudRows.forEach(r => {
+            if (!r || r[conflictCol] == null) return;
+            // 🆕 Skip tombstoned IDs (เพิ่งลบ — กัน MERGE ดึงกลับมา)
+            if (isTombstoned(localKey, r[conflictCol])) { mergeSkippedTomb++; return; }
+            cloudById.set(r[conflictCol], r);
+          });
+          if (mergeSkippedTomb) console.log(`[pull-tombstone-merge] ${localKey}: skipped ${mergeSkippedTomb} recently-deleted rows`);
           // STEP 1: Update existing local rows — LWW (Last-Write-Wins) — ห้าม pull ทับ local ที่ใหม่กว่า
           for (let j = 0; j < arr.length; j++) {
             const localKey2 = arr[j] && arr[j][conflictCol];
@@ -4647,12 +4683,42 @@ window.$erp = {
     }
   }, 2000);
 
+  /* 🆕 Tombstone tracking — กัน pull ดึง id ที่ลบไปแล้วกลับมา
+     ใช้: window.$autoSync.addTombstones('expenses', ['exp-1','exp-2'])
+     pull จะ skip id ที่อยู่ใน tombstones ถ้าอยู่ในช่วง TTL (5 นาที) */
+  const TOMBSTONES = {};  // { localCollection: { id: expiryTs } }
+  const TOMBSTONE_TTL_MS = 5 * 60 * 1000;  // 5 นาที — เพียงพอให้ pull ตามหลัง delete ทัน
+  function addTombstones(localCollection, ids) {
+    if (!localCollection || !Array.isArray(ids)) return;
+    TOMBSTONES[localCollection] = TOMBSTONES[localCollection] || {};
+    const exp = Date.now() + TOMBSTONE_TTL_MS;
+    ids.forEach(id => { if (id) TOMBSTONES[localCollection][id] = exp; });
+  }
+  function isTombstoned(localCollection, id) {
+    const store = TOMBSTONES[localCollection];
+    if (!store || !id) return false;
+    const exp = store[id];
+    if (!exp) return false;
+    if (Date.now() > exp) { delete store[id]; return false; }
+    return true;
+  }
+  function cleanupTombstones() {
+    const now = Date.now();
+    Object.keys(TOMBSTONES).forEach(coll => {
+      const store = TOMBSTONES[coll];
+      Object.keys(store).forEach(id => { if (now > store[id]) delete store[id]; });
+    });
+  }
+  setInterval(cleanupTombstones, 60000);
+
   // Expose API
   window.$autoSync = {
     boot, shutdown,
     pushNow: () => { if (pushTimer) clearTimeout(pushTimer); return pushDirty(false); },     // dirty หรือ force
     pushAll: () => { if (pushTimer) clearTimeout(pushTimer); return pushDirty(true); },     // 🆕 บังคับ push ทุกตาราง
     pullNow: () => pullAll(),
+    addTombstones, isTombstoned,  // 🆕 expose tombstone API
+    tombstones: () => JSON.parse(JSON.stringify(TOMBSTONES)),
     // 🆕 Singleton sync (openingBalance ฯลฯ)
     pushOpeningBalance: () => pushSingleton('openingBalance', 'opening_balance'),
     pullOpeningBalance: () => pullSingleton('openingBalance', 'opening_balance'),
@@ -4967,11 +5033,37 @@ const app = createApp({
       location.reload();
     }
 
-    function nextDocNo(prefix) {
-      const n = (db.docCounters[prefix] || 1);
-      db.docCounters[prefix] = n + 1;
-      const yymm = new Date().toISOString().slice(2,7).replace('-','');
-      return `${prefix}${yymm}-${String(n).padStart(4,'0')}`;
+    function nextDocNo(prefix, dateStr) {
+      // 🆕 รันเลขตามวันที่สร้าง (ถ้าให้ date มา) — กลุ่ม yymm ตาม date
+      const d = (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dateStr)) ? dateStr : new Date().toISOString().slice(0,10);
+      const yymm = d.slice(2,4) + d.slice(5,7);   // เช่น 2605 จาก 2026-05-12
+      const counterKey = prefix + '_' + yymm;     // counter แยกตามเดือนของบิลนั้น
+      // หา max sequence ที่มีอยู่จริงในระบบสำหรับ prefix+yymm นั้น
+      const collectionMap = {
+        'PB':'purchaseBills','SB':'salesBills','PMT':'payments','RCP':'receipts',
+        'EXP':'expenses','TRF':'transfers','ST':'transferStocks','POB':'poBuys','POS':'poSells',
+        'PO':'productionOrders','PI':'productionInputs','PO2':'productionOutputs',
+        'GA':'stockLedger','RCV':'receiptVouchers'
+      };
+      const coll = collectionMap[prefix];
+      let maxN = 0;
+      if (coll && Array.isArray(db[coll])) {
+        const re = new RegExp('^' + prefix + yymm + '-(\\d+)$');
+        db[coll].forEach(r => {
+          if (!r || !r.docNo) return;
+          const m = String(r.docNo).match(re);
+          if (m) {
+            const n = parseInt(m[1], 10);
+            if (Number.isFinite(n) && n > maxN) maxN = n;
+          }
+        });
+      }
+      // sync counter ให้ใหญ่กว่า max ที่เจอจริง
+      const storedN = Number(db.docCounters[counterKey] || 0);
+      const next = Math.max(maxN, storedN) + 1;
+      db.docCounters[counterKey] = next;
+      // ลบ legacy counter (prefix อย่างเดียว) เพื่อให้ใช้ key ใหม่
+      return `${prefix}${yymm}-${String(next).padStart(4,'0')}`;
     }
 
     function logAudit(action, entity, before, after) {
@@ -5476,9 +5568,29 @@ function makeMasterComponent(opts) {
           const oldOB = Number(editing.value.openingBalance || 0);
           const newOB = Number(form.openingBalance || 0);
           if (Math.abs(oldOB - newOB) > 0.001) {
-            alert('🔒 แก้ "ยอดตั้งต้น" ไม่ได้\n\nระบบ Lock Opening Balance ไว้แล้ว (วันที่ '+(db.openingBalance.cutoffDate||'-')+')\n\n👉 ถ้าต้องการแก้ → ไปหน้า "Opening Balance / ตั้งต้นยอด" → กด Unlock ก่อน');
-            form.openingBalance = oldOB;
-            return;
+            // 🆕 ให้ Admin/Owner unlock ได้ทันทีจาก dialog นี้ — ไม่ต้องไปหน้า Opening Balance
+            const role = erp.currentRole?.();
+            const isAdmin = !role || role.actions === '*' || (role.id === 'admin' || role.id === 'owner');
+            if (isAdmin) {
+              const cd = db.openingBalance.cutoffDate || '-';
+              const ans = confirm(`🔒 แก้ "ยอดตั้งต้น" ของ "${editing.value.name}" ไม่ได้\n\nระบบ Lock Opening Balance ไว้แล้ว (วันที่ ${cd})\n\nต้องการ Unlock ทันทีไหม?\n\n• ${oldOB.toLocaleString()} → ${newOB.toLocaleString()}\n\n⚠ ยอดเก่าจะถูกเปลี่ยน — ส่งผลกับยอดคงเหลือบัญชีทั้งหมด`);
+              if (ans) {
+                db.openingBalance.locked = false;
+                db.openingBalance.lockedAt = null;
+                db.openingBalance.lockedBy = null;
+                erp.logAudit('UNLOCK_OPENING_BALANCE','openingBalance',{locked:true},{locked:false});
+                try { window.$autoSync?.pushOpeningBalance?.(); } catch(e){}
+                erp.showToast('🔓 Unlock Opening Balance แล้ว — ดำเนินการบันทึก','success');
+                // ไม่ return — ปล่อยให้ save ต่อ
+              } else {
+                form.openingBalance = oldOB;
+                return;
+              }
+            } else {
+              alert('🔒 แก้ "ยอดตั้งต้น" ไม่ได้\n\nระบบ Lock Opening Balance ไว้แล้ว (วันที่ '+(db.openingBalance.cutoffDate||'-')+')\n\n👉 ต้องให้ Admin/Owner เข้าไปที่หน้า "Opening Balance / ตั้งต้นยอด" → กด Unlock ก่อน');
+              form.openingBalance = oldOB;
+              return;
+            }
           }
         }
         // 🆕 Auto-generate code ถ้าตั้ง opts.autoCode + ยังไม่มี code
@@ -5527,16 +5639,72 @@ function makeMasterComponent(opts) {
         return map[localCollection] || null;
       }
       async function _deleteCloud(localCollection, ids) {
-        if (!window.sb || !ids || ids.length === 0) return;
+        if (!window.sb || !ids || ids.length === 0) return { ok:true, deleted:0 };
         const cloudTbl = _cloudTableFor(localCollection);
-        if (!cloudTbl) return;
+        if (!cloudTbl) return { ok:false, error:'no_table' };
         try {
-          const { error } = await window.sb.from(cloudTbl).delete().in('id', ids);
-          if (error) console.warn('[delete-cloud] '+cloudTbl+': '+error.message);
-          else console.log('[delete-cloud] '+cloudTbl+' '+ids.length+' rows ✓');
-        } catch(e) { console.warn('[delete-cloud] exception:', e); }
+          // 🔧 ใช้ .select() เพื่อยืนยันจำนวน rows ที่ลบจริง
+          const { data, error } = await window.sb.from(cloudTbl).delete().in('id', ids).select('id');
+          if (error) {
+            console.warn('[delete-cloud] '+cloudTbl+': '+error.message);
+            // 🆕 ใส่ tombstone ก่อน return (กัน pull restore แม้ delete fail)
+            try { window.$autoSync?.addTombstones?.(localCollection, ids); } catch(e){}
+            return { ok:false, error:error.message, deleted:0 };
+          }
+          const deleted = Array.isArray(data) ? data.length : ids.length;
+          console.log('[delete-cloud] '+cloudTbl+' '+deleted+'/'+ids.length+' rows ✓');
+          // 🆕 ใส่ tombstone หลัง delete สำเร็จ (กัน race condition)
+          try { window.$autoSync?.addTombstones?.(localCollection, ids); } catch(e){}
+          return { ok:true, deleted };
+        } catch(e) {
+          console.warn('[delete-cloud] exception:', e);
+          try { window.$autoSync?.addTombstones?.(localCollection, ids); } catch(e2){}
+          return { ok:false, error:e.message, deleted:0 };
+        }
+      }
+      /* 🆕 helper: นับ references ก่อน delete master (เช่น account) — กัน FK error */
+      function _refCountFor(localCollection, id) {
+        const refs = {
+          accounts: [
+            ['bankStatement','accountId','รายการเดินบัญชี'],
+            ['payments','accountId','ใบจ่ายเงิน'],
+            ['receipts','accountId','ใบรับเงิน'],
+            ['expenses','accountId','บิลค่าใช้จ่าย'],
+            ['transfers','fromAccountId','โอนเงิน (ต้นทาง)'],
+            ['transfers','toAccountId','โอนเงิน (ปลายทาง)'],
+          ],
+          suppliers: [
+            ['purchaseBills','supplierId','บิลซื้อ'],
+            ['payments','supplierId','ใบจ่ายเงิน'],
+            ['poBuys','supplierId','PO Buy'],
+          ],
+          customers: [
+            ['salesBills','customerId','บิลขาย'],
+            ['receipts','customerId','ใบรับเงิน'],
+            ['poSells','customerId','PO Sell'],
+          ],
+        };
+        const cfg = refs[localCollection];
+        if (!cfg) return [];
+        const out = [];
+        cfg.forEach(([tbl, fld, label]) => {
+          const c = Array.isArray(db[tbl]) ? db[tbl].filter(r => r && r[fld] === id).length : 0;
+          if (c > 0) out.push({ tbl, label, count: c });
+        });
+        return out;
       }
       async function remove(item) {
+        // 🆕 BUG FIX: ตรวจ references ก่อนลบ (เช่น account ที่มี bankStatement) — กัน FK error
+        const refs = _refCountFor(opts.collection, item.id);
+        if (refs.length > 0) {
+          const refMsg = refs.map(r => `• ${r.label}: ${r.count} รายการ`).join('\n');
+          const allowSoftDelete = opts.collection === 'accounts' && 'active' in item;
+          const altOption = allowSoftDelete
+            ? '\n\n👉 แนะนำ: เปลี่ยนสถานะเป็น "ปิดใช้งาน" แทนการลบ (กดแก้ไข → active: false)'
+            : '\n\n👉 ต้องลบ/ย้าย references ก่อน ถึงจะลบ master ได้';
+          alert(`❌ ลบ "${item.name||item.code}" ไม่ได้\n\nมี references อยู่:\n${refMsg}${altOption}`);
+          return;
+        }
         if (!confirm('ยืนยันการลบ ' + (item.name || item.code) + ' ?\n\n⚠ จะลบทั้ง Local + Supabase Cloud — เครื่องอื่นจะไม่เห็นข้อมูลนี้อีก')) return;
         const idx = db[opts.collection].findIndex(x=>x.id===item.id);
         if (idx < 0) return;
@@ -5544,8 +5712,14 @@ function makeMasterComponent(opts) {
         const idToDelete = item.id;
         db[opts.collection].splice(idx,1);
         erp.logAudit('delete', opts.collection, before, null);
-        // 🔧 ลบจาก Supabase ด้วย
-        await _deleteCloud(opts.collection, [idToDelete]);
+        // 🔧 ลบจาก Supabase ด้วย — เช็คผล
+        const res = await _deleteCloud(opts.collection, [idToDelete]);
+        if (!res.ok) {
+          // ลบ cloud fail — restore local + แจ้ง user
+          db[opts.collection].splice(idx, 0, before);
+          alert(`❌ ลบใน Cloud ไม่สำเร็จ\n\nสาเหตุ: ${res.error}\n\n🔄 Restore "${before.name||before.code}" กลับเข้า local แล้ว\n\n💡 ถ้าเป็น Foreign Key error → มี transactions/references อยู่ใน Cloud ต้องลบใน Supabase Dashboard ก่อน`);
+          return;
+        }
         erp.showToast('🗑 ลบเรียบร้อย (local + cloud)');
       }
       const search = ref('');
@@ -9152,9 +9326,10 @@ app.component('view-purchase', {
     function open() {
       try {
         editingId.value = null;
+        const __today = todayStr();
         form.value = {
-          docNo: erp.nextDocNo('PB'),
-          date: todayStr(),
+          docNo: erp.nextDocNo('PB', __today),
+          date: __today,
           refNo: '',
           transactionMode: 'STOCK',
           purchaseSource: 'SPOT_BUY', poBuyId: '',
@@ -10656,7 +10831,7 @@ app.component('view-payment', {
       try {
         editingVoucherId.value = null;
         const f = makeBlankForm();
-        try { f.docNo = erp.nextDocNo('PMT'); } catch(e) { f.docNo = 'PMT-' + Date.now(); }
+        try { f.docNo = erp.nextDocNo('PMT', f.date); } catch(e) { f.docNo = 'PMT-' + Date.now(); }
         form.value = f;
         showForm.value = true;
       } catch (e) {
@@ -11332,7 +11507,7 @@ app.component('view-receipt', {
       try {
         editingVoucherId.value = null;
         const f = makeBlankForm();
-        try { f.docNo = erp.nextDocNo('RCP'); } catch(e) { f.docNo = 'RCP-' + Date.now(); }
+        try { f.docNo = erp.nextDocNo('RCP', f.date); } catch(e) { f.docNo = 'RCP-' + Date.now(); }
         form.value = f;
         showForm.value = true;
       } catch (e) { console.error(e); alert('Error: '+e.message); }
@@ -11836,7 +12011,7 @@ app.component('view-transfer', {
       try {
         editingId.value = null;
         const f = makeBlankForm();
-        try { f.docNo = erp.nextDocNo('TRF'); } catch(e) { f.docNo = 'TRF-'+Date.now(); }
+        try { f.docNo = erp.nextDocNo('TRF', f.date); } catch(e) { f.docNo = 'TRF-'+Date.now(); }
         form.value = f; showForm.value = true;
       } catch (e) { console.error(e); alert('Error: '+e.message); }
     }
@@ -12042,7 +12217,7 @@ app.component('view-expense', {
       try {
         editingVoucherId.value = null;
         const f = makeBlankForm();
-        try { f.docNo = erp.nextDocNo('EXP'); } catch(e) { f.docNo = 'EXP-'+Date.now(); }
+        try { f.docNo = erp.nextDocNo('EXP', f.date); } catch(e) { f.docNo = 'EXP-'+Date.now(); }
         form.value = f; showForm.value = true;
       } catch (e) { console.error(e); alert('Error: '+e.message); }
     }
@@ -12165,14 +12340,42 @@ app.component('view-expense', {
       } catch(e) { alert('Error: '+e.message); }
     }
     async function remove(g) {
-      if (!confirm('ลบ '+g.docNo+' ?\n• ลบทั้ง Local + Cloud')) return;
+      if (!confirm('ลบ '+g.docNo+' ?\n• ลบทั้ง Local + Cloud (ทุก lines + bankStatement)')) return;
       const expIds = db.expenses.filter(e => (e.voucherId||e.id) === g.id).map(e => e.id);
       const bsIds = db.bankStatement.filter(s => s.refType==='EXP' && s.refId===g.id).map(s => s.id);
       db.expenses = db.expenses.filter(e => (e.voucherId||e.id) !== g.id);
       db.bankStatement = db.bankStatement.filter(s => !(s.refType==='EXP' && s.refId===g.id));
-      if (expIds.length) await erp.deleteCloud('expenses', expIds);
-      if (bsIds.length) await erp.deleteCloud('bankStatement', bsIds);
-      erp.showToast('🗑 ลบเรียบร้อย (local + cloud)');
+      // 🆕 BUG FIX: ลบใน cloud ทั้ง by id + by voucher_id (กรณี cloud มี rows ที่ local ไม่มี)
+      let cloudFail = '';
+      try {
+        if (window.sb) {
+          // 1) ลบโดย id (rows ที่ local มี)
+          if (expIds.length) {
+            const r1 = await erp.deleteCloud('expenses', expIds);
+            if (!r1.ok) cloudFail = 'expenses: '+r1.error;
+          }
+          // 2) ลบโดย voucher_id (รวม rows ที่ cloud มีแต่ local ไม่มี — กัน MERGE pull restore กลับมา)
+          const { data, error } = await window.sb.from('expenses').delete().eq('voucher_id', g.id).select('id');
+          if (error) { cloudFail = (cloudFail?cloudFail+'; ':'')+'expenses(voucher_id): '+error.message; }
+          else if (data && data.length) {
+            console.log('[expense-delete] also deleted '+data.length+' cloud rows by voucher_id');
+            // 🆕 tombstone ทั้ง ids ที่ลบเพิ่ม
+            try { window.$autoSync?.addTombstones?.('expenses', data.map(r => r.id)); } catch(e){}
+          }
+          // 3) ลบ bankStatement (by id + by ref_id)
+          if (bsIds.length) await erp.deleteCloud('bankStatement', bsIds);
+          const bsRes = await window.sb.from('bank_statement').delete().eq('ref_type','EXP').eq('ref_id', g.id).select('id');
+          if (bsRes.error) cloudFail = (cloudFail?cloudFail+'; ':'')+'bank_statement: '+bsRes.error.message;
+          else if (bsRes.data && bsRes.data.length) {
+            try { window.$autoSync?.addTombstones?.('bankStatement', bsRes.data.map(r => r.id)); } catch(e){}
+          }
+        }
+      } catch(e) { cloudFail = (cloudFail?cloudFail+'; ':'')+e.message; }
+      if (cloudFail) {
+        alert('⚠ ลบ local แล้ว แต่ลบ cloud บางส่วนไม่สำเร็จ:\n\n'+cloudFail+'\n\n💡 ลอง refresh + ลบอีกครั้ง');
+      } else {
+        erp.showToast('🗑 ลบเรียบร้อย (local + cloud)');
+      }
     }
     /* Filters */
     const search = ref('');
@@ -12951,7 +13154,10 @@ app.component('view-sales', {
         if (!form._addPurchaseId) form._addPurchaseId = '';
       }
       else {
-        Object.assign(form, blank()); form.docNo = erp.nextDocNo('SB'); form.items = [blankItem()]; editing.value = null;
+        // 🆕 รัน docNo ตามวันที่ของบิล (form.date) — กลุ่ม YYMM ตาม date
+        Object.assign(form, blank());
+        form.docNo = erp.nextDocNo('SB', form.date);
+        form.items = [blankItem()]; editing.value = null;
         // 📦 Pre-fill from Pending Sale (ถ้ามี)
         try {
           const prefillStr = sessionStorage.getItem('ns_erp_psale_prefill');
@@ -13022,8 +13228,90 @@ app.component('view-sales', {
       if (it.sourceMode === 'STOCK') {
         it.sourcePurchaseBillId = '';   // ล้าง PB link
         it.tradingCostAmount = 0;
+        it.sourcePurchaseDocNo = '';
+        it.sourcePurchaseLineId = '';
       }
       recalcLine(it);
+    }
+
+    /* 🆕 onTradingPbChange — เมื่อเลือก PB Trading ใน item row → auto-fill productId + weight
+       ถ้า PB มีหลาย items → fill row นี้ด้วย item แรก แล้ว append items ที่เหลือ
+       💡 user แค่เลือก PB ก็พอ ไม่ต้องพิมพ์สินค้า/น้ำหนัก เอง */
+    function onTradingPbChange(it) {
+      if (!it || !it.sourcePurchaseBillId) { recalcLine(it); return; }
+      // skip ถ้า user เลือก PB เดียวกับเดิม + มีข้อมูลอยู่แล้ว
+      const pb = (db.purchaseBills||[]).find(b => b && b.id === it.sourcePurchaseBillId);
+      if (!pb) { recalcLine(it); return; }
+      const pbItems = pb.items || [];
+      if (pbItems.length === 0) { recalcLine(it); return; }
+
+      // คำนวณ remaining qty ต่อ PB item — กรณีมีบิลขายอื่นจับ Trading ไปแล้ว
+      function remainingQty(pb, pbItem) {
+        try {
+          const allSales = (db.salesBills||[]).filter(s => s && s.status !== 'cancelled');
+          let used = 0;
+          allSales.forEach(s => {
+            (s.items||[]).forEach(si => {
+              if (si && si.sourcePurchaseBillId === pb.id && si.sourcePurchaseLineId === pbItem.id) {
+                used += Number(si.weight || 0);
+              }
+            });
+          });
+          // exclude weight ที่ row ปัจจุบันเคยใช้อยู่ (ตอนแก้บิล)
+          if (it.sourcePurchaseLineId === pbItem.id) used -= Number(it.weight || 0);
+          return Math.max(0, Number(pbItem.netWeight || pbItem.weight || 0) - used);
+        } catch(e) { return Number(pbItem.netWeight || pbItem.weight || 0); }
+      }
+
+      // Fill row นี้ด้วย PB item แรกที่ยังเหลือ
+      const usableItems = pbItems.map(pi => ({ pi, remain: remainingQty(pb, pi) })).filter(x => x.remain > 0.001);
+      if (usableItems.length === 0) {
+        erp.showToast('PB นี้ถูกจับขายไปครบแล้ว','warning');
+        return;
+      }
+      const first = usableItems[0];
+      it.productId = first.pi.productId;
+      it.weight = first.remain;
+      it.lotNo = first.pi.lotNo || '';
+      it.sourcePurchaseLineId = first.pi.id;
+      it.sourcePurchaseDocNo = pb.docNo;
+      it.note = it.note || (first.pi.note || '');
+      // คำนวณ unitCost จาก PB item นี้
+      const pbItemWt = Number(first.pi.netWeight || first.pi.weight || 0);
+      it.unitCost = pbItemWt > 0 ? Number(first.pi.netAmount || 0) / pbItemWt : 0;
+      // ถ้า price ยังว่าง → ตั้งราคาแนะนำ = unitCost (user ปรับเองได้)
+      if (!it.price || it.price === 0) it.price = Math.round(it.unitCost * 100) / 100;
+
+      // ถ้า PB มี items อื่นที่ยังเหลือ → append เป็น item ใหม่ (skip ถ้าเคย append แล้ว)
+      const restItems = usableItems.slice(1);
+      const existingPbLineIds = new Set((form.items||[]).map(x => x && x.sourcePurchaseLineId).filter(Boolean));
+      const toAppend = restItems.filter(x => !existingPbLineIds.has(x.pi.id));
+      if (toAppend.length > 0) {
+        toAppend.forEach(x => {
+          const wt = Number(x.pi.netWeight || x.pi.weight || 0);
+          const cost = wt > 0 ? Number(x.pi.netAmount || 0) / wt : 0;
+          form.items.push({
+            id: erp.uid('SL'),
+            productId: x.pi.productId,
+            lotNo: x.pi.lotNo || '',
+            weight: x.remain,
+            price: Math.round(cost * 100) / 100,
+            amount: 0, discount: 0, netAmount: 0,
+            unitCost: cost, totalCost: 0,
+            tradingCostAmount: Number(x.pi.netAmount || 0),
+            profit: 0,
+            note: x.pi.note || '',
+            sourceMode: 'TRADING',
+            sourcePurchaseBillId: pb.id,
+            sourcePurchaseLineId: x.pi.id,
+            sourcePurchaseDocNo: pb.docNo,
+          });
+        });
+        erp.showToast(`✓ Auto-fill จาก ${pb.docNo} (${usableItems.length} รายการ)`,'success');
+      } else {
+        erp.showToast(`✓ Auto-fill: ${erp.productName(first.pi.productId)} · ${erp.fmt(first.remain)} กก.`,'success');
+      }
+      recalcAll();
     }
 
     function recalcAll() {
@@ -13573,7 +13861,7 @@ app.component('view-sales', {
 
     return { db, erp, form, showForm, editing, showDetail, search, filterStatus, filterChannel,
       filterMode, filterDateFrom, filterDateTo,
-      open, save, addItem, removeItem, recalcLine, recalcAll, onItemSourceChange, hasStockItem, cancelBill, deleteBill, filtered, statusBadge, statusText,
+      open, save, addItem, removeItem, recalcLine, recalcAll, onItemSourceChange, onTradingPbChange, hasStockItem, cancelBill, deleteBill, filtered, statusBadge, statusText,
       loadFromPOSell, availableTradingPurchases, loadFromTradingPurchase, billTotals, toggleVatIssued, goToPendingSale, fmt:erp.fmt,
       addTradingPurchase, removeTradingPurchase,
       // 🆕 Multi-select
@@ -13798,9 +14086,10 @@ app.component('view-sales', {
                         <option value="STOCK">📦 Stock (ตัดคลัง)</option>
                         <option value="TRADING">🔄 Trading (PB)</option>
                       </select>
-                      <!-- ถ้าเลือก Trading → ให้เลือก PB Trading -->
+                      <!-- ถ้าเลือก Trading → ให้เลือก PB Trading (auto-fill product+qty) -->
                       <div v-if="it.sourceMode==='TRADING'" class="mt-1.5">
-                        <searchable-select v-model="it.sourcePurchaseBillId" :options="availableTradingPurchases" label-field="label" placeholder="🔍 เลือก PB Trading..." input-class="w-full px-1.5 py-1 border rounded text-[11px]" @change="recalcLine(it)"></searchable-select>
+                        <searchable-select v-model="it.sourcePurchaseBillId" :options="availableTradingPurchases" label-field="label" placeholder="🔍 เลือก PB → auto-fill สินค้า+น้ำหนัก" input-class="w-full px-1.5 py-1 border rounded text-[11px]" @change="onTradingPbChange(it)"></searchable-select>
+                        <div v-if="it.sourcePurchaseDocNo" class="text-[10px] text-fuchsia-700 mt-0.5">🔄 จาก {{it.sourcePurchaseDocNo}}</div>
                       </div>
                     </td>
                     <td class="p-1"><input type="number" step="0.01" v-model.number="it.weight" @input="recalcLine(it)" class="w-full px-2 py-1.5 border rounded text-right"></td>
@@ -40917,8 +41206,116 @@ app.component('view-anomalyDetector', {
     function expandAll() { grouped.value.forEach(g => expandedGroups.value[g.key] = true); }
     function collapseAll() { expandedGroups.value = {}; }
 
+    /* 🆕 ไปแก้บิลตรงจาก anomaly — parse id แล้วเดา type + bill */
+    function getJumpInfo(a) {
+      if (!a || !a.id) return null;
+      const id = a.id;
+      // หา bill จาก collection ต่างๆ — เช็คทุก suffix ที่อาจเป็น id จริง
+      const collections = [
+        { tbl:'purchaseBills', view:'purchase', label:'บิลซื้อ' },
+        { tbl:'salesBills', view:'sales', label:'บิลขาย' },
+        { tbl:'payments', view:'payment', label:'จ่ายเงิน' },
+        { tbl:'receipts', view:'receipt', label:'รับเงิน' },
+        { tbl:'productionOrders', view:'production', label:'ใบสั่งผลิต' },
+        { tbl:'poBuys', view:'poBuy', label:'PO Buy' },
+        { tbl:'poSells', view:'poSell', label:'PO Sell' },
+        { tbl:'tradingDeals', view:'tradingMatching', label:'Trading Deal' },
+        { tbl:'suppliers', view:'mdSupplier', label:'Supplier' },
+        { tbl:'customers', view:'mdCustomer', label:'Customer' },
+        { tbl:'products', view:'mdProduct', label:'Product' },
+        { tbl:'accounts', view:'bank', label:'Account' },
+      ];
+      // Strategy: ลอง match id สุดท้ายใน a.id กับ id ใน collection
+      // a.id format: rule-rule2-billId
+      // ลองตัดทีละก้อนจากซ้ายไปขวา จนเจอ id ที่ matches
+      const parts = id.split('-');
+      for (let cut = 1; cut < parts.length; cut++) {
+        const candidate = parts.slice(cut).join('-');
+        for (const c of collections) {
+          const arr = db[c.tbl];
+          if (!Array.isArray(arr)) continue;
+          const found = arr.find(r => r && r.id === candidate);
+          if (found) {
+            return {
+              type: c.tbl, view: c.view, label: c.label,
+              record: found, displayNo: found.docNo || found.code || found.name || candidate
+            };
+          }
+        }
+      }
+      return null;
+    }
+
+    function jumpFromAnomaly(a) {
+      const info = getJumpInfo(a);
+      if (!info) {
+        erp.showToast('ไม่พบบิลต้นทาง — แก้ไขที่หน้าเดิมตาม action','info');
+        return;
+      }
+      // Save bill id to sessionStorage for the target view to auto-open
+      try { sessionStorage.setItem('ns_erp_jump_to_bill', info.record.id); } catch(e){}
+      try { sessionStorage.setItem('ns_erp_jump_to_view', info.view); } catch(e){}
+      // Navigate to the target view
+      try {
+        if (window.$erp?.setView) {
+          window.$erp.setView(info.view);
+        } else {
+          const root = document.querySelector('#app').__vnode?.component?.proxy;
+          if (root && 'currentView' in root) root.currentView = info.view;
+          else window.location.hash = '#'+info.view;
+        }
+        erp.showToast(`ไปที่หน้า ${info.label} — กำลังหา ${info.displayNo}`,'info');
+
+        // 🆕 Auto-scroll + highlight the row after navigation
+        const targetId = info.record.id;
+        const docNo = String(info.displayNo || '');
+        let tries = 0;
+        const maxTries = 25; // ~5 seconds max
+        const findAndHighlight = () => {
+          tries++;
+          // Try data attributes first
+          let el = document.querySelector(`[data-bill-id="${targetId}"]`)
+                || document.querySelector(`[data-id="${targetId}"]`)
+                || document.querySelector(`[data-row-id="${targetId}"]`)
+                || document.getElementById('bill-'+targetId)
+                || document.getElementById('row-'+targetId);
+          // Fallback: text-match docNo in table rows
+          if (!el && docNo) {
+            const rows = document.querySelectorAll('tr, .card, .bill-row, .list-row');
+            for (const r of rows) {
+              const txt = r.textContent || '';
+              if (txt.indexOf(docNo) !== -1) { el = r; break; }
+            }
+          }
+          if (el) {
+            try { el.scrollIntoView({ behavior:'smooth', block:'center' }); } catch(e){}
+            const origBg = el.style.backgroundColor;
+            const origTr = el.style.transition;
+            el.style.transition = 'background-color 0.4s ease';
+            el.style.backgroundColor = '#fde047'; // yellow-300
+            setTimeout(()=>{ el.style.backgroundColor = '#fef9c3'; }, 800);
+            setTimeout(()=>{ el.style.backgroundColor = '#fde047'; }, 1400);
+            setTimeout(()=>{
+              el.style.backgroundColor = origBg || '';
+              el.style.transition = origTr || '';
+            }, 2800);
+          } else if (tries < maxTries) {
+            setTimeout(findAndHighlight, 200);
+          } else {
+            erp.showToast(`เปิดหน้า ${info.label} แล้ว — กดค้นหา ${docNo}`,'info');
+          }
+        };
+        setTimeout(findAndHighlight, 350);
+      } catch(e) {
+        console.error('jump:', e);
+        erp.showToast('ไปหน้าไม่สำเร็จ — '+e.message,'error');
+      }
+    }
+
     return { erp, db, fmt, today, anomalies, filtered, stats, filterSeverity,
-      grouped, expandedGroups, toggleGroup, expandAll, collapseAll };
+      grouped, expandedGroups, toggleGroup, expandAll, collapseAll,
+      // 🆕 Jump-to-bill
+      jumpFromAnomaly, getJumpInfo };
   },
   template: `
   <div class="space-y-4">
@@ -40994,9 +41391,19 @@ app.component('view-anomalyDetector', {
         <!-- Group Items (collapsed by default) -->
         <div v-if="expandedGroups[g.key]" class="border-t border-slate-200 bg-white/60 divide-y divide-slate-200">
           <div v-for="a in g.items" :key="a.id" class="p-3 pl-12 hover:bg-white">
-            <div class="font-semibold text-sm" :class="g.severity==='critical'?'text-red-800':g.severity==='warn'?'text-amber-800':'text-blue-800'">{{a.title}}</div>
-            <div class="text-xs text-slate-700 mt-0.5">{{a.detail}}</div>
-            <div class="text-xs text-slate-500 italic mt-1">💡 <b>แนะนำ:</b> {{a.action}}</div>
+            <div class="flex items-start justify-between gap-2 flex-wrap">
+              <div class="flex-1 min-w-[280px]">
+                <div class="font-semibold text-sm" :class="g.severity==='critical'?'text-red-800':g.severity==='warn'?'text-amber-800':'text-blue-800'">{{a.title}}</div>
+                <div class="text-xs text-slate-700 mt-0.5">{{a.detail}}</div>
+                <div class="text-xs text-slate-500 italic mt-1">💡 <b>แนะนำ:</b> {{a.action}}</div>
+              </div>
+              <!-- 🆕 ปุ่มไปแก้ — แสดงเฉพาะถ้าหา bill เจอ -->
+              <button v-if="getJumpInfo(a)" @click="jumpFromAnomaly(a)"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-bold whitespace-nowrap shadow flex items-center gap-1"
+                :title="'ไปเปิด '+getJumpInfo(a).label+' '+getJumpInfo(a).displayNo">
+                ✏️ ไปแก้ {{getJumpInfo(a).displayNo}}
+              </button>
+            </div>
           </div>
         </div>
       </div>
