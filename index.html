@@ -2979,6 +2979,130 @@ const _GLOBAL_DB = reactive(loadDB());
 const _safeFind = (arr, id) => (Array.isArray(arr) ? arr.find(x => x && x.id === id) : null);
 const _safeArr = (a) => Array.isArray(a) ? a : [];
 
+/* 🆕 GLOBAL: Nuclear Cleanup — ลบทุก bankStatement ที่ refNo ตรง + tombstone ครบ + recreate
+   ใช้: window.$nukeBankStatement('PMT2605-0080')
+   หรือ Phase D: window.$nukeBankStatement('PMT2605-0080', 'PMT')
+   จะลบ duplicate ทั้ง cloud + local + ใส่ tombstone ป้องกัน push กลับ
+   แล้ว recreate 1 row จาก payments (ถ้ายังมี) */
+window.$nukeBankStatement = async function(refNo, refType) {
+  if (!refNo) { alert('ใส่ refNo เช่น "PMT2605-0080"'); return; }
+  if (!window.sb) { alert('❌ Supabase ยังไม่ connect'); return; }
+  const db = _GLOBAL_DB;
+  const fmt = (n) => Number(n||0).toLocaleString('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2});
+  // 1. ดึง cloud rows ที่ ref_no ตรง
+  let q = window.sb.from('bank_statement').select('*').eq('ref_no', refNo);
+  if (refType) q = q.eq('ref_type', refType);
+  const { data: cloudRows, error } = await q;
+  if (error) { alert('❌ '+error.message); return; }
+  const localRows = (db.bankStatement||[]).filter(s => s && s.refNo === refNo && (!refType || s.refType === refType));
+  const allIds = new Set([...cloudRows.map(c=>c.id), ...localRows.map(l=>l.id)]);
+  const ids = Array.from(allIds);
+  if (ids.length === 0) { alert('✓ ไม่พบ bank_statement สำหรับ refNo: '+refNo); return; }
+  const totalAmt = [...cloudRows, ...localRows].reduce((s,r) => s + Number(r.out||r.out_amount||0) + Number(r.in||r.in_amount||0), 0);
+  if (!confirm(`🚨 NUCLEAR CLEANUP สำหรับ refNo "${refNo}"\n\nพบ ${ids.length} entries:\n• Cloud: ${cloudRows.length}\n• Local: ${localRows.length}\n💰 ยอดรวมทั้งหมด: ${fmt(totalAmt)}\n\nจะทำ:\n1. INSERT cloud tombstones (กัน push กลับ)\n2. ลบจาก Cloud + Local + bank_statement\n3. Recreate 1 row จาก payments table (ถ้ามี voucher)\n\nดำเนินการ?`)) return;
+  // 2. INSERT tombstones
+  try {
+    const username = window.$erp?.currentUser?.value?.username || 'system';
+    const now = new Date().toISOString();
+    const tombs = ids.map(id => ({
+      id: 'bankStatement:' + id, table_name: 'bankStatement',
+      record_id: id, deleted_at: now, deleted_by: username,
+      reason: 'Nuclear cleanup for refNo='+refNo
+    }));
+    await window.sb.from('deletion_tombstones').upsert(tombs, { onConflict: 'id' });
+    window.$autoSync?.addTombstones?.('bankStatement', ids);
+    console.log('[nuke] tombstoned', ids.length, 'ids');
+  } catch(e) { console.warn('tombstone:', e); }
+  // 3. Delete from cloud
+  let cloudDel = 0;
+  try {
+    const r = await window.sb.from('bank_statement').delete().in('id', ids).select('id');
+    cloudDel = r.data?.length || 0;
+  } catch(e) {}
+  // 4. Delete from local
+  db.bankStatement = (db.bankStatement||[]).filter(s => !ids.includes(s.id));
+  try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+  // 5. Recreate from payments (if PMT)
+  let recreated = 0;
+  if ((refType === 'PMT' || refType === undefined)) {
+    // Find voucher from refNo
+    const voucher = (db.payments||[]).find(p => p && p.docNo === refNo);
+    if (voucher) {
+      const voucherId = voucher.voucherId || voucher.id;
+      const allPmts = (db.payments||[]).filter(p => p && (p.voucherId||p.id) === voucherId);
+      const grouped = {};
+      allPmts.forEach(p => {
+        const acc = p.accountId || '';
+        if (!grouped[acc]) grouped[acc] = 0;
+        grouped[acc] += Number(p.amount||0);
+      });
+      let idx = 0;
+      Object.entries(grouped).forEach(([accId, amt]) => {
+        if (amt <= 0 || !accId) return;
+        db.bankStatement.push({
+          id: 'BS-PMT-' + voucherId + '-' + idx,
+          date: voucher.date,
+          accountId: accId,
+          type: 'จ่ายเงิน Supplier',
+          desc: refNo + ' (recreated)',
+          in: 0, out: amt,
+          refType: 'PMT', refId: voucherId, refNo: refNo,
+          createdBy: 'nuclear-cleanup',
+          createdAt: new Date().toISOString()
+        });
+        idx++;
+        recreated++;
+      });
+      try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+    }
+  }
+  // 6. Force push
+  try { if (window.$autoSync?.pushNow) await window.$autoSync.pushNow(); } catch(e){}
+  alert(`✅ Nuclear Cleanup สำเร็จ\n\n☁ Cloud: ลบ ${cloudDel}/${ids.length} rows\n📱 Local: ลบ ${ids.length} rows\n🪦 Tombstones: ${ids.length}\n🔄 Recreated: ${recreated} rows (จาก payments)\n\n⚠ Reload page ใน 2 วินาที`);
+  setTimeout(() => location.reload(), 2000);
+};
+
+/* 🆕 GLOBAL: Sync Health Check — ตรวจ local vs cloud ทุก transactional table */
+window.$syncHealthCheck = async function() {
+  if (!window.sb) { alert('❌ Supabase ยังไม่ connect'); return; }
+  const db = _GLOBAL_DB;
+  const tables = [
+    { local: 'purchaseBills', cloud: 'purchase_bills', label: 'บิลซื้อ' },
+    { local: 'salesBills', cloud: 'sales_bills', label: 'บิลขาย' },
+    { local: 'payments', cloud: 'payments', label: 'จ่ายเงิน' },
+    { local: 'receipts', cloud: 'receipts', label: 'รับเงิน' },
+    { local: 'expenses', cloud: 'expenses', label: 'ค่าใช้จ่าย' },
+    { local: 'bankStatement', cloud: 'bank_statement', label: 'Bank Statement' },
+    { local: 'transfers', cloud: 'transfers', label: 'โอนเงิน' },
+  ];
+  const report = [];
+  for (const t of tables) {
+    const localArr = Array.isArray(db[t.local]) ? db[t.local] : [];
+    try {
+      const { data, error } = await window.sb.from(t.cloud).select('id', { count: 'exact' });
+      if (error) { report.push({ table: t.label, local: localArr.length, cloud: 'ERROR', diff: error.message }); continue; }
+      const cloudCount = (data || []).length;
+      const localIds = new Set(localArr.map(r => r && r.id).filter(Boolean));
+      const cloudIds = new Set((data || []).map(r => r.id));
+      const onlyLocal = [...localIds].filter(id => !cloudIds.has(id)).length;
+      const onlyCloud = [...cloudIds].filter(id => !localIds.has(id)).length;
+      report.push({
+        table: t.label, local: localArr.length, cloud: cloudCount,
+        onlyLocal, onlyCloud,
+        diff: onlyLocal + onlyCloud,
+        status: onlyLocal === 0 && onlyCloud === 0 ? '✓' : '⚠'
+      });
+    } catch(e) { report.push({ table: t.label, local: localArr.length, cloud: 'EXCEPTION', diff: e.message }); }
+  }
+  console.table(report);
+  const totalDiff = report.reduce((s,r) => s + (Number(r.diff)||0), 0);
+  const lines = report.map(r =>
+    `${r.status||'?'} ${r.table.padEnd(15)} L:${String(r.local).padStart(5)} C:${String(r.cloud).padStart(5)} only-L:${r.onlyLocal||0} only-C:${r.onlyCloud||0}`
+  ).join('\n');
+  alert(`🏥 Sync Health Check\n\n${lines}\n\n📊 Total diff: ${totalDiff} records\n\nรายละเอียดเต็มดูใน Console (F12)`);
+  return report;
+};
+
 /* 🆕 GLOBAL: Diagnose expense sync — เทียบ local กับ cloud
    ใช้: window.$diagnoseExpenseSync()  ← F12 Console */
 window.$diagnoseExpenseSync = async function() {
@@ -11778,7 +11902,7 @@ app.component('view-payment', {
 
         // Apply new effects
         const supplierNames = new Set();
-        validLines.forEach(line => {
+        validLines.forEach((line, idx) => {
           const bill = safeArr(db.purchaseBills).find(b => b && b.id === line.billId);
           if (bill) {
             const allocated = num(line.paymentAmount) + num(line.withholdingTax) + num(line.discount);
@@ -11791,13 +11915,16 @@ app.component('view-payment', {
           }
           const billSupplierId = bill?.supplierId || line.supplierId || '';
           db.payments.push({
-            id: newId('PMT-L'), voucherId, docNo: f.docNo, date: f.date,
+            // 🔧 Deterministic id: PMT-L-{voucherId}-{idx} — แก้กี่ครั้งก็ upsert ทับ ไม่สะสม dup
+            id: 'PMT-L-' + voucherId + '-' + idx,
+            voucherId, docNo: f.docNo, date: f.date,
             supplierId: billSupplierId, billId: line.billId,
             amount: num(line.paymentAmount), withholdingTax: num(line.withholdingTax),
             discount: num(line.discount), bankFee: num(line.bankFee),
             accountId: f.accountId, method: f.method, notes: f.notes,
             branchId: f.branchId,
-            createdBy: erp.currentUser.value?.username || '-'
+            createdBy: erp.currentUser.value?.username || '-',
+            updatedAt: new Date().toISOString()
           });
         });
         const supplierLabel = Array.from(supplierNames).join(', ').slice(0,80) || 'หลายราย';
@@ -12466,7 +12593,7 @@ app.component('view-receipt', {
           db.bankStatement = safeArr(db.bankStatement).filter(s => !(s && s.refType === 'RCP' && s.refId === voucherId));
         }
         const customerNames = new Set();
-        validLines.forEach(line => {
+        validLines.forEach((line, idx) => {
           const bill = safeArr(db.salesBills).find(b => b && b.id === line.billId);
           if (bill) {
             const allocated = num(line.receiptAmount) + num(line.withholdingTax) + num(line.discount);
@@ -12479,13 +12606,16 @@ app.component('view-receipt', {
           }
           const billCustomerId = bill?.customerId || line.customerId || '';
           db.receipts.push({
-            id: newId('RCP-L'), voucherId, docNo: f.docNo, date: f.date,
+            // 🔧 Deterministic id: RCP-L-{voucherId}-{idx}
+            id: 'RCP-L-' + voucherId + '-' + idx,
+            voucherId, docNo: f.docNo, date: f.date,
             customerId: billCustomerId, billId: line.billId,
             amount: num(line.receiptAmount), discount: num(line.discount),
             bankFee: num(line.bankFee), withholdingTax: num(line.withholdingTax),
             accountId: f.accountId, method: f.method, notes: f.notes,
             branchId: f.branchId,
-            createdBy: erp.currentUser.value?.username || '-'
+            createdBy: erp.currentUser.value?.username || '-',
+            updatedAt: new Date().toISOString()
           });
         });
         const customerLabel = Array.from(customerNames).join(', ').slice(0,80) || 'หลายราย';
