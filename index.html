@@ -59,6 +59,15 @@
   input, select, textarea { font-family: 'Sarabun', sans-serif; }
   .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
   .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+  /* 🆕 ปิดปุ่มขึ้นลง (spinner) ของ input type=number — เก็บแค่ช่องคีย์ตัวเลข */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;   /* Firefox */
+  }
   @media print { .no-print { display: none !important; } }
 </style>
 </head>
@@ -3076,6 +3085,26 @@ window.$forcePushExpenseToCloud = async function() {
   const idsToDelete = toDelete.map(e => e.id);
   let deleted = 0, failed = 0;
   const errors = [];
+  // 🆕 INSERT cloud tombstones ก่อน — กันเครื่องอื่น push กลับมา (สำคัญที่สุด!)
+  try {
+    const username = window.$erp?.currentUser?.value?.username || 'system';
+    const now = new Date().toISOString();
+    const tombs = idsToDelete.map(id => ({
+      id: 'expenses:' + id,
+      table_name: 'expenses',
+      record_id: id,
+      deleted_at: now,
+      deleted_by: username,
+      reason: 'Force Push Local → Cloud'
+    }));
+    // upsert ทีละ 200
+    for (let i = 0; i < tombs.length; i += 200) {
+      const chunk = tombs.slice(i, i+200);
+      const r = await window.sb.from('deletion_tombstones').upsert(chunk, { onConflict: 'id' });
+      if (r.error) console.warn('[tombstone-insert]', r.error.message);
+    }
+    console.log(`[force-push] inserted ${tombs.length} cloud tombstones`);
+  } catch(e) { console.warn('[tombstone-insert] exception:', e.message); }
   for (let i = 0; i < idsToDelete.length; i += 100) {
     const chunk = idsToDelete.slice(i, i+100);
     try {
@@ -3109,12 +3138,28 @@ window.$forcePushExpenseToCloud = async function() {
       `📄 หรือรัน SQL: supabase-fix-rls-expenses.sql`);
     return;
   }
-  // 6. ลบ bank_statement ที่เกี่ยวข้อง
+  // 6. ลบ bank_statement ที่เกี่ยวข้อง + tombstone
   const voucherIds = Array.from(grouped.keys());
   let bsDeleted = 0;
   for (let i = 0; i < voucherIds.length; i += 100) {
     const chunk = voucherIds.slice(i, i+100);
     try {
+      // หา bank_statement ids ก่อน เพื่อ tombstone
+      const lookup = await window.sb.from('bank_statement').select('id').eq('ref_type','EXP').in('ref_id', chunk);
+      if (lookup.data && lookup.data.length) {
+        const bsIds = lookup.data.map(b => b.id);
+        // INSERT tombstones สำหรับ bank_statement
+        try {
+          const username = window.$erp?.currentUser?.value?.username || 'system';
+          const now = new Date().toISOString();
+          const tombs = bsIds.map(id => ({
+            id: 'bankStatement:' + id, table_name: 'bankStatement',
+            record_id: id, deleted_at: now, deleted_by: username,
+            reason: 'Force Push Local → Cloud (EXP cleanup)'
+          }));
+          await window.sb.from('deletion_tombstones').upsert(tombs, { onConflict: 'id' });
+        } catch(e){}
+      }
       const r = await window.sb.from('bank_statement').delete().eq('ref_type','EXP').in('ref_id', chunk).select('id');
       if (r.data && Array.isArray(r.data)) bsDeleted += r.data.length;
     } catch(e){}
@@ -3126,11 +3171,13 @@ window.$forcePushExpenseToCloud = async function() {
   alert(`✅ Force Push Local → Cloud\n\n` +
     `🗑 ลบ Cloud: ${deleted}/${idsToDelete.length} expense lines${failed?' · ❌ '+failed+' fail':''}\n` +
     `🗑 ลบ Bank Statement: ${bsDeleted} rows\n` +
+    `🪦 บันทึก Tombstones: ${idsToDelete.length} ids → เครื่องอื่น auto-clean ใน 10s\n` +
     `☁ Push Local: ${localArr.length} lines\n\n` +
-    (failed > 0 ? `⚠ บางส่วนลบไม่ได้ — ตรวจ RLS policy ใน Supabase Dashboard\n` : '') +
-    `⚠ เครื่องอื่นต้องทำตามนี้:\n` +
-    `1. Hard refresh\n` +
-    `2. หน้าค่าใช้จ่าย → กดปุ่ม "☁️ Force Refresh จาก Cloud"`);
+    (failed > 0 ? `⚠ บางส่วนลบไม่ได้ — รัน supabase-fix-rls-expenses.sql\n` : '') +
+    `✅ ตอนนี้เครื่องอื่น (รวม device ที่ยัง offline):\n` +
+    `   - เมื่อ online + pull → ดึง tombstones มาเอง\n` +
+    `   - ลบ local อัตโนมัติ + ไม่ push กลับมา\n\n` +
+    `💡 หรือถ้าเร่งด่วน — เครื่องอื่นกด "☁️ Force Refresh จาก Cloud"`);
 };
 
 /* 🆕 GLOBAL: Force refresh expenses from cloud — ทำเมื่อ local กับ cloud ไม่ตรง
@@ -3460,21 +3507,34 @@ window.$erp = {
     let next = Math.max(localMax, cloudMax, reserved) + 1;
     let candidate = buildDoc(next);
 
-    // 5) Verify candidate ไม่ซ้ำใน cloud — retry ถ้าซ้ำ (กัน race เครื่องอื่นใช้ wave เดียวกัน)
-    if (window.sb && cloudTable) {
-      for (let attempt = 0; attempt < 10; attempt++) {
+    // 5) Verify candidate ไม่ซ้ำใน LOCAL + cloud — retry ถ้าซ้ำ
+    for (let attempt = 0; attempt < 15; attempt++) {
+      // 5a) เช็ค LOCAL — ป้องกันบิลเก่าใน local โดน overwrite (สำคัญที่สุด)
+      const localCollision = localRows.some(r =>
+        r && r.docNo === candidate && r.id !== currentBillId
+      );
+      if (localCollision) {
+        next++;
+        candidate = buildDoc(next);
+        console.warn('[docNo-local] ซ้ำใน local → bump เป็น ' + candidate);
+        continue;
+      }
+      // 5b) เช็ค CLOUD
+      if (window.sb && cloudTable) {
         try {
           const { data, error } = await window.sb.from(cloudTable)
             .select('id, doc_no').eq('doc_no', candidate).limit(2);
           if (error) { console.warn('[docNo-verify]', error.message); break; }
-          const collision = (data || []).some(r => r && r.id !== currentBillId);
-          if (!collision) break;     // ✓ ไม่ซ้ำ — ใช้ได้
-          // ซ้ำ → bump
-          next++;
-          candidate = buildDoc(next);
-          console.warn('[docNo] ซ้ำ → bump เป็น ' + candidate);
+          const cloudCollision = (data || []).some(r => r && r.id !== currentBillId);
+          if (cloudCollision) {
+            next++;
+            candidate = buildDoc(next);
+            console.warn('[docNo-cloud] ซ้ำใน cloud → bump เป็น ' + candidate);
+            continue;
+          }
         } catch(e) { console.warn('[docNo-verify]', e.message); break; }
       }
+      break;     // ✓ ไม่ซ้ำทั้ง local + cloud — ใช้ได้
     }
 
     // 6) Reserve เลขนี้ — กันถัดไปใช้ซ้ำใน session
@@ -3857,6 +3917,12 @@ window.$erp = {
       const docNoLabel = isReceipt ? 'เลขที่บิลซื้อ' : 'เลขที่ใบส่ง';
       const partyLabel = isReceipt ? 'ผู้ส่งสินค้า (Supplier)' : 'ผู้รับสินค้า (Customer)';
       const docNo = bill.docNo || bill.id || '';
+      // 🆕 Mode badge — บอกว่าบิลนี้เป็น Stock (ระบุคลัง) หรือ Trading (ผ่านมือ)
+      const warehouse = _safeArr(db.warehouses).find(w => w && w.id === bill.warehouseId) || {};
+      const isTrading = bill.transactionMode === 'TRADING';
+      const modeBadge = isTrading
+        ? `<div style="display:inline-block;padding:4px 12px;background:#a855f7;color:white;font-weight:bold;border-radius:6px;font-size:13px;margin-top:4px">🔄 TRADING (ผ่านมือ)</div>`
+        : `<div style="display:inline-block;padding:4px 12px;background:#10b981;color:white;font-weight:bold;border-radius:6px;font-size:13px;margin-top:4px">📦 STOCK ${warehouse.name||branch.name||''}</div>`;
 
       // ทั้งบิลซื้อและใบส่งของ — แสดงราคาทั้งคู่
       // หมายเหตุ field names ต่างกัน:
@@ -3947,11 +4013,13 @@ window.$erp = {
             <div class="doc-title">
               <h1>${docTitle}</h1>
               <div class="doc-stamp">${isReceipt ? 'PURCHASE BILL' : 'DELIVERY NOTE'}</div>
+              ${modeBadge}
               <div class="doc-meta" style="margin-top:8px">
                 <div><span>${docNoLabel}:</span> <b>${docNo}</b></div>
                 <div><span>วันที่:</span> ${bill.date||'-'}</div>
                 ${bill.refNo?`<div><span>อ้างอิงบิล:</span> ${bill.refNo}</div>`:''}
                 <div><span>สาขา:</span> ${branch.name||'-'}</div>
+                ${!isTrading && warehouse.name ? `<div><span>คลัง:</span> <b>${warehouse.name}</b></div>` : ''}
               </div>
             </div>
           </div>
@@ -10122,6 +10190,15 @@ app.component('view-purchase', {
           const idx = db.purchaseBills.findIndex(x => x && x.id === id);
           if (idx >= 0) db.purchaseBills[idx] = bill;
         } else {
+          // 🔧 BUG FIX: final guard — เช็ค docNo ซ้ำใน local อีกรอบก่อน push (race protection)
+          const dupExisting = safeArr(db.purchaseBills).find(x => x && x.docNo === bill.docNo && x.id !== bill.id);
+          if (dupExisting) {
+            // bump suffix แบบรุนแรง — ใช้ -DUP-{timestamp}
+            const origNo = bill.docNo;
+            bill.docNo = bill.docNo + '-DUP-' + Date.now().toString(36).slice(-4);
+            console.warn('[save] last-mile dup detected on '+origNo+' → '+bill.docNo);
+            alert('⚠ พบเลขบิลซ้ำ "'+origNo+'" — ระบบปรับเป็น "'+bill.docNo+'" อัตโนมัติ\n(บิลเดิม id='+dupExisting.id+' ยังอยู่ครบ)');
+          }
           db.purchaseBills.push(bill);
         }
 
@@ -10706,6 +10783,38 @@ app.component('view-purchase', {
     }
 
     /* 🆕 Export Excel — บิลซื้อ (header sheet + items sheet) */
+    /* 🆕 Detect + fix duplicate docNo ใน purchaseBills — เก็บตัวเก่า + rename ใหม่ */
+    function fixDuplicateDocNos() {
+      const all = safeArr(db.purchaseBills);
+      const byDocNo = new Map();
+      all.forEach(b => {
+        if (!b || !b.docNo) return;
+        if (!byDocNo.has(b.docNo)) byDocNo.set(b.docNo, []);
+        byDocNo.get(b.docNo).push(b);
+      });
+      const dups = Array.from(byDocNo.entries()).filter(([k,v]) => v.length > 1);
+      if (dups.length === 0) { alert('✓ ไม่พบ docNo ซ้ำในบิลซื้อ'); return; }
+      const totalDupBills = dups.reduce((s, [k,v]) => s + (v.length - 1), 0);
+      const preview = dups.slice(0,5).map(([no, bills]) =>
+        `• ${no}: ${bills.length} ใบ — id: ${bills.map(b=>b.id.slice(-6)).join(', ')}`
+      ).join('\n');
+      if (!confirm(`🔍 พบ docNo ซ้ำ ${dups.length} เลข (รวม ${totalDupBills} บิลที่ซ้ำ)\n\n${preview}${dups.length>5?'\n... +'+(dups.length-5)+' เลข':''}\n\n💡 ระบบจะ:\n• เก็บบิลตัวเก่าสุดไว้ docNo เดิม\n• เปลี่ยน docNo ของตัวที่เหลือเป็น docNo-B, -C, ...\n\nดำเนินการ?`)) return;
+      let fixed = 0;
+      const SUFFIXES = 'BCDEFGHIJKLMNOPQRSTUVWXYZ';
+      dups.forEach(([no, bills]) => {
+        bills.sort((a,b) => String(a.createdAt||'').localeCompare(String(b.createdAt||'')));
+        for (let i = 1; i < bills.length; i++) {
+          const suffix = i <= 25 ? '-'+SUFFIXES[i-1] : '-'+i;
+          bills[i].docNo = no + suffix;
+          bills[i].updatedAt = new Date().toISOString();
+          fixed++;
+        }
+      });
+      try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+      try { if (window.$autoSync?.pushNow) window.$autoSync.pushNow(); } catch(e){}
+      alert(`✅ แก้ docNo ซ้ำ ${fixed} บิล — บิลเดิมทั้งหมดยังอยู่ครบ\n(เพิ่ม suffix -B, -C, ...)`);
+    }
+
     function exportPurchaseBills() {
       try {
         const list = filtered.value || [];
@@ -10813,7 +10922,7 @@ app.component('view-purchase', {
       // 🆕 Multi-select
       selectedBillIds, toggleBillSelect, clearBillSelection, selectAllBillsInFilter, bulkDeleteBills,
       // 🆕 Export
-      exportPurchaseBills,
+      exportPurchaseBills, fixDuplicateDocNos,
     };
   },
   template: `
@@ -10840,7 +10949,8 @@ app.component('view-purchase', {
         <span class="text-slate-400">→</span>
         <input type="date" v-model="filterDateTo" class="px-2 py-2 border rounded-lg text-sm" title="ถึงวันที่">
         <button v-if="search||filterDateFrom||filterDateTo||filterMode||filterSource" @click="search='';filterDateFrom='';filterDateTo='';filterMode='';filterSource=''" type="button" class="px-3 py-2 text-xs bg-slate-100 hover:bg-slate-200 rounded">✕ ล้าง Filter</button>
-        <button type="button" @click="exportPurchaseBills" class="ml-auto px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold" title="Export ตามที่ filter ปัจจุบัน">📥 Export Excel ({{filtered.length}})</button>
+        <button type="button" @click="fixDuplicateDocNos" class="ml-auto px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-xs font-bold" title="หา + แก้บิลที่มี docNo ซ้ำกัน — เก็บบิลเก่าไว้ปกติ">🔧 แก้ docNo ซ้ำ</button>
+        <button type="button" @click="exportPurchaseBills" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold" title="Export ตามที่ filter ปัจจุบัน">📥 Export Excel ({{filtered.length}})</button>
         <button type="button" @click="open" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm">+ บิลรับซื้อใหม่</button>
       </div>
       <div class="flex flex-wrap gap-2 items-center">
@@ -11468,14 +11578,22 @@ app.component('view-payment', {
     }
     function onBillTyped(line, val) {
       if (!val) { line.billId = ''; pickBill(line); return; }
-      const v = String(val).trim();
-      // หาแบบ exact match docNo ก่อน
+      let v = String(val).trim();
+      // 🆕 ถ้า value มี pipe (จาก datalist option) — extract docNo (ตัวแรกก่อน |)
+      if (v.includes('|')) {
+        const firstPart = v.split('|')[0].trim();
+        if (firstPart) v = firstPart;
+      }
+      // 1. exact match docNo
       let bill = availableBills(form.value.branchId).find(b => b.docNo === v);
-      // ถ้าไม่ตรง — ลองหาแบบ contains (ผู้ใช้พิมพ์บางส่วน)
-      if (!bill) bill = availableBills(form.value.branchId).find(b =>
-        b.docNo.toLowerCase().includes(v.toLowerCase()) ||
-        (erp.supplierName(b.supplierId)||'').toLowerCase().includes(v.toLowerCase())
-      );
+      // 2. partial match — docNo, supplier name, supplier code
+      if (!bill) {
+        const lower = v.toLowerCase();
+        bill = availableBills(form.value.branchId).find(b =>
+          (b.docNo||'').toLowerCase().includes(lower) ||
+          (erp.supplierName(b.supplierId)||'').toLowerCase().includes(lower)
+        );
+      }
       if (bill) {
         line.billId = bill.id;
         pickBill(line);
@@ -11605,6 +11723,9 @@ app.component('view-payment', {
     /* List view */
     const list = computed(() => {
       try {
+        // 🆕 Build billId → docNo map for lookup
+        const billMap = new Map();
+        (db.purchaseBills||[]).forEach(b => { if (b && b.id) billMap.set(b.id, b.docNo); });
         const groups = {};
         safeArr(db.payments).forEach(p => {
           if (!p) return;
@@ -11612,15 +11733,27 @@ app.component('view-payment', {
           if (!groups[vid]) groups[vid] = {
             id: vid, docNo: p.docNo || '-', date: p.date || '',
             supplierId: p.supplierId || '', accountId: p.accountId || '',
-            method: p.method || '-', count: 0, total: 0
+            method: p.method || '-', count: 0, total: 0,
+            billIds: new Set(),       // 🆕 unique bill ids ใน voucher นี้
+            billDocNos: new Set()     // 🆕 unique bill doc numbers
           };
           groups[vid].count++;
           groups[vid].total += num(p.amount);
+          // 🆕 เก็บ billId + docNo
+          if (p.billId) {
+            groups[vid].billIds.add(p.billId);
+            const billNo = billMap.get(p.billId);
+            if (billNo) groups[vid].billDocNos.add(billNo);
+          }
         });
-        const arr = Object.values(groups);
+        const arr = Object.values(groups).map(g => ({
+          ...g,
+          billDocNosList: Array.from(g.billDocNos),
+          billIds: Array.from(g.billIds)
+        }));
         const q = (search.value||'').toLowerCase();
         return arr
-          .filter(g => !q || ((g.docNo||'') + ' ' + (erp.supplierName(g.supplierId)||'')).toLowerCase().includes(q))
+          .filter(g => !q || ((g.docNo||'') + ' ' + (erp.supplierName(g.supplierId)||'') + ' ' + (g.billDocNosList||[]).join(' ')).toLowerCase().includes(q))
           .filter(g => !filterDateFrom.value || (g.date||'') >= filterDateFrom.value)
           .filter(g => !filterDateTo.value || (g.date||'') <= filterDateTo.value)
           .filter(g => !filterAccount.value || g.accountId === filterAccount.value)
@@ -11661,9 +11794,10 @@ app.component('view-payment', {
 
     /* 📊 Outstanding Bills Panel — บิลค้างจ่ายแสดงในหน้านี้เลย */
     const today = erp.today();
+    const outstandingSearch = ref('');   // 🆕 ค้นหาในรายการบิลค้าง
     const outstandingBills = computed(() => {
       const arr = (db.purchaseBills||[]).filter(b => b && b.status !== 'cancelled' && Number(b.payableBalance||0) > 0.01);
-      return arr.map(b => {
+      let mapped = arr.map(b => {
         const sup = (db.suppliers||[]).find(s => s && s.id === b.supplierId);
         const ct = Number(sup?.creditTerm || 0);
         const due = (() => { const d = new Date(b.date); d.setDate(d.getDate()+ct); return d.toISOString().slice(0,10); })();
@@ -11676,7 +11810,19 @@ app.component('view-payment', {
           _daysOverdue: Math.max(0, days),
           _bucket: days > 90 ? '>90' : days > 60 ? '61-90' : days > 30 ? '31-60' : days > 0 ? '1-30' : 'Current',
         };
-      }).sort((a,b) => b._daysOverdue - a._daysOverdue);
+      });
+      // 🆕 Filter by search keyword (docNo, supplier name, supplier code)
+      if (outstandingSearch.value) {
+        const q = outstandingSearch.value.toLowerCase().trim();
+        mapped = mapped.filter(b => {
+          const supCode = (db.suppliers||[]).find(s => s && s.id === b.supplierId)?.code || '';
+          return (b.docNo||'').toLowerCase().includes(q)
+              || (b._supplierName||'').toLowerCase().includes(q)
+              || supCode.toLowerCase().includes(q)
+              || (b.refNo||'').toLowerCase().includes(q);
+        });
+      }
+      return mapped.sort((a,b) => b._daysOverdue - a._daysOverdue);
     });
     const apSummary = computed(() => {
       const arr = outstandingBills.value;
@@ -11736,7 +11882,7 @@ app.component('view-payment', {
     return { db, erp, form, showForm, search, filterDateFrom, filterDateTo, filterAccount, list, totals, num, editingVoucherId,
       open, openEdit, close: close_, save, remove, addLine, removeLine, pickBill, availableBills,
       getBillDisplay, onBillTyped, actualPayable: _actualPayable, fmt: erp.fmt,
-      outstandingBills, apSummary, quickPayBill, showOutstandingPanel,
+      outstandingBills, apSummary, quickPayBill, showOutstandingPanel, outstandingSearch,
       addSplit, removeSplit, recalcBalances };
   },
   template: `
@@ -11773,6 +11919,11 @@ app.component('view-payment', {
       <div class="px-4 py-3 border-b flex items-center justify-between cursor-pointer" @click="showOutstandingPanel = !showOutstandingPanel">
         <div class="font-bold text-slate-700">📋 บิลค้างจ่ายทั้งหมด <span class="text-red-600">({{outstandingBills.length}} บิล รวม {{fmt(apSummary.total)}})</span></div>
         <span class="text-2xl">{{showOutstandingPanel ? '▲' : '▼'}}</span>
+      </div>
+      <!-- 🆕 Search box สำหรับค้นบิลค้าง -->
+      <div v-if="showOutstandingPanel" class="px-4 py-2 border-b bg-slate-50 flex items-center gap-2 flex-wrap">
+        <input v-model="outstandingSearch" placeholder="🔍 ค้นหา: เลขบิล / ชื่อ supplier / รหัส supplier / Ref No..." class="flex-1 min-w-[260px] px-3 py-1.5 border rounded text-sm" @click.stop>
+        <button v-if="outstandingSearch" @click.stop="outstandingSearch=''" class="text-xs text-red-600 hover:underline">✕ ล้าง</button>
       </div>
       <div v-if="showOutstandingPanel" class="overflow-x-auto" style="max-height:400px;overflow-y:auto">
         <table class="w-full text-sm">
@@ -11856,7 +12007,9 @@ app.component('view-payment', {
       <table class="w-full text-sm">
         <thead class="bg-slate-100"><tr>
           <th class="p-2 text-left">เลขที่</th><th class="p-2 text-left">วันที่</th>
-          <th class="p-2 text-left">Supplier</th><th class="p-2 text-left">บัญชี</th>
+          <th class="p-2 text-left">Supplier</th>
+          <th class="p-2 text-left">📋 บิลซื้อที่ตัดชำระ</th>
+          <th class="p-2 text-left">บัญชี</th>
           <th class="p-2 text-left">วิธี</th><th class="p-2 text-right">รายการ</th>
           <th class="p-2 text-right">ยอดรวม</th><th></th>
         </tr></thead>
@@ -11865,6 +12018,14 @@ app.component('view-payment', {
             <td class="p-2 font-mono">{{g.docNo}}</td>
             <td class="p-2">{{g.date}}</td>
             <td class="p-2">{{erp.supplierName(g.supplierId)}}</td>
+            <!-- 🆕 เลขบิลซื้อที่ถูกตัดชำระ — แสดงทั้งหมด (สูงสุด 3 ตัวต่อบรรทัด) -->
+            <td class="p-2 text-xs">
+              <div v-if="g.billDocNosList && g.billDocNosList.length" class="flex flex-wrap gap-1">
+                <span v-for="(bd, i) in g.billDocNosList.slice(0,3)" :key="i" class="font-mono bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200">{{bd}}</span>
+                <span v-if="g.billDocNosList.length > 3" class="text-slate-500" :title="g.billDocNosList.join(', ')">+{{g.billDocNosList.length - 3}}</span>
+              </div>
+              <span v-else class="text-slate-300">-</span>
+            </td>
             <td class="p-2">{{erp.accountName(g.accountId)}}</td>
             <td class="p-2">{{g.method}}</td>
             <td class="p-2 text-right">{{g.count}}</td>
@@ -11874,7 +12035,7 @@ app.component('view-payment', {
               <button @click="remove(g)" class="text-red-600 text-xs hover:underline">🗑 ลบ</button>
             </td>
           </tr>
-          <tr v-if="list.length===0"><td colspan="8" class="text-center py-8 text-slate-400">ยังไม่มีรายการ</td></tr>
+          <tr v-if="list.length===0"><td colspan="9" class="text-center py-8 text-slate-400">ยังไม่มีรายการ</td></tr>
         </tbody>
       </table>
     </div>
@@ -11974,9 +12135,17 @@ app.component('view-payment', {
                 <tbody>
                   <tr v-for="(line, idx) in (form.lines||[])" :key="line.id" class="border-t">
                     <td class="p-1">
-                      <input type="text" :list="'pmt-bills-'+line.id" :value="getBillDisplay(line)" @change="onBillTyped(line, $event.target.value)" placeholder="🔍 พิมพ์เลขบิล/ชื่อ supplier..." class="w-full px-1 py-1 border rounded text-xs">
+                      <!-- 🆕 Searchable input: ค้นได้ทั้งเลขบิล + ชื่อ supplier + amount -->
+                      <input type="text" :list="'pmt-bills-'+line.id"
+                        :value="getBillDisplay(line)"
+                        @change="onBillTyped(line, $event.target.value)"
+                        placeholder="🔍 พิมพ์เลขบิล / ชื่อ supplier..."
+                        class="w-full px-1 py-1 border rounded text-xs"
+                        autocomplete="off">
                       <datalist :id="'pmt-bills-'+line.id">
-                        <option v-for="b in availableBills(form.branchId)" :key="b.id" :value="b.docNo">{{b.docNo}} | {{b.date}} | {{erp.supplierName(b.supplierId)}} | ค้าง {{fmt(actualPayable(b))}}</option>
+                        <!-- option value = docNo + supplier (browser ค้นได้ทั้งสอง) -->
+                        <option v-for="b in availableBills(form.branchId)" :key="b.id"
+                          :value="b.docNo+' | '+erp.supplierName(b.supplierId)+' | ค้าง '+fmt(actualPayable(b))"></option>
                       </datalist>
                     </td>
                     <td class="p-1 text-xs text-slate-600">{{line.supplierName||'-'}}</td>
