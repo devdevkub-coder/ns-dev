@@ -5649,15 +5649,97 @@ function makeMasterComponent(opts) {
         erp.showToast('🗑 ลบ '+idsToDelete.length+' รายการแล้ว (local + cloud)','success');
         if (window.$autoSync) setTimeout(() => window.$autoSync.pushNow(), 100);
       }
+      /* 🆕 Auto-merge duplicates by name — รวมตัวที่ชื่อซ้ำเข้าตัวที่มี activity สูงสุด */
+      async function mergeDuplicates() {
+        // ใช้ได้เฉพาะ collection ที่มี activity references
+        const refConfigMap = {
+          suppliers: [
+            ['purchaseBills','supplierId'],['payments','supplierId'],
+            ['poBuys','supplierId'],['supplierAdvances','supplierId'],
+            ['advanceAllocations','supplierId'],['tradingDeals','supplierId'],
+            ['receiptVouchers','sellerSupplierId'],
+          ],
+          customers: [
+            ['salesBills','customerId'],['receipts','customerId'],
+            ['poSells','customerId'],['customerAdvances','customerId'],
+            ['advanceAllocations','customerId'],
+          ],
+        };
+        const refTables = refConfigMap[opts.collection];
+        if (!refTables) { alert('Merge รองรับเฉพาะ suppliers / customers'); return; }
+
+        function actTotal(id) {
+          let s = 0;
+          refTables.forEach(([tbl, fld]) => {
+            if (Array.isArray(db[tbl])) s += db[tbl].filter(r => r && r[fld] === id).length;
+          });
+          return s;
+        }
+
+        // Group by normalized name
+        const groups = new Map();
+        (db[opts.collection]||[]).forEach(s => {
+          if (!s || !s.name) return;
+          const k = String(s.name).trim().toLowerCase().replace(/\s+/g,' ');
+          if (!k) return;
+          if (!groups.has(k)) groups.set(k, []);
+          groups.get(k).push(s);
+        });
+        const dupGroups = Array.from(groups.values()).filter(g => g.length > 1);
+        if (!dupGroups.length) { alert('✓ ไม่พบ '+(opts.title||'ข้อมูล')+' ที่ชื่อซ้ำ'); return; }
+
+        const plan = dupGroups.map(group => {
+          const ranked = group.map(s => ({ ...s, _act: actTotal(s.id) })).sort((a,b) => b._act - a._act);
+          return { keep: ranked[0], removes: ranked.slice(1) };
+        });
+        const totalRemoves = plan.reduce((s,p)=>s+p.removes.length,0);
+        const totalTransfers = plan.reduce((s,p)=>s+p.removes.filter(r=>r._act>0).length,0);
+
+        console.log(`🔍 พบ ${dupGroups.length} ชื่อซ้ำ:`);
+        plan.forEach(p => {
+          console.log(`\n"${p.keep.name}"`);
+          console.log(`  ✓ KEEP: ${p.keep.code||'?'} (${p.keep.id}) — activity:${p.keep._act}`);
+          p.removes.forEach(s => console.log(`  🗑 DEL: ${s.code||'?'} (${s.id}) — activity:${s._act} ${s._act>0?'→ย้ายมา':''}`));
+        });
+
+        if (!confirm(`🔧 พบ ${dupGroups.length} ชื่อซ้ำ\n\n• ลบ ${totalRemoves} duplicates\n• ย้าย references ของ ${totalTransfers} ตัว → KEEP\n\nดำเนินการ?`)) return;
+
+        const deletedIds = [];
+        for (const p of plan) {
+          for (const dup of p.removes) {
+            refTables.forEach(([tbl, fld]) => {
+              if (!Array.isArray(db[tbl])) return;
+              db[tbl].forEach(r => { if (r && r[fld] === dup.id) r[fld] = p.keep.id; });
+            });
+            // รวม fields ที่ดีๆ ไป KEEP
+            ['phone','bankAccount','taxId','address','salesId'].forEach(k => {
+              if (!p.keep[k] && dup[k]) p.keep[k] = dup[k];
+            });
+            const idx = db[opts.collection].findIndex(s => s && s.id === dup.id);
+            if (idx >= 0) db[opts.collection].splice(idx, 1);
+            deletedIds.push(dup.id);
+            erp.logAudit('MERGE_DUP', opts.collection, dup, { mergedInto: p.keep.id });
+          }
+        }
+        // Push delete to cloud
+        await _deleteCloud(opts.collection, deletedIds);
+        try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+        try { if (window.$autoSync && window.$autoSync.pushNow) await window.$autoSync.pushNow(); } catch(e){}
+        clearSelection();
+        alert(`✅ Merge สำเร็จ\n• รวม ${plan.length} ชื่อ → ${plan.length} ตัว\n• ลบ ${deletedIds.length} duplicates`);
+      }
+
       return { db, list, filtered, search, showModal, editing, form, open, save, remove, opts, fmt: erp.fmt,
         selectedIds, isSelected, toggleOne, allVisibleSelected, toggleAllVisible, clearSelection, bulkDelete,
-        exportExcel };
+        exportExcel, mergeDuplicates };
     },
     template: `
       <div>
         <div class="flex items-center justify-between mb-4 gap-2 flex-wrap">
           <input v-model="search" placeholder="ค้นหา..." class="px-3 py-2 border border-slate-300 rounded-lg text-sm w-full sm:w-64">
-          <div class="flex gap-2">
+          <div class="flex gap-2 flex-wrap">
+            <!-- 🆕 Merge Duplicates — เฉพาะ suppliers / customers -->
+            <button v-if="['suppliers','customers'].includes(opts.collection)" @click="mergeDuplicates" class="bg-orange-500 hover:bg-orange-600 text-white px-3 py-2 rounded-lg text-sm" title="ค้นหา + รวมชื่อที่ซ้ำกันอัตโนมัติ (เก็บตัวที่มีบิล)">🔧 รวมชื่อซ้ำ</button>
             <button @click="exportExcel" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm" title="Download Excel ของข้อมูลทั้งหมด">📊 Export Excel</button>
             <button @click="open()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm">+ เพิ่มรายการ</button>
           </div>
