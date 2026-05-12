@@ -382,56 +382,159 @@
     }
   };
 
-  /* ─── floating button ─── */
+  /* ─── floating button — draggable + minimizable ─── */
+  const POS_KEY = 'ns_export_btn_pos';
+  const MIN_KEY = 'ns_export_btn_minimized';
+  function loadPos() { try { return JSON.parse(localStorage.getItem(POS_KEY)||'null'); } catch(e){return null;} }
+  function savePos(p) { try { localStorage.setItem(POS_KEY, JSON.stringify(p)); } catch(e){} }
+  function loadMin() { try { return localStorage.getItem(MIN_KEY) === '1'; } catch(e){return false;} }
+  function saveMin(v) { try { localStorage.setItem(MIN_KEY, v?'1':'0'); } catch(e){} }
+
   function injectButton() {
-    if (document.getElementById('ns-export-btn')) return;
+    if (document.getElementById('ns-export-btn-wrap')) return;
+    const minimized = loadMin();
+    const saved = loadPos();
+    const wrap = document.createElement('div');
+    wrap.id = 'ns-export-btn-wrap';
+    Object.assign(wrap.style, {
+      position: 'fixed',
+      bottom: saved ? '' : '20px',
+      right: saved ? '' : '20px',
+      top: saved ? saved.top + 'px' : '',
+      left: saved ? saved.left + 'px' : '',
+      zIndex: '30',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '4px',
+    });
+
+    // Minimized state: ปุ่มกลมเล็กแสดง 📥 (click → restore)
+    const miniBtn = document.createElement('button');
+    miniBtn.id = 'ns-export-mini';
+    miniBtn.innerHTML = '📥';
+    miniBtn.title = 'คลิกเพื่อขยายปุ่ม Export';
+    Object.assign(miniBtn.style, {
+      width: '32px', height: '32px',
+      borderRadius: '50%',
+      background: 'rgba(16,185,129,0.85)',
+      color: 'white',
+      border: 'none',
+      cursor: 'pointer',
+      fontSize: '14px',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+      display: minimized ? 'block' : 'none',
+    });
+
+    // Full state: ปุ่ม Export + ปุ่ม X
+    const fullDiv = document.createElement('div');
+    fullDiv.id = 'ns-export-full';
+    Object.assign(fullDiv.style, {
+      display: minimized ? 'none' : 'flex',
+      alignItems: 'center',
+      gap: '2px',
+    });
+
     const btn = document.createElement('button');
     btn.id = 'ns-export-btn';
     btn.innerHTML = '📥 Export Excel';
     btn.title = 'Export บิลซื้อ/ขาย/ค่าใช้จ่าย/Payments/Receipts/Stock Ledger/PO เป็น Excel';
     Object.assign(btn.style, {
-      position: 'fixed',
-      bottom: '20px',
-      right: '20px',
-      zIndex: '40',                              // 🆕 ต่ำกว่า modal — ไม่ทับปุ่มในตาราง
-      padding: '8px 14px',                       // 🆕 เล็กลง
-      borderRadius: '999px',
+      padding: '6px 12px',
+      borderRadius: '999px 0 0 999px',
       background: 'linear-gradient(135deg,#10b981,#059669)',
       color: 'white',
       fontWeight: '600',
-      fontSize: '12px',                          // 🆕 เล็กลง
+      fontSize: '11px',
       border: 'none',
       cursor: 'pointer',
-      boxShadow: '0 4px 12px rgba(16,185,129,0.35)',
-      transition: 'transform 0.15s, opacity 0.2s, box-shadow 0.15s',
+      boxShadow: '0 2px 8px rgba(16,185,129,0.25)',
+      opacity: '0.65',
       fontFamily: 'inherit',
-      opacity: '0.7',                            // 🆕 จาง — hover จะทึบ
+      transition: 'opacity 0.15s',
     });
-    btn.addEventListener('mouseenter', () => {
-      btn.style.opacity = '1';
-      btn.style.transform = 'translateY(-2px)';
-      btn.style.boxShadow = '0 6px 18px rgba(16,185,129,0.55)';
-    });
-    btn.addEventListener('mouseleave', () => {
-      btn.style.opacity = '0.7';
-      btn.style.transform = '';
-      btn.style.boxShadow = '0 4px 12px rgba(16,185,129,0.35)';
-    });
-    btn.addEventListener('click', () => {
+    btn.addEventListener('mouseenter', () => { btn.style.opacity = '1'; });
+    btn.addEventListener('mouseleave', () => { btn.style.opacity = '0.65'; });
+    btn.addEventListener('click', (ev) => {
+      if (wrap._dragged) { wrap._dragged = false; return; }
       btn.disabled = true;
       btn.innerHTML = '⏳ กำลัง Export…';
       setTimeout(() => {
-        try {
-          window.exportNsErpToExcel();
-        } catch(e) {
-          console.error(e);
-          alert('❌ Export ผิดพลาด: ' + e.message);
-        }
+        try { window.exportNsErpToExcel(); }
+        catch(e) { console.error(e); alert('❌ Export ผิดพลาด: ' + e.message); }
         btn.disabled = false;
         btn.innerHTML = '📥 Export Excel';
       }, 50);
     });
-    document.body.appendChild(btn);
+
+    // ปุ่ม X close → minimize
+    const closeBtn = document.createElement('button');
+    closeBtn.innerHTML = '✕';
+    closeBtn.title = 'ย่อปุ่ม (คลิก 📥 เพื่อขยาย)';
+    Object.assign(closeBtn.style, {
+      padding: '6px 8px',
+      borderRadius: '0 999px 999px 0',
+      background: 'rgba(127,127,127,0.6)',
+      color: 'white',
+      fontWeight: '700',
+      fontSize: '11px',
+      border: 'none',
+      cursor: 'pointer',
+      opacity: '0.65',
+      fontFamily: 'inherit',
+    });
+    closeBtn.addEventListener('mouseenter', () => { closeBtn.style.opacity = '1'; });
+    closeBtn.addEventListener('mouseleave', () => { closeBtn.style.opacity = '0.65'; });
+    closeBtn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      fullDiv.style.display = 'none';
+      miniBtn.style.display = 'block';
+      saveMin(true);
+    });
+
+    miniBtn.addEventListener('click', () => {
+      miniBtn.style.display = 'none';
+      fullDiv.style.display = 'flex';
+      saveMin(false);
+    });
+
+    // Drag support — ลากย้ายตำแหน่งได้
+    let dragData = null;
+    function startDrag(ev) {
+      const touch = ev.touches ? ev.touches[0] : ev;
+      dragData = { startX: touch.clientX, startY: touch.clientY, origLeft: wrap.offsetLeft, origTop: wrap.offsetTop };
+      wrap._dragged = false;
+    }
+    function onDrag(ev) {
+      if (!dragData) return;
+      const touch = ev.touches ? ev.touches[0] : ev;
+      const dx = touch.clientX - dragData.startX;
+      const dy = touch.clientY - dragData.startY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) wrap._dragged = true;
+      const newLeft = Math.max(0, Math.min(window.innerWidth - wrap.offsetWidth, dragData.origLeft + dx));
+      const newTop = Math.max(0, Math.min(window.innerHeight - wrap.offsetHeight, dragData.origTop + dy));
+      wrap.style.left = newLeft + 'px';
+      wrap.style.top = newTop + 'px';
+      wrap.style.right = '';
+      wrap.style.bottom = '';
+    }
+    function endDrag() {
+      if (dragData && wrap._dragged) {
+        savePos({ left: wrap.offsetLeft, top: wrap.offsetTop });
+      }
+      dragData = null;
+    }
+    wrap.addEventListener('mousedown', startDrag);
+    wrap.addEventListener('touchstart', startDrag, { passive: true });
+    document.addEventListener('mousemove', onDrag);
+    document.addEventListener('touchmove', onDrag, { passive: true });
+    document.addEventListener('mouseup', endDrag);
+    document.addEventListener('touchend', endDrag);
+
+    fullDiv.appendChild(btn);
+    fullDiv.appendChild(closeBtn);
+    wrap.appendChild(fullDiv);
+    wrap.appendChild(miniBtn);
+    document.body.appendChild(wrap);
   }
 
   if (document.readyState === 'loading') {
