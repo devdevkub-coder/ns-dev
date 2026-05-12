@@ -12349,8 +12349,19 @@ app.component('view-expense', {
     function openEdit(g) {
       try {
         editingVoucherId.value = g.id;
-        const rows = safeArr(db.expenses).filter(e => e && (e.voucherId || e.id) === g.id);
-        if (!rows.length) { alert('ไม่พบข้อมูล'); return; }
+        const allRows = safeArr(db.expenses).filter(e => e && (e.voucherId || e.id) === g.id);
+        if (!allRows.length) { alert('ไม่พบข้อมูล'); return; }
+        // 🔧 BUG FIX: deduplicate lines — กรณีบิลมี duplicate rows ใน local (จากการ sync เก่าๆ)
+        // จับคู่ตาม categoryId + amount + vat + wht — เก็บตัวเก่าที่สุดไว้ตัวเดียว
+        const seen = new Map();
+        allRows.forEach(r => {
+          const key = `${r.categoryId||''}|${num(r.amount)}|${num(r.vat)}|${num(r.wht)}|${(r.desc||'').trim()}`;
+          if (!seen.has(key)) seen.set(key, r);
+        });
+        const rows = Array.from(seen.values());
+        if (rows.length < allRows.length) {
+          console.log(`[expense-edit] deduplicated ${allRows.length - rows.length} duplicate lines on load`);
+        }
         const first = rows[0];
         form.value = {
           docNo: first.docNo,
@@ -12423,9 +12434,13 @@ app.component('view-expense', {
         }
         const paidStatus = isPay ? 'paid' : 'pending';
         const paidAt = isPay ? new Date().toISOString() : null;
-        validLines.forEach(line => {
+        validLines.forEach((line, idx) => {
           db.expenses.push({
-            id: newId('EXP-L'), voucherId: id, docNo: f.docNo, date: f.date,
+            // 🔧 BUG FIX: deterministic id — กันสะสม duplicate ใน cloud
+            // เดิม: newId('EXP-L') สร้าง id สุ่มทุกครั้ง → ถ้า cloud delete fail → cloud มี dup เพิ่มทุกครั้งที่แก้
+            // ใหม่: EXP-L-{voucherId}-{idx} — แก้กี่ครั้งก็ใช้ id เดิม → upsert ทับ ไม่สะสม
+            id: 'EXP-L-' + id + '-' + idx,
+            voucherId: id, docNo: f.docNo, date: f.date,
             dueDate: f.dueDate || '', refDocNo: f.refDocNo || '',
             categoryId: line.categoryId, desc: line.description,
             amount: num(line.amount), vat: num(line.vatAmount), wht: num(line.whtAmount),
@@ -12671,6 +12686,65 @@ app.component('view-expense', {
       };
     });
 
+    /* 🆕 Cleanup duplicate expense lines — กวาด lines ที่ซ้ำกัน (จาก sync issues เก่า)
+       กลยุทธ์: group ตาม voucherId → ใน group เดียวกัน ถ้ามี lines เดียวกัน (categoryId+amount+vat+wht) → เก็บแค่ 1
+       ลบทั้ง local + cloud */
+    async function cleanupDuplicateLines() {
+      const all = safeArr(db.expenses);
+      if (!all.length) { alert('ไม่มี expense lines ในระบบ'); return; }
+      // Group by voucherId
+      const byVoucher = new Map();
+      all.forEach(e => {
+        if (!e) return;
+        const vid = e.voucherId || e.id || 'unk';
+        if (!byVoucher.has(vid)) byVoucher.set(vid, []);
+        byVoucher.get(vid).push(e);
+      });
+      const toDelete = [];
+      let dupVouchers = 0;
+      let dupAmount = 0;
+      byVoucher.forEach((lines, vid) => {
+        if (lines.length < 2) return;
+        // Dedupe within voucher
+        const seen = new Map();
+        const dupsInVoucher = [];
+        lines.sort((a,b) => String(a.createdAt||'').localeCompare(String(b.createdAt||'')));   // เก่าก่อน
+        lines.forEach(l => {
+          const key = `${l.categoryId||''}|${num(l.amount)}|${num(l.vat)}|${num(l.wht)}|${(l.desc||'').trim()}`;
+          if (seen.has(key)) {
+            dupsInVoucher.push(l);
+            dupAmount += num(l.amount) + num(l.vat);
+          } else {
+            seen.set(key, l);
+          }
+        });
+        if (dupsInVoucher.length > 0) {
+          dupVouchers++;
+          dupsInVoucher.forEach(d => toDelete.push(d.id));
+        }
+      });
+      if (!toDelete.length) { alert('✓ ไม่พบ expense lines ที่ซ้ำกัน'); return; }
+      if (!confirm(`🔍 พบ duplicate lines: ${toDelete.length} lines ใน ${dupVouchers} vouchers\n💰 ยอดรวมที่ซ้ำ: ${fmt(dupAmount)} บาท\n\n• ลบ duplicate ใน local + cloud\n• เก็บตัวเก่าสุดไว้ (ตาม createdAt)\n\nดำเนินการ?`)) return;
+      // Tombstone + ลบ local
+      try { window.$autoSync?.addTombstones?.('expenses', toDelete); } catch(e){}
+      db.expenses = db.expenses.filter(e => !toDelete.includes(e.id));
+      try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+      // ลบ cloud (batch 100 ids ต่อรอบ)
+      let cloudOk = 0, cloudFail = 0;
+      if (window.sb) {
+        for (let i = 0; i < toDelete.length; i += 100) {
+          const chunk = toDelete.slice(i, i+100);
+          try {
+            const r = await window.sb.from('expenses').delete().in('id', chunk).select('id');
+            if (r.error) cloudFail += chunk.length;
+            else cloudOk += (r.data?.length || chunk.length);
+          } catch(e) { cloudFail += chunk.length; }
+        }
+      }
+      try { if (window.$autoSync?.pushNow) await window.$autoSync.pushNow(); } catch(e){}
+      alert(`✅ ลบ duplicate สำเร็จ\n• Local: ${toDelete.length} lines\n• Cloud: ${cloudOk} ลบสำเร็จ${cloudFail?' · ' + cloudFail + ' fail':''}\n• เงินคืน: ${fmt(dupAmount)} บาท`);
+    }
+
     /* 🆕 Payee suggestions — รวมจาก expenses เก่า + suppliers + customers (unique names) */
     const payeeSuggestions = computed(() => {
       const set = new Set();
@@ -12742,7 +12816,7 @@ app.component('view-expense', {
     return { db, erp, form, showForm, list, totals, num, editingVoucherId,
       search, filterDateFrom, filterDateTo, filterCategory, filterPayee, filterAccount, filterPaidStatus,
       open, openEdit, close: close_, save, remove, addLine, removeLine, recalcLineVat, recalcLineWht, fmt: erp.fmt,
-      payNow, quickPay, expSummary, payeeSuggestions,
+      payNow, quickPay, expSummary, payeeSuggestions, cleanupDuplicateLines,
       // 🆕 Export
       exportExpenses };
   },
@@ -12755,6 +12829,10 @@ app.component('view-expense', {
       </div>
       <button @click="open" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold shadow-md flex items-center gap-2 whitespace-nowrap">
         ➕ เพิ่มค่าใช้จ่าย
+      </button>
+      <!-- 🆕 Cleanup duplicate lines — สำหรับบิลที่มี line ซ้ำจาก sync เก่า -->
+      <button @click="cleanupDuplicateLines" class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-md flex items-center gap-2 whitespace-nowrap" title="หา + ลบ expense lines ที่ซ้ำกันในบิลเดียวกัน">
+        🧹 ลบ Line ซ้ำ
       </button>
     </div>
 
