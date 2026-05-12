@@ -4700,30 +4700,51 @@ window.$erp = {
 
   /* 🆕 Tombstone tracking — กัน pull ดึง id ที่ลบไปแล้วกลับมา
      ใช้: window.$autoSync.addTombstones('expenses', ['exp-1','exp-2'])
-     pull จะ skip id ที่อยู่ใน tombstones ถ้าอยู่ในช่วง TTL (5 นาที) */
-  const TOMBSTONES = {};  // { localCollection: { id: expiryTs } }
-  const TOMBSTONE_TTL_MS = 5 * 60 * 1000;  // 5 นาที — เพียงพอให้ pull ตามหลัง delete ทัน
+     pull จะ skip id ที่อยู่ใน tombstones ถ้าอยู่ในช่วง TTL (24 ชม.)
+     🔧 BUG FIX: persist ใน localStorage เพื่อให้รอด page refresh */
+  const TOMBSTONE_KEY = 'ns_erp_tombstones_v1';
+  const TOMBSTONE_TTL_MS = 24 * 60 * 60 * 1000;  // 24 ชม. — รอด refresh + เวลาที่ user หาบิลใหม่
+  let TOMBSTONES = {};
+  function _loadTombstones() {
+    try {
+      const raw = localStorage.getItem(TOMBSTONE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') TOMBSTONES = parsed;
+      }
+      cleanupTombstones();
+    } catch(e) { console.warn('tombstone load:', e); TOMBSTONES = {}; }
+  }
+  function _saveTombstones() {
+    try { localStorage.setItem(TOMBSTONE_KEY, JSON.stringify(TOMBSTONES)); } catch(e){}
+  }
   function addTombstones(localCollection, ids) {
     if (!localCollection || !Array.isArray(ids)) return;
     TOMBSTONES[localCollection] = TOMBSTONES[localCollection] || {};
     const exp = Date.now() + TOMBSTONE_TTL_MS;
-    ids.forEach(id => { if (id) TOMBSTONES[localCollection][id] = exp; });
+    let added = 0;
+    ids.forEach(id => { if (id) { TOMBSTONES[localCollection][id] = exp; added++; } });
+    if (added > 0) _saveTombstones();
   }
   function isTombstoned(localCollection, id) {
     const store = TOMBSTONES[localCollection];
     if (!store || !id) return false;
     const exp = store[id];
     if (!exp) return false;
-    if (Date.now() > exp) { delete store[id]; return false; }
+    if (Date.now() > exp) { delete store[id]; _saveTombstones(); return false; }
     return true;
   }
   function cleanupTombstones() {
     const now = Date.now();
+    let dirty = false;
     Object.keys(TOMBSTONES).forEach(coll => {
       const store = TOMBSTONES[coll];
-      Object.keys(store).forEach(id => { if (now > store[id]) delete store[id]; });
+      Object.keys(store).forEach(id => { if (now > store[id]) { delete store[id]; dirty = true; } });
     });
+    if (dirty) _saveTombstones();
   }
+  // Load on script init + cleanup ทุก 1 นาที
+  _loadTombstones();
   setInterval(cleanupTombstones, 60000);
 
   // Expose API
@@ -12450,40 +12471,80 @@ app.component('view-expense', {
       const expIds = db.expenses.filter(e => (e.voucherId||e.id) === g.id).map(e => e.id);
       const bsIds = db.bankStatement.filter(s => s.refType==='EXP' && s.refId===g.id).map(s => s.id);
       // 🔧 ใส่ tombstone ทันที (ก่อน splice) — กัน pull restore แบบ race
+      // 🆕 tombstone ตอนนี้ persist 24 ชม. ใน localStorage — รอด refresh
       try { window.$autoSync?.addTombstones?.('expenses', expIds); } catch(e){}
       try { window.$autoSync?.addTombstones?.('bankStatement', bsIds); } catch(e){}
+      // 🆕 หา cloud rows ที่ docNo เดียวกัน ก่อนลบ — ใส่ tombstone ด้วย (กัน cloud มี ids ที่ local ไม่รู้)
+      try {
+        if (window.sb) {
+          const r = await window.sb.from('expenses').select('id').eq('doc_no', g.docNo);
+          if (r.data && r.data.length) {
+            const cloudIds = r.data.map(x => x.id);
+            window.$autoSync?.addTombstones?.('expenses', cloudIds);
+            console.log('[expense-delete] tombstoned cloud ids by doc_no:', cloudIds.length);
+          }
+          const r2 = await window.sb.from('bank_statement').select('id').eq('ref_type','EXP').eq('ref_id', g.id);
+          if (r2.data && r2.data.length) {
+            window.$autoSync?.addTombstones?.('bankStatement', r2.data.map(x => x.id));
+          }
+        }
+      } catch(e) { console.warn('pre-delete scan:', e); }
       db.expenses = db.expenses.filter(e => (e.voucherId||e.id) !== g.id);
       db.bankStatement = db.bankStatement.filter(s => !(s.refType==='EXP' && s.refId===g.id));
-      // 🆕 BUG FIX: ลบใน cloud ทั้ง by id + by voucher_id (กรณี cloud มี rows ที่ local ไม่มี)
+      // 🆕 BUG FIX: ลบใน cloud ทั้ง 3 ทาง — by id + by voucher_id + by doc_no (fallback)
       let cloudFail = '';
+      let cloudDeleted = 0;
       try {
         if (window.sb) {
           // 1) ลบโดย id (rows ที่ local มี)
           if (expIds.length) {
             const r1 = await erp.deleteCloud('expenses', expIds);
-            if (!r1.ok) cloudFail = 'expenses: '+r1.error;
+            if (!r1.ok) cloudFail = 'expenses(id): '+r1.error;
+            else cloudDeleted += (r1.deleted || 0);
           }
           // 2) ลบโดย voucher_id (รวม rows ที่ cloud มีแต่ local ไม่มี — กัน MERGE pull restore กลับมา)
-          const { data, error } = await window.sb.from('expenses').delete().eq('voucher_id', g.id).select('id');
-          if (error) { cloudFail = (cloudFail?cloudFail+'; ':'')+'expenses(voucher_id): '+error.message; }
-          else if (data && data.length) {
-            console.log('[expense-delete] also deleted '+data.length+' cloud rows by voucher_id');
-            // 🆕 tombstone ทั้ง ids ที่ลบเพิ่ม
-            try { window.$autoSync?.addTombstones?.('expenses', data.map(r => r.id)); } catch(e){}
-          }
-          // 3) ลบ bankStatement (by id + by ref_id)
+          //    ถ้า column ยังไม่มีใน cloud (SQL migration ยังไม่รัน) → ข้ามได้
+          try {
+            const { data, error } = await window.sb.from('expenses').delete().eq('voucher_id', g.id).select('id');
+            if (error) {
+              if (/column.*voucher_id.*does not exist/i.test(error.message)) {
+                console.warn('[expense-delete] voucher_id column ยังไม่มี — ใช้ doc_no fallback');
+              } else {
+                cloudFail = (cloudFail?cloudFail+'; ':'')+'expenses(voucher_id): '+error.message;
+              }
+            } else if (data && data.length) {
+              cloudDeleted += data.length;
+              try { window.$autoSync?.addTombstones?.('expenses', data.map(r => r.id)); } catch(e){}
+            }
+          } catch(e2) { /* swallow column-not-exist */ }
+          // 3) 🆕 Fallback: ลบโดย doc_no — กรณี voucher_id ไม่มี + cloud มี rows ของบิลนี้
+          try {
+            const { data, error } = await window.sb.from('expenses').delete().eq('doc_no', g.docNo).select('id');
+            if (error) {
+              cloudFail = (cloudFail?cloudFail+'; ':'')+'expenses(doc_no): '+error.message;
+            } else if (data && data.length) {
+              cloudDeleted += data.length;
+              try { window.$autoSync?.addTombstones?.('expenses', data.map(r => r.id)); } catch(e){}
+              console.log('[expense-delete] also deleted '+data.length+' cloud rows by doc_no');
+            }
+          } catch(e3) { /* swallow */ }
+          // 4) ลบ bankStatement (by id + by ref_id)
           if (bsIds.length) await erp.deleteCloud('bankStatement', bsIds);
-          const bsRes = await window.sb.from('bank_statement').delete().eq('ref_type','EXP').eq('ref_id', g.id).select('id');
-          if (bsRes.error) cloudFail = (cloudFail?cloudFail+'; ':'')+'bank_statement: '+bsRes.error.message;
-          else if (bsRes.data && bsRes.data.length) {
-            try { window.$autoSync?.addTombstones?.('bankStatement', bsRes.data.map(r => r.id)); } catch(e){}
-          }
+          try {
+            const bsRes = await window.sb.from('bank_statement').delete().eq('ref_type','EXP').eq('ref_id', g.id).select('id');
+            if (bsRes.error) cloudFail = (cloudFail?cloudFail+'; ':'')+'bank_statement: '+bsRes.error.message;
+            else if (bsRes.data && bsRes.data.length) {
+              try { window.$autoSync?.addTombstones?.('bankStatement', bsRes.data.map(r => r.id)); } catch(e){}
+            }
+          } catch(e4) { /* swallow */ }
         }
       } catch(e) { cloudFail = (cloudFail?cloudFail+'; ':'')+e.message; }
+      // 🆕 บังคับ push ทันที — กัน watch debounce 1.5s
+      try { if (window.$autoSync?.pushNow) await window.$autoSync.pushNow(); } catch(e){}
       if (cloudFail) {
-        alert('⚠ ลบ local แล้ว แต่ลบ cloud บางส่วนไม่สำเร็จ:\n\n'+cloudFail+'\n\n💡 ลอง refresh + ลบอีกครั้ง');
+        alert(`⚠ ลบ local แล้ว แต่ cloud บางส่วนไม่สำเร็จ:\n\n${cloudFail}\n\n💡 บิลถูก tombstone 24 ชม. แล้ว — refresh ไม่กลับมา\nถ้ายังเจอ → ลอง refresh + ลบอีกครั้ง`);
       } else {
-        erp.showToast('🗑 ลบเรียบร้อย (local + cloud)');
+        erp.showToast(`🗑 ลบเรียบร้อย — local + cloud ${cloudDeleted} rows`,'success');
       }
     }
     /* Filters */
