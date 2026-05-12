@@ -393,26 +393,29 @@
       position: 'fixed',
       bottom: '20px',
       right: '20px',
-      zIndex: '9999',
-      padding: '12px 20px',
+      zIndex: '40',                              // 🆕 ต่ำกว่า modal — ไม่ทับปุ่มในตาราง
+      padding: '8px 14px',                       // 🆕 เล็กลง
       borderRadius: '999px',
       background: 'linear-gradient(135deg,#10b981,#059669)',
       color: 'white',
       fontWeight: '600',
-      fontSize: '14px',
+      fontSize: '12px',                          // 🆕 เล็กลง
       border: 'none',
       cursor: 'pointer',
-      boxShadow: '0 4px 12px rgba(16,185,129,0.4)',
-      transition: 'transform 0.15s, box-shadow 0.15s',
+      boxShadow: '0 4px 12px rgba(16,185,129,0.35)',
+      transition: 'transform 0.15s, opacity 0.2s, box-shadow 0.15s',
       fontFamily: 'inherit',
+      opacity: '0.7',                            // 🆕 จาง — hover จะทึบ
     });
     btn.addEventListener('mouseenter', () => {
+      btn.style.opacity = '1';
       btn.style.transform = 'translateY(-2px)';
       btn.style.boxShadow = '0 6px 18px rgba(16,185,129,0.55)';
     });
     btn.addEventListener('mouseleave', () => {
+      btn.style.opacity = '0.7';
       btn.style.transform = '';
-      btn.style.boxShadow = '0 4px 12px rgba(16,185,129,0.4)';
+      btn.style.boxShadow = '0 4px 12px rgba(16,185,129,0.35)';
     });
     btn.addEventListener('click', () => {
       btn.disabled = true;

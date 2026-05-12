@@ -10803,6 +10803,9 @@ app.component('view-payment', {
           .filter(g => !filterDateTo.value || (g.date||'') <= filterDateTo.value)
           .filter(g => !filterAccount.value || g.accountId === filterAccount.value)
           .sort((a,b) => {
+            // 🆕 เรียงตาม docNo desc (เลขล่าสุดขึ้น) — numeric-aware
+            const docA = String(a.docNo||''); const docB = String(b.docNo||'');
+            if (docA !== docB) return docB.localeCompare(docA, undefined, { numeric: true });
             const da = String(a.date||''); const dbb = String(b.date||'');
             if (da !== dbb) return dbb.localeCompare(da);
             return String(b.id||'').localeCompare(String(a.id||''));
@@ -11406,6 +11409,9 @@ app.component('view-receipt', {
                   .filter(g => !filterDateTo.value || (g.date||'') <= filterDateTo.value)
                   .filter(g => !filterAccount.value || g.accountId === filterAccount.value)
                   .sort((a,b) => {
+                    // 🆕 เรียงตาม docNo desc (เลขล่าสุดขึ้น)
+                    const docA = String(a.docNo||''); const docB = String(b.docNo||'');
+                    if (docA !== docB) return docB.localeCompare(docA, undefined, { numeric: true });
                     const da = String(a.date||''); const dbb = String(b.date||'');
                     if (da !== dbb) return dbb.localeCompare(da);
                     return String(b.id||'').localeCompare(String(a.id||''));
