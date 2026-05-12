@@ -4556,6 +4556,13 @@ window.$erp = {
   // ถ้าไม่มี flag นี้: pull แก้ data → watch fire → dirtyTables.add → 1.5s ภายหลัง push ทุกตารางกลับ cloud
   // เป็น loop ทุก 10 วิ ทำให้ network ใช้ bandwidth เปล่า + บิลใหม่จากเครื่องอื่นมีโอกาสถูก overwrite
   let _applyingCloudUpdate = false;
+  /* 🆕 Reactive sync state — views can watch this to freeze UI during pull */
+  const _syncStateRef = (typeof Vue !== 'undefined' && Vue.ref) ? Vue.ref({ isPulling:false, isPushing:false }) : null;
+  function _updateSyncState() {
+    if (!_syncStateRef) return;
+    _syncStateRef.value = { isPulling, isPushing };
+  }
+  if (typeof window !== 'undefined') window.$syncState = _syncStateRef;
 
   /* 🆕 Persist failed tables across refresh — survive browser close */
   const FAIL_QUEUE_KEY = 'ns_erp_sync_failed_queue';
@@ -4756,7 +4763,7 @@ window.$erp = {
     const merged = new Set([...dirtyTables, ...failedTables]);
     const toPush = force || merged.size === 0 ? AS_TABLES.slice() : Array.from(merged);
     if (toPush.length === 0) return;
-    isPushing = true;
+    isPushing = true; _updateSyncState();
     _updateStatus('syncing', '⬆ Pushing... ('+toPush.length+' tables)', 'Auto-Push: '+toPush.slice(0,5).join(', ')+(toPush.length>5?'...':''));
     let totalOk = 0, totalFail = 0;
     dirtyTables.clear();
@@ -4766,7 +4773,7 @@ window.$erp = {
       totalOk += ok; totalFail += fail;
       if (fail > 0) tableFailures.add(t);
     }
-    isPushing = false;
+    isPushing = false; _updateSyncState();
     // 🆕 Update failed queue — เก็บเฉพาะที่ยัง fail
     failedTables.clear();
     tableFailures.forEach(t => failedTables.add(t));
@@ -4829,7 +4836,7 @@ window.$erp = {
     await pullCloudTombstones();
     // 🆕 ลบ tombstoned rows ออกจาก local ก่อน pull — กัน case ที่ user refresh แล้วเจอ local เก่า
     try { _purgeLocalTombstoned(); } catch(e){}
-    isPulling = true;
+    isPulling = true; _updateSyncState();
     _updateStatus('syncing', '⬇ Pulling...', 'Auto-Pull กำลังตรวจ Cloud');
     let totalRows = 0, errors = 0, newRowCount = 0;
     // 🔧 BUG FIX: เปิด flag ให้ watch รู้ว่า change มาจาก cloud — ห้าม trigger push กลับ
@@ -4986,7 +4993,7 @@ window.$erp = {
     } finally {
       _applyingCloudUpdate = false;
     }
-    isPulling = false;
+    isPulling = false; _updateSyncState();
     if (errors > 0) {
       _updateStatus('error', '⚠ Pull '+errors+' errors', 'บางตาราง pull ไม่ได้ — คลิกดู errors');
     } else {
@@ -5275,7 +5282,7 @@ window.$erp = {
     // 🔧 NEW: ปลด stuck state ถ้า isPushing/isPulling ค้าง (จาก network drop ระหว่าง await)
     unstick: () => {
       const was = { isPushing, isPulling };
-      isPushing = false; isPulling = false; _applyingCloudUpdate = false;
+      isPushing = false; _updateSyncState(); isPulling = false; _applyingCloudUpdate = false;
       console.log('[autoSync] unstuck — was:', was);
       return was;
     },
@@ -6982,8 +6989,8 @@ app.component('view-ar', {
     const today = new Date(erp.today());
     function ageDays(date) { return Math.floor((today - new Date(date)) / 86400000); }
     function ageBucket(d) { return d<=0?'Current': d<=30?'1-30': d<=60?'31-60': d<=90?'61-90':'>90'; }
-    const list = computed(() => {
-      // 🔧 BUG FIX: Live computed จาก receipts (กัน UI flicker ระหว่าง sync)
+    /* 🔧 FREEZE during sync — same as AP */
+    function _computeArList() {
       const receivedMap = new Map();
       (db.receipts||[]).forEach(r => {
         if (!r || !r.billId) return;
@@ -7008,6 +7015,16 @@ app.component('view-ar', {
         })
         .filter(r => !filterAging.value || r.bucket===filterAging.value)
         .sort((a,b)=>b.aging-a.aging);
+    }
+    const _stableArList = ref([]);
+    const list = computed(() => {
+      const syncState = window.$syncState?.value;
+      if (syncState && (syncState.isPulling || syncState.isPushing)) {
+        return _stableArList.value;
+      }
+      const fresh = _computeArList();
+      _stableArList.value = fresh;
+      return fresh;
     });
     const totalAR = computed(()=> list.value.reduce((s,r)=>s+Number(r.receivableBalance||0),0));
     const overdueAR = computed(()=> list.value.filter(r=>r.aging>0).reduce((s,r)=>s+Number(r.receivableBalance||0),0));
@@ -7158,10 +7175,9 @@ app.component('view-ap', {
     const today = new Date(erp.today());
     function ageDays(date) { return Math.floor((today - new Date(date)) / 86400000); }
     function ageBucket(d) { return d<=0?'Current':d<=30?'1-30':d<=60?'31-60':d<=90?'61-90':'>90'; }
-    const list = computed(() => {
-      // 🔧 BUG FIX: คำนวณ payableBalance แบบ LIVE จาก payments (กัน UI flicker ระหว่าง sync)
-      // เดิม: ใช้ b.payableBalance จาก field — stale ระหว่าง pull cycle ทำให้บิลที่จ่ายแล้วโผล่กลับมา
-      // ใหม่: คำนวณจาก db.payments ตรงๆ — ไม่ขึ้นกับ pull state ของ purchaseBills
+    /* 🔧 BUG FIX: คำนวณ + FREEZE ระหว่าง pull cycle (กัน UI flicker)
+       _stableList = snapshot ที่อัปเดตเฉพาะตอนไม่ได้กำลัง pull */
+    function _computeList() {
       const paidMap = new Map();
       (db.payments||[]).forEach(p => {
         if (!p || !p.billId) return;
@@ -7187,6 +7203,18 @@ app.component('view-ap', {
         })
         .filter(r => !filterAging.value || r.bucket===filterAging.value)
         .sort((a,b)=>b.aging-a.aging);
+    }
+    const _stableList = ref([]);
+    const list = computed(() => {
+      // ถ้า pull/push อยู่ → freeze (return snapshot) — กัน UI flicker
+      const syncState = window.$syncState?.value;
+      if (syncState && (syncState.isPulling || syncState.isPushing)) {
+        return _stableList.value;
+      }
+      // ถ้าไม่ sync → compute สด + cache เป็น snapshot ใหม่
+      const fresh = _computeList();
+      _stableList.value = fresh;
+      return fresh;
     });
     /* Summary by Supplier */
     const bySupplier = computed(() => {
