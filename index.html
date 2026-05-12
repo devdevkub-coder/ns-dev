@@ -12263,8 +12263,9 @@ app.component('view-expense', {
         return { totalAmount, totalVat, totalWHT, netPaid: totalAmount + totalVat - totalWHT };
       } catch (e) { return { totalAmount:0, totalVat:0, totalWHT:0, netPaid:0 }; }
     });
-    /* 🔥 NEW: Save mode — 'pay' = สร้าง+จ่ายทันที, 'pending' = แค่บันทึกใบแจ้งหนี้ ไว้จ่ายภายหลัง */
-    function save(mode = 'pay') {
+    /* 🔥 NEW: Save mode — 'pay' = สร้าง+จ่ายทันที, 'pending' = แค่บันทึกใบแจ้งหนี้ ไว้จ่ายภายหลัง
+       🔧 BUG FIX: ตอน edit → ลบ rows เก่าใน Cloud ก่อน push ใหม่ (กัน duplicate) */
+    async function save(mode = 'pay') {
       try {
         const f = form.value;
         const isPay = mode === 'pay';
@@ -12274,8 +12275,26 @@ app.component('view-expense', {
         const isEdit = !!editingVoucherId.value;
         const id = isEdit ? editingVoucherId.value : newId('EXP');
         if (isEdit) {
+          // 🔧 BUG FIX: เก็บ ids เก่าก่อนลบ + ใส่ tombstone + ลบ Cloud
+          const oldExpIds = safeArr(db.expenses).filter(e => e && (e.voucherId || e.id) === id).map(e => e.id);
+          const oldBsIds = safeArr(db.bankStatement).filter(s => s && s.refType === 'EXP' && s.refId === id).map(s => s.id);
+          // Tombstone ทันที — กัน pull restore
+          try { window.$autoSync?.addTombstones?.('expenses', oldExpIds); } catch(e){}
+          try { window.$autoSync?.addTombstones?.('bankStatement', oldBsIds); } catch(e){}
+          // ลบ local
           db.expenses = safeArr(db.expenses).filter(e => e && (e.voucherId || e.id) !== id);
           db.bankStatement = safeArr(db.bankStatement).filter(s => !(s && s.refType === 'EXP' && s.refId === id));
+          // ลบ Cloud — ใช้ทั้ง id และ voucher_id (กรณี cloud มี rows ที่ local ไม่มี)
+          try {
+            if (window.sb) {
+              if (oldExpIds.length) await window.sb.from('expenses').delete().in('id', oldExpIds);
+              // เผื่อ cloud มี rows อื่นที่ voucher_id เดียวกัน (เช่น lines ที่ลบไป)
+              await window.sb.from('expenses').delete().eq('voucher_id', id);
+              if (oldBsIds.length) await window.sb.from('bank_statement').delete().in('id', oldBsIds);
+              await window.sb.from('bank_statement').delete().eq('ref_type','EXP').eq('ref_id', id);
+              console.log('[expense-edit] cleaned cloud rows for voucher', id);
+            }
+          } catch(e) { console.warn('[expense-edit] cloud cleanup error:', e); }
         }
         const paidStatus = isPay ? 'paid' : 'pending';
         const paidAt = isPay ? new Date().toISOString() : null;
@@ -12296,17 +12315,22 @@ app.component('view-expense', {
         });
         if (isPay && f.accountId) {
           db.bankStatement.push({
-            id: newId('BS'), date: f.date, accountId: f.accountId,
+            // 🔧 BUG FIX: deterministic id — กัน duplicate ตอน edit+save หลายครั้ง
+            id: 'BS-EXP-' + id,
+            date: f.date, accountId: f.accountId,
             type: 'จ่ายค่าใช้จ่าย',
             desc: f.docNo + ' - ' + (f.payeeName || ''),
             in: 0, out: totals.value.netPaid,
             refType: 'EXP', refId: id, refNo: f.docNo,
-            createdBy: erp.currentUser.value?.username || '-'
+            createdBy: erp.currentUser.value?.username || '-',
+            createdAt: new Date().toISOString()
           });
         }
         showForm.value = false;
         editingVoucherId.value = null;
-        erp.showToast(isPay ? (isEdit?'✓ แก้ไขค่าใช้จ่าย + จ่ายแล้ว':'✓ บันทึก + จ่ายเงินแล้ว') : '✓ บันทึกใบแจ้งหนี้ (รอจ่าย)','success');
+        // 🆕 บังคับ push ทันที — กัน edit แล้วยังไม่ sync
+        try { if (window.$autoSync && window.$autoSync.pushNow) await window.$autoSync.pushNow(); } catch(e){}
+        erp.showToast(isPay ? (isEdit?'✓ แก้ไขค่าใช้จ่าย + จ่ายแล้ว':'✓ บันทึก + จ่ายเงินแล้ว') : (isEdit?'✓ แก้ไขใบแจ้งหนี้ (รอจ่าย)':'✓ บันทึกใบแจ้งหนี้ (รอจ่าย)'),'success');
       } catch (e) { console.error(e); alert('Error: '+e.message); }
     }
     function payNow(g) {
@@ -12990,8 +13014,25 @@ app.component('view-sales', {
     const form = reactive({});
     const search = ref(''); const filterStatus = ref(''); const filterChannel = ref('');
     const filterMode = ref('');                    // STOCK / TRADING
+    const filterMatch = ref('');                    // 🆕 '' / 'matched' / 'unmatched' / 'partial'
     const filterDateFrom = ref('');
     const filterDateTo = ref('');
+
+    /* 🆕 matchStatus — คำนวณว่าบิลขายนี้มีต้นทุนครบไหม (Trading)
+       - matched: ทุก trading item มี sourcePurchaseBillId
+       - unmatched: ไม่มี trading item เลยมี source หรือ Trading mode แต่ยังไม่ผูก PB
+       - partial: บางส่วนผูกแล้ว บางส่วนยังไม่ผูก
+       - stock: บิล STOCK ล้วน — ไม่นับเข้า match logic */
+    function matchStatus(b) {
+      if (!b) return { kind:'stock', label:'-', tradingCount:0, matchedCount:0 };
+      const items = b.items || [];
+      const tradingItems = items.filter(it => it && (it.sourceMode==='TRADING' || (!it.sourceMode && b.transactionMode==='TRADING')));
+      if (tradingItems.length === 0) return { kind:'stock', label:'📦 STOCK', tradingCount:0, matchedCount:0 };
+      const matched = tradingItems.filter(it => it.sourcePurchaseBillId).length;
+      if (matched === 0) return { kind:'unmatched', label:'⚠ ไม่มีต้นทุน', tradingCount: tradingItems.length, matchedCount:0 };
+      if (matched === tradingItems.length) return { kind:'matched', label:'✓ ครบ', tradingCount: tradingItems.length, matchedCount: matched };
+      return { kind:'partial', label:'⚠ บางส่วน', tradingCount: tradingItems.length, matchedCount: matched };
+    }
 
     function blank() {
       return { docNo:'', date:erp.today(), refNo:'', customerId:'', branchId:'', warehouseId:'', channelId:'',
@@ -13608,7 +13649,13 @@ app.component('view-sales', {
           if (filterMode.value && (b.transactionMode||'STOCK') !== filterMode.value) return false;
           if (filterDateFrom.value && (b.date||'') < filterDateFrom.value) return false;
           if (filterDateTo.value && (b.date||'') > filterDateTo.value) return false;
-          if (erp.currentBranchId.value && b.branchId !== erp.currentBranchId.value) return false;
+          // 🆕 Match filter: matched / unmatched / partial — สำหรับบิล Trading
+          if (filterMatch.value) {
+            const ms = matchStatus(b);
+            if (ms.kind !== filterMatch.value) return false;
+          }
+          // 🔧 BUG FIX: ไม่ filter ออก ถ้า b.branchId ว่าง (Trading-only bills ไม่ต้องระบุสาขา)
+          if (erp.currentBranchId.value && b.branchId && b.branchId !== erp.currentBranchId.value) return false;
           if (q) { const txt = ((b.docNo||'')+' '+(b.refNo||'')+' '+(erp.customerName(b.customerId)||'')+' '+(b.note||'')).toLowerCase(); if(!txt.includes(q)) return false; }
           return true;
         }).sort((a,b) => {
@@ -13899,7 +13946,7 @@ app.component('view-sales', {
     }
 
     return { db, erp, form, showForm, editing, showDetail, search, filterStatus, filterChannel,
-      filterMode, filterDateFrom, filterDateTo,
+      filterMode, filterMatch, matchStatus, filterDateFrom, filterDateTo,
       open, save, addItem, removeItem, recalcLine, recalcAll, onItemSourceChange, onTradingPbChange, hasStockItem, cancelBill, deleteBill, filtered, statusBadge, statusText,
       loadFromPOSell, availableTradingPurchases, loadFromTradingPurchase, billTotals, toggleVatIssued, goToPendingSale, fmt:erp.fmt,
       addTradingPurchase, removeTradingPurchase,
@@ -13942,6 +13989,13 @@ app.component('view-sales', {
         <button type="button" @click="filterMode=''" :class="['px-3 py-1 rounded text-xs font-medium border', filterMode===''?'bg-slate-700 text-white border-slate-700':'bg-white border-slate-300 hover:bg-slate-50']">ทั้งหมด</button>
         <button type="button" @click="filterMode='STOCK'" :class="['px-3 py-1 rounded text-xs font-medium border', filterMode==='STOCK'?'bg-emerald-600 text-white border-emerald-600':'bg-white border-slate-300 hover:bg-emerald-50']">📦 STOCK</button>
         <button type="button" @click="filterMode='TRADING'" :class="['px-3 py-1 rounded text-xs font-medium border', filterMode==='TRADING'?'bg-purple-600 text-white border-purple-600':'bg-white border-slate-300 hover:bg-purple-50']">🔄 TRADING</button>
+        <!-- 🆕 Match filter: matched / unmatched / partial -->
+        <span class="mx-1 text-slate-300">|</span>
+        <span class="text-xs text-slate-500">ต้นทุน:</span>
+        <button type="button" @click="filterMatch=''" :class="['px-2 py-1 rounded text-xs font-medium border', filterMatch===''?'bg-slate-700 text-white border-slate-700':'bg-white border-slate-300 hover:bg-slate-50']">ทั้งหมด</button>
+        <button type="button" @click="filterMatch='matched'" :class="['px-2 py-1 rounded text-xs font-medium border', filterMatch==='matched'?'bg-emerald-600 text-white border-emerald-600':'bg-white border-slate-300 hover:bg-emerald-50']" title="Trading items ผูก PB ครบทุก line">✓ ครบ</button>
+        <button type="button" @click="filterMatch='partial'" :class="['px-2 py-1 rounded text-xs font-medium border', filterMatch==='partial'?'bg-amber-500 text-white border-amber-500':'bg-white border-slate-300 hover:bg-amber-50']" title="ผูก PB บางส่วน">⚠ บางส่วน</button>
+        <button type="button" @click="filterMatch='unmatched'" :class="['px-2 py-1 rounded text-xs font-medium border', filterMatch==='unmatched'?'bg-red-600 text-white border-red-600':'bg-white border-slate-300 hover:bg-red-50']" title="Trading items ยังไม่ผูก PB เลย — ไม่มีต้นทุน">⚠ ไม่มีต้นทุน</button>
         <span class="mx-2 text-slate-300">|</span>
         <select v-model="filterStatus" class="px-3 py-1 border rounded text-xs">
           <option value="">ทุกสถานะ</option><option value="unreceived">ยังไม่รับเงิน</option>
@@ -13968,6 +14022,7 @@ app.component('view-sales', {
           </th>
           <th class="px-3 py-2 text-left">เลขที่</th><th class="px-3 py-2 text-left">วันที่</th>
           <th class="px-3 py-2 text-left">Customer</th>
+          <th class="px-3 py-2 text-center">🔗 ต้นทุน</th>
           <th class="px-3 py-2 text-right">ยอดขาย</th>
           <th class="px-3 py-2 text-right">กำไร</th>
           <th class="px-3 py-2 text-right">ค้างรับ</th>
@@ -13984,6 +14039,13 @@ app.component('view-sales', {
             <td class="px-3 py-2 font-mono">{{b.docNo}}<div v-if="b.refNo" class="text-xs text-slate-400">Ref: {{b.refNo}}</div></td>
             <td class="px-3 py-2">{{b.date}}</td>
             <td class="px-3 py-2">{{erp.customerName(b.customerId)}}</td>
+            <!-- 🆕 Match status badge — แสดงว่า Trading items มีต้นทุน (ผูก PB) ครบหรือไม่ -->
+            <td class="px-3 py-2 text-center">
+              <span v-if="matchStatus(b).kind==='matched'" class="px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-700 font-bold" :title="'Trading '+matchStatus(b).matchedCount+'/'+matchStatus(b).tradingCount+' lines ผูก PB แล้ว'">✓ ครบ</span>
+              <span v-else-if="matchStatus(b).kind==='partial'" class="px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700 font-bold" :title="'Trading '+matchStatus(b).matchedCount+'/'+matchStatus(b).tradingCount+' lines ผูก PB แล้ว'">⚠ {{matchStatus(b).matchedCount}}/{{matchStatus(b).tradingCount}}</span>
+              <span v-else-if="matchStatus(b).kind==='unmatched'" class="px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700 font-bold animate-pulse" :title="'Trading '+matchStatus(b).tradingCount+' lines ยังไม่มีต้นทุน — ผูก PB ก่อน'">⚠ ไม่มีต้นทุน</span>
+              <span v-else class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-500" title="STOCK ล้วน — ใช้ WAC">📦 STOCK</span>
+            </td>
             <td class="px-3 py-2 text-right">{{fmt(b.totalAmount)}}</td>
             <td class="px-3 py-2 text-right" :class="b.grossProfit>=0?'text-emerald-700 font-medium':'text-red-600 font-medium'">{{fmt(b.grossProfit)}}</td>
             <td class="px-3 py-2 text-right text-amber-700">{{fmt(b.receivableBalance)}}</td>
@@ -14009,7 +14071,7 @@ app.component('view-sales', {
               <button @click="deleteBill(b)" class="text-red-600 text-xs hover:underline">🗑 ลบ</button>
             </td>
           </tr>
-          <tr v-if="filtered.length===0"><td colspan="11" class="text-center py-10 text-slate-400">ยังไม่มีบิลขาย</td></tr>
+          <tr v-if="filtered.length===0"><td colspan="12" class="text-center py-10 text-slate-400">ยังไม่มีบิลขาย</td></tr>
         </tbody>
       </table>
     </div>
