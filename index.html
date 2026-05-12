@@ -231,10 +231,25 @@
           </tbody>
         </table>
       </div>
+      <!-- 🆕 Quick Fix Actions — ถ้ามี UNIQUE conflict ให้กดปุ่มแก้ทันที -->
+      <div v-if="hasUniqueConflict()" class="bg-orange-50 border-2 border-orange-300 rounded-lg p-4">
+        <h4 class="font-bold text-orange-800 mb-2">🚨 พบ UNIQUE conflict — แก้ได้ 2 ทาง:</h4>
+        <div class="space-y-2 text-xs">
+          <div class="bg-white rounded p-2 border border-orange-200">
+            <b class="text-orange-700">วิธีที่ 1 (แนะนำ — ครั้งเดียวจบ):</b> รัน SQL ลบ UNIQUE constraint ใน Supabase
+            <div class="text-slate-600 mt-1">📄 ไฟล์: <code class="bg-orange-100 px-1 rounded">supabase-fix-docno-unique.sql</code></div>
+          </div>
+          <div class="bg-white rounded p-2 border border-orange-200">
+            <b class="text-orange-700">วิธีที่ 2 (ในแอป — auto-rename):</b> กดปุ่มด้านล่าง — ระบบจะหา docNo ซ้ำใน local + เพิ่ม suffix
+            <button @click="autoFixDuplicateDocNo" class="mt-2 bg-orange-600 hover:bg-orange-700 text-white px-3 py-1.5 rounded text-xs font-bold">🔧 Auto-fix Duplicate docNo</button>
+          </div>
+        </div>
+      </div>
       <!-- Tips -->
       <div class="bg-blue-50 border border-blue-200 rounded p-3 text-xs text-blue-800">
         <b>💡 วิธีแก้:</b>
         <ul class="list-disc ml-4 mt-1 space-y-0.5">
+          <li><b>"UNIQUE conflict"</b> — docNo ซ้ำ → กด <b>Auto-fix</b> ด้านบน หรือรัน SQL</li>
           <li><b>"column does not exist"</b> — local มีฟิลด์ที่ Supabase schema ไม่มี → ระบบ drop ให้อัตโนมัติแล้ว</li>
           <li><b>"NOT NULL"</b> — บิลขาดข้อมูลที่ Cloud บังคับ → เปิดบิล + Save อีกครั้ง</li>
           <li><b>"foreign key constraint"</b> — อ้างถึงข้อมูลที่ยังไม่ได้ push (เช่น supplier ใหม่) → ระบบ retry ครั้งถัดไป</li>
@@ -5530,11 +5545,73 @@ const app = createApp({
       if (window.$autoSync?.clearErrors) window.$autoSync.clearErrors();
       showToast('🗑 ล้าง error log แล้ว');
     }
+    /* 🆕 ตรวจว่ามี UNIQUE conflict ใน error log ไหม */
+    function hasUniqueConflict() {
+      const errs = getErrorList();
+      return errs.some(e => /UNIQUE conflict|duplicate key|doc_no_key/i.test(e.msg || ''));
+    }
+    /* 🆕 Auto-fix Duplicate docNo — หา local rows ที่ docNo ซ้ำ + เพิ่ม suffix
+       ครอบคลุม: purchase_bills, sales_bills, payments, receipts, expenses, transfers, po_buys, po_sells */
+    async function autoFixDuplicateDocNo() {
+      if (!confirm('🔧 Auto-fix Duplicate docNo?\n\n• ระบบจะหา records ที่ docNo ซ้ำใน local\n• เพิ่ม suffix "-A", "-B", "-C" (เก็บ record เก่าสุดไว้เลขเดิม)\n• Push ขึ้น cloud — แก้ UNIQUE conflict ได้\n\n⚠ ต้องรีสตาร์ทระบบหลังเสร็จ')) return;
+      const tables = [
+        { local:'purchaseBills', label:'บิลซื้อ' },
+        { local:'salesBills', label:'บิลขาย' },
+        { local:'payments', label:'จ่ายเงิน' },
+        { local:'receipts', label:'รับเงิน' },
+        { local:'expenses', label:'ค่าใช้จ่าย' },
+        { local:'transfers', label:'โอนเงิน' },
+        { local:'poBuys', label:'PO Buy' },
+        { local:'poSells', label:'PO Sell' },
+      ];
+      let totalFixed = 0;
+      const report = [];
+      for (const t of tables) {
+        const arr = Array.isArray(db[t.local]) ? db[t.local] : [];
+        if (!arr.length) continue;
+        const groups = new Map();   // docNo → [rows]
+        arr.forEach(r => {
+          if (!r || !r.docNo) return;
+          const key = String(r.docNo);
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key).push(r);
+        });
+        let fixedInTable = 0;
+        groups.forEach((rows, docNo) => {
+          if (rows.length <= 1) return;
+          // เก็บตัวเก่าสุด — เปลี่ยน docNo ตัวอื่น
+          rows.sort((a,b) => String(a.createdAt||a.date||'').localeCompare(String(b.createdAt||b.date||'')));
+          const SUFFIXES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+          for (let i = 1; i < rows.length; i++) {
+            const suffix = i <= 26 ? '-'+SUFFIXES[i-1] : '-'+i;
+            const oldNo = rows[i].docNo;
+            rows[i].docNo = oldNo + suffix;
+            rows[i].updatedAt = new Date().toISOString();
+            fixedInTable++;
+          }
+        });
+        if (fixedInTable > 0) {
+          report.push(`• ${t.label}: ${fixedInTable} records`);
+          totalFixed += fixedInTable;
+        }
+      }
+      if (totalFixed === 0) {
+        alert('✓ ไม่พบ docNo ซ้ำใน local\n\nถ้ายังเจอ UNIQUE conflict → cloud มี docNo ซ้ำกับ local (สร้างจากเครื่องอื่น)\n👉 รัน supabase-fix-docno-unique.sql แทน');
+        return;
+      }
+      // Push ทันที + เคลียร์ error log
+      try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+      try { if (window.$autoSync?.clearErrors) window.$autoSync.clearErrors(); } catch(e){}
+      try { if (window.$autoSync?.pushAll) await window.$autoSync.pushAll(); } catch(e){}
+      alert(`✅ แก้ duplicate docNo สำเร็จ\n\nรวม ${totalFixed} records:\n${report.join('\n')}\n\n☁ Push ขึ้น cloud แล้ว — refresh ตรวจดู`);
+      showSyncErrors.value = false;
+    }
 
     return { db, currentUser, currentView, currentBranchId, sidebarOpen, loginForm, loginError, canViewCurrent,
       menuGroups: visibleMenuGroups, currentTitle, toast, login, logout, resetDemo,
       syncStatus, dataEmptyBanner, forcePulling, forcePull, manualSyncNow,
       showSyncErrors, getErrorList, clearSyncErrors,
+      hasUniqueConflict, autoFixDuplicateDocNo,   // 🆕
       syncHealthText, syncHealthLevel };
   }
 });
