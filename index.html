@@ -4363,6 +4363,21 @@ window.$erp = {
     try {
       const r = window.$erp.currentRole();
       if (!r) return true; // demo mode — allow all
+      // 🆕 USER-LEVEL RESTRICTION: เมนูบางอย่างเข้าได้เฉพาะ user ที่ระบุ + Admin/Owner
+      // ใช้: { view: ['username1', 'username2'] } — ถ้าไม่ใช่ user ในรายการ + ไม่ใช่ admin → ห้ามเข้า
+      const USER_RESTRICTED = {
+        'expense': ['june','ns-june','admin','owner'],   // 🆕 เฉพาะ June + Admin/Owner
+        'expenseDashboard': ['june','ns-june','admin','owner'],
+        'pettyAdvance': ['june','ns-june','admin','owner'],
+      };
+      const restrictedUsers = USER_RESTRICTED[view];
+      if (restrictedUsers) {
+        const u = window.$erp.currentUser?.value;
+        const uname = (u?.username || '').toLowerCase();
+        const isAdminRole = r.id === 'R-ADMIN' || r.id === 'R-OWNER';
+        const allowed = isAdminRole || restrictedUsers.includes(uname);
+        if (!allowed) return false;
+      }
       if (r.menus === '*' || (Array.isArray(r.menus) && r.menus.includes('*'))) return true;
       if (Array.isArray(r.menus)) return r.menus.includes(view);
       return true;
@@ -12292,12 +12307,20 @@ app.component('view-receipt', {
     }
     function onBillTyped(line, val) {
       if (!val) { line.billId = ''; pickBill(line); return; }
-      const v = String(val).trim();
+      let v = String(val).trim();
+      // 🆕 Extract docNo from pipe-separated value (จาก datalist option)
+      if (v.includes('|')) {
+        const firstPart = v.split('|')[0].trim();
+        if (firstPart) v = firstPart;
+      }
       let bill = availableBills(form.value.branchId).find(b => b.docNo === v);
-      if (!bill) bill = availableBills(form.value.branchId).find(b =>
-        b.docNo.toLowerCase().includes(v.toLowerCase()) ||
-        (erp.customerName(b.customerId)||'').toLowerCase().includes(v.toLowerCase())
-      );
+      if (!bill) {
+        const lower = v.toLowerCase();
+        bill = availableBills(form.value.branchId).find(b =>
+          (b.docNo||'').toLowerCase().includes(lower) ||
+          (erp.customerName(b.customerId)||'').toLowerCase().includes(lower)
+        );
+      }
       if (bill) {
         line.billId = bill.id;
         pickBill(line);
@@ -12441,9 +12464,10 @@ app.component('view-receipt', {
 
     /* 📊 Outstanding Bills Panel — บิลค้างรับแสดงในหน้านี้ */
     const today = erp.today();
+    const outstandingSearchR = ref('');   // 🆕 ค้นหาในรายการบิลค้าง
     const outstandingBillsR = computed(() => {
       const arr = (db.salesBills||[]).filter(b => b && b.status !== 'cancelled' && Number(b.receivableBalance||0) > 0.01);
-      return arr.map(b => {
+      let mapped = arr.map(b => {
         const cus = (db.customers||[]).find(c => c && c.id === b.customerId);
         const ct = Number(b.creditTerm || cus?.creditTerm || 0);
         const due = (() => { const d = new Date(b.date); d.setDate(d.getDate()+ct); return d.toISOString().slice(0,10); })();
@@ -12451,10 +12475,22 @@ app.component('view-receipt', {
         return {
           ...b,
           _customerName: cus?.name || '-',
+          _customerCode: cus?.code || '',
           _due: due,
           _daysOverdue: Math.max(0, days),
         };
-      }).sort((a,b) => b._daysOverdue - a._daysOverdue);
+      });
+      // 🆕 Filter by search keyword (docNo, customer name, customer code, refNo)
+      if (outstandingSearchR.value) {
+        const q = outstandingSearchR.value.toLowerCase().trim();
+        mapped = mapped.filter(b =>
+          (b.docNo||'').toLowerCase().includes(q)
+          || (b._customerName||'').toLowerCase().includes(q)
+          || (b._customerCode||'').toLowerCase().includes(q)
+          || (b.refNo||'').toLowerCase().includes(q)
+        );
+      }
+      return mapped.sort((a,b) => b._daysOverdue - a._daysOverdue);
     });
     const arSummary = computed(() => {
       const arr = outstandingBillsR.value;
@@ -12494,7 +12530,7 @@ app.component('view-receipt', {
     return { db, erp, form, showForm, search, filterDateFrom, filterDateTo, filterAccount, list, totals, num, editingVoucherId,
       open, openEdit, close: close_, save, remove, addLine, removeLine, pickBill, availableBills,
       getBillDisplay, onBillTyped, actualReceivable: _actualReceivable, fmt: erp.fmt,
-      outstandingBillsR, arSummary, quickReceiveBill, showOutstandingPanelR };
+      outstandingBillsR, arSummary, quickReceiveBill, showOutstandingPanelR, outstandingSearchR };
   },
   template: `
   <div>
@@ -12529,6 +12565,11 @@ app.component('view-receipt', {
       <div class="px-4 py-3 border-b flex items-center justify-between cursor-pointer" @click="showOutstandingPanelR = !showOutstandingPanelR">
         <div class="font-bold text-slate-700">📋 บิลค้างรับทั้งหมด <span class="text-emerald-700">({{outstandingBillsR.length}} บิล รวม {{fmt(arSummary.total)}})</span></div>
         <span class="text-2xl">{{showOutstandingPanelR ? '▲' : '▼'}}</span>
+      </div>
+      <!-- 🆕 Search box สำหรับค้นบิลค้างรับ -->
+      <div v-if="showOutstandingPanelR" class="px-4 py-2 border-b bg-slate-50 flex items-center gap-2 flex-wrap">
+        <input v-model="outstandingSearchR" placeholder="🔍 ค้นหา: เลขบิล / ชื่อ Customer / รหัส Customer / Ref No..." class="flex-1 min-w-[260px] px-3 py-1.5 border rounded text-sm" @click.stop>
+        <button v-if="outstandingSearchR" @click.stop="outstandingSearchR=''" class="text-xs text-red-600 hover:underline">✕ ล้าง</button>
       </div>
       <div v-if="showOutstandingPanelR" class="overflow-x-auto" style="max-height:400px;overflow-y:auto">
         <table class="w-full text-sm">
@@ -12664,9 +12705,17 @@ app.component('view-receipt', {
                 <tbody>
                   <tr v-for="(line, idx) in (form.lines||[])" :key="line.id" class="border-t">
                     <td class="p-1">
-                      <input type="text" :list="'rcp-bills-'+line.id" :value="getBillDisplay(line)" @change="onBillTyped(line, $event.target.value)" placeholder="🔍 พิมพ์เลขบิล/ชื่อลูกค้า..." class="w-full px-1 py-1 border rounded text-xs">
+                      <!-- 🆕 Searchable: ค้นได้ทั้งเลขบิล + ชื่อลูกค้า + ยอด -->
+                      <input type="text" :list="'rcp-bills-'+line.id"
+                        :value="getBillDisplay(line)"
+                        @change="onBillTyped(line, $event.target.value)"
+                        placeholder="🔍 พิมพ์เลขบิล / ชื่อลูกค้า..."
+                        class="w-full px-1 py-1 border rounded text-xs"
+                        autocomplete="off">
                       <datalist :id="'rcp-bills-'+line.id">
-                        <option v-for="b in availableBills(form.branchId)" :key="b.id" :value="b.docNo">{{b.docNo}} | {{b.date}} | {{erp.customerName(b.customerId)}} | ค้าง {{fmt(actualReceivable(b))}}</option>
+                        <!-- option value = docNo + customer (browser ค้นได้ทั้งสอง) -->
+                        <option v-for="b in availableBills(form.branchId)" :key="b.id"
+                          :value="b.docNo+' | '+erp.customerName(b.customerId)+' | ค้าง '+fmt(actualReceivable(b))"></option>
                       </datalist>
                     </td>
                     <td class="p-1 text-xs text-slate-600">{{line.customerName||'-'}}</td>
