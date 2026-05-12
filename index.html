@@ -6989,7 +6989,7 @@ app.component('view-ar', {
     const today = new Date(erp.today());
     function ageDays(date) { return Math.floor((today - new Date(date)) / 86400000); }
     function ageBucket(d) { return d<=0?'Current': d<=30?'1-30': d<=60?'31-60': d<=90?'61-90':'>90'; }
-    /* 🔧 FREEZE during sync — same as AP */
+    /* 🔧 FREEZE during sync — watch pattern */
     function _computeArList() {
       const receivedMap = new Map();
       (db.receipts||[]).forEach(r => {
@@ -7016,16 +7016,20 @@ app.component('view-ar', {
         .filter(r => !filterAging.value || r.bucket===filterAging.value)
         .sort((a,b)=>b.aging-a.aging);
     }
-    const _stableArList = ref([]);
-    const list = computed(() => {
-      const syncState = window.$syncState?.value;
-      if (syncState && (syncState.isPulling || syncState.isPushing)) {
-        return _stableArList.value;
-      }
-      const fresh = _computeArList();
-      _stableArList.value = fresh;
-      return fresh;
-    });
+    const _stableArList = ref(_computeArList());
+    watch(
+      [() => db.salesBills.length, () => (db.receipts||[]).length,
+       filterCustomer, filterChannel, filterAging,
+       () => erp.currentBranchId.value,
+       () => window.$syncState?.value?.isPulling],
+      () => {
+        const syncState = window.$syncState?.value;
+        if (syncState && (syncState.isPulling || syncState.isPushing)) return;
+        _stableArList.value = _computeArList();
+      },
+      { flush: 'post' }
+    );
+    const list = computed(() => _stableArList.value);
     const totalAR = computed(()=> list.value.reduce((s,r)=>s+Number(r.receivableBalance||0),0));
     const overdueAR = computed(()=> list.value.filter(r=>r.aging>0).reduce((s,r)=>s+Number(r.receivableBalance||0),0));
     const buckets = computed(() => {
@@ -7175,8 +7179,9 @@ app.component('view-ap', {
     const today = new Date(erp.today());
     function ageDays(date) { return Math.floor((today - new Date(date)) / 86400000); }
     function ageBucket(d) { return d<=0?'Current':d<=30?'1-30':d<=60?'31-60':d<=90?'61-90':'>90'; }
-    /* 🔧 BUG FIX: คำนวณ + FREEZE ระหว่าง pull cycle (กัน UI flicker)
-       _stableList = snapshot ที่อัปเดตเฉพาะตอนไม่ได้กำลัง pull */
+    /* 🔧 BUG FIX v2: ใช้ watch + shallowRef แทน computed self-write
+       (เดิม: computed ที่ write _stableList.value ทำให้เกิด race condition)
+       ใหม่: watch tracks deps → update snapshot เฉพาะตอนไม่ sync */
     function _computeList() {
       const paidMap = new Map();
       (db.payments||[]).forEach(p => {
@@ -7204,18 +7209,21 @@ app.component('view-ap', {
         .filter(r => !filterAging.value || r.bucket===filterAging.value)
         .sort((a,b)=>b.aging-a.aging);
     }
-    const _stableList = ref([]);
-    const list = computed(() => {
-      // ถ้า pull/push อยู่ → freeze (return snapshot) — กัน UI flicker
-      const syncState = window.$syncState?.value;
-      if (syncState && (syncState.isPulling || syncState.isPushing)) {
-        return _stableList.value;
-      }
-      // ถ้าไม่ sync → compute สด + cache เป็น snapshot ใหม่
-      const fresh = _computeList();
-      _stableList.value = fresh;
-      return fresh;
-    });
+    const _stableList = ref(_computeList());   // initial compute
+    /* watch deps + ส่งเข้า _stableList เฉพาะตอนไม่ sync */
+    watch(
+      [() => db.purchaseBills.length, () => (db.payments||[]).length,
+       filterSupplier, filterChannel, filterAging,
+       () => erp.currentBranchId.value,
+       () => window.$syncState?.value?.isPulling],
+      () => {
+        const syncState = window.$syncState?.value;
+        if (syncState && (syncState.isPulling || syncState.isPushing)) return;
+        _stableList.value = _computeList();
+      },
+      { flush: 'post' }
+    );
+    const list = computed(() => _stableList.value);
     /* Summary by Supplier */
     const bySupplier = computed(() => {
       const map = new Map();
