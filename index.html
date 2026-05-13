@@ -9674,8 +9674,19 @@ app.component('view-stockLedger', {
       }
     }
 
+    // 🔧 Vue 3 production ไม่ให้ template เข้าถึง window — expose ผ่าน setup()
+    const runCleanupDups = () => {
+      if (typeof window.$cleanupStockDuplicates === 'function') return window.$cleanupStockDuplicates(true);
+      alert('Cleanup ยังไม่โหลด — Hard refresh (Cmd+Shift+R)');
+    };
+    const runCleanupOrphans = () => {
+      if (typeof window.$cleanupStockOrphans === 'function') return window.$cleanupStockOrphans(true);
+      alert('Cleanup ยังไม่โหลด — Hard refresh (Cmd+Shift+R)');
+    };
+
     return { db, erp, filterProduct, filterBranch, filterType, fromDate, toDate,
       filterNegativeOnly, negativeCount, balanceMode,
+      runCleanupDups, runCleanupOrphans,
       list, movementTypes, fmt:erp.fmt,
       detailBill, detailType, openDetail, closeDetail, editOpening,
       // Fix modal
@@ -9715,13 +9726,13 @@ app.component('view-stockLedger', {
         <span :class="['px-1.5 py-0.5 rounded text-[10px]', filterNegativeOnly?'bg-white text-red-700':'bg-red-600 text-white']">{{negativeCount}}</span>
       </button>
       <!-- 🆕 Cleanup Duplicates: preview → confirm → ลบจริง ในคลิกเดียว -->
-      <button @click="window.$cleanupStockDuplicates ? window.$cleanupStockDuplicates(true) : alert('Cleanup ยังไม่โหลด — Hard refresh (Cmd+Shift+R)')"
+      <button @click="runCleanupDups"
         class="px-3 py-2 text-xs font-bold rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
         title="หา + ลบ stockLedger ที่ซ้ำกัน (คลิก 1 ครั้งทำงานครบ — preview → confirm → ลบจริง)">
         🧹 ล้าง Dup
       </button>
       <!-- 🆕 Cleanup Orphans: stockLedger ที่บิลโดนลบไปแล้ว แต่ Ledger ค้าง -->
-      <button @click="window.$cleanupStockOrphans ? window.$cleanupStockOrphans(true) : alert('Cleanup ยังไม่โหลด — Hard refresh')"
+      <button @click="runCleanupOrphans"
         class="px-3 py-2 text-xs font-bold rounded bg-orange-100 text-orange-700 hover:bg-orange-200"
         title="ลบ stockLedger ที่บิลถูกลบไปแล้ว แต่ Ledger ยังค้าง (เช่น SBIMP-031 ที่ขายออกแต่บิลถูกลบ)">
         🗑 ล้าง Orphan
