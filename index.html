@@ -4016,43 +4016,71 @@ window.$recomputeTradingDealCosts = async function(dryRun) {
     if (!pb || !sb) return;
 
     // คำนวณ cost จาก SB items ที่มาจาก PB นี้
-    const itemsFromPB = (sb.items||[]).filter(it => it && it.sourcePurchaseBillId === pb.id);
-    if (itemsFromPB.length === 0) return;
-
+    let itemsFromPB = (sb.items||[]).filter(it => it && it.sourcePurchaseBillId === pb.id);
     let computedCost = 0;
-    itemsFromPB.forEach(it => {
-      const explicit = Number(it.tradingCostAmount || it.totalCost || 0);
-      if (explicit > 0.001) { computedCost += explicit; return; }
-      const pbItem = (pb.items||[]).find(p => p && p.productId === it.productId
-        && (!it.sourcePurchaseLineId || p.id === it.sourcePurchaseLineId));
-      if (pbItem) {
-        const pbWt = Number(pbItem.netWeight || pbItem.weight || 0);
-        const pbAmt = Number(pbItem.netAmount || 0);
-        const itemWt = Number(it.weight || 0);
-        if (pbWt > 0) computedCost += (pbAmt * itemWt / pbWt);
+    let usedFallback = false;
+
+    if (itemsFromPB.length > 0) {
+      // PATH A: SB items มี sourcePurchaseBillId ผูกไว้แล้ว
+      itemsFromPB.forEach(it => {
+        const explicit = Number(it.tradingCostAmount || it.totalCost || 0);
+        if (explicit > 0.001) { computedCost += explicit; return; }
+        const pbItem = (pb.items||[]).find(p => p && p.productId === it.productId
+          && (!it.sourcePurchaseLineId || p.id === it.sourcePurchaseLineId));
+        if (pbItem) {
+          const pbWt = Number(pbItem.netWeight || pbItem.weight || 0);
+          const pbAmt = Number(pbItem.netAmount || 0);
+          const itemWt = Number(it.weight || 0);
+          if (pbWt > 0) computedCost += (pbAmt * itemWt / pbWt);
+        }
+      });
+    }
+
+    // 🆕 PATH B (FALLBACK): บิล import ที่ SB items ไม่มี sourcePurchaseBillId
+    //   → ใช้ PB total amount × (matchedQty / PB totalQty) — proportional allocation
+    if (computedCost <= 0.001) {
+      const pbTotalQty = (pb.items||[]).reduce((s, p) => s + Number(p && (p.netWeight || p.weight) || 0), 0);
+      const pbTotalAmt = Number(pb.subtotal != null ? pb.subtotal : pb.totalAmount || 0);
+      if (pbTotalQty > 0 && pbTotalAmt > 0 && currentQty > 0.001) {
+        // ใช้ min(currentQty, pbTotalQty) เพื่อกัน edge case ที่ matchedQty > pb qty (split deal)
+        const allocQty = Math.min(currentQty, pbTotalQty);
+        computedCost = pbTotalAmt * (allocQty / pbTotalQty);
+        usedFallback = true;
+        console.log(`[recompute fallback] ${d.dealNo}: PB=${pb.docNo} (${pbTotalAmt.toFixed(2)}/${pbTotalQty.toFixed(2)}), qty=${currentQty.toFixed(2)} → cost=${computedCost.toFixed(2)}`);
       }
-    });
+    }
 
     if (computedCost > 0.001) {
       // คำนวณ matchedSales ใหม่ตามสัดส่วน
       const sbExVat = Number(sb.subtotal != null ? sb.subtotal : sb.totalAmount || 0);
-      const totalCostInBill = (sb.items||[]).reduce((s,it) => {
-        const ic = Number(it.tradingCostAmount || it.totalCost || 0);
-        if (ic > 0.001) return s + ic;
-        // Same fallback for total
-        const pbForItem = (db.purchaseBills||[]).find(b => b && b.id === it.sourcePurchaseBillId);
-        if (pbForItem) {
-          const pi = (pbForItem.items||[]).find(p => p && p.productId === it.productId
-            && (!it.sourcePurchaseLineId || p.id === it.sourcePurchaseLineId));
-          if (pi) {
-            const pw = Number(pi.netWeight || pi.weight || 0);
-            const pa = Number(pi.netAmount || 0);
-            if (pw > 0) return s + (pa * Number(it.weight || 0) / pw);
-          }
+      let newMatchedSales;
+      if (usedFallback) {
+        // 🆕 Fallback path: ใช้ SB total ทั้งบิล × (matchedQty / SB totalQty)
+        const sbTotalQty = (sb.items||[]).reduce((s, it) => s + Number(it && (it.weight || it.netWeight) || 0), 0);
+        if (sbTotalQty > 0.001) {
+          newMatchedSales = sbExVat * (Math.min(currentQty, sbTotalQty) / sbTotalQty);
+        } else {
+          newMatchedSales = sbExVat;   // ถ้าหา qty ไม่ได้ ใช้ full sales
         }
-        return s;
-      }, 0) || 1;
-      const newMatchedSales = sbExVat * (computedCost / totalCostInBill);
+      } else {
+        // Original path: proportional ตามต้นทุน
+        const totalCostInBill = (sb.items||[]).reduce((s,it) => {
+          const ic = Number(it.tradingCostAmount || it.totalCost || 0);
+          if (ic > 0.001) return s + ic;
+          const pbForItem = (db.purchaseBills||[]).find(b => b && b.id === it.sourcePurchaseBillId);
+          if (pbForItem) {
+            const pi = (pbForItem.items||[]).find(p => p && p.productId === it.productId
+              && (!it.sourcePurchaseLineId || p.id === it.sourcePurchaseLineId));
+            if (pi) {
+              const pw = Number(pi.netWeight || pi.weight || 0);
+              const pa = Number(pi.netAmount || 0);
+              if (pw > 0) return s + (pa * Number(it.weight || 0) / pw);
+            }
+          }
+          return s;
+        }, 0) || 1;
+        newMatchedSales = sbExVat * (computedCost / totalCostInBill);
+      }
       toFix.push({
         dealId: d.id,
         dealNo: d.dealNo,
@@ -4063,6 +4091,7 @@ window.$recomputeTradingDealCosts = async function(dryRun) {
         newSales: newMatchedSales,
         qty: currentQty,
         gp: newMatchedSales - computedCost,
+        method: usedFallback ? 'fallback' : 'item-link',
       });
     }
   });
@@ -4073,11 +4102,14 @@ window.$recomputeTradingDealCosts = async function(dryRun) {
   if (toFix.length) {
     console.table(toFix.slice(0, 30).map(x => ({
       dealNo: x.dealNo, pb: x.pbNo, sb: x.sbNo,
+      method: x.method,
       qty: fmt(x.qty),
       oldCost: fmt(x.oldCost), newCost: fmt(x.newCost),
       oldSales: fmt(x.oldSales), newSales: fmt(x.newSales),
       newGP: fmt(x.gp),
     })));
+    const fbCount = toFix.filter(x => x.method === 'fallback').length;
+    if (fbCount > 0) console.log(`%c💡 ${fbCount}/${toFix.length} deals ใช้ fallback (PB×qty proportional — สำหรับบิล import ที่ไม่มี sourcePurchaseBillId)`, 'color:#0ea5e9;font-weight:bold');
   }
 
   if (!toFix.length) {
@@ -38277,9 +38309,80 @@ app.component('view-tradingMatching', {
       if (typeof window.$recomputeTradingDealCosts === 'function') return window.$recomputeTradingDealCosts(true);
       alert('ฟังก์ชันยังไม่โหลด — Hard refresh (Cmd+Shift+R)');
     };
+    /* 🆕 Recalc cost สำหรับดีลเดียว — บังคับ recalc แม้ cost > 0 อยู่แล้ว
+       ใช้ฟังก์ชัน same logic ใน $recomputeTradingDealCosts (PB×qty proportional fallback) */
+    async function recalcOneDeal(d) {
+      if (!d || d.status === 'Cancelled' || d.status === 'cancelled') return;
+      const pb = (db.purchaseBills||[]).find(b => b && b.id === d.purchaseBillId);
+      const sb = (db.salesBills||[]).find(b => b && b.id === d.salesBillId);
+      if (!pb || !sb) {
+        alert('❌ หา PB หรือ SB ไม่เจอ\n• PB ID: '+(d.purchaseBillId||'-')+'\n• SB ID: '+(d.salesBillId||'-'));
+        return;
+      }
+      const currentQty = Number(d.matchedQty || 0);
+      if (currentQty <= 0.001) {
+        alert('❌ matchedQty = 0 → ไม่สามารถ recalc — เปิด deal ใหม่');
+        return;
+      }
+      // PATH A: ใช้ sourcePurchaseBillId
+      let newCost = 0, usedFallback = false;
+      const itemsFromPB = (sb.items||[]).filter(it => it && it.sourcePurchaseBillId === pb.id);
+      if (itemsFromPB.length > 0) {
+        itemsFromPB.forEach(it => {
+          const explicit = Number(it.tradingCostAmount || it.totalCost || 0);
+          if (explicit > 0.001) { newCost += explicit; return; }
+          const pbItem = (pb.items||[]).find(p => p && p.productId === it.productId
+            && (!it.sourcePurchaseLineId || p.id === it.sourcePurchaseLineId));
+          if (pbItem) {
+            const pbWt = Number(pbItem.netWeight || pbItem.weight || 0);
+            const pbAmt = Number(pbItem.netAmount || 0);
+            const itemWt = Number(it.weight || 0);
+            if (pbWt > 0) newCost += (pbAmt * itemWt / pbWt);
+          }
+        });
+      }
+      // PATH B fallback: PB total × qty ratio
+      if (newCost <= 0.001) {
+        const pbTotalQty = (pb.items||[]).reduce((s, p) => s + Number(p && (p.netWeight || p.weight) || 0), 0);
+        const pbTotalAmt = Number(pb.subtotal != null ? pb.subtotal : pb.totalAmount || 0);
+        if (pbTotalQty > 0 && pbTotalAmt > 0) {
+          const allocQty = Math.min(currentQty, pbTotalQty);
+          newCost = pbTotalAmt * (allocQty / pbTotalQty);
+          usedFallback = true;
+        }
+      }
+      if (newCost <= 0.001) {
+        alert('❌ คำนวณ cost ไม่ได้\n• PB.subtotal: '+Number(pb.subtotal||pb.totalAmount||0).toFixed(2)+'\n• PB total qty: '+(pb.items||[]).reduce((s,p)=>s+Number(p?.netWeight||p?.weight||0),0).toFixed(2));
+        return;
+      }
+      // คำนวณ newSales — ใช้ SB.subtotal × (qty / SB totalQty)
+      const sbExVat = Number(sb.subtotal != null ? sb.subtotal : sb.totalAmount || 0);
+      const sbTotalQty = (sb.items||[]).reduce((s, it) => s + Number(it && (it.weight || it.netWeight) || 0), 0);
+      const newSales = sbTotalQty > 0.001 ? sbExVat * (Math.min(currentQty, sbTotalQty) / sbTotalQty) : sbExVat;
+      const newGP = newSales - newCost;
+      const oldCost = Number(d.matchedPurchaseAmount || 0);
+      const oldSales = Number(d.matchedSalesAmount || 0);
+      const msg = `🔄 Recalc ${d.dealNo}?\n\n` +
+        `PB: ${pb.docNo} → SB: ${sb.docNo}\n` +
+        `Qty: ${fmt(currentQty)}\n\n` +
+        `Cost: ${fmt(oldCost)} → ${fmt(newCost)} ${oldCost === 0 ? '✨' : ''}\n` +
+        `Sales: ${fmt(oldSales)} → ${fmt(newSales)}\n` +
+        `GP: ${fmt(newSales - newCost)}\n\n` +
+        `วิธีคำนวณ: ${usedFallback ? 'PB total × qty ratio (fallback)' : 'จาก source link'}`;
+      if (!confirm(msg)) return;
+      const idx = db.tradingDeals.findIndex(x => x && x.id === d.id);
+      if (idx < 0) return;
+      db.tradingDeals[idx].matchedPurchaseAmount = newCost;
+      db.tradingDeals[idx].matchedSalesAmount = newSales;
+      db.tradingDeals[idx].grossProfit = newGP;
+      db.tradingDeals[idx].updatedAt = new Date().toISOString();
+      try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+      try { await window.$autoSync?.pushTable?.('tradingDeals'); } catch(e){}
+      erp.showToast(`✓ Recalc ${d.dealNo} สำเร็จ — Cost ${fmt(newCost)} · GP ${fmt(newGP)}`, 'success');
+    }
     return { erp, db, fmt, tab, tradingPurchases, tradingSales, deals, summary, topPairs, monthlyGP,
       showMatchModal, matchForm, openMatch, autoFillFromBills, saveMatch, reverseMatch, statusBadge,
-      runRecomputeTradingCost };
+      runRecomputeTradingCost, recalcOneDeal };
   },
   template:`
   <div class="space-y-4">
@@ -38429,7 +38532,7 @@ app.component('view-tradingMatching', {
             <th class="p-2 text-center">Status</th><th></th>
           </tr></thead>
           <tbody>
-            <tr v-for="d in deals" :key="d.id" class="border-t hover:bg-slate-50">
+            <tr v-for="d in deals" :key="d.id" :class="['border-t hover:bg-slate-50', d.status==='Cancelled' ? 'bg-slate-50 text-slate-400 line-through' : '']">
               <td class="p-2 font-mono text-xs">{{d.dealNo}}</td>
               <td class="p-2 text-xs">{{d.date}}</td>
               <td class="p-2 font-mono text-xs">{{d.purchaseDocNo}}</td>
@@ -38437,12 +38540,16 @@ app.component('view-tradingMatching', {
               <td class="p-2 font-mono text-xs">{{d.salesDocNo}}</td>
               <td class="p-2 text-xs">{{d.customerName}}</td>
               <td class="p-2 text-right">{{fmt(d.matchedQty)}}</td>
-              <td class="p-2 text-right text-red-600">{{fmt(d.matchedPurchaseAmount)}}</td>
-              <td class="p-2 text-right text-emerald-700">{{fmt(d.matchedSalesAmount)}}</td>
-              <td class="p-2 text-right font-bold" :class="d.gp>=0?'text-purple-700':'text-red-600'">{{fmt(d.gp)}}</td>
+              <td class="p-2 text-right" :class="d.status==='Cancelled' ? '' : 'text-red-600'">{{fmt(d.matchedPurchaseAmount)}}</td>
+              <td class="p-2 text-right" :class="d.status==='Cancelled' ? '' : 'text-emerald-700'">{{fmt(d.matchedSalesAmount)}}</td>
+              <td class="p-2 text-right font-bold" :class="d.status==='Cancelled' ? '' : (d.gp>=0?'text-purple-700':'text-red-600')">{{fmt(d.gp)}}</td>
               <td class="p-2 text-right">{{d.gpPct.toFixed(2)}}%</td>
               <td class="p-2 text-center"><span :class="['px-2 py-0.5 rounded text-xs', statusBadge(d.status)]">{{d.status}}</span></td>
-              <td class="p-2"><button v-if="d.status!=='Cancelled'" @click="reverseMatch(d)" class="text-xs text-red-600 hover:underline">Reverse</button></td>
+              <td class="p-2 whitespace-nowrap" style="text-decoration:none">
+                <button v-if="d.status!=='Cancelled'" @click="recalcOneDeal(d)"
+                  class="text-xs text-blue-600 hover:underline mr-2" title="คำนวณ cost ใหม่จาก PB (รองรับบิล import ที่ไม่มี source link)">🔄 Recalc</button>
+                <button v-if="d.status!=='Cancelled'" @click="reverseMatch(d)" class="text-xs text-red-600 hover:underline">Reverse</button>
+              </td>
             </tr>
             <tr v-if="!deals.length"><td colspan="13" class="text-center py-8 text-slate-400">ยังไม่มีดีล Trading — กด "+ จับคู่ใหม่"</td></tr>
           </tbody>
