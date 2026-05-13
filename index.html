@@ -3646,6 +3646,90 @@ window.$diagnoseStockProduct = function(productId, branchId, warehouseId) {
   return { productName, totalMovements: movements.length, firstNegativeIdx: firstNegIdx, finalBalance: balByKey, rows };
 };
 
+/* 🆕 SHARED helper: detect stockLedger duplicates
+   key: (refType + refNo + productId + lotNo + qtyIn + qtyOut)
+   เก็บ row แรก (เก่าสุดตาม createdAt), mark ที่เหลือเป็น duplicate */
+function _detectStockDuplicates(allMovements) {
+  const groups = new Map();
+  allMovements.forEach(m => {
+    if (!m || !m.id) return;
+    if (!m.refNo) return;
+    if (m.refType !== 'PB' && m.refType !== 'SB') return;
+    const key = [
+      m.refType||'',
+      m.refNo||'',
+      m.productId||'',
+      m.lotNo||'',
+      Number(m.qtyIn||0).toFixed(4),
+      Number(m.qtyOut||0).toFixed(4),
+    ].join('|');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(m);
+  });
+  const toDelete = [];
+  const dupDetails = [];
+  groups.forEach((entries, key) => {
+    if (entries.length < 2) return;
+    entries.sort((a,b) => String(a.createdAt||'').localeCompare(String(b.createdAt||'')));
+    const keeper = entries[0];
+    const dups = entries.slice(1);
+    dups.forEach(d => toDelete.push(d.id));
+    const [refType, refNo, productId, lotNo, qIn, qOut] = key.split('|');
+    dupDetails.push({
+      refType, refNo, productId,
+      lotNo: lotNo || '',
+      qtyIn: Number(qIn), qtyOut: Number(qOut),
+      duplicates: entries.length,
+      keeperMovType: keeper.movementType,
+      duplicateMovTypes: dups.map(d=>d.movementType).join(', '),
+      keeperId: keeper.id,
+    });
+  });
+  return { toDelete, dupDetails, groupsScanned: groups.size };
+}
+
+/* 🆕 SHARED helper: ลบ stockLedger duplicates ออก (local + cloud + tombstones)
+   - ใช้โดย $cleanupStockDuplicates (UI flow) + auto-cleanup on boot
+   - silent=true → ไม่ alert, ไม่ confirm — สำหรับ auto-cleanup */
+async function _purgeStockDuplicates(silent) {
+  const db = _GLOBAL_DB;
+  const all = Array.isArray(db.stockLedger) ? db.stockLedger : [];
+  if (!all.length) return { deleted: 0 };
+  const { toDelete } = _detectStockDuplicates(all);
+  if (!toDelete.length) return { deleted: 0 };
+
+  // 1. Tombstone (cloud-level)
+  try { window.$autoSync?.addTombstones?.('stockLedger', toDelete); } catch(e){}
+
+  // 2. ลบจาก local
+  const beforeCount = db.stockLedger.length;
+  const toDeleteSet = new Set(toDelete);
+  db.stockLedger = db.stockLedger.filter(m => !m || !toDeleteSet.has(m.id));
+  try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+
+  // 3. ลบจาก cloud
+  let cloudOk = 0, cloudFail = 0;
+  if (window.sb) {
+    for (let i = 0; i < toDelete.length; i += 100) {
+      const chunk = toDelete.slice(i, i+100);
+      try {
+        const r = await window.sb.from('stock_ledger').delete().in('id', chunk).select('id');
+        if (r.error) cloudFail += chunk.length;
+        else cloudOk += (r.data && Array.isArray(r.data)) ? r.data.length : 0;
+      } catch(e) { cloudFail += chunk.length; }
+    }
+  }
+
+  // 4. Push state
+  try {
+    if (window.$autoSync?.pushTable) await window.$autoSync.pushTable('stockLedger');
+    else if (window.$autoSync?.pushNow) await window.$autoSync.pushNow();
+  } catch(e){}
+
+  if (!silent) console.log(`[stockLedger dedup] ลบ ${toDelete.length} dups (local: ${beforeCount}→${db.stockLedger.length}, cloud: ${cloudOk} ลบ, ${cloudFail} fail)`);
+  return { deleted: toDelete.length, beforeCount, afterCount: db.stockLedger.length, cloudOk, cloudFail };
+}
+
 /* 🆕 GLOBAL: ล้าง duplicate ใน stockLedger
    เหตุ: บิลเดียวกัน มี stockLedger 2 ชุด — ชุดเก่า import ใช้ movementType "SALES_OUT"/"PURCHASE_IN" (English)
          ชุดใหม่จาก form save ใช้ "ขายออก"/"รับซื้อเข้า" (Thai)
@@ -3662,55 +3746,17 @@ window.$cleanupStockDuplicates = async function(dryRun) {
   if (!all.length) { alert('❌ ไม่มี stockLedger'); return; }
   const fmt = (n) => Number(n||0).toLocaleString('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2});
 
-  // Group by (refType, refNo, productId, lotNo, qtyIn, qtyOut)
-  const groups = new Map();
-  all.forEach(m => {
-    if (!m || !m.id) return;
-    // Skip movements without refNo (manual entries, opening stock, etc.) — these shouldn't dedup
-    if (!m.refNo) return;
-    // Only dedup PB/SB (bill-derived movements) — others (GA, OB, ST, PI) may legitimately have multiple entries
-    if (m.refType !== 'PB' && m.refType !== 'SB') return;
-    const key = [
-      m.refType||'',
-      m.refNo||'',
-      m.productId||'',
-      m.lotNo||'',
-      Number(m.qtyIn||0).toFixed(4),
-      Number(m.qtyOut||0).toFixed(4),
-    ].join('|');
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(m);
-  });
-
-  // Find duplicates
-  const toDelete = [];
-  const dupDetails = [];
-  groups.forEach((entries, key) => {
-    if (entries.length < 2) return;
-    // Sort by createdAt (oldest first)
-    entries.sort((a,b) => String(a.createdAt||'').localeCompare(String(b.createdAt||'')));
-    const keeper = entries[0];
-    const dups = entries.slice(1);
-    dups.forEach(d => toDelete.push(d.id));
-    const [refType, refNo, productId, lotNo, qIn, qOut] = key.split('|');
-    const p = (db.products||[]).find(x=>x && x.id===productId);
-    dupDetails.push({
-      refType, refNo,
-      productName: p?.name || productId,
-      lotNo: lotNo || '-',
-      qtyIn: Number(qIn),
-      qtyOut: Number(qOut),
-      duplicates: entries.length,
-      keeperMovType: keeper.movementType,
-      duplicateMovTypes: dups.map(d=>d.movementType).join(', '),
-      keeperCreatedAt: keeper.createdAt,
-    });
+  const { toDelete, dupDetails, groupsScanned } = _detectStockDuplicates(all);
+  // hydrate productName for display
+  dupDetails.forEach(d => {
+    const p = (db.products||[]).find(x => x && x.id === d.productId);
+    d.productName = p?.name || d.productId;
   });
 
   console.log(`%c🔍 Stock Ledger Dup Cleanup`, 'font-weight:bold;font-size:14px;color:#0369a1');
   console.log(`Total stockLedger rows: ${all.length}`);
   console.log(`Bill-derived rows (PB/SB) scanned: ${all.filter(m=>m && (m.refType==='PB'||m.refType==='SB') && m.refNo).length}`);
-  console.log(`Unique keys: ${groups.size}`);
+  console.log(`Unique keys: ${groupsScanned}`);
   console.log(`Groups with duplicates: ${dupDetails.length}`);
   console.log(`Total duplicate rows to delete: ${toDelete.length}`);
   if (dupDetails.length) {
@@ -3745,37 +3791,11 @@ window.$cleanupStockDuplicates = async function(dryRun) {
 
   if (!confirm(`⚠ ยืนยันลบ stockLedger duplicates?\n\n• ${toDelete.length} แถวจาก local\n• Tombstone cloud + push\n• กระทบ ${byBill.size} บิล\n\n💡 จะคำนวณ Stock balance ใหม่ + push ไป cloud\n\nยืนยัน?`)) return;
 
-  // 1. Push tombstones ก่อน
-  try {
-    window.$autoSync?.addTombstones?.('stockLedger', toDelete);
-  } catch(e) { console.warn('addTombstones', e); }
-
-  // 2. ลบจาก local
-  const beforeCount = db.stockLedger.length;
-  db.stockLedger = db.stockLedger.filter(m => !toDelete.includes(m.id));
-  const afterCount = db.stockLedger.length;
-  try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
-
-  // 3. ลบจาก cloud
-  let cloudOk = 0, cloudFail = 0;
-  if (window.sb) {
-    for (let i = 0; i < toDelete.length; i += 100) {
-      const chunk = toDelete.slice(i, i+100);
-      try {
-        const r = await window.sb.from('stock_ledger').delete().in('id', chunk).select('id');
-        if (r.error) {
-          console.warn('cloud delete err', r.error);
-          cloudFail += chunk.length;
-        } else {
-          const actualDeleted = (r.data && Array.isArray(r.data)) ? r.data.length : 0;
-          cloudOk += actualDeleted;
-        }
-      } catch(e) { cloudFail += chunk.length; console.warn('cloud delete exc', e); }
-    }
-  }
-
-  // 4. Push state
-  try { if (window.$autoSync?.pushNow) await window.$autoSync.pushNow(); } catch(e){}
+  const result = await _purgeStockDuplicates(false);
+  const cloudOk = result.cloudOk || 0;
+  const cloudFail = result.cloudFail || 0;
+  const beforeCount = result.beforeCount;
+  const afterCount = result.afterCount;
 
   alert(`✅ Cleanup สำเร็จ\n\n` +
     `📊 Local: ${beforeCount} → ${afterCount} (ลบ ${beforeCount - afterCount})\n` +
@@ -32926,7 +32946,7 @@ app.component('view-importTxn', {
                 db.stockLedger.push({
                   id: slId, date: h.date,
                   refType: 'PB', refId: billId, refNo: h.docNo,
-                  movementType: h.billType === 'PO_RECEIPT' ? 'PO_RECEIPT' : 'PURCHASE_IN',
+                  movementType: h.billType === 'PO_RECEIPT' ? 'PO_RECEIPT' : 'รับซื้อเข้า',
                   productId: it.productId, lotNo: it.lotNo,
                   branchId: b.branch?.id, warehouseId: b.warehouse?.id,
                   qtyIn: it.netWeight, qtyOut: 0,
@@ -33020,7 +33040,7 @@ app.component('view-importTxn', {
                 db.stockLedger.push({
                   id: slId, date: h.date,
                   refType: 'SB', refId: billId, refNo: h.docNo,
-                  movementType: h.billType === 'PO_DELIVERY' ? 'PO_DELIVERY' : 'SALES_OUT',
+                  movementType: h.billType === 'PO_DELIVERY' ? 'PO_DELIVERY' : 'ขายออก',
                   productId: it.productId, lotNo: it.lotNo,
                   branchId: b.branch?.id, warehouseId: b.warehouse?.id,
                   qtyIn: 0, qtyOut: it.weight,
@@ -44821,6 +44841,32 @@ app.component('view-statusConvert', {
       console.log(`%c💾 Storage: ${sz} MB · IndexedDB ${window._idb ? '✓' : '✗'} · localStorage ${window._lsQuotaWarned ? '(quota exceeded — IDB only)' : '✓'}`, 'color:#0ea5e9;font-weight:bold');
     } catch(e){}
   }, 1000);
+
+  // 🆕 AUTO-CLEANUP stockLedger duplicates on boot (silent)
+  //   - Run 8s after mount เพื่อรอ auto-sync pull แรกเสร็จ (รวมถึงข้อมูล cloud)
+  //   - ถ้ามี dups → ลบเงียบๆ + log ใน console
+  //   - Run again every 5 min ขณะใช้งาน เผื่อเครื่องอื่น push dups ขึ้นมา
+  setTimeout(async () => {
+    try {
+      if (typeof _purgeStockDuplicates === 'function') {
+        const r = await _purgeStockDuplicates(true);
+        if (r && r.deleted > 0) {
+          console.log(`%c🧹 Auto-cleanup (boot): ลบ stockLedger dups ${r.deleted} แถว`, 'color:#7c3aed;font-weight:bold');
+        }
+      }
+    } catch(e) { console.warn('[auto-dedup boot]', e); }
+  }, 8000);
+  // Run every 5 minutes (silent)
+  setInterval(async () => {
+    try {
+      if (typeof _purgeStockDuplicates === 'function') {
+        const r = await _purgeStockDuplicates(true);
+        if (r && r.deleted > 0) {
+          console.log(`%c🧹 Auto-cleanup (5min): ลบ stockLedger dups ${r.deleted} แถว`, 'color:#7c3aed;font-weight:bold');
+        }
+      }
+    } catch(e) {}
+  }, 5 * 60 * 1000);
 })();
 </script>
 <script src="./export-button.js"></script>
