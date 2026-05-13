@@ -2945,37 +2945,61 @@ function loadDB() {
         }
       });
     }
-    /* migration v3: cleanup roles + reset menus from seed (run every time to apply updates) */
+    /* 🆕 migration v3 (FIXED 2026-05-13): roles cleanup — ไม่ทำลายการแก้ของ user
+       เดิม: RESET full role จาก seed ทุก refresh → user แก้/ลบ ไม่อยู่
+       ใหม่: ทำเฉพาะครั้งแรก (one-time) ผ่าน flag _roleCleanupV3
+              + ใช้ tombstone กัน re-add roles ที่ user ลบไปแล้ว */
     if (Array.isArray(d.roles)) {
-      // เปลี่ยน isSystem = false สำหรับทุก role ยกเว้น Admin/Owner
+      // เปลี่ยน isSystem = false สำหรับทุก role ยกเว้น Admin/Owner (ปลอดภัย — ไม่กระทบ user data)
       d.roles.forEach(r => {
         if (r && r.id !== 'R-ADMIN' && r.id !== 'R-OWNER') {
           r.isSystem = false;
         }
       });
-      // RESET menus ของ 4 custom roles จาก seed ทุกครั้ง (เพื่อให้ update ใหม่ถึง user)
-      const customRoles = seed.roles.filter(r => !['R-ADMIN','R-OWNER'].includes(r.id));
-      customRoles.forEach(newR => {
-        const idx = d.roles.findIndex(r => r && r.id === newR.id);
-        if (idx >= 0) {
-          // อัปเดต full role definition จาก seed (menus, actions, see*, branchScope)
-          // KEEP user-modified parts: name (ถ้า user แก้ชื่อ), desc (ถ้า user แก้)
-          const userName = d.roles[idx].name;
-          const userDesc = d.roles[idx].desc;
-          d.roles[idx] = { ...newR };
-          // ถ้า user เคยแก้ชื่อ/desc ให้ keep
-          if (userName && userName !== newR.name && !d._roleCleanupV3) d.roles[idx].name = newR.name; // first time: use seed
-          else if (userName) d.roles[idx].name = userName;
-          if (userDesc && !d._roleCleanupV3) d.roles[idx].desc = newR.desc;
-          else if (userDesc) d.roles[idx].desc = userDesc;
-        } else {
-          d.roles.push(newR);
-        }
-      });
-      // ลบ R-CASHIER, R-PURCHASER, R-SALES (ไม่ได้ใช้ในไทย)
-      d.roles = d.roles.filter(r => r && !['R-CASHIER','R-PURCHASER','R-SALES'].includes(r.id));
-      d._roleCleanupV3 = true;
-      console.log('✓ Migration v3: roles updated from seed');
+      // 🛡 ONE-TIME ONLY: เพิ่ม role ที่ขาดจาก seed (เฉพาะครั้งแรก) + ไม่ overwrite ของ user
+      if (!d._roleCleanupV3) {
+        const customRoles = seed.roles.filter(r => !['R-ADMIN','R-OWNER'].includes(r.id));
+        // อ่าน tombstones (ถ้ามี) — กัน re-add roles ที่ user ลบไปแล้ว
+        let tombs = new Set();
+        try {
+          const tRaw = localStorage.getItem('ns_erp_tombstones_v1');
+          if (tRaw) {
+            const t = JSON.parse(tRaw);
+            if (t && Array.isArray(t.roles)) t.roles.forEach(x => tombs.add(x.id || x));
+          }
+        } catch(e){}
+        customRoles.forEach(newR => {
+          if (tombs.has(newR.id)) {
+            console.log('[migration v3] skip re-add deleted role:', newR.id);
+            return;
+          }
+          const idx = d.roles.findIndex(r => r && r.id === newR.id);
+          if (idx < 0) {
+            // role หายไป (user เคยลบ หรือไม่เคยมี) → เพิ่มกลับเฉพาะครั้งแรกเท่านั้น
+            d.roles.push(newR);
+          }
+          // ถ้ามีอยู่แล้ว → KEEP ของ user — ไม่ overwrite
+        });
+        // ลบ R-CASHIER, R-PURCHASER, R-SALES (one-time cleanup — ไม่ได้ใช้ในไทย)
+        d.roles = d.roles.filter(r => r && !['R-CASHIER','R-PURCHASER','R-SALES'].includes(r.id));
+        d._roleCleanupV3 = true;
+        console.log('✓ Migration v3 ONE-TIME: roles initialized (subsequent refreshes will NOT overwrite)');
+      }
+      // 🆕 Add menu items ที่ seed มีใหม่ แต่ user's role ไม่มี (additive only — ไม่ลบของ user)
+      // ปิดไว้ default — เปิดเฉพาะถ้า user opt-in ผ่าน localStorage
+      // (เคสที่ user ต้องการ: ถ้า seed มีเมนูใหม่ → ขอให้ใส่ใน role อัตโนมัติ)
+      const optInMergeMenu = (function(){ try { return localStorage.getItem('ns_erp_role_menu_merge') === '1'; } catch(e) { return false; } })();
+      if (optInMergeMenu) {
+        const seedRoleMap = new Map(seed.roles.map(r => [r.id, r]));
+        d.roles.forEach(r => {
+          if (!r || ['R-ADMIN','R-OWNER'].includes(r.id)) return;
+          if (!Array.isArray(r.menus)) return;
+          const seedR = seedRoleMap.get(r.id);
+          if (!seedR || !Array.isArray(seedR.menus)) return;
+          const existing = new Set(r.menus);
+          seedR.menus.forEach(m => { if (!existing.has(m)) r.menus.push(m); });
+        });
+      }
     }
     /* 🆕 Migration v4: auto-assign NS-June ให้ role R-ACCOUNT-EXPENSE (บัญชีค่าใช้จ่าย) */
     if (Array.isArray(d.users) && !d._migrationV4_juneRole) {
@@ -6002,13 +6026,23 @@ window.$erp = {
               if (!r) return;
               if (r.id && isTombstoned(localKey, r.id)) { skippedTomb++; return; }
               // 🆕 LWW per-row: ถ้า local มี ts ใหม่กว่า cloud → ใช้ local + push กลับ
+              // 🔧 BUG FIX 2026-05-13: รองรับ passwordChangedAt สำหรับ users + กัน cloudTs ว่าง
               const localRow = localBackup.get(r.id);
-              const localTs = String(localRow?.updatedAt || localRow?.createdAt || '');
-              const cloudTs = String(r.updatedAt || r.createdAt || '');
-              if (localTs && cloudTs && localTs > cloudTs) {
+              // เลือก ts ที่ใหม่สุดจากหลายฟิลด์ (รองรับ password change ที่ไม่ได้แตะ updatedAt)
+              const pickLatest = (obj) => {
+                if (!obj) return '';
+                const candidates = [obj.updatedAt, obj.updated_at, obj.passwordChangedAt, obj.password_changed_at, obj.createdAt, obj.created_at]
+                  .map(v => String(v || ''));
+                return candidates.reduce((max, v) => (v > max ? v : max), '');
+              };
+              const localTs = pickLatest(localRow);
+              const cloudTs = pickLatest(r);
+              // 🛡 ถ้า local มี ts แต่ cloud ไม่มี → local ใหม่กว่า (cloud คือ legacy data ที่ไม่มี timestamp)
+              const localIsNewer = localTs && (!cloudTs || localTs > cloudTs);
+              if (localIsNewer) {
                 lwwProtected++;
                 dirtyTables.add(localKey);
-                console.log(`[pull-LWW master] ${localKey} ${r.id}: keep LOCAL (ts=${localTs}) > cloud (ts=${cloudTs}) — รอ push`);
+                console.log(`[pull-LWW master] ${localKey} ${r.id}: keep LOCAL (ts=${localTs}) > cloud (ts=${cloudTs||'(empty)'}) — รอ push`);
                 arrM.push(localRow);   // 🛡 ใช้ local ที่ใหม่กว่า
               } else {
                 arrM.push(r);   // ใช้ cloud (ปกติ)
@@ -15640,24 +15674,39 @@ app.component('view-sales', {
     /* Available Trading Purchases (with remaining unmatched cost) for dropdown */
     const availableTradingPurchases = computed(() => {
       try {
+        // 🆕 BUG FIX 2026-05-13: ตอน edit — บิลนี้เองมี deal ผูกกับ PB อยู่ → ทำให้ matchedSales เต็ม
+        //   → PB หายจาก dropdown → user แก้ source ไม่ได้
+        //   วิธีแก้: subtract deals ของบิลนี้ออกจาก matched
+        const editingSbId = editing.value?.id || null;
         return _trkSafe(erp.db.purchaseBills)
           .filter(b => b && b.transactionMode === 'TRADING' && b.status !== 'cancelled')
           .map(b => {
-            const matched = erp.tradingMatchedSales(b.id);
+            let matched = erp.tradingMatchedSales(b.id);
+            // 🛡 ตอน edit — หัก matchedSales ของ deals ที่ผูกกับ SB ที่กำลังแก้อยู่
+            if (editingSbId) {
+              const selfMatched = _trkSafe(erp.db.tradingDeals)
+                .filter(d => d && d.status !== 'Cancelled' && d.purchaseBillId === b.id && d.salesBillId === editingSbId)
+                .reduce((s, d) => s + Number(d.matchedSalesAmount || 0), 0);
+              matched = Math.max(0, matched - selfMatched);
+            }
             const total = Number(b.totalAmount||0);
             const remaining = Math.max(0, total - matched);
             const totalQty = (b.items||[]).reduce((s,it)=>s+Number(it.netWeight||it.weight||0),0);
             const productNames = (b.items||[]).map(it=>erp.productName(it.productId)).join(', ');
+            // 🆕 mark ว่าผูกกับบิลนี้แล้ว — แสดงใน label
+            const linkedToThis = editingSbId && _trkSafe(erp.db.tradingDeals)
+              .some(d => d && d.status !== 'Cancelled' && d.purchaseBillId === b.id && d.salesBillId === editingSbId);
             return {
               id: b.id, docNo: b.docNo, date: b.date,
               supplierName: erp.supplierName(b.supplierId),
               productNames,
               totalAmount: total, matchedAmt: matched, remainingAmt: remaining,
-              totalQty, raw: b,
-              label: `${b.docNo} | ${erp.supplierName(b.supplierId)} | ${productNames} | ${erp.fmt(totalQty)} กก. | เหลือจับ ${erp.fmt(remaining)}`
+              totalQty, raw: b, linkedToThis,
+              label: `${linkedToThis ? '✓ ' : ''}${b.docNo} | ${erp.supplierName(b.supplierId)} | ${productNames} | ${erp.fmt(totalQty)} กก. | เหลือจับ ${erp.fmt(remaining)}`
             };
           })
-          .filter(x => x.remainingAmt > 0.01);
+          // 🆕 keep: PB ที่ยังเหลือจับ > 0 OR ที่ผูกกับบิลนี้อยู่แล้ว (เพื่อให้แก้ได้)
+          .filter(x => x.remainingAmt > 0.01 || x.linkedToThis);
       } catch (e) { return []; }
     });
 
