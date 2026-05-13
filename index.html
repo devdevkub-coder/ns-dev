@@ -3159,6 +3159,107 @@ window.$pullMastersFromCloud = async function() {
   setTimeout(() => location.reload(), 2000);
 };
 
+/* 🆕 GLOBAL: Create Missing Master Placeholders
+   เคส: บิลอ้าง supplierId / customerId ที่ไม่มีใน master (เครื่องนี้)
+        cloud ก็ไม่มี (เพราะเครื่องที่สร้างยังไม่ push) → ชื่อหาย
+   วิธีแก้: สร้าง placeholder records (id ตรงกับที่บิลอ้าง, name="(ไม่ทราบชื่อ - SUPxxx)")
+            user แก้ชื่อภายหลังได้ + push ขึ้น cloud → เครื่องอื่นเห็น
+   ใช้: window.$createMissingMasterPlaceholders() */
+window.$createMissingMasterPlaceholders = async function() {
+  const db = _GLOBAL_DB;
+  // หา missing supplier IDs จาก purchaseBills
+  const supSet = new Set((db.suppliers||[]).map(s => s && s.id).filter(Boolean));
+  const missingSupIds = new Set();
+  (db.purchaseBills||[]).forEach(b => {
+    if (!b || !b.supplierId) return;
+    if (!supSet.has(b.supplierId)) missingSupIds.add(b.supplierId);
+  });
+  // หา missing customer IDs จาก salesBills
+  const cusSet = new Set((db.customers||[]).map(c => c && c.id).filter(Boolean));
+  const missingCusIds = new Set();
+  (db.salesBills||[]).forEach(b => {
+    if (!b || !b.customerId) return;
+    if (!cusSet.has(b.customerId)) missingCusIds.add(b.customerId);
+  });
+  if (missingSupIds.size === 0 && missingCusIds.size === 0) {
+    alert('✓ ไม่มี master หาย — ทุก supplier/customer ที่บิลอ้างมีใน local แล้ว');
+    return;
+  }
+  const msg = `🔧 พบ master ที่หาย:\n\n` +
+    `• Suppliers: ${missingSupIds.size} ราย\n` +
+    `• Customers: ${missingCusIds.size} ราย\n\n` +
+    `จะสร้าง placeholder records ให้ทันที (ชื่อ = "(ไม่ทราบชื่อ - <id>)")\n` +
+    `→ บิลจะแสดงชื่อนี้แทน warning\n` +
+    `→ Push ขึ้น cloud — เครื่องอื่นเห็น\n` +
+    `→ user แก้ชื่อให้ถูกต้องในหน้า Supplier/Customer Master ภายหลัง\n\n` +
+    `ดำเนินการ?`;
+  if (!confirm(msg)) return;
+  const nowIso = new Date().toISOString();
+  // Sup: สร้าง suppliers placeholders
+  if (!Array.isArray(db.suppliers)) db.suppliers = [];
+  missingSupIds.forEach(id => {
+    db.suppliers.push({
+      id, code: id, name: '(ไม่ทราบชื่อ - '+id+')',
+      phone: '', email: '', address: '', taxId: '',
+      bankAccount: '', bankName: '', creditTerm: 0,
+      salesId: '', active: true, note: 'Auto-created placeholder — กรุณาแก้ชื่อ',
+      createdAt: nowIso, updatedAt: nowIso, _placeholder: true,
+    });
+  });
+  // Cus: สร้าง customers placeholders
+  if (!Array.isArray(db.customers)) db.customers = [];
+  missingCusIds.forEach(id => {
+    db.customers.push({
+      id, code: id, name: '(ไม่ทราบชื่อ - '+id+')',
+      phone: '', email: '', address: '', taxId: '',
+      bankAccount: '', bankName: '', creditTerm: 0,
+      salesId: '', active: true, note: 'Auto-created placeholder — กรุณาแก้ชื่อ',
+      createdAt: nowIso, updatedAt: nowIso, _placeholder: true,
+    });
+  });
+  try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+  // Push ขึ้น cloud
+  try {
+    if (window.$autoSync?.pushTable) {
+      if (missingSupIds.size > 0) await window.$autoSync.pushTable('suppliers');
+      if (missingCusIds.size > 0) await window.$autoSync.pushTable('customers');
+    } else if (window.$autoSync?.pushNow) {
+      await window.$autoSync.pushNow();
+    }
+  } catch(e) { console.warn('[placeholder push]', e); }
+  alert(`✅ สร้าง placeholders สำเร็จ\n\n` +
+    `• Suppliers: ${missingSupIds.size}\n` +
+    `• Customers: ${missingCusIds.size}\n\n` +
+    `📝 แก้ชื่อให้ถูกต้องที่หน้า "ผู้ขาย / ลูกค้า"\n` +
+    `(filter หา note = "Auto-created placeholder")`);
+};
+
+/* 🆕 GLOBAL: Force Push Masters — push suppliers/customers/products/salespersons ขึ้น cloud ทันที
+   ใช้บนเครื่องที่มีข้อมูล master ครบ → push ให้เครื่องอื่นเห็น */
+window.$forcePushMasters = async function() {
+  if (!window.sb || !window.$autoSync?.pushTable) { alert('❌ AutoSync ไม่พร้อม'); return; }
+  const db = _GLOBAL_DB;
+  const counts = {
+    suppliers: (db.suppliers||[]).length,
+    customers: (db.customers||[]).length,
+    salespersons: (db.salespersons||[]).length,
+    products: (db.products||[]).length,
+  };
+  if (!confirm(`📤 Force Push masters ขึ้น cloud?\n\n• suppliers: ${counts.suppliers}\n• customers: ${counts.customers}\n• salespersons: ${counts.salespersons}\n• products: ${counts.products}\n\nบังคับ push ทุก rows — เครื่องอื่นจะได้ master ครบหลัง pull รอบถัดไป`)) return;
+  const tables = ['suppliers','customers','salespersons','products'];
+  let okCount = 0, failCount = 0;
+  for (const t of tables) {
+    try {
+      await window.$autoSync.pushTable(t);
+      okCount++;
+    } catch(e) {
+      failCount++;
+      console.warn('[force-push-master]', t, e);
+    }
+  }
+  alert(`✅ Push สำเร็จ\n\n• ${okCount}/${tables.length} tables\n${failCount?'• ❌ '+failCount+' fail (ดู console)':''}\n\nบอกเครื่องอื่นกด "🔄 Sync Master จาก Cloud" หรือ refresh เพื่อ pull ลงมา`);
+};
+
 /* 🆕 GLOBAL: Nuclear Cleanup — ลบทุก bankStatement ที่ refNo ตรง + tombstone ครบ + recreate
    ใช้: window.$nukeBankStatement('PMT2605-0080')
    หรือ Phase D: window.$nukeBankStatement('PMT2605-0080', 'PMT')
@@ -12633,6 +12734,13 @@ app.component('view-purchase', {
       }
       alert('ฟังก์ชันยังไม่โหลด — Hard refresh (Cmd+Shift+R)');
     };
+    /* 🆕 Create placeholder suppliers สำหรับ id ที่บิลอ้างถึงแต่ไม่มีใน master */
+    const runCreateMissingPlaceholders = () => {
+      if (typeof window.$createMissingMasterPlaceholders === 'function') {
+        return window.$createMissingMasterPlaceholders();
+      }
+      alert('ฟังก์ชันยังไม่โหลด — Hard refresh (Cmd+Shift+R)');
+    };
 
     return {
       db, erp, form, showForm, search, filtered, billTotals, editingId,
@@ -12659,8 +12767,8 @@ app.component('view-purchase', {
       selectedBillIds, toggleBillSelect, clearBillSelection, selectAllBillsInFilter, bulkDeleteBills,
       // 🆕 Export
       exportPurchaseBills, fixDuplicateDocNos,
-      // 🆕 Missing-supplier detector + force pull
-      missingSupplierCount, runPullMasters,
+      // 🆕 Missing-supplier detector + force pull + create placeholders
+      missingSupplierCount, runPullMasters, runCreateMissingPlaceholders,
     };
   },
   template: `
@@ -12678,14 +12786,22 @@ app.component('view-purchase', {
     </div>
 
     <!-- 🆕 Missing supplier banner — เตือนเมื่อมีบิลอ้าง supplier ที่ไม่มีใน local master -->
-    <div v-if="missingSupplierCount > 0" class="bg-amber-50 border-2 border-amber-400 rounded-lg p-3 mb-4 flex items-center justify-between gap-2 animate-pulse">
+    <div v-if="missingSupplierCount > 0" class="bg-amber-50 border-2 border-amber-400 rounded-lg p-3 mb-4 flex items-center justify-between gap-2">
       <div class="text-sm text-amber-800">
-        ⚠ พบ <b class="text-amber-900">{{missingSupplierCount}}</b> บิลที่ supplier ไม่มีใน local master —
-        เครื่องนี้ยังไม่ sync supplier ครบจาก cloud (เครื่องอื่นอาจเห็นชื่อปกติ)
+        ⚠ พบ <b class="text-amber-900">{{missingSupplierCount}}</b> บิลที่ supplier ไม่มีใน local master
+        <div class="text-xs text-amber-700 mt-1">
+          🔹 ขั้น 1: <b>กดปุ่ม "🔄 Pull Masters"</b> — ดึง suppliers จาก cloud มาก่อน<br>
+          🔹 ขั้น 2: ถ้ายังไม่ครบ (เพราะ cloud ก็ไม่มี) → กดปุ่ม <b>"🔧 สร้าง Placeholder"</b> สร้างชื่อชั่วคราว → user แก้ชื่อจริงในหน้า Supplier Master
+        </div>
       </div>
-      <button @click="runPullMasters" class="px-3 py-1.5 bg-amber-600 text-white rounded text-xs font-bold hover:bg-amber-700 whitespace-nowrap shrink-0">
-        🔄 Pull Masters เดี๋ยวนี้
-      </button>
+      <div class="flex flex-col gap-2 shrink-0">
+        <button @click="runPullMasters" class="px-3 py-1.5 bg-amber-600 text-white rounded text-xs font-bold hover:bg-amber-700 whitespace-nowrap">
+          🔄 Pull Masters เดี๋ยวนี้
+        </button>
+        <button @click="runCreateMissingPlaceholders" class="px-3 py-1.5 bg-rose-600 text-white rounded text-xs font-bold hover:bg-rose-700 whitespace-nowrap">
+          🔧 สร้าง Placeholder
+        </button>
+      </div>
     </div>
 
     <!-- 🆕 Bulk Action Banner -->
