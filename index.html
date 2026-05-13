@@ -6200,38 +6200,40 @@ window.$erp = {
             // 🔧 BUG FIX 2: ต้อง abort ทั้ง for-loop ของ chunks ด้วย (ไม่ใช่แค่ while ของ retry)
             //   เพราะ mapped array ที่ build ก่อนหน้า cleanup ยังมี dups → chunks ถัดไปก็จะ fail อีก
             if (cfg.target === 'stock_ledger' && /stock_ledger.*dedup|dedup.*stock_ledger/i.test(constraintName)) {
-              _logErr(cfg.target, '⚠ UNIQUE conflict ('+constraintName+') — auto-healing...');
-              let localDeleted = 0, cloudDeleted = 0;
-              // 1. Local dedup ก่อน
-              if (typeof _purgeStockDuplicates === 'function') {
+              _logErr(cfg.target, '⚠ UNIQUE conflict ('+constraintName+') — per-row reconcile...');
+              // 🆕 PER-ROW RECONCILE — ลอง push ทีละ row, ที่ fail → ลบ local ทันที
+              //   ไม่ pull cloud (เพราะ chunk นี้รู้แล้วว่ามี conflict)
+              let resolvedCount = 0, skipCount = 0;
+              for (const single of chunk) {
                 try {
-                  const r = await _purgeStockDuplicates(true);
-                  localDeleted = r?.deleted || 0;
-                  if (localDeleted > 0) {
-                    console.log(`%c🧹 [auto-heal] ลบ local dups ${localDeleted} แถว`, 'color:#7c3aed;font-weight:bold');
-                  }
-                } catch(eHeal) { console.warn('[auto-heal local]', eHeal); }
-              }
-              // 2. ถ้า local cleanup ลบ 0 แถว → content conflict ระดับ cloud (cloud มี id ต่าง content เดียวกัน)
-              //    → reconcile กับ cloud: ลบ local rows ที่ cloud มีแล้ว
-              if (localDeleted === 0 && typeof _reconcileStockLedgerWithCloud === 'function') {
-                try {
-                  const r2 = await _reconcileStockLedgerWithCloud(true);
-                  cloudDeleted = r2?.deleted || 0;
-                  if (cloudDeleted > 0) {
-                    console.log(`%c🔄 [auto-heal] reconcile cloud: ลบ local ${cloudDeleted} แถว (cloud มีแล้ว, id ต่าง) — รอ pull รอบถัดไป`, 'color:#0ea5e9;font-weight:bold');
+                  const { error: e2 } = await window.sb.from(cfg.target).upsert([single], { onConflict: conflictCol });
+                  if (e2) {
+                    const msg2 = e2.message || '';
+                    if (/duplicate key|unique constraint/i.test(msg2)) {
+                      // Row นี้ conflict กับ cloud → ลบ local row นี้ทันที (cloud คือ truth)
+                      const localId = single.id;
+                      if (localId) {
+                        try { window.$autoSync?.addTombstones?.('stockLedger', [localId]); } catch(e3){}
+                        // ลบจาก _GLOBAL_DB.stockLedger
+                        const idx = (_GLOBAL_DB.stockLedger||[]).findIndex(r => r && r.id === localId);
+                        if (idx >= 0) _GLOBAL_DB.stockLedger.splice(idx, 1);
+                        resolvedCount++;
+                      }
+                      skipCount++;
+                    } else {
+                      // Error อื่น → ข้าม row นี้
+                      skipCount++;
+                    }
                   } else {
-                    console.warn(`[auto-heal] reconcile หา 0 — push จะหยุด retry, รอ user แก้ด้วยตัวเอง`);
+                    ok++;
                   }
-                } catch(eRec) { console.warn('[auto-heal reconcile]', eRec); }
+                } catch(eSingle) { skipCount++; }
               }
-              // 3. Mark dirty เพื่อ retry รอบถัดไป (เฉพาะถ้ามีการลบจริง)
-              if (localDeleted > 0 || cloudDeleted > 0) {
-                try { dirtyTables.add(localKey); } catch(e){}
-              }
-              fail += chunk.length;
-              // abort outer for-loop ทันที
-              throw new Error('__ABORT_STOCK_LEDGER_AUTOHEAL__');
+              try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(_GLOBAL_DB)); } catch(e){}
+              console.log(`%c🔧 [per-row reconcile] ${cfg.target}: resolved ${resolvedCount} (ลบ local), skipped ${skipCount} (chunk: ${chunk.length})`, 'color:#0ea5e9;font-weight:bold');
+              fail += skipCount;
+              success = true;   // mark success เพื่อออก while loop
+              break;
             }
             _logErr(cfg.target, '⚠ UNIQUE conflict ('+constraintName+') — รัน supabase-fix-docno-unique.sql หรือแก้ docNo ซ้ำ');
             fail += chunk.length;
@@ -6249,9 +6251,8 @@ window.$erp = {
           _logErr(cfg.target, msg.slice(0, 150));
           break;
         } catch(e) {
-          // 🆕 Special abort signal จาก auto-heal — แค่หยุด แต่ไม่ log เป็น exception
+          // legacy abort signal (kept for backward compat)
           if (e && e.message === '__ABORT_STOCK_LEDGER_AUTOHEAL__') {
-            console.log('[autoSync] '+cfg.target+': auto-heal triggered, aborting current push cycle');
             return { ok, fail, aborted: true };
           }
           fail += chunk.length;
@@ -6419,7 +6420,19 @@ window.$erp = {
             let skippedTomb = 0, lwwProtected = 0;
             cloudRows.forEach(r => {
               if (!r) return;
-              if (r.id && isTombstoned(localKey, r.id)) { skippedTomb++; return; }
+              // 🔧 CRITICAL FIX 2026-05-13: ถ้า cloud มี row นี้ แต่ local ก็มี (ใน localBackup)
+              //   → ไม่ skip เพราะ tombstone (cloud rebirthed row)
+              //   → cancel tombstone + use cloud version
+              const localHasIt = r.id && localBackup.has(r.id);
+              if (r.id && isTombstoned(localKey, r.id)) {
+                if (localHasIt) {
+                  // Cloud + local มีทั้งคู่ → tombstone outdated → cancel
+                  removeTombstones(localKey, [r.id]);
+                  console.log(`[pull-tombstone-cancel master] ${localKey} ${r.id}: cloud มี row นี้ + local ก็มี → ยกเลิก tombstone`);
+                } else {
+                  skippedTomb++; return;
+                }
+              }
               // 🆕 LWW per-row: ถ้า local มี ts ใหม่กว่า cloud → ใช้ local + push กลับ
               // 🔧 BUG FIX 2026-05-13: รองรับ passwordChangedAt สำหรับ users + กัน cloudTs ว่าง
               const localRow = localBackup.get(r.id);
@@ -6467,10 +6480,21 @@ window.$erp = {
           const arr = _GLOBAL_DB[localKey] = _GLOBAL_DB[localKey] || [];
           const cloudById = new Map();
           let mergeSkippedTomb = 0;
+          // 🔧 CRITICAL FIX: build local id set ก่อน — ถ้า cloud มี id ที่ local ก็มี → cancel tombstone (ไม่ skip)
+          const localIdSetForMerge = new Set();
+          (_GLOBAL_DB[localKey] || []).forEach(r => { if (r && r[conflictCol] != null) localIdSetForMerge.add(r[conflictCol]); });
           cloudRows.forEach(r => {
             if (!r || r[conflictCol] == null) return;
             // 🆕 Skip tombstoned IDs (เพิ่งลบ — กัน MERGE ดึงกลับมา)
-            if (isTombstoned(localKey, r[conflictCol])) { mergeSkippedTomb++; return; }
+            // ยกเว้นถ้า local ก็มี id นี้ → cloud rebirthed → cancel tombstone
+            if (isTombstoned(localKey, r[conflictCol])) {
+              if (localIdSetForMerge.has(r[conflictCol])) {
+                removeTombstones(localKey, [r[conflictCol]]);
+                console.log(`[pull-tombstone-cancel merge] ${localKey} ${r[conflictCol]}: cloud + local มีทั้งคู่ → cancel tombstone`);
+              } else {
+                mergeSkippedTomb++; return;
+              }
+            }
             cloudById.set(r[conflictCol], r);
           });
           if (mergeSkippedTomb) console.log(`[pull-tombstone-merge] ${localKey}: skipped ${mergeSkippedTomb} recently-deleted rows`);
@@ -6806,6 +6830,17 @@ window.$erp = {
     if (!exp) return false;
     if (Date.now() > exp) { delete store[id]; _saveTombstones(); return false; }
     return true;
+  }
+  // 🆕 Remove tombstones (เมื่อ cloud มี row นั้นกลับมา → cancel tombstone)
+  function removeTombstones(localCollection, ids) {
+    const store = TOMBSTONES[localCollection];
+    if (!store) return 0;
+    let removed = 0;
+    (Array.isArray(ids) ? ids : [ids]).forEach(id => {
+      if (id && store[id]) { delete store[id]; removed++; }
+    });
+    if (removed > 0) _saveTombstones();
+    return removed;
   }
   function cleanupTombstones() {
     const now = Date.now();
