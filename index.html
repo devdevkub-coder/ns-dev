@@ -83,6 +83,36 @@
 <body class="bg-slate-100">
 <div id="app" v-cloak>
 
+<!-- ======================== CLOUD-PULL OVERLAY ========================
+     แสดงเมื่อ DB ยังต้องรอ cloud pull (กัน push ทับ + แจ้ง user ชัด) -->
+<div v-if="db._needsCloudCheck === true" class="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center">
+  <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-md text-center">
+    <div class="animate-spin inline-block w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full mb-3"></div>
+    <h2 class="text-xl font-bold mb-2">⏳ กำลังโหลดจาก Cloud...</h2>
+    <p class="text-slate-600 text-sm mb-3">
+      ระบบกำลัง pull ข้อมูลล่าสุดจาก Supabase<br>
+      <span class="text-xs text-slate-500">(ไม่ใช้ default data — รอจน sync เสร็จเพื่อกัน data ทับ)</span>
+    </p>
+    <div class="text-xs text-amber-700 bg-amber-50 rounded p-2">
+      💡 ถ้าค้างเกิน 30 วินาที — ตรวจอินเทอร์เน็ตหรือ Supabase connection
+    </div>
+  </div>
+</div>
+
+<!-- ======================== GLOBAL SAVE STATUS BADGE ========================
+     แสดงสถานะ save ของทุก action ที่ตั้ง window.$saveStatus
+     ค่า: 'saving' | 'saved' | 'failed' -->
+<div v-if="$saveStatus && $saveStatus.state" class="fixed bottom-6 right-6 z-[90] shadow-xl rounded-full px-4 py-2 text-sm font-bold transition-all"
+  :class="{
+    'bg-blue-600 text-white animate-pulse': $saveStatus.state === 'saving',
+    'bg-emerald-600 text-white': $saveStatus.state === 'saved',
+    'bg-red-600 text-white': $saveStatus.state === 'failed'
+  }">
+  <span v-if="$saveStatus.state === 'saving'">⏳ {{$saveStatus.msg || 'กำลังบันทึก...'}}</span>
+  <span v-else-if="$saveStatus.state === 'saved'">✓ {{$saveStatus.msg || 'บันทึก + sync cloud สำเร็จ'}}</span>
+  <span v-else-if="$saveStatus.state === 'failed'">✗ {{$saveStatus.msg || 'Save Failed — ตรวจ console'}}</span>
+</div>
+
 <!-- ======================== LOGIN SCREEN ======================== -->
 <div v-if="!currentUser" class="min-h-screen flex items-center justify-center p-4">
   <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
@@ -137,7 +167,10 @@
       </template>
     </nav>
     <div class="p-3 border-t border-slate-700 text-xs text-slate-400">
-      <button @click="resetDemo" class="w-full text-center py-2 hover:bg-slate-800 rounded">↻ Reset ข้อมูล Demo</button>
+      <!-- 🛡 Reset Demo เห็นเฉพาะ Admin/Owner — ป้องกัน user ทั่วไปเผลอกด -->
+      <button v-if="currentUser && (currentUser.roleId==='R-ADMIN' || currentUser.roleId==='R-OWNER')"
+        @click="resetDemo" class="w-full text-center py-2 hover:bg-slate-800 rounded">↻ Reset ข้อมูล Demo</button>
+      <div v-else class="text-center text-slate-600 text-[10px] py-2">v1.0 NS Scrap ERP</div>
     </div>
   </aside>
 
@@ -2898,10 +2931,61 @@ function seedData() {
   return data;
 }
 
+/* ---------- GLOBAL SAVE STATUS — แสดง Saving / Saved / Failed ทั่วระบบ ---------- */
+const $saveStatus = (typeof Vue !== 'undefined' && Vue.ref) ? Vue.ref({ state: null, msg: '', at: 0 }) : { value: { state:null, msg:'', at:0 } };
+window.$saveStatus = $saveStatus;
+/* helper — เรียกได้จากที่ไหนก็ได้ใน save action */
+window.setSaveStatus = (state, msg) => {
+  $saveStatus.value = { state, msg: msg || '', at: Date.now() };
+  // Auto-clear 'saved' หลัง 3 วิ
+  if (state === 'saved') {
+    setTimeout(() => {
+      if ($saveStatus.value && Date.now() - $saveStatus.value.at >= 2900) {
+        $saveStatus.value = { state: null, msg: '', at: 0 };
+      }
+    }, 3000);
+  }
+  // Auto-clear 'failed' หลัง 8 วิ
+  if (state === 'failed') {
+    setTimeout(() => {
+      if ($saveStatus.value && Date.now() - $saveStatus.value.at >= 7900) {
+        $saveStatus.value = { state: null, msg: '', at: 0 };
+      }
+    }, 8000);
+  }
+};
+/* helper — wrap save action ด้วย try/catch + push to cloud + แสดง status */
+window.runSaveWithStatus = async (label, saveFn) => {
+  try {
+    window.setSaveStatus('saving', label + '...');
+    await saveFn();
+    if (window.$autoSync?.pushNow) {
+      await window.$autoSync.pushNow();
+    }
+    window.setSaveStatus('saved', label + ' + sync cloud สำเร็จ');
+    return { ok: true };
+  } catch(e) {
+    console.error('[runSaveWithStatus]', label, e);
+    window.setSaveStatus('failed', label + ' ผิดพลาด: ' + (e.message || e));
+    return { ok: false, error: e };
+  }
+};
+
 /* ---------- LOAD / SAVE ---------- */
 function loadDB() {
   const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) { const d = seedData(); localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); return d; }
+  if (!raw) {
+    // 🛡 CRITICAL FIX 2026-05-13: localStorage ว่าง → ไม่ load seed ทันที
+    //   เพราะอาจเป็น "เครื่องใหม่" หรือ "เผลอ clear cache" — ต้อง pull cloud ก่อน
+    //   set flag _needsCloudCheck=true → push จะ block จนกว่า pull confirms cloud truly empty
+    const d = seedData();
+    d._fromSeed = true;
+    d._needsCloudCheck = true;   // 🛡 push จะ block จนกว่า cloud confirms empty
+    d._seedLoadedAt = new Date().toISOString();
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); } catch(e){}
+    console.warn('[loadDB] ⚠ localStorage ว่าง — load seed (PUSH BLOCKED). รอ pull cloud ก่อน');
+    return d;
+  }
   try {
     const d = JSON.parse(raw);
     /* migration: merge any missing fields from latest seed (so old localStorage works with new modules) */
@@ -5985,12 +6069,10 @@ window.$erp = {
   /* Push 1 table — Smart retry on schema/FK errors (เหมือน manual migrate) */
   async function _pushTable(localKey) {
     const cfg = AS_MAP[localKey]; if (!cfg) return { ok:0, fail:0 };
-    // 🛡 SEED PROTECTION (revised 2026-05-13): ใช้แค่ DB-level flag (ไม่ใช้ per-row _isSeed)
-    //   เพราะ per-row block ทำให้ records ที่ user เคยแก้ (แต่ original มาจาก seed) push ไม่ได้
-    //   → cloud ไม่ update → ผู้ใช้คนอื่น pull ได้ค่าเก่า
-    //   เก็บเฉพาะ DB-level: block ตอน DB เพิ่ง reset เท่านั้น (จะ clear หลัง pull cloud ครั้งแรก)
-    if (_GLOBAL_DB._fromSeed === true) {
-      console.warn('[push-block] '+localKey+': DB เป็น seed state — skip push (pull จาก cloud ก่อน)');
+    // 🛡 SEED PROTECTION (revised 2026-05-13 v2): ใช้แค่ DB-level flag
+    //   block push ตอน: DB เพิ่ง reset (_fromSeed) OR fresh localStorage (_needsCloudCheck)
+    if (_GLOBAL_DB._fromSeed === true || _GLOBAL_DB._needsCloudCheck === true) {
+      console.warn('[push-block] '+localKey+': DB เป็น seed state / รอ cloud check — skip push');
       return { ok:0, fail:0, skipped:'seed' };
     }
     let rows = (_GLOBAL_DB[localKey] || []).filter(r => r && r.id);
@@ -6198,8 +6280,8 @@ window.$erp = {
         return;
       }
     } catch(e){}
-    if (_GLOBAL_DB._fromSeed === true) {
-      console.warn('[push-block] DB เป็น seed state — skip push ทั้งหมด รอ pull จาก cloud');
+    if (_GLOBAL_DB._fromSeed === true || _GLOBAL_DB._needsCloudCheck === true) {
+      console.warn('[push-block] DB เป็น seed / รอ cloud check — skip push ทั้งหมด');
       return;
     }
     // 🆕 รวม dirty + failed (ตาราง fail จากรอบก่อน) — หรือ force = ทุกตาราง
@@ -6493,9 +6575,13 @@ window.$erp = {
       lastSuccessAt = Date.now();
       // 🛡 ถ้า pull สำเร็จ + ได้ rows จาก cloud → clear seed flag (DB ไม่ใช่ seed อีกแล้ว)
       // กัน push block หลัง pull เสร็จ
-      if (totalRows > 0 && _GLOBAL_DB._fromSeed) {
-        delete _GLOBAL_DB._fromSeed;
-        console.log('[push-unblock] cleared _fromSeed flag after successful pull from cloud');
+      if (totalRows > 0) {
+        if (_GLOBAL_DB._fromSeed) { delete _GLOBAL_DB._fromSeed; console.log('[push-unblock] cleared _fromSeed (cloud has data)'); }
+        if (_GLOBAL_DB._needsCloudCheck) { delete _GLOBAL_DB._needsCloudCheck; console.log('[push-unblock] cleared _needsCloudCheck (cloud has data → local seed replaced)'); }
+      } else if (totalRows === 0 && _GLOBAL_DB._needsCloudCheck) {
+        // Cloud confirmed empty → ของจริงเป็น fresh install → ปลดล็อก push
+        delete _GLOBAL_DB._needsCloudCheck;
+        console.log('[push-unblock] cloud truly empty → first install confirmed → push allowed');
       }
       // Clear post-reset block — ปลดล็อก push หลัง pull สำเร็จ
       try { sessionStorage.removeItem('ns_erp_block_push_after_reset'); } catch(e){}
@@ -7666,7 +7752,8 @@ const app = createApp({
       syncStatus, dataEmptyBanner, forcePulling, forcePull, manualSyncNow,
       showSyncErrors, getErrorList, clearSyncErrors,
       hasUniqueConflict, autoFixDuplicateDocNo,   // 🆕
-      syncHealthText, syncHealthLevel };
+      syncHealthText, syncHealthLevel,
+      $saveStatus };
   }
 });
 
@@ -37303,17 +37390,21 @@ app.component('view-userPermission', {
       try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
       erp.logAudit(editingUser.value?'UPDATE':'CREATE','users',null,{username:f.username});
       showUserModal.value = false;
-      // 🆕 Push to cloud ทันที — กัน pull rewrite ก่อน push เสร็จ
+      // 🆕 Push to cloud ทันที — แสดง save status badge
+      window.setSaveStatus?.('saving', 'กำลังบันทึก user "'+f.username+'"');
       try {
         if (window.$autoSync?.pushNow) {
           await window.$autoSync.pushNow();
+          window.setSaveStatus?.('saved', 'บันทึก user "'+f.username+'" + sync cloud');
           erp.showToast('✓ บันทึกสำเร็จ + sync cloud','success');
         } else {
-          erp.showToast('✓ บันทึกสำเร็จ (local only — cloud sync รอ)','success');
+          window.setSaveStatus?.('failed', 'sync cloud ยังไม่พร้อม');
+          erp.showToast('⚠ บันทึก local แต่ cloud sync ยังไม่พร้อม','warning');
         }
       } catch(e) {
         console.warn('[saveUser push]', e);
-        erp.showToast('✓ บันทึก local — cloud push fail: '+e.message,'warning');
+        window.setSaveStatus?.('failed', 'Cloud push fail: '+e.message);
+        erp.showToast('⚠ บันทึก local — cloud push fail: '+e.message,'warning');
       }
     }
     async function deleteUser(u) {
@@ -37364,17 +37455,21 @@ app.component('view-userPermission', {
       try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
       erp.logAudit(editingRole.value?'UPDATE':'CREATE','roles',null,{name:f.name});
       showRoleModal.value = false;
-      // 🆕 Push to cloud ทันที
+      // 🆕 Push to cloud ทันที — แสดง save status badge
+      window.setSaveStatus?.('saving', 'กำลังบันทึก role "'+f.name+'"');
       try {
         if (window.$autoSync?.pushNow) {
           await window.$autoSync.pushNow();
+          window.setSaveStatus?.('saved', 'บันทึก role "'+f.name+'" + sync cloud');
           erp.showToast('✓ บันทึกสำเร็จ + sync cloud','success');
         } else {
-          erp.showToast('✓ บันทึกสำเร็จ (local only)','success');
+          window.setSaveStatus?.('failed', 'sync cloud ยังไม่พร้อม');
+          erp.showToast('⚠ บันทึก local แต่ cloud sync ยังไม่พร้อม','warning');
         }
       } catch(e) {
         console.warn('[saveRole push]', e);
-        erp.showToast('✓ บันทึก local — cloud push fail: '+e.message,'warning');
+        window.setSaveStatus?.('failed', 'Cloud push fail: '+e.message);
+        erp.showToast('⚠ บันทึก local — cloud push fail: '+e.message,'warning');
       }
     }
     async function deleteRole(r) {
@@ -42830,24 +42925,44 @@ app.component('view-mdSalesperson', {
     function blank() { return { id:'', code:'', name:'', phone:'', email:'', commissionPct:1.5, baseSalary:18000, active:true, note:'' }; }
     function open() { editingId.value = null; Object.keys(form).forEach(k=>delete form[k]); Object.assign(form, blank()); showForm.value = true; }
     function openEdit(s) { editingId.value = s.id; Object.keys(form).forEach(k=>delete form[k]); Object.assign(form, JSON.parse(JSON.stringify(s))); showForm.value = true; }
-    function save() {
+    async function save() {
       if (!form.name) { erp.showToast('กรุณาใส่ชื่อ','error'); return; }
       if (!Array.isArray(db.salespersons)) db.salespersons = [];
+      const nowIso = new Date().toISOString();
       if (editingId.value) {
         const idx = db.salespersons.findIndex(x => x && x.id === editingId.value);
-        if (idx >= 0) db.salespersons[idx] = { ...form, id: editingId.value };
+        if (idx >= 0) db.salespersons[idx] = { ...form, id: editingId.value, updatedAt: nowIso };
       } else {
         const id = 'SP'+String(db.salespersons.length+1).padStart(3,'0');
-        db.salespersons.push({ ...form, id });
+        db.salespersons.push({ ...form, id, createdAt: nowIso, updatedAt: nowIso });
       }
       try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
       showForm.value = false;
+      // 🆕 Push + status badge
+      window.setSaveStatus?.('saving', 'กำลังบันทึก sales "'+form.name+'"');
+      try {
+        if (window.$autoSync?.pushNow) {
+          await window.$autoSync.pushNow();
+          window.setSaveStatus?.('saved', 'บันทึก sales "'+form.name+'" + sync cloud');
+        } else { window.setSaveStatus?.('failed', 'sync ยังไม่พร้อม'); }
+      } catch(e) {
+        window.setSaveStatus?.('failed', 'Cloud push fail: '+e.message);
+      }
       erp.showToast('บันทึกสำเร็จ','success');
     }
-    function remove(s) {
+    async function remove(s) {
       if (!confirm('ลบ '+s.name+'?')) return;
+      try { window.$autoSync?.addTombstones?.('salespersons', [s.id]); } catch(e){}
       db.salespersons = (db.salespersons||[]).filter(x => !x || x.id !== s.id);
       try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+      window.setSaveStatus?.('saving', 'กำลังลบ sales "'+s.name+'"');
+      try {
+        if (window.sb) await window.sb.from('salespersons').delete().eq('id', s.id);
+        if (window.$autoSync?.pushNow) await window.$autoSync.pushNow();
+        window.setSaveStatus?.('saved', 'ลบ sales "'+s.name+'" + sync cloud');
+      } catch(e) {
+        window.setSaveStatus?.('failed', 'Delete cloud fail: '+e.message);
+      }
       erp.showToast('ลบสำเร็จ','success');
     }
     const filtered = computed(() => {
