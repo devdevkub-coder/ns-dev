@@ -3766,6 +3766,81 @@ async function _purgeStockDuplicates(silent) {
   return { deleted: toDelete.length, beforeCount, afterCount: db.stockLedger.length, cloudOk, cloudFail };
 }
 
+/* 🆕 SHARED helper: ลบ stockLedger orphans (บิลถูกลบไปแล้ว) แบบ silent
+   - ใช้โดย auto-cleanup on boot
+   - silent=true → ไม่ alert, ไม่ confirm
+   - 🛡 SAFETY: ทำเฉพาะถ้า bills tables มีข้อมูล (กัน first-pull race ที่ bills ยังไม่ถูก pull แต่ stockLedger ถูก pull แล้ว → false positive orphan)
+*/
+async function _purgeStockOrphans(silent) {
+  const db = _GLOBAL_DB;
+  const all = Array.isArray(db.stockLedger) ? db.stockLedger : [];
+  if (!all.length) return { deleted: 0 };
+
+  const pbList = Array.isArray(db.purchaseBills) ? db.purchaseBills : [];
+  const sbList = Array.isArray(db.salesBills) ? db.salesBills : [];
+  // 🛡 SAFETY: ถ้า bills ว่างทั้งคู่ → อาจยัง pull ไม่เสร็จ → skip
+  if (pbList.length === 0 && sbList.length === 0) {
+    return { deleted: 0, skipped: 'bills not loaded' };
+  }
+
+  const validPB = new Set();
+  const validPBDoc = new Set();
+  pbList.forEach(b => {
+    if (b && b.id) validPB.add(b.id);
+    if (b && b.docNo) validPBDoc.add(b.docNo);
+  });
+  const validSB = new Set();
+  const validSBDoc = new Set();
+  sbList.forEach(b => {
+    if (b && b.id) validSB.add(b.id);
+    if (b && b.docNo) validSBDoc.add(b.docNo);
+  });
+
+  const orphanIds = [];
+  all.forEach(s => {
+    if (!s || !s.id) return;
+    if (s.refType === 'PB') {
+      const okById = s.refId && validPB.has(s.refId);
+      const okByDoc = s.refNo && validPBDoc.has(s.refNo);
+      if (!okById && !okByDoc) orphanIds.push(s.id);
+    } else if (s.refType === 'SB') {
+      const okById = s.refId && validSB.has(s.refId);
+      const okByDoc = s.refNo && validSBDoc.has(s.refNo);
+      if (!okById && !okByDoc) orphanIds.push(s.id);
+    }
+  });
+
+  if (!orphanIds.length) return { deleted: 0 };
+
+  // Tombstone + delete local
+  try { window.$autoSync?.addTombstones?.('stockLedger', orphanIds); } catch(e){}
+  const beforeCount = db.stockLedger.length;
+  const orphanSet = new Set(orphanIds);
+  db.stockLedger = db.stockLedger.filter(s => !s || !orphanSet.has(s.id));
+  try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+
+  // Cloud delete (chunked)
+  let cloudOk = 0, cloudFail = 0;
+  if (window.sb) {
+    for (let i = 0; i < orphanIds.length; i += 100) {
+      const chunk = orphanIds.slice(i, i+100);
+      try {
+        const r = await window.sb.from('stock_ledger').delete().in('id', chunk).select('id');
+        if (r.error) cloudFail += chunk.length;
+        else cloudOk += (r.data && Array.isArray(r.data)) ? r.data.length : 0;
+      } catch(e) { cloudFail += chunk.length; }
+    }
+  }
+  // Push state
+  try {
+    if (window.$autoSync?.pushTable) await window.$autoSync.pushTable('stockLedger');
+    else if (window.$autoSync?.pushNow) await window.$autoSync.pushNow();
+  } catch(e){}
+
+  if (!silent) console.log(`[stockLedger orphans] ลบ ${orphanIds.length} orphans (local: ${beforeCount}→${db.stockLedger.length}, cloud: ${cloudOk} ลบ, ${cloudFail} fail)`);
+  return { deleted: orphanIds.length, beforeCount, afterCount: db.stockLedger.length, cloudOk, cloudFail };
+}
+
 /* 🆕 GLOBAL: ล้าง duplicate ใน stockLedger
    เหตุ: บิลเดียวกัน มี stockLedger 2 ชุด — ชุดเก่า import ใช้ movementType "SALES_OUT"/"PURCHASE_IN" (English)
          ชุดใหม่จาก form save ใช้ "ขายออก"/"รับซื้อเข้า" (Thai)
@@ -33258,12 +33333,14 @@ app.component('view-importTxn', {
         const modeLabel = _willPostGlobal ? 'POST (มี Stock Ledger)' : 'DRAFT (ไม่มี Stock Ledger)';
         erp.showToast(`✅ Import ${bills.length} บิล · ${totalItems} items · ${modeLabel}`, 'success');
         // 🛡 dedup stockLedger หลัง import เสมอ — กัน duplicate (import path + cloud merge)
+        // 🔧 ใช้ .then() แทน await เพราะ confirmImport เป็น non-async function
         try {
           if (typeof _purgeStockDuplicates === 'function') {
-            const dedupR = await _purgeStockDuplicates(true);
-            if (dedupR && dedupR.deleted > 0) {
-              console.log(`%c🧹 Post-import dedup: ลบ stockLedger dups ${dedupR.deleted} แถว`, 'color:#7c3aed;font-weight:bold');
-            }
+            Promise.resolve(_purgeStockDuplicates(true)).then(dedupR => {
+              if (dedupR && dedupR.deleted > 0) {
+                console.log(`%c🧹 Post-import dedup: ลบ stockLedger dups ${dedupR.deleted} แถว`, 'color:#7c3aed;font-weight:bold');
+              }
+            }).catch(e => console.warn('[post-import dedup]', e));
           }
         } catch(e) { console.warn('[post-import dedup]', e); }
         showResultModal.value = true;
@@ -45012,9 +45089,10 @@ app.component('view-statusConvert', {
     } catch(e){}
   }, 1000);
 
-  // 🆕 AUTO-CLEANUP stockLedger duplicates on boot (silent)
+  // 🆕 AUTO-CLEANUP stockLedger duplicates + orphans on boot (silent)
   //   - 2 passes: 3s (เผื่อ local) + 12s (หลัง first pull cloud เสร็จ)
-  //   - Run again every 2 min ขณะใช้งาน เผื่อเครื่องอื่น push dups ขึ้นมา
+  //   - Orphan cleanup รันเฉพาะ pass-2 (รอ bills โหลดเสร็จ)
+  //   - Run again every 2 min ขณะใช้งาน
   setTimeout(async () => {
     try {
       if (typeof _purgeStockDuplicates === 'function') {
@@ -45033,15 +45111,28 @@ app.component('view-statusConvert', {
           console.log(`%c🧹 Auto-cleanup (boot-2): ลบ stockLedger dups ${r.deleted} แถว`, 'color:#7c3aed;font-weight:bold');
         }
       }
+      // 🆕 Orphan cleanup ตอน boot-2 (หลัง bills pulled แล้ว — ปลอดภัย)
+      if (typeof _purgeStockOrphans === 'function') {
+        const o = await _purgeStockOrphans(true);
+        if (o && o.deleted > 0) {
+          console.log(`%c🧹 Auto-cleanup (boot-2): ลบ stockLedger orphans ${o.deleted} แถว (บิลถูกลบไปแล้ว)`, 'color:#dc2626;font-weight:bold');
+        }
+      }
     } catch(e) { console.warn('[auto-dedup boot-2]', e); }
   }, 12000);
-  // Run every 2 minutes (silent) — เดิม 5 นาที, ลดเหลือ 2 นาที เพื่อ converge เร็วขึ้น
+  // Run every 2 minutes (silent) — dedup + orphan
   setInterval(async () => {
     try {
       if (typeof _purgeStockDuplicates === 'function') {
         const r = await _purgeStockDuplicates(true);
         if (r && r.deleted > 0) {
           console.log(`%c🧹 Auto-cleanup (2min): ลบ stockLedger dups ${r.deleted} แถว`, 'color:#7c3aed;font-weight:bold');
+        }
+      }
+      if (typeof _purgeStockOrphans === 'function') {
+        const o = await _purgeStockOrphans(true);
+        if (o && o.deleted > 0) {
+          console.log(`%c🧹 Auto-cleanup (2min): ลบ stockLedger orphans ${o.deleted} แถว`, 'color:#dc2626;font-weight:bold');
         }
       }
     } catch(e) {}
