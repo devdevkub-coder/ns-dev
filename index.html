@@ -5969,10 +5969,14 @@ const app = createApp({
       catch (e) { return false; }
     });
     /* 🆕 isWriter: ตรวจว่า user นี้เป็น writer ของหน้า currentView ไหม
-       ถ้าไม่ใช่ → UI ควรแสดง banner + disable ปุ่มเขียน */
+       ถ้าไม่ใช่ → UI ควรแสดง banner + disable ปุ่มเขียน
+       🔧 default = true (safer) ป้องกัน blank page ถ้า isWriter ยังไม่พร้อม */
     const isWriterCurrent = computed(() => {
-      try { return window.$erp.isWriter(currentView.value); }
-      catch (e) { return true; }
+      try {
+        if (!window.$erp || !window.$erp.isWriter) return true;
+        const result = window.$erp.isWriter(currentView.value);
+        return result !== false;   // any non-false = treat as writer (safe default)
+      } catch (e) { return true; }
     });
 
     /* หา view แรกที่ user เห็นได้ (สำหรับ default ตอน login + redirect) */
@@ -15439,12 +15443,11 @@ app.component('view-sales', {
               </button>
               <span v-else class="text-xs text-slate-400">No VAT</span>
             </td>
-            <!-- 🆕 compact: 1 บรรทัด + tooltip รายละเอียดเต็ม -->
-            <td class="px-2 py-2 text-[11px] whitespace-nowrap"
-              :title="'สร้างโดย: '+(b.createdBy||'-')+'\n'+(b.createdAt?'📅 '+String(b.createdAt).slice(0,16).replace('T',' '):'')+(b.updatedAt?'\n✏️ แก้: '+String(b.updatedAt).slice(0,16).replace('T',' ')+(b.updatedBy && b.updatedBy !== b.createdBy ? ' โดย '+b.updatedBy : ''):'')">
-              <div class="font-semibold text-slate-700">{{b.createdBy||'-'}}</div>
-              <div class="text-[10px] text-slate-500">{{b.createdAt?String(b.createdAt).slice(2,10).replace('-','/'):'-'}}</div>
-              <div v-if="b.updatedAt" class="text-[10px] text-amber-700">✏️ {{String(b.updatedAt).slice(5,10).replace('-','/')}}</div>
+            <!-- 🆕 compact: 1 บรรทัด -->
+            <td class="px-2 py-2 text-[11px] whitespace-nowrap">
+              <div class="font-semibold text-slate-700" :title="'สร้างโดย: '+(b.createdBy||'-')">{{b.createdBy||'-'}}</div>
+              <div class="text-[10px] text-slate-500" :title="b.createdAt||''">{{b.createdAt?String(b.createdAt).slice(2,10).replace('-','/'):'-'}}</div>
+              <div v-if="b.updatedAt" class="text-[10px] text-amber-700" :title="'แก้: '+(b.updatedAt||'')+(b.updatedBy?' โดย '+b.updatedBy:'')">✏️ {{String(b.updatedAt).slice(5,10).replace('-','/')}}</div>
             </td>
             <td class="px-3 py-2 text-right whitespace-nowrap">
               <button @click="showDetail=b" class="text-blue-600 text-xs hover:underline mr-2">ดู</button>
