@@ -3780,16 +3780,19 @@ window.$cleanupStockDuplicates = async function(dryRun) {
   console.table(topBills.map(([refNo, dups]) => ({refNo, duplicatesToDelete: dups})));
 
   if (dryRun) {
-    alert(`🔍 Dry Run — พบ duplicates:\n\n` +
+    // 🆕 Single-flow: preview → ถามว่าลบเลยไหม → ถ้า OK ก็ลบต่อ
+    const ans = confirm(`🔍 พบ stockLedger duplicates:\n\n` +
       `• ${dupDetails.length} กลุ่มที่ซ้ำ\n` +
-      `• ${toDelete.length} แถว stockLedger ที่จะลบ\n` +
+      `• ${toDelete.length} แถวที่จะลบ\n` +
       `• กระทบ ${byBill.size} บิล\n\n` +
       `รายละเอียดดูใน Console (F12)\n\n` +
-      `💡 ถ้ายืนยันลบจริง → พิมพ์:\n  window.$cleanupStockDuplicates(false)`);
-    return { totalDuplicates: toDelete.length, groups: dupDetails.length, affectedBills: byBill.size, dupDetails };
-  }
-
-  if (!confirm(`⚠ ยืนยันลบ stockLedger duplicates?\n\n• ${toDelete.length} แถวจาก local\n• Tombstone cloud + push\n• กระทบ ${byBill.size} บิล\n\n💡 จะคำนวณ Stock balance ใหม่ + push ไป cloud\n\nยืนยัน?`)) return;
+      `กด OK เพื่อ "ลบจริง" (local + cloud + push)\n` +
+      `กด Cancel เพื่อปิด`);
+    if (!ans) {
+      return { totalDuplicates: toDelete.length, groups: dupDetails.length, affectedBills: byBill.size, dupDetails, dryRun: true };
+    }
+    // user กด OK → fall through ลบจริงเลย
+  } else if (!confirm(`⚠ ยืนยันลบ stockLedger duplicates?\n\n• ${toDelete.length} แถวจาก local\n• Tombstone cloud + push\n• กระทบ ${byBill.size} บิล\n\n💡 จะคำนวณ Stock balance ใหม่ + push ไป cloud\n\nยืนยัน?`)) return;
 
   const result = await _purgeStockDuplicates(false);
   const cloudOk = result.cloudOk || 0;
@@ -9452,10 +9455,10 @@ app.component('view-stockLedger', {
         <span>⚠ ติดลบ</span>
         <span :class="['px-1.5 py-0.5 rounded text-[10px]', filterNegativeOnly?'bg-white text-red-700':'bg-red-600 text-white']">{{negativeCount}}</span>
       </button>
-      <!-- 🆕 Cleanup Duplicates: หา + ลบ stockLedger ซ้ำ -->
-      <button @click="window.$cleanupStockDuplicates && window.$cleanupStockDuplicates(true)"
+      <!-- 🆕 Cleanup Duplicates: preview → confirm → ลบจริง ในคลิกเดียว -->
+      <button @click="window.$cleanupStockDuplicates ? window.$cleanupStockDuplicates(true) : alert('Cleanup ยังไม่โหลด — Hard refresh (Cmd+Shift+R)')"
         class="px-3 py-2 text-xs font-bold rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
-        title="หา stockLedger ที่ซ้ำกัน (เช่น import สร้าง SALES_OUT แล้วเซฟใหม่สร้าง ขายออก ซ้ำกัน)">
+        title="หา + ลบ stockLedger ที่ซ้ำกัน (คลิก 1 ครั้งทำงานครบ — preview → confirm → ลบจริง)">
         🧹 ล้าง Dup
       </button>
       <span class="ml-auto text-xs text-slate-500 bg-slate-100 px-3 py-1.5 rounded">📊 พบ <b>{{list.length}}</b> รายการ</span>
