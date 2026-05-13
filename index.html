@@ -9331,6 +9331,10 @@ app.component('view-stockLedger', {
     const filterProduct = ref(''); const filterBranch = ref(''); const filterType = ref('');
     const fromDate = ref(''); const toDate = ref('');
     const filterNegativeOnly = ref(false);   // 🆕 filter เฉพาะที่ติดลบ
+    // 🆕 balanceMode: 'product' = ต่อสินค้า (default, ตรงกับ drilldown view) | 'warehouse' = ต่อสินค้า×สาขา×คลัง (strict)
+    //    เก็บใน localStorage เพื่อจำค่าที่ user เลือก
+    const balanceMode = ref((function(){ try { return localStorage.getItem('ns_erp_sl_balance_mode') || 'product'; } catch(e) { return 'product'; } })());
+    watch(balanceMode, (v) => { try { localStorage.setItem('ns_erp_sl_balance_mode', v); } catch(e){} });
     const detailBill = ref(null);   // 🆕 selected bill for detail modal
     const detailType = ref('');     // 'PB' | 'SB'
 
@@ -9395,17 +9399,24 @@ app.component('view-stockLedger', {
       }
     }
 
-    /* 🆕 คำนวณ Running Balance ต่อ (product × branch × warehouse) */
+    /* 🆕 คำนวณ Running Balance — รองรับ 2 mode:
+       - 'product' (default): ต่อ productId เท่านั้น → ตรงกับ drilldown + Stock Balance view
+                              ไม่เพี้ยนแม้ branchId/warehouseId ไม่ตรงกันระหว่าง Opening กับ Bill
+       - 'warehouse': ต่อ productId × branchId × warehouseId → strict accounting per location
+    */
     const balanceMap = computed(() => {
       const map = new Map();   // ledger.id → balance after this row
       const bal = {};          // key → running balance
+      const mode = balanceMode.value;
       const allSorted = [...db.stockLedger].filter(m => m && m.productId).sort((a,b) =>
         (a.date||'').localeCompare(b.date||'') ||
         (String(a.createdAt||'').localeCompare(String(b.createdAt||''))) ||
         (a.id||'').localeCompare(b.id||'')
       );
       allSorted.forEach(m => {
-        const key = (m.productId||'') + '|' + (m.branchId||'') + '|' + (m.warehouseId||'');
+        const key = (mode === 'warehouse')
+          ? ((m.productId||'') + '|' + (m.branchId||'') + '|' + (m.warehouseId||''))
+          : (m.productId||'');
         if (!(key in bal)) bal[key] = 0;
         bal[key] += Number(m.qtyIn||0) - Number(m.qtyOut||0);
         map.set(m.id, bal[key]);
@@ -9638,7 +9649,7 @@ app.component('view-stockLedger', {
     }
 
     return { db, erp, filterProduct, filterBranch, filterType, fromDate, toDate,
-      filterNegativeOnly, negativeCount,
+      filterNegativeOnly, negativeCount, balanceMode,
       list, movementTypes, fmt:erp.fmt,
       detailBill, detailType, openDetail, closeDetail, editOpening,
       // Fix modal
@@ -9661,6 +9672,15 @@ app.component('view-stockLedger', {
       <span class="text-slate-400">→</span>
       <input type="date" v-model="toDate" class="px-3 py-2 border rounded-lg text-sm" title="ถึงวันที่">
       <button v-if="filterProduct||filterBranch||filterType||fromDate||toDate||filterNegativeOnly" @click="filterProduct='';filterBranch='';filterType='';fromDate='';toDate='';filterNegativeOnly=false" class="px-3 py-2 text-xs bg-slate-100 hover:bg-slate-200 rounded">✕ ล้าง</button>
+      <!-- 🆕 Balance Mode toggle — ต่อสินค้า vs ต่อ สินค้า×สาขา×คลัง -->
+      <div class="inline-flex rounded-lg border border-slate-300 overflow-hidden text-xs" title="โหมดคำนวณ Running Balance">
+        <button @click="balanceMode='product'"
+          :class="['px-3 py-2 font-bold', balanceMode==='product' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-100']"
+          title="คำนวณยอดต่อสินค้าเท่านั้น (ตรงกับหน้า Stock Balance + Drilldown)">📦 ต่อสินค้า</button>
+        <button @click="balanceMode='warehouse'"
+          :class="['px-3 py-2 font-bold border-l border-slate-300', balanceMode==='warehouse' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-100']"
+          title="คำนวณยอดต่อสินค้า × สาขา × คลัง (strict — ใช้เช็คความถูกต้องของ branch/warehouse)">🏢 ต่อคลัง</button>
+      </div>
       <!-- 🆕 Filter: เฉพาะที่ติดลบ -->
       <button @click="filterNegativeOnly = !filterNegativeOnly"
         :class="['px-3 py-2 text-xs font-bold rounded flex items-center gap-1.5',
