@@ -3646,6 +3646,146 @@ window.$diagnoseStockProduct = function(productId, branchId, warehouseId) {
   return { productName, totalMovements: movements.length, firstNegativeIdx: firstNegIdx, finalBalance: balByKey, rows };
 };
 
+/* 🆕 GLOBAL: ล้าง duplicate ใน stockLedger
+   เหตุ: บิลเดียวกัน มี stockLedger 2 ชุด — ชุดเก่า import ใช้ movementType "SALES_OUT"/"PURCHASE_IN" (English)
+         ชุดใหม่จาก form save ใช้ "ขายออก"/"รับซื้อเข้า" (Thai)
+         → exact-match duplicates: same (refType, refNo, productId, lotNo, qtyIn, qtyOut)
+   วิธี: สำหรับ key เดียวกัน → เก็บอันที่ createdAt เก่าสุด, ลบที่เหลือ + tombstone cloud
+   ใช้: window.$cleanupStockDuplicates([dryRun=true])
+        - dryRun=true (default): แค่รายงาน
+        - dryRun=false: ลบจริง
+*/
+window.$cleanupStockDuplicates = async function(dryRun) {
+  if (dryRun !== false) dryRun = true;
+  const db = _GLOBAL_DB;
+  const all = Array.isArray(db.stockLedger) ? db.stockLedger : [];
+  if (!all.length) { alert('❌ ไม่มี stockLedger'); return; }
+  const fmt = (n) => Number(n||0).toLocaleString('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+  // Group by (refType, refNo, productId, lotNo, qtyIn, qtyOut)
+  const groups = new Map();
+  all.forEach(m => {
+    if (!m || !m.id) return;
+    // Skip movements without refNo (manual entries, opening stock, etc.) — these shouldn't dedup
+    if (!m.refNo) return;
+    // Only dedup PB/SB (bill-derived movements) — others (GA, OB, ST, PI) may legitimately have multiple entries
+    if (m.refType !== 'PB' && m.refType !== 'SB') return;
+    const key = [
+      m.refType||'',
+      m.refNo||'',
+      m.productId||'',
+      m.lotNo||'',
+      Number(m.qtyIn||0).toFixed(4),
+      Number(m.qtyOut||0).toFixed(4),
+    ].join('|');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(m);
+  });
+
+  // Find duplicates
+  const toDelete = [];
+  const dupDetails = [];
+  groups.forEach((entries, key) => {
+    if (entries.length < 2) return;
+    // Sort by createdAt (oldest first)
+    entries.sort((a,b) => String(a.createdAt||'').localeCompare(String(b.createdAt||'')));
+    const keeper = entries[0];
+    const dups = entries.slice(1);
+    dups.forEach(d => toDelete.push(d.id));
+    const [refType, refNo, productId, lotNo, qIn, qOut] = key.split('|');
+    const p = (db.products||[]).find(x=>x && x.id===productId);
+    dupDetails.push({
+      refType, refNo,
+      productName: p?.name || productId,
+      lotNo: lotNo || '-',
+      qtyIn: Number(qIn),
+      qtyOut: Number(qOut),
+      duplicates: entries.length,
+      keeperMovType: keeper.movementType,
+      duplicateMovTypes: dups.map(d=>d.movementType).join(', '),
+      keeperCreatedAt: keeper.createdAt,
+    });
+  });
+
+  console.log(`%c🔍 Stock Ledger Dup Cleanup`, 'font-weight:bold;font-size:14px;color:#0369a1');
+  console.log(`Total stockLedger rows: ${all.length}`);
+  console.log(`Bill-derived rows (PB/SB) scanned: ${all.filter(m=>m && (m.refType==='PB'||m.refType==='SB') && m.refNo).length}`);
+  console.log(`Unique keys: ${groups.size}`);
+  console.log(`Groups with duplicates: ${dupDetails.length}`);
+  console.log(`Total duplicate rows to delete: ${toDelete.length}`);
+  if (dupDetails.length) {
+    console.log(`%c📋 รายการ duplicates (Top 30):`, 'font-weight:bold;color:#dc2626');
+    console.table(dupDetails.slice(0,30));
+  }
+
+  if (!toDelete.length) {
+    alert('✓ ไม่พบ stockLedger duplicates — ของดีอยู่แล้ว');
+    return { totalDuplicates: 0 };
+  }
+
+  // Show summary by refNo
+  const byBill = new Map();
+  dupDetails.forEach(d => {
+    if (!byBill.has(d.refNo)) byBill.set(d.refNo, 0);
+    byBill.set(d.refNo, byBill.get(d.refNo) + d.duplicates - 1);
+  });
+  const topBills = [...byBill.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
+  console.log(`%c📊 บิลที่มี duplicates เยอะสุด:`, 'font-weight:bold;color:#0369a1');
+  console.table(topBills.map(([refNo, dups]) => ({refNo, duplicatesToDelete: dups})));
+
+  if (dryRun) {
+    alert(`🔍 Dry Run — พบ duplicates:\n\n` +
+      `• ${dupDetails.length} กลุ่มที่ซ้ำ\n` +
+      `• ${toDelete.length} แถว stockLedger ที่จะลบ\n` +
+      `• กระทบ ${byBill.size} บิล\n\n` +
+      `รายละเอียดดูใน Console (F12)\n\n` +
+      `💡 ถ้ายืนยันลบจริง → พิมพ์:\n  window.$cleanupStockDuplicates(false)`);
+    return { totalDuplicates: toDelete.length, groups: dupDetails.length, affectedBills: byBill.size, dupDetails };
+  }
+
+  if (!confirm(`⚠ ยืนยันลบ stockLedger duplicates?\n\n• ${toDelete.length} แถวจาก local\n• Tombstone cloud + push\n• กระทบ ${byBill.size} บิล\n\n💡 จะคำนวณ Stock balance ใหม่ + push ไป cloud\n\nยืนยัน?`)) return;
+
+  // 1. Push tombstones ก่อน
+  try {
+    window.$autoSync?.addTombstones?.('stockLedger', toDelete);
+  } catch(e) { console.warn('addTombstones', e); }
+
+  // 2. ลบจาก local
+  const beforeCount = db.stockLedger.length;
+  db.stockLedger = db.stockLedger.filter(m => !toDelete.includes(m.id));
+  const afterCount = db.stockLedger.length;
+  try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+
+  // 3. ลบจาก cloud
+  let cloudOk = 0, cloudFail = 0;
+  if (window.sb) {
+    for (let i = 0; i < toDelete.length; i += 100) {
+      const chunk = toDelete.slice(i, i+100);
+      try {
+        const r = await window.sb.from('stock_ledger').delete().in('id', chunk).select('id');
+        if (r.error) {
+          console.warn('cloud delete err', r.error);
+          cloudFail += chunk.length;
+        } else {
+          const actualDeleted = (r.data && Array.isArray(r.data)) ? r.data.length : 0;
+          cloudOk += actualDeleted;
+        }
+      } catch(e) { cloudFail += chunk.length; console.warn('cloud delete exc', e); }
+    }
+  }
+
+  // 4. Push state
+  try { if (window.$autoSync?.pushNow) await window.$autoSync.pushNow(); } catch(e){}
+
+  alert(`✅ Cleanup สำเร็จ\n\n` +
+    `📊 Local: ${beforeCount} → ${afterCount} (ลบ ${beforeCount - afterCount})\n` +
+    `☁ Cloud: ${cloudOk} ลบสำเร็จ${cloudFail?', '+cloudFail+' fail':''}\n` +
+    `📦 บิลที่ได้รับการแก้ไข: ${byBill.size}\n\n` +
+    `💡 รีเฟรช Stock Ledger เพื่อดูยอดใหม่`);
+
+  return { deleted: toDelete.length, cloudOk, cloudFail, affectedBills: byBill.size };
+};
+
 /* 🆕 GLOBAL: หาทุกสินค้าที่ติดลบ — ใช้ที่ console: window.$listNegativeStock() */
 window.$listNegativeStock = function() {
   const db = _GLOBAL_DB;
@@ -9064,6 +9204,12 @@ app.component('view-stockLedger', {
           filterNegativeOnly ? 'bg-red-600 text-white shadow-md animate-pulse' : 'bg-red-100 text-red-700 hover:bg-red-200']">
         <span>⚠ ติดลบ</span>
         <span :class="['px-1.5 py-0.5 rounded text-[10px]', filterNegativeOnly?'bg-white text-red-700':'bg-red-600 text-white']">{{negativeCount}}</span>
+      </button>
+      <!-- 🆕 Cleanup Duplicates: หา + ลบ stockLedger ซ้ำ -->
+      <button @click="window.$cleanupStockDuplicates && window.$cleanupStockDuplicates(true)"
+        class="px-3 py-2 text-xs font-bold rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
+        title="หา stockLedger ที่ซ้ำกัน (เช่น import สร้าง SALES_OUT แล้วเซฟใหม่สร้าง ขายออก ซ้ำกัน)">
+        🧹 ล้าง Dup
       </button>
       <span class="ml-auto text-xs text-slate-500 bg-slate-100 px-3 py-1.5 rounded">📊 พบ <b>{{list.length}}</b> รายการ</span>
     </div>
