@@ -13181,23 +13181,23 @@ app.component('view-purchase', {
         <span class="ml-auto text-xs text-slate-500">📊 พบ <b class="text-slate-700">{{filtered.length}}</b> บิล</span>
       </div>
     </div>
-    <div class="bg-white rounded-xl shadow overflow-x-auto">
+    <div class="bg-white rounded-xl shadow overflow-auto max-h-[75vh]">
       <table class="w-full text-sm">
-        <thead class="bg-slate-100"><tr>
-          <th class="p-2 text-center w-8">
+        <thead class="bg-slate-100 sticky top-0 z-10 shadow-sm"><tr>
+          <th class="p-2 text-center w-8 bg-slate-100">
             <input type="checkbox" :checked="selectedBillIds.size > 0 && selectedBillIds.size === filtered.filter(b=>b.status!=='cancelled').length" @change="$event.target.checked ? selectAllBillsInFilter() : clearBillSelection()" title="เลือก/ล้างทั้งหมด">
           </th>
-          <th class="p-2 text-left">เลขที่</th>
-          <th class="p-2 text-left">เลขที่อ้างอิง</th>
-          <th class="p-2 text-left">วันที่</th>
-          <th class="p-2 text-left">Supplier</th>
-          <th class="p-2 text-left">สาขา</th>
-          <th class="p-2 text-right">ยอดรวม</th>
-          <th class="p-2 text-right">ค้างจ่าย</th>
-          <th class="p-2 text-center">สถานะ</th>
-          <th class="p-2 text-center">🧾 ใบกำกับภาษี</th>
-          <th class="p-2 text-left">👤 ผู้ทำ / ⏰ เวลา</th>
-          <th></th>
+          <th class="p-2 text-left bg-slate-100">เลขที่</th>
+          <th class="p-2 text-left bg-slate-100">เลขที่อ้างอิง</th>
+          <th class="p-2 text-left bg-slate-100">วันที่</th>
+          <th class="p-2 text-left bg-slate-100">Supplier</th>
+          <th class="p-2 text-left bg-slate-100">สาขา</th>
+          <th class="p-2 text-right bg-slate-100">ยอดรวม</th>
+          <th class="p-2 text-right bg-slate-100">ค้างจ่าย</th>
+          <th class="p-2 text-center bg-slate-100">สถานะ</th>
+          <th class="p-2 text-center bg-slate-100">🧾 ใบกำกับภาษี</th>
+          <th class="p-2 text-left bg-slate-100">👤 ผู้ทำ / ⏰ เวลา</th>
+          <th class="bg-slate-100"></th>
         </tr></thead>
         <tbody>
           <tr v-for="row in filtered" :key="row.id" class="border-t hover:bg-blue-50/30" :class="selectedBillIds.has(row.id)?'bg-rose-100':''">
@@ -16267,6 +16267,22 @@ app.component('view-sales', {
     const filterMatch = ref('');                    // 🆕 '' / 'matched' / 'unmatched' / 'partial'
     const filterDateFrom = ref('');
     const filterDateTo = ref('');
+    // 🆕 Filter กำไร — เช็คบิลที่ผิดปกติ ('' / 'no_cost' / 'high_margin' / 'low_margin' / 'loss' / 'opening')
+    const filterProfit = ref('');
+    // 🆕 Opening cutoff — บิลก่อนวันนี้ถือเป็น Opening (กำไรไม่ต้องนับ — รวมอยู่ใน opening balance แล้ว)
+    const openingCutoff = computed(() => {
+      const cd = (db.openingBalance && db.openingBalance.cutoffDate) || '';
+      return cd;   // YYYY-MM-DD or '' if not set
+    });
+    function isOpeningBill(b) {
+      const cd = openingCutoff.value;
+      if (!cd || !b || !b.date) return false;
+      return String(b.date) <= String(cd);
+    }
+    function displayProfit(b) {
+      if (!b) return 0;
+      return isOpeningBill(b) ? 0 : Number(b.grossProfit || 0);
+    }
 
     /* 🆕 matchStatus — คำนวณว่าบิลขายนี้มีต้นทุนครบไหม (Trading)
        - matched: ทุก trading item มี sourcePurchaseBillId
@@ -17011,6 +17027,19 @@ app.component('view-sales', {
             const ms = matchStatus(b);
             if (ms.kind !== filterMatch.value) return false;
           }
+          // 🆕 Profit filter — เช็คบิลผิดปกติ
+          if (filterProfit.value) {
+            if (b.status === 'cancelled') return false;
+            const cost = Number(b.totalCost||0);
+            const amt = Number(b.totalAmount||0);
+            const gp = Number(b.grossProfit||0);
+            const margin = amt > 0 ? (gp/amt*100) : 0;
+            if (filterProfit.value === 'no_cost' && cost > 0.001) return false;
+            if (filterProfit.value === 'opening' && !isOpeningBill(b)) return false;
+            if (filterProfit.value === 'high_margin' && (margin <= 50 || isOpeningBill(b))) return false;
+            if (filterProfit.value === 'low_margin' && (margin >= 5 || isOpeningBill(b))) return false;
+            if (filterProfit.value === 'loss' && (gp >= 0 || isOpeningBill(b))) return false;
+          }
           // 🔧 BUG FIX: ไม่ filter ออก ถ้า b.branchId ว่าง (Trading-only bills ไม่ต้องระบุสาขา)
           if (erp.currentBranchId.value && b.branchId && b.branchId !== erp.currentBranchId.value) return false;
           if (q) { const txt = ((b.docNo||'')+' '+(b.refNo||'')+' '+(erp.customerName(b.customerId)||'')+' '+(b.note||'')).toLowerCase(); if(!txt.includes(q)) return false; }
@@ -17309,6 +17338,7 @@ app.component('view-sales', {
 
     return { db, erp, form, showForm, editing, showDetail, search, filterStatus, filterChannel,
       filterMode, filterMatch, matchStatus, filterDateFrom, filterDateTo,
+      filterProfit, openingCutoff, isOpeningBill, displayProfit,   // 🆕 profit filter + opening
       open, save, addItem, removeItem, recalcLine, recalcAll, onItemSourceChange, onTradingPbChange, hasStockItem, cancelBill, deleteBill, filtered, statusBadge, statusText,
       loadFromPOSell, availableTradingPurchases, loadFromTradingPurchase, billTotals, toggleVatIssued, goToPendingSale, fmt:erp.fmt,
       addTradingPurchase, removeTradingPurchase,
@@ -17376,22 +17406,33 @@ app.component('view-sales', {
       <button @click="clearSalesSelection" class="px-3 py-1.5 border rounded text-xs hover:bg-slate-100">✕ ล้างเลือก</button>
     </div>
 
-    <div class="bg-white rounded-xl shadow overflow-x-auto">
+    <!-- 🆕 Profit filter chips — เช็คบิลผิดปกติ -->
+    <div class="flex flex-wrap gap-1 mb-2 items-center text-xs">
+      <span class="text-slate-500 mr-1">🔍 กรอง:</span>
+      <button @click="filterProfit=''" :class="['px-2 py-1 rounded font-bold', filterProfit===''?'bg-slate-700 text-white':'bg-slate-100 hover:bg-slate-200']">ทั้งหมด</button>
+      <button @click="filterProfit='no_cost'" :class="['px-2 py-1 rounded font-bold', filterProfit==='no_cost'?'bg-red-600 text-white':'bg-red-100 text-red-700 hover:bg-red-200']" title="บิลที่ totalCost = 0 (อาจต้อง recalc cost)">⚠ ไม่มีต้นทุน</button>
+      <button @click="filterProfit='loss'" :class="['px-2 py-1 rounded font-bold', filterProfit==='loss'?'bg-orange-600 text-white':'bg-orange-100 text-orange-700 hover:bg-orange-200']" title="กำไรติดลบ">📉 ขาดทุน</button>
+      <button @click="filterProfit='high_margin'" :class="['px-2 py-1 rounded font-bold', filterProfit==='high_margin'?'bg-amber-600 text-white':'bg-amber-100 text-amber-700 hover:bg-amber-200']" title="margin > 50% — อาจผิดปกติ">📈 กำไรสูงผิดปกติ (>50%)</button>
+      <button @click="filterProfit='low_margin'" :class="['px-2 py-1 rounded font-bold', filterProfit==='low_margin'?'bg-blue-600 text-white':'bg-blue-100 text-blue-700 hover:bg-blue-200']" title="margin < 5% — กำไรน้อย">💧 กำไรน้อย (&lt;5%)</button>
+      <button @click="filterProfit='opening'" :class="['px-2 py-1 rounded font-bold', filterProfit==='opening'?'bg-slate-600 text-white':'bg-slate-100 hover:bg-slate-200']" :title="'เฉพาะบิลก่อน '+openingCutoff+' — ไม่นับกำไร'">📅 Opening (≤{{openingCutoff||'-'}})</button>
+    </div>
+
+    <div class="bg-white rounded-xl shadow overflow-auto max-h-[75vh]">
       <table class="w-full text-sm table-zebra">
-        <thead class="bg-slate-100"><tr>
-          <th class="px-3 py-2 text-center w-8">
+        <thead class="bg-slate-100 sticky top-0 z-10 shadow-sm"><tr>
+          <th class="px-3 py-2 text-center w-8 bg-slate-100">
             <input type="checkbox" :checked="selectedSalesIds.size > 0 && selectedSalesIds.size === filtered.filter(b=>b.status!=='cancelled').length" @change="$event.target.checked ? selectAllSalesInFilter() : clearSalesSelection()" title="เลือก/ล้างทั้งหมด">
           </th>
-          <th class="px-3 py-2 text-left">เลขที่</th><th class="px-3 py-2 text-left">วันที่</th>
-          <th class="px-3 py-2 text-left">Customer</th>
-          <th class="px-3 py-2 text-center">🔗 ต้นทุน</th>
-          <th class="px-3 py-2 text-right">ยอดขาย</th>
-          <th class="px-3 py-2 text-right">กำไร</th>
-          <th class="px-3 py-2 text-right">ค้างรับ</th>
-          <th class="px-3 py-2 text-center">สถานะ</th>
-          <th class="px-3 py-2 text-center">🧾 ใบกำกับ</th>
-          <th class="px-3 py-2 text-left whitespace-nowrap">👤 ผู้ทำ</th>
-          <th></th>
+          <th class="px-3 py-2 text-left bg-slate-100">เลขที่</th><th class="px-3 py-2 text-left bg-slate-100">วันที่</th>
+          <th class="px-3 py-2 text-left bg-slate-100">Customer</th>
+          <th class="px-3 py-2 text-center bg-slate-100">🔗 ต้นทุน</th>
+          <th class="px-3 py-2 text-right bg-slate-100">ยอดขาย</th>
+          <th class="px-3 py-2 text-right bg-slate-100">กำไร</th>
+          <th class="px-3 py-2 text-right bg-slate-100">ค้างรับ</th>
+          <th class="px-3 py-2 text-center bg-slate-100">สถานะ</th>
+          <th class="px-3 py-2 text-center bg-slate-100">🧾 ใบกำกับ</th>
+          <th class="px-3 py-2 text-left whitespace-nowrap bg-slate-100">👤 ผู้ทำ</th>
+          <th class="bg-slate-100"></th>
         </tr></thead>
         <tbody>
           <tr v-for="b in filtered" :key="b.id" class="border-t hover:bg-blue-50/30" :class="selectedSalesIds.has(b.id)?'bg-rose-100':''">
@@ -17409,7 +17450,10 @@ app.component('view-sales', {
               <span v-else class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-500" title="STOCK ล้วน — ใช้ WAC">📦 STOCK</span>
             </td>
             <td class="px-3 py-2 text-right">{{fmt(b.totalAmount)}}</td>
-            <td class="px-3 py-2 text-right" :class="b.grossProfit>=0?'text-emerald-700 font-medium':'text-red-600 font-medium'">{{fmt(b.grossProfit)}}</td>
+            <td class="px-3 py-2 text-right" :class="isOpeningBill(b) ? 'text-slate-400' : (displayProfit(b)>=0?'text-emerald-700 font-medium':'text-red-600 font-medium')">
+              <span v-if="isOpeningBill(b)" :title="'Opening bill (≤ '+openingCutoff+') — กำไรอยู่ใน opening balance แล้ว'">0.00 <span class="text-[10px]">(Opening)</span></span>
+              <span v-else>{{fmt(displayProfit(b))}}</span>
+            </td>
             <td class="px-3 py-2 text-right text-amber-700">{{fmt(b.receivableBalance)}}</td>
             <td class="px-3 py-2 text-center"><span :class="['px-2 py-0.5 rounded-full text-xs', statusBadge(b.status)]">{{statusText(b.status)}}</span></td>
             <td class="px-3 py-2 text-center">
