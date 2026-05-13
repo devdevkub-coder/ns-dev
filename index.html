@@ -3766,6 +3766,74 @@ async function _purgeStockDuplicates(silent) {
   return { deleted: toDelete.length, beforeCount, afterCount: db.stockLedger.length, cloudOk, cloudFail };
 }
 
+/* 🆕 CLOUD-AWARE reconcile: ลบ local stockLedger rows ที่ cloud มี content เดียวกันแต่ id ต่าง
+   - เคส: หลังจาก _purgeStockDuplicates(local) แล้วยังเหลือ row local 1 ตัว แต่ cloud มี row content เดียวกัน id ต่าง
+   - แก้: ลบ local row + tombstone (cloud เป็น source of truth) — รอบ pull ถัดไป cloud row จะลง local เอง
+   - silent=true → ไม่ alert
+   - ใช้โดย auto-heal บน UNIQUE conflict ที่ persist
+*/
+async function _reconcileStockLedgerWithCloud(silent) {
+  if (!window.sb) return { deleted: 0, skipped: 'no cloud' };
+  const db = _GLOBAL_DB;
+  const all = Array.isArray(db.stockLedger) ? db.stockLedger : [];
+  if (!all.length) return { deleted: 0 };
+  // Pull cloud stock_ledger (เฉพาะ ref_type IN ('PB','SB'))
+  let cloudRows = [];
+  let from = 0;
+  const pageSize = 1000;
+  try {
+    while (true) {
+      const { data, error } = await window.sb.from('stock_ledger')
+        .select('id,ref_type,ref_no,product_id,lot_no,qty_in,qty_out')
+        .in('ref_type', ['PB','SB'])
+        .order('id', { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) { console.warn('[reconcile] pull error:', error.message); return { deleted: 0, error: error.message }; }
+      if (!data || data.length === 0) break;
+      cloudRows = cloudRows.concat(data);
+      if (data.length < pageSize) break;
+      from += pageSize;
+    }
+  } catch(e) {
+    console.warn('[reconcile] pull exception:', e.message);
+    return { deleted: 0, error: e.message };
+  }
+  // Build content-key → cloudId map
+  const cloudKeyToId = new Map();
+  cloudRows.forEach(r => {
+    if (!r || !r.ref_no || !['PB','SB'].includes(r.ref_type)) return;
+    const k = [
+      r.ref_type,
+      r.ref_no,
+      r.product_id||'',
+      r.lot_no||'',
+      Number(r.qty_in||0).toFixed(4),
+      Number(r.qty_out||0).toFixed(4),
+    ].join('|');
+    if (!cloudKeyToId.has(k)) cloudKeyToId.set(k, r.id);
+  });
+  // หา local rows ที่ content match cloud แต่ id ไม่เหมือน
+  const toDelete = [];
+  all.forEach(m => {
+    if (!m || !m.id || !m.refNo) return;
+    if (!['PB','SB'].includes(m.refType)) return;
+    const k = _stockLedgerContentKey(m);
+    const cloudId = cloudKeyToId.get(k);
+    if (cloudId && cloudId !== m.id) {
+      toDelete.push(m.id);
+    }
+  });
+  if (!toDelete.length) return { deleted: 0 };
+  // Tombstone + ลบ local (ไม่ลบ cloud — cloud เป็น truth)
+  try { window.$autoSync?.addTombstones?.('stockLedger', toDelete); } catch(e){}
+  const beforeCount = db.stockLedger.length;
+  const delSet = new Set(toDelete);
+  db.stockLedger = db.stockLedger.filter(m => !m || !delSet.has(m.id));
+  try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+  if (!silent) console.log(`[reconcile] ลบ local rows ที่ cloud มีแล้ว ${toDelete.length} แถว (local: ${beforeCount}→${db.stockLedger.length}) — รอ pull next cycle`);
+  return { deleted: toDelete.length, beforeCount, afterCount: db.stockLedger.length };
+}
+
 /* 🆕 SHARED helper: ลบ stockLedger orphans (บิลถูกลบไปแล้ว) แบบ silent
    - ใช้โดย auto-cleanup on boot
    - silent=true → ไม่ alert, ไม่ confirm
@@ -5692,19 +5760,37 @@ window.$erp = {
             // 🔧 BUG FIX 2: ต้อง abort ทั้ง for-loop ของ chunks ด้วย (ไม่ใช่แค่ while ของ retry)
             //   เพราะ mapped array ที่ build ก่อนหน้า cleanup ยังมี dups → chunks ถัดไปก็จะ fail อีก
             if (cfg.target === 'stock_ledger' && /stock_ledger.*dedup|dedup.*stock_ledger/i.test(constraintName)) {
-              _logErr(cfg.target, '⚠ UNIQUE conflict ('+constraintName+') — auto-cleaning local duplicates + abort push...');
+              _logErr(cfg.target, '⚠ UNIQUE conflict ('+constraintName+') — auto-healing...');
+              let localDeleted = 0, cloudDeleted = 0;
+              // 1. Local dedup ก่อน
               if (typeof _purgeStockDuplicates === 'function') {
                 try {
                   const r = await _purgeStockDuplicates(true);
-                  if (r && r.deleted > 0) {
-                    console.log(`%c🧹 [auto-heal] ลบ local stockLedger dups ${r.deleted} แถว — abort push, mark dirty ใหม่`, 'color:#7c3aed;font-weight:bold');
+                  localDeleted = r?.deleted || 0;
+                  if (localDeleted > 0) {
+                    console.log(`%c🧹 [auto-heal] ลบ local dups ${localDeleted} แถว`, 'color:#7c3aed;font-weight:bold');
                   }
-                } catch(eHeal) { console.warn('[auto-heal dedup]', eHeal); }
+                } catch(eHeal) { console.warn('[auto-heal local]', eHeal); }
               }
-              // Mark dirty เพื่อให้ push cycle ถัดไป retry กับ data ที่ clean แล้ว
-              try { dirtyTables.add(localKey); } catch(e){}
+              // 2. ถ้า local cleanup ลบ 0 แถว → content conflict ระดับ cloud (cloud มี id ต่าง content เดียวกัน)
+              //    → reconcile กับ cloud: ลบ local rows ที่ cloud มีแล้ว
+              if (localDeleted === 0 && typeof _reconcileStockLedgerWithCloud === 'function') {
+                try {
+                  const r2 = await _reconcileStockLedgerWithCloud(true);
+                  cloudDeleted = r2?.deleted || 0;
+                  if (cloudDeleted > 0) {
+                    console.log(`%c🔄 [auto-heal] reconcile cloud: ลบ local ${cloudDeleted} แถว (cloud มีแล้ว, id ต่าง) — รอ pull รอบถัดไป`, 'color:#0ea5e9;font-weight:bold');
+                  } else {
+                    console.warn(`[auto-heal] reconcile หา 0 — push จะหยุด retry, รอ user แก้ด้วยตัวเอง`);
+                  }
+                } catch(eRec) { console.warn('[auto-heal reconcile]', eRec); }
+              }
+              // 3. Mark dirty เพื่อ retry รอบถัดไป (เฉพาะถ้ามีการลบจริง)
+              if (localDeleted > 0 || cloudDeleted > 0) {
+                try { dirtyTables.add(localKey); } catch(e){}
+              }
               fail += chunk.length;
-              // 🆕 throw special flag เพื่อให้ outer for-loop หยุดทันที (ไม่ push chunks ที่เหลือ)
+              // abort outer for-loop ทันที
               throw new Error('__ABORT_STOCK_LEDGER_AUTOHEAL__');
             }
             _logErr(cfg.target, '⚠ UNIQUE conflict ('+constraintName+') — รัน supabase-fix-docno-unique.sql หรือแก้ docNo ซ้ำ');
