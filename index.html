@@ -93,9 +93,14 @@
       ระบบกำลัง pull ข้อมูลล่าสุดจาก Supabase<br>
       <span class="text-xs text-slate-500">(ไม่ใช้ default data — รอจน sync เสร็จเพื่อกัน data ทับ)</span>
     </p>
-    <div class="text-xs text-amber-700 bg-amber-50 rounded p-2">
-      💡 ถ้าค้างเกิน 30 วินาที — ตรวจอินเทอร์เน็ตหรือ Supabase connection
+    <div class="text-xs text-amber-700 bg-amber-50 rounded p-2 mb-3">
+      💡 ถ้าค้างเกิน 10 วินาที — ระบบจะ skip อัตโนมัติให้ใช้งานต่อได้ (offline mode)
     </div>
+    <!-- 🆕 ปุ่ม Skip — ให้ user ปลดล็อกเอง -->
+    <button @click="db._needsCloudCheck = false; if(window.$autoSync){window.$autoSync.pushNow()}"
+      class="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-bold hover:bg-amber-700">
+      ⏭ Skip & Continue (Offline)
+    </button>
   </div>
 </div>
 
@@ -3221,6 +3226,15 @@ function loadDB() {
     d._seedLoadedAt = new Date().toISOString();
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); } catch(e){}
     console.warn('[loadDB] ⚠ localStorage ว่าง — load seed (PUSH BLOCKED). รอ pull cloud ก่อน');
+    // 🆕 2026-05-14 TIMEOUT: หลัง 10 วิ ถ้ายัง _needsCloudCheck = true → auto-clear
+    //   กัน user ค้างหน้า "กำลังโหลดจาก Cloud..." ไปตลอด
+    setTimeout(() => {
+      if (_GLOBAL_DB && _GLOBAL_DB._needsCloudCheck === true) {
+        console.warn('[loadDB] ⏰ pull cloud timeout 10s — auto-skip → continue offline mode');
+        _GLOBAL_DB._needsCloudCheck = false;
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(_GLOBAL_DB)); } catch(e){}
+      }
+    }, 10000);
     return d;
   }
   try {
