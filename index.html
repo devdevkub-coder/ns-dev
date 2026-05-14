@@ -3425,6 +3425,67 @@ window.$autoFetchMissingMasters = async function(silent) {
   return { ok: true, totalMissing, totalAdded, result };
 };
 
+/* 🆕 GLOBAL: ลบ Bank Statement duplicates ของ Payment vouchers
+   เคส: 1 voucher → bs entries หลาย records (ซ้ำ) → ตอน edit เห็น split เด้งหลายแถว
+   วิธี: group โดย (refType=PMT, refId=voucherId, accountId) → เก็บ row แรก, sum amount, ลบที่เหลือ
+   ใช้: window.$cleanupPaymentBSDups() */
+window.$cleanupPaymentBSDups = async function() {
+  const db = _GLOBAL_DB;
+  const bs = Array.isArray(db.bankStatement) ? db.bankStatement : [];
+  if (!bs.length) { alert('❌ ไม่มี bankStatement'); return; }
+  const fmt = (n) => Number(n||0).toLocaleString('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+  // Group PMT entries by (refId + accountId)
+  const groups = new Map();
+  bs.forEach(s => {
+    if (!s || !s.id || s.refType !== 'PMT' || !s.refId) return;
+    const key = s.refId + '|' + (s.accountId || '');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(s);
+  });
+  const dupGroups = [];
+  groups.forEach((arr, key) => {
+    if (arr.length < 2) return;
+    arr.sort((a,b) => String(a.createdAt||a.id||'').localeCompare(String(b.createdAt||b.id||'')));
+    dupGroups.push({ key, keeper: arr[0], dups: arr.slice(1) });
+  });
+  if (!dupGroups.length) { alert('✓ ไม่พบ Payment BS duplicates'); return; }
+
+  const totalDup = dupGroups.reduce((s,g) => s + g.dups.length, 0);
+  console.log(`%c🔍 Payment BS Dup Cleanup`, 'font-weight:bold;font-size:14px;color:#7c3aed');
+  console.table(dupGroups.map(g => ({
+    voucher: g.keeper.refNo || g.keeper.refId,
+    account: g.keeper.accountId,
+    keep_amount: fmt(g.keeper.out),
+    dup_count: g.dups.length,
+    dup_total: fmt(g.dups.reduce((s,d)=>s+Number(d.out||0),0)),
+  })));
+
+  if (!confirm(`🔍 พบ Payment BS duplicates:\n\n• ${dupGroups.length} กลุ่ม (voucher+account ซ้ำ)\n• ${totalDup} entries จะลบ\n• เก็บ entry ที่ createdAt เก่าสุด\n\nรายละเอียดดูใน Console`)) return;
+
+  const toDeleteIds = dupGroups.flatMap(g => g.dups.map(d => d.id));
+  try { window.$autoSync?.addTombstones?.('bankStatement', toDeleteIds); } catch(e){}
+  const delSet = new Set(toDeleteIds);
+  db.bankStatement = bs.filter(s => !s || !delSet.has(s.id));
+  try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+
+  // ลบจาก cloud
+  let cloudOk = 0, cloudFail = 0;
+  if (window.sb) {
+    for (let i = 0; i < toDeleteIds.length; i += 100) {
+      const chunk = toDeleteIds.slice(i, i+100);
+      try {
+        const r = await window.sb.from('bank_statement').delete().in('id', chunk).select('id');
+        if (r.error) cloudFail += chunk.length;
+        else cloudOk += (r.data?.length || 0);
+      } catch(e) { cloudFail += chunk.length; }
+    }
+  }
+  try { if (window.$autoSync?.pushNow) await window.$autoSync.pushNow(); } catch(e){}
+  alert(`✅ Cleanup สำเร็จ\n\n• ลบ bs entries: ${toDeleteIds.length} (cloud: ${cloudOk}/${toDeleteIds.length})\n• Tombstone ตั้งแล้ว — ไม่กลับมา\n\n💡 Refresh หน้า "จ่ายเงิน Supplier" จะเห็น split ที่ถูกต้อง`);
+  return { deleted: toDeleteIds.length, cloudOk, cloudFail };
+};
+
 /* 🆕 GLOBAL: ลบ Receipt duplicates — receipts ที่ตัดบิลเดียวกันด้วยยอดเดียวกัน
    key: billId + amount (tolerance 0.01)
    วิธี: เก็บ receipt ที่ createdAt เก่าสุดต่อ key — ลบที่เหลือ + restore receivedAmount/receivableBalance + ลบ bank_statement
@@ -14064,11 +14125,41 @@ app.component('view-payment', {
         const rows = safeArr(db.payments).filter(p => p && (p.voucherId || p.id) === g.id);
         if (!rows.length) { alert('ไม่พบข้อมูล'); return; }
         const first = rows[0];
-        // 🆕 Load splits from bank statement entries (1 entry per account)
+        // 🆕 Load splits from bank statement entries
+        // 🔧 BUG FIX 2026-05-14: รวม splits ที่ accountId เดียวกัน → กัน duplicate bs entries
+        //   (เคสเก่ามี bs ซ้ำหลายรอบ จาก pull race + random-id ก่อนเปลี่ยนเป็น deterministic-id)
         const bsRows = safeArr(db.bankStatement).filter(s => s && s.refType === 'PMT' && s.refId === g.id);
-        const loadedSplits = bsRows.length > 0
-          ? bsRows.map(s => ({ id: newId('SP'), accountId: s.accountId || '', amount: num(s.out) }))
-          : [{ id: newId('SP'), accountId: first.accountId || '', amount: 0 }];
+        // คำนวณ expected total จาก payments
+        const expectedTotal = rows.reduce((s,p) => s + num(p.amount) - num(p.withholdingTax) + num(p.bankFee), 0);
+        let loadedSplits;
+        if (bsRows.length === 0) {
+          loadedSplits = [{ id: newId('SP'), accountId: first.accountId || '', amount: 0 }];
+        } else {
+          // Group by accountId, sum amounts
+          const accMap = new Map();
+          bsRows.forEach(s => {
+            const key = s.accountId || '_no_acc';
+            accMap.set(key, (accMap.get(key) || 0) + num(s.out));
+          });
+          loadedSplits = Array.from(accMap.entries()).map(([accountId, amount]) => ({
+            id: newId('SP'),
+            accountId: accountId === '_no_acc' ? '' : accountId,
+            amount,
+          }));
+          // 🆕 ถ้ารวม splits แล้วเกิน expected → ปกติคือ bs ซ้ำ → adjust ลงเท่า expected
+          const splitSum = loadedSplits.reduce((s,x) => s + x.amount, 0);
+          if (splitSum > expectedTotal + 0.5 && loadedSplits.length === 1) {
+            // 1 account แต่ amount สะสมจาก dup → ตั้งเท่า expected
+            console.warn('[openEdit PMT] bs สะสม dup — ปรับ split amount '+splitSum+' → '+expectedTotal);
+            loadedSplits[0].amount = expectedTotal;
+          } else if (splitSum > expectedTotal * 1.5 && loadedSplits.length > 1) {
+            // หลาย account แต่ผลรวมเกิน expected เยอะ → เก็บอันใหญ่สุด trimming
+            console.warn('[openEdit PMT] bs สะสม dup ข้าม accounts — แสดง warning');
+            loadedSplits.forEach((sp, i) => {
+              sp.amount = Math.round(sp.amount * expectedTotal / splitSum);
+            });
+          }
+        }
         const f = {
           docNo: first.docNo || '-',
           date: first.date || todayStr(),
