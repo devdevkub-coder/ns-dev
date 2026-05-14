@@ -3399,6 +3399,60 @@ window.$autoFetchMissingMasters = async function(silent) {
   return { ok: true, totalMissing, totalAdded, result };
 };
 
+/* 🆕 GLOBAL: ลบ Trading Deal duplicates — same (purchaseBillId + salesBillId) เกิน 1
+   เกิดจาก bug ก่อนที่ทุก save สร้าง deal ใหม่ — ตอน edit เลยเด้งซ้ำ
+   วิธี: เก็บ deal ที่ updatedAt/createdAt ใหม่สุดต่อ key (pb+sb) — ที่เหลือ Cancel
+   ใช้: window.$cleanupTradingDealDups([dryRun=true]) */
+window.$cleanupTradingDealDups = async function(dryRun) {
+  if (dryRun !== false) dryRun = true;
+  const db = _GLOBAL_DB;
+  const deals = Array.isArray(db.tradingDeals) ? db.tradingDeals : [];
+  if (!deals.length) { alert('❌ ไม่มี tradingDeals'); return; }
+  const fmt = (n) => Number(n||0).toLocaleString('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+  const groups = new Map();
+  deals.forEach(d => {
+    if (!d || d.status === 'Cancelled' || d.status === 'cancelled') return;
+    if (!d.purchaseBillId || !d.salesBillId) return;
+    const key = d.purchaseBillId + '|' + d.salesBillId;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(d);
+  });
+  const dupGroups = [];
+  groups.forEach((arr, key) => {
+    if (arr.length < 2) return;
+    arr.sort((a,b) => String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')));
+    dupGroups.push({ key, keeper: arr[0], cancel: arr.slice(1) });
+  });
+  if (!dupGroups.length) { alert('✓ ไม่มี Trading Deal duplicates'); return; }
+  const totalCancel = dupGroups.reduce((s,g) => s + g.cancel.length, 0);
+  console.log(`%c🔍 Trading Deal Dup Cleanup`, 'font-weight:bold;font-size:14px;color:#7c3aed');
+  console.table(dupGroups.flatMap(g => g.cancel.map(c => ({
+    dealNo: c.dealNo, pb: c.purchaseBillNo, sb: c.salesBillNo,
+    keep: g.keeper.dealNo, keepGP: fmt(Number(g.keeper.matchedSalesAmount||0) - Number(g.keeper.matchedPurchaseAmount||0)),
+  }))));
+  if (dryRun) {
+    const ans = confirm(`🔍 พบ Trading Deal duplicates:\n\n` +
+      `• ${dupGroups.length} กลุ่ม (pb+sb เดียวกัน มี deal เกิน 1)\n` +
+      `• ${totalCancel} deals จะถูก Cancel (เก็บ deal ที่ updatedAt ล่าสุด)\n\n` +
+      `รายละเอียดดูใน Console (F12)\n\nกด OK เพื่อ Cancel จริง`);
+    if (!ans) return { totalCancel, dupGroups, dryRun: true };
+  }
+  const nowIso = new Date().toISOString();
+  dupGroups.forEach(g => {
+    g.cancel.forEach(d => {
+      d.status = 'Cancelled';
+      d.cancelledAt = nowIso;
+      d.cancelledReason = 'Auto-cleanup duplicate (same pb+sb)';
+      d.updatedAt = nowIso;
+    });
+  });
+  try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+  try { if (window.$autoSync?.pushTable) await window.$autoSync.pushTable('tradingDeals'); } catch(e){}
+  alert(`✅ Cleanup สำเร็จ\n\n• Cancel: ${totalCancel} deals\n• Keep: ${dupGroups.length} deals (ใหม่สุด)\n\npush cloud แล้ว`);
+  return { cancelled: totalCancel, dupGroups };
+};
+
 /* 🆕 GLOBAL: Restore from pre-reset auto-backup
    ใช้กรณี: เผลอกด Reset Demo → ข้อมูลหาย → recover จาก auto-backup
    ใช้: window.$restoreFromPreResetBackup()  — list backups available
@@ -14659,12 +14713,23 @@ app.component('view-receipt', {
         safeArr(db.receipts).forEach(r => {
           if (!r) return;
           const vid = r.voucherId || r.id || 'unk';
-          if (!groups[vid]) groups[vid] = { id:vid, docNo:r.docNo||'-', date:r.date||'', customerId:r.customerId||'', accountId:r.accountId||'', method:r.method||'-', count:0, total:0 };
-          groups[vid].count++; groups[vid].total += num(r.amount);
+          if (!groups[vid]) groups[vid] = { id:vid, docNo:r.docNo||'-', date:r.date||'', customerId:r.customerId||'', accountId:r.accountId||'', method:r.method||'-', count:0, total:0, billDocs:[] };
+          groups[vid].count++;
+          groups[vid].total += num(r.amount);
+          // 🆕 เก็บเลขบิลที่ allocate ใน voucher นี้
+          const bill = safeArr(db.salesBills).find(b => b && b.id === r.billId);
+          const billNo = bill?.docNo || r.billDocNo || '-';
+          const billAmt = num(r.amount) + num(r.withholdingTax) + num(r.discount);
+          groups[vid].billDocs.push({ docNo: billNo, amount: billAmt, billId: r.billId });
         });
         const arr = Object.values(groups);
         const q = (search.value||'').toLowerCase();
-        return arr.filter(g => !q || ((g.docNo||'')+' '+(erp.customerName(g.customerId)||'')).toLowerCase().includes(q))
+        return arr.filter(g => {
+          if (!q) return true;
+          // ค้นเจอใน docNo / customer / billDocs
+          const text = (g.docNo||'')+' '+(erp.customerName(g.customerId)||'')+' '+(g.billDocs||[]).map(b => b.docNo).join(' ');
+          return text.toLowerCase().includes(q);
+        })
                   .filter(g => !filterDateFrom.value || (g.date||'') >= filterDateFrom.value)
                   .filter(g => !filterDateTo.value || (g.date||'') <= filterDateTo.value)
                   .filter(g => !filterAccount.value || g.accountId === filterAccount.value)
@@ -14884,19 +14949,35 @@ app.component('view-receipt', {
         <span class="bg-blue-50 rounded px-2 py-1">💰 รวมยอด <b class="text-blue-700">{{fmt(list.reduce((s,g)=>s+g.total,0))}}</b> บาท</span>
       </div>
     </div>
-    <div class="bg-white rounded-xl shadow overflow-x-auto">
+    <div class="bg-white rounded-xl shadow overflow-auto max-h-[70vh]">
       <table class="w-full text-sm">
-        <thead class="bg-slate-100"><tr><th class="p-2 text-left">เลขที่</th><th class="p-2 text-left">วันที่</th><th class="p-2 text-left">Customer</th><th class="p-2 text-left">บัญชี</th><th class="p-2 text-left">วิธี</th><th class="p-2 text-right">รายการ</th><th class="p-2 text-right">ยอดรวม</th><th></th></tr></thead>
+        <thead class="bg-slate-100 sticky top-0 z-10 shadow-sm"><tr>
+          <th class="p-2 text-left bg-slate-100">เลขที่</th>
+          <th class="p-2 text-left bg-slate-100">วันที่</th>
+          <th class="p-2 text-left bg-slate-100">Customer</th>
+          <th class="p-2 text-left bg-slate-100">🧾 ตัดบิล</th>
+          <th class="p-2 text-left bg-slate-100">บัญชี</th>
+          <th class="p-2 text-left bg-slate-100">วิธี</th>
+          <th class="p-2 text-right bg-slate-100">ยอดรวม</th>
+          <th class="bg-slate-100"></th>
+        </tr></thead>
         <tbody>
-          <tr v-for="g in list" :key="g.id" class="border-t">
-            <td class="p-2 font-mono">{{g.docNo}}</td>
-            <td class="p-2">{{g.date}}</td>
-            <td class="p-2">{{erp.customerName(g.customerId)}}</td>
-            <td class="p-2">{{erp.accountName(g.accountId)}}</td>
-            <td class="p-2">{{g.method}}</td>
-            <td class="p-2 text-right">{{g.count}}</td>
-            <td class="p-2 text-right text-emerald-600 font-medium">{{fmt(g.total)}}</td>
-            <td class="p-2 text-right whitespace-nowrap">
+          <tr v-for="g in list" :key="g.id" class="border-t hover:bg-emerald-50/30">
+            <td class="p-2 font-mono align-top">{{g.docNo}}</td>
+            <td class="p-2 align-top">{{g.date}}</td>
+            <td class="p-2 align-top">{{erp.customerName(g.customerId)}}</td>
+            <td class="p-2 align-top">
+              <!-- 🆕 รายการบิลที่ตัด — แสดง docNo + ยอด -->
+              <div class="flex flex-col gap-0.5 text-xs">
+                <div v-for="(bd, i) in g.billDocs" :key="i" class="font-mono text-blue-700 whitespace-nowrap" :title="'ตัด '+fmt(bd.amount)+' บาท'">
+                  <span class="text-slate-400">{{i+1}}.</span> {{bd.docNo}} <span class="text-slate-500">· {{fmt(bd.amount)}}</span>
+                </div>
+              </div>
+            </td>
+            <td class="p-2 align-top">{{erp.accountName(g.accountId)}}</td>
+            <td class="p-2 align-top">{{g.method}}</td>
+            <td class="p-2 text-right text-emerald-600 font-medium align-top">{{fmt(g.total)}}</td>
+            <td class="p-2 text-right whitespace-nowrap align-top">
               <button @click="openEdit(g)" class="text-blue-600 text-xs hover:underline mr-2">✏️ แก้</button>
               <button @click="remove(g)" class="text-red-600 text-xs hover:underline">🗑 ลบ</button>
             </td>
@@ -17041,11 +17122,35 @@ app.component('view-sales', {
             // รวมต้นทุนทั้งหมดในบิลขาย (ใช้คำนวณ proportional sales allocation)
             const totalCostInBill = (bill.items||[]).reduce((s,it)=>s+Number(it.tradingCostAmount||it.totalCost||0),0) || 1;
             const dealsCreated = [];
+            const dealsUpdated = [];
+            // 🆕 2026-05-13 BUG FIX: เช็ค deal เดิมก่อน — ถ้ามีให้ UPDATE, ไม่ใช่ push ใหม่ → กัน duplicate ตอน edit
+            const existingDealsByPbId = new Map();
+            (db.tradingDeals||[]).forEach(d => {
+              if (!d || d.status === 'Cancelled' || d.salesBillId !== bill.id) return;
+              if (!existingDealsByPbId.has(d.purchaseBillId)) {
+                existingDealsByPbId.set(d.purchaseBillId, d);
+              }
+            });
+            // 🆕 Cancel deals ของ PB ที่ user เอาออกจากบิลขายแล้ว
+            const currentPbIdSet = new Set(pbIds);
+            (db.tradingDeals||[]).forEach(d => {
+              if (!d || d.salesBillId !== bill.id) return;
+              if (d.status === 'Cancelled') return;
+              if (!currentPbIdSet.has(d.purchaseBillId)) {
+                d.status = 'Cancelled';
+                d.cancelledAt = new Date().toISOString();
+                d.cancelledReason = 'PB removed from sales bill on edit';
+                d.updatedAt = new Date().toISOString();
+              }
+            });
             pbIds.forEach((pid, idx) => {
               const pb = db.purchaseBills.find(p => p && p.id === pid);
               if (!pb) return;
               const pbExVat = Number(pb.subtotal != null ? pb.subtotal : pb.totalAmount || 0);
-              const remainPB = pbExVat - erp.tradingMatchedSales(pb.id);
+              // 🔧 ตอน edit: หัก matched ของ deal เดิม (บิลตัวเอง) ออก → กัน double count
+              const existingDeal = existingDealsByPbId.get(pid);
+              const existingMatchedFromThisBill = existingDeal ? Number(existingDeal.matchedPurchaseAmount || 0) : 0;
+              const remainPB = pbExVat - (erp.tradingMatchedSales(pb.id) - existingMatchedFromThisBill);
               // items ที่มาจาก PB นี้
               const itemsFromPB = (bill.items||[]).filter(it => it.sourcePurchaseBillId === pb.id);
               const matchedQty = itemsFromPB.reduce((s,it)=>s+Number(it.weight||0),0);
@@ -17068,30 +17173,51 @@ app.component('view-sales', {
               // matchedSales: proportional ตามสัดส่วนต้นทุน
               const matchedSales = sbExVat * (matchedCost / totalCostInBill);
               const actualMatchCost = Math.min(matchedCost, remainPB);
-              const dealNo = 'TD-'+new Date().toISOString().slice(2,10).replace(/-/g,'')+'-'+String((db.tradingDeals||[]).length+1+idx).padStart(4,'0');
-              const newPBMatched = erp.tradingMatchedSales(pb.id) + actualMatchCost;
+              const newPBMatched = (erp.tradingMatchedSales(pb.id) - existingMatchedFromThisBill) + actualMatchCost;
               const pbFully = Math.abs(newPBMatched - pbExVat) < 0.01;
               const status = pbFully ? 'Completed' : 'Partially Matched';
-              db.tradingDeals.push({
-                id: 'TDEAL-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,5)+'-'+idx,
-                dealNo, date: bill.date,
-                purchaseBillId: pb.id, purchaseBillNo: pb.docNo,
-                salesBillId: bill.id, salesBillNo: bill.docNo,
-                productId: pb.items?.[0]?.productId || itemsFromPB[0]?.productId || '',
-                supplierId: pb.supplierId, customerId: bill.customerId,
-                matchedQty, matchedPurchaseAmount: actualMatchCost, matchedSalesAmount: matchedSales,
-                exVat: true,
-                notes: pbIds.length > 1 ? 'Auto-matched (รวม '+pbIds.length+' บิลซื้อ → 1 บิลขาย) — ก่อน VAT' : 'Auto-matched on save — ก่อน VAT',
-                status, autoCreated: true,
-                createdBy: bill.createdBy, createdAt: new Date().toISOString(),
-              });
-              dealsCreated.push(dealNo);
-              erp.logAudit('TRADING_AUTO_MATCH','tradingDeals',null,{dealNo, gp: matchedSales-actualMatchCost, exVat:true, multiPB: pbIds.length>1});
+
+              if (existingDeal) {
+                // 🆕 UPDATE existing deal — ไม่ push ใหม่
+                existingDeal.matchedQty = matchedQty;
+                existingDeal.matchedPurchaseAmount = actualMatchCost;
+                existingDeal.matchedSalesAmount = matchedSales;
+                existingDeal.status = status;
+                existingDeal.productId = pb.items?.[0]?.productId || itemsFromPB[0]?.productId || existingDeal.productId;
+                existingDeal.supplierId = pb.supplierId;
+                existingDeal.customerId = bill.customerId;
+                existingDeal.purchaseBillNo = pb.docNo;
+                existingDeal.salesBillNo = bill.docNo;
+                existingDeal.date = bill.date;
+                existingDeal.updatedAt = new Date().toISOString();
+                existingDeal.notes = (existingDeal.notes || '') + ' [updated on edit '+new Date().toISOString().slice(0,10)+']';
+                dealsUpdated.push(existingDeal.dealNo);
+                erp.logAudit('TRADING_DEAL_UPDATE','tradingDeals',null,{dealNo: existingDeal.dealNo, gp: matchedSales-actualMatchCost});
+              } else {
+                // Create new deal
+                const dealNo = 'TD-'+new Date().toISOString().slice(2,10).replace(/-/g,'')+'-'+String((db.tradingDeals||[]).length+1+idx).padStart(4,'0');
+                db.tradingDeals.push({
+                  id: 'TDEAL-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,5)+'-'+idx,
+                  dealNo, date: bill.date,
+                  purchaseBillId: pb.id, purchaseBillNo: pb.docNo,
+                  salesBillId: bill.id, salesBillNo: bill.docNo,
+                  productId: pb.items?.[0]?.productId || itemsFromPB[0]?.productId || '',
+                  supplierId: pb.supplierId, customerId: bill.customerId,
+                  matchedQty, matchedPurchaseAmount: actualMatchCost, matchedSalesAmount: matchedSales,
+                  exVat: true,
+                  notes: pbIds.length > 1 ? 'Auto-matched (รวม '+pbIds.length+' บิลซื้อ → 1 บิลขาย) — ก่อน VAT' : 'Auto-matched on save — ก่อน VAT',
+                  status, autoCreated: true,
+                  createdBy: bill.createdBy, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+                });
+                dealsCreated.push(dealNo);
+                erp.logAudit('TRADING_AUTO_MATCH','tradingDeals',null,{dealNo, gp: matchedSales-actualMatchCost, exVat:true, multiPB: pbIds.length>1});
+              }
             });
-            if (dealsCreated.length > 0) {
-              const msg = dealsCreated.length === 1
-                ? '✓ บันทึกบิลขาย + Auto-Match Trading Deal: '+dealsCreated[0]+' (ก่อน VAT)'
-                : '✓ บันทึกบิลขาย + Auto-Match '+dealsCreated.length+' Trading Deals (รวม '+pbIds.length+' บิลซื้อ → 1 บิลขาย)';
+            if (dealsCreated.length > 0 || dealsUpdated.length > 0) {
+              const parts = [];
+              if (dealsCreated.length > 0) parts.push('สร้างใหม่ '+dealsCreated.length+' deal');
+              if (dealsUpdated.length > 0) parts.push('อัปเดต '+dealsUpdated.length+' deal');
+              const msg = '✓ บันทึกบิลขาย + Trading: '+parts.join(' + ');
               erp.showToast(msg,'success');
             }
           } catch(e) { console.error('auto-match:', e); }
@@ -17617,12 +17743,14 @@ app.component('view-sales', {
             </td>
             <td class="px-3 py-2 text-right text-amber-700">{{fmt(b.receivableBalance)}}</td>
             <td class="px-3 py-2 text-center"><span :class="['px-2 py-0.5 rounded-full text-xs', statusBadge(b.status)]">{{statusText(b.status)}}</span></td>
-            <td class="px-3 py-2 text-center">
-              <button v-if="b.hasVat" @click="toggleVatIssued(b)" :class="['px-2 py-0.5 rounded text-xs font-medium hover:opacity-80', b.vatInvoiceIssued?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700']">
-                {{b.vatInvoiceIssued?'✓ ออกแล้ว':'⏳ ยังไม่ออก'}}
-                <span v-if="b.vatInvoiceIssued && b.vatInvoiceNo" class="text-slate-500"> · {{b.vatInvoiceNo}}</span>
+            <td class="px-2 py-1 text-center whitespace-nowrap">
+              <!-- 🆕 compact: icon-only เมื่อยังไม่ออก, แสดงเลขเล็กๆ เมื่อออกแล้ว -->
+              <button v-if="b.hasVat" @click="toggleVatIssued(b)" :class="['px-1.5 py-0.5 rounded text-[11px] font-medium hover:opacity-80', b.vatInvoiceIssued?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700']"
+                :title="b.vatInvoiceIssued?('ออก: '+(b.vatInvoiceNo||'-')):'คลิกเพื่อออกใบกำกับภาษี'">
+                {{b.vatInvoiceIssued?'✓':'⏳'}}
+                <span v-if="b.vatInvoiceIssued && b.vatInvoiceNo" class="text-[10px] text-slate-500">{{b.vatInvoiceNo}}</span>
               </button>
-              <span v-else class="text-xs text-slate-400">No VAT</span>
+              <span v-else class="text-[10px] text-slate-400">—</span>
             </td>
             <!-- 🆕 compact: 1 บรรทัด -->
             <td class="px-2 py-2 text-[11px] whitespace-nowrap">
@@ -17630,16 +17758,21 @@ app.component('view-sales', {
               <div class="text-[10px] text-slate-500" :title="b.createdAt||''">{{b.createdAt?String(b.createdAt).slice(2,10).replace('-','/'):'-'}}</div>
               <div v-if="b.updatedAt" class="text-[10px] text-amber-700" :title="'แก้: '+(b.updatedAt||'')+(b.updatedBy?' โดย '+b.updatedBy:'')">✏️ {{String(b.updatedAt).slice(5,10).replace('-','/')}}</div>
             </td>
-            <td class="px-3 py-2 text-right whitespace-nowrap">
-              <button @click="showDetail=b" class="text-blue-600 text-xs hover:underline mr-2">ดู</button>
-              <button @click="erp.printDocument('delivery', b.id)" class="text-emerald-600 text-xs hover:underline mr-2" title="พิมพ์ใบส่งของ">🖨 ใบส่ง</button>
-              <button @click="open(b)" class="text-slate-600 text-xs hover:underline mr-2">✏️ แก้</button>
-              <button v-if="b.status!=='cancelled' && b.transactionMode!=='TRADING'" @click="recalcProfitOne(b)" class="text-amber-600 text-xs hover:underline mr-2" title="คำนวนกำไรใหม่จาก WAC ปัจจุบัน">🔄 Recalc</button>
-              <!-- 🆕 ปุ่ม ยกเลิก Receipts — โผล่เฉพาะบิลที่มี receipt — ช่วยปลดล็อกบิลให้แก้/ลบได้ -->
-              <button v-if="billReceiptCount(b) > 0" @click="cancelAllReceiptsForBill(b)" class="text-purple-600 text-xs hover:underline mr-2 font-bold"
-                :title="'ยกเลิก '+billReceiptCount(b)+' receipts ของบิลนี้ → แก้/ลบบิลได้'">💸 ยกเลิกรับเงิน ({{billReceiptCount(b)}})</button>
-              <button v-if="b.status!=='cancelled'" @click="cancelBill(b)" class="text-amber-600 text-xs hover:underline mr-2">ยกเลิก</button>
-              <button @click="deleteBill(b)" class="text-red-600 text-xs hover:underline">🗑 ลบ</button>
+            <td class="px-2 py-1 text-xs whitespace-nowrap">
+              <!-- 🆕 Layout: actions 2 แถว — แถว 1: View/Print/Edit · แถว 2: Recalc/Cancel-Rcv/Cancel/Delete -->
+              <div class="flex flex-col gap-0.5">
+                <div class="flex gap-1.5 items-center">
+                  <button @click="showDetail=b" class="text-blue-600 hover:underline" title="ดูรายละเอียดบิล">👁 ดู</button>
+                  <button @click="erp.printDocument('delivery', b.id)" class="text-emerald-600 hover:underline" title="พิมพ์ใบส่งของ">🖨</button>
+                  <button @click="open(b)" class="text-slate-600 hover:underline" title="แก้บิล">✏️</button>
+                </div>
+                <div class="flex gap-1.5 items-center">
+                  <button v-if="b.status!=='cancelled' && b.transactionMode!=='TRADING'" @click="recalcProfitOne(b)" class="text-amber-600 hover:underline" title="คำนวนกำไรใหม่จาก WAC">🔄</button>
+                  <button v-if="billReceiptCount(b) > 0" @click="cancelAllReceiptsForBill(b)" class="text-purple-600 hover:underline font-bold" :title="'ยกเลิก '+billReceiptCount(b)+' receipts'">💸{{billReceiptCount(b)}}</button>
+                  <button v-if="b.status!=='cancelled'" @click="cancelBill(b)" class="text-amber-700 hover:underline" title="ยกเลิกบิล (status=cancelled)">⊘</button>
+                  <button @click="deleteBill(b)" class="text-red-600 hover:underline" title="ลบบิลถาวร">🗑</button>
+                </div>
+              </div>
             </td>
           </tr>
           <tr v-if="filtered.length===0"><td colspan="12" class="text-center py-10 text-slate-400">ยังไม่มีบิลขาย</td></tr>
