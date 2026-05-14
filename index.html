@@ -3915,6 +3915,92 @@ window.$setUserRole = async function(usernames, roleId) {
   return updated;
 };
 
+/* 🆕 GLOBAL: Reverse ALL active Trading Deals — ใช้กรณีกำไรเพี้ยนต้อง re-match ใหม่
+   เปลี่ยน status='Cancelled' + cancelled_at + push cloud + verify
+   ใช้: window.$reverseAllTradingDeals()  (filterFn optional) */
+window.$reverseAllTradingDeals = async function(filterFn) {
+  const db = _GLOBAL_DB;
+  const deals = Array.isArray(db.tradingDeals) ? db.tradingDeals : [];
+  const active = deals.filter(d => d && d.status !== 'Cancelled' && d.status !== 'cancelled');
+  if (!active.length) { alert('✓ ไม่มี active Trading Deals'); return; }
+  const target = filterFn ? active.filter(filterFn) : active;
+  if (!target.length) { alert('ไม่พบ deals ตรง filter'); return; }
+  const fmt = (n) => Number(n||0).toLocaleString('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const totalCost = target.reduce((s,d) => s + Number(d.matchedPurchaseAmount||0), 0);
+  const totalSales = target.reduce((s,d) => s + Number(d.matchedSalesAmount||0), 0);
+  const totalGP = totalSales - totalCost;
+  const msg = `⚠ Reverse ALL Trading Deals?\n\n` +
+    `• Deals: ${target.length}\n` +
+    `• Total cost: ${fmt(totalCost)}\n` +
+    `• Total sales: ${fmt(totalSales)}\n` +
+    `• Total GP: ${fmt(totalGP)}\n\n` +
+    `จะทำให้:\n` +
+    `1. ทุก deal status → Cancelled\n` +
+    `2. Push ขึ้น cloud + verify\n` +
+    `3. คุณ re-match ใหม่จากหน้าบิลขาย\n\n` +
+    `ดำเนินการ?`;
+  if (!confirm(msg)) return;
+  const nowIso = new Date().toISOString();
+  const user = (window.$erp?.currentUser?.value?.username) || '-';
+  // Snapshot ก่อน
+  const snapshot = target.map(d => ({ id: d.id, oldStatus: d.status, oldCancelledAt: d.cancelledAt }));
+  // 1. Update local
+  target.forEach(d => {
+    d.status = 'Cancelled';
+    d.cancelledAt = nowIso;
+    d.cancelledBy = user;
+    d.cancelledReason = 'Bulk reverse — เพื่อ re-match ใหม่';
+    d.updatedAt = nowIso;
+    d.updatedBy = user;
+  });
+  try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+  // 2. Cloud update (chunked, graceful fallback)
+  let cloudOk = 0, cloudFail = 0;
+  const ids = target.map(d => d.id);
+  if (window.sb) {
+    for (let i = 0; i < ids.length; i += 100) {
+      const chunk = ids.slice(i, i+100);
+      try {
+        // ลอง full payload ก่อน
+        let { error } = await window.sb.from('trading_deals').update({
+          status: 'Cancelled',
+          cancelled_at: nowIso,
+          cancelled_by: user,
+          updated_at: nowIso,
+        }).in('id', chunk);
+        if (error && /Could not find the '?([a-zA-Z_]+)'? column/i.test(error.message)) {
+          // Retry with minimal
+          const r2 = await window.sb.from('trading_deals').update({ status: 'Cancelled' }).in('id', chunk);
+          if (r2.error) { cloudFail += chunk.length; continue; }
+        } else if (error) { cloudFail += chunk.length; continue; }
+        cloudOk += chunk.length;
+      } catch(e) { cloudFail += chunk.length; }
+    }
+  }
+  // 3. Verify — pull cloud check status
+  let verifyFail = 0;
+  if (window.sb && cloudOk > 0) {
+    try {
+      const { data } = await window.sb.from('trading_deals').select('id,status').in('id', ids);
+      if (data) {
+        const cloudStatus = new Map(data.map(r => [r.id, r.status]));
+        ids.forEach(id => {
+          if (cloudStatus.get(id) !== 'Cancelled') verifyFail++;
+        });
+      }
+    } catch(e) {}
+  }
+  // 4. Audit log
+  try { window.$erp?.logAudit?.('TRADING_BULK_REVERSE','tradingDeals', { count: target.length, totalGP }, { cancelledAt: nowIso, cancelledBy: user }); } catch(e){}
+  const msg2 = `✅ Reverse สำเร็จ\n\n` +
+    `• Local cancelled: ${target.length}\n` +
+    `• Cloud OK: ${cloudOk}${cloudFail?', fail: '+cloudFail:''}\n` +
+    `• Verify fail: ${verifyFail}\n\n` +
+    `💡 ไปหน้า "บิลขาย Trading" → กด "✏️ แก้" บิลที่ต้องการ → save อีกครั้ง → Trading Deal ใหม่จะถูกสร้าง`;
+  alert(msg2);
+  return { cancelled: target.length, cloudOk, cloudFail, verifyFail };
+};
+
 /* 🆕 GLOBAL: ลบ Trading Deal duplicates — same (purchaseBillId + salesBillId) เกิน 1
    เกิดจาก bug ก่อนที่ทุก save สร้าง deal ใหม่ — ตอน edit เลยเด้งซ้ำ
    วิธี: เก็บ deal ที่ updatedAt/createdAt ใหม่สุดต่อ key (pb+sb) — ที่เหลือ Cancel
