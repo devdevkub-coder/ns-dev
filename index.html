@@ -3071,6 +3071,103 @@ window.$safeDocSave = _safeDocSave;
 window.$reverseLedgerBySource = _reverseLedgerBySource;
 window.$saveAudit = () => _SAVE_AUDIT;
 
+/* ================================================================
+   🧪 INTEGRITY TEST RUNNER
+   ตรวจ data ทุกตารางว่ามี duplicate/orphan/inconsistency ไหม
+   ================================================================ */
+window.$verifyDocumentIntegrity = function() {
+  const db = _GLOBAL_DB;
+  const issues = [];
+  const fmt = (n) => Number(n||0).toLocaleString('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+  // 1. Stock Ledger duplicates (same content key)
+  const slGroups = new Map();
+  (db.stockLedger||[]).forEach(m => {
+    if (!m?.id || !m.refNo || !['PB','SB'].includes(m.refType)) return;
+    const k = [m.refType, m.refNo, m.productId||'', m.lotNo||'', Math.round((m.qtyIn||0)*10000), Math.round((m.qtyOut||0)*10000)].join('|');
+    slGroups.set(k, (slGroups.get(k)||0) + 1);
+  });
+  let slDups = 0; slGroups.forEach(c => { if (c>1) slDups += c-1; });
+  if (slDups) issues.push({level:'critical', area:'stockLedger', msg:`${slDups} duplicate stockLedger rows (same refType+refNo+product+qty)`});
+
+  // 2. Trading Deal duplicates (same pb+sb non-cancelled)
+  const tdGroups = new Map();
+  (db.tradingDeals||[]).forEach(d => {
+    if (!d || d.status === 'Cancelled' || !d.purchaseBillId || !d.salesBillId) return;
+    const k = d.purchaseBillId + '|' + d.salesBillId;
+    tdGroups.set(k, (tdGroups.get(k)||0) + 1);
+  });
+  let tdDups = 0; tdGroups.forEach(c => { if (c>1) tdDups += c-1; });
+  if (tdDups) issues.push({level:'critical', area:'tradingDeals', msg:`${tdDups} duplicate Trading Deals (same pb+sb)`});
+
+  // 3. Receipt duplicates (same billId + amount within 1 baht)
+  const rcGroups = new Map();
+  (db.receipts||[]).forEach(r => {
+    if (!r?.id || !r.billId || Number(r.amount||0) <= 0.001) return;
+    const k = r.billId + '|' + Math.round(Number(r.amount));
+    rcGroups.set(k, (rcGroups.get(k)||0) + 1);
+  });
+  let rcDups = 0; rcGroups.forEach(c => { if (c>1) rcDups += c-1; });
+  if (rcDups) issues.push({level:'warn', area:'receipts', msg:`${rcDups} possible duplicate receipts (same billId+amount)`});
+
+  // 4. Bills with receivedAmount > totalAmount (over-paid)
+  const overPaidBills = (db.salesBills||[]).filter(b => b && b.status !== 'cancelled' && Number(b.receivedAmount||0) > Number(b.totalAmount||0) + 0.5);
+  if (overPaidBills.length) issues.push({level:'critical', area:'salesBills', msg:`${overPaidBills.length} sales bills รับเกินยอดบิล (over-paid)`,
+    samples: overPaidBills.slice(0,3).map(b => `${b.docNo} (รับ ${fmt(b.receivedAmount)} > ${fmt(b.totalAmount)})`)});
+
+  const overPaidPB = (db.purchaseBills||[]).filter(b => b && b.status !== 'cancelled' && Number(b.paidAmount||0) > Number(b.totalAmount||0) + 0.5);
+  if (overPaidPB.length) issues.push({level:'critical', area:'purchaseBills', msg:`${overPaidPB.length} purchase bills จ่ายเกินยอดบิล (over-paid)`,
+    samples: overPaidPB.slice(0,3).map(b => `${b.docNo} (จ่าย ${fmt(b.paidAmount)} > ${fmt(b.totalAmount)})`)});
+
+  // 5. Bank statement duplicates per (refType+refId+accountId)
+  const bsGroups = new Map();
+  (db.bankStatement||[]).forEach(s => {
+    if (!s?.id || !s.refType || !s.refId) return;
+    const k = s.refType + '|' + s.refId + '|' + (s.accountId||'');
+    bsGroups.set(k, (bsGroups.get(k)||0) + 1);
+  });
+  let bsDups = 0; bsGroups.forEach(c => { if (c>1) bsDups += c-1; });
+  if (bsDups) issues.push({level:'warn', area:'bankStatement', msg:`${bsDups} duplicate bank entries (same refType+refId+account)`});
+
+  // 6. Orphan ledger (refType=PB/SB but bill missing)
+  const pbSet = new Set((db.purchaseBills||[]).map(b => b?.id).filter(Boolean));
+  const sbSet = new Set((db.salesBills||[]).map(b => b?.id).filter(Boolean));
+  const slOrphans = (db.stockLedger||[]).filter(m => m && m.refType === 'PB' && m.refId && !pbSet.has(m.refId)).length
+                 + (db.stockLedger||[]).filter(m => m && m.refType === 'SB' && m.refId && !sbSet.has(m.refId)).length;
+  if (slOrphans) issues.push({level:'warn', area:'stockLedger', msg:`${slOrphans} orphan stockLedger entries (บิลถูกลบ แต่ ledger ค้าง)`});
+
+  // 7. Missing supplier/customer/product
+  const supSet = new Set((db.suppliers||[]).map(s => s?.id).filter(Boolean));
+  const cusSet = new Set((db.customers||[]).map(c => c?.id).filter(Boolean));
+  const missSup = (db.purchaseBills||[]).filter(b => b && b.supplierId && !supSet.has(b.supplierId)).length;
+  const missCus = (db.salesBills||[]).filter(b => b && b.customerId && !cusSet.has(b.customerId)).length;
+  if (missSup) issues.push({level:'warn', area:'masters', msg:`${missSup} PBs อ้าง supplier ที่ไม่มีใน master`});
+  if (missCus) issues.push({level:'warn', area:'masters', msg:`${missCus} SBs อ้าง customer ที่ไม่มีใน master`});
+
+  // Report
+  console.log('%c🧪 DOCUMENT INTEGRITY REPORT', 'font-size:16px;font-weight:bold;color:#7c3aed');
+  if (!issues.length) {
+    console.log('%c✅ ผ่านทุก check — ข้อมูลสะอาด', 'font-weight:bold;color:#16a34a;font-size:14px');
+    alert('✅ Integrity Check ผ่าน\n\nไม่พบ duplicate/orphan/inconsistency\nข้อมูลสะอาดดี');
+    return { ok: true, issues: [] };
+  }
+  console.table(issues);
+  const criticalCount = issues.filter(i => i.level === 'critical').length;
+  const warnCount = issues.filter(i => i.level === 'warn').length;
+  const msg = `🧪 Integrity Check Report\n\n` +
+    `🚨 Critical: ${criticalCount}\n` +
+    `⚠ Warning: ${warnCount}\n\n` +
+    issues.map(i => `${i.level==='critical'?'🚨':'⚠'} [${i.area}] ${i.msg}`+(i.samples?`\n   ตย: ${i.samples.join(' · ')}`:'')).join('\n') +
+    `\n\n💡 รัน cleanup commands:` +
+    `\n• $cleanupStockDuplicates(false)` +
+    `\n• $cleanupStockOrphans(false)` +
+    `\n• $cleanupTradingDealDups(false)` +
+    `\n• $cleanupReceiptDups(false)` +
+    `\n• $cleanupPaymentBSDups()`;
+  alert(msg);
+  return { ok: false, issues };
+};
+
 /* ---------- GLOBAL SAVE STATUS — แสดง Saving / Saved / Failed ทั่วระบบ ---------- */
 const $saveStatus = (typeof Vue !== 'undefined' && Vue.ref) ? Vue.ref({ state: null, msg: '', at: 0 }) : { value: { state:null, msg:'', at:0 } };
 window.$saveStatus = $saveStatus;
