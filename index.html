@@ -40055,7 +40055,7 @@ app.component('view-tradingMatching', {
       const oldStatus = db.tradingDeals[idx].status;
       window.setSaveStatus?.('saving', 'Reverse deal '+d.dealNo+' → cloud...');
       try {
-        // 1. Update local
+        // 1. Update local (เก็บ field ครบใน local — แม้ cloud จะไม่มี column)
         db.tradingDeals[idx].status = 'Cancelled';
         db.tradingDeals[idx].cancelledAt = nowIso;
         db.tradingDeals[idx].cancelledBy = user;
@@ -40064,12 +40064,23 @@ app.component('view-tradingMatching', {
         try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
         // 2. Update cloud — direct (ไม่พึ่ง autoSync queue)
         if (!window.sb) throw new Error('Supabase ไม่ connect');
-        const { error } = await window.sb.from('trading_deals').update({
+        // 🔧 BUG FIX 2026-05-14: drop columns ที่ cloud ไม่มี (cancelled_by/cancelled_at)
+        //   ลอง update ด้วย full payload ก่อน → ถ้า fail เพราะ column missing → retry แบบลด field
+        const fullPayload = {
           status: 'Cancelled',
           cancelled_at: nowIso,
           cancelled_by: user,
           updated_at: nowIso,
-        }).eq('id', d.id);
+          updated_by: user,
+        };
+        let { error } = await window.sb.from('trading_deals').update(fullPayload).eq('id', d.id);
+        if (error && /Could not find the '?([a-zA-Z_]+)'? column/i.test(error.message)) {
+          // Cloud ไม่มี audit columns → ลองด้วย minimal payload
+          console.warn('[reverseMatch] Cloud column missing — retry with minimal payload:', error.message);
+          const r2 = await window.sb.from('trading_deals').update({ status: 'Cancelled' }).eq('id', d.id);
+          if (r2.error) throw r2.error;
+          error = null;
+        }
         if (error) throw error;
         // 3. Verify — query กลับว่า cloud เป็น Cancelled จริง
         const { data: verify } = await window.sb.from('trading_deals').select('id,status').eq('id', d.id).single();
@@ -40086,7 +40097,7 @@ app.component('view-tradingMatching', {
         delete db.tradingDeals[idx].cancelledBy;
         try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e2){}
         window.setSaveStatus?.('failed', '❌ Reverse fail: '+e.message);
-        alert('❌ Reverse fail:\n\n'+e.message+'\n\n• Local rolled back\n• ลองเช็ค connection หรือ RLS');
+        alert('❌ Reverse fail:\n\n'+e.message+'\n\n• Local rolled back\n• ลองเช็ค connection หรือ RLS\n\n💡 แก้ถาวร: รัน SQL เพิ่ม column cancelled_at, cancelled_by ใน trading_deals');
       }
     }
     function statusBadge(s) {
