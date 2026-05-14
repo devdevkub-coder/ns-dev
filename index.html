@@ -97,7 +97,7 @@
       💡 ถ้าค้างเกิน 10 วินาที — ระบบจะ skip อัตโนมัติให้ใช้งานต่อได้ (offline mode)
     </div>
     <!-- 🆕 ปุ่ม Skip — ให้ user ปลดล็อกเอง -->
-    <button @click="db._needsCloudCheck = false; if(window.$autoSync){window.$autoSync.pushNow()}"
+    <button @click="skipCloudCheck"
       class="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-bold hover:bg-amber-700">
       ⏭ Skip & Continue (Offline)
     </button>
@@ -6628,6 +6628,93 @@ window.$erp = {
     'stockLedger','bankStatement','poBuys','poSells','tradingDeals','historicalMonthly','receiptVouchers',
     'users','roles'];   // 🆕 sync users + roles ระหว่างเครื่อง
 
+  /* ═══════════════════════════════════════════════════════════════
+     TOMBSTONE SYSTEM (deletion_log table) — กันบิลที่ลบแล้วฟื้นกลับมา
+     ═══════════════════════════════════════════════════════════════
+     - ลบ row → INSERT tombstone เข้าตาราง deletion_log ใน Supabase
+     - Pull → อ่าน tombstone ใหม่ตั้งแต่ last sync → ลบ row ใน local ตาม
+     - เก็บ last sync timestamp ใน localStorage
+     ═══════════════════════════════════════════════════════════════ */
+  const DELETION_LOG_KEY = 'ns_erp_tombstone_last_sync';   // 🔧 renamed (TOMBSTONE_KEY ใช้กับ local tombstone อยู่แล้ว)
+
+  function _localToCloudTable(localKey) {
+    const cfg = AS_MAP[localKey];
+    if (cfg) return cfg.target;
+    return localKey.replace(/([A-Z])/g, '_$1').toLowerCase();
+  }
+
+  async function tombstoneInsert(localKey, rowId) {
+    if (!window.sb || !window.SUPABASE_CONFIG?.enabled) return { ok: false, reason: 'sb-disabled' };
+    const cloudTable = _localToCloudTable(localKey);
+    const tombId = 'TOMB-' + Date.now() + '-' + Math.random().toString(36).slice(2,7).toUpperCase();
+    const username = window.$erp?.currentUser?.value?.username || 'unknown';
+    try {
+      const { error } = await window.sb.from('deletion_log').insert({
+        id: tombId,
+        table_name: cloudTable,
+        row_id: String(rowId),
+        deleted_at: new Date().toISOString(),
+        deleted_by: username,
+      });
+      if (error) {
+        console.error('[tombstone] insert fail:', error);
+        return { ok: false, reason: error.message };
+      }
+      return { ok: true };
+    } catch(e) {
+      console.error('[tombstone] insert exception:', e);
+      return { ok: false, reason: e.message };
+    }
+  }
+
+  async function pullTombstones() {
+    if (!window.sb || !window.SUPABASE_CONFIG?.enabled) return { applied: 0 };
+    const since = localStorage.getItem(DELETION_LOG_KEY) || '1970-01-01T00:00:00Z';
+    try {
+      const { data, error } = await window.sb.from('deletion_log')
+        .select('table_name, row_id, deleted_at')
+        .gt('deleted_at', since)
+        .order('deleted_at', { ascending: true });
+      if (error) {
+        console.warn('[tombstone] pull error:', error.message);
+        return { applied: 0, error: error.message };
+      }
+      if (!data || data.length === 0) return { applied: 0 };
+
+      const reverseMap = {};
+      Object.entries(AS_MAP).forEach(([localKey, cfg]) => { reverseMap[cfg.target] = localKey; });
+
+      let applied = 0;
+      let latestTs = since;
+      for (const t of data) {
+        const localKey = reverseMap[t.table_name];
+        if (!localKey) continue;
+        const arr = _GLOBAL_DB[localKey];
+        if (!Array.isArray(arr)) continue;
+        const beforeLen = arr.length;
+        const filtered = arr.filter(r => !r || String(r.id) !== String(t.row_id));
+        if (filtered.length < beforeLen) {
+          arr.length = 0;
+          filtered.forEach(r => arr.push(r));
+          applied++;
+          console.log('[tombstone] removed', t.table_name, t.row_id, 'from local');
+        }
+        if (t.deleted_at > latestTs) latestTs = t.deleted_at;
+      }
+      localStorage.setItem(DELETION_LOG_KEY, latestTs);
+      if (applied > 0) {
+        try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(_GLOBAL_DB)); } catch(e){}
+      }
+      return { applied };
+    } catch(e) {
+      console.warn('[tombstone] pull exception:', e);
+      return { applied: 0, error: e.message };
+    }
+  }
+
+  window.$tombstone = { insert: tombstoneInsert, pull: pullTombstones };
+  /* ═══════════════════════════════════════════════════════════════ */
+
   /* Date-like field names — empty string in these fields → cast to null (กัน "invalid input syntax for type date") */
   const _DATE_HINT = /(_date|_at|date|expectedDelivery|paidAt|approvedAt|cancelledAt|createdAt|updatedAt|warrantyExpireDate|purchaseDate)$/i;
   /* Numeric-like field names — empty string → null (กัน "invalid input syntax for type numeric") */
@@ -6805,10 +6892,13 @@ window.$erp = {
             fail += chunk.length;
             break;
           }
-          if (badCol && !dropCols.has(badCol)) {
-            dropCols.add(badCol);
-            console.warn('[autoSync] '+cfg.target+': drop column "'+badCol+'" และลองใหม่');
-            continue; // retry
+          if (badCol) {
+            // ⛔ FAIL LOUDLY — ห้าม silent drop อีกต่อไป (ข้อมูลจะหายโดยไม่รู้ตัว)
+            _logErr(cfg.target, '⛔ Schema mismatch: column "'+badCol+'" ไม่มีใน Supabase — STOP push (ห้าม drop เพราะข้อมูลจะหาย) แจ้ง admin เพิ่ม column ใน Supabase');
+            console.error('[autoSync] '+cfg.target+': SCHEMA MISMATCH — column "'+badCol+'" missing in Supabase. STOPPING push to prevent data loss.');
+            try { window._showToast && window._showToast('⚠ Schema mismatch: '+cfg.target+'.'+badCol+' — แจ้ง admin', 'error'); } catch(e){}
+            fail += chunk.length;
+            break;
           }
 
           // 2. NOT NULL violation → required field หาย → skip batch
@@ -6834,11 +6924,10 @@ window.$erp = {
             if (fkColDirect) fkCol = fkColDirect[1];
           }
           if (fkCol) {
-            // 🔧 BUG FIX: เลิก set FK = null โดยอัตโนมัติ — มันทำลายข้อมูล (สูญ supplier_id, warehouse_id ฯลฯ)
-            //   สาเหตุ FK violation มักเกิดจาก master data ยังไม่ขึ้น cloud → push master ก่อน
-            //   หรือ master id ต่างเครื่อง → ต้อง harmonize ก่อน
-            //   วิธีใหม่: skip batch + log → user จะเห็นใน error modal ว่าตารางไหนที่ master หาย
-            _logErr(cfg.target, '⚠ FK violation "'+fkCol+'" — master data หายในคลาวด์ (อย่ารัน pushAll จนกว่าจะ sync master ครบ)');
+            // ⛔ FAIL LOUDLY — ห้าม set FK = null อัตโนมัติ (ข้อมูลจะขาด link)
+            _logErr(cfg.target, '⛔ FK violation "'+fkCol+'" — STOP (ห้าม null อัตโนมัติ) ตรวจว่า master data ('+fkCol.replace('_id','')+') มี id ตรงกัน');
+            console.error('[autoSync] '+cfg.target+': FK VIOLATION "'+fkCol+'" — STOPPING (ref data missing in cloud)');
+            try { window._showToast && window._showToast('⚠ FK fail: '+cfg.target+'.'+fkCol+' อ้างถึง row ที่ไม่มี — push ตาราง master ก่อน', 'error'); } catch(e){}
             fail += chunk.length;
             break;
           }
@@ -6905,7 +6994,11 @@ window.$erp = {
               success = true;   // mark success เพื่อออก while loop
               break;
             }
-            _logErr(cfg.target, '⚠ UNIQUE conflict ('+constraintName+') — รัน supabase-fix-docno-unique.sql หรือแก้ docNo ซ้ำ');
+            const colMatch = constraintName.match(/_([a-z_]+)_key$/);
+            const col = colMatch ? colMatch[1] : 'unknown';
+            _logErr(cfg.target, '⛔ Duplicate "'+col+'" ('+constraintName+') — STOP (ห้าม bump suffix อัตโนมัติ) แก้ค่าซ้ำใน local ก่อน push ใหม่');
+            console.error('[autoSync] '+cfg.target+': DUPLICATE "'+col+'" — STOPPING (ห้าม mutate doc_no)');
+            try { window._showToast && window._showToast('⚠ Duplicate '+col+' ใน '+cfg.target+' — แก้ค่าซ้ำใน local ก่อน', 'error'); } catch(e){}
             fail += chunk.length;
             break;
           }
@@ -7033,6 +7126,11 @@ window.$erp = {
     await pullCloudTombstones();
     // 🆕 ลบ tombstoned rows ออกจาก local ก่อน pull — กัน case ที่ user refresh แล้วเจอ local เก่า
     try { _purgeLocalTombstoned(); } catch(e){}
+    // 🆕 PATCH 7: Pull deletion_log tombstones — ลบ row ใน local ที่ถูกลบที่อื่น
+    try {
+      const tomb = await pullTombstones();
+      if (tomb.applied > 0) console.log('[autoSync] applied '+tomb.applied+' deletion_log tombstones');
+    } catch(e) { console.warn('[autoSync] deletion_log pull error:', e); }
     isPulling = true; _updateSyncState();
     _updateStatus('syncing', '⬇ Pulling...', 'Auto-Pull กำลังตรวจ Cloud');
     let totalRows = 0, errors = 0, newRowCount = 0;
@@ -7407,6 +7505,10 @@ window.$erp = {
     if (masterEmpty) {
       console.log('[autoSync] 🚨 Local master data ว่าง — Force pull ทันที');
       _updateStatus('syncing', '⬇ ดึงข้อมูลครั้งแรก...', 'เครื่องนี้ยังไม่มีข้อมูล — กำลังดึงจาก Cloud');
+      // 🆕 PATCH 8: First-boot ไม่ต้อง re-apply tombstone เก่าทั้งหมด — ตั้ง timestamp = now
+      if (!localStorage.getItem(DELETION_LOG_KEY)) {
+        localStorage.setItem(DELETION_LOG_KEY, new Date().toISOString());
+      }
       pullAll().then(() => {
         const newC = (_GLOBAL_DB.customers || []).length;
         const newS = (_GLOBAL_DB.suppliers || []).length;
@@ -8452,13 +8554,22 @@ const app = createApp({
       showSyncErrors.value = false;
     }
 
+    // 🆕 Skip cloud check (จาก overlay)
+    const skipCloudCheck = () => {
+      try { delete db._needsCloudCheck; delete db._fromSeed; } catch(e){}
+      try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+      try { sessionStorage.removeItem('ns_erp_block_push_after_reset'); } catch(e){}
+      try { if (window.$autoSync?.pushNow) window.$autoSync.pushNow(); } catch(e){}
+      console.log('[skipCloudCheck] flags cleared — continue offline mode');
+    };
+
     return { db, currentUser, currentView, currentBranchId, sidebarOpen, loginForm, loginError, canViewCurrent, isWriterCurrent,
       menuGroups: visibleMenuGroups, currentTitle, toast, login, logout, resetDemo,
       syncStatus, dataEmptyBanner, forcePulling, forcePull, manualSyncNow,
       showSyncErrors, getErrorList, clearSyncErrors,
       hasUniqueConflict, autoFixDuplicateDocNo,   // 🆕
       syncHealthText, syncHealthLevel,
-      $saveStatus };
+      $saveStatus, skipCloudCheck };
   }
 });
 
@@ -13206,7 +13317,12 @@ app.component('view-purchase', {
         // 🆕 ลบ Cloud ด้วย
         await erp.deleteCloud('purchaseBills', [b.id]);
         if (ledgerIds.length > 0) await erp.deleteCloud('stockLedger', ledgerIds);
-        erp.showToast('🗑 ลบบิลสำเร็จ (local + cloud)','success');
+        // 🆕 PATCH 9a: cross-device tombstone — กันบิลฟื้นกลับมาเครื่องอื่น
+        try {
+          await window.$tombstone?.insert('purchaseBills', b.id);
+          for (const sid of ledgerIds) await window.$tombstone?.insert('stockLedger', sid);
+        } catch(e) { console.warn('[tombstone deleteBill PB]', e); }
+        erp.showToast('🗑 ลบบิลสำเร็จ (local + cloud + tombstone)','success');
       } catch (e) { alert('Error: ' + e.message); }
     }
     /* Toggle VAT invoice received status */
@@ -14800,7 +14916,12 @@ app.component('view-payment', {
       // 🆕 ลบ Cloud
       if (paymentIds.length) await erp.deleteCloud('payments', paymentIds);
       if (bsIds.length) await erp.deleteCloud('bankStatement', bsIds);
-      erp.showToast('🗑 ลบสำเร็จ (local + cloud) + คืนยอด AP กลับแล้ว','success');
+      // 🆕 PATCH 9c: cross-device tombstone — Payment
+      try {
+        for (const pid of paymentIds) await window.$tombstone?.insert('payments', pid);
+        for (const bid of bsIds) await window.$tombstone?.insert('bankStatement', bid);
+      } catch(e) { console.warn('[tombstone deletePayment]', e); }
+      erp.showToast('🗑 ลบสำเร็จ (local + cloud + tombstone) + คืนยอด AP กลับแล้ว','success');
     }
 
     /* 📊 Outstanding Bills Panel — บิลค้างจ่ายแสดงในหน้านี้เลย */
@@ -15469,7 +15590,12 @@ app.component('view-receipt', {
       // 🆕 ลบ Cloud
       if (receiptIds.length) await erp.deleteCloud('receipts', receiptIds);
       if (bsIds.length) await erp.deleteCloud('bankStatement', bsIds);
-      erp.showToast('🗑 ลบสำเร็จ (local + cloud) + คืนยอด AR กลับแล้ว','success');
+      // 🆕 PATCH 9d: cross-device tombstone — Receipt
+      try {
+        for (const rid of receiptIds) await window.$tombstone?.insert('receipts', rid);
+        for (const bid of bsIds) await window.$tombstone?.insert('bankStatement', bid);
+      } catch(e) { console.warn('[tombstone deleteReceipt]', e); }
+      erp.showToast('🗑 ลบสำเร็จ (local + cloud + tombstone) + คืนยอด AR กลับแล้ว','success');
     }
 
     /* 📊 Outstanding Bills Panel — บิลค้างรับแสดงในหน้านี้ */
@@ -15853,7 +15979,12 @@ app.component('view-transfer', {
       db.bankStatement = db.bankStatement.filter(s => !(s.refType==='TRF' && s.refId===t.id));
       await erp.deleteCloud('transfers', [t.id]);
       if (bsIds.length) await erp.deleteCloud('bankStatement', bsIds);
-      erp.showToast('🗑 ลบเรียบร้อย (local + cloud)');
+      // 🆕 PATCH 9e: cross-device tombstone — Transfer
+      try {
+        await window.$tombstone?.insert('transfers', t.id);
+        for (const bid of bsIds) await window.$tombstone?.insert('bankStatement', bid);
+      } catch(e) { console.warn('[tombstone deleteTransfer]', e); }
+      erp.showToast('🗑 ลบเรียบร้อย (local + cloud + tombstone)');
     }
     /* Filters */
     const search = ref('');
@@ -16324,6 +16455,11 @@ app.component('view-expense', {
           } catch(e4) { /* swallow */ }
         }
       } catch(e) { cloudFail = (cloudFail?cloudFail+'; ':'')+e.message; }
+      // 🆕 PATCH 9f: cross-device tombstone — Expense
+      try {
+        for (const eid of expIds) await window.$tombstone?.insert('expenses', eid);
+        for (const bid of bsIds) await window.$tombstone?.insert('bankStatement', bid);
+      } catch(e) { console.warn('[tombstone deleteExpense]', e); }
       // 🆕 บังคับ push ทันที — กัน watch debounce 1.5s
       try { if (window.$autoSync?.pushNow) await window.$autoSync.pushNow(); } catch(e){}
       // 🆕 save localStorage อีกรอบหลัง push (กัน push ทำให้ db เปลี่ยน)
@@ -16331,7 +16467,7 @@ app.component('view-expense', {
       if (cloudFail) {
         alert(`⚠ ลบ local แล้ว แต่ cloud บางส่วนไม่สำเร็จ:\n\n${cloudFail}\n\n💡 บิลถูก tombstone 24 ชม. แล้ว — refresh ไม่กลับมา\nถ้ายังเจอ → กดปุ่ม "🔄 Force Pull จาก Cloud" ที่ status indicator`);
       } else {
-        erp.showToast(`🗑 ลบเรียบร้อย — local + cloud ${cloudDeleted} rows`,'success');
+        erp.showToast(`🗑 ลบเรียบร้อย — local + cloud + tombstone ${cloudDeleted} rows`,'success');
       }
     }
     /* Filters */
@@ -18130,7 +18266,12 @@ app.component('view-sales', {
         // 🆕 ลบ Cloud
         await erp.deleteCloud('salesBills', [b.id]);
         if (ledgerIds.length > 0) await erp.deleteCloud('stockLedger', ledgerIds);
-        erp.showToast('🗑 ลบบิลขายสำเร็จ (local + cloud)','success');
+        // 🆕 PATCH 9b: cross-device tombstone
+        try {
+          await window.$tombstone?.insert('salesBills', b.id);
+          for (const sid of ledgerIds) await window.$tombstone?.insert('stockLedger', sid);
+        } catch(e) { console.warn('[tombstone deleteBill SB]', e); }
+        erp.showToast('🗑 ลบบิลขายสำเร็จ (local + cloud + tombstone)','success');
       } catch (e) { alert('Error: ' + e.message); }
     }
 
