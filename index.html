@@ -39945,71 +39945,142 @@ app.component('view-tradingMatching', {
       const nowIso = new Date().toISOString();
 
       let dealNo;
+      // 🆕 Cloud-first save — direct upsert + verify (ไม่พึ่ง autoSync queue)
+      window.setSaveStatus?.('saving', (existingDeal?'อัปเดต':'สร้าง')+' deal → cloud...');
+      let dealId, payload;
       if (existingDeal) {
-        // 🆕 UPDATE existing deal (ไม่ push ใหม่ — กัน duplicate)
-        if (!confirm(`บิลคู่ ${pb.docNo} ↔ ${sb.docNo} มี deal อยู่แล้ว (${existingDeal.dealNo})\n\nอัปเดต deal เดิม?\n• Cost: ${fmt(existingDeal.matchedPurchaseAmount)} → ${fmt(f.matchedPurchaseAmount)}\n• Sales: ${fmt(existingDeal.matchedSalesAmount)} → ${fmt(f.matchedSalesAmount)}\n\nกด Cancel เพื่อสร้าง deal ใหม่`)) {
-          // user ยกเลิก update → create new (rare case)
-          dealNo = 'TD-'+new Date().toISOString().slice(2,10).replace(/-/g,'')+'-'+String((db.tradingDeals||[]).length+1).padStart(4,'0');
+        // UPDATE existing (ห้าม insert ใหม่)
+        const ok = confirm(`บิลคู่ ${pb.docNo} ↔ ${sb.docNo} มี deal "${existingDeal.dealNo}" อยู่แล้ว\n\nUPDATE deal เดิม (ห้าม insert ใหม่):\n• Cost: ${fmt(existingDeal.matchedPurchaseAmount)} → ${fmt(f.matchedPurchaseAmount)}\n• Sales: ${fmt(existingDeal.matchedSalesAmount)} → ${fmt(f.matchedSalesAmount)}\n• Qty: ${fmt(existingDeal.matchedQty)} → ${fmt(f.matchedQty)}\n\nดำเนินการ?`);
+        if (!ok) { showMatchModal.value = false; return; }
+        dealId = existingDeal.id;
+        dealNo = existingDeal.dealNo;   // ✅ ใช้ dealNo เดิม ห้ามสร้างใหม่
+        payload = {
+          id: dealId, deal_no: dealNo, date: existingDeal.date,
+          purchase_bill_id: pb.id, purchase_bill_no: pb.docNo,
+          sales_bill_id: sb.id, sales_bill_no: sb.docNo,
+          product_id: pb.items?.[0]?.productId || sb.items?.[0]?.productId || '',
+          supplier_id: pb.supplierId, customer_id: sb.customerId,
+          matched_qty: Number(f.matchedQty||0),
+          matched_purchase_amount: Number(f.matchedPurchaseAmount||0),
+          matched_sales_amount: Number(f.matchedSalesAmount||0),
+          status,
+          notes: (f.notes ? f.notes + ' — ' : '') + 'ก่อน VAT [updated]',
+          updated_at: nowIso,
+          updated_by: erp.currentUser.value?.username || 'system',
+        };
+      } else {
+        // CREATE new
+        dealId = 'TDEAL-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,5);
+        dealNo = 'TD-'+new Date().toISOString().slice(2,10).replace(/-/g,'')+'-'+String((db.tradingDeals||[]).length+1).padStart(4,'0');
+        payload = {
+          id: dealId, deal_no: dealNo, date: erp.today(),
+          purchase_bill_id: pb.id, purchase_bill_no: pb.docNo,
+          sales_bill_id: sb.id, sales_bill_no: sb.docNo,
+          product_id: pb.items?.[0]?.productId || sb.items?.[0]?.productId || '',
+          supplier_id: pb.supplierId, customer_id: sb.customerId,
+          matched_qty: Number(f.matchedQty||0),
+          matched_purchase_amount: Number(f.matchedPurchaseAmount||0),
+          matched_sales_amount: Number(f.matchedSalesAmount||0),
+          status,
+          notes: (f.notes ? f.notes + ' — ' : '') + 'ก่อน VAT',
+          created_at: nowIso,
+          created_by: erp.currentUser.value?.username || 'system',
+          updated_at: nowIso,
+        };
+      }
+      try {
+        // 1. Cloud upsert ทันที (direct — ไม่รอ autoSync)
+        if (!window.sb) throw new Error('Supabase ไม่ connect');
+        const { data, error } = await window.sb.from('trading_deals').upsert(payload, { onConflict: 'id' }).select();
+        if (error) throw error;
+        // 2. Verify — query back
+        const { data: verify } = await window.sb.from('trading_deals').select('*').eq('id', dealId).single();
+        if (!verify) throw new Error('Verify หา deal ใน cloud ไม่เจอ');
+        if (Math.abs(Number(verify.matched_purchase_amount||0) - Number(payload.matched_purchase_amount)) > 0.01) {
+          throw new Error('Verify cost ไม่ตรง');
+        }
+        // 3. Update local (after cloud success)
+        if (existingDeal) {
+          const idx = db.tradingDeals.findIndex(x => x && x.id === dealId);
+          if (idx >= 0) {
+            Object.assign(db.tradingDeals[idx], {
+              matchedQty: Number(f.matchedQty||0),
+              matchedPurchaseAmount: Number(f.matchedPurchaseAmount||0),
+              matchedSalesAmount: Number(f.matchedSalesAmount||0),
+              status,
+              notes: payload.notes,
+              updatedAt: nowIso,
+              updatedBy: payload.updated_by,
+            });
+          }
+        } else {
           db.tradingDeals.push({
-            id: 'TDEAL-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,5),
-            dealNo, date: erp.today(),
+            id: dealId, dealNo, date: payload.date,
             purchaseBillId: pb.id, purchaseBillNo: pb.docNo,
             salesBillId: sb.id, salesBillNo: sb.docNo,
-            productId: pb.items?.[0]?.productId || sb.items?.[0]?.productId || '',
+            productId: payload.product_id,
             supplierId: pb.supplierId, customerId: sb.customerId,
             matchedQty: Number(f.matchedQty||0),
             matchedPurchaseAmount: Number(f.matchedPurchaseAmount||0),
             matchedSalesAmount: Number(f.matchedSalesAmount||0),
-            exVat: true, notes: (f.notes ? f.notes + ' — ' : '') + 'ก่อน VAT', status,
-            createdBy: erp.currentUser.value?.username || 'system',
-            createdAt: nowIso, updatedAt: nowIso,
+            exVat: true, notes: payload.notes, status,
+            createdBy: payload.created_by, createdAt: nowIso, updatedAt: nowIso,
           });
-          erp.logAudit('TRADING_MATCH_CREATE','tradingDeals',null,{dealNo});
-        } else {
-          // Update existing
-          dealNo = existingDeal.dealNo;
-          existingDeal.matchedQty = Number(f.matchedQty || 0);
-          existingDeal.matchedPurchaseAmount = Number(f.matchedPurchaseAmount || 0);
-          existingDeal.matchedSalesAmount = Number(f.matchedSalesAmount || 0);
-          existingDeal.status = status;
-          existingDeal.notes = (f.notes ? f.notes + ' — ' : '') + 'ก่อน VAT [updated]';
-          existingDeal.updatedAt = nowIso;
-          existingDeal.updatedBy = erp.currentUser.value?.username || 'system';
-          erp.logAudit('TRADING_MATCH_UPDATE','tradingDeals',null,{dealNo, gp: Number(f.matchedSalesAmount)-Number(f.matchedPurchaseAmount)});
         }
-      } else {
-        // No existing deal → create new (เดิม)
-        dealNo = 'TD-'+new Date().toISOString().slice(2,10).replace(/-/g,'')+'-'+String((db.tradingDeals||[]).length+1).padStart(4,'0');
-        db.tradingDeals.push({
-          id: 'TDEAL-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,5),
-          dealNo, date: erp.today(),
-          purchaseBillId: pb.id, purchaseBillNo: pb.docNo,
-          salesBillId: sb.id, salesBillNo: sb.docNo,
-          productId: pb.items?.[0]?.productId || sb.items?.[0]?.productId || '',
-          supplierId: pb.supplierId, customerId: sb.customerId,
-          matchedQty: Number(f.matchedQty||0),
-          matchedPurchaseAmount: Number(f.matchedPurchaseAmount||0),
-          matchedSalesAmount: Number(f.matchedSalesAmount||0),
-          exVat: true, notes: (f.notes ? f.notes + ' — ' : '') + 'ก่อน VAT', status,
-          createdBy: erp.currentUser.value?.username || 'system',
-          createdAt: nowIso, updatedAt: nowIso,
-        });
-        erp.logAudit('TRADING_MATCH','tradingDeals',null,{dealNo, gp: Number(f.matchedSalesAmount)-Number(f.matchedPurchaseAmount), exVat:true});
-      }
-      try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
-      try { if (window.$autoSync?.pushTable) await window.$autoSync.pushTable('tradingDeals'); } catch(e){}
-      erp.showToast((existingDeal ? '✓ อัปเดต ' : '✓ จับคู่สำเร็จ — ')+dealNo+' (ก่อน VAT)','success');
-      showMatchModal.value = false;
-    }
-    function reverseMatch(d) {
-      if (d.status === 'Cancelled') return;
-      if (!confirm('Reverse Match deal '+d.dealNo+' ?')) return;
-      const idx = db.tradingDeals.findIndex(x=>x && x.id===d.id);
-      if (idx>=0) {
-        db.tradingDeals[idx].status = 'Cancelled';
-        db.tradingDeals[idx].cancelledAt = new Date().toISOString();
         try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
-        erp.showToast('Reverse สำเร็จ','success');
+        erp.logAudit(existingDeal?'TRADING_MATCH_UPDATE':'TRADING_MATCH_CREATE','tradingDeals', null, { dealNo, dealId });
+        window.setSaveStatus?.('saved', '✅ '+(existingDeal?'อัปเดต':'สร้าง')+' '+dealNo+' + cloud verified');
+        erp.showToast('✅ '+(existingDeal?'อัปเดต deal ':'จับคู่สำเร็จ — ')+dealNo+' + Cloud Verified','success');
+        showMatchModal.value = false;
+      } catch(e) {
+        console.error('[saveMatch]', e);
+        window.setSaveStatus?.('failed', '❌ Save fail: '+e.message);
+        alert('❌ บันทึก deal fail:\n\n'+e.message+'\n\n• ข้อมูลยังไม่ถูกบันทึก\n• ลองเช็ค connection หรือ RLS');
+      }
+    }
+    async function reverseMatch(d) {
+      if (d.status === 'Cancelled') return;
+      if (!confirm('Reverse Match deal '+d.dealNo+' ?\n\nระบบจะ:\n• Mark status = Cancelled\n• Update Supabase + Verify\n• Sync ทุกเครื่อง')) return;
+      const idx = db.tradingDeals.findIndex(x=>x && x.id===d.id);
+      if (idx < 0) { alert('❌ หา deal ไม่เจอใน local'); return; }
+      const nowIso = new Date().toISOString();
+      const user = erp.currentUser.value?.username || '-';
+      // 🆕 Snapshot ก่อนแก้ — rollback ถ้า cloud fail
+      const oldStatus = db.tradingDeals[idx].status;
+      window.setSaveStatus?.('saving', 'Reverse deal '+d.dealNo+' → cloud...');
+      try {
+        // 1. Update local
+        db.tradingDeals[idx].status = 'Cancelled';
+        db.tradingDeals[idx].cancelledAt = nowIso;
+        db.tradingDeals[idx].cancelledBy = user;
+        db.tradingDeals[idx].updatedAt = nowIso;
+        db.tradingDeals[idx].updatedBy = user;
+        try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+        // 2. Update cloud — direct (ไม่พึ่ง autoSync queue)
+        if (!window.sb) throw new Error('Supabase ไม่ connect');
+        const { error } = await window.sb.from('trading_deals').update({
+          status: 'Cancelled',
+          cancelled_at: nowIso,
+          cancelled_by: user,
+          updated_at: nowIso,
+        }).eq('id', d.id);
+        if (error) throw error;
+        // 3. Verify — query กลับว่า cloud เป็น Cancelled จริง
+        const { data: verify } = await window.sb.from('trading_deals').select('id,status').eq('id', d.id).single();
+        if (!verify) throw new Error('Verify หา deal ใน cloud ไม่เจอ');
+        if (verify.status !== 'Cancelled') throw new Error('Cloud ยังไม่ Cancelled — status='+verify.status);
+        erp.logAudit('TRADING_REVERSE','tradingDeals', { dealNo: d.dealNo, oldStatus }, { newStatus: 'Cancelled' });
+        window.setSaveStatus?.('saved', '✅ Reverse '+d.dealNo+' + cloud verified');
+        erp.showToast('✅ Reverse สำเร็จ + Cloud Verified','success');
+      } catch(e) {
+        // Rollback local
+        console.error('[reverseMatch]', e);
+        db.tradingDeals[idx].status = oldStatus;
+        delete db.tradingDeals[idx].cancelledAt;
+        delete db.tradingDeals[idx].cancelledBy;
+        try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e2){}
+        window.setSaveStatus?.('failed', '❌ Reverse fail: '+e.message);
+        alert('❌ Reverse fail:\n\n'+e.message+'\n\n• Local rolled back\n• ลองเช็ค connection หรือ RLS');
       }
     }
     function statusBadge(s) {
@@ -40024,6 +40095,48 @@ app.component('view-tradingMatching', {
       if (typeof window.$recomputeTradingDealCosts === 'function') return window.$recomputeTradingDealCosts(true);
       alert('ฟังก์ชันยังไม่โหลด — Hard refresh (Cmd+Shift+R)');
     };
+    /* 🆕 Force pull trading_deals จาก cloud — ใช้กรณีสงสัยว่า local ค้างเก่า */
+    async function refreshFromCloud() {
+      if (!window.sb) { alert('❌ Supabase ไม่ connect'); return; }
+      window.setSaveStatus?.('saving', 'Pull trading_deals จาก cloud...');
+      try {
+        const { data, error } = await window.sb.from('trading_deals').select('*');
+        if (error) throw error;
+        // Map snake → camel + replace local
+        const mapped = (data||[]).map(r => ({
+          id: r.id,
+          dealNo: r.deal_no,
+          date: r.date,
+          purchaseBillId: r.purchase_bill_id,
+          purchaseBillNo: r.purchase_bill_no,
+          salesBillId: r.sales_bill_id,
+          salesBillNo: r.sales_bill_no,
+          productId: r.product_id,
+          supplierId: r.supplier_id,
+          customerId: r.customer_id,
+          matchedQty: Number(r.matched_qty||0),
+          matchedPurchaseAmount: Number(r.matched_purchase_amount||0),
+          matchedSalesAmount: Number(r.matched_sales_amount||0),
+          status: r.status,
+          exVat: r.ex_vat !== false,
+          notes: r.notes || '',
+          createdAt: r.created_at,
+          createdBy: r.created_by,
+          updatedAt: r.updated_at,
+          updatedBy: r.updated_by,
+          cancelledAt: r.cancelled_at,
+          cancelledBy: r.cancelled_by,
+        }));
+        db.tradingDeals = mapped;
+        try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(db)); } catch(e){}
+        window.setSaveStatus?.('saved', '✅ Pull '+mapped.length+' deals จาก cloud');
+        alert(`✅ Pull จาก cloud สำเร็จ\n\n• Trading deals: ${mapped.length}\n• Local overwritten ด้วย cloud ล่าสุด`);
+      } catch(e) {
+        console.error('[refreshFromCloud]', e);
+        window.setSaveStatus?.('failed', '❌ Pull fail: '+e.message);
+        alert('❌ Pull fail:\n\n'+e.message);
+      }
+    }
     /* 🆕 Recalc cost สำหรับดีลเดียว — บังคับ recalc แม้ cost > 0 อยู่แล้ว
        ใช้ฟังก์ชัน same logic ใน $recomputeTradingDealCosts (PB×qty proportional fallback) */
     async function recalcOneDeal(d) {
@@ -40097,7 +40210,7 @@ app.component('view-tradingMatching', {
     }
     return { erp, db, fmt, tab, tradingPurchases, tradingSales, deals, summary, topPairs, monthlyGP,
       showMatchModal, matchForm, openMatch, autoFillFromBills, saveMatch, reverseMatch, statusBadge,
-      runRecomputeTradingCost, recalcOneDeal };
+      runRecomputeTradingCost, recalcOneDeal, refreshFromCloud };
   },
   template:`
   <div class="space-y-4">
@@ -40106,7 +40219,8 @@ app.component('view-tradingMatching', {
         <h1 class="text-2xl font-bold flex items-center gap-2">🤝 Trading Matching / จับคู่ดีล Trading</h1>
         <p class="text-sm opacity-80 mt-1">จับคู่บิลซื้อ Trading กับบิลขาย Trading → คำนวณ GP ต่อดีล (ก่อน VAT)</p>
       </div>
-      <div class="flex gap-2">
+      <div class="flex gap-2 flex-wrap justify-end">
+        <button @click="refreshFromCloud" class="bg-blue-100 text-blue-800 px-3 py-2 rounded-lg text-sm font-bold hover:bg-blue-200" title="Pull trading_deals จาก Supabase ใหม่ — ใช้กรณีสงสัยข้อมูล local ค้าง">📥 Pull จาก Cloud</button>
         <button @click="runRecomputeTradingCost" class="bg-amber-100 text-amber-800 px-3 py-2 rounded-lg text-sm font-bold hover:bg-amber-200" title="หา Trading Deal ที่ cost=0 + คำนวณใหม่จาก PB.netAmount/netWeight">🔄 Recalc Cost</button>
         <button @click="openMatch" class="bg-white text-fuchsia-700 px-4 py-2 rounded-lg font-bold hover:bg-fuchsia-50">+ จับคู่ใหม่</button>
       </div>
