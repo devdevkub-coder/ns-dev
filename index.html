@@ -6919,18 +6919,33 @@ window.$erp = {
 
       let applied = 0;
       let exempted16c = 0;
+      let exempted16dC = 0;
       let latestTs = since;
       for (const t of data) {
         const localKey = reverseMap[t.table_name];
         if (!localKey) continue;
         const arr = _GLOBAL_DB[localKey];
         if (!Array.isArray(arr)) continue;
-        // 🆕 PATCH 16c: stockLedger exemption
+        // 🆕 PATCH 16c: stockLedger exemption — refId อยู่ใน active bill
         if (localKey === 'stockLedger') {
           const target = arr.find(r => r && String(r.id) === String(t.row_id));
           if (target && target.refId && activeBillIds.has(target.refId)) {
             exempted16c++;
             console.warn('[PATCH 16c] EXEMPT stockLedger', t.row_id, 'refId='+target.refId, '(active bill) — keep local row');
+            if (t.deleted_at > latestTs) latestTs = t.deleted_at;
+            continue;   // skip delete
+          }
+        }
+        // 🆕 PATCH 16e (Bug 16d Option C, 2026-05-15): row created AFTER tombstone → exempt
+        //   deterministic-id case: user A ลบ row id=X (tomb deleted_at=T1) → user B recreate row id=X (createdAt=T2 > T1)
+        //   user A pull → cloud tomb match local row id=X → BUT local row.createdAt > tomb.deleted_at → exempt
+        const targetRow = arr.find(r => r && String(r.id) === String(t.row_id));
+        if (targetRow && targetRow.createdAt && t.deleted_at) {
+          const rowTs = Date.parse(targetRow.createdAt) || 0;
+          const tombTs = Date.parse(t.deleted_at) || 0;
+          if (rowTs > 0 && tombTs > 0 && rowTs > tombTs) {
+            exempted16dC++;
+            console.warn('[PATCH 16e Bug 16d/C] EXEMPT', t.table_name, t.row_id, '(local createdAt='+targetRow.createdAt+' > tomb deleted_at='+t.deleted_at+')');
             if (t.deleted_at > latestTs) latestTs = t.deleted_at;
             continue;   // skip delete
           }
@@ -6947,6 +6962,9 @@ window.$erp = {
       }
       if (exempted16c > 0) {
         console.warn('[PATCH 16c] TOTAL EXEMPTED:', exempted16c, 'stockLedger rows (active bill refs) — they will stay in local');
+      }
+      if (exempted16dC > 0) {
+        console.warn('[PATCH 16e Bug 16d/C] TOTAL EXEMPTED:', exempted16dC, 'rows (createdAt > tomb.deleted_at) — deterministic-id collision protected');
       }
       localStorage.setItem(DELETION_LOG_KEY, latestTs);
       if (applied > 0) {
@@ -7117,12 +7135,37 @@ window.$erp = {
     if (!rows.length) return { ok:0, fail:0 };
     // 🆕 Skip tombstoned rows — กัน push ของที่ลบไปแล้ว (cloud tombstone หรือ local tombstone)
     // 🔧 PATCH 13: ลบจาก local ด้วย (ไม่ใช่แค่ filter จาก push) — กัน push รอบหน้า + กัน UI โชว์ row ที่ลบแล้ว
+    // 🆕 PATCH 16e (Bug 16d Option C, 2026-05-15): ป้องกัน deterministic-id collision
+    //   เดิม: tombstone match → REMOVE row จาก local → กรณี SL-OPN-* ID เดียวกัน user คนอื่น recreate → ทำลายข้อมูลใหม่
+    //   ใหม่: ถ้า row.createdAt > tombstoneCreatedAt → row นี้ใหม่กว่า tomb (recreated หลังลบ) → exempt + clear stale tomb
+    //         ที่เหลือ (row เก่า/ไม่มี createdAt) → คง Patch 13 behavior (REMOVE)
     const localTombBlocked = rows.filter(r => isTombstoned(localKey, r.id));
     if (localTombBlocked.length > 0) {
-      const blockedIds = new Set(localTombBlocked.map(r => r.id));
-      console.log(`[push-skip-tomb] ${localKey}: skipped + REMOVED ${localTombBlocked.length} tombstoned rows from local`);
-      _GLOBAL_DB[localKey] = (_GLOBAL_DB[localKey] || []).filter(r => !r || !blockedIds.has(r.id));
-      try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(_GLOBAL_DB)); } catch(e){}
+      const tombStore = TOMBSTONES[localKey] || {};
+      let exemptByAge16d = 0;
+      const trulyBlocked = [];
+      for (const r of localTombBlocked) {
+        const exp = tombStore[r.id];
+        const tombCreatedAt = exp ? (exp - TOMBSTONE_TTL_MS) : 0;
+        const rowCreatedAt = r.createdAt ? Date.parse(r.createdAt) : 0;
+        if (exp && rowCreatedAt > 0 && rowCreatedAt > tombCreatedAt) {
+          // Option C: row created after tombstone → legitimate new row → exempt + clear stale tomb
+          exemptByAge16d++;
+          delete tombStore[r.id];
+        } else {
+          trulyBlocked.push(r);
+        }
+      }
+      if (exemptByAge16d > 0) {
+        try { _saveTombstones(); } catch(e){}
+        console.warn('[PATCH 16e Bug 16d/C] EXEMPT '+exemptByAge16d+' '+localKey+' rows (createdAt > tomb age) — push allowed, stale tomb cleared');
+      }
+      if (trulyBlocked.length > 0) {
+        const blockedIds = new Set(trulyBlocked.map(r => r.id));
+        console.log(`[push-skip-tomb] ${localKey}: skipped + REMOVED ${trulyBlocked.length} tombstoned rows from local`);
+        _GLOBAL_DB[localKey] = (_GLOBAL_DB[localKey] || []).filter(r => !r || !blockedIds.has(r.id));
+        try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(_GLOBAL_DB)); } catch(e){}
+      }
     }
     rows = rows.filter(r => !isTombstoned(localKey, r.id));
     if (!rows.length) return { ok:0, fail:0 };
