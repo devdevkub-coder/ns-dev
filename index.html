@@ -5617,6 +5617,140 @@ window.$erp = {
     }
     return candidate;
   },
+  /* 🆕 PATCH 15c (2026-05-15): RLS health check — admin diagnostic
+     ใช้งาน: window.$erp.checkRLSPolicies()
+     ตรวจ core tables ว่า RLS block หรือไม่ — alert ถ้าเจอ issue */
+  checkRLSPolicies: async () => {
+    const coreTables = [
+      'purchase_bills', 'sales_bills', 'payments', 'receipts',
+      'expenses', 'transfers', 'stock_ledger', 'opening_balance',
+      'customers', 'suppliers', 'products', 'bank_statement', 'deletion_log',
+      'accounts', 'branches', 'warehouses'
+    ];
+    if (!window.sb) { console.warn('[RLS-CHECK] supabase not initialized'); return { issues: [], okList: [] }; }
+    const issues = [];
+    const okList = [];
+    for (const t of coreTables) {
+      try {
+        const { error } = await window.sb.from(t).select('id', { count: 'exact', head: true });
+        if (error) {
+          const m = (error.message || '').toLowerCase();
+          if (m.includes('row-level security') || m.includes('row level security') || m.includes('permission denied')) {
+            issues.push(t + ' → RLS-blocked: ' + error.message);
+          } else if (m.includes('does not exist') || m.includes('not found') || m.includes('schema')) {
+            okList.push(t + ' (skip — table not found / schema not loaded)');
+          } else {
+            issues.push(t + ' → query error: ' + error.message);
+          }
+        } else {
+          okList.push(t);
+        }
+      } catch(e) {
+        issues.push(t + ' → exception: ' + (e?.message || String(e)));
+      }
+    }
+    console.group('[RLS-CHECK] Result');
+    console.log('✓ OK (' + okList.length + '):', okList);
+    if (issues.length) console.error('❌ ISSUES (' + issues.length + '):', issues);
+    console.groupEnd();
+    if (issues.length) {
+      alert('⚠ PATCH 15c — RLS Configuration Issues:\n\n'
+          + issues.slice(0, 10).join('\n')
+          + (issues.length > 10 ? '\n... (+' + (issues.length - 10) + ' more — ดู console)' : '')
+          + '\n\nFix: ALTER TABLE <name> DISABLE ROW LEVEL SECURITY;\n'
+          + '(หรือเพิ่ม policy PERMISSIVE / ALL / true)');
+    } else {
+      console.log('%c[RLS-CHECK] ✅ ผ่านทุก table (' + okList.length + ')', 'color:#0ea5e9;font-weight:bold');
+    }
+    return { issues, okList };
+  },
+  /* 🆕 PATCH 16 Recovery (2026-05-15): หาบิล STOCK ที่ขาด stock_ledger ใน cloud + recover
+     ใช้งาน:
+       window.$erp.recoverMissingStockLedger()                        — dry run (ดูรายการ)
+       window.$erp.recoverMissingStockLedger({ dryRun: false })       — write จริง
+       window.$erp.recoverMissingStockLedger({ dryRun: false, branchId: 'BR-001' })  — เฉพาะ branch
+     admin-only — confirms ก่อนเขียน */
+  recoverMissingStockLedger: async (options = {}) => {
+    const { dryRun = true, branchId = null } = options;
+    if (!window.sb) { alert('⛔ Supabase not initialized'); return; }
+    const role = window.$erp.currentUser?.value?.role;
+    if (role !== 'admin') {
+      alert('⛔ admin only — current role: ' + (role || 'none'));
+      return;
+    }
+    if (!dryRun && !confirm('⚠ Confirm WRITE: จะ insert stock_ledger rows ใน cloud จริง\n\nกด Cancel ถ้ายังไม่แน่ใจ — ใช้ dryRun: true ก่อน')) return;
+    // 1. Fetch all STOCK purchase bills
+    let allBills = [];
+    try {
+      let from = 0; const page = 1000;
+      while (true) {
+        const { data, error } = await window.sb.from('purchase_bills').select('*')
+          .eq('transaction_mode', 'STOCK').order('id').range(from, from + page - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allBills = allBills.concat(data);
+        if (data.length < page) break;
+        from += page;
+      }
+    } catch(e) { alert('Fetch bills failed: ' + e.message); return; }
+    console.log('[recovery] fetched ' + allBills.length + ' STOCK purchase_bills');
+    // 2. Find bills with no stock_ledger
+    const affected = [];
+    for (const bill of allBills) {
+      if (branchId && bill.branch_id !== branchId) continue;
+      const items = bill.items;
+      if (!Array.isArray(items) || items.length === 0) continue;
+      const { count, error } = await window.sb.from('stock_ledger')
+        .select('id', { count: 'exact', head: true }).eq('ref_id', bill.id).eq('ref_type', 'PB');
+      if (error) { console.warn('[recovery] count error for', bill.doc_no, error.message); continue; }
+      if (Number(count || 0) === 0) affected.push(bill);
+    }
+    console.log('[recovery] ' + affected.length + ' bills missing stock_ledger');
+    console.table(affected.map(b => ({ doc_no: b.doc_no, total: b.total_amount, by: b.created_by, items: (b.items||[]).length })));
+    if (dryRun) {
+      alert('PATCH 16 Recovery — DRY RUN\n\n'
+          + affected.length + ' STOCK bills ที่ขาด stock_ledger:\n\n'
+          + affected.slice(0, 15).map(b => '• ' + b.doc_no + ' — ' + b.created_by + ' — ' + ((b.items||[]).length) + ' items').join('\n')
+          + (affected.length > 15 ? '\n... (+' + (affected.length - 15) + ' more — ดู console)' : '')
+          + '\n\n👉 หากจะ recover จริง: window.$erp.recoverMissingStockLedger({ dryRun: false })');
+      return { affected: affected.map(b => b.doc_no), dryRun: true };
+    }
+    // 3. Generate + insert stock_ledger entries
+    let generated = 0, failed = 0;
+    const failedDocs = [];
+    for (const bill of affected) {
+      const items = bill.items || [];
+      const sl = items.map((it, idx) => ({
+        id: 'SL-RECOVER-' + bill.id + '-' + idx,
+        date: bill.date,
+        ref_type: 'PB', ref_id: bill.id, ref_no: bill.doc_no,
+        product_id: it.productId || it.product_id,
+        lot_no: it.lotNo || it.lot_no || '',
+        branch_id: bill.branch_id, warehouse_id: bill.warehouse_id,
+        movement_type: 'รับซื้อเข้า',
+        qty_in: Number(it.netWeight || it.net_weight || it.weight || 0),
+        qty_out: 0,
+        unit_cost: Number(it.price || 0),
+        value_in: Number(it.netAmount || it.net_amount || it.amount || 0),
+        value_out: 0,
+        purchase_channel_id: bill.channel_id || null,
+        sales_channel_id: null,
+        created_by: 'ADMIN-RECOVERY',
+        created_at: new Date().toISOString()
+      }));
+      try {
+        const { error } = await window.sb.from('stock_ledger').insert(sl);
+        if (error) { failed++; failedDocs.push(bill.doc_no + ': ' + error.message); console.error('[recovery] FAIL', bill.doc_no, error.message); }
+        else { generated++; console.log('[recovery] ✓', bill.doc_no, '(' + sl.length + ' rows)'); }
+      } catch(e) { failed++; failedDocs.push(bill.doc_no + ': ' + e.message); }
+    }
+    alert('PATCH 16 Recovery — DONE\n\n'
+        + '✅ Generated: ' + generated + ' bills\n'
+        + '❌ Failed: ' + failed + ' bills'
+        + (failed > 0 ? '\n\nFailed docs:\n' + failedDocs.slice(0, 5).join('\n') : '')
+        + '\n\n💡 หลังจากนี้ — refresh หน้าเพื่อ pull SL ใหม่ + ตรวจ stock balance reports');
+    return { generated, failed, affected: affected.map(b => b.doc_no), failedDocs };
+  },
   logAudit: (action, entity, before, after) => {
     try {
       if (!Array.isArray(_GLOBAL_DB.auditLog)) _GLOBAL_DB.auditLog = [];
@@ -6977,6 +7111,21 @@ window.$erp = {
             _logErr(cfg.target, '⛔ ห้าม drop "'+badCol+'" (PK) — skip batch: '+msg);
             fail += chunk.length;
             break;
+          }
+          // 🆕 PATCH 15b (2026-05-15): Schema-cache invalidation on column error
+          //   PostgREST cache schema ตอน initial load → ถ้า admin เพิ่ม column ใหม่ → client ไม่รู้
+          //   เดิม: STOP push (ข้อมูลค้าง 163 rows ใน production case)
+          //   ใหม่: column error ครั้งแรก → force-reload schema (SELECT limit 0) → retry 1 ครั้ง
+          //         ถ้ายัง fail → fall through ไป STOP เดิม
+          if (badCol && !chunk.__schemaReloaded) {
+            try {
+              console.warn('[PATCH 15b] '+cfg.target+': column "'+badCol+'" error — refreshing PostgREST schema cache + retry');
+              await window.sb.from(cfg.target).select('*').limit(0);
+              chunk.__schemaReloaded = true;
+              continue;   // retry upsert หลัง schema refresh
+            } catch(eRefresh) {
+              console.warn('[PATCH 15b] schema refresh failed:', eRefresh?.message, '— fall through to STOP');
+            }
           }
           if (badCol) {
             // ⛔ FAIL LOUDLY — ห้าม silent drop อีกต่อไป (ข้อมูลจะหายโดยไม่รู้ตัว)
