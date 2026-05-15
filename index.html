@@ -14937,11 +14937,29 @@ app.component('view-payment', {
         const supplierLabel = Array.from(supplierNames).join(', ').slice(0,80) || 'หลายราย';
         // 🆕 Split-aware bank statement: 1 entry per account
         // ⚠ Defense: ลบของเก่าซ้ำที่อาจหลงเหลือก่อน push ใหม่ (กัน duplicate จาก auto-pull race)
-        db.bankStatement = (db.bankStatement||[]).filter(s => !(s && s.refType === 'PMT' && s.refId === voucherId));
-        // 🆕 ลบจาก Cloud ด้วย — กัน random-id ของเก่าหลงเหลือ
+        // 🆕 PATCH 14b (2026-05-15): Query first, delete by explicit id
+        const oldBsIds = safeArr(db.bankStatement)
+          .filter(s => s && s.refType === 'PMT' && s.refId === voucherId)
+          .map(s => s.id);
+        const allBsIds = new Set(oldBsIds);
+
         try {
           if (window.sb) {
-            await window.sb.from('bank_statement').delete().eq('ref_type','PMT').eq('ref_id', voucherId);
+            const r = await window.sb.from('bank_statement')
+              .select('id').eq('ref_type', 'PMT').eq('ref_id', voucherId);
+            if (r.data) r.data.forEach(row => allBsIds.add(row.id));
+          }
+        } catch(e) { console.warn('[PMT cloud query]', e); }
+
+        const bsIdsArr = Array.from(allBsIds);
+        try { window.$autoSync?.addTombstones?.('bankStatement', bsIdsArr); } catch(e){}
+
+        db.bankStatement = (db.bankStatement||[]).filter(s => !(s && allBsIds.has(s.id)));
+
+        try {
+          if (window.sb && bsIdsArr.length) {
+            await window.sb.from('bank_statement').delete().in('id', bsIdsArr);
+            console.log('[payment-edit] PATCH 14b: cleaned', bsIdsArr.length, 'bs rows');
           }
         } catch(e) { console.warn('[clear cloud bs PMT]', e); }
         const splitsToWrite = validSplits.length > 0
@@ -15631,12 +15649,29 @@ app.component('view-receipt', {
           });
         });
         const customerLabel = Array.from(customerNames).join(', ').slice(0,80) || 'หลายราย';
-        // 🆕 Defense + deterministic id — กัน duplicate
-        db.bankStatement = (db.bankStatement||[]).filter(s => !(s && s.refType === 'RCP' && s.refId === voucherId));
-        // 🆕 ลบจาก Cloud ด้วย — กัน random-id ของเก่าหลงเหลือ
+        // 🆕 PATCH 14c (2026-05-15): Query first, delete by explicit id
+        const oldBsIds = safeArr(db.bankStatement)
+          .filter(s => s && s.refType === 'RCP' && s.refId === voucherId)
+          .map(s => s.id);
+        const allBsIds = new Set(oldBsIds);
+
         try {
           if (window.sb) {
-            await window.sb.from('bank_statement').delete().eq('ref_type','RCP').eq('ref_id', voucherId);
+            const r = await window.sb.from('bank_statement')
+              .select('id').eq('ref_type', 'RCP').eq('ref_id', voucherId);
+            if (r.data) r.data.forEach(row => allBsIds.add(row.id));
+          }
+        } catch(e) { console.warn('[RCP cloud query]', e); }
+
+        const bsIdsArr = Array.from(allBsIds);
+        try { window.$autoSync?.addTombstones?.('bankStatement', bsIdsArr); } catch(e){}
+
+        db.bankStatement = (db.bankStatement||[]).filter(s => !(s && allBsIds.has(s.id)));
+
+        try {
+          if (window.sb && bsIdsArr.length) {
+            await window.sb.from('bank_statement').delete().in('id', bsIdsArr);
+            console.log('[receipt-edit] PATCH 14c: cleaned', bsIdsArr.length, 'bs rows');
           }
         } catch(e) { console.warn('[clear cloud bs RCP]', e); }
         db.bankStatement.push({
@@ -16067,12 +16102,32 @@ app.component('view-transfer', {
         const nowIso = new Date().toISOString();
         const user = erp.currentUser.value?.username || '-';
         if (isEdit) {
-          // 🆕 Remove old bank statement entries local
-          db.bankStatement = safeArr(db.bankStatement).filter(s => !(s && s.refType === 'TRF' && s.refId === id));
-          // 🆕 Remove cloud bank_statement too — กัน random-id ของเก่าหลงเหลือ (cloud race)
+          // 🆕 PATCH 14d (2026-05-15): Query first, delete by explicit id
+          const oldBsIds = safeArr(db.bankStatement)
+            .filter(s => s && s.refType === 'TRF' && s.refId === id)
+            .map(s => s.id);
+          const allBsIds = new Set(oldBsIds);
+
           try {
-            if (window.sb) await window.sb.from('bank_statement').delete().eq('ref_type','TRF').eq('ref_id', id);
+            if (window.sb) {
+              const r = await window.sb.from('bank_statement')
+                .select('id').eq('ref_type', 'TRF').eq('ref_id', id);
+              if (r.data) r.data.forEach(row => allBsIds.add(row.id));
+            }
+          } catch(e) { console.warn('[TRF cloud query]', e); }
+
+          const bsIdsArr = Array.from(allBsIds);
+          try { window.$autoSync?.addTombstones?.('bankStatement', bsIdsArr); } catch(e){}
+
+          db.bankStatement = safeArr(db.bankStatement).filter(s => !(s && allBsIds.has(s.id)));
+
+          try {
+            if (window.sb && bsIdsArr.length) {
+              await window.sb.from('bank_statement').delete().in('id', bsIdsArr);
+              console.log('[transfer-edit] PATCH 14d: cleaned', bsIdsArr.length, 'bs rows');
+            }
           } catch(e) { console.warn('[transfer clear cloud bs]', e); }
+
           // Update transfer record
           const idx = db.transfers.findIndex(x => x && x.id === id);
           if (idx >= 0) db.transfers[idx] = { ...db.transfers[idx], ...f, id, amount: num(f.amount), fee: num(f.fee), updatedAt: nowIso, updatedBy: user };
@@ -16399,26 +16454,57 @@ app.component('view-expense', {
         const isEdit = !!editingVoucherId.value;
         const id = isEdit ? editingVoucherId.value : newId('EXP');
         if (isEdit) {
-          // 🔧 BUG FIX: เก็บ ids เก่าก่อนลบ + ใส่ tombstone + ลบ Cloud
-          const oldExpIds = safeArr(db.expenses).filter(e => e && (e.voucherId || e.id) === id).map(e => e.id);
-          const oldBsIds = safeArr(db.bankStatement).filter(s => s && s.refType === 'EXP' && s.refId === id).map(s => s.id);
-          // Tombstone ทันที — กัน pull restore
-          try { window.$autoSync?.addTombstones?.('expenses', oldExpIds); } catch(e){}
-          try { window.$autoSync?.addTombstones?.('bankStatement', oldBsIds); } catch(e){}
-          // ลบ local
-          db.expenses = safeArr(db.expenses).filter(e => e && (e.voucherId || e.id) !== id);
-          db.bankStatement = safeArr(db.bankStatement).filter(s => !(s && s.refType === 'EXP' && s.refId === id));
-          // ลบ Cloud — ใช้ทั้ง id และ voucher_id (กรณี cloud มี rows ที่ local ไม่มี)
+          // 🆕 PATCH 14a (2026-05-15): Query first, delete by explicit id
+
+          // 1. รวม ids จาก local
+          const oldExpIds = safeArr(db.expenses)
+            .filter(e => e && (e.voucherId || e.id) === id)
+            .map(e => e.id);
+          const oldBsIds = safeArr(db.bankStatement)
+            .filter(s => s && s.refType === 'EXP' && s.refId === id)
+            .map(s => s.id);
+
+          // 2. รวม ids เพิ่มจาก cloud (rows ที่ local ไม่มี — เช่น lines ที่ user เคยลบ + push ค้าง)
+          const allExpIds = new Set(oldExpIds);
+          const allBsIds = new Set(oldBsIds);
           try {
             if (window.sb) {
-              if (oldExpIds.length) await window.sb.from('expenses').delete().in('id', oldExpIds);
-              // เผื่อ cloud มี rows อื่นที่ voucher_id เดียวกัน (เช่น lines ที่ลบไป)
-              await window.sb.from('expenses').delete().eq('voucher_id', id);
-              if (oldBsIds.length) await window.sb.from('bank_statement').delete().in('id', oldBsIds);
-              await window.sb.from('bank_statement').delete().eq('ref_type','EXP').eq('ref_id', id);
-              console.log('[expense-edit] cleaned cloud rows for voucher', id);
+              const r1 = await window.sb.from('expenses').select('id').eq('voucher_id', id);
+              if (r1.data) r1.data.forEach(row => allExpIds.add(row.id));
+              const r2 = await window.sb.from('bank_statement')
+                .select('id').eq('ref_type', 'EXP').eq('ref_id', id);
+              if (r2.data) r2.data.forEach(row => allBsIds.add(row.id));
             }
-          } catch(e) { console.warn('[expense-edit] cloud cleanup error:', e); }
+          } catch(e) {
+            console.warn('[expense-edit] cloud query failed:', e);
+            // Fallback: ใช้แค่ local ids — เสี่ยง orphan แต่ไม่ทำลาย bills อื่น
+          }
+
+          const expIdsArr = Array.from(allExpIds);
+          const bsIdsArr = Array.from(allBsIds);
+
+          // 3. Tombstone (กัน pull restore)
+          try { window.$autoSync?.addTombstones?.('expenses', expIdsArr); } catch(e){}
+          try { window.$autoSync?.addTombstones?.('bankStatement', bsIdsArr); } catch(e){}
+
+          // 4. ลบ local โดย explicit ids
+          db.expenses = safeArr(db.expenses).filter(e => e && !allExpIds.has(e.id));
+          db.bankStatement = safeArr(db.bankStatement).filter(s => !(s && allBsIds.has(s.id)));
+
+          // 5. ลบ Cloud โดย explicit ids (ไม่ใช่ wildcard)
+          try {
+            if (window.sb && expIdsArr.length) {
+              await window.sb.from('expenses').delete().in('id', expIdsArr);
+            }
+            if (window.sb && bsIdsArr.length) {
+              await window.sb.from('bank_statement').delete().in('id', bsIdsArr);
+            }
+            console.log('[expense-edit] PATCH 14a: cleaned', expIdsArr.length, 'expense +', bsIdsArr.length, 'bs rows');
+          } catch(e) {
+            console.warn('[expense-edit] cloud cleanup error:', e);
+          }
+          // ❌ REMOVED: await window.sb.from('expenses').delete().eq('voucher_id', id);
+          // ❌ REMOVED: await window.sb.from('bank_statement').delete().eq('ref_type','EXP').eq('ref_id', id);
         }
         const paidStatus = isPay ? 'paid' : 'pending';
         const paidAt = isPay ? new Date().toISOString() : null;
