@@ -6999,22 +6999,36 @@ window.$erp = {
       Object.entries(AS_MAP).forEach(([localKey, cfg]) => { reverseMap[cfg.target] = localKey; });
 
       // 🆕 PATCH 16c (2026-05-15): Pull-side exemption สำหรับ stockLedger ของ active bill
-      //   เดิม: tombstone match → ลบ local row → ทำให้ admin local missing 180 rows (cloud 1,753 / local 1,573)
-      //   เหตุเพราะมี orphan tombstones 1,000+ ใน deletion_log ที่ผิด (refId ของ active bill)
-      //   ใหม่: ถ้า stockLedger row มี refId ตรงกับ active purchaseBill/salesBill → exempt (zombie pattern จะหยุด)
+      // 🆕 PATCH 19 (2026-05-15): mirror Patch 18 ที่ push-side — เพิ่ม freshness check 24h
+      //   Bug 16g: PATCH 18 ป้องกัน PUSH side, แต่ PULL side ยังลบ rows ตาม stale tombs
+      //   → admin hard reset → pull cloud → applyDeletionLog ลบ 150 opening rows ทันที
+      //   ใหม่: tomb เก่ากว่า 24h → ถือว่า stale → exempt ทั้งหมด (mirror Patch 18 push-side)
       const activeBillIds = new Set();
       _safeArr(_GLOBAL_DB.purchaseBills).forEach(b => { if (b && b.id) activeBillIds.add(b.id); });
       _safeArr(_GLOBAL_DB.salesBills).forEach(b => { if (b && b.id) activeBillIds.add(b.id); });
 
+      const PULL_TOMB_FRESHNESS_MS = 24 * 60 * 60 * 1000;   // 🆕 PATCH 19: 24h
+      const nowMs = Date.now();
+
       let applied = 0;
       let exempted16c = 0;
       let exempted16dC = 0;
+      let exempted19stale = 0;   // 🆕 PATCH 19: stale tomb (> 24h)
       let latestTs = since;
       for (const t of data) {
         const localKey = reverseMap[t.table_name];
         if (!localKey) continue;
         const arr = _GLOBAL_DB[localKey];
         if (!Array.isArray(arr)) continue;
+        // 🆕 PATCH 19: Freshness check — tomb เก่ากว่า 24h ถือว่า stale → exempt (apply ทุก table)
+        //   เหตุผล: orphan tombs 1,000+ ใน deletion_log ทำให้ admin hard reset เสีย 150 opening rows
+        //   stale tombs ถือว่า "ของเก่า" → ไม่ลบ local; ถ้า cloud จริงๆ ลบ → user จะลบใหม่ → tomb ใหม่ < 24h → จะ apply
+        const tombTsMs = Date.parse(t.deleted_at) || 0;
+        if (tombTsMs > 0 && (nowMs - tombTsMs) > PULL_TOMB_FRESHNESS_MS) {
+          exempted19stale++;
+          if (t.deleted_at > latestTs) latestTs = t.deleted_at;
+          continue;   // skip — stale tomb
+        }
         // 🆕 PATCH 16c: stockLedger exemption — refId อยู่ใน active bill
         if (localKey === 'stockLedger') {
           const target = arr.find(r => r && String(r.id) === String(t.row_id));
@@ -7031,8 +7045,7 @@ window.$erp = {
         const targetRow = arr.find(r => r && String(r.id) === String(t.row_id));
         if (targetRow && targetRow.createdAt && t.deleted_at) {
           const rowTs = Date.parse(targetRow.createdAt) || 0;
-          const tombTs = Date.parse(t.deleted_at) || 0;
-          if (rowTs > 0 && tombTs > 0 && rowTs > tombTs) {
+          if (rowTs > 0 && tombTsMs > 0 && rowTs > tombTsMs) {
             exempted16dC++;
             console.warn('[PATCH 16e Bug 16d/C] EXEMPT', t.table_name, t.row_id, '(local createdAt='+targetRow.createdAt+' > tomb deleted_at='+t.deleted_at+')');
             if (t.deleted_at > latestTs) latestTs = t.deleted_at;
@@ -7048,6 +7061,9 @@ window.$erp = {
           console.log('[tombstone] removed', t.table_name, t.row_id, 'from local');
         }
         if (t.deleted_at > latestTs) latestTs = t.deleted_at;
+      }
+      if (exempted19stale > 0) {
+        console.warn('[PATCH 19 pull-tomb] EXEMPT', exempted19stale, 'tombs (stale > 24h) — kept local rows safe from orphan tombstones');
       }
       if (exempted16c > 0) {
         console.warn('[PATCH 16c] TOTAL EXEMPTED:', exempted16c, 'stockLedger rows (active bill refs) — they will stay in local');
@@ -7348,8 +7364,8 @@ window.$erp = {
           // 🆕 PATCH 18: ⛔ ไม่ remove จาก local + ไม่ re-tombstone (เลิก infect cloud)
           //   blocked = rows ที่มี FRESH tomb (< 24h) + ไม่ใช่ active-bill + ไม่ใช่ row ใหม่กว่า tomb
           //   = น่าจะลบจริงโดย user อีกเครื่อง → skip push ตามปกติ
-          //   แต่ไม่ remove จาก local — pull จะ sync ลบเองผ่าน pullTombstones (ที่มี Option C check แล้ว)
-          console.warn('[PATCH 18 pre-push] '+localKey+': SKIPPED push for '+blocked.length+'/'+rows.length+' rows (fresh cloud tomb match — pullTombstones จะ sync delete ภายหลัง ถ้าควร)');
+          //   🆕 PATCH 19: pullTombstones มี freshness+16c+16e checks เหมือนกัน → จะ sync ลบ local ถ้าควรจริงเท่านั้น (mirror behavior)
+          console.warn('[PATCH 18 pre-push] '+localKey+': SKIPPED push for '+blocked.length+'/'+rows.length+' rows (fresh cloud tomb match — pullTombstones (with P19 checks) will sync delete if appropriate)');
           // ❌ REMOVED: _GLOBAL_DB[localKey] = ...filter(...);  ← เลิก destroy local
           // ❌ REMOVED: addTombstones(localKey, blocked.map(r => r.id));  ← เลิก propagate ไป cloud
         }
