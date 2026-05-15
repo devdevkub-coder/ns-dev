@@ -6824,6 +6824,40 @@ window.$erp = {
   const NEVER_DROP = new Set(['id']);
 
   /* Push 1 table — Smart retry on schema/FK errors (เหมือน manual migrate) */
+  /* 🆕 PATCH 13: Pre-push tombstone check — fetch cloud tombstones for table
+     Cache 60s in memory เพื่อไม่ให้ slow ทุก push */
+  const _cloudTombCache = new Map();   // cloudTable → { ids: Set<string>, at: timestamp }
+  const _CLOUD_TOMB_CACHE_MS = 60000;
+  async function _fetchCloudTombstoneIds(cloudTable) {
+    if (!cloudTable || !window.sb || !window.SUPABASE_CONFIG?.enabled) return new Set();
+    const cached = _cloudTombCache.get(cloudTable);
+    if (cached && Date.now() - cached.at < _CLOUD_TOMB_CACHE_MS) return cached.ids;
+    const ids = new Set();
+    try {
+      let from = 0;
+      while (true) {
+        const { data, error } = await window.sb.from('deletion_log')
+          .select('row_id').eq('table_name', cloudTable).range(from, from + 999);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        data.forEach(r => { if (r.row_id) ids.add(String(r.row_id)); });
+        if (data.length < 1000) break;
+        from += 1000;
+      }
+      _cloudTombCache.set(cloudTable, { ids, at: Date.now() });
+    } catch(e) {
+      console.warn('[pre-push] failed to fetch cloud tombstones for', cloudTable, e.message);
+      // degraded mode — return empty (will fall back to local tombstone check only)
+    }
+    return ids;
+  }
+  // Invalidate cache เมื่อ addTombstones ถูกเรียก
+  function _invalidateCloudTombCache(cloudTable) {
+    if (cloudTable) _cloudTombCache.delete(cloudTable);
+    else _cloudTombCache.clear();
+  }
+  window._invalidateCloudTombCache = _invalidateCloudTombCache;
+
   async function _pushTable(localKey) {
     const cfg = AS_MAP[localKey]; if (!cfg) return { ok:0, fail:0 };
     // 🛡 SEED PROTECTION (revised 2026-05-13 v2): ใช้แค่ DB-level flag
@@ -6841,6 +6875,32 @@ window.$erp = {
     }
     rows = filtered;
     if (!rows.length) return { ok:0, fail:0 };
+
+    // 🆕 PATCH 13: Pre-push tombstone check (cloud deletion_log) — ป้องกัน resurrection
+    //   ก่อน push row ใดๆ → check ว่า id ∈ cloud tombstones → ถ้าใช่: skip + ลบ row จาก local
+    try {
+      const cloudTombs = await _fetchCloudTombstoneIds(cfg.target);
+      if (cloudTombs.size > 0) {
+        const safe = rows.filter(r => !cloudTombs.has(String(r.id)));
+        const blocked = rows.filter(r => cloudTombs.has(String(r.id)));
+        if (blocked.length > 0) {
+          console.warn(`[pre-push] ${localKey}: BLOCKED ${blocked.length}/${rows.length} rows (cloud tombstone match) — removing from local`);
+          const blockedIds = new Set(blocked.map(r => r.id));
+          _GLOBAL_DB[localKey] = (_GLOBAL_DB[localKey] || []).filter(r => !r || !blockedIds.has(r.id));
+          // เพิ่ม local tombstone ด้วย — กัน push รอบถัดไป
+          try { addTombstones(localKey, blocked.map(r => r.id)); } catch(e){}
+          try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(_GLOBAL_DB)); } catch(e) { console.warn('[pre-push] localStorage save failed:', e.message); }
+          _logErr(cfg.target, `pre-push blocked ${blocked.length} rows (tombstone match) — removed from local`);
+        }
+        rows = safe;
+        if (!rows.length) {
+          console.log(`[pre-push] ${localKey}: all rows blocked, nothing to push`);
+          return { ok:0, fail:0, skipped:'tombstone-block' };
+        }
+      }
+    } catch(e) {
+      console.warn('[pre-push] check failed for', localKey, '— continue with local-only tombstone:', e.message);
+    }
     const conflictCol = AS_CONFLICT_COL[cfg.target] || 'id';
     let mapped = _dedupeS(rows.map(r => {
       const out = _mapKeysS(r, cfg.keyMap || {});
@@ -7653,6 +7713,8 @@ window.$erp = {
     if (cloudInserted > 0 || cloudFailed > 0) {
       console.log('[tombstone-cloud] ' + cloudTable + ': inserted=' + cloudInserted + ' failed=' + cloudFailed);
     }
+    // 🆕 PATCH 13: invalidate cloud tomb cache → next push fetches fresh
+    try { _invalidateCloudTombCache(cloudTable); } catch(e){}
   }
   function isTombstoned(localCollection, id) {
     const store = TOMBSTONES[localCollection];
