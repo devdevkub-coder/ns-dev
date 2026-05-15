@@ -4739,6 +4739,12 @@ function _safeAddStockLedger(entry) {
   try {
     const db = _GLOBAL_DB;
     if (!Array.isArray(db.stockLedger)) db.stockLedger = [];
+    // 🆕 PATCH 17 (2026-05-15): Always set timestamps — ป้องกัน updated_at=NULL ใน cloud
+    //   bug ที่เคยเจอ: 163 rows ใน cloud มี updated_at=NULL → block pull-side LWW
+    //   fix: ทุก insert ต้องมี createdAt + updatedAt (frontend guard — defense-in-depth)
+    const _nowIso = new Date().toISOString();
+    if (!entry.createdAt) entry.createdAt = _nowIso;
+    if (!entry.updatedAt) entry.updatedAt = _nowIso;
     // ไม่เช็ค entry ที่ไม่มี refNo หรือ refType ที่ไม่ใช่ PB/SB (อนุญาตให้ push ปกติ)
     if (entry.refNo && (entry.refType === 'PB' || entry.refType === 'SB')) {
       const newKey = _stockLedgerContentKey(entry);
@@ -5674,7 +5680,8 @@ window.$erp = {
     const { dryRun = true, branchId = null } = options;
     if (!window.sb) { alert('⛔ Supabase not initialized'); return; }
     const role = window.$erp.currentUser?.value?.role;
-    if (role !== 'admin') {
+    // 🆕 PATCH 17 (2026-05-15): case-insensitive role check (DB เก็บ 'Admin' แต่ check 'admin')
+    if ((role || '').toLowerCase() !== 'admin') {
       alert('⛔ admin only — current role: ' + (role || 'none'));
       return;
     }
@@ -5761,7 +5768,8 @@ window.$erp = {
     const { dryRun = true } = options;
     if (!window.sb) { alert('⛔ Supabase not initialized'); return; }
     const role = window.$erp.currentUser?.value?.role;
-    if (role !== 'admin') { alert('⛔ admin only — current role: ' + (role || 'none')); return; }
+    // 🆕 PATCH 17 (2026-05-15): case-insensitive role check
+    if ((role || '').toLowerCase() !== 'admin') { alert('⛔ admin only — current role: ' + (role || 'none')); return; }
     if (!dryRun && !confirm('⚠ Confirm WRITE: จะลบ deletion_log entries จริง\n\nกด Cancel ถ้ายังไม่แน่ใจ — ใช้ dryRun: true ก่อน')) return;
     // 1. Fetch all stock_ledger tombstones
     let allTombs = [];
@@ -5841,6 +5849,87 @@ window.$erp = {
         + '❌ Failed: ' + failed
         + '\n\n💡 ขั้นถัดไป: refresh ทุกเครื่อง + reset DELETION_LOG_KEY ที่ localStorage (กัน replay)');
     return { totalTombs: allTombs.length, orphans: orphans.length, deleted, failed };
+  },
+  /* 🆕 PATCH 17 (2026-05-15): healUpdatedAt — admin tool fix NULL updated_at ใน cloud
+     ใช้งาน:
+       await window.$erp.healUpdatedAt()                                — ตรวจทุก table (DRY RUN)
+       await window.$erp.healUpdatedAt('stock_ledger')                  — ตรวจเฉพาะ table
+       await window.$erp.healUpdatedAt('stock_ledger', { dryRun:false })— heal จริง (UPDATE NULL → COALESCE(created_at, NOW()))
+     สาเหตุ: NULL updated_at block LWW comparison + ทำ row หายจาก pull merge */
+  healUpdatedAt: async (tableArg, options = {}) => {
+    const { dryRun = true } = options;
+    if (!window.sb) { alert('⛔ Supabase not initialized'); return; }
+    const role = window.$erp.currentUser?.value?.role;
+    if ((role || '').toLowerCase() !== 'admin') { alert('⛔ admin only — current role: ' + (role || 'none')); return; }
+    const defaultTables = [
+      'stock_ledger', 'purchase_bills', 'sales_bills',
+      'payments', 'receipts', 'transfers', 'expenses',
+      'bank_statement', 'po_buys', 'po_sells', 'receipt_vouchers'
+    ];
+    const tables = tableArg ? [tableArg] : defaultTables;
+    if (!dryRun && !confirm('⚠ Confirm WRITE: จะ UPDATE rows ที่ updated_at=NULL → COALESCE(created_at, NOW()) ใน '+tables.length+' tables\n\nกด Cancel ถ้ายังไม่แน่ใจ — ใช้ dryRun: true ก่อน')) return;
+    const summary = [];
+    for (const t of tables) {
+      try {
+        // 1. Count NULL rows
+        const { count, error: cErr } = await window.sb.from(t)
+          .select('id', { count: 'exact', head: true }).is('updated_at', null);
+        if (cErr) {
+          if (/does not exist/i.test(cErr.message || '')) {
+            summary.push({ table: t, status: 'skip (table not found)', nullCount: 0, healed: 0 });
+            continue;
+          }
+          summary.push({ table: t, status: 'count error: ' + cErr.message, nullCount: '?', healed: 0 });
+          continue;
+        }
+        const nullCount = Number(count || 0);
+        if (nullCount === 0) {
+          summary.push({ table: t, status: '✅ clean', nullCount: 0, healed: 0 });
+          continue;
+        }
+        if (dryRun) {
+          summary.push({ table: t, status: '🔍 has NULLs (dry run)', nullCount, healed: 0 });
+          continue;
+        }
+        // 2. Fetch all rows with NULL updated_at + their created_at
+        let nullRows = [];
+        let from = 0; const page = 1000;
+        while (true) {
+          const { data, error } = await window.sb.from(t).select('id, created_at')
+            .is('updated_at', null).order('id').range(from, from + page - 1);
+          if (error) { summary.push({ table: t, status: 'fetch error: ' + error.message, nullCount, healed: 0 }); break; }
+          if (!data || data.length === 0) break;
+          nullRows = nullRows.concat(data);
+          if (data.length < page) break;
+          from += page;
+        }
+        // 3. UPDATE in batches via upsert (preserving id, only patching updated_at)
+        let healed = 0, failed = 0;
+        const BATCH = 100;
+        for (let i = 0; i < nullRows.length; i += BATCH) {
+          const batch = nullRows.slice(i, i + BATCH);
+          const payload = batch.map(r => ({ id: r.id, updated_at: r.created_at || new Date().toISOString() }));
+          try {
+            const { error: uErr } = await window.sb.from(t).upsert(payload, { onConflict: 'id' });
+            if (uErr) { failed += batch.length; console.error('[healUpdatedAt]', t, 'batch fail:', uErr.message); }
+            else { healed += batch.length; }
+          } catch(eb) { failed += batch.length; console.error('[healUpdatedAt]', t, 'exception:', eb?.message); }
+        }
+        summary.push({ table: t, status: failed > 0 ? '⚠ partial ('+failed+' failed)' : '✅ healed', nullCount, healed });
+      } catch(eT) {
+        summary.push({ table: t, status: 'exception: ' + eT?.message, nullCount: '?', healed: 0 });
+      }
+    }
+    console.group('[healUpdatedAt] Result');
+    console.table(summary);
+    console.groupEnd();
+    const totalNull = summary.reduce((s, x) => s + (Number(x.nullCount) || 0), 0);
+    const totalHealed = summary.reduce((s, x) => s + (x.healed || 0), 0);
+    alert('PATCH 17 healUpdatedAt — ' + (dryRun ? 'DRY RUN' : 'DONE') + '\n\n'
+        + 'Total NULL rows found: ' + totalNull + '\n'
+        + (dryRun ? '\n👉 หากจะ heal จริง: window.$erp.healUpdatedAt(null, { dryRun: false })' : 'Total healed: ' + totalHealed + '\n\n💡 หลังจากนี้: refresh ทุกเครื่อง — pull จะดึงครบ')
+        + '\n\n(ดู console.table สำหรับ breakdown ต่อ table)');
+    return { dryRun, summary, totalNull, totalHealed };
   },
   logAudit: (action, entity, before, after) => {
     try {
@@ -7090,31 +7179,49 @@ window.$erp = {
 
   /* Push 1 table — Smart retry on schema/FK errors (เหมือน manual migrate) */
   /* 🆕 PATCH 13: Pre-push tombstone check — fetch cloud tombstones for table
-     Cache 60s in memory เพื่อไม่ให้ slow ทุก push */
-  const _cloudTombCache = new Map();   // cloudTable → { ids: Set<string>, at: timestamp }
+     Cache 60s in memory เพื่อไม่ให้ slow ทุก push
+     🆕 PATCH 18 (2026-05-15): now returns Map<id, deleted_at> for Option C check */
+  const _cloudTombCache = new Map();   // cloudTable → { ids: Set, idMap: Map, at: timestamp }
   const _CLOUD_TOMB_CACHE_MS = 60000;
   async function _fetchCloudTombstoneIds(cloudTable) {
     if (!cloudTable || !window.sb || !window.SUPABASE_CONFIG?.enabled) return new Set();
     const cached = _cloudTombCache.get(cloudTable);
     if (cached && Date.now() - cached.at < _CLOUD_TOMB_CACHE_MS) return cached.ids;
     const ids = new Set();
+    const idMap = new Map();   // 🆕 PATCH 18: id → deleted_at (most recent if dup)
     try {
       let from = 0;
       while (true) {
         const { data, error } = await window.sb.from('deletion_log')
-          .select('row_id').eq('table_name', cloudTable).range(from, from + 999);
+          .select('row_id, deleted_at').eq('table_name', cloudTable).range(from, from + 999);
         if (error) throw error;
         if (!data || data.length === 0) break;
-        data.forEach(r => { if (r.row_id) ids.add(String(r.row_id)); });
+        data.forEach(r => {
+          if (r.row_id) {
+            const sid = String(r.row_id);
+            ids.add(sid);
+            // Keep MOST RECENT deleted_at if same id appears multiple times
+            const existing = idMap.get(sid);
+            if (!existing || (r.deleted_at && r.deleted_at > existing)) {
+              idMap.set(sid, r.deleted_at);
+            }
+          }
+        });
         if (data.length < 1000) break;
         from += 1000;
       }
-      _cloudTombCache.set(cloudTable, { ids, at: Date.now() });
+      _cloudTombCache.set(cloudTable, { ids, idMap, at: Date.now() });
     } catch(e) {
       console.warn('[pre-push] failed to fetch cloud tombstones for', cloudTable, e.message);
       // degraded mode — return empty (will fall back to local tombstone check only)
     }
     return ids;
+  }
+  // 🆕 PATCH 18 (2026-05-15): Accessor for cached tombstone idMap (id → deleted_at)
+  //   ใช้ใน pre-push เพื่อทำ Option C check (row.createdAt > tomb.deleted_at)
+  function _getCloudTombMap(cloudTable) {
+    const cached = _cloudTombCache.get(cloudTable);
+    return cached?.idMap || new Map();
   }
   // Invalidate cache เมื่อ addTombstones ถูกเรียก
   function _invalidateCloudTombCache(cloudTable) {
@@ -7171,13 +7278,22 @@ window.$erp = {
     if (!rows.length) return { ok:0, fail:0 };
 
     // 🆕 PATCH 13: Pre-push tombstone check (cloud deletion_log) — ป้องกัน resurrection
-    //   ก่อน push row ใดๆ → check ว่า id ∈ cloud tombstones → ถ้าใช่: skip + ลบ row จาก local
-    // 🆕 PATCH 16b (2026-05-15): exception สำหรับ stockLedger rows ที่ refId = active bill
-    //   เดิม: tombstone match → block ทันที → stock_ledger ของบิลที่ยังอยู่ถูกลบ (9 STOCK bills ผลิตภัณฑ์หาย)
-    //   ใหม่: ถ้า refId ตรงกับ purchaseBill/salesBill ที่ยังอยู่ → allow push (cloud tomb คือของเก่า ก่อน regen)
+    // 🆕 PATCH 16b: exception สำหรับ stockLedger rows ที่ refId = active bill
+    // 🆕 PATCH 18 (2026-05-15): Fix Bug 16f — pre-push BLOCK catastrophic data loss
+    //   Production incident: admin hard reset → pull ครบ 1,753 SL + 152 opening
+    //   → pre-push block 150 rows + ADD 150 tombs cloud → cascade ทุกเครื่อง
+    //   เปลี่ยน behavior:
+    //     1. เทียบกับ "fresh" tombs (deleted_at < 24h เท่านั้น) — orphan tombs เก่าไม่นับ
+    //     2. Option C: row.createdAt > tomb.deleted_at → exempt (row ใหม่กว่า tomb)
+    //     3. 16b: stockLedger refId in active bill → exempt
+    //     4. ⛔ ไม่ re-propagate ผ่าน addTombstones (เลิก infect cloud)
+    //     5. ⛔ ไม่ remove rows จาก local (แค่ skip push) — กัน data loss
     try {
       const cloudTombs = await _fetchCloudTombstoneIds(cfg.target);
       if (cloudTombs.size > 0) {
+        const tombMap = _getCloudTombMap(cfg.target);   // 🆕 PATCH 18: id → deleted_at
+        const FRESHNESS_MS = 24 * 60 * 60 * 1000;        // 24 ชม. — tombstone เก่ากว่านี้ถือว่า stale
+        const nowMs = Date.now();
         // 🆕 PATCH 16b: build active-bill id set สำหรับ stockLedger
         let activeBillIds = null;
         if (localKey === 'stockLedger') {
@@ -7185,28 +7301,57 @@ window.$erp = {
           _safeArr(_GLOBAL_DB.purchaseBills).forEach(b => { if (b && b.id) activeBillIds.add(b.id); });
           _safeArr(_GLOBAL_DB.salesBills).forEach(b => { if (b && b.id) activeBillIds.add(b.id); });
         }
-        let exemptCount = 0;
+        let exempt16b = 0, exempt18stale = 0, exempt18newer = 0;
         const safe = rows.filter(r => {
-          if (!cloudTombs.has(String(r.id))) return true;        // ไม่อยู่ใน tomb — ส่งต่อ
+          const sid = String(r.id);
+          if (!cloudTombs.has(sid)) return true;                  // ไม่อยู่ใน tomb — ส่งต่อ
+          // 16b: stockLedger active-bill refId → exempt
           if (activeBillIds && r && r.refId && activeBillIds.has(r.refId)) {
-            exemptCount++;
-            return true;                                          // 🆕 PATCH 16b exempt — active bill
+            exempt16b++;
+            return true;
+          }
+          // 🆕 PATCH 18: freshness check + Option C
+          const tombDeletedAt = tombMap.get(sid);
+          if (!tombDeletedAt) {
+            // ไม่มี deleted_at ใน map — ไม่ block (cache ยังโหลดไม่ครบ หรือ degraded fetch)
+            exempt18stale++;
+            return true;
+          }
+          const tombMs = Date.parse(tombDeletedAt) || 0;
+          // 18.1 freshness: tomb เก่ากว่า 24h → stale → exempt (อย่าทำลายข้อมูลจาก orphan tombs)
+          if (tombMs > 0 && (nowMs - tombMs) > FRESHNESS_MS) {
+            exempt18stale++;
+            return true;
+          }
+          // 18.2 Option C: row.createdAt > tomb.deleted_at → row ใหม่กว่า tomb → exempt
+          if (r && r.createdAt) {
+            const rowMs = Date.parse(r.createdAt) || 0;
+            if (rowMs > 0 && tombMs > 0 && rowMs > tombMs) {
+              exempt18newer++;
+              return true;
+            }
           }
           return false;
         });
-        if (exemptCount > 0) {
-          console.warn('[PATCH 16b] EXEMPT '+exemptCount+' stockLedger rows (refId in active bills) — allow push despite tombstone match');
+        if (exempt16b > 0) {
+          console.warn('[PATCH 16b] EXEMPT '+exempt16b+' '+localKey+' rows (refId in active bills) — allow push');
+        }
+        if (exempt18stale > 0) {
+          console.warn('[PATCH 18] EXEMPT '+exempt18stale+' '+localKey+' rows (stale tomb > 24h or unknown deleted_at) — allow push');
+        }
+        if (exempt18newer > 0) {
+          console.warn('[PATCH 18] EXEMPT '+exempt18newer+' '+localKey+' rows (row.createdAt > tomb.deleted_at) — allow push');
         }
         const safeSet = new Set(safe);
         const blocked = rows.filter(r => !safeSet.has(r));
         if (blocked.length > 0) {
-          console.warn(`[pre-push] ${localKey}: BLOCKED ${blocked.length}/${rows.length} rows (cloud tombstone match) — removing from local`);
-          const blockedIds = new Set(blocked.map(r => r.id));
-          _GLOBAL_DB[localKey] = (_GLOBAL_DB[localKey] || []).filter(r => !r || !blockedIds.has(r.id));
-          // เพิ่ม local tombstone ด้วย — กัน push รอบถัดไป
-          try { addTombstones(localKey, blocked.map(r => r.id)); } catch(e){}
-          try { localStorage.setItem('ns_erp_db_v1', JSON.stringify(_GLOBAL_DB)); } catch(e) { console.warn('[pre-push] localStorage save failed:', e.message); }
-          _logErr(cfg.target, `pre-push blocked ${blocked.length} rows (tombstone match) — removed from local`);
+          // 🆕 PATCH 18: ⛔ ไม่ remove จาก local + ไม่ re-tombstone (เลิก infect cloud)
+          //   blocked = rows ที่มี FRESH tomb (< 24h) + ไม่ใช่ active-bill + ไม่ใช่ row ใหม่กว่า tomb
+          //   = น่าจะลบจริงโดย user อีกเครื่อง → skip push ตามปกติ
+          //   แต่ไม่ remove จาก local — pull จะ sync ลบเองผ่าน pullTombstones (ที่มี Option C check แล้ว)
+          console.warn('[PATCH 18 pre-push] '+localKey+': SKIPPED push for '+blocked.length+'/'+rows.length+' rows (fresh cloud tomb match — pullTombstones จะ sync delete ภายหลัง ถ้าควร)');
+          // ❌ REMOVED: _GLOBAL_DB[localKey] = ...filter(...);  ← เลิก destroy local
+          // ❌ REMOVED: addTombstones(localKey, blocked.map(r => r.id));  ← เลิก propagate ไป cloud
         }
         rows = safe;
         if (!rows.length) {
@@ -7223,6 +7368,15 @@ window.$erp = {
       delete out._normalized; delete out._migrated; delete out._dirty; delete out._cutPoIds;
       return out;
     }), conflictCol);
+    // 🆕 PATCH 17 (2026-05-15): Frontend guard — ensure updated_at เซ็ตเสมอสำหรับตารางที่มี column นี้
+    //   bug: 163 rows ใน cloud มี updated_at=NULL → block LWW comparison + incremental queries
+    //   fix: ก่อน upsert → fill updated_at = NOW() ถ้า table มี column และ row ว่าง
+    if (cfg.keyMap && Object.values(cfg.keyMap).includes('updated_at')) {
+      const _nowIso = new Date().toISOString();
+      mapped.forEach(row => {
+        if (row && (row.updated_at == null || row.updated_at === '')) row.updated_at = _nowIso;
+      });
+    }
     let ok = 0, fail = 0;
     const batchSize = 50;
     const dropCols = new Set();   // columns ที่ไม่มีใน Supabase → drop ออก
