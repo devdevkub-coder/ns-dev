@@ -6189,6 +6189,21 @@ window.$erp = {
       return amt;
     } catch (e) { return 0; }
   },
+  /* 🆕 PATCH 20 (2026-05-15): Get matched COST (purchase-side) for trading PB — sum matchedPurchaseAmount
+     ⚠ ตั้งชื่อต่างจาก tradingMatchedCost ที่มีอยู่แล้ว (sales-side) เพื่อกัน name collision
+     ใช้แทน tradingMatchedSales ในการคำนวณ remainPB เพราะ pbExVat = cost-side
+     bug เดิม: ใช้ tradingMatchedSales (sales-side) → ถ้าขายแพงกว่าซื้อ (กำไรปกติ) → remainPB ติดลบ → cost record เป็นลบ */
+  tradingMatchedCostByPB: (purchaseBillId, lineId=null) => {
+    try {
+      let amt = 0;
+      _safeArr(_GLOBAL_DB.tradingDeals).filter(d => d && d.status !== 'Cancelled' && d.purchaseBillId === purchaseBillId)
+        .forEach(d => {
+          if (lineId && d.purchaseBillLineId !== lineId) return;
+          amt += Number(d.matchedPurchaseAmount||0);
+        });
+      return amt;
+    } catch (e) { return 0; }
+  },
   /* Recalculate costs of all sales bills + production inputs after a given date.
      Walks chronologically using current stockLedger entries. Updates each downstream
      transaction's unitCost, totalCost, profit, and its stockLedger entry's valueOut.
@@ -18777,7 +18792,10 @@ app.component('view-sales', {
               // 🔧 ตอน edit: หัก matched ของ deal เดิม (บิลตัวเอง) ออก → กัน double count
               const existingDeal = existingDealsByPbId.get(pid);
               const existingMatchedFromThisBill = existingDeal ? Number(existingDeal.matchedPurchaseAmount || 0) : 0;
-              const remainPB = pbExVat - (erp.tradingMatchedSales(pb.id) - existingMatchedFromThisBill);
+              // 🆕 PATCH 20 (2026-05-15): ใช้ tradingMatchedCostByPB (PB-side) แทน tradingMatchedSales (sales-side)
+              //   bug เดิม: tradingMatchedSales คืน sum ของ matchedSalesAmount → ถ้าขายแพงกว่าซื้อ → remainPB ติดลบ
+              //   ผลคือ TD-260515-0010 มี matchedPurchaseAmount = -68,236 (GP% = 199.66%)
+              const remainPB = pbExVat - (erp.tradingMatchedCostByPB(pb.id) - existingMatchedFromThisBill);
               // items ที่มาจาก PB นี้
               const itemsFromPB = (bill.items||[]).filter(it => it.sourcePurchaseBillId === pb.id);
               const matchedQty = itemsFromPB.reduce((s,it)=>s+Number(it.weight||0),0);
@@ -18799,8 +18817,11 @@ app.component('view-sales', {
               }, 0);
               // matchedSales: proportional ตามสัดส่วนต้นทุน
               const matchedSales = sbExVat * (matchedCost / totalCostInBill);
-              const actualMatchCost = Math.min(matchedCost, remainPB);
-              const newPBMatched = (erp.tradingMatchedSales(pb.id) - existingMatchedFromThisBill) + actualMatchCost;
+              // 🆕 PATCH 20 (2026-05-15): clamp non-negative — safety belt กัน edge case ที่ remainPB ติดลบ
+              //   (เช่น past data ที่มี deal เก่าผิดอยู่ → tradingMatchedCostByPB ได้ค่าผิดด้วย)
+              const actualMatchCost = Math.max(0, Math.min(matchedCost, remainPB));
+              // 🆕 PATCH 20: ใช้ tradingMatchedCostByPB ตรงนี้ด้วย (เพื่อ consistent กับการคำนวณข้างบน)
+              const newPBMatched = (erp.tradingMatchedCostByPB(pb.id) - existingMatchedFromThisBill) + actualMatchCost;
               const pbFully = Math.abs(newPBMatched - pbExVat) < 0.01;
               const status = pbFully ? 'Completed' : 'Partially Matched';
 
