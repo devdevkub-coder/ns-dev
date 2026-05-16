@@ -2774,7 +2774,7 @@ function seedData() {
       { id:'R-COORDINATOR', name:'ประสานงาน', desc:'ประสานงาน — กรอกบิลซื้อ/ขาย, Stock, Trading, PO, ใบสำคัญรับเงิน, ปรับสถานะ/เกรด', isSystem:false,
         // 🆕 ADD: receiptVoucher, statusConvert, gradeAdjustment, customerReturn, costPool, costAllocator, matchLog
         // 🚫 REMOVE: paymentApproval, salesCommission (จำกัด Sales Tracking ให้ Poopae เท่านั้น)
-        menus:['changePassword','purchase','sales','stockIssue','payment','receipt','receiptVoucher','statusConvert','gradeAdjustment','stockAdjust','customerReturn','stockBalance','stockLedger','mdCustomer','mdSupplier','mdProduct','mdChannel','importTxn','pendingSales','poOutstanding','poBuy','poSell','tradingDashboard','tradingMatching','costPool','costAllocator','matchLog','reports','backup','companyProfile'],
+        menus:['changePassword','purchase','sales','stockIssue','payment','receipt','receiptVoucher','statusConvert','gradeAdjustment','stockAdjust','customerReturn','stockBalance','stockLedger','mdCustomer','mdSupplier','mdProduct','mdChannel','importTxn','pendingSales','poOutstanding','poBuy','poSell','tradingDashboard','tradingMatching','costPool','costAllocator','waitingAllocations','costAllocationLedger','dualCostingReport','matchLog','reports','backup','companyProfile'],
         actions:{'*':['view','create','edit','post','export']},
         seeCost:true, seeProfit:false, seeCash:false, seeFinancials:false, seeOpening:false,
         branchScope:'all' },
@@ -6163,6 +6163,64 @@ window.$erp = {
       return Math.max(0, val);
     } catch (e) { return 0; }
   },
+  /* 🆕 PHASE 1 (2026-05-15): Dual Costing — categories that REQUIRE deal-cost allocation (not WAC) */
+  DUAL_COSTING_GROUPS: ['ทองแดง', 'ทองเหลือง'],
+  isDualCostingProduct: (productId) => {
+    try {
+      const prod = _safeArr(_GLOBAL_DB.products).find(p => p && p.id === productId);
+      if (!prod) return false;
+      return window.$erp.DUAL_COSTING_GROUPS.includes(prod.metalGroup);
+    } catch(e) { return false; }
+  },
+  /* 🆕 PHASE 1: Get allocated qty for a Sales Bill item (sum from matchLogs where target=this item) */
+  salesItemAllocatedQty: (salesBillId, itemId) => {
+    try {
+      let qty = 0;
+      _safeArr(_GLOBAL_DB.matchLogs).forEach(m => {
+        if (!m || m.status === 'reversed') return;
+        if (m.target_type !== 'SPOT_SELL') return;
+        if (m.target_bill_id !== salesBillId) return;
+        if (itemId && m.target_item_id !== itemId) return;
+        qty += Number(m.qty_used || 0);
+      });
+      return qty;
+    } catch(e) { return 0; }
+  },
+  /* 🆕 PHASE 1: Sales Bill items pending allocation (dual-costing categories, no trading link, not fully allocated) */
+  pendingSpotAllocations: () => {
+    try {
+      const out = [];
+      _safeArr(_GLOBAL_DB.salesBills).forEach(b => {
+        if (!b || b.status === 'cancelled') return;
+        if (b.transactionMode === 'TRADING') return;   // trading uses its own deal mechanism
+        _safeArr(b.items).forEach(it => {
+          if (!it || !it.productId) return;
+          if (!window.$erp.isDualCostingProduct(it.productId)) return;
+          const sellQty = Number(it.weight || it.netWeight || 0);
+          if (sellQty <= 0.001) return;
+          const allocated = window.$erp.salesItemAllocatedQty(b.id, it.id);
+          const remaining = sellQty - allocated;
+          if (remaining <= 0.001) return;   // fully allocated
+          out.push({
+            sb_id: b.id,
+            sb_doc_no: b.docNo,
+            sb_date: b.date,
+            item_id: it.id,
+            product_id: it.productId,
+            customer_id: b.customerId,
+            branch_id: b.branchId,
+            warehouse_id: b.warehouseId,
+            sell_qty: sellQty,
+            allocated_qty: allocated,
+            remaining_qty: remaining,
+            unit_price: Number(it.price || 0),
+            allocation_status: allocated <= 0.001 ? 'pending_allocation' : 'partially_allocated',
+          });
+        });
+      });
+      return out.sort((a,b) => (a.sb_date||'').localeCompare(b.sb_date||''));
+    } catch(e) { console.warn('[pendingSpotAllocations]', e); return []; }
+  },
   /* Trading helpers */
   isTrading: (bill) => bill && bill.transactionMode === 'TRADING',
   /* Get matched cost amount for a trading sales bill line — sum from tradingDeals */
@@ -8799,7 +8857,10 @@ const app = createApp({
         {view:'poBuy', label:'PO Buy (จองซื้อ)', icon:'📝'},
         {view:'poSell', label:'PO Sell (จองขาย)', icon:'📃'},
         {view:'costPool', label:'Cost Pool', icon:'🪣'},
-        {view:'costAllocator', label:'Cost Allocator', icon:'🎯'},
+        {view:'costAllocator', label:'Cost Allocator (ทอง/เหลือง)', icon:'🎯'},
+        {view:'waitingAllocations', label:'Waiting Allocations', icon:'⏳'},   // 🆕 PHASE 2.D
+        {view:'costAllocationLedger', label:'Allocation Ledger', icon:'📒'},   // 🆕 PHASE 3.A
+        {view:'dualCostingReport', label:'Dual Costing Report', icon:'📊'},   // 🆕 PHASE 3.B
         {view:'matchLog', label:'Match Log', icon:'🔗'},
         {view:'dealMargin', label:'Deal Margin Report', icon:'💎'},
         {view:'compareMargin', label:'Compare Deal vs Stock', icon:'⚖️'},
@@ -18112,6 +18173,27 @@ app.component('view-sales', {
       if (matched === tradingItems.length) return { kind:'matched', label:'✓ ครบ', tradingCount: tradingItems.length, matchedCount: matched };
       return { kind:'partial', label:'⚠ บางส่วน', tradingCount: tradingItems.length, matchedCount: matched };
     }
+    // 🆕 PHASE 2.C (2026-05-15): Allocation status badge for dual-costing items (copper/brass)
+    //   ตอบ Req #10: pending_allocation · partially_allocated · allocated · over_allocated
+    function allocationStatusOf(b) {
+      if (!b || b.transactionMode === 'TRADING') return { kind:'none', count:0 };
+      const items = b.items || [];
+      const dualItems = items.filter(it => it && it.productId && erp.isDualCostingProduct(it.productId));
+      if (dualItems.length === 0) return { kind:'none', count:0 };
+      let pending=0, partial=0, allocated=0, over=0;
+      dualItems.forEach(it => {
+        const status = it.allocationStatus || 'pending_allocation';
+        if (status === 'allocated') allocated++;
+        else if (status === 'partially_allocated') partial++;
+        else if (status === 'over_allocated') over++;
+        else pending++;
+      });
+      if (over > 0) return { kind:'over', count:over, total:dualItems.length, label:'🚨 Over ('+over+')' };
+      if (pending === dualItems.length) return { kind:'pending', count:pending, total:dualItems.length, label:'⏳ ค้าง allocate ('+pending+')' };
+      if (allocated === dualItems.length) return { kind:'allocated', count:allocated, total:dualItems.length, label:'💎 Allocated ครบ' };
+      if (partial > 0 || allocated > 0) return { kind:'partial', count:partial+allocated, total:dualItems.length, label:'◐ บางส่วน ('+(partial+allocated)+'/'+dualItems.length+')' };
+      return { kind:'pending', count:pending, total:dualItems.length, label:'⏳ ค้าง' };
+    }
 
     function blank() {
       return { docNo:'', date:erp.today(), refNo:'', customerId:'', branchId:'', warehouseId:'', channelId:'',
@@ -18797,6 +18879,66 @@ app.component('view-sales', {
           purchaseChannelId:'', salesChannelId:bill.channelId, createdBy:bill.createdBy
         });
       });
+      // 🆕 PHASE 2.A (2026-05-15): Auto-mark allocationStatus for dual-costing items
+      //   เมื่อ save SB → loop items ที่เป็น copper/brass + non-trading → ตั้ง allocationStatus
+      //   - มี matchLog SPOT_SELL ครบ → 'allocated'
+      //   - มีบางส่วน → 'partially_allocated'
+      //   - ยังไม่มี → 'pending_allocation' (default for dual-costing items without PO link)
+      //   - over allocated (allocated > sellQty) → 'over_allocated'
+      try {
+        if (!isTrading) {
+          let pendingCount = 0, partialCount = 0, overCount = 0, allocatedCount = 0;
+          const pendingItems = [];
+          (bill.items||[]).forEach(it => {
+            if (!it || !it.productId) return;
+            // 🆕 PHASE 2.A: เฉพาะ items ที่ผลิตภัณฑ์เป็น dual-costing (copper/brass)
+            if (!erp.isDualCostingProduct(it.productId)) {
+              delete it.allocationStatus;   // clear if product changed away from dual-costing
+              return;
+            }
+            const sellQty = Number(it.weight || it.netWeight || 0);
+            const allocated = erp.salesItemAllocatedQty(bill.id, it.id);
+            let status;
+            if (sellQty <= 0.001) {
+              status = 'cancelled';
+            } else if (allocated > sellQty + 0.01) {
+              status = 'over_allocated';
+              overCount++;
+            } else if (allocated + 0.001 >= sellQty) {
+              status = 'allocated';
+              allocatedCount++;
+            } else if (allocated > 0.001) {
+              status = 'partially_allocated';
+              partialCount++;
+              pendingItems.push({ productName: erp.productName(it.productId), remaining: sellQty - allocated });
+            } else {
+              status = 'pending_allocation';
+              pendingCount++;
+              pendingItems.push({ productName: erp.productName(it.productId), remaining: sellQty });
+            }
+            it.allocationStatus = status;
+          });
+          // 🆕 PHASE 2.B: Warning toast — Missing Cost Allocation (Req #13)
+          if (pendingCount > 0 || partialCount > 0) {
+            const total = pendingCount + partialCount;
+            const summary = pendingItems.slice(0, 3).map(p => '• ' + p.productName + ' (' + erp.fmt(p.remaining) + ' กก.)').join('\n');
+            const more = pendingItems.length > 3 ? '\n... (+' + (pendingItems.length - 3) + ' รายการ)' : '';
+            setTimeout(() => {
+              try {
+                erp.showToast('⚠ Missing Cost Allocation — ' + total + ' รายการต้องเปิด Cost Allocator', 'warning');
+                console.warn('[PHASE 2.B] Bill ' + bill.docNo + ' has ' + total + ' dual-costing items pending cost allocation:\n' + summary + more);
+              } catch(e){}
+            }, 400);
+          }
+          if (overCount > 0) {
+            setTimeout(() => {
+              try { erp.showToast('🚨 Over-allocated: ' + overCount + ' รายการ — allocated มากกว่าที่ขาย', 'error'); } catch(e){}
+            }, 600);
+          }
+        }
+      } catch(eAllocStatus) {
+        console.warn('[PHASE 2.A] allocationStatus auto-mark error:', eAllocStatus);
+      }
       // 🔥 TRADING auto-match: ถ้าผูกบิลซื้อ Trading ไว้ → สร้าง Trading Deal อัตโนมัติ (รองรับหลายบิลซื้อ)
       // 🔧 FIX: ใช้ subtotal (ก่อน VAT) ไม่ใช่ totalAmount (หลัง VAT) เพื่อคิด GP จริง
       if (isTrading) {
@@ -19356,7 +19498,7 @@ app.component('view-sales', {
     }
 
     return { db, erp, form, showForm, editing, showDetail, search, filterStatus, filterChannel,
-      filterMode, filterMatch, matchStatus, filterDateFrom, filterDateTo,
+      filterMode, filterMatch, matchStatus, allocationStatusOf, filterDateFrom, filterDateTo,
       filterProfit, openingCutoff, isOpeningBill, displayProfit,   // 🆕 profit filter + opening
       cancelAllReceiptsForBill, billReceiptCount,   // 🆕 ยกเลิก receipt จากหน้าบิลขาย
       open, save, addItem, removeItem, recalcLine, recalcAll, onItemSourceChange, onTradingPbChange, splitTradingLine, hasStockItem, cancelBill, deleteBill, filtered, statusBadge, statusText,
@@ -19468,6 +19610,11 @@ app.component('view-sales', {
               <span v-else-if="matchStatus(b).kind==='partial'" class="px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700 font-bold" :title="'Trading '+matchStatus(b).matchedCount+'/'+matchStatus(b).tradingCount+' lines ผูก PB แล้ว'">⚠ {{matchStatus(b).matchedCount}}/{{matchStatus(b).tradingCount}}</span>
               <span v-else-if="matchStatus(b).kind==='unmatched'" class="px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700 font-bold animate-pulse" :title="'Trading '+matchStatus(b).tradingCount+' lines ยังไม่มีต้นทุน — ผูก PB ก่อน'">⚠ ไม่มีต้นทุน</span>
               <span v-else class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-500" title="STOCK ล้วน — ใช้ WAC">📦 STOCK</span>
+              <!-- 🆕 PHASE 2.C: Dual Costing allocation badge (copper/brass) -->
+              <span v-if="allocationStatusOf(b).kind==='pending'" class="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-800 font-bold animate-pulse" :title="'Dual Costing: '+allocationStatusOf(b).count+' item ค้าง allocate ใน Cost Allocator'">{{allocationStatusOf(b).label}}</span>
+              <span v-else-if="allocationStatusOf(b).kind==='partial'" class="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-amber-50 text-amber-700 font-medium" :title="'Dual Costing: '+allocationStatusOf(b).count+'/'+allocationStatusOf(b).total+' items allocated'">{{allocationStatusOf(b).label}}</span>
+              <span v-else-if="allocationStatusOf(b).kind==='allocated'" class="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-emerald-50 text-emerald-700 font-medium" :title="'Dual Costing: ทุก '+allocationStatusOf(b).total+' items allocated ครบ'">{{allocationStatusOf(b).label}}</span>
+              <span v-else-if="allocationStatusOf(b).kind==='over'" class="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-red-100 text-red-700 font-bold" :title="'Dual Costing: '+allocationStatusOf(b).count+' items over-allocated (allocated > sold)'">{{allocationStatusOf(b).label}}</span>
             </td>
             <td class="px-3 py-2 text-right">{{fmt(b.totalAmount)}}</td>
             <td class="px-3 py-2 text-right" :class="isOpeningBill(b) ? 'text-slate-400' : (displayProfit(b)>=0?'text-emerald-700 font-medium':'text-red-600 font-medium')">
@@ -22795,18 +22942,43 @@ app.component('view-costPool', {
 app.component('view-costAllocator', {
   setup() {
     const erp = window.$erp; const db = erp.db;
+    // 🆕 PHASE 1 (2026-05-15): Dual Costing — support Spot Sell (no PO) in Cost Allocator
+    const sourceMode = ref('PO_SELL');          // 🆕 'PO_SELL' | 'SPOT_SELL'
     const selectedProductId = ref('');         // 🔥 เลือกสินค้าก่อน
     const selectedPoSellId = ref('');
+    const selectedSpotKey = ref('');            // 🆕 'sb_id::item_id' for Spot mode
     const allocationMode = ref('FIFO');
     const candidates = ref([]);
+    // 🆕 PHASE 2.D: Pick up preselect state from Waiting Allocation Queue
+    Vue.onMounted(() => {
+      try {
+        const pre = window._waitingAllocatorPreselect;
+        if (pre) {
+          sourceMode.value = pre.sourceMode || 'PO_SELL';
+          selectedProductId.value = pre.productId || '';
+          if (pre.sourceMode === 'SPOT_SELL') selectedSpotKey.value = pre.spotKey || '';
+          delete window._waitingAllocatorPreselect;
+        }
+      } catch(e) { console.warn('[costAllocator preselect]', e); }
+    });
 
-    /* Products available for matching (those with PO Sell or Cost Pool entries) */
+    /* Products available for matching */
+    // 🆕 PHASE 3 (2026-05-15): ทั้ง 2 modes (PO_SELL + SPOT_SELL) จำกัดเฉพาะหมวด dual-costing (copper/brass)
+    //   เหตุผล: ที่อื่นไม่มีหมวด dual costing — ใช้ WAC ตามปกติ → ไม่ต้องผ่าน Cost Allocator
     const productOptions = computed(() => {
       const ids = new Set();
-      db.poSells.filter(p => p && p.status !== 'Cancelled').forEach(p => {
-        if (p.productId) ids.add(p.productId);
-        (p.items||[]).forEach(it => { if (it.productId) ids.add(it.productId); });
-      });
+      if (sourceMode.value === 'PO_SELL') {
+        db.poSells.filter(p => p && p.status !== 'Cancelled').forEach(p => {
+          // 🆕 PHASE 3: filter เฉพาะหมวด dual costing
+          if (p.productId && erp.isDualCostingProduct(p.productId)) ids.add(p.productId);
+          (p.items||[]).forEach(it => {
+            if (it.productId && erp.isDualCostingProduct(it.productId)) ids.add(it.productId);
+          });
+        });
+      } else {
+        // SPOT_SELL: already filtered by isDualCostingProduct in pendingSpotAllocations()
+        (erp.pendingSpotAllocations() || []).forEach(it => { if (it.product_id) ids.add(it.product_id); });
+      }
       const out = [];
       ids.forEach(id => {
         const prod = db.products.find(x => x && x.id === id);
@@ -22819,8 +22991,9 @@ app.component('view-costAllocator', {
     const poSellList = computed(() => {
       const all = db.poSells.filter(p => p && p.status !== 'Cancelled' && p.status !== 'Fully Matched');
       if (!selectedProductId.value) return [];
+      // 🆕 PHASE 3: extra safety — ensure product is dual-costing (productOptions already filters but double-check)
+      if (!erp.isDualCostingProduct(selectedProductId.value)) return [];
       return all.filter(p => {
-        // Match by header productId or any item productId
         if (p.productId === selectedProductId.value) return true;
         if ((p.items||[]).some(it => it.productId === selectedProductId.value)) return true;
         return false;
@@ -22831,12 +23004,59 @@ app.component('view-costAllocator', {
       }).filter(p => p._remaining > 0);
     });
 
-    const selectedPoSell = computed(() => db.poSells.find(p => p.id === selectedPoSellId.value));
-    const remainingNeed = computed(() => {
-      if (!selectedPoSell.value) return 0;
-      const matched = erp.poSellMatchedQty(selectedPoSell.value.id);
-      return Math.max(0, Number(selectedPoSell.value.qty||0) - matched);
+    /* 🆕 PHASE 1: Spot Sell items filtered by selected product */
+    const spotSellList = computed(() => {
+      if (!selectedProductId.value) return [];
+      return (erp.pendingSpotAllocations() || [])
+        .filter(it => it.product_id === selectedProductId.value);
     });
+
+    const selectedPoSell = computed(() => db.poSells.find(p => p.id === selectedPoSellId.value));
+    const selectedSpotItem = computed(() => {
+      if (!selectedSpotKey.value) return null;
+      const [sb_id, item_id] = String(selectedSpotKey.value).split('::');
+      return spotSellList.value.find(it => it.sb_id === sb_id && it.item_id === item_id) || null;
+    });
+
+    /* 🆕 PHASE 1: Unified "target" abstraction — bridge PO Sell + Spot Sell */
+    const selectedTarget = computed(() => {
+      if (sourceMode.value === 'PO_SELL') {
+        const p = selectedPoSell.value;
+        if (!p) return null;
+        return {
+          type: 'PO_SELL',
+          id: p.id,
+          docNo: p.docNo,
+          customerLabel: erp.customerName(p.customerId),
+          productId: p.productId,
+          unitPrice: Number(p.unitPrice || 0),
+          totalQty: Number(p.qty || 0),
+          remaining: Math.max(0, Number(p.qty||0) - erp.poSellMatchedQty(p.id)),
+          branchId: p.branchId || '',
+          warehouseId: '',
+          date: p.expectedDelivery || erp.today(),
+        };
+      }
+      const s = selectedSpotItem.value;
+      if (!s) return null;
+      return {
+        type: 'SPOT_SELL',
+        id: s.sb_id + '::' + s.item_id,
+        bill_id: s.sb_id,
+        item_id: s.item_id,
+        docNo: s.sb_doc_no,
+        customerLabel: erp.customerName(s.customer_id),
+        productId: s.product_id,
+        unitPrice: s.unit_price,
+        totalQty: s.sell_qty,
+        remaining: s.remaining_qty,
+        branchId: s.branch_id,
+        warehouseId: s.warehouse_id,
+        date: s.sb_date,
+        allocation_status: s.allocation_status,
+      };
+    });
+    const remainingNeed = computed(() => selectedTarget.value ? selectedTarget.value.remaining : 0);
 
     /* Cost Pool preview for selected product (before matching) */
     const productCostPool = computed(() => {
@@ -22853,9 +23073,10 @@ app.component('view-costAllocator', {
 
     function autoMatch() {
       candidates.value = [];
-      if (!selectedPoSell.value || remainingNeed.value <= 0) return;
+      const t = selectedTarget.value;
+      if (!t || remainingNeed.value <= 0) return;
       const pool = erp.buildCostPool().filter(p =>
-        p.product_id === selectedPoSell.value.productId && p.available_qty > 0
+        p.product_id === t.productId && p.available_qty > 0
       );
       if (allocationMode.value === 'FIFO') pool.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
       else if (allocationMode.value === 'Cheap') pool.sort((a,b)=>a.unit_cost-b.unit_cost);
@@ -22875,19 +23096,53 @@ app.component('view-costAllocator', {
     }
     const totalToMatch = computed(()=>candidates.value.reduce((s,c)=>s+Number(c.qty_to_use||0),0));
     const totalCostMatch = computed(()=>candidates.value.reduce((s,c)=>s+Number(c.total_cost_use||0),0));
-    const expectedRevenue = computed(()=> selectedPoSell.value ? totalToMatch.value * Number(selectedPoSell.value.unitPrice||0) : 0);
+    const expectedRevenue = computed(()=> selectedTarget.value ? totalToMatch.value * selectedTarget.value.unitPrice : 0);
     const expectedMargin = computed(()=> expectedRevenue.value - totalCostMatch.value);
 
     function confirm_() {
-      if (!selectedPoSell.value) return;
+      const t = selectedTarget.value;
+      if (!t) return;
       if (totalToMatch.value <= 0) { erp.showToast('ใส่จำนวนต้นทุนที่จะ Match','error'); return; }
       if (totalToMatch.value > remainingNeed.value + 0.01) { erp.showToast('Match เกินจำนวนที่ต้องการ','error'); return; }
+      // 🆕 PHASE 3.D (2026-05-15): Over-allocation guard (Req #10 over_allocated)
+      //   double-check ก่อน commit: allocated_after_this > sellQty + tolerance → block
+      if (t.type === 'SPOT_SELL') {
+        const sellQty = t.totalQty;
+        const currentAlloc = erp.salesItemAllocatedQty(t.bill_id, t.item_id);
+        const afterAlloc = currentAlloc + totalToMatch.value;
+        if (afterAlloc > sellQty + 0.01) {
+          const overBy = (afterAlloc - sellQty).toFixed(2);
+          erp.showToast('🚨 Over-allocation: รวมจะ '+afterAlloc.toFixed(2)+' กก. มากกว่าที่ขาย '+sellQty.toFixed(2)+' กก. (เกิน '+overBy+')','error');
+          return;
+        }
+      } else if (t.type === 'PO_SELL') {
+        const poQty = t.totalQty;
+        const matched = erp.poSellMatchedQty(t.id);
+        if (matched + totalToMatch.value > poQty + 0.01) {
+          const overBy = (matched + totalToMatch.value - poQty).toFixed(2);
+          erp.showToast('🚨 Over-allocation: รวมจะเกิน PO Sell '+overBy+' กก.','error');
+          return;
+        }
+      }
       candidates.value.filter(c => c.qty_to_use > 0).forEach(c => {
         const log = {
           id: erp.uid('ML'), match_id: erp.nextDocNo('ML'),
           date: erp.today(),
-          po_sell_id: selectedPoSell.value.id,
-          po_sell_no: selectedPoSell.value.docNo,
+          // 🆕 PHASE 1: target_type abstraction (PO_SELL or SPOT_SELL)
+          target_type: t.type,
+          target_id: t.id,
+          target_doc_no: t.docNo,
+          // Backward compat: keep po_sell_id/no fields populated when PO_SELL
+          po_sell_id: t.type === 'PO_SELL' ? t.id : '',
+          po_sell_no: t.type === 'PO_SELL' ? t.docNo : '',
+          // 🆕 PHASE 1: for SPOT_SELL, record bill + item refs separately
+          target_bill_id: t.type === 'SPOT_SELL' ? t.bill_id : '',
+          target_item_id: t.type === 'SPOT_SELL' ? t.item_id : '',
+          // Allocation context per Req #7
+          branch_id: t.branchId || '',
+          warehouse_id: t.warehouseId || '',
+          unit_price: t.unitPrice,
+          // Cost source
           cost_pool_id: c.cost_pool_id,
           source_type: c.source_type, source_id: c.source_id, source_no: c.source_no,
           product_id: c.product_id,
@@ -22901,16 +23156,52 @@ app.component('view-costAllocator', {
         db.matchLogs.push(log);
         erp.logAudit('create','matchLog', null, log);
       });
-      // update PO Sell status
-      const po = selectedPoSell.value;
-      const matched = erp.poSellMatchedQty(po.id);
-      if (matched >= Number(po.qty)) po.status = 'Fully Matched';
-      else if (matched > 0) po.status = 'Partially Matched';
-      erp.showToast('Match เรียบร้อย — สร้าง Match Log แล้ว');
+      // Update target status
+      if (t.type === 'PO_SELL') {
+        const po = selectedPoSell.value;
+        const matched = erp.poSellMatchedQty(po.id);
+        if (matched >= Number(po.qty)) po.status = 'Fully Matched';
+        else if (matched > 0) po.status = 'Partially Matched';
+        erp.showToast('Match เรียบร้อย — สร้าง Match Log แล้ว');
+        selectedPoSellId.value = '';
+      } else {
+        // 🆕 PHASE 1 SPOT_SELL: update SB item allocationStatus + recalc bill cost/profit
+        const bill = db.salesBills.find(b => b && b.id === t.bill_id);
+        const item = bill ? (bill.items||[]).find(i => i && i.id === t.item_id) : null;
+        if (item) {
+          const sellQty = Number(item.weight || item.netWeight || 0);
+          const allocatedNow = erp.salesItemAllocatedQty(t.bill_id, t.item_id);
+          let status;
+          if (allocatedNow + 0.001 >= sellQty) status = 'allocated';
+          else if (allocatedNow > 0.001) status = 'partially_allocated';
+          else status = 'pending_allocation';
+          item.allocationStatus = status;
+          // Set unit cost to weighted avg of allocated cost (for Daily Report visibility)
+          const allocatedCost = _safeArr(db.matchLogs)
+            .filter(m => m && m.status !== 'reversed' && m.target_type === 'SPOT_SELL'
+                      && m.target_bill_id === t.bill_id && m.target_item_id === t.item_id)
+            .reduce((s,m)=>s+Number(m.total_cost||0),0);
+          item.dealCost = allocatedCost;
+          item.totalCost = allocatedCost;   // override WAC for dual-costing
+          item.unitCost = allocatedNow > 0.001 ? (allocatedCost / allocatedNow) : 0;
+          item.profit = Number(item.netAmount||0) - allocatedCost;
+          // Update bill aggregates
+          if (bill) {
+            bill.totalCost = (bill.items||[]).reduce((s,i)=>s+Number(i.totalCost||0),0);
+            bill.grossProfit = Math.max(0, Number(bill.subtotal||bill.totalAmount||0) - Number(bill.discountTotal||0)) - bill.totalCost;
+            bill.cogsAmount = bill.totalCost;
+            bill.updatedAt = new Date().toISOString();
+          }
+        }
+        erp.showToast('Match Spot Sell เรียบร้อย — สร้าง Match Log + อัพเดต GP บน บิลขาย', 'success');
+        selectedSpotKey.value = '';
+      }
       candidates.value = [];
-      selectedPoSellId.value = '';
     }
-    return { db, erp, productOptions, selectedProductId, poSellList, selectedPoSellId, selectedPoSell, allocationMode,
+    return { db, erp, sourceMode, productOptions, selectedProductId,
+      poSellList, selectedPoSellId, selectedPoSell,
+      spotSellList, selectedSpotKey, selectedSpotItem,
+      selectedTarget, allocationMode,
       candidates, remainingNeed, productCostPool, productCostSummary,
       autoMatch, changeQty, totalToMatch, totalCostMatch,
       expectedRevenue, expectedMargin, confirm: confirm_, fmt:erp.fmt };
@@ -22918,13 +23209,30 @@ app.component('view-costAllocator', {
   template:`
   <div>
     <div class="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-4 text-sm text-purple-800">
-      <strong>Cost Allocator</strong> — เลือก<strong>สินค้า</strong> → เลือก<strong>PO ขาย</strong> → Auto/Manual Match ต้นทุนจาก Cost Pool
+      <strong>Cost Allocator (Dual Costing)</strong> — สำหรับ<strong>ทองแดง · ทองเหลือง</strong> เท่านั้น
+      <div class="text-xs mt-1 text-purple-700">💡 หมวดอื่นใช้ WAC อัตโนมัติ ไม่ต้องผ่าน Cost Allocator · ⓪ แหล่งขาย → ① สินค้า → ② รายการขาย → Match ต้นทุน Cost Pool</div>
+    </div>
+
+    <!-- 🆕 PHASE 1: Source Mode Toggle (PO Sell / Spot Sell) -->
+    <div class="bg-white rounded-xl shadow p-4 mb-4">
+      <h3 class="font-semibold mb-3">⓪ เลือกแหล่งขายที่จะ Allocate ต้นทุน</h3>
+      <div class="flex gap-2">
+        <button @click="sourceMode='PO_SELL'; selectedProductId=''; selectedPoSellId=''; selectedSpotKey=''; candidates=[]"
+          :class="sourceMode==='PO_SELL'?'bg-purple-600 text-white':'bg-slate-100 text-slate-600'"
+          class="px-4 py-2 rounded-lg text-sm font-medium">📋 PO Sell (มี PO ขาย)</button>
+        <button @click="sourceMode='SPOT_SELL'; selectedProductId=''; selectedPoSellId=''; selectedSpotKey=''; candidates=[]"
+          :class="sourceMode==='SPOT_SELL'?'bg-amber-600 text-white':'bg-slate-100 text-slate-600'"
+          class="px-4 py-2 rounded-lg text-sm font-medium">🛒 Spot Sell (บิลขายไม่มี PO — ทองแดง/ทองเหลือง)</button>
+      </div>
+      <div v-if="sourceMode==='SPOT_SELL'" class="mt-2 text-xs text-amber-700">
+        💡 โหมดนี้แสดงรายการขายสินค้า <strong>ทองแดง / ทองเหลือง</strong> ที่ไม่ผ่าน PO ขาย และยังไม่ได้ allocate ต้นทุน (Dual Costing)
+      </div>
     </div>
 
     <!-- STEP 1: Choose Product -->
     <div class="bg-white rounded-xl shadow p-4 mb-4">
       <h3 class="font-semibold mb-3">① เลือกสินค้าที่ต้องการ Match ต้นทุน</h3>
-      <select v-model="selectedProductId" @change="selectedPoSellId=''; candidates=[]" class="w-full px-3 py-2 border rounded text-base">
+      <select v-model="selectedProductId" @change="selectedPoSellId=''; selectedSpotKey=''; candidates=[]" class="w-full px-3 py-2 border rounded text-base">
         <option value="">— เลือกสินค้า —</option>
         <option v-for="p in productOptions" :key="p.id" :value="p.id">{{p.code}} - {{p.name}} {{p.metalGroup?'· '+p.metalGroup:''}}</option>
       </select>
@@ -22939,19 +23247,36 @@ app.component('view-costAllocator', {
       </div>
     </div>
 
-    <!-- STEP 2: Choose PO Sell (filtered by product) -->
+    <!-- STEP 2: Choose Target — PO Sell OR Spot Sell (filtered by product) -->
     <div v-if="selectedProductId" class="bg-white rounded-xl shadow p-4 mb-4">
-      <h3 class="font-semibold mb-3">② เลือก PO ขาย ของสินค้านี้ที่จะ Match ต้นทุน</h3>
+      <h3 class="font-semibold mb-3">
+        ② เลือก<span v-if="sourceMode==='PO_SELL'">PO ขาย</span><span v-else>รายการขาย Spot</span>
+        ของสินค้านี้ที่จะ Match ต้นทุน
+      </h3>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div class="md:col-span-2">
-          <label class="block text-xs mb-1">PO Sell *</label>
-          <select v-model="selectedPoSellId" @change="candidates=[]" class="w-full px-2 py-2 border rounded">
-            <option value="">-- เลือก PO ขาย --</option>
-            <option v-for="p in poSellList" :key="p.id" :value="p.id">
-              {{p.docNo}} | {{erp.customerName(p.customerId)}} | จองขาย {{fmt(p.qty)}} กก. · เหลือต้อง match {{fmt(p._remaining)}} กก. · ฿{{fmt(p.unitPrice)}}/กก.
-            </option>
-          </select>
-          <div v-if="poSellList.length===0" class="text-xs text-amber-700 mt-1">⚠ ไม่มี PO ขาย ของสินค้านี้ที่ยังไม่ match — สร้าง PO Sell ก่อน</div>
+          <!-- PO Sell mode -->
+          <template v-if="sourceMode==='PO_SELL'">
+            <label class="block text-xs mb-1">PO Sell *</label>
+            <select v-model="selectedPoSellId" @change="candidates=[]" class="w-full px-2 py-2 border rounded">
+              <option value="">-- เลือก PO ขาย --</option>
+              <option v-for="p in poSellList" :key="p.id" :value="p.id">
+                {{p.docNo}} | {{erp.customerName(p.customerId)}} | จองขาย {{fmt(p.qty)}} กก. · เหลือต้อง match {{fmt(p._remaining)}} กก. · ฿{{fmt(p.unitPrice)}}/กก.
+              </option>
+            </select>
+            <div v-if="poSellList.length===0" class="text-xs text-amber-700 mt-1">⚠ ไม่มี PO ขาย ของสินค้านี้ที่ยังไม่ match — สร้าง PO Sell ก่อน หรือสลับไป Spot Sell</div>
+          </template>
+          <!-- 🆕 PHASE 1: Spot Sell mode -->
+          <template v-else>
+            <label class="block text-xs mb-1">Spot Sell Item * (บิลขายไม่มี PO)</label>
+            <select v-model="selectedSpotKey" @change="candidates=[]" class="w-full px-2 py-2 border rounded">
+              <option value="">-- เลือกรายการขาย Spot --</option>
+              <option v-for="s in spotSellList" :key="s.sb_id+'::'+s.item_id" :value="s.sb_id+'::'+s.item_id">
+                {{s.sb_doc_no}} ({{s.sb_date}}) | {{erp.customerName(s.customer_id)}} | ขาย {{fmt(s.sell_qty)}} กก. · เหลือ allocate {{fmt(s.remaining_qty)}} กก. · ฿{{fmt(s.unit_price)}}/กก.
+              </option>
+            </select>
+            <div v-if="spotSellList.length===0" class="text-xs text-emerald-700 mt-1">✓ ไม่มีรายการขาย Spot ของสินค้านี้ที่ยังไม่ allocate</div>
+          </template>
         </div>
         <div>
           <label class="block text-xs mb-1">Allocation Mode</label>
@@ -22963,14 +23288,18 @@ app.component('view-costAllocator', {
           </select>
         </div>
       </div>
-      <div v-if="selectedPoSell" class="mt-3 grid grid-cols-2 md:grid-cols-5 gap-3 text-sm bg-slate-50 p-3 rounded">
-        <div><div class="text-xs text-slate-500">Customer</div><div>{{erp.customerName(selectedPoSell.customerId)}}</div></div>
-        <div><div class="text-xs text-slate-500">สินค้า</div><div>{{erp.productName(selectedPoSell.productId)}}</div></div>
-        <div><div class="text-xs text-slate-500">จำนวนรวม</div><div class="font-bold">{{fmt(selectedPoSell.qty)}} กก.</div></div>
-        <div><div class="text-xs text-slate-500">ราคาขาย</div><div>{{fmt(selectedPoSell.unitPrice)}}</div></div>
+      <!-- Selected target summary -->
+      <div v-if="selectedTarget" class="mt-3 grid grid-cols-2 md:grid-cols-5 gap-3 text-sm" :class="selectedTarget.type==='SPOT_SELL'?'bg-amber-50':'bg-slate-50'" style="padding:0.75rem;border-radius:0.5rem">
+        <div>
+          <div class="text-xs text-slate-500">Source</div>
+          <div class="font-bold" :class="selectedTarget.type==='SPOT_SELL'?'text-amber-700':'text-purple-700'">{{selectedTarget.type==='SPOT_SELL'?'🛒 SPOT_SELL':'📋 PO_SELL'}}</div>
+        </div>
+        <div><div class="text-xs text-slate-500">Customer</div><div>{{selectedTarget.customerLabel}}</div></div>
+        <div><div class="text-xs text-slate-500">จำนวนรวม</div><div class="font-bold">{{fmt(selectedTarget.totalQty)}} กก.</div></div>
+        <div><div class="text-xs text-slate-500">ราคาขาย</div><div>{{fmt(selectedTarget.unitPrice)}}</div></div>
         <div><div class="text-xs text-amber-600">ต้อง Match อีก</div><div class="font-bold text-amber-700">{{fmt(remainingNeed)}} กก.</div></div>
       </div>
-      <div v-if="selectedPoSell" class="mt-3">
+      <div v-if="selectedTarget" class="mt-3">
         <button @click="autoMatch" class="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-bold hover:bg-blue-700">🎯 Auto Match จาก Cost Pool</button>
       </div>
     </div>
@@ -22998,6 +23327,583 @@ app.component('view-costAllocator', {
         <div class="bg-purple-50 p-3 rounded"><div class="text-xs text-purple-600">Expected Margin</div><div class="font-bold" :class="expectedMargin>=0?'text-emerald-700':'text-red-600'">{{fmt(expectedMargin)}}</div></div>
       </div>
       <div class="mt-4 flex justify-end gap-2"><button @click="candidates=[]" class="px-4 py-2 text-sm">ยกเลิก</button><button @click="confirm" class="px-5 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium">✓ ยืนยัน Match → สร้าง Match Log</button></div>
+    </div>
+  </div>`
+});
+
+/* =================================================================
+   🆕 PHASE 2.D — WAITING ALLOCATION QUEUE (Dual Costing copper/brass)
+   ================================================================= */
+app.component('view-waitingAllocations', {
+  setup() {
+    const erp = window.$erp; const db = erp.db;
+    const search = ref('');
+    const filterStatus = ref('');
+    const filterCategory = ref('');
+
+    const pending = computed(() => {
+      // Combine pending from helper + add product/category info
+      return (erp.pendingSpotAllocations() || []).map(p => {
+        const prod = db.products.find(x => x && x.id === p.product_id);
+        return {
+          ...p,
+          product_name: prod ? (prod.code+' - '+prod.name) : p.product_id,
+          metalGroup: prod ? prod.metalGroup : '',
+          customer_name: erp.customerName(p.customer_id),
+          branch_name: erp.branchName ? erp.branchName(p.branch_id) : p.branch_id,
+          revenue_pending: p.remaining_qty * p.unit_price,
+        };
+      }).filter(p => {
+        if (filterStatus.value && p.allocation_status !== filterStatus.value) return false;
+        if (filterCategory.value && p.metalGroup !== filterCategory.value) return false;
+        if (search.value) {
+          const q = search.value.toLowerCase();
+          const hay = (p.sb_doc_no+' '+p.product_name+' '+p.customer_name).toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+    });
+
+    const stats = computed(() => {
+      const arr = pending.value;
+      const byCat = {};
+      let totalQty = 0, totalRev = 0;
+      arr.forEach(p => {
+        totalQty += p.remaining_qty;
+        totalRev += p.revenue_pending;
+        const k = p.metalGroup || '-';
+        if (!byCat[k]) byCat[k] = { count:0, qty:0, revenue:0 };
+        byCat[k].count++;
+        byCat[k].qty += p.remaining_qty;
+        byCat[k].revenue += p.revenue_pending;
+      });
+      const fullyPending = arr.filter(p => p.allocation_status === 'pending_allocation').length;
+      const partial = arr.filter(p => p.allocation_status === 'partially_allocated').length;
+      return { count: arr.length, totalQty, totalRev, byCat, fullyPending, partial };
+    });
+
+    function openInAllocator(p) {
+      // Navigate to Cost Allocator + pre-set state via global hook
+      try {
+        window._waitingAllocatorPreselect = {
+          sourceMode: 'SPOT_SELL',
+          productId: p.product_id,
+          spotKey: p.sb_id + '::' + p.item_id,
+        };
+        // Trigger nav — relies on currentView ref
+        if (window.$nav) window.$nav('costAllocator');
+        else {
+          // fallback: set hash
+          location.hash = '#costAllocator';
+        }
+      } catch(e) { console.warn('[waitingAllocations] navigate err:', e); }
+    }
+
+    return { db, erp, search, filterStatus, filterCategory, pending, stats, openInAllocator, fmt:erp.fmt };
+  },
+  template: `
+  <div>
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 text-sm text-amber-800">
+      <strong>⏳ Waiting Allocation Queue</strong> — รายการขาย <strong>ทองแดง / ทองเหลือง</strong> ที่ขายแล้วแต่ยังไม่ allocate ต้นทุนจาก Cost Pool (Dual Costing)
+      <div class="text-xs mt-1 text-amber-700">💡 คลิก "Allocate" บนรายการเพื่อไปที่ Cost Allocator พร้อม pre-select สินค้า + รายการขายให้แล้ว</div>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+      <div class="bg-white rounded-lg shadow p-3"><div class="text-xs text-slate-500">รวมรายการรอ</div><div class="text-2xl font-bold text-amber-700">{{stats.count}}</div></div>
+      <div class="bg-white rounded-lg shadow p-3"><div class="text-xs text-slate-500">ยังไม่เริ่ม allocate</div><div class="text-2xl font-bold text-red-600">{{stats.fullyPending}}</div></div>
+      <div class="bg-white rounded-lg shadow p-3"><div class="text-xs text-slate-500">บางส่วน</div><div class="text-2xl font-bold text-amber-600">{{stats.partial}}</div></div>
+      <div class="bg-white rounded-lg shadow p-3"><div class="text-xs text-slate-500">น้ำหนักรอ allocate</div><div class="text-xl font-bold text-blue-700">{{fmt(stats.totalQty)}} กก.</div></div>
+      <div class="bg-white rounded-lg shadow p-3"><div class="text-xs text-slate-500">มูลค่าขายรอ Match</div><div class="text-xl font-bold text-emerald-700">฿{{fmt(stats.totalRev)}}</div></div>
+    </div>
+
+    <!-- By Category -->
+    <div v-if="Object.keys(stats.byCat).length" class="bg-white rounded-xl shadow p-4 mb-4">
+      <h3 class="font-semibold mb-2">สรุปตามหมวด</h3>
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100"><tr><th class="p-2 text-left">หมวด</th><th class="p-2 text-right">รายการ</th><th class="p-2 text-right">น้ำหนักรอ</th><th class="p-2 text-right">มูลค่ารอ</th></tr></thead>
+        <tbody>
+          <tr v-for="(v,k) in stats.byCat" :key="k" class="border-t">
+            <td class="p-2"><span class="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-800">{{k}}</span></td>
+            <td class="p-2 text-right">{{v.count}}</td>
+            <td class="p-2 text-right font-bold">{{fmt(v.qty)}} กก.</td>
+            <td class="p-2 text-right font-bold text-emerald-700">฿{{fmt(v.revenue)}}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Filters + Table -->
+    <div class="bg-white rounded-xl shadow p-4">
+      <div class="flex flex-wrap gap-2 mb-3 items-center">
+        <input v-model="search" placeholder="ค้นหา doc no / สินค้า / ลูกค้า..." class="px-3 py-2 border rounded-lg text-sm w-64">
+        <select v-model="filterStatus" class="px-3 py-2 border rounded-lg text-sm">
+          <option value="">ทุกสถานะ</option>
+          <option value="pending_allocation">⏳ pending_allocation</option>
+          <option value="partially_allocated">◐ partially_allocated</option>
+        </select>
+        <select v-model="filterCategory" class="px-3 py-2 border rounded-lg text-sm">
+          <option value="">ทุกหมวด</option>
+          <option value="ทองแดง">ทองแดง</option>
+          <option value="ทองเหลือง">ทองเหลือง</option>
+        </select>
+        <span class="text-sm text-slate-500">พบ {{pending.length}} รายการ</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-100">
+            <tr>
+              <th class="p-2 text-left">บิลขาย</th>
+              <th class="p-2 text-left">วันที่</th>
+              <th class="p-2 text-left">ลูกค้า</th>
+              <th class="p-2 text-left">สินค้า</th>
+              <th class="p-2 text-center">หมวด</th>
+              <th class="p-2 text-right">ขาย (กก.)</th>
+              <th class="p-2 text-right">Allocate แล้ว</th>
+              <th class="p-2 text-right text-amber-700">ค้าง (กก.)</th>
+              <th class="p-2 text-right">ราคา/กก.</th>
+              <th class="p-2 text-right">มูลค่ารอ</th>
+              <th class="p-2 text-center">สถานะ</th>
+              <th class="p-2 text-center">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="pending.length===0"><td colspan="12" class="p-8 text-center text-emerald-700 text-sm">✓ ไม่มีรายการที่ค้าง allocate — ทุกรายการขายทองแดง/ทองเหลืองมีต้นทุนครบ</td></tr>
+            <tr v-for="p in pending" :key="p.sb_id+'::'+p.item_id" class="border-t hover:bg-amber-50/30">
+              <td class="p-2 font-mono">{{p.sb_doc_no}}</td>
+              <td class="p-2">{{p.sb_date}}</td>
+              <td class="p-2">{{p.customer_name}}</td>
+              <td class="p-2">{{p.product_name}}</td>
+              <td class="p-2 text-center"><span class="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-800">{{p.metalGroup}}</span></td>
+              <td class="p-2 text-right">{{fmt(p.sell_qty)}}</td>
+              <td class="p-2 text-right text-emerald-700">{{fmt(p.allocated_qty)}}</td>
+              <td class="p-2 text-right font-bold text-amber-700">{{fmt(p.remaining_qty)}}</td>
+              <td class="p-2 text-right">{{fmt(p.unit_price)}}</td>
+              <td class="p-2 text-right text-emerald-700">฿{{fmt(p.revenue_pending)}}</td>
+              <td class="p-2 text-center">
+                <span v-if="p.allocation_status==='pending_allocation'" class="px-2 py-0.5 rounded-full text-[11px] bg-red-100 text-red-700 font-bold">⏳ pending</span>
+                <span v-else class="px-2 py-0.5 rounded-full text-[11px] bg-amber-100 text-amber-700 font-bold">◐ partial</span>
+              </td>
+              <td class="p-2 text-center">
+                <button @click="openInAllocator(p)" class="px-3 py-1 bg-purple-600 text-white text-xs rounded font-medium hover:bg-purple-700">🎯 Allocate</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>`
+});
+
+/* =================================================================
+   🆕 PHASE 3.A — COST ALLOCATION LEDGER (Req #11 schema)
+   ================================================================= */
+app.component('view-costAllocationLedger', {
+  setup() {
+    const erp = window.$erp; const db = erp.db;
+    const search = ref('');
+    const filterTargetType = ref('');           // '' | 'PO_SELL' | 'SPOT_SELL'
+    const filterCategory = ref('');             // '' | 'ทองแดง' | 'ทองเหลือง'
+    const filterStatus = ref('approved');       // approved | reversed | all
+    const filterDateFrom = ref('');
+    const filterDateTo = ref('');
+
+    // Build ledger rows per Req #11 — enrich matchLog with derived fields
+    const ledgerRows = computed(() => {
+      const matchLogs = _trkSafe(db.matchLogs);
+      // Determine sale_qty per target — use matchedQty for SPOT, poSell.qty for PO
+      return matchLogs
+        .filter(m => {
+          if (filterStatus.value !== 'all' && m.status !== filterStatus.value) return false;
+          if (filterTargetType.value && (m.target_type || 'PO_SELL') !== filterTargetType.value) return false;
+          if (filterDateFrom.value && (m.date||'') < filterDateFrom.value) return false;
+          if (filterDateTo.value && (m.date||'') > filterDateTo.value) return false;
+          return true;
+        })
+        .map(m => {
+          const prod = db.products.find(p => p && p.id === m.product_id);
+          const product_category = prod ? prod.metalGroup : '';
+          if (filterCategory.value && product_category !== filterCategory.value) return null;
+          // Figure out sale_qty + revenue
+          let sale_qty = 0, sale_revenue = 0, sale_doc_no = '';
+          const ttype = m.target_type || 'PO_SELL';
+          if (ttype === 'SPOT_SELL') {
+            const bill = db.salesBills.find(b => b && b.id === m.target_bill_id);
+            const item = bill ? (bill.items||[]).find(i => i && i.id === m.target_item_id) : null;
+            sale_qty = item ? Number(item.weight || item.netWeight || 0) : 0;
+            sale_revenue = item ? Number(item.netAmount || 0) : 0;
+            sale_doc_no = bill ? bill.docNo : (m.target_doc_no || '');
+          } else {
+            const po = db.poSells.find(p => p && p.id === m.po_sell_id);
+            sale_qty = po ? Number(po.qty || 0) : 0;
+            sale_revenue = po ? sale_qty * Number(po.unitPrice||0) : 0;
+            sale_doc_no = po ? po.docNo : (m.po_sell_no || '');
+          }
+          const cost_per_kg = Number(m.unit_cost || 0);
+          const allocated_qty = Number(m.qty_used || 0);
+          const total_cost = Number(m.total_cost || 0);
+          const allocated_revenue = allocated_qty * (sale_qty > 0 ? sale_revenue / sale_qty : Number(m.unit_price||0));
+          const gross_profit = allocated_revenue - total_cost;
+          if (search.value) {
+            const q = search.value.toLowerCase();
+            const hay = ((m.match_id||'')+' '+sale_doc_no+' '+(m.source_no||'')+' '+(prod?prod.name+' '+prod.code:'')).toLowerCase();
+            if (!hay.includes(q)) return null;
+          }
+          return {
+            id: m.id,
+            match_id: m.match_id,
+            sale_item_id: m.target_item_id || m.po_sell_id || '',
+            source_type: ttype,
+            sale_doc_no,
+            product_id: m.product_id,
+            product_name: prod ? (prod.code+' - '+prod.name) : m.product_id,
+            product_category,
+            branch_id: m.branch_id || '',
+            sale_qty,
+            allocated_qty,
+            cost_pool_id: m.cost_pool_id,
+            cost_pool_no: m.source_no,
+            cost_per_kg,
+            total_cost,
+            allocated_revenue,
+            gross_profit,
+            gp_pct: allocated_revenue > 0 ? (gross_profit / allocated_revenue * 100) : 0,
+            allocated_by: m.createdBy,
+            allocated_at: m.createdAt,
+            status: m.status,
+          };
+        })
+        .filter(r => r != null)
+        .sort((a,b) => (b.allocated_at||'').localeCompare(a.allocated_at||''));
+    });
+
+    const stats = computed(() => {
+      const arr = ledgerRows.value;
+      const active = arr.filter(r => r.status !== 'reversed');
+      const po = active.filter(r => r.source_type === 'PO_SELL');
+      const spot = active.filter(r => r.source_type === 'SPOT_SELL');
+      return {
+        total: arr.length,
+        active: active.length,
+        reversed: arr.length - active.length,
+        po_count: po.length,
+        spot_count: spot.length,
+        total_qty: active.reduce((s,r)=>s+r.allocated_qty,0),
+        total_cost: active.reduce((s,r)=>s+r.total_cost,0),
+        total_revenue: active.reduce((s,r)=>s+r.allocated_revenue,0),
+        total_gp: active.reduce((s,r)=>s+r.gross_profit,0),
+      };
+    });
+
+    function exportCSV() {
+      const headers = ['match_id','source_type','sale_doc_no','sale_item_id','product_id','product_name','product_category','branch_id','sale_qty','allocated_qty','cost_pool_id','cost_pool_no','cost_per_kg','total_cost','allocated_revenue','gross_profit','gp_pct','allocated_by','allocated_at','status'];
+      const rows = [headers.join(',')].concat(
+        ledgerRows.value.map(r => headers.map(h => {
+          const v = r[h];
+          if (v == null) return '';
+          const s = String(v).replace(/"/g,'""');
+          return /[,\n"]/.test(s) ? '"'+s+'"' : s;
+        }).join(','))
+      );
+      const blob = new Blob(['﻿'+rows.join('\n')], {type:'text/csv;charset=utf-8'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'cost_allocation_ledger_'+(new Date().toISOString().slice(0,10))+'.csv';
+      a.click();
+    }
+
+    return { db, erp, search, filterTargetType, filterCategory, filterStatus, filterDateFrom, filterDateTo,
+      ledgerRows, stats, exportCSV, fmt:erp.fmt };
+  },
+  template: `
+  <div>
+    <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-3 mb-4 text-sm text-indigo-800">
+      <strong>📒 Cost Allocation Ledger</strong> — บันทึกการตัดต้นทุนจาก Cost Pool (Dual Costing) แสดงทุก allocation ที่เกิดขึ้น
+      <div class="text-xs mt-1">💡 รวมทั้ง PO Sell + Spot Sell · กรองตามหมวด/ช่วงวันที่/สถานะ · Export CSV ได้</div>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      <div class="bg-white rounded-lg shadow p-3"><div class="text-xs text-slate-500">รวม Allocations</div><div class="text-2xl font-bold">{{stats.active}}</div><div class="text-xs text-slate-400">PO {{stats.po_count}} · Spot {{stats.spot_count}}</div></div>
+      <div class="bg-blue-50 rounded-lg shadow p-3"><div class="text-xs text-blue-600">น้ำหนัก allocate</div><div class="text-xl font-bold text-blue-700">{{fmt(stats.total_qty)}} กก.</div></div>
+      <div class="bg-red-50 rounded-lg shadow p-3"><div class="text-xs text-red-600">ต้นทุนรวม</div><div class="text-xl font-bold text-red-700">฿{{fmt(stats.total_cost)}}</div></div>
+      <div class="bg-emerald-50 rounded-lg shadow p-3"><div class="text-xs text-emerald-600">กำไรรวม (Deal Cost)</div><div class="text-xl font-bold" :class="stats.total_gp>=0?'text-emerald-700':'text-red-600'">฿{{fmt(stats.total_gp)}}</div></div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-xl shadow p-3 mb-4 flex flex-wrap gap-2 items-center">
+      <input v-model="search" placeholder="ค้นหา match_id / doc / สินค้า..." class="px-3 py-2 border rounded-lg text-sm w-64">
+      <select v-model="filterTargetType" class="px-3 py-2 border rounded-lg text-sm">
+        <option value="">ทุก source_type</option>
+        <option value="PO_SELL">📋 PO_SELL</option>
+        <option value="SPOT_SELL">🛒 SPOT_SELL</option>
+      </select>
+      <select v-model="filterCategory" class="px-3 py-2 border rounded-lg text-sm">
+        <option value="">ทุกหมวด</option>
+        <option value="ทองแดง">ทองแดง</option>
+        <option value="ทองเหลือง">ทองเหลือง</option>
+      </select>
+      <select v-model="filterStatus" class="px-3 py-2 border rounded-lg text-sm">
+        <option value="approved">✓ Approved</option>
+        <option value="reversed">⊘ Reversed</option>
+        <option value="all">ทั้งหมด</option>
+      </select>
+      <input type="date" v-model="filterDateFrom" class="px-2 py-2 border rounded-lg text-sm">
+      <span class="text-sm text-slate-500">→</span>
+      <input type="date" v-model="filterDateTo" class="px-2 py-2 border rounded-lg text-sm">
+      <span class="text-sm text-slate-500 ml-2">{{ledgerRows.length}} รายการ</span>
+      <button @click="exportCSV" class="ml-auto px-3 py-2 bg-emerald-600 text-white text-sm rounded font-medium hover:bg-emerald-700">📤 Export CSV</button>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white rounded-xl shadow overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100">
+          <tr>
+            <th class="p-2 text-left">Match ID</th>
+            <th class="p-2 text-center">Type</th>
+            <th class="p-2 text-left">Sale Doc</th>
+            <th class="p-2 text-left">สินค้า</th>
+            <th class="p-2 text-center">หมวด</th>
+            <th class="p-2 text-right">Sale Qty</th>
+            <th class="p-2 text-right">Allocated</th>
+            <th class="p-2 text-left">Cost Pool</th>
+            <th class="p-2 text-right">฿/กก.</th>
+            <th class="p-2 text-right">Total Cost</th>
+            <th class="p-2 text-right">Revenue</th>
+            <th class="p-2 text-right">GP</th>
+            <th class="p-2 text-right">GP%</th>
+            <th class="p-2 text-left">By</th>
+            <th class="p-2 text-center">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-if="ledgerRows.length===0"><td colspan="15" class="p-8 text-center text-slate-500 text-sm">ไม่มี allocation log ตรงกับ filter</td></tr>
+          <tr v-for="r in ledgerRows" :key="r.id" class="border-t hover:bg-indigo-50/30" :class="r.status==='reversed'?'opacity-50':''">
+            <td class="p-2 font-mono text-xs">{{r.match_id}}</td>
+            <td class="p-2 text-center">
+              <span v-if="r.source_type==='SPOT_SELL'" class="px-2 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800">🛒 Spot</span>
+              <span v-else class="px-2 py-0.5 rounded text-[10px] bg-purple-100 text-purple-700">📋 PO</span>
+            </td>
+            <td class="p-2 font-mono text-xs">{{r.sale_doc_no}}</td>
+            <td class="p-2 text-xs">{{r.product_name}}</td>
+            <td class="p-2 text-center"><span class="px-2 py-0.5 rounded text-[10px] bg-slate-100">{{r.product_category||'-'}}</span></td>
+            <td class="p-2 text-right">{{fmt(r.sale_qty)}}</td>
+            <td class="p-2 text-right text-blue-700 font-medium">{{fmt(r.allocated_qty)}}</td>
+            <td class="p-2 font-mono text-xs">{{r.cost_pool_no||'-'}}</td>
+            <td class="p-2 text-right">{{fmt(r.cost_per_kg)}}</td>
+            <td class="p-2 text-right text-red-700">฿{{fmt(r.total_cost)}}</td>
+            <td class="p-2 text-right text-emerald-700">฿{{fmt(r.allocated_revenue)}}</td>
+            <td class="p-2 text-right font-bold" :class="r.gross_profit>=0?'text-emerald-700':'text-red-600'">฿{{fmt(r.gross_profit)}}</td>
+            <td class="p-2 text-right text-xs">{{r.gp_pct.toFixed(2)}}%</td>
+            <td class="p-2 text-xs">{{r.allocated_by}}</td>
+            <td class="p-2 text-center">
+              <span v-if="r.status==='approved'" class="px-2 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-700">✓</span>
+              <span v-else class="px-2 py-0.5 rounded text-[10px] bg-slate-200 text-slate-600">⊘ rev</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>`
+});
+
+/* =================================================================
+   🆕 PHASE 3.B — DUAL COSTING REPORT (PO vs Spot · GP from Deal Cost vs WAC)
+   ================================================================= */
+app.component('view-dualCostingReport', {
+  setup() {
+    const erp = window.$erp; const db = erp.db;
+    const filterDateFrom = ref('');
+    const filterDateTo = ref('');
+    const filterCategory = ref('');
+
+    // Aggregate: split by source_type + allocation status + category
+    const summary = computed(() => {
+      const inRange = (d) => {
+        if (filterDateFrom.value && d < filterDateFrom.value) return false;
+        if (filterDateTo.value && d > filterDateTo.value) return false;
+        return true;
+      };
+      const inCat = (productId) => {
+        const prod = db.products.find(p => p && p.id === productId);
+        if (!prod) return false;
+        if (!filterCategory.value) return true;
+        return prod.metalGroup === filterCategory.value;
+      };
+      // Only dual-costing categories
+      const dualBills = _trkSafe(db.salesBills).filter(b =>
+        b && b.status !== 'cancelled' && b.transactionMode !== 'TRADING' && inRange(b.date||'')
+      );
+      let po_revenue=0, po_cost=0, po_gp=0, po_qty=0, po_count=0;
+      let spot_alloc_revenue=0, spot_alloc_cost=0, spot_alloc_gp=0, spot_alloc_qty=0, spot_alloc_count=0;
+      let spot_pending_revenue=0, spot_pending_qty=0, spot_pending_count=0;
+      let spot_partial_revenue=0, spot_partial_qty=0, spot_partial_count=0;
+      const byCategory = { 'ทองแดง': { rev:0, cost:0, gp:0, qty:0 }, 'ทองเหลือง': { rev:0, cost:0, gp:0, qty:0 } };
+
+      // PO sells (any allocated cost for it)
+      _trkSafe(db.poSells).forEach(p => {
+        if (!p || p.status === 'Cancelled') return;
+        if (!erp.isDualCostingProduct(p.productId)) return;
+        if (!inCat(p.productId)) return;
+        if (!inRange(p.expectedDelivery || p.createdAt || '')) return;
+        const allocLogs = _trkSafe(db.matchLogs).filter(m =>
+          m && m.status !== 'reversed' && (m.target_type === 'PO_SELL' || !m.target_type)
+            && m.po_sell_id === p.id
+        );
+        if (allocLogs.length === 0) return;
+        const qty = allocLogs.reduce((s,m)=>s+Number(m.qty_used||0),0);
+        const cost = allocLogs.reduce((s,m)=>s+Number(m.total_cost||0),0);
+        const revenue = qty * Number(p.unitPrice||0);
+        po_revenue += revenue; po_cost += cost; po_gp += (revenue - cost); po_qty += qty; po_count++;
+        const prod = db.products.find(x => x && x.id === p.productId);
+        const cat = prod ? prod.metalGroup : '';
+        if (byCategory[cat]) { byCategory[cat].rev += revenue; byCategory[cat].cost += cost; byCategory[cat].gp += (revenue - cost); byCategory[cat].qty += qty; }
+      });
+
+      // SB items in dual-costing
+      dualBills.forEach(b => {
+        (b.items||[]).forEach(it => {
+          if (!it || !it.productId) return;
+          if (!erp.isDualCostingProduct(it.productId)) return;
+          if (!inCat(it.productId)) return;
+          const status = it.allocationStatus || 'pending_allocation';
+          const sellQty = Number(it.weight || it.netWeight || 0);
+          const revenue = Number(it.netAmount || 0);
+          const allocatedQty = erp.salesItemAllocatedQty(b.id, it.id);
+          const dealCost = Number(it.dealCost || 0);
+          if (status === 'allocated' || status === 'partially_allocated') {
+            spot_alloc_revenue += revenue * (allocatedQty / Math.max(0.001,sellQty));
+            spot_alloc_cost += dealCost;
+            spot_alloc_gp += (revenue * (allocatedQty / Math.max(0.001,sellQty)) - dealCost);
+            spot_alloc_qty += allocatedQty;
+            spot_alloc_count++;
+            const prod = db.products.find(x => x && x.id === it.productId);
+            const cat = prod ? prod.metalGroup : '';
+            if (byCategory[cat]) {
+              const r = revenue * (allocatedQty / Math.max(0.001,sellQty));
+              byCategory[cat].rev += r;
+              byCategory[cat].cost += dealCost;
+              byCategory[cat].gp += (r - dealCost);
+              byCategory[cat].qty += allocatedQty;
+            }
+            // Partial: still has pending portion
+            if (status === 'partially_allocated') {
+              const rem = sellQty - allocatedQty;
+              spot_partial_revenue += revenue * (rem / Math.max(0.001,sellQty));
+              spot_partial_qty += rem;
+              spot_partial_count++;
+            }
+          } else if (status === 'pending_allocation') {
+            spot_pending_revenue += revenue;
+            spot_pending_qty += sellQty;
+            spot_pending_count++;
+          }
+        });
+      });
+
+      const total_revenue = po_revenue + spot_alloc_revenue + spot_pending_revenue + spot_partial_revenue;
+      const total_cost = po_cost + spot_alloc_cost;
+      const total_gp = po_gp + spot_alloc_gp;
+
+      return {
+        po: { revenue: po_revenue, cost: po_cost, gp: po_gp, qty: po_qty, count: po_count, gp_pct: po_revenue > 0 ? po_gp/po_revenue*100 : 0 },
+        spot_alloc: { revenue: spot_alloc_revenue, cost: spot_alloc_cost, gp: spot_alloc_gp, qty: spot_alloc_qty, count: spot_alloc_count, gp_pct: spot_alloc_revenue > 0 ? spot_alloc_gp/spot_alloc_revenue*100 : 0 },
+        spot_pending: { revenue: spot_pending_revenue, qty: spot_pending_qty, count: spot_pending_count },
+        spot_partial: { revenue: spot_partial_revenue, qty: spot_partial_qty, count: spot_partial_count },
+        total: { revenue: total_revenue, cost: total_cost, gp: total_gp, gp_pct: total_revenue > 0 ? total_gp/total_revenue*100 : 0 },
+        byCategory,
+        pending_total: spot_pending_revenue + spot_partial_revenue,
+        pending_count: spot_pending_count + spot_partial_count,
+        pending_qty: spot_pending_qty + spot_partial_qty,
+      };
+    });
+
+    return { db, erp, filterDateFrom, filterDateTo, filterCategory, summary, fmt:erp.fmt };
+  },
+  template: `
+  <div>
+    <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-4 text-sm text-emerald-800">
+      <strong>📊 Dual Costing Report</strong> — สรุปยอดขาย/กำไรของหมวด<strong>ทองแดง · ทองเหลือง</strong> ที่ใช้ Deal Cost (ไม่ใช่ WAC)
+      <div class="text-xs mt-1">💡 PO Sell vs Spot Sell · Allocated vs Pending · กำไรจริงจาก Cost Pool</div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-xl shadow p-3 mb-4 flex flex-wrap gap-2 items-center">
+      <label class="text-sm text-slate-600">ช่วงวันที่:</label>
+      <input type="date" v-model="filterDateFrom" class="px-2 py-2 border rounded-lg text-sm">
+      <span class="text-sm text-slate-500">→</span>
+      <input type="date" v-model="filterDateTo" class="px-2 py-2 border rounded-lg text-sm">
+      <select v-model="filterCategory" class="px-3 py-2 border rounded-lg text-sm ml-3">
+        <option value="">ทุกหมวด (ทอง+เหลือง)</option>
+        <option value="ทองแดง">ทองแดง</option>
+        <option value="ทองเหลือง">ทองเหลือง</option>
+      </select>
+    </div>
+
+    <!-- Top: Total summary -->
+    <div class="bg-gradient-to-r from-emerald-500 to-blue-500 text-white rounded-xl shadow p-4 mb-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div><div class="text-xs opacity-80">Total Revenue (Allocated)</div><div class="text-2xl font-bold">฿{{fmt(summary.po.revenue + summary.spot_alloc.revenue)}}</div></div>
+      <div><div class="text-xs opacity-80">Total Cost (Deal Cost)</div><div class="text-2xl font-bold">฿{{fmt(summary.total.cost)}}</div></div>
+      <div><div class="text-xs opacity-80">Gross Profit</div><div class="text-2xl font-bold">฿{{fmt(summary.total.gp)}}</div></div>
+      <div><div class="text-xs opacity-80">GP%</div><div class="text-2xl font-bold">{{summary.total.gp_pct.toFixed(2)}}%</div></div>
+    </div>
+
+    <!-- PO vs Spot allocated -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <div class="bg-white rounded-xl shadow p-4">
+        <h3 class="font-semibold mb-3"><span class="px-2 py-0.5 rounded bg-purple-100 text-purple-700 mr-2">📋</span>ขายผ่าน PO Sell</h3>
+        <table class="w-full text-sm">
+          <tr><td class="py-1 text-slate-500">รายการ Allocate</td><td class="py-1 text-right font-bold">{{summary.po.count}}</td></tr>
+          <tr><td class="py-1 text-slate-500">น้ำหนัก</td><td class="py-1 text-right">{{fmt(summary.po.qty)}} กก.</td></tr>
+          <tr><td class="py-1 text-slate-500">Revenue</td><td class="py-1 text-right text-blue-700 font-bold">฿{{fmt(summary.po.revenue)}}</td></tr>
+          <tr><td class="py-1 text-slate-500">Cost (Deal)</td><td class="py-1 text-right text-red-700">฿{{fmt(summary.po.cost)}}</td></tr>
+          <tr class="border-t"><td class="py-1 font-semibold">GP</td><td class="py-1 text-right font-bold" :class="summary.po.gp>=0?'text-emerald-700':'text-red-600'">฿{{fmt(summary.po.gp)}}</td></tr>
+          <tr><td class="py-1 text-slate-500">GP%</td><td class="py-1 text-right">{{summary.po.gp_pct.toFixed(2)}}%</td></tr>
+        </table>
+      </div>
+      <div class="bg-white rounded-xl shadow p-4">
+        <h3 class="font-semibold mb-3"><span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 mr-2">🛒</span>ขาย Spot Sell (Allocated)</h3>
+        <table class="w-full text-sm">
+          <tr><td class="py-1 text-slate-500">รายการ Allocate</td><td class="py-1 text-right font-bold">{{summary.spot_alloc.count}}</td></tr>
+          <tr><td class="py-1 text-slate-500">น้ำหนัก</td><td class="py-1 text-right">{{fmt(summary.spot_alloc.qty)}} กก.</td></tr>
+          <tr><td class="py-1 text-slate-500">Revenue</td><td class="py-1 text-right text-blue-700 font-bold">฿{{fmt(summary.spot_alloc.revenue)}}</td></tr>
+          <tr><td class="py-1 text-slate-500">Cost (Deal)</td><td class="py-1 text-right text-red-700">฿{{fmt(summary.spot_alloc.cost)}}</td></tr>
+          <tr class="border-t"><td class="py-1 font-semibold">GP</td><td class="py-1 text-right font-bold" :class="summary.spot_alloc.gp>=0?'text-emerald-700':'text-red-600'">฿{{fmt(summary.spot_alloc.gp)}}</td></tr>
+          <tr><td class="py-1 text-slate-500">GP%</td><td class="py-1 text-right">{{summary.spot_alloc.gp_pct.toFixed(2)}}%</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- Pending allocations warning -->
+    <div v-if="summary.pending_count > 0" class="bg-amber-50 border border-amber-300 rounded-xl shadow p-4 mb-4">
+      <h3 class="font-semibold mb-3 text-amber-800">⚠ ยอดขายที่ยัง Allocate ต้นทุนไม่ครบ ({{summary.pending_count}} รายการ)</h3>
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div><div class="text-xs text-amber-700">ยังไม่เริ่ม allocate</div><div class="text-xl font-bold text-red-600">{{summary.spot_pending.count}} รายการ</div></div>
+        <div><div class="text-xs text-amber-700">บางส่วน</div><div class="text-xl font-bold text-amber-700">{{summary.spot_partial.count}} รายการ</div></div>
+        <div><div class="text-xs text-amber-700">มูลค่าขายค้าง</div><div class="text-xl font-bold text-red-700">฿{{fmt(summary.pending_total)}}</div></div>
+        <div><div class="text-xs text-amber-700">น้ำหนักค้าง</div><div class="text-xl font-bold">{{fmt(summary.pending_qty)}} กก.</div></div>
+      </div>
+      <div class="mt-3 text-xs text-amber-700">💡 ไปที่หน้า "Waiting Allocations" เพื่อ allocate ยอดที่ค้าง — กำไรจริงจะถูกรวมหลัง allocate ครบ</div>
+    </div>
+
+    <!-- By category breakdown -->
+    <div class="bg-white rounded-xl shadow p-4">
+      <h3 class="font-semibold mb-3">สรุปตามหมวด</h3>
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100"><tr><th class="p-2 text-left">หมวด</th><th class="p-2 text-right">น้ำหนัก</th><th class="p-2 text-right">Revenue</th><th class="p-2 text-right">Cost</th><th class="p-2 text-right">GP</th><th class="p-2 text-right">GP%</th></tr></thead>
+        <tbody>
+          <tr v-for="(v,k) in summary.byCategory" :key="k" class="border-t">
+            <td class="p-2"><span class="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-800">{{k}}</span></td>
+            <td class="p-2 text-right">{{fmt(v.qty)}}</td>
+            <td class="p-2 text-right text-blue-700">฿{{fmt(v.rev)}}</td>
+            <td class="p-2 text-right text-red-700">฿{{fmt(v.cost)}}</td>
+            <td class="p-2 text-right font-bold" :class="v.gp>=0?'text-emerald-700':'text-red-600'">฿{{fmt(v.gp)}}</td>
+            <td class="p-2 text-right">{{v.rev>0?(v.gp/v.rev*100).toFixed(2)+'%':'-'}}</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>`
 });
@@ -23055,8 +23961,15 @@ app.component('view-matchLog', {
 
     function reverse(m) {
       if (m.status === 'reversed') return;
-      const label = m._match_type === 'regrade' ? `Regrade GA-${m.regrade_id}` : `PO Sell ${m.po_sell_no}`;
-      if (!confirm(`Reverse Match Log ${m.match_id || m.id} ?\n• Type: ${label}\n• คืนต้นทุนให้ Cost Pool\n${m._match_type === 'regrade' ? '⚠ ไม่ reverse Regrade record อัตโนมัติ — กดที่หน้า Grade Adjustment' : ''}`)) return;
+      // 🆕 PHASE 3.C (2026-05-15): label + cascade behavior depending on target_type
+      const isSpot = m.target_type === 'SPOT_SELL';
+      const label = m._match_type === 'regrade'
+        ? `Regrade GA-${m.regrade_id}`
+        : (isSpot ? `Spot Sell ${m.target_doc_no || ''}` : `PO Sell ${m.po_sell_no}`);
+      const cascadeMsg = isSpot
+        ? '\n• คืนต้นทุน + อัพเดต allocationStatus + recalc GP บนบิลขาย'
+        : '\n• คืนต้นทุนให้ Cost Pool';
+      if (!confirm(`Reverse Match Log ${m.match_id || m.id} ?\n• Type: ${label}${cascadeMsg}\n${m._match_type === 'regrade' ? '⚠ ไม่ reverse Regrade record อัตโนมัติ — กดที่หน้า Grade Adjustment' : ''}`)) return;
       const idx = db.matchLogs.findIndex(x => x && x.id === m.id);
       if (idx >= 0) {
         const before = JSON.parse(JSON.stringify(db.matchLogs[idx]));
@@ -23064,7 +23977,40 @@ app.component('view-matchLog', {
         db.matchLogs[idx].reversedAt = new Date().toISOString();
         db.matchLogs[idx].reversedBy = erp.currentUser.value?.username||'-';
         erp.logAudit('reverse','matchLog', before, db.matchLogs[idx]);
-        erp.showToast('Reverse แล้ว');
+        // 🆕 PHASE 3.C: SPOT_SELL cascade — update SB item + bill aggregates
+        if (isSpot && m.target_bill_id && m.target_item_id) {
+          try {
+            const bill = db.salesBills.find(b => b && b.id === m.target_bill_id);
+            const item = bill ? (bill.items||[]).find(i => i && i.id === m.target_item_id) : null;
+            if (item) {
+              const sellQty = Number(item.weight || item.netWeight || 0);
+              const allocatedNow = erp.salesItemAllocatedQty(m.target_bill_id, m.target_item_id);
+              let status;
+              if (sellQty <= 0.001) status = 'cancelled';
+              else if (allocatedNow <= 0.001) status = 'pending_allocation';
+              else if (allocatedNow + 0.001 >= sellQty) status = 'allocated';
+              else status = 'partially_allocated';
+              item.allocationStatus = status;
+              // Recompute item totals
+              const allocatedCost = _trkSafe(db.matchLogs)
+                .filter(ml => ml && ml.status !== 'reversed' && ml.target_type === 'SPOT_SELL'
+                          && ml.target_bill_id === m.target_bill_id && ml.target_item_id === m.target_item_id)
+                .reduce((s,ml)=>s+Number(ml.total_cost||0),0);
+              item.dealCost = allocatedCost;
+              item.totalCost = allocatedCost;
+              item.unitCost = allocatedNow > 0.001 ? (allocatedCost / allocatedNow) : 0;
+              item.profit = Number(item.netAmount||0) - allocatedCost;
+              if (bill) {
+                bill.totalCost = (bill.items||[]).reduce((s,i)=>s+Number(i.totalCost||0),0);
+                bill.grossProfit = Math.max(0, Number(bill.subtotal||bill.totalAmount||0) - Number(bill.discountTotal||0)) - bill.totalCost;
+                bill.cogsAmount = bill.totalCost;
+                bill.updatedAt = new Date().toISOString();
+              }
+              console.log('[PHASE 3.C] Reverse cascade: SB '+(bill?.docNo||'')+' item allocStatus='+status+' newCost='+allocatedCost.toFixed(2));
+            }
+          } catch(eCascade) { console.warn('[PHASE 3.C cascade]', eCascade); }
+        }
+        erp.showToast('Reverse แล้ว' + (isSpot ? ' (cascade SB updated)' : ''));
       }
     }
 
@@ -38619,7 +39565,7 @@ function _allMenuItems() {
     // Production
     'production','productionDashboard','productionReport','wipReport','machineUtil','productionCostReport','yieldLossReport',
     // Dual Costing
-    'poBuy','poSell','costPool','costAllocator','dualMargin','matchLog','dealMargin','compareMargin',
+    'poBuy','poSell','costPool','costAllocator','waitingAllocations','costAllocationLedger','dualCostingReport','dualMargin','matchLog','dealMargin','compareMargin',
     // Grade Adjustment + Status Convert
     'gradeAdjustment','stockAdjust','statusConvert',
     // International / FX
