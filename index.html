@@ -7816,7 +7816,26 @@ window.$erp = {
                   removeTombstones(localKey, [r.id]);
                   console.log(`[pull-tombstone-cancel master] ${localKey} ${r.id}: cloud มี row นี้ + local ก็มี → ยกเลิก tombstone`);
                 } else {
-                  skippedTomb++; return;
+                  // 🆕 PATCH 23 (2026-05-15): freshness + Option C check (mirror MERGE pull)
+                  const tombStore23m = TOMBSTONES[localKey] || {};
+                  const tombExp23m = tombStore23m[r.id];
+                  const tombCreatedAt23m = tombExp23m ? (tombExp23m - TOMBSTONE_TTL_MS) : 0;
+                  const nowMs23m = Date.now();
+                  const cloudRowMs23m = r.createdAt ? (Date.parse(r.createdAt) || 0) : 0;
+                  let exempt23m = false, reason23m = '';
+                  if (tombCreatedAt23m > 0 && (nowMs23m - tombCreatedAt23m) > 24*3600*1000) {
+                    exempt23m = true; reason23m = 'stale tomb > 24h';
+                  } else if (cloudRowMs23m > 0 && tombCreatedAt23m > 0 && cloudRowMs23m > tombCreatedAt23m) {
+                    exempt23m = true; reason23m = 'cloud createdAt > tomb age';
+                  }
+                  if (exempt23m) {
+                    delete tombStore23m[r.id];
+                    try { _saveTombstones(); } catch(e){}
+                    console.warn(`[PATCH 23 master-pull] ${localKey} ${r.id}: EXEMPT (${reason23m}) — cleared stale tomb + allowing cloud row`);
+                    // fall-through: continue to LWW logic below
+                  } else {
+                    skippedTomb++; return;
+                  }
                 }
               }
               // 🆕 LWW per-row: ถ้า local มี ts ใหม่กว่า cloud → ใช้ local + push กลับ
@@ -7869,6 +7888,13 @@ window.$erp = {
           // 🔧 CRITICAL FIX: build local id set ก่อน — ถ้า cloud มี id ที่ local ก็มี → cancel tombstone (ไม่ skip)
           const localIdSetForMerge = new Set();
           (_GLOBAL_DB[localKey] || []).forEach(r => { if (r && r[conflictCol] != null) localIdSetForMerge.add(r[conflictCol]); });
+          // 🆕 PATCH 23 (2026-05-15): MERGE pull freshness + Option C exemption
+          //   bug: local TOMBSTONES (LocalStorage) block legitimate cloud rows ที่ id ตรงกัน
+          //     → cloud มี 30 deals, local มี 17 — diff 13 เพราะ tombstone ค้าง
+          //   fix: mirror Patch 18 (push-side) + Patch 19 (pullTombstones) ที่ MERGE pull ด้วย
+          //     - Freshness: tomb เก่ากว่า 24h → exempt
+          //     - Option C: cloud row.createdAt > tombCreatedAt → exempt
+          let mergeExempt23 = 0;
           cloudRows.forEach(r => {
             if (!r || r[conflictCol] == null) return;
             // 🆕 Skip tombstoned IDs (เพิ่งลบ — กัน MERGE ดึงกลับมา)
@@ -7878,11 +7904,32 @@ window.$erp = {
                 removeTombstones(localKey, [r[conflictCol]]);
                 console.log(`[pull-tombstone-cancel merge] ${localKey} ${r[conflictCol]}: cloud + local มีทั้งคู่ → cancel tombstone`);
               } else {
-                mergeSkippedTomb++; return;
+                // 🆕 PATCH 23: freshness + Option C check
+                const tombStore23 = TOMBSTONES[localKey] || {};
+                const tombExp23 = tombStore23[r[conflictCol]];
+                const tombCreatedAt23 = tombExp23 ? (tombExp23 - TOMBSTONE_TTL_MS) : 0;
+                const nowMs23 = Date.now();
+                const cloudRowMs23 = r.createdAt ? (Date.parse(r.createdAt) || 0) : 0;
+                let exempt23 = false, reason23 = '';
+                if (tombCreatedAt23 > 0 && (nowMs23 - tombCreatedAt23) > 24*3600*1000) {
+                  exempt23 = true; reason23 = 'stale tomb > 24h';
+                } else if (cloudRowMs23 > 0 && tombCreatedAt23 > 0 && cloudRowMs23 > tombCreatedAt23) {
+                  exempt23 = true; reason23 = 'cloud createdAt > tomb age';
+                }
+                if (exempt23) {
+                  delete tombStore23[r[conflictCol]];
+                  try { _saveTombstones(); } catch(e){}
+                  mergeExempt23++;
+                  console.warn(`[PATCH 23 merge-pull] ${localKey} ${r[conflictCol]}: EXEMPT (${reason23}) — cleared stale tomb + allowing cloud row`);
+                  // fall-through to cloudById.set
+                } else {
+                  mergeSkippedTomb++; return;
+                }
               }
             }
             cloudById.set(r[conflictCol], r);
           });
+          if (mergeExempt23 > 0) console.warn(`[PATCH 23 merge-pull] ${localKey}: TOTAL EXEMPTED ${mergeExempt23} cloud rows that were tombstone-blocked`);
           if (mergeSkippedTomb) console.log(`[pull-tombstone-merge] ${localKey}: skipped ${mergeSkippedTomb} recently-deleted rows`);
           const pullStartTs = Date.now();
           // 🔧 BUG FIX: ปิด CLOUD-TRUTH orphan detection by default — เคยลบบิลที่ไม่ใช่ orphan จริง
