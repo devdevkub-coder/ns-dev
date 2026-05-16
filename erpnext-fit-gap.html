@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NS Scrap ERP vs ERPNext - Fit Gap Analysis</title>
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --card: #fffdf8;
+      --ink: #1f2937;
+      --muted: #6b7280;
+      --line: #d6d3d1;
+      --green: #d1fae5;
+      --green-ink: #065f46;
+      --yellow: #fef3c7;
+      --yellow-ink: #92400e;
+      --orange: #ffedd5;
+      --orange-ink: #9a3412;
+      --red: #fee2e2;
+      --red-ink: #991b1b;
+      --blue: #dbeafe;
+      --blue-ink: #1d4ed8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans Thai", "Noto Sans Thai", system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top right, rgba(191, 219, 254, 0.5), transparent 24%),
+        radial-gradient(circle at left center, rgba(254, 215, 170, 0.45), transparent 20%),
+        var(--bg);
+      line-height: 1.5;
+    }
+
+    .wrap {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #111827, #334155 58%, #1d4ed8);
+      color: white;
+      padding: 28px;
+      border-radius: 24px;
+      box-shadow: 0 20px 50px rgba(15, 23, 42, 0.16);
+    }
+
+    .hero h1 {
+      margin: 0 0 10px;
+      font-size: clamp(28px, 4vw, 44px);
+      line-height: 1.08;
+    }
+
+    .hero p {
+      margin: 0;
+      max-width: 900px;
+      color: rgba(255, 255, 255, 0.86);
+      font-size: 16px;
+    }
+
+    .section {
+      margin-top: 24px;
+      background: var(--card);
+      border: 1px solid rgba(214, 211, 209, 0.9);
+      border-radius: 22px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+      overflow: hidden;
+    }
+
+    .section-header {
+      padding: 22px 24px 12px;
+    }
+
+    .section-header h2 {
+      margin: 0 0 6px;
+      font-size: 24px;
+    }
+
+    .section-header p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      padding: 0 24px 24px;
+    }
+
+    .stat {
+      border-radius: 18px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      background: white;
+    }
+
+    .stat .kicker {
+      display: inline-block;
+      margin-bottom: 8px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .stat h3 {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .stat p {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .k-green { background: var(--green); color: var(--green-ink); }
+    .k-yellow { background: var(--yellow); color: var(--yellow-ink); }
+    .k-orange { background: var(--orange); color: var(--orange-ink); }
+    .k-red { background: var(--red); color: var(--red-ink); }
+    .k-blue { background: var(--blue); color: var(--blue-ink); }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 0 24px 24px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      border: 1px solid var(--line);
+      background: white;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex: 0 0 auto;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border-top: 1px solid var(--line);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1040px;
+    }
+
+    th, td {
+      padding: 14px 16px;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid #ece8df;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #faf7ef;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #57534e;
+    }
+
+    tbody tr:hover {
+      background: #fffcf4;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .status-fit { background: var(--green); color: var(--green-ink); }
+    .status-config { background: var(--yellow); color: var(--yellow-ink); }
+    .status-custom { background: var(--orange); color: var(--orange-ink); }
+    .status-review { background: var(--red); color: var(--red-ink); }
+
+    .priority-high { background: #111827; color: white; }
+    .priority-mid { background: #dbeafe; color: #1e3a8a; }
+    .priority-low { background: #e5e7eb; color: #374151; }
+
+    .notes {
+      padding: 24px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .note-card {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+    }
+
+    .note-card h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+    }
+
+    .note-card ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+    }
+
+    .footer {
+      padding: 0 24px 24px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 900px) {
+      .grid,
+      .notes {
+        grid-template-columns: 1fr;
+      }
+
+      .hero {
+        padding: 22px;
+      }
+
+      .section-header,
+      .grid,
+      .legend,
+      .notes,
+      .footer {
+        padding-left: 18px;
+        padding-right: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>NS Scrap ERP เทียบกับ ERPNext</h1>
+      <p>
+        First-pass fit-gap analysis สำหรับใช้คุยกับลูกค้าว่าโมดูลไหนใช้มาตรฐาน ERPNext ได้เลย,
+        โมดูลไหนต้อง config เพิ่ม, และโมดูลไหนเป็น logic เฉพาะธุรกิจ scrap ที่น่าจะต้อง custom
+      </p>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <h2>ภาพรวม</h2>
+        <p>มองจากเมนูของระบบปัจจุบันและเทียบกับ ERP มาตรฐานของ ERPNext Thailand</p>
+      </div>
+      <div class="grid">
+        <article class="stat">
+          <span class="kicker k-green">ใช้มาตรฐานได้</span>
+          <h3>6</h3>
+          <p>โมดูลที่คาดว่าใช้ ERPNext standard ได้ค่อนข้างตรง หรือเปลี่ยนแค่ config เล็กน้อย</p>
+        </article>
+        <article class="stat">
+          <span class="kicker k-yellow">ต้อง config</span>
+          <h3>4</h3>
+          <p>โมดูลที่มีของใกล้เคียงใน ERPNext แต่ต้องปรับ workflow, field, document หรือ reports</p>
+        </article>
+        <article class="stat">
+          <span class="kicker k-orange">ต้อง custom</span>
+          <h3>4</h3>
+          <p>โมดูลที่เป็นธุรกิจเฉพาะของ scrap / costing / dashboard และมีแนวโน้มต้องทำเพิ่มแน่</p>
+        </article>
+        <article class="stat">
+          <span class="kicker k-red">ต้องวิเคราะห์เพิ่ม</span>
+          <h3>1</h3>
+          <p>หัวข้อที่ขัดกับแนวคิด ERP มาตรฐานและควรตัดสินใจเชิง architecture ก่อน เช่น offline-first</p>
+        </article>
+      </div>
+      <div class="legend">
+        <span class="chip"><span class="dot" style="background:#10b981"></span> Fit = ใช้ standard ได้</span>
+        <span class="chip"><span class="dot" style="background:#f59e0b"></span> Config = ใช้ได้แต่ต้องปรับ</span>
+        <span class="chip"><span class="dot" style="background:#f97316"></span> Custom = ต้องทำเพิ่ม</span>
+        <span class="chip"><span class="dot" style="background:#ef4444"></span> Review = ยังไม่ควรฟันธง</span>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <h2>ตารางเทียบระบบ</h2>
+        <p>สถานะนี้เป็น first pass สำหรับคุย scope ก่อน ยังไม่ใช่ final solution design</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ระบบ</th>
+              <th>เมนู/ขอบเขตในระบบเดิม</th>
+              <th>ERPNext รองรับ</th>
+              <th>สถานะ</th>
+              <th>Priority คุยลูกค้า</th>
+              <th>หมายเหตุ</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>ระบบกลาง / Admin</strong></td>
+              <td>Login, Users, Roles, Permissions, Company Profile, Audit Log</td>
+              <td>มีพื้นฐาน user, role, permission, audit และ company setup</td>
+              <td><span class="badge status-config">Standard + Config</span></td>
+              <td><span class="badge priority-high">คุยก่อน</span></td>
+              <td>ต้องเทียบ role matrix เดิมกับ permission model ของ ERPNext ว่าละเอียดพอหรือไม่</td>
+            </tr>
+            <tr>
+              <td><strong>Master Data</strong></td>
+              <td>ลูกค้า, ผู้ขาย, สินค้า, สาขา, คลัง, บัญชีเงิน, ช่องทาง, เครื่องจักร, currency</td>
+              <td>มีเกือบครบใน ERP มาตรฐาน</td>
+              <td><span class="badge status-fit">Fit</span></td>
+              <td><span class="badge priority-high">คุยก่อน</span></td>
+              <td>เป็นกลุ่มที่ย้ายเข้า ERPNext ได้ง่ายสุดและควรใช้เป็นฐานของระบบใหม่</td>
+            </tr>
+            <tr>
+              <td><strong>ซื้อ (Procurement)</strong></td>
+              <td>บิลรับซื้อ, supplier flow, payment link</td>
+              <td>มี purchase cycle มาตรฐาน</td>
+              <td><span class="badge status-fit">Fit</span></td>
+              <td><span class="badge priority-high">คุยก่อน</span></td>
+              <td>ต้องเช็กเรื่องฟอร์มรับซื้อ scrap, น้ำหนัก, lot และเอกสารเฉพาะไทย</td>
+            </tr>
+            <tr>
+              <td><strong>ขาย (Sales)</strong></td>
+              <td>บิลขาย, customer receipt flow, pricing</td>
+              <td>มี sales order / invoice / receipt มาตรฐาน</td>
+              <td><span class="badge status-fit">Fit</span></td>
+              <td><span class="badge priority-high">คุยก่อน</span></td>
+              <td>ต้องเช็กเรื่องต้นทุนต่อบรรทัด, pending sale และรูปแบบ document เฉพาะ</td>
+            </tr>
+            <tr>
+              <td><strong>สต๊อกและคลัง</strong></td>
+              <td>Stock Balance, Ledger, Transfer, Warehouse</td>
+              <td>มี stock master, warehouses, stock ledger, inventory reports</td>
+              <td><span class="badge status-fit">Fit</span></td>
+              <td><span class="badge priority-high">คุยก่อน</span></td>
+              <td>เป็นแกนร่วมของซื้อ-ขาย-ผลิต ต้องพิสูจน์ว่า item, lot, movement types ตรง use case scrap แค่ไหน</td>
+            </tr>
+            <tr>
+              <td><strong>AR / AP</strong></td>
+              <td>ลูกหนี้, เจ้าหนี้, aging, balances</td>
+              <td>มีตรง</td>
+              <td><span class="badge status-fit">Fit</span></td>
+              <td><span class="badge priority-high">คุยก่อน</span></td>
+              <td>มักใช้ของมาตรฐานได้ค่อนข้างตรงเมื่อซื้อขายและบัญชีลงตัว</td>
+            </tr>
+            <tr>
+              <td><strong>ค่าใช้จ่าย / อนุมัติ / เงินสำรองจ่าย</strong></td>
+              <td>Expense, Payment Approval, Petty Advance, Returns</td>
+              <td>มีบางส่วนผ่าน expense / payment / workflow</td>
+              <td><span class="badge status-config">Standard + Config</span></td>
+              <td><span class="badge priority-mid">คุยระยะ 2</span></td>
+              <td>ตัวเอกสารและ workflow อนุมัติอาจทำบน ERPNext workflow ได้ แต่ petty advance ต้องตรวจละเอียด</td>
+            </tr>
+            <tr>
+              <td><strong>การผลิต</strong></td>
+              <td>Production Order, WIP, Yield, Machine Utilization, Production Cost</td>
+              <td>มี manufacturing module</td>
+              <td><span class="badge status-config">Standard + Config</span></td>
+              <td><span class="badge priority-mid">คุยระยะ 2</span></td>
+              <td>ตัวผลิตมีฐานให้ แต่รายงาน yield/loss และ scrap-specific cost allocation อาจต้อง custom เพิ่ม</td>
+            </tr>
+            <tr>
+              <td><strong>บัญชี / งบการเงิน / ภาษีไทย</strong></td>
+              <td>P&amp;L, Balance Sheet, Cash Flow, VAT, WHT</td>
+              <td>ERPNext + ERPNext Thailand มีพื้นฐานแข็งแรง</td>
+              <td><span class="badge status-fit">Fit</span></td>
+              <td><span class="badge priority-high">คุยก่อน</span></td>
+              <td>นี่เป็นจุดแข็งของ ERPNext โดยเฉพาะถ้าลูกค้าต้องการมาตรฐานบัญชีและภาษีไทย</td>
+            </tr>
+            <tr>
+              <td><strong>การเงินต่างประเทศ</strong></td>
+              <td>FX, FCD, overseas transfer/receipt, bank recon</td>
+              <td>มีบางส่วน แต่ไม่ตรงทั้งหมด</td>
+              <td><span class="badge status-config">Standard + Config</span></td>
+              <td><span class="badge priority-mid">คุยระยะ 2</span></td>
+              <td>ต้องแยกว่าต้องการแค่ multi-currency หรือมี flow เอกสาร/charge เฉพาะธนาคารเพิ่ม</td>
+            </tr>
+            <tr>
+              <td><strong>Trading</strong></td>
+              <td>Trading Dashboard, Trading Matching, PO Outstanding</td>
+              <td>ไม่ตรงกับ standard module โดยตรง</td>
+              <td><span class="badge status-custom">Custom</span></td>
+              <td><span class="badge priority-mid">คุยระยะ 2</span></td>
+              <td>มีแนวโน้มต้องทำ app/doctype/report เพิ่มบน ERPNext</td>
+            </tr>
+            <tr>
+              <td><strong>Dual Costing</strong></td>
+              <td>PO Buy, PO Sell, Cost Pool, Cost Allocator, Match Log</td>
+              <td>ไม่ใช่ logic ERP มาตรฐาน</td>
+              <td><span class="badge status-custom">Custom</span></td>
+              <td><span class="badge priority-high">คุยก่อน</span></td>
+              <td>เป็นหนึ่งใน gap ใหญ่สุด และมีผลกับการตัดสินใจว่าจะไป ERPNext คุ้มไหม</td>
+            </tr>
+            <tr>
+              <td><strong>Scrap-specific Workflow</strong></td>
+              <td>Grade Adjustment, Status Convert, Pending Sale, Receipt Voucher</td>
+              <td>มีบางส่วนใกล้เคียง แต่ไม่ตรง</td>
+              <td><span class="badge status-custom">Custom</span></td>
+              <td><span class="badge priority-high">คุยก่อน</span></td>
+              <td>เป็น business process เฉพาะของบริษัทและไม่ควร assume ว่าของมาตรฐานแทนได้</td>
+            </tr>
+            <tr>
+              <td><strong>Dashboard / Tracking 360 / Anomaly</strong></td>
+              <td>Owner Daily, Tracking, Profit Leak, Anomaly Detector</td>
+              <td>มี report builder และ dashboard พื้นฐาน</td>
+              <td><span class="badge status-custom">Custom</span></td>
+              <td><span class="badge priority-low">คุยหลัง</span></td>
+              <td>มักทำหลังจาก core transaction และ data model นิ่งแล้ว</td>
+            </tr>
+            <tr>
+              <td><strong>Offline-first</strong></td>
+              <td>localStorage, IndexedDB, browser-first sync</td>
+              <td>ไม่ใช่แนวหลักของ ERPNext</td>
+              <td><span class="badge status-review">ต้องวิเคราะห์เพิ่ม</span></td>
+              <td><span class="badge priority-high">คุยก่อน</span></td>
+              <td>ถ้าลูกค้าต้องการ offline จริงจัง นี่อาจเป็นเงื่อนไขสำคัญที่ทำให้ต้องคิดใหม่ทั้ง platform</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <h2>ข้อสรุปสำหรับคุยลูกค้า</h2>
+        <p>ถ้าจะใช้ ERPNext แนวทางที่ pragmatic ที่สุดคือใช้ของมาตรฐานให้มาก แล้วทำเพิ่มเฉพาะ gap ที่เป็นธุรกิจ scrap จริง ๆ</p>
+      </div>
+      <div class="notes">
+        <article class="note-card">
+          <h3>โมดูลที่น่าจะใช้ ERPNext ได้คุ้ม</h3>
+          <ul>
+            <li>Master Data</li>
+            <li>ซื้อ / ขาย</li>
+            <li>สต๊อก / คลัง</li>
+            <li>AR / AP</li>
+            <li>บัญชี / งบการเงิน / ภาษีไทย</li>
+            <li>Assets พื้นฐาน</li>
+          </ul>
+        </article>
+        <article class="note-card">
+          <h3>โมดูลที่ต้อง fit-gap ให้ละเอียดก่อนตัดสินใจ</h3>
+          <ul>
+            <li>Dual Costing</li>
+            <li>Trading Matching</li>
+            <li>Scrap-specific workflow</li>
+            <li>Production cost / yield reports</li>
+            <li>Offline-first requirement</li>
+          </ul>
+        </article>
+      </div>
+      <div class="footer">
+        เอกสารนี้เป็น first-pass comparison สำหรับช่วยคุย scope และเลือกแนวทาง ไม่ใช่ผลสรุป final implementation plan
+      </div>
+    </section>
+  </div>
+</body>
+</html>
