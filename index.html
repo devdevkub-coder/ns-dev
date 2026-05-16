@@ -18854,7 +18854,12 @@ app.component('view-sales', {
                   matchedQty, matchedPurchaseAmount: actualMatchCost, matchedSalesAmount: matchedSales,
                   exVat: true,
                   notes: pbIds.length > 1 ? 'Auto-matched (รวม '+pbIds.length+' บิลซื้อ → 1 บิลขาย) — ก่อน VAT' : 'Auto-matched on save — ก่อน VAT',
-                  status, autoCreated: true,
+                  status,
+                  // 🆕 PATCH 21 (2026-05-15): REMOVED autoCreated:true
+                  //   cloud trading_deals ไม่มี column "auto_created" → ทุก push ตก schema mismatch
+                  //   field นี้เป็น write-only (ไม่มี code อ่านกลับ) — info "Auto-matched" อยู่ใน notes อยู่แล้ว
+                  //   ถ้าอนาคตต้อง track ให้แน่นอน → เพิ่ม column SQL ก่อน:
+                  //     ALTER TABLE trading_deals ADD COLUMN IF NOT EXISTS auto_created BOOLEAN DEFAULT false;
                   createdBy: bill.createdBy, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
                 });
                 dealsCreated.push(dealNo);
