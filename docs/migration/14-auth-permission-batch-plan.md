@@ -31,6 +31,8 @@
   - `proxy.ts` treats forgot/reset routes as public so Supabase recovery links can load
 - Username login is not implemented yet. Current UI accepts Email / Username, but non-email identifiers are rejected with a message.
 - Additive target auth/permission schema migration has been drafted as `20260518093001_create_app_auth_permission_tables.sql`.
+- Server auth context helper exists at `apps/next/src/lib/server/auth-context.ts`.
+- `/api/auth/me` exists as a protected route to return current auth/app user, roles, and permission codes.
 - RLS/permission model is not final; current gating is a temporary admin-only bridge before UAT.
 
 ## Legacy Findings
@@ -294,3 +296,4 @@ Validation:
 | 2026-05-18 | Prisma/schema audit pass | In progress | Confirmed Prisma has `auth_users`, `public_users`, `user_profiles`, `roles`, and `roles_config`; audit snapshot counts users 29, user_profiles 17, roles 14, roles_config 7 |
 | 2026-05-18 | B1 reset-password implementation slice: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Added forgot/reset password pages, password syntax validation, login link, and public proxy paths; build route table includes `/forgot-password` and `/reset-password` |
 | 2026-05-18 | B2 target schema migration: Supabase `db push --dry-run`, `db push`, row-count verification, `npm run prisma:generate --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Applied additive `app_*` auth/permission tables to `dev-target`; counts: app_users 0, app_roles 7, app_permissions 27, app_role_permissions 132, app_user_roles 0, app_user_branch_access 0; Prisma schema/client regenerated; legacy `public.users`, `user_profiles`, `roles`, and `roles_config` remain untouched |
+| 2026-05-18 | Server auth context helper: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Added server helper for Supabase user, `app_users`, roles, permissions, legacy profile fallback, and protected `/api/auth/me`; build route table includes `/api/auth/me` |
