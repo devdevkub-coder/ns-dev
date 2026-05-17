@@ -1,0 +1,47 @@
+import { prisma } from '@/lib/server/prisma'
+import { errorJson, masterDataJson, masterDataListJson, nextSequentialCode, parseMasterDataForm } from '@/lib/server/master-data'
+
+export const runtime = 'nodejs'
+
+function mapBeneficiary(row: Awaited<ReturnType<typeof prisma.overseas_recipients.findMany>>[number]) {
+  return {
+    id: row.id,
+    code: row.id,
+    name: row.name,
+    active: row.active ?? true,
+    country: row.country,
+    bankName: row.bank_name,
+    accountNo: row.account_no,
+    swift: row.swift,
+    accountCurrency: row.currency,
+  }
+}
+
+async function getNextCode() {
+  const last = await prisma.overseas_recipients.findFirst({ where: { id: { startsWith: 'BEN' } }, orderBy: { id: 'desc' }, select: { id: true } })
+  return nextSequentialCode(last?.id, 'BEN')
+}
+
+export async function GET() {
+  try {
+    const rows = await prisma.overseas_recipients.findMany({ orderBy: { name: 'asc' } })
+    return masterDataListJson(rows.map(mapBeneficiary))
+  } catch (caught) {
+    return errorJson(caught, 'โหลดข้อมูลผู้รับเงินต่างประเทศไม่ได้', 500)
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const values = parseMasterDataForm(await request.json())
+    const id = values.id || values.code || await getNextCode()
+    const row = await prisma.overseas_recipients.upsert({
+      where: { id },
+      create: { id, name: values.name, country: values.country || null, bank_name: values.bankName || null, account_no: values.accountNo || null, swift: values.swift || null, currency: values.accountCurrency || 'USD', active: values.active },
+      update: { name: values.name, country: values.country || null, bank_name: values.bankName || null, account_no: values.accountNo || null, swift: values.swift || null, currency: values.accountCurrency || 'USD', active: values.active },
+    })
+    return masterDataJson(mapBeneficiary(row))
+  } catch (caught) {
+    return errorJson(caught, 'บันทึกข้อมูลผู้รับเงินต่างประเทศไม่ได้')
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "name": "ns-scrap-erp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npm --prefix apps/next run dev",
+    "build": "npm --prefix apps/next run build",
+    "start": "npm --prefix apps/next run start",
+    "type-check": "npm --prefix apps/next run type-check",
+    "next:dev": "npm --prefix apps/next run dev",
+    "next:build": "npm --prefix apps/next run build",
+    "next:start": "npm --prefix apps/next run start",
+    "next:type-check": "npm --prefix apps/next run type-check",
+    "old-vue:dev": "vite --host 0.0.0.0",
+    "old-vue:build": "vue-tsc --noEmit && vite build",
+    "old-vue:preview": "vite preview --host 0.0.0.0",
+    "skills:index": "node scripts/generate-skills-index.mjs",
+    "skills:index:global": "node scripts/generate-skills-index.mjs --global",
+    "test": "npm --prefix apps/next run type-check",
+    "old-vue:test": "vitest run",
+    "old-vue:test:watch": "vitest",
+    "visual:compare": "node scripts/visual-compare.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.0",
+    "@tanstack/vue-query": "^5.66.0",
+    "@vueuse/core": "^12.5.0",
+    "next": "^16.2.6",
+    "pinia": "^2.3.1",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "@types/node": "^25.8.0",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "@vue/test-utils": "^2.4.6",
+    "autoprefixer": "^10.4.20",
+    "jsdom": "^26.0.0",
+    "postcss": "^8.5.1",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0",
+    "vitest": "^3.0.5",
+    "vue-tsc": "^2.2.0"
+  }
+}

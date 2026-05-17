@@ -1,0 +1,4 @@
+interface:
+  display_name: "Web App Testing"
+  short_description: "Playwright local web app testing workflow."
+  default_prompt: "Use the web app testing workflow for this task."

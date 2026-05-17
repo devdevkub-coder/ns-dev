@@ -1,0 +1,4 @@
+interface:
+  display_name: "NS Scrap ERP Quality Audit"
+  short_description: "Click-path, browser QA, accessibility, and verification workflow."
+  default_prompt: "Use the NS Scrap ERP quality audit workflow for this task."

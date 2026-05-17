@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "jsx": "preserve",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["node", "vite/client", "vitest/globals"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["old-apps/vue/src/*"]
+    },
+    "noEmit": true
+  },
+  "include": [
+    "old-apps/vue/src/**/*.ts",
+    "old-apps/vue/src/**/*.d.ts",
+    "old-apps/vue/src/**/*.tsx",
+    "old-apps/vue/src/**/*.vue",
+    "vite.config.ts"
+  ]
+}

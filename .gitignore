@@ -1,0 +1,31 @@
+# Dependencies and build output
+node_modules/
+dist/
+.vite/
+.next/
+*.tsbuildinfo
+supabase/.temp/
+old-apps/
+
+# Local environment files
+.env
+.env.local
+.env.*.local
+
+# Local database and sensitive audit artifacts
+reports/db_audit/full_dump.sql
+reports/db_audit/public_app_dump.sql
+reports/db_audit/*.dump
+reports/db_audit/*.backup
+reports/db_audit/*.csv
+reports/skills/global-skills-index.json
+
+# OS and editor noise
+.DS_Store
+.idea/
+.vscode/
+.obsidian/
+
+# Local agent/tool settings
+.claude/
+.agents/skills.disabled/

@@ -1,0 +1,3 @@
+display_name: NS Scrap ERP Migration
+short_description: Project DB and migration workflow.
+default_prompt: Use the NS Scrap ERP migration workflow for this task.

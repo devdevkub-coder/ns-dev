@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codebase Migrate"
+  short_description: "Batch refactor and migration workflow."
+  default_prompt: "Use the codebase migration workflow for this task."

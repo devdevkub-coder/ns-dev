@@ -1,1 +1,125 @@
-# ns-scrap-erp
+# NS Scrap ERP
+
+Legacy ERP rehabilitation project.
+
+## Current Entries
+
+- Active Next.js app: `apps/next/`
+- Local-only Vue/Vite baseline: `old-apps/vue/`
+- Local-only legacy source: `old-apps/legacy/`
+
+The Next.js app is the active development and Vercel deployment target. The Vue/Vite app and original legacy app are kept locally under `old-apps/` as audited source/reference material and are ignored by git.
+
+## Project Layout
+
+```text
+apps/next/                  # active Next.js app for deploy
+  src/
+  prisma/
+old-apps/vue/               # local-only Vue/Vite baseline; ignored by git
+  index.html
+  src/
+old-apps/legacy/            # local-only archived old app; ignored by git
+  index.html
+  export-button.js
+docs/                   # migration docs and Obsidian notes
+reports/                # local audit outputs; keep sensitive dumps out of git
+```
+
+## Local Development
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Run the Vue/Vite shell:
+
+```bash
+npm run dev
+```
+
+Build check:
+
+```bash
+npm run build
+```
+
+The active app entry is `apps/next`. The root scripts delegate to `apps/next` so Vercel and local commands do not accidentally build the archived Vue app.
+
+Run the archived Vue/Vite baseline only when comparing old screens:
+
+```bash
+npm run old-vue:dev
+```
+
+## Legacy Source
+
+The old application is archived in `old-apps/legacy/` for reference only.
+
+```text
+old-apps/legacy/index.html
+old-apps/legacy/export-button.js
+```
+
+Use these files as source material when migrating a module, but do not import
+them from `old-apps/vue/` and do not add routes from the new Vue app back to the
+legacy runtime. If you need to inspect the legacy UI locally, open
+`old-apps/legacy/index.html` directly in a browser as a static archived page.
+
+## Environment
+
+Copy `.env.example` to `.env.local` and fill the dev Supabase values. Do not use the legacy production Supabase project for day-to-day development.
+
+Required frontend values:
+
+```env
+VITE_SUPABASE_URL=https://fhglqymcdmrgbsbadnwr.supabase.co
+VITE_SUPABASE_ANON_KEY=replace-with-dev-anon-key
+```
+
+Required database value for dev-target import/testing:
+
+```env
+DATABASE_URL=postgresql://postgres.fhglqymcdmrgbsbadnwr:replace-with-dev-db-password@replace-with-dev-pooler-host:5432/postgres
+SUPABASE_DB_USER=postgres.fhglqymcdmrgbsbadnwr
+SUPABASE_DB_URL=postgresql://postgres.fhglqymcdmrgbsbadnwr:replace-with-dev-db-password@replace-with-dev-pooler-host:5432/postgres
+```
+
+Keep `.env.local` private. It must not be committed.
+
+## Supabase Environments
+
+- `dev-target`: `fhglqymcdmrgbsbadnwr`
+  - Use for development, Supabase Auth testing, RLS testing, schema migration
+    testing, and frontend integration.
+  - Project-level MCP server name: `supabase`.
+- `legacy-prod-source`: `mqsgptraslgpyzbpndlg`
+  - Use only as the read-only source for audit, dumps, and migration mapping.
+  - Project-level MCP server name: `supabase-prod-source`.
+
+Before importing `reports/db_audit/public_app_dump.sql`, verify that
+`DATABASE_URL` points to `fhglqymcdmrgbsbadnwr`, not the legacy production
+project.
+
+## Migration Rule
+
+Copy only the needed legacy functions or modules from `old-apps/legacy/` or audited Vue baseline code from `old-apps/vue/` into the active app structure, then refactor them into service/query/schema/component boundaries. The active app must not route to or import archived legacy runtime.
+
+## Current Vue Modules
+
+Master data modules currently available:
+
+- `/master-data/branches` - CRUD/form mutation pilot
+- `/master-data/warehouses` - CRUD/FK form mutation pilot
+- `/master-data/customers` - CRUD/form mutation pilot
+- `/master-data/suppliers` - read-only pilot
+- `/master-data/salespersons` - read-only pilot
+- `/master-data/products` - read-only pilot
+- `/master-data/accounts` - read-only pilot
+- `/master-data/currencies` - read-only pilot
+- `/master-data/expense-categories` - read-only pilot
+- `/master-data/channels` - read-only pilot
+
+Detailed module status is tracked in `docs/notes/Current Module Status.md`.

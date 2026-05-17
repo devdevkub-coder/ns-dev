@@ -1,0 +1,1872 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../generated/prisma"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["auth", "public"]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model audit_log_entries {
+  instance_id String?   @db.Uuid
+  id          String    @id @db.Uuid
+  payload     Json?     @db.Json
+  created_at  DateTime? @db.Timestamptz(6)
+  ip_address  String    @default("") @db.VarChar(64)
+
+  @@index([instance_id], map: "audit_logs_instance_id_idx")
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model custom_oauth_providers {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  provider_type         String
+  identifier            String    @unique
+  name                  String
+  client_id             String
+  client_secret         String
+  acceptable_client_ids String[]  @default([])
+  scopes                String[]  @default([])
+  pkce_enabled          Boolean   @default(true)
+  attribute_mapping     Json      @default("{}")
+  authorization_params  Json      @default("{}")
+  enabled               Boolean   @default(true)
+  email_optional        Boolean   @default(false)
+  issuer                String?
+  discovery_url         String?
+  skip_nonce_check      Boolean   @default(false)
+  cached_discovery      Json?
+  discovery_cached_at   DateTime? @db.Timestamptz(6)
+  authorization_url     String?
+  token_url             String?
+  userinfo_url          String?
+  jwks_uri              String?
+  created_at            DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([created_at])
+  @@index([enabled])
+  @@index([identifier])
+  @@index([provider_type])
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model flow_state {
+  id                     String                 @id @db.Uuid
+  user_id                String?                @db.Uuid
+  auth_code              String?
+  code_challenge_method  code_challenge_method?
+  code_challenge         String?
+  provider_type          String
+  provider_access_token  String?
+  provider_refresh_token String?
+  created_at             DateTime?              @db.Timestamptz(6)
+  updated_at             DateTime?              @db.Timestamptz(6)
+  authentication_method  String
+  auth_code_issued_at    DateTime?              @db.Timestamptz(6)
+  invite_token           String?
+  referrer               String?
+  oauth_client_state_id  String?                @db.Uuid
+  linking_target_id      String?                @db.Uuid
+  email_optional         Boolean                @default(false)
+  saml_relay_states      saml_relay_states[]
+
+  @@index([created_at(sort: Desc)])
+  @@index([auth_code], map: "idx_auth_code")
+  @@index([user_id, authentication_method], map: "idx_user_id_auth_method")
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model identities {
+  provider_id     String
+  user_id         String     @db.Uuid
+  identity_data   Json
+  provider        String
+  last_sign_in_at DateTime?  @db.Timestamptz(6)
+  created_at      DateTime?  @db.Timestamptz(6)
+  updated_at      DateTime?  @db.Timestamptz(6)
+  email           String?    @default(dbgenerated("lower((identity_data ->> 'email'::text))"))
+  id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  users           auth_users @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([provider_id, provider], map: "identities_provider_id_provider_unique")
+  @@index([email])
+  @@index([user_id])
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model instances {
+  id              String    @id @db.Uuid
+  uuid            String?   @db.Uuid
+  raw_base_config String?
+  created_at      DateTime? @db.Timestamptz(6)
+  updated_at      DateTime? @db.Timestamptz(6)
+
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model mfa_amr_claims {
+  session_id            String   @db.Uuid
+  created_at            DateTime @db.Timestamptz(6)
+  updated_at            DateTime @db.Timestamptz(6)
+  authentication_method String
+  id                    String   @id(map: "amr_id_pk") @db.Uuid
+  sessions              sessions @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([session_id, authentication_method], map: "mfa_amr_claims_session_id_authentication_method_pkey")
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model mfa_challenges {
+  id                     String      @id @db.Uuid
+  factor_id              String      @db.Uuid
+  created_at             DateTime    @db.Timestamptz(6)
+  verified_at            DateTime?   @db.Timestamptz(6)
+  ip_address             String      @db.Inet
+  otp_code               String?
+  web_authn_session_data Json?
+  mfa_factors            mfa_factors @relation(fields: [factor_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "mfa_challenges_auth_factor_id_fkey")
+
+  @@index([created_at(sort: Desc)], map: "mfa_challenge_created_at_idx")
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model mfa_factors {
+  id                           String           @id @db.Uuid
+  user_id                      String           @db.Uuid
+  friendly_name                String?
+  factor_type                  factor_type
+  status                       factor_status
+  created_at                   DateTime         @db.Timestamptz(6)
+  updated_at                   DateTime         @db.Timestamptz(6)
+  secret                       String?
+  phone                        String?
+  last_challenged_at           DateTime?        @unique @db.Timestamptz(6)
+  web_authn_credential         Json?
+  web_authn_aaguid             String?          @db.Uuid
+  last_webauthn_challenge_data Json?
+  mfa_challenges               mfa_challenges[]
+  users                        auth_users       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([friendly_name, user_id], map: "mfa_factors_user_friendly_name_unique", where: raw("(TRIM(BOTH FROM friendly_name) <> ''::text)"))
+  @@unique([user_id, phone], map: "unique_phone_factor_per_user")
+  @@index([user_id, created_at], map: "factor_id_created_at_idx")
+  @@index([user_id])
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model oauth_authorizations {
+  id                    String                     @id @db.Uuid
+  authorization_id      String                     @unique
+  client_id             String                     @db.Uuid
+  user_id               String?                    @db.Uuid
+  redirect_uri          String
+  scope                 String
+  state                 String?
+  resource              String?
+  code_challenge        String?
+  code_challenge_method code_challenge_method?
+  response_type         oauth_response_type        @default(code)
+  status                oauth_authorization_status @default(pending)
+  authorization_code    String?                    @unique
+  created_at            DateTime                   @default(now()) @db.Timestamptz(6)
+  expires_at            DateTime                   @default(dbgenerated("(now() + '00:03:00'::interval)")) @db.Timestamptz(6)
+  approved_at           DateTime?                  @db.Timestamptz(6)
+  nonce                 String?
+  oauth_clients         oauth_clients              @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users                 auth_users?                @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([expires_at], map: "oauth_auth_pending_exp_idx", where: raw("(status = 'pending'::auth.oauth_authorization_status)"))
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model oauth_client_states {
+  id            String   @id @db.Uuid
+  provider_type String
+  code_verifier String?
+  created_at    DateTime @db.Timestamptz(6)
+
+  @@index([created_at], map: "idx_oauth_client_states_created_at")
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model oauth_clients {
+  id                         String                  @id @db.Uuid
+  client_secret_hash         String?
+  registration_type          oauth_registration_type
+  redirect_uris              String
+  grant_types                String
+  client_name                String?
+  client_uri                 String?
+  logo_uri                   String?
+  created_at                 DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime                @default(now()) @db.Timestamptz(6)
+  deleted_at                 DateTime?               @db.Timestamptz(6)
+  client_type                oauth_client_type       @default(confidential)
+  token_endpoint_auth_method String
+  oauth_authorizations       oauth_authorizations[]
+  oauth_consents             oauth_consents[]
+  sessions                   sessions[]
+
+  @@index([deleted_at])
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model oauth_consents {
+  id            String        @id @db.Uuid
+  user_id       String        @db.Uuid
+  client_id     String        @db.Uuid
+  scopes        String
+  granted_at    DateTime      @default(now()) @db.Timestamptz(6)
+  revoked_at    DateTime?     @db.Timestamptz(6)
+  oauth_clients oauth_clients @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users         auth_users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, client_id], map: "oauth_consents_user_client_unique")
+  @@index([client_id], map: "oauth_consents_active_client_idx", where: raw("(revoked_at IS NULL)"))
+  @@index([user_id, client_id], map: "oauth_consents_active_user_client_idx", where: raw("(revoked_at IS NULL)"))
+  @@index([user_id, granted_at(sort: Desc)], map: "oauth_consents_user_order_idx")
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model one_time_tokens {
+  id         String              @id @db.Uuid
+  user_id    String              @db.Uuid
+  token_type one_time_token_type
+  token_hash String
+  relates_to String
+  created_at DateTime            @default(now()) @db.Timestamp(6)
+  updated_at DateTime            @default(now()) @db.Timestamp(6)
+  users      auth_users          @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, token_type])
+  @@index([relates_to], map: "one_time_tokens_relates_to_hash_idx", type: Hash)
+  @@index([token_hash], map: "one_time_tokens_token_hash_hash_idx", type: Hash)
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model refresh_tokens {
+  instance_id String?   @db.Uuid
+  id          BigInt    @id @default(autoincrement())
+  token       String?   @unique(map: "refresh_tokens_token_unique") @db.VarChar(255)
+  user_id     String?   @db.VarChar(255)
+  revoked     Boolean?
+  created_at  DateTime? @db.Timestamptz(6)
+  updated_at  DateTime? @db.Timestamptz(6)
+  parent      String?   @db.VarChar(255)
+  session_id  String?   @db.Uuid
+  sessions    sessions? @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([instance_id])
+  @@index([instance_id, user_id])
+  @@index([parent])
+  @@index([session_id, revoked])
+  @@index([updated_at(sort: Desc)])
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model saml_providers {
+  id                String        @id @db.Uuid
+  sso_provider_id   String        @db.Uuid
+  entity_id         String        @unique
+  metadata_xml      String
+  metadata_url      String?
+  attribute_mapping Json?
+  created_at        DateTime?     @db.Timestamptz(6)
+  updated_at        DateTime?     @db.Timestamptz(6)
+  name_id_format    String?
+  sso_providers     sso_providers @relation(fields: [sso_provider_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([sso_provider_id])
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model saml_relay_states {
+  id              String        @id @db.Uuid
+  sso_provider_id String        @db.Uuid
+  request_id      String
+  for_email       String?
+  redirect_to     String?
+  created_at      DateTime?     @db.Timestamptz(6)
+  updated_at      DateTime?     @db.Timestamptz(6)
+  flow_state_id   String?       @db.Uuid
+  flow_state      flow_state?   @relation(fields: [flow_state_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  sso_providers   sso_providers @relation(fields: [sso_provider_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([created_at(sort: Desc)])
+  @@index([for_email])
+  @@index([sso_provider_id])
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model schema_migrations {
+  version String @id @db.VarChar(255)
+
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model sessions {
+  id                     String           @id @db.Uuid
+  user_id                String           @db.Uuid
+  created_at             DateTime?        @db.Timestamptz(6)
+  updated_at             DateTime?        @db.Timestamptz(6)
+  factor_id              String?          @db.Uuid
+  aal                    aal_level?
+  not_after              DateTime?        @db.Timestamptz(6)
+  refreshed_at           DateTime?        @db.Timestamp(6)
+  user_agent             String?
+  ip                     String?          @db.Inet
+  tag                    String?
+  oauth_client_id        String?          @db.Uuid
+  refresh_token_hmac_key String?
+  refresh_token_counter  BigInt?
+  scopes                 String?
+  mfa_amr_claims         mfa_amr_claims[]
+  refresh_tokens         refresh_tokens[]
+  oauth_clients          oauth_clients?   @relation(fields: [oauth_client_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users                  auth_users       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([not_after(sort: Desc)])
+  @@index([oauth_client_id])
+  @@index([user_id])
+  @@index([user_id, created_at], map: "user_id_created_at_idx")
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model sso_domains {
+  id              String        @id @db.Uuid
+  sso_provider_id String        @db.Uuid
+  domain          String
+  created_at      DateTime?     @db.Timestamptz(6)
+  updated_at      DateTime?     @db.Timestamptz(6)
+  sso_providers   sso_providers @relation(fields: [sso_provider_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([sso_provider_id])
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model sso_providers {
+  id                String              @id @db.Uuid
+  resource_id       String?
+  created_at        DateTime?           @db.Timestamptz(6)
+  updated_at        DateTime?           @db.Timestamptz(6)
+  disabled          Boolean?
+  saml_providers    saml_providers[]
+  saml_relay_states saml_relay_states[]
+  sso_domains       sso_domains[]
+
+  @@index([resource_id], map: "sso_providers_resource_id_pattern_idx")
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model auth_users {
+  instance_id                 String?                @db.Uuid
+  id                          String                 @id @db.Uuid
+  aud                         String?                @db.VarChar(255)
+  role                        String?                @db.VarChar(255)
+  email                       String?                @unique(map: "users_email_partial_key", where: raw("(is_sso_user = false)")) @db.VarChar(255)
+  encrypted_password          String?                @db.VarChar(255)
+  email_confirmed_at          DateTime?              @db.Timestamptz(6)
+  invited_at                  DateTime?              @db.Timestamptz(6)
+  confirmation_token          String?                @unique(map: "confirmation_token_idx", where: raw("((confirmation_token)::text !~ '^[0-9 ]*$'::text)")) @db.VarChar(255)
+  confirmation_sent_at        DateTime?              @db.Timestamptz(6)
+  recovery_token              String?                @unique(map: "recovery_token_idx", where: raw("((recovery_token)::text !~ '^[0-9 ]*$'::text)")) @db.VarChar(255)
+  recovery_sent_at            DateTime?              @db.Timestamptz(6)
+  email_change_token_new      String?                @unique(map: "email_change_token_new_idx", where: raw("((email_change_token_new)::text !~ '^[0-9 ]*$'::text)")) @db.VarChar(255)
+  email_change                String?                @db.VarChar(255)
+  email_change_sent_at        DateTime?              @db.Timestamptz(6)
+  last_sign_in_at             DateTime?              @db.Timestamptz(6)
+  raw_app_meta_data           Json?
+  raw_user_meta_data          Json?
+  is_super_admin              Boolean?
+  created_at                  DateTime?              @db.Timestamptz(6)
+  updated_at                  DateTime?              @db.Timestamptz(6)
+  phone                       String?                @unique
+  phone_confirmed_at          DateTime?              @db.Timestamptz(6)
+  phone_change                String?                @default("")
+  phone_change_token          String?                @default("") @db.VarChar(255)
+  phone_change_sent_at        DateTime?              @db.Timestamptz(6)
+  confirmed_at                DateTime?              @default(dbgenerated("LEAST(email_confirmed_at, phone_confirmed_at)")) @db.Timestamptz(6)
+  email_change_token_current  String?                @unique(map: "email_change_token_current_idx", where: raw("((email_change_token_current)::text !~ '^[0-9 ]*$'::text)")) @default("") @db.VarChar(255)
+  email_change_confirm_status Int?                   @default(0) @db.SmallInt
+  banned_until                DateTime?              @db.Timestamptz(6)
+  reauthentication_token      String?                @unique(map: "reauthentication_token_idx", where: raw("((reauthentication_token)::text !~ '^[0-9 ]*$'::text)")) @default("") @db.VarChar(255)
+  reauthentication_sent_at    DateTime?              @db.Timestamptz(6)
+  is_sso_user                 Boolean                @default(false)
+  deleted_at                  DateTime?              @db.Timestamptz(6)
+  is_anonymous                Boolean                @default(false)
+  identities                  identities[]
+  mfa_factors                 mfa_factors[]
+  oauth_authorizations        oauth_authorizations[]
+  oauth_consents              oauth_consents[]
+  one_time_tokens             one_time_tokens[]
+  sessions                    sessions[]
+  webauthn_challenges         webauthn_challenges[]
+  webauthn_credentials        webauthn_credentials[]
+  audit_logs                  audit_logs[]
+
+  @@index([created_at(sort: Desc)], map: "idx_users_created_at_desc")
+  @@index([email], map: "idx_users_email")
+  @@index([last_sign_in_at(sort: Desc)], map: "idx_users_last_sign_in_at_desc")
+  @@index([instance_id])
+  @@index([is_anonymous])
+  @@map("users")
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model webauthn_challenges {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String?     @db.Uuid
+  challenge_type String
+  session_data   Json
+  created_at     DateTime    @default(now()) @db.Timestamptz(6)
+  expires_at     DateTime    @db.Timestamptz(6)
+  users          auth_users? @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([expires_at])
+  @@index([user_id])
+  @@schema("auth")
+}
+
+model webauthn_credentials {
+  id               String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id          String     @db.Uuid
+  credential_id    Bytes      @unique
+  public_key       Bytes
+  attestation_type String     @default("")
+  aaguid           String?    @db.Uuid
+  sign_count       BigInt     @default(0)
+  transports       Json       @default("[]")
+  backup_eligible  Boolean    @default(false)
+  backed_up        Boolean    @default(false)
+  friendly_name    String     @default("")
+  created_at       DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime   @default(now()) @db.Timestamptz(6)
+  last_used_at     DateTime?  @db.Timestamptz(6)
+  users            auth_users @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id])
+  @@schema("auth")
+}
+
+model accounts {
+  id                                            String           @id
+  code                                          String?
+  name                                          String
+  type                                          String
+  bank_name                                     String?
+  account_no                                    String?
+  currency                                      String?          @default("THB")
+  opening_balance                               Decimal?         @default(0) @db.Decimal
+  od_limit                                      Decimal?         @default(0) @db.Decimal
+  branch_id                                     String?
+  active                                        Boolean?         @default(true)
+  created_at                                    DateTime?        @default(now()) @db.Timestamptz(6)
+  updated_at                                    DateTime?        @db.Timestamptz(6)
+  updated_by                                    String?
+  version                                       Int?             @default(1)
+  bank                                          String?
+  branches                                      branches?        @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  bank_statement                                bank_statement[]
+  expenses                                      expenses[]
+  loan_payments                                 loan_payments[]
+  payments                                      payments[]
+  receipts                                      receipts[]
+  transfers_transfers_from_account_idToaccounts transfers[]      @relation("transfers_from_account_idToaccounts")
+  transfers_transfers_to_account_idToaccounts   transfers[]      @relation("transfers_to_account_idToaccounts")
+
+  @@schema("public")
+}
+
+model assets {
+  id                   String          @id
+  code                 String          @unique
+  name                 String
+  category             String?
+  branch_id            String?
+  department           String?
+  location             String?
+  responsible_person   String?
+  purchase_date        DateTime?       @db.Date
+  acquisition_type     String?
+  supplier_id          String?
+  purchase_bill_id     String?
+  original_cost        Decimal?        @default(0) @db.Decimal
+  vat_amount           Decimal?        @default(0) @db.Decimal
+  net_asset_cost       Decimal?        @default(0) @db.Decimal
+  salvage_value        Decimal?        @default(0) @db.Decimal
+  useful_life_months   Int?            @default(60)
+  depreciation_method  String?         @default("Straight Line")
+  asset_status         String?         @default("Active")
+  serial_no            String?
+  license_plate        String?
+  chassis_no           String?
+  engine_no            String?
+  insurance_policy_no  String?
+  warranty_expire_date DateTime?       @db.Date
+  notes                String?
+  created_by           String?
+  created_at           DateTime?       @default(now()) @db.Timestamptz(6)
+  branches             branches?       @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  suppliers            suppliers?      @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  depreciations        depreciations[]
+
+  @@schema("public")
+}
+
+model audit_logs {
+  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id     String?     @db.Uuid
+  username    String?
+  action      String
+  table_name  String?
+  before_data Json?
+  after_data  Json?
+  ip_address  String?
+  created_at  DateTime?   @default(now()) @db.Timestamptz(6)
+  users       auth_users? @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([created_at(sort: Desc)], map: "idx_audit_date")
+  @@index([user_id], map: "idx_audit_user")
+  @@schema("public")
+}
+
+model bank_statement {
+  id                 String    @id
+  date               DateTime  @db.Date
+  account_id         String?
+  ref_type           String?
+  ref_id             String?
+  ref_no             String?
+  description        String?
+  amount_in          Decimal?  @default(0) @db.Decimal
+  amount_out         Decimal?  @default(0) @db.Decimal
+  cash_flow_category String?
+  created_at         DateTime? @default(now()) @db.Timestamptz(6)
+  created_by         String?
+  desc               String?
+  type               String?
+  balance            Decimal?  @db.Decimal
+  note               String?
+  updated_at         DateTime? @db.Timestamptz(6)
+  updated_by         String?
+  version            Int?      @default(1)
+  accounts           accounts? @relation(fields: [account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([account_id], map: "idx_bank_account")
+  @@index([date(sort: Desc)], map: "idx_bank_date")
+  @@index([ref_type, ref_id], map: "idx_bank_statement_source", where: raw("((ref_type IS NOT NULL) AND (ref_id IS NOT NULL))"))
+  @@schema("public")
+}
+
+model bill_swap_history {
+  id                 String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  bill_id            String
+  swap_date          DateTime? @default(now()) @db.Timestamptz(6)
+  before_supplier_id String?
+  after_supplier_id  String?
+  item_index         Int?
+  before_price       Decimal?  @db.Decimal
+  after_price        Decimal?  @db.Decimal
+  before_amount      Decimal?  @db.Decimal
+  after_amount       Decimal?  @db.Decimal
+  reason             String?
+  changed_by         String?
+
+  @@schema("public")
+}
+
+model branches {
+  id                String              @id
+  code              String              @unique
+  name              String
+  address           String?
+  phone             String?
+  active            Boolean?            @default(true)
+  created_at        DateTime?           @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime?           @default(now()) @db.Timestamptz(6)
+  accounts          accounts[]
+  assets            assets[]
+  expenses          expenses[]
+  payments          payments[]
+  production_machines production_machines[]
+  production_lines  production_lines[]
+  production_orders production_orders[]
+  purchase_bills    purchase_bills[]
+  receipts          receipts[]
+  sales_bills       sales_bills[]
+  stock_issues      stock_issues[]
+  stock_ledger      stock_ledger[]
+  suppliers         suppliers[]
+  warehouses        warehouses[]
+
+  @@schema("public")
+}
+
+model currencies {
+  code        String    @id
+  name        String
+  symbol      String?
+  rate_to_thb Decimal?  @default(1) @db.Decimal
+  updated_at  DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@schema("public")
+}
+
+model director_employees {
+  id           String    @id
+  code         String    @unique
+  name         String
+  type         String?
+  phone        String?
+  bank_account String?
+  active       Boolean   @default(true)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([active])
+  @@schema("public")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model customers {
+  id                  String          @id
+  code                String?
+  name                String
+  tax_id              String?
+  phone               String?
+  email               String?
+  address             String?
+  bank_name           String?
+  bank_account        String?
+  credit_term         Int?            @default(0)
+  notes               String?
+  active              Boolean?        @default(true)
+  created_at          DateTime?       @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime?       @default(now()) @db.Timestamptz(6)
+  sales_id            String?
+  updated_by          String?
+  version             Int?            @default(1)
+  contact             String?
+  type                String?
+  credit_limit        Decimal?        @db.Decimal
+  address_no          String?
+  address_moo         String?
+  address_village     String?
+  address_road        String?
+  address_subdistrict String?
+  address_district    String?
+  address_province    String?
+  address_postal_code String?
+  address_country     String?         @default("ไทย")
+  po_sells            po_sells[]
+  receipts            receipts[]
+  sales_bills         sales_bills[]
+  stock_issues        stock_issues[]
+  trading_deals       trading_deals[]
+
+  @@index([name], map: "idx_customers_name")
+  @@schema("public")
+}
+
+model deletion_log {
+  id         String   @id
+  table_name String
+  row_id     String
+  deleted_at DateTime @default(now()) @db.Timestamptz(6)
+  deleted_by String?
+
+  @@index([deleted_at], map: "idx_deletion_log_deleted_at")
+  @@index([table_name, deleted_at], map: "idx_deletion_log_table")
+  @@schema("public")
+}
+
+model deletion_tombstones {
+  id         String    @id
+  table_name String
+  record_id  String
+  deleted_at DateTime? @default(now()) @db.Timestamptz(6)
+  deleted_by String?
+  reason     String?
+
+  @@index([deleted_at], map: "idx_tombstones_deleted_at")
+  @@index([table_name], map: "idx_tombstones_table")
+  @@schema("public")
+}
+
+model depreciations {
+  id          String    @id
+  asset_id    String?
+  date        DateTime  @db.Date
+  amount      Decimal   @db.Decimal
+  accumulated Decimal?  @default(0) @db.Decimal
+  nbv         Decimal?  @default(0) @db.Decimal
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  assets      assets?   @relation(fields: [asset_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model equity {
+  id                      String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  paid_up_capital         Decimal?  @default(0) @db.Decimal
+  retained_earnings       Decimal?  @default(0) @db.Decimal
+  owner_equity_adjustment Decimal?  @default(0) @db.Decimal
+  updated_at              DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@schema("public")
+}
+
+model expense_categories {
+  id        String     @id
+  name      String
+  parent_id String?
+  active    Boolean?   @default(true)
+  expenses  expenses[]
+
+  @@schema("public")
+}
+
+model expenses {
+  id                 String              @id
+  doc_no             String
+  date               DateTime            @db.Date
+  category_id        String?
+  payee              String?
+  amount             Decimal             @db.Decimal
+  vat                Decimal?            @default(0) @db.Decimal
+  wht                Decimal?            @default(0) @db.Decimal
+  net_amount         Decimal?            @default(0) @db.Decimal
+  account_id         String?
+  branch_id          String?
+  tax_invoice_no     String?
+  notes              String?
+  status             String?             @default("pending")
+  approved_by        String?
+  approved_at        DateTime?           @db.Timestamptz(6)
+  paid_at            DateTime?           @db.Timestamptz(6)
+  created_by         String?
+  created_at         DateTime?           @default(now()) @db.Timestamptz(6)
+  vat_amount         Decimal?            @default(0) @db.Decimal
+  wht_amount         Decimal?            @default(0) @db.Decimal
+  description        String?
+  items              Json?
+  paid_status        String?             @default("pending")
+  voucher_id         String?
+  due_date           DateTime?           @db.Date
+  ref_doc_no         String?
+  wht_pct            Decimal?            @default(0) @db.Decimal
+  updated_at         DateTime?           @default(now()) @db.Timestamptz(6)
+  payee_bank         String?
+  payee_account_no   String?
+  payee_account_name String?
+  updated_by         String?
+  version            Int?                @default(1)
+  accounts           accounts?           @relation(fields: [account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  branches           branches?           @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  expense_categories expense_categories? @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([category_id], map: "idx_exp_category")
+  @@index([date(sort: Desc)], map: "idx_exp_date")
+  @@index([doc_no], map: "idx_expenses_doc_no")
+  @@index([due_date], map: "idx_expenses_due_date")
+  @@index([paid_status], map: "idx_expenses_paid_status")
+  @@index([voucher_id], map: "idx_expenses_voucher_id")
+  @@schema("public")
+}
+
+model fx_gain_loss {
+  id              String    @id
+  date            DateTime  @db.Date
+  ref_type        String?
+  ref_id          String?
+  currency        String?
+  amount_fc       Decimal?  @db.Decimal
+  rate_book       Decimal?  @db.Decimal
+  rate_settlement Decimal?  @db.Decimal
+  gain_loss       Decimal   @db.Decimal
+  notes           String?
+  created_at      DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@schema("public")
+}
+
+model grade_adjustments {
+  id           String      @id
+  doc_no       String
+  date         DateTime    @db.Date
+  product_id   String?
+  warehouse_id String?
+  qty_diff     Decimal     @db.Decimal
+  value_diff   Decimal     @db.Decimal
+  reason       String?
+  approved_by  String?
+  notes        String?
+  created_at   DateTime?   @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime?   @db.Timestamptz(6)
+  updated_by   String?
+  version      Int?        @default(1)
+  products     products?   @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  warehouses   warehouses? @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model historical_monthly {
+  id          String    @id
+  year        Int?
+  month       Int?
+  metric_type String?
+  category_id String?
+  amount      Decimal?  @default(0) @db.Decimal
+  note        String?
+  created_by  String?
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  updated_by  String?
+  updated_at  DateTime? @db.Timestamptz(6)
+
+  @@schema("public")
+}
+
+model loan_payments {
+  id               String          @id
+  doc_no           String
+  date             DateTime        @db.Date
+  loan_id          String?
+  schedule_id      String?
+  principal_amount Decimal?        @default(0) @db.Decimal
+  interest_amount  Decimal?        @default(0) @db.Decimal
+  total_amount     Decimal         @db.Decimal
+  account_id       String?
+  status           String?         @default("active")
+  notes            String?
+  created_at       DateTime?       @default(now()) @db.Timestamptz(6)
+  accounts         accounts?       @relation(fields: [account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  loans            loans?          @relation(fields: [loan_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  loan_schedules   loan_schedules? @relation(fields: [schedule_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model loan_schedules {
+  id               String          @id
+  loan_id          String?
+  installment_no   Int?
+  due_date         DateTime        @db.Date
+  principal_amount Decimal?        @default(0) @db.Decimal
+  interest_amount  Decimal?        @default(0) @db.Decimal
+  total_due_amount Decimal?        @default(0) @db.Decimal
+  paid_amount      Decimal?        @default(0) @db.Decimal
+  payment_status   String?         @default("Pending")
+  paid_date        DateTime?       @db.Date
+  notes            String?
+  loan_payments    loan_payments[]
+  loans            loans?          @relation(fields: [loan_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([due_date], map: "idx_sched_due")
+  @@index([loan_id], map: "idx_sched_loan")
+  @@schema("public")
+}
+
+model loans {
+  id                 String           @id
+  contract_no        String           @unique
+  loan_type          String
+  lender_name        String?
+  start_date         DateTime?        @db.Date
+  end_date           DateTime?        @db.Date
+  principal_amount   Decimal          @db.Decimal
+  interest_rate      Decimal?         @db.Decimal
+  term_months        Int?
+  installment_amount Decimal?         @db.Decimal
+  status             String?          @default("Active")
+  notes              String?
+  created_at         DateTime?        @default(now()) @db.Timestamptz(6)
+  loan_payments      loan_payments[]
+  loan_schedules     loan_schedules[]
+
+  @@schema("public")
+}
+
+model opening_balance {
+  id         String    @id @default("SINGLETON")
+  data       Json?
+  updated_at DateTime? @default(now()) @db.Timestamptz(6)
+  updated_by String?
+
+  @@schema("public")
+}
+
+model overseas_recipients {
+  id         String   @id
+  name       String
+  country    String?
+  bank_name  String?
+  account_no String?
+  swift      String?
+  currency   String?  @default("USD")
+  active     Boolean? @default(true)
+
+  @@schema("public")
+}
+
+model production_machines {
+  id                      String    @id
+  code                    String    @unique
+  name                    String
+  branch_id               String?
+  type                    String?
+  capacity_kg_per_hr      Decimal?  @db.Decimal(14, 3)
+  normal_yield_pct        Decimal?  @db.Decimal(7, 3)
+  std_process_cost_per_hr Decimal?  @db.Decimal(14, 2)
+  maintenance_status      String?
+  active                  Boolean   @default(true)
+  created_at              DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime  @default(now()) @db.Timestamptz(6)
+  branches                branches? @relation(fields: [branch_id], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([active])
+  @@index([branch_id])
+  @@schema("public")
+}
+
+model payment_methods {
+  id         String   @id
+  code       String   @unique
+  name       String
+  type       String?
+  active     Boolean  @default(true)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([active])
+  @@schema("public")
+}
+
+model production_lines {
+  id                 String    @id
+  code               String    @unique
+  name               String
+  branch_id          String?
+  responsible_person String?
+  active             Boolean   @default(true)
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime  @default(now()) @db.Timestamptz(6)
+  branches           branches? @relation(fields: [branch_id], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([active])
+  @@index([branch_id])
+  @@schema("public")
+}
+
+model overseas_remittance_purposes {
+  id           String   @id
+  code         String   @unique
+  name         String
+  required_doc String?
+  active       Boolean  @default(true)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([active])
+  @@schema("public")
+}
+
+model payments {
+  id              String     @id
+  doc_no          String
+  date            DateTime   @db.Date
+  bill_id         String?
+  supplier_id     String?
+  account_id      String?
+  amount          Decimal    @db.Decimal
+  withholding_tax Decimal?   @default(0) @db.Decimal
+  fee             Decimal?   @default(0) @db.Decimal
+  net_amount      Decimal?   @default(0) @db.Decimal
+  branch_id       String?
+  vat_type        String?
+  lines           Json?
+  notes           String?
+  status          String?    @default("active")
+  created_by      String?
+  created_at      DateTime?  @default(now()) @db.Timestamptz(6)
+  voucher_id      String?
+  bank_fee        Decimal?   @default(0) @db.Decimal
+  discount        Decimal?   @default(0) @db.Decimal
+  method          String?
+  updated_at      DateTime?  @db.Timestamptz(6)
+  updated_by      String?
+  version         Int?       @default(1)
+  idempotency_key String?
+  accounts        accounts?  @relation(fields: [account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  branches        branches?  @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  suppliers       suppliers? @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([doc_no], map: "idx_payments_doc_no")
+  @@index([idempotency_key], map: "idx_payments_idempotency", where: raw("(idempotency_key IS NOT NULL)"))
+  @@index([voucher_id], map: "idx_payments_voucher", where: raw("(voucher_id IS NOT NULL)"))
+  @@index([bill_id], map: "idx_pmt_bill")
+  @@index([date(sort: Desc)], map: "idx_pmt_date")
+  @@index([supplier_id], map: "idx_pmt_supplier")
+  @@schema("public")
+}
+
+model po_buys {
+  id                String     @id
+  doc_no            String
+  date              DateTime   @db.Date
+  supplier_id       String?
+  expected_delivery DateTime?  @db.Date
+  total_amount      Decimal?   @default(0) @db.Decimal
+  cut_amount        Decimal?   @default(0) @db.Decimal
+  remaining_amount  Decimal?   @default(0) @db.Decimal
+  status            String?    @default("Open")
+  items             Json?
+  notes             String?
+  created_at        DateTime?  @default(now()) @db.Timestamptz(6)
+  product_id        String?
+  branch_id         String?
+  channel_id        String?
+  warehouse_id      String?
+  delivery_date     DateTime?  @db.Date
+  qty               Decimal?   @db.Decimal
+  unit_price        Decimal?   @db.Decimal
+  remaining_qty     Decimal?   @db.Decimal
+  purpose           String?
+  note              String?
+  cost_deducted     Boolean?   @default(false)
+  cost_deducted_at  DateTime?  @db.Timestamptz(6)
+  cost_deducted_by  String?
+  created_by        String?
+  updated_at        DateTime?  @db.Timestamptz(6)
+  require_delivery  Boolean?   @default(true)
+  is_opening_pool   Boolean?   @default(false)
+  updated_by        String?
+  version           Int?       @default(1)
+  suppliers         suppliers? @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([doc_no], map: "idx_po_buys_doc_no")
+  @@schema("public")
+}
+
+model po_sells {
+  id                String     @id
+  doc_no            String
+  date              DateTime   @db.Date
+  customer_id       String?
+  expected_delivery DateTime?  @db.Date
+  total_amount      Decimal?   @default(0) @db.Decimal
+  cut_amount        Decimal?   @default(0) @db.Decimal
+  remaining_amount  Decimal?   @default(0) @db.Decimal
+  status            String?    @default("Open")
+  items             Json?
+  notes             String?
+  created_at        DateTime?  @default(now()) @db.Timestamptz(6)
+  product_id        String?
+  branch_id         String?
+  channel_id        String?
+  warehouse_id      String?
+  delivery_date     DateTime?  @db.Date
+  qty               Decimal?   @db.Decimal
+  unit_price        Decimal?   @db.Decimal
+  remaining_qty     Decimal?   @db.Decimal
+  purpose           String?
+  note              String?
+  created_by        String?
+  updated_at        DateTime?  @db.Timestamptz(6)
+  require_delivery  Boolean?   @default(true)
+  updated_by        String?
+  version           Int?       @default(1)
+  customers         customers? @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([doc_no], map: "idx_po_sells_doc_no")
+  @@schema("public")
+}
+
+model production_inputs {
+  id                String             @id
+  order_id          String?
+  date              DateTime           @db.Date
+  product_id        String?
+  qty               Decimal            @db.Decimal
+  unit_cost         Decimal?           @default(0) @db.Decimal
+  total_cost        Decimal?           @default(0) @db.Decimal
+  source            String?
+  notes             String?
+  created_at        DateTime?          @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime?          @db.Timestamptz(6)
+  updated_by        String?
+  version           Int?               @default(1)
+  production_orders production_orders? @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  products          products?          @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([order_id], map: "idx_pi_order")
+  @@schema("public")
+}
+
+model production_orders {
+  id                 String               @id
+  doc_no             String
+  date               DateTime             @db.Date
+  product_id         String?
+  qty_planned        Decimal?             @default(0) @db.Decimal
+  branch_id          String?
+  warehouse_id       String?
+  status             String?              @default("Open")
+  total_input_cost   Decimal?             @default(0) @db.Decimal
+  total_output_value Decimal?             @default(0) @db.Decimal
+  variance           Decimal?             @default(0) @db.Decimal
+  closed_at          DateTime?            @db.Timestamptz(6)
+  closed_by          String?
+  notes              String?
+  created_at         DateTime?            @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime?            @db.Timestamptz(6)
+  updated_by         String?
+  version            Int?                 @default(1)
+  production_inputs  production_inputs[]
+  branches           branches?            @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  products           products?            @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  warehouses         warehouses?          @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  production_outputs production_outputs[]
+
+  @@schema("public")
+}
+
+model production_outputs {
+  id                String             @id
+  order_id          String?
+  date              DateTime           @db.Date
+  product_id        String?
+  qty               Decimal            @db.Decimal
+  unit_cost         Decimal?           @default(0) @db.Decimal
+  total_cost        Decimal?           @default(0) @db.Decimal
+  output_type       String?            @default("PO2")
+  notes             String?
+  created_at        DateTime?          @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime?          @db.Timestamptz(6)
+  updated_by        String?
+  version           Int?               @default(1)
+  production_orders production_orders? @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  products          products?          @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([order_id], map: "idx_po_order")
+  @@schema("public")
+}
+
+model products {
+  id                 String               @id
+  code               String
+  name               String
+  unit               String?              @default("kg")
+  metal_group        String?
+  item_status        String?              @default("RM")
+  std_price          Decimal?             @default(0) @db.Decimal
+  std_cost           Decimal?             @default(0) @db.Decimal
+  active             Boolean?             @default(true)
+  created_at         DateTime?            @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime?            @db.Timestamptz(6)
+  updated_by         String?
+  version            Int?                 @default(1)
+  type               String?
+  grade              String?
+  target_margin_pct  Decimal?             @db.Decimal
+  grade_adjustments  grade_adjustments[]
+  production_inputs  production_inputs[]
+  production_orders  production_orders[]
+  production_outputs production_outputs[]
+  stock_ledger       stock_ledger[]
+  trading_deals      trading_deals[]
+
+  @@index([metal_group], map: "idx_products_metal_group")
+  @@index([item_status], map: "idx_products_status")
+  @@schema("public")
+}
+
+model purchase_bills {
+  id                      String             @id
+  doc_no                  String
+  date                    DateTime           @db.Date
+  ref_no                  String?
+  tax_invoice_no          String?
+  supplier_id             String?
+  branch_id               String?
+  channel_id              String?
+  warehouse_id            String?
+  transaction_mode        String?            @default("STOCK")
+  vat_type                String?            @default("EXCLUDE")
+  subtotal                Decimal?           @default(0) @db.Decimal
+  discount                Decimal?           @default(0) @db.Decimal
+  vat_amount              Decimal?           @default(0) @db.Decimal
+  total_amount            Decimal            @db.Decimal
+  paid_amount             Decimal?           @default(0) @db.Decimal
+  payable_balance         Decimal?           @default(0) @db.Decimal
+  status                  String?            @default("open")
+  items                   Json?
+  notes                   String?
+  created_by              String?
+  created_at              DateTime?          @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime?          @default(now()) @db.Timestamptz(6)
+  sales_id                String?
+  license_plate           String?
+  contact_phone           String?
+  contact_name            String?
+  vat_invoice_received    Boolean?           @default(false)
+  vat_invoice_no          String?
+  vat_invoice_date        DateTime?          @db.Date
+  vat_invoice_received_at DateTime?          @db.Timestamptz(6)
+  purchase_source         String?
+  po_buy_id               String?
+  purchase_type           String?
+  discount_total          Decimal?           @default(0) @db.Decimal
+  has_vat                 Boolean?           @default(false)
+  note                    String?
+  updated_by              String?
+  has_wht                 Boolean?           @default(false)
+  wht_amount              Decimal?           @default(0) @db.Decimal
+  total_cost              Decimal?           @db.Decimal
+  swap_history            Json?
+  total_commission        Decimal?           @default(0) @db.Decimal
+  commission_pct          Decimal?           @default(0) @db.Decimal
+  deduction_qty           Decimal?           @default(0) @db.Decimal
+  deduction_amount        Decimal?           @default(0) @db.Decimal
+  version                 Int?               @default(1)
+  branches                branches?          @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  purchase_channels       purchase_channels? @relation(fields: [channel_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  suppliers               suppliers?         @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  warehouses              warehouses?        @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  trading_deals           trading_deals[]
+
+  @@index([branch_id], map: "idx_pb_branch")
+  @@index([date(sort: Desc)], map: "idx_pb_date")
+  @@index([transaction_mode], map: "idx_pb_mode")
+  @@index([status], map: "idx_pb_status")
+  @@index([supplier_id], map: "idx_pb_supplier")
+  @@index([doc_no], map: "idx_purchase_bills_doc_no")
+  @@schema("public")
+}
+
+model purchase_channels {
+  id             String           @id
+  name           String
+  active         Boolean?         @default(true)
+  code           String?
+  purchase_bills purchase_bills[]
+
+  @@schema("public")
+}
+
+model receipt_vouchers {
+  id                   String    @id
+  doc_no               String?   @unique
+  date                 DateTime? @db.Date
+  purchase_bill_id     String?
+  purchase_bill_doc_no String?
+  seller_name          String?
+  seller_tax_id        String?
+  seller_address       String?
+  seller_phone         String?
+  license_plate        String?
+  sales_person         String?
+  items                Json?
+  total_qty            Decimal?  @default(0) @db.Decimal
+  total_amount         Decimal?  @default(0) @db.Decimal
+  amount_in_words      String?
+  note                 String?
+  payer_signer_name    String?
+  receiver_signer_name String?
+  payment_method       String?
+  created_by           String?
+  created_at           DateTime? @default(now()) @db.Timestamptz(6)
+  updated_by           String?
+  updated_at           DateTime? @db.Timestamptz(6)
+
+  @@schema("public")
+}
+
+model receipts {
+  id              String     @id
+  doc_no          String
+  date            DateTime   @db.Date
+  bill_id         String?
+  customer_id     String?
+  account_id      String?
+  amount          Decimal    @db.Decimal
+  withholding_tax Decimal?   @default(0) @db.Decimal
+  fee             Decimal?   @default(0) @db.Decimal
+  net_amount      Decimal?   @default(0) @db.Decimal
+  branch_id       String?
+  vat_type        String?
+  lines           Json?
+  notes           String?
+  status          String?    @default("active")
+  created_by      String?
+  created_at      DateTime?  @default(now()) @db.Timestamptz(6)
+  voucher_id      String?
+  bank_fee        Decimal?   @default(0) @db.Decimal
+  discount        Decimal?   @default(0) @db.Decimal
+  method          String?
+  updated_at      DateTime?  @db.Timestamptz(6)
+  updated_by      String?
+  version         Int?       @default(1)
+  idempotency_key String?
+  accounts        accounts?  @relation(fields: [account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  branches        branches?  @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customers       customers? @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([bill_id], map: "idx_rcp_bill")
+  @@index([date(sort: Desc)], map: "idx_rcp_date")
+  @@index([doc_no], map: "idx_receipts_doc_no")
+  @@index([idempotency_key], map: "idx_receipts_idempotency", where: raw("(idempotency_key IS NOT NULL)"))
+  @@index([voucher_id], map: "idx_receipts_voucher", where: raw("(voucher_id IS NOT NULL)"))
+  @@schema("public")
+}
+
+model roles {
+  id             String    @id
+  name           String?
+  desc           String?
+  is_system      Boolean?  @default(false)
+  menus          Json?
+  actions        Json?
+  see_cost       Boolean?  @default(false)
+  see_profit     Boolean?  @default(false)
+  see_cash       Boolean?  @default(false)
+  see_financials Boolean?  @default(false)
+  see_opening    Boolean?  @default(false)
+  branch_scope   String?
+  created_at     DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime? @db.Timestamptz(6)
+  updated_by     String?
+  version        Int?      @default(1)
+
+  @@schema("public")
+}
+
+model roles_config {
+  role        String  @id
+  permissions Json?
+  description String?
+
+  @@schema("public")
+}
+
+model sales_bills {
+  id                        String          @id
+  doc_no                    String
+  date                      DateTime        @db.Date
+  ref_no                    String?
+  customer_id               String?
+  branch_id                 String?
+  channel_id                String?
+  warehouse_id              String?
+  transaction_mode          String?         @default("STOCK")
+  vat_type                  String?         @default("EXCLUDE")
+  credit_term               Int?            @default(0)
+  subtotal                  Decimal?        @default(0) @db.Decimal
+  discount                  Decimal?        @default(0) @db.Decimal
+  vat_amount                Decimal?        @default(0) @db.Decimal
+  total_amount              Decimal         @db.Decimal
+  received_amount           Decimal?        @default(0) @db.Decimal
+  receivable_balance        Decimal?        @default(0) @db.Decimal
+  cogs_amount               Decimal?        @default(0) @db.Decimal
+  gross_profit              Decimal?        @default(0) @db.Decimal
+  status                    String?         @default("open")
+  items                     Json?
+  notes                     String?
+  created_by                String?
+  created_at                DateTime?       @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime?       @default(now()) @db.Timestamptz(6)
+  license_plate             String?
+  contact_phone             String?
+  contact_name              String?
+  trading_from_purchase_id  String?
+  trading_from_purchase_ids Json?
+  sales_source              String?
+  po_sell_id                String?
+  vat_invoice_issued        Boolean?        @default(false)
+  vat_invoice_no            String?
+  vat_invoice_date          DateTime?       @db.Date
+  discount_total            Decimal?        @default(0) @db.Decimal
+  has_vat                   Boolean?        @default(false)
+  salesman                  String?
+  note                      String?
+  from_p_sale_id            String?
+  from_p_sale_no            String?
+  has_wht                   Boolean?        @default(false)
+  wht_amount                Decimal?        @default(0) @db.Decimal
+  paid_amount               Decimal?        @default(0) @db.Decimal
+  total_cost                Decimal?        @db.Decimal
+  updated_by                String?
+  total_commission          Decimal?        @default(0) @db.Decimal
+  commission_pct            Decimal?        @default(0) @db.Decimal
+  version                   Int?            @default(1)
+  due_date                  DateTime?       @db.Date
+  bill_date                 DateTime?       @db.Date
+  sales_id                  String?
+  payment_type              String?
+  is_opening                Boolean?        @default(false)
+  branches                  branches?       @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sales_channels            sales_channels? @relation(fields: [channel_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customers                 customers?      @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  warehouses                warehouses?     @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  trading_deals             trading_deals[]
+
+  @@index([doc_no], map: "idx_sales_bills_doc_no")
+  @@index([branch_id], map: "idx_sb_branch")
+  @@index([customer_id], map: "idx_sb_customer")
+  @@index([date(sort: Desc)], map: "idx_sb_date")
+  @@index([transaction_mode], map: "idx_sb_mode")
+  @@index([status], map: "idx_sb_status")
+  @@schema("public")
+}
+
+model sales_channels {
+  id          String        @id
+  name        String
+  active      Boolean?      @default(true)
+  code        String?
+  sales_bills sales_bills[]
+
+  @@schema("public")
+}
+
+model salespersons {
+  id             String    @id
+  code           String?
+  name           String
+  phone          String?
+  email          String?
+  commission_pct Decimal?  @default(0) @db.Decimal
+  base_salary    Decimal?  @default(0) @db.Decimal
+  active         Boolean?  @default(true)
+  note           String?
+  created_at     DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime? @db.Timestamptz(6)
+  updated_by     String?
+  version        Int?      @default(1)
+
+  @@schema("public")
+}
+
+model stock_adjustments {
+  id              String    @id
+  doc_no          String?
+  date            DateTime? @db.Date
+  branch_id       String?
+  warehouse_id    String?
+  product_id      String?
+  lot_no          String?
+  system_qty      Decimal?  @default(0) @db.Decimal
+  counted_qty     Decimal?  @default(0) @db.Decimal
+  diff_qty        Decimal?  @default(0) @db.Decimal
+  adjust_type     String?
+  reason          String?
+  remark          String?
+  unit_cost_used  Decimal?  @default(0) @db.Decimal
+  value_note      Decimal?  @default(0) @db.Decimal
+  status          String?   @default("posted")
+  stock_ledger_id String?
+  created_by      String?
+  created_at      DateTime? @default(now()) @db.Timestamptz(6)
+  reversed_at     DateTime? @db.Timestamptz(6)
+  reversed_by     String?
+  updated_at      DateTime? @db.Timestamptz(6)
+  updated_by      String?
+  version         Int?      @default(1)
+
+  @@index([branch_id], map: "idx_stock_adjustments_branch")
+  @@index([date(sort: Desc)], map: "idx_stock_adjustments_date")
+  @@index([product_id], map: "idx_stock_adjustments_product")
+  @@index([status], map: "idx_stock_adjustments_status")
+  @@schema("public")
+}
+
+model stock_issues {
+  id                   String      @id
+  doc_no               String
+  date                 DateTime    @db.Date
+  customer_id          String?
+  branch_id            String?
+  warehouse_id         String?
+  total_cost           Decimal?    @default(0) @db.Decimal
+  total_est_amount     Decimal?    @default(0) @db.Decimal
+  status               String?     @default("pending")
+  converted_to_bill_id String?
+  items                Json?
+  notes                String?
+  created_by           String?
+  created_at           DateTime?   @default(now()) @db.Timestamptz(6)
+  branches             branches?   @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customers            customers?  @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  warehouses           warehouses? @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model stock_ledger {
+  id                      String      @id
+  date                    DateTime    @db.Date
+  product_id              String?
+  warehouse_id            String?
+  branch_id               String?
+  movement_type           String
+  ref_id                  String?
+  ref_no                  String?
+  qty_in                  Decimal?    @default(0) @db.Decimal
+  qty_out                 Decimal?    @default(0) @db.Decimal
+  value_in                Decimal?    @default(0) @db.Decimal
+  value_out               Decimal?    @default(0) @db.Decimal
+  unit_cost               Decimal?    @default(0) @db.Decimal
+  notes                   String?
+  created_at              DateTime?   @default(now()) @db.Timestamptz(6)
+  purchase_channel_id     String?
+  sales_channel_id        String?
+  lot_no                  String?
+  created_by              String?
+  not_available_for_sale  Boolean?
+  output_category         String?
+  output_product_id       String?
+  ref_type                String?
+  return_customer_id      String?
+  return_reason           String?
+  source_input_id         String?
+  source_input_product_id String?
+  note                    String?
+  paid                    Boolean?    @default(false)
+  updated_at              DateTime?   @db.Timestamptz(6)
+  updated_by              String?
+  version                 Int?        @default(1)
+  is_opening              Boolean?    @default(false)
+  branches                branches?   @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  products                products?   @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  warehouses              warehouses? @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([date(sort: Desc)], map: "idx_stock_date")
+  @@index([ref_type, ref_no, product_id], map: "idx_stock_ledger_ref_lookup", where: raw("(ref_type = ANY (ARRAY['PB'::text, 'SB'::text]))"))
+  @@index([ref_type, ref_id], map: "idx_stock_ledger_source", where: raw("((ref_type IS NOT NULL) AND (ref_id IS NOT NULL))"))
+  @@index([product_id], map: "idx_stock_product")
+  @@index([ref_id], map: "idx_stock_ref")
+  @@index([movement_type], map: "idx_stock_type")
+  @@schema("public")
+}
+
+model suppliers {
+  id                String           @id
+  code              String?
+  name              String
+  tax_id            String?
+  phone             String?
+  email             String?
+  address           String?
+  bank_name         String?
+  bank_account      String?
+  bank_account_name String?
+  sales_rep         String?
+  credit_term       Int?             @default(0)
+  branch_id         String?
+  notes             String?
+  active            Boolean?         @default(true)
+  created_at        DateTime?        @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime?        @default(now()) @db.Timestamptz(6)
+  sales_id          String?
+  updated_by        String?
+  version           Int?             @default(1)
+  type              String?
+  contact           String?
+  credit_limit      Decimal?         @db.Decimal
+  assets            assets[]
+  payments          payments[]
+  po_buys           po_buys[]
+  purchase_bills    purchase_bills[]
+  branches          branches?        @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  trading_deals     trading_deals[]
+
+  @@index([branch_id], map: "idx_suppliers_branch")
+  @@index([name], map: "idx_suppliers_name")
+  @@schema("public")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model thai_districts {
+  district_code     String              @id
+  province_code     String
+  name_th           String
+  name_en           String?
+  postal_code       String?
+  active            Boolean             @default(true)
+  created_at        DateTime            @default(now()) @db.Timestamptz(6)
+  thai_provinces    thai_provinces      @relation(fields: [province_code], references: [province_code], onDelete: NoAction, onUpdate: NoAction)
+  thai_subdistricts thai_subdistricts[]
+
+  @@index([province_code], map: "idx_thai_districts_province_code")
+  @@schema("public")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model thai_provinces {
+  province_code     String              @id
+  name_th           String
+  name_en           String?
+  active            Boolean             @default(true)
+  created_at        DateTime            @default(now()) @db.Timestamptz(6)
+  thai_districts    thai_districts[]
+  thai_subdistricts thai_subdistricts[]
+
+  @@schema("public")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model thai_subdistricts {
+  subdistrict_code String         @id
+  district_code    String
+  province_code    String
+  name_th          String
+  name_en          String?
+  postal_code      String
+  active           Boolean        @default(true)
+  created_at       DateTime       @default(now()) @db.Timestamptz(6)
+  thai_districts   thai_districts @relation(fields: [district_code], references: [district_code], onDelete: NoAction, onUpdate: NoAction)
+  thai_provinces   thai_provinces @relation(fields: [province_code], references: [province_code], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([district_code], map: "idx_thai_subdistricts_district_code")
+  @@index([postal_code], map: "idx_thai_subdistricts_postal_code")
+  @@index([province_code], map: "idx_thai_subdistricts_province_code")
+  @@schema("public")
+}
+
+model trading_deals {
+  id                      String          @id
+  deal_no                 String
+  date                    DateTime        @db.Date
+  purchase_bill_id        String?
+  purchase_bill_no        String?
+  sales_bill_id           String?
+  sales_bill_no           String?
+  product_id              String?
+  supplier_id             String?
+  customer_id             String?
+  matched_qty             Decimal?        @default(0) @db.Decimal
+  matched_purchase_amount Decimal?        @default(0) @db.Decimal
+  matched_sales_amount    Decimal?        @default(0) @db.Decimal
+  ex_vat                  Boolean?        @default(true)
+  status                  String?         @default("Partially Matched")
+  notes                   String?
+  created_by              String?
+  cancelled_at            DateTime?       @db.Timestamptz(6)
+  created_at              DateTime?       @default(now()) @db.Timestamptz(6)
+  note                    String?
+  updated_at              DateTime?       @db.Timestamptz(6)
+  updated_by              String?
+  version                 Int?            @default(1)
+  cancelled_by            String?
+  cancelled_reason        String?
+  auto_created            Boolean?        @default(false)
+  customers               customers?      @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  products                products?       @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  purchase_bills          purchase_bills? @relation(fields: [purchase_bill_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sales_bills             sales_bills?    @relation(fields: [sales_bill_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  suppliers               suppliers?      @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([purchase_bill_id], map: "idx_deal_pb")
+  @@index([sales_bill_id], map: "idx_deal_sb")
+  @@index([purchase_bill_id, sales_bill_id], map: "idx_trading_deals_bills", where: raw("(status <> 'Cancelled'::text)"))
+  @@schema("public")
+}
+
+model transfers {
+  id                                           String    @id
+  doc_no                                       String
+  date                                         DateTime  @db.Date
+  from_account_id                              String?
+  to_account_id                                String?
+  amount                                       Decimal   @db.Decimal
+  fee                                          Decimal?  @default(0) @db.Decimal
+  notes                                        String?
+  status                                       String?   @default("active")
+  created_by                                   String?
+  created_at                                   DateTime? @default(now()) @db.Timestamptz(6)
+  bank_fee                                     Decimal?  @default(0) @db.Decimal
+  updated_at                                   DateTime? @db.Timestamptz(6)
+  updated_by                                   String?
+  version                                      Int?      @default(1)
+  idempotency_key                              String?
+  accounts_transfers_from_account_idToaccounts accounts? @relation("transfers_from_account_idToaccounts", fields: [from_account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  accounts_transfers_to_account_idToaccounts   accounts? @relation("transfers_to_account_idToaccounts", fields: [to_account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([doc_no], map: "idx_transfers_doc_no")
+  @@index([idempotency_key], map: "idx_transfers_idempotency", where: raw("(idempotency_key IS NOT NULL)"))
+  @@schema("public")
+}
+
+model user_profiles {
+  id           String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id      String?   @unique @db.Uuid
+  username     String    @unique
+  display_name String?
+  email        String?
+  role         String
+  branch_ids   String[]
+  active       Boolean?  @default(true)
+  created_at   DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@schema("public")
+}
+
+model public_users {
+  id                  String    @id
+  code                String?
+  username            String?
+  email               String?
+  name                String?
+  password            String?
+  role_id             String?
+  branch_id           String?
+  active              Boolean?  @default(true)
+  created_at          DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime? @db.Timestamptz(6)
+  password_changed_at DateTime? @db.Timestamptz(6)
+  must_change_pwd     Boolean?  @default(false)
+  updated_by          String?
+  version             Int?      @default(1)
+
+  @@map("users")
+  @@schema("public")
+}
+
+model warehouses {
+  id                String              @id
+  code              String              @unique
+  name              String
+  branch_id         String?
+  active            Boolean?            @default(true)
+  created_at        DateTime?           @default(now()) @db.Timestamptz(6)
+  grade_adjustments grade_adjustments[]
+  production_orders production_orders[]
+  purchase_bills    purchase_bills[]
+  sales_bills       sales_bills[]
+  stock_issues      stock_issues[]
+  stock_ledger      stock_ledger[]
+  branches          branches?           @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+enum aal_level {
+  aal1
+  aal2
+  aal3
+
+  @@schema("auth")
+}
+
+enum code_challenge_method {
+  s256
+  plain
+
+  @@schema("auth")
+}
+
+enum factor_status {
+  unverified
+  verified
+
+  @@schema("auth")
+}
+
+enum factor_type {
+  totp
+  webauthn
+  phone
+
+  @@schema("auth")
+}
+
+enum oauth_authorization_status {
+  pending
+  approved
+  denied
+  expired
+
+  @@schema("auth")
+}
+
+enum oauth_client_type {
+  public
+  confidential
+
+  @@schema("auth")
+}
+
+enum oauth_registration_type {
+  dynamic
+  manual
+
+  @@schema("auth")
+}
+
+enum oauth_response_type {
+  code
+
+  @@schema("auth")
+}
+
+enum one_time_token_type {
+  confirmation_token
+  reauthentication_token
+  recovery_token
+  email_change_token_new
+  email_change_token_current
+  phone_change_token
+
+  @@schema("auth")
+}

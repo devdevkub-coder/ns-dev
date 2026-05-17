@@ -1,0 +1,4 @@
+interface:
+  display_name: "NS Scrap ERP Obsidian"
+  short_description: "Project docs and Obsidian note workflow."
+  default_prompt: "Use the NS Scrap ERP Obsidian workflow for this task."

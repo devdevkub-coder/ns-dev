@@ -1,0 +1,345 @@
+import type { MasterDataPageConfig } from '@/lib/master-data'
+
+const statusColumn = { key: 'active', label: 'สถานะ', align: 'center', format: 'status' } as const
+
+export const salespersonsPageConfig: MasterDataPageConfig = {
+  apiPath: '/api/master-data/salespersons',
+  createLabel: 'เพิ่มพนักงานขาย',
+  entityName: 'พนักงานขาย',
+  emptyMessage: 'ไม่พบข้อมูลพนักงานขาย',
+  fields: [
+    { key: 'code', label: 'รหัส' },
+    { key: 'name', label: 'ชื่อพนักงานขาย', required: true },
+    { key: 'phone', label: 'โทรศัพท์' },
+    { key: 'email', label: 'อีเมล' },
+    { key: 'commissionPct', label: 'ค่าคอมมิชชัน (%)', type: 'number' },
+    { key: 'baseSalary', label: 'เงินเดือนฐาน', type: 'number' },
+    { key: 'note', label: 'หมายเหตุ' },
+  ],
+  columns: [
+    { key: 'code', label: 'รหัส' },
+    { key: 'name', label: 'ชื่อ' },
+    { key: 'phone', label: 'โทร' },
+    { key: 'email', label: 'อีเมล' },
+    { key: 'commissionPct', label: 'คอมฯ %', align: 'right', format: 'number' },
+    { key: 'baseSalary', label: 'ฐานเงินเดือน', align: 'right', format: 'money' },
+    statusColumn,
+  ],
+}
+
+export const currenciesPageConfig: MasterDataPageConfig = {
+  apiPath: '/api/master-data/currencies',
+  createLabel: 'เพิ่มสกุลเงิน',
+  entityName: 'สกุลเงิน',
+  emptyMessage: 'ไม่พบข้อมูลสกุลเงิน',
+  fields: [
+    { key: 'code', label: 'รหัสสกุลเงิน', required: true },
+    { key: 'name', label: 'ชื่อสกุลเงิน', required: true },
+    { key: 'symbol', label: 'สัญลักษณ์' },
+    { key: 'rateToThb', label: 'อัตราเทียบบาท', type: 'number' },
+  ],
+  columns: [
+    { key: 'code', label: 'รหัส' },
+    { key: 'name', label: 'ชื่อ' },
+    { key: 'symbol', label: 'สัญลักษณ์', align: 'center' },
+    { key: 'rateToThb', label: 'อัตราเทียบบาท', align: 'right', format: 'number' },
+  ],
+}
+
+export const expenseCategoriesPageConfig: MasterDataPageConfig = {
+  apiPath: '/api/master-data/expense-categories',
+  createLabel: 'เพิ่มหมวดค่าใช้จ่าย',
+  entityName: 'หมวดค่าใช้จ่าย',
+  emptyMessage: 'ไม่พบข้อมูลหมวดค่าใช้จ่าย',
+  fields: [
+    { key: 'code', label: 'รหัส' },
+    { key: 'name', label: 'ชื่อหมวด', required: true },
+    { key: 'parentId', label: 'หมวดแม่' },
+  ],
+  columns: [
+    { key: 'code', label: 'รหัส' },
+    { key: 'name', label: 'ชื่อหมวด' },
+    { key: 'parentId', label: 'หมวดแม่' },
+    statusColumn,
+  ],
+}
+
+export const channelsPageConfig: MasterDataPageConfig = {
+  apiPath: '/api/master-data/channels',
+  createLabel: 'เพิ่มช่องทาง',
+  entityName: 'ช่องทางซื้อ/ขาย',
+  emptyMessage: 'ไม่พบข้อมูลช่องทางซื้อ/ขาย',
+  description: 'รวม purchase_channels และ sales_channels ในหน้าจอเดียว โดยเก็บชนิดช่องทางไว้ในฟิลด์ประเภท',
+  fields: [
+    { key: 'channelType', label: 'ประเภทช่องทาง', type: 'select', required: true, options: [{ label: 'ซื้อ', value: 'purchase' }, { label: 'ขาย', value: 'sales' }] },
+    { key: 'code', label: 'รหัส' },
+    { key: 'name', label: 'ชื่อช่องทาง', required: true },
+  ],
+  columns: [
+    { key: 'channelType', label: 'ประเภท' },
+    { key: 'code', label: 'รหัส' },
+    { key: 'name', label: 'ชื่อช่องทาง' },
+    statusColumn,
+  ],
+}
+
+export const branchesPageConfig: MasterDataPageConfig = {
+  apiPath: '/api/master-data/branches',
+  createLabel: 'เพิ่มสาขา',
+  entityName: 'สาขา',
+  emptyMessage: 'ไม่พบข้อมูลสาขา',
+  fields: [
+    { key: 'code', label: 'รหัสสาขา', required: true },
+    { key: 'name', label: 'ชื่อสาขา', required: true },
+    { key: 'phone', label: 'โทรศัพท์' },
+    { key: 'address', label: 'ที่อยู่' },
+  ],
+  columns: [
+    { key: 'code', label: 'รหัส' },
+    { key: 'name', label: 'ชื่อสาขา' },
+    { key: 'phone', label: 'โทร' },
+    { key: 'address', label: 'ที่อยู่' },
+    statusColumn,
+  ],
+}
+
+export const warehousesPageConfig: MasterDataPageConfig = {
+  apiPath: '/api/master-data/warehouses',
+  createLabel: 'เพิ่มคลังสินค้า',
+  entityName: 'คลังสินค้า',
+  emptyMessage: 'ไม่พบข้อมูลคลังสินค้า',
+  fields: [
+    { key: 'code', label: 'รหัสคลัง', required: true },
+    { key: 'name', label: 'ชื่อคลัง', required: true },
+    { key: 'branchId', label: 'รหัสสาขา' },
+  ],
+  columns: [
+    { key: 'code', label: 'รหัส' },
+    { key: 'name', label: 'ชื่อคลัง' },
+    { key: 'branchName', label: 'สาขา' },
+    statusColumn,
+  ],
+}
+
+export const accountsPageConfig: MasterDataPageConfig = {
+  apiPath: '/api/master-data/accounts',
+  createLabel: 'เพิ่มบัญชีเงิน',
+  entityName: 'บัญชีเงิน',
+  emptyMessage: 'ไม่พบข้อมูลบัญชีเงิน',
+  fields: [
+    { key: 'code', label: 'รหัสบัญชี' },
+    { key: 'name', label: 'ชื่อบัญชี', required: true },
+    { key: 'type', label: 'ประเภท', type: 'select', required: true, options: [{ label: 'เงินสด', value: 'cash' }, { label: 'ธนาคาร', value: 'bank' }, { label: 'อื่น ๆ', value: 'other' }] },
+    { key: 'bankName', label: 'ธนาคาร' },
+    { key: 'accountNo', label: 'เลขที่บัญชี' },
+    { key: 'currency', label: 'สกุลเงิน' },
+    { key: 'openingBalance', label: 'ยอดยกมา', type: 'number' },
+    { key: 'odLimit', label: 'วงเงิน OD', type: 'number' },
+    { key: 'branchId', label: 'รหัสสาขา' },
+  ],
+  columns: [
+    { key: 'code', label: 'รหัส' },
+    { key: 'name', label: 'ชื่อบัญชี' },
+    { key: 'type', label: 'ประเภท' },
+    { key: 'bankName', label: 'ธนาคาร' },
+    { key: 'accountNo', label: 'เลขที่บัญชี' },
+    { key: 'currency', label: 'สกุลเงิน', align: 'center' },
+    { key: 'openingBalance', label: 'ยอดยกมา', align: 'right', format: 'money' },
+    { key: 'branchName', label: 'สาขา' },
+    statusColumn,
+  ],
+}
+
+export const suppliersPageConfig: MasterDataPageConfig = {
+  apiPath: '/api/master-data/suppliers',
+  createLabel: 'เพิ่มผู้ขาย',
+  entityName: 'ผู้ขาย',
+  emptyMessage: 'ไม่พบข้อมูลผู้ขาย',
+  fields: [
+    { key: 'code', label: 'รหัส' },
+    { key: 'name', label: 'ชื่อผู้ขาย', required: true },
+    { key: 'type', label: 'ประเภท' },
+    { key: 'taxId', label: 'เลขผู้เสียภาษี' },
+    { key: 'contact', label: 'ผู้ติดต่อ' },
+    { key: 'phone', label: 'โทรศัพท์' },
+    { key: 'email', label: 'อีเมล' },
+    { key: 'branchId', label: 'รหัสสาขา' },
+    { key: 'creditTerm', label: 'เครดิตเทอม (วัน)', type: 'number' },
+    { key: 'creditLimit', label: 'วงเงินเครดิต', type: 'number' },
+    { key: 'bankName', label: 'ธนาคาร' },
+    { key: 'accountNo', label: 'เลขบัญชี' },
+    { key: 'address', label: 'ที่อยู่' },
+    { key: 'note', label: 'หมายเหตุ' },
+  ],
+  columns: [
+    { key: 'code', label: 'รหัส' },
+    { key: 'name', label: 'ชื่อผู้ขาย' },
+    { key: 'type', label: 'ประเภท' },
+    { key: 'phone', label: 'โทร' },
+    { key: 'branchName', label: 'สาขา' },
+    { key: 'creditTerm', label: 'Term', align: 'right', format: 'number' },
+    { key: 'creditLimit', label: 'วงเงินเครดิต', align: 'right', format: 'money' },
+    statusColumn,
+  ],
+}
+
+export const productsPageConfig: MasterDataPageConfig = {
+  apiPath: '/api/master-data/products',
+  createLabel: 'เพิ่มสินค้า',
+  entityName: 'สินค้า',
+  emptyMessage: 'ไม่พบข้อมูลสินค้า',
+  fields: [
+    { key: 'code', label: 'รหัสสินค้า', required: true },
+    { key: 'name', label: 'ชื่อสินค้า', required: true },
+    { key: 'type', label: 'ประเภท' },
+    { key: 'unit', label: 'หน่วย' },
+    { key: 'metalGroup', label: 'กลุ่มโลหะ' },
+    { key: 'itemStatus', label: 'สถานะสินค้า', type: 'select', options: [{ label: 'RM', value: 'RM' }, { label: 'WIP', value: 'WIP' }, { label: 'FG', value: 'FG' }] },
+    { key: 'grade', label: 'เกรด' },
+    { key: 'stdPrice', label: 'ราคามาตรฐาน', type: 'number' },
+    { key: 'stdCost', label: 'ต้นทุนมาตรฐาน', type: 'number' },
+  ],
+  columns: [
+    { key: 'code', label: 'รหัส' },
+    { key: 'name', label: 'ชื่อสินค้า' },
+    { key: 'unit', label: 'หน่วย', align: 'center' },
+    { key: 'metalGroup', label: 'กลุ่มโลหะ' },
+    { key: 'itemStatus', label: 'สถานะ', align: 'center' },
+    { key: 'grade', label: 'เกรด' },
+    { key: 'stdPrice', label: 'ราคามาตรฐาน', align: 'right', format: 'money' },
+    { key: 'stdCost', label: 'ต้นทุนมาตรฐาน', align: 'right', format: 'money' },
+    statusColumn,
+  ],
+}
+
+export const directorsPageConfig: MasterDataPageConfig = {
+  apiPath: '/api/master-data/directors',
+  createLabel: 'เพิ่มกรรมการ/พนักงาน',
+  entityName: 'กรรมการ/พนักงาน',
+  emptyMessage: 'ไม่พบข้อมูลกรรมการ/พนักงาน',
+  description: 'ใช้ target table ใน dev database แล้ว; legacy เดิมมีเฉพาะ local/frontend data',
+  fields: [
+    { key: 'code', label: 'รหัส', required: true },
+    { key: 'name', label: 'ชื่อ', required: true },
+    { key: 'type', label: 'ประเภท', type: 'select', options: [{ label: 'กรรมการ', value: 'กรรมการ' }, { label: 'พนักงาน', value: 'พนักงาน' }, { label: 'อื่นๆ', value: 'อื่นๆ' }] },
+    { key: 'phone', label: 'โทรศัพท์' },
+    { key: 'bankAccount', label: 'บัญชีธนาคาร' },
+  ],
+  columns: [
+    { key: 'code', label: 'รหัส' },
+    { key: 'name', label: 'ชื่อ' },
+    { key: 'type', label: 'ประเภท' },
+    { key: 'phone', label: 'โทร' },
+    { key: 'bankAccount', label: 'บัญชีธนาคาร' },
+    statusColumn,
+  ],
+}
+
+export const machinesPageConfig: MasterDataPageConfig = {
+  apiPath: '/api/master-data/machines',
+  createLabel: 'เพิ่มเครื่องจักร',
+  entityName: 'เครื่องจักร',
+  emptyMessage: 'ไม่พบข้อมูลเครื่องจักร',
+  description: 'ใช้ target table ใน dev database แล้ว; production flow เดิมอ้างอิงเครื่องจักรจาก local/frontend data',
+  fields: [
+    { key: 'code', label: 'รหัสเครื่องจักร', required: true },
+    { key: 'name', label: 'ชื่อเครื่องจักร', required: true },
+    { key: 'branchId', label: 'รหัสสาขา' },
+    { key: 'type', label: 'ประเภท', type: 'select', options: [{ label: 'Sorting', value: 'Sorting' }, { label: 'Cutting', value: 'Cutting' }, { label: 'Baling', value: 'Baling' }, { label: 'Crushing', value: 'Crushing' }, { label: 'Melting', value: 'Melting' }, { label: 'Other', value: 'Other' }] },
+    { key: 'capacityKgPerHr', label: 'กำลังผลิต (กก./ชม.)', type: 'number' },
+    { key: 'normalYieldPct', label: 'Normal Yield %', type: 'number' },
+    { key: 'stdProcessCostPerHr', label: 'ค่า Process/ชม.', type: 'number' },
+    { key: 'maintenanceStatus', label: 'สถานะบำรุงรักษา', type: 'select', options: [{ label: 'Normal', value: 'Normal' }, { label: 'Maintenance', value: 'Maintenance' }, { label: 'Breakdown', value: 'Breakdown' }] },
+  ],
+  columns: [
+    { key: 'code', label: 'รหัส' },
+    { key: 'name', label: 'ชื่อเครื่องจักร' },
+    { key: 'branchId', label: 'สาขา' },
+    { key: 'type', label: 'ประเภท' },
+    { key: 'capacityKgPerHr', label: 'กก./ชม.', align: 'right', format: 'number' },
+    { key: 'normalYieldPct', label: 'Yield %', align: 'right', format: 'number' },
+    { key: 'maintenanceStatus', label: 'บำรุงรักษา' },
+    statusColumn,
+  ],
+}
+
+export const productionLinesPageConfig: MasterDataPageConfig = {
+  apiPath: '/api/master-data/production-lines',
+  createLabel: 'เพิ่ม Production Line',
+  entityName: 'Production Line',
+  emptyMessage: 'ไม่พบข้อมูล Production Line',
+  description: 'ใช้ target table ใน dev database แล้ว; production flow เดิมอ้างอิง line จาก local/frontend data',
+  fields: [
+    { key: 'code', label: 'รหัส Line', required: true },
+    { key: 'name', label: 'ชื่อ Line', required: true },
+    { key: 'branchId', label: 'รหัสสาขา' },
+    { key: 'responsiblePerson', label: 'ผู้รับผิดชอบ' },
+  ],
+  columns: [
+    { key: 'code', label: 'รหัส' },
+    { key: 'name', label: 'ชื่อ Line' },
+    { key: 'branchId', label: 'สาขา' },
+    { key: 'responsiblePerson', label: 'ผู้รับผิดชอบ' },
+    statusColumn,
+  ],
+}
+
+export const beneficiariesPageConfig: MasterDataPageConfig = {
+  apiPath: '/api/master-data/beneficiaries',
+  createLabel: 'เพิ่มผู้รับเงินต่างประเทศ',
+  entityName: 'ผู้รับเงินต่างประเทศ',
+  emptyMessage: 'ไม่พบข้อมูลผู้รับเงินต่างประเทศ',
+  fields: [
+    { key: 'name', label: 'ชื่อ', required: true },
+    { key: 'country', label: 'ประเทศ' },
+    { key: 'bankName', label: 'ธนาคาร' },
+    { key: 'accountNo', label: 'เลขบัญชี' },
+    { key: 'swift', label: 'SWIFT' },
+    { key: 'accountCurrency', label: 'สกุลเงินบัญชี' },
+  ],
+  columns: [
+    { key: 'name', label: 'ชื่อ' },
+    { key: 'country', label: 'ประเทศ' },
+    { key: 'bankName', label: 'ธนาคาร' },
+    { key: 'swift', label: 'SWIFT' },
+    { key: 'accountNo', label: 'เลขบัญชี' },
+    { key: 'accountCurrency', label: 'สกุล' },
+    statusColumn,
+  ],
+}
+
+export const paymentMethodsPageConfig: MasterDataPageConfig = {
+  apiPath: '/api/master-data/payment-methods',
+  createLabel: 'เพิ่มวิธีจ่าย/รับเงิน',
+  entityName: 'วิธีจ่าย/รับเงิน',
+  emptyMessage: 'ไม่พบข้อมูลวิธีจ่าย/รับเงิน',
+  description: 'ใช้ target table ใน dev database แล้ว; legacy เดิมมีเฉพาะ local/frontend data',
+  fields: [
+    { key: 'name', label: 'ชื่อ', required: true },
+    { key: 'type', label: 'ประเภท', type: 'select', options: [{ label: 'Cash', value: 'Cash' }, { label: 'Bank Transfer', value: 'Bank Transfer' }, { label: 'Cheque', value: 'Cheque' }, { label: 'PromptPay', value: 'PromptPay' }, { label: 'Credit Card', value: 'Credit Card' }, { label: 'QR Payment', value: 'QR Payment' }, { label: 'International Transfer', value: 'International Transfer' }, { label: 'FCD Transfer', value: 'FCD Transfer' }, { label: 'Offset / Netting', value: 'Offset / Netting' }, { label: 'Other', value: 'Other' }] },
+  ],
+  columns: [
+    { key: 'name', label: 'ชื่อ' },
+    { key: 'type', label: 'ประเภท' },
+    statusColumn,
+  ],
+}
+
+export const remittancePurposesPageConfig: MasterDataPageConfig = {
+  apiPath: '/api/master-data/remittance-purposes',
+  createLabel: 'เพิ่มวัตถุประสงค์โอน',
+  entityName: 'วัตถุประสงค์โอน',
+  emptyMessage: 'ไม่พบข้อมูลวัตถุประสงค์โอน',
+  description: 'ใช้ target table ใน dev database แล้ว; legacy เดิมมีเฉพาะ local/frontend data',
+  fields: [
+    { key: 'code', label: 'รหัส', required: true },
+    { key: 'name', label: 'ชื่อวัตถุประสงค์', required: true },
+    { key: 'requiredDoc', label: 'เอกสารที่ต้องใช้' },
+  ],
+  columns: [
+    { key: 'code', label: 'รหัส' },
+    { key: 'name', label: 'ชื่อ' },
+    { key: 'requiredDoc', label: 'เอกสารที่ต้องใช้' },
+    statusColumn,
+  ],
+}

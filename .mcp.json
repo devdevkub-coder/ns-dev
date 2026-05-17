@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "type": "http",
+      "description": "NS Scrap ERP DEV/TARGET project in a separate Supabase account/context from the customer's legacy production project. Use for development, schema migration testing, Supabase Auth, RLS, and frontend integration. Project ref: fhglqymcdmrgbsbadnwr.",
+      "url": "https://mcp.supabase.com/mcp?project_ref=fhglqymcdmrgbsbadnwr"
+    },
+    "supabase-prod-source": {
+      "type": "http",
+      "description": "NS Scrap ERP LEGACY-PROD/SOURCE project from the customer's old Supabase account/context. Use only for read-only audit and migration-source inspection. Do not apply schema changes here unless explicitly approved. Project ref: mqsgptraslgpyzbpndlg.",
+      "url": "https://mcp.supabase.com/mcp?project_ref=mqsgptraslgpyzbpndlg&read_only=true"
+    },
+    "obsidian": {
+      "type": "stdio",
+      "description": "Project-level Obsidian MCP for NS Scrap ERP. Vault path is scoped to this repository only.",
+      "command": "npx",
+      "args": [
+        "--yes",
+        "@bitbonsai/mcpvault@latest",
+        "/Users/watcharathatsrithanesiganon/Documents/GitHub/ns-scrap-erp"
+      ]
+    }
+  }
+}
