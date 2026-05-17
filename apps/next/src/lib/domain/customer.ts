@@ -5,6 +5,9 @@ type PrismaCustomer = {
   id: string
   code: string | null
   name: string
+  name_title: string | null
+  first_name: string | null
+  last_name: string | null
   type: string | null
   market_scope: string
   tax_id: string | null
@@ -21,6 +24,9 @@ type PrismaCustomer = {
   address_postal_code: string | null
   address_country: string | null
   contact: string | null
+  contact_title: string | null
+  contact_first_name: string | null
+  contact_last_name: string | null
   credit_term: number | null
   credit_limit: Prisma.Decimal | null
   sales_id: string | null
@@ -35,6 +41,9 @@ export function mapPrismaCustomer(row: PrismaCustomer): Customer {
     id: row.id,
     code: row.code ?? row.id,
     name: row.name,
+    nameTitle: row.name_title,
+    firstName: row.first_name,
+    lastName: row.last_name,
     type: row.type === 'บุคคล' ? 'บุคคล' : 'นิติบุคคล',
     marketScope: row.market_scope === 'ต่างประเทศ' ? 'ต่างประเทศ' : 'ในประเทศ',
     taxId: row.tax_id,
@@ -51,6 +60,9 @@ export function mapPrismaCustomer(row: PrismaCustomer): Customer {
     addressPostalCode: row.address_postal_code,
     addressCountry: row.address_country,
     contact: row.contact,
+    contactTitle: row.contact_title,
+    contactFirstName: row.contact_first_name,
+    contactLastName: row.contact_last_name,
     creditTerm: row.credit_term,
     creditLimit: row.credit_limit === null ? null : row.credit_limit.toNumber(),
     salesId: row.sales_id,
@@ -80,11 +92,17 @@ function compactAddress(values: CustomerFormValues) {
 export function toCustomerWriteInput(values: CustomerFormValues) {
   const parsed = customerFormSchema.parse(values)
   const code = parsed.code?.toUpperCase() || parsed.id || ''
+  const personName = [parsed.nameTitle, parsed.firstName, parsed.lastName].map((part) => part?.trim()).filter(Boolean).join(' ')
+  const contactName = [parsed.contactTitle, parsed.contactFirstName, parsed.contactLastName].map((part) => part?.trim()).filter(Boolean).join(' ')
+  const name = parsed.type === 'บุคคล' ? personName : parsed.name
 
   return {
     id: parsed.id || code,
     code,
-    name: parsed.name,
+    name: name || code,
+    name_title: parsed.type === 'บุคคล' ? parsed.nameTitle || null : null,
+    first_name: parsed.type === 'บุคคล' ? parsed.firstName || null : null,
+    last_name: parsed.type === 'บุคคล' ? parsed.lastName || null : null,
     type: parsed.type,
     market_scope: parsed.marketScope,
     tax_id: parsed.taxId || null,
@@ -100,7 +118,10 @@ export function toCustomerWriteInput(values: CustomerFormValues) {
     address_province: parsed.addressProvince || null,
     address_postal_code: parsed.addressPostalCode || null,
     address_country: parsed.addressCountry || 'ไทย',
-    contact: parsed.contact || null,
+    contact: contactName || parsed.contact || null,
+    contact_title: parsed.contactTitle || null,
+    contact_first_name: parsed.contactFirstName || null,
+    contact_last_name: parsed.contactLastName || null,
     credit_term: parsed.creditTerm,
     credit_limit: parsed.creditLimit,
     sales_id: parsed.salesId || null,

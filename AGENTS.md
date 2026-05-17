@@ -40,6 +40,7 @@ Project-level skills live in `.agents/skills/`. Project-specific shortcut skills
 
 Current project-level skills:
 - `ns-scrap-erp-migration`: shortcut for DB, migration, Supabase Auth/RLS, and phase planning tasks
+- `ns-scrap-erp-input-validation`: shortcut for required/syntax validation on forms, API payloads, and database-backed write flows
 - `ns-scrap-erp-obsidian`: shortcut for project notes, MOCs, decision logs, and Obsidian navigation
 - `ns-scrap-erp-quality-audit`: shortcut for click-path audit, browser QA, accessibility, workspace surface audit, and final verification
 - `codebase-migrate`: batch-oriented migration/refactor workflow; use local reviewable batches unless external Composio tooling is explicitly configured
@@ -189,6 +190,16 @@ Layer responsibilities:
 - lib: pure utilities
 
 Business logic should not be embedded in templates.
+
+## Input Validation Rules
+
+For every new or changed form/API field, define validation before saving data:
+- Required fields must be explicit in the shared schema and shown in the UI.
+- Validate syntax for every input field, not just presence. Examples: email syntax, phone number shape, tax ID length/digits, numeric ranges, date format/order, enum membership, text length, and allowed characters for names/codes.
+- Validate on both client-side form submission and server/API boundaries. Client validation is for UX; server validation is authoritative.
+- Show field-level error messages in the form for all validation failures.
+- Do not rely on HTML input types alone. Use Zod or the module's existing schema layer as the source of truth.
+- Keep validation practical for Thai business data: allow Thai text where appropriate, but reject control characters, obviously invalid punctuation, malformed identifiers, and negative values where not allowed.
 
 ## Testing and Validation
 

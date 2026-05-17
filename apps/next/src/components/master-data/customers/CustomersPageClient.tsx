@@ -17,9 +17,12 @@ const emptyCustomerForm: CustomerFormValues = {
   id: undefined,
   code: null,
   name: '',
+  nameTitle: null,
+  firstName: null,
+  lastName: null,
   type: 'นิติบุคคล',
   taxId: null,
-  phone: null,
+  phone: '',
   email: null,
   address: null,
   addressNo: null,
@@ -32,6 +35,9 @@ const emptyCustomerForm: CustomerFormValues = {
   addressPostalCode: null,
   addressCountry: 'ไทย',
   contact: null,
+  contactTitle: null,
+  contactFirstName: null,
+  contactLastName: null,
   creditTerm: null,
   creditLimit: null,
   marketScope: 'ในประเทศ',
@@ -40,14 +46,19 @@ const emptyCustomerForm: CustomerFormValues = {
   active: true,
 }
 
+const personTitleOptions = ['นาย', 'นาง', 'นางสาว', 'คุณ']
+
 function customerToForm(customer: Customer): CustomerFormValues {
   return {
     id: customer.id,
     code: customer.code,
     name: customer.name,
+    nameTitle: customer.nameTitle,
+    firstName: customer.firstName,
+    lastName: customer.lastName,
     type: customer.type,
     taxId: customer.taxId,
-    phone: customer.phone,
+    phone: customer.phone ?? '',
     email: customer.email,
     address: customer.address,
     addressNo: customer.addressNo,
@@ -60,6 +71,9 @@ function customerToForm(customer: Customer): CustomerFormValues {
     addressPostalCode: customer.addressPostalCode,
     addressCountry: customer.addressCountry ?? 'ไทย',
     contact: customer.contact,
+    contactTitle: customer.contactTitle,
+    contactFirstName: customer.contactFirstName,
+    contactLastName: customer.contactLastName,
     creditTerm: customer.creditTerm,
     creditLimit: customer.creditLimit,
     marketScope: customer.marketScope,
@@ -76,6 +90,10 @@ function displayValue(value: string | number | null) {
 function formatMoney(value: number | null) {
   if (value === null) return '-'
   return value.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function uniqueValues<T>(values: T[]) {
+  return Array.from(new Set(values))
 }
 
 export function CustomersPageClient() {
@@ -435,13 +453,53 @@ function CustomerForm({ customer, districts, isSaving, provinces, subdistricts, 
     setErrors({})
   }, [customer])
 
+  const postalCode = form.addressPostalCode?.trim() ?? ''
+  const postalSubdistricts = postalCode.length === 5 ? subdistricts.filter((subdistrict) => subdistrict.postalCode === postalCode) : []
+  const postalProvinceCodes = uniqueValues(postalSubdistricts.map((subdistrict) => subdistrict.provinceCode))
+  const postalDistrictCodes = uniqueValues(postalSubdistricts.map((subdistrict) => subdistrict.districtCode))
   const selectedProvince = provinces.find((province) => province.nameTh === form.addressProvince) ?? null
-  const filteredDistricts = selectedProvince ? districts.filter((district) => district.provinceCode === selectedProvince.code) : []
+  const provinceOptions = postalProvinceCodes.length > 0 ? provinces.filter((province) => postalProvinceCodes.includes(province.code)) : provinces
+  const filteredDistricts = selectedProvince
+    ? districts.filter((district) => district.provinceCode === selectedProvince.code && (postalDistrictCodes.length === 0 || postalDistrictCodes.includes(district.code)))
+    : postalDistrictCodes.length > 0
+      ? districts.filter((district) => postalDistrictCodes.includes(district.code))
+      : []
   const selectedDistrict = filteredDistricts.find((district) => district.nameTh === form.addressDistrict) ?? null
-  const filteredSubdistricts = selectedDistrict ? subdistricts.filter((subdistrict) => subdistrict.districtCode === selectedDistrict.code) : []
+  const filteredSubdistricts = selectedDistrict
+    ? subdistricts.filter((subdistrict) => subdistrict.districtCode === selectedDistrict.code && (!postalCode || subdistrict.postalCode === postalCode))
+    : postalSubdistricts
 
   function update<K extends keyof CustomerFormValues>(key: K, value: CustomerFormValues[K]) {
     setForm((current) => ({ ...current, [key]: value }))
+  }
+
+  function updatePostalCode(value: string) {
+    const nextPostalCode = value.trim()
+    const matchingSubdistricts = nextPostalCode.length === 5 ? subdistricts.filter((subdistrict) => subdistrict.postalCode === nextPostalCode) : []
+    const matchingProvinceCodes = uniqueValues(matchingSubdistricts.map((subdistrict) => subdistrict.provinceCode))
+    const matchingDistrictCodes = uniqueValues(matchingSubdistricts.map((subdistrict) => subdistrict.districtCode))
+    const nextProvince = matchingProvinceCodes.length === 1 ? provinces.find((province) => province.code === matchingProvinceCodes[0])?.nameTh ?? null : null
+    const nextDistrict = matchingDistrictCodes.length === 1 ? districts.find((district) => district.code === matchingDistrictCodes[0])?.nameTh ?? null : null
+    const nextSubdistrict = matchingSubdistricts.length === 1 ? matchingSubdistricts[0]?.nameTh ?? null : null
+
+    setForm((current) => ({
+      ...current,
+      addressPostalCode: nextPostalCode || null,
+      addressProvince: nextProvince,
+      addressDistrict: nextDistrict,
+      addressSubdistrict: nextSubdistrict,
+    }))
+  }
+
+  function updateCustomerType(value: CustomerFormValues['type']) {
+    setForm((current) => ({
+      ...current,
+      type: value,
+      name: value === 'บุคคล' ? null : current.name,
+      nameTitle: value === 'บุคคล' ? current.nameTitle : null,
+      firstName: value === 'บุคคล' ? current.firstName : null,
+      lastName: value === 'บุคคล' ? current.lastName : null,
+    }))
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -468,9 +526,9 @@ function CustomerForm({ customer, districts, isSaving, provinces, subdistricts, 
 
       <div className="max-h-[76vh] space-y-5 overflow-y-auto px-5 py-5">
         <section>
-          <h4 className="mb-3 text-sm font-bold text-slate-700">ข้อมูลบริษัท</h4>
+          <h4 className="mb-3 text-sm font-bold text-slate-700">ข้อมูลลูกค้า</h4>
           <div className="grid gap-4 md:grid-cols-4">
-            <SelectField error={errors.type} label="ประเภทลูกค้า" value={form.type} onChange={(value) => update('type', value as CustomerFormValues['type'])}>
+            <SelectField error={errors.type} label="ประเภทลูกค้า" value={form.type} onChange={(value) => updateCustomerType(value as CustomerFormValues['type'])}>
               <option value="บุคคล">บุคคล</option>
               <option value="นิติบุคคล">นิติบุคคล</option>
             </SelectField>
@@ -478,18 +536,34 @@ function CustomerForm({ customer, districts, isSaving, provinces, subdistricts, 
               <option value="ในประเทศ">ในประเทศ</option>
               <option value="ต่างประเทศ">ต่างประเทศ</option>
             </SelectField>
-            <TextField className="md:col-span-2" error={errors.name} label={form.type === 'บุคคล' ? 'ชื่อลูกค้า' : 'ชื่อบริษัท'} value={form.name} onChange={(value) => update('name', value)} />
-            <TextField label="เลขผู้เสียภาษี" value={form.taxId ?? ''} onChange={(value) => update('taxId', value || null)} />
-            <TextField label="เครดิตเทอม (วัน)" type="number" value={form.creditTerm ?? ''} onChange={(value) => update('creditTerm', value === '' ? null : Number(value))} />
-            <TextField label="วงเงินเครดิต" type="number" value={form.creditLimit ?? ''} onChange={(value) => update('creditLimit', value === '' ? null : Number(value))} />
+            {form.type === 'บุคคล' ? (
+              <>
+                <SelectField error={errors.nameTitle} label="คำนำหน้าชื่อ" value={form.nameTitle ?? ''} onChange={(value) => update('nameTitle', value || null)}>
+                  <option value="">เลือกคำนำหน้า</option>
+                  {personTitleOptions.map((title) => <option key={title} value={title}>{title}</option>)}
+                </SelectField>
+                <TextField error={errors.firstName} label="ชื่อ" value={form.firstName ?? ''} onChange={(value) => update('firstName', value || null)} />
+                <TextField error={errors.lastName} label="นามสกุล" value={form.lastName ?? ''} onChange={(value) => update('lastName', value || null)} />
+              </>
+            ) : (
+              <TextField className="md:col-span-2" error={errors.name} label="ชื่อบริษัท" value={form.name ?? ''} onChange={(value) => update('name', value || null)} />
+            )}
+            <TextField error={errors.taxId} label="เลขผู้เสียภาษี" value={form.taxId ?? ''} onChange={(value) => update('taxId', value || null)} />
+            <TextField error={errors.creditTerm} label="เครดิตเทอม (วัน)" type="number" value={form.creditTerm ?? ''} onChange={(value) => update('creditTerm', value === '' ? null : Number(value))} />
+            <TextField error={errors.creditLimit} label="วงเงินเครดิต" type="number" value={form.creditLimit ?? ''} onChange={(value) => update('creditLimit', value === '' ? null : Number(value))} />
           </div>
         </section>
 
         <section>
           <h4 className="mb-3 text-sm font-bold text-slate-700">ข้อมูลติดต่อ</h4>
-          <div className="grid gap-4 md:grid-cols-3">
-            <TextField label="ผู้ติดต่อ" value={form.contact ?? ''} onChange={(value) => update('contact', value || null)} />
-            <TextField label="โทรศัพท์" value={form.phone ?? ''} onChange={(value) => update('phone', value || null)} />
+          <div className="grid gap-4 md:grid-cols-4">
+            <SelectField error={errors.contactTitle} label="คำนำหน้าผู้ติดต่อ" value={form.contactTitle ?? ''} onChange={(value) => update('contactTitle', value || null)}>
+              <option value="">เลือกคำนำหน้า</option>
+              {personTitleOptions.map((title) => <option key={title} value={title}>{title}</option>)}
+            </SelectField>
+            <TextField error={errors.contactFirstName} label="ชื่อผู้ติดต่อ" value={form.contactFirstName ?? ''} onChange={(value) => update('contactFirstName', value || null)} />
+            <TextField error={errors.contactLastName} label="นามสกุลผู้ติดต่อ" value={form.contactLastName ?? ''} onChange={(value) => update('contactLastName', value || null)} />
+            <TextField error={errors.phone} label="โทรศัพท์" value={form.phone ?? ''} onChange={(value) => update('phone', value)} />
             <TextField error={errors.email} label="อีเมล" type="email" value={form.email ?? ''} onChange={(value) => update('email', value || null)} />
           </div>
         </section>
@@ -497,37 +571,45 @@ function CustomerForm({ customer, districts, isSaving, provinces, subdistricts, 
         <section>
           <h4 className="mb-3 text-sm font-bold text-slate-700">ที่อยู่</h4>
           <div className="grid gap-4 md:grid-cols-4">
-            <TextField label="บ้านเลขที่" value={form.addressNo ?? ''} onChange={(value) => update('addressNo', value || null)} />
-            <TextField label="หมู่" value={form.addressMoo ?? ''} onChange={(value) => update('addressMoo', value || null)} />
-            <TextField className="md:col-span-2" label="หมู่บ้าน/อาคาร" value={form.addressVillage ?? ''} onChange={(value) => update('addressVillage', value || null)} />
-            <TextField label="ถนน" value={form.addressRoad ?? ''} onChange={(value) => update('addressRoad', value || null)} />
-            <SelectField disabled={!selectedDistrict} label="ตำบล/แขวง" value={form.addressSubdistrict ?? ''} onChange={(value) => {
-              const subdistrict = filteredSubdistricts.find((item) => item.nameTh === value)
-              setForm((current) => ({ ...current, addressSubdistrict: value || null, addressPostalCode: subdistrict?.postalCode ?? null }))
+            <TextField error={errors.addressPostalCode} label="รหัสไปรษณีย์" value={form.addressPostalCode ?? ''} onChange={updatePostalCode} />
+            <SelectField error={errors.addressProvince} label="จังหวัด" value={form.addressProvince ?? ''} onChange={(value) => {
+              setForm((current) => ({ ...current, addressProvince: value || null, addressDistrict: null, addressSubdistrict: null }))
             }}>
-              <option value="">เลือกตำบล/แขวง</option>
-              {filteredSubdistricts.map((subdistrict) => <option key={subdistrict.code} value={subdistrict.nameTh}>{subdistrict.nameTh}</option>)}
+              <option value="">เลือกจังหวัด</option>
+              {provinceOptions.map((province) => <option key={province.code} value={province.nameTh}>{province.nameTh}</option>)}
             </SelectField>
-            <SelectField disabled={!selectedProvince} label="อำเภอ/เขต" value={form.addressDistrict ?? ''} onChange={(value) => {
-              setForm((current) => ({ ...current, addressDistrict: value || null, addressSubdistrict: null, addressPostalCode: null }))
+            <SelectField disabled={!selectedProvince && filteredDistricts.length === 0} error={errors.addressDistrict} label="อำเภอ/เขต" value={form.addressDistrict ?? ''} onChange={(value) => {
+              setForm((current) => ({ ...current, addressDistrict: value || null, addressSubdistrict: null }))
             }}>
               <option value="">เลือกอำเภอ/เขต</option>
               {filteredDistricts.map((district) => <option key={district.code} value={district.nameTh}>{district.nameTh}</option>)}
             </SelectField>
-            <SelectField label="จังหวัด" value={form.addressProvince ?? ''} onChange={(value) => {
-              setForm((current) => ({ ...current, addressProvince: value || null, addressDistrict: null, addressSubdistrict: null, addressPostalCode: null }))
+            <SelectField disabled={filteredSubdistricts.length === 0} error={errors.addressSubdistrict} label="ตำบล/แขวง" value={form.addressSubdistrict ?? ''} onChange={(value) => {
+              const subdistrict = filteredSubdistricts.find((item) => item.nameTh === value)
+              const province = subdistrict ? provinces.find((item) => item.code === subdistrict.provinceCode) : null
+              const district = subdistrict ? districts.find((item) => item.code === subdistrict.districtCode) : null
+              setForm((current) => ({
+                ...current,
+                addressPostalCode: subdistrict?.postalCode ?? current.addressPostalCode,
+                addressProvince: province?.nameTh ?? current.addressProvince,
+                addressDistrict: district?.nameTh ?? current.addressDistrict,
+                addressSubdistrict: value || null,
+              }))
             }}>
-              <option value="">เลือกจังหวัด</option>
-              {provinces.map((province) => <option key={province.code} value={province.nameTh}>{province.nameTh}</option>)}
+              <option value="">เลือกตำบล/แขวง</option>
+              {filteredSubdistricts.map((subdistrict) => <option key={subdistrict.code} value={subdistrict.nameTh}>{subdistrict.nameTh}</option>)}
             </SelectField>
-            <TextField label="รหัสไปรษณีย์" readOnly value={form.addressPostalCode ?? ''} onChange={() => undefined} />
-            <TextField label="ประเทศ" value={form.addressCountry ?? 'ไทย'} onChange={(value) => update('addressCountry', value || 'ไทย')} />
-            <TextField className="md:col-span-2" label="ที่อยู่เต็ม/หมายเหตุที่อยู่" value={form.address ?? ''} onChange={(value) => update('address', value || null)} />
+            <TextField error={errors.addressNo} label="บ้านเลขที่" value={form.addressNo ?? ''} onChange={(value) => update('addressNo', value || null)} />
+            <TextField error={errors.addressMoo} label="หมู่" value={form.addressMoo ?? ''} onChange={(value) => update('addressMoo', value || null)} />
+            <TextField className="md:col-span-2" error={errors.addressVillage} label="หมู่บ้าน/อาคาร" value={form.addressVillage ?? ''} onChange={(value) => update('addressVillage', value || null)} />
+            <TextField error={errors.addressRoad} label="ถนน" value={form.addressRoad ?? ''} onChange={(value) => update('addressRoad', value || null)} />
+            <TextField error={errors.addressCountry} label="ประเทศ" value={form.addressCountry ?? 'ไทย'} onChange={(value) => update('addressCountry', value || 'ไทย')} />
+            <TextField className="md:col-span-2" error={errors.address} label="ที่อยู่เต็ม/หมายเหตุที่อยู่" value={form.address ?? ''} onChange={(value) => update('address', value || null)} />
           </div>
         </section>
 
         <section>
-          <TextField label="หมายเหตุ" value={form.notes ?? ''} onChange={(value) => update('notes', value || null)} />
+          <TextField error={errors.notes} label="หมายเหตุ" value={form.notes ?? ''} onChange={(value) => update('notes', value || null)} />
         </section>
       </div>
 

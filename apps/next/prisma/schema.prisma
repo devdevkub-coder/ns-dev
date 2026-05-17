@@ -682,6 +682,9 @@ model customers {
   id                  String          @id
   code                String?
   name                String
+  name_title          String?
+  first_name          String?
+  last_name           String?
   tax_id              String?
   phone               String?
   email               String?
@@ -697,6 +700,9 @@ model customers {
   updated_by          String?
   version             Int?            @default(1)
   contact             String?
+  contact_title       String?
+  contact_first_name  String?
+  contact_last_name   String?
   type                String?
   credit_limit        Decimal?        @db.Decimal
   address_no          String?

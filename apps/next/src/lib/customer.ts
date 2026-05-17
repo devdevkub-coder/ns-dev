@@ -1,9 +1,83 @@
 import { z } from 'zod'
 
+const blankToNull = (value: unknown) => (typeof value === 'string' && value.trim() === '' ? null : value)
+const businessTextPattern = /^[\p{L}\p{M}\p{N}\s.&,()/'"-]+$/u
+const compactDigits = (value: string) => value.replace(/\D/g, '')
+const generalTextPattern = /^[^\u0000-\u001F\u007F]+$/u
+const personNamePattern = /^[\p{L}\p{M}.' -]+$/u
+
+const asciiEmailSchema = z.preprocess(blankToNull, z.string().trim()
+  .email('รูปแบบอีเมลไม่ถูกต้อง')
+  .regex(/^[\x20-\x7E]+$/, 'อีเมลต้องใช้ตัวอักษรอังกฤษ ตัวเลข หรือสัญลักษณ์มาตรฐาน')
+  .nullable()
+  .default(null))
+
+const optionalBusinessText = (label: string, maxLength = 160) => z.preprocess(
+  blankToNull,
+  z.string().trim()
+    .max(maxLength, `${label}ยาวเกินไป`)
+    .regex(businessTextPattern, `${label}มีรูปแบบไม่ถูกต้อง`)
+    .nullable()
+    .default(null),
+)
+
+const optionalGeneralText = (label: string, maxLength = 255) => z.preprocess(
+  blankToNull,
+  z.string().trim()
+    .max(maxLength, `${label}ยาวเกินไป`)
+    .regex(generalTextPattern, `${label}มีรูปแบบไม่ถูกต้อง`)
+    .nullable()
+    .default(null),
+)
+
+const optionalPersonName = (label: string) => z.preprocess(
+  blankToNull,
+  z.string().trim()
+    .max(80, `${label}ยาวเกินไป`)
+    .regex(personNamePattern, `${label}ใช้ได้เฉพาะตัวอักษร ช่องว่าง จุด ขีด และ apostrophe`)
+    .nullable()
+    .default(null),
+)
+
+const optionalTaxIdSchema = z.preprocess(
+  blankToNull,
+  z.string().trim()
+    .regex(/^\d{13}$/, 'เลขผู้เสียภาษีต้องเป็นตัวเลข 13 หลัก')
+    .nullable()
+    .default(null),
+)
+
+const optionalPostalCodeSchema = z.preprocess(
+  blankToNull,
+  z.string().trim()
+    .regex(/^\d{5}$/, 'รหัสไปรษณีย์ต้องเป็นตัวเลข 5 หลัก')
+    .nullable()
+    .default(null),
+)
+
+const optionalMooSchema = z.preprocess(
+  blankToNull,
+  z.string().trim()
+    .regex(/^\d{1,3}[A-Za-z]?$/, 'หมู่ต้องเป็นตัวเลข 1-3 หลัก')
+    .nullable()
+    .default(null),
+)
+
+const phoneSchema = z.string().trim()
+  .min(1, 'กรอกเบอร์โทรศัพท์')
+  .regex(/^\+?[0-9][0-9\s().-]{7,24}$/, 'รูปแบบเบอร์โทรศัพท์ไม่ถูกต้อง')
+  .refine((value) => {
+    const digits = compactDigits(value)
+    return digits.length >= 9 && digits.length <= 15
+  }, 'เบอร์โทรศัพท์ต้องมีตัวเลข 9-15 หลัก')
+
 export const customerSchema = z.object({
   id: z.string().min(1),
   code: z.string().min(1),
   name: z.string().min(1),
+  nameTitle: z.string().nullable().default(null),
+  firstName: z.string().nullable().default(null),
+  lastName: z.string().nullable().default(null),
   type: z.enum(['บุคคล', 'นิติบุคคล']).default('นิติบุคคล'),
   marketScope: z.enum(['ในประเทศ', 'ต่างประเทศ']).default('ในประเทศ'),
   taxId: z.string().nullable().default(null),
@@ -20,6 +94,9 @@ export const customerSchema = z.object({
   addressPostalCode: z.string().nullable().default(null),
   addressCountry: z.string().nullable().default(null),
   contact: z.string().nullable().default(null),
+  contactTitle: z.string().nullable().default(null),
+  contactFirstName: z.string().nullable().default(null),
+  contactLastName: z.string().nullable().default(null),
   creditTerm: z.number().int().nullable().default(null),
   creditLimit: z.number().nullable().default(null),
   salesId: z.string().nullable().default(null),
@@ -51,30 +128,60 @@ export type CustomerListOptions = {
 }
 
 export const customerFormSchema = z.object({
-  id: z.string().trim().optional(),
-  code: z.string().trim().optional().nullable().default(null),
-  name: z.string().trim().min(1, 'กรอกชื่อลูกค้า'),
+  id: z.string().trim().regex(/^[A-Za-z0-9_-]+$/, 'รหัสลูกค้ามีรูปแบบไม่ถูกต้อง').optional(),
+  code: z.preprocess(blankToNull, z.string().trim().regex(/^[A-Za-z0-9_-]+$/, 'รหัสลูกค้ามีรูปแบบไม่ถูกต้อง').nullable().default(null)),
+  name: optionalBusinessText('ชื่อบริษัท'),
+  nameTitle: optionalPersonName('คำนำหน้าชื่อ'),
+  firstName: optionalPersonName('ชื่อ'),
+  lastName: optionalPersonName('นามสกุล'),
   type: z.enum(['บุคคล', 'นิติบุคคล'], { required_error: 'เลือกประเภทลูกค้า' }),
   marketScope: z.enum(['ในประเทศ', 'ต่างประเทศ']).default('ในประเทศ'),
-  taxId: z.string().trim().nullable().default(null),
-  phone: z.string().trim().nullable().default(null),
-  email: z.string().trim().email('รูปแบบอีเมลไม่ถูกต้อง').or(z.literal('')).nullable().default(null),
-  address: z.string().trim().nullable().default(null),
-  addressNo: z.string().trim().nullable().default(null),
-  addressMoo: z.string().trim().nullable().default(null),
-  addressVillage: z.string().trim().nullable().default(null),
-  addressRoad: z.string().trim().nullable().default(null),
-  addressSubdistrict: z.string().trim().nullable().default(null),
-  addressDistrict: z.string().trim().nullable().default(null),
-  addressProvince: z.string().trim().nullable().default(null),
-  addressPostalCode: z.string().trim().nullable().default(null),
-  addressCountry: z.string().trim().nullable().default('ไทย'),
-  contact: z.string().trim().nullable().default(null),
+  taxId: optionalTaxIdSchema,
+  phone: phoneSchema,
+  email: asciiEmailSchema,
+  address: optionalGeneralText('ที่อยู่เต็ม/หมายเหตุที่อยู่', 500),
+  addressNo: optionalGeneralText('บ้านเลขที่', 40),
+  addressMoo: optionalMooSchema,
+  addressVillage: optionalGeneralText('หมู่บ้าน/อาคาร', 160),
+  addressRoad: optionalGeneralText('ถนน', 120),
+  addressSubdistrict: optionalGeneralText('ตำบล/แขวง', 120),
+  addressDistrict: optionalGeneralText('อำเภอ/เขต', 120),
+  addressProvince: optionalGeneralText('จังหวัด', 120),
+  addressPostalCode: optionalPostalCodeSchema,
+  addressCountry: z.preprocess(blankToNull, z.string().trim().max(80, 'ประเทศยาวเกินไป').regex(personNamePattern, 'ประเทศมีรูปแบบไม่ถูกต้อง').nullable().default('ไทย')),
+  contact: optionalGeneralText('ผู้ติดต่อ'),
+  contactTitle: optionalPersonName('คำนำหน้าผู้ติดต่อ'),
+  contactFirstName: optionalPersonName('ชื่อผู้ติดต่อ'),
+  contactLastName: optionalPersonName('นามสกุลผู้ติดต่อ'),
   creditTerm: z.number().int().min(0).nullable().default(null),
   creditLimit: z.number().min(0).nullable().default(null),
   salesId: z.string().trim().nullable().default(null),
   notes: z.string().trim().nullable().default(null),
   active: z.boolean().default(true),
+}).superRefine((values, context) => {
+  if (values.type === 'บุคคล') {
+    if (!values.nameTitle) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'เลือกคำนำหน้าชื่อ', path: ['nameTitle'] })
+    }
+    if (!values.firstName) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'กรอกชื่อ', path: ['firstName'] })
+    }
+    if (!values.lastName) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'กรอกนามสกุล', path: ['lastName'] })
+    }
+  } else if (!values.name) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'กรอกชื่อบริษัท', path: ['name'] })
+  }
+
+  if (!values.contactTitle) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'เลือกคำนำหน้าผู้ติดต่อ', path: ['contactTitle'] })
+  }
+  if (!values.contactFirstName) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'กรอกชื่อผู้ติดต่อ', path: ['contactFirstName'] })
+  }
+  if (!values.contactLastName) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'กรอกนามสกุลผู้ติดต่อ', path: ['contactLastName'] })
+  }
 })
 
 export type CustomerFormValues = z.infer<typeof customerFormSchema>

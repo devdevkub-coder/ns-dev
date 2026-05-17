@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { resolveMx } from 'node:dns/promises'
 import { customerFormSchema } from '@/lib/customer'
 import { mapPrismaCustomer, toCustomerWriteInput } from '@/lib/domain/customer'
 import { prisma } from '@/lib/server/prisma'
@@ -83,6 +84,24 @@ async function getNextCustomerCode() {
   return `CUS${String(nextNumber).padStart(3, '0')}`
 }
 
+async function assertEmailDomainCanReceiveMail(email: string | null) {
+  if (!email) return
+
+  const domain = email.split('@')[1]?.toLowerCase()
+  if (!domain) {
+    throw new Error('รูปแบบอีเมลไม่ถูกต้อง')
+  }
+
+  try {
+    const records = await resolveMx(domain)
+    if (records.length === 0) {
+      throw new Error('โดเมนอีเมลนี้ไม่รองรับการรับอีเมล')
+    }
+  } catch {
+    throw new Error('ตรวจสอบโดเมนอีเมลไม่ผ่าน')
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const { customerType, direction, marketScope, page, pageSize, q, sortColumn } = parseListParams(request)
@@ -113,6 +132,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
     const values = customerFormSchema.parse(body)
+    await assertEmailDomainCanReceiveMail(values.email)
     const code = values.id ? values.code : await getNextCustomerCode()
     const payload = toCustomerWriteInput({ ...values, code })
 
