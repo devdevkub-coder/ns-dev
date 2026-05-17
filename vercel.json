@@ -1,5 +1,0 @@
-{
-  "framework": "nextjs",
-  "buildCommand": "npm run build --workspace @ns-scrap-erp/next",
-  "installCommand": "npm install"
-}
