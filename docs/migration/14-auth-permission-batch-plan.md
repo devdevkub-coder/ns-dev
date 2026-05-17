@@ -30,7 +30,7 @@
   - `/login` links to forgot password
   - `proxy.ts` treats forgot/reset routes as public so Supabase recovery links can load
 - Username login is not implemented yet. Current UI accepts Email / Username, but non-email identifiers are rejected with a message.
-- Full user/role/permission schema is not implemented yet.
+- Additive target auth/permission schema migration has been drafted as `20260518093001_create_app_auth_permission_tables.sql`.
 - RLS/permission model is not final; current gating is a temporary admin-only bridge before UAT.
 
 ## Legacy Findings
@@ -44,7 +44,7 @@ Legacy source has these auth-adjacent structures:
 | `auth.users` | Supabase-managed auth table | Keep as login source of truth |
 | `public.users` | App user table with `password`, `role_id`, `branch_id`, `must_change_pwd`, `active` | Replace with `app_users`; do not keep password |
 | `public.user_profiles` | Profile linked to `auth.users`, has `username`, `display_name`, `email`, `role`, `branch_ids`, `active` | Merge/refactor into `app_users` and branch access tables |
-| `public.roles_config` | `role`, `permissions jsonb`, `description` | Normalize to roles + permissions + role_permissions |
+| `public.roles_config` | `role`, `permissions jsonb`, `description` | Normalize to `app_roles` + `app_permissions` + `app_role_permissions` |
 | `public.roles` | Legacy role table exists in dump | Audit before deciding whether to migrate rows |
 | `public.lookup_user_email(username)` | Finds active profile email by username | Replace with safe username-to-email lookup if username login is required |
 | `public.current_user_role()` | Reads role from `user_profiles` | Replace with app role helper/RLS strategy |
@@ -110,6 +110,7 @@ Permission dimensions already implied by legacy UI:
 - Use Supabase password reset / recovery flow.
 - Keep app-specific user profile data in `app_users`.
 - Normalize permissions instead of relying on duplicated JSON permission blobs.
+- Use `app_*` table names for new target auth/permission tables so they do not collide with legacy `public.roles` or `public.users`.
 - Enforce permissions in both UI and API. Hiding buttons is not enough.
 - Use RLS only after the application permission model is verified in `dev-target`.
 - Keep legacy `public.users`, `user_profiles`, and `roles_config` as reference until migration mapping is signed off.
@@ -127,7 +128,7 @@ Initial tables:
   - `must_change_password`
   - `last_login_at`
   - `created_at`, `updated_at`, `created_by`, `updated_by`
-- `roles`
+- `app_roles`
   - `id`
   - `code`
   - `name`
@@ -135,20 +136,20 @@ Initial tables:
   - `is_system`
   - `branch_scope`
   - `active`
-- `permissions`
+- `app_permissions`
   - `id`
   - `code`
   - `module`
   - `resource`
   - `action`
   - `description`
-- `role_permissions`
+- `app_role_permissions`
   - `role_id`
   - `permission_id`
-- `user_roles`
+- `app_user_roles`
   - `user_id`
   - `role_id`
-- `user_branch_access`
+- `app_user_branch_access`
   - `user_id`
   - `branch_id`
 - Optional later:
@@ -210,7 +211,7 @@ Goal:
 - Add non-destructive target tables for app users and permissions.
 
 Tasks:
-- Create additive migration for `app_users`, `roles`, `permissions`, `role_permissions`, `user_roles`, `user_branch_access`.
+- Create additive migration for `app_users`, `app_roles`, `app_permissions`, `app_role_permissions`, `app_user_roles`, `app_user_branch_access`.
 - Seed baseline system roles from audited legacy roles.
 - Seed permission catalog from route/menu model.
 - Link current admin Supabase Auth user to `app_users`.
@@ -292,3 +293,4 @@ Validation:
 | 2026-05-18 | Legacy source audit pass | In progress | Reviewed Vue users/roles fixture and legacy DB auth-adjacent tables/functions from dump |
 | 2026-05-18 | Prisma/schema audit pass | In progress | Confirmed Prisma has `auth_users`, `public_users`, `user_profiles`, `roles`, and `roles_config`; audit snapshot counts users 29, user_profiles 17, roles 14, roles_config 7 |
 | 2026-05-18 | B1 reset-password implementation slice: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Added forgot/reset password pages, password syntax validation, login link, and public proxy paths; build route table includes `/forgot-password` and `/reset-password` |
+| 2026-05-18 | B2 target schema migration: Supabase `db push --dry-run`, `db push`, row-count verification, `npm run prisma:generate --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Applied additive `app_*` auth/permission tables to `dev-target`; counts: app_users 0, app_roles 7, app_permissions 27, app_role_permissions 132, app_user_roles 0, app_user_branch_access 0; Prisma schema/client regenerated; legacy `public.users`, `user_profiles`, `roles`, and `roles_config` remain untouched |

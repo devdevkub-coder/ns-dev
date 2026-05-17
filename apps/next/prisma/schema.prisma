@@ -451,6 +451,7 @@ model auth_users {
   sessions                    sessions[]
   webauthn_challenges         webauthn_challenges[]
   webauthn_credentials        webauthn_credentials[]
+  app_users                   app_users?
   audit_logs                  audit_logs[]
 
   @@index([created_at(sort: Desc)], map: "idx_users_created_at_desc")
@@ -626,28 +627,29 @@ model bill_swap_history {
 }
 
 model branches {
-  id                String              @id
-  code              String              @unique
-  name              String
-  address           String?
-  phone             String?
-  active            Boolean?            @default(true)
-  created_at        DateTime?           @default(now()) @db.Timestamptz(6)
-  updated_at        DateTime?           @default(now()) @db.Timestamptz(6)
-  accounts          accounts[]
-  assets            assets[]
-  expenses          expenses[]
-  payments          payments[]
-  production_machines production_machines[]
-  production_lines  production_lines[]
-  production_orders production_orders[]
-  purchase_bills    purchase_bills[]
-  receipts          receipts[]
-  sales_bills       sales_bills[]
-  stock_issues      stock_issues[]
-  stock_ledger      stock_ledger[]
-  suppliers         suppliers[]
-  warehouses        warehouses[]
+  id                     String                   @id
+  code                   String                   @unique
+  name                   String
+  address                String?
+  phone                  String?
+  active                 Boolean?                 @default(true)
+  created_at             DateTime?                @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime?                @default(now()) @db.Timestamptz(6)
+  accounts               accounts[]
+  app_user_branch_access app_user_branch_access[]
+  assets                 assets[]
+  expenses               expenses[]
+  payments               payments[]
+  production_lines       production_lines[]
+  production_machines    production_machines[]
+  production_orders      production_orders[]
+  purchase_bills         purchase_bills[]
+  receipts               receipts[]
+  sales_bills            sales_bills[]
+  stock_issues           stock_issues[]
+  stock_ledger           stock_ledger[]
+  suppliers              suppliers[]
+  warehouses             warehouses[]
 
   @@schema("public")
 }
@@ -663,15 +665,15 @@ model currencies {
 }
 
 model director_employees {
-  id           String    @id
-  code         String    @unique
+  id           String   @id(map: "directors_pkey")
+  code         String   @unique(map: "directors_code_key")
   name         String
   type         String?
   phone        String?
   bank_account String?
-  active       Boolean   @default(true)
-  created_at   DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  active       Boolean  @default(true)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
 
   @@index([active])
   @@schema("public")
@@ -682,9 +684,6 @@ model customers {
   id                  String          @id
   code                String?
   name                String
-  name_title          String?
-  first_name          String?
-  last_name           String?
   tax_id              String?
   phone               String?
   email               String?
@@ -700,9 +699,6 @@ model customers {
   updated_by          String?
   version             Int?            @default(1)
   contact             String?
-  contact_title       String?
-  contact_first_name  String?
-  contact_last_name   String?
   type                String?
   credit_limit        Decimal?        @db.Decimal
   address_no          String?
@@ -715,6 +711,12 @@ model customers {
   address_postal_code String?
   address_country     String?         @default("ไทย")
   market_scope        String          @default("ในประเทศ")
+  name_title          String?
+  first_name          String?
+  last_name           String?
+  contact_title       String?
+  contact_first_name  String?
+  contact_last_name   String?
   po_sells            po_sells[]
   receipts            receipts[]
   sales_bills         sales_bills[]
@@ -970,8 +972,8 @@ model overseas_recipients {
 }
 
 model production_machines {
-  id                      String    @id
-  code                    String    @unique
+  id                      String    @id(map: "machines_pkey")
+  code                    String    @unique(map: "machines_code_key")
   name                    String
   branch_id               String?
   type                    String?
@@ -982,7 +984,7 @@ model production_machines {
   active                  Boolean   @default(true)
   created_at              DateTime  @default(now()) @db.Timestamptz(6)
   updated_at              DateTime  @default(now()) @db.Timestamptz(6)
-  branches                branches? @relation(fields: [branch_id], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  branches                branches? @relation(fields: [branch_id], references: [id], onDelete: Restrict, map: "machines_branch_id_fkey")
 
   @@index([active])
   @@index([branch_id])
@@ -1011,7 +1013,7 @@ model production_lines {
   active             Boolean   @default(true)
   created_at         DateTime  @default(now()) @db.Timestamptz(6)
   updated_at         DateTime  @default(now()) @db.Timestamptz(6)
-  branches           branches? @relation(fields: [branch_id], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  branches           branches? @relation(fields: [branch_id], references: [id], onDelete: Restrict)
 
   @@index([active])
   @@index([branch_id])
@@ -1019,8 +1021,8 @@ model production_lines {
 }
 
 model overseas_remittance_purposes {
-  id           String   @id
-  code         String   @unique
+  id           String   @id(map: "remittance_purposes_pkey")
+  code         String   @unique(map: "remittance_purposes_code_key")
   name         String
   required_doc String?
   active       Boolean  @default(true)
@@ -1611,51 +1613,51 @@ model stock_ledger {
 }
 
 model suppliers {
-  id                String           @id
-  code              String?
-  name              String
-  name_title        String?
-  first_name        String?
-  last_name         String?
-  tax_id            String?
-  phone             String?
-  email             String?
-  address           String?
-  address_no        String?
-  address_moo       String?
-  address_village   String?
-  address_road      String?
+  id                  String           @id
+  code                String?
+  name                String
+  tax_id              String?
+  phone               String?
+  email               String?
+  address             String?
+  bank_name           String?
+  bank_account        String?
+  bank_account_name   String?
+  sales_rep           String?
+  credit_term         Int?             @default(0)
+  branch_id           String?
+  notes               String?
+  active              Boolean?         @default(true)
+  created_at          DateTime?        @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime?        @default(now()) @db.Timestamptz(6)
+  sales_id            String?
+  updated_by          String?
+  version             Int?             @default(1)
+  type                String?
+  contact             String?
+  credit_limit        Decimal?         @db.Decimal
+  market_scope        String           @default("ในประเทศ")
+  name_title          String?
+  first_name          String?
+  last_name           String?
+  contact_title       String?
+  contact_first_name  String?
+  contact_last_name   String?
+  address_no          String?
+  address_moo         String?
+  address_village     String?
+  address_road        String?
   address_subdistrict String?
-  address_district  String?
-  address_province  String?
+  address_district    String?
+  address_province    String?
   address_postal_code String?
-  address_country   String?          @default("ไทย")
-  bank_name         String?
-  bank_account      String?
-  bank_account_name String?
-  sales_rep         String?
-  credit_term       Int?             @default(0)
-  branch_id         String?
-  notes             String?
-  active            Boolean?         @default(true)
-  created_at        DateTime?        @default(now()) @db.Timestamptz(6)
-  updated_at        DateTime?        @default(now()) @db.Timestamptz(6)
-  sales_id          String?
-  updated_by        String?
-  version           Int?             @default(1)
-  type              String?
-  market_scope      String           @default("ในประเทศ")
-  contact           String?
-  contact_title     String?
-  contact_first_name String?
-  contact_last_name String?
-  credit_limit      Decimal?         @db.Decimal
-  assets            assets[]
-  payments          payments[]
-  po_buys           po_buys[]
-  purchase_bills    purchase_bills[]
-  branches          branches?        @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  trading_deals     trading_deals[]
+  address_country     String?          @default("ไทย")
+  assets              assets[]
+  payments            payments[]
+  po_buys             po_buys[]
+  purchase_bills      purchase_bills[]
+  branches            branches?        @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  trading_deals       trading_deals[]
 
   @@index([branch_id], map: "idx_suppliers_branch")
   @@index([name], map: "idx_suppliers_name")
@@ -1827,6 +1829,126 @@ model warehouses {
   stock_ledger      stock_ledger[]
   branches          branches?           @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model app_permissions {
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                 String                 @unique
+  module               String
+  resource             String
+  action               String
+  description          String?
+  active               Boolean                @default(true)
+  created_at           DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime               @default(now()) @db.Timestamptz(6)
+  app_role_permissions app_role_permissions[]
+
+  @@index([active], map: "idx_app_permissions_active")
+  @@index([module], map: "idx_app_permissions_module")
+  @@index([resource], map: "idx_app_permissions_resource")
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model app_role_permissions {
+  role_id         String          @db.Uuid
+  permission_id   String          @db.Uuid
+  created_at      DateTime        @default(now()) @db.Timestamptz(6)
+  created_by      String?
+  app_permissions app_permissions @relation(fields: [permission_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  app_roles       app_roles       @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([role_id, permission_id])
+  @@index([permission_id], map: "idx_app_role_permissions_permission_id")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model app_roles {
+  id                       String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                     String                 @unique
+  name                     String
+  description              String?
+  is_system                Boolean                @default(false)
+  branch_scope             String                 @default("all")
+  can_see_cost             Boolean                @default(false)
+  can_see_profit           Boolean                @default(false)
+  can_see_cash             Boolean                @default(false)
+  can_see_financials       Boolean                @default(false)
+  can_edit_opening_balance Boolean                @default(false)
+  active                   Boolean                @default(true)
+  legacy_role_id           String?
+  created_at               DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime               @default(now()) @db.Timestamptz(6)
+  created_by               String?
+  updated_by               String?
+  app_role_permissions     app_role_permissions[]
+  app_user_roles           app_user_roles[]
+
+  @@index([active], map: "idx_app_roles_active")
+  @@index([legacy_role_id], map: "idx_app_roles_legacy_role_id")
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model app_user_branch_access {
+  user_id    String    @db.Uuid
+  branch_id  String
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  created_by String?
+  branches   branches  @relation(fields: [branch_id], references: [id], onUpdate: NoAction)
+  app_users  app_users @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, branch_id])
+  @@index([branch_id], map: "idx_app_user_branch_access_branch_id")
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model app_user_roles {
+  user_id    String    @db.Uuid
+  role_id    String    @db.Uuid
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  created_by String?
+  app_roles  app_roles @relation(fields: [role_id], references: [id], onUpdate: NoAction)
+  app_users  app_users @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, role_id])
+  @@index([role_id], map: "idx_app_user_roles_role_id")
+  @@schema("public")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model app_users {
+  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  auth_user_id           String?                  @unique @db.Uuid
+  username               String
+  display_name           String?
+  email                  String?
+  active                 Boolean                  @default(true)
+  must_change_password   Boolean                  @default(false)
+  last_login_at          DateTime?                @db.Timestamptz(6)
+  legacy_user_id         String?
+  legacy_profile_id      String?                  @db.Uuid
+  created_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  created_by             String?
+  updated_by             String?
+  app_user_branch_access app_user_branch_access[]
+  app_user_roles         app_user_roles[]
+  users                  auth_users?              @relation(fields: [auth_user_id], references: [id], onUpdate: NoAction)
+
+  @@index([active], map: "idx_app_users_active")
+  @@index([auth_user_id], map: "idx_app_users_auth_user_id")
+  @@index([legacy_user_id], map: "idx_app_users_legacy_user_id")
   @@schema("public")
 }
 
