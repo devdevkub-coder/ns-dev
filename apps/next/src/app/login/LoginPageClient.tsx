@@ -10,6 +10,7 @@ export function LoginPageClient() {
   const searchParams = useSearchParams()
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const supabase = getSupabaseClient()
@@ -88,15 +89,26 @@ export function LoginPageClient() {
 
           <label className="block text-sm font-medium text-slate-700">
             Password
-            <input
-              autoComplete="current-password"
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={isLoading}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="••••••••"
-              type="password"
-              value={password}
-            />
+            <span className="relative mt-1 block">
+              <input
+                autoComplete="current-password"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 pr-12 outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={isLoading}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="••••••••"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+              />
+              <button
+                aria-label={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+                className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-50"
+                disabled={isLoading}
+                onClick={() => setShowPassword((current) => !current)}
+                type="button"
+              >
+                {showPassword ? '◉' : '◎'}
+              </button>
+            </span>
           </label>
 
           {error ? <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
