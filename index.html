@@ -18918,15 +18918,16 @@ app.component('view-sales', {
             }
             it.allocationStatus = status;
           });
-          // 🆕 PHASE 2.B: Warning toast — Missing Cost Allocation (Req #13)
+          // 🆕 PHASE 2.B: Warning toast — Missing Cost Allocation (Management Dashboard only — ไม่กระทบ P&L)
+          //   🔒 PATCH 25 (2026-05-16): P&L ใช้ WAC เสมอ — Deal Cost = info สำหรับผู้บริหาร
           if (pendingCount > 0 || partialCount > 0) {
             const total = pendingCount + partialCount;
             const summary = pendingItems.slice(0, 3).map(p => '• ' + p.productName + ' (' + erp.fmt(p.remaining) + ' กก.)').join('\n');
             const more = pendingItems.length > 3 ? '\n... (+' + (pendingItems.length - 3) + ' รายการ)' : '';
             setTimeout(() => {
               try {
-                erp.showToast('⚠ Missing Cost Allocation — ' + total + ' รายการต้องเปิด Cost Allocator', 'warning');
-                console.warn('[PHASE 2.B] Bill ' + bill.docNo + ' has ' + total + ' dual-costing items pending cost allocation:\n' + summary + more);
+                erp.showToast('💡 Dual Costing: ' + total + ' รายการรอ allocate (สำหรับ dashboard ผู้บริหาร — ไม่กระทบ P&L)', 'info');
+                console.warn('[PHASE 2.B] Bill ' + bill.docNo + ' has ' + total + ' dual-costing items pending allocation (P&L still uses WAC):\n' + summary + more);
               } catch(e){}
             }, 400);
           }
@@ -23165,7 +23166,12 @@ app.component('view-costAllocator', {
         erp.showToast('Match เรียบร้อย — สร้าง Match Log แล้ว');
         selectedPoSellId.value = '';
       } else {
-        // 🆕 PHASE 1 SPOT_SELL: update SB item allocationStatus + recalc bill cost/profit
+        // 🆕 PATCH 25 (2026-05-16): SEPARATE Deal Cost จาก P&L COGS
+        //   ตามหลักบัญชี: P&L (งบกำไรขาดทุน) ต้องใช้ WAC เท่านั้นในการปิดงบ
+        //   Deal Cost / Dual Costing = สำหรับ dashboard ผู้บริหาร "ดูเทียบเฉย ๆ"
+        //   → เปลี่ยนพฤติกรรม: ไม่ override item.totalCost/unitCost/profit + bill.totalCost/grossProfit/cogsAmount
+        //   → เก็บแค่ item.dealCost (info-only) + item.allocationStatus + matchLog records
+        //   → Dual Costing Report / Allocation Ledger ยังใช้งานได้ผ่าน matchLog
         const bill = db.salesBills.find(b => b && b.id === t.bill_id);
         const item = bill ? (bill.items||[]).find(i => i && i.id === t.item_id) : null;
         if (item) {
@@ -23176,24 +23182,23 @@ app.component('view-costAllocator', {
           else if (allocatedNow > 0.001) status = 'partially_allocated';
           else status = 'pending_allocation';
           item.allocationStatus = status;
-          // Set unit cost to weighted avg of allocated cost (for Daily Report visibility)
+          // 🆕 PATCH 25: เก็บแค่ dealCost (info) — ไม่ override item.totalCost/unitCost/profit
           const allocatedCost = _safeArr(db.matchLogs)
             .filter(m => m && m.status !== 'reversed' && m.target_type === 'SPOT_SELL'
                       && m.target_bill_id === t.bill_id && m.target_item_id === t.item_id)
             .reduce((s,m)=>s+Number(m.total_cost||0),0);
-          item.dealCost = allocatedCost;
-          item.totalCost = allocatedCost;   // override WAC for dual-costing
-          item.unitCost = allocatedNow > 0.001 ? (allocatedCost / allocatedNow) : 0;
-          item.profit = Number(item.netAmount||0) - allocatedCost;
-          // Update bill aggregates
-          if (bill) {
-            bill.totalCost = (bill.items||[]).reduce((s,i)=>s+Number(i.totalCost||0),0);
-            bill.grossProfit = Math.max(0, Number(bill.subtotal||bill.totalAmount||0) - Number(bill.discountTotal||0)) - bill.totalCost;
-            bill.cogsAmount = bill.totalCost;
-            bill.updatedAt = new Date().toISOString();
-          }
+          item.dealCost = allocatedCost;       // info-only สำหรับ dual costing dashboard
+          item.dealUnitCost = allocatedNow > 0.001 ? (allocatedCost / allocatedNow) : 0;
+          item.dealProfit = Number(item.netAmount||0) - allocatedCost;
+          // ❌ REMOVED: item.totalCost = allocatedCost;   ← เคย override WAC (ผิดบัญชี)
+          // ❌ REMOVED: item.unitCost = ...;
+          // ❌ REMOVED: item.profit = ...;
+          // ❌ REMOVED: bill.totalCost = sum(item.totalCost);  ← bill.totalCost ยังเป็น WAC × qty
+          // ❌ REMOVED: bill.grossProfit = ...;
+          // ❌ REMOVED: bill.cogsAmount = ...;
+          if (bill) bill.updatedAt = new Date().toISOString();   // touch updated only
         }
-        erp.showToast('Match Spot Sell เรียบร้อย — สร้าง Match Log + อัพเดต GP บน บิลขาย', 'success');
+        erp.showToast('Match Spot Sell เรียบร้อย — สร้าง Match Log (P&L ยังใช้ WAC · Deal Cost ดูใน Dual Costing Report)', 'success');
         selectedSpotKey.value = '';
       }
       candidates.value = [];
@@ -23209,8 +23214,11 @@ app.component('view-costAllocator', {
   template:`
   <div>
     <div class="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-4 text-sm text-purple-800">
-      <strong>Cost Allocator (Dual Costing)</strong> — สำหรับ<strong>ทองแดง · ทองเหลือง</strong> เท่านั้น
-      <div class="text-xs mt-1 text-purple-700">💡 หมวดอื่นใช้ WAC อัตโนมัติ ไม่ต้องผ่าน Cost Allocator · ⓪ แหล่งขาย → ① สินค้า → ② รายการขาย → Match ต้นทุน Cost Pool</div>
+      <strong>Cost Allocator (Dual Costing — Management View)</strong> — สำหรับ<strong>ทองแดง · ทองเหลือง</strong>
+      <div class="text-xs mt-1 text-purple-700">
+        💡 <b>Deal Cost ใช้สำหรับผู้บริหารประเมินกำไรต่อดีลเฉย ๆ</b> · ไม่ใช้ในการปิดงบ — <b>P&L / งบกำไรขาดทุน ใช้ WAC เสมอ</b><br/>
+        ⓪ แหล่งขาย → ① สินค้า → ② รายการขาย → Match ต้นทุน Cost Pool (info สำหรับ dashboard)
+      </div>
     </div>
 
     <!-- 🆕 PHASE 1: Source Mode Toggle (PO Sell / Spot Sell) -->
@@ -23405,8 +23413,11 @@ app.component('view-waitingAllocations', {
   template: `
   <div>
     <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 text-sm text-amber-800">
-      <strong>⏳ Waiting Allocation Queue</strong> — รายการขาย <strong>ทองแดง / ทองเหลือง</strong> ที่ขายแล้วแต่ยังไม่ allocate ต้นทุนจาก Cost Pool (Dual Costing)
-      <div class="text-xs mt-1 text-amber-700">💡 คลิก "Allocate" บนรายการเพื่อไปที่ Cost Allocator พร้อม pre-select สินค้า + รายการขายให้แล้ว</div>
+      <strong>⏳ Waiting Allocation Queue — Dual Costing (Management View)</strong>
+      <div class="text-xs mt-1 text-amber-700">
+        💡 รายการขาย <b>ทองแดง / ทองเหลือง</b> ที่ยังไม่ได้ allocate ต้นทุนจาก Cost Pool — <b>สำหรับ track + ผู้บริหารดู</b><br/>
+        🔒 <b>ไม่กระทบ P&L</b> (P&L ใช้ WAC เสมอ) · คลิก "Allocate" เพื่อบันทึก Deal Cost ใน dashboard
+      </div>
     </div>
 
     <!-- Stats -->
@@ -23619,8 +23630,11 @@ app.component('view-costAllocationLedger', {
   template: `
   <div>
     <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-3 mb-4 text-sm text-indigo-800">
-      <strong>📒 Cost Allocation Ledger</strong> — บันทึกการตัดต้นทุนจาก Cost Pool (Dual Costing) แสดงทุก allocation ที่เกิดขึ้น
-      <div class="text-xs mt-1">💡 รวมทั้ง PO Sell + Spot Sell · กรองตามหมวด/ช่วงวันที่/สถานะ · Export CSV ได้</div>
+      <strong>📒 Cost Allocation Ledger — Audit Trail (Management View)</strong>
+      <div class="text-xs mt-1">
+        💡 บันทึกการ allocate ต้นทุนจาก Cost Pool (Dual Costing) ทุก allocation — <b>สำหรับ audit + ผู้บริหารดูเทียบเฉย ๆ</b><br/>
+        🔒 <b>P&L ใช้ WAC เสมอ</b> — ตัวเลขในนี้ไม่กระทบงบ · รวม PO Sell + Spot Sell · กรอง/Export CSV ได้
+      </div>
     </div>
 
     <!-- Stats -->
@@ -23825,8 +23839,12 @@ app.component('view-dualCostingReport', {
   template: `
   <div>
     <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-4 text-sm text-emerald-800">
-      <strong>📊 Dual Costing Report</strong> — สรุปยอดขาย/กำไรของหมวด<strong>ทองแดง · ทองเหลือง</strong> ที่ใช้ Deal Cost (ไม่ใช่ WAC)
-      <div class="text-xs mt-1">💡 PO Sell vs Spot Sell · Allocated vs Pending · กำไรจริงจาก Cost Pool</div>
+      <strong>📊 Dual Costing Report — Management Dashboard (ไม่ใช่ P&L)</strong>
+      <div class="text-xs mt-1">
+        💡 <b>รายงานนี้ใช้ Deal Cost เพื่อให้ผู้บริหารดูกำไรต่อดีล/ลอตที่ allocate</b> — <b>ไม่ใช้ปิดงบ</b><br/>
+        🔒 <b>P&L / งบกำไรขาดทุน ใช้ WAC เสมอ</b> ตามหลักบัญชีมาตรฐาน · รายงานนี้ "ดูเทียบเฉย ๆ"<br/>
+        แยก: PO Sell vs Spot Sell · Allocated vs Pending · กำไรจาก Cost Pool ที่ match
+      </div>
     </div>
 
     <!-- Filters -->
@@ -23991,26 +24009,24 @@ app.component('view-matchLog', {
               else if (allocatedNow + 0.001 >= sellQty) status = 'allocated';
               else status = 'partially_allocated';
               item.allocationStatus = status;
-              // Recompute item totals
+              // 🆕 PATCH 25 (2026-05-16): SEPARATE Deal Cost จาก P&L
+              //   reverse cascade ก็ไม่แตะ bill.totalCost / item.totalCost (WAC stays)
+              //   เก็บแค่ item.dealCost (info) update ตาม allocation ที่เหลือ
               const allocatedCost = _trkSafe(db.matchLogs)
                 .filter(ml => ml && ml.status !== 'reversed' && ml.target_type === 'SPOT_SELL'
                           && ml.target_bill_id === m.target_bill_id && ml.target_item_id === m.target_item_id)
                 .reduce((s,ml)=>s+Number(ml.total_cost||0),0);
               item.dealCost = allocatedCost;
-              item.totalCost = allocatedCost;
-              item.unitCost = allocatedNow > 0.001 ? (allocatedCost / allocatedNow) : 0;
-              item.profit = Number(item.netAmount||0) - allocatedCost;
-              if (bill) {
-                bill.totalCost = (bill.items||[]).reduce((s,i)=>s+Number(i.totalCost||0),0);
-                bill.grossProfit = Math.max(0, Number(bill.subtotal||bill.totalAmount||0) - Number(bill.discountTotal||0)) - bill.totalCost;
-                bill.cogsAmount = bill.totalCost;
-                bill.updatedAt = new Date().toISOString();
-              }
-              console.log('[PHASE 3.C] Reverse cascade: SB '+(bill?.docNo||'')+' item allocStatus='+status+' newCost='+allocatedCost.toFixed(2));
+              item.dealUnitCost = allocatedNow > 0.001 ? (allocatedCost / allocatedNow) : 0;
+              item.dealProfit = Number(item.netAmount||0) - allocatedCost;
+              // ❌ REMOVED (Patch 25): item.totalCost / unitCost / profit / bill.totalCost / grossProfit / cogsAmount
+              //   ตามหลักบัญชี — P&L ใช้ WAC เท่านั้น Deal Cost = info dashboard
+              if (bill) bill.updatedAt = new Date().toISOString();
+              console.log('[PHASE 3.C] Reverse cascade: SB '+(bill?.docNo||'')+' allocStatus='+status+' dealCost(info)='+allocatedCost.toFixed(2));
             }
           } catch(eCascade) { console.warn('[PHASE 3.C cascade]', eCascade); }
         }
-        erp.showToast('Reverse แล้ว' + (isSpot ? ' (cascade SB updated)' : ''));
+        erp.showToast('Reverse แล้ว' + (isSpot ? ' (Deal Cost info updated · P&L ยังใช้ WAC)' : ''));
       }
     }
 
