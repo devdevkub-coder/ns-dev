@@ -20,6 +20,7 @@
     "old-vue:preview": "vite preview --host 0.0.0.0",
     "skills:index": "node scripts/generate-skills-index.mjs",
     "skills:index:global": "node scripts/generate-skills-index.mjs --global",
+    "seed:app-admin": "node scripts/seed-app-admin.mjs",
     "test": "npm --prefix apps/next run type-check",
     "old-vue:test": "vitest run",
     "old-vue:test:watch": "vitest",
