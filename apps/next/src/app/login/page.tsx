@@ -7,9 +7,16 @@ export const metadata: Metadata = {
 }
 
 export default function LoginPage() {
+  const devLogin = process.env.NODE_ENV === 'production'
+    ? undefined
+    : {
+        identifier: process.env.DEV_LOGIN_IDENTIFIER ?? '',
+        password: process.env.DEV_LOGIN_PASSWORD ?? '',
+      }
+
   return (
     <Suspense>
-      <LoginPageClient />
+      <LoginPageClient devLogin={devLogin} />
     </Suspense>
   )
 }

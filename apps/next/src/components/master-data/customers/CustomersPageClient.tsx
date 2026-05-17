@@ -320,8 +320,44 @@ export function CustomersPageClient() {
           <div>
             พบทั้งหมด <span className="font-semibold text-slate-900">{total.toLocaleString('th-TH')}</span> รายการ
           </div>
-          <div>
-            หน้า {page.toLocaleString('th-TH')} / {totalPages.toLocaleString('th-TH')}
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              aria-label="จำนวนรายการต่อหน้า"
+              className="rounded border border-slate-300 px-2 py-1"
+              value={pageSize}
+              onChange={(event) => {
+                setPage(1)
+                setPageSize(Number(event.target.value))
+              }}
+            >
+              <option value={10}>10 / หน้า</option>
+              <option value={25}>25 / หน้า</option>
+              <option value={50}>50 / หน้า</option>
+              <option value={100}>100 / หน้า</option>
+            </select>
+            <button
+              className="rounded border border-slate-300 px-3 py-1 disabled:opacity-50"
+              disabled={page <= 1 || isLoading}
+              type="button"
+              onClick={() => {
+                setPage(Math.max(1, page - 1))
+              }}
+            >
+              ก่อนหน้า
+            </button>
+            <span className="px-1">
+              หน้า {page.toLocaleString('th-TH')} / {totalPages.toLocaleString('th-TH')}
+            </span>
+            <button
+              className="rounded border border-slate-300 px-3 py-1 disabled:opacity-50"
+              disabled={page >= totalPages || isLoading}
+              type="button"
+              onClick={() => {
+                setPage(Math.min(totalPages, page + 1))
+              }}
+            >
+              ถัดไป
+            </button>
           </div>
         </div>
       ) : null}
@@ -426,44 +462,6 @@ export function CustomersPageClient() {
               ) : null}
             </tbody>
           </table>
-          <div className="flex flex-col gap-3 border-t border-slate-200 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-end">
-            <div className="flex items-center gap-2">
-              <select
-                aria-label="จำนวนรายการต่อหน้า"
-                className="rounded border border-slate-300 px-2 py-1"
-                value={pageSize}
-                onChange={(event) => {
-                  setPage(1)
-                  setPageSize(Number(event.target.value))
-                }}
-              >
-                <option value={10}>10 / หน้า</option>
-                <option value={25}>25 / หน้า</option>
-                <option value={50}>50 / หน้า</option>
-                <option value={100}>100 / หน้า</option>
-              </select>
-              <button
-                className="rounded border border-slate-300 px-3 py-1 disabled:opacity-50"
-                disabled={page <= 1 || isLoading}
-                type="button"
-                onClick={() => {
-                  setPage(Math.max(1, page - 1))
-                }}
-              >
-                ก่อนหน้า
-              </button>
-              <button
-                className="rounded border border-slate-300 px-3 py-1 disabled:opacity-50"
-                disabled={page >= totalPages || isLoading}
-                type="button"
-                onClick={() => {
-                  setPage(Math.min(totalPages, page + 1))
-                }}
-              >
-                ถัดไป
-              </button>
-            </div>
-          </div>
         </div>
       ) : null}
     </section>

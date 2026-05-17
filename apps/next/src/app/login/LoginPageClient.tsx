@@ -5,11 +5,18 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { isEmailIdentifier, loginSchema } from '@/lib/auth'
 import { getSupabaseClient } from '@/lib/supabase'
 
-export function LoginPageClient() {
+type LoginPageClientProps = {
+  devLogin?: {
+    identifier: string
+    password: string
+  }
+}
+
+export function LoginPageClient({ devLogin }: LoginPageClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [identifier, setIdentifier] = useState('')
-  const [password, setPassword] = useState('')
+  const [identifier, setIdentifier] = useState(devLogin?.identifier ?? '')
+  const [password, setPassword] = useState(devLogin?.password ?? '')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -70,6 +77,12 @@ export function LoginPageClient() {
         {!isSupabaseReady ? (
           <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
             ยังไม่ได้ตั้งค่า Supabase dev ใน environment
+          </div>
+        ) : null}
+
+        {devLogin?.identifier || devLogin?.password ? (
+          <div className="mb-4 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+            เติมบัญชีทดสอบจาก local dev env แล้ว
           </div>
         ) : null}
 
