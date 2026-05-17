@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "dev": "npm --prefix apps/next run dev",
-    "build": "npm --prefix apps/next run build",
+    "build": "node scripts/build-next-for-vercel-root.mjs",
     "start": "npm --prefix apps/next run start",
     "type-check": "npm --prefix apps/next run type-check",
     "next:dev": "npm --prefix apps/next run dev",
