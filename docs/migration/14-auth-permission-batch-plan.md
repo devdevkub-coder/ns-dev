@@ -33,6 +33,7 @@
 - Additive target auth/permission schema migration has been drafted as `20260518093001_create_app_auth_permission_tables.sql`.
 - Server auth context helper exists at `apps/next/src/lib/server/auth-context.ts`.
 - `/api/auth/me` exists as a protected route to return current auth/app user, roles, and permission codes.
+- `/api/admin/users` exists as the first user-management API slice and requires `system.users.manage`.
 - Admin Supabase Auth user has been linked into `app_users` through `scripts/seed-app-admin.mjs`; the script reads `APP_ADMIN_EMAIL` or `DEV_LOGIN_IDENTIFIER` and does not store passwords.
 - App auth SQL helper functions exist in `dev-target`: `current_app_user_id`, `current_app_role_codes`, `current_app_permission_codes`, `is_app_admin`, and `has_app_permission`.
 - Next `proxy.ts` now checks `is_app_admin()` first, then falls back to legacy `user_profiles` admin guard during transition.
@@ -304,3 +305,4 @@ Validation:
 | 2026-05-18 | Admin app user seed: `node --check scripts/seed-app-admin.mjs`, `APP_ADMIN_EMAIL=... npm run seed:app-admin`, row-count verification | Passed | Linked current admin Auth user to `app_users`; counts after seed: app_users 1, app_user_roles 1, admin_assignments 1 |
 | 2026-05-18 | App auth SQL helpers + proxy primary app guard: Supabase `db push --dry-run`, `db push`, function verification, `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Added security-definer helper functions and updated proxy to check `is_app_admin()` before legacy profile fallback |
 | 2026-05-18 | Username login lookup: Supabase `db push --dry-run`, `db push`, lookup verification, `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Added `lookup_app_login_email(identifier)` and updated login page to accept email or username without reading legacy password fields |
+| 2026-05-18 | B3 user-management API first slice: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Added protected `/api/admin/users` for app users, roles, and active branches; route requires `system.users.manage` |
