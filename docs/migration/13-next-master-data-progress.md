@@ -20,8 +20,8 @@
 |---|---|---|
 | `/master-data/customers` | ลูกค้า | Enhanced CRUD/export/validation Done |
 | `/master-data/salespersons` | พนักงานขาย (Sales) | Batch 1 Done |
-| `/master-data/suppliers` | ผู้ขาย | Batch 3 Done |
-| `/master-data/products` | สินค้า | Batch 3 Done |
+| `/master-data/suppliers` | ผู้ขาย | Enhanced CRUD/export/validation Done |
+| `/master-data/products` | สินค้า | Batch 3 baseline Done |
 | `/master-data/branches` | สาขา / คลัง | Batch 2 Done |
 | `/master-data/warehouses` | คลังสินค้า | Batch 2 Done |
 | `/master-data/accounts` | บัญชีเงิน | Batch 2 Done |
@@ -65,7 +65,12 @@
 | 3 | `suppliers`, `products` | field เยอะและใช้ต่อ transaction | Done |
 | 4 | `directors`, `machines`, `production-lines`, `beneficiaries`, `payment-methods`, `remittance-purposes` | simple master ที่เหลือและ lookup ต่างประเทศ/การเงิน | Done - DB-backed after target migration |
 
-## Current Status as of 2026-05-17
+## Current Status as of 2026-05-18
+
+- Current git checkpoint is `d6e8b29 feat: standardize supplier master form`.
+- The branch was reset back to `d6e8b29` after the sidebar/shadcn design experiment. Those later design commits are not part of the current working baseline.
+- Tailwind remains v3 (`tailwindcss ^3.4.17`). Tailwind v4 migration and shadcn component adoption are not current active changes.
+- The current layout is the pre-shadcn Next shell with the simple dark sidebar/topbar.
 
 - Next app created in `apps/next`.
 - Next 16, React 19, Prisma 7, `@prisma/adapter-pg`, Supabase client, TypeScript and Tailwind are installed.
@@ -83,6 +88,13 @@
   - row click opens detail/edit; the old select/checkbox column was removed
   - result count and pagination controls are shown together above the table
   - customer export uses `/api/master-data/customers/export` and asks the database for all rows matching the current search/filter/sort, not just the visible page slice
+  - customer delete/soft-delete table action was removed; status changes must go through the edit form, and the dedicated `/api/master-data/customers/[id]` status endpoint was removed from the current route table
+- Supplier table UX now follows the same customer-style master pattern:
+  - master-list search/filter/sort/count/pagination run in the frontend after one list load
+  - row click opens detail/edit; no row select column is used
+  - result count and pagination controls are shown together above the table
+  - supplier export uses `/api/master-data/suppliers/export` and generates a real `.xlsx` workbook
+- Active/inactive form controls now use a toggle-style switch instead of the old checkbox in customer, supplier, and shared master-data forms.
 - Thai address form now follows the postcode-first pattern: postcode filters/auto-fills province, district, and subdistrict where possible.
 - Added project-level validation guidance:
   - `AGENTS.md` now requires syntax validation for every new/changed form/API field.
@@ -96,9 +108,9 @@
   - `/master-data/branches`
   - `/master-data/warehouses`
   - `/master-data/accounts`
-- Batch 3 pages now have real Next routes, shared master-data list/form UI, API routes, Prisma/dev-target reads, add/edit baseline, search/sort, and active/inactive:
-  - `/master-data/suppliers`
-  - `/master-data/products`
+- Batch 3 baseline routes exist:
+  - `/master-data/products` still uses the shared master-data list/form UI and generic API baseline.
+  - `/master-data/suppliers` has been upgraded to the customer-style specialized page with frontend search/filter/sort/count/pagination, structured Thai address form, add/edit modal, syntax validation, active toggle, and `.xlsx` export.
 - Batch 4 pages now have real Next routes, shared master-data list/form UI, API routes, add/edit baseline, search/sort, and active/inactive:
   - `/master-data/beneficiaries` uses real Prisma/dev-target table `overseas_recipients`.
   - `/master-data/directors`, `/master-data/machines`, `/master-data/production-lines`, `/master-data/payment-methods`, and `/master-data/remittance-purposes` now have additive target-table migrations.
@@ -160,6 +172,10 @@
 | 2026-05-17 | Customer export API: `npm run lint`, `npm run type-check`, `npm run build` | Passed | Added `/api/master-data/customers/export`; Next route table includes export route |
 | 2026-05-17 | Login dev prefill + customer top pagination: `npm run lint`, `npm run type-check`, `npm run build` | Passed | Production build keeps dev login prefill disabled by `NODE_ENV === 'production'` |
 | 2026-05-17 | Customer frontend table UX switch: `npm run lint`, `npm run type-check`, `npm run build` | Passed | Customer master now loads list once; search/filter/sort/count/pagination run in frontend; export remains DB-backed by current query intent |
+| 2026-05-17 | Supplier standardization: `npm run lint`, `npm run type-check`, `npm run build` | Passed | Supplier master follows customer-style form/list/export pattern; supplier classification migration applied to dev-target |
+| 2026-05-18 | Reset checkpoint validation after returning to `d6e8b29`: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Current git baseline excludes later sidebar/shadcn/Tailwind v4 experiment commits |
+| 2026-05-18 | Active toggle UI update: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next` | Passed | Customer, supplier, and shared master-data forms use toggle switch for active status |
+| 2026-05-18 | Customer delete action/API removal: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Removed customer table delete action and `/api/master-data/customers/[id]`; build route table now only has customer list/save and export routes |
 
 ## Open Decisions
 

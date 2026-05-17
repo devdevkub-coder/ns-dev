@@ -6,10 +6,10 @@ import {
   exportCustomers,
   listCustomers,
   saveCustomer,
-  setCustomerActive,
   type Customer,
   type CustomerFormValues,
 } from '@/lib/customer'
+import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { listThaiDistricts, listThaiProvinces, listThaiSubdistricts, type ThaiDistrict, type ThaiProvince, type ThaiSubdistrict } from '@/lib/thai-address'
 
 type SortKey = 'code' | 'name' | 'taxId' | 'type' | 'phone' | 'email' | 'contact' | 'creditTerm' | 'creditLimit' | 'active'
@@ -227,16 +227,6 @@ export function CustomersPageClient() {
     }
   }
 
-  async function handleToggleActive(customer: Customer) {
-    setError(null)
-    try {
-      await setCustomerActive(customer.id, !customer.active)
-      await loadData()
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'อัปเดตสถานะลูกค้าไม่ได้')
-    }
-  }
-
   async function handleExport() {
     setError(null)
     setIsExporting(true)
@@ -425,7 +415,6 @@ export function CustomersPageClient() {
                 <th className="p-2 text-right"><button className="font-semibold" type="button" onClick={() => setSort('creditLimit')}>วงเงินเครดิต{sortLabel('creditLimit')}</button></th>
                 <th className="p-2 text-center"><button className="font-semibold" type="button" onClick={() => setSort('active')}>สถานะ{sortLabel('active')}</button></th>
                 <th className="p-2 text-center">แก้ไข</th>
-                <th className="p-2 text-center">ลบ</th>
               </tr>
             </thead>
             <tbody>
@@ -466,23 +455,11 @@ export function CustomersPageClient() {
                       แก้ไข
                     </button>
                   </td>
-                  <td className="p-2 text-center">
-                    <button
-                      className="text-red-600"
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        void handleToggleActive(customer)
-                      }}
-                    >
-                      ลบ
-                    </button>
-                  </td>
                 </tr>
               ))}
               {paginatedCustomers.length === 0 ? (
                 <tr>
-                  <td className="p-4 text-center text-sm text-slate-500" colSpan={13}>ไม่พบข้อมูลที่ค้นหา</td>
+                  <td className="p-4 text-center text-sm text-slate-500" colSpan={12}>ไม่พบข้อมูลที่ค้นหา</td>
                 </tr>
               ) : null}
             </tbody>
@@ -577,10 +554,7 @@ function CustomerForm({ customer, districts, isSaving, provinces, subdistricts, 
     <form className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl" onSubmit={handleSubmit}>
       <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-lg font-bold text-slate-900">{form.id ? 'แก้ไขลูกค้า' : 'เพิ่มลูกค้า'}</h3>
-        <label className="inline-flex items-center gap-2 text-sm text-slate-600">
-          <input checked={form.active} className="size-4 rounded border-slate-300" type="checkbox" onChange={(event) => update('active', event.target.checked)} />
-          ใช้งาน
-        </label>
+        <ActiveToggle checked={form.active} onChange={(checked) => update('active', checked)} />
       </div>
 
       <div className="max-h-[76vh] space-y-5 overflow-y-auto px-5 py-5">

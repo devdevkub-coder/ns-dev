@@ -239,6 +239,12 @@ Next DB actions:
 
 Current implementation focus is the Next.js master data port before returning to full Auth/Role enforcement.
 
+Status as of 2026-05-18:
+- Current git checkpoint is `d6e8b29 feat: standardize supplier master form`.
+- Customer and supplier are the most advanced master-data pages: structured form validation, Thai address form, frontend search/filter/sort/count/pagination, active toggle, and `.xlsx` export.
+- Product still exists as a generic shared master-data page and is the next likely candidate for the same specialized pattern.
+- Sidebar/shadcn/Tailwind v4 design experiment was reset out of the current baseline. The active deploy/code baseline remains the pre-shadcn Next shell with Tailwind v3.
+
 Next master data progress is tracked in:
 
 ```text

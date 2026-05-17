@@ -224,6 +224,7 @@
 - [x] สร้าง active/inactive flow เบื้องต้นจาก Branches/Warehouses/Customers pilots
 - [x] สร้าง export pattern สำหรับ Next customer master: server-side Excel-compatible export ตาม search/filter/sort ปัจจุบัน
 - [x] กำหนด master-list pattern: search/filter/sort/count/pagination ทำใน frontend สำหรับ master data ขนาดเล็ก/กลาง
+- [x] ขยาย customer-style master pattern ไปที่ supplier: form แยกบุคคล/นิติบุคคล, market scope, structured Thai address, frontend list pattern, syntax validation, active toggle, และ `.xlsx` export
 - [ ] สร้าง import pattern
 - [ ] สร้าง audit metadata display
 
@@ -255,6 +256,10 @@ Reporting rule:
 - [x] ปรับ customer address form เป็น postcode-first และ auto/filter จังหวัด/อำเภอ/ตำบล
 - [x] เพิ่ม customer frontend pagination/search/filter/sort/count UX และย้าย pagination ไปอยู่แถบเดียวกับจำนวนทั้งหมด
 - [x] เพิ่ม customer export API `/api/master-data/customers/export`
+- [x] เพิ่ม supplier classification fields และ supplier export API `/api/master-data/suppliers/export`
+- [x] เปลี่ยน active/inactive form control เป็น toggle ใน customer, supplier, และ shared master-data forms
+- [x] reset branch กลับ checkpoint `d6e8b29` หลังทดลอง sidebar/shadcn design; Tailwind v4/shadcn sidebar ไม่อยู่ใน baseline ปัจจุบัน
+- [ ] ทำ product page ให้เป็น specialized page แบบ customer/supplier
 - [ ] เพิ่ม automated smoke test สำหรับ master-data routes/API ทุกหน้า
 - [x] รัน build/type-check/lint หลังจบแต่ละ batch
 

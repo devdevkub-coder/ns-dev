@@ -10,6 +10,7 @@ import {
   type Supplier,
   type SupplierFormValues,
 } from '@/lib/supplier'
+import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { listThaiDistricts, listThaiProvinces, listThaiSubdistricts, type ThaiDistrict, type ThaiProvince, type ThaiSubdistrict } from '@/lib/thai-address'
 
 type SortKey = 'code' | 'name' | 'taxId' | 'type' | 'phone' | 'email' | 'contact' | 'creditTerm' | 'creditLimit' | 'active'
@@ -583,10 +584,7 @@ function SupplierForm({ supplier, districts, isSaving, provinces, subdistricts, 
     <form className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl" onSubmit={handleSubmit}>
       <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-lg font-bold text-slate-900">{form.id ? 'แก้ไขผู้ขาย' : 'เพิ่มผู้ขาย'}</h3>
-        <label className="inline-flex items-center gap-2 text-sm text-slate-600">
-          <input checked={form.active} className="size-4 rounded border-slate-300" type="checkbox" onChange={(event) => update('active', event.target.checked)} />
-          ใช้งาน
-        </label>
+        <ActiveToggle checked={form.active} onChange={(checked) => update('active', checked)} />
       </div>
 
       <div className="max-h-[76vh] space-y-5 overflow-y-auto px-5 py-5">
