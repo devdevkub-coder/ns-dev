@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { ActiveToggle } from '@/components/ui/ActiveToggle'
 
 type AdminUsersPayload = {
   branches: Array<{
@@ -73,6 +74,7 @@ export function AdminUsersPageClient() {
   const [data, setData] = useState<AdminUsersPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [savingUserId, setSavingUserId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [tab, setTab] = useState<TabKey>('users')
 
@@ -141,6 +143,35 @@ export function AdminUsersPageClient() {
     ].some((value) => String(value ?? '').toLowerCase().includes(query)))
   }, [data?.roles, search])
 
+  async function updateUserStatus(userId: string, active: boolean) {
+    setSavingUserId(userId)
+    setError(null)
+
+    try {
+      const response = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active }),
+      })
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'อัปเดตสถานะผู้ใช้ไม่ได้')
+      }
+
+      setData((current) => current
+        ? {
+            ...current,
+            users: current.users.map((user) => user.id === userId ? { ...user, active: payload.active } : user),
+          }
+        : current)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'อัปเดตสถานะผู้ใช้ไม่ได้')
+    } finally {
+      setSavingUserId(null)
+    }
+  }
+
   return (
     <section className="space-y-4">
       <div className="rounded-xl border bg-white p-4 shadow">
@@ -203,8 +234,8 @@ export function AdminUsersPageClient() {
                     <td className="p-2">{user.roles.map((role) => role.name).join(', ') || '-'}</td>
                     <td className="p-2">{user.branches.length ? user.branches.map((branch) => branch.name).join(', ') : 'ทุกสาขา'}</td>
                     <td className="p-2 text-center">
-                      <span className={`rounded px-2 py-0.5 text-xs ${user.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
-                        {statusText(user.active)}
+                      <span className={savingUserId === user.id ? 'pointer-events-none opacity-60' : ''}>
+                        <ActiveToggle checked={user.active} label={statusText(user.active)} onChange={(checked) => void updateUserStatus(user.id, checked)} />
                       </span>
                     </td>
                     <td className="p-2 text-slate-600">{formatDate(user.lastLoginAt)}</td>
