@@ -287,6 +287,17 @@ export function CustomersPageClient() {
         </div>
       </div>
 
+      {!isLoading ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white px-4 py-3 text-sm text-slate-600 shadow">
+          <div>
+            พบทั้งหมด <span className="font-semibold text-slate-900">{total.toLocaleString('th-TH')}</span> รายการ
+          </div>
+          <div>
+            หน้า {page.toLocaleString('th-TH')} / {totalPages.toLocaleString('th-TH')}
+          </div>
+        </div>
+      ) : null}
+
       {formOpen ? (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8">
           <div className="w-full max-w-5xl">
@@ -387,10 +398,7 @@ export function CustomersPageClient() {
               ) : null}
             </tbody>
           </table>
-          <div className="flex flex-col gap-3 border-t border-slate-200 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              ทั้งหมด {total.toLocaleString('th-TH')} รายการ · หน้า {page.toLocaleString('th-TH')} / {totalPages.toLocaleString('th-TH')}
-            </div>
+          <div className="flex flex-col gap-3 border-t border-slate-200 px-3 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-end">
             <div className="flex items-center gap-2">
               <select
                 aria-label="จำนวนรายการต่อหน้า"
