@@ -33,11 +33,23 @@ export type ThaiProvince = z.infer<typeof thaiProvinceSchema>
 export type ThaiDistrict = z.infer<typeof thaiDistrictSchema>
 export type ThaiSubdistrict = z.infer<typeof thaiSubdistrictSchema>
 
+let thaiAddressPromise: Promise<z.infer<typeof thaiAddressPayloadSchema>> | null = null
+
 async function listThaiAddress() {
+  if (thaiAddressPromise) {
+    return thaiAddressPromise
+  }
+
+  thaiAddressPromise = fetchThaiAddress()
+  return thaiAddressPromise
+}
+
+async function fetchThaiAddress() {
   const response = await fetch('/api/master-data/thai-address', { cache: 'no-store' })
   const payload = await response.json().catch(() => null)
 
   if (!response.ok) {
+    thaiAddressPromise = null
     throw new Error(payload?.error ?? 'โหลดข้อมูลที่อยู่ไทยไม่ได้')
   }
 

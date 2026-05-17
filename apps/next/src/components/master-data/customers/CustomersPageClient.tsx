@@ -110,21 +110,28 @@ export function CustomersPageClient() {
     setError(null)
     setIsLoading(true)
     try {
-      const [customerRows, provinceRows, districtRows, subdistrictRows] = await Promise.all([
-        listCustomers(),
-        listThaiProvinces(),
-        listThaiDistricts(),
-        listThaiSubdistricts(),
-      ])
+      const customerRows = await listCustomers()
       setCustomers(customerRows)
-      setProvinces(provinceRows)
-      setDistricts(districtRows)
-      setSubdistricts(subdistrictRows)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลลูกค้าไม่ได้')
     } finally {
       setIsLoading(false)
     }
+  }
+
+  async function loadAddressData() {
+    if (provinces.length && districts.length && subdistricts.length) {
+      return
+    }
+
+    const [provinceRows, districtRows, subdistrictRows] = await Promise.all([
+      listThaiProvinces(),
+      listThaiDistricts(),
+      listThaiSubdistricts(),
+    ])
+    setProvinces(provinceRows)
+    setDistricts(districtRows)
+    setSubdistricts(subdistrictRows)
   }
 
   useEffect(() => {
@@ -157,13 +164,25 @@ export function CustomersPageClient() {
     return [...rows].sort((left, right) => compareCustomers(left, right, sortKey, sortDirection))
   }, [customers, search, sortDirection, sortKey])
 
-  function openCreateForm() {
+  async function openCreateForm() {
     setSelectedCustomer(null)
+    try {
+      await loadAddressData()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลที่อยู่ไทยไม่ได้')
+      return
+    }
     setFormOpen(true)
   }
 
-  function openEditForm(customer: Customer) {
+  async function openEditForm(customer: Customer) {
     setSelectedCustomer(customer)
+    try {
+      await loadAddressData()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลที่อยู่ไทยไม่ได้')
+      return
+    }
     setFormOpen(true)
   }
 
@@ -225,7 +244,7 @@ export function CustomersPageClient() {
             <button className="rounded bg-emerald-600 px-3 py-2 text-sm font-bold text-white" type="button">
               📊 Export Excel
             </button>
-            <button className="rounded bg-slate-900 px-4 py-2 text-sm font-bold text-white" type="button" onClick={openCreateForm}>
+            <button className="rounded bg-slate-900 px-4 py-2 text-sm font-bold text-white" type="button" onClick={() => void openCreateForm()}>
               + เพิ่มรายการ
             </button>
           </div>
@@ -291,7 +310,7 @@ export function CustomersPageClient() {
                   <td className="p-2 text-right">{customer.creditTerm ?? '-'}</td>
                   <td className="p-2 text-right">{formatMoney(customer.creditLimit)}</td>
                   <td className={`p-2 text-center ${customer.active ? 'text-emerald-700' : 'text-slate-500'}`}>✓ {customer.active ? 'ใช้งาน' : 'ปิด'}</td>
-                  <td className="p-2 text-center"><button className="text-blue-600" type="button" onClick={() => openEditForm(customer)}>แก้ไข</button></td>
+                  <td className="p-2 text-center"><button className="text-blue-600" type="button" onClick={() => void openEditForm(customer)}>แก้ไข</button></td>
                   <td className="p-2 text-center"><button className="text-red-600" type="button" onClick={() => handleToggleActive(customer)}>ลบ</button></td>
                 </tr>
               ))}
