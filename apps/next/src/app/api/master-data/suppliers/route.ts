@@ -1,98 +1,157 @@
+import { NextResponse } from 'next/server'
+import { resolveMx } from 'node:dns/promises'
+import { supplierFormSchema } from '@/lib/supplier'
+import { mapPrismaSupplier, toSupplierWriteInput } from '@/lib/domain/supplier'
 import { prisma } from '@/lib/server/prisma'
-import { errorJson, masterDataJson, masterDataListJson, nextSequentialCode, normalizeCode, parseMasterDataForm, toIso, toNumber } from '@/lib/server/master-data'
+import type { Prisma } from '../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
 
-type SupplierRow = Awaited<ReturnType<typeof prisma.suppliers.findMany>>[number] & {
-  branches?: { name: string } | null
+const sortColumns = {
+  active: 'active',
+  code: 'code',
+  contact: 'contact',
+  creditLimit: 'credit_limit',
+  creditTerm: 'credit_term',
+  email: 'email',
+  name: 'name',
+  phone: 'phone',
+  taxId: 'tax_id',
+  type: 'type',
+} as const
+
+function parseListParams(request: Request) {
+  const url = new URL(request.url)
+  const all = url.searchParams.get('all') === '1'
+  const page = Math.max(1, Number(url.searchParams.get('page') ?? '1') || 1)
+  const pageSize = all ? 10000 : Math.min(100, Math.max(10, Number(url.searchParams.get('pageSize') ?? '25') || 25))
+  const q = url.searchParams.get('q')?.trim() ?? ''
+  const supplierType = url.searchParams.get('type')?.trim() ?? ''
+  const marketScope = url.searchParams.get('marketScope')?.trim() ?? ''
+  const sort = url.searchParams.get('sort') ?? 'code'
+  const direction = url.searchParams.get('direction') === 'desc' ? 'desc' : 'asc'
+  const sortColumn = sortColumns[sort as keyof typeof sortColumns] ?? sortColumns.code
+
+  return { all, direction, marketScope, page, pageSize, q, sortColumn, supplierType }
 }
 
-function mapSupplier(row: SupplierRow) {
-  return {
-    id: row.id,
-    code: row.code ?? row.id,
-    name: row.name,
-    active: row.active ?? true,
-    type: row.type,
-    taxId: row.tax_id,
-    phone: row.phone,
-    email: row.email,
-    contact: row.contact ?? row.sales_rep,
-    address: row.address,
-    bankName: row.bank_name,
-    accountNo: row.bank_account,
-    bankAccount: row.bank_account_name,
-    creditTerm: row.credit_term,
-    creditLimit: toNumber(row.credit_limit),
-    branchId: row.branch_id,
-    branchName: row.branches?.name ?? row.branch_id,
-    note: row.notes,
-    createdAt: toIso(row.created_at),
-    updatedAt: toIso(row.updated_at),
+function supplierSearchWhere(q: string, supplierType: string, marketScope: string): Prisma.suppliersWhereInput {
+  const where: Prisma.suppliersWhereInput = {}
+
+  if (supplierType) {
+    where.type = supplierType
+  }
+
+  if (marketScope) {
+    where.market_scope = marketScope
+  }
+
+  if (!q) return where
+
+  where.OR = [
+    { id: { contains: q, mode: 'insensitive' } },
+    { code: { contains: q, mode: 'insensitive' } },
+    { name: { contains: q, mode: 'insensitive' } },
+    { type: { contains: q, mode: 'insensitive' } },
+    { tax_id: { contains: q, mode: 'insensitive' } },
+    { phone: { contains: q, mode: 'insensitive' } },
+    { email: { contains: q, mode: 'insensitive' } },
+    { address: { contains: q, mode: 'insensitive' } },
+    { contact: { contains: q, mode: 'insensitive' } },
+    { bank_name: { contains: q, mode: 'insensitive' } },
+    { bank_account: { contains: q, mode: 'insensitive' } },
+    { bank_account_name: { contains: q, mode: 'insensitive' } },
+    { branch_id: { contains: q, mode: 'insensitive' } },
+    { notes: { contains: q, mode: 'insensitive' } },
+  ]
+
+  return where
+}
+
+async function getNextSupplierCode() {
+  const lastSupplier = await prisma.suppliers.findFirst({
+    where: {
+      code: {
+        startsWith: 'SUP',
+      },
+    },
+    orderBy: {
+      code: 'desc',
+    },
+    select: {
+      code: true,
+    },
+  })
+
+  const lastNumber = Number(String(lastSupplier?.code ?? '').replace(/^SUP/i, ''))
+  const nextNumber = Number.isFinite(lastNumber) ? lastNumber + 1 : 1
+  return `SUP${String(nextNumber).padStart(3, '0')}`
+}
+
+async function assertEmailDomainCanReceiveMail(email: string | null) {
+  if (!email) return
+
+  const domain = email.split('@')[1]?.toLowerCase()
+  if (!domain) {
+    throw new Error('รูปแบบอีเมลไม่ถูกต้อง')
+  }
+
+  try {
+    const records = await resolveMx(domain)
+    if (records.length === 0) {
+      throw new Error('โดเมนอีเมลนี้ไม่รองรับการรับอีเมล')
+    }
+  } catch {
+    throw new Error('ตรวจสอบโดเมนอีเมลไม่ผ่าน')
   }
 }
 
-async function getNextCode() {
-  const last = await prisma.suppliers.findFirst({ where: { code: { startsWith: 'SUP' } }, orderBy: { code: 'desc' }, select: { code: true } })
-  return nextSequentialCode(last?.code, 'SUP')
-}
-
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const rows = await prisma.suppliers.findMany({ include: { branches: true }, orderBy: [{ code: 'asc' }, { name: 'asc' }] })
-    return masterDataListJson(rows.map(mapSupplier))
+    const { all, direction, marketScope, page, pageSize, q, sortColumn, supplierType } = parseListParams(request)
+    const where = supplierSearchWhere(q, supplierType, marketScope)
+    const [suppliers, total] = await Promise.all([
+      prisma.suppliers.findMany({
+        include: { branches: true },
+        orderBy: [{ [sortColumn]: direction }, { id: 'asc' }],
+        skip: all ? undefined : (page - 1) * pageSize,
+        take: pageSize,
+        where,
+      }),
+      prisma.suppliers.count({ where }),
+    ])
+
+    return NextResponse.json({
+      rows: suppliers.map(mapPrismaSupplier),
+      page: all ? 1 : page,
+      pageSize,
+      total,
+      totalPages: all ? 1 : Math.max(1, Math.ceil(total / pageSize)),
+    })
   } catch (caught) {
-    return errorJson(caught, 'โหลดข้อมูลผู้ขายไม่ได้', 500)
+    return NextResponse.json({ error: caught instanceof Error ? caught.message : 'โหลดข้อมูลผู้ขายไม่ได้' }, { status: 500 })
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const values = parseMasterDataForm(await request.json())
-    const code = normalizeCode(values.code, values.id || await getNextCode())
-    const row = await prisma.suppliers.upsert({
-      where: { id: values.id || code },
-      create: {
-        id: values.id || code,
-        code,
-        name: values.name,
-        type: values.type || null,
-        tax_id: values.taxId || null,
-        phone: values.phone || null,
-        email: values.email || null,
-        contact: values.contact || null,
-        address: values.address || null,
-        bank_name: values.bankName || null,
-        bank_account: values.accountNo || null,
-        bank_account_name: values.bankAccount || null,
-        credit_term: values.creditTerm,
-        credit_limit: values.creditLimit,
-        branch_id: values.branchId || null,
-        notes: values.note || null,
-        active: values.active,
+    const body = await request.json()
+    const values = supplierFormSchema.parse(body)
+    await assertEmailDomainCanReceiveMail(values.email)
+    const code = values.id ? values.code : await getNextSupplierCode()
+    const payload = toSupplierWriteInput({ ...values, code })
+
+    const supplier = await prisma.suppliers.upsert({
+      where: {
+        id: payload.id,
       },
-      update: {
-        code,
-        name: values.name,
-        type: values.type || null,
-        tax_id: values.taxId || null,
-        phone: values.phone || null,
-        email: values.email || null,
-        contact: values.contact || null,
-        address: values.address || null,
-        bank_name: values.bankName || null,
-        bank_account: values.accountNo || null,
-        bank_account_name: values.bankAccount || null,
-        credit_term: values.creditTerm,
-        credit_limit: values.creditLimit,
-        branch_id: values.branchId || null,
-        notes: values.note || null,
-        active: values.active,
-      },
+      create: payload,
+      update: payload,
       include: { branches: true },
     })
-    return masterDataJson(mapSupplier(row))
+
+    return NextResponse.json(mapPrismaSupplier(supplier))
   } catch (caught) {
-    return errorJson(caught, 'บันทึกข้อมูลผู้ขายไม่ได้')
+    return NextResponse.json({ error: caught instanceof Error ? caught.message : 'บันทึกข้อมูลผู้ขายไม่ได้' }, { status: 400 })
   }
 }

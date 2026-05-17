@@ -1614,10 +1614,22 @@ model suppliers {
   id                String           @id
   code              String?
   name              String
+  name_title        String?
+  first_name        String?
+  last_name         String?
   tax_id            String?
   phone             String?
   email             String?
   address           String?
+  address_no        String?
+  address_moo       String?
+  address_village   String?
+  address_road      String?
+  address_subdistrict String?
+  address_district  String?
+  address_province  String?
+  address_postal_code String?
+  address_country   String?          @default("ไทย")
   bank_name         String?
   bank_account      String?
   bank_account_name String?
@@ -1632,7 +1644,11 @@ model suppliers {
   updated_by        String?
   version           Int?             @default(1)
   type              String?
+  market_scope      String           @default("ในประเทศ")
   contact           String?
+  contact_title     String?
+  contact_first_name String?
+  contact_last_name String?
   credit_limit      Decimal?         @db.Decimal
   assets            assets[]
   payments          payments[]
@@ -1643,6 +1659,9 @@ model suppliers {
 
   @@index([branch_id], map: "idx_suppliers_branch")
   @@index([name], map: "idx_suppliers_name")
+  @@index([active], map: "idx_suppliers_active")
+  @@index([market_scope], map: "idx_suppliers_market_scope")
+  @@index([type], map: "idx_suppliers_type")
   @@schema("public")
 }
 

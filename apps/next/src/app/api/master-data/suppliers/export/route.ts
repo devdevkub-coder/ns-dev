@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
-import { mapPrismaCustomer } from '@/lib/domain/customer'
+import { mapPrismaSupplier } from '@/lib/domain/supplier'
 import { prisma } from '@/lib/server/prisma'
-import type { Customer } from '@/lib/customer'
+import type { Supplier } from '@/lib/supplier'
 import type { Prisma } from '../../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
@@ -22,10 +22,10 @@ const sortColumns = {
   type: 'type',
 } as const
 
-const customerColumns: Array<{ key: keyof Customer; label: string; width: number; type?: 'number' }> = [
-  { key: 'code', label: 'รหัสลูกค้า', width: 90 },
-  { key: 'name', label: 'ชื่อลูกค้า/บริษัท', width: 220 },
-  { key: 'type', label: 'ประเภทลูกค้า', width: 110 },
+const supplierColumns: Array<{ key: keyof Supplier; label: string; width: number; type?: 'number' }> = [
+  { key: 'code', label: 'รหัสผู้ขาย', width: 90 },
+  { key: 'name', label: 'ชื่อผู้ขาย/บริษัท', width: 220 },
+  { key: 'type', label: 'ประเภทผู้ขาย', width: 110 },
   { key: 'marketScope', label: 'ประเทศ/ตลาด', width: 110 },
   { key: 'nameTitle', label: 'คำนำหน้าชื่อ', width: 100 },
   { key: 'firstName', label: 'ชื่อ', width: 140 },
@@ -59,20 +59,20 @@ const customerColumns: Array<{ key: keyof Customer; label: string; width: number
 function parseExportParams(request: Request) {
   const url = new URL(request.url)
   const q = url.searchParams.get('q')?.trim() ?? ''
-  const customerType = url.searchParams.get('type')?.trim() ?? ''
+  const supplierType = url.searchParams.get('type')?.trim() ?? ''
   const marketScope = url.searchParams.get('marketScope')?.trim() ?? ''
   const sort = url.searchParams.get('sort') ?? 'code'
   const direction = url.searchParams.get('direction') === 'desc' ? 'desc' : 'asc'
   const sortColumn = sortColumns[sort as keyof typeof sortColumns] ?? sortColumns.code
 
-  return { customerType, direction, marketScope, q, sortColumn }
+  return { supplierType, direction, marketScope, q, sortColumn }
 }
 
-function customerSearchWhere(q: string, customerType: string, marketScope: string): Prisma.customersWhereInput {
-  const where: Prisma.customersWhereInput = {}
+function supplierSearchWhere(q: string, supplierType: string, marketScope: string): Prisma.suppliersWhereInput {
+  const where: Prisma.suppliersWhereInput = {}
 
-  if (customerType) {
-    where.type = customerType
+  if (supplierType) {
+    where.type = supplierType
   }
 
   if (marketScope) {
@@ -91,64 +91,68 @@ function customerSearchWhere(q: string, customerType: string, marketScope: strin
     { email: { contains: q, mode: 'insensitive' } },
     { address: { contains: q, mode: 'insensitive' } },
     { contact: { contains: q, mode: 'insensitive' } },
-    { sales_id: { contains: q, mode: 'insensitive' } },
+    { bank_name: { contains: q, mode: 'insensitive' } },
+    { bank_account: { contains: q, mode: 'insensitive' } },
+    { bank_account_name: { contains: q, mode: 'insensitive' } },
+    { branch_id: { contains: q, mode: 'insensitive' } },
     { notes: { contains: q, mode: 'insensitive' } },
   ]
 
   return where
 }
 
-function formatCellValue(customer: Customer, key: keyof Customer) {
-  const value = customer[key]
+function formatCellValue(supplier: Supplier, key: keyof Supplier) {
+  const value = supplier[key]
   if (value === null || value === undefined || value === '') return ''
   if (typeof value === 'boolean') return value ? 'ใช้งาน' : 'ปิด'
   if (typeof value === 'number') return value
   return String(value)
 }
 
-function buildWorkbook(customers: Customer[], total: number, filters: { customerType: string; marketScope: string; q: string }) {
+function buildWorkbook(suppliers: Supplier[], total: number, filters: { supplierType: string; marketScope: string; q: string }) {
   const generatedAt = new Date()
   const summaryRows = [
     ['Export ณ', generatedAt.toLocaleString('th-TH')],
-    ['จำนวนที่ export', customers.length.toLocaleString('th-TH')],
+    ['จำนวนที่ export', suppliers.length.toLocaleString('th-TH')],
     ['จำนวนทั้งหมดตาม filter', total.toLocaleString('th-TH')],
     ['ค้นหา', filters.q || '-'],
-    ['ประเภทลูกค้า', filters.customerType || 'ทุกประเภท'],
+    ['ประเภทผู้ขาย', filters.supplierType || 'ทุกประเภท'],
     ['ประเทศ/ตลาด', filters.marketScope || 'ทุกตลาด'],
   ]
 
-  const dataRows = customers.map((customer) => Object.fromEntries(
-    customerColumns.map((column) => [column.label, formatCellValue(customer, column.key)]),
+  const dataRows = suppliers.map((supplier) => Object.fromEntries(
+    supplierColumns.map((column) => [column.label, formatCellValue(supplier, column.key)]),
   ))
   const workbook = XLSX.utils.book_new()
   const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows)
-  const customerSheet = XLSX.utils.json_to_sheet(dataRows, {
-    header: customerColumns.map((column) => column.label),
+  const supplierSheet = XLSX.utils.json_to_sheet(dataRows, {
+    header: supplierColumns.map((column) => column.label),
   })
 
   summarySheet['!cols'] = [{ wch: 24 }, { wch: 28 }]
-  customerSheet['!cols'] = customerColumns.map((column) => ({ wch: Math.max(10, Math.round(column.width / 8)) }))
+  supplierSheet['!cols'] = supplierColumns.map((column) => ({ wch: Math.max(10, Math.round(column.width / 8)) }))
   XLSX.utils.book_append_sheet(workbook, summarySheet, 'สรุป')
-  XLSX.utils.book_append_sheet(workbook, customerSheet, 'ลูกค้า')
+  XLSX.utils.book_append_sheet(workbook, supplierSheet, 'ผู้ขาย')
   return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer
 }
 
 export async function GET(request: Request) {
   try {
-    const { customerType, direction, marketScope, q, sortColumn } = parseExportParams(request)
-    const where = customerSearchWhere(q, customerType, marketScope)
+    const { supplierType, direction, marketScope, q, sortColumn } = parseExportParams(request)
+    const where = supplierSearchWhere(q, supplierType, marketScope)
     const [rows, total] = await Promise.all([
-      prisma.customers.findMany({
+      prisma.suppliers.findMany({
+        include: { branches: true },
         orderBy: [{ [sortColumn]: direction }, { id: 'asc' }],
         take: EXPORT_LIMIT,
         where,
       }),
-      prisma.customers.count({ where }),
+      prisma.suppliers.count({ where }),
     ])
 
-    const customers = rows.map(mapPrismaCustomer)
-    const body = buildWorkbook(customers, total, { customerType, marketScope, q })
-    const filename = `customers_${new Date().toISOString().slice(0, 10)}.xlsx`
+    const suppliers = rows.map(mapPrismaSupplier)
+    const body = buildWorkbook(suppliers, total, { supplierType, marketScope, q })
+    const filename = `suppliers_${new Date().toISOString().slice(0, 10)}.xlsx`
 
     return new NextResponse(new Uint8Array(body), {
       headers: {

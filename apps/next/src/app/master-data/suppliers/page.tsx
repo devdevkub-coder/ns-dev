@@ -1,6 +1,5 @@
-import { MasterDataPageClient } from '@/components/master-data/shared/MasterDataPageClient'
-import { suppliersPageConfig } from '@/lib/master-data-page-configs'
+import { SuppliersPageClient } from '@/components/master-data/suppliers/SuppliersPageClient'
 
 export default function SuppliersPage() {
-  return <MasterDataPageClient config={suppliersPageConfig} />
+  return <SuppliersPageClient />
 }

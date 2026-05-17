@@ -71,14 +71,14 @@ const phoneSchema = z.string().trim()
     return digits.length >= 9 && digits.length <= 15
   }, 'เบอร์โทรศัพท์ต้องมีตัวเลข 9-15 หลัก')
 
-export const customerSchema = z.object({
+export const supplierSchema = z.object({
   id: z.string().min(1),
   code: z.string().min(1),
   name: z.string().min(1),
   nameTitle: z.string().nullable().default(null),
   firstName: z.string().nullable().default(null),
   lastName: z.string().nullable().default(null),
-  type: z.enum(['บุคคล', 'นิติบุคคล']).default('นิติบุคคล'),
+  type: z.enum(['บุคคล', 'นิติบุคคล']).default('บุคคล'),
   marketScope: z.enum(['ในประเทศ', 'ต่างประเทศ']).default('ในประเทศ'),
   taxId: z.string().nullable().default(null),
   phone: z.string().nullable().default(null),
@@ -97,45 +97,49 @@ export const customerSchema = z.object({
   contactTitle: z.string().nullable().default(null),
   contactFirstName: z.string().nullable().default(null),
   contactLastName: z.string().nullable().default(null),
+  bankName: z.string().nullable().default(null),
+  accountNo: z.string().nullable().default(null),
+  bankAccount: z.string().nullable().default(null),
+  branchId: z.string().nullable().default(null),
+  branchName: z.string().nullable().default(null),
   creditTerm: z.number().int().nullable().default(null),
   creditLimit: z.number().nullable().default(null),
-  salesId: z.string().nullable().default(null),
   notes: z.string().nullable().default(null),
   active: z.boolean().default(true),
   createdAt: z.string().nullable().default(null),
   updatedAt: z.string().nullable().default(null),
 })
 
-export const customerListSchema = z.array(customerSchema)
-export const customerListResultSchema = z.object({
-  rows: customerListSchema,
+export const supplierListSchema = z.array(supplierSchema)
+export const supplierListResultSchema = z.object({
+  rows: supplierListSchema,
   page: z.number().int().min(1),
   pageSize: z.number().int().min(1),
   total: z.number().int().min(0),
   totalPages: z.number().int().min(1),
 })
-export type Customer = z.infer<typeof customerSchema>
-export type CustomerListResult = z.infer<typeof customerListResultSchema>
+export type Supplier = z.infer<typeof supplierSchema>
+export type SupplierListResult = z.infer<typeof supplierListResultSchema>
 
-export type CustomerListOptions = {
+export type SupplierListOptions = {
   all?: boolean
-  customerType?: string
   direction?: 'asc' | 'desc'
   marketScope?: string
   page?: number
   pageSize?: number
   q?: string
   sort?: string
+  supplierType?: string
 }
 
-export const customerFormSchema = z.object({
-  id: z.string().trim().regex(/^[A-Za-z0-9_-]+$/, 'รหัสลูกค้ามีรูปแบบไม่ถูกต้อง').optional(),
-  code: z.preprocess(blankToNull, z.string().trim().regex(/^[A-Za-z0-9_-]+$/, 'รหัสลูกค้ามีรูปแบบไม่ถูกต้อง').nullable().default(null)),
-  name: optionalBusinessText('ชื่อบริษัท'),
+export const supplierFormSchema = z.object({
+  id: z.string().trim().regex(/^[A-Za-z0-9_-]+$/, 'รหัสผู้ขายมีรูปแบบไม่ถูกต้อง').optional(),
+  code: z.preprocess(blankToNull, z.string().trim().regex(/^[A-Za-z0-9_-]+$/, 'รหัสผู้ขายมีรูปแบบไม่ถูกต้อง').nullable().default(null)),
+  name: optionalBusinessText('ชื่อผู้ขาย'),
   nameTitle: optionalPersonName('คำนำหน้าชื่อ'),
   firstName: optionalPersonName('ชื่อ'),
   lastName: optionalPersonName('นามสกุล'),
-  type: z.enum(['บุคคล', 'นิติบุคคล'], { required_error: 'เลือกประเภทลูกค้า' }),
+  type: z.enum(['บุคคล', 'นิติบุคคล'], { required_error: 'เลือกประเภทผู้ขาย' }),
   marketScope: z.enum(['ในประเทศ', 'ต่างประเทศ']).default('ในประเทศ'),
   taxId: optionalTaxIdSchema,
   phone: phoneSchema,
@@ -154,53 +158,40 @@ export const customerFormSchema = z.object({
   contactTitle: optionalPersonName('คำนำหน้าผู้ติดต่อ'),
   contactFirstName: optionalPersonName('ชื่อผู้ติดต่อ'),
   contactLastName: optionalPersonName('นามสกุลผู้ติดต่อ'),
+  bankName: optionalGeneralText('ธนาคาร', 120),
+  accountNo: optionalGeneralText('เลขบัญชี', 80),
+  bankAccount: optionalGeneralText('ชื่อบัญชี', 160),
+  branchId: optionalGeneralText('รหัสสาขา', 80),
   creditTerm: z.number().int().min(0).nullable().default(null),
   creditLimit: z.number().min(0).nullable().default(null),
-  salesId: z.string().trim().nullable().default(null),
-  notes: z.string().trim().nullable().default(null),
+  notes: optionalGeneralText('หมายเหตุ', 500),
   active: z.boolean().default(true),
 }).superRefine((values, context) => {
   if (values.type === 'บุคคล') {
-    if (!values.nameTitle) {
-      context.addIssue({ code: z.ZodIssueCode.custom, message: 'เลือกคำนำหน้าชื่อ', path: ['nameTitle'] })
-    }
-    if (!values.firstName) {
-      context.addIssue({ code: z.ZodIssueCode.custom, message: 'กรอกชื่อ', path: ['firstName'] })
-    }
-    if (!values.lastName) {
-      context.addIssue({ code: z.ZodIssueCode.custom, message: 'กรอกนามสกุล', path: ['lastName'] })
-    }
+    if (!values.nameTitle) context.addIssue({ code: z.ZodIssueCode.custom, message: 'เลือกคำนำหน้าชื่อ', path: ['nameTitle'] })
+    if (!values.firstName) context.addIssue({ code: z.ZodIssueCode.custom, message: 'กรอกชื่อ', path: ['firstName'] })
+    if (!values.lastName) context.addIssue({ code: z.ZodIssueCode.custom, message: 'กรอกนามสกุล', path: ['lastName'] })
   } else if (!values.name) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: 'กรอกชื่อบริษัท', path: ['name'] })
   }
 
-  if (!values.contactTitle) {
-    context.addIssue({ code: z.ZodIssueCode.custom, message: 'เลือกคำนำหน้าผู้ติดต่อ', path: ['contactTitle'] })
-  }
-  if (!values.contactFirstName) {
-    context.addIssue({ code: z.ZodIssueCode.custom, message: 'กรอกชื่อผู้ติดต่อ', path: ['contactFirstName'] })
-  }
-  if (!values.contactLastName) {
-    context.addIssue({ code: z.ZodIssueCode.custom, message: 'กรอกนามสกุลผู้ติดต่อ', path: ['contactLastName'] })
-  }
+  if (!values.contactTitle) context.addIssue({ code: z.ZodIssueCode.custom, message: 'เลือกคำนำหน้าผู้ติดต่อ', path: ['contactTitle'] })
+  if (!values.contactFirstName) context.addIssue({ code: z.ZodIssueCode.custom, message: 'กรอกชื่อผู้ติดต่อ', path: ['contactFirstName'] })
+  if (!values.contactLastName) context.addIssue({ code: z.ZodIssueCode.custom, message: 'กรอกนามสกุลผู้ติดต่อ', path: ['contactLastName'] })
 })
 
-export type CustomerFormValues = z.infer<typeof customerFormSchema>
+export type SupplierFormValues = z.infer<typeof supplierFormSchema>
 
 async function readJson<TSchema extends z.ZodTypeAny>(response: Response, schema: TSchema): Promise<z.output<TSchema>> {
   const payload = await response.json().catch(() => null)
-
-  if (!response.ok) {
-    throw new Error(payload?.error ?? 'Request failed')
-  }
-
+  if (!response.ok) throw new Error(payload?.error ?? 'Request failed')
   return schema.parse(payload)
 }
 
-export async function listCustomers(options: CustomerListOptions = {}): Promise<CustomerListResult> {
+export async function listSuppliers(options: SupplierListOptions = {}): Promise<SupplierListResult> {
   const params = new URLSearchParams()
   if (options.all) params.set('all', '1')
-  if (options.customerType) params.set('type', options.customerType)
+  if (options.supplierType) params.set('type', options.supplierType)
   if (options.marketScope) params.set('marketScope', options.marketScope)
   if (options.q) params.set('q', options.q)
   if (options.sort) params.set('sort', options.sort)
@@ -209,49 +200,47 @@ export async function listCustomers(options: CustomerListOptions = {}): Promise<
   if (options.pageSize) params.set('pageSize', String(options.pageSize))
 
   const query = params.toString()
-  const response = await fetch(`/api/master-data/customers${query ? `?${query}` : ''}`, { cache: 'no-store' })
-  return readJson(response, customerListResultSchema)
+  const response = await fetch(`/api/master-data/suppliers${query ? `?${query}` : ''}`, { cache: 'no-store' })
+  return readJson(response, supplierListResultSchema)
 }
 
-export async function exportCustomers(options: CustomerListOptions = {}): Promise<{ blob: Blob; filename: string }> {
+export async function exportSuppliers(options: SupplierListOptions = {}): Promise<{ blob: Blob; filename: string }> {
   const params = new URLSearchParams()
-  if (options.customerType) params.set('type', options.customerType)
+  if (options.supplierType) params.set('type', options.supplierType)
   if (options.marketScope) params.set('marketScope', options.marketScope)
   if (options.q) params.set('q', options.q)
   if (options.sort) params.set('sort', options.sort)
   if (options.direction) params.set('direction', options.direction)
 
   const query = params.toString()
-  const response = await fetch(`/api/master-data/customers/export${query ? `?${query}` : ''}`, { cache: 'no-store' })
+  const response = await fetch(`/api/master-data/suppliers/export${query ? `?${query}` : ''}`, { cache: 'no-store' })
   if (!response.ok) {
     const payload = await response.json().catch(() => null)
     throw new Error(payload?.error ?? 'Export Excel ไม่สำเร็จ')
   }
 
   const disposition = response.headers.get('content-disposition') ?? ''
-  const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? `customers_${new Date().toISOString().slice(0, 10)}.xlsx`
+  const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? `suppliers_${new Date().toISOString().slice(0, 10)}.xlsx`
   return {
     blob: await response.blob(),
     filename,
   }
 }
 
-export async function saveCustomer(values: CustomerFormValues): Promise<Customer> {
-  const response = await fetch('/api/master-data/customers', {
+export async function saveSupplier(values: SupplierFormValues): Promise<Supplier> {
+  const response = await fetch('/api/master-data/suppliers', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(values),
   })
-
-  return readJson(response, customerSchema)
+  return readJson(response, supplierSchema)
 }
 
-export async function setCustomerActive(customerId: string, active: boolean): Promise<Customer> {
-  const response = await fetch(`/api/master-data/customers/${encodeURIComponent(customerId)}`, {
+export async function setSupplierActive(supplierId: string, active: boolean): Promise<Supplier> {
+  const response = await fetch(`/api/master-data/suppliers/${encodeURIComponent(supplierId)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ active }),
   })
-
-  return readJson(response, customerSchema)
+  return readJson(response, supplierSchema)
 }
