@@ -611,6 +611,27 @@ model bank_statement {
   @@schema("public")
 }
 
+model company_profiles {
+  id          String    @id
+  name        String
+  name_en     String?
+  tax_id      String?
+  branch_code String?   @default("00000")
+  address     String
+  phone       String
+  fax         String?
+  email       String?
+  website     String?
+  bank_info   String?
+  footer_note String?
+  logo_url    String?
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime  @default(now()) @db.Timestamptz(6)
+  updated_by  String?
+
+  @@schema("public")
+}
+
 model bank_names {
   id         String   @id
   code       String   @unique

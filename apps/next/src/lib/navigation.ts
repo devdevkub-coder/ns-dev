@@ -24,9 +24,11 @@ export type NavigationItem = {
 
 const exactPathPermissions: Record<string, string> = {
   '/admin/audit': 'system.audit.view',
+  '/admin/company-profile': 'system.settings.manage',
   '/admin/migration-tools': 'system.backup.manage',
   '/admin/transaction-ledger': 'finance.cash.view',
   '/admin/users-permissions': 'system.users.manage',
+  '/api/admin/company-profile': 'system.settings.manage',
   '/api/admin/auth-events': 'system.audit.view',
   '/api/admin/transaction-ledger': 'finance.cash.view',
   '/api/admin/users': 'system.users.manage',

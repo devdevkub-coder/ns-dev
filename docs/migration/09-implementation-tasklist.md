@@ -185,7 +185,7 @@ Reporting rule:
 
 ### 4.1 Organization
 
-- [ ] company profile
+- [x] company profile
 - [x] branches CRUD/form mutation pilot
 - [x] warehouses CRUD/FK form mutation pilot
 - [x] branch-warehouse relationship CRUD form เบื้องต้น

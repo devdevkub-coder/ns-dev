@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { z } from 'zod'
-import { getErrorMessage, readJsonResponse } from '@/lib/api-client'
+import { getErrorMessage, readBlobResponse, readJsonResponse } from '@/lib/api-client'
 
 const transactionLedgerPayloadSchema = z.object({
   accounts: z.array(z.object({
@@ -17,6 +17,15 @@ const transactionLedgerPayloadSchema = z.object({
     openingBalance: z.number(),
     type: z.string(),
   })),
+  duplicateGroups: z.array(z.object({
+    accountName: z.string(),
+    count: z.number(),
+    ids: z.array(z.string()),
+    refNo: z.string(),
+    refType: z.string(),
+    totalIn: z.number(),
+    totalOut: z.number(),
+  })),
   rows: z.array(z.object({
     accountId: z.string().nullable(),
     accountName: z.string(),
@@ -25,15 +34,23 @@ const transactionLedgerPayloadSchema = z.object({
     date: z.string(),
     description: z.string(),
     id: z.string(),
+    linkedBills: z.array(z.object({
+      billId: z.string(),
+      docNo: z.string(),
+      type: z.enum(['PB', 'SB']),
+    })),
     note: z.string(),
     payee: z.string(),
     refId: z.string().nullable(),
     refNo: z.string(),
     refType: z.string(),
+    runningBalance: z.number().nullable(),
+    sourceLabel: z.string(),
   })),
 })
 
 type AccountRow = z.infer<typeof transactionLedgerPayloadSchema>['accounts'][number]
+type DuplicateGroup = z.infer<typeof transactionLedgerPayloadSchema>['duplicateGroups'][number]
 type LedgerRow = z.infer<typeof transactionLedgerPayloadSchema>['rows'][number]
 
 const refTypeOptions = [
@@ -64,16 +81,18 @@ function accountTypeLabel(type: string) {
 }
 
 function buildCsv(rows: LedgerRow[]) {
-  const header = ['วันที่', 'บัญชี', 'ประเภท', 'เลขที่', 'ผู้รับ/ส่ง', 'รายละเอียด', 'เงินเข้า', 'เงินออก']
+  const header = ['วันที่', 'บัญชี', 'ประเภท', 'เลขที่', 'บิลที่เกี่ยวข้อง', 'ผู้รับ/ส่ง', 'รายละเอียด', 'เงินเข้า', 'เงินออก', 'คงเหลือหลังรายการ']
   const body = rows.map((row) => [
     row.date,
     row.accountName,
     row.refType,
     row.refNo,
+    row.linkedBills.map((bill) => `${bill.type}:${bill.docNo}`).join(', '),
     row.payee,
     row.description || row.note,
     String(row.amountIn),
     String(row.amountOut),
+    row.runningBalance === null ? '' : String(row.runningBalance),
   ])
   return [header, ...body].map((line) => line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n')
 }
@@ -83,9 +102,11 @@ export function TransactionLedgerPageClient() {
   const [actualBalances, setActualBalances] = useState<Record<string, number>>({})
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([])
   const [error, setError] = useState<string | null>(null)
   const [filterAccount, setFilterAccount] = useState('')
   const [filterRefType, setFilterRefType] = useState('')
+  const [isExporting, setIsExporting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [rows, setRows] = useState<LedgerRow[]>([])
   const [search, setSearch] = useState('')
@@ -97,6 +118,7 @@ export function TransactionLedgerPageClient() {
       const response = await fetch('/api/admin/transaction-ledger?limit=10000', { cache: 'no-store' })
       const payload = await readJsonResponse(response, transactionLedgerPayloadSchema, 'โหลด Transaction Ledger ไม่สำเร็จ')
       setAccounts(payload.accounts)
+      setDuplicateGroups(payload.duplicateGroups)
       setRows(payload.rows)
     } catch (caught) {
       setError(getErrorMessage(caught, 'โหลด Transaction Ledger ไม่สำเร็จ'))
@@ -127,7 +149,16 @@ export function TransactionLedgerPageClient() {
         if (dateTo && row.date && row.date > dateTo) return false
         if (filterRefType && row.refType !== filterRefType) return false
         if (!query) return true
-        return [row.refNo, row.description, row.note, row.payee, row.accountName, row.refType].some((value) => value.toLowerCase().includes(query))
+        return [
+          row.refNo,
+          row.description,
+          row.note,
+          row.payee,
+          row.accountName,
+          row.refType,
+          row.sourceLabel,
+          row.linkedBills.map((bill) => bill.docNo).join(' '),
+        ].some((value) => value.toLowerCase().includes(query))
       })
       .sort((left, right) => right.date.localeCompare(left.date) || right.id.localeCompare(left.id))
   }, [dateFrom, dateTo, filterAccount, filterRefType, rows, search])
@@ -158,12 +189,35 @@ export function TransactionLedgerPageClient() {
     URL.revokeObjectURL(url)
   }
 
+  async function exportExcel() {
+    setError(null)
+    setIsExporting(true)
+    try {
+      const response = await fetch('/api/admin/transaction-ledger?limit=10000&format=xlsx', { cache: 'no-store' })
+      const blob = await readBlobResponse(response, 'Export Excel ไม่สำเร็จ')
+      const disposition = response.headers.get('content-disposition') ?? ''
+      const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? `transaction_ledger_${new Date().toISOString().slice(0, 10)}.xlsx`
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (caught) {
+      setError(getErrorMessage(caught, 'Export Excel ไม่สำเร็จ'))
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-gradient-to-r from-cyan-700 to-blue-700 p-4 text-white shadow">
         <div>
           <h1 className="text-xl font-bold">📒 Transaction Ledger — เช็คเงินเข้า-ออกทุกบัญชี</h1>
-          <p className="mt-1 text-sm opacity-90">ตรวจสอบทุกการเคลื่อนไหวในบัญชีธนาคารจาก bank statement และบัญชีเงิน</p>
+          <p className="mt-1 text-sm opacity-90">ตรวจสอบทุกการเคลื่อนไหวในบัญชีธนาคารจาก bank statement พร้อม source voucher และบิลที่เกี่ยวข้อง</p>
         </div>
         <button className="rounded-lg bg-white/15 px-4 py-2 text-sm font-bold text-white shadow hover:bg-white/25 disabled:opacity-60" disabled={isLoading} type="button" onClick={() => void loadData()}>
           {isLoading ? 'กำลังโหลด...' : '🔄 Refresh'}
@@ -234,15 +288,31 @@ export function TransactionLedgerPageClient() {
             <option value="">📋 ทุกประเภท</option>
             {refTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
-          <button className="rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-60" disabled={ledger.length === 0} type="button" onClick={exportCsv}>📥 Export CSV</button>
+          <button className="rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-60" disabled={ledger.length === 0 || isExporting} type="button" onClick={() => void exportExcel()}>{isExporting ? 'กำลัง Export...' : '📊 Export Excel'}</button>
+          <button className="rounded-lg bg-white px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-60" disabled={ledger.length === 0} type="button" onClick={exportCsv}>CSV</button>
         </div>
         <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-600">
           <span className="rounded bg-emerald-50 px-2 py-1">📥 เงินเข้ารวม <b className="text-emerald-700">{formatMoney(summary.totalIn)}</b></span>
           <span className="rounded bg-red-50 px-2 py-1">📤 เงินออกรวม <b className="text-red-700">{formatMoney(summary.totalOut)}</b></span>
           <span className={`rounded px-2 py-1 ${summary.net >= 0 ? 'bg-blue-50' : 'bg-rose-50'}`}>📊 Net <b className={summary.net >= 0 ? 'text-blue-700' : 'text-rose-700'}>{formatMoney(summary.net)}</b></span>
           <span className="rounded bg-slate-50 px-2 py-1">📋 พบ <b>{summary.count.toLocaleString('th-TH')}</b> รายการ</span>
+          {duplicateGroups.length > 0 ? <span className="rounded bg-amber-50 px-2 py-1 text-amber-800">⚠️ พบยอดซ้ำ <b>{duplicateGroups.length.toLocaleString('th-TH')}</b> กลุ่ม</span> : null}
         </div>
       </div>
+
+      {duplicateGroups.length > 0 ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <div className="font-bold">ตรวจพบรายการที่รูปแบบซ้ำกัน</div>
+          <div className="mt-1 text-xs">แสดงเพื่อช่วยตรวจสอบเท่านั้น ยังไม่ลบอัตโนมัติ เพราะการลบต้องผูก audit log และ reconciliation rule ก่อน</div>
+          <div className="mt-2 flex flex-wrap gap-2 text-xs">
+            {duplicateGroups.slice(0, 6).map((group) => (
+              <span key={`${group.refType}-${group.refNo}-${group.accountName}`} className="rounded bg-white px-2 py-1 ring-1 ring-amber-200">
+                {group.refType} {group.refNo} · {group.accountName} × {group.count}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {selectedAccount && selectedComputedBalance !== null && selectedDiff !== null ? (
         <div className={`rounded-xl border-l-4 p-3 ${Math.abs(selectedDiff) < 0.01 ? 'border-emerald-500 bg-emerald-50' : 'border-red-500 bg-red-50'}`}>
@@ -264,35 +334,45 @@ export function TransactionLedgerPageClient() {
               <th className="p-2 text-left">บัญชี</th>
               <th className="p-2 text-left">ประเภท</th>
               <th className="p-2 text-left">เลขที่</th>
+              <th className="p-2 text-left">บิลที่เกี่ยวข้อง</th>
               <th className="p-2 text-left">ผู้รับ/ส่ง</th>
               <th className="p-2 text-left">รายละเอียด</th>
               <th className="p-2 text-right text-emerald-700">เงินเข้า</th>
               <th className="p-2 text-right text-red-600">เงินออก</th>
+              <th className="p-2 text-right">คงเหลือ</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td className="py-8 text-center text-slate-400" colSpan={8}>กำลังโหลด Transaction Ledger</td></tr>
+              <tr><td className="py-8 text-center text-slate-400" colSpan={10}>กำลังโหลด Transaction Ledger</td></tr>
             ) : ledger.length > 0 ? ledger.map((row) => (
               <tr key={row.id} className="border-t hover:bg-slate-50">
                 <td className="p-2 text-xs">{row.date || '-'}</td>
                 <td className="p-2 text-xs">{row.accountName}</td>
                 <td className="p-2"><span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{row.refType}</span></td>
                 <td className="p-2 font-mono text-xs">{row.refNo}</td>
+                <td className="p-2 text-xs">
+                  {row.linkedBills.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {row.linkedBills.map((bill) => <span key={`${row.id}-${bill.type}-${bill.billId}`} className="rounded bg-blue-50 px-2 py-0.5 font-mono text-blue-700">{bill.type}:{bill.docNo}</span>)}
+                    </div>
+                  ) : '-'}
+                </td>
                 <td className="p-2 text-xs">{row.payee || '-'}</td>
                 <td className="p-2 text-xs">{row.description || row.note || '-'}</td>
                 <td className="p-2 text-right font-mono font-medium text-emerald-700">{row.amountIn > 0 ? formatMoney(row.amountIn) : '-'}</td>
                 <td className="p-2 text-right font-mono font-medium text-red-600">{row.amountOut > 0 ? formatMoney(row.amountOut) : '-'}</td>
+                <td className="p-2 text-right font-mono text-xs">{row.runningBalance === null ? '-' : formatMoney(row.runningBalance)}</td>
               </tr>
             )) : (
-              <tr><td className="py-8 text-center text-slate-400" colSpan={8}>ไม่มีรายการ</td></tr>
+              <tr><td className="py-8 text-center text-slate-400" colSpan={10}>ไม่มีรายการ</td></tr>
             )}
           </tbody>
         </table>
       </div>
 
       <div className="rounded border-l-4 border-amber-500 bg-amber-50 p-3 text-xs text-amber-800">
-        <b>💡 คำแนะนำ:</b> หน้านี้เป็น read-only ledger view สำหรับตรวจยอดเงินเข้า-ออกจาก `bank_statement` และบัญชีเงินก่อนเปิด mutation จริง การแก้ไข/ลบรายการควรเปิดพร้อม audit log และ reconciliation rule.
+        <b>💡 คำแนะนำ:</b> หน้านี้เป็น read-only ledger view สำหรับตรวจยอดเงินเข้า-ออกจาก `bank_statement` พร้อม source voucher และบิลที่เกี่ยวข้อง การแก้ไข/ลบรายการควรเปิดพร้อม audit log และ reconciliation rule.
       </div>
     </section>
   )

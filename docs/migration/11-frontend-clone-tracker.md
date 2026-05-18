@@ -156,7 +156,7 @@ Priority is based on user-facing flow and dependency risk: daily operations firs
 |---|---|---|---|---|---|---|---|---|
 | 1 | login/shell | `/login`, `/` | `LoginView.vue`, `AppShell.vue` | Cloned UI | Wording Checked | Build Passed | Pending | Function Pending |
 | 1 | `view-userPermission` | `/admin/users-permissions` | `views/admin/UsersPermissionsView.vue` | Cloned UI | Wording Checked | Build Passed | Pending | Function Pending |
-| 1 | `view-companyProfile` | `/admin/company-profile` | `views/admin/CompanyProfileView.vue` | Cloned UI | Wording Checked | Build Passed | Pending | Function Pending |
+| 1 | `view-companyProfile` | `/admin/company-profile` | `views/admin/CompanyProfileView.vue` | Cloned UI | Wording Checked | Build Passed | Pending | Function Partial |
 | 1 | `view-userActivity` | `/admin/user-activity` | `views/admin/UserActivityView.vue` | Cloned UI | Wording Checked | Build Passed | Pending | Function Pending |
 | 1 | `view-backup` | `/admin/migration-tools` | `views/admin/MigrationToolsView.vue` | Cloned UI | Wording Checked | Build Passed | Pending | Function Pending |
 | 2 | `view-mdBranch` | `/master-data/branches` | `views/masterData/BranchesView.vue` | Cloned UI | Wording Checked | Build Passed | Pending | Function Partial |
