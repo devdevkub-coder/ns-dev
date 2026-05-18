@@ -27,6 +27,7 @@
 10. [10-environment-status.md](/Users/watcharathatsrithanesiganon/Documents/GitHub/ns-scrap-erp/docs/migration/10-environment-status.md)
 11. [13-next-master-data-progress.md](/Users/watcharathatsrithanesiganon/Documents/GitHub/ns-scrap-erp/docs/migration/13-next-master-data-progress.md)
 12. [14-auth-permission-batch-plan.md](/Users/watcharathatsrithanesiganon/Documents/GitHub/ns-scrap-erp/docs/migration/14-auth-permission-batch-plan.md)
+13. [15-next-daily-transactions-progress.md](/Users/watcharathatsrithanesiganon/Documents/GitHub/ns-scrap-erp/docs/migration/15-next-daily-transactions-progress.md)
 
 ## Recommended Order
 
@@ -42,3 +43,4 @@
 10. ใช้ `10-environment-status` เช็ก dev/prod Supabase, MCP และ env ก่อนเริ่ม session ใหม่
 11. ใช้ `13-next-master-data-progress` ติดตามการ port กลุ่มข้อมูลหลักใน Next เป็น batch และบันทึกผล validation เป็นระยะ
 12. ใช้ `14-auth-permission-batch-plan` ติดตาม login, reset password, users, roles, permissions, API guards และ RLS
+13. ใช้ `15-next-daily-transactions-progress` ติดตามการ port กลุ่มรายการประจำวันใน Next พร้อม API/DB/permission/reconciliation
