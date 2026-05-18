@@ -11,6 +11,7 @@ import {
   type SupplierFormValues,
 } from '@/lib/supplier'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
+import { formatPhoneDisplay } from '@/lib/format'
 import { listThaiDistricts, listThaiProvinces, listThaiSubdistricts, type ThaiDistrict, type ThaiProvince, type ThaiSubdistrict } from '@/lib/thai-address'
 
 type SortKey = 'code' | 'name' | 'taxId' | 'type' | 'phone' | 'email' | 'contact' | 'creditTerm' | 'creditLimit' | 'active'
@@ -63,7 +64,7 @@ function supplierToForm(supplier: Supplier): SupplierFormValues {
     lastName: supplier.lastName,
     type: supplier.type,
     taxId: supplier.taxId,
-    phone: supplier.phone ?? '',
+    phone: formatPhoneDisplay(supplier.phone) ?? '',
     email: supplier.email,
     address: supplier.address,
     addressNo: supplier.addressNo,
@@ -453,7 +454,7 @@ export function SuppliersPageClient() {
                   <td className="p-2 font-medium">{supplier.name}</td>
                   <td className="p-2 font-mono text-xs">{displayValue(supplier.taxId)}</td>
                   <td className="p-2">{displayValue(supplier.type)}</td>
-                  <td className="p-2">{displayValue(supplier.phone)}</td>
+                  <td className="p-2">{displayValue(formatPhoneDisplay(supplier.phone))}</td>
                   <td className="p-2">{displayValue(supplier.email)}</td>
                   <td className="p-2">{displayValue(supplier.contact)}</td>
                   <td className="p-2">{displayValue(supplier.address)}</td>
@@ -698,15 +699,26 @@ type TextFieldProps = {
 }
 
 function TextField({ className = '', error, label, readOnly = false, type = 'text', value, onChange }: TextFieldProps) {
+  const isEmailField = type === 'email'
+  const isPhoneField = label === 'โทรศัพท์'
+
   return (
     <label className={`block text-sm font-medium ${className}`}>
       {label}
       <input
         className={`mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-slate-700 ${readOnly ? 'bg-slate-50' : ''}`}
+        inputMode={isEmailField ? 'email' : isPhoneField ? 'tel' : undefined}
         readOnly={readOnly}
         type={type}
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => {
+          const nextValue = isEmailField
+            ? event.target.value.replace(/[^\x20-\x7E]/g, '')
+            : isPhoneField
+              ? event.target.value.replace(/[^0-9+\s().-]/g, '')
+              : event.target.value
+          onChange(nextValue)
+        }}
       />
       {error ? <span className="mt-1 block text-xs text-red-700">{error}</span> : null}
     </label>

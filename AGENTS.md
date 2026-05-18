@@ -197,6 +197,8 @@ For every new or changed form/API field, define validation before saving data:
 - Required fields must be explicit in the shared schema and shown in the UI.
 - Validate syntax for every input field, not just presence. Examples: email syntax, phone number shape, tax ID length/digits, numeric ranges, date format/order, enum membership, text length, and allowed characters for names/codes.
 - Validate on both client-side form submission and server/API boundaries. Client validation is for UX; server validation is authoritative.
+- For constrained fields, filter invalid characters while typing/pasting in addition to submit validation. Email inputs must strip/prevent non-ASCII characters. Phone inputs must strip/prevent letters and unsupported symbols, allowing only digits, spaces, dashes, parentheses, dots, and leading plus.
+- Display Thai phone numbers in readable form where possible: 10-digit mobile numbers as `085-555-5555` and 9-digit local numbers as `02-555-5555`.
 - Show field-level error messages in the form for all validation failures.
 - Do not rely on HTML input types alone. Use Zod or the module's existing schema layer as the source of truth.
 - Keep validation practical for Thai business data: allow Thai text where appropriate, but reject control characters, obviously invalid punctuation, malformed identifiers, and negative values where not allowed.
