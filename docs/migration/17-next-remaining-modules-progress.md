@@ -630,10 +630,25 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ### F5: Supplier Advance
 
-- [ ] API `/api/finance/supplier-advance`
-- [ ] Page `/finance/supplier-advance`
-- [ ] read baseline first
+- [x] API `/api/finance/supplier-advance`
+- [x] Page `/finance/supplier-advance`
+- [x] read baseline first
 - [ ] modal/form only after allocation rule clear
+
+#### Execution Log
+
+- Task: F5 Supplier Advance read baseline.
+- Legacy refs: `old-apps/vue/src/views/finance/SupplierAdvanceView.vue`, legacy `view-supplierAdvance` in `old-apps/legacy/index.html`.
+- Files changed: `apps/next/src/app/api/finance/supplier-advance/route.ts`, `apps/next/src/app/finance/supplier-advance/page.tsx`, `apps/next/src/components/finance/SupplierAdvancePageClient.tsx`, `docs/api/openapi.yaml`, `docs/migration/18-next-system-sitemap.md`, this tracker.
+- DB/API changes: added `GET /api/finance/supplier-advance`; no schema migration; reads `bank_statement` rows with `ref_type = 'SADV'`, plus `suppliers` and `accounts`.
+- Source/schema note: dev-target currently has no `supplier_advances` or `advance_allocations` table and no `SADV` bank rows; allocation is exposed as missing source metadata, not guessed.
+- Buttons/actions checked: read-only page with filters and `.xlsx` export; no create/cancel/allocation mutation.
+- Modal/form checked: intentionally deferred until allocation rule and table ownership are confirmed.
+- Validation added: query parsing, date/search/status/supplier filters, summary totals, source schema metadata.
+- Playwright smoke: desktop `1440x900` and mobile `390x844` loaded `/finance/supplier-advance`; `GET /api/finance/supplier-advance?pageSize=100` returned `200`; `.xlsx` export returned `200`; no console warnings/errors.
+- Commands: `git diff --check`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 200`.
+- Result: validated; OpenAPI remains valid with existing skeleton warnings.
+- Commit: pending.
 
 ### F6: Customer Advance
 
