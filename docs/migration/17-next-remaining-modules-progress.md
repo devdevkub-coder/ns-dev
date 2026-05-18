@@ -23,6 +23,8 @@
   - page order ที่ควรทำก่อนหลังคืออะไร
   - risk/open decisions ที่ห้ามเดาเองคืออะไร
 - ทุก batch ย่อยต้องอัปเดตเอกสารนี้ทันทีหลังจบงานหรือเมื่อเปลี่ยน schema/API contract
+- ทุก route ใหม่หรือ route ที่เปลี่ยนสถานะ ต้องอัปเดต system sitemap
+- ทุก API ใหม่หรือ API contract ที่เปลี่ยน ต้องอัปเดต OpenAPI spec
 - หลังแต่ละ batch ย่อยต้องรัน:
   - `npm run type-check --workspace @ns-scrap-erp/next`
   - `npm run lint --workspace @ns-scrap-erp/next`
@@ -135,6 +137,56 @@
 - Testing:
   - [ ] automated smoke test สำหรับ master/data transaction routes
   - [ ] browser QA authenticated route walk
+
+## Batch PRE: System Map and API Contract Baseline
+
+ต้องทำก่อนเริ่ม Batch S หรือ batch ใหญ่ถัดไป เพื่อให้ไม่หลุด route/API contract ระหว่าง port ต่อ
+
+### PRE0: System Sitemap Baseline
+
+#### PRE0.1 Route Inventory
+
+- [ ] สร้าง `docs/migration/18-next-system-sitemap.md`
+- [ ] ดึง route จาก `apps/next/src/lib/navigation.ts`
+- [ ] ดึง page/API ที่มีจริงจาก `apps/next/src/app`
+- [ ] map route -> section -> status
+
+#### PRE0.2 Page Metadata
+
+- [ ] บันทึก status ต่อหน้า: `done`, `read baseline`, `partial write`, `missing`, `deferred`
+- [ ] บันทึก API ที่ผูกกับหน้า
+- [ ] บันทึก DB/table หลัก
+- [ ] บันทึก buttons/actions/modal/export ที่มีหรือยังขาด
+- [ ] บันทึก permission ที่ใช้
+
+#### PRE0.3 Sitemap QA
+
+- [ ] ตรวจ route ที่อยู่ใน navigation แต่ยังไม่มี page จริง
+- [ ] ตรวจ page ที่มีจริงแต่ไม่มี navigation item
+- [ ] ตรวจ API ที่มีจริงแต่ยังไม่มี sitemap mapping
+- [ ] commit/push sitemap baseline
+
+### PRE1: OpenAPI Skeleton
+
+#### PRE1.1 Spec Foundation
+
+- [ ] สร้าง `docs/api/openapi.yaml`
+- [ ] กำหนด OpenAPI version, title, version, server placeholders
+- [ ] กำหนด security scheme สำหรับ Supabase/session auth โดยไม่ใส่ secret
+- [ ] กำหนด tags ตามหมวด: Master Data, Daily, Production, Stock, Finance, Tracking, Admin
+
+#### PRE1.2 Existing API Catalog
+
+- [ ] ใส่ API ที่มีจริงตอนนี้แบบ skeleton ก่อน
+- [ ] ใส่ path, method, tag, summary, auth requirement
+- [ ] ใส่ common error response schema
+- [ ] ยังไม่ต้องละเอียดทุก field ถ้า endpoint ซับซ้อน
+
+#### PRE1.3 OpenAPI Maintenance Rule
+
+- [ ] เพิ่ม note ใน tracker ว่า API ใหม่ทุกตัวต้องอัปเดต OpenAPI ใน batch เดียวกัน
+- [ ] เพิ่ม sitemap/OpenAPI check เข้า QA checklist ของแต่ละ page batch
+- [ ] commit/push OpenAPI baseline
 
 ## Batch S: Stock
 
@@ -688,11 +740,12 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ## Current Priority Queue
 
-1. Batch S: Stock
-2. Batch F: Finance and Debt
-3. Batch T: Tracking 360
-4. Batch D: Dual Costing / Trading / PO
-5. Batch FF: Foreign Finance
-6. Batch A: Finance / Accounting
-7. Batch M: Main Dashboards and Operational Control
-8. Batch SYS: System and Cleanup
+1. Batch PRE: System Map and API Contract Baseline
+2. Batch S: Stock
+3. Batch F: Finance and Debt
+4. Batch T: Tracking 360
+5. Batch D: Dual Costing / Trading / PO
+6. Batch FF: Foreign Finance
+7. Batch A: Finance / Accounting
+8. Batch M: Main Dashboards and Operational Control
+9. Batch SYS: System and Cleanup

@@ -421,9 +421,11 @@ Tracker: [16-next-production-progress.md](/Users/watcharathatsrithanesiganon/Doc
 
 Tracker หลักสำหรับงานที่เหลือทั้งหมด: [17-next-remaining-modules-progress.md](/Users/watcharathatsrithanesiganon/Documents/GitHub/ns-scrap-erp/docs/migration/17-next-remaining-modules-progress.md)
 
-1. เริ่ม `Batch S: Stock` ตาม task ย่อยใน tracker ใหม่
-2. ใช้ legacy explorer ก่อนเริ่มแต่ละ page เพื่อเช็ก field/button/modal/action จากระบบเก่า
-3. ใช้ QA checker หลังจบแต่ละ batch ย่อยเพื่อเช็กปุ่ม/modal/filter/export/page/API
-4. อัปเดต tracker หลังจบ batch ย่อยทุกครั้ง
-5. รัน type-check/lint/build แล้ว commit/push ทุก checkpoint
-6. งานเก่าค้างยังต้องตามใน tracker: production write flow, purchase void/PO reconciliation, sales write/FIFO, stock transfer void/cost, payment approval persistence, branch-scope permission, automated smoke tests
+1. เริ่ม `Batch PRE: System Map and API Contract Baseline` ก่อน Batch S
+2. สร้าง system sitemap และ OpenAPI skeleton เพื่อคุม route/API contract
+3. เริ่ม `Batch S: Stock` ตาม task ย่อยใน tracker ใหม่
+4. ใช้ legacy explorer ก่อนเริ่มแต่ละ page เพื่อเช็ก field/button/modal/action จากระบบเก่า
+5. ใช้ QA checker หลังจบแต่ละ batch ย่อยเพื่อเช็กปุ่ม/modal/filter/export/page/API
+6. อัปเดต tracker, sitemap, และ OpenAPI หลังจบ batch ย่อยทุกครั้ง
+7. รัน type-check/lint/build แล้ว commit/push ทุก checkpoint
+8. งานเก่าค้างยังต้องตามใน tracker: production write flow, purchase void/PO reconciliation, sales write/FIFO, stock transfer void/cost, payment approval persistence, branch-scope permission, automated smoke tests
