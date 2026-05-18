@@ -95,6 +95,38 @@ function compareRecords(left: MasterDataRecord, right: MasterDataRecord, key: So
   return String(leftValue ?? '').localeCompare(String(rightValue ?? ''), 'th', { numeric: true }) * multiplier
 }
 
+function validateMasterDataForm(config: MasterDataPageConfig, values: MasterDataFormValues) {
+  const parsed = masterDataFormSchema.safeParse(values)
+  const errors: Record<string, string> = {}
+
+  if (!parsed.success) {
+    for (const issue of parsed.error.issues) {
+      const key = String(issue.path[0] ?? '')
+      if (key && !errors[key]) errors[key] = issue.message
+    }
+  }
+
+  for (const field of config.fields) {
+    const key = String(field.key)
+    const value = values[field.key]
+    const textValue = typeof value === 'string' ? value.trim() : value
+
+    if (field.required && (textValue === null || textValue === undefined || textValue === '')) {
+      errors[key] = `กรอก${field.label}`
+      continue
+    }
+
+    if (field.type === 'select' && textValue) {
+      const allowedValues = new Set(field.options?.map((option) => option.value) ?? [])
+      if (allowedValues.size > 0 && !allowedValues.has(String(textValue))) {
+        errors[key] = `${field.label}ไม่อยู่ในตัวเลือกที่กำหนด`
+      }
+    }
+  }
+
+  return { errors, values: parsed.success ? parsed.data : null }
+}
+
 export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
   const [error, setError] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
@@ -359,23 +391,29 @@ function MasterDataForm({ config, isSaving, record, supportsActive, onCancel, on
   }, [record])
 
   function update<K extends keyof MasterDataFormValues>(key: K, value: MasterDataFormValues[K]) {
-    setForm((current) => ({ ...current, [key]: value }))
+    setForm((current) => {
+      const next = { ...current, [key]: value }
+      if (Object.keys(errors).length > 0) {
+        setErrors(validateMasterDataForm(config, next).errors)
+      }
+      return next
+    })
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const parsed = masterDataFormSchema.safeParse(form)
-    if (!parsed.success) {
-      setErrors(Object.fromEntries(parsed.error.issues.map((issue) => [String(issue.path[0]), issue.message])))
+    const result = validateMasterDataForm(config, form)
+    if (Object.keys(result.errors).length > 0 || !result.values) {
+      setErrors(result.errors)
       return
     }
 
     setErrors({})
-    await onSubmit(parsed.data)
+    await onSubmit(result.values)
   }
 
   return (
-    <form className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl" onSubmit={handleSubmit}>
+    <form noValidate className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl" onSubmit={handleSubmit}>
       <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-lg font-bold text-slate-900">{form.id ? `แก้ไข${config.entityName}` : config.createLabel}</h3>
         {supportsActive ? <ActiveToggle checked={form.active} onChange={(checked) => update('active', checked)} /> : null}
@@ -419,8 +457,14 @@ function FormField({ error, field, value, onChange }: FormFieldProps) {
   if (field.type === 'select') {
     return (
       <label className="block text-sm font-medium">
-        {field.label}
-        <select className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-slate-700" required={field.required} value={String(value ?? '')} onChange={(event) => onChange(event.target.value)}>
+        {field.label}{field.required ? <span className="text-red-600"> *</span> : null}
+        <select
+          aria-invalid={Boolean(error)}
+          aria-required={field.required}
+          className={`mt-1.5 w-full rounded-lg border px-3 py-2 outline-none focus:border-slate-700 ${error ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
+          value={String(value ?? '')}
+          onChange={(event) => onChange(event.target.value)}
+        >
           <option value="">ไม่ระบุ</option>
           {field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
@@ -431,10 +475,11 @@ function FormField({ error, field, value, onChange }: FormFieldProps) {
 
   return (
     <label className="block text-sm font-medium">
-      {field.label}
+      {field.label}{field.required ? <span className="text-red-600"> *</span> : null}
       <input
-        className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-slate-700"
-        required={field.required}
+        aria-invalid={Boolean(error)}
+        aria-required={field.required}
+        className={`mt-1.5 w-full rounded-lg border px-3 py-2 outline-none focus:border-slate-700 ${error ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
         type={field.type === 'number' ? 'number' : 'text'}
         value={String(value ?? '')}
         onChange={(event) => onChange(event.target.value)}
