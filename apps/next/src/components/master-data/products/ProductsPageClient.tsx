@@ -88,6 +88,7 @@ export function ProductsPageClient() {
   const [metalGroupFilter, setMetalGroupFilter] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
+  const [pendingToggleIds, setPendingToggleIds] = useState<Set<string>>(new Set())
   const [productTypeFilter, setProductTypeFilter] = useState('')
   const [products, setProducts] = useState<Product[]>([])
   const [search, setSearch] = useState('')
@@ -167,13 +168,26 @@ export function ProductsPageClient() {
     }
   }
 
-  async function handleToggleActive(product: Product) {
+  async function handleToggleActive(product: Product, active: boolean) {
     setError(null)
+    setPendingToggleIds((current) => new Set(current).add(product.id))
+    setProducts((current) => current.map((row) => row.id === product.id ? { ...row, active } : row))
+    setSelectedProduct((current) => current?.id === product.id ? { ...current, active } : current)
+
     try {
-      await setProductActive(product.id, !product.active)
-      await loadData()
+      const updatedProduct = await setProductActive(product.id, active)
+      setProducts((current) => current.map((row) => row.id === updatedProduct.id ? updatedProduct : row))
+      setSelectedProduct((current) => current?.id === updatedProduct.id ? updatedProduct : current)
     } catch (caught) {
+      setProducts((current) => current.map((row) => row.id === product.id ? { ...row, active: product.active } : row))
+      setSelectedProduct((current) => current?.id === product.id ? { ...current, active: product.active } : current)
       setError(getErrorMessage(caught, 'อัปเดตสถานะสินค้าไม่ได้'))
+    } finally {
+      setPendingToggleIds((current) => {
+        const next = new Set(current)
+        next.delete(product.id)
+        return next
+      })
     }
   }
 
@@ -415,7 +429,12 @@ export function ProductsPageClient() {
                   <td className="p-2 text-right">{formatNumber(product.stdCost)}</td>
                   <td className="p-2 text-right">{product.targetMarginPct === null ? '-' : `${formatNumber(product.targetMarginPct)}%`}</td>
                   <td className="p-2 text-center">
-                    <ActiveToggle checked={product.active} label={product.active ? 'ใช้งาน' : 'ปิด'} onChange={() => void handleToggleActive(product)} />
+                    <ActiveToggle
+                      checked={product.active}
+                      disabled={pendingToggleIds.has(product.id)}
+                      label={product.active ? 'ใช้งาน' : 'ปิด'}
+                      onChange={(active) => void handleToggleActive(product, active)}
+                    />
                   </td>
                   <td className="p-2 text-center">
                     <button

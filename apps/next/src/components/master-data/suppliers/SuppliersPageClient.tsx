@@ -130,6 +130,7 @@ export function SuppliersPageClient() {
   const [isExporting, setIsExporting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [pendingToggleIds, setPendingToggleIds] = useState<Set<string>>(new Set())
   const [supplierTypeFilter, setSupplierTypeFilter] = useState('')
   const [marketScopeFilter, setMarketScopeFilter] = useState('')
   const [page, setPage] = useState(1)
@@ -236,13 +237,26 @@ export function SuppliersPageClient() {
     }
   }
 
-  async function handleToggleActive(supplier: Supplier) {
+  async function handleToggleActive(supplier: Supplier, active: boolean) {
     setError(null)
+    setPendingToggleIds((current) => new Set(current).add(supplier.id))
+    setSuppliers((current) => current.map((row) => row.id === supplier.id ? { ...row, active } : row))
+    setSelectedSupplier((current) => current?.id === supplier.id ? { ...current, active } : current)
+
     try {
-      await setSupplierActive(supplier.id, !supplier.active)
-      await loadData()
+      const updatedSupplier = await setSupplierActive(supplier.id, active)
+      setSuppliers((current) => current.map((row) => row.id === updatedSupplier.id ? updatedSupplier : row))
+      setSelectedSupplier((current) => current?.id === updatedSupplier.id ? updatedSupplier : current)
     } catch (caught) {
+      setSuppliers((current) => current.map((row) => row.id === supplier.id ? { ...row, active: supplier.active } : row))
+      setSelectedSupplier((current) => current?.id === supplier.id ? { ...current, active: supplier.active } : current)
       setError(getErrorMessage(caught, 'อัปเดตสถานะผู้ขายไม่ได้'))
+    } finally {
+      setPendingToggleIds((current) => {
+        const next = new Set(current)
+        next.delete(supplier.id)
+        return next
+      })
     }
   }
 
@@ -462,7 +476,12 @@ export function SuppliersPageClient() {
                   <td className="p-2 text-right">{supplier.creditTerm ?? '-'}</td>
                   <td className="p-2 text-right">{formatMoney(supplier.creditLimit)}</td>
                   <td className="p-2 text-center">
-                    <ActiveToggle checked={supplier.active} label={supplier.active ? 'ใช้งาน' : 'ปิด'} onChange={() => void handleToggleActive(supplier)} />
+                    <ActiveToggle
+                      checked={supplier.active}
+                      disabled={pendingToggleIds.has(supplier.id)}
+                      label={supplier.active ? 'ใช้งาน' : 'ปิด'}
+                      onChange={(active) => void handleToggleActive(supplier, active)}
+                    />
                   </td>
                   <td className="p-2 text-center">
                     <button

@@ -124,6 +124,7 @@ export function CustomersPageClient() {
   const [isExporting, setIsExporting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [pendingToggleIds, setPendingToggleIds] = useState<Set<string>>(new Set())
   const [customerTypeFilter, setCustomerTypeFilter] = useState('')
   const [marketScopeFilter, setMarketScopeFilter] = useState('')
   const [page, setPage] = useState(1)
@@ -230,13 +231,26 @@ export function CustomersPageClient() {
     }
   }
 
-  async function handleToggleActive(customer: Customer) {
+  async function handleToggleActive(customer: Customer, active: boolean) {
     setError(null)
+    setPendingToggleIds((current) => new Set(current).add(customer.id))
+    setCustomers((current) => current.map((row) => row.id === customer.id ? { ...row, active } : row))
+    setSelectedCustomer((current) => current?.id === customer.id ? { ...current, active } : current)
+
     try {
-      await setCustomerActive(customer.id, !customer.active)
-      await loadData()
+      const updatedCustomer = await setCustomerActive(customer.id, active)
+      setCustomers((current) => current.map((row) => row.id === updatedCustomer.id ? updatedCustomer : row))
+      setSelectedCustomer((current) => current?.id === updatedCustomer.id ? updatedCustomer : current)
     } catch (caught) {
+      setCustomers((current) => current.map((row) => row.id === customer.id ? { ...row, active: customer.active } : row))
+      setSelectedCustomer((current) => current?.id === customer.id ? { ...current, active: customer.active } : current)
       setError(getErrorMessage(caught, 'อัปเดตสถานะลูกค้าไม่ได้'))
+    } finally {
+      setPendingToggleIds((current) => {
+        const next = new Set(current)
+        next.delete(customer.id)
+        return next
+      })
     }
   }
 
@@ -456,7 +470,12 @@ export function CustomersPageClient() {
                   <td className="p-2 text-right">{customer.creditTerm ?? '-'}</td>
                   <td className="p-2 text-right">{formatMoney(customer.creditLimit)}</td>
                   <td className="p-2 text-center">
-                    <ActiveToggle checked={customer.active} label={customer.active ? 'ใช้งาน' : 'ปิด'} onChange={() => void handleToggleActive(customer)} />
+                    <ActiveToggle
+                      checked={customer.active}
+                      disabled={pendingToggleIds.has(customer.id)}
+                      label={customer.active ? 'ใช้งาน' : 'ปิด'}
+                      onChange={(active) => void handleToggleActive(customer, active)}
+                    />
                   </td>
                   <td className="p-2 text-center">
                     <button

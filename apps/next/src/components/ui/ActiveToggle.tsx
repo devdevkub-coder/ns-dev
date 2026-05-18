@@ -2,15 +2,17 @@
 
 type ActiveToggleProps = {
   checked: boolean
+  disabled?: boolean
   label?: string | null
   onChange: (checked: boolean) => void
 }
 
-export function ActiveToggle({ checked, label = 'ใช้งาน', onChange }: ActiveToggleProps) {
+export function ActiveToggle({ checked, disabled = false, label = 'ใช้งาน', onChange }: ActiveToggleProps) {
   return (
     <button
       aria-checked={checked}
-      className="inline-flex items-center gap-2 rounded-full px-1 py-1 text-sm text-slate-600 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+      className="inline-flex items-center gap-2 rounded-full px-1 py-1 text-sm text-slate-600 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+      disabled={disabled}
       role="switch"
       type="button"
       onClick={(event) => {

@@ -217,9 +217,16 @@ export function AdminUsersPageClient() {
   }, [data?.roles, search])
 
   async function updateUserStatus(userId: string, active: boolean) {
+    const previousActive = data?.users.find((user) => user.id === userId)?.active
     setSavingUserId(userId)
     setError(null)
     setNotice(null)
+    setData((current) => current
+      ? {
+          ...current,
+          users: current.users.map((user) => user.id === userId ? { ...user, active } : user),
+        }
+      : current)
 
     try {
       const response = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/status`, {
@@ -236,6 +243,14 @@ export function AdminUsersPageClient() {
           }
         : current)
     } catch (caught) {
+      if (previousActive !== undefined) {
+        setData((current) => current
+          ? {
+              ...current,
+              users: current.users.map((user) => user.id === userId ? { ...user, active: previousActive } : user),
+            }
+          : current)
+      }
       setError(getErrorMessage(caught, 'อัปเดตสถานะผู้ใช้ไม่ได้'))
     } finally {
       setSavingUserId(null)
@@ -475,9 +490,7 @@ export function AdminUsersPageClient() {
                     <td className="p-2">{user.roles.map((role) => role.name).join(', ') || '-'}</td>
                     <td className="p-2">{user.branches.length ? user.branches.map((branch) => branch.name).join(', ') : 'ทุกสาขา'}</td>
                     <td className="p-2 text-center">
-                      <span className={savingUserId === user.id ? 'pointer-events-none opacity-60' : ''}>
-                        <ActiveToggle checked={user.active} label={statusText(user.active)} onChange={(checked) => void updateUserStatus(user.id, checked)} />
-                      </span>
+                      <ActiveToggle checked={user.active} disabled={savingUserId === user.id} label={statusText(user.active)} onChange={(checked) => void updateUserStatus(user.id, checked)} />
                     </td>
                     <td className="p-2 text-center">
                       <button
