@@ -11,6 +11,7 @@ import {
   type SupplierFormValues,
 } from '@/lib/supplier'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
+import { getErrorMessage } from '@/lib/api-client'
 import { formatPhoneDisplay, sanitizePhoneInput } from '@/lib/format'
 import { listThaiDistricts, listThaiProvinces, listThaiSubdistricts, type ThaiDistrict, type ThaiProvince, type ThaiSubdistrict } from '@/lib/thai-address'
 
@@ -149,7 +150,7 @@ export function SuppliersPageClient() {
       })
       setSuppliers(result.rows)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลผู้ขายไม่ได้')
+      setError(getErrorMessage(caught, 'โหลดข้อมูลผู้ขายไม่ได้'))
     } finally {
       setIsLoading(false)
     }
@@ -203,7 +204,7 @@ export function SuppliersPageClient() {
     try {
       await loadAddressData()
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลที่อยู่ไทยไม่ได้')
+      setError(getErrorMessage(caught, 'โหลดข้อมูลที่อยู่ไทยไม่ได้'))
       return
     }
     setFormOpen(true)
@@ -214,7 +215,7 @@ export function SuppliersPageClient() {
     try {
       await loadAddressData()
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลที่อยู่ไทยไม่ได้')
+      setError(getErrorMessage(caught, 'โหลดข้อมูลที่อยู่ไทยไม่ได้'))
       return
     }
     setFormOpen(true)
@@ -229,7 +230,7 @@ export function SuppliersPageClient() {
       setSelectedSupplier(null)
       await loadData()
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'บันทึกข้อมูลผู้ขายไม่ได้')
+      setError(getErrorMessage(caught, 'บันทึกข้อมูลผู้ขายไม่ได้'))
     } finally {
       setIsSaving(false)
     }
@@ -241,7 +242,7 @@ export function SuppliersPageClient() {
       await setSupplierActive(supplier.id, !supplier.active)
       await loadData()
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'อัปเดตสถานะผู้ขายไม่ได้')
+      setError(getErrorMessage(caught, 'อัปเดตสถานะผู้ขายไม่ได้'))
     }
   }
 
@@ -265,7 +266,7 @@ export function SuppliersPageClient() {
       link.remove()
       window.URL.revokeObjectURL(url)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Export Excel ไม่สำเร็จ')
+      setError(getErrorMessage(caught, 'Export Excel ไม่สำเร็จ'))
     } finally {
       setIsExporting(false)
     }

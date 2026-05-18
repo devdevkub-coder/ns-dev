@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { mapPrismaSupplier } from '@/lib/domain/supplier'
+import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
 
@@ -38,6 +39,6 @@ export async function PATCH(request: Request, { params }: SupplierRouteProps) {
     return NextResponse.json(mapPrismaSupplier(supplier))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
-    return NextResponse.json({ error: caught instanceof Error ? caught.message : 'อัปเดตสถานะผู้ขายไม่ได้' }, { status: 400 })
+    return apiErrorResponse(caught, 'อัปเดตสถานะผู้ขายไม่ได้', 400)
   }
 }

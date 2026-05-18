@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { getErrorMessage, readJsonResponse } from '@/lib/api-client'
+import { z } from 'zod'
 
 type AuditUser = { displayName: string | null; username: string } | null
 
@@ -9,7 +11,7 @@ type AuditEvent = {
   createdAt: string
   eventType: string
   id: string
-  metadata: unknown
+  metadata?: unknown
   target: AuditUser
   userAgent: string | null
 }
@@ -21,6 +23,27 @@ type AuditPayload = {
   total: number
   totalPages: number
 }
+
+const auditUserSchema = z.object({
+  displayName: z.string().nullable(),
+  username: z.string(),
+}).nullable()
+
+const auditPayloadSchema = z.object({
+  page: z.number().int().min(1),
+  pageSize: z.number().int().min(1),
+  rows: z.array(z.object({
+    actor: auditUserSchema,
+    createdAt: z.string(),
+    eventType: z.string(),
+    id: z.string(),
+    metadata: z.any().default(null), // Audit metadata is arbitrary JSON from DB.
+    target: auditUserSchema,
+    userAgent: z.string().nullable(),
+  })),
+  total: z.number().int().min(0),
+  totalPages: z.number().int().min(1),
+})
 
 type EventGroup = 'all' | 'auth' | 'users' | 'permissions' | 'activity'
 
@@ -114,11 +137,7 @@ export function AuditLogPageClient() {
     try {
       const search = buildQuery({ actor, eventType, group, page, pageSize, q: query, target })
       const response = await fetch(`/api/admin/auth-events?${search}`, { cache: 'no-store' })
-      const payload = await response.json().catch(() => null)
-
-      if (!response.ok) {
-        throw new Error(payload?.error ?? 'โหลด Audit & Activity Log ไม่สำเร็จ')
-      }
+      const payload = await readJsonResponse(response, auditPayloadSchema, 'โหลด Audit & Activity Log ไม่สำเร็จ')
 
       setData({
         page: Number(payload?.page ?? page),
@@ -128,7 +147,7 @@ export function AuditLogPageClient() {
         totalPages: Math.max(1, Number(payload?.totalPages ?? 1)),
       })
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'โหลด Audit & Activity Log ไม่สำเร็จ')
+      setError(getErrorMessage(caught, 'โหลด Audit & Activity Log ไม่สำเร็จ'))
     } finally {
       setIsLoading(false)
     }

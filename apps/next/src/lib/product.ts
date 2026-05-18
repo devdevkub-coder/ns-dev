@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { readBlobResponse, readJsonResponse } from '@/lib/api-client'
 
 const blankToNull = (value: unknown) => (typeof value === 'string' && value.trim() === '' ? null : value)
 const codePattern = /^[A-Za-z0-9_-]+$/
@@ -120,16 +121,6 @@ export const productFormSchema = z.object({
 
 export type ProductFormValues = z.infer<typeof productFormSchema>
 
-async function readJson<TSchema extends z.ZodTypeAny>(response: Response, schema: TSchema): Promise<z.output<TSchema>> {
-  const payload = await response.json().catch(() => null)
-
-  if (!response.ok) {
-    throw new Error(payload?.error ?? 'Request failed')
-  }
-
-  return schema.parse(payload)
-}
-
 export async function listProducts(options: ProductListOptions = {}): Promise<ProductListResult> {
   const params = new URLSearchParams()
   if (options.active) params.set('active', options.active)
@@ -145,7 +136,7 @@ export async function listProducts(options: ProductListOptions = {}): Promise<Pr
 
   const query = params.toString()
   const response = await fetch(`/api/master-data/products${query ? `?${query}` : ''}`, { cache: 'no-store' })
-  return readJson(response, productListResultSchema)
+  return readJsonResponse(response, productListResultSchema, 'โหลดข้อมูลสินค้าไม่ได้')
 }
 
 export async function saveProduct(values: ProductFormValues): Promise<Product> {
@@ -155,7 +146,7 @@ export async function saveProduct(values: ProductFormValues): Promise<Product> {
     body: JSON.stringify(values),
   })
 
-  return readJson(response, productSchema)
+  return readJsonResponse(response, productSchema, 'บันทึกข้อมูลสินค้าไม่ได้')
 }
 
 export async function setProductActive(productId: string, active: boolean): Promise<Product> {
@@ -165,7 +156,7 @@ export async function setProductActive(productId: string, active: boolean): Prom
     body: JSON.stringify({ active }),
   })
 
-  return readJson(response, productSchema)
+  return readJsonResponse(response, productSchema, 'อัปเดตสถานะสินค้าไม่ได้')
 }
 
 export async function exportProducts(options: ProductListOptions = {}): Promise<{ blob: Blob; filename: string }> {
@@ -180,15 +171,11 @@ export async function exportProducts(options: ProductListOptions = {}): Promise<
 
   const query = params.toString()
   const response = await fetch(`/api/master-data/products/export${query ? `?${query}` : ''}`, { cache: 'no-store' })
-  if (!response.ok) {
-    const payload = await response.json().catch(() => null)
-    throw new Error(payload?.error ?? 'Export Excel ไม่สำเร็จ')
-  }
 
   const disposition = response.headers.get('content-disposition') ?? ''
   const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? `products_${new Date().toISOString().slice(0, 10)}.xlsx`
   return {
-    blob: await response.blob(),
+    blob: await readBlobResponse(response, 'Export Excel ไม่สำเร็จ'),
     filename,
   }
 }

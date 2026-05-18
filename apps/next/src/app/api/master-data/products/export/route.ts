@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { mapPrismaProduct } from '@/lib/domain/product'
+import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
@@ -147,6 +148,6 @@ export async function GET(request: Request) {
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
-    return NextResponse.json({ error: caught instanceof Error ? caught.message : 'Export Excel ไม่สำเร็จ' }, { status: 500 })
+    return apiErrorResponse(caught, 'Export Excel ไม่สำเร็จ', 500)
   }
 }

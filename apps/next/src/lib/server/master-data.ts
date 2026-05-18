@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { masterDataFormSchema, masterDataRecordSchema } from '@/lib/master-data'
+import { apiErrorResponse } from '@/lib/server/api-error'
 
 export const updateMasterDataStatusSchema = z.object({
   active: z.boolean(),
@@ -34,10 +35,7 @@ export function masterDataListJson(rows: Array<Record<string, unknown>>) {
 }
 
 export function errorJson(caught: unknown, fallback: string, status = 400) {
-  const authStatus = caught instanceof Error && caught.name === 'AuthContextError' && 'status' in caught && typeof caught.status === 'number'
-    ? caught.status
-    : null
-  return NextResponse.json({ error: caught instanceof Error ? caught.message : fallback }, { status: authStatus ?? status })
+  return apiErrorResponse(caught, fallback, status)
 }
 
 export function normalizeCode(value: string | null | undefined, fallback: string) {

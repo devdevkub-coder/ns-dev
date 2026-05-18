@@ -11,6 +11,7 @@ import {
   type CustomerFormValues,
 } from '@/lib/customer'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
+import { getErrorMessage } from '@/lib/api-client'
 import { formatPhoneDisplay, sanitizePhoneInput } from '@/lib/format'
 import { listThaiDistricts, listThaiProvinces, listThaiSubdistricts, type ThaiDistrict, type ThaiProvince, type ThaiSubdistrict } from '@/lib/thai-address'
 
@@ -143,7 +144,7 @@ export function CustomersPageClient() {
       })
       setCustomers(result.rows)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลลูกค้าไม่ได้')
+      setError(getErrorMessage(caught, 'โหลดข้อมูลลูกค้าไม่ได้'))
     } finally {
       setIsLoading(false)
     }
@@ -197,7 +198,7 @@ export function CustomersPageClient() {
     try {
       await loadAddressData()
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลที่อยู่ไทยไม่ได้')
+      setError(getErrorMessage(caught, 'โหลดข้อมูลที่อยู่ไทยไม่ได้'))
       return
     }
     setFormOpen(true)
@@ -208,7 +209,7 @@ export function CustomersPageClient() {
     try {
       await loadAddressData()
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลที่อยู่ไทยไม่ได้')
+      setError(getErrorMessage(caught, 'โหลดข้อมูลที่อยู่ไทยไม่ได้'))
       return
     }
     setFormOpen(true)
@@ -223,7 +224,7 @@ export function CustomersPageClient() {
       setSelectedCustomer(null)
       await loadData()
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'บันทึกข้อมูลลูกค้าไม่ได้')
+      setError(getErrorMessage(caught, 'บันทึกข้อมูลลูกค้าไม่ได้'))
     } finally {
       setIsSaving(false)
     }
@@ -235,7 +236,7 @@ export function CustomersPageClient() {
       await setCustomerActive(customer.id, !customer.active)
       await loadData()
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'อัปเดตสถานะลูกค้าไม่ได้')
+      setError(getErrorMessage(caught, 'อัปเดตสถานะลูกค้าไม่ได้'))
     }
   }
 
@@ -259,7 +260,7 @@ export function CustomersPageClient() {
       link.remove()
       window.URL.revokeObjectURL(url)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Export Excel ไม่สำเร็จ')
+      setError(getErrorMessage(caught, 'Export Excel ไม่สำเร็จ'))
     } finally {
       setIsExporting(false)
     }

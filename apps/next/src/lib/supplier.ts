@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { readBlobResponse, readJsonResponse } from '@/lib/api-client'
 
 const blankToNull = (value: unknown) => (typeof value === 'string' && value.trim() === '' ? null : value)
 const businessTextPattern = /^[\p{L}\p{M}\p{N}\s.&,()/'"-]+$/u
@@ -182,12 +183,6 @@ export const supplierFormSchema = z.object({
 
 export type SupplierFormValues = z.infer<typeof supplierFormSchema>
 
-async function readJson<TSchema extends z.ZodTypeAny>(response: Response, schema: TSchema): Promise<z.output<TSchema>> {
-  const payload = await response.json().catch(() => null)
-  if (!response.ok) throw new Error(payload?.error ?? 'Request failed')
-  return schema.parse(payload)
-}
-
 export async function listSuppliers(options: SupplierListOptions = {}): Promise<SupplierListResult> {
   const params = new URLSearchParams()
   if (options.all) params.set('all', '1')
@@ -201,7 +196,7 @@ export async function listSuppliers(options: SupplierListOptions = {}): Promise<
 
   const query = params.toString()
   const response = await fetch(`/api/master-data/suppliers${query ? `?${query}` : ''}`, { cache: 'no-store' })
-  return readJson(response, supplierListResultSchema)
+  return readJsonResponse(response, supplierListResultSchema, 'โหลดข้อมูลผู้ขายไม่ได้')
 }
 
 export async function exportSuppliers(options: SupplierListOptions = {}): Promise<{ blob: Blob; filename: string }> {
@@ -214,15 +209,11 @@ export async function exportSuppliers(options: SupplierListOptions = {}): Promis
 
   const query = params.toString()
   const response = await fetch(`/api/master-data/suppliers/export${query ? `?${query}` : ''}`, { cache: 'no-store' })
-  if (!response.ok) {
-    const payload = await response.json().catch(() => null)
-    throw new Error(payload?.error ?? 'Export Excel ไม่สำเร็จ')
-  }
 
   const disposition = response.headers.get('content-disposition') ?? ''
   const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? `suppliers_${new Date().toISOString().slice(0, 10)}.xlsx`
   return {
-    blob: await response.blob(),
+    blob: await readBlobResponse(response, 'Export Excel ไม่สำเร็จ'),
     filename,
   }
 }
@@ -233,7 +224,7 @@ export async function saveSupplier(values: SupplierFormValues): Promise<Supplier
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(values),
   })
-  return readJson(response, supplierSchema)
+  return readJsonResponse(response, supplierSchema, 'บันทึกข้อมูลผู้ขายไม่ได้')
 }
 
 export async function setSupplierActive(supplierId: string, active: boolean): Promise<Supplier> {
@@ -242,5 +233,5 @@ export async function setSupplierActive(supplierId: string, active: boolean): Pr
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ active }),
   })
-  return readJson(response, supplierSchema)
+  return readJsonResponse(response, supplierSchema, 'อัปเดตสถานะผู้ขายไม่ได้')
 }

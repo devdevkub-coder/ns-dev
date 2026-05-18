@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
+import { getErrorMessage } from '@/lib/api-client'
 import {
   exportProducts,
   listProducts,
@@ -101,7 +102,7 @@ export function ProductsPageClient() {
       const result = await listProducts({ all: true })
       setProducts(result.rows)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลสินค้าไม่ได้')
+      setError(getErrorMessage(caught, 'โหลดข้อมูลสินค้าไม่ได้'))
     } finally {
       setIsLoading(false)
     }
@@ -160,7 +161,7 @@ export function ProductsPageClient() {
       setSelectedProduct(null)
       await loadData()
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'บันทึกข้อมูลสินค้าไม่ได้')
+      setError(getErrorMessage(caught, 'บันทึกข้อมูลสินค้าไม่ได้'))
     } finally {
       setIsSaving(false)
     }
@@ -172,7 +173,7 @@ export function ProductsPageClient() {
       await setProductActive(product.id, !product.active)
       await loadData()
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'อัปเดตสถานะสินค้าไม่ได้')
+      setError(getErrorMessage(caught, 'อัปเดตสถานะสินค้าไม่ได้'))
     }
   }
 
@@ -198,7 +199,7 @@ export function ProductsPageClient() {
       link.remove()
       window.URL.revokeObjectURL(url)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Export Excel ไม่สำเร็จ')
+      setError(getErrorMessage(caught, 'Export Excel ไม่สำเร็จ'))
     } finally {
       setIsExporting(false)
     }

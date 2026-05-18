@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { readBlobResponse, readJsonResponse } from '@/lib/api-client'
 
 const blankToNull = (value: unknown) => (typeof value === 'string' && value.trim() === '' ? null : value)
 const businessTextPattern = /^[\p{L}\p{M}\p{N}\s.&,()/'"-]+$/u
@@ -187,16 +188,6 @@ export const customerFormSchema = z.object({
 
 export type CustomerFormValues = z.infer<typeof customerFormSchema>
 
-async function readJson<TSchema extends z.ZodTypeAny>(response: Response, schema: TSchema): Promise<z.output<TSchema>> {
-  const payload = await response.json().catch(() => null)
-
-  if (!response.ok) {
-    throw new Error(payload?.error ?? 'Request failed')
-  }
-
-  return schema.parse(payload)
-}
-
 export async function listCustomers(options: CustomerListOptions = {}): Promise<CustomerListResult> {
   const params = new URLSearchParams()
   if (options.all) params.set('all', '1')
@@ -210,7 +201,7 @@ export async function listCustomers(options: CustomerListOptions = {}): Promise<
 
   const query = params.toString()
   const response = await fetch(`/api/master-data/customers${query ? `?${query}` : ''}`, { cache: 'no-store' })
-  return readJson(response, customerListResultSchema)
+  return readJsonResponse(response, customerListResultSchema, 'โหลดข้อมูลลูกค้าไม่ได้')
 }
 
 export async function exportCustomers(options: CustomerListOptions = {}): Promise<{ blob: Blob; filename: string }> {
@@ -223,15 +214,11 @@ export async function exportCustomers(options: CustomerListOptions = {}): Promis
 
   const query = params.toString()
   const response = await fetch(`/api/master-data/customers/export${query ? `?${query}` : ''}`, { cache: 'no-store' })
-  if (!response.ok) {
-    const payload = await response.json().catch(() => null)
-    throw new Error(payload?.error ?? 'Export Excel ไม่สำเร็จ')
-  }
 
   const disposition = response.headers.get('content-disposition') ?? ''
   const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? `customers_${new Date().toISOString().slice(0, 10)}.xlsx`
   return {
-    blob: await response.blob(),
+    blob: await readBlobResponse(response, 'Export Excel ไม่สำเร็จ'),
     filename,
   }
 }
@@ -243,7 +230,7 @@ export async function saveCustomer(values: CustomerFormValues): Promise<Customer
     body: JSON.stringify(values),
   })
 
-  return readJson(response, customerSchema)
+  return readJsonResponse(response, customerSchema, 'บันทึกข้อมูลลูกค้าไม่ได้')
 }
 
 export async function setCustomerActive(customerId: string, active: boolean): Promise<Customer> {
@@ -253,5 +240,5 @@ export async function setCustomerActive(customerId: string, active: boolean): Pr
     body: JSON.stringify({ active }),
   })
 
-  return readJson(response, customerSchema)
+  return readJsonResponse(response, customerSchema, 'อัปเดตสถานะลูกค้าไม่ได้')
 }

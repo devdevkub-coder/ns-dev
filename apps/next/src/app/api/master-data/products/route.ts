@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { mapPrismaProduct, toProductWriteInput } from '@/lib/domain/product'
 import { productFormSchema } from '@/lib/product'
+import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
 import type { Prisma } from '../../../../../generated/prisma/client'
@@ -89,7 +90,7 @@ export async function GET(request: Request) {
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
-    return NextResponse.json({ error: caught instanceof Error ? caught.message : 'โหลดข้อมูลสินค้าไม่ได้' }, { status: 500 })
+    return apiErrorResponse(caught, 'โหลดข้อมูลสินค้าไม่ได้', 500)
   }
 }
 
@@ -105,7 +106,7 @@ export async function POST(request: Request) {
     } else {
       requirePermission(context, 'master.products.create')
       if (existing) {
-        return NextResponse.json({ error: 'รหัสสินค้านี้มีอยู่แล้ว' }, { status: 409 })
+        return NextResponse.json({ code: 'CONFLICT', error: 'รหัสสินค้านี้มีอยู่แล้ว' }, { status: 409 })
       }
     }
 
@@ -116,6 +117,6 @@ export async function POST(request: Request) {
     return NextResponse.json(mapPrismaProduct(product))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
-    return NextResponse.json({ error: caught instanceof Error ? caught.message : 'บันทึกข้อมูลสินค้าไม่ได้' }, { status: 400 })
+    return apiErrorResponse(caught, 'บันทึกข้อมูลสินค้าไม่ได้', 400)
   }
 }

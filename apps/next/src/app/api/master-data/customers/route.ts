@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { resolveMx } from 'node:dns/promises'
 import { customerFormSchema } from '@/lib/customer'
 import { mapPrismaCustomer, toCustomerWriteInput } from '@/lib/domain/customer'
+import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
 import type { Prisma } from '../../../../../generated/prisma/client'
@@ -130,7 +131,7 @@ export async function GET(request: Request) {
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
-    return NextResponse.json({ error: caught instanceof Error ? caught.message : 'โหลดข้อมูลลูกค้าไม่ได้' }, { status: 500 })
+    return apiErrorResponse(caught, 'โหลดข้อมูลลูกค้าไม่ได้', 500)
   }
 }
 
@@ -156,6 +157,6 @@ export async function POST(request: Request) {
     return NextResponse.json(mapPrismaCustomer(customer))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
-    return NextResponse.json({ error: caught instanceof Error ? caught.message : 'บันทึกข้อมูลลูกค้าไม่ได้' }, { status: 400 })
+    return apiErrorResponse(caught, 'บันทึกข้อมูลลูกค้าไม่ได้', 400)
   }
 }

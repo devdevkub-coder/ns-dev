@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import type { User } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
-import { NextResponse } from 'next/server'
+import { apiErrorResponse } from '@/lib/server/api-error'
 import { prisma } from '@/lib/server/prisma'
 
 export type AppRoleSummary = {
@@ -174,11 +174,7 @@ export function requirePermission(context: AppAuthContext, permissionCode: strin
 }
 
 export function authContextErrorResponse(caught: unknown) {
-  if (caught instanceof AuthContextError) {
-    return NextResponse.json({ error: caught.message }, { status: caught.status })
-  }
-
-  return NextResponse.json({ error: caught instanceof Error ? caught.message : 'ตรวจสอบสิทธิ์ไม่สำเร็จ' }, { status: 500 })
+  return apiErrorResponse(caught, 'ตรวจสอบสิทธิ์ไม่สำเร็จ', 500)
 }
 
 export function serializeAuthContext(context: AppAuthContext) {

@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
+import { getErrorMessage, readJsonResponse } from '@/lib/api-client'
+import { z } from 'zod'
 
 type AdminUsersPayload = {
   branches: Array<{
@@ -48,6 +50,65 @@ type AdminUsersPayload = {
     username: string
   }>
 }
+
+const adminUsersPayloadSchema = z.object({
+  branches: z.array(z.object({
+    code: z.string(),
+    id: z.string(),
+    name: z.string(),
+  })),
+  roles: z.array(z.object({
+    active: z.boolean(),
+    branchScope: z.string(),
+    canEditOpeningBalance: z.boolean(),
+    canSeeCash: z.boolean(),
+    canSeeCost: z.boolean(),
+    canSeeFinancials: z.boolean(),
+    canSeeProfit: z.boolean(),
+    code: z.string(),
+    description: z.string().nullable(),
+    id: z.string(),
+    isSystem: z.boolean(),
+    name: z.string(),
+  })),
+  users: z.array(z.object({
+    active: z.boolean(),
+    authUserId: z.string().nullable(),
+    branchIds: z.array(z.string()),
+    branches: z.array(z.object({
+      code: z.string(),
+      id: z.string(),
+      name: z.string(),
+    })),
+    createdAt: z.string().nullable(),
+    displayName: z.string().nullable(),
+    email: z.string().nullable(),
+    id: z.string(),
+    lastLoginAt: z.string().nullable(),
+    mustChangePassword: z.boolean(),
+    roles: z.array(z.object({
+      branchScope: z.string(),
+      code: z.string(),
+      id: z.string(),
+      name: z.string(),
+    })),
+    updatedAt: z.string().nullable(),
+    username: z.string(),
+  })),
+})
+
+const statusUpdateSchema = z.object({
+  active: z.boolean(),
+})
+
+const inviteResultSchema = z.object({
+  mode: z.enum(['invite', 'reset']),
+  sent: z.boolean(),
+})
+
+const saveUserResultSchema = z.object({
+  id: z.string(),
+})
 
 type TabKey = 'users' | 'roles'
 type AdminUser = AdminUsersPayload['users'][number]
@@ -112,15 +173,11 @@ export function AdminUsersPageClient() {
 
     try {
       const response = await fetch('/api/admin/users', { cache: 'no-store' })
-      const payload = await response.json().catch(() => null)
+      const payload = await readJsonResponse(response, adminUsersPayloadSchema, 'โหลดข้อมูลผู้ใช้ไม่ได้')
 
-      if (!response.ok) {
-        throw new Error(payload?.error ?? 'โหลดข้อมูลผู้ใช้ไม่ได้')
-      }
-
-      setData(payload as AdminUsersPayload)
+      setData(payload)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลผู้ใช้ไม่ได้')
+      setError(getErrorMessage(caught, 'โหลดข้อมูลผู้ใช้ไม่ได้'))
     } finally {
       setIsLoading(false)
     }
@@ -170,11 +227,7 @@ export function AdminUsersPageClient() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ active }),
       })
-      const payload = await response.json().catch(() => null)
-
-      if (!response.ok) {
-        throw new Error(payload?.error ?? 'อัปเดตสถานะผู้ใช้ไม่ได้')
-      }
+      const payload = await readJsonResponse(response, statusUpdateSchema, 'อัปเดตสถานะผู้ใช้ไม่ได้')
 
       setData((current) => current
         ? {
@@ -183,7 +236,7 @@ export function AdminUsersPageClient() {
           }
         : current)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'อัปเดตสถานะผู้ใช้ไม่ได้')
+      setError(getErrorMessage(caught, 'อัปเดตสถานะผู้ใช้ไม่ได้'))
     } finally {
       setSavingUserId(null)
     }
@@ -200,16 +253,12 @@ export function AdminUsersPageClient() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ redirectTo: `${window.location.origin}/reset-password` }),
       })
-      const payload = await response.json().catch(() => null)
-
-      if (!response.ok) {
-        throw new Error(payload?.error ?? 'ส่ง invite/reset password ไม่สำเร็จ')
-      }
+      const payload = await readJsonResponse(response, inviteResultSchema, 'ส่ง invite/reset password ไม่สำเร็จ')
 
       setNotice(payload?.mode === 'invite' ? `ส่ง invite ไปที่ ${user.email} แล้ว` : `ส่ง reset password ไปที่ ${user.email} แล้ว`)
       await loadData()
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'ส่ง invite/reset password ไม่สำเร็จ')
+      setError(getErrorMessage(caught, 'ส่ง invite/reset password ไม่สำเร็จ'))
     } finally {
       setActionUserId(null)
     }
@@ -276,18 +325,14 @@ export function AdminUsersPageClient() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       })
-      const payload = await response.json().catch(() => null)
-
-      if (!response.ok) {
-        throw new Error(payload?.error ?? 'บันทึกผู้ใช้ไม่ได้')
-      }
+      await readJsonResponse(response, saveUserResultSchema, 'บันทึกผู้ใช้ไม่ได้')
 
       setFormOpen(false)
       setEditingUser(null)
       setForm(emptyUserForm)
       await loadData()
     } catch (caught) {
-      setFormError(caught instanceof Error ? caught.message : 'บันทึกผู้ใช้ไม่ได้')
+      setFormError(getErrorMessage(caught, 'บันทึกผู้ใช้ไม่ได้'))
     } finally {
       setIsSaving(false)
     }
