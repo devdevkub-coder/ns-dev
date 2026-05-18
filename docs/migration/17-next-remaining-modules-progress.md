@@ -584,13 +584,27 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ### F3: Bank Statement
 
-- [ ] API `/api/finance/bank`
-- [ ] Page `/finance/bank`
-- [ ] read `bank_statement`
-- [ ] filters: account/date/ref type/type
-- [ ] running balance
-- [ ] detail modal
-- [ ] export `.xlsx`
+- [x] API `/api/finance/bank`
+- [x] Page `/finance/bank`
+- [x] read `bank_statement`
+- [x] filters: account/date/ref type/type
+- [x] running balance
+- [x] detail modal
+- [x] export `.xlsx`
+
+#### Execution Log
+
+- Task: F3 Bank Statement read/reconciliation baseline.
+- Legacy refs: `old-apps/vue/src/views/finance/BankStatementView.vue`, legacy cleanup/reconciliation references in `old-apps/legacy/index.html` around `bank_statement`.
+- Files changed: `apps/next/src/app/api/finance/bank/route.ts`, `apps/next/src/app/finance/bank/page.tsx`, `apps/next/src/components/finance/BankStatementPageClient.tsx`, `docs/api/openapi.yaml`, `docs/migration/18-next-system-sitemap.md`, this tracker.
+- DB/API changes: added `GET /api/finance/bank`; no schema migration; reads `bank_statement` and `accounts`.
+- Buttons/actions checked: summary/detail tabs, account/date/ref/type/search filters, date sort toggle, pagination, export `.xlsx`, row detail open/close.
+- Modal/form checked: row detail modal only; no write form in F3.
+- Validation added: server query parsing, pagination bounds, running balance fallback from account opening balance plus visible ledger flow, OpenAPI parameters.
+- Playwright smoke: desktop `/finance/bank` loaded with `GET /api/finance/bank` 200, detail modal opened, export endpoint returned `.xlsx` 200; mobile 390x844 loaded with API 200 and no new console warning/error.
+- Commands: `git diff --check`; `npm run type-check --workspace @ns-scrap-erp/next`; `npm run lint --workspace @ns-scrap-erp/next`; `npm run build --workspace @ns-scrap-erp/next`; `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 200`.
+- Result: F3 Bank Statement read/reconciliation baseline validated. OpenAPI remains valid with existing skeleton warnings outside hardened finance endpoints.
+- Commit: this checkpoint.
 
 ### F4: Cash Position
 

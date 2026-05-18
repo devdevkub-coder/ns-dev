@@ -125,7 +125,7 @@ Status terms:
 |---|---|---|---|---|---|
 | `/finance/ar` | ลูกหนี้ (AR) | read baseline | `GET /api/finance/ar` | `sales_bills`, `receipts`, `customers`, `branches` | `finance.cash.view` |
 | `/finance/ap` | เจ้าหนี้ (AP) | read baseline | `GET /api/finance/ap` | `purchase_bills`, `payments` | `finance.cash.view` |
-| `/finance/bank` | Cash / Bank Statement | placeholder | missing | `bank_statement`, `accounts` expected | `finance.cash.view` |
+| `/finance/bank` | Cash / Bank Statement | read baseline | `GET /api/finance/bank` | `bank_statement`, `accounts` | `finance.cash.view` |
 | `/finance/cash-position` | Cash Position | placeholder | missing | `accounts`, `bank_statement` expected | `finance.cash.view` |
 | `/finance/supplier-advance` | จ่ายล่วงหน้า Supplier | placeholder | missing | TBD | `finance.cash.view` |
 | `/finance/customer-advance` | รับล่วงหน้าจาก Customer | placeholder | missing | TBD | `finance.cash.view` |
