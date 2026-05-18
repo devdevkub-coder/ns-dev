@@ -16,6 +16,13 @@
   - `npm run type-check --workspace @ns-scrap-erp/next`
   - `npm run lint --workspace @ns-scrap-erp/next`
   - `npm run build --workspace @ns-scrap-erp/next`
+- QA ของแต่ละ page batch ต้องใช้ Playwright browser smoke ด้วย ยกเว้น task เป็น docs-only:
+  - เปิด route ที่ทำ
+  - เช็ก console error/network failure
+  - เช็ก filter/pagination/sort
+  - เช็กปุ่มหลัก
+  - เช็ก modal เปิด/ปิด
+  - เช็ก desktop และ mobile viewport
 - หลัง validation ผ่าน ต้อง commit และ push เป็น checkpoint
 - ถ้า batch ใช้เวลานาน ให้เช็กเอกสารนี้เป็น checkpoint ทุกประมาณ 10 นาที แล้วทำ task ถัดไปต่อทันที
 - ใช้ subagent แบบช่วยตรวจ ไม่ใช่ตัวตัดสินใจหลัก:
@@ -39,9 +46,45 @@
 - [ ] API/form write ใช้ Zod/syntax validation เมื่อมี mutation
 - [ ] Export เป็น `.xlsx` สำหรับ business export ใหม่; CSV ได้เฉพาะ legacy/read baseline ชั่วคราวที่ระบุไว้
 - [ ] Error/loading/empty states มีข้อความผู้ใช้เข้าใจได้
+- [ ] Playwright smoke ผ่านสำหรับ route นี้
+  - [ ] desktop viewport
+  - [ ] mobile viewport
+  - [ ] no console error
+  - [ ] no failed API request
+  - [ ] buttons/modal interaction checked
 - [ ] เอกสาร tracker อัปเดต
 - [ ] type-check/lint/build ผ่าน
 - [ ] commit/push checkpoint
+
+## Task Execution Log Template
+
+ทุก task ย่อยที่เป็น code/DB/UI ต้องบันทึก log สั้น ๆ ใน section ของ batch นั้นก่อน commit:
+
+```text
+#### Execution Log
+
+- Task:
+- Legacy refs:
+- Files changed:
+- DB/API changes:
+- Buttons/actions checked:
+- Modal/form checked:
+- Validation added:
+- Playwright smoke:
+- Commands:
+- Result:
+- Commit:
+```
+
+กติกา:
+
+- `Legacy refs` ต้องใส่ path/line เมื่อมีการอ้างอิงระบบเก่า
+- `Files changed` ใส่เฉพาะไฟล์สำคัญ ไม่ต้อง list generated output
+- `DB/API changes` ระบุ migration/table/API route
+- `Buttons/actions checked` ระบุปุ่มที่มีจริง และปุ่มที่ intentionally disabled
+- `Playwright smoke` ระบุ desktop/mobile และผล console/network
+- `Commands` ระบุ type-check/lint/build และ test/browser command ที่รัน
+- `Commit` เติม hash หลัง commit/push แล้ว
 
 ## Current Known Carry-over Work
 
