@@ -564,9 +564,23 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ### F2: AP Polish
 
-- [ ] ตรวจ `/finance/ap` ที่มีแล้ว
-- [ ] เพิ่ม filter/sort/pagination/export/detail modal ตาม legacy
-- [ ] reconcile paid/payable from `payments`
+- [x] ตรวจ `/finance/ap` ที่มีแล้ว
+- [x] เพิ่ม filter/sort/pagination/export/detail modal ตาม legacy
+- [x] reconcile paid/payable from `payments`
+
+#### Execution Log
+
+- Task: F2 AP polish.
+- Legacy refs: `old-apps/vue/src/views/finance/ApView.vue`, `old-apps/vue/src/views/purchase/SupplierPaymentsView.vue`.
+- Files changed: `apps/next/src/app/api/finance/ap/route.ts`, `apps/next/src/components/purchase-flow/AccountsPayablePageClient.tsx`, `docs/api/openapi.yaml`, this tracker.
+- DB/API changes: enhanced `GET /api/finance/ap`; no schema migration; reads `purchase_bills`, `payments`, `suppliers`, `branches`, `purchase_channels`.
+- Buttons/actions checked: summary/detail tabs, filters, sort buttons, pagination, export `.xlsx`, row detail open/close.
+- Modal/form checked: row detail modal only; no write form in F2.
+- Validation added: server query parsing, pagination bounds, AP aging buckets, OpenAPI parameters.
+- Playwright smoke: desktop `/finance/ap` loaded with `GET /api/finance/ap` 200, search/filter narrowed rows, detail modal opened, export endpoint returned `.xlsx` 200; mobile 390x844 loaded with API 200 and no new console warning/error.
+- Commands: `git diff --check`; `npm run type-check --workspace @ns-scrap-erp/next`; `npm run lint --workspace @ns-scrap-erp/next`; `npm run build --workspace @ns-scrap-erp/next`; `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 200`.
+- Result: F2 AP polish validated. OpenAPI remains valid with existing skeleton warnings outside hardened finance endpoints.
+- Commit: this checkpoint.
 
 ### F3: Bank Statement
 
