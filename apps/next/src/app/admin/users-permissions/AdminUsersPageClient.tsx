@@ -142,14 +142,11 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 }
 
-function roleFlags(role: AdminUsersPayload['roles'][number]) {
-  return [
-    role.canSeeCost ? 'ต้นทุน' : null,
-    role.canSeeProfit ? 'กำไร' : null,
-    role.canSeeCash ? 'เงินสด' : null,
-    role.canSeeFinancials ? 'งบการเงิน' : null,
-    role.canEditOpeningBalance ? 'Opening' : null,
-  ].filter(Boolean)
+function branchScopeText(value: string) {
+  if (value === 'all') return 'ทุกสาขา'
+  if (value === 'own') return 'เฉพาะสาขาตัวเอง'
+  if (value === 'custom') return 'กำหนดเอง'
+  return value || '-'
 }
 
 export function AdminUsersPageClient() {
@@ -215,6 +212,16 @@ export function AdminUsersPageClient() {
       role.branchScope,
     ].some((value) => String(value ?? '').toLowerCase().includes(query)))
   }, [data?.roles, search])
+
+  const roleUserCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const user of data?.users ?? []) {
+      for (const role of user.roles) {
+        counts.set(role.id, (counts.get(role.id) ?? 0) + 1)
+      }
+    }
+    return counts
+  }, [data?.users])
 
   async function updateUserStatus(userId: string, active: boolean) {
     const previousActive = data?.users.find((user) => user.id === userId)?.active
@@ -521,32 +528,70 @@ export function AdminUsersPageClient() {
         ) : null}
 
         {!isLoading && tab === 'roles' ? (
-          <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
-            {filteredRoles.map((role) => (
-              <article key={role.id} className="rounded-lg border border-slate-200 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="font-bold text-slate-900">{role.name}</h3>
-                    <p className="mt-1 font-mono text-xs text-slate-500">{role.code}</p>
-                  </div>
-                  <span className={`rounded px-2 py-0.5 text-xs ${role.isSystem ? 'bg-slate-200 text-slate-700' : 'bg-blue-100 text-blue-700'}`}>
-                    {role.isSystem ? 'SYSTEM' : 'CUSTOM'}
-                  </span>
-                </div>
-                <p className="mt-2 min-h-10 text-sm text-slate-600">{role.description || '-'}</p>
-                <div className="mt-3 text-xs text-slate-500">Branch Scope: <span className="font-semibold text-slate-700">{role.branchScope}</span></div>
-                <div className="mt-3 flex flex-wrap gap-1">
-                  {roleFlags(role).map((flag) => (
-                    <span key={flag} className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{flag}</span>
-                  ))}
-                  {roleFlags(role).length === 0 ? <span className="text-xs text-slate-400">ไม่มี flag พิเศษ</span> : null}
-                </div>
-              </article>
-            ))}
-            {filteredRoles.length === 0 ? <div className="p-4 text-center text-sm text-slate-500 md:col-span-2 xl:col-span-3">ไม่พบ role</div> : null}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[980px] text-sm">
+              <thead className="bg-slate-100">
+                <tr>
+                  <th className="p-2 text-left">Role</th>
+                  <th className="p-2 text-left">รายละเอียด</th>
+                  <th className="p-2 text-left">ประเภท</th>
+                  <th className="p-2 text-left">สาขา</th>
+                  <th className="p-2 text-right">ผู้ใช้</th>
+                  <th className="p-2 text-center">ต้นทุน</th>
+                  <th className="p-2 text-center">กำไร</th>
+                  <th className="p-2 text-center">เงินสด</th>
+                  <th className="p-2 text-center">งบ</th>
+                  <th className="p-2 text-center">Opening</th>
+                  <th className="p-2 text-center">สถานะ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRoles.map((role) => (
+                  <tr key={role.id} className="border-t align-top hover:bg-slate-50">
+                    <td className="p-2">
+                      <div className="font-semibold text-slate-900">{role.name}</div>
+                      <div className="mt-0.5 font-mono text-xs text-slate-500">{role.code}</div>
+                    </td>
+                    <td className="max-w-[320px] p-2 text-slate-600">{role.description || '-'}</td>
+                    <td className="p-2">
+                      <span className={`rounded px-2 py-0.5 text-xs ${role.isSystem ? 'bg-slate-200 text-slate-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {role.isSystem ? 'SYSTEM' : 'CUSTOM'}
+                      </span>
+                    </td>
+                    <td className="p-2 text-slate-700">{branchScopeText(role.branchScope)}</td>
+                    <td className="p-2 text-right font-semibold">{roleUserCounts.get(role.id) ?? 0}</td>
+                    <RoleCheck enabled={role.canSeeCost} />
+                    <RoleCheck enabled={role.canSeeProfit} />
+                    <RoleCheck enabled={role.canSeeCash} />
+                    <RoleCheck enabled={role.canSeeFinancials} />
+                    <RoleCheck enabled={role.canEditOpeningBalance} />
+                    <td className="p-2 text-center">
+                      <span className={`rounded px-2 py-0.5 text-xs ${role.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
+                        {role.active ? 'ใช้งาน' : 'ปิด'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {filteredRoles.length === 0 ? (
+                  <tr>
+                    <td className="p-4 text-center text-sm text-slate-500" colSpan={11}>ไม่พบ role</td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
           </div>
         ) : null}
       </div>
     </section>
+  )
+}
+
+function RoleCheck({ enabled }: { enabled: boolean }) {
+  return (
+    <td className="p-2 text-center">
+      <span className={`inline-flex size-6 items-center justify-center rounded-full text-xs font-bold ${enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-300'}`}>
+        {enabled ? '✓' : '—'}
+      </span>
+    </td>
   )
 }
