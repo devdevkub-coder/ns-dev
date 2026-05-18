@@ -153,6 +153,31 @@ Status:
 
 Supabase MCP also remains project-level in `.mcp.json`.
 
+## Playwright MCP
+
+Playwright MCP is configured at project level in `.mcp.json`.
+
+```text
+playwright -> npx --yes @playwright/mcp@latest --headless
+```
+
+Purpose:
+- browser QA for the active Next.js app
+- page inspection and accessibility snapshots
+- screenshots and click-path verification
+- support route/page smoke checks before UAT
+
+Status as of 2026-05-18:
+- Node.js `v25.8.1` satisfies the Playwright MCP Node.js requirement.
+- `.mcp.json` validates as JSON.
+- `npx --yes @playwright/mcp@latest --help` runs successfully.
+- Current Codex runtime may need a restart before `/mcp` shows the `playwright` tools.
+
+Operational notes:
+- Keep Playwright MCP project-level unless there is a confirmed need to use it globally across repositories.
+- Use the local Playwright CLI/test tooling for repeatable regression tests.
+- Use Playwright MCP for exploratory browser inspection, click-path debugging, accessibility snapshots, and quick QA reconnaissance.
+
 ## Environment Files
 
 ### `.env.local`

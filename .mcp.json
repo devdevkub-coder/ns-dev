@@ -19,6 +19,16 @@
         "@bitbonsai/mcpvault@latest",
         "/Users/watcharathatsrithanesiganon/Documents/GitHub/ns-scrap-erp"
       ]
+    },
+    "playwright": {
+      "type": "stdio",
+      "description": "Project-level Playwright MCP for browser QA, page inspection, accessibility snapshots, screenshots, and click-path verification of the active Next.js app.",
+      "command": "npx",
+      "args": [
+        "--yes",
+        "@playwright/mcp@latest",
+        "--headless"
+      ]
     }
   }
 }

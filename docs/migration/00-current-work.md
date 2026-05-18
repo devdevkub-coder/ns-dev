@@ -5,17 +5,17 @@
 Date: 2026-05-18  
 Active app: `apps/next`  
 Primary remote: `new-origin`  
-Last pushed checkpoint: current TW4 checkpoint (`chore: upgrade next app to tailwind v4`)
+Last pushed checkpoint: current MCP tooling checkpoint (`chore: add playwright mcp config`)
 
 ## Current Batch
 
-`Batch TW4: Tailwind v4 Migration`
+`Batch MCP: Browser QA Tooling`
 
 Goal:
 
-- Upgrade the active Next.js app from Tailwind CSS v3 to v4.
-- Keep legacy/root Vue Tailwind v3 tooling untouched for now.
-- Validate active Next app build after migration.
+- Add project-level Playwright MCP without replacing existing Supabase/Obsidian MCP config.
+- Keep browser QA tooling discoverable in environment docs.
+- Require Codex restart before expecting the new MCP tools in runtime.
 
 ## File Naming Changes
 
@@ -26,6 +26,9 @@ Goal:
 
 ## Latest Completed Implementation Checkpoints
 
+- `3805587 chore: upgrade next app to tailwind v4`
+  - Upgraded active Next app to Tailwind CSS v4
+  - Validated lint, type-check, build, and Tailwind package resolution
 - `e900c6f docs: require resumable session handoffs`
   - Added resumable session handoff rules to `AGENTS.md`
   - Recorded TW4 as the next active batch after an interrupted install
@@ -72,6 +75,25 @@ Validation passed:
 - `npm run lint --workspace @ns-scrap-erp/next`
 - `npm run type-check --workspace @ns-scrap-erp/next`
 - `npm run build --workspace @ns-scrap-erp/next`
+
+## Playwright MCP Status
+
+Status: configured locally, pending commit/push.
+
+Changes:
+
+- Added `playwright` server to project-level `.mcp.json`.
+- Command: `npx --yes @playwright/mcp@latest --headless`
+- Documented the setup in `docs/migration/10-environment-status.md`.
+
+Validation passed:
+
+- `node -e "JSON.parse(require('fs').readFileSync('.mcp.json','utf8')); console.log('mcp json ok')"`
+- `npx --yes @playwright/mcp@latest --help`
+
+Runtime note:
+
+- Restart Codex before expecting `/mcp` or MCP resources/tools to show the new `playwright` server.
 
 ## Current Priority Queue
 
