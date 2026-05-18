@@ -28,8 +28,8 @@
 | `/daily/expense` | `view-expense` | Batch A Done | Expense voucher list/form + VAT/WHT + payment status baseline |
 | `/daily/petty-advance` | `view-pettyAdvance` | Batch A Done | Petty cash/director advance baseline |
 | `/daily/expense-dashboard` | `view-expenseDashboard` | Batch A Done | Read-only dashboard from expenses |
-| `/stock/transfer` | stock transfer flow | Placeholder | Batch C: inventory movement with branch/warehouse reconciliation |
-| `/daily/bill-swap-history` | `view-billSwapHistory` | Placeholder | Batch C: read-only bill supplier-change audit |
+| `/stock/transfer` | stock transfer flow | Batch C Done | Inventory movement via `stock_ledger` |
+| `/daily/bill-swap-history` | `view-billSwapHistory` | Batch C Done | Read-only bill supplier-change audit |
 
 ## Batch Plan
 
@@ -123,10 +123,26 @@ Scope:
 - `/stock/transfer`
 - `/daily/bill-swap-history`
 
+Status: Done baseline on 2026-05-18.
+
 Tasks:
-- Implement stock transfer page/API only after current stock ledger fields are mapped.
-- Add read-only bill swap history first if table is already present.
-- Define reconciliation query for stock movement count/quantity by product and warehouse.
+- Done: implemented stock transfer page/API using existing `stock_ledger` as source of truth.
+- Done: stock transfer POST creates paired `ST` stock ledger rows:
+  - `โอนระหว่างสาขา-ออก`
+  - `โอนระหว่างสาขา-เข้า`
+- Done: implemented bill swap history read page/API using existing `bill_swap_history`.
+- Follow-up: stock transfer cost currently records `unit_cost = 0` until WAC/lot cost source is confirmed for Next.
+- Follow-up: cancel/void action is not implemented yet; financial/stock traceability decision is still pending.
+
+Validation:
+- Passed: `npm run type-check --workspace @ns-scrap-erp/next`
+- Passed: `npm run lint --workspace @ns-scrap-erp/next`
+- Passed: `npm run build`
+- Build confirmed routes generated:
+  - `/stock/transfer`
+  - `/daily/bill-swap-history`
+  - `/api/stock/transfer`
+  - `/api/daily/bill-swap-history`
 
 ### Batch D: Purchase / Sales Bills
 
@@ -153,9 +169,11 @@ Tasks:
 - Current git checkpoint before daily work: `65a42bc fix: simplify payment and remittance masters`.
 - Planning checkpoint: `3b32499 docs: plan next daily transactions`.
 - Batch A implementation checkpoint: `24ab600 feat: add daily cash expense baseline`.
-- Batch B implementation checkpoint pending commit after this doc update.
+- Batch B implementation checkpoint: `64bcde3 feat: add daily payment receipt baseline`.
+- Batch C implementation checkpoint pending commit after this doc update.
 - Next daily Batch A routes now have real Next pages and API routes.
 - Next daily Batch B payment/receipt routes now have baseline pages and API routes.
+- Next daily Batch C stock transfer/audit routes now have baseline pages and API routes.
 - Legacy daily UI/reference exists under:
   - `old-apps/legacy/index.html`
   - `old-apps/vue/src/views/daily/`
@@ -176,3 +194,4 @@ Tasks:
 - Whether delete actions in legacy should become cancel/void actions in Next for financial traceability. Batch A currently avoids destructive delete actions.
 - Petty advance `spent` is currently `0` in Next baseline until expense-to-advance allocation is wired.
 - Payment approval persistence/print sheet is not fully ported yet; current Batch B is an actionable queue/read surface plus payment/receipt write APIs.
+- Stock transfer uses `stock_ledger` directly; no separate header table has been created yet.
