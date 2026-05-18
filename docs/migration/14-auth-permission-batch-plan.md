@@ -36,6 +36,9 @@
 - `/api/admin/users` exists as the first user-management API slice and requires `system.users.manage`.
 - `/api/admin/users` also supports creating `app_users` with role and branch assignments; it does not create or store passwords.
 - `/api/admin/users/[id]` supports editing app user profile, role assignments, branch access, active status, and must-change-password flag.
+- `/api/admin/users/[id]/invite` supports admin-triggered invite/reset email:
+  - users without `auth_user_id`: sends Supabase Auth invite with service-role key on trusted server
+  - users with `auth_user_id`: sends Supabase reset-password email
 - `/admin/users-permissions` exists as a Next page over real `app_users`, `app_roles`, and active branches, with create/edit modal flow.
 - User active/inactive can be changed from `/admin/users-permissions` through `/api/admin/users/[id]/status`; self-deactivation is blocked.
 - Admin Supabase Auth user has been linked into `app_users` through `scripts/seed-app-admin.mjs`; the script reads `APP_ADMIN_EMAIL` or `DEV_LOGIN_IDENTIFIER` and does not store passwords.
@@ -313,3 +316,4 @@ Validation:
 | 2026-05-18 | B3 read-only users/permissions page: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Added `/admin/users-permissions` read-only page and kept forgot/reset password pages outside the app shell |
 | 2026-05-18 | B3 user status toggle: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Added `/api/admin/users/[id]/status` and active toggle in user table; self-deactivation returns 400 |
 | 2026-05-18 | B3 user create/edit flow: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Added protected create/edit app user APIs and `/admin/users-permissions` modal form for username, email, display name, roles, branch access, active status, and must-change-password flag; no password storage or admin-set password |
+| 2026-05-18 | B3 invite/reset user action: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Added trusted-server Supabase admin helper, `/api/admin/users/[id]/invite`, user-table Invite/Reset action, and `.env.example` placeholders for Next Supabase env/service-role key; no secrets committed |

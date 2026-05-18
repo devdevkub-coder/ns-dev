@@ -95,6 +95,8 @@ export function AdminUsersPageClient() {
   const [data, setData] = useState<AdminUsersPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [actionUserId, setActionUserId] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [savingUserId, setSavingUserId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [tab, setTab] = useState<TabKey>('users')
@@ -160,6 +162,7 @@ export function AdminUsersPageClient() {
   async function updateUserStatus(userId: string, active: boolean) {
     setSavingUserId(userId)
     setError(null)
+    setNotice(null)
 
     try {
       const response = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/status`, {
@@ -183,6 +186,32 @@ export function AdminUsersPageClient() {
       setError(caught instanceof Error ? caught.message : 'อัปเดตสถานะผู้ใช้ไม่ได้')
     } finally {
       setSavingUserId(null)
+    }
+  }
+
+  async function sendUserInvite(user: AdminUser) {
+    setActionUserId(user.id)
+    setError(null)
+    setNotice(null)
+
+    try {
+      const response = await fetch(`/api/admin/users/${encodeURIComponent(user.id)}/invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ redirectTo: `${window.location.origin}/reset-password` }),
+      })
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'ส่ง invite/reset password ไม่สำเร็จ')
+      }
+
+      setNotice(payload?.mode === 'invite' ? `ส่ง invite ไปที่ ${user.email} แล้ว` : `ส่ง reset password ไปที่ ${user.email} แล้ว`)
+      await loadData()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'ส่ง invite/reset password ไม่สำเร็จ')
+    } finally {
+      setActionUserId(null)
     }
   }
 
@@ -373,6 +402,7 @@ export function AdminUsersPageClient() {
         </div>
 
         {error ? <div className="m-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
+        {notice ? <div className="m-4 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{notice}</div> : null}
         {isLoading ? <div className="p-6 text-center text-sm text-slate-500">กำลังโหลดข้อมูล</div> : null}
 
         {!isLoading && tab === 'users' ? (
@@ -386,6 +416,7 @@ export function AdminUsersPageClient() {
                   <th className="p-2 text-left">Role</th>
                   <th className="p-2 text-left">สาขา</th>
                   <th className="p-2 text-center">สถานะ</th>
+                  <th className="p-2 text-center">ตั้งรหัส</th>
                   <th className="p-2 text-left">Login ล่าสุด</th>
                   <th className="p-2 text-center">แก้ไข</th>
                 </tr>
@@ -403,6 +434,16 @@ export function AdminUsersPageClient() {
                         <ActiveToggle checked={user.active} label={statusText(user.active)} onChange={(checked) => void updateUserStatus(user.id, checked)} />
                       </span>
                     </td>
+                    <td className="p-2 text-center">
+                      <button
+                        className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 disabled:opacity-50"
+                        disabled={!user.email || !user.active || actionUserId === user.id}
+                        type="button"
+                        onClick={() => void sendUserInvite(user)}
+                      >
+                        {actionUserId === user.id ? 'กำลังส่ง...' : user.authUserId ? 'Reset' : 'Invite'}
+                      </button>
+                    </td>
                     <td className="p-2 text-slate-600">{formatDate(user.lastLoginAt)}</td>
                     <td className="p-2 text-center">
                       <button className="text-blue-700 hover:underline" type="button" onClick={() => openEditUser(user)}>
@@ -413,7 +454,7 @@ export function AdminUsersPageClient() {
                 ))}
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td className="p-4 text-center text-sm text-slate-500" colSpan={8}>ไม่พบผู้ใช้</td>
+                    <td className="p-4 text-center text-sm text-slate-500" colSpan={9}>ไม่พบผู้ใช้</td>
                   </tr>
                 ) : null}
               </tbody>
