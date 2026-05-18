@@ -79,6 +79,9 @@ type TransactionBillsPageClientProps = {
   mode: 'purchase' | 'sales' | 'stock-issue'
 }
 
+type SortKey = 'date' | 'docNo' | 'itemCount' | 'name' | 'outstanding' | 'refNo' | 'status' | 'totalAmount' | 'transactionMode' | 'warehouse'
+type SortDirection = 'asc' | 'desc'
+
 const blankItem = (): PurchaseBillFormValues['items'][number] => ({
   deductWeight: 0,
   discount: 0,
@@ -130,9 +133,13 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [options, setOptions] = useState<Omit<PurchasePayload, 'rows'>>({ branches: [], channels: [], poBuys: [], products: [], salespersons: [], suppliers: [], warehouses: [] })
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
   const [rows, setRows] = useState<Array<BillRow | StockIssueRow>>([])
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  const [sortKey, setSortKey] = useState<SortKey>('date')
   const apiPath = mode === 'purchase' ? '/api/purchase/bills' : mode === 'sales' ? '/api/sales/bills' : '/api/sales/stock-issue'
 
   const loadData = useCallback(async () => {
@@ -178,6 +185,24 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     })
   }, [dateFrom, dateTo, filterMode, filterSource, mode, rows, search])
 
+  const sortedRows = useMemo(() => {
+    return [...filteredRows].sort((a, b) => {
+      const left = sortValue(a, sortKey, mode)
+      const right = sortValue(b, sortKey, mode)
+      const result = typeof left === 'number' && typeof right === 'number'
+        ? left - right
+        : String(left).localeCompare(String(right), 'th')
+      return sortDirection === 'asc' ? result : -result
+    })
+  }, [filteredRows, mode, sortDirection, sortKey])
+
+  useEffect(() => {
+    setPage(1)
+  }, [dateFrom, dateTo, filterMode, filterSource, pageSize, search, sortDirection, sortKey])
+
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const paginatedRows = sortedRows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const total = filteredRows.reduce((sum, row) => sum + (isStockIssueRow(row) ? row.totalEstAmount : row.totalAmount ?? 0), 0)
   const title = mode === 'purchase' ? 'บิลรับซื้อ' : mode === 'sales' ? 'บิลขาย' : 'เบิกออกรอบิล'
   const activeBranches = options.branches.filter((option) => option.active !== false)
@@ -199,6 +224,15 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     setDateTo('')
     setFilterMode('')
     setFilterSource('')
+  }
+
+  function changeSort(nextKey: SortKey) {
+    if (sortKey === nextKey) {
+      setSortDirection((current) => current === 'asc' ? 'desc' : 'asc')
+      return
+    }
+    setSortKey(nextKey)
+    setSortDirection(nextKey === 'date' || nextKey === 'totalAmount' || nextKey === 'outstanding' ? 'desc' : 'asc')
   }
 
   function openPurchaseForm() {
@@ -340,32 +374,48 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
         <div>พบทั้งหมด <span className="font-semibold text-slate-900">{filteredRows.length}</span> รายการ · รวม <span className="font-semibold text-blue-700">{formatMoney(total)}</span></div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            aria-label="จำนวนรายการต่อหน้า"
+            className="rounded border border-slate-300 px-2 py-1"
+            value={pageSize}
+            onChange={(event) => setPageSize(Number(event.target.value))}
+          >
+            <option value={10}>10 / หน้า</option>
+            <option value={25}>25 / หน้า</option>
+            <option value={50}>50 / หน้า</option>
+            <option value={100}>100 / หน้า</option>
+          </select>
+          <button className="rounded border border-slate-300 px-3 py-1 disabled:opacity-50" disabled={currentPage <= 1} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</button>
+          <span className="px-1">หน้า {currentPage} / {totalPages}</span>
+          <button className="rounded border border-slate-300 px-3 py-1 disabled:opacity-50" disabled={currentPage >= totalPages} type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</button>
+        </div>
       </div>
       <div className="overflow-x-auto rounded-lg bg-white shadow">
         <table className="w-full text-sm">
           <thead className="bg-slate-100">
             <tr>
-              <th className="p-2 text-left">เลขที่</th>
-              {mode === 'purchase' ? <th className="p-2 text-left">เลขที่อ้างอิง</th> : null}
-              <th className="p-2 text-left">วันที่</th>
-              <th className="p-2 text-left">{mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า'}</th>
-              <th className="p-2 text-left">สาขา / คลัง</th>
-              {mode === 'purchase' ? <th className="p-2 text-center">ประเภท</th> : null}
-              <th className="p-2 text-center">สถานะ</th>
-              <th className="p-2 text-right">รายการ</th>
-              <th className="p-2 text-right">ยอดรวม</th>
-              {mode !== 'stock-issue' ? <th className="p-2 text-right">ค้างชำระ</th> : null}
+              <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label="เลขที่" sortKey="docNo" onSort={changeSort} />
+              {mode === 'purchase' ? <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label="เลขที่อ้างอิง" sortKey="refNo" onSort={changeSort} /> : null}
+              <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label="วันที่" sortKey="date" onSort={changeSort} />
+              <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label={mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า'} sortKey="name" onSort={changeSort} />
+              <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label="สาขา / คลัง" sortKey="warehouse" onSort={changeSort} />
+              {mode === 'purchase' ? <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="ประเภท" sortKey="transactionMode" onSort={changeSort} /> : null}
+              <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="สถานะ" sortKey="status" onSort={changeSort} />
+              <SortHeader activeKey={sortKey} align="right" direction={sortDirection} label="รายการ" sortKey="itemCount" onSort={changeSort} />
+              <SortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ยอดรวม" sortKey="totalAmount" onSort={changeSort} />
+              {mode !== 'stock-issue' ? <SortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ค้างชำระ" sortKey="outstanding" onSort={changeSort} /> : null}
             </tr>
           </thead>
           <tbody>
             {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={mode === 'purchase' ? 10 : mode === 'stock-issue' ? 7 : 8}>กำลังโหลดข้อมูล</td></tr> : null}
-            {!isLoading && filteredRows.map((row) => (
+            {!isLoading && paginatedRows.map((row) => (
               <tr key={row.id} className="border-t hover:bg-slate-50">
                 <td className="p-2 font-mono text-xs">{row.docNo}</td>
                 {mode === 'purchase' && !isStockIssueRow(row) ? <td className="p-2 font-mono text-xs text-slate-600">{row.refNo || '-'}</td> : null}
                 <td className="p-2">{row.date}</td>
                 <td className="p-2">{'supplierName' in row ? row.supplierName : row.customerName}</td>
-                <td className="p-2">{row.branchName ?? '-'} / {row.warehouseName ?? '-'}</td>
+                <td className="p-2">{formatBranchWarehouse(row)}</td>
                 {mode === 'purchase' && !isStockIssueRow(row) ? <td className="p-2 text-center"><span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{row.transactionMode ?? '-'}</span></td> : null}
                 <td className="p-2 text-center"><span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{row.status}</span></td>
                 <td className="p-2 text-right">{row.itemCount}</td>
@@ -557,6 +607,64 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 function Segment({ current, label, onClick, value }: { current: string; label: string; onClick: (value: string) => void; value: string }) {
   const active = current === value
   return <button className={`rounded border px-3 py-1 text-xs font-medium ${active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white hover:bg-slate-50'}`} type="button" onClick={() => onClick(value)}>{label}</button>
+}
+
+function SortHeader({ activeKey, align, direction, label, onSort, sortKey }: { activeKey: SortKey; align: 'center' | 'left' | 'right'; direction: SortDirection; label: string; onSort: (key: SortKey) => void; sortKey: SortKey }) {
+  const active = activeKey === sortKey
+  const alignClass = align === 'right' ? 'justify-end text-right' : align === 'center' ? 'justify-center text-center' : 'justify-start text-left'
+  return (
+    <th className={`p-2 ${align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'}`}>
+      <button className={`inline-flex w-full items-center gap-1 ${alignClass} rounded px-1 py-0.5 hover:bg-slate-200`} type="button" onClick={() => onSort(sortKey)}>
+        <span>{label}</span>
+        <span className={`text-[10px] ${active ? 'text-slate-900' : 'text-slate-400'}`}>{active ? direction === 'asc' ? '▲' : '▼' : '↕'}</span>
+      </button>
+    </th>
+  )
+}
+
+function sortValue(row: BillRow | StockIssueRow, key: SortKey, mode: TransactionBillsPageClientProps['mode']) {
+  switch (key) {
+    case 'date':
+      return row.date
+    case 'docNo':
+      return row.docNo
+    case 'itemCount':
+      return row.itemCount
+    case 'name':
+      return 'supplierName' in row ? row.supplierName ?? '' : row.customerName ?? ''
+    case 'outstanding':
+      return isStockIssueRow(row) ? 0 : mode === 'purchase' ? row.payableBalance ?? 0 : row.receivableBalance ?? 0
+    case 'refNo':
+      return 'refNo' in row ? row.refNo ?? '' : ''
+    case 'status':
+      return row.status
+    case 'totalAmount':
+      return isStockIssueRow(row) ? row.totalEstAmount : row.totalAmount ?? 0
+    case 'transactionMode':
+      return 'transactionMode' in row ? row.transactionMode ?? '' : ''
+    case 'warehouse':
+      return formatBranchWarehouse(row)
+  }
+}
+
+function formatBranchWarehouse(row: BillRow | StockIssueRow) {
+  const branch = row.branchName?.trim()
+  const warehouse = row.warehouseName?.trim()
+
+  if (!branch) return warehouse || '-'
+  if (!warehouse || warehouse === '-') return branch
+
+  const normalizedBranch = normalizeBranchWarehouseName(branch)
+  const normalizedWarehouse = normalizeBranchWarehouseName(warehouse)
+  const normalizedWarehouseWithoutPrefix = normalizeBranchWarehouseName(warehouse.replace(/^คลัง/, ''))
+
+  if (normalizedWarehouse === normalizedBranch || normalizedWarehouseWithoutPrefix === normalizedBranch) return branch
+
+  return `${branch} / ${warehouse}`
+}
+
+function normalizeBranchWarehouseName(value: string) {
+  return value.replace(/\s+/g, '').toLowerCase()
 }
 
 function Field({ children, className, error, label }: { children: ReactNode; className?: string; error?: string; label: string }) {
