@@ -1660,7 +1660,6 @@ model suppliers {
   name                String
   tax_id              String?
   phone               String?
-  email               String?
   address             String?
   bank_name           String?
   bank_account        String?

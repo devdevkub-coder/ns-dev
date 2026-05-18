@@ -8,12 +8,6 @@ const generalTextPattern = /^[^\u0000-\u001F\u007F]+$/u
 const personNamePattern = /^[\p{L}\p{M}.' -]+$/u
 const accountNoPattern = /^[0-9][0-9\s-]{1,38}[0-9]$/
 
-const asciiEmailSchema = z.preprocess(blankToNull, z.string().trim()
-  .email('รูปแบบอีเมลไม่ถูกต้อง')
-  .regex(/^[\x20-\x7E]+$/, 'อีเมลต้องใช้ตัวอักษรอังกฤษ ตัวเลข หรือสัญลักษณ์มาตรฐาน')
-  .nullable()
-  .default(null))
-
 const optionalBusinessText = (label: string, maxLength = 160) => z.preprocess(
   blankToNull,
   z.string().trim()
@@ -93,7 +87,6 @@ export const supplierSchema = z.object({
   marketScope: z.enum(['ในประเทศ', 'ต่างประเทศ']).default('ในประเทศ'),
   taxId: z.string().nullable().default(null),
   phone: z.string().nullable().default(null),
-  email: z.string().nullable().default(null),
   address: z.string().nullable().default(null),
   addressNo: z.string().nullable().default(null),
   addressMoo: z.string().nullable().default(null),
@@ -153,7 +146,6 @@ export const supplierFormSchema = z.object({
   marketScope: z.enum(['ในประเทศ', 'ต่างประเทศ']).default('ในประเทศ'),
   taxId: optionalTaxIdSchema,
   phone: phoneSchema,
-  email: asciiEmailSchema,
   address: optionalGeneralText('ที่อยู่เต็ม/หมายเหตุที่อยู่', 500),
   addressNo: optionalGeneralText('บ้านเลขที่', 40),
   addressMoo: optionalMooSchema,
@@ -164,9 +156,9 @@ export const supplierFormSchema = z.object({
   addressProvince: optionalGeneralText('จังหวัด', 120),
   addressPostalCode: optionalPostalCodeSchema,
   addressCountry: z.preprocess(blankToNull, z.string().trim().max(80, 'ประเทศยาวเกินไป').regex(personNamePattern, 'ประเทศมีรูปแบบไม่ถูกต้อง').nullable().default('ไทย')),
-  bankName: optionalGeneralText('ธนาคาร', 120),
+  bankName: optionalGeneralText('ธนาคารรับเงิน', 120),
   accountNo: optionalAccountNoSchema,
-  bankAccount: optionalGeneralText('ชื่อบัญชี', 160),
+  bankAccount: optionalGeneralText('ชื่อบัญชีรับเงิน', 160),
   branchId: optionalGeneralText('รหัสสาขา', 80),
   salesId: z.preprocess(blankToNull, z.string().trim().regex(/^[A-Za-z0-9_-]+$/, 'ผู้ดูแลมีรูปแบบไม่ถูกต้อง').nullable().default(null)),
   salesName: optionalBusinessText('ชื่อผู้ดูแล', 160),

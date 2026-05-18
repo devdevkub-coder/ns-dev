@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { resolveMx } from 'node:dns/promises'
 import { supplierFormSchema } from '@/lib/supplier'
 import { mapPrismaSupplier, toSupplierWriteInput } from '@/lib/domain/supplier'
 import { apiErrorResponse } from '@/lib/server/api-error'
@@ -14,7 +13,8 @@ const sortColumns = {
   code: 'code',
   creditLimit: 'credit_limit',
   creditTerm: 'credit_term',
-  email: 'email',
+  accountNo: 'bank_account',
+  bankName: 'bank_name',
   name: 'name',
   phone: 'phone',
   salesName: 'sales_rep',
@@ -62,7 +62,6 @@ function supplierSearchWhere(q: string, supplierType: string, marketScope: strin
     { type: { contains: q, mode: 'insensitive' } },
     { tax_id: { contains: q, mode: 'insensitive' } },
     { phone: { contains: q, mode: 'insensitive' } },
-    { email: { contains: q, mode: 'insensitive' } },
     { address: { contains: q, mode: 'insensitive' } },
     { bank_name: { contains: q, mode: 'insensitive' } },
     { bank_account: { contains: q, mode: 'insensitive' } },
@@ -94,24 +93,6 @@ async function getNextSupplierCode() {
   const lastNumber = Number(String(lastSupplier?.code ?? '').replace(/^SUP/i, ''))
   const nextNumber = Number.isFinite(lastNumber) ? lastNumber + 1 : 1
   return `SUP${String(nextNumber).padStart(3, '0')}`
-}
-
-async function assertEmailDomainCanReceiveMail(email: string | null) {
-  if (!email) return
-
-  const domain = email.split('@')[1]?.toLowerCase()
-  if (!domain) {
-    throw new Error('รูปแบบอีเมลไม่ถูกต้อง')
-  }
-
-  try {
-    const records = await resolveMx(domain)
-    if (records.length === 0) {
-      throw new Error('โดเมนอีเมลนี้ไม่รองรับการรับอีเมล')
-    }
-  } catch {
-    throw new Error('ตรวจสอบโดเมนอีเมลไม่ผ่าน')
-  }
 }
 
 async function getActiveSalespersonName(salesId: string | null) {
@@ -170,7 +151,6 @@ export async function POST(request: Request) {
 
     const body = await request.json()
     const values = supplierFormSchema.parse(body)
-    await assertEmailDomainCanReceiveMail(values.email)
     const salesName = await getActiveSalespersonName(values.salesId)
     const code = values.id ? values.code : await getNextSupplierCode()
     const payload = toSupplierWriteInput({ ...values, code, salesName })

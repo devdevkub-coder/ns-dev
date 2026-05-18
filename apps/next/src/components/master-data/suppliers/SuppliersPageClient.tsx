@@ -16,7 +16,7 @@ import { formatPhoneDisplay, sanitizeAccountNoInput, sanitizePhoneInput } from '
 import { listMasterDataRecords, type MasterDataRecord } from '@/lib/master-data'
 import { listThaiDistricts, listThaiProvinces, listThaiSubdistricts, type ThaiDistrict, type ThaiProvince, type ThaiSubdistrict } from '@/lib/thai-address'
 
-type SortKey = 'code' | 'name' | 'taxId' | 'type' | 'phone' | 'email' | 'salesName' | 'creditTerm' | 'creditLimit' | 'active'
+type SortKey = 'code' | 'name' | 'taxId' | 'type' | 'phone' | 'bankName' | 'accountNo' | 'salesName' | 'creditTerm' | 'creditLimit' | 'active'
 
 const emptySupplierForm: SupplierFormValues = {
   id: undefined,
@@ -28,7 +28,6 @@ const emptySupplierForm: SupplierFormValues = {
   type: 'นิติบุคคล',
   taxId: null,
   phone: '',
-  email: null,
   address: null,
   addressNo: null,
   addressMoo: null,
@@ -65,7 +64,6 @@ function supplierToForm(supplier: Supplier): SupplierFormValues {
     type: supplier.type,
     taxId: supplier.taxId,
     phone: formatPhoneDisplay(supplier.phone) ?? '',
-    email: supplier.email,
     address: supplier.address,
     addressNo: supplier.addressNo,
     addressMoo: supplier.addressMoo,
@@ -459,7 +457,8 @@ export function SuppliersPageClient() {
                 <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('taxId')}>เลขผู้เสียภาษี{sortLabel('taxId')}</button></th>
                 <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('type')}>ประเภท{sortLabel('type')}</button></th>
                 <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('phone')}>โทร{sortLabel('phone')}</button></th>
-                <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('email')}>อีเมล{sortLabel('email')}</button></th>
+                <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('bankName')}>ธนาคารรับเงิน{sortLabel('bankName')}</button></th>
+                <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('accountNo')}>เลขที่บัญชีรับเงิน{sortLabel('accountNo')}</button></th>
                 <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('salesName')}>ผู้ดูแล{sortLabel('salesName')}</button></th>
                 <th className="min-w-[220px] p-2 text-left">ที่อยู่</th>
                 <th className="p-2 text-right"><button className="font-semibold" type="button" onClick={() => setSort('creditTerm')}>Term (วัน){sortLabel('creditTerm')}</button></th>
@@ -488,7 +487,8 @@ export function SuppliersPageClient() {
                   <td className="p-2 font-mono text-xs">{displayValue(supplier.taxId)}</td>
                   <td className="p-2">{displayValue(supplier.type)}</td>
                   <td className="p-2">{displayValue(formatPhoneDisplay(supplier.phone))}</td>
-                  <td className="p-2">{displayValue(supplier.email)}</td>
+                  <td className="p-2">{displayValue(supplier.bankName)}</td>
+                  <td className="p-2 font-mono text-xs">{displayValue(supplier.accountNo)}</td>
                   <td className="p-2">{displayValue(supplier.salesName)}</td>
                   <td className="p-2">{displayValue(supplier.address)}</td>
                   <td className="p-2 text-right">{supplier.creditTerm ?? '-'}</td>
@@ -517,7 +517,7 @@ export function SuppliersPageClient() {
               ))}
               {paginatedSuppliers.length === 0 ? (
                 <tr>
-                  <td className="p-4 text-center text-sm text-slate-500" colSpan={12}>ไม่พบข้อมูลที่ค้นหา</td>
+                  <td className="p-4 text-center text-sm text-slate-500" colSpan={13}>ไม่พบข้อมูลที่ค้นหา</td>
                 </tr>
               ) : null}
             </tbody>
@@ -663,7 +663,6 @@ function SupplierForm({ supplier, districts, isSaving, provinces, salespersons, 
           <h4 className="mb-3 text-sm font-bold text-slate-700">ช่องทางติดต่อ</h4>
           <div className="grid gap-4 md:grid-cols-4">
             <TextField error={errors.phone} label="โทรศัพท์" value={form.phone ?? ''} onChange={(value) => update('phone', value)} />
-            <TextField error={errors.email} label="อีเมล" type="email" value={form.email ?? ''} onChange={(value) => update('email', value || null)} />
           </div>
         </section>
 
@@ -710,9 +709,9 @@ function SupplierForm({ supplier, districts, isSaving, provinces, salespersons, 
         <section>
           <h4 className="mb-3 text-sm font-bold text-slate-700">ข้อมูลบัญชีและสาขา</h4>
           <div className="grid gap-4 md:grid-cols-4">
-            <TextField error={errors.bankName} label="ธนาคาร" value={form.bankName ?? ''} onChange={(value) => update('bankName', value || null)} />
-            <TextField error={errors.accountNo} label="เลขบัญชี" value={form.accountNo ?? ''} onChange={(value) => update('accountNo', value || null)} />
-            <TextField error={errors.bankAccount} label="ชื่อบัญชี" value={form.bankAccount ?? ''} onChange={(value) => update('bankAccount', value || null)} />
+            <TextField error={errors.bankName} label="ธนาคารรับเงิน" value={form.bankName ?? ''} onChange={(value) => update('bankName', value || null)} />
+            <TextField error={errors.accountNo} label="เลขที่บัญชีรับเงิน" value={form.accountNo ?? ''} onChange={(value) => update('accountNo', value || null)} />
+            <TextField error={errors.bankAccount} label="ชื่อบัญชีรับเงิน" value={form.bankAccount ?? ''} onChange={(value) => update('bankAccount', value || null)} />
             <TextField error={errors.branchId} label="รหัสสาขา" value={form.branchId ?? ''} onChange={(value) => update('branchId', value || null)} />
           </div>
         </section>
@@ -747,7 +746,7 @@ type TextFieldProps = {
 function TextField({ className = '', error, label, readOnly = false, type = 'text', value, onChange }: TextFieldProps) {
   const isEmailField = type === 'email'
   const isPhoneField = label === 'โทรศัพท์'
-  const isAccountNoField = label === 'เลขบัญชี'
+  const isAccountNoField = label === 'เลขบัญชี' || label === 'เลขที่บัญชีรับเงิน'
 
   return (
     <label className={`block text-sm font-medium ${className}`}>

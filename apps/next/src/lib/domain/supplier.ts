@@ -12,7 +12,6 @@ type PrismaSupplier = {
   market_scope: string
   tax_id: string | null
   phone: string | null
-  email: string | null
   address: string | null
   address_no: string | null
   address_moo: string | null
@@ -50,7 +49,6 @@ export function mapPrismaSupplier(row: PrismaSupplier): Supplier {
     marketScope: row.market_scope === 'ต่างประเทศ' ? 'ต่างประเทศ' : 'ในประเทศ',
     taxId: row.tax_id,
     phone: row.phone,
-    email: row.email,
     address: row.address,
     addressNo: row.address_no,
     addressMoo: row.address_moo,
@@ -110,7 +108,6 @@ export function toSupplierWriteInput(values: SupplierFormValues) {
     market_scope: parsed.marketScope,
     tax_id: parsed.taxId || null,
     phone: parsed.phone || null,
-    email: parsed.email || null,
     address: compactAddress(parsed),
     address_no: parsed.addressNo || null,
     address_moo: parsed.addressMoo || null,
