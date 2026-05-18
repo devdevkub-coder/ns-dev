@@ -102,7 +102,7 @@
 - [x] รัน `npm run build` ผ่าน
 - [x] รัน `npm test` ผ่านหลัง route cleanup
 - [x] เติม dev Supabase anon/publishable key จริงใน `.env.local` ก่อนทดสอบ login จริง
-- [ ] เริ่ม Auth/Permission schema + RLS ใน `dev-target`
+- [x] เริ่ม Auth/Permission schema + RLS ใน `dev-target`
 
 ### 1.6 Frontend Clone Surface
 
@@ -151,23 +151,23 @@ Reporting rule:
 ### 3.1 Auth Model
 
 - [x] ยืนยัน direction ว่าจะใช้ `auth.users` เป็น source of truth
-- [ ] ออกแบบ `app_users`
+- [x] ออกแบบ `app_users`
 - [ ] map `public.users` เดิมไป `app_users`
-- [ ] ยกเลิกการใช้ password ใน `public.users`
-- [ ] ทำ forgot/reset password flow ด้วย Supabase Auth
-- [ ] ตัดสินใจ username login: email-only หรือ username lookup -> email
+- [x] ยกเลิกการใช้ password ใน `public.users`
+- [x] ทำ forgot/reset password flow ด้วย Supabase Auth
+- [x] ตัดสินใจ username login: ใช้ username lookup -> email ผ่าน `lookup_app_login_email`
 
 ### 3.2 Role and Permission Model
 
-- [ ] วิเคราะห์ `roles` และ `roles_config` เดิม
+- [x] วิเคราะห์ `roles` และ `roles_config` เดิม
 - [x] Audit เบื้องต้นจาก Vue clone: role/menu fixture มี Admin, Owner, บัญชี, บัญชีค่าใช้จ่าย, ประสานงาน, Poopae, คลัง
-- [ ] ออกแบบ `permissions`
-- [ ] ออกแบบ `role_permissions`
-- [ ] ออกแบบ `user_roles`
-- [ ] ออกแบบ `user_branch_access`
+- [x] ออกแบบ `permissions`
+- [x] ออกแบบ `role_permissions`
+- [x] ออกแบบ `user_roles`
+- [x] ออกแบบ `user_branch_access`
 - [ ] migrate role matrix เดิม
-- [ ] map legacy menu keys ไป Next route paths
-- [ ] seed permission catalog จาก navigation/API/action model
+- [x] map legacy menu keys ไป Next route paths เบื้องต้นสำหรับ Next permission guard
+- [x] seed permission catalog จาก navigation/API/action model
 
 ### 3.3 Access Enforcement
 
@@ -176,10 +176,10 @@ Reporting rule:
 - [x] สร้าง route guard
 - [x] สร้าง component guard สำหรับ action buttons
 - [x] Next `proxy.ts` มี admin-only guard ชั่วคราวผ่าน Supabase Auth + `user_profiles`
-- [ ] เปลี่ยนจาก admin-only guard เป็น normalized permission guard
-- [ ] เพิ่ม API permission guard สำหรับ view/create/update/export/status
+- [x] เปลี่ยนจาก admin-only guard เป็น normalized permission guard สำหรับ mapped paths พร้อม legacy admin/owner fallback ระหว่าง transition
+- [x] เพิ่ม API permission guard สำหรับ view/create/update/export/status ของ user management และ key master APIs: customer/supplier/product
 - [ ] เพิ่ม branch-scope enforcement สำหรับ role ที่จำกัดสาขา
-- [ ] นิยาม role ที่เห็น cost/profit/cash/financials
+- [x] นิยาม role ที่เห็น cost/profit/cash/financials ใน `app_roles`
 
 ## Phase 4: Master Data and Key Basic Data
 
@@ -283,7 +283,7 @@ Reporting rule:
 
 ### 5.1 Target Schema V1
 
-- [ ] ออกแบบ schema สำหรับ security
+- [x] ออกแบบ schema สำหรับ security/auth permission baseline: `app_users`, `app_roles`, `app_permissions`, join tables, helper functions, audit events
 - [ ] ออกแบบ schema สำหรับ master data
 - [x] ออกแบบ target tables สำหรับ fixture-backed master ที่ต้องใช้ก่อน UAT: `machines`, `production_lines`
 - [x] ออกแบบ target tables สำหรับ fixture-backed finance/setup masters: `directors`, `payment_methods`, `remittance_purposes`

@@ -262,7 +262,11 @@ Current Next status as of 2026-05-17:
 - `old-apps/legacy` remains archived source material only.
 - `customers` is the first enhanced Next master-data page with API/Prisma/dev-target wiring, frontend table search/filter/sort/count/pagination after one list load, postcode-first Thai address form, field-level syntax validation, person/contact structured name fields, and Excel-compatible export.
 - Batch 1-4 master-data pages now have Next routes and APIs. Batch 4 fixture-backed masters that were not real legacy DB tables have additive target tables in `dev-target`.
-- Next login uses Supabase Auth and admin-only route/API gating via Next `proxy.ts`. Full role/permission design is still pending before UAT.
+- Next login uses Supabase Auth with email/password and username lookup through `app_users.username -> email`.
+- Next auth/permission baseline now exists in `dev-target`: `app_users`, `app_roles`, `app_permissions`, `app_role_permissions`, `app_user_roles`, `app_user_branch_access`, helper RPC functions, and `app_auth_events`.
+- Next `proxy.ts` now enforces normalized permissions for mapped paths and keeps a legacy admin/owner fallback during transition.
+- `/admin/users-permissions` supports user create/edit/status/invite/reset actions without storing passwords in app tables.
+- `/admin/audit` reads recent auth/user-management audit events for users with `system.audit.view`.
 - Local development login prefill is supported through `DEV_LOGIN_IDENTIFIER` / `DEV_LOGIN_PASSWORD`; do not set real credentials in committed files or production public env.
 - Import pages are intentionally excluded from the current master CRUD baseline batch.
 - Project-level validation rules now require syntax validation for every new/changed form/API field. The detailed checklist lives in `.agents/skills/ns-scrap-erp-input-validation/SKILL.md`.
@@ -279,7 +283,7 @@ Remaining frontend work:
 - real functions are still pending for most cloned pages
 - sidebar/action visibility must be connected to Auth/Role mapping
 
-DB schema redesign is intentionally paused:
+DB schema redesign status:
 - Additive target tables and customer classification/person-name fields have been applied to `dev-target` for the current master-data work.
-- No security/access migration is currently committed as ready to apply.
-- `public.users`, `roles`, and `roles_config` replacement design still needs a dedicated DB design pass after the frontend login flow is usable.
+- Security/access baseline migrations are applied to `dev-target`; they are additive and keep legacy `public.users`, `user_profiles`, `roles`, and `roles_config` for reference during migration.
+- Full table-level RLS rollout for legacy/imported business tables is still pending and must be done table-by-table before UAT/production.
