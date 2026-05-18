@@ -190,7 +190,7 @@ Current scope:
 - F1 AR read/report baseline is implemented, validated, and pushed.
 - F2 AP polish is implemented, validated, and pushed.
 - F3 Bank Statement read/reconciliation baseline is implemented, validated, and pushed.
-- F4 Cash Position aggregation baseline is implemented and validated; commit/push is next.
+- F4 Cash Position aggregation baseline is implemented, validated, and pushed.
 - Money-moving writes remain out of scope until reconciliation and allocation rules are clear.
 
 Initial F0 findings:
@@ -202,9 +202,9 @@ Initial F0 findings:
 
 Next concrete task:
 
-1. Commit/push F4 Cash Position.
-2. Mark the F4 checkpoint with the pushed commit hash.
-3. Continue to F5 Supplier Advance as a read-only baseline; do not add allocation writes until the business rule is confirmed.
+1. Continue to F5 Supplier Advance as a read-only baseline.
+2. Identify target tables and legacy/Vue reference behavior.
+3. Do not add allocation writes until the business rule is confirmed.
 
 ## Operating Model
 
