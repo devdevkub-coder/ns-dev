@@ -126,6 +126,8 @@ Use sub agents only for bounded parallel work:
 - Playwright smoke verification
 - isolated docs or page/API implementation with clear file ownership
 
+For Playwright work, use a sub agent by default so browser QA can run in parallel while the main agent continues implementation or integration. The main agent must define the exact Playwright scope and then integrate findings before committing.
+
 Close sub agents when their task is integrated, no longer needed, blocked, overlapping, or after a batch checkpoint leaves them with no remaining work. Do not leave reminder agents open unless the user explicitly requested one for the active task list.
 
 ## Handoff Checklist

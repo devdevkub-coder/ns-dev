@@ -114,6 +114,15 @@ Good sub agent tasks:
 - Verification side work while the main agent continues implementation, such as Playwright smoke paths, route inventory, or API response checks.
 - Bounded implementation with disjoint file ownership, such as one worker handling only docs while another handles one isolated page or API.
 
+Use a sub agent by default for Playwright work:
+- browser reconnaissance through Playwright MCP
+- click-path smoke checks
+- screenshot/accessibility snapshot review
+- console/network error inspection
+- responsive viewport checks
+
+The main agent remains responsible for defining the exact Playwright task, continuing non-overlapping implementation work, integrating findings, updating docs, and deciding whether code changes are required.
+
 Do not use sub agents for:
 - The immediate blocking task on the critical path.
 - Broad unclear requests like "finish everything" without a page/module/task boundary.
