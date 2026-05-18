@@ -472,11 +472,71 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ### F0: Legacy Inventory and DB Mapping
 
-- [ ] สำรวจ legacy: AR, AP, bank statement, cash position, supplier advance, customer advance
-- [ ] map payment/receipt/bank_statement/accounts/purchase_bills/sales_bills
-- [ ] ระบุ write flows ที่กระทบเงิน
-- [ ] สรุปภาพรวม flow ทั้งหมวดก่อนเริ่ม F1
-- [ ] สรุป dependency/page order ของ Finance and Debt
+- [x] สำรวจ legacy: AR, AP, bank statement, cash position, supplier advance, customer advance
+- [x] map payment/receipt/bank_statement/accounts/purchase_bills/sales_bills
+- [x] ระบุ write flows ที่กระทบเงิน
+- [x] สรุปภาพรวม flow ทั้งหมวดก่อนเริ่ม F1
+- [x] สรุป dependency/page order ของ Finance and Debt
+
+#### F0 Module Overview
+
+- Legacy refs:
+  - `old-apps/vue/src/views/finance/ArView.vue`
+  - `old-apps/vue/src/views/finance/ApView.vue`
+  - `old-apps/vue/src/views/finance/BankStatementView.vue`
+  - `old-apps/vue/src/views/finance/CashPositionView.vue`
+  - `old-apps/vue/src/views/finance/SupplierAdvanceView.vue`
+  - `old-apps/vue/src/views/finance/CustomerAdvanceView.vue`
+  - `old-apps/vue/src/views/purchase/SupplierPaymentsView.vue`
+  - `old-apps/vue/src/views/sales/CustomerReceiptsView.vue`
+  - `old-apps/vue/src/views/daily/PettyAdvanceView.vue`
+  - `old-apps/vue/src/views/daily/PaymentApprovalView.vue`
+- Shared flow summary:
+  - Finance/debt is a reconciliation and cash visibility layer over purchase, sales, daily payment, receipt, transfer, petty advance, and bank statement rows.
+  - AR should reconcile `sales_bills.total_amount` against receipts allocated by `receipts.bill_id`.
+  - AP should reconcile `purchase_bills.total_amount` against payments allocated by `payments.bill_id`; a read baseline already exists at `/finance/ap`.
+  - Bank statement should read `bank_statement` as the ledger of money movement side effects before adding or changing write flows.
+  - Cash position aggregates account balances plus upcoming AR/AP exposure; it should follow AR/AP/bank baseline work.
+- Shared DB/table mapping:
+  - AR: `sales_bills`, `receipts`, `customers`, `branches`, `sales_channels`.
+  - AP: `purchase_bills`, `payments`, `suppliers`, `branches`, `purchase_channels`.
+  - Bank/cash: `bank_statement`, `accounts`, `branches`.
+  - Advance surfaces: supplier/customer advance logic is not clear enough for write mutations yet; read baseline first.
+- Shared side effects/reconciliation rules:
+  - Money-moving writes already exist in `/purchase/payments`, `/sales/receipts`, `/daily/petty-advance`, `/daily/transfer`, and payment approval surfaces.
+  - Bank statement rows are side effects from multiple flows, so reconciliation must detect duplicate/missing rows before mutation changes.
+  - AR/AP allocation must not assume one bill = one receipt/payment; partial and multi-line allocation remain likely.
+- Button/action/modal/export inventory:
+  - AR/AP need filter/search, aging bucket summary, detail modal, and `.xlsx` export.
+  - Bank statement needs account/date/ref-type filters, running balance, detail modal, and `.xlsx` export.
+  - Cash position needs account cards and drilldowns, not write buttons in the first pass.
+  - Supplier/customer advance pages should expose read detail first; allocation forms are deferred until rules are confirmed.
+- Dependency/page order:
+  1. F1 AR page/API.
+  2. F2 AP polish on the existing baseline.
+  3. F3 Bank Statement read/reconciliation baseline.
+  4. F4 Cash Position aggregation.
+  5. F5 Supplier Advance read baseline.
+  6. F6 Customer Advance read baseline.
+  7. F7 finance QA batch.
+- Risks/open decisions:
+  - Allocation source of truth for multi-bill receipt/payment lines needs confirmation from real data.
+  - Bank statement duplicate cleanup/reconciliation must be checked before adding write-side changes.
+  - Advance allocation rules are not yet safe to infer from placeholders.
+
+#### Execution Log
+
+- Task: F0 legacy inventory and DB mapping.
+- Legacy refs: listed in F0 Module Overview above.
+- Files changed: `docs/migration/00-current-work.md`, `docs/migration/17-next-remaining-modules-progress.md`.
+- DB/API changes: docs-only; no runtime API changes.
+- Buttons/actions checked: inventory only; implementation begins at F1.
+- Modal/form checked: inventory only; implementation begins at F1.
+- Validation added: module-level order and write-flow risk boundaries.
+- Playwright smoke: not run; docs-only overview checkpoint.
+- Commands: `git diff --check` required before commit.
+- Result: F0 overview documented; F1 AR is the next implementation slice.
+- Commit: pending.
 
 ### F1: AR
 

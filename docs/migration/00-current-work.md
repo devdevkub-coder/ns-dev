@@ -5,17 +5,17 @@
 Date: 2026-05-19
 Active app: `apps/next`
 Primary remote: `new-origin`
-Last pushed checkpoint: system map/API baseline (`docs: mark system map baseline pushed`)
+Last pushed checkpoint: batch continuation rule (`a2fd1ba docs: require batch continuation`)
 
 ## Current Batch
 
-`Batch S: Stock`
+`Batch F: Finance and Debt`
 
 Goal:
 
-- Port stock routes from placeholder/read-only surfaces into Next page/API baselines.
-- Use `stock_ledger` as the shared source of truth for stock balance and movement history.
-- Add traceable write baselines for status convert, grade convert, stock count adjustment, and customer return.
+- Port finance/debt routes from placeholder/read-only surfaces into Next page/API baselines.
+- Use `sales_bills` + `receipts` for AR, `purchase_bills` + `payments` for AP, and `bank_statement` + `accounts` for cash/bank views.
+- Keep this batch read/reconciliation-first before adding new money-moving write flows.
 
 ## File Naming Changes
 
@@ -52,15 +52,15 @@ Goal:
 
 ## Next Required Batch
 
-`Batch S: Stock`
+`Batch F: Finance and Debt`
 
 Tasks:
 
-1. S0 legacy inventory and DB mapping - implemented locally
-2. S1 Stock Balance page/API - implemented locally
-3. S2 Stock Ledger polish - implemented locally, row detail modal still follow-up
-4. S3-S6 stock write baselines - implemented locally
-5. Validation/build/browser QA/commit/push still required
+1. F0 legacy inventory and DB mapping - docs checkpoint first
+2. F1 AR page/API - next implementation slice
+3. F2 AP polish - existing AP route/page needs filter/sort/pagination/export/detail review
+4. F3 Bank Statement - next read/reconciliation baseline after AR/AP
+5. F4-F6 Cash Position, Supplier Advance, Customer Advance - read baseline first, no allocation/write rule guesses
 
 ## Tailwind v4 Migration Status
 
@@ -135,14 +135,13 @@ Validation:
 
 ## Current Priority Queue
 
-1. Batch S: Stock
-2. Batch F: Finance and Debt
-3. Batch T: Tracking 360
-4. Batch D: Dual Costing / Trading / PO
-5. Batch FF: Foreign Finance
-6. Batch A: Finance / Accounting
-7. Batch M: Main Dashboards and Operational Control
-8. Batch SYS: System and Cleanup
+1. Batch F: Finance and Debt
+2. Batch T: Tracking 360
+3. Batch D: Dual Costing / Trading / PO
+4. Batch FF: Foreign Finance
+5. Batch A: Finance / Accounting
+6. Batch M: Main Dashboards and Operational Control
+7. Batch SYS: System and Cleanup
 
 ## Batch S Stock Status
 
@@ -180,6 +179,30 @@ Known carry-over from Batch S:
 - Field-level validation messages on stock write forms remain a follow-up; server-side Zod validation is active.
 - Reconciliation query/report for grade convert and count adjust remains a follow-up.
 - Void/reversal and final WAC/cost-source policy remain broader stock hardening work.
+
+## Batch F Finance and Debt Status
+
+Status: active batch started after checkpoint `a2fd1ba`.
+
+Current scope:
+
+- F0 maps the legacy/Vue finance-debt pages and target DB tables before implementation.
+- F1 starts with AR because `/finance/ar` is still a placeholder while AP already has a read baseline.
+- Money-moving writes remain out of scope until reconciliation and allocation rules are clear.
+
+Initial F0 findings:
+
+- Legacy/Vue finance-debt pages: AR, AP, Bank Statement, Cash Position, Supplier Advance, Customer Advance.
+- Related money write flows already exist in daily/purchase/sales surfaces: supplier payments, customer receipts, petty advances/returns, transfers, payment approval, and transaction ledger.
+- Target DB mapping: `sales_bills`, `receipts`, `purchase_bills`, `payments`, `bank_statement`, `accounts`, plus party and branch lookup tables.
+- Bank statement rows are shared side effects from payment/receipt/expense/transfer/petty flows, so bank reconciliation should be read-first before any write changes.
+
+Next concrete task:
+
+1. Finish and commit F0 docs checkpoint.
+2. Implement F1 `/api/finance/ar` and `/finance/ar`.
+3. Update OpenAPI and sitemap for AR in the same batch.
+4. Run type-check, lint, build, browser/API smoke, then commit/push and continue to F2.
 
 ## Operating Model
 
@@ -232,8 +255,10 @@ At every checkpoint, update docs as if a new session will start from only the re
   - create/edit/post
   - FIFO/COGS
 - Stock follow-ups:
-  - Stock module pages still need Batch S
-  - Stock transfer cancel/void and cost source still pending
+  - Stock ledger row detail modal
+  - Stock write form field-level messages
+  - Stock reconciliation reports for grade convert/count adjust
+  - Stock transfer cancel/void and cost source
 - Finance follow-ups:
   - Payment approval persistence/printing
   - AP/AR allocation/reconciliation
