@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
+import { useRouter } from 'next/navigation'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 import { sanitizePhoneInput } from '@/lib/format'
 import { purchaseBillFormSchema, type PurchaseBillFormValues } from '@/lib/purchase-bill'
@@ -110,7 +111,6 @@ const initialPurchaseForm = (): PurchaseBillFormValues => ({
   contactPhone: null,
   date: todayDateInput(),
   discountTotal: 0,
-  docNo: null,
   hasVat: false,
   items: [blankItem()],
   licensePlate: null,
@@ -130,6 +130,7 @@ const initialPurchaseForm = (): PurchaseBillFormValues => ({
 })
 
 export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientProps) {
+  const router = useRouter()
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -238,6 +239,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     }
     setSortKey(nextKey)
     setSortDirection(nextKey === 'date' || nextKey === 'totalAmount' || nextKey === 'outstanding' ? 'desc' : 'asc')
+  }
+
+  function openRow(row: BillRow | StockIssueRow) {
+    if (mode !== 'purchase' || isStockIssueRow(row)) return
+    router.push(`/purchase/bills/${row.id}`)
   }
 
   function openPurchaseForm() {
@@ -418,7 +424,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           <tbody>
             {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={mode === 'purchase' ? 10 : mode === 'stock-issue' ? 7 : 8}>กำลังโหลดข้อมูล</td></tr> : null}
             {!isLoading && pageRows.map((row) => (
-              <tr key={row.id} className="border-t hover:bg-slate-50">
+              <tr key={row.id} className={`border-t hover:bg-slate-50 ${mode === 'purchase' && !isStockIssueRow(row) ? 'cursor-pointer' : ''}`} onClick={() => openRow(row)}>
                 <td className="p-2 font-mono text-xs">{row.docNo}</td>
                 {mode === 'purchase' && !isStockIssueRow(row) ? <td className="p-2 font-mono text-xs text-slate-600">{row.refNo || '-'}</td> : null}
                 <td className="p-2">{row.date}</td>
@@ -475,7 +481,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="blue">2</StepBadge>ข้อมูลบิล</h4>
                 <div className="grid gap-3 md:grid-cols-3">
                 <Field error={fieldErrors.date} label="วันที่ *"><input className="w-full rounded border px-3 py-2" type="date" value={form.date} onChange={(event) => updateForm('date', event.target.value)} /></Field>
-                <Field error={fieldErrors.docNo} label="เลขที่บิล"><input className="w-full rounded border bg-slate-50 px-3 py-2 font-mono font-bold text-blue-700" placeholder="Auto ถ้าว่าง" value={form.docNo ?? ''} onChange={(event) => updateForm('docNo', event.target.value || null)} /></Field>
+                <Field label="เลขที่บิล"><div className="rounded border bg-slate-100 px-3 py-2 font-mono font-bold text-slate-500">ระบบจะออกเลขให้ตอนบันทึก</div></Field>
                 <Field error={fieldErrors.refNo} label="เลขที่อ้างอิง (บิล Supplier)"><input className="w-full rounded border px-3 py-2 font-mono" placeholder="เช่น INV-12345" value={form.refNo ?? ''} onChange={(event) => updateForm('refNo', event.target.value || null)} /></Field>
                 <SelectField className="md:col-span-3" error={fieldErrors.supplierId} label="ผู้ขาย *" options={activeSuppliers} value={form.supplierId} onChange={(value) => updateForm('supplierId', value)} />
                 <SelectField error={fieldErrors.branchId} label="สาขา" options={activeBranches} value={form.branchId ?? ''} onChange={(value) => updateForm('branchId', value || null)} />

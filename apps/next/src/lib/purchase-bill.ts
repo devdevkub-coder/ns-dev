@@ -58,7 +58,6 @@ export const purchaseBillFormSchema = z.object({
   contactPhone: optionalPhone('เบอร์โทร'),
   date: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'วันที่ต้องเป็นรูปแบบ YYYY-MM-DD'),
   discountTotal: money('ส่วนลดท้ายบิล').default(0),
-  docNo: optionalDocNo('เลขที่บิล'),
   hasVat: z.boolean().default(false),
   items: z.array(purchaseBillItemSchema).min(1, 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ'),
   licensePlate: optionalGeneralText('ทะเบียนรถ', 40),

@@ -1412,6 +1412,7 @@ model purchase_bills {
   @@index([status], map: "idx_pb_status")
   @@index([supplier_id], map: "idx_pb_supplier")
   @@index([doc_no], map: "idx_purchase_bills_doc_no")
+  @@unique([doc_no], map: "uq_purchase_bills_doc_no")
   @@schema("public")
 }
 
@@ -1587,6 +1588,7 @@ model sales_bills {
   @@index([date(sort: Desc)], map: "idx_sb_date")
   @@index([transaction_mode], map: "idx_sb_mode")
   @@index([status], map: "idx_sb_status")
+  @@unique([doc_no], map: "uq_sales_bills_doc_no")
   @@schema("public")
 }
 

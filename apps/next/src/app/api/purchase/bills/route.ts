@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx'
 import { purchaseBillFormSchema, type PurchaseBillFormValues } from '@/lib/purchase-bill'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { currentActor, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import type { Prisma } from '../../../../../generated/prisma/client'
@@ -81,6 +81,26 @@ function calculateTotals(values: PurchaseBillFormValues) {
   const totalAmount = values.hasVat && values.vatType === 'EXCLUDE' ? afterDiscount + vatAmount : afterDiscount
 
   return { afterDiscount, subtotal, totalAmount, vatAmount }
+}
+
+function isDocNoConflict(caught: unknown) {
+  if (!(caught instanceof Error) || !('code' in caught) || caught.code !== 'P2002') return false
+  if (!('meta' in caught) || typeof caught.meta !== 'object' || caught.meta === null) return false
+  if (!('target' in caught.meta) || !Array.isArray(caught.meta.target)) return false
+  return caught.meta.target.includes('doc_no')
+}
+
+async function nextPurchaseBillDocNo(tx: Prisma.TransactionClient, date: string) {
+  const compactDate = date.slice(2, 4) + date.slice(5, 7)
+  const startsWith = `PB${compactDate}-`
+  const last = await tx.purchase_bills.findFirst({
+    orderBy: { doc_no: 'desc' },
+    select: { doc_no: true },
+    where: { doc_no: { startsWith } },
+  })
+  const lastNumber = Number(String(last?.doc_no ?? '').slice(startsWith.length))
+  const nextNumber = Number.isFinite(lastNumber) ? lastNumber + 1 : 1
+  return `${startsWith}${String(nextNumber).padStart(4, '0')}`
 }
 
 async function optionsPayload() {
@@ -290,8 +310,6 @@ export async function POST(request: Request) {
     requirePermission(context, 'finance.cash.view')
 
     const values = purchaseBillFormSchema.parse(await request.json())
-    const id = `PB-${randomUUID()}`
-    const docNo = values.docNo ?? await nextDailyDocNo('purchase_bills', 'PB', values.date)
     const actor = currentActor(context)
     const totals = calculateTotals(values)
 
@@ -343,46 +361,63 @@ export async function POST(request: Request) {
       }
     })
 
-    const bill = await prisma.purchase_bills.create({
-      data: {
-        branch_id: values.branchId,
-        channel_id: values.channelId,
-        contact_phone: values.contactPhone,
-        created_by: actor,
-        date: normalizeDate(values.date),
-        discount: values.discountTotal,
-        discount_total: values.discountTotal,
-        doc_no: docNo,
-        has_vat: values.hasVat,
-        id,
-        items,
-        license_plate: values.licensePlate,
-        note: values.note ?? values.notes,
-        notes: values.notes,
-        paid_amount: 0,
-        payable_balance: totals.totalAmount,
-        po_buy_id: values.poBuyId,
-        purchase_source: values.purchaseSource,
-        ref_no: values.refNo,
-        sales_id: values.salesId,
-        status: 'open',
-        subtotal: totals.subtotal,
-        supplier_id: values.supplierId,
-        total_amount: totals.totalAmount,
-        transaction_mode: values.transactionMode,
-        updated_at: new Date(),
-        updated_by: actor,
-        vat_amount: totals.vatAmount,
-        vat_invoice_date: values.vatInvoiceDate ? normalizeDate(values.vatInvoiceDate) : null,
-        vat_invoice_no: values.vatInvoiceNo,
-        vat_invoice_received: values.vatInvoiceReceived,
-        vat_invoice_received_at: values.vatInvoiceReceived ? new Date() : null,
-        vat_type: values.vatType,
-        warehouse_id: values.warehouseId,
-      },
-    })
+    let bill: { doc_no: string; id: string } | null = null
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        bill = await prisma.$transaction(async (tx) => {
+          await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('purchase_bills.doc_no'))`
+          const id = `PB-${randomUUID()}`
+          const docNo = await nextPurchaseBillDocNo(tx, values.date)
 
-    return NextResponse.json({ id: bill.id })
+          return tx.purchase_bills.create({
+            data: {
+              branch_id: values.branchId,
+              channel_id: values.channelId,
+              contact_phone: values.contactPhone,
+              created_by: actor,
+              date: normalizeDate(values.date),
+              discount: values.discountTotal,
+              discount_total: values.discountTotal,
+              doc_no: docNo,
+              has_vat: values.hasVat,
+              id,
+              items,
+              license_plate: values.licensePlate,
+              note: values.note ?? values.notes,
+              notes: values.notes,
+              paid_amount: 0,
+              payable_balance: totals.totalAmount,
+              po_buy_id: values.poBuyId,
+              purchase_source: values.purchaseSource,
+              ref_no: values.refNo,
+              sales_id: values.salesId,
+              status: 'open',
+              subtotal: totals.subtotal,
+              supplier_id: values.supplierId,
+              total_amount: totals.totalAmount,
+              transaction_mode: values.transactionMode,
+              updated_at: new Date(),
+              updated_by: actor,
+              vat_amount: totals.vatAmount,
+              vat_invoice_date: values.vatInvoiceDate ? normalizeDate(values.vatInvoiceDate) : null,
+              vat_invoice_no: values.vatInvoiceNo,
+              vat_invoice_received: values.vatInvoiceReceived,
+              vat_invoice_received_at: values.vatInvoiceReceived ? new Date() : null,
+              vat_type: values.vatType,
+              warehouse_id: values.warehouseId,
+            },
+            select: { doc_no: true, id: true },
+          })
+        })
+        break
+      } catch (caught) {
+        if (!isDocNoConflict(caught) || attempt === 2) throw caught
+      }
+    }
+
+    if (!bill) throw new Error('สร้างเลขที่บิลไม่สำเร็จ')
+
+    return NextResponse.json({ docNo: bill.doc_no, id: bill.id })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'บันทึกบิลรับซื้อไม่ได้', 400)

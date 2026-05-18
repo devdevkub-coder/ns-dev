@@ -194,10 +194,14 @@ Status:
   - `po_buy_id`, `license_plate`, `contact_phone`, `sales_id`, `discount_total`, `vat_invoice_received`, `vat_invoice_no`, `vat_invoice_date`, `note`
   - item `displayName`, `poBuyId`, `grossWeight`, `deductWeight`, `qty` as net weight, `salesPrice`
 - Follow-up update: options payload now includes active/open PO buys and active salespersons for the create modal.
+- Follow-up update: purchase bill document number is no longer user-editable in the create modal. `/api/purchase/bills` now generates `PBYYMM-####` at save time only inside a DB transaction, uses `pg_advisory_xact_lock` to serialize new purchase bill number assignment, returns the generated `docNo`, and retries on `doc_no` unique conflict.
+- Follow-up update: added additive unique indexes for `purchase_bills.doc_no` and `sales_bills.doc_no`. Migration fails fast if duplicate document numbers already exist; it does not delete or merge data. Dev-target currently has duplicate `purchase_bills.doc_no` rows from imported/test data, so the unique-index migration is prepared but not yet applied until duplicates are reconciled.
+- Follow-up update: purchase bill table rows now open `/purchase/bills/[id]` detail page. Detail page reads `supplier_id` as the FK and displays supplier name from master data relation `suppliers.name`; transaction rows should keep FK/id and not store ad hoc supplier display text as the source of truth.
 
 Important boundary:
 - Current create path writes `purchase_bills` header + `items` JSON and AP balance fields only.
 - It intentionally does not write `stock_ledger`, WAC/FIFO, AP payment links, or posting/void side effects yet. Those need a separate reconciliation-backed transaction batch.
+- Detail page is currently read-only with an edit placeholder. Full edit/PATCH must be a separate batch because changing an existing bill can affect AP balance, stock ledger, WAC/FIFO, and audit history.
 
 Validation:
 - Passed: `npm run type-check --workspace @ns-scrap-erp/next`
