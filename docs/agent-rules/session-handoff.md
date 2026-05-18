@@ -18,3 +18,19 @@ Checkpoint notes must be written so a new session can continue without relying o
 - validation still required before commit/push
 
 After documenting a checkpoint, actively identify the next task from `00-current-work.md` and the relevant tracker. Continue with that task unless the user pauses, redirects, or asks to discuss first.
+
+## Batch Continuation
+
+When a batch is complete:
+
+1. Update `docs/migration/00-current-work.md` and the relevant tracker with the completed scope, validation commands, commit hash, push status, known carry-over work, and the next batch/task.
+2. Run the appropriate validation for the changed scope.
+3. Commit and push the completed batch.
+4. Immediately begin the next batch listed in `docs/migration/00-current-work.md`.
+
+Do not stop after a successful push just to ask whether to continue. Stop only when:
+
+- The user explicitly pauses, redirects, or asks for discussion.
+- The next task requires destructive git operations, production deploy, production data mutation, or direct work against `legacy-prod-source`.
+- The next task requires credentials, environment access, or a business decision that cannot be inferred from repo docs.
+- The worktree has conflicting user changes that make the next batch unsafe to start.
