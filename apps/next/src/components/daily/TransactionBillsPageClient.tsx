@@ -142,7 +142,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const [isSaving, setIsSaving] = useState(false)
   const [options, setOptions] = useState<Omit<PurchasePayload, 'rows'>>({ branches: [], channels: [], poBuys: [], products: [], salespersons: [], suppliers: [], warehouses: [] })
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(50)
+  const [pageSize, setPageSize] = useState(10)
   const [rows, setRows] = useState<Array<BillRow | StockIssueRow>>([])
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)

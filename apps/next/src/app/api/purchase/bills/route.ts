@@ -118,7 +118,7 @@ async function optionsPayload() {
 
 function parseBillQuery(url: URL, includePaging = true): BillQuery {
   const page = Math.max(1, Number(url.searchParams.get('page') ?? 1) || 1)
-  const pageSize = includePaging ? Math.min(100, Math.max(10, Number(url.searchParams.get('pageSize') ?? 50) || 50)) : 10000
+  const pageSize = includePaging ? Math.min(100, Math.max(10, Number(url.searchParams.get('pageSize') ?? 10) || 10)) : 10000
   const sortDirection = url.searchParams.get('sortDirection') === 'asc' ? 'asc' : 'desc'
 
   return {

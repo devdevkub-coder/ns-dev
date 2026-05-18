@@ -22,7 +22,7 @@ function parseStockIssueQuery(url: URL): StockIssueQuery {
     dateFrom: url.searchParams.get('dateFrom') || undefined,
     dateTo: url.searchParams.get('dateTo') || undefined,
     page: Math.max(1, Number(url.searchParams.get('page') ?? 1) || 1),
-    pageSize: Math.min(100, Math.max(10, Number(url.searchParams.get('pageSize') ?? 50) || 50)),
+    pageSize: Math.min(100, Math.max(10, Number(url.searchParams.get('pageSize') ?? 10) || 10)),
     search: url.searchParams.get('search')?.trim() || undefined,
     sortDirection: url.searchParams.get('sortDirection') === 'asc' ? 'asc' : 'desc',
     sortKey: url.searchParams.get('sortKey') || 'date',
