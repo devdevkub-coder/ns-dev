@@ -109,7 +109,7 @@ export const warehousesPageConfig: MasterDataPageConfig = {
   fields: [
     { key: 'code', label: 'รหัสคลัง', required: true },
     { key: 'name', label: 'ชื่อคลัง', required: true },
-    { key: 'branchId', label: 'รหัสสาขา' },
+    { key: 'branchId', label: 'สาขา', type: 'select', options: [{ label: 'สมุทรสาคร', value: 'BR002' }, { label: 'นครสวรรค์', value: 'BR003' }] },
   ],
   columns: [
     { key: 'code', label: 'รหัส' },
