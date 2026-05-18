@@ -1,4 +1,6 @@
+import { z } from 'zod'
 import { prisma } from '@/lib/server/prisma'
+import { getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import {
   masterDataJson,
   masterDataListJson,
@@ -28,6 +30,33 @@ type SimpleMasterConfig = {
 }
 
 const asRecord = (row: unknown) => row as Record<string, unknown>
+const directorTypeSchema = z.enum(['กรรมการ', 'พนักงาน', 'อื่นๆ']).nullable()
+const machineTypeSchema = z.enum(['Sorting', 'Cutting', 'Baling', 'Crushing', 'Melting', 'Other']).nullable()
+const maintenanceStatusSchema = z.enum(['Normal', 'Maintenance', 'Breakdown']).nullable()
+const paymentMethodTypeSchema = z.enum(['Cash', 'Bank Transfer', 'Cheque', 'PromptPay', 'Credit Card', 'QR Payment', 'International Transfer', 'FCD Transfer', 'Offset / Netting', 'Other']).nullable()
+
+type SimpleMasterValues = ReturnType<typeof parseMasterDataForm>
+
+function requireReferencePermission(permissionCode: 'master.reference.view' | 'master.reference.manage') {
+  return getCurrentAuthContext().then((context) => requirePermission(context, permissionCode))
+}
+
+function validateSimpleMasterValues(kind: SimpleMasterKind, values: SimpleMasterValues) {
+  if (kind === 'directors') {
+    directorTypeSchema.parse(values.type)
+  }
+
+  if (kind === 'machines') {
+    machineTypeSchema.parse(values.type)
+    maintenanceStatusSchema.parse(values.maintenanceStatus)
+  }
+
+  if (kind === 'paymentMethods') {
+    paymentMethodTypeSchema.parse(values.type)
+  }
+
+  return values
+}
 
 const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
   directors: {
@@ -180,14 +209,18 @@ async function nextId(config: SimpleMasterConfig) {
 }
 
 export async function listSimpleMasterData(kind: SimpleMasterKind) {
+  await requireReferencePermission('master.reference.view')
+
   const config = configs[kind]
   const rows = await config.delegate().findMany({ orderBy: config.orderBy, include: config.include })
   return masterDataListJson(rows.map(config.map))
 }
 
 export async function saveSimpleMasterData(request: Request, kind: SimpleMasterKind) {
+  await requireReferencePermission('master.reference.manage')
+
   const config = configs[kind]
-  const values = parseMasterDataForm(await request.json())
+  const values = validateSimpleMasterValues(kind, parseMasterDataForm(await request.json()))
   const id = values.id || values.code || await nextId(config)
   const code = values.code || id
   const data = config.data(values, id, code)
@@ -196,6 +229,8 @@ export async function saveSimpleMasterData(request: Request, kind: SimpleMasterK
 }
 
 export async function patchSimpleMasterData(request: Request, kind: SimpleMasterKind, id: string) {
+  await requireReferencePermission('master.reference.manage')
+
   const config = configs[kind]
   const values = updateMasterDataStatusSchema.parse(await request.json())
   const row = await config.delegate().update({ where: { id }, data: { active: values.active }, include: config.include })

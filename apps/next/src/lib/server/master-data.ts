@@ -34,7 +34,10 @@ export function masterDataListJson(rows: Array<Record<string, unknown>>) {
 }
 
 export function errorJson(caught: unknown, fallback: string, status = 400) {
-  return NextResponse.json({ error: caught instanceof Error ? caught.message : fallback }, { status })
+  const authStatus = caught instanceof Error && caught.name === 'AuthContextError' && 'status' in caught && typeof caught.status === 'number'
+    ? caught.status
+    : null
+  return NextResponse.json({ error: caught instanceof Error ? caught.message : fallback }, { status: authStatus ?? status })
 }
 
 export function normalizeCode(value: string | null | undefined, fallback: string) {

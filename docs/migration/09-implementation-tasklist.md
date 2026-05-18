@@ -244,7 +244,7 @@ Reporting rule:
 - [x] Batch B: ยกระดับ `/master-data/products` เป็น specialized customer-style page พร้อม frontend search/filter/sort/count/pagination, row-click modal, validation, active toggle, permission guards, และ export ถ้าเหมาะสม
 - [x] Batch C1: harden `/master-data/branches`, `/master-data/warehouses`, `/master-data/accounts` ให้เข้า master pattern เดียวกันตามความเหมาะสม
 - [x] Batch C2: harden `/master-data/salespersons`, `/master-data/channels`, `/master-data/expense-categories`, `/master-data/currencies`
-- [ ] Batch C3: harden `/master-data/directors`, `/master-data/machines`, `/master-data/production-lines`, `/master-data/beneficiaries`, `/master-data/payment-methods`, `/master-data/remittance-purposes`
+- [x] Batch C3: harden `/master-data/directors`, `/master-data/machines`, `/master-data/production-lines`, `/master-data/beneficiaries`, `/master-data/payment-methods`, `/master-data/remittance-purposes`
 - [ ] สร้าง import pattern
 - [ ] สร้าง audit metadata display
 

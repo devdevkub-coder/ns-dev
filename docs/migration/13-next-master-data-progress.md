@@ -67,7 +67,7 @@
 | B | `products` | ยกระดับสินค้าเป็น specialized customer-style master page | Done |
 | C1 | `branches`, `warehouses`, `accounts` | ยกระดับข้อมูลองค์กร/คลัง/บัญชีให้ใช้ shared customer-style list pattern และ API guard | Done |
 | C2 | `salespersons`, `channels`, `expense-categories`, `currencies` | harden reference masters ที่เหลือในกลุ่ม sales/reference | Done |
-| C3 | `directors`, `machines`, `production-lines`, `beneficiaries`, `payment-methods`, `remittance-purposes` | harden production/foreign/setup masters ที่เหลือ | Planned |
+| C3 | `directors`, `machines`, `production-lines`, `beneficiaries`, `payment-methods`, `remittance-purposes` | harden production/foreign/setup masters ที่เหลือ | Done |
 
 ## Remaining Customer-Style Hardening Plan
 
@@ -172,12 +172,22 @@ Batch C3: Production / foreign / setup masters
 - `/master-data/remittance-purposes`
 
 Tasks:
-- Treat `machines` and `production-lines` as production-critical masters.
-- Verify production-related fields such as branch, active state, code/name, and line/machine metadata are clear.
-- Keep `directors` setup-only until finance/director advance flows define stronger requirements.
-- Ensure foreign-payment lookup screens have validation for names/codes/currency-like fields where present.
-- Add route-level API permission guards.
-- Decide/export only where useful; document skipped exports.
+- Done: `machines` and `production-lines` remain production-critical masters and keep branch, active state, code/name, and metadata visible in the shared UI.
+- Done: shared validation now covers production/foreign/setup fields:
+  - non-negative capacity, process cost, prices, credit, and numeric values
+  - yield percent 0-100
+  - SWIFT code syntax 8 or 11 alphanumeric characters
+  - practical Thai/English business text for country, responsible person, required document, unit, grade, and metal group
+- Done: simple target-table masters now enforce route-level permissions through the shared helper:
+  - list requires `master.reference.view`
+  - save/status update requires `master.reference.manage`
+- Done: simple target-table masters validate key enums:
+  - directors type
+  - machine type and maintenance status
+  - payment method type
+- Done: beneficiaries API now enforces `master.reference.view/manage` and validates account currency as a 3-letter code.
+- Decision: `directors` remains setup-only until finance/director advance flows define stronger requirements.
+- Decision: skipped `.xlsx` export for C3 for now because these are setup/reference lists. Add export later only if UAT asks for it.
 
 Validation before closing each Batch C sub-batch:
 - `npm run lint --workspace @ns-scrap-erp/next`
@@ -310,6 +320,7 @@ Continuation rule:
 | 2026-05-18 | Batch B products specialized page: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build`, unauthenticated route smoke on `127.0.0.1:3002` | Passed | Added specialized `/master-data/products` page, product schema/domain client, product-specific API validation, active toggle, frontend search/filter/sort/count/pagination, and `/api/master-data/products/export`; unauth smoke returned page 307 to login and API/export 401 |
 | 2026-05-18 | Batch C1 organization/finance setup hardening: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Shared master UI now has frontend count/pagination above the table, row-click edit, no dummy checkbox/export action; branches/warehouses/accounts API routes now enforce `master.reference.view/manage`; shared schema validates C1 code/name/contact/account/numeric fields more strictly |
 | 2026-05-18 | Batch C2 sales/reference hardening: `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Salespersons/channels/expense-categories/currencies API routes now enforce `master.reference.view/manage`; channels validate `purchase/sales`, currencies validate 3-letter code, shared schema validates non-negative rates, and currencies no longer show active toggle in the form |
+| 2026-05-18 | Batch C3 production/foreign/setup hardening: `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Simple target-table masters now enforce `master.reference.view/manage` through shared helper; machines/directors/payment methods validate key enums; shared schema validates production/foreign fields including yield, SWIFT, account/country/responsible-person text, and beneficiaries validate 3-letter account currency |
 
 ## Open Decisions
 
