@@ -24,7 +24,6 @@ export type NavigationItem = {
 const exactPathPermissions: Record<string, string> = {
   '/admin/audit': 'system.audit.view',
   '/admin/migration-tools': 'system.backup.manage',
-  '/admin/user-activity': 'system.audit.view',
   '/admin/users-permissions': 'system.users.manage',
   '/api/admin/auth-events': 'system.audit.view',
   '/api/admin/users': 'system.users.manage',
@@ -200,9 +199,8 @@ export const navigationItems: NavigationItem[] = [
   { href: '/admin/change-password', icon: '🔒', label: 'เปลี่ยน Password ของฉัน', section: 'admin' },
   { href: '/admin/transaction-ledger', icon: '📒', label: 'Transaction Ledger (เช็คเงินเข้า-ออก)', section: 'admin' },
   { href: '/admin/migration-tools', icon: '💾', label: 'Backup / Restore (สำคัญ)', section: 'admin' },
-  { href: '/admin/audit', icon: '🔍', label: 'Audit Log', section: 'admin' },
+  { href: '/admin/audit', icon: '🔍', label: 'Audit & Activity Log', section: 'admin' },
   { href: '/admin/users-permissions', icon: '🛡️', label: 'Users & Permissions', section: 'admin' },
-  { href: '/admin/user-activity', icon: '👁️', label: 'User Activity Log', section: 'admin' },
 ]
 
 export function pageTitleForPath(pathname: string) {

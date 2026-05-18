@@ -23,7 +23,14 @@ function userLabel(user: AuditEvent['actor']) {
 
 function metadataText(metadata: unknown) {
   if (!metadata || typeof metadata !== 'object') return '-'
-  return JSON.stringify(metadata)
+  return JSON.stringify(metadata, null, 2)
+}
+
+function eventGroup(eventType: string) {
+  if (eventType.includes('login') || eventType.includes('invite') || eventType.includes('reset')) return 'Auth'
+  if (eventType.startsWith('app_user.')) return 'Users'
+  if (eventType.includes('permission') || eventType.includes('role')) return 'Permissions'
+  return 'Activity'
 }
 
 export function AuditLogPageClient() {
@@ -70,8 +77,8 @@ export function AuditLogPageClient() {
   return (
     <section className="space-y-4">
       <div className="rounded-xl border bg-white p-4 shadow">
-        <h2 className="text-xl font-bold text-slate-900">Audit Log</h2>
-        <p className="mt-1 text-sm text-slate-500">รายการล่าสุดจาก user-management และ permission-sensitive actions</p>
+        <h2 className="text-xl font-bold text-slate-900">Audit & Activity Log</h2>
+        <p className="mt-1 text-sm text-slate-500">รวมประวัติ user activity, auth event, user management และ permission-sensitive actions ล่าสุด</p>
       </div>
 
       <div className="rounded-xl border bg-white shadow">
@@ -84,6 +91,7 @@ export function AuditLogPageClient() {
               <thead className="bg-slate-100">
                 <tr>
                   <th className="p-2 text-left">เวลา</th>
+                  <th className="p-2 text-left">กลุ่ม</th>
                   <th className="p-2 text-left">เหตุการณ์</th>
                   <th className="p-2 text-left">ผู้ทำรายการ</th>
                   <th className="p-2 text-left">เป้าหมาย</th>
@@ -94,6 +102,7 @@ export function AuditLogPageClient() {
                 {rows.map((row) => (
                   <tr key={row.id} className="border-t hover:bg-slate-50">
                     <td className="whitespace-nowrap p-2 text-slate-600">{formatDate(row.createdAt)}</td>
+                    <td className="p-2 text-slate-700">{eventGroup(row.eventType)}</td>
                     <td className="p-2 font-mono text-xs">{row.eventType}</td>
                     <td className="p-2">{userLabel(row.actor)}</td>
                     <td className="p-2">{userLabel(row.target)}</td>
@@ -104,7 +113,7 @@ export function AuditLogPageClient() {
                 ))}
                 {rows.length === 0 ? (
                   <tr>
-                    <td className="p-4 text-center text-sm text-slate-500" colSpan={5}>ยังไม่มี Audit Log</td>
+                    <td className="p-4 text-center text-sm text-slate-500" colSpan={6}>ยังไม่มี Audit หรือ Activity Log</td>
                   </tr>
                 ) : null}
               </tbody>
