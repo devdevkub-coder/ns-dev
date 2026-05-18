@@ -49,7 +49,7 @@
 - B5 hardening has started:
   - `app_auth_events` exists in `dev-target` as append-only audit storage with RLS enabled
   - user create/edit/status/invite/reset actions write best-effort audit events
-  - `/api/admin/auth-events` and `/admin/audit` expose recent audit/activity events to users with `system.audit.view`; `/admin/user-activity` is intentionally folded into `/admin/audit` in the Next navigation
+  - `/api/admin/auth-events` and `/admin/audit` expose audit/activity events to users with `system.audit.view`; the page supports group/search/actor/target/event-type filters, server pagination, and row detail metadata; `/admin/user-activity` is intentionally folded into `/admin/audit` in the Next navigation
   - `app_set_updated_at()` has fixed `search_path = public`
 - Master-data route-level API guards now enforce normalized permissions directly for customer, supplier, and product view/create/status/export actions, in addition to proxy path checks.
 - RLS/permission model is not final; current app gating now uses normalized permissions for mapped paths, but table-level RLS rollout still needs table-by-table UAT.

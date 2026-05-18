@@ -266,7 +266,7 @@ Current Next status as of 2026-05-17:
 - Next auth/permission baseline now exists in `dev-target`: `app_users`, `app_roles`, `app_permissions`, `app_role_permissions`, `app_user_roles`, `app_user_branch_access`, helper RPC functions, and `app_auth_events`.
 - Next `proxy.ts` now enforces normalized permissions for mapped paths and keeps a legacy admin/owner fallback during transition.
 - `/admin/users-permissions` supports user create/edit/status/invite/reset actions without storing passwords in app tables.
-- `/admin/audit` reads recent auth/user-management audit events for users with `system.audit.view`.
+- `/admin/audit` reads auth/user-management audit events for users with `system.audit.view`, with group/search/actor/target/event-type filters, server pagination, and detail metadata modal.
 - Local development login prefill is supported through `DEV_LOGIN_IDENTIFIER` / `DEV_LOGIN_PASSWORD`; do not set real credentials in committed files or production public env.
 - Import pages are intentionally excluded from the current master CRUD baseline batch.
 - Project-level validation rules now require syntax validation for every new/changed form/API field. The detailed checklist lives in `.agents/skills/ns-scrap-erp-input-validation/SKILL.md`.

@@ -257,7 +257,7 @@ Priority is based on user-facing flow and dependency risk: daily operations firs
 | 15 | `view-historicalData` | `/finance-accounting/historical-data` | `views/systemGaps/HistoricalDataView.vue` | Cloned UI | Wording Checked | Build Passed | Pending | Function Pending |
 | 15 | `view-changePassword` | `/admin/change-password` | `views/systemGaps/ChangePasswordView.vue` | Cloned UI | Wording Checked | Build Passed | Pending | Function Pending |
 | 15 | `view-transactionLedger` | `/admin/transaction-ledger` | `views/systemGaps/TransactionLedgerView.vue` | Cloned UI | Wording Checked | Build Passed | Pending | Function Pending |
-| 15 | `view-audit` | `/admin/audit` | `views/systemGaps/AuditLogView.vue` | Cloned UI | Wording Checked | Build Passed | Pending | Function Pending |
+| 15 | `view-audit` | `/admin/audit` | `views/systemGaps/AuditLogView.vue` | Function Implemented | Wording Checked | Build Passed | Pending | Audit/activity filter, pagination, and detail modal implemented in Next |
 | 16 | `view-billSwapHistory` | `/daily/bill-swap-history` | `views/daily/BillSwapHistoryView.vue` | Cloned UI | Wording Checked | Build Passed | Pending | Function Pending |
 | 16 | `view-productionCostReport` | `/production/production-cost-report` | `views/production/ProductionCostReportView.vue` | Cloned UI | Wording Checked | Build Passed | Pending | Function Pending |
 | 16 | `view-yieldLossReport` | `/production/yield-loss-report` | `views/production/YieldLossReportView.vue` | Cloned UI | Wording Checked | Build Passed | Pending | Function Pending |
