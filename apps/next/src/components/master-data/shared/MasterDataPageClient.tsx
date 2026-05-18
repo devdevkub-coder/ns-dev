@@ -13,7 +13,7 @@ import {
   type MasterDataRecord,
 } from '@/lib/master-data'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
-import { formatPhoneDisplay, sanitizePhoneInput } from '@/lib/format'
+import { formatPhoneDisplay, sanitizeAccountNoInput, sanitizePhoneInput } from '@/lib/format'
 
 type SortKey = keyof MasterDataRecord
 
@@ -462,6 +462,7 @@ type FormFieldProps = {
 function FormField({ error, field, value, onChange }: FormFieldProps) {
   const isEmailField = field.key === 'email'
   const isPhoneField = field.key === 'phone'
+  const isAccountNoField = field.key === 'accountNo'
   const inputType = field.type === 'number' ? 'number' : isEmailField ? 'email' : 'text'
 
   if (field.type === 'select') {
@@ -490,7 +491,7 @@ function FormField({ error, field, value, onChange }: FormFieldProps) {
         aria-invalid={Boolean(error)}
         aria-required={field.required}
         className={`mt-1.5 w-full rounded-lg border px-3 py-2 outline-none focus:border-slate-700 ${error ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
-        inputMode={isEmailField ? 'email' : isPhoneField ? 'tel' : undefined}
+        inputMode={isEmailField ? 'email' : isPhoneField ? 'tel' : isAccountNoField ? 'numeric' : undefined}
         type={inputType}
         value={String(value ?? '')}
         onChange={(event) => {
@@ -498,7 +499,9 @@ function FormField({ error, field, value, onChange }: FormFieldProps) {
             ? event.target.value.replace(/[^\x20-\x7E]/g, '')
             : isPhoneField
               ? sanitizePhoneInput(event.target.value)
-              : event.target.value
+              : isAccountNoField
+                ? sanitizeAccountNoInput(event.target.value)
+                : event.target.value
           onChange(nextValue)
         }}
       />

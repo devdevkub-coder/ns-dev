@@ -7,6 +7,7 @@ const codePattern = /^[A-Za-z0-9_-]+$/
 const generalTextPattern = /^[^\u0000-\u001F\u007F]+$/u
 const businessTextPattern = /^[\p{L}\p{M}\p{N}\s.&,()/'"+#%-]+$/u
 const phonePattern = /^\+?[0-9][0-9\s().-]{7,24}$/
+const accountNoPattern = /^[0-9][0-9\s-]{1,38}[0-9]$/
 
 const optionalCode = (label: string) => z.preprocess(
   blankToNull,
@@ -31,6 +32,15 @@ const optionalGeneralText = (label: string, maxLength = 255) => z.preprocess(
   z.string().trim()
     .max(maxLength, `${label}ยาวเกินไป`)
     .regex(generalTextPattern, `${label}มีรูปแบบไม่ถูกต้อง`)
+    .nullable()
+    .default(null),
+)
+
+const optionalAccountNo = z.preprocess(
+  blankToNull,
+  z.string().trim()
+    .max(40, 'เลขบัญชียาวเกินไป')
+    .regex(accountNoPattern, 'เลขบัญชีใช้ได้เฉพาะตัวเลข ช่องว่าง และขีด')
     .nullable()
     .default(null),
 )
@@ -155,7 +165,7 @@ export const masterDataFormSchema = masterDataRecordSchema
     parentId: optionalCode('รหัสหมวดแม่'),
     channelType: optionalGeneralText('ประเภทช่องทาง', 80),
     bankName: optionalBusinessText('ธนาคาร', 120),
-    accountNo: optionalGeneralText('เลขบัญชี', 80),
+    accountNo: optionalAccountNo,
     currency: optionalCode('สกุลเงิน'),
     openingBalance: nonNegativeNumber('ยอดยกมา'),
     odLimit: nonNegativeNumber('วงเงิน OD'),

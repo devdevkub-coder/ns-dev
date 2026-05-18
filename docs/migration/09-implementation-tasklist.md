@@ -278,6 +278,8 @@ Reporting rule:
 - [x] เพิ่ม customer export API `/api/master-data/customers/export`
 - [x] เพิ่ม supplier classification fields และ supplier export API `/api/master-data/suppliers/export`
 - [x] เพิ่มผู้ดูแลฝ่ายขายให้ supplier ด้วย `sales_id`/`sales_rep`, dropdown ในฟอร์ม, filter ผู้ดูแล, column/sort และ export ตาม filter
+- [x] แยก field ธนาคาร/เลขบัญชีในกลุ่มข้อมูลหลักที่ยังเป็นบัญชีธนาคารก้อนเดียว: directors และ payment methods ใช้ `bank_name` + `account_no` แบบ additive migration; suppliers/accounts/beneficiaries ใช้ field แยกอยู่แล้ว
+- [x] ปรับสินค้าให้ไม่ใช้ข้อมูล `metal_group`, `item_status`, `grade`, `std_price`, `std_cost` ใน Next flow แล้ว: เอาออกจาก form/table/filter/API write/export โดยยังไม่ drop column เพื่อไม่ให้ข้อมูลเก่าหาย
 - [x] เปลี่ยน active/inactive form control เป็น toggle ใน customer, supplier, และ shared master-data forms
 - [x] reset branch กลับ checkpoint `d6e8b29` หลังทดลอง sidebar/shadcn design; Tailwind v4/shadcn sidebar ไม่อยู่ใน baseline ปัจจุบัน
 - [x] ทำ product page ให้เป็น specialized page แบบ customer/supplier

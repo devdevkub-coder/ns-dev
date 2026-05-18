@@ -11,12 +11,7 @@ export const runtime = 'nodejs'
 const sortColumns = {
   active: 'active',
   code: 'code',
-  grade: 'grade',
-  itemStatus: 'item_status',
-  metalGroup: 'metal_group',
   name: 'name',
-  stdCost: 'std_cost',
-  stdPrice: 'std_price',
   targetMarginPct: 'target_margin_pct',
   type: 'type',
   unit: 'unit',
@@ -29,23 +24,19 @@ function parseListParams(request: Request) {
   const page = Math.max(1, Number(url.searchParams.get('page') ?? '1') || 1)
   const pageSize = all ? 10000 : Math.min(100, Math.max(10, Number(url.searchParams.get('pageSize') ?? '25') || 25))
   const q = url.searchParams.get('q')?.trim() ?? ''
-  const itemStatus = url.searchParams.get('itemStatus')?.trim() ?? ''
-  const metalGroup = url.searchParams.get('metalGroup')?.trim() ?? ''
   const productType = url.searchParams.get('type')?.trim() ?? ''
   const sort = url.searchParams.get('sort') ?? 'code'
   const direction = url.searchParams.get('direction') === 'desc' ? 'desc' : 'asc'
   const sortColumn = sortColumns[sort as keyof typeof sortColumns] ?? sortColumns.code
 
-  return { active, all, direction, itemStatus, metalGroup, page, pageSize, productType, q, sortColumn }
+  return { active, all, direction, page, pageSize, productType, q, sortColumn }
 }
 
-function productSearchWhere(q: string, filters: { active: string; itemStatus: string; metalGroup: string; productType: string }): Prisma.productsWhereInput {
+function productSearchWhere(q: string, filters: { active: string; productType: string }): Prisma.productsWhereInput {
   const where: Prisma.productsWhereInput = {}
 
   if (filters.active === 'active') where.active = true
   if (filters.active === 'inactive') where.active = false
-  if (filters.itemStatus) where.item_status = filters.itemStatus
-  if (filters.metalGroup) where.metal_group = filters.metalGroup
   if (filters.productType) where.type = filters.productType
 
   if (!q) return where
@@ -56,9 +47,6 @@ function productSearchWhere(q: string, filters: { active: string; itemStatus: st
     { name: { contains: q, mode: 'insensitive' } },
     { type: { contains: q, mode: 'insensitive' } },
     { unit: { contains: q, mode: 'insensitive' } },
-    { metal_group: { contains: q, mode: 'insensitive' } },
-    { item_status: { contains: q, mode: 'insensitive' } },
-    { grade: { contains: q, mode: 'insensitive' } },
   ]
 
   return where
@@ -69,8 +57,8 @@ export async function GET(request: Request) {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'master.products.view')
 
-    const { active, all, direction, itemStatus, metalGroup, page, pageSize, productType, q, sortColumn } = parseListParams(request)
-    const where = productSearchWhere(q, { active, itemStatus, metalGroup, productType })
+    const { active, all, direction, page, pageSize, productType, q, sortColumn } = parseListParams(request)
+    const where = productSearchWhere(q, { active, productType })
     const [products, total] = await Promise.all([
       prisma.products.findMany({
         orderBy: [{ [sortColumn]: direction }, { id: 'asc' }],

@@ -12,7 +12,7 @@ import {
 } from '@/lib/supplier'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { getErrorMessage } from '@/lib/api-client'
-import { formatPhoneDisplay, sanitizePhoneInput } from '@/lib/format'
+import { formatPhoneDisplay, sanitizeAccountNoInput, sanitizePhoneInput } from '@/lib/format'
 import { listMasterDataRecords, type MasterDataRecord } from '@/lib/master-data'
 import { listThaiDistricts, listThaiProvinces, listThaiSubdistricts, type ThaiDistrict, type ThaiProvince, type ThaiSubdistrict } from '@/lib/thai-address'
 
@@ -763,13 +763,14 @@ type TextFieldProps = {
 function TextField({ className = '', error, label, readOnly = false, type = 'text', value, onChange }: TextFieldProps) {
   const isEmailField = type === 'email'
   const isPhoneField = label === 'โทรศัพท์'
+  const isAccountNoField = label === 'เลขบัญชี'
 
   return (
     <label className={`block text-sm font-medium ${className}`}>
       {label}
       <input
         className={`mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-slate-700 ${readOnly ? 'bg-slate-50' : ''}`}
-        inputMode={isEmailField ? 'email' : isPhoneField ? 'tel' : undefined}
+        inputMode={isEmailField ? 'email' : isPhoneField ? 'tel' : isAccountNoField ? 'numeric' : undefined}
         readOnly={readOnly}
         type={type}
         value={value}
@@ -778,7 +779,9 @@ function TextField({ className = '', error, label, readOnly = false, type = 'tex
             ? event.target.value.replace(/[^\x20-\x7E]/g, '')
             : isPhoneField
               ? sanitizePhoneInput(event.target.value)
-              : event.target.value
+              : isAccountNoField
+                ? sanitizeAccountNoInput(event.target.value)
+                : event.target.value
           onChange(nextValue)
         }}
       />

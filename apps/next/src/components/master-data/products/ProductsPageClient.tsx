@@ -7,14 +7,13 @@ import {
   exportProducts,
   listProducts,
   productFormSchema,
-  productStatusOptions,
   saveProduct,
   setProductActive,
   type Product,
   type ProductFormValues,
 } from '@/lib/product'
 
-type SortKey = 'active' | 'code' | 'grade' | 'itemStatus' | 'metalGroup' | 'name' | 'stdCost' | 'stdPrice' | 'targetMarginPct' | 'type' | 'unit'
+type SortKey = 'active' | 'code' | 'name' | 'targetMarginPct' | 'type' | 'unit'
 
 const emptyProductForm: ProductFormValues = {
   id: undefined,
@@ -23,11 +22,6 @@ const emptyProductForm: ProductFormValues = {
   active: true,
   type: null,
   unit: 'kg',
-  metalGroup: null,
-  itemStatus: 'RM',
-  grade: null,
-  stdPrice: null,
-  stdCost: null,
   targetMarginPct: null,
 }
 
@@ -39,11 +33,6 @@ function productToForm(product: Product): ProductFormValues {
     active: product.active,
     type: product.type,
     unit: product.unit ?? 'kg',
-    metalGroup: product.metalGroup,
-    itemStatus: productStatusOptions.includes(product.itemStatus as ProductFormValues['itemStatus']) ? product.itemStatus as ProductFormValues['itemStatus'] : 'RM',
-    grade: product.grade,
-    stdPrice: product.stdPrice,
-    stdCost: product.stdCost,
     targetMarginPct: product.targetMarginPct,
   }
 }
@@ -84,8 +73,6 @@ export function ProductsPageClient() {
   const [isExporting, setIsExporting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  const [itemStatusFilter, setItemStatusFilter] = useState('')
-  const [metalGroupFilter, setMetalGroupFilter] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [pendingToggleIds, setPendingToggleIds] = useState<Set<string>>(new Set())
@@ -114,15 +101,12 @@ export function ProductsPageClient() {
   }, [loadData])
 
   const productTypes = useMemo(() => uniqueText(products.map((product) => product.type)), [products])
-  const metalGroups = useMemo(() => uniqueText(products.map((product) => product.metalGroup)), [products])
 
   const filteredSortedProducts = useMemo(() => {
     const query = search.trim().toLowerCase()
     const rows = products.filter((product) => {
       if (activeFilter === 'active' && !product.active) return false
       if (activeFilter === 'inactive' && product.active) return false
-      if (itemStatusFilter && product.itemStatus !== itemStatusFilter) return false
-      if (metalGroupFilter && product.metalGroup !== metalGroupFilter) return false
       if (productTypeFilter && product.type !== productTypeFilter) return false
       if (!query) return true
 
@@ -130,7 +114,7 @@ export function ProductsPageClient() {
     })
 
     return [...rows].sort((left, right) => compareProducts(left, right, sortKey, sortDirection))
-  }, [activeFilter, itemStatusFilter, metalGroupFilter, productTypeFilter, products, search, sortDirection, sortKey])
+  }, [activeFilter, productTypeFilter, products, search, sortDirection, sortKey])
 
   const total = filteredSortedProducts.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
@@ -198,8 +182,6 @@ export function ProductsPageClient() {
       const { blob, filename } = await exportProducts({
         active: activeFilter,
         direction: sortDirection,
-        itemStatus: itemStatusFilter,
-        metalGroup: metalGroupFilter,
         productType: productTypeFilter,
         q: search,
         sort: sortKey,
@@ -238,8 +220,6 @@ export function ProductsPageClient() {
 
   function resetFilters() {
     setActiveFilter('')
-    setItemStatusFilter('')
-    setMetalGroupFilter('')
     setProductTypeFilter('')
     setSearch('')
     setPage(1)
@@ -256,7 +236,7 @@ export function ProductsPageClient() {
 
       <div className="rounded-xl bg-white p-3 shadow">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="grid w-full gap-2 md:grid-cols-2 xl:max-w-5xl xl:grid-cols-[minmax(0,1fr)_150px_150px_150px_130px]">
+          <div className="grid w-full gap-2 md:grid-cols-2 xl:max-w-3xl xl:grid-cols-[minmax(0,1fr)_170px_130px]">
             <input
               className="w-full rounded-lg border px-3 py-2 text-sm"
               onChange={(event) => {
@@ -278,30 +258,6 @@ export function ProductsPageClient() {
             >
               <option value="">ทุกประเภท</option>
               {productTypes.map((type) => <option key={type} value={type}>{type}</option>)}
-            </select>
-            <select
-              aria-label="กรองกลุ่มโลหะ"
-              className="rounded-lg border px-3 py-2 text-sm"
-              value={metalGroupFilter}
-              onChange={(event) => {
-                setPage(1)
-                setMetalGroupFilter(event.target.value)
-              }}
-            >
-              <option value="">ทุกกลุ่มโลหะ</option>
-              {metalGroups.map((metalGroup) => <option key={metalGroup} value={metalGroup}>{metalGroup}</option>)}
-            </select>
-            <select
-              aria-label="กรองสถานะสินค้า"
-              className="rounded-lg border px-3 py-2 text-sm"
-              value={itemStatusFilter}
-              onChange={(event) => {
-                setPage(1)
-                setItemStatusFilter(event.target.value)
-              }}
-            >
-              <option value="">ทุกสถานะสินค้า</option>
-              {productStatusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
             </select>
             <select
               aria-label="กรองสถานะใช้งาน"
@@ -371,7 +327,6 @@ export function ProductsPageClient() {
               isSaving={isSaving}
               product={selectedProduct}
               productTypes={productTypes}
-              metalGroups={metalGroups}
               onCancel={() => {
                 setFormOpen(false)
                 setSelectedProduct(null)
@@ -393,11 +348,6 @@ export function ProductsPageClient() {
                 <th className="min-w-[220px] p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('name')}>ชื่อสินค้า{sortLabel('name')}</button></th>
                 <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('type')}>ประเภท{sortLabel('type')}</button></th>
                 <th className="p-2 text-center"><button className="font-semibold" type="button" onClick={() => setSort('unit')}>หน่วย{sortLabel('unit')}</button></th>
-                <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('metalGroup')}>กลุ่มโลหะ{sortLabel('metalGroup')}</button></th>
-                <th className="p-2 text-center"><button className="font-semibold" type="button" onClick={() => setSort('itemStatus')}>สถานะสินค้า{sortLabel('itemStatus')}</button></th>
-                <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('grade')}>เกรด{sortLabel('grade')}</button></th>
-                <th className="p-2 text-right"><button className="font-semibold" type="button" onClick={() => setSort('stdPrice')}>ราคามาตรฐาน{sortLabel('stdPrice')}</button></th>
-                <th className="p-2 text-right"><button className="font-semibold" type="button" onClick={() => setSort('stdCost')}>ต้นทุนมาตรฐาน{sortLabel('stdCost')}</button></th>
                 <th className="p-2 text-right"><button className="font-semibold" type="button" onClick={() => setSort('targetMarginPct')}>Target Margin{sortLabel('targetMarginPct')}</button></th>
                 <th className="p-2 text-center"><button className="font-semibold" type="button" onClick={() => setSort('active')}>สถานะ{sortLabel('active')}</button></th>
                 <th className="p-2 text-center">แก้ไข</th>
@@ -422,11 +372,6 @@ export function ProductsPageClient() {
                   <td className="p-2 font-medium">{product.name}</td>
                   <td className="p-2">{displayValue(product.type)}</td>
                   <td className="p-2 text-center">{displayValue(product.unit)}</td>
-                  <td className="p-2">{displayValue(product.metalGroup)}</td>
-                  <td className="p-2 text-center">{displayValue(product.itemStatus)}</td>
-                  <td className="p-2">{displayValue(product.grade)}</td>
-                  <td className="p-2 text-right">{formatNumber(product.stdPrice)}</td>
-                  <td className="p-2 text-right">{formatNumber(product.stdCost)}</td>
                   <td className="p-2 text-right">{product.targetMarginPct === null ? '-' : `${formatNumber(product.targetMarginPct)}%`}</td>
                   <td className="p-2 text-center">
                     <ActiveToggle
@@ -452,7 +397,7 @@ export function ProductsPageClient() {
               ))}
               {paginatedProducts.length === 0 ? (
                 <tr>
-                  <td className="p-4 text-center text-sm text-slate-500" colSpan={12}>ไม่พบข้อมูลที่ค้นหา</td>
+                  <td className="p-4 text-center text-sm text-slate-500" colSpan={7}>ไม่พบข้อมูลที่ค้นหา</td>
                 </tr>
               ) : null}
             </tbody>
@@ -465,14 +410,13 @@ export function ProductsPageClient() {
 
 type ProductFormProps = {
   isSaving: boolean
-  metalGroups: string[]
   product: Product | null
   productTypes: string[]
   onCancel: () => void
   onSubmit: (values: ProductFormValues) => Promise<void>
 }
 
-function ProductForm({ isSaving, metalGroups, product, productTypes, onCancel, onSubmit }: ProductFormProps) {
+function ProductForm({ isSaving, product, productTypes, onCancel, onSubmit }: ProductFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState<ProductFormValues>(() => (product ? productToForm(product) : emptyProductForm))
 
@@ -510,29 +454,13 @@ function ProductForm({ isSaving, metalGroups, product, productTypes, onCancel, o
           <div className="grid gap-4 md:grid-cols-4">
             <TextField error={errors.code} label="รหัสสินค้า *" readOnly={Boolean(form.id)} value={form.code} onChange={(value) => update('code', value)} />
             <TextField className="md:col-span-2" error={errors.name} label="ชื่อสินค้า *" value={form.name} onChange={(value) => update('name', value)} />
-            <SelectField error={errors.itemStatus} label="สถานะสินค้า *" value={form.itemStatus} onChange={(value) => update('itemStatus', value as ProductFormValues['itemStatus'])}>
-              {productStatusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
-            </SelectField>
             <TextField error={errors.type} label="ประเภทสินค้า" list="product-type-options" value={form.type ?? ''} onChange={(value) => update('type', value || null)} />
             <TextField error={errors.unit} label="หน่วย" value={form.unit ?? ''} onChange={(value) => update('unit', value || null)} />
-            <TextField error={errors.metalGroup} label="กลุ่มโลหะ" list="metal-group-options" value={form.metalGroup ?? ''} onChange={(value) => update('metalGroup', value || null)} />
-            <TextField error={errors.grade} label="เกรด" value={form.grade ?? ''} onChange={(value) => update('grade', value || null)} />
+            <TextField error={errors.targetMarginPct} label="Target Margin %" type="number" value={form.targetMarginPct ?? ''} onChange={(value) => update('targetMarginPct', value === '' ? null : Number(value))} />
           </div>
           <datalist id="product-type-options">
             {productTypes.map((type) => <option key={type} value={type} />)}
           </datalist>
-          <datalist id="metal-group-options">
-            {metalGroups.map((metalGroup) => <option key={metalGroup} value={metalGroup} />)}
-          </datalist>
-        </section>
-
-        <section>
-          <h4 className="mb-3 text-sm font-bold text-slate-700">ราคาและต้นทุน</h4>
-          <div className="grid gap-4 md:grid-cols-3">
-            <TextField error={errors.stdPrice} label="ราคามาตรฐาน" type="number" value={form.stdPrice ?? ''} onChange={(value) => update('stdPrice', value === '' ? null : Number(value))} />
-            <TextField error={errors.stdCost} label="ต้นทุนมาตรฐาน" type="number" value={form.stdCost ?? ''} onChange={(value) => update('stdCost', value === '' ? null : Number(value))} />
-            <TextField error={errors.targetMarginPct} label="Target Margin %" type="number" value={form.targetMarginPct ?? ''} onChange={(value) => update('targetMarginPct', value === '' ? null : Number(value))} />
-          </div>
         </section>
       </div>
 
@@ -573,30 +501,6 @@ function TextField({ className = '', error, label, list, readOnly = false, type 
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
-      {error ? <span className="mt-1 block text-xs text-red-700">{error}</span> : null}
-    </label>
-  )
-}
-
-type SelectFieldProps = {
-  children: React.ReactNode
-  error?: string
-  label: string
-  value: string
-  onChange: (value: string) => void
-}
-
-function SelectField({ children, error, label, value, onChange }: SelectFieldProps) {
-  return (
-    <label className="block text-sm font-medium">
-      {label}
-      <select
-        className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-slate-700"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      >
-        {children}
-      </select>
       {error ? <span className="mt-1 block text-xs text-red-700">{error}</span> : null}
     </label>
   )

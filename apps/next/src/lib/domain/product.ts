@@ -8,11 +8,6 @@ type PrismaProduct = {
   active: boolean | null
   type: string | null
   unit: string | null
-  metal_group: string | null
-  item_status: string | null
-  grade: string | null
-  std_price: Prisma.Decimal | null
-  std_cost: Prisma.Decimal | null
   target_margin_pct: Prisma.Decimal | null
   created_at: Date | null
   updated_at: Date | null
@@ -26,11 +21,6 @@ export function mapPrismaProduct(row: PrismaProduct): Product {
     active: row.active ?? true,
     type: row.type,
     unit: row.unit,
-    metalGroup: row.metal_group,
-    itemStatus: row.item_status,
-    grade: row.grade,
-    stdPrice: row.std_price === null ? null : row.std_price.toNumber(),
-    stdCost: row.std_cost === null ? null : row.std_cost.toNumber(),
     targetMarginPct: row.target_margin_pct === null ? null : row.target_margin_pct.toNumber(),
     createdAt: row.created_at?.toISOString() ?? null,
     updatedAt: row.updated_at?.toISOString() ?? null,
@@ -47,11 +37,6 @@ export function toProductWriteInput(values: ProductFormValues) {
     name: parsed.name,
     type: parsed.type || null,
     unit: parsed.unit || 'kg',
-    metal_group: parsed.metalGroup || null,
-    item_status: parsed.itemStatus,
-    grade: parsed.grade || null,
-    std_price: parsed.stdPrice,
-    std_cost: parsed.stdCost,
     target_margin_pct: parsed.targetMarginPct,
     active: parsed.active,
   }

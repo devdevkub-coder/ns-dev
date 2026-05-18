@@ -6,6 +6,7 @@ const businessTextPattern = /^[\p{L}\p{M}\p{N}\s.&,()/'"-]+$/u
 const compactDigits = (value: string) => value.replace(/\D/g, '')
 const generalTextPattern = /^[^\u0000-\u001F\u007F]+$/u
 const personNamePattern = /^[\p{L}\p{M}.' -]+$/u
+const accountNoPattern = /^[0-9][0-9\s-]{1,38}[0-9]$/
 
 const asciiEmailSchema = z.preprocess(blankToNull, z.string().trim()
   .email('รูปแบบอีเมลไม่ถูกต้อง')
@@ -60,6 +61,15 @@ const optionalMooSchema = z.preprocess(
   blankToNull,
   z.string().trim()
     .regex(/^\d{1,3}[A-Za-z]?$/, 'หมู่ต้องเป็นตัวเลข 1-3 หลัก')
+    .nullable()
+    .default(null),
+)
+
+const optionalAccountNoSchema = z.preprocess(
+  blankToNull,
+  z.string().trim()
+    .max(40, 'เลขบัญชียาวเกินไป')
+    .regex(accountNoPattern, 'เลขบัญชีใช้ได้เฉพาะตัวเลข ช่องว่าง และขีด')
     .nullable()
     .default(null),
 )
@@ -163,7 +173,7 @@ export const supplierFormSchema = z.object({
   contactFirstName: optionalPersonName('ชื่อผู้ติดต่อ'),
   contactLastName: optionalPersonName('นามสกุลผู้ติดต่อ'),
   bankName: optionalGeneralText('ธนาคาร', 120),
-  accountNo: optionalGeneralText('เลขบัญชี', 80),
+  accountNo: optionalAccountNoSchema,
   bankAccount: optionalGeneralText('ชื่อบัญชี', 160),
   branchId: optionalGeneralText('รหัสสาขา', 80),
   salesId: z.preprocess(blankToNull, z.string().trim().regex(/^[A-Za-z0-9_-]+$/, 'ผู้ดูแลมีรูปแบบไม่ถูกต้อง').nullable().default(null)),

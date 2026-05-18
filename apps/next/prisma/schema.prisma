@@ -670,6 +670,8 @@ model director_employees {
   name         String
   type         String?
   phone        String?
+  bank_name    String?
+  account_no   String?
   bank_account String?
   active       Boolean  @default(true)
   created_at   DateTime @default(now()) @db.Timestamptz(6)
@@ -996,6 +998,8 @@ model payment_methods {
   code       String   @unique
   name       String
   type       String?
+  bank_name  String?
+  account_no String?
   active     Boolean  @default(true)
   created_at DateTime @default(now()) @db.Timestamptz(6)
   updated_at DateTime @default(now()) @db.Timestamptz(6)

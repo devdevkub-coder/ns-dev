@@ -3,7 +3,6 @@ import { readBlobResponse, readJsonResponse } from '@/lib/api-client'
 
 const blankToNull = (value: unknown) => (typeof value === 'string' && value.trim() === '' ? null : value)
 const codePattern = /^[A-Za-z0-9_-]+$/
-const generalTextPattern = /^[^\u0000-\u001F\u007F]+$/u
 const productTextPattern = /^[\p{L}\p{M}\p{N}\s.&,()/'"+#%-]+$/u
 
 const optionalProductText = (label: string, maxLength = 160) => z.preprocess(
@@ -15,25 +14,6 @@ const optionalProductText = (label: string, maxLength = 160) => z.preprocess(
     .default(null),
 )
 
-const optionalGeneralText = (label: string, maxLength = 255) => z.preprocess(
-  blankToNull,
-  z.string().trim()
-    .max(maxLength, `${label}ยาวเกินไป`)
-    .regex(generalTextPattern, `${label}มีรูปแบบไม่ถูกต้อง`)
-    .nullable()
-    .default(null),
-)
-
-const nullableMoney = z.preprocess(
-  blankToNull,
-  z.number({ invalid_type_error: 'ต้องเป็นตัวเลข' })
-    .min(0, 'ต้องไม่ติดลบ')
-    .nullable()
-    .default(null),
-)
-
-export const productStatusOptions = ['RM', 'WIP', 'FG'] as const
-
 export const productSchema = z.object({
   id: z.string().min(1),
   code: z.string().min(1),
@@ -41,11 +21,6 @@ export const productSchema = z.object({
   active: z.boolean().default(true),
   type: z.string().nullable().default(null),
   unit: z.string().nullable().default(null),
-  metalGroup: z.string().nullable().default(null),
-  itemStatus: z.string().nullable().default(null),
-  grade: z.string().nullable().default(null),
-  stdPrice: z.number().nullable().default(null),
-  stdCost: z.number().nullable().default(null),
   targetMarginPct: z.number().nullable().default(null),
   createdAt: z.string().nullable().default(null),
   updatedAt: z.string().nullable().default(null),
@@ -67,8 +42,6 @@ export type ProductListOptions = {
   active?: string
   all?: boolean
   direction?: 'asc' | 'desc'
-  itemStatus?: string
-  metalGroup?: string
   page?: number
   pageSize?: number
   productType?: string
@@ -95,11 +68,6 @@ export const productFormSchema = z.object({
       .nullable()
       .default('kg'),
   ),
-  metalGroup: optionalProductText('กลุ่มโลหะ', 120),
-  itemStatus: z.enum(productStatusOptions, { required_error: 'เลือกสถานะสินค้า' }).default('RM'),
-  grade: optionalProductText('เกรด', 80),
-  stdPrice: nullableMoney,
-  stdCost: nullableMoney,
   targetMarginPct: z.preprocess(
     blankToNull,
     z.number({ invalid_type_error: 'ต้องเป็นตัวเลข' })
@@ -109,14 +77,6 @@ export const productFormSchema = z.object({
       .default(null),
   ),
   active: z.boolean().default(true),
-}).superRefine((values, context) => {
-  if (values.stdPrice !== null && values.stdCost !== null && values.stdCost > values.stdPrice) {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'ต้นทุนมาตรฐานสูงกว่าราคามาตรฐาน',
-      path: ['stdCost'],
-    })
-  }
 })
 
 export type ProductFormValues = z.infer<typeof productFormSchema>
@@ -125,8 +85,6 @@ export async function listProducts(options: ProductListOptions = {}): Promise<Pr
   const params = new URLSearchParams()
   if (options.active) params.set('active', options.active)
   if (options.all) params.set('all', '1')
-  if (options.itemStatus) params.set('itemStatus', options.itemStatus)
-  if (options.metalGroup) params.set('metalGroup', options.metalGroup)
   if (options.productType) params.set('type', options.productType)
   if (options.q) params.set('q', options.q)
   if (options.sort) params.set('sort', options.sort)
@@ -162,8 +120,6 @@ export async function setProductActive(productId: string, active: boolean): Prom
 export async function exportProducts(options: ProductListOptions = {}): Promise<{ blob: Blob; filename: string }> {
   const params = new URLSearchParams()
   if (options.active) params.set('active', options.active)
-  if (options.itemStatus) params.set('itemStatus', options.itemStatus)
-  if (options.metalGroup) params.set('metalGroup', options.metalGroup)
   if (options.productType) params.set('type', options.productType)
   if (options.q) params.set('q', options.q)
   if (options.sort) params.set('sort', options.sort)
