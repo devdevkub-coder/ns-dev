@@ -277,6 +277,7 @@ Reporting rule:
 - [x] เพิ่ม customer frontend pagination/search/filter/sort/count UX และย้าย pagination ไปอยู่แถบเดียวกับจำนวนทั้งหมด
 - [x] เพิ่ม customer export API `/api/master-data/customers/export`
 - [x] เพิ่ม supplier classification fields และ supplier export API `/api/master-data/suppliers/export`
+- [x] เพิ่มผู้ดูแลฝ่ายขายให้ supplier ด้วย `sales_id`/`sales_rep`, dropdown ในฟอร์ม, filter ผู้ดูแล, column/sort และ export ตาม filter
 - [x] เปลี่ยน active/inactive form control เป็น toggle ใน customer, supplier, และ shared master-data forms
 - [x] reset branch กลับ checkpoint `d6e8b29` หลังทดลอง sidebar/shadcn design; Tailwind v4/shadcn sidebar ไม่อยู่ใน baseline ปัจจุบัน
 - [x] ทำ product page ให้เป็น specialized page แบบ customer/supplier

@@ -31,6 +31,8 @@ type PrismaSupplier = {
   bank_account: string | null
   bank_account_name: string | null
   branch_id: string | null
+  sales_id: string | null
+  sales_rep: string | null
   credit_term: number | null
   credit_limit: Prisma.Decimal | null
   notes: string | null
@@ -72,6 +74,8 @@ export function mapPrismaSupplier(row: PrismaSupplier): Supplier {
     bankAccount: row.bank_account_name,
     branchId: row.branch_id,
     branchName: row.branches?.name ?? row.branch_id,
+    salesId: row.sales_id,
+    salesName: row.sales_rep,
     creditTerm: row.credit_term,
     creditLimit: row.credit_limit === null ? null : row.credit_limit.toNumber(),
     notes: row.notes,
@@ -134,6 +138,8 @@ export function toSupplierWriteInput(values: SupplierFormValues) {
     bank_account: parsed.accountNo || null,
     bank_account_name: parsed.bankAccount || null,
     branch_id: parsed.branchId || null,
+    sales_id: parsed.salesId || null,
+    sales_rep: parsed.salesName || null,
     credit_term: parsed.creditTerm,
     credit_limit: parsed.creditLimit,
     notes: parsed.notes || null,

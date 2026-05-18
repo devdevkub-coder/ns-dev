@@ -21,8 +21,6 @@ export const salespersonsPageConfig: MasterDataPageConfig = {
     { key: 'name', label: 'ชื่อ' },
     { key: 'phone', label: 'โทร' },
     { key: 'email', label: 'อีเมล' },
-    { key: 'commissionPct', label: 'คอมฯ %', align: 'right', format: 'number' },
-    { key: 'baseSalary', label: 'ฐานเงินเดือน', align: 'right', format: 'money' },
     statusColumn,
   ],
 }

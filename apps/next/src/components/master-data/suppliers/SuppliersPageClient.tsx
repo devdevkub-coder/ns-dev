@@ -13,9 +13,10 @@ import {
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { getErrorMessage } from '@/lib/api-client'
 import { formatPhoneDisplay, sanitizePhoneInput } from '@/lib/format'
+import { listMasterDataRecords, type MasterDataRecord } from '@/lib/master-data'
 import { listThaiDistricts, listThaiProvinces, listThaiSubdistricts, type ThaiDistrict, type ThaiProvince, type ThaiSubdistrict } from '@/lib/thai-address'
 
-type SortKey = 'code' | 'name' | 'taxId' | 'type' | 'phone' | 'email' | 'contact' | 'creditTerm' | 'creditLimit' | 'active'
+type SortKey = 'code' | 'name' | 'taxId' | 'type' | 'phone' | 'email' | 'salesName' | 'contact' | 'creditTerm' | 'creditLimit' | 'active'
 
 const emptySupplierForm: SupplierFormValues = {
   id: undefined,
@@ -48,6 +49,8 @@ const emptySupplierForm: SupplierFormValues = {
   accountNo: null,
   bankAccount: null,
   branchId: null,
+  salesId: null,
+  salesName: null,
   marketScope: 'ในประเทศ',
   notes: null,
   active: true,
@@ -87,6 +90,8 @@ function supplierToForm(supplier: Supplier): SupplierFormValues {
     accountNo: supplier.accountNo,
     bankAccount: supplier.bankAccount,
     branchId: supplier.branchId,
+    salesId: supplier.salesId,
+    salesName: supplier.salesName,
     marketScope: supplier.marketScope,
     notes: supplier.notes,
     active: supplier.active,
@@ -136,6 +141,8 @@ export function SuppliersPageClient() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [provinces, setProvinces] = useState<ThaiProvince[]>([])
+  const [salespersonFilter, setSalespersonFilter] = useState('')
+  const [salespersons, setSalespersons] = useState<MasterDataRecord[]>([])
   const [search, setSearch] = useState('')
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
@@ -146,10 +153,12 @@ export function SuppliersPageClient() {
     setError(null)
     setIsLoading(true)
     try {
-      const result = await listSuppliers({
-        all: true,
-      })
+      const [result, salespersonRows] = await Promise.all([
+        listSuppliers({ all: true }),
+        listMasterDataRecords('/api/master-data/salespersons'),
+      ])
       setSuppliers(result.rows)
+      setSalespersons(salespersonRows.filter((salesperson) => salesperson.active))
     } catch (caught) {
       setError(getErrorMessage(caught, 'โหลดข้อมูลผู้ขายไม่ได้'))
     } finally {
@@ -162,13 +171,14 @@ export function SuppliersPageClient() {
     const rows = suppliers.filter((supplier) => {
       if (supplierTypeFilter && supplier.type !== supplierTypeFilter) return false
       if (marketScopeFilter && supplier.marketScope !== marketScopeFilter) return false
+      if (salespersonFilter && supplier.salesId !== salespersonFilter) return false
       if (!query) return true
 
       return Object.values(supplier).some((value) => String(value ?? '').toLowerCase().includes(query))
     })
 
     return [...rows].sort((left, right) => compareSuppliers(left, right, sortKey, sortDirection))
-  }, [supplierTypeFilter, suppliers, marketScopeFilter, search, sortDirection, sortKey])
+  }, [supplierTypeFilter, suppliers, marketScopeFilter, salespersonFilter, search, sortDirection, sortKey])
 
   const total = filteredSortedSuppliers.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
@@ -269,6 +279,7 @@ export function SuppliersPageClient() {
         direction: sortDirection,
         marketScope: marketScopeFilter,
         q: search,
+        salesId: salespersonFilter,
         sort: sortKey,
       })
       const url = window.URL.createObjectURL(blob)
@@ -314,7 +325,7 @@ export function SuppliersPageClient() {
 
       <div className="rounded-xl bg-white p-3 shadow">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="grid w-full gap-2 md:max-w-3xl md:grid-cols-[minmax(0,1fr)_180px_180px]">
+          <div className="grid w-full gap-2 md:grid-cols-2 xl:max-w-5xl xl:grid-cols-[minmax(0,1fr)_170px_170px_190px]">
             <input
               className="w-full rounded-lg border px-3 py-2 text-sm"
               onChange={(event) => {
@@ -350,6 +361,20 @@ export function SuppliersPageClient() {
               <option value="">ทุกตลาด</option>
               <option value="ในประเทศ">ในประเทศ</option>
               <option value="ต่างประเทศ">ต่างประเทศ</option>
+            </select>
+            <select
+              aria-label="กรองผู้ดูแล"
+              className="rounded-lg border px-3 py-2 text-sm"
+              value={salespersonFilter}
+              onChange={(event) => {
+                setPage(1)
+                setSalespersonFilter(event.target.value)
+              }}
+            >
+              <option value="">ทุกผู้ดูแล</option>
+              {salespersons.map((salesperson) => (
+                <option key={salesperson.id} value={salesperson.id}>{salesperson.name}</option>
+              ))}
             </select>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
@@ -418,6 +443,7 @@ export function SuppliersPageClient() {
               districts={districts}
               isSaving={isSaving}
               provinces={provinces}
+              salespersons={salespersons}
               subdistricts={subdistricts}
               onCancel={() => {
                 setFormOpen(false)
@@ -442,6 +468,7 @@ export function SuppliersPageClient() {
                 <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('type')}>ประเภท{sortLabel('type')}</button></th>
                 <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('phone')}>โทร{sortLabel('phone')}</button></th>
                 <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('email')}>อีเมล{sortLabel('email')}</button></th>
+                <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('salesName')}>ผู้ดูแล{sortLabel('salesName')}</button></th>
                 <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('contact')}>ผู้ติดต่อ{sortLabel('contact')}</button></th>
                 <th className="min-w-[220px] p-2 text-left">ที่อยู่</th>
                 <th className="p-2 text-right"><button className="font-semibold" type="button" onClick={() => setSort('creditTerm')}>Term (วัน){sortLabel('creditTerm')}</button></th>
@@ -471,6 +498,7 @@ export function SuppliersPageClient() {
                   <td className="p-2">{displayValue(supplier.type)}</td>
                   <td className="p-2">{displayValue(formatPhoneDisplay(supplier.phone))}</td>
                   <td className="p-2">{displayValue(supplier.email)}</td>
+                  <td className="p-2">{displayValue(supplier.salesName)}</td>
                   <td className="p-2">{displayValue(supplier.contact)}</td>
                   <td className="p-2">{displayValue(supplier.address)}</td>
                   <td className="p-2 text-right">{supplier.creditTerm ?? '-'}</td>
@@ -499,7 +527,7 @@ export function SuppliersPageClient() {
               ))}
               {paginatedSuppliers.length === 0 ? (
                 <tr>
-                  <td className="p-4 text-center text-sm text-slate-500" colSpan={12}>ไม่พบข้อมูลที่ค้นหา</td>
+                  <td className="p-4 text-center text-sm text-slate-500" colSpan={13}>ไม่พบข้อมูลที่ค้นหา</td>
                 </tr>
               ) : null}
             </tbody>
@@ -515,12 +543,13 @@ type SupplierFormProps = {
   districts: ThaiDistrict[]
   isSaving: boolean
   provinces: ThaiProvince[]
+  salespersons: MasterDataRecord[]
   subdistricts: ThaiSubdistrict[]
   onCancel: () => void
   onSubmit: (values: SupplierFormValues) => Promise<void>
 }
 
-function SupplierForm({ supplier, districts, isSaving, provinces, subdistricts, onCancel, onSubmit }: SupplierFormProps) {
+function SupplierForm({ supplier, districts, isSaving, provinces, salespersons, subdistricts, onCancel, onSubmit }: SupplierFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState<SupplierFormValues>(() => (supplier ? supplierToForm(supplier) : emptySupplierForm))
 
@@ -578,6 +607,15 @@ function SupplierForm({ supplier, districts, isSaving, provinces, subdistricts, 
     }))
   }
 
+  function updateSalesperson(salesId: string) {
+    const salesperson = salespersons.find((item) => item.id === salesId)
+    setForm((current) => ({
+      ...current,
+      salesId: salesperson?.id ?? null,
+      salesName: salesperson?.name ?? null,
+    }))
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const parsed = supplierFormSchema.safeParse(form)
@@ -622,6 +660,10 @@ function SupplierForm({ supplier, districts, isSaving, provinces, subdistricts, 
               <TextField className="md:col-span-2" error={errors.name} label="ชื่อบริษัท/ร้านค้า" value={form.name ?? ''} onChange={(value) => update('name', value || null)} />
             )}
             <TextField error={errors.taxId} label="เลขผู้เสียภาษี" value={form.taxId ?? ''} onChange={(value) => update('taxId', value || null)} />
+            <SelectField error={errors.salesId} label="ผู้ดูแล" value={form.salesId ?? ''} onChange={updateSalesperson}>
+              <option value="">ไม่ระบุ</option>
+              {salespersons.map((salesperson) => <option key={salesperson.id} value={salesperson.id}>{salesperson.name}</option>)}
+            </SelectField>
             <TextField error={errors.creditTerm} label="เครดิตเทอม (วัน)" type="number" value={form.creditTerm ?? ''} onChange={(value) => update('creditTerm', value === '' ? null : Number(value))} />
             <TextField error={errors.creditLimit} label="วงเงินเครดิต" type="number" value={form.creditLimit ?? ''} onChange={(value) => update('creditLimit', value === '' ? null : Number(value))} />
           </div>

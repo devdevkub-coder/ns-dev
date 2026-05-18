@@ -22,6 +22,7 @@ const sortColumns = {
   email: 'email',
   name: 'name',
   phone: 'phone',
+  salesName: 'sales_rep',
   taxId: 'tax_id',
   type: 'type',
 } as const
@@ -37,6 +38,7 @@ const supplierColumns: Array<{ key: keyof Supplier; label: string; width: number
   { key: 'taxId', label: 'เลขผู้เสียภาษี', width: 130 },
   { key: 'phone', label: 'โทรศัพท์', width: 130 },
   { key: 'email', label: 'อีเมล', width: 200 },
+  { key: 'salesName', label: 'ผู้ดูแล', width: 160 },
   { key: 'contact', label: 'ผู้ติดต่อ', width: 180 },
   { key: 'contactTitle', label: 'คำนำหน้าผู้ติดต่อ', width: 120 },
   { key: 'contactFirstName', label: 'ชื่อผู้ติดต่อ', width: 140 },
@@ -65,14 +67,15 @@ function parseExportParams(request: Request) {
   const q = url.searchParams.get('q')?.trim() ?? ''
   const supplierType = url.searchParams.get('type')?.trim() ?? ''
   const marketScope = url.searchParams.get('marketScope')?.trim() ?? ''
+  const salesId = url.searchParams.get('salesId')?.trim() ?? ''
   const sort = url.searchParams.get('sort') ?? 'code'
   const direction = url.searchParams.get('direction') === 'desc' ? 'desc' : 'asc'
   const sortColumn = sortColumns[sort as keyof typeof sortColumns] ?? sortColumns.code
 
-  return { supplierType, direction, marketScope, q, sortColumn }
+  return { supplierType, direction, marketScope, q, salesId, sortColumn }
 }
 
-function supplierSearchWhere(q: string, supplierType: string, marketScope: string): Prisma.suppliersWhereInput {
+function supplierSearchWhere(q: string, supplierType: string, marketScope: string, salesId: string): Prisma.suppliersWhereInput {
   const where: Prisma.suppliersWhereInput = {}
 
   if (supplierType) {
@@ -81,6 +84,10 @@ function supplierSearchWhere(q: string, supplierType: string, marketScope: strin
 
   if (marketScope) {
     where.market_scope = marketScope
+  }
+
+  if (salesId) {
+    where.sales_id = salesId
   }
 
   if (!q) return where
@@ -99,6 +106,8 @@ function supplierSearchWhere(q: string, supplierType: string, marketScope: strin
     { bank_account: { contains: q, mode: 'insensitive' } },
     { bank_account_name: { contains: q, mode: 'insensitive' } },
     { branch_id: { contains: q, mode: 'insensitive' } },
+    { sales_id: { contains: q, mode: 'insensitive' } },
+    { sales_rep: { contains: q, mode: 'insensitive' } },
     { notes: { contains: q, mode: 'insensitive' } },
   ]
 
@@ -114,7 +123,7 @@ function formatCellValue(supplier: Supplier, key: keyof Supplier) {
   return String(value)
 }
 
-function buildWorkbook(suppliers: Supplier[], total: number, filters: { supplierType: string; marketScope: string; q: string }) {
+function buildWorkbook(suppliers: Supplier[], total: number, filters: { supplierType: string; marketScope: string; q: string; salesId: string }) {
   const generatedAt = new Date()
   const summaryRows = [
     ['Export ณ', generatedAt.toLocaleString('th-TH')],
@@ -123,6 +132,7 @@ function buildWorkbook(suppliers: Supplier[], total: number, filters: { supplier
     ['ค้นหา', filters.q || '-'],
     ['ประเภทผู้ขาย', filters.supplierType || 'ทุกประเภท'],
     ['ประเทศ/ตลาด', filters.marketScope || 'ทุกตลาด'],
+    ['ผู้ดูแล', filters.salesId || 'ทุกผู้ดูแล'],
   ]
 
   const dataRows = suppliers.map((supplier) => Object.fromEntries(
@@ -147,8 +157,8 @@ export async function GET(request: Request) {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'master.suppliers.export')
 
-    const { supplierType, direction, marketScope, q, sortColumn } = parseExportParams(request)
-    const where = supplierSearchWhere(q, supplierType, marketScope)
+    const { supplierType, direction, marketScope, q, salesId, sortColumn } = parseExportParams(request)
+    const where = supplierSearchWhere(q, supplierType, marketScope, salesId)
     const [rows, total] = await Promise.all([
       prisma.suppliers.findMany({
         include: { branches: true },
@@ -160,7 +170,7 @@ export async function GET(request: Request) {
     ])
 
     const suppliers = rows.map(mapPrismaSupplier)
-    const body = buildWorkbook(suppliers, total, { supplierType, marketScope, q })
+    const body = buildWorkbook(suppliers, total, { supplierType, marketScope, q, salesId })
     const filename = `suppliers_${new Date().toISOString().slice(0, 10)}.xlsx`
 
     return new NextResponse(new Uint8Array(body), {

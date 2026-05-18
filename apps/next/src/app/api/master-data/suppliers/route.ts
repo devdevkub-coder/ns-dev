@@ -18,6 +18,7 @@ const sortColumns = {
   email: 'email',
   name: 'name',
   phone: 'phone',
+  salesName: 'sales_rep',
   taxId: 'tax_id',
   type: 'type',
 } as const
@@ -30,14 +31,15 @@ function parseListParams(request: Request) {
   const q = url.searchParams.get('q')?.trim() ?? ''
   const supplierType = url.searchParams.get('type')?.trim() ?? ''
   const marketScope = url.searchParams.get('marketScope')?.trim() ?? ''
+  const salesId = url.searchParams.get('salesId')?.trim() ?? ''
   const sort = url.searchParams.get('sort') ?? 'code'
   const direction = url.searchParams.get('direction') === 'desc' ? 'desc' : 'asc'
   const sortColumn = sortColumns[sort as keyof typeof sortColumns] ?? sortColumns.code
 
-  return { all, direction, marketScope, page, pageSize, q, sortColumn, supplierType }
+  return { all, direction, marketScope, page, pageSize, q, salesId, sortColumn, supplierType }
 }
 
-function supplierSearchWhere(q: string, supplierType: string, marketScope: string): Prisma.suppliersWhereInput {
+function supplierSearchWhere(q: string, supplierType: string, marketScope: string, salesId: string): Prisma.suppliersWhereInput {
   const where: Prisma.suppliersWhereInput = {}
 
   if (supplierType) {
@@ -46,6 +48,10 @@ function supplierSearchWhere(q: string, supplierType: string, marketScope: strin
 
   if (marketScope) {
     where.market_scope = marketScope
+  }
+
+  if (salesId) {
+    where.sales_id = salesId
   }
 
   if (!q) return where
@@ -64,6 +70,8 @@ function supplierSearchWhere(q: string, supplierType: string, marketScope: strin
     { bank_account: { contains: q, mode: 'insensitive' } },
     { bank_account_name: { contains: q, mode: 'insensitive' } },
     { branch_id: { contains: q, mode: 'insensitive' } },
+    { sales_id: { contains: q, mode: 'insensitive' } },
+    { sales_rep: { contains: q, mode: 'insensitive' } },
     { notes: { contains: q, mode: 'insensitive' } },
   ]
 
@@ -108,13 +116,31 @@ async function assertEmailDomainCanReceiveMail(email: string | null) {
   }
 }
 
+async function getActiveSalespersonName(salesId: string | null) {
+  if (!salesId) return null
+
+  const salesperson = await prisma.salespersons.findFirst({
+    select: { name: true },
+    where: {
+      active: true,
+      id: salesId,
+    },
+  })
+
+  if (!salesperson) {
+    throw new Error('ผู้ดูแลที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
+  }
+
+  return salesperson.name
+}
+
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'master.suppliers.view')
 
-    const { all, direction, marketScope, page, pageSize, q, sortColumn, supplierType } = parseListParams(request)
-    const where = supplierSearchWhere(q, supplierType, marketScope)
+    const { all, direction, marketScope, page, pageSize, q, salesId, sortColumn, supplierType } = parseListParams(request)
+    const where = supplierSearchWhere(q, supplierType, marketScope, salesId)
     const [suppliers, total] = await Promise.all([
       prisma.suppliers.findMany({
         include: { branches: true },
@@ -147,8 +173,9 @@ export async function POST(request: Request) {
     const body = await request.json()
     const values = supplierFormSchema.parse(body)
     await assertEmailDomainCanReceiveMail(values.email)
+    const salesName = await getActiveSalespersonName(values.salesId)
     const code = values.id ? values.code : await getNextSupplierCode()
-    const payload = toSupplierWriteInput({ ...values, code })
+    const payload = toSupplierWriteInput({ ...values, code, salesName })
 
     const supplier = await prisma.suppliers.upsert({
       where: {

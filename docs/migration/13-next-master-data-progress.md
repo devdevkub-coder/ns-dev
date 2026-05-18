@@ -322,6 +322,7 @@ Continuation rule:
 | 2026-05-18 | Batch C2 sales/reference hardening: `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Salespersons/channels/expense-categories/currencies API routes now enforce `master.reference.view/manage`; channels validate `purchase/sales`, currencies validate 3-letter code, shared schema validates non-negative rates, and currencies no longer show active toggle in the form |
 | 2026-05-18 | Batch C3 production/foreign/setup hardening: `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Simple target-table masters now enforce `master.reference.view/manage` through shared helper; machines/directors/payment methods validate key enums; shared schema validates production/foreign fields including yield, SWIFT, account/country/responsible-person text, and beneficiaries validate 3-letter account currency |
 | 2026-05-18 | Supplier duplicate data cleanup in `dev-target` | Passed | Merged supplier rows duplicated by normalized name: total suppliers `8236 -> 2975`, duplicate-name groups `1871 -> 0`, FK orphan checks for `assets`, `payments`, `po_buys`, `purchase_bills`, and `trading_deals` all returned `0`; backup stored in `maintenance.supplier_dedupe_backup_20260518` with `7132` rows |
+| 2026-05-18 | Supplier salesperson owner/filter + salespersons table cleanup: `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run build` | Passed | Supplier form/table/export now supports salesperson owner filter using existing `sales_id`/`sales_rep`; salespersons table hides commission/base salary columns without deleting data |
 
 ## Open Decisions
 
@@ -329,6 +330,8 @@ Continuation rule:
 - Decide whether `directors` should remain setup-only for now or become tied to director loan / advance flows in a later finance batch.
 - Decide final code strategy for all master keys after customer running-number pattern is validated across supplier/product/account codes.
 - Supplier duplicate rows by normalized name were cleaned in `dev-target`, but supplier `code` still has duplicate values across different suppliers. Do not rewrite these codes until the final supplier code strategy is confirmed.
+- Supplier owner field now uses existing `suppliers.sales_id`/`sales_rep`: `/master-data/suppliers` has a salesperson dropdown in the form, a salesperson filter above the table, salesperson column/sort, and `.xlsx` export respects the salesperson filter. No destructive DB migration was needed.
+- `/master-data/salespersons` table hides commission percent and base salary columns to keep the list compact; the fields and existing DB data are not deleted.
 - Confirm whether combined `/master-data/channels` should stay as one UI over `purchase_channels` + `sales_channels`, or split visually later while preserving the current sidebar route.
 - Decide whether small static/reference option lists such as person title prefixes should remain code constants with DB seed/reference rows, or become fully DB-driven cached config later.
 - Decide whether/when to introduce Upstash Redis for master/reference-data cache and rate limiting; not implemented yet.

@@ -103,6 +103,8 @@ export const supplierSchema = z.object({
   bankAccount: z.string().nullable().default(null),
   branchId: z.string().nullable().default(null),
   branchName: z.string().nullable().default(null),
+  salesId: z.string().nullable().default(null),
+  salesName: z.string().nullable().default(null),
   creditTerm: z.number().int().nullable().default(null),
   creditLimit: z.number().nullable().default(null),
   notes: z.string().nullable().default(null),
@@ -129,6 +131,7 @@ export type SupplierListOptions = {
   page?: number
   pageSize?: number
   q?: string
+  salesId?: string
   sort?: string
   supplierType?: string
 }
@@ -163,6 +166,8 @@ export const supplierFormSchema = z.object({
   accountNo: optionalGeneralText('เลขบัญชี', 80),
   bankAccount: optionalGeneralText('ชื่อบัญชี', 160),
   branchId: optionalGeneralText('รหัสสาขา', 80),
+  salesId: z.preprocess(blankToNull, z.string().trim().regex(/^[A-Za-z0-9_-]+$/, 'ผู้ดูแลมีรูปแบบไม่ถูกต้อง').nullable().default(null)),
+  salesName: optionalBusinessText('ชื่อผู้ดูแล', 160),
   creditTerm: z.number().int().min(0).nullable().default(null),
   creditLimit: z.number().min(0).nullable().default(null),
   notes: optionalGeneralText('หมายเหตุ', 500),
@@ -188,6 +193,7 @@ export async function listSuppliers(options: SupplierListOptions = {}): Promise<
   if (options.all) params.set('all', '1')
   if (options.supplierType) params.set('type', options.supplierType)
   if (options.marketScope) params.set('marketScope', options.marketScope)
+  if (options.salesId) params.set('salesId', options.salesId)
   if (options.q) params.set('q', options.q)
   if (options.sort) params.set('sort', options.sort)
   if (options.direction) params.set('direction', options.direction)
@@ -203,6 +209,7 @@ export async function exportSuppliers(options: SupplierListOptions = {}): Promis
   const params = new URLSearchParams()
   if (options.supplierType) params.set('type', options.supplierType)
   if (options.marketScope) params.set('marketScope', options.marketScope)
+  if (options.salesId) params.set('salesId', options.salesId)
   if (options.q) params.set('q', options.q)
   if (options.sort) params.set('sort', options.sort)
   if (options.direction) params.set('direction', options.direction)
