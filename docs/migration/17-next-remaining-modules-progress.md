@@ -9,8 +9,19 @@
 - ก่อนเริ่มหมวดใหม่ ต้องใช้ legacy explorer ตรวจหน้าเดิมว่ามี field, filter, button, modal, action, export และ side effect อะไร
 - Batch ต้องแบ่ง 3 ระดับเสมอ:
   - Module batch เช่น `Batch S: Stock`
+  - Module overview เช่น `S0: Module Overview`
   - Page batch เช่น `S1: Stock Balance`
   - Task batch เช่น `S1.1 Legacy/API`, `S1.2 UI`, `S1.3 Actions/Modal`, `S1.4 QA`
+- ห้ามเริ่มทำ page batch ก่อนทำ module overview ของหมวดนั้น ยกเว้นเป็น bugfix เฉพาะหน้าที่ user ระบุชัด
+- Module overview ต้องตอบให้ได้ก่อนลงมือ:
+  - legacy pages ในหมวดนี้มีอะไรบ้าง
+  - flow รวมของหมวดคืออะไร
+  - shared tables/API/helpers ที่ควรใช้ร่วมกันคืออะไร
+  - side effects ร่วม เช่น stock ledger, bank statement, AP/AR, cost allocation คืออะไร
+  - ปุ่ม/action/modal/export ของแต่ละหน้าคืออะไร
+  - dependency ระหว่างหน้าคืออะไร
+  - page order ที่ควรทำก่อนหลังคืออะไร
+  - risk/open decisions ที่ห้ามเดาเองคืออะไร
 - ทุก batch ย่อยต้องอัปเดตเอกสารนี้ทันทีหลังจบงานหรือเมื่อเปลี่ยน schema/API contract
 - หลังแต่ละ batch ย่อยต้องรัน:
   - `npm run type-check --workspace @ns-scrap-erp/next`
@@ -55,6 +66,21 @@
 - [ ] เอกสาร tracker อัปเดต
 - [ ] type-check/lint/build ผ่าน
 - [ ] commit/push checkpoint
+
+## Definition of Done Per Module Overview
+
+ทุก module overview ต้องมีผลลัพธ์ก่อนเริ่ม page แรก:
+
+- [ ] Legacy page inventory ครบทุก route/menu ในหมวด
+- [ ] Shared flow summary
+- [ ] Shared DB/table mapping
+- [ ] Shared API/helper strategy
+- [ ] Shared side effects/reconciliation rules
+- [ ] Button/action/modal/export inventory รายหน้า
+- [ ] Dependency map ระหว่างหน้า
+- [ ] Page implementation order
+- [ ] Risks/open decisions
+- [ ] Docs updated before code
 
 ## Task Execution Log Template
 
@@ -127,6 +153,8 @@ Priority: สูง เพราะเป็นฐานของ purchase, sale
 - [ ] map DB tables/columns ที่มีใน dev-target
 - [ ] ระบุ movement types/ref types ที่ใช้จริง
 - [ ] ระบุจุดที่ต้องเขียน stock ledger
+- [ ] สรุปภาพรวม flow ทั้งหมวดก่อนเริ่ม S1
+- [ ] สรุป dependency/page order ของ Stock
 
 ### S1: Stock Balance
 
@@ -305,6 +333,8 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - [ ] สำรวจ legacy: AR, AP, bank statement, cash position, supplier advance, customer advance
 - [ ] map payment/receipt/bank_statement/accounts/purchase_bills/sales_bills
 - [ ] ระบุ write flows ที่กระทบเงิน
+- [ ] สรุปภาพรวม flow ทั้งหมวดก่อนเริ่ม F1
+- [ ] สรุป dependency/page order ของ Finance and Debt
 
 ### F1: AR
 
@@ -363,6 +393,14 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ## Batch T: Tracking 360
 
+### T0: Module Overview
+
+- [ ] สำรวจ legacy tracking pages ทั้ง customer/supplier/product
+- [ ] map shared data sources: customers, suppliers, products, purchase/sales bills, payments/receipts, stock ledger
+- [ ] สรุป shared filters: year/month/party/product/salesperson/branch
+- [ ] สรุป shared detail/export pattern
+- [ ] สรุป page order และ risk
+
 ### T1: Customer Tracking
 
 - [ ] API `/api/tracking/customer`
@@ -397,6 +435,8 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 - [ ] สำรวจ PO Sell, Cost Pool, Cost Allocator, Match Log, Deal Margin, Compare Margin, Trading Dashboard
 - [ ] map `po_buys`, `po_sells`, `trading_deals`, cost pool source
+- [ ] สรุปภาพรวม dual costing/trading/PO ก่อนเริ่ม D1
+- [ ] สรุป dependency/page order
 
 ### D1: PO Sell
 
@@ -452,6 +492,14 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ## Batch FF: Foreign Finance
 
+### FF0: Module Overview
+
+- [ ] สำรวจ legacy foreign finance pages
+- [ ] map shared data: currencies, fx rates, accounts, beneficiaries, remittance purposes, bank statement
+- [ ] สรุป flow เงินเข้า/ออกต่างประเทศและ FX gain/loss
+- [ ] สรุป bank statement/FCD ledger side effects
+- [ ] สรุป page order และ risk
+
 ### FF1: FX Rate
 
 - [ ] API `/api/finance/foreign/fx-rate`
@@ -496,6 +544,14 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - [ ] commit/push
 
 ## Batch A: Finance / Accounting
+
+### A0: Module Overview
+
+- [ ] สำรวจ legacy finance/accounting pages ทั้งหมด
+- [ ] map shared data: purchase/sales, AP/AR, bank, stock value, tax, assets, loans, opening balances
+- [ ] สรุปว่าอะไรเป็น read/report baseline และอะไรต้องรอ GL/accounting design
+- [ ] สรุป report dependency และ page order
+- [ ] สรุป risk/open decisions
 
 ### A1: Financial Dashboard
 
@@ -547,6 +603,14 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ## Batch M: Main Dashboards and Operational Control
 
+### M0: Module Overview
+
+- [ ] สำรวจ legacy main dashboard/owner daily/control pages
+- [ ] map shared KPI sources: purchase, sales, stock, finance, production, tracking
+- [ ] สรุป dashboard card/chart/table ที่ต้องใช้ร่วมกัน
+- [ ] สรุป page order และ dependency
+- [ ] สรุป risk/open decisions
+
 ### M1: Dashboard and Owner Daily
 
 - [ ] `/dashboard`
@@ -582,6 +646,13 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - [ ] commit/push
 
 ## Batch SYS: System and Cleanup
+
+### SYS0: Module Overview
+
+- [ ] สำรวจ system/admin pages ที่เหลือ
+- [ ] map auth/permission/audit/migration-tool requirements
+- [ ] สรุป safety constraints สำหรับ destructive/admin actions
+- [ ] สรุป route cleanup/full QA strategy
 
 ### SYS1: Change Password
 
