@@ -1573,6 +1573,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Write controls: planning, approval, payment, anomaly fix, print/export, and legacy localStorage actions remain disabled/deferred in this batch.
 - Validation: passed `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 200`, and `git diff --check`. OpenAPI remains valid with the existing warning baseline.
 - Browser QA: unauth subagent confirmed all three protected pages redirect to login and all three APIs return `401`; authenticated main Playwright smoke confirmed all three APIs return `200`, desktop/mobile widths have no horizontal overflow, and no console errors were reported after restarting the dev server on `http://localhost:3100`.
+- Push marker: committed and pushed as `f5ffa49` (`feat: add main dashboard baselines`).
 
 ### M2: Profit and Cost
 
