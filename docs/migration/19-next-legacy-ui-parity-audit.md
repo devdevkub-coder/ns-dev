@@ -34,12 +34,17 @@ Baseline notes:
 
 | Route | Legacy view | Current issue | Next file |
 |---|---|---|---|
-| `/daily/payment-approval` | `view-paymentApproval` | Missing green gradient header, refresh outstanding button, checkbox selection, approved-only filter, five KPI strip, amber action bar, approve/print controls, and highlighted bank-account columns. | `apps/next/src/components/daily/PaymentApprovalPageClient.tsx` |
 | `/daily/expense` | `view-expense` | Next flattens expense entry to a single category row. Legacy has voucher lines, dynamic category creation, payee/bank fields, VAT/WHT per line, and pay-now vs pending modes. | `apps/next/src/components/daily/DailyExpensePageClient.tsx` |
 | `/daily/expense-dashboard` | `view-expenseDashboard` | Next reuses a simple summary; legacy has rose/orange hero, 3/6/12 month selector, anomaly alert cards, heatmap table, and explanatory note. | `apps/next/src/app/daily/expense-dashboard/page.tsx` |
 | `/production/orders` | `view-production` | Missing full tabbed detail editor, status/lock banners, Header/Input/Output/Process Cost/Cost Allocation tabs, and richer status actions. | `apps/next/src/components/production/ProductionOrdersPageClient.tsx` |
 | `/production/dashboard` | `view-productionDashboard` | Missing legacy hero, daily/monthly chart panels, status donut, Top 10 product card, and Machine Utilization panel. | `apps/next/src/components/production/ProductionReportPageClient.tsx` |
 | `/production/production-cost-report` | `view-productionCostReport` | Missing seven cost cards and cost-type breakdown emphasis. | `apps/next/src/components/production/ProductionReportPageClient.tsx` |
+
+## Completed In This Parity Pass
+
+| Route | Checkpoint | Notes |
+|---|---|---|
+| `/daily/payment-approval` | 2026-05-20 | Restored legacy green gradient hero, AP/expense tabs, search/date/approved filters, select all/clear, five KPI strip, amber selected-total action bar, AP/expense dense tables, highlighted bank/account cells, local-only selection/pay amount state, and disabled approve/print controls. No approval mutation, print document generation, DB schema, or API write behavior was added. |
 
 ## P1 Backlog
 
@@ -105,7 +110,7 @@ Next routes without a direct standalone legacy page:
 
 ## Active Execution Order
 
-1. P0 Daily tools: `/daily/payment-approval`, `/daily/expense`, `/daily/expense-dashboard`
+1. P0 Daily tools: `/daily/expense`, `/daily/expense-dashboard`
 2. P0 Production tools: `/production/orders`, `/production/dashboard`, `/production/production-cost-report`
 3. P1 PO/Reports/Main: `/po-reports/outstanding`, `/reports`, `/sales-plan`, `/dashboard`
 4. P1 Daily transaction surfaces
