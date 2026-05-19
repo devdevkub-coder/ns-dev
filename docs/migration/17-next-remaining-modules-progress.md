@@ -1806,7 +1806,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
   5. `/stock/balance` - revised in UI parity checkpoint
   6. `/stock/ledger` - revised in UI parity checkpoint
   7. `/stock/convert` - revised in UI parity checkpoint
-  8. `/stock/adjust`
+  8. `/stock/adjust` - revised in UI parity checkpoint
   9. `/sales/po-sell`
   10. `/trading/dashboard`
 - Batch priority after first 10: finish Finance and Debt (`/finance/supplier-advance`, `/finance/customer-advance`), Stock (`/stock/status-convert`, `/stock/customer-return`), Tracking 360, then Dual Costing / Trading / PO routes.
@@ -1968,6 +1968,29 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Commands: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `git diff --check`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 50`.
 - Result: `/stock/convert` now restores the legacy Grade Adjustment visual surface: cyan/teal hero with `+ ปรับเกรดใหม่`, seven KPI cards, Source Type and Cost Status filters, 14-column table with red Source and green Target groups, disabled Confirm Cost/Reverse actions, and modal sections for Source, Target, and Loss/Yield/Cost Flow. Full cost allocation, manual lot selection, pending/partial cost, reverse, and cost P&L workflows remain deferred.
 - Commit: `5c572fc` (`fix: restore stock convert legacy ui parity`), pushed to `main`.
+
+### UI-P8: `/stock/adjust` Legacy UI Parity Revision
+
+#### Execution Log
+
+- Task: revise Stock Count Adjustment page to match legacy/Vue visual baseline.
+- Legacy refs:
+  - `old-apps/legacy/index.html:40266` Stock Count Adjustment hero, note-only explanation, KPI cards, toolbar, 13-column table, and usage guidance.
+  - `old-apps/vue/src/views/stock/StockAdjustView.vue:30` Vue visual clone for the amber hero and note-only layout.
+  - `old-apps/vue/src/views/stock/StockAdjustView.vue:53` toolbar, branch/type/date filters, CSV button, and `old-apps/vue/src/views/stock/StockAdjustView.vue:72` table columns.
+- Files changed:
+  - `apps/next/src/components/stock/StockOperationPageClient.tsx`
+  - `apps/next/src/app/api/stock/adjust/route.ts`
+  - `docs/migration/17-next-remaining-modules-progress.md`
+  - `docs/migration/00-current-work.md`
+- DB/API changes: no schema change. `GET /api/stock/adjust` now includes display-only `branchId` and `branchWarehouse` fields to support legacy branch filtering/table parity. Existing simplified note-only POST semantics are unchanged.
+- Buttons/actions checked: Quick Adjust CTA, search, branch/type/date filters, disabled CSV placeholder, Refresh, modal cancel/submit, disabled row action placeholder. CSV/export and reverse remain deferred until export contract, permission, audit, and rollback design are approved.
+- Modal/form checked: existing adjust modal still opens from `?new=1`; this slice focused on list/table parity and preserved the current write form behavior.
+- Validation added: client-side branch/type/date filters and note-only KPI totals for LOSS/GAIN quantities and note values.
+- Playwright smoke: authenticated main browser checked `/stock/adjust` desktop 1365x900 and mobile 390x844; no page-level horizontal overflow, no console warnings/errors, `/api/auth/me` and `/api/stock/adjust` returned 200. Note-only warning, five cards, toolbar, 13 table headings, usage box, and `?new=1` modal were exercised.
+- Commands: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `git diff --check`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 50`.
+- Result: `/stock/adjust` now restores the legacy Stock Count Adjustment visual surface: amber/orange hero, note-only warning, five KPI cards, Quick Adjust toolbar with branch/type/date filters, disabled CSV placeholder, 13-column adjustment table, type/status badges, and bottom usage guidance. CSV/export and reverse remain deferred.
+- Commit: pending.
 
 ## Current Priority Queue
 

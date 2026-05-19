@@ -43,7 +43,9 @@ export async function GET() {
         const product = row.product_id ? productById.get(row.product_id) : null
         return {
           adjustType: row.adjust_type ?? '',
+          branchId: row.branch_id ?? '',
           branchName: row.branch_id ? branchById.get(row.branch_id)?.name ?? '-' : '-',
+          branchWarehouse: `${row.branch_id ? branchById.get(row.branch_id)?.name ?? '-' : '-'} / ${row.warehouse_id ? warehouseById.get(row.warehouse_id)?.name ?? '-' : '-'}`,
           countedQty: toNumber(row.counted_qty),
           date: row.date ? toDateOnly(row.date) : '',
           diffQty: toNumber(row.diff_qty),

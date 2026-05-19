@@ -45,12 +45,16 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
   const pathname = usePathname()
   const [data, setData] = useState<Payload>({ reference: { branches: [], products: [], warehouses: [] }, rows: [] })
   const [error, setError] = useState<string | null>(null)
+  const [adjustBranchFilter, setAdjustBranchFilter] = useState('')
+  const [adjustTypeFilter, setAdjustTypeFilter] = useState('')
   const [formOpen, setFormOpen] = useState(false)
+  const [fromDateFilter, setFromDateFilter] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [costStatusFilter, setCostStatusFilter] = useState('')
   const [search, setSearch] = useState('')
   const [sourceTypeFilter, setSourceTypeFilter] = useState('')
+  const [toDateFilter, setToDateFilter] = useState('')
 
   const loadData = useCallback(async () => {
     setError(null)
@@ -78,7 +82,11 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
       .filter((row) => !query || Object.values(row).join(' ').toLowerCase().includes(query))
       .filter((row) => mode !== 'convert' || !sourceTypeFilter || row.sourceType === sourceTypeFilter)
       .filter((row) => mode !== 'convert' || !costStatusFilter || row.costStatus === costStatusFilter)
-  }, [costStatusFilter, data.rows, mode, search, sourceTypeFilter])
+      .filter((row) => mode !== 'adjust' || !adjustBranchFilter || row.branchId === adjustBranchFilter)
+      .filter((row) => mode !== 'adjust' || !adjustTypeFilter || row.adjustType === adjustTypeFilter)
+      .filter((row) => mode !== 'adjust' || !fromDateFilter || String(row.date ?? '') >= fromDateFilter)
+      .filter((row) => mode !== 'adjust' || !toDateFilter || String(row.date ?? '') <= toDateFilter)
+  }, [adjustBranchFilter, adjustTypeFilter, costStatusFilter, data.rows, fromDateFilter, mode, search, sourceTypeFilter, toDateFilter])
 
   async function submit(values: StatusConvertFormValues | StockConvertFormValues | StockAdjustFormValues | CustomerReturnFormValues) {
     setError(null)
@@ -98,16 +106,18 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
     <section className="space-y-4">
       <div className={`rounded-xl bg-gradient-to-r ${meta.accent} p-5 text-white shadow ${mode === 'convert' ? 'flex items-start justify-between gap-4' : ''}`}>
         <div>
-          <h1 className={mode === 'convert' ? 'flex items-center gap-2 text-2xl font-bold' : 'text-2xl font-bold'}>{mode === 'convert' ? '🔀 Grade Adjustment / ปรับเกรดสินค้า' : meta.title}</h1>
+          <h1 className={mode === 'convert' || mode === 'adjust' ? 'flex items-center gap-2 text-2xl font-bold' : 'text-2xl font-bold'}>{mode === 'convert' ? '🔀 Grade Adjustment / ปรับเกรดสินค้า' : mode === 'adjust' ? '🔢 Stock Count Adjustment / ปรับสต๊อกจากการนับจริง' : meta.title}</h1>
           <p className="mt-1 text-sm opacity-90">{descriptionFor(mode)}</p>
         </div>
         {mode === 'convert' ? <a className="shrink-0 rounded-lg bg-white px-4 py-2 font-bold text-cyan-700 hover:bg-cyan-50" href={`${pathname}?new=1`}>+ ปรับเกรดใหม่</a> : null}
       </div>
       {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
+      {mode === 'adjust' ? <AdjustPrincipleBox /> : null}
       <SummaryCards mode={mode} rows={rows} />
-      <div className={mode === 'convert' ? 'flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow' : 'rounded-lg bg-white p-3 shadow'}>
+      <div className={mode === 'convert' || mode === 'adjust' ? 'flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow' : 'rounded-lg bg-white p-3 shadow'}>
         <div className="flex flex-wrap items-center gap-2">
-          <input className={mode === 'convert' ? 'min-w-[200px] flex-1 rounded border px-3 py-2 text-sm' : 'min-w-56 flex-1 rounded-lg border px-3 py-2 text-sm'} placeholder={mode === 'convert' ? 'ค้นหา doc/source/target/ref...' : 'ค้นหาเลขที่/สินค้า/เหตุผล/สาขา'} type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          {mode === 'adjust' ? <a className="rounded bg-amber-600 px-4 py-2 font-bold text-white hover:bg-amber-700" href={`${pathname}?new=1`}>+ ปรับสต๊อกใหม่ (Quick Adjust)</a> : null}
+          <input className={mode === 'convert' || mode === 'adjust' ? 'min-w-[200px] flex-1 rounded border px-3 py-2 text-sm' : 'min-w-56 flex-1 rounded-lg border px-3 py-2 text-sm'} placeholder={mode === 'convert' ? 'ค้นหา doc/source/target/ref...' : mode === 'adjust' ? 'ค้นหา doc/สินค้า/เหตุผล...' : 'ค้นหาเลขที่/สินค้า/เหตุผล/สาขา'} type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           {mode === 'convert' ? (
             <>
               <select className="rounded border bg-amber-50 px-3 py-2 text-sm font-medium" value={sourceTypeFilter} onChange={(event) => setSourceTypeFilter(event.target.value)}>
@@ -121,6 +131,21 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
                 <option value="pending_cost">⏳ Pending Cost</option>
                 <option value="partial">📋 Partial</option>
               </select>
+            </>
+          ) : mode === 'adjust' ? (
+            <>
+              <select className="rounded border px-3 py-2 text-sm" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
+                <option value="">ทุกสาขา</option>
+                {data.reference.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+              </select>
+              <select className="rounded border px-3 py-2 text-sm" value={adjustTypeFilter} onChange={(event) => setAdjustTypeFilter(event.target.value)}>
+                <option value="">ทุกประเภท</option>
+                <option value="LOSS">📉 นับขาด</option>
+                <option value="GAIN">📈 นับเกิน</option>
+              </select>
+              <input className="rounded border px-3 py-2 text-sm" title="จากวันที่" type="date" value={fromDateFilter} onChange={(event) => setFromDateFilter(event.target.value)} />
+              <input className="rounded border px-3 py-2 text-sm" title="ถึงวันที่" type="date" value={toDateFilter} onChange={(event) => setToDateFilter(event.target.value)} />
+              <button className="rounded bg-slate-700 px-3 py-2 text-sm text-white opacity-60" disabled title="รอ export contract สำหรับ stock adjustment" type="button">📥 CSV</button>
             </>
           ) : <a className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white" href={`${pathname}?new=1`}>+ เพิ่มรายการ</a>}
           <button className="rounded bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700" type="button" onClick={() => void loadData()}>Refresh</button>
@@ -138,6 +163,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
         </div>
       ) : null}
       <OperationTable isLoading={isLoading} mode={mode} rows={rows} />
+      {mode === 'adjust' ? <AdjustUsageBox /> : null}
     </section>
   )
 }
@@ -145,7 +171,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
 function descriptionFor(mode: Mode) {
   if (mode === 'status-convert') return 'เปลี่ยน RM/WIP/FG ด้วย stock ledger 2 ฝั่ง โดยไม่เปิดใบสั่งผลิต'
   if (mode === 'convert') return 'ตัดสินค้าต้นทางและเพิ่มสินค้าปลายทางด้วยต้นทุน WAC ของ source'
-  if (mode === 'adjust') return 'ปรับยอดจากการนับจริงแบบ note-only: qty เปลี่ยน แต่ value ledger เป็น 0'
+  if (mode === 'adjust') return 'หาของไม่เจอ · สต๊อกตัด 0 แล้ว แต่ในระบบยังมี · นับเกินระบบ — Quick Adjust ทีละ row · Note-only ไม่ลง P&L'
   return 'แยกของคืนลูกค้าออกจาก stock พร้อมขายด้วย not_available_for_sale'
 }
 
@@ -170,12 +196,57 @@ function SummaryCards({ mode, rows }: { mode: Mode; rows: Payload['rows'] }) {
       </div>
     )
   }
+  if (mode === 'adjust') {
+    const lossRows = rows.filter((row) => Number(row.diffQty ?? 0) < 0)
+    const gainRows = rows.filter((row) => Number(row.diffQty ?? 0) > 0)
+    const lossQty = lossRows.reduce((sum, row) => sum + Math.abs(Number(row.diffQty ?? 0)), 0)
+    const gainQty = gainRows.reduce((sum, row) => sum + Number(row.diffQty ?? 0), 0)
+    const lossValue = lossRows.reduce((sum, row) => sum + Number(row.valueNote ?? 0), 0)
+    const gainValue = gainRows.reduce((sum, row) => sum + Number(row.valueNote ?? 0), 0)
+    return (
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <Metric cardClassName="rounded-xl bg-white p-3 shadow" label="รายการทั้งหมด" value={String(rows.length)} valueClassName="text-xl font-bold text-slate-900" />
+        <Metric cardClassName="rounded-xl bg-white p-3 shadow" label="นับขาด (LOSS)" value={`-${formatMoney(lossQty)} กก.`} valueClassName="text-xl font-bold text-red-600" />
+        <Metric cardClassName="rounded-xl bg-white p-3 shadow" label="มูลค่าขาด (Note)" value={formatMoney(lossValue)} valueClassName="text-lg font-bold text-red-600" />
+        <Metric cardClassName="rounded-xl bg-white p-3 shadow" label="นับเกิน (GAIN)" value={`+${formatMoney(gainQty)} กก.`} valueClassName="text-xl font-bold text-emerald-700" />
+        <Metric cardClassName="rounded-xl bg-white p-3 shadow" label="มูลค่าเกิน (Note)" value={formatMoney(gainValue)} valueClassName="text-lg font-bold text-emerald-700" />
+      </div>
+    )
+  }
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
       <Metric label="รายการ" value={String(rows.length)} />
-      <Metric label={mode === 'adjust' ? 'Diff รวม' : 'น้ำหนักรวม'} value={`${formatMoney(totalQty)} กก.`} />
+      <Metric label="น้ำหนักรวม" value={`${formatMoney(totalQty)} กก.`} />
       <Metric label="มูลค่า" value={formatMoney(totalValue)} />
       <Metric label="สถานะ" value="DB-connected" />
+    </div>
+  )
+}
+
+function AdjustPrincipleBox() {
+  return (
+    <div className="rounded border-l-4 border-amber-500 bg-amber-50 p-3 text-xs text-slate-700">
+      <div className="mb-1 font-bold">📒 หลักการทำงาน — Note-only (ไม่ลง P&amp;L)</div>
+      <ul className="ml-5 list-disc space-y-0.5">
+        <li>ปรับสต๊อกจริง (qty) ตาม &quot;นับจริง&quot; ของคุณ — ตัดออกหรือเพิ่มเข้า stock_ledger</li>
+        <li><strong>มูลค่า (value) = 0</strong> ใน ledger — ไม่กระทบ Stock Value · ไม่ลง P&amp;L · ไม่กระโดด WAC</li>
+        <li>มูลค่าที่หาย/เกินเก็บเป็น <strong>Note</strong> สำหรับ analysis เท่านั้น และแสดงใน column &quot;มูลค่า Note&quot;</li>
+        <li>ใช้เมื่อ &quot;หาของไม่เจอ&quot; / &quot;นับจริง 0 แต่ระบบมี&quot; / &quot;นับเกินระบบ&quot;</li>
+      </ul>
+    </div>
+  )
+}
+
+function AdjustUsageBox() {
+  return (
+    <div className="rounded border-l-4 border-blue-500 bg-blue-50 p-4 text-sm">
+      <h3 className="mb-1 font-bold">💡 ใช้เมื่อไหร่</h3>
+      <ul className="ml-5 list-disc space-y-1 text-slate-700">
+        <li><strong>หาของไม่เจอ</strong> — ระบบมี 100 กก. แต่นับจริงเหลือ 80 → ใส่ &quot;นับจริง&quot; 80 → ขาด 20 กก. (Note)</li>
+        <li><strong>สต๊อกตัด 0 แต่ในระบบยังมี</strong> — ระบบมี 50 กก. แต่นับจริง 0 → ใส่ &quot;นับจริง&quot; 0 → ขาด 50 กก. (Note)</li>
+        <li><strong>นับเกินระบบ</strong> — ระบบมี 10 กก. แต่นับจริงได้ 25 → ใส่ &quot;นับจริง&quot; 25 → เกิน 15 กก. (Note)</li>
+        <li>เคลื่อนไหวจะเข้า Stock Ledger เป็น <code>STOCK_COUNT_LOSS</code> หรือ <code>STOCK_COUNT_GAIN</code> · qty จริง · value=0</li>
+      </ul>
     </div>
   )
 }
@@ -217,7 +288,19 @@ function columnsFor(mode: Mode): OperationColumn[] {
     { key: 'action', label: '' },
   ]
   if (mode === 'adjust') return [
-    { key: 'docNo', label: 'เลขที่' }, { key: 'date', label: 'วันที่' }, { key: 'productName', label: 'สินค้า' }, { key: 'lotNo', label: 'Lot' }, { key: 'branchName', label: 'สาขา' }, { key: 'warehouseName', label: 'คลัง' }, { key: 'systemQty', label: 'ระบบ' }, { key: 'countedQty', label: 'นับจริง' }, { key: 'diffQty', label: 'Diff' }, { key: 'reason', label: 'เหตุผล' }, { key: 'status', label: 'สถานะ' },
+    { key: 'docNo', label: 'Doc No' },
+    { key: 'date', label: 'วันที่' },
+    { key: 'branchWarehouse', label: 'สาขา/คลัง' },
+    { key: 'productName', label: 'สินค้า' },
+    { key: 'lotNo', label: 'Lot' },
+    { key: 'systemQty', label: 'ระบบ', cellClassName: 'text-right font-mono' },
+    { key: 'countedQty', label: 'นับจริง', cellClassName: 'text-right font-mono' },
+    { key: 'diffQty', label: 'Diff', cellClassName: 'text-right font-mono' },
+    { key: 'adjustType', label: 'ประเภท' },
+    { key: 'valueNote', label: 'มูลค่า Note', cellClassName: 'text-right font-mono' },
+    { key: 'reason', label: 'เหตุผล' },
+    { key: 'status', label: 'สถานะ', cellClassName: 'text-center' },
+    { key: 'action', label: 'การกระทำ', cellClassName: 'text-center' },
   ]
   return [
     { key: 'productCode', label: 'รหัส' }, { key: 'productName', label: 'สินค้า' }, { key: 'branchName', label: 'สาขา' }, { key: 'warehouseName', label: 'คลัง' }, { key: 'lotNo', label: 'Lot' }, { key: 'customerName', label: 'ลูกค้า' }, { key: 'reason', label: 'เหตุผล' }, { key: 'qty', label: 'คงเหลือ' }, { key: 'sentQty', label: 'ส่งคืนแล้ว' }, { key: 'value', label: 'มูลค่า' }, { key: 'lastDate', label: 'ล่าสุด' },
@@ -255,6 +338,25 @@ function formatOperationCell(mode: Mode, row: Record<string, string | number | b
       const value = String(row[key] ?? 'Manual')
       const color = value === 'Production Order' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
       return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${color}`}>{value}</span>
+    }
+  }
+  if (mode === 'adjust') {
+    if (key === 'action') {
+      return <button className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-500" disabled title="รอออกแบบ reverse/audit/rollback ก่อนเปิดใช้งาน" type="button">ดู</button>
+    }
+    if (key === 'adjustType') {
+      const value = String(row[key] ?? '')
+      const color = value === 'LOSS' ? 'bg-red-100 text-red-700' : value === 'GAIN' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
+      const label = value === 'LOSS' ? '📉 นับขาด' : value === 'GAIN' ? '📈 นับเกิน' : '-'
+      return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${color}`}>{label}</span>
+    }
+    if (key === 'status') {
+      const value = String(row[key] ?? '')
+      return <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">{value || 'posted'}</span>
+    }
+    if (key === 'diffQty') {
+      const value = Number(row[key] ?? 0)
+      return <span className={value < 0 ? 'font-mono text-red-600' : value > 0 ? 'font-mono text-emerald-700' : 'font-mono text-slate-500'}>{formatMoney(value)}</span>
     }
   }
   return formatCell(row[key])
