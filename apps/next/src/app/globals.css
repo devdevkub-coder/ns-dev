@@ -29,3 +29,29 @@ select,
 textarea {
   font: inherit;
 }
+
+/* Legacy form baseline: plain Tailwind `border` controls should render light slate, not current text color. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+select,
+textarea {
+  border-color: #cbd5e1;
+}
+
+input.border:not([class*="bg-"]),
+select.border:not([class*="bg-"]),
+textarea.border:not([class*="bg-"]) {
+  background-color: #ffffff;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
+select:focus,
+textarea:focus {
+  border-color: #3b82f6;
+  outline: none;
+  box-shadow: 0 0 0 2px #dbeafe;
+}
+
+input.border:not([class*="bg-"]):read-only,
+textarea.border:not([class*="bg-"]):read-only {
+  background-color: #f8fafc;
+}

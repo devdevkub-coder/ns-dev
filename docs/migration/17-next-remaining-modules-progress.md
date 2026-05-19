@@ -1179,6 +1179,16 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Playwright smoke: local authenticated route `http://localhost:3100/admin/company-profile` opened both `บิลซื้อ / PURCHASE BILL ตัวอย่าง` and `ใบส่งของ / DELIVERY NOTE ตัวอย่าง` tabs successfully. Computed input/textarea style showed white background, 4px radius, and slate border color.
 - Commands: `npm run lint --workspace @ns-scrap-erp/next` passed; `npm run type-check --workspace @ns-scrap-erp/next` passed; `npm run build --workspace @ns-scrap-erp/next` passed; `git diff --check` passed.
 
+#### Follow-up: Global Form Border Baseline
+
+- User requested checking all pages for form border/color parity with legacy.
+- Code scan found 193 active Next `input/select/textarea` controls across 39 files using plain `border` without an explicit `border-*` color. A separate read-only subagent scan found the same Tailwind v4 risk pattern, especially on transaction, foreign-finance, AR/AP, daily, stock, master-data, tracking, production, and admin filters/forms.
+- Files changed: `apps/next/src/app/globals.css`, this tracker, current work handoff.
+- DB/API changes: none.
+- Fix: added a global legacy form-control baseline for text-like inputs, selects, and textareas so plain `border` renders as `#cbd5e1`, default field background remains white when no explicit `bg-*` class is present, focus uses the legacy blue border/ring, and read-only background becomes slate only when no explicit semantic background is set.
+- Safeguards: checkbox, radio, file inputs, explicit `border-*` colors, explicit `bg-*` semantic fields, validation/error borders, and colored status controls remain locally controlled.
+- Validation approach: code scan was used as the primary coverage method for all active Next files; Playwright was stopped after user feedback that code scan is sufficient.
+
 ### UI-D2: Cost Pool / Cost Allocator Legacy UI Parity Revision
 
 - [x] `/dual-costing/cost-pool` legacy warning copy/filter/table parity
