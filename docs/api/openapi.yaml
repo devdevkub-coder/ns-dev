@@ -269,6 +269,17 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /api/finance-accounting/tax-vat-wht:
+    get:
+      tags: [Finance Accounting]
+      operationId: readFinanceAccountingTaxVatWht
+      summary: Read transaction-derived VAT/WHT management summary
+      responses:
+        "200":
+          $ref: "#/components/responses/Ok"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /api/finance-accounting/balance-sheet:
     get:
       tags: [Finance Accounting]

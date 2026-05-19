@@ -46,7 +46,7 @@ Status terms:
 | Trading | 2 | 1 | 1 | matching only |
 | PO Reports | 1 | 1 | 0 | outstanding only |
 | Reports | 1 | 0 | 1 | none |
-| Finance / Accounting | 18 | 11 | 7 | pl-statement, balance-sheet, cash-flow-statement, asset-register, depreciation, asset-disposal, loan-contracts, loan-dashboard, equity-maint, opening-balance, historical-data |
+| Finance / Accounting | 18 | 12 | 6 | tax-vat-wht, pl-statement, balance-sheet, cash-flow-statement, asset-register, depreciation, asset-disposal, loan-contracts, loan-dashboard, equity-maint, opening-balance, historical-data |
 | Master Data | 18 | 18 | 0 | broad master-data coverage |
 | Admin | 6 | 4 | 2 | company, users, audit, transaction ledger |
 
@@ -177,7 +177,7 @@ Status terms:
 | `/finance-accounting/working-capital` | Working Capital Analysis | placeholder | missing | TBD | `finance.financials.view` |
 | `/finance-accounting/stock-finance` | Stock Finance Analysis | placeholder | missing | TBD | `finance.financials.view` |
 | `/finance-accounting/profit-leak` | Profit Leak Dashboard | placeholder | missing | TBD | `finance.financials.view` |
-| `/finance-accounting/tax-vat-wht` | Tax / VAT / WHT | placeholder | missing | TBD | `finance.financials.view` |
+| `/finance-accounting/tax-vat-wht` | Tax / VAT / WHT | read/design baseline | `GET /api/finance-accounting/tax-vat-wht` | `sales_bills`, `purchase_bills`, `expenses`, `payments`, `receipts` | `finance.financials.view` |
 | `/finance-accounting/pl-statement` | งบกำไรขาดทุน (P&L) | management/read baseline | `GET /api/finance-accounting/pl-statement` | `sales_bills`, `expenses`, `depreciations`, `loan_payments`, `fx_gain_loss` | `finance.financials.view` |
 | `/finance-accounting/balance-sheet` | งบดุล | management/read baseline | `GET /api/finance-accounting/balance-sheet` | `accounts`, `bank_statement`, `sales_bills`, `purchase_bills`, `stock_ledger`, `assets`, `loans`, `equity` | `finance.financials.view` |
 | `/finance-accounting/cash-flow-statement` | งบกระแสเงินสด | management/read baseline | `GET /api/finance-accounting/cash-flow-statement` | `bank_statement`, `accounts` | `finance.financials.view` |

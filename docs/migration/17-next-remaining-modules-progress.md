@@ -1386,8 +1386,19 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ### A4: Tax / VAT / WHT
 
-- [ ] `/finance-accounting/tax-vat-wht`
-- [ ] VAT/WHT source mapping
+- [x] `/finance-accounting/tax-vat-wht`
+- [x] VAT/WHT source mapping
+- [x] OpenAPI entry for transaction-derived read/design endpoint
+- [x] read baseline first; no filing, tax-period lock, payable posting, or GL write
+
+#### Execution Log
+
+- Task: A4 Tax / VAT / WHT transaction-derived read/design baseline.
+- Files changed: added one Next page, one tax client component, one server tax derivation helper, and one read-only API route under `/api/finance-accounting/tax-vat-wht`.
+- DB/API changes: reads `sales_bills`, `purchase_bills`, `expenses`, `payments`, and `receipts`; no schema change, no normalized tax ledger write, no PP30/PND filing state, no tax-period lock, no payable posting, and no GL write.
+- UI baseline: preserved legacy-first rose/pink hero, month/year period toolbar, VAT Payable mega card, VAT Output/Input donut, WHT Position card, six KPI cards, VAT trend, detail tables, and Tax Calendar.
+- Validation: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 200`, and `git diff --check` passed. OpenAPI remains valid with existing catalog warnings.
+- Browser QA: subagent unauth sweep confirmed the page redirects to login and API returns `401`; authenticated main Playwright smoke confirmed the A4 API returns `200`, the page renders the legacy-colored Tax/VAT/WHT baseline UI, Excel is disabled, and desktop/mobile widths have no horizontal overflow.
 
 ### A5: Financial Statements
 
