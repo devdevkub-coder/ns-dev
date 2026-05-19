@@ -63,6 +63,7 @@ Status date: 2026-05-19
 - Current parity slice: `/stock/ledger` was revised after Stock Balance. It restores the legacy dense toolbar-first layout, product/branch/movement/date filters, balance-mode segmented control, negative-stock badge, disabled cleanup actions, legacy 12-column ledger table, colored movement/counterparty/balance cells, and active `.xlsx` export. Read-only bill/timeline modals and write actions such as grade fix or branch move remain deferred until permission/audit/write design is approved.
 - Current parity slice: `/stock/convert` was revised after Stock Ledger. It restores the legacy Grade Adjustment hero/CTA, seven KPI cards, Source Type and Cost Status filters, red/green source-target table grouping, disabled Confirm Cost/Reverse actions, and source/target/loss/cost-flow modal grouping while keeping the existing simplified POST semantics unchanged. Full cost allocation, manual lot selection, reverse, and pending-cost workflows remain deferred.
 - Current parity slice: `/stock/adjust` was revised after Stock Convert. It restores the legacy Stock Count Adjustment amber hero, note-only warning, five KPI cards, Quick Adjust toolbar with branch/type/date filters, disabled CSV placeholder, 13-column adjustment table, and usage guidance box while preserving the existing note-only stock ledger write semantics.
+- Current parity slice: `/sales/po-sell` was revised after Stock Adjust. It restores the legacy PO Sell info banner, six KPI cards, Top 5 Customer and PO outstanding panels, match-status chips, compact filter bar, 12-column table, and disabled create/edit/cancel actions while preserving the read/export baseline and deferring PO Sell writes/reconciliation design.
 
 ## File Naming Changes
 
@@ -189,6 +190,14 @@ Validation:
 5. Batch A: Finance / Accounting
 6. Batch M: Main Dashboards and Operational Control
 7. Batch SYS: System and Cleanup
+
+Post-SYS UI parity priority after the first 10 route audit now includes a dedicated Daily Reports / รายงานประจำวัน group:
+
+1. Finish Finance and Debt: `/finance/supplier-advance`, `/finance/customer-advance`
+2. Finish Stock parity: `/stock/status-convert`, `/stock/customer-return`
+3. Daily Reports / รายงานประจำวัน: `/owner-daily`, `/daily-report`, with `/dashboard` checked where shared daily-report cards overlap
+4. Tracking 360
+5. Dual Costing / Trading / PO
 
 ## Batch S Stock Status
 

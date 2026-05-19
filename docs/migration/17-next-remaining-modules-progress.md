@@ -1807,9 +1807,9 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
   6. `/stock/ledger` - revised in UI parity checkpoint
   7. `/stock/convert` - revised in UI parity checkpoint
   8. `/stock/adjust` - revised in UI parity checkpoint
-  9. `/sales/po-sell`
+  9. `/sales/po-sell` - revised in UI parity checkpoint
   10. `/trading/dashboard`
-- Batch priority after first 10: finish Finance and Debt (`/finance/supplier-advance`, `/finance/customer-advance`), Stock (`/stock/status-convert`, `/stock/customer-return`), Tracking 360, then Dual Costing / Trading / PO routes.
+- Batch priority after first 10: finish Finance and Debt (`/finance/supplier-advance`, `/finance/customer-advance`), Stock (`/stock/status-convert`, `/stock/customer-return`), Daily Reports (`/owner-daily`, `/daily-report`, with `/dashboard` checked only where shared legacy daily-report cards overlap), Tracking 360, then Dual Costing / Trading / PO routes.
 
 ### UI-P1: `/finance/ap` Legacy UI Parity Revision
 
@@ -1992,14 +1992,37 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Result: `/stock/adjust` now restores the legacy Stock Count Adjustment visual surface: amber/orange hero, note-only warning, five KPI cards, Quick Adjust toolbar with branch/type/date filters, disabled CSV placeholder, 13-column adjustment table, type/status badges, and bottom usage guidance. CSV/export and reverse remain deferred.
 - Commit: `a4ee59d` (`fix: restore stock adjust legacy ui parity`), pushed to `main`.
 
+### UI-P9: `/sales/po-sell` Legacy UI Parity Revision
+
+#### Execution Log
+
+- Task: revise PO Sell page to match legacy/Vue visual baseline.
+- Legacy refs:
+  - `old-apps/legacy/index.html:22331` PO Sell info banner, dashboard cards, top customer/outstanding panels, filters, table, and disabled-safe action surface.
+  - `old-apps/legacy/index.html:22476` create/edit modal and write flow surface, kept deferred in Next.
+  - `old-apps/vue/src/views/sales/PoSellView.vue:101` Vue visual clone for the same dashboard/list structure.
+- Files changed:
+  - `apps/next/src/components/sales/PoSellPageClient.tsx`
+  - `docs/migration/17-next-remaining-modules-progress.md`
+  - `docs/migration/00-current-work.md`
+- DB/API changes: no schema or API route change. The UI uses existing `expectedDelivery`, remaining qty/amount, match status, and summary fields.
+- Buttons/actions checked: search/date filters, clear filters, match-status chips, disabled `+ PO Sell ใหม่`, active `.xlsx` export, disabled row edit/cancel action placeholders. Create/edit/cancel remain deferred until permission, audit, validation, and reconciliation with Cost Allocator/Sales Bill are designed.
+- Modal/form checked: legacy multi-line item modal was audited but not implemented in this read/display slice; write-modal behavior remains deferred.
+- Validation added: client-side top customer aggregation, outstanding PO panel, and legacy match-status chip filtering.
+- Playwright smoke: authenticated main browser checked `/sales/po-sell` desktop 1365x900 and mobile 390x844; no page-level horizontal overflow, no console warnings/errors, `/api/auth/me` and `/api/sales/po-sell` returned 200. Info banner, six cards, Top Customer/Outstanding panels, chips, disabled CTA, export, and 12 table headings were exercised.
+- Commands: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `git diff --check`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 50`.
+- Result: `/sales/po-sell` now restores the legacy PO Sell visual surface: compact green info banner, six KPI cards, Top 5 Customer panel, PO outstanding panel, legacy search/date row, match-status chips, 12-column table, active `.xlsx` export, and disabled create/edit/cancel actions. PO Sell write/cancel modal behavior remains deferred.
+- Commit: pending.
+
 ## Current Priority Queue
 
 1. Batch PRE: System Map and API Contract Baseline
 2. Batch S: Stock
 3. Batch F: Finance and Debt
-4. Batch T: Tracking 360
-5. Batch D: Dual Costing / Trading / PO
-6. Batch FF: Foreign Finance
-7. Batch A: Finance / Accounting
-8. Batch M: Main Dashboards and Operational Control
-9. Batch SYS: System and Cleanup
+4. Batch DR: Daily Reports / รายงานประจำวัน
+5. Batch T: Tracking 360
+6. Batch D: Dual Costing / Trading / PO
+7. Batch FF: Foreign Finance
+8. Batch A: Finance / Accounting
+9. Batch M: Main Dashboards and Operational Control
+10. Batch SYS: System and Cleanup
