@@ -1801,7 +1801,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - First 10 routes for post-SYS UI parity audit:
   1. `/finance/ap` - revised in UI parity checkpoint
   2. `/finance/ar` - revised in UI parity checkpoint
-  3. `/finance/cash-position`
+  3. `/finance/cash-position` - revised in UI parity checkpoint
   4. `/finance/bank`
   5. `/stock/balance`
   6. `/stock/ledger`
@@ -1852,6 +1852,26 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Playwright smoke: authenticated main browser checked `/finance/ar` desktop 1440x900 and mobile 390x844; no page-level horizontal overflow, no console warnings/errors, `/api/auth/me` and `/api/finance/ar` returned 200. Subagent source audit confirmed the original mismatch and safe patch scope, but its isolated browser session could not authenticate.
 - Commands: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`.
 - Result: `/finance/ar` now restores the legacy AR visual surface: no extra hero header, pending-sale banner when applicable, blue/cyan/teal mega AR card, aging bar card, Top 5 customer card, legacy Customer/Channel/Aging filter row, and detail table columns/colors/order. Export remains `.xlsx` by active business-export rule.
+- Commit: this checkpoint.
+
+### UI-P3: `/finance/cash-position` Legacy UI Parity Revision
+
+#### Execution Log
+
+- Task: revise Cash Position page to match legacy/Vue visual baseline.
+- Legacy refs:
+  - `old-apps/legacy/index.html:10945` Cash Position top dashboard, top accounts, summary cards, net strip, and account table.
+  - `old-apps/vue/src/views/finance/CashPositionView.vue:50` Vue Cash Position visual clone baseline.
+- Files changed:
+  - `apps/next/src/components/finance/CashPositionPageClient.tsx`
+  - `docs/migration/17-next-remaining-modules-progress.md`
+- DB/API changes: no schema or API route changes; derived legacy totals are computed client-side from the existing `/api/finance/cash-position` payload.
+- Buttons/actions checked: no legacy action buttons on this read dashboard; route remains read-only.
+- Modal/form checked: none.
+- Validation added: none; this is UI parity only.
+- Playwright smoke: authenticated main browser checked `/finance/cash-position` desktop 1440x900 and mobile 390x844; no page-level horizontal overflow, no console warnings/errors, `/api/auth/me` and `/api/finance/cash-position` returned 200. Subagent source audit confirmed original mismatch and safe patch scope, but its isolated browser session could not authenticate.
+- Commands: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`.
+- Result: `/finance/cash-position` now restores the legacy visual surface: no extra hero header, mega Net Cash card, liquid composition donut, AR/AP bars, Top accounts bar list, colored cash/bank/FCD/OD/AR/AP cards, blue/indigo Net Cash strip, and legacy 8-column account table with type badges.
 - Commit: this checkpoint.
 
 ## Current Priority Queue
