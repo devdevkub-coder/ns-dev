@@ -220,7 +220,7 @@ Status terms:
 | Route | Label | Page status | APIs | Primary tables | Permission |
 |---|---|---|---|---|---|
 | `/admin/company-profile` | ข้อมูลบริษัท | done | `GET/PUT /api/admin/company-profile` | `company_profile` | `system.settings.manage` |
-| `/admin/change-password` | เปลี่ยน Password ของฉัน | placeholder | Supabase Auth client flow expected | `auth.users` | none yet |
+| `/admin/change-password` | เปลี่ยน Password ของฉัน | self-service write | Supabase Auth client `signInWithPassword` + `updateUser` | `auth.users` | authenticated self-service |
 | `/admin/transaction-ledger` | Transaction Ledger | read baseline | `GET /api/admin/transaction-ledger` | transaction ledger / `bank_statement` source | `finance.cash.view` |
 | `/admin/migration-tools` | Backup / Restore | placeholder | missing | TBD | `system.backup.manage` |
 | `/admin/audit` | Audit & Activity Log | read baseline | `GET /api/admin/auth-events` | `auth_audit_events` | `system.audit.view` |

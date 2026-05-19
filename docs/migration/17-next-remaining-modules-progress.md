@@ -1709,9 +1709,21 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ### SYS1: Change Password
 
-- [ ] Page `/admin/change-password`
-- [ ] Supabase Auth update password flow
-- [ ] validation and success/error states
+- [x] Page `/admin/change-password`
+- [x] Supabase Auth update password flow
+- [x] validation and success/error states
+
+#### Execution Log
+
+- Task: SYS1 self-service Change Password page.
+- Legacy refs: Vue `old-apps/vue/src/views/systemGaps/ChangePasswordView.vue`, legacy `view-changePassword`.
+- Files changed: added `/admin/change-password` Next page and client component; extended shared auth validation schema.
+- Auth/API changes: uses browser Supabase client with current session, verifies the current password through `signInWithPassword`, then updates password through `supabase.auth.updateUser({ password })`. No app table stores password and no legacy `public.users.password` path is used.
+- UI baseline: preserved purple-to-pink hero, current-user info box, amber must-change warning, three password fields, show-password checkbox, inline success/error messages, full-width purple submit button, and password advice card.
+- Validation added: shared Zod schema requires current password, stronger new password syntax, matching confirmation, and new password different from current password; field-level errors render under each field.
+- Browser QA: unauth subagent confirmed `/admin/change-password` redirects to `/login?redirect=%2Fadmin%2Fchange-password`, login desktop/mobile has no page-level horizontal overflow, and no console/page/network errors were reported. Authenticated main Playwright smoke confirmed the page renders legacy markers, three password inputs, desktop/mobile no page-level horizontal overflow, and no page/request errors; the form was not submitted so the test password was not changed.
+- Commands: passed `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, and `git diff --check`.
+- Result: implemented and validated locally.
 
 ### SYS2: Migration Tools
 
