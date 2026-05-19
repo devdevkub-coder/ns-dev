@@ -1509,11 +1509,52 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ### M0: Module Overview
 
-- [ ] สำรวจ legacy main dashboard/owner daily/control pages
-- [ ] map shared KPI sources: purchase, sales, stock, finance, production, tracking
-- [ ] สรุป dashboard card/chart/table ที่ต้องใช้ร่วมกัน
-- [ ] สรุป page order และ dependency
-- [ ] สรุป risk/open decisions
+- [x] สำรวจ legacy main dashboard/owner daily/control pages
+- [x] map shared KPI sources: purchase, sales, stock, finance, production, tracking
+- [x] สรุป dashboard card/chart/table ที่ต้องใช้ร่วมกัน
+- [x] สรุป page order และ dependency
+- [x] สรุป risk/open decisions
+
+#### M0 Module Overview
+
+- Scope: 11 Main routes remain placeholder/missing API in Next: `/owner-daily`, `/anomaly-detector`, `/daily-report`, `/dashboard`, `/profit-cost-analysis`, `/pending-sales`, `/sales-plan`, `/sales-commission`, `/cash-flow-calendar`, `/business-calendar`, and `/cash-others-summary`.
+- Legacy/Vue refs:
+  - `/dashboard`: Vue `old-apps/vue/src/views/DashboardView.vue`, legacy `view-dashboard`.
+  - `/owner-daily`: Vue `old-apps/vue/src/views/trackingDashboards/OwnerDailyView.vue`, legacy `view-ownerDaily`.
+  - `/daily-report`: Vue `old-apps/vue/src/views/trackingDashboards/DailyReportView.vue`, legacy `view-dailyReport`.
+  - `/profit-cost-analysis`: Vue `old-apps/vue/src/views/trackingDashboards/ProfitCostAnalysisView.vue`, legacy `view-profitCostAnalysis`.
+  - `/pending-sales`: Next target maps intentionally to Vue `/sales/pending` and legacy `view-pendingSales`; preserve route difference in docs and implementation.
+  - `/sales-plan`: Vue `old-apps/vue/src/views/trackingDashboards/SalesPlanView.vue`, legacy `view-salesPlan`.
+  - `/sales-commission`: Vue `old-apps/vue/src/views/trackingDashboards/SalesCommissionView.vue`, legacy `view-salesCommission`.
+  - `/cash-flow-calendar`: Vue `old-apps/vue/src/views/trackingDashboards/CashFlowCalendarView.vue`, legacy `view-cashFlowCalendar`.
+  - `/business-calendar`: Vue `old-apps/vue/src/views/trackingDashboards/BusinessCalendarView.vue`, legacy `view-businessCalendar`.
+  - `/cash-others-summary`: Vue `old-apps/vue/src/views/trackingDashboards/CashOthersSummaryView.vue`, legacy `view-cashOthersSummary`.
+  - `/anomaly-detector`: Vue `old-apps/vue/src/views/trackingDashboards/AnomalyDetectorView.vue`, legacy `view-anomalyDetector`.
+- Visual baseline summary:
+  - Dashboard/owner/daily screens use dense legacy cards, section bands, filter bars, compact tables, charts, and empty states already Playwright-checked in `docs/migration/12-frontend-visual-audit-checklist.md`.
+  - Profit Cost Analysis should prefer the denser legacy baseline where Vue is simplified: 8 KPI cards, AP/AR/customer/supplier rows, revenue/GP mega cards, donut/top GP sections, tabs, and product drilldown.
+  - Pending Sales must preserve amber/orange hero, LME reference card, LME % table, segmented filters, metal chips, KPI cards, summary/detail tables, and Pool vs Stock explanation.
+  - Sales Plan must preserve LME reference, plan table, product recommendation, and remaining stock-to-lock table, but write controls need explicit design.
+  - Sales Commission must preserve before-VAT commission basis, 1,000,000 threshold, 500 per 500,000 rule, drill view, and supplier assignment table.
+  - Cash Flow Calendar and Business Calendar should preserve month controls, KPI cards, chart cards, compact calendar/table surfaces, and modal/drilldown behavior.
+  - Cash & Others should preserve the customer-visible Trading Pending block even though it is documented as intentional drift from current local legacy.
+  - Anomaly Detector should first preserve the green `ทุกอย่างปกติ!` empty baseline and then add server-derived read-only anomaly rules.
+- Shared data/API sources available in Next:
+  - `purchase_bills`, `sales_bills`, `expenses`, `payments`, `receipts`, `accounts`, `bank_statement`, `stock_ledger`, `products`, `customers`, `suppliers`, `salespersons`, `production_orders`, `trading_deals`.
+  - Reuse existing helper/API baselines where possible: finance-accounting dashboard/cashflow/working-capital/statements, stock helpers, production reports, trading dashboard/matching, finance cash/bank/AR/AP, and tracking customer/supplier/product.
+- Implementation order:
+  1. M1 `/dashboard`, `/owner-daily`, `/daily-report` as read/report baselines because they aggregate the most shared KPIs and set the shared dashboard helper shape.
+  2. M2 `/profit-cost-analysis` read/report baseline because it depends on purchase/sales/stock/COGS and should not wait for sales planning writes.
+  3. M3 `/pending-sales`, `/sales-plan`, `/sales-commission`; ship read/design baselines first and keep LME save, sales plan lock/save, and supplier assignment writes disabled until schemas/permissions/audit are designed.
+  4. M4 `/cash-flow-calendar`, `/business-calendar`; reuse cash/bank and business daily aggregates, keep export/floating legacy shell disabled unless implemented as a harmless client export.
+  5. M5 `/cash-others-summary`, `/anomaly-detector`; keep anomaly scans read-only and route fix links to active Next routes only.
+  6. M6 QA sweep across all Main routes, API guards, visual parity, desktop/mobile overflow, and OpenAPI/sitemap status.
+- Risks/open decisions:
+  - `/dashboard` legacy/Vue source is `/`, but active Next target is `/dashboard`; keep `/dashboard` as the implementation route and leave `/` behavior unchanged unless a separate routing decision is made.
+  - Do not route/import/execute `old-apps/vue` or `old-apps/legacy` from Next.
+  - Do not silently enable planning/write actions: LME config, LME %, sales plan add/remove/lock/save, supplier assignment, anomaly fix navigation side effects, and legacy localStorage writes must be redesigned for target DB/auth/audit first.
+  - Use business-facing refs (`docNo`, customer/supplier/product names/codes) in tables; avoid exposing UUIDs as primary labels.
+  - Main dashboards are management/read baselines, not statutory accounting reports.
 
 ### M1: Dashboard and Owner Daily
 

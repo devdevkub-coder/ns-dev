@@ -9,14 +9,18 @@ Last pushed checkpoint: A8 Accounting QA checkpoint (`f4a9762 fix: audit finance
 
 ## Current Batch
 
-`Batch A: Finance / Accounting`
+`Batch M: Main Dashboards and Operational Control`
 
 Goal:
 
-- Port finance-accounting routes from placeholders into Next page/API baselines.
-- Start with management dashboards and read/report baselines before GL/accounting writes.
-- Keep depreciation posting, asset disposal posting, loan interest accrual, tax filing, retained earnings, opening balance mutation, and statutory statement claims disabled until GL/COA/closing-period design is clear.
+- Port main dashboard/control/reporting routes from placeholders into Next page/API baselines.
+- Start with read/report baselines before enabling planning, assignment, anomaly fix, export, or dashboard write actions.
+- Reuse existing purchase/sales/stock/finance/production/tracking/trading helper outputs where practical instead of re-querying inconsistently.
 - During this and future clone batches, keep the legacy/Vue screen as the visual baseline first. Preserve cards, colors, banners, tables, button placement, labels, spacing, and compact density unless a documented deviation is approved. If Vue has been simplified or has known layout/column drift, use `old-apps/legacy/` as the stronger baseline before improving the data wiring.
+- Current docs slice: M0 Main Dashboards module overview is implemented locally. It maps all 11 remaining Main placeholder routes, their legacy/Vue visual baselines, shared data sources, write risks, and recommended implementation order. Validation, commit, and push are pending.
+
+## Previous Batch A Notes
+
 - Current implementation slice: A5 Financial Statements management/read baselines is implemented, validated, and pushed.
 - Current implementation slice: A4 Tax / VAT / WHT transaction-derived read/design baseline is implemented, validated, and pushed.
 - Current implementation slice: A2 Cash Flow Analysis + Forecast Calendar read baseline is implemented, validated, and pushed. It uses AR/AP/cash/bank/loan/tax schedule sources, preserves legacy UI first, and keeps forecast/payment/reclass writes disabled.
