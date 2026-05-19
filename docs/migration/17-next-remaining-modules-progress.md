@@ -804,7 +804,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Playwright smoke: authenticated main Playwright session passed `/tracking/product` desktop and mobile, JSON API 200, XLSX API 200 with spreadsheet content type and `PK` signature. QA subagent unauthenticated fallback correctly hit login/401 guard and was not treated as product-page failure.
 - Commands: `git diff --check` passed; `npm run type-check --workspace @ns-scrap-erp/next` passed; `npm run lint --workspace @ns-scrap-erp/next` passed; `npm run build --workspace @ns-scrap-erp/next` passed; `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 120` passed validity with existing skeleton warnings.
 - Result: T3 Product Tracking read/report baseline implemented; production trend and product detail modal remain deferred.
-- Commit: this checkpoint.
+- Commit: `097a12c feat: add product tracking baseline` pushed to `main`.
 
 ### T4: Tracking QA Batch
 
