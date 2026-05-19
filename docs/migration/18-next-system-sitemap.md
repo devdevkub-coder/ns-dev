@@ -41,7 +41,7 @@ Status terms:
 | Production | 8 | 8 | 0 | read baseline plus output category write |
 | Dual Costing | 7 | 1 | 6 | PO buy only |
 | Finance and Debt | 6 | 1 | 5 | AP only |
-| Foreign Finance | 6 | 1 | 5 | fx-rate |
+| Foreign Finance | 6 | 2 | 4 | fx-rate, fcd-ledger |
 | Stock | 6 | 6 | 0 | balance, ledger, status convert, grade convert, adjust, customer return |
 | Trading | 2 | 1 | 1 | matching only |
 | PO Reports | 1 | 1 | 0 | outstanding only |
@@ -138,7 +138,7 @@ Status terms:
 | `/finance/foreign/intl-transfer` | โอนเงินต่างประเทศ | placeholder | missing | TBD | `finance.cash.view` |
 | `/finance/foreign/overseas-receipt` | รับเงินจากต่างประเทศ | placeholder | missing | TBD | `finance.cash.view` |
 | `/finance/foreign/fx-rate` | FX Rate Management | manage baseline | `GET/POST/PATCH /api/finance/foreign/fx-rate` | `fx_rates`, `currencies` | `finance.cash.view` |
-| `/finance/foreign/fcd-ledger` | FCD Ledger | placeholder | missing | TBD | `finance.cash.view` |
+| `/finance/foreign/fcd-ledger` | FCD Ledger | read baseline | `GET /api/finance/foreign/fcd-ledger` | `accounts`, `bank_statement`, `fx_rates` | `finance.cash.view` |
 | `/finance/foreign/fx-gain-loss-report` | FX Gain/Loss Report | placeholder | missing | TBD | `finance.cash.view` |
 | `/finance/foreign/bank-reconciliation` | Bank Reconciliation | placeholder | missing | TBD | `finance.cash.view` |
 

@@ -1205,9 +1205,22 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ### FF4: FCD Ledger
 
-- [ ] API `/api/finance/foreign/fcd-ledger`
-- [ ] Page `/finance/foreign/fcd-ledger`
-- [ ] running balance by currency/account
+- [x] API `/api/finance/foreign/fcd-ledger`
+- [x] Page `/finance/foreign/fcd-ledger`
+- [x] running balance by currency/account
+
+#### Execution Log
+
+- Task: FF4 FCD Ledger read baseline.
+- Files changed: `apps/next/src/app/api/finance/foreign/fcd-ledger/route.ts`, `apps/next/src/app/finance/foreign/fcd-ledger/page.tsx`, `apps/next/src/components/finance/foreign/FcdLedgerPageClient.tsx`, `docs/api/openapi.yaml`, `docs/migration/18-next-system-sitemap.md`, this tracker, and current work handoff.
+- DB/API changes: added `GET /api/finance/foreign/fcd-ledger` guarded by `finance.cash.view`; no new table and no writes.
+- Tables used: `accounts` for active FCD/foreign-currency accounts, `bank_statement` for read-only THB movement rows, and `fx_rates` for historical FX reference display when available.
+- Conservative data rule: FF4 does not infer foreign movement from THB bank rows or current currency rates. `foreignIn`/`foreignOut` remain zero unless future ITF/ORC source tables provide true foreign amounts; opening foreign balance comes from `accounts.opening_balance`.
+- Legacy UI parity checked: indigo info band, FCD account selector, three cards, and compact table columns match the legacy/Vue FCD Ledger baseline.
+- Buttons/actions checked: account selector only; no write, post, reverse, or bank-statement mutation actions.
+- Playwright smoke: desktop and mobile route render passed on `http://localhost:3100/finance/foreign/fcd-ledger`; API returned 200 for default and selected account requests; console had no errors; screenshots saved as `ff4-fcd-ledger-desktop.png` and `ff4-fcd-ledger-mobile.png`.
+- Commands: `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 200`, and browser smoke passed. OpenAPI still has the existing 113 skeleton warnings outside this endpoint.
+- Result: FCD Ledger route is no longer a placeholder, but it remains a conservative read baseline until foreign transfer/receipt source tables exist.
 
 ### FF5: FX Gain/Loss
 

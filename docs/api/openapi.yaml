@@ -590,6 +590,37 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /api/finance/foreign/fcd-ledger:
+    get:
+      tags: [Finance]
+      operationId: listForeignFcdLedger
+      summary: Read derived FCD ledger from FCD accounts and bank statement rows
+      description: Read-only baseline. Does not create an FCD ledger table, mutate bank statement rows, or infer foreign movement from THB amounts when source foreign transaction tables are unavailable.
+      parameters:
+        - name: accountId
+          in: query
+          schema:
+            type: string
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: FCD account options, selected account, conservative ledger rows, and balances.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FcdLedgerListResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /api/finance/foreign/fx-rate:
     get:
       tags: [Finance]
@@ -2068,6 +2099,99 @@ components:
         error:
           type: string
         message:
+          type: string
+      additionalProperties: true
+    FcdLedgerAccountOption:
+      type: object
+      required: [currency, id, label, name]
+      properties:
+        accountNo:
+          type: [string, "null"]
+        bankName:
+          type: string
+        branchName:
+          type: string
+        code:
+          type: [string, "null"]
+        currency:
+          type: string
+        id:
+          type: string
+        label:
+          type: string
+        name:
+          type: string
+        openingBalance:
+          type: number
+        type:
+          type: string
+      additionalProperties: true
+    FcdLedgerListResponse:
+      type: object
+      required: [account, filters, rows, summary]
+      properties:
+        account:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/FcdLedgerAccountOption"
+        filters:
+          type: object
+          required: [accounts]
+          properties:
+            accounts:
+              type: array
+              items:
+                $ref: "#/components/schemas/FcdLedgerAccountOption"
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/FcdLedgerRow"
+        summary:
+          type: object
+          required: [accountCount, currency, foreignBalance, rows, thbBalance]
+          properties:
+            accountCount:
+              type: integer
+            currency:
+              type: string
+            foreignBalance:
+              type: number
+              description: Conservative foreign balance. In FF4 this includes opening balance only unless source foreign amounts are available.
+            rows:
+              type: integer
+            thbBalance:
+              type: number
+      additionalProperties: true
+    FcdLedgerRow:
+      type: object
+      required: [date, foreignBal, foreignIn, foreignOut, fxRate, id, refNo, thbBal, thbIn, thbOut, type]
+      properties:
+        date:
+          type: string
+        description:
+          type: string
+        foreignBal:
+          type: number
+        foreignIn:
+          type: number
+          description: Zero when source foreign amount is unavailable from active tables.
+        foreignOut:
+          type: number
+          description: Zero when source foreign amount is unavailable from active tables.
+        fxRate:
+          type: number
+          description: Historical FX reference from fx_rates when available, not used to infer foreign movement.
+        id:
+          type: string
+        refNo:
+          type: string
+        thbBal:
+          type: number
+        thbIn:
+          type: number
+        thbOut:
+          type: number
+        type:
           type: string
       additionalProperties: true
     FxRateListResponse:
