@@ -1035,8 +1035,8 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 - [x] `/dual-costing/match-log`
 - [x] `/dual-costing/deal-margin`
-- [ ] `/dual-costing/compare-margin`
-- [ ] read baseline, filters, detail, export
+- [x] `/dual-costing/compare-margin`
+- [x] read baseline, filters, detail, export
 
 #### Execution Log
 
@@ -1060,6 +1060,16 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Commands: `git diff --check`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 130`, and `npm run build --workspace @ns-scrap-erp/next` passed. OpenAPI lint still reports existing skeleton warnings only.
 - Result: D7b Deal Margin read baseline implemented and validated.
 - Commit: `5875dec feat: add deal margin read baseline` pushed to `main`.
+
+#### D7c Compare Margin Execution Log
+
+- Task: D7c Compare Deal vs Stock read baseline.
+- Legacy refs: `old-apps/vue/src/views/dualCosting/CompareMarginView.vue`; legacy visual baseline uses a blue info band, purple/pink Deal Cost card, emerald/teal Stock Cost card, and 3 diff cards.
+- Files changed: `apps/next/src/app/api/dual-costing/compare-margin/route.ts`, `apps/next/src/app/dual-costing/compare-margin/page.tsx`, `apps/next/src/components/dual-costing/CompareMarginPageClient.tsx`, `docs/api/openapi.yaml`, and migration tracker docs.
+- DB/API changes: added runtime `GET /api/dual-costing/compare-margin` with `from` and `to`; deal side reads `trading_deals`, stock side reads `sales_bills.total_amount` and `cogs_amount`/`total_cost` when available. No schema migration.
+- Playwright smoke: authenticated `/dual-costing/compare-margin` returned deal rows `25` and stock rows `80`; blue info band, Deal Cost card, Stock Cost card, diff cards, and date filters rendered; desktop/mobile had no page overflow and no console errors. Subagent unauth smoke confirmed route redirects to `/login?redirect=%2Fdual-costing%2Fcompare-margin` and unauth API returns `401`.
+- Commands: `git diff --check`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 130`, and `npm run build --workspace @ns-scrap-erp/next` passed. OpenAPI lint still reports existing skeleton warnings only.
+- Result: D7c Compare Deal vs Stock read baseline implemented and validated.
 
 ### D8: Dual Costing QA Batch
 

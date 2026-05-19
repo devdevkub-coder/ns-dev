@@ -118,7 +118,7 @@ Status terms:
 | `/dual-costing/cost-allocator` | Cost Allocator | read-only simulation baseline | `GET /api/dual-costing/cost-allocator` | `po_sells`, `sales_bills`, `trading_deals`, derived Cost Pool rows | `finance.cash.view` |
 | `/dual-costing/match-log` | Match Log | read baseline | `GET /api/dual-costing/match-log` | `trading_deals`, `purchase_bills`, `sales_bills`, `products`, party lookups | `finance.cash.view` |
 | `/dual-costing/deal-margin` | Deal Margin Report | read baseline | `GET /api/dual-costing/deal-margin` | `trading_deals`, `products`, `customers`, `sales_bills` | `finance.cash.view` |
-| `/dual-costing/compare-margin` | Compare Deal vs Stock | placeholder | missing | TBD | none yet |
+| `/dual-costing/compare-margin` | Compare Deal vs Stock | read baseline | `GET /api/dual-costing/compare-margin` | `trading_deals`, `sales_bills` | `finance.cash.view` |
 
 ### Finance And Debt
 

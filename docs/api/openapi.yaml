@@ -1508,6 +1508,39 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /api/dual-costing/compare-margin:
+    get:
+      tags: [Dual Costing]
+      operationId: readCompareMargin
+      summary: Read Compare Deal vs Stock baseline
+      description: >
+        Read-only Compare Margin baseline for Batch D7c. Deal side reads
+        `trading_deals`; stock side reads `sales_bills` revenue and
+        cogs/total_cost where available.
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Deal vs stock aggregate comparison
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /api/trading/dashboard:
     get:
       tags: [Trading]
