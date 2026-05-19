@@ -670,7 +670,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Playwright smoke: desktop `1440x900` and mobile `390x844` loaded `/finance/customer-advance`; `GET /api/finance/customer-advance?pageSize=100` returned `200`; `.xlsx` export returned `200`; no console warnings/errors.
 - Commands: `git diff --check`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 200`.
 - Result: validated; OpenAPI remains valid with existing skeleton warnings.
-- Commit: pending.
+- Commit: `77930c8` (`feat: add finance customer advance baseline`), pushed to `main`.
 
 ### F7: Finance QA Batch
 

@@ -192,7 +192,7 @@ Current scope:
 - F3 Bank Statement read/reconciliation baseline is implemented, validated, and pushed.
 - F4 Cash Position aggregation baseline is implemented, validated, and pushed.
 - F5 Supplier Advance read baseline is implemented, validated, and pushed.
-- F6 Customer Advance read baseline is implemented and validated; commit/push is next.
+- F6 Customer Advance read baseline is implemented, validated, and pushed.
 - Money-moving writes remain out of scope until reconciliation and allocation rules are clear.
 
 Initial F0 findings:
@@ -204,9 +204,9 @@ Initial F0 findings:
 
 Next concrete task:
 
-1. Commit/push F6 Customer Advance.
-2. Mark the F6 checkpoint with the pushed commit hash.
-3. Start the next finance/debt batch from the remaining tracker.
+1. Start the next finance/debt batch from the remaining tracker.
+2. Keep money-moving writes out of scope until reconciliation/allocation rules are clear.
+3. Continue committing/pushing validated reviewable slices before moving to the next slice.
 
 ## Operating Model
 
