@@ -1559,10 +1559,20 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ### M1: Dashboard and Owner Daily
 
-- [ ] `/dashboard`
-- [ ] `/owner-daily`
-- [ ] `/daily-report`
-- [ ] summary from purchase/sales/stock/finance/production
+- [x] `/dashboard`
+- [x] `/owner-daily`
+- [x] `/daily-report`
+- [x] summary from purchase/sales/stock/finance/production
+
+#### Execution Log
+
+- Task: M1 Dashboard, Owner Daily, and Daily Report read/report baselines.
+- Files changed: added shared server helper `main-dashboards.ts`, three `GET` APIs, three Next pages, and one shared client component.
+- DB/API changes: reads `purchase_bills`, `sales_bills`, `expenses`, `payments`, `receipts`, `accounts`, `bank_statement`, `stock_ledger`, `trading_deals`, and existing production/finance helper outputs. No schema change and no write side effects.
+- UI baseline: preserved legacy-first dense dashboard cards, gradient heroes, KPI sections, daily bill tables, owner cash gap card, AR/AP due tables, and read-only baseline notice.
+- Write controls: planning, approval, payment, anomaly fix, print/export, and legacy localStorage actions remain disabled/deferred in this batch.
+- Validation: passed `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 200`, and `git diff --check`. OpenAPI remains valid with the existing warning baseline.
+- Browser QA: unauth subagent confirmed all three protected pages redirect to login and all three APIs return `401`; authenticated main Playwright smoke confirmed all three APIs return `200`, desktop/mobile widths have no horizontal overflow, and no console errors were reported after restarting the dev server on `http://localhost:3100`.
 
 ### M2: Profit and Cost
 

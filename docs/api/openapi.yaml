@@ -49,6 +49,45 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /api/dashboard:
+    get:
+      tags: [Reports]
+      operationId: readMainDashboard
+      summary: Read main management dashboard baseline from purchase, sales, stock, finance, production, and trading sources
+      responses:
+        "200":
+          $ref: "#/components/responses/Ok"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/owner-daily:
+    get:
+      tags: [Reports]
+      operationId: readOwnerDailyControl
+      summary: Read owner daily cash, due, pending, and activity control baseline
+      responses:
+        "200":
+          $ref: "#/components/responses/Ok"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/daily-report:
+    get:
+      tags: [Reports]
+      operationId: readDailyReport
+      summary: Read daily purchase, sales, expense, and cash movement report baseline
+      responses:
+        "200":
+          $ref: "#/components/responses/Ok"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /api/admin/company-profile:
     get:
       tags: [Admin]

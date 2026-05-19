@@ -32,15 +32,21 @@ const exactPathPermissions: Record<string, string> = {
   '/api/admin/auth-events': 'system.audit.view',
   '/api/admin/transaction-ledger': 'finance.cash.view',
   '/api/admin/users': 'system.users.manage',
+  '/api/dashboard': 'reports.reports.view',
+  '/api/daily-report': 'reports.reports.view',
+  '/api/owner-daily': 'reports.reports.view',
   '/api/master-data/customers': 'master.customers.view',
   '/api/master-data/customers/export': 'master.customers.export',
   '/api/master-data/products': 'master.products.view',
   '/api/master-data/products/export': 'master.products.export',
   '/api/master-data/suppliers': 'master.suppliers.view',
   '/api/master-data/suppliers/export': 'master.suppliers.export',
+  '/dashboard': 'reports.reports.view',
+  '/daily-report': 'reports.reports.view',
   '/master-data/customers': 'master.customers.view',
   '/master-data/products': 'master.products.view',
   '/master-data/suppliers': 'master.suppliers.view',
+  '/owner-daily': 'reports.reports.view',
 }
 
 const prefixPathPermissions: Array<[string, string]> = [

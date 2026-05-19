@@ -56,10 +56,10 @@ Status terms:
 
 | Route | Label | Page status | APIs | Primary tables | Permission |
 |---|---|---|---|---|---|
-| `/owner-daily` | Owner Daily Control | placeholder | missing | TBD | none yet |
+| `/owner-daily` | Owner Daily Control | read baseline | `GET /api/owner-daily` | `accounts`, `bank_statement`, `sales_bills`, `purchase_bills`, `expenses`, `receipts`, `payments`, `stock_ledger`, `trading_deals`, `production_orders` | `reports.reports.view` |
 | `/anomaly-detector` | ตรวจจับความผิดปกติ | placeholder | missing | TBD | none yet |
-| `/daily-report` | Daily Report | placeholder | missing | TBD | none yet |
-| `/dashboard` | Dashboard | placeholder | missing | TBD | none yet |
+| `/daily-report` | Daily Report | read baseline | `GET /api/daily-report` | `purchase_bills`, `sales_bills`, `expenses`, `receipts`, `payments`, `bank_statement`, `products` | `reports.reports.view` |
+| `/dashboard` | Dashboard | read baseline | `GET /api/dashboard` | `purchase_bills`, `sales_bills`, `expenses`, `accounts`, `bank_statement`, `stock_ledger`, `production_orders`, `trading_deals` | `reports.reports.view` |
 | `/profit-cost-analysis` | Profit & Cost Analysis | placeholder | missing | TBD | none yet |
 | `/pending-sales` | รายการรอขาย | placeholder | missing | TBD | none yet |
 | `/sales-plan` | วางแผนการขาย (LME) | placeholder | missing | TBD | none yet |
