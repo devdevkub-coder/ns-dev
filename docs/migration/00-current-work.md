@@ -5,7 +5,7 @@
 Date: 2026-05-19
 Active app: `apps/next`
 Primary remote: `new-origin`
-Last pushed checkpoint: tracking qa slow movers fix (`6c7d605 fix: align product slow movers tracking`)
+Last pushed checkpoint: dual costing trading map (`d858133 docs: map dual costing trading batch`)
 
 ## Current Batch
 
@@ -207,7 +207,7 @@ Current scope:
 - T2 Supplier Tracking polish is implemented, validated, and pushed.
 - T3 Product Tracking read/report baseline is implemented, validated, and pushed.
 - T4 Tracking QA Batch passed after correcting Product Tracking slow movers, and is pushed.
-- D0 Dual Costing / Trading / PO legacy inventory and DB mapping is complete; docs checkpoint is next.
+- D0 Dual Costing / Trading / PO legacy inventory and DB mapping is complete and pushed.
 - Tracking routes must use active Next app only; legacy/Vue tracking views are source material.
 - Keep T1-T3 read/report baselines first; no write flows in tracking pages.
 - DB design preference clarified: use meaningful business-facing codes/running document numbers for user-visible references; keep UUID/opaque IDs internal only.
@@ -221,8 +221,8 @@ Initial F0 findings:
 
 Next concrete task:
 
-1. Commit/push D0 Dual Costing / Trading / PO inventory.
-2. Continue to D1 PO Sell read baseline/API/page.
+1. Continue to D1 PO Sell read baseline/API/page.
+2. Add OpenAPI and sitemap coverage for `/api/sales/po-sell` and `/sales/po-sell`.
 3. Use sub agents by default for Playwright/browser QA, and split read-only scouting/contract review into parallel sub agents when work can be separated cleanly.
 
 ## Operating Model

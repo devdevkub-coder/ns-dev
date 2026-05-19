@@ -907,7 +907,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Playwright smoke: not run; docs-only inventory.
 - Commands: `git diff --check` passed.
 - Result: D0 module overview completed; D1 PO Sell read baseline is next.
-- Commit: this checkpoint.
+- Commit: `d858133 docs: map dual costing trading batch` pushed to `main`.
 
 ### D1: PO Sell
 
