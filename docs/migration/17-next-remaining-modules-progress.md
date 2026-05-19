@@ -1592,7 +1592,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Playwright smoke: unauth subagent confirmed `/profit-cost-analysis` redirects to `/login?redirect=%2Fprofit-cost-analysis`, unauth `/api/profit-cost-analysis` returns `401`, and login desktop/mobile has no overflow or console/network errors. Authenticated smoke confirmed `/api/profit-cost-analysis` returns `200`, desktop `1440x900` and mobile `390x844` have no document overflow, legacy markers are present, Export CSV is disabled, product drill modal opens/closes, and no console errors were reported after restarting the dev server.
 - Commands: passed `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 200`, and `git diff --check`. OpenAPI remains valid with the existing 114 warning baseline.
 - Result: implemented and validated locally.
-- Commit: pending.
+- Commit: `814ba2c` (`feat: add profit cost analysis baseline`).
 
 ### M3: Pending Sales and Sales Plan
 

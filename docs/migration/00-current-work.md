@@ -5,7 +5,7 @@
 Date: 2026-05-19
 Active app: `apps/next`
 Primary remote: `new-origin`
-Last pushed checkpoint: M1 Main Dashboard read/report baselines (`f5ffa49 feat: add main dashboard baselines`)
+Last pushed checkpoint: M2 Profit & Cost Analysis read/report baseline (`814ba2c feat: add profit cost analysis baseline`)
 
 ## Current Batch
 
