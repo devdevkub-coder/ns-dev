@@ -780,7 +780,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Playwright smoke: passed via QA subagent on `http://localhost:3100/tracking/supplier`; desktop `1440x900`, mobile `390x844`, no console errors, no failed network requests, page loaded, export link and product breakdown visible, JSON API 200, XLSX API 200 with spreadsheet content type and `PK` signature.
 - Commands: `git diff --check` passed; `npm run type-check --workspace @ns-scrap-erp/next` passed; `npm run lint --workspace @ns-scrap-erp/next` passed; `npm run build --workspace @ns-scrap-erp/next` passed; `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 120` passed validity with existing skeleton warnings.
 - Result: T2 Supplier Tracking polish implemented with product breakdown and `.xlsx` export; detail drilldown remains deferred until item JSON contract is normalized.
-- Commit: this checkpoint.
+- Commit: `6fd570f feat: polish supplier tracking report` pushed to `main`.
 
 ### T3: Product Tracking
 

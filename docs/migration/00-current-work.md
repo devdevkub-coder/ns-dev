@@ -5,7 +5,7 @@
 Date: 2026-05-19
 Active app: `apps/next`
 Primary remote: `new-origin`
-Last pushed checkpoint: finance bank statement baseline (`a48d655 feat: add finance bank statement baseline`)
+Last pushed checkpoint: supplier tracking polish (`6fd570f feat: polish supplier tracking report`)
 
 ## Current Batch
 
@@ -204,7 +204,7 @@ Current scope:
 
 - T0 inventory and DB mapping is documented and pushed.
 - T1 Customer Tracking read baseline is implemented, validated, and pushed.
-- T2 Supplier Tracking polish is implemented and validation passed; commit/push is the next checkpoint.
+- T2 Supplier Tracking polish is implemented, validated, and pushed.
 - Tracking routes must use active Next app only; legacy/Vue tracking views are source material.
 - Keep T1-T3 read/report baselines first; no write flows in tracking pages.
 - DB design preference clarified: use meaningful business-facing codes/running document numbers for user-visible references; keep UUID/opaque IDs internal only.
@@ -218,8 +218,8 @@ Initial F0 findings:
 
 Next concrete task:
 
-1. Commit/push T2 Supplier Tracking polish.
-2. Continue to T3 Product Tracking read/report baseline.
+1. Continue to T3 Product Tracking read/report baseline.
+2. Add `/api/tracking/product`, `/tracking/product`, OpenAPI, sitemap, and tracker updates.
 3. Use sub agents by default for Playwright/browser QA, and split read-only scouting/contract review into parallel sub agents when work can be separated cleanly.
 
 ## Operating Model
