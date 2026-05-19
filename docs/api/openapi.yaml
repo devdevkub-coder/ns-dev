@@ -933,6 +933,35 @@ paths:
         "200":
           $ref: "#/components/responses/Ok"
 
+  /api/sales/po-sell:
+    get:
+      tags: [Sales]
+      operationId: listSalesPoSell
+      summary: List PO sell read baseline
+      description: >
+        Read-only PO Sell contract for Batch D1. User-facing rows should expose
+        the business document number as `docNo`; UUIDs remain internal.
+      parameters:
+        - $ref: "#/components/parameters/POSellQ"
+        - $ref: "#/components/parameters/POSellStatus"
+        - $ref: "#/components/parameters/POSellMatchStatus"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: PO Sell rows as JSON or XLSX export
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/POSellListResponse"
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /api/stock/ledger:
     get:
       tags: [Stock]
@@ -1327,6 +1356,27 @@ components:
         type: string
         enum: [json, xlsx]
         default: json
+    POSellMatchStatus:
+      name: matchStatus
+      in: query
+      schema:
+        type: string
+        enum: [all, Not Matched, Partially Matched, Fully Matched, Over Matched]
+        default: all
+    POSellQ:
+      name: q
+      in: query
+      schema:
+        type: string
+        maxLength: 120
+      description: Search by `docNo`, customer, product, channel, branch, or related deal reference.
+    POSellStatus:
+      name: status
+      in: query
+      schema:
+        type: string
+        maxLength: 40
+      description: Raw PO Sell status from `po_sells.status`; display normalization is read-only.
     StockAsOf:
       name: asOf
       in: query
@@ -1498,6 +1548,41 @@ components:
       type: [string, "null"]
       maxLength: 40
       pattern: "^[A-Za-z0-9_-]+$"
+    POSellListResponse:
+      type: object
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          items:
+            type: object
+            required: [docNo]
+            properties:
+              docNo:
+                type: string
+                description: Business-facing PO Sell document number from `po_sells.doc_no`.
+              status:
+                type: [string, "null"]
+              matchStatus:
+                type: [string, "null"]
+              customer:
+                type: [string, "null"]
+              salesChannel:
+                type: [string, "null"]
+              branch:
+                type: [string, "null"]
+              product:
+                type: [string, "null"]
+              relatedDealNo:
+                type: [string, "null"]
+            additionalProperties: true
+        summary:
+          type: object
+          additionalProperties: true
+        pagination:
+          type: object
+          additionalProperties: true
+      additionalProperties: true
     StockAdjustRequest:
       allOf:
         - $ref: "#/components/schemas/StockBaseWriteRequest"

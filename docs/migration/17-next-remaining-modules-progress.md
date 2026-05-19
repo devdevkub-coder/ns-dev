@@ -911,11 +911,27 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ### D1: PO Sell
 
-- [ ] API `/api/sales/po-sell`
-- [ ] Page `/sales/po-sell`
-- [ ] filter/sort/pagination
-- [ ] modal baseline
-- [ ] export
+- [x] API `/api/sales/po-sell`
+- [x] OpenAPI contract for `GET /api/sales/po-sell`
+- [x] Sitemap route/API/table/permission coverage for `/sales/po-sell`
+- [x] Page `/sales/po-sell`
+- [x] filter/search read baseline
+- [ ] modal baseline (deferred; read-only slice)
+- [x] export
+
+#### Execution Log
+
+- Task: D1 PO Sell read baseline/API/page.
+- Legacy refs: D0 PO Sell refs remain `old-apps/vue/src/views/sales/PoSellView.vue` and `old-apps/legacy/index.html:22171`.
+- Files changed: `apps/next/src/app/api/sales/po-sell/route.ts`, `apps/next/src/app/sales/po-sell/page.tsx`, `apps/next/src/components/sales/PoSellPageClient.tsx`, `docs/api/openapi.yaml`, `docs/migration/18-next-system-sitemap.md`, `docs/migration/17-next-remaining-modules-progress.md`, `docs/migration/00-current-work.md`.
+- DB/API changes: added runtime `GET /api/sales/po-sell` with `q`, `status`, `matchStatus`, and `format=json|xlsx`; response coverage includes JSON/XLSX, `401`, and `403`. Source tables recorded as `po_sells`, `customers`, `sales_channels`, `branches`, `products`, and `trading_deals` / match data. No schema migration.
+- Buttons/actions checked: D1 remains read baseline only; create/edit/cancel/match allocation stays deferred.
+- Modal/form checked: modal baseline not implemented in this read-only slice.
+- Validation added: OpenAPI documents `docNo` as the user-facing document identifier; UUID/opaque ids remain internal.
+- Playwright smoke: authenticated `/sales/po-sell` render passed on desktop/mobile; `GET /api/sales/po-sell` returned `200` with zero dev rows; XLSX export returned `200`, spreadsheet content type, and `PK` signature. Subagent unauth smoke confirmed route/API guards return login/`401`.
+- Commands: `git diff --check`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 130`, and `npm run build --workspace @ns-scrap-erp/next` passed. OpenAPI lint still reports existing skeleton warnings only.
+- Result: D1 PO Sell read baseline implemented and validated; dev-target `po_sells` currently has zero rows, so empty state is expected.
+- Commit: pending.
 
 ### D2: PO Buy Polish
 

@@ -12,7 +12,7 @@ Use it before every new module batch:
 
 ## Baseline
 
-Date: 2026-05-18
+Date: 2026-05-19
 
 Sources:
 
@@ -25,6 +25,7 @@ Status terms:
 
 - `done`: real page/API baseline exists for the current migration phase
 - `read baseline`: DB-connected read surface exists, write flow is deferred
+- `in progress`: docs/API contract or implementation work has started, but the runtime route is not validated yet
 - `partial write`: at least one write flow exists, but full business side effects are not complete
 - `placeholder`: route resolves through `[...slug]` scaffold only
 - `missing`: no real page/API or no known mapping
@@ -112,7 +113,7 @@ Status terms:
 | Route | Label | Page status | APIs | Primary tables | Permission |
 |---|---|---|---|---|---|
 | `/purchase/po-buy` | PO Buy | read baseline | `GET /api/purchase/po-buy` | `po_buys` | `finance.cash.view` |
-| `/sales/po-sell` | PO Sell | placeholder | missing | `po_sells` expected | `finance.cash.view` |
+| `/sales/po-sell` | PO Sell | read baseline | `GET /api/sales/po-sell` | `po_sells`, `customers`, `sales_channels`, `branches`, `products`, `trading_deals` / match data | `finance.cash.view` |
 | `/dual-costing/cost-pool` | Cost Pool | placeholder | missing | TBD | none yet |
 | `/dual-costing/cost-allocator` | Cost Allocator | placeholder | missing | TBD | none yet |
 | `/dual-costing/match-log` | Match Log | placeholder | missing | TBD | none yet |
@@ -247,7 +248,7 @@ Current API groups:
 - Daily: payments approvals, expenses, transfers, petty advances, bill swap history
 - Master Data: customers, suppliers, products, lookup masters, Thai address lookup
 - Production: orders, dashboard, reports, output categories
-- Purchase/Sales: purchase bills, payments, receipt vouchers, sales bills, stock issue, receipts
+- Purchase/Sales: purchase bills, payments, receipt vouchers, sales bills, stock issue, receipts, PO Sell
 - Stock: ledger, transfer
 - Tracking/Trading/PO Reports: supplier tracking, trading matching, PO outstanding
 - Health: simple runtime health endpoint
@@ -258,3 +259,4 @@ Current API groups:
 - Stock write flows are traceable through `stock_ledger`, but production-grade void/reversal, branch-scope enforcement, and cost-source/WAC policy hardening remain follow-up work.
 - Main dashboard/reporting and finance-accounting routes are mostly placeholder coverage only.
 - Several write flows are intentionally partial and still need side-effect reconciliation before production use.
+- `/sales/po-sell` D1 read baseline is implemented; write/cancel/match allocation flows remain deferred and user-facing identifiers should use `docNo`.
