@@ -5,7 +5,7 @@
 Date: 2026-05-19
 Active app: `apps/next`
 Primary remote: `new-origin`
-Last pushed checkpoint: M6 Main QA sweep (`1d4a28d fix: audit main dashboard baselines`)
+Last pushed checkpoint: SYS1 Change Password (`c0d0c7d feat: add self service password change`)
 
 ## Current Batch
 
@@ -18,7 +18,8 @@ Goal:
 - Keep migration/backup/reset tools as safe read/design baselines until destructive actions have explicit confirmation, audit, backup, RLS, and rollback design.
 - Build `/reports` as an index/search surface over active report routes before duplicating report-specific query logic.
 - During this and future clone batches, keep the legacy/Vue screen as the visual baseline first. Preserve cards, colors, banners, tables, button placement, labels, spacing, and compact density unless a documented deviation is approved. If Vue has been simplified or has known layout/column drift, use `old-apps/legacy/` as the stronger baseline before improving the data wiring.
-- Current docs slice: SYS0 System/Admin module overview is implemented locally. It maps `/admin/change-password`, `/admin/migration-tools`, `/reports`, admin polish, full-route QA order, permissions, and destructive-action safety constraints.
+- Current docs slice: SYS0 System/Admin module overview is implemented, validated, and pushed. It maps `/admin/change-password`, `/admin/migration-tools`, `/reports`, admin polish, full-route QA order, permissions, and destructive-action safety constraints.
+- Current implementation slice: SYS1 `/admin/change-password` self-service Supabase Auth flow is implemented, validated, and pushed. It preserves legacy UI, validates password syntax/confirmation/current-password, verifies current password with Supabase Auth, updates via `updateUser`, and does not store password in app tables.
 
 ## Previous Batch M Notes
 
