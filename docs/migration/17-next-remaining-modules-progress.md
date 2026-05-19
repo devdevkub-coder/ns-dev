@@ -995,9 +995,21 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ### D5: Cost Pool
 
-- [ ] API `/api/dual-costing/cost-pool`
-- [ ] Page `/dual-costing/cost-pool`
-- [ ] source/allocated/unallocated summary
+- [x] API `/api/dual-costing/cost-pool`
+- [x] Page `/dual-costing/cost-pool`
+- [x] source/allocated/unallocated summary
+
+#### Execution Log
+
+- Task: D5 Cost Pool read-derived baseline.
+- Legacy refs: `old-apps/vue/src/views/dualCosting/CostPoolView.vue` and `old-apps/legacy/index.html:22592`; legacy visual baseline uses amber warning band, blue/orange/purple cost type cards, 5 summary cards, filters, and a table with emerald available columns.
+- Files changed: `apps/next/src/app/api/dual-costing/cost-pool/route.ts`, `apps/next/src/app/dual-costing/cost-pool/page.tsx`, `apps/next/src/components/dual-costing/CostPoolPageClient.tsx`, `apps/next/src/lib/navigation.ts`, `docs/api/openapi.yaml`, `docs/migration/17-next-remaining-modules-progress.md`, `docs/migration/18-next-system-sitemap.md`, `docs/migration/00-current-work.md`.
+- DB/API changes: added runtime `GET /api/dual-costing/cost-pool` with `q`, `productId`, `costType`, `sourceType`, `status`, `availableOnly`, `sort`, `from`, `to`, and `format=xlsx`; reads `po_buys`, `purchase_bills`, `production_outputs`, `grade_adjustments`, and `trading_deals`. No schema migration.
+- Buttons/actions checked: page is read-only with filter reset, export, and detail modal only. Allocate/confirm/reverse/recalc actions remain deferred because dedicated cost allocation source links and reconciliation rules are not locked.
+- Data assumptions: Cost Pool rows use business-facing derived lot refs like `CP-POB-*`, `CP-SPT-*`, `CP-PRD-*`, and `CP-RGD-*`; UUID/source ids remain internal fields. PO Buy rows use remaining item quantity when line items are available. Purchase bill usage is reduced by known active `trading_deals.matched_purchase_amount`; PO Buy, production, and regrade usage remains available until real match/allocation links exist.
+- Playwright smoke: subagent unauth smoke confirmed `/dual-costing/cost-pool` redirects to `/login?redirect=%2Fdual-costing%2Fcost-pool` and unauth API returns `401`. Authenticated main smoke confirmed legacy-style amber warning band, blue/orange/purple cost cards, 5 summary cards, filters, table columns, export link, and detail modal; desktop/mobile had no page overflow and no console errors after duplicate derived lot refs were fixed.
+- Commands: `git diff --check`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 130`, and `npm run build --workspace @ns-scrap-erp/next` passed. OpenAPI lint still reports existing skeleton warnings only.
+- Result: D5 Cost Pool read-derived baseline implemented and validated; allocate/reverse/recalc/write behavior remains deferred.
 
 ### D6: Cost Allocator
 

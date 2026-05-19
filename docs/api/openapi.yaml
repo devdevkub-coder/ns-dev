@@ -17,6 +17,7 @@ tags:
   - name: Admin
   - name: Auth
   - name: Daily
+  - name: Dual Costing
   - name: Finance
   - name: Health
   - name: Master Data
@@ -1346,6 +1347,43 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /api/dual-costing/cost-pool:
+    get:
+      tags: [Dual Costing]
+      operationId: readCostPool
+      summary: Read Cost Pool baseline
+      description: >
+        Read-only Cost Pool contract for Batch D5. Rows are derived from PO Buy,
+        purchase bills, production outputs, grade adjustments, and currently
+        known trading usage. Allocation/write/reverse/recalc actions are
+        deferred until reconciliation rules and source links are locked.
+      parameters:
+        - $ref: "#/components/parameters/CostPoolQ"
+        - $ref: "#/components/parameters/CostPoolProductId"
+        - $ref: "#/components/parameters/CostPoolCostType"
+        - $ref: "#/components/parameters/CostPoolSourceType"
+        - $ref: "#/components/parameters/CostPoolStatus"
+        - $ref: "#/components/parameters/CostPoolAvailableOnly"
+        - $ref: "#/components/parameters/CostPoolSort"
+        - $ref: "#/components/parameters/CostPoolFrom"
+        - $ref: "#/components/parameters/CostPoolTo"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Cost Pool rows as JSON or XLSX export
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CostPoolResponse"
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /api/trading/dashboard:
     get:
       tags: [Trading]
@@ -1541,6 +1579,69 @@ components:
         type: string
         format: date
       description: Inclusive trading deal date upper bound.
+    CostPoolAvailableOnly:
+      name: availableOnly
+      in: query
+      schema:
+        type: boolean
+        default: true
+      description: When true, only rows with available quantity greater than zero are returned.
+    CostPoolCostType:
+      name: costType
+      in: query
+      schema:
+        type: string
+        enum: [Purchase, Production, Regrade]
+      description: Filter by derived Cost Pool cost type.
+    CostPoolFrom:
+      name: from
+      in: query
+      schema:
+        type: string
+        format: date
+      description: Inclusive Cost Pool source date lower bound.
+    CostPoolProductId:
+      name: productId
+      in: query
+      schema:
+        type: string
+      description: Filter by target product id.
+    CostPoolQ:
+      name: q
+      in: query
+      schema:
+        type: string
+        maxLength: 120
+      description: Search by source number, source type, cost type, counterparty, product, or status.
+    CostPoolSort:
+      name: sort
+      in: query
+      schema:
+        type: string
+        enum: [FIFO, LIFO, Cheap, Expensive]
+        default: FIFO
+      description: Read ordering for available cost lots.
+    CostPoolSourceType:
+      name: sourceType
+      in: query
+      schema:
+        type: string
+        enum: [PO_Buy, Spot_Buy, Production, Regrade]
+      description: Filter by derived source type.
+    CostPoolStatus:
+      name: status
+      in: query
+      schema:
+        type: string
+        enum: [Available, Partially Used, Fully Used]
+      description: Filter by usage status after known matched value has been applied.
+    CostPoolTo:
+      name: to
+      in: query
+      schema:
+        type: string
+        format: date
+      description: Inclusive Cost Pool source date upper bound.
     StockAsOf:
       name: asOf
       in: query
@@ -1871,6 +1972,134 @@ components:
           type: object
           additionalProperties: true
       additionalProperties: true
+    CostPoolResponse:
+      type: object
+      required: [filters, rows, summary, summaryByCostType]
+      properties:
+        filters:
+          type: object
+          required: [costTypes, products, sourceTypes, statuses]
+          properties:
+            costTypes:
+              type: array
+              items:
+                type: string
+            products:
+              type: array
+              items:
+                type: object
+                required: [id, name]
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+            sourceTypes:
+              type: array
+              items:
+                type: string
+            statuses:
+              type: array
+              items:
+                type: string
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/CostPoolRow"
+        summary:
+          type: object
+          required: [availableQty, availableValue, originalQty, originalValue, rows, usedQty]
+          properties:
+            availableQty:
+              type: number
+            availableValue:
+              type: number
+            originalQty:
+              type: number
+            originalValue:
+              type: number
+            rows:
+              type: integer
+            usedQty:
+              type: number
+        summaryByCostType:
+          type: array
+          items:
+            type: object
+            required: [availableQty, availableValue, count, costType]
+            properties:
+              availableQty:
+                type: number
+              availableValue:
+                type: number
+              count:
+                type: integer
+              costType:
+                type: string
+      additionalProperties: true
+    CostPoolRow:
+      type: object
+      required:
+        - availableQty
+        - availableValue
+        - branchName
+        - costPoolId
+        - costType
+        - counterparty
+        - date
+        - productId
+        - productName
+        - qty
+        - sourceId
+        - sourceLineId
+        - sourceNo
+        - sourceType
+        - status
+        - totalCost
+        - unitCost
+        - usedQty
+      properties:
+        availableQty:
+          type: number
+        availableValue:
+          type: number
+        branchName:
+          type: string
+        costPoolId:
+          type: string
+          description: Business-facing derived lot id for display/export; internal source ids remain separate.
+        costType:
+          type: string
+          enum: [Purchase, Production, Regrade]
+        counterparty:
+          type: string
+        date:
+          type: string
+          format: date
+        productId:
+          type: string
+        productName:
+          type: string
+        qty:
+          type: number
+        sourceId:
+          type: string
+        sourceLineId:
+          type: string
+        sourceNo:
+          type: string
+        sourceType:
+          type: string
+          enum: [PO_Buy, Spot_Buy, Production, Regrade]
+        status:
+          type: string
+          enum: [Available, Partially Used, Fully Used]
+        totalCost:
+          type: number
+        unitCost:
+          type: number
+        usedQty:
+          type: number
     StockAdjustRequest:
       allOf:
         - $ref: "#/components/schemas/StockBaseWriteRequest"

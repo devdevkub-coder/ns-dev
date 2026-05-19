@@ -212,6 +212,7 @@ Current scope:
 - D2 PO Buy read-only polish is implemented, validated, and pushed. Write flows remain deferred.
 - D3 Trading Dashboard read baseline is implemented, validated, and pushed. Dashboard remains read-only.
 - D4 Trading Matching read-only polish is implemented, validated, and pushed. Write/reverse/recalc actions remain deferred.
+- D5 Cost Pool read-derived baseline is implemented and validated locally. UI keeps the legacy amber warning band, blue/orange/purple cost cards, summary cards, filters, export, table, and read-only detail modal; write allocation remains deferred.
 - Tracking routes must use active Next app only; legacy/Vue tracking views are source material.
 - Keep T1-T3 read/report baselines first; no write flows in tracking pages.
 - DB design preference clarified: use meaningful business-facing codes/running document numbers for user-visible references; keep UUID/opaque IDs internal only.
@@ -225,7 +226,7 @@ Initial F0 findings:
 
 Next concrete task:
 
-1. Continue D5 Cost Pool after D4 checkpoint.
+1. Commit and push D5 Cost Pool, then continue D6 Cost Allocator simulation/read baseline.
 2. Keep Cost Pool read-derived first; no allocation or cost mutation until reconciliation rules are locked.
 3. Use sub agents by default for Playwright/browser QA, and split read-only scouting/contract review into parallel sub agents when work can be separated cleanly.
 
