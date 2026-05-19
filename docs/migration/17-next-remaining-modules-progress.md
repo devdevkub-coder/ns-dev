@@ -334,7 +334,7 @@ Priority: สูง เพราะเป็นฐานของ purchase, sale
 
 #### S2.3 Actions/Modal/Export
 
-- [ ] row detail modal
+- [x] row detail modal
 - [x] export `.xlsx`
 - [x] refresh button
 
@@ -343,6 +343,18 @@ Priority: สูง เพราะเป็นฐานของ purchase, sale
 - [x] API smoke
 - [x] browser smoke
 - [ ] docs/type/lint/build/commit/push
+
+#### S2 Follow-up Execution Log
+
+- Task: Stock Ledger row detail modal follow-up after UI parity pass.
+- Legacy refs: `old-apps/legacy/index.html:11483`, `old-apps/vue/src/views/stock/StockLedgerView.vue`.
+- Files changed: `apps/next/src/components/purchase-flow/StockLedgerPageClient.tsx`, this tracker, and current work handoff.
+- DB/API changes: no schema migration and no route-handler change; the modal reads the row payload already returned by `GET /api/stock/ledger`.
+- Buttons/actions checked: `อ่าน` is now active and opens a read-only Stock Ledger detail modal. Duplicate/orphan cleanup buttons remain disabled.
+- Modal/form checked: modal shows document reference, product/location, quantity/cost, value/status, note, and counterparty/source. It has no write inputs and no mutation action.
+- Playwright smoke: authenticated main Playwright session passed `/stock/ledger` at desktop `1365x900` and mobile `390x844`; `อ่าน` opened the read-only detail modal, modal markers rendered, there was no page-level overflow, and no console warnings/errors were found. Unauthenticated QA subagent confirmed route redirects to `/login?redirect=%2Fstock%2Fledger` and API returns `401` JSON (`กรุณาเข้าสู่ระบบ`).
+- Commands: `npm run lint --workspace @ns-scrap-erp/next` passed; `npm run type-check --workspace @ns-scrap-erp/next` passed; `npm run build --workspace @ns-scrap-erp/next` passed; `git diff --check` passed.
+- Result: Stock Ledger row detail modal follow-up validated locally and ready to commit/push.
 
 ### S3: Status Convert
 

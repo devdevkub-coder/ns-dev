@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import type { StockOption } from '@/lib/stock'
 
@@ -9,9 +10,34 @@ type StockLedgerPayload = {
   page: number
   pageSize: number
   reference: { branches: StockOption[]; products: StockOption[]; warehouses: StockOption[] }
-  rows: Array<{ branchName: string; counterpartyName: string; date: string; id: string; lotNo: string; movementType: string; notAvailableForSale: boolean; outputCategory: string; productCode: string; productId: string; productName: string; qtyIn: number; qtyOut: number; refNo: string; refType: string; runningBalanceByProduct: number; unitCost: number; valueIn: number; valueOut: number; warehouseName: string }>
+  rows: StockLedgerRow[]
   summary: { count: number; negativeCount: number; pageCount: number; qtyIn: number; qtyOut: number; valueIn: number; valueOut: number }
   total: number
+}
+
+type StockLedgerRow = {
+  branchName: string
+  counterpartyName: string
+  date: string
+  id: string
+  lotNo: string
+  movementType: string
+  notAvailableForSale: boolean
+  note: string
+  outputCategory: string
+  productCode: string
+  productId: string
+  productName: string
+  qtyIn: number
+  qtyOut: number
+  refId: string
+  refNo: string
+  refType: string
+  runningBalanceByProduct: number
+  unitCost: number
+  valueIn: number
+  valueOut: number
+  warehouseName: string
 }
 
 export function StockLedgerPageClient() {
@@ -26,6 +52,7 @@ export function StockLedgerPageClient() {
   const [page, setPage] = useState(1)
   const [productId, setProductId] = useState('')
   const [search, setSearch] = useState('')
+  const [selectedRow, setSelectedRow] = useState<StockLedgerRow | null>(null)
   const [toDate, setToDate] = useState('')
 
   const loadData = useCallback(async () => {
@@ -155,7 +182,7 @@ export function StockLedgerPageClient() {
                 <td className="p-2 text-right font-mono text-slate-500">{formatMoney(row.unitCost)}</td>
                 <td className="p-2 text-right font-mono text-emerald-700">{row.valueIn ? formatMoney(row.valueIn) : '-'}</td>
                 <td className="p-2 text-right font-mono text-red-700">{row.valueOut ? formatMoney(row.valueOut) : '-'}</td>
-                <td className="p-2 text-center"><button className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-500" disabled type="button">อ่าน</button></td>
+                <td className="p-2 text-center"><button className="rounded bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200" type="button" onClick={() => setSelectedRow(row)}>อ่าน</button></td>
               </tr>
             ))}
             {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={12}>ยังไม่มี Stock Movement</td></tr> : null}
@@ -169,6 +196,7 @@ export function StockLedgerPageClient() {
           <button className="rounded border px-3 py-1 disabled:opacity-40" disabled={page >= totalPages} type="button" onClick={() => setPage((value) => value + 1)}>ถัดไป</button>
         </div>
       </div>
+      {selectedRow ? <StockLedgerDetailModal row={selectedRow} onClose={() => setSelectedRow(null)} /> : null}
     </section>
   )
 }
@@ -185,4 +213,87 @@ function Counterparty({ name, refType }: { name: string; refType: string }) {
   }
   const labelMap: Record<string, string> = { ADJ: 'นับสต๊อก', CR: 'รับคืนสินค้า', GA: 'ปรับเกรด', OB: 'ยอดยกมา', SC: 'แปลง Status', ST: 'โอนระหว่างสาขา' }
   return <span className="text-xs italic text-slate-500">{labelMap[refType] ?? refType ?? '-'}</span>
+}
+
+function StockLedgerDetailModal({ onClose, row }: { onClose: () => void; row: StockLedgerRow }) {
+  const netQty = row.qtyIn - row.qtyOut
+  const netValue = row.valueIn - row.valueOut
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-label="รายละเอียด Stock Ledger">
+      <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">📋 รายละเอียด Stock Ledger</h2>
+            <p className="mt-1 text-xs text-slate-500">อ่านอย่างเดียวจากรายการ ledger ที่แสดงในตาราง</p>
+          </div>
+          <button className="rounded bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-200" type="button" onClick={onClose}>ปิด</button>
+        </div>
+
+        <div className="grid gap-4 p-5 md:grid-cols-2">
+          <DetailPanel title="เอกสารอ้างอิง">
+            <DetailRow label="วันที่" value={row.date || '-'} />
+            <DetailRow label="เลขบิล" value={row.refNo || '-'} mono />
+            <DetailRow label="Ref Type" value={row.refType || '-'} />
+            <DetailRow label="Ref ID" value={row.refId || '-'} mono />
+            <DetailRow label="Movement" value={row.movementType || '-'} />
+          </DetailPanel>
+
+          <DetailPanel title="สินค้า / ที่เก็บ">
+            <DetailRow label="สินค้า" value={`${row.productCode ? `${row.productCode} · ` : ''}${row.productName}`} />
+            <DetailRow label="Product ID" value={row.productId || '-'} mono />
+            <DetailRow label="Lot" value={row.lotNo || '-'} />
+            <DetailRow label="สาขา" value={row.branchName || '-'} />
+            <DetailRow label="คลัง" value={row.warehouseName || '-'} />
+          </DetailPanel>
+
+          <DetailPanel title="จำนวน / ต้นทุน">
+            <DetailRow label="เข้า" value={row.qtyIn ? formatMoney(row.qtyIn) : '-'} tone="emerald" />
+            <DetailRow label="ออก" value={row.qtyOut ? formatMoney(row.qtyOut) : '-'} tone="red" />
+            <DetailRow label="สุทธิ" value={formatMoney(netQty)} tone={netQty >= 0 ? 'emerald' : 'red'} />
+            <DetailRow label="ต้นทุน/หน่วย" value={formatMoney(row.unitCost)} />
+            <DetailRow label="คงเหลือสะสม" value={formatMoney(row.runningBalanceByProduct)} tone={row.runningBalanceByProduct < 0 ? 'red' : 'blue'} />
+          </DetailPanel>
+
+          <DetailPanel title="มูลค่า / สถานะ">
+            <DetailRow label="มูลค่าเข้า" value={row.valueIn ? formatMoney(row.valueIn) : '-'} tone="emerald" />
+            <DetailRow label="มูลค่าออก" value={row.valueOut ? formatMoney(row.valueOut) : '-'} tone="red" />
+            <DetailRow label="มูลค่าสุทธิ" value={formatMoney(netValue)} tone={netValue >= 0 ? 'emerald' : 'red'} />
+            <DetailRow label="พร้อมขาย" value={row.notAvailableForSale ? 'No' : 'Yes'} tone={row.notAvailableForSale ? 'red' : 'emerald'} />
+            <DetailRow label="สถานะสินค้า" value={row.outputCategory || '-'} />
+          </DetailPanel>
+        </div>
+
+        <div className="border-t bg-slate-50 px-5 py-4 text-sm">
+          <div className="font-semibold text-slate-700">หมายเหตุ</div>
+          <div className="mt-1 whitespace-pre-wrap text-slate-600">{row.note || '-'}</div>
+          <div className="mt-3 text-xs text-slate-500">คู่ค้า/ที่มา: {row.counterpartyName || '-'}</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DetailPanel({ children, title }: { children: ReactNode; title: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4">
+      <div className="mb-3 text-sm font-bold text-slate-800">{title}</div>
+      <div className="space-y-2">{children}</div>
+    </div>
+  )
+}
+
+function DetailRow({ label, mono = false, tone = 'normal', value }: { label: string; mono?: boolean; tone?: 'blue' | 'emerald' | 'normal' | 'red'; value: string }) {
+  const toneClass = {
+    blue: 'text-blue-700',
+    emerald: 'text-emerald-700',
+    normal: 'text-slate-900',
+    red: 'text-red-700',
+  }[tone]
+  return (
+    <div className="grid grid-cols-[120px_1fr] gap-3 text-sm">
+      <span className="text-slate-500">{label}</span>
+      <span className={`break-words font-semibold ${mono ? 'font-mono text-xs' : ''} ${toneClass}`}>{value}</span>
+    </div>
+  )
 }
