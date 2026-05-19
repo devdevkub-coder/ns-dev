@@ -1169,6 +1169,16 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Result: UI-ADM1 Company Profile legacy UI parity revision validated and pushed.
 - Commit: `bebef00 fix: restore company profile legacy ui parity` pushed to `main`.
 
+#### Follow-up: Form Border/Preview Parity
+
+- User reported the form border/color still did not match legacy and the receipt/delivery preview buttons could not show example documents.
+- Files changed: `apps/next/src/app/admin/company-profile/CompanyProfilePageClient.tsx`, this tracker, current work handoff.
+- DB/API changes: none. Existing `GET/PUT /api/admin/company-profile` and `system.settings.manage` guard remain unchanged.
+- UI fix: made input, textarea, logo, and form utility borders explicit with legacy-like slate borders/white fields so Tailwind v4 does not render inherited/current-color borders.
+- Preview fix: the receipt and delivery preview buttons now open a print-preview tab with sample document HTML generated from the current company profile, using the same legacy print document layout structure, toolbar, document title/stamp, item table, totals, remarks, signatures, and footer note. The validated save path still runs first; no new print/write endpoint was added.
+- Playwright smoke: local authenticated route `http://localhost:3100/admin/company-profile` opened both `บิลซื้อ / PURCHASE BILL ตัวอย่าง` and `ใบส่งของ / DELIVERY NOTE ตัวอย่าง` tabs successfully. Computed input/textarea style showed white background, 4px radius, and slate border color.
+- Commands: `npm run lint --workspace @ns-scrap-erp/next` passed; `npm run type-check --workspace @ns-scrap-erp/next` passed; `npm run build --workspace @ns-scrap-erp/next` passed; `git diff --check` passed.
+
 ### UI-D2: Cost Pool / Cost Allocator Legacy UI Parity Revision
 
 - [x] `/dual-costing/cost-pool` legacy warning copy/filter/table parity
