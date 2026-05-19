@@ -2050,3 +2050,26 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 8. Batch A: Finance / Accounting
 9. Batch M: Main Dashboards and Operational Control
 10. Batch SYS: System and Cleanup
+
+### UI-FADV: `/finance/supplier-advance` and `/finance/customer-advance` Legacy UI Parity Revision
+
+#### Execution Log
+
+- Task: revise Supplier Advance and Customer Advance pages to match the legacy compact visual baseline after the first-10 post-SYS UI parity audit.
+- Legacy refs:
+  - `old-apps/legacy/index.html:23414` Supplier Advance amber info banner, two summary cards, blue create CTA, 11-column table, cancel action, empty state, and modal/write flow.
+  - `old-apps/legacy/index.html:23513` Customer Advance emerald info banner, two summary cards, blue create CTA, 11-column table, cancel action, empty state, and modal/write flow.
+  - `old-apps/vue/src/views/finance/SupplierAdvanceView.vue:42` and `old-apps/vue/src/views/finance/CustomerAdvanceView.vue:42` simplified Vue clone of the same compact surface.
+- Files changed:
+  - `apps/next/src/components/finance/SupplierAdvancePageClient.tsx`
+  - `apps/next/src/components/finance/CustomerAdvancePageClient.tsx`
+  - `docs/migration/17-next-remaining-modules-progress.md`
+  - `docs/migration/00-current-work.md`
+- DB/API changes: no schema or API route changes. Both pages still read from `bank_statement` `SADV`/`CADV` rows and expose missing dedicated advance/allocation tables as source metadata.
+- Buttons/actions checked: disabled `+ จ่ายล่วงหน้าใหม่`, disabled `+ รับล่วงหน้าใหม่`, active `.xlsx` export kept as secondary Next capability, and disabled row `ยกเลิก` placeholders. Real create/cancel/allocation writes remain deferred.
+- Modal/form checked: legacy modal/form was audited but not implemented in this read/display slice because the target advance/allocation schema and write semantics remain unresolved.
+- Validation added: UI-only parity; no API validation change.
+- Playwright smoke: authenticated main browser checked `/finance/supplier-advance` and `/finance/customer-advance` at `http://localhost:3100` on desktop 1365x900 and mobile 390x844; both APIs returned 200, no page-level horizontal overflow, no new console errors, and legacy banner/card/disabled CTA/Rate column/table/empty-state/export surfaces were present. Subagent unauth smoke confirmed both routes redirect to login and both APIs return 401.
+- Commands: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `git diff --check`.
+- Result: `/finance/supplier-advance` and `/finance/customer-advance` now restore the legacy compact advance visual surface while preserving read-only Bank Statement baselines. Create, cancel, allocation, and dedicated advance table writes remain deferred.
+- Commit: pending.
