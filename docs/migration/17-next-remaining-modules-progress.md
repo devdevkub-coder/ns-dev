@@ -1749,9 +1749,21 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ### SYS4: Reports Index
 
-- [ ] Page `/reports`
-- [ ] link/search all report pages
+- [x] Page `/reports`
+- [x] link/search all report pages
 - [ ] permission-aware visibility
+
+#### Execution Log
+
+- Task: SYS4 Reports Index read baseline.
+- Legacy refs: Vue `old-apps/vue/src/views/systemGaps/ReportsView.vue`, legacy `view-reports`.
+- Files changed: added `/reports` Next page and client component; updated sitemap and current work handoff.
+- UI baseline: preserved legacy-style date filter bar, report tab chips, compact table, status pills, and export button placement. Export remains disabled until a report export contract is designed.
+- Behavior: links active report/read pages instead of duplicating each report query. Search filters by report label, owner, status, summary, and path. Date filters are displayed as legacy-compatible shell and deferred for downstream report parameter handoff.
+- Permission note: `/reports` remains guarded by `reports.reports.view`; per-link permission-aware filtering remains a SYS5/full navigation hardening follow-up.
+- Browser QA: unauth subagent confirmed `/reports` redirects to `/login?redirect=%2Freports`, login desktop/mobile has no page-level horizontal overflow, and no console/page/network errors were reported. Authenticated main Playwright smoke confirmed legacy markers render, export is disabled, desktop/mobile have no page-level horizontal overflow, and no `/reports` page/request errors were reported.
+- Commands: passed `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, and `git diff --check`. Type-check was rerun after build regenerated Next route types for `/reports`.
+- Result: implemented and validated locally.
 
 ### SYS5: Cleanup and Full Route QA
 

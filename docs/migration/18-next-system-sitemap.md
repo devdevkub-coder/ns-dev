@@ -165,7 +165,7 @@ Status terms:
 
 | Route | Label | Page status | APIs | Primary tables | Permission |
 |---|---|---|---|---|---|
-| `/reports` | รายงานทั้งหมด | placeholder | missing | TBD | `reports.reports.view` |
+| `/reports` | รายงานทั้งหมด | index/read baseline | no API; links active report pages | active report route catalog | `reports.reports.view` |
 
 ### Finance / Accounting
 
