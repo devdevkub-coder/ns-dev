@@ -193,6 +193,7 @@ Current scope:
 - F4 Cash Position aggregation baseline is implemented, validated, and pushed.
 - F5 Supplier Advance read baseline is implemented, validated, and pushed.
 - F6 Customer Advance read baseline is implemented, validated, and pushed.
+- F7 Finance QA checkpoint is in progress.
 - Money-moving writes remain out of scope until reconciliation and allocation rules are clear.
 
 Initial F0 findings:
@@ -204,9 +205,9 @@ Initial F0 findings:
 
 Next concrete task:
 
-1. Start the next finance/debt batch from the remaining tracker.
-2. Keep money-moving writes out of scope until reconciliation/allocation rules are clear.
-3. Continue committing/pushing validated reviewable slices before moving to the next slice.
+1. Commit/push F7 Finance QA checkpoint.
+2. Start Batch T Tracking 360 with T0 inventory and DB mapping.
+3. Keep each next slice small; avoid rerunning heavy validation unless code changed.
 
 ## Operating Model
 

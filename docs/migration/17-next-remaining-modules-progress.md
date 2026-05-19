@@ -674,10 +674,20 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ### F7: Finance QA Batch
 
-- [ ] QA checker ตรวจทุก finance page
-- [ ] AP/AR/bank reconciliation smoke
-- [ ] type/lint/build
+- [x] QA checker ตรวจทุก finance page
+- [x] AP/AR/bank reconciliation smoke
+- [x] type/lint/build
 - [ ] commit/push
+
+#### Execution Log
+
+- Task: F7 Finance QA checkpoint after F1-F6.
+- Scope checked: `/finance/ar`, `/finance/ap`, `/finance/bank`, `/finance/cash-position`, `/finance/supplier-advance`, `/finance/customer-advance`.
+- API/export checked during slices: AR/AP/bank/cash-position/supplier-advance/customer-advance APIs returned `200`; `.xlsx` export checked for AR/AP/bank/supplier-advance/customer-advance.
+- Browser smoke checked during slices: desktop and mobile smoke completed for each implemented finance page; no console warnings/errors recorded in the latest page-specific smoke checks.
+- Commands: latest finance batch validation included `git diff --check`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 200`.
+- Result: Finance/debt read baseline batch F1-F6 is validated and pushed. Supplier/customer advance remain read-only because dev-target has no dedicated advance/allocation tables yet.
+- Commit: `5263013` (`docs: add finance qa checkpoint`), pushed to `main`.
 
 ## Batch T: Tracking 360
 
