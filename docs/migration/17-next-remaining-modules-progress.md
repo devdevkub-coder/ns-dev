@@ -1189,6 +1189,14 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Safeguards: checkbox, radio, file inputs, explicit `border-*` colors, explicit `bg-*` semantic fields, validation/error borders, and colored status controls remain locally controlled.
 - Validation approach: code scan was used as the primary coverage method for all active Next files; Playwright was stopped after user feedback that code scan is sufficient.
 
+#### Follow-up: Global Font Baseline
+
+- User asked what font the old system uses and then requested matching it.
+- Legacy refs: `old-apps/legacy/index.html:53`, `old-apps/legacy/index.html:55`, `old-apps/legacy/index.html:59`; old Vue refs: `old-apps/vue/index.html:7`, `old-apps/vue/src/styles/main.css:8`.
+- Files changed: `apps/next/src/app/globals.css`, this tracker, current work handoff.
+- DB/API changes: none.
+- Fix: Next now loads Google Font `Sarabun` weights `300,400,500,600,700` and applies `"Sarabun", sans-serif` to `body`, `input`, `select`, and `textarea`, replacing the previous `Arial, Helvetica, sans-serif` baseline.
+
 ### UI-D2: Cost Pool / Cost Allocator Legacy UI Parity Revision
 
 - [x] `/dual-costing/cost-pool` legacy warning copy/filter/table parity

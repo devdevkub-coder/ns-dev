@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap");
 @import "tailwindcss";
 
 @theme {
@@ -20,14 +21,14 @@
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Sarabun", sans-serif;
 }
 
 button,
 input,
 select,
 textarea {
-  font: inherit;
+  font-family: "Sarabun", sans-serif;
 }
 
 /* Legacy form baseline: plain Tailwind `border` controls should render light slate, not current text color. */
