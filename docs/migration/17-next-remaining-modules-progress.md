@@ -810,7 +810,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 - [x] QA checker
 - [x] type/lint/build
-- [ ] commit/push
+- [x] commit/push
 
 #### Execution Log
 
@@ -1088,6 +1088,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Carry-over: permission guard for trading/dual-costing still uses `finance.cash.view`; redesign as a dedicated trading/cost/profit permission slice instead of changing guards ad hoc in this QA batch.
 - Commands: `git diff --check`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 130`, and `npm run build --workspace @ns-scrap-erp/next` passed. OpenAPI lint still reports existing skeleton warnings only.
 - Result: D8 Dual Costing QA checkpoint passed with targeted contract/UI fixes; permission split remains a future auth batch.
+- Commit: `c91d814 fix: tighten dual costing qa findings` pushed to `main`.
 
 ## Batch FF: Foreign Finance
 
