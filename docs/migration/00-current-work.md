@@ -5,7 +5,7 @@
 Date: 2026-05-19
 Active app: `apps/next`
 Primary remote: `new-origin`
-Last pushed checkpoint: UI-STOCK2 Stock operation legacy UI parity (`8ea1bbc fix: restore stock operation legacy ui parity`)
+Last pushed checkpoint: UI-DR Daily Reports legacy UI parity (`dc1c30b fix: restore daily reports legacy ui parity`)
 
 ## Current Batch
 
@@ -67,7 +67,8 @@ Status date: 2026-05-19
 - Current parity slice: `/trading/dashboard` was revised after PO Sell to close the first-10 post-SYS UI parity audit. It restores the legacy violet/fuchsia Trading Dashboard hero, date filter card, mega Trading Performance card, Trading AR/AP card, ten KPI cards, trend/matching/product panels, Trading Purchases/Sales tables, and Trading by Product table. The API remains read-only and now derives legacy dashboard totals from trading purchase/sales bills plus `trading_deals`; Trading Matching write actions remain deferred.
 - Current parity slice: `/finance/supplier-advance` and `/finance/customer-advance` are being revised after the first-10 audit. They restore the legacy compact advance layout: amber/emerald info banner copy, two summary cards plus disabled blue create CTA, 11-column table with Rate and disabled cancel action, legacy empty-state wording, and active `.xlsx` export as a secondary Next capability. Create/cancel/allocation writes remain deferred until dedicated advance/allocation schema, audit, RLS, rollback, and reconciliation design are approved.
 - Current parity slice: `/stock/status-convert` and `/stock/customer-return` was revised after finance advance and pushed as `8ea1bbc`. It restores the legacy purple/pink compact stock operation surfaces while keeping send-back/export/reverse/cost-policy/write hardening deferred.
-- Current parity slice: Daily Reports / รายงานประจำวัน is completed locally for `/owner-daily`, `/daily-report`, and shared `/dashboard` report-card overlap; commit/push pending. It restores read-only legacy visual/data surfaces only: owner daily due-today/gap/activity/pending panels, daily report date controls, group breakdown, cash movement by type/account, expense category bars, analytics/top tables, and print dialog trigger. No posting/write/mutation actions are enabled.
+- Current parity slice: Daily Reports / รายงานประจำวัน was revised after stock operations and pushed as `dc1c30b`. It restores read-only legacy visual/data surfaces only: owner daily due-today/gap/activity/pending panels, daily report date controls, group breakdown, cash movement by type/account, expense category bars, analytics/top tables, and print dialog trigger. No posting/write/mutation actions are enabled.
+- Current parity slice: Tracking 360 is validated locally for `/tracking/customer`, `/tracking/supplier`, and `/tracking/product`; commit/push pending. It restores the legacy colored hero surfaces, compact filter cards, summary/top panels, tabs, dense tracking tables, product/supplier/customer selectors where available, yearly comparison tables, and Product Tracking legacy revenue-first sort. This remains read/export only; customer/supplier/product drilldown and item JSON normalization are still deferred until the data contract is confirmed.
 
 ## File Naming Changes
 

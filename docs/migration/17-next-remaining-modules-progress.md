@@ -826,6 +826,27 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Result: Tracking 360 QA checkpoint passed after slow mover payload/UI correction. Carry-over: add `401` responses and detailed response schemas to OpenAPI, and expose product `productId`/`metalGroup`/`branchId` filters in UI if needed.
 - Commit: `6c7d605 fix: align product slow movers tracking` pushed to `main`.
 
+### UI-T360: Tracking 360 Legacy UI Parity Revision
+
+- [x] `/tracking/customer` legacy hero/filter/summary/top/tabs/table parity
+- [x] `/tracking/supplier` legacy hero/filter/summary/top/tabs/table parity
+- [x] `/tracking/product` legacy hero/filter/summary/top/tabs/table parity
+- [x] Product Tracking list order aligned to legacy revenue-first sort
+- [ ] detail drilldowns after item JSON contract is normalized
+
+#### Execution Log
+
+- Task: post-SYS legacy UI parity revision for Tracking 360.
+- Legacy refs: `old-apps/legacy/index.html:27163`, `old-apps/legacy/index.html:27515`, `old-apps/legacy/index.html:27894`; Vue refs remain useful for simplified visual shape only.
+- Files changed: `apps/next/src/components/tracking/CustomerTrackingPageClient.tsx`, `apps/next/src/components/purchase-flow/SupplierTrackingPageClient.tsx`, `apps/next/src/components/tracking/ProductTrackingPageClient.tsx`, `apps/next/src/app/api/tracking/product/route.ts`, this tracker, current work handoff.
+- DB/API changes: no schema migration and no write endpoint changes; `GET /api/tracking/product` now sorts rows by revenue first to match legacy product tracking order.
+- Buttons/actions checked: read-only filters, tabs, and active `.xlsx` export links only; no write actions were enabled.
+- Modal/form checked: no mutation form; customer/supplier/product detail drilldowns remain deferred until item JSON contract and stock/product mappings are confirmed.
+- Validation added: customer table restores `Code`, `COGS`, `GP`, `GP%`, `฿/กก.`, received, receivable; supplier table restores Code/Supplier/bills/qty/purchase/avg/paid/payable/paid%; product table restores Code/product/metal group/status/sales/COGS/GP/buy/stock/WAC.
+- Playwright smoke: authenticated main Playwright session passed `/tracking/customer`, `/tracking/supplier`, and `/tracking/product` at desktop `1365x900` and mobile `390x844`; tabs switched correctly, JSON APIs returned `200`, XLSX exports returned `200` with spreadsheet content type and `PK` signature, and no page-level overflow/console errors/failed requests were found. Unauthenticated QA subagent confirmed route redirects to `/login?redirect=...` and APIs return `401` JSON.
+- Commands: `npm run lint --workspace @ns-scrap-erp/next` passed; `npm run type-check --workspace @ns-scrap-erp/next` passed; `npm run build --workspace @ns-scrap-erp/next` passed; `git diff --check` passed.
+- Result: Tracking 360 legacy UI parity revision validated locally and ready to commit/push.
+
 ## Batch D: Dual Costing / Trading / PO
 
 ### D0: Legacy Inventory and DB Mapping

@@ -289,7 +289,7 @@ export async function GET(request: Request) {
       }))
       .filter((row) => !search || `${row.code} ${row.name} ${row.metalGroup} ${row.itemStatus}`.toLowerCase().includes(search))
       .filter((row) => row.buyQty > 0 || row.sellQty > 0 || row.stockQty !== 0 || row.stockValue !== 0)
-      .sort((left, right) => right.revenue + right.buyAmount - (left.revenue + left.buyAmount))
+      .sort((left, right) => (right.revenue - left.revenue) || (right.buyAmount - left.buyAmount))
 
     const monthly = Array.from({ length: 12 }, (_, index) => {
       const monthKey = String(index + 1).padStart(2, '0')
