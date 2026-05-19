@@ -280,6 +280,17 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /api/finance-accounting/financial-dashboard:
+    get:
+      tags: [Finance Accounting]
+      operationId: readFinanceAccountingFinancialDashboard
+      summary: Read aggregated finance dashboard from P&L, balance sheet, cash planning, working capital, and stock finance baselines
+      responses:
+        "200":
+          $ref: "#/components/responses/Ok"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /api/finance-accounting/cash-flow-analysis:
     get:
       tags: [Finance Accounting]

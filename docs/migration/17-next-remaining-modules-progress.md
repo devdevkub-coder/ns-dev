@@ -1370,8 +1370,19 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ### A1: Financial Dashboard
 
-- [ ] API/page financial dashboard
-- [ ] cards: revenue, purchase, AP/AR, cash, stock value
+- [x] API/page financial dashboard
+- [x] cards: revenue, purchase, AP/AR, cash, stock value
+- [x] OpenAPI entry for the aggregated financial dashboard endpoint
+- [x] read baseline first; no GL/statutory/payment/receipt/transfer writes
+
+#### Execution Log
+
+- Task: A1 Financial Dashboard read baseline.
+- Files changed: added one Next page, one dashboard client component, one server aggregation helper, and one read-only API route under `/api/finance-accounting/financial-dashboard`.
+- DB/API changes: aggregates existing A2/A3/A5 helper outputs and account/bank cash split; no schema change and no write side effects.
+- UI baseline: preserved legacy-first violet/purple hero, P&L 6-month chart, asset composition donut, cash need/inflow comparison, finance section cards, P&L summary, balance sheet summary, and Cash Health Insights.
+- Validation: passed `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 200`, and `git diff --check`. OpenAPI remains valid with the existing warning baseline.
+- Browser QA: unauth subagent confirmed the page redirects to login, API returns `401`, and login desktop/mobile has no horizontal overflow. Authenticated main Playwright smoke confirmed the API returns `200`, desktop/mobile widths have no horizontal overflow, expected legacy-colored dashboard markers render, and no console errors were reported.
 
 ### A2: Cash Flow Analysis and Forecast Calendar
 
