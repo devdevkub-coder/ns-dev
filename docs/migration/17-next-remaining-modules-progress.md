@@ -1805,7 +1805,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
   4. `/finance/bank` - revised in UI parity checkpoint
   5. `/stock/balance` - revised in UI parity checkpoint
   6. `/stock/ledger` - revised in UI parity checkpoint
-  7. `/stock/convert`
+  7. `/stock/convert` - revised in UI parity checkpoint
   8. `/stock/adjust`
   9. `/sales/po-sell`
   10. `/trading/dashboard`
@@ -1945,6 +1945,29 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Commands: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `git diff --check`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 50`.
 - Result: `/stock/ledger` now restores the legacy toolbar-first dense ledger surface: product/branch/movement/date filters, balance-mode segmented control with persisted mode, negative-stock badge, disabled cleanup actions, active `.xlsx` export, and 12-column ledger table with counterparty/type/balance coloring. Read-only bill/timeline modals and write-side grade-fix/move-branch actions remain deferred.
 - Commit: this checkpoint.
+
+### UI-P7: `/stock/convert` Legacy UI Parity Revision
+
+#### Execution Log
+
+- Task: revise Grade Adjustment / Stock Convert page to match legacy/Vue visual baseline.
+- Legacy refs:
+  - `old-apps/legacy/index.html:42095` Grade Adjustment hero, seven KPI cards, filters, table, Confirm Cost/Reverse actions.
+  - `old-apps/legacy/index.html:42288` grade-adjustment modal sections for Source, Target, allocation, loss/yield, and cost flow.
+  - `old-apps/vue/src/views/stock/GradeStatusConvertView.vue:30` Vue visual clone for hero/cards/filters/table.
+- Files changed:
+  - `apps/next/src/components/stock/StockOperationPageClient.tsx`
+  - `apps/next/src/app/api/stock/convert/route.ts`
+  - `docs/migration/17-next-remaining-modules-progress.md`
+  - `docs/migration/00-current-work.md`
+- DB/API changes: no schema change. `GET /api/stock/convert` now includes display-only fields `sourceType`, `branchWarehouse`, `costStatus`, and `targetUnitCost` for legacy table parity. Existing simplified POST semantics are unchanged.
+- Buttons/actions checked: hero `+ ปรับเกรดใหม่`, search, Source Type filter, Cost Status filter, Refresh, disabled Confirm Cost, disabled Reverse, modal cancel, and `บันทึก (Post)` submit button. Confirm/Reverse remain disabled until schema, permission, audit, reverse, and reconciliation design are approved.
+- Modal/form checked: convert modal now groups fields into legacy-like Source (red), Target (green), and Loss/Yield/Cost Flow sections. Manual lot allocation, lot preview, cost adjustment P&L, and pending/partial cost workflows remain deferred.
+- Validation added: client-side filters for Source Type and Cost Status; display-only API fields are covered by the generic stock operation OpenAPI response shape.
+- Playwright smoke: authenticated main browser checked `/stock/convert` desktop 1365x900 and mobile 390x844; no page-level horizontal overflow, no console warnings/errors, `/api/auth/me` and `/api/stock/convert` returned 200. Hero CTA, seven cards, Source Type/Cost Status filters, 14 table headings, and `?new=1` modal sections/submit label were exercised.
+- Commands: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `git diff --check`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 50`.
+- Result: `/stock/convert` now restores the legacy Grade Adjustment visual surface: cyan/teal hero with `+ ปรับเกรดใหม่`, seven KPI cards, Source Type and Cost Status filters, 14-column table with red Source and green Target groups, disabled Confirm Cost/Reverse actions, and modal sections for Source, Target, and Loss/Yield/Cost Flow. Full cost allocation, manual lot selection, pending/partial cost, reverse, and cost P&L workflows remain deferred.
+- Commit: pending.
 
 ## Current Priority Queue
 

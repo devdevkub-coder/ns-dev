@@ -10,6 +10,12 @@ type Payload = {
   reference: { branches: StockOption[]; customers?: StockOption[]; products: StockOption[]; warehouses: StockOption[] }
   rows: Array<Record<string, string | number | boolean | null>>
 }
+type OperationColumn = {
+  cellClassName?: string
+  headerClassName?: string
+  key: string
+  label: string
+}
 
 const config = {
   adjust: {
@@ -42,7 +48,9 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
   const [formOpen, setFormOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [costStatusFilter, setCostStatusFilter] = useState('')
   const [search, setSearch] = useState('')
+  const [sourceTypeFilter, setSourceTypeFilter] = useState('')
 
   const loadData = useCallback(async () => {
     setError(null)
@@ -66,8 +74,11 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
 
   const rows = useMemo(() => {
     const query = search.trim().toLowerCase()
-    return data.rows.filter((row) => !query || Object.values(row).join(' ').toLowerCase().includes(query))
-  }, [data.rows, search])
+    return data.rows
+      .filter((row) => !query || Object.values(row).join(' ').toLowerCase().includes(query))
+      .filter((row) => mode !== 'convert' || !sourceTypeFilter || row.sourceType === sourceTypeFilter)
+      .filter((row) => mode !== 'convert' || !costStatusFilter || row.costStatus === costStatusFilter)
+  }, [costStatusFilter, data.rows, mode, search, sourceTypeFilter])
 
   async function submit(values: StatusConvertFormValues | StockConvertFormValues | StockAdjustFormValues | CustomerReturnFormValues) {
     setError(null)
@@ -85,16 +96,33 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
 
   return (
     <section className="space-y-4">
-      <div className={`rounded-xl bg-gradient-to-r ${meta.accent} p-5 text-white shadow`}>
-        <h1 className="text-2xl font-bold">{meta.title}</h1>
-        <p className="mt-1 text-sm opacity-90">{descriptionFor(mode)}</p>
+      <div className={`rounded-xl bg-gradient-to-r ${meta.accent} p-5 text-white shadow ${mode === 'convert' ? 'flex items-start justify-between gap-4' : ''}`}>
+        <div>
+          <h1 className={mode === 'convert' ? 'flex items-center gap-2 text-2xl font-bold' : 'text-2xl font-bold'}>{mode === 'convert' ? '🔀 Grade Adjustment / ปรับเกรดสินค้า' : meta.title}</h1>
+          <p className="mt-1 text-sm opacity-90">{descriptionFor(mode)}</p>
+        </div>
+        {mode === 'convert' ? <a className="shrink-0 rounded-lg bg-white px-4 py-2 font-bold text-cyan-700 hover:bg-cyan-50" href={`${pathname}?new=1`}>+ ปรับเกรดใหม่</a> : null}
       </div>
       {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
       <SummaryCards mode={mode} rows={rows} />
-      <div className="rounded-lg bg-white p-3 shadow">
+      <div className={mode === 'convert' ? 'flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow' : 'rounded-lg bg-white p-3 shadow'}>
         <div className="flex flex-wrap items-center gap-2">
-          <input className="min-w-56 flex-1 rounded-lg border px-3 py-2 text-sm" placeholder="ค้นหาเลขที่/สินค้า/เหตุผล/สาขา" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <a className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white" href={`${pathname}?new=1`}>+ เพิ่มรายการ</a>
+          <input className={mode === 'convert' ? 'min-w-[200px] flex-1 rounded border px-3 py-2 text-sm' : 'min-w-56 flex-1 rounded-lg border px-3 py-2 text-sm'} placeholder={mode === 'convert' ? 'ค้นหา doc/source/target/ref...' : 'ค้นหาเลขที่/สินค้า/เหตุผล/สาขา'} type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          {mode === 'convert' ? (
+            <>
+              <select className="rounded border bg-amber-50 px-3 py-2 text-sm font-medium" value={sourceTypeFilter} onChange={(event) => setSourceTypeFilter(event.target.value)}>
+                <option value="">ทุก Source Type</option>
+                <option value="Manual">📝 Manual</option>
+                <option value="Production Order">🏭 Production Order</option>
+              </select>
+              <select className="rounded border px-3 py-2 text-sm" value={costStatusFilter} onChange={(event) => setCostStatusFilter(event.target.value)}>
+                <option value="">ทุก Cost Status</option>
+                <option value="allocated">✓ Allocated</option>
+                <option value="pending_cost">⏳ Pending Cost</option>
+                <option value="partial">📋 Partial</option>
+              </select>
+            </>
+          ) : <a className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white" href={`${pathname}?new=1`}>+ เพิ่มรายการ</a>}
           <button className="rounded bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700" type="button" onClick={() => void loadData()}>Refresh</button>
         </div>
       </div>
@@ -124,6 +152,24 @@ function descriptionFor(mode: Mode) {
 function SummaryCards({ mode, rows }: { mode: Mode; rows: Payload['rows'] }) {
   const totalQty = rows.reduce((sum, row) => sum + Number(row.qty ?? row.sourceQty ?? row.diffQty ?? 0), 0)
   const totalValue = rows.reduce((sum, row) => sum + Number(row.value ?? row.valueNote ?? 0), 0)
+  if (mode === 'convert') {
+    const posted = rows.filter((row) => row.status === 'posted').length
+    const pendingCost = rows.filter((row) => row.costStatus === 'pending_cost').length
+    const manualCount = rows.filter((row) => row.sourceType === 'Manual').length
+    const autoCount = rows.filter((row) => row.sourceType === 'Production Order').length
+    const reversed = rows.filter((row) => row.status === 'reversed').length
+    return (
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-7">
+        <Metric cardClassName="rounded-xl bg-white p-3 shadow" label="รายการทั้งหมด" value={String(rows.length)} valueClassName="text-xl font-bold text-slate-900" />
+        <Metric cardClassName="rounded-xl bg-emerald-50 p-3 shadow" label="Posted" value={String(posted)} valueClassName="text-xl font-bold text-emerald-700" />
+        <Metric cardClassName="rounded-xl bg-amber-50 p-3 shadow" label="⏳ Pending Cost" value={String(pendingCost)} valueClassName="text-xl font-bold text-amber-700" />
+        <Metric cardClassName="rounded-xl bg-blue-50 p-3 shadow" label="📝 Manual" value={String(manualCount)} valueClassName="text-xl font-bold text-blue-700" />
+        <Metric cardClassName="rounded-xl bg-purple-50 p-3 shadow" label="🏭 Auto (Production)" value={String(autoCount)} valueClassName="text-xl font-bold text-purple-700" />
+        <Metric cardClassName="rounded-xl bg-white p-3 shadow" label="น้ำหนักรวม" value={`${formatMoney(totalQty)} กก.`} valueClassName="text-xl font-bold text-slate-900" />
+        <Metric cardClassName="rounded-xl bg-slate-50 p-3 shadow" label="Reversed" value={String(reversed)} valueClassName="text-xl font-bold text-slate-500" />
+      </div>
+    )
+  }
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
       <Metric label="รายการ" value={String(rows.length)} />
@@ -137,25 +183,38 @@ function SummaryCards({ mode, rows }: { mode: Mode; rows: Payload['rows'] }) {
 function OperationTable({ isLoading, mode, rows }: { isLoading: boolean; mode: Mode; rows: Payload['rows'] }) {
   const columns = columnsFor(mode)
   return (
-    <div className="overflow-x-auto rounded-lg bg-white shadow">
-      <table className="w-full min-w-[1000px] text-sm">
-        <thead className="bg-slate-100"><tr>{columns.map((column) => <th key={column.key} className="p-2 text-left">{column.label}</th>)}</tr></thead>
+    <div className={mode === 'convert' ? 'overflow-x-auto rounded-xl bg-white shadow' : 'overflow-x-auto rounded-lg bg-white shadow'}>
+      <table className={mode === 'convert' ? 'w-full min-w-[1300px] text-sm' : 'w-full min-w-[1000px] text-sm'}>
+        <thead className="bg-slate-100"><tr>{columns.map((column) => <th key={column.key} className={`p-2 text-left ${column.headerClassName ?? ''}`}>{column.label}</th>)}</tr></thead>
         <tbody>
           {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={columns.length}>กำลังโหลดข้อมูล</td></tr> : null}
-          {!isLoading && rows.map((row, index) => <tr key={String(row.id ?? index)} className="border-t hover:bg-slate-50">{columns.map((column) => <td key={column.key} className="p-2">{formatCell(row[column.key])}</td>)}</tr>)}
-          {!isLoading && !rows.length ? <tr><td className="p-8 text-center text-slate-400" colSpan={columns.length}>ยังไม่มีรายการ</td></tr> : null}
+          {!isLoading && rows.map((row, index) => <tr key={String(row.id ?? index)} className="border-t hover:bg-slate-50">{columns.map((column) => <td key={column.key} className={`p-2 ${column.cellClassName ?? ''}`}>{formatOperationCell(mode, row, column.key)}</td>)}</tr>)}
+          {!isLoading && !rows.length ? <tr><td className="p-8 text-center text-slate-400" colSpan={columns.length}>{mode === 'convert' ? 'ยังไม่มีรายการปรับเกรด' : 'ยังไม่มีรายการ'}</td></tr> : null}
         </tbody>
       </table>
     </div>
   )
 }
 
-function columnsFor(mode: Mode) {
+function columnsFor(mode: Mode): OperationColumn[] {
   if (mode === 'status-convert') return [
     { key: 'date', label: 'วันที่' }, { key: 'refNo', label: 'เลขที่' }, { key: 'productName', label: 'สินค้า' }, { key: 'lotNo', label: 'Lot' }, { key: 'branchName', label: 'สาขา' }, { key: 'warehouseName', label: 'คลัง' }, { key: 'qty', label: 'จำนวน' }, { key: 'statusFrom', label: 'จาก' }, { key: 'statusTo', label: 'เป็น' }, { key: 'value', label: 'มูลค่า' },
   ]
   if (mode === 'convert') return [
-    { key: 'date', label: 'วันที่' }, { key: 'refNo', label: 'เลขที่' }, { key: 'sourceProduct', label: 'Source' }, { key: 'sourceQty', label: 'Qty Out' }, { key: 'targetProduct', label: 'Target' }, { key: 'targetQty', label: 'Qty In' }, { key: 'lossQty', label: 'Loss' }, { key: 'unitCost', label: 'WAC' }, { key: 'warehouseName', label: 'คลัง' }, { key: 'status', label: 'สถานะ' },
+    { key: 'sourceType', label: 'Source Type' },
+    { key: 'refNo', label: 'เลขที่ / Ref' },
+    { key: 'date', label: 'วันที่' },
+    { key: 'branchWarehouse', label: 'สาขา / คลัง' },
+    { key: 'sourceProduct', label: 'Source (ออก)', headerClassName: 'bg-red-50' },
+    { key: 'sourceQty', label: 'Qty', cellClassName: 'text-right font-mono text-red-700', headerClassName: 'bg-red-50 text-right' },
+    { key: 'unitCost', label: '฿/กก.', cellClassName: 'text-right font-mono', headerClassName: 'bg-red-50 text-right' },
+    { key: 'targetProduct', label: 'Target (เข้า)', headerClassName: 'bg-emerald-50' },
+    { key: 'targetQty', label: 'Qty', cellClassName: 'text-right font-mono text-emerald-700', headerClassName: 'bg-emerald-50 text-right' },
+    { key: 'targetUnitCost', label: '฿/กก.', cellClassName: 'text-right font-mono', headerClassName: 'bg-emerald-50 text-right' },
+    { key: 'lossQty', label: 'Loss', cellClassName: 'text-right font-mono' },
+    { key: 'costStatus', label: 'Cost Status', cellClassName: 'text-center' },
+    { key: 'status', label: 'สถานะ', cellClassName: 'text-center' },
+    { key: 'action', label: '' },
   ]
   if (mode === 'adjust') return [
     { key: 'docNo', label: 'เลขที่' }, { key: 'date', label: 'วันที่' }, { key: 'productName', label: 'สินค้า' }, { key: 'lotNo', label: 'Lot' }, { key: 'branchName', label: 'สาขา' }, { key: 'warehouseName', label: 'คลัง' }, { key: 'systemQty', label: 'ระบบ' }, { key: 'countedQty', label: 'นับจริง' }, { key: 'diffQty', label: 'Diff' }, { key: 'reason', label: 'เหตุผล' }, { key: 'status', label: 'สถานะ' },
@@ -171,8 +230,38 @@ function formatCell(value: unknown) {
   return String(value ?? '-')
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-lg bg-white p-3 shadow"><div className="text-xs text-slate-500">{label}</div><div className="mt-1 text-lg font-bold text-slate-900">{value}</div></div>
+function formatOperationCell(mode: Mode, row: Record<string, string | number | boolean | null>, key: string) {
+  if (mode === 'convert') {
+    if (key === 'action') {
+      return (
+        <div className="flex items-center justify-center gap-1">
+          <button className="rounded bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-700 opacity-60" disabled title="รอออกแบบ cost allocation/audit ก่อนเปิดใช้งาน" type="button">Confirm Cost</button>
+          <button className="rounded bg-red-100 px-2 py-1 text-[11px] font-semibold text-red-700 opacity-60" disabled title="รอออกแบบ reverse/audit/rollback ก่อนเปิดใช้งาน" type="button">Reverse</button>
+        </div>
+      )
+    }
+    if (key === 'costStatus') {
+      const value = String(row[key] ?? '')
+      const label = value === 'allocated' ? '✓ Allocated' : value === 'pending_cost' ? '⏳ Pending Cost' : value === 'partial' ? '📋 Partial' : '-'
+      const color = value === 'allocated' ? 'bg-emerald-100 text-emerald-700' : value === 'pending_cost' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
+      return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${color}`}>{label}</span>
+    }
+    if (key === 'status') {
+      const value = String(row[key] ?? '')
+      const color = value === 'posted' ? 'bg-emerald-100 text-emerald-700' : value === 'reversed' ? 'bg-slate-200 text-slate-600' : 'bg-amber-100 text-amber-700'
+      return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${color}`}>{value || '-'}</span>
+    }
+    if (key === 'sourceType') {
+      const value = String(row[key] ?? 'Manual')
+      const color = value === 'Production Order' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+      return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${color}`}>{value}</span>
+    }
+  }
+  return formatCell(row[key])
+}
+
+function Metric({ cardClassName = 'rounded-lg bg-white p-3 shadow', label, value, valueClassName = 'mt-1 text-lg font-bold text-slate-900' }: { cardClassName?: string; label: string; value: string; valueClassName?: string }) {
+  return <div className={cardClassName}><div className="text-xs text-slate-500">{label}</div><div className={valueClassName}>{value}</div></div>
 }
 
 function Field(props: { label: string; onChange: (value: string) => void; type?: string; value: string }) {
@@ -206,16 +295,43 @@ function StatusConvertForm(props: { cancelHref: string; isSaving: boolean; onSub
 
 function ConvertForm(props: { cancelHref: string; isSaving: boolean; onSubmit: (values: StockConvertFormValues) => void; reference: Payload['reference'] }) {
   const [values, setValues] = useState<StockConvertFormValues>({ branchId: '', date: todayDateInput(), docNo: null, lotNo: null, notes: null, reason: null, sourceProductId: '', sourceQty: 0, targetLotNo: null, targetProductId: '', targetQty: 0, warehouseId: '' })
-  return <FormShell cancelHref={props.cancelHref} isSaving={props.isSaving} onSubmit={() => props.onSubmit(values)}>
+  const sourceProduct = props.reference.products.find((item) => item.id === values.sourceProductId)
+  const targetProduct = props.reference.products.find((item) => item.id === values.targetProductId)
+  const lossQty = Math.max(0, Number(values.sourceQty) - Number(values.targetQty))
+  const yieldPct = Number(values.sourceQty) > 0 ? (Number(values.targetQty) / Number(values.sourceQty)) * 100 : 0
+  return <FormShell cancelHref={props.cancelHref} isSaving={props.isSaving} mode="convert" onSubmit={() => props.onSubmit(values)}>
     <BaseDateDoc values={values} setValues={setValues} />
-    <Select label="สินค้าต้นทาง" options={props.reference.products} value={values.sourceProductId} onChange={(sourceProductId) => setValues({ ...values, sourceProductId })} />
-    <Select label="สินค้าปลายทาง" options={props.reference.products} value={values.targetProductId} onChange={(targetProductId) => setValues({ ...values, targetProductId })} />
     <BranchWarehouseFields branchId={values.branchId} reference={props.reference} setBranchId={(branchId) => setValues({ ...values, branchId, warehouseId: '' })} setWarehouseId={(warehouseId) => setValues({ ...values, warehouseId })} warehouseId={values.warehouseId} />
-    <Field label="น้ำหนักต้นทาง" type="number" value={String(values.sourceQty)} onChange={(sourceQty) => setValues({ ...values, sourceQty: Number(sourceQty) })} />
-    <Field label="น้ำหนักปลายทาง" type="number" value={String(values.targetQty)} onChange={(targetQty) => setValues({ ...values, targetQty: Number(targetQty) })} />
-    <Field label="Lot ต้นทาง" value={values.lotNo ?? ''} onChange={(lotNo) => setValues({ ...values, lotNo })} />
-    <Field label="Lot ปลายทาง" value={values.targetLotNo ?? ''} onChange={(targetLotNo) => setValues({ ...values, targetLotNo })} />
-    <Field label="เหตุผล" value={values.reason ?? ''} onChange={(reason) => setValues({ ...values, reason })} />
+    <div className="rounded-xl border border-red-100 bg-red-50/70 p-4 md:col-span-2">
+      <div className="mb-3 text-sm font-bold text-red-700">Source (ออก)</div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Select label="สินค้าต้นทาง" options={props.reference.products} value={values.sourceProductId} onChange={(sourceProductId) => setValues({ ...values, sourceProductId })} />
+        <Field label="น้ำหนักต้นทาง" type="number" value={String(values.sourceQty)} onChange={(sourceQty) => setValues({ ...values, sourceQty: Number(sourceQty) })} />
+        <Field label="Lot ต้นทาง" value={values.lotNo ?? ''} onChange={(lotNo) => setValues({ ...values, lotNo })} />
+        <ReadOnlyBox label="Source Product" value={sourceProduct ? `${sourceProduct.code ? `${sourceProduct.code} - ` : ''}${sourceProduct.name}` : '-'} />
+      </div>
+    </div>
+    <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-4 md:col-span-2">
+      <div className="mb-3 text-sm font-bold text-emerald-700">Target (เข้า)</div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Select label="สินค้าปลายทาง" options={props.reference.products} value={values.targetProductId} onChange={(targetProductId) => setValues({ ...values, targetProductId })} />
+        <Field label="น้ำหนักปลายทาง" type="number" value={String(values.targetQty)} onChange={(targetQty) => setValues({ ...values, targetQty: Number(targetQty) })} />
+        <Field label="Lot ปลายทาง" value={values.targetLotNo ?? ''} onChange={(targetLotNo) => setValues({ ...values, targetLotNo })} />
+        <ReadOnlyBox label="Target Product" value={targetProduct ? `${targetProduct.code ? `${targetProduct.code} - ` : ''}${targetProduct.name}` : '-'} />
+      </div>
+    </div>
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 md:col-span-2">
+      <div className="mb-3 text-sm font-bold text-slate-700">Loss / Yield / Cost Flow</div>
+      <div className="grid gap-4 md:grid-cols-3">
+        <ReadOnlyBox label="Loss" value={`${formatMoney(lossQty)} กก.`} />
+        <ReadOnlyBox label="Yield" value={`${formatMoney(yieldPct)}%`} />
+        <ReadOnlyBox label="Allocation" value="Manual WAC" />
+      </div>
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <Field label="เหตุผล" value={values.reason ?? ''} onChange={(reason) => setValues({ ...values, reason })} />
+        <Field label="หมายเหตุ" value={values.notes ?? ''} onChange={(notes) => setValues({ ...values, notes })} />
+      </div>
+    </div>
   </FormShell>
 }
 
@@ -253,10 +369,14 @@ function BaseDateDoc<T extends { date: string; docNo?: string | null }>({ setVal
   </>
 }
 
-function FormShell({ cancelHref, children, isSaving, onSubmit }: { cancelHref: string; children: React.ReactNode; isSaving: boolean; onSubmit: () => void }) {
+function ReadOnlyBox({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-lg border border-white/70 bg-white/80 px-3 py-2"><div className="text-xs text-slate-500">{label}</div><div className="mt-1 text-sm font-semibold text-slate-800">{value}</div></div>
+}
+
+function FormShell({ cancelHref, children, isSaving, mode, onSubmit }: { cancelHref: string; children: React.ReactNode; isSaving: boolean; mode?: Mode; onSubmit: () => void }) {
   return <form onSubmit={(event) => { event.preventDefault(); onSubmit() }}>
     <div className="grid gap-4 p-5 md:grid-cols-2">{children}</div>
-    <div className="flex justify-end gap-2 border-t px-5 py-4"><a className="rounded-lg px-4 py-2 text-sm text-slate-600 hover:bg-slate-100" href={cancelHref}>ยกเลิก</a><button className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-semibold text-white disabled:opacity-60" disabled={isSaving} type="submit">บันทึก</button></div>
+    <div className="flex justify-end gap-2 border-t px-5 py-4"><a className="rounded-lg px-4 py-2 text-sm text-slate-600 hover:bg-slate-100" href={cancelHref}>ยกเลิก</a><button className={mode === 'convert' ? 'rounded-lg bg-cyan-700 px-5 py-2 text-sm font-semibold text-white disabled:opacity-60' : 'rounded-lg bg-slate-900 px-5 py-2 text-sm font-semibold text-white disabled:opacity-60'} disabled={isSaving} type="submit">{mode === 'convert' ? '💾 บันทึก (Post)' : 'บันทึก'}</button></div>
   </form>
 }
 

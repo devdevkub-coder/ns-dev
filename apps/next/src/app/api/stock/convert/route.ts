@@ -52,14 +52,18 @@ export async function GET() {
         const target = rows.find((entry) => toNumber(entry.qty_in) > 0)
         return {
           date: toDateOnly(row.date),
+          branchWarehouse: row.warehouses?.name ?? '-',
+          costStatus: toNumber(source?.unit_cost) > 0 ? 'allocated' : 'pending_cost',
           id: row.id,
           lossQty: Math.max(0, toNumber(source?.qty_out) - toNumber(target?.qty_in)),
           refNo: row.doc_no,
           sourceProduct: source?.products ? `${source.products.code} · ${source.products.name}` : row.products ? `${row.products.code} · ${row.products.name}` : '-',
           sourceQty: Math.abs(toNumber(source?.qty_out) || toNumber(row.qty_diff)),
+          sourceType: 'Manual',
           status: 'posted',
           targetProduct: target?.products ? `${target.products.code} · ${target.products.name}` : '-',
           targetQty: toNumber(target?.qty_in),
+          targetUnitCost: toNumber(target?.unit_cost),
           unitCost: toNumber(source?.unit_cost),
           value: Math.abs(toNumber(row.value_diff)),
           warehouseName: row.warehouses?.name ?? '-',
