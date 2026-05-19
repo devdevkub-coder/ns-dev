@@ -5,7 +5,7 @@
 Date: 2026-05-19
 Active app: `apps/next`
 Primary remote: `new-origin`
-Last pushed checkpoint: UI-ADM1 Company Profile legacy UI parity (`bebef00 fix: restore company profile legacy ui parity`)
+Last pushed checkpoint: UI-D3 Match Log / Deal Margin / Compare Margin legacy UI parity (`dcfa1c1 fix: restore dual costing margin legacy ui parity`)
 
 ## Current Batch
 
@@ -73,7 +73,7 @@ Status date: 2026-05-19
 - Added to post-SYS parity queue per user request: `/admin/company-profile` (`https://new-ns-scrap-erp.vercel.app/admin/company-profile`). It already exists in the system sitemap and visual audit checklist, but now must be rechecked under the same legacy-first rule after the current Batch D parity slices finish.
 - Current parity slice: Batch D Group B was revised after Group A and pushed as `488f7fa`. It restores the legacy Cost Pool warning copy/icons, compact filters, 12-column table, and Cost Allocator `①/②` step sequence, Auto Match button placement, Manual option shell, preview table, and disabled confirm-match surface. No allocation/match write behavior is enabled.
 - Current parity slice: `/admin/company-profile` was revised after Batch D Group B per user request and pushed as `bebef00`. It restores the legacy company-profile action row, separate receipt/delivery preview buttons, usage note wording, field labels/placeholders, logo delete label, and compact form density while preserving existing API validation and `system.settings.manage` write guard.
-- Current parity slice: Batch D Group C is being revised after Company Profile. The local patch restores Match Log's legacy `📋` info box, PO Sell filter shell, visible-row summary cards, and disabled Reverse action column; Deal Margin's match-status donut/legend, `PO Sell`/`Sell Qty` table shape, and legacy empty state; and Compare Margin's legacy first-screen order with date filters/row stats reduced after the core cards. No reverse/allocation mutation is enabled; Deal Margin `sellQty` is exposed as current `trading_deals.matched_qty` and documented in OpenAPI until normalized PO Sell allocation logs are designed.
+- Current parity slice: Batch D Group C was revised after Company Profile and pushed as `dcfa1c1`. It restores Match Log's legacy `📋` info box, PO Sell filter shell, visible-row summary cards, and disabled Reverse action column; Deal Margin's match-status donut/legend, `PO Sell`/`Sell Qty` table shape, and legacy empty state; and Compare Margin's legacy first-screen order with date filters/row stats reduced after the core cards. No reverse/allocation mutation is enabled; Deal Margin `sellQty` is exposed as current `trading_deals.matched_qty` and documented in OpenAPI until normalized PO Sell allocation logs are designed.
 
 ## File Naming Changes
 

@@ -1182,7 +1182,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - [x] `/dual-costing/match-log` legacy info/filter/table/action-shell parity
 - [x] `/dual-costing/deal-margin` legacy donut/table/empty-state parity
 - [x] `/dual-costing/compare-margin` legacy first-screen card order parity
-- [ ] commit and push
+- [x] commit and push
 
 #### Execution Log
 
@@ -1194,7 +1194,8 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Validation added: Match Log restores the `📋 Match Log` info box, visible-row summary cards, PO Sell filter shell, status/type badge labels, 14-column table, and disabled Reverse column. Deal Margin restores the donut SVG/legend, `PO Sell` table heading, `Sell Qty`, and `ยังไม่มี PO Sell` empty state. Compare Margin restores legacy first-screen order: info band, Deal/Stock cards, diff cards, with Next-only date filters/row stats reduced after the core legacy blocks.
 - Playwright smoke: authenticated main Playwright session passed `/dual-costing/match-log`, `/dual-costing/deal-margin`, and `/dual-costing/compare-margin` at desktop `1365x900` and mobile `390x844`; JSON APIs returned `200`, no page-level overflow/console warnings/errors/failed requests were found, and legacy markers were visible. Unauthenticated QA subagent confirmed all three routes redirect to `/login?redirect=...` and all three APIs return `401` JSON (`กรุณาเข้าสู่ระบบ`); browser console logged only expected 401 resource messages during unauth API probes.
 - Commands: `npm run lint --workspace @ns-scrap-erp/next` passed; `npm run type-check --workspace @ns-scrap-erp/next` passed; `npm run build --workspace @ns-scrap-erp/next` passed; `git diff --check` passed.
-- Result: UI-D3 Match Log / Deal Margin / Compare Margin legacy UI parity revision validated locally and ready to commit/push.
+- Result: UI-D3 Match Log / Deal Margin / Compare Margin legacy UI parity revision validated and pushed.
+- Commit: `dcfa1c1 fix: restore dual costing margin legacy ui parity` pushed to `main`.
 
 ## Batch FF: Foreign Finance
 
