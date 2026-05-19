@@ -5,7 +5,7 @@
 Date: 2026-05-19
 Active app: `apps/next`
 Primary remote: `new-origin`
-Last pushed checkpoint: A7 Loans / Equity / Opening / Historical read baseline (`b4fc474 feat: add finance accounting loan baselines`)
+Last pushed checkpoint: A5 Financial Statements management/read baseline (`ac4d4ba feat: add management financial statement baselines`)
 
 ## Current Batch
 
@@ -17,7 +17,8 @@ Goal:
 - Start with management dashboards and read/report baselines before GL/accounting writes.
 - Keep depreciation posting, asset disposal posting, loan interest accrual, tax filing, retained earnings, opening balance mutation, and statutory statement claims disabled until GL/COA/closing-period design is clear.
 - During this and future clone batches, keep the legacy/Vue screen as the visual baseline first. Preserve cards, colors, banners, tables, button placement, labels, spacing, and compact density unless a documented deviation is approved. If Vue has been simplified or has known layout/column drift, use `old-apps/legacy/` as the stronger baseline before improving the data wiring.
-- Current implementation slice: A5 Financial Statements management/read baselines is implemented and validated locally; commit and push are pending.
+- Current implementation slice: A5 Financial Statements management/read baselines is implemented, validated, and pushed.
+- Next implementation slice: A4 Tax / VAT / WHT transaction-derived summary as read/design baseline. Confirm source fields from sales/purchase/payment/receipt/expense records first; do not implement filing, tax period state, payable posting, or GL writes.
 - A6 Fixed Assets read baseline (`asset-register`, `depreciation`, `asset-disposal`) is implemented, validated, and pushed. Keep acquisition, depreciation posting/reverse, disposal status mutation, and GL posting disabled until accounting side effects are designed.
 - A7 Loans / Equity / Opening / Historical read baseline is implemented, validated, and pushed. Keep loan schedule/payment generation, equity save, opening balance apply/lock, historical save/sync, and GL posting disabled until accounting side effects are designed.
 - A5 must remain labeled as management/read baseline only. Do not claim statutory P&L/Balance Sheet/Cash Flow until GL journal header/line, COA mapping, closing period, retained earnings roll-forward, and cash-flow mapping are designed.
