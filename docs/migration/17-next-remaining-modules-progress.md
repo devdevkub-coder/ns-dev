@@ -975,9 +975,22 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ### D4: Trading Matching Polish
 
-- [ ] ตรวจ `/trading/matching` ที่มีแล้ว
-- [ ] add matching action modal when rules clear
-- [ ] export/detail
+- [x] ตรวจ `/trading/matching` ที่มีแล้ว
+- [x] add matching action modal when rules clear (deferred; read-only slice)
+- [x] export/detail
+
+#### Execution Log
+
+- Task: D4 Trading Matching read-only polish.
+- Legacy refs: `old-apps/vue/src/views/dualCosting/TradingMatchingView.vue` and `old-apps/legacy/index.html:40805`; legacy includes create/update/reverse/recalc/pull actions but these remain deferred.
+- Files changed: `apps/next/src/app/api/trading/matching/route.ts`, `apps/next/src/components/purchase-flow/TradingMatchingPageClient.tsx`, `docs/api/openapi.yaml`, `docs/migration/17-next-remaining-modules-progress.md`, `docs/migration/00-current-work.md`.
+- DB/API changes: extended runtime `GET /api/trading/matching` with `q`, `status`, `from`, `to`, and `format=json|xlsx`; no schema migration.
+- Buttons/actions checked: added read-only export and deal detail; create/update/reverse/recalc/pull/cleanup actions remain deferred because `trading_deals.deal_no` is not unique and reversal/idempotency/reconciliation rules are not locked.
+- Modal/form checked: added read-only deal detail modal; no write form.
+- Validation added: OpenAPI documents `dealNo` as business-facing and not unique yet; UUID/opaque ids remain internal.
+- Playwright smoke: authenticated `/trading/matching` render passed on desktop/mobile; `GET /api/trading/matching` returned `200` with 26 dev deals; XLSX export returned `200`, spreadsheet content type, and `PK` signature; detail modal opened from the `ดู` button. Subagent unauth smoke confirmed route/API guards return login/`401`.
+- Commands: `git diff --check`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 130`, and `npm run build --workspace @ns-scrap-erp/next` passed. OpenAPI lint still reports existing skeleton warnings only.
+- Result: D4 Trading Matching read-only polish implemented and validated; write/reverse/recalc actions remain deferred.
 
 ### D5: Cost Pool
 

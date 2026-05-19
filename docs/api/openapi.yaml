@@ -1318,10 +1318,33 @@ paths:
   /api/trading/matching:
     get:
       tags: [Trading]
+      operationId: readTradingMatching
       summary: Read trading matching baseline
+      description: >
+        Read-only Trading Matching contract for Batch D4. Supports filtered
+        deal reads and XLSX export; create/update/reverse/recalc actions are
+        deferred until idempotency and reconciliation rules are locked.
+      parameters:
+        - $ref: "#/components/parameters/TradingMatchingQ"
+        - $ref: "#/components/parameters/TradingMatchingStatus"
+        - $ref: "#/components/parameters/TradingMatchingFrom"
+        - $ref: "#/components/parameters/TradingMatchingTo"
+        - $ref: "#/components/parameters/Format"
       responses:
         "200":
-          $ref: "#/components/responses/ListOk"
+          description: Trading matching rows as JSON or XLSX export
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TradingMatchingResponse"
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /api/trading/dashboard:
     get:
@@ -1484,6 +1507,34 @@ components:
         maxLength: 40
       description: Raw Trading Deal status from `trading_deals.status`; cancelled detection normalizes casing only for summary exclusion.
     TradingDashboardTo:
+      name: to
+      in: query
+      schema:
+        type: string
+        format: date
+      description: Inclusive trading deal date upper bound.
+    TradingMatchingFrom:
+      name: from
+      in: query
+      schema:
+        type: string
+        format: date
+      description: Inclusive trading deal date lower bound.
+    TradingMatchingQ:
+      name: q
+      in: query
+      schema:
+        type: string
+        maxLength: 120
+      description: Search by `dealNo`, purchase bill, sales bill, supplier, customer, product, or status.
+    TradingMatchingStatus:
+      name: status
+      in: query
+      schema:
+        type: string
+        maxLength: 40
+      description: Raw Trading Deal status from `trading_deals.status`.
+    TradingMatchingTo:
       name: to
       in: query
       schema:
@@ -1780,6 +1831,45 @@ components:
           items:
             type: object
             additionalProperties: true
+      additionalProperties: true
+    TradingMatchingResponse:
+      type: object
+      required: [deals]
+      properties:
+        deals:
+          type: array
+          items:
+            type: object
+            required: [dealNo]
+            properties:
+              dealNo:
+                type: string
+                description: Business-facing Trading Deal number from `trading_deals.deal_no`; not unique yet.
+              productName:
+                type: [string, "null"]
+              purchaseBillNo:
+                type: [string, "null"]
+              salesBillNo:
+                type: [string, "null"]
+              status:
+                type: [string, "null"]
+            additionalProperties: true
+        filters:
+          type: object
+          additionalProperties: true
+        purchases:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        sales:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        summary:
+          type: object
+          additionalProperties: true
       additionalProperties: true
     StockAdjustRequest:
       allOf:

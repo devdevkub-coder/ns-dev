@@ -1,15 +1,47 @@
 import { NextResponse } from 'next/server'
+import * as XLSX from 'xlsx'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
 
-export async function GET() {
+function isCancelled(status: string | null | undefined) {
+  return status === 'Cancelled' || status === 'cancelled'
+}
+
+function buildWorkbook(rows: Array<Record<string, string | number>>) {
+  const workbook = XLSX.utils.book_new()
+  const sheet = XLSX.utils.json_to_sheet(rows)
+  const headers = rows[0] ? Object.keys(rows[0]) : []
+  sheet['!cols'] = headers.map((header) => ({ wch: Math.max(12, header.length + 4) }))
+  applyWorksheetTableLayout(sheet, headers.length, rows.length + 1)
+  XLSX.utils.book_append_sheet(workbook, sheet, 'Trading Matching')
+  return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer
+}
+
+function xlsxResponse(body: Buffer, filename: string) {
+  return new Response(new Uint8Array(body), {
+    headers: {
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    },
+  })
+}
+
+export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'finance.cash.view')
+
+    const url = new URL(request.url)
+    const q = url.searchParams.get('q')?.trim().toLowerCase()
+    const statusFilter = url.searchParams.get('status')
+    const from = url.searchParams.get('from')
+    const to = url.searchParams.get('to')
+    const activeStatusFilter = statusFilter && statusFilter !== 'all' ? statusFilter : null
 
     const [purchaseBills, salesBills, deals] = await Promise.all([
       prisma.purchase_bills.findMany({
@@ -35,7 +67,7 @@ export async function GET() {
       }),
     ])
 
-    const activeDeals = deals.filter((deal) => deal.status !== 'Cancelled' && deal.status !== 'cancelled')
+    const activeDeals = deals.filter((deal) => !isCancelled(deal.status))
     const matchedPurchaseMap = new Map<string, number>()
     const matchedSalesMap = new Map<string, number>()
     activeDeals.forEach((deal) => {
@@ -92,14 +124,42 @@ export async function GET() {
         supplierName: deal.suppliers?.name ?? deal.supplier_id ?? '-',
       }
     })
+      .filter((deal) => !activeStatusFilter || deal.status === activeStatusFilter)
+      .filter((deal) => !from || deal.date >= from)
+      .filter((deal) => !to || deal.date <= to)
+      .filter((deal) => {
+        if (!q) return true
+        return `${deal.dealNo} ${deal.purchaseBillNo} ${deal.salesBillNo} ${deal.supplierName} ${deal.customerName} ${deal.productName} ${deal.status}`.toLowerCase().includes(q)
+      })
+
+    if (url.searchParams.get('format') === 'xlsx') {
+      return xlsxResponse(buildWorkbook(dealRows.map((deal) => ({
+        Cost: deal.matchedPurchaseAmount,
+        Customer: deal.customerName,
+        Date: deal.date,
+        DealNo: deal.dealNo,
+        GP: deal.grossProfit,
+        GPPct: deal.grossProfitPct,
+        Product: deal.productName,
+        PurchaseBillNo: deal.purchaseBillNo,
+        Qty: deal.matchedQty,
+        Sales: deal.matchedSalesAmount,
+        SalesBillNo: deal.salesBillNo,
+        Status: deal.status,
+        Supplier: deal.supplierName,
+      }))), 'trading_matching.xlsx')
+    }
 
     return NextResponse.json({
       deals: dealRows,
+      filters: {
+        statuses: Array.from(new Set(deals.map((deal) => deal.status ?? 'Open'))).sort(),
+      },
       purchases: purchaseRows,
       sales: salesRows,
       summary: {
         activeDeals: activeDeals.length,
-        grossProfit: dealRows.filter((deal) => deal.status !== 'Cancelled').reduce((sum, deal) => sum + deal.grossProfit, 0),
+        grossProfit: dealRows.filter((deal) => !isCancelled(deal.status)).reduce((sum, deal) => sum + deal.grossProfit, 0),
         purchaseRemaining: purchaseRows.reduce((sum, row) => sum + row.remainingAmount, 0),
         purchaseTotal: purchaseRows.reduce((sum, row) => sum + row.totalAmount, 0),
         salesRemaining: salesRows.reduce((sum, row) => sum + row.remainingAmount, 0),
