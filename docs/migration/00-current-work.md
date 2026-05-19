@@ -5,7 +5,7 @@
 Date: 2026-05-19
 Active app: `apps/next`
 Primary remote: `new-origin`
-Last pushed checkpoint: M3 Main sales control read/design baselines (`81b4199 feat: add main sales control baselines`)
+Last pushed checkpoint: M4 Main calendar read/design baselines (`a2dad1e feat: add main calendar baselines`)
 
 ## Current Batch
 
