@@ -11,6 +11,8 @@ export const runtime = 'nodejs'
 
 type ArQuery = {
   branchId: string | null
+  bucket: string | null
+  channelId: string | null
   customerId: string | null
   from: string | null
   page: number
@@ -38,6 +40,8 @@ function parseQuery(url: URL): ArQuery {
 
   return {
     branchId: url.searchParams.get('branchId') || null,
+    bucket: url.searchParams.get('bucket') || null,
+    channelId: url.searchParams.get('channelId') || null,
     customerId: url.searchParams.get('customerId') || null,
     from: url.searchParams.get('from') || null,
     page: Number.isFinite(page) && page > 0 ? Math.floor(page) : 1,
@@ -53,6 +57,7 @@ function parseQuery(url: URL): ArQuery {
 function billWhere(query: ArQuery): Prisma.sales_billsWhereInput {
   return {
     ...(query.branchId ? { branch_id: query.branchId } : {}),
+    ...(query.channelId ? { channel_id: query.channelId } : {}),
     ...(query.customerId ? { customer_id: query.customerId } : {}),
     ...(query.status ? { status: query.status } : { NOT: { status: 'cancelled' } }),
     ...(query.from || query.to
@@ -93,7 +98,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url)
     const query = parseQuery(url)
 
-    const [bills, receipts, customers, branches] = await Promise.all([
+    const [bills, receipts, customers, branches, channels, pendingIssues] = await Promise.all([
       prisma.sales_bills.findMany({
         include: {
           branches: { select: { id: true, name: true } },
@@ -124,6 +129,19 @@ export async function GET(request: Request) {
         orderBy: [{ name: 'asc' }],
         select: { active: true, code: true, id: true, name: true },
         where: { active: true },
+      }),
+      prisma.sales_channels.findMany({
+        orderBy: [{ name: 'asc' }],
+        select: { active: true, code: true, id: true, name: true },
+        where: { active: true },
+      }),
+      prisma.stock_issues.findMany({
+        select: { total_cost: true, total_est_amount: true },
+        take: 10000,
+        where: {
+          ...(query.branchId ? { branch_id: query.branchId } : {}),
+          status: 'pending',
+        },
       }),
     ])
 
@@ -168,6 +186,7 @@ export async function GET(request: Request) {
         }
       })
       .filter((row) => row.receivableBalance > 0.01)
+      .filter((row) => !query.bucket || row.bucket === query.bucket)
       .filter((row) => !search || `${row.docNo} ${row.customerCode} ${row.customerName} ${row.channelName} ${row.branchName}`.toLowerCase().includes(search))
 
     allRows.sort((left, right) => {
@@ -250,6 +269,7 @@ export async function GET(request: Request) {
       byCustomer,
       filters: {
         branches: branches.map((row) => ({ active: row.active, code: row.code, id: row.id, name: row.name })),
+        channels: channels.map((row) => ({ active: row.active, code: row.code, id: row.id, name: row.name })),
         customers: customers.map((row) => ({ active: row.active, code: row.code, id: row.id, name: row.name })),
         statuses,
       },
@@ -265,6 +285,11 @@ export async function GET(request: Request) {
         customers: byCustomer.length,
         dueIn7: allRows.filter((row) => row.aging >= -7 && row.aging <= 0).reduce((sum, row) => sum + row.receivableBalance, 0),
         overdue: allRows.filter((row) => row.aging > 0).reduce((sum, row) => sum + row.receivableBalance, 0),
+        pendingIssue: {
+          cost: pendingIssues.reduce((sum, row) => sum + toNumber(row.total_cost), 0),
+          count: pendingIssues.length,
+          est: pendingIssues.reduce((sum, row) => sum + toNumber(row.total_est_amount), 0),
+        },
         total: allRows.reduce((sum, row) => sum + row.receivableBalance, 0),
       },
     })

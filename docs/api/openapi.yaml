@@ -783,6 +783,15 @@ paths:
           in: query
           schema:
             type: string
+        - name: channelId
+          in: query
+          schema:
+            type: string
+        - name: bucket
+          in: query
+          schema:
+            type: string
+            enum: [Current, 1-30, 31-60, 61-90, ">90"]
         - name: from
           in: query
           schema:

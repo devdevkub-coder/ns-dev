@@ -1800,7 +1800,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Audit reason: batches completed before `59ba09f` were not guaranteed to preserve cards, colors, banners, tables, button placement, labels, spacing, and compact density with the same strictness.
 - First 10 routes for post-SYS UI parity audit:
   1. `/finance/ap` - revised in UI parity checkpoint
-  2. `/finance/ar`
+  2. `/finance/ar` - revised in UI parity checkpoint
   3. `/finance/cash-position`
   4. `/finance/bank`
   5. `/stock/balance`
@@ -1830,6 +1830,28 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Playwright smoke: authenticated main browser checked `/finance/ap` desktop 1440x900 and mobile 390x844; no page-level horizontal overflow, no console warnings/errors, `/api/auth/me` and `/api/finance/ap` returned 200. Subagent source-level QA confirmed restored header/top cards/KPIs/tables, but its isolated browser session was blocked by login.
 - Commands: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `git diff --check`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 50`.
 - Result: `/finance/ap` now restores the legacy AP visual structure: red header, three top cards, colored KPI cards, aging cards, legacy tab/control row, 9-column summary table with footer, legacy detail table order with Channel, and full-filter detail footer total. Export remains `.xlsx` by active business-export rule.
+- Commit: this checkpoint.
+
+### UI-P2: `/finance/ar` Legacy UI Parity Revision
+
+#### Execution Log
+
+- Task: revise AR page to match legacy/Vue visual baseline after AP parity checkpoint.
+- Legacy refs:
+  - `old-apps/legacy/index.html:10315` pending sale banner, AR dashboard, filter row, and AR detail table.
+  - `old-apps/vue/src/views/finance/ArView.vue:80` Vue AR visual clone baseline.
+- Files changed:
+  - `apps/next/src/components/finance/AccountsReceivablePageClient.tsx`
+  - `apps/next/src/app/api/finance/ar/route.ts`
+  - `docs/api/openapi.yaml`
+  - `docs/migration/17-next-remaining-modules-progress.md`
+- DB/API changes: no schema change. `GET /api/finance/ar` now accepts `channelId` and `bucket`, returns `filters.channels`, and includes pending stock issue summary for the legacy pending-sale banner.
+- Buttons/actions checked: customer/channel/aging filters, active `.xlsx` export button, clear filters, pending-sale link, bill detail modal trigger.
+- Modal/form checked: existing AR detail modal still opens from bill number; no write form was added.
+- Validation added: OpenAPI AR query parameters updated for `channelId` and `bucket`.
+- Playwright smoke: authenticated main browser checked `/finance/ar` desktop 1440x900 and mobile 390x844; no page-level horizontal overflow, no console warnings/errors, `/api/auth/me` and `/api/finance/ar` returned 200. Subagent source audit confirmed the original mismatch and safe patch scope, but its isolated browser session could not authenticate.
+- Commands: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`.
+- Result: `/finance/ar` now restores the legacy AR visual surface: no extra hero header, pending-sale banner when applicable, blue/cyan/teal mega AR card, aging bar card, Top 5 customer card, legacy Customer/Channel/Aging filter row, and detail table columns/colors/order. Export remains `.xlsx` by active business-export rule.
 - Commit: this checkpoint.
 
 ## Current Priority Queue
