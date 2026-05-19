@@ -210,7 +210,7 @@ Current scope:
 - D0 Dual Costing / Trading / PO legacy inventory and DB mapping is complete and pushed.
 - D1 PO Sell read baseline is implemented, validated, and pushed.
 - D2 PO Buy read-only polish is implemented, validated, and pushed. Write flows remain deferred.
-- D3 Trading Dashboard read baseline is implemented and validated; commit/push pending. Dashboard remains read-only.
+- D3 Trading Dashboard read baseline is implemented, validated, and pushed. Dashboard remains read-only.
 - Tracking routes must use active Next app only; legacy/Vue tracking views are source material.
 - Keep T1-T3 read/report baselines first; no write flows in tracking pages.
 - DB design preference clarified: use meaningful business-facing codes/running document numbers for user-visible references; keep UUID/opaque IDs internal only.
@@ -224,8 +224,8 @@ Initial F0 findings:
 
 Next concrete task:
 
-1. Validate and push D3 Trading Dashboard read baseline.
-2. Continue D4 Trading Matching polish after D3 checkpoint.
+1. Continue D4 Trading Matching polish after D3 checkpoint.
+2. Keep matching write/reverse actions deferred until deal idempotency, uniqueness, and reconciliation rules are locked.
 3. Use sub agents by default for Playwright/browser QA, and split read-only scouting/contract review into parallel sub agents when work can be separated cleanly.
 
 ## Operating Model

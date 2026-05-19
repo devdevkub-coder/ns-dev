@@ -971,6 +971,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Playwright smoke: authenticated `/trading/dashboard` render passed on desktop/mobile; `GET /api/trading/dashboard` returned `200` with 26 dev deals, recent deals, trend, and top products. Subagent unauth smoke confirmed route/API guards return login/`401`.
 - Commands: `git diff --check`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 130`, and `npm run build --workspace @ns-scrap-erp/next` passed. OpenAPI lint still reports existing skeleton warnings only.
 - Result: D3 Trading Dashboard read baseline implemented and validated; matching write/reverse actions remain deferred.
+- Commit: `1328d01 feat: add trading dashboard baseline` pushed to `main`.
 
 ### D4: Trading Matching Polish
 
