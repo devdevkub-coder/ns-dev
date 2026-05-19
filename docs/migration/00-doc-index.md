@@ -81,6 +81,7 @@
 | `16-next-production-progress.md` | production progress |
 | `17-next-remaining-modules-progress.md` | remaining module batch/task tree |
 | `18-next-system-sitemap.md` | Next route/page/API/permission status map |
+| `19-next-legacy-ui-parity-audit.md` | post-SYS legacy UI parity audit excluding master-data/admin |
 
 ## Planned Documents
 
