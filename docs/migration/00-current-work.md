@@ -5,7 +5,7 @@
 Date: 2026-05-19
 Active app: `apps/next`
 Primary remote: `new-origin`
-Last pushed checkpoint: dual costing trading map (`d858133 docs: map dual costing trading batch`)
+Last pushed checkpoint: D7c Compare Margin read baseline (`cc0ff0d feat: add compare margin read baseline`)
 
 ## Current Batch
 
@@ -216,7 +216,7 @@ Current scope:
 - D6 Cost Allocator read-only simulation baseline is implemented, validated, and pushed. UI keeps the legacy purple step-card flow; confirm/write remains disabled until allocation logs and reversal rules are designed.
 - D7a Match Log read baseline is implemented, validated, and pushed. It reads `trading_deals` as current source because normalized allocation logs are not designed yet; reverse/write remains deferred.
 - D7b Deal Margin read baseline is implemented, validated, and pushed. It reads `trading_deals` matched sales/purchase amounts and preserves the legacy purple/pink gross margin card layout.
-- D7c Compare Margin read baseline is implemented and validated locally. It compares deal-side `trading_deals` with stock-side `sales_bills` revenue/COGS and preserves the legacy blue/purple/emerald diff-card layout. Commit/push is the next checkpoint step.
+- D7c Compare Margin read baseline is implemented, validated, and pushed. It compares deal-side `trading_deals` with stock-side `sales_bills` revenue/COGS and preserves the legacy blue/purple/emerald diff-card layout.
 - Tracking routes must use active Next app only; legacy/Vue tracking views are source material.
 - Keep T1-T3 read/report baselines first; no write flows in tracking pages.
 - DB design preference clarified: use meaningful business-facing codes/running document numbers for user-visible references; keep UUID/opaque IDs internal only.
@@ -230,10 +230,9 @@ Initial F0 findings:
 
 Next concrete task:
 
-1. Commit and push D7c Compare Margin.
-2. Run D8 Dual Costing QA batch across D1-D7 routes.
-3. Keep Cost Pool read-derived first; no allocation or cost mutation until reconciliation rules are locked.
-4. Use sub agents by default for Playwright/browser QA, and split read-only scouting/contract review into parallel sub agents when work can be separated cleanly.
+1. Run D8 Dual Costing QA batch across D1-D7 routes.
+2. Keep Cost Pool read-derived first; no allocation or cost mutation until reconciliation rules are locked.
+3. Use sub agents by default for Playwright/browser QA, and split read-only scouting/contract review into parallel sub agents when work can be separated cleanly.
 
 ## Operating Model
 

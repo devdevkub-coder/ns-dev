@@ -1070,6 +1070,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Playwright smoke: authenticated `/dual-costing/compare-margin` returned deal rows `25` and stock rows `80`; blue info band, Deal Cost card, Stock Cost card, diff cards, and date filters rendered; desktop/mobile had no page overflow and no console errors. Subagent unauth smoke confirmed route redirects to `/login?redirect=%2Fdual-costing%2Fcompare-margin` and unauth API returns `401`.
 - Commands: `git diff --check`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 130`, and `npm run build --workspace @ns-scrap-erp/next` passed. OpenAPI lint still reports existing skeleton warnings only.
 - Result: D7c Compare Deal vs Stock read baseline implemented and validated.
+- Commit: `cc0ff0d feat: add compare margin read baseline` pushed to `main`.
 
 ### D8: Dual Costing QA Batch
 
