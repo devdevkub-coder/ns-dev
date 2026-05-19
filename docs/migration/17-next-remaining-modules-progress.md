@@ -762,9 +762,25 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ### T2: Supplier Tracking Polish
 
-- [ ] ตรวจ `/tracking/supplier` ที่มีแล้ว
-- [ ] เพิ่ม product breakdown/detail drilldown/export
+- [x] ตรวจ `/tracking/supplier` ที่มีแล้ว
+- [x] เพิ่ม product breakdown
+- [x] เพิ่ม `.xlsx` export
+- [ ] detail drilldown แบบ modal/row-level หลัง normalize item JSON contract
 - [ ] filter salesperson/branch/category where relevant
+
+#### Execution Log
+
+- Task: T2 Supplier Tracking polish.
+- Legacy refs: `old-apps/vue/src/views/trackingDashboards/SupplierTrackingView.vue`.
+- Files changed: `apps/next/src/app/api/tracking/supplier/route.ts`, `apps/next/src/components/purchase-flow/SupplierTrackingPageClient.tsx`, `docs/api/openapi.yaml`, this tracker.
+- DB/API changes: no schema migration; extended `GET /api/tracking/supplier` with `byProduct` aggregation from `purchase_bills.items` and `.xlsx` export.
+- Buttons/actions checked: read-only filters and `.xlsx` export; no write actions.
+- Modal/form checked: no mutation form in T2; detail drilldown deferred until item JSON contract is normalized.
+- Validation added: product breakdown tolerates missing item detail and uses fallback empty state.
+- Playwright smoke: passed via QA subagent on `http://localhost:3100/tracking/supplier`; desktop `1440x900`, mobile `390x844`, no console errors, no failed network requests, page loaded, export link and product breakdown visible, JSON API 200, XLSX API 200 with spreadsheet content type and `PK` signature.
+- Commands: `git diff --check` passed; `npm run type-check --workspace @ns-scrap-erp/next` passed; `npm run lint --workspace @ns-scrap-erp/next` passed; `npm run build --workspace @ns-scrap-erp/next` passed; `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 120` passed validity with existing skeleton warnings.
+- Result: T2 Supplier Tracking polish implemented with product breakdown and `.xlsx` export; detail drilldown remains deferred until item JSON contract is normalized.
+- Commit: this checkpoint.
 
 ### T3: Product Tracking
 

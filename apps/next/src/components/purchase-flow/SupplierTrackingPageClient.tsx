@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 
 type SupplierTrackingPayload = {
+  byProduct: Array<{ amount: number; avgBuy: number; billCount: number; productName: string; qty: number; suppliers: number }>
   monthly: Array<{ amount: number; month: string; qty: number }>
   rows: Array<{ avgBuy: number; billCount: number; code: string; id: string; paidAmount: number; paidPct: number; payable: number; paymentCount: number; purchaseAmount: number; qty: number; supplierName: string }>
   summary: { paidAmount: number; payable: number; purchaseAmount: number; qty: number; suppliers: number }
@@ -44,6 +45,7 @@ export function SupplierTrackingPageClient() {
   }, [data?.rows, search])
 
   const maxMonthAmount = Math.max(1, ...(data?.monthly ?? []).map((item) => item.amount))
+  const exportHref = `/api/tracking/supplier?${new URLSearchParams({ year, ...(month ? { month } : {}), format: 'xlsx' }).toString()}`
 
   return (
     <section className="space-y-4">
@@ -60,6 +62,7 @@ export function SupplierTrackingPageClient() {
             {monthLabels.map((label, index) => <option key={label} value={String(index + 1).padStart(2, '0')}>{label}</option>)}
           </select>
           <input className="ml-auto min-w-64 rounded-lg border px-3 py-2 text-sm" placeholder="ค้นหา Supplier" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <a className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white" href={exportHref}>Export XLSX</a>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
@@ -79,6 +82,25 @@ export function SupplierTrackingPageClient() {
             </div>
           ))}
         </div>
+      </div>
+      <div className="overflow-x-auto rounded-lg bg-white shadow">
+        <div className="border-b bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">Product breakdown จากบิลรับซื้อ</div>
+        <table className="w-full text-sm">
+          <thead className="bg-slate-100"><tr><th className="p-2 text-left">สินค้า</th><th className="p-2 text-right">Supplier</th><th className="p-2 text-right">บิล</th><th className="p-2 text-right">น้ำหนัก</th><th className="p-2 text-right">ยอดซื้อ</th><th className="p-2 text-right">ราคาเฉลี่ย</th></tr></thead>
+          <tbody>
+            {(data?.byProduct ?? []).slice(0, 20).map((row) => (
+              <tr key={row.productName} className="border-t hover:bg-slate-50">
+                <td className="p-2 font-medium">{row.productName}</td>
+                <td className="p-2 text-right">{row.suppliers}</td>
+                <td className="p-2 text-right">{row.billCount}</td>
+                <td className="p-2 text-right">{formatMoney(row.qty)}</td>
+                <td className="p-2 text-right font-semibold">{formatMoney(row.amount)}</td>
+                <td className="p-2 text-right">{formatMoney(row.avgBuy)}</td>
+              </tr>
+            ))}
+            {!isLoading && (data?.byProduct ?? []).length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={6}>ไม่มี item detail สำหรับ product breakdown</td></tr> : null}
+          </tbody>
+        </table>
       </div>
       <div className="overflow-x-auto rounded-lg bg-white shadow">
         <table className="w-full text-sm">

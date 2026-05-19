@@ -302,7 +302,8 @@ paths:
           in: query
           schema:
             type: string
-            enum: [xlsx]
+            enum: [json, xlsx]
+            default: json
       responses:
         "200":
           description: AP aging payload or xlsx export when `format=xlsx`.
@@ -1181,10 +1182,35 @@ paths:
   /api/tracking/supplier:
     get:
       tags: [Tracking]
+      operationId: readSupplierTracking
       summary: Read supplier tracking baseline
+      parameters:
+        - name: year
+          in: query
+          schema:
+            type: string
+        - name: month
+          in: query
+          schema:
+            type: string
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [xlsx]
       responses:
         "200":
-          $ref: "#/components/responses/Ok"
+          description: Supplier tracking rows, product breakdown, monthly trend, summary, or xlsx export when `format=xlsx`.
+          content:
+            application/json:
+              schema:
+                type: object
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /api/trading/matching:
     get:
