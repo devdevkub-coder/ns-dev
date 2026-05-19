@@ -5,7 +5,7 @@
 Date: 2026-05-19
 Active app: `apps/next`
 Primary remote: `new-origin`
-Last pushed checkpoint: A8 Accounting QA checkpoint (`f4a9762 fix: audit finance accounting baselines`)
+Last pushed checkpoint: M0 Main Dashboards overview (`41962c1 docs: map main dashboard batch`)
 
 ## Current Batch
 
@@ -17,7 +17,8 @@ Goal:
 - Start with read/report baselines before enabling planning, assignment, anomaly fix, export, or dashboard write actions.
 - Reuse existing purchase/sales/stock/finance/production/tracking/trading helper outputs where practical instead of re-querying inconsistently.
 - During this and future clone batches, keep the legacy/Vue screen as the visual baseline first. Preserve cards, colors, banners, tables, button placement, labels, spacing, and compact density unless a documented deviation is approved. If Vue has been simplified or has known layout/column drift, use `old-apps/legacy/` as the stronger baseline before improving the data wiring.
-- Current docs slice: M0 Main Dashboards module overview is implemented locally. It maps all 11 remaining Main placeholder routes, their legacy/Vue visual baselines, shared data sources, write risks, and recommended implementation order. Validation, commit, and push are pending.
+- Current docs slice: M0 Main Dashboards module overview is implemented, validated, and pushed. It maps all 11 remaining Main placeholder routes, their legacy/Vue visual baselines, shared data sources, write risks, and recommended implementation order.
+- Next implementation slice: M1 `/dashboard`, `/owner-daily`, and `/daily-report` read/report baselines.
 
 ## Previous Batch A Notes
 

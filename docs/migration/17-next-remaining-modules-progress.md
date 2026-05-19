@@ -1555,6 +1555,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
   - Do not silently enable planning/write actions: LME config, LME %, sales plan add/remove/lock/save, supplier assignment, anomaly fix navigation side effects, and legacy localStorage writes must be redesigned for target DB/auth/audit first.
   - Use business-facing refs (`docNo`, customer/supplier/product names/codes) in tables; avoid exposing UUIDs as primary labels.
   - Main dashboards are management/read baselines, not statutory accounting reports.
+- Push marker: committed and pushed as `41962c1` (`docs: map main dashboard batch`).
 
 ### M1: Dashboard and Owner Daily
 
