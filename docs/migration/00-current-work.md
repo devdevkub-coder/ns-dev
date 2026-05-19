@@ -5,7 +5,7 @@
 Date: 2026-05-19
 Active app: `apps/next`
 Primary remote: `new-origin`
-Last pushed checkpoint: FF6 Bank Reconciliation design baseline (`79b9b74 feat: add bank reconciliation design baseline`)
+Last pushed checkpoint: FF2/FF3 foreign transfer/receipt form baselines (`7fc1a69 feat: add foreign transfer receipt form baselines`)
 
 ## Current Batch
 
@@ -241,12 +241,12 @@ Initial FF0 findings:
 - FCD Ledger does not infer foreign movement from THB bank rows or current currency rates. Foreign movement stays zero unless future ITF/ORC source tables provide true foreign amounts; opening foreign balance comes from `accounts.opening_balance`.
 - FF5 FX Gain/Loss read baseline is implemented, validated, and pushed. It reads realized rows from `fx_gain_loss` only and does not auto-post.
 - FF6 Bank Reconciliation read/design baseline is implemented, validated, and pushed. It shows ERP bank rows and disables import/match writes until normalized import/match state exists.
-- FF2/FF3 International Transfer and Overseas Receipt read/form baselines are implemented locally and validated, ready for commit/push. They intentionally do not write `bank_statement`, post FX gain/loss, complete, approve, or reverse until dedicated transaction schemas and idempotency/reversal rules exist.
+- FF2/FF3 International Transfer and Overseas Receipt read/form baselines are implemented, validated, and pushed. They intentionally do not write `bank_statement`, post FX gain/loss, complete, approve, or reverse until dedicated transaction schemas and idempotency/reversal rules exist.
 - User-facing refs should be `ITF*`, `ORC*`, `ref_no`, account code/account no, and currency symbol/code; do not expose UUID/ref_id as the primary display.
 
 Next concrete task:
 
-1. Commit and push FF2/FF3 read/form baseline.
+1. Start FF7 Foreign Finance QA batch across FX Rate, International Transfer, Overseas Receipt, FCD Ledger, FX Gain/Loss, and Bank Reconciliation.
 2. Preserve legacy/Vue visual baseline first: colors, cards, panels, table density, button placement, and labels.
 3. Use sub agents by default for Playwright/browser QA, and split read-only scouting/contract review into parallel sub agents when work can be separated cleanly.
 

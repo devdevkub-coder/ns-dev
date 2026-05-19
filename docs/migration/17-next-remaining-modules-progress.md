@@ -1208,6 +1208,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Playwright smoke: desktop and mobile route render passed on `http://localhost:3100/finance/foreign/intl-transfer`; API returned 200; console had no errors; modal opened with legacy fields, amber fee block, and disabled write buttons; screenshots saved as `ff2-intl-transfer-desktop.png` and `ff2-intl-transfer-mobile.png`.
 - Commands: `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 200`, and browser smoke passed. OpenAPI still has the existing 113 skeleton warnings outside these endpoints.
 - Result: International Transfer route is no longer a placeholder, but remains read/form-only.
+- Commit: `7fc1a69 feat: add foreign transfer receipt form baselines` pushed to `main`.
 
 ### FF3: Overseas Receipt
 
@@ -1226,6 +1227,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Playwright smoke: desktop and mobile route render passed on `http://localhost:3100/finance/foreign/overseas-receipt`; API returned 200; console had no errors; modal opened with legacy fields, emerald THB values, amber fee values, and disabled write buttons; screenshots saved as `ff3-overseas-receipt-desktop.png` and `ff3-overseas-receipt-mobile.png`.
 - Commands: `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 200`, and browser smoke passed. OpenAPI still has the existing 113 skeleton warnings outside these endpoints.
 - Result: Overseas Receipt route is no longer a placeholder, but remains read/form-only.
+- Commit: `7fc1a69 feat: add foreign transfer receipt form baselines` pushed to `main`.
 
 ### FF4: FCD Ledger
 
