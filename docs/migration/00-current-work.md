@@ -5,7 +5,7 @@
 Date: 2026-05-19
 Active app: `apps/next`
 Primary remote: `new-origin`
-Last pushed checkpoint: SYS3 Audit and Users polish (`f0091f7 feat: polish admin audit users`)
+Last pushed checkpoint: SYS5 System cleanup route QA (`2a76385 fix: audit system cleanup routes`)
 
 ## Current Batch
 
@@ -22,6 +22,7 @@ Goal:
 - Current implementation slice: SYS1 `/admin/change-password` self-service Supabase Auth flow is implemented, validated, and pushed. It preserves legacy UI, validates password syntax/confirmation/current-password, verifies current password with Supabase Auth, updates via `updateUser`, and does not store password in app tables.
 - Current implementation slice: SYS2 `/admin/migration-tools` safe read/design baseline is implemented, validated, and pushed. It preserves legacy Backup/Restore cards while disabling export, restore, cloud migration, user migration, reset, snapshot cleanup, and auto-backup actions until destructive-action design is approved.
 - Current polish slice: SYS3 `/admin/audit` and `/admin/users-permissions` polish is implemented, validated, and pushed. Audit now has current-page CSV export; Users & Permissions now has summary cards for active, branch-scoped, pending Auth link, and must-change-password users. Branch-scope enforcement remains a SYS5/auth hardening follow-up.
+- Current QA slice: SYS5 full system cleanup route QA is implemented, validated, and pushed. It confirmed all active navigation routes have dedicated pages, protected routes redirect unauthenticated users, SYS routes render authenticated desktop/mobile without page-level overflow, and the retrospective legacy UI parity backlog is now queued.
 
 ## Previous Batch M Notes
 
