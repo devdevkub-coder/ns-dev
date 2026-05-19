@@ -1778,12 +1778,38 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ### SYS5: Cleanup and Full Route QA
 
-- [ ] ตรวจทุก route ใน navigation
-- [ ] remove stale placeholder routes or mark intentionally deferred
-- [ ] browser smoke desktop/mobile
-- [ ] type/lint/build
-- [ ] final docs update
-- [ ] commit/push
+- [x] ตรวจทุก route ใน navigation
+- [x] remove stale placeholder routes or mark intentionally deferred
+- [x] browser smoke desktop/mobile
+- [x] type/lint/build
+- [x] final docs update
+- [x] commit/push
+
+#### Execution Log
+
+- Task: SYS5 full route QA and System cleanup checkpoint.
+- Static coverage: subagent confirmed all 106 navigation item and child routes have dedicated `page.tsx` files; no navigation route depends on the catch-all placeholder. Fixed sitemap summary drift for Reports (`1` real page, `0` placeholders) and Admin (`6` real pages, `0` placeholders).
+- Unauth guard: subagent confirmed all 106 protected navigation pages redirect to `/login?redirect=...`, `/api/auth/me`, `/api/admin/auth-events`, and `/api/admin/users` return `401`, login desktop/mobile has no page-level horizontal overflow, and no console/page/network errors were reported.
+- Authenticated smoke: main Playwright sweep confirmed SYS routes `/admin/change-password`, `/admin/migration-tools`, `/reports`, `/admin/audit`, and `/admin/users-permissions` render content with expected headings, desktop/mobile have no page-level horizontal overflow, and no SYS page/request errors were reported.
+- Validation: passed `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, and `git diff --check`.
+- Result: Batch SYS System and Cleanup is complete for current read/design/self-service scope. Branch-scope enforcement and destructive migration/reset actions remain deferred until an auth/API hardening design.
+
+## UI Parity Retrospective Backlog
+
+- Rule point: explicit legacy UI parity started at `59ba09f docs: require legacy ui parity for clone batches` and was strengthened at `b2258d6 docs: strengthen legacy ui parity rule`.
+- Audit reason: batches completed before `59ba09f` were not guaranteed to preserve cards, colors, banners, tables, button placement, labels, spacing, and compact density with the same strictness.
+- First 10 routes for post-SYS UI parity audit:
+  1. `/finance/ap`
+  2. `/finance/ar`
+  3. `/finance/cash-position`
+  4. `/finance/bank`
+  5. `/stock/balance`
+  6. `/stock/ledger`
+  7. `/stock/convert`
+  8. `/stock/adjust`
+  9. `/sales/po-sell`
+  10. `/trading/dashboard`
+- Batch priority after first 10: finish Finance and Debt (`/finance/supplier-advance`, `/finance/customer-advance`), Stock (`/stock/status-convert`, `/stock/customer-return`), Tracking 360, then Dual Costing / Trading / PO routes.
 
 ## Current Priority Queue
 

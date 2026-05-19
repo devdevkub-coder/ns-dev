@@ -45,10 +45,10 @@ Status terms:
 | Stock | 6 | 6 | 0 | balance, ledger, status convert, grade convert, adjust, customer return |
 | Trading | 2 | 1 | 1 | matching only |
 | PO Reports | 1 | 1 | 0 | outstanding only |
-| Reports | 1 | 0 | 1 | none |
+| Reports | 1 | 1 | 0 | reports index |
 | Finance / Accounting | 18 | 18 | 0 | financial-dashboard, cash-flow-analysis, cf-forecast-calendar, working-capital, stock-finance, profit-leak, tax-vat-wht, pl-statement, balance-sheet, cash-flow-statement, asset-register, depreciation, asset-disposal, loan-contracts, loan-dashboard, equity-maint, opening-balance, historical-data |
 | Master Data | 18 | 18 | 0 | broad master-data coverage |
-| Admin | 6 | 4 | 2 | company, users, audit, transaction ledger |
+| Admin | 6 | 6 | 0 | company, users, audit, transaction ledger; password and migration tools are client baselines |
 
 ## Route Inventory
 
