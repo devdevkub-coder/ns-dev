@@ -808,9 +808,23 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ### T4: Tracking QA Batch
 
-- [ ] QA checker
-- [ ] type/lint/build
+- [x] QA checker
+- [x] type/lint/build
 - [ ] commit/push
+
+#### Execution Log
+
+- Task: T4 Tracking QA Batch.
+- Legacy refs: not applicable; this is a cross-check of implemented Next tracking baselines.
+- Files changed: `apps/next/src/app/api/tracking/product/route.ts`, `apps/next/src/components/tracking/ProductTrackingPageClient.tsx`, this tracker.
+- DB/API changes: no schema migration; normalized Product Tracking slow mover payload in both `top.slowMovers` and `slowMovers`.
+- Buttons/actions checked: customer/supplier/product export links and read filters; no write actions.
+- Modal/form checked: no mutation forms in tracking baselines; product detail modal remains deferred until item JSON contract is normalized.
+- Validation added: fixed Product Tracking slow movers so UI labels and API payload show stock qty/value, not sales qty/revenue.
+- Playwright smoke: unauthenticated QA subagent confirmed login guards for all three tracking pages/APIs; authenticated main Playwright session confirmed Product Tracking page/export after the slow mover fix, and authenticated API checks confirmed customer/supplier/product JSON 200 plus XLSX 200 with `PK` signature.
+- Commands: `git diff --check` passed; `npm run type-check --workspace @ns-scrap-erp/next` passed; `npm run lint --workspace @ns-scrap-erp/next` passed; `npm run build --workspace @ns-scrap-erp/next` passed; `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 120` passed validity with existing skeleton warnings.
+- Result: Tracking 360 QA checkpoint passed after slow mover payload/UI correction. Carry-over: add `401` responses and detailed response schemas to OpenAPI, and expose product `productId`/`metalGroup`/`branchId` filters in UI if needed.
+- Commit: this checkpoint.
 
 ## Batch D: Dual Costing / Trading / PO
 

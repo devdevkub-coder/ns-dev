@@ -206,6 +206,7 @@ Current scope:
 - T1 Customer Tracking read baseline is implemented, validated, and pushed.
 - T2 Supplier Tracking polish is implemented, validated, and pushed.
 - T3 Product Tracking read/report baseline is implemented, validated, and pushed.
+- T4 Tracking QA Batch passed after correcting Product Tracking slow movers; commit/push is the next checkpoint.
 - Tracking routes must use active Next app only; legacy/Vue tracking views are source material.
 - Keep T1-T3 read/report baselines first; no write flows in tracking pages.
 - DB design preference clarified: use meaningful business-facing codes/running document numbers for user-visible references; keep UUID/opaque IDs internal only.
@@ -219,8 +220,8 @@ Initial F0 findings:
 
 Next concrete task:
 
-1. Continue to T4 Tracking QA Batch or the next Tracking 360 hardening slice.
-2. Review cross-tracking consistency for customer/supplier/product filters, OpenAPI schema detail, and auth/browser QA coverage.
+1. Commit/push T4 Tracking QA Batch.
+2. Continue to Batch D0 Dual Costing / Trading / PO inventory, or consume the parallel `reports/d0-dual-costing-trading-inventory.md` report if another Codex session creates it.
 3. Use sub agents by default for Playwright/browser QA, and split read-only scouting/contract review into parallel sub agents when work can be separated cleanly.
 
 ## Operating Model

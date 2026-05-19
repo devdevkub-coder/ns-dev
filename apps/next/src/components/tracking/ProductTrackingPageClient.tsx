@@ -135,7 +135,7 @@ export function ProductTrackingPageClient() {
   const rows = data?.rows ?? []
   const maxMonthAmount = Math.max(1, ...(data?.monthly ?? []).map((item) => item.revenue ?? item.salesAmount ?? item.amount ?? 0))
   const topMovers = data?.top?.byRevenue ?? data?.topMovers ?? []
-  const slowMovers = data?.top?.slowMovers ?? data?.slowMovers ?? []
+  const slowMovers = data?.slowMovers ?? data?.top?.slowMovers ?? []
   const exportHref = `/api/tracking/product?${queryString}&format=xlsx`
 
   return (
@@ -182,8 +182,8 @@ export function ProductTrackingPageClient() {
 
       {topMovers.length > 0 || slowMovers.length > 0 ? (
         <div className="grid gap-4 lg:grid-cols-2">
-          <MovementList rows={topMovers} title="Top movers" />
-          <MovementList rows={slowMovers} title="Slow movers" />
+          <MovementList amountLabel="ยอดขาย" qtyLabel="น้ำหนักขาย" rows={topMovers} title="Top movers" />
+          <MovementList amountLabel="มูลค่า Stock" qtyLabel="Stock" rows={slowMovers} title="Slow movers" />
         </div>
       ) : null}
 
@@ -231,12 +231,12 @@ export function ProductTrackingPageClient() {
   )
 }
 
-function MovementList({ rows, title }: { rows: Array<ProductMovementRow | ProductTrackingRow>; title: string }) {
+function MovementList({ amountLabel, qtyLabel, rows, title }: { amountLabel: string; qtyLabel: string; rows: Array<ProductMovementRow | ProductTrackingRow>; title: string }) {
   return (
     <div className="overflow-x-auto rounded-lg bg-white shadow">
       <div className="border-b bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">{title}</div>
       <table className="w-full text-sm">
-        <thead className="bg-slate-100"><tr><th className="p-2 text-left">Product</th><th className="p-2 text-right">บิล</th><th className="p-2 text-right">น้ำหนัก</th><th className="p-2 text-right">ยอดขาย</th><th className="p-2 text-right">ราคาเฉลี่ย</th></tr></thead>
+        <thead className="bg-slate-100"><tr><th className="p-2 text-left">Product</th><th className="p-2 text-right">บิล</th><th className="p-2 text-right">{qtyLabel}</th><th className="p-2 text-right">{amountLabel}</th><th className="p-2 text-right">ราคาเฉลี่ยขาย</th></tr></thead>
         <tbody>
           {rows.slice(0, 10).map((row) => (
             <tr key={row.id ?? `${row.code ?? ''}-${row.name ?? row.productName ?? ''}`} className="border-t hover:bg-slate-50">

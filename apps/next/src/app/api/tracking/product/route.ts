@@ -368,7 +368,16 @@ export async function GET(request: Request) {
         byBuy: [...rows].sort((left, right) => right.buyAmount - left.buyAmount).slice(0, 10),
         byGp: [...rows].sort((left, right) => right.gp - left.gp).slice(0, 10),
         byRevenue: [...rows].sort((left, right) => right.revenue - left.revenue).slice(0, 10),
-        slowMovers: rows.filter((row) => row.stockQty > 0 && row.turnoverPct < 50).sort((left, right) => right.stockValue - left.stockValue).slice(0, 10),
+        slowMovers: rows.filter((row) => row.stockQty > 0 && row.turnoverPct < 50).sort((left, right) => right.stockValue - left.stockValue).slice(0, 10).map((row) => ({
+          amount: row.stockValue,
+          avgSell: row.avgSell,
+          billCount: row.salesBillCount,
+          code: row.code,
+          id: row.id,
+          productName: row.productName,
+          qty: row.stockQty,
+          salesAmount: row.salesAmount,
+        })),
       },
       slowMovers: rows.filter((row) => row.stockQty > 0 && row.turnoverPct < 50).sort((left, right) => right.stockValue - left.stockValue).slice(0, 10).map((row) => ({
         amount: row.stockValue,
