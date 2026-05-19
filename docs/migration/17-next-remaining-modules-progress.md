@@ -1492,7 +1492,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 - [x] QA checker
 - [x] type/lint/build
-- [ ] commit/push
+- [x] commit/push
 
 #### Execution Log
 
@@ -1652,9 +1652,20 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ### M6: Main QA Batch
 
-- [ ] QA checker
-- [ ] type/lint/build
-- [ ] commit/push
+- [x] QA checker
+- [x] type/lint/build
+- [x] commit/push
+
+#### Execution Log
+
+- Task: M6 QA sweep across all 11 Main routes and APIs after M1-M5.
+- Scope checked: `/dashboard`, `/owner-daily`, `/daily-report`, `/profit-cost-analysis`, `/pending-sales`, `/sales-plan`, `/sales-commission`, `/cash-flow-calendar`, `/business-calendar`, `/cash-others-summary`, and `/anomaly-detector`, plus their matching `/api/*` routes.
+- Static coverage: subagent confirmed all 11 routes have real Next pages, all 11 APIs exist, OpenAPI paths are present, navigation and API guards map to `reports.reports.view`, and the only drift was sitemap summary text. Fixed sitemap Main summary from `0` real pages / `11` placeholders / `none` API coverage to `11` real pages / `0` placeholders / all 11 read/read-design APIs.
+- Unauth guard: subagent confirmed all 11 pages redirect to `/login?redirect=...`, all 11 APIs return `401`, login desktop/mobile has no page-level horizontal overflow, and no console/page/network errors were reported.
+- Authenticated smoke: main Playwright sweep confirmed all 11 APIs return `200`, all 11 pages render their core headings/markers, desktop `1366x768` and mobile `390x844` have no page-level horizontal overflow, and no page/request errors were reported.
+- Read-only/write-control audit: subagent confirmed all APIs in scope expose only `GET`, Batch M helpers do not use write Prisma calls or raw write queries, export/save/assign/lock/post/reclass/write controls are disabled/omitted/read-only, anomaly fix actions are active Next links only, and no localStorage/sessionStorage write side effects were found.
+- Validation: passed `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 200`, and `git diff --check`. OpenAPI remains valid with the existing 114 warning baseline.
+- Result: Batch M QA sweep passed after sitemap drift correction; all 11 Main routes/APIs remain read or read-design baselines with writes deferred.
 
 ## Batch SYS: System and Cleanup
 
