@@ -1094,11 +1094,79 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ### FF0: Module Overview
 
-- [ ] สำรวจ legacy foreign finance pages
-- [ ] map shared data: currencies, fx rates, accounts, beneficiaries, remittance purposes, bank statement
-- [ ] สรุป flow เงินเข้า/ออกต่างประเทศและ FX gain/loss
-- [ ] สรุป bank statement/FCD ledger side effects
-- [ ] สรุป page order และ risk
+- [x] สำรวจ legacy foreign finance pages
+- [x] map shared data: currencies, fx rates, accounts, beneficiaries, remittance purposes, bank statement
+- [x] สรุป flow เงินเข้า/ออกต่างประเทศและ FX gain/loss
+- [x] สรุป bank statement/FCD ledger side effects
+- [x] สรุป page order และ risk
+
+#### FF0 Module Overview
+
+- Legacy/Vue refs:
+  - Vue routes: `old-apps/vue/src/router/index.ts:536` for `/finance/foreign/intl-transfer`, `/finance/foreign/overseas-receipt`, `/finance/foreign/fx-rate`, `/finance/foreign/fcd-ledger`, `/finance/foreign/fx-gain-loss-report`, and `/finance/foreign/bank-reconciliation`.
+  - Vue menu section: `old-apps/vue/src/router/menu.ts:781` lists the six `foreign-finance` entries.
+  - International Transfer: `old-apps/vue/src/views/finance/IntlTransferView.vue`, `old-apps/legacy/index.html:23569`.
+  - Overseas Receipt: `old-apps/vue/src/views/finance/OverseasReceiptView.vue`, `old-apps/legacy/index.html:23720`.
+  - FX Rate: `old-apps/vue/src/views/finance/FxRateView.vue`, `old-apps/legacy/index.html:23287`.
+  - FCD Ledger: `old-apps/vue/src/views/finance/FcdLedgerView.vue`, `old-apps/legacy/index.html:23856`.
+  - FX Gain/Loss: `old-apps/vue/src/views/finance/FxGainLossReportView.vue`, `old-apps/legacy/index.html:23932`.
+  - Bank Reconciliation: `old-apps/vue/src/views/finance/BankReconciliationView.vue`, `old-apps/legacy/index.html:23984`.
+- Active Next state:
+  - All six foreign finance routes are still placeholder pages through the catch-all route; no `/api/finance/foreign/*` route handlers or OpenAPI paths exist yet.
+  - Related baselines already exist: `/finance/bank` with `GET /api/finance/bank`, plus master data pages/APIs for accounts, currencies, beneficiaries, payment methods, and remittance purposes.
+- Current DB/table mapping:
+  - `accounts`: cash/bank/OD/FCD account master with `currency`, `opening_balance`, `od_limit`, and relation to `bank_statement`.
+  - `bank_statement`: generic cash/bank ledger with `date`, `account_id`, `ref_type`, `ref_id`, `ref_no`, `amount_in`, `amount_out`, `cash_flow_category`, and account relation.
+  - `currencies`: current currency master with `code`, `name`, `symbol`, and `rate_to_thb`; this is not a full historical FX rate table yet.
+  - `fx_gain_loss`: realized FX gain/loss table with `date`, `ref_type`, `ref_id`, `currency`, `amount_fc`, `rate_book`, `rate_settlement`, and `gain_loss`.
+  - `overseas_recipients`: current beneficiary table behind `/master-data/beneficiaries`.
+  - `overseas_remittance_purposes`: current remittance purpose lookup behind `/master-data/remittance-purposes`.
+  - No confirmed normalized tables yet for `intl_transfers`, `overseas_receipts`, `bank_imports`, or historical `fx_rates` in the active Prisma schema.
+  - No dedicated `fcd_ledger` table exists; FCD running balance must be derived from `accounts.currency` + `bank_statement` until a ledger table is designed.
+  - `payments` and `receipts` already write `bank_statement` rows with `PMT`/`RCP` refs and idempotency keys; foreign transfer/receipt write design must avoid double-counting bank movements.
+  - `accounts.currency`, `overseas_recipients.currency`, and `fx_gain_loss.currency` are plain strings, not enforced FKs to `currencies`; `currencies.code` versus display symbol (`THB`, `USD`, etc.) needs mapping care.
+  - `fx_gain_loss` has `ref_type/ref_id` but no business-facing `ref_no`, so reports must not expose opaque ids as the main reference.
+- Legacy flow summary:
+  - International Transfer creates business refs like `ITF*`, tracks purpose, transfer type, source account, beneficiary, source/destination currency, FX rate, fees, charge bearer `OUR/SHA/BEN`, SWIFT ref, value date, and status. Legacy actions include save draft, submit to bank, complete, and reverse. Submit/reverse mutates `bankStatement` with ref type `ITF`.
+  - Overseas Receipt creates business refs like `ORC*`, tracks customer, payer country, received account, optional sales bill, foreign amount, FX rate, bank fee, SWIFT ref, value date, and status. Approval mutates `bankStatement` with `ORC`/`ORC-FEE` rows and creates `fxGainLoss` when book and settlement rates differ.
+  - FCD Ledger is derived from FCD accounts, approved overseas receipts, and submitted/completed international transfers; it keeps running foreign balance and THB equivalent balance.
+  - FX Gain/Loss report is realized-only in legacy, with date filters, original/settlement rates, original/settlement THB values, and net gain/loss cards.
+  - Bank Reconciliation imports pasted CSV `date,desc,amount`, stores imported rows, auto-matches ERP bank statement rows by date and amount, supports ignore/delete import, and shows imported vs ERP statement side by side.
+- Visual refs to preserve:
+  - FX Rate: blue info band, white latest-rate cards, blue numeric rates, rounded white history table.
+  - International Transfer: purple info band, amber fee block, blue primary buttons, status badges for submitted/completed/reversed.
+  - Overseas Receipt: emerald info band, emerald THB values, amber bank fee values, red/emerald FX G/L.
+  - FCD Ledger: indigo info band, indigo foreign balance card, blue THB equivalent card, emerald inflow and red outflow columns.
+  - FX Gain/Loss: blue info band, emerald gain card, red loss card, blue/indigo net card.
+  - Bank Reconciliation: blue imported statement panel, emerald ERP statement panel, stat cards in white/emerald/amber/slate/red.
+- Side effects and rules not to guess:
+  - Do not implement money-moving writes for ITF/ORC until idempotency, reverse, approval, and bank statement ref rules are designed.
+  - Do not auto-post FX gain/loss from read pages; derive/report first.
+  - Do not mutate `bank_statement` or import/match records from Bank Reconciliation until a normalized import table and reconciliation state model are designed.
+  - Keep business document refs (`ITF*`, `ORC*`, bank ref no, account code) user-facing; keep UUID/opaque ids internal.
+  - Do not rely on `currencies.rate_to_thb` alone for historical FX; add effective-date design or snapshot rates before money-moving writes.
+  - Permission is currently `finance.cash.view`; a dedicated foreign finance/FX permission split remains a later auth batch.
+- Implementation order:
+  1. FF1 FX Rate read/manage baseline first. It is reference data and should not touch bank statement.
+  2. FF4 FCD Ledger read baseline from FCD accounts + existing bank statement/derived sources to validate running balance before writes.
+  3. FF5 FX Gain/Loss read baseline from `fx_gain_loss` or derived rows; no auto-post.
+  4. FF2 International Transfer read/form baseline only; defer bank statement mutation.
+  5. FF3 Overseas Receipt read/form baseline only; defer bank statement and FX gain/loss mutation.
+  6. FF6 Bank Reconciliation read/import-design baseline after ledger/statement model is clear.
+  7. FF7 QA across routes/API/browser/OpenAPI/permission consistency.
+
+#### Execution Log
+
+- Task: FF0 Foreign Finance legacy inventory, active surface check, and DB mapping.
+- Legacy refs: see FF0 module overview above.
+- Files changed: this tracker and current work handoff.
+- DB/API changes: docs-only; no schema/runtime change.
+- Buttons/actions checked: inventoried add, submit, approve, complete, reverse, import CSV, auto match, ignore, delete import, and delete FX rate actions.
+- Modal/form checked: inventoried FX rate modal, ITF form, ORC form, FCD account selector, FX date filters, and bank reconciliation import/match controls.
+- Validation added: no runtime validation; docs-only checkpoint.
+- Playwright smoke: not run; active Next routes are known placeholders from sitemap and navigation check.
+- Commands: `git diff --check` passed.
+- Result: FF0 module overview completed; FF1 FX Rate is next.
 
 ### FF1: FX Rate
 

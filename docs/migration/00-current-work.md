@@ -9,13 +9,13 @@ Last pushed checkpoint: D8 Dual Costing QA fixes (`c91d814 fix: tighten dual cos
 
 ## Current Batch
 
-`Batch D: Dual Costing / Trading / PO`
+`Batch FF: Foreign Finance`
 
 Goal:
 
-- Port dual costing, PO, and trading routes from placeholder/read-only surfaces into Next page/API baselines.
-- Use `po_buys`, `po_sells`, `purchase_bills`, `sales_bills`, `trading_deals`, and stock/cost sources as read/report baselines first.
-- Keep allocation/match/reverse/write flows disabled or deferred until reconciliation and idempotency rules are clear.
+- Port foreign finance routes from placeholders into Next page/API baselines.
+- Start with FX/FCD/read reports before money-moving transfers or receipts.
+- Keep bank statement mutation, FX gain/loss posting, import/match writes, and reversal flows disabled until idempotency and reconciliation rules are clear.
 
 ## File Naming Changes
 
@@ -218,6 +218,7 @@ Current scope:
 - D7b Deal Margin read baseline is implemented, validated, and pushed. It reads `trading_deals` matched sales/purchase amounts and preserves the legacy purple/pink gross margin card layout.
 - D7c Compare Margin read baseline is implemented, validated, and pushed. It compares deal-side `trading_deals` with stock-side `sales_bills` revenue/COGS and preserves the legacy blue/purple/emerald diff-card layout.
 - D8 Dual Costing QA checkpoint is implemented, validated, and pushed. It fixed PO Sell date filters, Trading Matching filter scope, Cost Pool business-facing display refs/status options, Cost Allocator modes, Deal Margin match status, Compare Margin stock scope, and PO Sell OpenAPI row names.
+- FF0 Foreign Finance legacy inventory and DB mapping is in progress. Legacy/Vue has six foreign finance pages; active Next currently has only placeholder routes and no `/api/finance/foreign/*` handlers.
 - Tracking routes must use active Next app only; legacy/Vue tracking views are source material.
 - Keep T1-T3 read/report baselines first; no write flows in tracking pages.
 - DB design preference clarified: use meaningful business-facing codes/running document numbers for user-visible references; keep UUID/opaque IDs internal only.
@@ -230,11 +231,20 @@ Initial F0 findings:
 - Target DB mapping: `sales_bills`, `receipts`, `purchase_bills`, `payments`, `bank_statement`, `accounts`, plus party and branch lookup tables.
 - Bank statement rows are shared side effects from payment/receipt/expense/transfer/petty flows, so bank reconciliation should be read-first before any write changes.
 
+Initial FF0 findings:
+
+- Active Next foreign finance routes are placeholders: International Transfer, Overseas Receipt, FX Rate, FCD Ledger, FX Gain/Loss, and Bank Reconciliation.
+- Existing support tables are `accounts`, `bank_statement`, `currencies`, `fx_gain_loss`, `overseas_recipients`, and `overseas_remittance_purposes`.
+- There is no historical `fx_rates` table, no dedicated `fcd_ledger` table, no confirmed `intl_transfers`/`overseas_receipts` tables, and no `bank_imports` table in the active Prisma schema.
+- FCD and bank reconciliation should be read/derived first from `accounts` and `bank_statement`; do not mutate bank rows until normalized import/reversal/idempotency rules exist.
+- User-facing refs should be `ITF*`, `ORC*`, `ref_no`, account code/account no, and currency symbol/code; do not expose UUID/ref_id as the primary display.
+
 Next concrete task:
 
-1. Start Batch FF0 Foreign Finance legacy inventory and DB mapping.
-2. Keep Cost Pool read-derived first; no allocation or cost mutation until reconciliation rules are locked.
-3. Use sub agents by default for Playwright/browser QA, and split read-only scouting/contract review into parallel sub agents when work can be separated cleanly.
+1. Commit and push FF0 Foreign Finance module overview.
+2. Start FF1 FX Rate baseline.
+3. Keep foreign transfer/receipt bank statement writes deferred until reconciliation, idempotency, and reversal rules are locked.
+4. Use sub agents by default for Playwright/browser QA, and split read-only scouting/contract review into parallel sub agents when work can be separated cleanly.
 
 ## Operating Model
 
