@@ -1029,6 +1029,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Playwright smoke: subagent unauth smoke confirmed `/dual-costing/cost-allocator` redirects to `/login?redirect=%2Fdual-costing%2Fcost-allocator` and unauth API returns `401`. Authenticated main smoke confirmed purple intro band, source selector buttons, product selector, product Cost Pool summary, PO Sell selector section, no horizontal overflow on desktop/mobile, and no console errors. Dev-target currently has no active `/api/sales/po-sell` rows, so candidate preview was verified as contract-ready but cannot render a real preview row until a PO Sell exists for a product with available Cost Pool.
 - Commands: `git diff --check`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 130`, and `npm run build --workspace @ns-scrap-erp/next` passed. OpenAPI lint still reports existing skeleton warnings only.
 - Result: D6 Cost Allocator read-only simulation baseline implemented and validated; confirm/write remains deferred.
+- Commit: `bb42402 feat: add cost allocator simulation baseline` pushed to `main`.
 
 ### D7: Match Log / Deal Margin / Compare Margin
 
