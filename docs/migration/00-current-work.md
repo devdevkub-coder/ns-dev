@@ -5,7 +5,7 @@
 Date: 2026-05-19
 Active app: `apps/next`
 Primary remote: `new-origin`
-Last pushed checkpoint: M5 Cash & Others / Anomaly read baselines (`ab82636 feat: add cash others anomaly baselines`)
+Last pushed checkpoint: M6 Main QA sweep (`1d4a28d fix: audit main dashboard baselines`)
 
 ## Current Batch
 
@@ -23,6 +23,7 @@ Goal:
 - Current implementation slice: M3 `/pending-sales`, `/sales-plan`, and `/sales-commission` read/design baselines is implemented and validated locally. LME save, sales plan lock/save, supplier assignment, bulk assignment, export, and all persistence remain disabled until target schemas, permissions, audit, and stock reservation semantics are designed.
 - Current implementation slice: M4 `/cash-flow-calendar` and `/business-calendar` read/design baselines is implemented and validated locally. It preserves the legacy/Vue blue/purple banners, month controls, KPI card density, chart cards, calendar/table surfaces, today/negative/weekend markers, read-only cash drill modal, and business mode tables while keeping export/auto-sync/write actions disabled.
 - Current implementation slice: M5 `/cash-others-summary` and `/anomaly-detector` read baselines is implemented and validated locally. It keeps Cash & Others legacy visual blocks and Anomaly Detector read-only scan behavior, with fix actions limited to active Next links.
+- Current QA slice: M6 Main QA sweep is implemented, validated, and pushed. It confirmed 11/11 Main route/page/API coverage, unauth guards, authenticated API/page smoke, read-only/write-control constraints, sitemap status, and desktop/mobile no page-level overflow.
 
 ## Previous Batch A Notes
 
