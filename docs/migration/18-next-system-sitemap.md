@@ -157,7 +157,7 @@ Status terms:
 
 | Route | Label | Page status | APIs | Primary tables | Permission |
 |---|---|---|---|---|---|
-| `/trading/dashboard` | Trading Dashboard | placeholder | missing | `trading_deals` expected | `finance.cash.view` |
+| `/trading/dashboard` | Trading Dashboard | read baseline | `GET /api/trading/dashboard` | `trading_deals`, `customers`, `suppliers`, `products` | `finance.cash.view` |
 | `/trading/matching` | Trading Matching | read baseline | `GET /api/trading/matching` | `purchase_bills`, `sales_bills`, `trading_deals` | `finance.cash.view` |
 | `/po-reports/outstanding` | PO ซื้อ/ขาย คงเหลือ | read baseline | `GET /api/po-reports/outstanding` | `po_buys`, `po_sells` | `reports.reports.view` |
 

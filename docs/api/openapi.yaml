@@ -1323,6 +1323,32 @@ paths:
         "200":
           $ref: "#/components/responses/ListOk"
 
+  /api/trading/dashboard:
+    get:
+      tags: [Trading]
+      operationId: readTradingDashboard
+      summary: Read trading dashboard baseline
+      description: >
+        Read-only Trading Dashboard contract for Batch D3. Dashboard exposes
+        deal summaries, status breakdown, trend, top products, and recent deals
+        from `trading_deals`; write/matching actions stay in deferred flows.
+      parameters:
+        - $ref: "#/components/parameters/TradingDashboardQ"
+        - $ref: "#/components/parameters/TradingDashboardStatus"
+        - $ref: "#/components/parameters/TradingDashboardFrom"
+        - $ref: "#/components/parameters/TradingDashboardTo"
+      responses:
+        "200":
+          description: Trading dashboard read model
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TradingDashboardResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /api/po-reports/outstanding:
     get:
       tags: [PO Reports]
@@ -1436,6 +1462,34 @@ components:
         type: string
         format: date
       description: Inclusive PO Buy date upper bound.
+    TradingDashboardFrom:
+      name: from
+      in: query
+      schema:
+        type: string
+        format: date
+      description: Inclusive trading deal date lower bound.
+    TradingDashboardQ:
+      name: q
+      in: query
+      schema:
+        type: string
+        maxLength: 120
+      description: Search by `dealNo`, purchase bill, sales bill, supplier, customer, product, or status.
+    TradingDashboardStatus:
+      name: status
+      in: query
+      schema:
+        type: string
+        maxLength: 40
+      description: Raw Trading Deal status from `trading_deals.status`; cancelled detection normalizes casing only for summary exclusion.
+    TradingDashboardTo:
+      name: to
+      in: query
+      schema:
+        type: string
+        format: date
+      description: Inclusive trading deal date upper bound.
     StockAsOf:
       name: asOf
       in: query
@@ -1680,6 +1734,52 @@ components:
         summary:
           type: object
           additionalProperties: true
+      additionalProperties: true
+    TradingDashboardResponse:
+      type: object
+      required: [recentDeals, summary]
+      properties:
+        filters:
+          type: object
+          additionalProperties: true
+        recentDeals:
+          type: array
+          items:
+            type: object
+            required: [dealNo]
+            properties:
+              dealNo:
+                type: string
+                description: Business-facing Trading Deal number from `trading_deals.deal_no`; not unique yet.
+              date:
+                type: string
+              productName:
+                type: [string, "null"]
+              purchaseBillNo:
+                type: [string, "null"]
+              salesBillNo:
+                type: [string, "null"]
+              status:
+                type: [string, "null"]
+            additionalProperties: true
+        statusBreakdown:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        summary:
+          type: object
+          additionalProperties: true
+        topProducts:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        trend:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
       additionalProperties: true
     StockAdjustRequest:
       allOf:

@@ -955,9 +955,22 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ### D3: Trading Dashboard
 
-- [ ] API `/api/trading/dashboard`
-- [ ] Page `/trading/dashboard`
-- [ ] summary cards/trend/deal status
+- [x] API `/api/trading/dashboard`
+- [x] Page `/trading/dashboard`
+- [x] summary cards/trend/deal status
+
+#### Execution Log
+
+- Task: D3 Trading Dashboard read baseline.
+- Legacy refs: `old-apps/vue/src/views/dualCosting/TradingDashboardView.vue` and `old-apps/legacy/index.html:40502`; legacy dashboard is read-only and uses date filters, KPIs, trend/status/product summaries, and purchase/sales/deal aggregates.
+- Files changed: `apps/next/src/app/api/trading/dashboard/route.ts`, `apps/next/src/app/trading/dashboard/page.tsx`, `apps/next/src/components/trading/TradingDashboardPageClient.tsx`, `docs/api/openapi.yaml`, `docs/migration/17-next-remaining-modules-progress.md`, `docs/migration/00-current-work.md`, `docs/migration/18-next-system-sitemap.md`.
+- DB/API changes: added runtime `GET /api/trading/dashboard` with `q`, `status`, `from`, and `to`; reads `trading_deals` plus customer/product/supplier lookups. No schema migration.
+- Buttons/actions checked: dashboard remains read-only; create/update/reverse/cancel matching actions stay deferred to D4+ because deal number uniqueness, reversal, idempotency, and reconciliation rules are not locked.
+- Modal/form checked: no write form or modal in this slice.
+- Validation added: OpenAPI documents `dealNo` as business-facing and not unique yet; UUID/opaque ids remain internal.
+- Playwright smoke: authenticated `/trading/dashboard` render passed on desktop/mobile; `GET /api/trading/dashboard` returned `200` with 26 dev deals, recent deals, trend, and top products. Subagent unauth smoke confirmed route/API guards return login/`401`.
+- Commands: `git diff --check`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 130`, and `npm run build --workspace @ns-scrap-erp/next` passed. OpenAPI lint still reports existing skeleton warnings only.
+- Result: D3 Trading Dashboard read baseline implemented and validated; matching write/reverse actions remain deferred.
 
 ### D4: Trading Matching Polish
 
