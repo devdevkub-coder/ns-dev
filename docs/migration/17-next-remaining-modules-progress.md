@@ -1727,8 +1727,19 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ### SYS2: Migration Tools
 
-- [ ] Page `/admin/migration-tools`
-- [ ] safe UI only; no destructive action without explicit confirmation
+- [x] Page `/admin/migration-tools`
+- [x] safe UI only; no destructive action without explicit confirmation
+
+#### Execution Log
+
+- Task: SYS2 Migration Tools safe read/design baseline.
+- Legacy refs: Vue `old-apps/vue/src/views/admin/MigrationToolsView.vue`, legacy `view-backup`.
+- Files changed: added `/admin/migration-tools` Next page and client component; updated sitemap.
+- UI baseline: preserved purple-to-pink Backup/Restore hero, storage status card, record count grid, Export Backup card, Restore preview shell, snapshot table, Supabase migration card, Reset Transactions card, Danger Zone card, backup guide, and deferred-action chips.
+- Safety constraints: no API route added; page only reads browser localStorage metadata for storage size/snapshot count. Export, restore, cloud push/pull, user migration, reset transactions, snapshot cleanup, auto-backup, and full reset controls are disabled and documented as deferred until destructive-action design is approved.
+- Browser QA: unauth subagent confirmed `/admin/migration-tools` redirects to `/login?redirect=%2Fadmin%2Fmigration-tools`, login desktop/mobile has no page-level horizontal overflow, and no console/page/network errors were reported. Authenticated main Playwright smoke confirmed legacy markers render, desktop/mobile have no page-level horizontal overflow, and export/restore/cloud migration/user migration/reset destructive controls are present but disabled.
+- Commands: passed `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, and `git diff --check`.
+- Result: implemented and validated locally.
 
 ### SYS3: Audit and Users Polish
 

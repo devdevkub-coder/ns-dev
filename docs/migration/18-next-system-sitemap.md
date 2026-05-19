@@ -222,7 +222,7 @@ Status terms:
 | `/admin/company-profile` | ข้อมูลบริษัท | done | `GET/PUT /api/admin/company-profile` | `company_profile` | `system.settings.manage` |
 | `/admin/change-password` | เปลี่ยน Password ของฉัน | self-service write | Supabase Auth client `signInWithPassword` + `updateUser` | `auth.users` | authenticated self-service |
 | `/admin/transaction-ledger` | Transaction Ledger | read baseline | `GET /api/admin/transaction-ledger` | transaction ledger / `bank_statement` source | `finance.cash.view` |
-| `/admin/migration-tools` | Backup / Restore | placeholder | missing | TBD | `system.backup.manage` |
+| `/admin/migration-tools` | Backup / Restore | read/design baseline | no API; client reads localStorage size only | browser localStorage metadata | `system.backup.manage` |
 | `/admin/audit` | Audit & Activity Log | read baseline | `GET /api/admin/auth-events` | `auth_audit_events` | `system.audit.view` |
 | `/admin/users-permissions` | Users & Permissions | partial write | `GET/POST /api/admin/users`, `PATCH /api/admin/users/{id}`, `PATCH /status`, `POST /invite` | `auth.users`, `app_users`, role/permission tables | `system.users.manage` |
 
