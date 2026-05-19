@@ -845,7 +845,8 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Validation added: customer table restores `Code`, `COGS`, `GP`, `GP%`, `฿/กก.`, received, receivable; supplier table restores Code/Supplier/bills/qty/purchase/avg/paid/payable/paid%; product table restores Code/product/metal group/status/sales/COGS/GP/buy/stock/WAC.
 - Playwright smoke: authenticated main Playwright session passed `/tracking/customer`, `/tracking/supplier`, and `/tracking/product` at desktop `1365x900` and mobile `390x844`; tabs switched correctly, JSON APIs returned `200`, XLSX exports returned `200` with spreadsheet content type and `PK` signature, and no page-level overflow/console errors/failed requests were found. Unauthenticated QA subagent confirmed route redirects to `/login?redirect=...` and APIs return `401` JSON.
 - Commands: `npm run lint --workspace @ns-scrap-erp/next` passed; `npm run type-check --workspace @ns-scrap-erp/next` passed; `npm run build --workspace @ns-scrap-erp/next` passed; `git diff --check` passed.
-- Result: Tracking 360 legacy UI parity revision validated locally and ready to commit/push.
+- Result: Tracking 360 legacy UI parity revision validated and pushed.
+- Commit: `d4bc621 fix: restore tracking 360 legacy ui parity` pushed to `main`.
 
 ## Batch D: Dual Costing / Trading / PO
 
