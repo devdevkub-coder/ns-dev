@@ -1076,7 +1076,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 - [x] QA checker
 - [x] type/lint/build
-- [ ] commit/push
+- [x] commit/push
 
 #### Execution Log
 
@@ -1503,6 +1503,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Fixes applied: removed stale Finance / Accounting placeholder notes from sitemap/progress docs, added `/api/finance-accounting/` to the central permission prefix map, added OpenAPI `401` responses for Finance Accounting endpoints, and changed Historical Data to display `categoryLabel` instead of using `categoryId` as the primary table label.
 - Validation: passed `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 200`, and `git diff --check`. OpenAPI remains valid with the existing warning baseline.
 - Targeted smoke after fixes: authenticated Playwright check on `/finance-accounting/historical-data` returned API `200`, no visible UUID, no desktop/mobile horizontal overflow, and no console/request failures.
+- Push marker: committed and pushed as `f4a9762` (`fix: audit finance accounting baselines`).
 
 ## Batch M: Main Dashboards and Operational Control
 
