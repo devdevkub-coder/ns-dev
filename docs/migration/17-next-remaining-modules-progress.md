@@ -693,11 +693,49 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 ### T0: Module Overview
 
-- [ ] สำรวจ legacy tracking pages ทั้ง customer/supplier/product
-- [ ] map shared data sources: customers, suppliers, products, purchase/sales bills, payments/receipts, stock ledger
-- [ ] สรุป shared filters: year/month/party/product/salesperson/branch
-- [ ] สรุป shared detail/export pattern
-- [ ] สรุป page order และ risk
+- [x] สำรวจ legacy tracking pages ทั้ง customer/supplier/product
+- [x] map shared data sources: customers, suppliers, products, purchase/sales bills, payments/receipts, stock ledger
+- [x] สรุป shared filters: year/month/party/product/salesperson/branch
+- [x] สรุป shared detail/export pattern
+- [x] สรุป page order และ risk
+
+#### Module Overview
+
+- Legacy/Vue refs:
+  - `old-apps/vue/src/views/trackingDashboards/CustomerTrackingView.vue`
+  - `old-apps/vue/src/views/trackingDashboards/SupplierTrackingView.vue`
+  - `old-apps/vue/src/views/trackingDashboards/ProductTrackingView.vue`
+- Current Next state:
+  - `/tracking/supplier` has a read baseline through `GET /api/tracking/supplier`.
+  - `/tracking/customer` and `/tracking/product` are still placeholder routes in the sitemap.
+- Shared source tables:
+  - Customer tracking: `customers`, `sales_bills`, `receipts`, optionally `products`, `salespersons`, `branches`.
+  - Supplier tracking: `suppliers`, `purchase_bills`, `payments`, optionally `products`, `branches`.
+  - Product tracking: `products`, `stock_ledger`, `purchase_bills`, `sales_bills`, optionally production outputs/inputs when product flow needs production detail.
+- Shared filter pattern:
+  - `year`, `month`, party/product selector, search text.
+  - Add `branchId` and `salespersonId` only where the backing table has reliable columns.
+- Shared output pattern:
+  - summary cards, monthly trend, ranked table, top/bottom lists, detail drilldown, `.xlsx` export.
+  - Keep CSV/export labels consistent with existing Next finance/stock exports; prefer `.xlsx` for active app.
+- Page order:
+  - T1 Customer Tracking first because it mirrors AR/sales data already normalized in finance F1.
+  - T2 Supplier Tracking polish second because a baseline already exists and can be extended without new route shell.
+  - T3 Product Tracking third because stock/sales/purchase/production joins are broader and riskier.
+  - T4 QA batch last, using light checks unless code changed since the previous validation.
+- Risks:
+  - Legacy tracking pages contain visual fixture arrays, not authoritative business logic.
+  - Purchase/sales bill item JSON shapes are not fully normalized; product-level tracking must tolerate missing item detail and document fallback behavior.
+  - Production contribution to product tracking should remain read-only until product-output mapping is confirmed.
+
+#### Execution Log
+
+- Task: T0 Tracking 360 inventory and target order.
+- Files changed: this tracker and current work handoff.
+- DB/API changes: docs-only; no runtime API or schema changes.
+- Validation: `git diff --check`.
+- Result: inventory complete; T1 Customer Tracking is next.
+- Commit: this T0 checkpoint.
 
 ### T1: Customer Tracking
 
