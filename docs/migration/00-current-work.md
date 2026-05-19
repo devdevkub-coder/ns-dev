@@ -5,7 +5,7 @@
 Date: 2026-05-19
 Active app: `apps/next`
 Primary remote: `new-origin`
-Last pushed checkpoint: legacy UI parity rule (`59ba09f docs: require legacy ui parity for clone batches`)
+Last pushed checkpoint: FF1 FX Rate baseline (`1cf344c feat: add foreign fx rate baseline`)
 
 ## Current Batch
 
@@ -219,7 +219,7 @@ Current scope:
 - D7b Deal Margin read baseline is implemented, validated, and pushed. It reads `trading_deals` matched sales/purchase amounts and preserves the legacy purple/pink gross margin card layout.
 - D7c Compare Margin read baseline is implemented, validated, and pushed. It compares deal-side `trading_deals` with stock-side `sales_bills` revenue/COGS and preserves the legacy blue/purple/emerald diff-card layout.
 - D8 Dual Costing QA checkpoint is implemented, validated, and pushed. It fixed PO Sell date filters, Trading Matching filter scope, Cost Pool business-facing display refs/status options, Cost Allocator modes, Deal Margin match status, Compare Margin stock scope, and PO Sell OpenAPI row names.
-- FF0 Foreign Finance legacy inventory and DB mapping is completed and pushed. FF1 FX Rate manage baseline is implemented locally and ready for commit/push after final diff check.
+- FF0 Foreign Finance legacy inventory and DB mapping is completed and pushed. FF1 FX Rate manage baseline is implemented, validated, and pushed.
 - Tracking routes must use active Next app only; legacy/Vue tracking views are source material.
 - Keep T1-T3 read/report baselines first; no write flows in tracking pages.
 - DB design preference clarified: use meaningful business-facing codes/running document numbers for user-visible references; keep UUID/opaque IDs internal only.
@@ -242,10 +242,9 @@ Initial FF0 findings:
 
 Next concrete task:
 
-1. Commit and push FF1 FX Rate manage baseline.
-2. Start FF4 FCD Ledger read baseline from FCD accounts and existing bank statement rows.
-3. Keep foreign transfer/receipt bank statement writes deferred until reconciliation, idempotency, and reversal rules are locked.
-4. Use sub agents by default for Playwright/browser QA, and split read-only scouting/contract review into parallel sub agents when work can be separated cleanly.
+1. Start FF4 FCD Ledger read baseline from FCD accounts and existing bank statement rows.
+2. Keep FX gain/loss posting, foreign transfer/receipt bank statement writes, and bank import/match writes deferred until reconciliation, idempotency, and reversal rules are locked.
+3. Use sub agents by default for Playwright/browser QA, and split read-only scouting/contract review into parallel sub agents when work can be separated cleanly.
 
 ## Operating Model
 

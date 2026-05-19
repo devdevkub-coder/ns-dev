@@ -1188,6 +1188,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Commands: `npm run prisma:generate --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 200`, Prisma smoke query, and `git diff --check` passed. OpenAPI still has the existing 113 skeleton warnings outside this endpoint.
 - Supabase advisor: security advisor still reports existing environment-wide RLS/security-definer findings; no FF1-specific blocker was addressed in this batch.
 - Result: FX Rate route is no longer a placeholder; foreign finance money-moving writes remain deferred.
+- Commit: `1cf344c feat: add foreign fx rate baseline` pushed to `main`.
 
 ### FF2: International Transfer
 
