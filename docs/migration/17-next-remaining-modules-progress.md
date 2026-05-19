@@ -1799,7 +1799,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Rule point: explicit legacy UI parity started at `59ba09f docs: require legacy ui parity for clone batches` and was strengthened at `b2258d6 docs: strengthen legacy ui parity rule`.
 - Audit reason: batches completed before `59ba09f` were not guaranteed to preserve cards, colors, banners, tables, button placement, labels, spacing, and compact density with the same strictness.
 - First 10 routes for post-SYS UI parity audit:
-  1. `/finance/ap`
+  1. `/finance/ap` - revised in UI parity checkpoint
   2. `/finance/ar`
   3. `/finance/cash-position`
   4. `/finance/bank`
@@ -1810,6 +1810,27 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
   9. `/sales/po-sell`
   10. `/trading/dashboard`
 - Batch priority after first 10: finish Finance and Debt (`/finance/supplier-advance`, `/finance/customer-advance`), Stock (`/stock/status-convert`, `/stock/customer-return`), Tracking 360, then Dual Costing / Trading / PO routes.
+
+### UI-P1: `/finance/ap` Legacy UI Parity Revision
+
+#### Execution Log
+
+- Task: revise AP page to match legacy/Vue visual baseline after SYS completion.
+- Legacy refs:
+  - `old-apps/legacy/index.html:10525` header, mega payable card, aging bars, top supplier card, KPI cards, bucket cards, tabs, summary/detail tables.
+  - `old-apps/vue/src/views/finance/ApView.vue:100` cloned AP visual baseline.
+- Files changed:
+  - `apps/next/src/components/purchase-flow/AccountsPayablePageClient.tsx`
+  - `apps/next/src/app/api/finance/ap/route.ts`
+  - `docs/api/openapi.yaml`
+- DB/API changes: no schema change. `GET /api/finance/ap` now accepts `channelId` and `bucket` query filters and returns `filters.channels` so the UI can restore legacy Channel/Aging controls.
+- Buttons/actions checked: summary/detail red segmented tabs, supplier/channel/aging filters, export button, reset filter button, AP detail bill button.
+- Modal/form checked: existing AP detail modal still opens from bill number; no write form was added.
+- Validation added: OpenAPI AP query parameters updated for `channelId` and `bucket`.
+- Playwright smoke: authenticated main browser checked `/finance/ap` desktop 1440x900 and mobile 390x844; no page-level horizontal overflow, no console warnings/errors, `/api/auth/me` and `/api/finance/ap` returned 200. Subagent source-level QA confirmed restored header/top cards/KPIs/tables, but its isolated browser session was blocked by login.
+- Commands: `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `git diff --check`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 50`.
+- Result: `/finance/ap` now restores the legacy AP visual structure: red header, three top cards, colored KPI cards, aging cards, legacy tab/control row, 9-column summary table with footer, legacy detail table order with Channel, and full-filter detail footer total. Export remains `.xlsx` by active business-export rule.
+- Commit: this checkpoint.
 
 ## Current Priority Queue
 

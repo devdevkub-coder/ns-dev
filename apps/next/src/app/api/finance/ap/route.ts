@@ -11,6 +11,8 @@ export const runtime = 'nodejs'
 
 type ApQuery = {
   branchId: string | null
+  bucket: string | null
+  channelId: string | null
   from: string | null
   page: number
   pageSize: number
@@ -38,6 +40,8 @@ function parseQuery(url: URL): ApQuery {
 
   return {
     branchId: url.searchParams.get('branchId') || null,
+    bucket: url.searchParams.get('bucket') || null,
+    channelId: url.searchParams.get('channelId') || null,
     from: url.searchParams.get('from') || null,
     page: Number.isFinite(page) && page > 0 ? Math.floor(page) : 1,
     pageSize: Number.isFinite(pageSize) && pageSize > 0 ? Math.min(Math.floor(pageSize), 500) : 50,
@@ -53,6 +57,7 @@ function parseQuery(url: URL): ApQuery {
 function billWhere(query: ApQuery): Prisma.purchase_billsWhereInput {
   return {
     ...(query.branchId ? { branch_id: query.branchId } : {}),
+    ...(query.channelId ? { channel_id: query.channelId } : {}),
     ...(query.supplierId ? { supplier_id: query.supplierId } : {}),
     ...(query.status ? { status: query.status } : { NOT: { status: 'cancelled' } }),
     ...(query.from || query.to
@@ -93,7 +98,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url)
     const query = parseQuery(url)
 
-    const [bills, payments, suppliers, branches] = await Promise.all([
+    const [bills, payments, suppliers, branches, channels] = await Promise.all([
       prisma.purchase_bills.findMany({
         include: {
           branches: { select: { id: true, name: true } },
@@ -121,6 +126,11 @@ export async function GET(request: Request) {
         where: { active: true },
       }),
       prisma.branches.findMany({
+        orderBy: [{ name: 'asc' }],
+        select: { active: true, code: true, id: true, name: true },
+        where: { active: true },
+      }),
+      prisma.purchase_channels.findMany({
         orderBy: [{ name: 'asc' }],
         select: { active: true, code: true, id: true, name: true },
         where: { active: true },
@@ -168,6 +178,7 @@ export async function GET(request: Request) {
         }
       })
       .filter((row) => row.payableBalance > 0.01)
+      .filter((row) => !query.bucket || row.bucket === query.bucket)
       .filter((row) => !search || `${row.docNo} ${row.supplierCode} ${row.supplierName} ${row.channelName} ${row.branchName}`.toLowerCase().includes(search))
 
     allRows.sort((left, right) => {
@@ -250,6 +261,7 @@ export async function GET(request: Request) {
       bySupplier,
       filters: {
         branches: branches.map((row) => ({ active: row.active, code: row.code, id: row.id, name: row.name })),
+        channels: channels.map((row) => ({ active: row.active, code: row.code, id: row.id, name: row.name })),
         statuses,
         suppliers: suppliers.map((row) => ({ active: row.active, code: row.code, id: row.id, name: row.name })),
       },

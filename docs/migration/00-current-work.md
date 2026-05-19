@@ -5,7 +5,7 @@
 Date: 2026-05-19
 Active app: `apps/next`
 Primary remote: `new-origin`
-Last pushed checkpoint: SYS5 System cleanup route QA (`2a76385 fix: audit system cleanup routes`)
+Last pushed checkpoint: UI-P1 AP legacy UI parity (`fix: restore ap legacy ui parity`)
 
 ## Current Batch
 
@@ -55,6 +55,7 @@ Status date: 2026-05-19
 - Batches completed after `59ba09f` should be treated as implemented under the legacy UI parity rule. This includes the Foreign Finance baselines and the Finance / Accounting A6, A7, A5, and A4 batches already pushed.
 - Batches completed before `59ba09f` were not guaranteed to have the same explicit visual parity standard. They should be queued for a retrospective UI parity audit/revise pass before being marked final for UAT, especially screens cloned from legacy/Vue with cards, dashboards, dense tables, or color-coded finance states.
 - For future batches, do not redesign first. Clone the legacy visual surface first, wire active Next data second, then document any approved deviation.
+- Current parity slice: `/finance/ap` was revised first after SYS. It restores the legacy AP red header, mega payable/aging/top supplier cards, colored KPIs, aging cards, red tabs, summary/detail table layout, Channel/Aging filters, and full-filter detail footer total while keeping export as active `.xlsx` behavior.
 
 ## File Naming Changes
 
