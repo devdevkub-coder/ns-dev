@@ -128,7 +128,7 @@ Status terms:
 | `/finance/bank` | Cash / Bank Statement | read baseline | `GET /api/finance/bank` | `bank_statement`, `accounts` | `finance.cash.view` |
 | `/finance/cash-position` | Cash Position | read baseline | `GET /api/finance/cash-position` | `accounts`, `bank_statement`, `sales_bills`, `purchase_bills` | `finance.cash.view` |
 | `/finance/supplier-advance` | จ่ายล่วงหน้า Supplier | read baseline | `GET /api/finance/supplier-advance` | `bank_statement` (`SADV`), `suppliers`, `accounts` | `finance.cash.view` |
-| `/finance/customer-advance` | รับล่วงหน้าจาก Customer | placeholder | missing | TBD | `finance.cash.view` |
+| `/finance/customer-advance` | รับล่วงหน้าจาก Customer | read baseline | `GET /api/finance/customer-advance` | `bank_statement` (`CADV`), `customers`, `accounts` | `finance.cash.view` |
 
 ### Foreign Finance
 
