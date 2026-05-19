@@ -68,7 +68,7 @@ export function CostAllocatorPageClient() {
   const [isLoading, setIsLoading] = useState(true)
   const [selectedPoSellId, setSelectedPoSellId] = useState('')
   const [selectedProductId, setSelectedProductId] = useState('')
-  const [selectedSourceType, setSelectedSourceType] = useState<'po-sell' | 'spot-sell'>('po-sell')
+  const [showPreview, setShowPreview] = useState(false)
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams()
@@ -101,30 +101,21 @@ export function CostAllocatorPageClient() {
 
   const resetSale = () => {
     setSelectedPoSellId('')
+    setShowPreview(false)
   }
 
   return (
     <section className="space-y-4">
       <div className="rounded-lg border border-purple-200 bg-purple-50 p-3 text-sm text-purple-800">
-        <strong>Cost Allocator (Dual Costing)</strong> - สำหรับทองแดง · ทองเหลือง เท่านั้น
-        <div className="mt-1 text-xs">หมวดอื่นใช้ WAC อัตโนมัติ ไม่ต้องผ่าน Cost Allocator · 0 แหล่งขาย - 1 สินค้า - 2 รายการขาย - Match ต้นทุน Cost Pool</div>
+        <strong>Cost Allocator</strong> — เลือก<strong>สินค้า</strong> → เลือก<strong>PO ขาย</strong> → Auto/Manual Match ต้นทุนจาก Cost Pool
       </div>
 
       {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       <div className="rounded-xl bg-white p-4 shadow">
-        <h3 className="mb-3 font-semibold">0 เลือกแหล่งขายที่จะ Allocate ต้นทุน</h3>
-        <div className="flex flex-wrap gap-2">
-          <button className={sourceButtonClass(selectedSourceType === 'po-sell')} type="button" onClick={() => { setSelectedSourceType('po-sell'); resetSale() }}>PO Sell (มี PO ขาย)</button>
-          <button className={sourceButtonClass(selectedSourceType === 'spot-sell')} type="button" onClick={() => { setSelectedSourceType('spot-sell'); resetSale() }}>Spot Sell (บิลขายไม่มี PO)</button>
-        </div>
-        {selectedSourceType === 'spot-sell' ? <div className="mt-3 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-700">Spot Sell ยังเป็น read-only placeholder ใน batch นี้; simulation ใช้ PO Sell ก่อนเพื่อไม่เขียน allocation ผิด source.</div> : null}
-      </div>
-
-      <div className="rounded-xl bg-white p-4 shadow">
-        <h3 className="mb-3 font-semibold">1 เลือกสินค้าที่ต้องการ Match ต้นทุน</h3>
+        <h3 className="mb-3 font-semibold">① เลือกสินค้าที่ต้องการ Match ต้นทุน</h3>
         <select className="w-full rounded border px-3 py-2 text-base" value={selectedProductId} onChange={(event) => { setSelectedProductId(event.target.value); resetSale() }}>
-          <option value="">- เลือกสินค้า -</option>
+          <option value="">— เลือกสินค้า —</option>
           {(data?.filters.products ?? []).map((product) => <option key={product.id} value={product.id}>{product.code ? `${product.code} - ` : ''}{product.name}{product.metalGroup ? ` · ${product.metalGroup}` : ''}</option>)}
         </select>
         {hasSelection ? (
@@ -140,23 +131,23 @@ export function CostAllocatorPageClient() {
 
       {hasSelection ? (
         <div className="rounded-xl bg-white p-4 shadow">
-          <h3 className="mb-3 font-semibold">2 เลือก PO ขาย ของสินค้านี้ที่จะ Match ต้นทุน</h3>
+          <h3 className="mb-3 font-semibold">② เลือก PO ขาย ของสินค้านี้ที่จะ Match ต้นทุน</h3>
           <div className="grid gap-3 md:grid-cols-3">
             <div className="md:col-span-2">
               <label className="mb-1 block text-xs">PO Sell *</label>
-              <select className="w-full rounded border px-2 py-2" disabled={selectedSourceType !== 'po-sell'} value={selectedPoSellId} onChange={(event) => setSelectedPoSellId(event.target.value)}>
+              <select className="w-full rounded border px-2 py-2" value={selectedPoSellId} onChange={(event) => { setSelectedPoSellId(event.target.value); setShowPreview(false) }}>
                 <option value="">-- เลือก PO ขาย --</option>
                 {(data?.poSells ?? []).map((po) => <option key={po.id} value={po.id}>{po.docNo} | {po.customerName} | จองขาย {formatMoney(po.qty)} กก. · เหลือต้อง match {formatMoney(po.remainingQty)} กก. · ฿{formatMoney(po.unitPrice)}/กก.</option>)}
               </select>
-              {!isLoading && selectedSourceType === 'po-sell' && (data?.poSells.length ?? 0) === 0 ? <div className="mt-1 text-xs text-amber-700">ไม่มี PO ขาย ของสินค้านี้ที่ยังไม่ match - สร้าง PO Sell ก่อน</div> : null}
+              {!isLoading && (data?.poSells.length ?? 0) === 0 ? <div className="mt-1 text-xs text-amber-700">⚠ ไม่มี PO ขาย ของสินค้านี้ที่ยังไม่ match — สร้าง PO Sell ก่อน</div> : null}
             </div>
             <div>
               <label className="mb-1 block text-xs">Allocation Mode</label>
               <select className="w-full rounded border px-2 py-2" value={allocationMode} onChange={(event) => setAllocationMode(event.target.value)}>
                 <option value="FIFO">FIFO - ต้นทุนเก่าก่อน</option>
-                <option value="LIFO">LIFO - ต้นทุนล่าสุดก่อน</option>
-                <option value="Cheap">Cheap First - ต้นทุนถูกก่อน</option>
-                <option value="Expensive">Expensive First - ต้นทุนแพงก่อน</option>
+                <option value="Cheap">Cheap First - ต้นทุนถูกก่อน (Max Margin)</option>
+                <option value="Expensive">Expensive First - ต้นทุนแพงก่อน (Conservative)</option>
+                <option value="Manual">Manual - เลือกเอง</option>
               </select>
             </div>
           </div>
@@ -170,12 +161,17 @@ export function CostAllocatorPageClient() {
               <SummaryItem label="ต้อง Match อีก" tone="amber" value={`${formatMoney(data?.selectedPoSell?.remainingQty ?? 0)} กก.`} />
             </div>
           ) : null}
+          {hasPoSell ? (
+            <div className="mt-3">
+              <button className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-bold text-white hover:bg-blue-700" type="button" onClick={() => setShowPreview(true)}>🎯 Auto Match จาก Cost Pool</button>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
-      {hasCandidates ? (
+      {showPreview && hasCandidates ? (
         <div className="rounded-xl bg-white p-4 shadow">
-          <h3 className="mb-3 font-semibold">Preview การ Match (read-only simulation)</h3>
+          <h3 className="mb-3 font-semibold">2. Preview การ Match (ปรับ qty_to_use ได้สำหรับ Manual)</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-100"><tr><th className="p-2 text-left">Source</th><th className="p-2 text-left">เลขที่</th><th className="p-2 text-left">Counterparty</th><th className="p-2 text-right">Available</th><th className="p-2 text-right">ต้นทุน/หน่วย</th><th className="p-2 text-right">qty ที่ใช้</th><th className="p-2 text-right">มูลค่าใช้</th></tr></thead>
@@ -187,7 +183,7 @@ export function CostAllocatorPageClient() {
                     <td className="p-2">{row.counterparty}</td>
                     <td className="p-2 text-right">{formatMoney(row.availableQty)}</td>
                     <td className="p-2 text-right">{formatMoney(row.unitCost)}</td>
-                    <td className="p-2 text-right font-medium">{formatMoney(row.qtyToUse)}</td>
+                    <td className="p-2 text-right"><input className="w-24 rounded border px-2 py-1 text-right" disabled type="number" value={row.qtyToUse} readOnly /></td>
                     <td className="p-2 text-right font-medium">{formatMoney(row.totalCostUse)}</td>
                   </tr>
                 ))}
@@ -200,15 +196,11 @@ export function CostAllocatorPageClient() {
             <MetricBox label="ต้นทุนที่จะตัด" tone="red" value={formatMoney(data?.summary.totalCostMatch ?? 0)} />
             <MetricBox label="Expected Margin" tone={(data?.summary.expectedMargin ?? 0) >= 0 ? 'purple' : 'red'} value={formatMoney(data?.summary.expectedMargin ?? 0)} />
           </div>
-          <div className="mt-4 flex justify-end gap-2"><button className="px-4 py-2 text-sm" type="button" onClick={resetSale}>ยกเลิก</button><button className="rounded-lg bg-slate-300 px-5 py-2 text-sm font-medium text-slate-600" disabled type="button">ยืนยัน Match deferred</button></div>
+          <div className="mt-4 flex justify-end gap-2"><button className="px-4 py-2 text-sm" type="button" onClick={() => setShowPreview(false)}>ยกเลิก</button><button className="rounded-lg bg-purple-600 px-5 py-2 text-sm font-medium text-white opacity-60" disabled type="button">✓ ยืนยัน Match → สร้าง Match Log</button></div>
         </div>
       ) : null}
     </section>
   )
-}
-
-function sourceButtonClass(active: boolean) {
-  return active ? 'rounded-lg bg-purple-600 px-4 py-2 text-sm font-bold text-white' : 'rounded-lg bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200'
 }
 
 function SummaryItem({ label, tone = 'normal', value }: { label: string; tone?: 'amber' | 'blue' | 'emerald' | 'normal'; value: string }) {

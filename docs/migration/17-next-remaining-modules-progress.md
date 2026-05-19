@@ -1131,7 +1131,40 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Validation added: PO Buy restores legacy blue info copy, six colored KPI cards, Top 5 Supplier, outstanding panel, status chips, purpose cards, checkbox/action table shell, and empty wording. Trading Matching restores fuchsia hero, disabled action cluster, GP mega card, status donut, match-rate/monthly/top-pair panels, compact KPI row, two legacy tabs, colored deal table, cancelled toggle, disabled Recalc/Reverse shell, and unmatched split tables.
 - Playwright smoke: authenticated main Playwright session passed `/purchase/po-buy` and `/trading/matching` at desktop `1365x900` and mobile `390x844`; tabs/purpose buttons switched correctly, JSON APIs returned `200`, XLSX exports returned `200` with spreadsheet content type and `PK` signature, disabled write-risk buttons remained disabled, and no page-level overflow/console errors/failed requests were found. Unauthenticated QA subagent confirmed route redirects to `/login?redirect=...` and APIs return `401` JSON.
 - Commands: `npm run lint --workspace @ns-scrap-erp/next` passed; `npm run type-check --workspace @ns-scrap-erp/next` passed; `npm run build --workspace @ns-scrap-erp/next` passed; `git diff --check` passed.
-- Result: UI-D1 PO Buy / Trading Matching legacy UI parity revision validated locally and ready to commit/push.
+- Result: UI-D1 PO Buy / Trading Matching legacy UI parity revision validated and pushed.
+- Commit: `0c9df8e fix: restore po trading legacy ui parity` pushed to `main`.
+
+### UI-ADM1: Company Profile Legacy UI Parity Queue
+
+- [ ] `/admin/company-profile` parity recheck requested from production URL `https://new-ns-scrap-erp.vercel.app/admin/company-profile`
+- [ ] compare active Next page against `old-apps/legacy` and `old-apps/vue/src/views/admin/CompanyProfileView.vue`
+- [ ] keep existing settings writes guarded by `system.settings.manage`; do not add new write behavior without validation/audit review
+
+#### Queue Note
+
+- User requested adding this page to the active parity list after UI-D1 work started.
+- Existing references: sitemap already lists `/admin/company-profile` with `GET/PUT /api/admin/company-profile`; visual audit checklist already contains `companyProfile`.
+- Execution order: finish current Batch D Cost Pool / Cost Allocator parity slice first, then run Company Profile parity audit/patch before moving to the next broad module unless a blocker appears.
+
+### UI-D2: Cost Pool / Cost Allocator Legacy UI Parity Revision
+
+- [x] `/dual-costing/cost-pool` legacy warning copy/filter/table parity
+- [x] `/dual-costing/cost-allocator` legacy step order/action/preview parity
+- [x] keep confirm/match write control disabled
+- [ ] Match Log / Deal Margin / Compare Margin parity follow-up
+
+#### Execution Log
+
+- Task: post-SYS Batch D Group B legacy UI parity revision.
+- Legacy refs: `old-apps/legacy/index.html:22591`, `old-apps/legacy/index.html:22624`, `old-apps/legacy/index.html:22653`, `old-apps/legacy/index.html:22818`, `old-apps/legacy/index.html:22872`, `old-apps/legacy/index.html:22877`.
+- Files changed: `apps/next/src/components/dual-costing/CostPoolPageClient.tsx`, `apps/next/src/components/dual-costing/CostAllocatorPageClient.tsx`, this tracker, current work handoff.
+- DB/API changes: no schema migration and no route-handler change; Cost Allocator keeps read-only simulation payload and Cost Pool keeps existing `.xlsx` export.
+- Buttons/actions checked: Cost Allocator restores legacy `🎯 Auto Match จาก Cost Pool` placement and preview/confirm surface, but confirm remains disabled. Cost Pool removes the extra detail action column from the legacy table surface.
+- Modal/form checked: no mutation form was added; Cost Pool detail modal surface was removed from this parity slice to match legacy first-screen table shape.
+- Validation added: Cost Pool restores legacy `💰/⚠/≠` warning copy, compact filter row, and 12-column table ending at status. Cost Allocator restores legacy `①/②` step sequence, `Manual` option as read-only shell, Auto Match button placement, disabled manual qty inputs, and disabled `✓ ยืนยัน Match → สร้าง Match Log` button.
+- Playwright smoke: authenticated main Playwright session passed `/dual-costing/cost-pool` and `/dual-costing/cost-allocator` at desktop `1365x900` and mobile `390x844`; JSON APIs returned `200`, Cost Pool XLSX export returned `200` with spreadsheet content type and `PK` signature, and no page-level overflow/console errors/failed requests were found. Unauthenticated QA subagent confirmed route redirects to `/login?redirect=...` and APIs return `401` JSON.
+- Commands: `npm run lint --workspace @ns-scrap-erp/next` passed; `npm run type-check --workspace @ns-scrap-erp/next` passed; `npm run build --workspace @ns-scrap-erp/next` passed; `git diff --check` passed.
+- Result: UI-D2 Cost Pool / Cost Allocator legacy UI parity revision validated locally and ready to commit/push.
 
 ## Batch FF: Foreign Finance
 
