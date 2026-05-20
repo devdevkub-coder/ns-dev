@@ -136,7 +136,7 @@ async function optionsPayload() {
     }),
     prisma.products.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true, unit: true } }),
     prisma.salespersons.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
-    prisma.suppliers.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, id: true, name: true } }),
+    prisma.suppliers.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, id: true, name: true, sales_id: true } }),
     prisma.warehouses.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, branch_id: true, id: true, name: true } }),
   ])
 
@@ -338,12 +338,11 @@ export async function POST(request: Request) {
 
     const productIds = [...new Set(values.items.map((item) => item.productId))]
     const poBuyIds = [...new Set([values.poBuyId, ...values.items.map((item) => item.poBuyId)].filter(Boolean) as string[])]
-    const [supplier, branch, warehouse, channel, salesperson, poBuys, products] = await Promise.all([
-      prisma.suppliers.findFirst({ where: { active: true, id: values.supplierId } }),
+    const [supplier, branch, warehouse, channel, poBuys, products] = await Promise.all([
+      prisma.suppliers.findFirst({ select: { id: true, sales_id: true }, where: { active: true, id: values.supplierId } }),
       values.branchId ? prisma.branches.findFirst({ where: { active: true, id: values.branchId } }) : Promise.resolve(null),
       values.warehouseId ? prisma.warehouses.findFirst({ where: { active: true, id: values.warehouseId } }) : Promise.resolve(null),
       values.channelId ? prisma.purchase_channels.findFirst({ where: { active: true, id: values.channelId } }) : Promise.resolve(null),
-      values.salesId ? prisma.salespersons.findFirst({ where: { active: true, id: values.salesId } }) : Promise.resolve(null),
       poBuyIds.length ? prisma.po_buys.findMany({ where: { id: { in: poBuyIds } } }) : Promise.resolve([]),
       prisma.products.findMany({ where: { active: true, id: { in: productIds } } }),
     ])
@@ -352,8 +351,8 @@ export async function POST(request: Request) {
     if (values.branchId && !branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (values.warehouseId && !warehouse) return NextResponse.json({ code: 'BAD_REQUEST', error: 'คลังไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (values.channelId && !channel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ช่องทางไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
-    if (values.salesId && !salesperson) return NextResponse.json({ code: 'BAD_REQUEST', error: 'เซลที่ดูแลไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (values.branchId && warehouse?.branch_id && warehouse.branch_id !== values.branchId) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาและคลังไม่ตรงกัน' }, { status: 400 })
+    const supplierSalesId = supplier.sales_id ?? null
 
     const effectiveBranchId = values.branchId ?? warehouse?.branch_id ?? null
     const effectiveBranch = branch ?? (effectiveBranchId ? await prisma.branches.findFirst({ where: { active: true, id: effectiveBranchId } }) : null)
@@ -422,7 +421,7 @@ export async function POST(request: Request) {
               po_buy_id: values.poBuyId,
               purchase_source: values.purchaseSource,
               ref_no: values.refNo,
-              sales_id: values.salesId,
+              sales_id: supplierSalesId,
               status: 'open',
               subtotal: totals.subtotal,
               supplier_id: values.supplierId,
@@ -499,13 +498,12 @@ export async function PATCH(request: Request) {
 
     const productIds = [...new Set(values.items.map((item) => item.productId))]
     const poBuyIds = [...new Set([values.poBuyId, ...values.items.map((item) => item.poBuyId)].filter(Boolean) as string[])]
-    const [existingBill, supplier, branch, warehouse, channel, salesperson, poBuys, products, payments] = await Promise.all([
+    const [existingBill, supplier, branch, warehouse, channel, poBuys, products, payments] = await Promise.all([
       prisma.purchase_bills.findUnique({ where: { id } }),
-      prisma.suppliers.findFirst({ where: { active: true, id: values.supplierId } }),
+      prisma.suppliers.findFirst({ select: { id: true, sales_id: true }, where: { active: true, id: values.supplierId } }),
       values.branchId ? prisma.branches.findFirst({ where: { active: true, id: values.branchId } }) : Promise.resolve(null),
       values.warehouseId ? prisma.warehouses.findFirst({ where: { active: true, id: values.warehouseId } }) : Promise.resolve(null),
       values.channelId ? prisma.purchase_channels.findFirst({ where: { active: true, id: values.channelId } }) : Promise.resolve(null),
-      values.salesId ? prisma.salespersons.findFirst({ where: { active: true, id: values.salesId } }) : Promise.resolve(null),
       poBuyIds.length ? prisma.po_buys.findMany({ where: { id: { in: poBuyIds } } }) : Promise.resolve([]),
       prisma.products.findMany({ where: { active: true, id: { in: productIds } } }),
       prisma.payments.findMany({
@@ -519,8 +517,8 @@ export async function PATCH(request: Request) {
     if (values.branchId && !branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (values.warehouseId && !warehouse) return NextResponse.json({ code: 'BAD_REQUEST', error: 'คลังไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (values.channelId && !channel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ช่องทางไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
-    if (values.salesId && !salesperson) return NextResponse.json({ code: 'BAD_REQUEST', error: 'เซลที่ดูแลไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (values.branchId && warehouse?.branch_id && warehouse.branch_id !== values.branchId) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาและคลังไม่ตรงกัน' }, { status: 400 })
+    const supplierSalesId = supplier.sales_id ?? null
 
     const effectiveBranchId = values.branchId ?? warehouse?.branch_id ?? null
     const effectiveBranch = branch ?? (effectiveBranchId ? await prisma.branches.findFirst({ where: { active: true, id: effectiveBranchId } }) : null)
@@ -579,7 +577,7 @@ export async function PATCH(request: Request) {
           po_buy_id: values.poBuyId,
           purchase_source: values.purchaseSource,
           ref_no: values.refNo,
-          sales_id: values.salesId,
+          sales_id: supplierSalesId,
           status,
           subtotal: totals.subtotal,
           supplier_id: values.supplierId,

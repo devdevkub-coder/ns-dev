@@ -78,6 +78,7 @@ type Option = {
   id: string
   label?: string | null
   name: string
+  sales_id?: string | null
   supplier_id?: string | null
   unit?: string | null
 }
@@ -241,7 +242,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const activeBranches = options.branches.filter((option) => option.active !== false)
   const activePoBuys = options.poBuys.filter((option) => option.active !== false && (!form.supplierId || option.supplier_id === form.supplierId))
   const activeProducts = options.products.filter((option) => option.active !== false)
-  const activeSalespersons = options.salespersons.filter((option) => option.active !== false)
   const activeSuppliers = options.suppliers.filter((option) => option.active !== false)
   const formSubtotal = form.items.reduce((sum, item) => sum + Math.max(0, item.qty * item.price - item.discount), 0)
   const formTotalWeight = form.items.reduce((sum, item) => sum + item.qty, 0)
@@ -344,6 +344,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     setForm((current) => ({
       ...current,
       [key]: value,
+      ...(key === 'supplierId' ? { salesId: activeSuppliers.find((supplier) => supplier.id === value)?.sales_id ?? null } : {}),
       ...(key === 'branchId' ? { warehouseId: null } : {}),
       ...(key === 'hasVat' && value === false ? { vatType: 'NONE' } : {}),
       ...(key === 'vatInvoiceReceived' && value === false ? { vatInvoiceDate: null, vatInvoiceNo: null } : {}),
@@ -661,10 +662,9 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 <div className="grid gap-3 md:grid-cols-3">
                 <Field error={fieldErrors.refNo} label="เลขที่อ้างอิง (บิล Supplier)"><input className="w-full rounded border px-3 py-2 font-mono" placeholder="เช่น INV-12345" value={form.refNo ?? ''} onChange={(event) => updateForm('refNo', event.target.value || null)} /></Field>
                 <SupplierSearchCombobox className="md:col-span-3" error={fieldErrors.supplierId} options={activeSuppliers} value={form.supplierId} onChange={(value) => updateForm('supplierId', value)} />
-                <SelectField error={fieldErrors.branchId} label="สาขา/คลัง *" options={activeBranches} value={form.branchId} onChange={(value) => updateForm('branchId', value)} />
+                <SelectField hideCode error={fieldErrors.branchId} label="สาขา/คลัง *" options={activeBranches} value={form.branchId} onChange={(value) => updateForm('branchId', value)} />
                 <Field error={fieldErrors.licensePlate} label="ทะเบียนรถ"><input className="w-full rounded border px-3 py-2 uppercase" placeholder="เช่น 1กข-1234 / 70-1234" value={form.licensePlate ?? ''} onChange={(event) => updateForm('licensePlate', event.target.value.toUpperCase() || null)} /></Field>
                 <Field error={fieldErrors.contactPhone} label="เบอร์โทร"><input className="w-full rounded border px-3 py-2" inputMode="tel" placeholder="085-555-5555" value={form.contactPhone ?? ''} onChange={(event) => updateForm('contactPhone', sanitizePhoneInput(event.target.value) || null)} /></Field>
-                <SelectField error={fieldErrors.salesId} label="เซลที่ดูแล" options={activeSalespersons} placeholder="ลูกค้าบริษัท / ไม่มีเซล" value={form.salesId ?? ''} onChange={(value) => updateForm('salesId', value || null)} />
                 <Field label="ที่มา"><select className="w-full rounded border px-3 py-2" value={form.purchaseSource} onChange={(event) => updateForm('purchaseSource', event.target.value as PurchaseBillFormValues['purchaseSource'])}><option value="SPOT_BUY">SPOT BUY</option><option value="PO_RECEIPT">PO RECEIPT</option><option value="MIXED">MIXED</option></select></Field>
                 </div>
               </div>
@@ -733,7 +733,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     </tfoot>
                   </table>
                 </div>
-                {form.salesId ? <div className="mt-3 rounded-lg border border-purple-200 bg-purple-50 p-3 text-sm text-purple-700">เซลที่ดูแลบิลนี้: <b>{activeSalespersons.find((sales) => sales.id === form.salesId)?.name ?? '-'}</b></div> : null}
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -878,12 +877,12 @@ function Field({ children, className, error, label }: { children: ReactNode; cla
   return <label className={className}><span className="mb-1 block text-xs font-bold text-slate-700">{label}</span>{children}{error ? <span className="mt-1 block text-xs text-red-600">{error}</span> : null}</label>
 }
 
-function SelectField({ className, error, label, onChange, options, placeholder = 'เลือก', value }: { className?: string; error?: string; label: string; onChange: (value: string) => void; options: Option[]; placeholder?: string; value: string }) {
+function SelectField({ className, error, hideCode = false, label, onChange, options, placeholder = 'เลือก', value }: { className?: string; error?: string; hideCode?: boolean; label: string; onChange: (value: string) => void; options: Option[]; placeholder?: string; value: string }) {
   return (
     <Field className={className} error={error} label={label}>
       <select className="w-full rounded border px-3 py-2" value={value} onChange={(event) => onChange(event.target.value)}>
         <option value="">{placeholder}</option>
-        {options.map((option) => <option key={option.id} value={option.id}>{option.code ? `${option.code} — ` : ''}{option.name}</option>)}
+        {options.map((option) => <option key={option.id} value={option.id}>{!hideCode && option.code ? `${option.code} — ` : ''}{option.name}</option>)}
       </select>
     </Field>
   )
