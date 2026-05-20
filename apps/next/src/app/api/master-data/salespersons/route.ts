@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { errorJson, masterDataJson, masterDataListJson, parseMasterDataForm, toIso, toNumber } from '@/lib/server/master-data'
+import { errorJson, masterDataJson, masterDataListJson, parseMasterDataForm, toIso } from '@/lib/server/master-data'
 import { z } from 'zod'
 
 export const runtime = 'nodejs'
@@ -14,7 +14,7 @@ function mapSalesperson(row: Awaited<ReturnType<typeof prisma.salespersons.findM
     type: null,
     phone: row.phone,
     email: row.email,
-    note: row.note,
+    note: null,
     symbol: null,
     rateToThb: null,
     parentId: null,
@@ -27,8 +27,8 @@ function mapSalesperson(row: Awaited<ReturnType<typeof prisma.salespersons.findM
     branchId: null,
     branchName: null,
     address: null,
-    commissionPct: toNumber(row.commission_pct),
-    baseSalary: toNumber(row.base_salary),
+    commissionPct: null,
+    baseSalary: null,
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   }
@@ -93,9 +93,6 @@ export async function POST(request: Request) {
         name: values.name,
         phone: values.phone || null,
         email: values.email || null,
-        commission_pct: values.commissionPct,
-        base_salary: values.baseSalary,
-        note: values.note || null,
         active: values.active,
       },
       update: {
@@ -103,9 +100,6 @@ export async function POST(request: Request) {
         name: values.name,
         phone: values.phone || null,
         email: values.email || null,
-        commission_pct: values.commissionPct,
-        base_salary: values.baseSalary,
-        note: values.note || null,
         active: values.active,
       },
     })

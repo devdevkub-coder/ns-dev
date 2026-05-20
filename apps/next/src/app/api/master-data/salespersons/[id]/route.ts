@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { errorJson, masterDataJson, type MasterDataRouteProps, updateMasterDataStatusSchema, toIso, toNumber } from '@/lib/server/master-data'
+import { errorJson, masterDataJson, type MasterDataRouteProps, updateMasterDataStatusSchema, toIso } from '@/lib/server/master-data'
 
 export const runtime = 'nodejs'
 
@@ -20,7 +20,7 @@ export async function PATCH(request: Request, { params }: MasterDataRouteProps) 
       type: null,
       phone: row.phone,
       email: row.email,
-      note: row.note,
+      note: null,
       symbol: null,
       rateToThb: null,
       parentId: null,
@@ -33,8 +33,8 @@ export async function PATCH(request: Request, { params }: MasterDataRouteProps) 
       branchId: null,
       branchName: null,
       address: null,
-      commissionPct: toNumber(row.commission_pct),
-      baseSalary: toNumber(row.base_salary),
+      commissionPct: null,
+      baseSalary: null,
       createdAt: toIso(row.created_at),
       updatedAt: toIso(row.updated_at),
     })

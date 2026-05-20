@@ -8,13 +8,9 @@ export const salespersonsPageConfig: MasterDataPageConfig = {
   entityName: 'พนักงานขาย',
   emptyMessage: 'ไม่พบข้อมูลพนักงานขาย',
   fields: [
-    { key: 'code', label: 'รหัส' },
     { key: 'name', label: 'ชื่อพนักงานขาย', required: true },
     { key: 'phone', label: 'โทรศัพท์' },
     { key: 'email', label: 'อีเมล' },
-    { key: 'commissionPct', label: 'ค่าคอมมิชชัน (%)', type: 'number' },
-    { key: 'baseSalary', label: 'เงินเดือนฐาน', type: 'number' },
-    { key: 'note', label: 'หมายเหตุ' },
   ],
   columns: [
     { key: 'code', label: 'รหัส' },
