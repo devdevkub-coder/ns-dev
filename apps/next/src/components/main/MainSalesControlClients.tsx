@@ -45,6 +45,23 @@ function num(value: unknown) {
   return typeof value === 'number' ? value : Number(value ?? 0)
 }
 
+function csvEscape(value: string) {
+  return `"${value.replace(/"/g, '""')}"`
+}
+
+function downloadCsv(filename: string, headers: string[], rows: string[][]) {
+  const csv = [headers, ...rows].map((row) => row.map(csvEscape).join(',')).join('\n')
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
 export function PendingSalesPageClient() {
   const [data, setData] = useState<PendingPayload | null>(null)
   const [mode, setMode] = useState<'all' | 'pending' | 'sold'>('pending')
@@ -93,13 +110,35 @@ export function PendingSalesPageClient() {
 export function SalesPlanPageClient() {
   const [data, setData] = useState<SalesPlanPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [month, setMonth] = useState('')
+  const [filterGroup, setFilterGroup] = useState('')
+  const [filterChannel, setFilterChannel] = useState('')
   useEffect(() => {
-    dailyFetchJson<SalesPlanPayload>('/api/sales-plan').then(setData).catch((caught) => setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลไม่ได้'))
+    dailyFetchJson<SalesPlanPayload>('/api/sales-plan').then((payload) => {
+      setData(payload)
+      setMonth(payload.filters.month)
+    }).catch((caught) => setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลไม่ได้'))
   }, [])
   const s = data?.summary ?? {}
+  const analysisRows = useMemo(() => (data?.productAnalysis ?? [])
+    .filter((row) => !filterGroup || text(row.metalGroup).includes(filterGroup))
+    .filter((row) => !filterChannel || filterChannel), [data, filterGroup, filterChannel])
+  const remainingContainers = analysisRows.reduce((sum, row) => sum + num(row.remainingContainers), 0)
+  const stockTotal = analysisRows.reduce((sum, row) => sum + num(row.stock), 0)
+  const lockedTotal = analysisRows.reduce((sum, row) => sum + num(row.lockedKg), 0)
+  const remainingKgTotal = analysisRows.reduce((sum, row) => sum + num(row.remainingKg), 0)
+  const remainingValueTotal = analysisRows.reduce((sum, row) => sum + num(row.value), 0)
+  const projectedProfitTotal = analysisRows.reduce((sum, row) => sum + num(row.projectedProfit), 0)
+  const exportPlan = () => {
+    downloadCsv(
+      `sales_plan_${month || data?.filters.month || 'current'}.csv`,
+      ['Month', 'Product', 'ช่องทาง', 'Customer', 'Containers', 'Kg/ตู้', 'รวม กก.', '% LME', 'LME (USD/MT)', 'FX', 'ราคาขาย (THB/kg)', 'สถานะ'],
+      (data?.planRows ?? []).map((row) => [month || text(data?.filters.month), text(row.productName), text(row.channel), text(row.customerName), money(row.containers), money(row.kgPerContainer), money(row.totalKg), money(row.sellPctLme), money(row.lme), money(row.fx), money(row.sellPrice), text(row.status)]),
+    )
+  }
   return (
     <section className="space-y-3">
-      <Hero action={<button className="rounded-lg bg-white px-4 py-2 font-bold text-amber-700 opacity-70" disabled type="button">+ เพิ่มรายการ</button>} tone="from-amber-700 to-orange-600" title="📋 วางแผนการขาย (Sales Plan) — ทองแดง / ทองเหลือง" subtitle="เสนอ % LME + ช่องทางขาย → Lock เพื่อยืนยันราคา → ตู้ในรอขายลดลงหลังออกแบบ write flow" />
+      <Hero action={<button className="rounded-lg bg-white px-4 py-2 font-bold text-amber-700 opacity-70" disabled type="button">+ เพิ่มรายการ</button>} tone="from-amber-700 to-orange-600" title="📋 วางแผนการขาย (Sales Plan) — ทองแดง / ทองเหลือง" subtitle="เสนอ % LME + ช่องทางขาย → กด 🔒 Lock เพื่อยืนยันราคา → ตู้ในรอขายลดลงอัตโนมัติ" />
       <div className="grid grid-cols-2 gap-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm md:grid-cols-5">
         <LmeStat label="🥉 ทองแดง LME" value={`${money(data?.lmeConfig.lmeCopperUSD)} USD/MT`} />
         <LmeStat label="🌟 ทองเหลือง LME" value={`${money(data?.lmeConfig.lmeBrassUSD)} USD/MT`} />
@@ -107,24 +146,135 @@ export function SalesPlanPageClient() {
         <LmeStat label="📦 กก./ตู้" value={`${money(data?.lmeConfig.kgPerContainer)} กก.`} />
         <div className="text-xs text-slate-500">แก้ที่หน้า รายการรอขาย — Tab LME Config</div>
       </div>
-      <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow"><label className="text-sm">เดือน</label><input className="control" type="month" value={data?.filters.month ?? ''} readOnly /><select className="control"><option>ทุกหมวด (ทองแดง+ทองเหลือง)</option></select><select className="control"><option>ทุกช่องทาง</option></select><span className="flex-1" /><button className="btn-disabled" disabled type="button">📥 Export CSV</button></div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <Metric label="รายการแผน" value={money(s.plansCount)} tone="slate" />
-        <Metric label="จำนวนตู้รวม" value={money(s.totalContainers)} tone="blue" />
-        <Metric label="น้ำหนักรวม" value={`${money(s.totalKg)} กก.`} tone="blue" />
-        <Metric label="กำไรล็อกแล้ว" value={money(s.totalLockedProfit)} tone="emerald" />
-        <Metric label="กำไรคาดการณ์" value={money(s.totalProjectedProfit)} tone={(s.totalProjectedProfit ?? 0) >= 0 ? 'amber' : 'red'} />
+      <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow">
+        <label className="text-sm">เดือน</label>
+        <input className="control" type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
+        <select className="control" value={filterGroup} onChange={(event) => setFilterGroup(event.target.value)}>
+          <option value="">ทุกหมวด (ทองแดง+ทองเหลือง)</option>
+          <option value="ทองแดง">🥉 ทองแดง เท่านั้น</option>
+          <option value="ทองเหลือง">🌟 ทองเหลือง เท่านั้น</option>
+        </select>
+        <select className="control" value={filterChannel} onChange={(event) => setFilterChannel(event.target.value)}>
+          <option value="">ทุกช่องทาง</option>
+          <option value="export">🌍 ส่งออก</option>
+          <option value="domestic">🇹🇭 ในประเทศ</option>
+        </select>
+        <span className="flex-1" />
+        <button className="rounded bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-700" onClick={exportPlan} type="button">📥 Export CSV</button>
       </div>
-      <Panel title="📝 ตารางวางแผน — ปลดล็อก = อยู่ในขั้นเสนอ / ล็อก = ราคายืนยันแล้ว ตู้จะถูกหักจากรอขาย">
-        <SimpleTable headers={['สินค้า', 'ช่องทาง', 'ลูกค้า', 'ตู้', 'กก./ตู้', 'รวม กก.', '% LME', 'LME', 'FX', 'ราคา THB/kg', 'สถานะ', '']} rows={[]} empty="ยังไม่มี sales plan persistence ใน baseline นี้" />
-      </Panel>
-      <Panel title="📊 วิเคราะห์ขาย vs รายการรอขาย — ผู้บริหารตัดสินใจ">
-        <SimpleTable headers={['สินค้า', 'หมวด', 'Stock รวม', 'ล็อกแล้ว', 'ว่างให้ขาย', 'WAC', 'ราคาเสนอดีสุด', '% LME', 'กำไรคาดการณ์', 'Margin %', 'คำแนะนำ']} rows={(data?.productAnalysis ?? []).map((row) => [text(row.name), text(row.metalGroup), money(row.stock), money(row.lockedKg), money(row.remainingKg), money(row.wac), money(row.bestPlanPrice), `${money(row.bestPlanPct)}%`, money(row.projectedProfit), `${money(row.projectedMarginPct)}%`, text(row.recommendation)])} />
-      </Panel>
-      <Panel title={`📦 ตู้รอขาย คงเหลือหลังหักล็อกราคา — เดือน ${data?.filters.month ?? ''}`}>
-        <div className="mb-3 flex flex-wrap gap-2 text-xs"><span className="chip">รวม {money(s.stockRemainingKg)} กก.</span><span className="chip">มูลค่า WAC {money(s.stockRemainingValue)}</span></div>
-        <SimpleTable headers={['รหัส', 'สินค้า', 'หมวด', 'Stock ทั้งหมด', 'ล็อกแล้ว kg', 'ล็อกแล้ว ตู้', 'รอล็อก kg', 'รอล็อก ตู้', 'WAC', 'มูลค่า WAC']} rows={(data?.productAnalysis ?? []).map((row) => [text(row.code), text(row.name), text(row.metalGroup), money(row.stock), money(row.lockedKg), money(0), money(row.remainingKg), money(row.remainingContainers), money(row.wac), money(row.value)])} />
-      </Panel>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <div className="rounded-xl bg-white p-3 shadow">
+          <div className="text-xs text-slate-500">รายการแผน</div>
+          <div className="text-xl font-bold">{money(s.plansCount)}</div>
+          <div className="text-xs text-slate-400">🔒 {money(s.lockedCount)} / ⏳ {money(s.pendingCount)}</div>
+        </div>
+        <div className="rounded-xl bg-white p-3 shadow">
+          <div className="text-xs text-slate-500">จำนวนตู้รวม</div>
+          <div className="text-xl font-bold text-blue-700">{money(s.totalContainers)}</div>
+          <div className="text-xs text-slate-400">🔒 ล็อก {money(s.lockedContainers)}</div>
+        </div>
+        <div className="rounded-xl bg-white p-3 shadow">
+          <div className="text-xs text-slate-500">น้ำหนักรวม</div>
+          <div className="text-xl font-bold text-blue-700">{money(s.totalKg)} กก.</div>
+          <div className="text-xs text-slate-400">เฉลี่ย {money(s.avgPctLme)}% LME</div>
+        </div>
+        <div className="rounded-xl border-l-4 border-emerald-500 bg-emerald-50 p-3 shadow">
+          <div className="text-xs text-emerald-700">💰 กำไรล็อกแล้ว (สินค้านี้)</div>
+          <div className={`text-xl font-bold ${num(s.totalLockedProfit) >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{money(s.totalLockedProfit)}</div>
+          <div className="text-xs text-slate-500">เฉพาะที่ล็อกราคาแล้ว</div>
+        </div>
+        <div className="rounded-xl border-l-4 border-amber-500 bg-amber-50 p-3 shadow">
+          <div className="text-xs text-amber-700">📈 กำไรคาดการณ์ (ถ้าขายตามแผน)</div>
+          <div className={`text-xl font-bold ${num(s.totalProjectedProfit) >= 0 ? 'text-amber-700' : 'text-red-600'}`}>{money(s.totalProjectedProfit)}</div>
+          <div className="text-xs text-slate-500">รอขาย × ราคาเสนอที่ดีสุด</div>
+        </div>
+      </div>
+      <div className="overflow-x-auto rounded-xl bg-white shadow">
+        <div className="border-b bg-amber-50 p-2 text-xs text-amber-700">📝 ตารางวางแผน — ปลดล็อก = อยู่ในขั้นเสนอ / ล็อก = ราคายืนยันแล้ว ตู้จะถูกหักจากรอขาย</div>
+        <table className="w-full min-w-[1120px] text-sm">
+          <thead className="bg-slate-100">
+            <tr>
+              <th className="p-2 text-left">สินค้า</th>
+              <th className="w-28 p-2 text-center">ช่องทาง</th>
+              <th className="p-2 text-left">ลูกค้า</th>
+              <th className="w-20 p-2 text-right">ตู้</th>
+              <th className="w-24 p-2 text-right">กก./ตู้</th>
+              <th className="w-28 p-2 text-right">รวม กก.</th>
+              <th className="w-20 bg-amber-50 p-2 text-right">% LME</th>
+              <th className="w-24 p-2 text-right">LME (USD/MT)</th>
+              <th className="w-20 p-2 text-right">FX</th>
+              <th className="w-28 bg-emerald-50 p-2 text-right">ราคา (THB/kg)</th>
+              <th className="w-28 p-2 text-center">สถานะ</th>
+              <th className="p-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {(data?.planRows ?? []).map((row) => (
+              <tr className="border-t hover:bg-amber-50/30" key={text(row.id)}>
+                <td className="p-1"><select className="w-full rounded border px-2 py-1 text-sm" disabled value={text(row.productId)}><option>{text(row.productName) || '-เลือก-'}</option></select></td>
+                <td className="p-1"><select className="w-full rounded border px-1 py-1 text-xs" disabled value={text(row.channel)}><option>{text(row.channel) || 'ส่งออก'}</option></select></td>
+                <td className="p-1"><select className="w-full rounded border px-2 py-1 text-sm" disabled value={text(row.customerId)}><option>{text(row.customerName) || '-เลือก-'}</option></select></td>
+                <td className="p-1"><input className="w-full rounded border px-1 py-1 text-right" disabled type="number" value={num(row.containers)} /></td>
+                <td className="p-1"><input className="w-full rounded border px-1 py-1 text-right text-xs" disabled type="number" value={num(row.kgPerContainer)} /></td>
+                <td className="p-1 text-right font-medium">{money(row.totalKg)}</td>
+                <td className="p-1"><input className="w-full rounded border bg-amber-50 px-1 py-1 text-right font-bold" disabled type="number" value={num(row.sellPctLme)} /></td>
+                <td className="p-1 text-right text-xs text-slate-500">{money(row.lme)}</td>
+                <td className="p-1 text-right text-xs text-slate-500">{money(row.fx)}</td>
+                <td className="bg-emerald-50 p-1 text-right font-bold text-emerald-700">{money(row.sellPrice)}</td>
+                <td className="p-1 text-center"><button className="w-full rounded bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700 opacity-70" disabled type="button">⏳ Pending — กดล็อก</button></td>
+                <td className="p-1 text-right"><button className="rounded px-2 text-red-500 opacity-50" disabled type="button">×</button></td>
+              </tr>
+            ))}
+            {!(data?.planRows ?? []).length ? <tr><td className="py-8 text-center text-slate-400" colSpan={12}>ยังไม่มีรายการในเดือนนี้ - กด + เพิ่มรายการ</td></tr> : null}
+          </tbody>
+        </table>
+      </div>
+      <div className="overflow-hidden rounded-xl bg-white shadow">
+        <div className="flex items-center justify-between border-b bg-indigo-50 p-3">
+          <div>
+            <h3 className="font-bold text-indigo-700">📊 วิเคราะห์ขาย vs รายการรอขาย — ผู้บริหารตัดสินใจ</h3>
+            <p className="text-xs text-slate-500">เปรียบเทียบราคาที่เสนอ (จากแผน Pending) vs WAC ของสต๊อกที่ยังว่างให้ขาย</p>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1120px] text-sm">
+            <thead className="bg-slate-100"><tr><th className="p-2 text-left">สินค้า</th><th className="p-2 text-left">หมวด</th><th className="p-2 text-right">Stock รวม (กก.)</th><th className="p-2 text-right">🔒 ล็อกแล้ว (กก.)</th><th className="bg-yellow-50 p-2 text-right">⏳ ว่างให้ขาย (กก.)</th><th className="p-2 text-right">WAC ต้นทุน</th><th className="bg-amber-50 p-2 text-right">ราคาเสนอดีสุด</th><th className="p-2 text-right text-xs">% LME</th><th className="bg-emerald-50 p-2 text-right">กำไรคาดการณ์</th><th className="bg-emerald-50 p-2 text-right text-xs">Margin %</th><th className="p-2 text-center">คำแนะนำ</th></tr></thead>
+            <tbody>
+              {analysisRows.map((row) => (
+                <tr className="border-t hover:bg-indigo-50/30" key={text(row.code)}>
+                  <td className="p-2"><div className="font-medium">{text(row.name)}</div><div className="font-mono text-xs text-slate-400">{text(row.code)}</div></td>
+                  <td className="p-2 text-xs">{text(row.metalGroup)}</td>
+                  <td className="p-2 text-right">{money(row.stock)}</td>
+                  <td className="p-2 text-right text-emerald-700">{money(row.lockedKg)}</td>
+                  <td className={`bg-yellow-50 p-2 text-right font-bold ${num(row.remainingKg) > 0 ? 'text-yellow-700' : 'text-slate-400'}`}>{money(row.remainingKg)}</td>
+                  <td className="p-2 text-right text-slate-500">{money(row.wac)}</td>
+                  <td className="bg-amber-50 p-2 text-right font-medium">{num(row.bestPlanPrice) > 0 ? money(row.bestPlanPrice) : '-'}</td>
+                  <td className="p-2 text-right text-xs">{num(row.bestPlanPct) > 0 ? `${money(row.bestPlanPct)}%` : '-'}</td>
+                  <td className={`bg-emerald-50 p-2 text-right font-bold ${num(row.projectedProfit) >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{num(row.bestPlanPrice) > 0 ? money(row.projectedProfit) : '-'}</td>
+                  <td className={`bg-emerald-50 p-2 text-right text-xs ${num(row.projectedMarginPct) >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{num(row.bestPlanPrice) > 0 ? `${money(row.projectedMarginPct)}%` : '-'}</td>
+                  <td className="p-2 text-center text-xs"><span className="rounded bg-slate-100 px-2 py-1 font-medium text-slate-700">{text(row.recommendation)}</span></td>
+                </tr>
+              ))}
+              {!analysisRows.length ? <tr><td className="py-8 text-center text-slate-400" colSpan={11}>ไม่มีสต๊อกทองแดง/ทองเหลืองให้วิเคราะห์</td></tr> : null}
+            </tbody>
+            {analysisRows.length ? <tfoot className="bg-slate-100 font-bold"><tr><td className="p-2 text-right" colSpan={2}>รวม</td><td className="p-2 text-right">{money(stockTotal)}</td><td className="p-2 text-right text-emerald-700">{money(lockedTotal)}</td><td className="bg-yellow-50 p-2 text-right text-yellow-700">{money(remainingKgTotal)}</td><td colSpan={3} /><td className={`p-2 text-right ${projectedProfitTotal >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{money(projectedProfitTotal)}</td><td colSpan={2} /></tr></tfoot> : null}
+          </table>
+        </div>
+      </div>
+      <div className="overflow-hidden rounded-xl bg-white shadow">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-yellow-50 p-3">
+          <h3 className="font-bold text-yellow-700">📦 ตู้รอขาย คงเหลือหลังหักล็อกราคา — เดือน {(month || data?.filters.month) ?? ''}</h3>
+          <div className="text-sm"><span className="mr-2 rounded bg-yellow-100 px-2 py-0.5 text-yellow-700">รวม {money(remainingKgTotal)} กก.</span><span className="rounded bg-emerald-100 px-2 py-0.5 text-emerald-700">มูลค่า WAC {money(remainingValueTotal)}</span></div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px] text-sm">
+            <thead className="bg-slate-100"><tr><th className="p-2 text-left">รหัส</th><th className="p-2 text-left">สินค้า</th><th className="p-2 text-left">หมวด</th><th className="p-2 text-right">Stock ทั้งหมด (กก.)</th><th className="p-2 text-right">🔒 ล็อกแล้ว (กก.)</th><th className="p-2 text-right">🔒 ล็อกแล้ว (ตู้)</th><th className="bg-yellow-50 p-2 text-right">⏳ รอล็อก (กก.)</th><th className="bg-yellow-50 p-2 text-right">⏳ รอล็อก (ตู้)</th><th className="p-2 text-right">WAC</th><th className="p-2 text-right">มูลค่า WAC</th></tr></thead>
+            <tbody>{analysisRows.map((row) => <tr className={`border-t ${num(row.remainingKg) > 0 ? '' : 'opacity-60'}`} key={`${text(row.code)}-remain`}><td className="p-2 font-mono text-xs">{text(row.code)}</td><td className="p-2">{text(row.name)}</td><td className="p-2 text-xs">{text(row.metalGroup)}</td><td className="p-2 text-right">{money(row.stock)}</td><td className="p-2 text-right text-emerald-700">{money(row.lockedKg)}</td><td className="p-2 text-right text-emerald-700">{money(0)}</td><td className={`bg-yellow-50 p-2 text-right font-bold ${num(row.remainingKg) > 0 ? 'text-yellow-700' : 'text-slate-400'}`}>{money(row.remainingKg)}</td><td className={`bg-yellow-50 p-2 text-right font-bold ${num(row.remainingContainers) > 0 ? 'text-yellow-700' : 'text-slate-400'}`}>{money(row.remainingContainers)}</td><td className="p-2 text-right text-slate-500">{money(row.wac)}</td><td className="p-2 text-right font-medium">{money(row.value)}</td></tr>)}
+            {!analysisRows.length ? <tr><td className="py-8 text-center text-slate-400" colSpan={10}>ไม่มีสต๊อกทองแดง/ทองเหลือง</td></tr> : null}</tbody>
+            {analysisRows.length ? <tfoot className="bg-slate-100 font-bold"><tr><td className="p-2 text-right" colSpan={3}>รวม</td><td className="p-2 text-right">{money(stockTotal)}</td><td className="p-2 text-right text-emerald-700">{money(lockedTotal)}</td><td className="p-2 text-right text-emerald-700">{money(0)}</td><td className="bg-yellow-50 p-2 text-right text-yellow-700">{money(remainingKgTotal)}</td><td className="bg-yellow-50 p-2 text-right text-yellow-700">{money(remainingContainers)}</td><td /><td className="p-2 text-right">{money(remainingValueTotal)}</td></tr></tfoot> : null}
+          </table>
+        </div>
+      </div>
       <Notice text={data?.sourceState.limitations[0]} />{error ? <ErrorBox text={error} /> : null}
     </section>
   )
