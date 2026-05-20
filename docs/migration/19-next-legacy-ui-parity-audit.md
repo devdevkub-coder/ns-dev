@@ -48,12 +48,12 @@ Baseline notes:
 | `/po-reports/outstanding` | 2026-05-20 | Restored the legacy PO outstanding report surface: purple hero, buy/sell tabs, active CSV export, four colored KPI cards per tab, partner/product filters, cost-deducted warning and read-only checkbox shell, received/sold columns, expected delivery columns, empty states, and footer totals. Cost-deducted toggle remains disabled because it is a cost-pool write side effect requiring audit/permission design. |
 | `/reports` | 2026-05-20 | Restored the legacy tabbed aggregate report surface as the primary screen: date range with "เว้นว่างเพื่อดูทุกช่วงเวลา", active `Export CSV รายงานนี้`, five report tabs for purchase/sales channel/supplier/product/customer summaries, dense aggregate tables, totals footer, and read-only `/api/reports/aggregate` data from purchase/sales bills. The existing Next report catalog remains as a secondary shortcut section below the legacy report surface. No write, schema, or mutation behavior was added. |
 | `/sales-plan` | 2026-05-20 | Restored the legacy Sales Plan visual shell: amber/orange hero copy, active local month/group/channel filters, green CSV placement, white KPI cards with locked/pending subtitles, the 12-column editable-looking plan table shell, indigo product-analysis table with highlighted available/profit columns and footer totals, and yellow remaining-to-lock table with legacy totals. All add/remove/lock/edit persistence remains disabled/read-only until sales-plan schema, stock reservation semantics, permissions, audit, and rollback are designed. |
+| `/dashboard` | 2026-05-20 | Restored the first legacy dashboard visual shell: dark period/filter bar, purple/pink Financial Dashboard hero, slate-blue dashboard container, six gradient KPI cards, chart/aging/channel/quick-insight cluster, warning alert bar, Top Supplier/Customer ranking cards, trend/group panels, and four separate Purchase/Sales/Finance/Stock colored business blocks. This slice reuses the existing read payload only; server-side filters, aging buckets, real chart datasets, cash composition, branch stock tables, and richer dashboard API fields remain follow-up read-only parity work. |
 
 ## P1 Backlog
 
 | Route | Legacy view | Current issue | Next file |
 |---|---|---|---|
-| `/dashboard` | `view-dashboard` | Legacy has filter bar, alert cards, top supplier/customer, trend/chart panels, and four colored business sections; Next is simplified. | `apps/next/src/components/main/MainDashboardsPageClient.tsx` |
 | `/purchase/bills` | `view-purchase` | Legacy has dense purchase action/table surface including print/receipt/export/bulk controls; Next shared table appears simplified. | `apps/next/src/components/daily/TransactionBillsPageClient.tsx` |
 | `/sales/bills` | `view-sales` | Legacy has pending-sale banner, profit recalc, trading match controls, and denser action surface. | `apps/next/src/components/daily/TransactionBillsPageClient.tsx` |
 | `/sales/stock-issue` | `view-stockIssue` | Legacy amber Pending Sale hero and convert-to-sales-bill action surface are not fully cloned. | `apps/next/src/app/sales/stock-issue/page.tsx` |
@@ -110,6 +110,6 @@ Next routes without a direct standalone legacy page:
 
 ## Active Execution Order
 
-1. P1 PO/Reports/Main: `/dashboard`
+1. P1 Dashboard data parity follow-up: `/dashboard` server-side filters, aging buckets, cash composition, stock-by-branch/group, and richer chart datasets
 2. P1 Daily transaction surfaces
 3. P1/P2 production report polish

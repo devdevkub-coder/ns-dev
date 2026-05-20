@@ -101,48 +101,164 @@ export function MainDashboardsPageClient({ mode }: { mode: Mode }) {
 }
 
 function DashboardView({ data }: { data: MainPayload | null }) {
+  const [period, setPeriod] = useState('month')
+  const [branchFilter, setBranchFilter] = useState('')
+  const [groupFilter, setGroupFilter] = useState('')
+  const [supplierFilter, setSupplierFilter] = useState('')
+  const [customerFilter, setCustomerFilter] = useState('')
+  const [productFilter, setProductFilter] = useState('')
   const k = data?.dashboard.kpi ?? {}
   const section = data?.dashboard.sections
+  const analytics = data?.dailyReport.analytics
+  const alerts = [
+    { active: (k.ar ?? 0) > 0, text: `ลูกหนี้คงค้าง ${money(k.ar)}`, tone: 'purple' },
+    { active: (k.ap ?? 0) > 0, text: `เจ้าหนี้คงค้าง ${money(k.ap)}`, tone: 'orange' },
+    { active: (section?.cash.odUsed ?? 0) > 0, text: `OD ใช้ไป ${money(section?.cash.odUsed)}`, tone: 'amber' },
+    { active: (k.cashBalance ?? 0) < (k.ap ?? 0), text: 'เงินสดต่ำกว่าเจ้าหนี้รวม', tone: 'red' },
+  ].filter((alert) => alert.active)
+  const purchaseWeight = section?.purchase.qty ?? 0
+  const salesWeight = section?.sales.qty ?? 0
+  const purchaseAmount = section?.purchase.amount ?? 0
+  const salesAmount = section?.sales.amount ?? 0
+  const gp = section?.sales.gp ?? 0
+  const stockQty = section?.stock.qty ?? 0
+  const stockValue = section?.stock.value ?? 0
+  const gpPct = salesAmount > 0 ? (gp / salesAmount) * 100 : 0
+  const filteredCount = `${money(section?.purchase.count)} ซื้อ · ${money(section?.sales.count)} ขาย`
+  const clearFilters = () => {
+    setBranchFilter('')
+    setGroupFilter('')
+    setSupplierFilter('')
+    setCustomerFilter('')
+    setProductFilter('')
+  }
   return (
     <>
       <div className="rounded-2xl bg-gradient-to-r from-slate-800 to-slate-900 p-4 text-white shadow-xl">
-        <div className="flex flex-wrap gap-2 text-xs font-bold"><span className="rounded-lg bg-amber-400 px-3 py-1.5 text-slate-900">เดือนนี้</span><span className="rounded-lg bg-white/10 px-3 py-1.5">Read only</span><span className="rounded-lg bg-white/10 px-3 py-1.5">{data?.filters.from} → {data?.filters.to}</span></div>
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-bold opacity-80">📅 ช่วงเวลา:</span>
+          {[
+            ['year', '📊 ปีนี้'],
+            ['quarter', 'ไตรมาส'],
+            ['month', 'เดือนนี้'],
+            ['week', '7 วัน'],
+            ['today', 'วันนี้'],
+          ].map(([key, label]) => (
+            <button className={`rounded-lg px-3 py-1.5 text-xs font-bold ${period === key ? 'bg-amber-400 text-slate-900' : 'bg-white/10 hover:bg-white/20'}`} key={key} onClick={() => setPeriod(key)} type="button">{label}</button>
+          ))}
+          <span className="mx-2 opacity-30">|</span>
+          <input className="rounded border border-white/20 bg-white/10 px-2 py-1 text-xs" readOnly type="date" value={data?.filters.from ?? ''} />
+          <span>→</span>
+          <input className="rounded border border-white/20 bg-white/10 px-2 py-1 text-xs" readOnly type="date" value={data?.filters.to ?? ''} />
+          <span className="ml-auto rounded bg-white/10 px-2 py-1 text-xs">📊 {filteredCount}</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <select className="max-w-xs rounded border border-white/20 bg-white/10 px-2 py-1 text-white" value={branchFilter} onChange={(event) => setBranchFilter(event.target.value)}><option className="text-slate-900" value="">🏢 ทุกสาขา</option></select>
+          <select className="max-w-xs rounded border border-white/20 bg-white/10 px-2 py-1 text-white" value={groupFilter} onChange={(event) => setGroupFilter(event.target.value)}><option className="text-slate-900" value="">📦 ทุกหมวด</option>{(analytics?.groupSummary ?? []).map((row) => <option className="text-slate-900" key={row.group} value={row.group}>{row.group}</option>)}</select>
+          <select className="max-w-xs rounded border border-white/20 bg-white/10 px-2 py-1 text-white" value={supplierFilter} onChange={(event) => setSupplierFilter(event.target.value)}><option className="text-slate-900" value="">🏭 ทุก Supplier</option>{(analytics?.topSuppliers ?? []).map((row) => <option className="text-slate-900" key={row.id} value={row.id}>{row.name}</option>)}</select>
+          <select className="max-w-xs rounded border border-white/20 bg-white/10 px-2 py-1 text-white" value={customerFilter} onChange={(event) => setCustomerFilter(event.target.value)}><option className="text-slate-900" value="">👥 ทุก Customer</option>{(analytics?.topCustomers ?? []).map((row) => <option className="text-slate-900" key={row.id} value={row.id}>{row.name}</option>)}</select>
+          <select className="max-w-xs rounded border border-white/20 bg-white/10 px-2 py-1 text-white" value={productFilter} onChange={(event) => setProductFilter(event.target.value)}><option className="text-slate-900" value="">🏷 ทุกสินค้า</option>{[...(analytics?.topProductsIn ?? []), ...(analytics?.topProductsOut ?? [])].slice(0, 20).map((row) => <option className="text-slate-900" key={`${row.id}-${row.code}`} value={row.id}>{row.code} - {row.name}</option>)}</select>
+          <button className="ml-auto rounded bg-amber-500 px-3 py-1 font-bold text-slate-900 hover:bg-amber-600" onClick={clearFilters} type="button">✕ ล้าง Filter</button>
+        </div>
       </div>
-      <Hero subtitle="Management KPI จาก purchase/sales/stock/finance helpers" title="📊 Financial Dashboard" tone="from-indigo-600 via-purple-600 to-pink-600" />
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <Metric label="Revenue" tone="blue" value={money(k.revenue)} />
-        <Metric label="Expenses + COGS" tone="red" value={money(k.expenses)} />
-        <Metric label="Net Profit" tone={(k.netProfit ?? 0) >= 0 ? 'emerald' : 'red'} value={money(k.netProfit)} />
-        <Metric label="Cash Balance" tone="cyan" value={money(k.cashBalance)} />
-        <Metric label="AR ลูกหนี้" tone="purple" value={money(k.ar)} />
-        <Metric label="AP เจ้าหนี้" tone="orange" value={money(k.ap)} />
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 p-6 text-white shadow-2xl">
+        <div className="relative flex flex-wrap items-baseline justify-between gap-3">
+          <div><h1 className="flex items-center gap-2 text-3xl font-bold">📊 Financial Dashboard</h1><p className="mt-1 text-sm opacity-90">ภาพรวมทางการเงิน · Real-time overview</p></div>
+          <div className="rounded-full bg-white/20 px-3 py-1.5 text-xs font-medium">📅 {data?.filters.from} → {data?.filters.to}</div>
+        </div>
       </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50 p-4 shadow-sm">
+        <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs text-slate-500">ℹ️ ยังไม่มีข้อมูล Historical — ไปที่เมนู <b>📅 ข้อมูลย้อนหลัง</b> เพื่อคีย์ยอด ม.ค.-เม.ย. 2026</div>
+        <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+          <DashboardKpi icon="📈" label="Revenue" sub="ยอดขาย" tone="from-blue-500 to-blue-700" value={money(k.revenue)} />
+          <DashboardKpi icon="💸" label="Expenses" sub="ค่าใช้จ่าย + COGS" tone="from-rose-500 to-red-600" value={money(k.expenses)} />
+          <DashboardKpi icon="🥧" label="Net Profit" sub="กำไรสุทธิ" tone={(k.netProfit ?? 0) >= 0 ? 'from-emerald-500 to-teal-600' : 'from-red-500 to-rose-700'} value={money(k.netProfit)} />
+          <DashboardKpi icon="💵" label="Cash Balance" sub="เงินสด/ธนาคาร" tone="from-cyan-500 to-blue-600" value={money(k.cashBalance)} />
+          <DashboardKpi icon="👤" label="AR ลูกหนี้" sub="Receivable" tone="from-purple-500 to-fuchsia-600" value={money(k.ar)} />
+          <DashboardKpi icon="📋" label="AP เจ้าหนี้" sub="Payable" tone="from-orange-500 to-red-600" value={money(k.ap)} />
+        </div>
+        <div className="mb-4 grid gap-3 lg:grid-cols-3">
+          <DashboardChartCard title="Revenue vs Expense (Monthly)">
+            <BarRows rows={[{ label: 'Revenue', value: k.revenue ?? 0 }, { label: 'Expenses', value: k.expenses ?? 0 }, { label: 'Net Profit', value: k.netProfit ?? 0 }]} />
+          </DashboardChartCard>
+          <DashboardChartCard title="Cash Flow Overview">
+            <BarRows rows={[{ label: 'Cash', value: section?.cash.cash ?? 0 }, { label: 'Bank', value: section?.cash.bank ?? 0 }, { label: 'OD Used', value: section?.cash.odUsed ?? 0 }, { label: 'Net Cash', value: section?.cash.netCash ?? 0 }]} />
+          </DashboardChartCard>
+          <DashboardChartCard title="Expense Breakdown">
+            <BarRows rows={[{ label: 'COGS + Expenses', value: k.expenses ?? 0 }, { label: 'Gross Profit', value: gp }, { label: 'Net Profit', value: k.netProfit ?? 0 }]} />
+          </DashboardChartCard>
+        </div>
+        <div className="grid gap-3 lg:grid-cols-3">
+          <DashboardChartCard title="Receivables & Payables Aging">
+            <table className="w-full text-xs">
+              <thead className="text-slate-500"><tr><th className="py-1 text-left">Type</th><th className="text-right">Current</th><th className="text-right">1-30</th><th className="text-right">31-60</th><th className="text-right">61-90</th><th className="text-right">&gt;90</th><th className="text-right">Total</th></tr></thead>
+              <tbody><tr className="border-t"><td className="py-1.5 font-medium text-emerald-700">📥 AR ลูกหนี้</td><td className="text-right">{money(k.ar)}</td><td className="text-right">0</td><td className="text-right">0</td><td className="text-right">0</td><td className="text-right">0</td><td className="text-right font-bold">{money(k.ar)}</td></tr><tr className="border-t"><td className="py-1.5 font-medium text-red-700">📤 AP เจ้าหนี้</td><td className="text-right">{money(k.ap)}</td><td className="text-right">0</td><td className="text-right">0</td><td className="text-right">0</td><td className="text-right">0</td><td className="text-right font-bold">{money(k.ap)}</td></tr></tbody>
+            </table>
+          </DashboardChartCard>
+          <DashboardChartCard title="Channel Performance">
+            <MiniLine label="📥 Purchase" value={`${money(purchaseWeight)} กก. · ${money(purchaseAmount)}`} />
+            <MiniLine label="📤 Sales" value={`${money(salesWeight)} กก. · ${money(salesAmount)}`} />
+            <MiniLine label="📦 Stock" value={`${money(stockQty)} กก. · ${money(stockValue)}`} />
+          </DashboardChartCard>
+          <DashboardChartCard title="Quick Insights">
+            <MiniLine label="Gross Margin" value={`${money(gpPct)}%`} />
+            <MiniLine label="Net Profit" value={money(k.netProfit)} />
+            <MiniLine label="Net Cash" value={money(section?.cash.netCash)} />
+          </DashboardChartCard>
+        </div>
+      </div>
+
+      {alerts.length ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{alerts.map((alert) => <span className="mr-2 inline-flex rounded bg-white px-2 py-1 font-semibold" key={alert.text}>⚠ {alert.text}</span>)}</div> : null}
+
+      <div className="grid gap-4 lg:grid-cols-2"><RankTable color="blue" rows={analytics?.topSuppliers ?? []} title="🥇 Top Suppliers" /><RankTable color="emerald" rows={analytics?.topCustomers ?? []} title="🥇 Top Customers" /></div>
+
       <div className="grid gap-4 lg:grid-cols-2">
-        <Panel title="📈 Revenue / Expense / GP">
-          <BarRows rows={data?.dashboard.trend ?? []} />
-        </Panel>
-        <Panel title="AR/AP Aging">
-          <BarRows rows={data?.dashboard.aging ?? []} />
-        </Panel>
+        <DashboardChartCard title="📈 แนวโน้มซื้อ-ขาย 30 วัน"><BarRows rows={(analytics?.dailyTrend ?? []).slice(-10).flatMap((row) => [{ label: `${row.label} ซื้อ`, value: row.purchase }, { label: `${row.label} ขาย`, value: row.sales }])} /></DashboardChartCard>
+        <DashboardChartCard title="📦 มูลค่าสินค้าตามหมวด">
+          <table className="w-full text-xs">
+            <thead className="bg-slate-50 text-slate-500"><tr><th className="p-1.5 text-left">หมวด</th><th className="p-1.5 text-right">กก.</th><th className="p-1.5 text-right">มูลค่า</th></tr></thead>
+            <tbody>{(analytics?.groupSummary ?? []).map((row) => <tr className="border-t" key={row.group}><td className="p-1.5 font-medium">{row.group}</td><td className="p-1.5 text-right">{money(row.qty)}</td><td className="p-1.5 text-right font-bold text-indigo-700">{money(row.amount)}</td></tr>)}</tbody>
+          </table>
+        </DashboardChartCard>
       </div>
-      <Section border="border-blue-500" title="ซื้อ">
+
+      <Section border="border-blue-500" title="📥 ฝั่งซื้อ (เดือนนี้) — Purchase / Supplier">
         <Metric label="ซื้อวันนี้" value={money(section?.purchase.today)} />
         <Metric label="ซื้อเดือนนี้" tone="blue" value={money(section?.purchase.amount)} />
         <Metric label="น้ำหนักซื้อ" value={`${money(section?.purchase.qty)} กก.`} />
+        <Metric label="ราคาซื้อเฉลี่ย" value={`${money(purchaseWeight > 0 ? purchaseAmount / purchaseWeight : 0)} ฿/กก.`} />
+        <Metric label="เจ้าหนี้รวม" tone="red" value={money(k.ap)} />
       </Section>
-      <Section border="border-emerald-500" title="ขาย">
+      <Section border="border-emerald-500" title="📤 ฝั่งขาย (เดือนนี้) — Sales / Customer">
         <Metric label="ขายวันนี้" value={money(section?.sales.today)} />
         <Metric label="ขายเดือนนี้" tone="emerald" value={money(section?.sales.amount)} />
+        <Metric label="น้ำหนักขาย" value={`${money(section?.sales.qty)} กก.`} />
         <Metric label="Gross Profit" tone="emerald" value={money(section?.sales.gp)} />
+        <Metric label="Margin %" tone={(gpPct ?? 0) >= 0 ? 'emerald' : 'red'} value={`${money(gpPct)}%`} />
       </Section>
-      <Section border="border-amber-500" title="การเงิน / Stock">
-        <Metric label="เงินสด" value={money(section?.cash.cash)} />
-        <Metric label="ธนาคาร" value={money(section?.cash.bank)} />
-        <Metric label="OD ใช้ไป" tone="orange" value={money(section?.cash.odUsed)} />
-        <Metric label="Stock Value" tone="orange" value={money(section?.stock.value)} />
+      <Section border="border-amber-500" title="💰 ฝั่งการเงิน — Cash / Bank / OD">
+        <Metric label="💵 เงินสดรวม" tone="emerald" value={money(section?.cash.cash)} />
+        <Metric label="🏦 ธนาคารรวม" tone="blue" value={money(section?.cash.bank)} />
+        <Metric label="💱 FCD" tone="purple" value="0" />
+        <Metric label="⚠ OD ใช้ / เหลือ" tone="orange" value={`${money(section?.cash.odUsed)} / ${money(section?.cash.odLimit)}`} />
+        <Metric label="💎 Net Cash Position" tone="purple" value={money(section?.cash.netCash)} />
+      </Section>
+      <Section border="border-orange-500" title="📦 ฝั่ง Stock — Inventory / WAC">
+        <Metric label="⚖ น้ำหนักรวม" value={`${money(section?.stock.qty)} กก.`} />
+        <Metric label="💰 มูลค่าสต๊อกรวม" tone="orange" value={money(section?.stock.value)} />
+        <Metric label="📊 ราคาต่อหน่วยเฉลี่ย" value={`${money(stockQty > 0 ? stockValue / stockQty : 0)} ฿/กก.`} />
       </Section>
     </>
   )
+}
+
+function DashboardKpi({ icon, label, sub, tone, value }: { icon: string; label: string; sub: string; tone: string; value: string }) {
+  return <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${tone} p-4 text-white shadow-lg`}><div className="absolute -right-3 -top-3 text-6xl opacity-10">{icon}</div><div className="relative"><div className="text-xs font-medium opacity-80">{label}</div><div className="text-xs opacity-60">{sub}</div><div className="mt-1 font-mono text-2xl font-bold">{value}</div><div className="mt-2 inline-block rounded-full bg-white/20 px-2 py-0.5 text-xs">Read only</div></div></div>
+}
+
+function DashboardChartCard({ children, title }: { children: ReactNode; title: string }) {
+  return <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm"><div className="mb-3 text-sm font-bold text-slate-700">{title}</div>{children}</div>
 }
 
 function OwnerDailyView({ data }: { data: MainPayload | null }) {
