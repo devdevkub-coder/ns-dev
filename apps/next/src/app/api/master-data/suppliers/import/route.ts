@@ -41,7 +41,8 @@ const headerMap = {
   name: ['ชื่อผู้ขาย/บริษัท', 'ชื่อบริษัท/ร้านค้า', 'name'],
   nameTitle: ['คำนำหน้าชื่อ', 'nameTitle'],
   phone: ['โทรศัพท์', 'โทร', 'phone'],
-  salesName: ['ผู้ดูแล', 'salesName', 'salesId'],
+  salesId: ['รหัสผู้ดูแล', 'salesId', 'sales_id'],
+  salesName: ['ผู้ดูแล', 'salesName'],
   taxId: ['เลขผู้เสียภาษี', 'taxId'],
   type: ['ประเภทผู้ขาย', 'ประเภท', 'type'],
 } as const
@@ -77,6 +78,14 @@ function cellText(row: ImportRow, field: ImportField) {
   if (value === null || value === undefined) return ''
   if (value instanceof Date) return value.toISOString()
   return String(value).trim()
+}
+
+function firstNonBlankCellText(row: ImportRow, fields: ImportField[]) {
+  for (const field of fields) {
+    const value = cellText(row, field)
+    if (value) return value
+  }
+  return ''
 }
 
 function normalizeSupplierCode(value: string) {
@@ -312,7 +321,7 @@ export async function POST(request: Request) {
       if (code && seenCodes.has(code)) issues.push(firstIssueMessage(rowNumber, `รหัสผู้ขาย ${code} ซ้ำในไฟล์`))
       if (code) seenCodes.add(code)
 
-      const salesText = cellText(row, 'salesName')
+      const salesText = firstNonBlankCellText(row, ['salesId', 'salesName'])
       const salesperson = salesText ? salespersonLookup.get(salesText.toLowerCase()) : null
       if (salesText && !salesperson) issues.push(firstIssueMessage(rowNumber, `ไม่พบผู้ดูแล "${salesText}" ในระบบ`))
       const countryCode = cellText(row, 'countryCode').toUpperCase()

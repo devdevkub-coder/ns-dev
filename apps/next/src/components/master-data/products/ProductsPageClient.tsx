@@ -6,6 +6,7 @@ import { getErrorMessage } from '@/lib/api-client'
 import { listMasterDataRecords, type MasterDataRecord } from '@/lib/master-data'
 import {
   exportProducts,
+  importProducts,
   listProducts,
   productFormSchema,
   saveProduct,
@@ -72,6 +73,7 @@ export function ProductsPageClient() {
   const [error, setError] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [page, setPage] = useState(1)
@@ -214,6 +216,21 @@ export function ProductsPageClient() {
     }
   }
 
+  async function handleImport(file: File | null) {
+    if (!file) return
+    setError(null)
+    setIsImporting(true)
+    try {
+      const result = await importProducts(file)
+      await loadData()
+      window.alert(`Import สำเร็จ ${result.totalRows.toLocaleString('th-TH')} รายการ: เพิ่มใหม่ ${result.inserted.toLocaleString('th-TH')} / อัปเดต ${result.updated.toLocaleString('th-TH')}`)
+    } catch (caught) {
+      setError(getErrorMessage(caught, 'Import Excel ไม่สำเร็จ'))
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
   function setSort(key: SortKey) {
     if (sortKey === key) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
@@ -293,6 +310,19 @@ export function ProductsPageClient() {
             <button className="rounded bg-emerald-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-60" disabled={isExporting || isLoading} type="button" onClick={() => void handleExport()}>
               {isExporting ? 'กำลัง Export...' : '📊 Export Excel'}
             </button>
+            <label className={`cursor-pointer rounded bg-blue-600 px-3 py-2 text-sm font-bold text-white ${isImporting || isLoading ? 'pointer-events-none opacity-60' : ''}`}>
+              {isImporting ? 'กำลัง Import...' : 'Import Excel'}
+              <input
+                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                className="sr-only"
+                disabled={isImporting || isLoading}
+                type="file"
+                onChange={(event) => {
+                  void handleImport(event.target.files?.[0] ?? null)
+                  event.currentTarget.value = ''
+                }}
+              />
+            </label>
             <button className="rounded bg-slate-900 px-4 py-2 text-sm font-bold text-white" type="button" onClick={openCreateForm}>
               + เพิ่มสินค้า
             </button>

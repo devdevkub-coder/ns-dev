@@ -41,6 +41,7 @@ const supplierColumns: Array<{ key: SupplierExportKey; label: string; width: num
   { key: 'accountNo', label: 'เลขที่บัญชีรับเงิน', width: 160 },
   { key: 'bankAccount', label: 'ชื่อบัญชีรับเงิน', width: 180 },
   { key: 'bankAccountsText', label: 'บัญชีรับเงินทั้งหมด', width: 320 },
+  { key: 'salesId', label: 'รหัสผู้ดูแล', width: 120 },
   { key: 'salesName', label: 'ผู้ดูแล', width: 160 },
   { key: 'countryCode', label: 'รหัสประเทศ (ISO)', width: 120 },
   { key: 'addressCountry', label: 'ประเทศ', width: 120 },
@@ -122,7 +123,7 @@ function formatBankAccounts(supplier: Supplier) {
   return supplier.bankAccounts
     .map((account) => account.paymentMethod === 'เงินสด'
       ? 'เงินสด'
-      : ['เงินโอน', account.bankName, formatAccountNoDisplay(account.accountNo), account.branchCode ? `สาขา:${account.branchCode}` : null, account.bankAccount].filter(Boolean).join(' // '))
+      : ['เงินโอน', account.bankName || 'ไม่ระบุ', formatAccountNoDisplay(account.accountNo), account.branchCode ? `สาขา:${account.branchCode}` : null, account.bankAccount].filter(Boolean).join(' // '))
     .join(' | ')
 }
 

@@ -85,13 +85,17 @@ const optionalMooSchema = z.preprocess(
     .default(null),
 )
 
-const phoneSchema = z.string().trim()
-  .min(1, 'กรอกเบอร์โทรศัพท์')
-  .regex(/^\+?[0-9][0-9\s().-]{7,24}$/, 'รูปแบบเบอร์โทรศัพท์ไม่ถูกต้อง')
-  .refine((value) => {
-    const digits = compactDigits(value)
-    return digits.length >= 9 && digits.length <= 15
-  }, 'เบอร์โทรศัพท์ต้องมีตัวเลข 9-15 หลัก')
+const optionalPhoneSchema = z.preprocess(
+  blankToNull,
+  z.string().trim()
+    .regex(/^\+?[0-9][0-9\s().-]{7,24}$/, 'รูปแบบเบอร์โทรศัพท์ไม่ถูกต้อง')
+    .refine((value) => {
+      const digits = compactDigits(value)
+      return digits.length >= 9 && digits.length <= 15
+    }, 'เบอร์โทรศัพท์ต้องมีตัวเลข 9-15 หลัก')
+    .nullable()
+    .default(null),
+)
 
 export const customerSchema = z.object({
   id: z.string().min(1),
@@ -167,7 +171,7 @@ export const customerFormSchema = z.object({
   type: z.enum(['บุคคล', 'นิติบุคคล'], { required_error: 'เลือกประเภทลูกค้า' }),
   marketScope: z.enum(['ในประเทศ', 'ต่างประเทศ']).default('ในประเทศ'),
   taxId: optionalTaxIdSchema,
-  phone: phoneSchema,
+  phone: optionalPhoneSchema,
   email: asciiEmailSchema,
   address: optionalGeneralText('ที่อยู่เต็ม/หมายเหตุที่อยู่', 500),
   addressNo: optionalGeneralText('บ้านเลขที่', 40),

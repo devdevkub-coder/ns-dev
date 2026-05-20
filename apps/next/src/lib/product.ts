@@ -3,6 +3,7 @@ import { readBlobResponse, readJsonResponse } from '@/lib/api-client'
 
 const blankToNull = (value: unknown) => (typeof value === 'string' && value.trim() === '' ? null : value)
 const codePattern = /^[A-Za-z0-9_-]+$/
+const productCodePattern = /^SKU\d{3,5}$/
 const productTextPattern = /^[\p{L}\p{M}\p{N}\s.&,()/'"+#%-]+$/u
 
 const optionalProductText = (label: string, maxLength = 160) => z.preprocess(
@@ -34,8 +35,14 @@ export const productListResultSchema = z.object({
   total: z.number().int().min(0),
   totalPages: z.number().int().min(1),
 })
+export const productImportResultSchema = z.object({
+  inserted: z.number().int().min(0),
+  totalRows: z.number().int().min(0),
+  updated: z.number().int().min(0),
+})
 
 export type Product = z.infer<typeof productSchema>
+export type ProductImportResult = z.infer<typeof productImportResultSchema>
 export type ProductListResult = z.infer<typeof productListResultSchema>
 
 export type ProductListOptions = {
@@ -51,10 +58,13 @@ export type ProductListOptions = {
 
 export const productFormSchema = z.object({
   id: z.string().trim().regex(codePattern, 'รหัสภายในสินค้ามีรูปแบบไม่ถูกต้อง').optional(),
-  code: z.string().trim()
+  code: z.preprocess(
+    (value) => (typeof value === 'string' ? value.trim().toUpperCase() : value),
+    z.string()
     .min(1, 'กรอกรหัสสินค้า')
     .max(40, 'รหัสสินค้ายาวเกินไป')
-    .regex(codePattern, 'รหัสสินค้าใช้ได้เฉพาะอังกฤษ ตัวเลข ขีดกลาง และ underscore'),
+    .regex(productCodePattern, 'รหัสสินค้าต้องเป็นรูปแบบ SKU001-SKU99999'),
+  ),
   name: z.string().trim()
     .min(1, 'กรอกชื่อสินค้า')
     .max(180, 'ชื่อสินค้ายาวเกินไป')
@@ -134,4 +144,16 @@ export async function exportProducts(options: ProductListOptions = {}): Promise<
     blob: await readBlobResponse(response, 'Export Excel ไม่สำเร็จ'),
     filename,
   }
+}
+
+export async function importProducts(file: File): Promise<ProductImportResult> {
+  const body = new FormData()
+  body.append('file', file)
+
+  const response = await fetch('/api/master-data/products/import', {
+    method: 'POST',
+    body,
+  })
+
+  return readJsonResponse(response, productImportResultSchema, 'Import Excel ไม่สำเร็จ')
 }
