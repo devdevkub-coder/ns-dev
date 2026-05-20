@@ -34,6 +34,7 @@ function recordToForm(record: MasterDataRecord): MasterDataFormValues {
     email: record.email,
     note: record.note,
     symbol: record.symbol,
+    ratePercent: record.ratePercent,
     rateToThb: record.rateToThb,
     sortOrder: record.sortOrder,
     parentId: record.parentId,

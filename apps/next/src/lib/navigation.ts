@@ -263,6 +263,8 @@ export const navigationItems: NavigationItem[] = [
   { href: '/master-data/currencies', icon: '💲', label: 'สกุลเงิน', section: 'master-data' },
   { href: '/master-data/beneficiaries', icon: '🌏', label: 'ผู้รับเงินต่างประเทศ', section: 'master-data' },
   { href: '/master-data/payment-methods', icon: '🪪', label: 'วิธีจ่าย/รับเงิน', section: 'master-data' },
+  { href: '/master-data/vat-settings', icon: '🧾', label: 'ตั้งค่า VAT', section: 'master-data' },
+  { href: '/master-data/wht-settings', icon: '🧾', label: 'ตั้งค่า WHT', section: 'master-data' },
   { href: '/master-data/remittance-purposes', icon: '🎯', label: 'วัตถุประสงค์โอน', section: 'master-data' },
   { href: '/admin/company-profile', icon: '🏢', label: 'ข้อมูลบริษัท (สำหรับใบพิมพ์)', section: 'admin' },
   { href: '/admin/change-password', icon: '🔒', label: 'เปลี่ยน Password ของฉัน', section: 'admin' },

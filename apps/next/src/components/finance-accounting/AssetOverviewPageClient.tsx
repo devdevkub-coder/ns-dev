@@ -62,7 +62,7 @@ export function AssetOverviewPageClient() {
           <input className="rounded-lg border border-[#1f2c4a] bg-[#0e1729] px-3 py-2 text-sm font-bold text-[#e6ecff]" type="date" value={asOf} onChange={(event) => setAsOf(event.target.value)} />
           <select className="rounded-lg border border-[#1f2c4a] bg-[#0e1729] px-3 py-2 text-sm text-[#e6ecff]" value={branchId} onChange={(event) => setBranchId(event.target.value)}>
             <option value="ALL">ทุกสาขา</option>
-            {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.code ? `${branch.code} - ` : ''}{branch.name}</option>)}
+            {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
           </select>
           <button className="rounded-lg bg-[#1f2c4a] px-3 py-2 text-sm text-white opacity-60" disabled type="button">Export</button>
         </div>

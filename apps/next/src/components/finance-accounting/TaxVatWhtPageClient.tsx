@@ -117,7 +117,7 @@ function FilterPanel({ children }: { children: ReactNode }) {
 }
 
 function BranchSelect({ branches, onChange, value }: { branches: BranchRow[]; onChange: (value: string) => void; value: string }) {
-  return <select className="rounded border bg-white px-2 py-1.5 text-sm" value={value} onChange={(event) => onChange(event.target.value)}><option value="">ทุกสาขา</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.code ? `${branch.code} · ` : ''}{branch.name}</option>)}</select>
+  return <select className="rounded border bg-white px-2 py-1.5 text-sm" value={value} onChange={(event) => onChange(event.target.value)}><option value="">ทุกสาขา</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select>
 }
 
 function DisabledButton({ children }: { children: ReactNode }) {
@@ -157,7 +157,7 @@ function StatCard({ label, sub, tone, value }: { label: string; sub?: string; to
 function TaxTable({ hasDoc = false, isLoading, rows, title, tone, valueKey }: { hasDoc?: boolean; isLoading: boolean; rows: TaxItem[]; title: string; tone: 'amber' | 'blue' | 'emerald' | 'purple'; valueKey: 'vat' | 'wht' }) {
   const heading = { amber: 'bg-amber-50 text-amber-700', blue: 'bg-blue-50 text-blue-700', emerald: 'bg-emerald-50 text-emerald-700', purple: 'bg-purple-50 text-purple-700' }[tone]
   const valueColor = { amber: 'text-amber-700', blue: 'text-blue-700', emerald: 'text-emerald-700', purple: 'text-purple-700' }[tone]
-  return <div className="overflow-hidden rounded-xl bg-white shadow"><div className={`border-b p-3 font-bold ${heading}`}>{title}</div><div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-slate-100"><tr><Th>วันที่</Th><Th>เลขที่</Th><Th>คู่ค้า</Th><Th align="right">ฐาน</Th><Th align="right">{valueKey === 'vat' ? 'VAT 7%' : 'WHT'}</Th>{hasDoc ? <Th align="center">เอกสาร</Th> : null}</tr></thead><tbody><LoadingOrEmpty colSpan={hasDoc ? 6 : 5} isLoading={isLoading} rows={rows.length} />{rows.map((item) => <tr key={`${item.source}-${item.no}`} className="border-t"><Td>{item.date}</Td><Td><span className="font-mono text-xs">{item.no}</span></Td><Td>{item.party}</Td><Td align="right">{money(item.base)}</Td><Td align="right"><span className={`font-bold ${valueColor}`}>{money(item[valueKey])}</span></Td>{hasDoc ? <Td align="center">{item.hasDoc ? '✓' : '✗ ขาด'}</Td> : null}</tr>)}</tbody></table></div></div>
+  return <div className="overflow-hidden rounded-xl bg-white shadow"><div className={`border-b p-3 font-bold ${heading}`}>{title}</div><div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-slate-100"><tr><Th>วันที่</Th><Th>เลขที่</Th><Th>คู่ค้า</Th><Th align="right">ฐาน</Th><Th align="right">{valueKey === 'vat' ? 'VAT' : 'WHT'}</Th>{hasDoc ? <Th align="center">เอกสาร</Th> : null}</tr></thead><tbody><LoadingOrEmpty colSpan={hasDoc ? 6 : 5} isLoading={isLoading} rows={rows.length} />{rows.map((item) => <tr key={`${item.source}-${item.no}`} className="border-t"><Td>{item.date}</Td><Td><span className="font-mono text-xs">{item.no}</span></Td><Td>{item.party}</Td><Td align="right">{money(item.base)}</Td><Td align="right"><span className={`font-bold ${valueColor}`}>{money(item[valueKey])}</span></Td>{hasDoc ? <Td align="center">{item.hasDoc ? '✓' : '✗ ขาด'}</Td> : null}</tr>)}</tbody></table></div></div>
 }
 
 function CalendarTable({ rows }: { rows: TaxPayload['taxCalendar'] }) {

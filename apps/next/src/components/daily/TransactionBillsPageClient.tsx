@@ -52,6 +52,7 @@ type BillRow = {
   vatInvoiceDate?: string
   vatInvoiceReceived?: boolean
   vatInvoiceIssued?: boolean
+  vatRatePercent?: number
   warehouseId?: string
   warehouseName?: string
 }
@@ -93,6 +94,7 @@ type PurchasePayload = {
   suppliers: Option[]
   totalAmount?: number
   totalRows?: number
+  vatRatePercent?: number
   warehouses: Option[]
 }
 
@@ -129,6 +131,10 @@ function optionLabel(option: Option) {
 
 function searchableOptionText(option: Option) {
   return `${option.code ?? ''} ${option.name} ${option.id}`.toLowerCase()
+}
+
+function formatPercent(value: number) {
+  return value.toLocaleString('th-TH', { maximumFractionDigits: 2, minimumFractionDigits: value % 1 === 0 ? 0 : 2 })
 }
 
 const initialPurchaseForm = (): PurchaseBillFormValues => ({
@@ -178,6 +184,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [totalAmount, setTotalAmount] = useState(0)
   const [totalRows, setTotalRows] = useState(0)
+  const [vatRatePercent, setVatRatePercent] = useState(7)
   const apiPath = mode === 'purchase' ? '/api/purchase/bills' : mode === 'sales' ? '/api/sales/bills' : '/api/sales/stock-issue'
   const requestPath = useMemo(() => {
     const params = new URLSearchParams({
@@ -204,6 +211,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         setRows(payload.rows)
         setTotalAmount(payload.totalAmount ?? 0)
         setTotalRows(payload.totalRows ?? payload.rows.length)
+        setVatRatePercent(payload.vatRatePercent ?? 7)
         setOptions({
           branches: payload.branches,
           channels: payload.channels,
@@ -243,11 +251,14 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const activePoBuys = options.poBuys.filter((option) => option.active !== false && (!form.supplierId || option.supplier_id === form.supplierId))
   const activeProducts = options.products.filter((option) => option.active !== false)
   const activeSuppliers = options.suppliers.filter((option) => option.active !== false)
+  const editingBill = editingBillId ? rows.find((row): row is BillRow => !isStockIssueRow(row) && row.id === editingBillId) : null
+  const formVatRatePercent = editingBill?.vatRatePercent ?? vatRatePercent
   const formSubtotal = form.items.reduce((sum, item) => sum + Math.max(0, item.qty * item.price - item.discount), 0)
   const formTotalWeight = form.items.reduce((sum, item) => sum + item.qty, 0)
   const formAfterDiscount = Math.max(0, formSubtotal - form.discountTotal)
-  const formVat = !form.hasVat || form.vatType === 'NONE' ? 0 : form.vatType === 'INCLUDE' ? formAfterDiscount * 7 / 107 : formAfterDiscount * 0.07
+  const formVat = !form.hasVat || form.vatType === 'NONE' ? 0 : form.vatType === 'INCLUDE' ? formAfterDiscount * formVatRatePercent / (100 + formVatRatePercent) : formAfterDiscount * (formVatRatePercent / 100)
   const formTotal = form.hasVat && form.vatType === 'EXCLUDE' ? formAfterDiscount + formVat : formAfterDiscount
+  const vatLabel = `VAT ${formatPercent(formVatRatePercent)}%`
   const visibleBills = pageRows.filter((row): row is BillRow => !isStockIssueRow(row))
   const visibleTotal = visibleBills.reduce((sum, row) => sum + (row.totalAmount ?? 0), 0)
   const visibleOutstanding = visibleBills.reduce((sum, row) => sum + (mode === 'purchase' ? row.payableBalance ?? 0 : row.receivableBalance ?? 0), 0)
@@ -450,10 +461,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           <div className="rounded-2xl bg-gradient-to-r from-blue-700 to-indigo-700 p-4 text-white shadow">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div><h1 className="text-2xl font-bold">📥 บิลรับซื้อ</h1><p className="mt-1 text-sm opacity-90">บันทึกบิลซื้อแบบ Stock / Trading พร้อม PO receipt, VAT, WAC และเอกสารรับสินค้า</p></div>
-              <div className="flex flex-wrap gap-2">
-                <button className="rounded-lg bg-white px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-50 disabled:opacity-60" disabled={isExporting} type="button" onClick={() => void exportExcel()}>{isExporting ? 'กำลัง Export...' : '📥 Export Excel'}</button>
-                <button className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-600" type="button" onClick={openPurchaseForm}>+ บิลรับซื้อใหม่</button>
-              </div>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
@@ -660,9 +667,9 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="blue">2</StepBadge>ข้อมูลบิล</h4>
                 <div className="grid gap-3 md:grid-cols-3">
+                <SelectField hideCode error={fieldErrors.branchId} label="สาขา/คลัง *" options={activeBranches} value={form.branchId} onChange={(value) => updateForm('branchId', value)} />
                 <Field error={fieldErrors.refNo} label="เลขที่อ้างอิง (บิล Supplier)"><input className="w-full rounded border px-3 py-2 font-mono" placeholder="เช่น INV-12345" value={form.refNo ?? ''} onChange={(event) => updateForm('refNo', event.target.value || null)} /></Field>
                 <SupplierSearchCombobox className="md:col-span-3" error={fieldErrors.supplierId} options={activeSuppliers} value={form.supplierId} onChange={(value) => updateForm('supplierId', value)} />
-                <SelectField hideCode error={fieldErrors.branchId} label="สาขา/คลัง *" options={activeBranches} value={form.branchId} onChange={(value) => updateForm('branchId', value)} />
                 <Field error={fieldErrors.licensePlate} label="ทะเบียนรถ"><input className="w-full rounded border px-3 py-2 uppercase" placeholder="เช่น 1กข-1234 / 70-1234" value={form.licensePlate ?? ''} onChange={(event) => updateForm('licensePlate', event.target.value.toUpperCase() || null)} /></Field>
                 <Field error={fieldErrors.contactPhone} label="เบอร์โทร"><input className="w-full rounded border px-3 py-2" inputMode="tel" placeholder="085-555-5555" value={form.contactPhone ?? ''} onChange={(event) => updateForm('contactPhone', sanitizePhoneInput(event.target.value) || null)} /></Field>
                 <Field label="ที่มา"><select className="w-full rounded border px-3 py-2" value={form.purchaseSource} onChange={(event) => updateForm('purchaseSource', event.target.value as PurchaseBillFormValues['purchaseSource'])}><option value="SPOT_BUY">SPOT BUY</option><option value="PO_RECEIPT">PO RECEIPT</option><option value="MIXED">MIXED</option></select></Field>
@@ -714,13 +721,36 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                             <td className="p-2 align-middle" rowSpan={2}><button className="rounded px-3 py-2 text-red-600 hover:bg-red-50 disabled:opacity-40" disabled={form.items.length <= 1} type="button" onClick={() => removeItem(index)}>ลบ</button></td>
                           </tr>
                           <tr className="border-t border-slate-100 align-top hover:bg-blue-50/30">
-                            <td className="p-2"><input className="w-full rounded border bg-slate-50 px-2 py-2 text-right font-mono" min="0" step="0.01" type="number" value={item.grossWeight || ''} onChange={(event) => updateItemWeights(index, 'grossWeight', Number(event.target.value || 0))} /></td>
-                            <td className="p-2"><input className="w-full rounded border bg-amber-50 px-2 py-2 text-right font-mono" min="0" step="0.01" type="number" value={item.deductWeight || ''} onChange={(event) => updateItemWeights(index, 'deductWeight', Number(event.target.value || 0))} /></td>
-                            <td className="p-2"><input className="w-full rounded border bg-emerald-50 px-2 py-2 text-right font-mono font-bold text-emerald-700" min="0" step="0.01" type="number" value={item.qty || ''} onChange={(event) => updateItem(index, 'qty', Number(event.target.value || 0))} /></td>
-                            <td className="p-2"><input className="w-full rounded border px-2 py-2 text-right font-mono" min="0" step="0.01" type="number" value={item.price || ''} onChange={(event) => updateItem(index, 'price', Number(event.target.value || 0))} /></td>
-                            {form.salesId ? <td className="p-2"><input className="w-full rounded border bg-purple-50 px-2 py-2 text-right font-mono" min="0" step="0.01" type="number" value={item.salesPrice || ''} onChange={(event) => updateItem(index, 'salesPrice', Number(event.target.value || 0))} /></td> : null}
-                            <td className="p-2"><input className="w-full rounded border px-2 py-2 text-right font-mono" min="0" step="0.01" type="number" value={item.discount || ''} onChange={(event) => updateItem(index, 'discount', Number(event.target.value || 0))} /></td>
-                            <td className="p-2 text-right font-mono font-bold text-blue-700">{formatMoney(Math.max(0, item.qty * item.price - item.discount))}</td>
+                            <td className="p-2">
+                              <div className="mb-1 text-[11px] font-semibold text-slate-500">Gross</div>
+                              <input className="w-full rounded border bg-slate-50 px-2 py-2 text-right font-mono" min="0" step="0.01" type="number" value={item.grossWeight || ''} onChange={(event) => updateItemWeights(index, 'grossWeight', Number(event.target.value || 0))} />
+                            </td>
+                            <td className="p-2">
+                              <div className="mb-1 text-[11px] font-semibold text-amber-700">หัก</div>
+                              <input className="w-full rounded border bg-amber-50 px-2 py-2 text-right font-mono" min="0" step="0.01" type="number" value={item.deductWeight || ''} onChange={(event) => updateItemWeights(index, 'deductWeight', Number(event.target.value || 0))} />
+                            </td>
+                            <td className="p-2">
+                              <div className="mb-1 text-[11px] font-semibold text-emerald-700">สุทธิ</div>
+                              <input className="w-full rounded border bg-emerald-50 px-2 py-2 text-right font-mono font-bold text-emerald-700" min="0" step="0.01" type="number" value={item.qty || ''} onChange={(event) => updateItem(index, 'qty', Number(event.target.value || 0))} />
+                            </td>
+                            <td className="p-2">
+                              <div className="mb-1 text-[11px] font-semibold text-slate-500">ราคา/กก.</div>
+                              <input className="w-full rounded border px-2 py-2 text-right font-mono" min="0" step="0.01" type="number" value={item.price || ''} onChange={(event) => updateItem(index, 'price', Number(event.target.value || 0))} />
+                            </td>
+                            {form.salesId ? (
+                              <td className="p-2">
+                                <div className="mb-1 text-[11px] font-semibold text-purple-700">ราคาหน้าใบ</div>
+                                <input className="w-full rounded border bg-purple-50 px-2 py-2 text-right font-mono" min="0" step="0.01" type="number" value={item.salesPrice || ''} onChange={(event) => updateItem(index, 'salesPrice', Number(event.target.value || 0))} />
+                              </td>
+                            ) : null}
+                            <td className="p-2">
+                              <div className="mb-1 text-[11px] font-semibold text-slate-500">ส่วนลด</div>
+                              <input className="w-full rounded border px-2 py-2 text-right font-mono" min="0" step="0.01" type="number" value={item.discount || ''} onChange={(event) => updateItem(index, 'discount', Number(event.target.value || 0))} />
+                            </td>
+                            <td className="p-2">
+                              <div className="mb-1 text-[11px] font-semibold text-blue-700">ยอดรวม</div>
+                              <div className="rounded border border-blue-100 bg-blue-50 px-2 py-2 text-right font-mono font-bold text-blue-700">{formatMoney(Math.max(0, item.qty * item.price - item.discount))}</div>
+                            </td>
                           </tr>
                         </Fragment>
                       ))}
@@ -747,7 +777,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                   <div className="space-y-3">
                     <label className={`flex cursor-pointer items-center gap-3 rounded-lg border-2 p-3 ${form.hasVat ? 'border-amber-500 bg-amber-50' : 'border-slate-200 bg-white'}`}>
                       <input checked={form.hasVat} className="size-5" type="checkbox" onChange={(event) => updateForm('hasVat', event.target.checked)} />
-                      <span className="font-bold text-slate-700">มี VAT 7%</span>
+                      <span className="font-bold text-slate-700">มี {vatLabel}</span>
                     </label>
                     <Field error={fieldErrors.discountTotal} label="ส่วนลดท้ายบิล (บาท)"><input className="w-full rounded border px-3 py-2 text-right font-mono" min="0" step="0.01" type="number" value={form.discountTotal || ''} onChange={(event) => updateForm('discountTotal', Number(event.target.value || 0))} /></Field>
                   </div>
@@ -756,7 +786,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     <SummaryLine label="ยอดรวมรายการ" value={formatMoney(formSubtotal)} />
                     {form.discountTotal > 0 ? <SummaryLine label="หักส่วนลด" tone="red" value={`-${formatMoney(form.discountTotal)}`} /> : null}
                     <SummaryLine label="หลังส่วนลด" value={formatMoney(formAfterDiscount)} />
-                    {form.hasVat ? <SummaryLine label="VAT 7%" value={formatMoney(formVat)} /> : null}
+                    {form.hasVat ? <SummaryLine label={vatLabel} value={formatMoney(formVat)} /> : null}
                     <div className="mt-2 flex justify-between border-t-2 border-blue-400 pt-2 text-lg font-bold"><span>ยอดสุทธิ</span><span className="font-mono text-blue-700">{formatMoney(formTotal)}</span></div>
                   </div>
                 </div>

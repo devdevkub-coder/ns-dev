@@ -594,7 +594,7 @@ function PoBuyFormModal({
               <label className="mb-1 block text-xs">สาขา *</label>
               <select className="w-full rounded border px-2 py-1.5" value={form.branchId} onChange={(event) => onUpdate('branchId', event.target.value)}>
                 <option value="">เลือกสาขา</option>
-                {activeBranches.map((branch) => <option key={branch.id} value={branch.id}>{optionLabel(branch)}</option>)}
+                {activeBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
               </select>
               {fieldError('branchId')}
             </div>

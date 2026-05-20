@@ -15,7 +15,7 @@ import {
   updateMasterDataStatusSchema,
 } from '@/lib/server/master-data'
 
-type SimpleMasterKind = 'bankNames' | 'directors' | 'machineTypes' | 'machines' | 'productionLines' | 'productionOutputCategories' | 'productTypes' | 'productUnits' | 'paymentMethods' | 'remittancePurposes'
+type SimpleMasterKind = 'bankNames' | 'directors' | 'machineTypes' | 'machines' | 'productionLines' | 'productionOutputCategories' | 'productTypes' | 'productUnits' | 'paymentMethods' | 'remittancePurposes' | 'vatSettings' | 'whtSettings'
 
 type Delegate = {
   findMany: (args?: unknown) => Promise<unknown[]>
@@ -61,6 +61,10 @@ function validateSimpleMasterValues(kind: SimpleMasterKind, values: SimpleMaster
   if (kind === 'productionOutputCategories') {
     productionOutputCategoryCodeSchema.parse(values.code)
     productionOutputStockEffectSchema.nullable().parse(values.stockEffect)
+  }
+
+  if ((kind === 'vatSettings' || kind === 'whtSettings') && values.ratePercent === null) {
+    throw new Error('กรอกอัตราภาษีเป็นเปอร์เซ็นต์')
   }
 
   return values
@@ -297,6 +301,54 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
       id,
       name: values.name,
       active: values.active,
+    }),
+  },
+  vatSettings: {
+    delegate: () => prisma.vat_settings as Delegate,
+    prefix: 'VAT-',
+    orderBy: [{ active: 'desc' }, { updated_at: 'desc' }, { id: 'asc' }],
+    map: (row) => {
+      const record = asRecord(row)
+      return {
+        id: record.id,
+        code: null,
+        name: record.name,
+        ratePercent: toNumber(record.rate_percent as { toNumber: () => number } | number | null),
+        active: record.active,
+        createdAt: toIso(record.created_at as Date | null),
+        updatedAt: toIso(record.updated_at as Date | null),
+      }
+    },
+    data: (values, id, _code) => ({
+      id,
+      name: values.name,
+      rate_percent: values.ratePercent ?? 7,
+      active: values.active,
+      effective_from: new Date('2026-01-01T00:00:00.000Z'),
+    }),
+  },
+  whtSettings: {
+    delegate: () => prisma.wht_settings as Delegate,
+    prefix: 'WHT-',
+    orderBy: [{ active: 'desc' }, { updated_at: 'desc' }, { id: 'asc' }],
+    map: (row) => {
+      const record = asRecord(row)
+      return {
+        id: record.id,
+        code: null,
+        name: record.name,
+        ratePercent: toNumber(record.rate_percent as { toNumber: () => number } | number | null),
+        active: record.active,
+        createdAt: toIso(record.created_at as Date | null),
+        updatedAt: toIso(record.updated_at as Date | null),
+      }
+    },
+    data: (values, id, _code) => ({
+      id,
+      name: values.name,
+      rate_percent: values.ratePercent ?? 3,
+      active: values.active,
+      effective_from: new Date('2026-01-01T00:00:00.000Z'),
     }),
   },
   remittancePurposes: {

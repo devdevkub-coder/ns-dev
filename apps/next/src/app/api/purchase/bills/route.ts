@@ -6,6 +6,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { activeVatRatePercent } from '@/lib/server/tax-settings'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import type { Prisma } from '../../../../../generated/prisma/client'
 
@@ -82,19 +83,21 @@ function billJson(row: PurchaseBillRow) {
     vatInvoiceNo: row.vat_invoice_no ?? '',
     vatInvoiceDate: row.vat_invoice_date ? toDateOnly(row.vat_invoice_date) : '',
     vatInvoiceReceived: row.vat_invoice_received ?? false,
+    vatRatePercent: toNumber(row.vat_rate_percent) ?? 7,
     warehouseId: row.warehouse_id ?? '',
     warehouseName: row.warehouses?.name ?? '-',
   }
 }
 
-function calculateTotals(values: PurchaseBillFormValues) {
+function calculateTotals(values: PurchaseBillFormValues, vatRatePercent: number) {
   const subtotal = values.items.reduce((sum, item) => sum + Math.max(0, item.qty * item.price - item.discount), 0)
   const afterDiscount = Math.max(0, subtotal - values.discountTotal)
+  const rate = Math.max(0, Math.min(100, vatRatePercent))
   const vatAmount = !values.hasVat || values.vatType === 'NONE'
     ? 0
     : values.vatType === 'INCLUDE'
-      ? afterDiscount * 7 / 107
-      : afterDiscount * 0.07
+      ? afterDiscount * rate / (100 + rate)
+      : afterDiscount * (rate / 100)
   const totalAmount = values.hasVat && values.vatType === 'EXCLUDE' ? afterDiscount + vatAmount : afterDiscount
 
   return { afterDiscount, subtotal, totalAmount, vatAmount }
@@ -125,7 +128,7 @@ async function nextPurchaseBillDocNo(tx: Prisma.TransactionClient, date: string,
 }
 
 async function optionsPayload() {
-  const [branches, channels, poBuys, products, salespersons, suppliers, warehouses] = await Promise.all([
+  const [branches, channels, poBuys, products, salespersons, suppliers, warehouses, vatRatePercent] = await Promise.all([
     prisma.branches.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
     prisma.purchase_channels.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, id: true, name: true } }),
     prisma.po_buys.findMany({
@@ -138,6 +141,7 @@ async function optionsPayload() {
     prisma.salespersons.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
     prisma.suppliers.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, id: true, name: true, sales_id: true } }),
     prisma.warehouses.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, branch_id: true, id: true, name: true } }),
+    activeVatRatePercent(new Date()),
   ])
 
   return {
@@ -153,6 +157,7 @@ async function optionsPayload() {
     products,
     salespersons,
     suppliers,
+    vatRatePercent,
     warehouses,
   }
 }
@@ -274,6 +279,7 @@ function buildWorkbook(rows: ReturnType<typeof billJson>[]) {
     'เซลที่ดูแล': row.salesId,
     'จำนวนรายการ': row.itemCount,
     'ส่วนลดท้ายบิล': row.discountTotal,
+    'VAT %': row.vatRatePercent,
     'ยอดรวม': row.totalAmount,
     'ชำระแล้ว': row.paidAmount,
     'ค้างจ่าย': row.payableBalance,
@@ -287,9 +293,10 @@ function buildWorkbook(rows: ReturnType<typeof billJson>[]) {
   sheet['!cols'] = [
     { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 28 }, { wch: 18 }, { wch: 18 },
     { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 12 },
-    { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 22 },
+    { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 12 },
+    { wch: 14 }, { wch: 16 }, { wch: 22 },
   ]
-  applyWorksheetTableLayout(sheet, 20, dataRows.length + 1)
+  applyWorksheetTableLayout(sheet, 21, dataRows.length + 1)
   XLSX.utils.book_append_sheet(workbook, sheet, 'บิลรับซื้อ')
   return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer
 }
@@ -334,7 +341,10 @@ export async function POST(request: Request) {
 
     const values = purchaseBillFormSchema.parse(await request.json())
     const actor = currentActor(context)
-    const totals = calculateTotals(values)
+    const createdAt = new Date()
+    const billDate = bangkokDateInput(createdAt)
+    const vatRatePercent = await activeVatRatePercent(normalizeDate(billDate))
+    const totals = calculateTotals(values, vatRatePercent)
 
     const productIds = [...new Set(values.items.map((item) => item.productId))]
     const poBuyIds = [...new Set([values.poBuyId, ...values.items.map((item) => item.poBuyId)].filter(Boolean) as string[])]
@@ -389,8 +399,6 @@ export async function POST(request: Request) {
       }
     })
 
-    const createdAt = new Date()
-    const billDate = bangkokDateInput(createdAt)
     let bill: { doc_no: string; id: string } | null = null
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
@@ -434,6 +442,7 @@ export async function POST(request: Request) {
               vat_invoice_no: values.vatInvoiceNo,
               vat_invoice_received: values.vatInvoiceReceived,
               vat_invoice_received_at: values.vatInvoiceReceived ? new Date() : null,
+              vat_rate_percent: vatRatePercent,
               vat_type: values.vatType,
               warehouse_id: values.warehouseId,
             },
@@ -494,7 +503,6 @@ export async function PATCH(request: Request) {
 
     const values = purchaseBillFormSchema.parse(raw)
     const actor = currentActor(context)
-    const totals = calculateTotals(values)
 
     const productIds = [...new Set(values.items.map((item) => item.productId))]
     const poBuyIds = [...new Set([values.poBuyId, ...values.items.map((item) => item.poBuyId)].filter(Boolean) as string[])]
@@ -513,6 +521,8 @@ export async function PATCH(request: Request) {
     ])
 
     if (!existingBill) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบบิลรับซื้อ' }, { status: 404 })
+    const vatRatePercent = toNumber(existingBill.vat_rate_percent) ?? (await activeVatRatePercent(normalizeDate(values.date)))
+    const totals = calculateTotals(values, vatRatePercent)
     if (!supplier) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (values.branchId && !branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (values.warehouseId && !warehouse) return NextResponse.json({ code: 'BAD_REQUEST', error: 'คลังไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
@@ -590,6 +600,7 @@ export async function PATCH(request: Request) {
           vat_invoice_no: values.vatInvoiceNo,
           vat_invoice_received: values.vatInvoiceReceived,
           vat_invoice_received_at: values.vatInvoiceReceived ? new Date() : null,
+          vat_rate_percent: vatRatePercent,
           vat_type: values.vatType,
           warehouse_id: values.warehouseId,
         },

@@ -333,7 +333,7 @@ Validation:
 - Next daily Batch B payment/receipt routes now have baseline pages and API routes.
 - Next daily Batch C stock transfer/audit routes now have baseline pages and API routes.
 - Next daily Batch D/E transaction read routes now have baseline pages and API routes.
-- Purchase bill create/edit flow now writes header + JSON items, generates branch/month document numbers at save time, recalculates AP status from payments, and writes stock ledger only for `STOCK` bills.
+- Purchase bill create/edit flow now writes header + JSON items, generates branch/month document numbers at save time, recalculates AP status from payments, and writes stock ledger only for `STOCK` bills. The modal reads the active VAT percent from `vat_settings`, displays that percent in the VAT summary, calculates with that rate, and stores the applied percent in `purchase_bills.vat_rate_percent`.
 - Purchase bill linked read surfaces now exist for AP aging, stock ledger, trading matching, PO buy, outstanding PO, and supplier tracking.
 - Legacy daily UI/reference exists under:
   - `old-apps/legacy/index.html`

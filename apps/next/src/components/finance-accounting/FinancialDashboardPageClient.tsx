@@ -42,7 +42,7 @@ export function FinancialDashboardPageClient() {
       {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
       <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow">
         <label className="flex items-center gap-2 text-sm"><span>As of</span><input className="rounded border px-2 py-1.5 text-sm" type="date" value={asOf} onChange={(event) => setAsOf(event.target.value)} /></label>
-        <select className="rounded border bg-white px-2 py-1.5 text-sm" value={branchId} onChange={(event) => setBranchId(event.target.value)}><option value="">ทุกสาขา</option>{(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.code ? `${branch.code} · ` : ''}{branch.name}</option>)}</select>
+        <select className="rounded border bg-white px-2 py-1.5 text-sm" value={branchId} onChange={(event) => setBranchId(event.target.value)}><option value="">ทุกสาขา</option>{(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">

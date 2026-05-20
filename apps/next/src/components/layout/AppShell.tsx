@@ -130,7 +130,7 @@ export function AppShell({ children }: AppShellProps) {
               <option value="all">ทุกสาขา</option>
               {branches.map((branch) => (
                 <option key={branch.id} value={branch.id}>
-                  {branch.code ? `${branch.code} · ${branch.name}` : branch.name}
+                  {branch.name}
                 </option>
               ))}
             </select>

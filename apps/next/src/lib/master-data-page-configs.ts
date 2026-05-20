@@ -365,6 +365,38 @@ export const paymentMethodsPageConfig: MasterDataPageConfig = {
   ],
 }
 
+export const vatSettingsPageConfig: MasterDataPageConfig = {
+  apiPath: '/api/master-data/vat-settings',
+  createLabel: 'เพิ่มอัตรา VAT',
+  entityName: 'อัตรา VAT',
+  emptyMessage: 'ไม่พบข้อมูลอัตรา VAT',
+  fields: [
+    { key: 'name', label: 'ชื่ออัตรา VAT', required: true },
+    { key: 'ratePercent', label: 'VAT %', type: 'number', required: true },
+  ],
+  columns: [
+    { key: 'name', label: 'ชื่อ' },
+    { key: 'ratePercent', label: 'VAT %', align: 'right' },
+    statusColumn,
+  ],
+}
+
+export const whtSettingsPageConfig: MasterDataPageConfig = {
+  apiPath: '/api/master-data/wht-settings',
+  createLabel: 'เพิ่มอัตรา WHT',
+  entityName: 'อัตรา WHT',
+  emptyMessage: 'ไม่พบข้อมูลอัตรา WHT',
+  fields: [
+    { key: 'name', label: 'ชื่ออัตรา WHT', required: true },
+    { key: 'ratePercent', label: 'WHT %', type: 'number', required: true },
+  ],
+  columns: [
+    { key: 'name', label: 'ชื่อ' },
+    { key: 'ratePercent', label: 'WHT %', align: 'right' },
+    statusColumn,
+  ],
+}
+
 export const remittancePurposesPageConfig: MasterDataPageConfig = {
   apiPath: '/api/master-data/remittance-purposes',
   createLabel: 'เพิ่มวัตถุประสงค์โอน',
