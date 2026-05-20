@@ -14,6 +14,7 @@ type ProductRef = {
 }
 
 type PendingProductRow = {
+  avgPriceRemain: number
   avgPriceAll: number
   diffPctLme: number
   diffPctWac: number
@@ -202,6 +203,7 @@ export async function buildPendingSales() {
     if (!productAgg.has(key)) {
       productAgg.set(key, {
         avgPriceAll: 0,
+        avgPriceRemain: 0,
         diffPctLme: 0,
         diffPctWac: 0,
         gainVsLme: 0,
@@ -255,15 +257,16 @@ export async function buildPendingSales() {
     const qty = row.remainQty + row.soldQty
     const value = row.remainValue + row.soldValue
     const avgPriceAll = qty > 0 ? value / qty : 0
+    const avgPriceRemain = row.remainQty > 0 ? row.remainValue / row.remainQty : avgPriceAll
     const target = row.lmeTarget
     return {
       ...row,
       avgPriceAll,
-      avgPriceRemain: row.remainQty > 0 ? row.remainValue / row.remainQty : avgPriceAll,
-      diffPctLme: target > 0 ? ((avgPriceAll - target) / target) * 100 : 0,
-      diffPctWac: row.wac > 0 ? ((avgPriceAll - row.wac) / row.wac) * 100 : 0,
-      gainVsLme: target > 0 ? (avgPriceAll - target) * row.remainQty : 0,
-      gainVsWac: (avgPriceAll - row.wac) * row.remainQty,
+      avgPriceRemain,
+      diffPctLme: target > 0 ? ((avgPriceRemain - target) / target) * 100 : 0,
+      diffPctWac: row.wac > 0 ? ((avgPriceRemain - row.wac) / row.wac) * 100 : 0,
+      gainVsLme: target > 0 ? (avgPriceRemain - target) * row.remainQty : 0,
+      gainVsWac: (avgPriceRemain - row.wac) * row.remainQty,
     }
   }).sort((left, right) => right.remainValue - left.remainValue)
 
@@ -307,6 +310,15 @@ export async function buildPendingSales() {
     poBuyByProduct.set(product.id, current)
   })
 
+  const poSellOpenByProduct = new Map<string, number>()
+  poSells.filter((po) => activeStatus(po.status) && !['fully matched', 'closed'].includes((po.status ?? '').toLowerCase())).forEach((po) => {
+    poSellItems(po, byKey).forEach((item) => {
+      if (!item.product?.id && !item.productId) return
+      const key = item.product?.id ?? item.productId
+      poSellOpenByProduct.set(key, (poSellOpenByProduct.get(key) ?? 0) + Math.max(0, item.remainingQty))
+    })
+  })
+
   const reconciliation = refs.map((product) => {
     const stock = stockByProduct.get(product.id) ?? { qty: 0, value: 0 }
     const spotRaw = spotByProduct.get(product.id) ?? { amount: 0, qty: 0 }
@@ -332,6 +344,52 @@ export async function buildPendingSales() {
     }
   }).filter((row) => row.poOnOrderQty > 0 || row.spotInPoolQty > 0 || row.stockQty !== 0)
 
+  const dualGroups = ['ทองแดง', 'ทองเหลือง']
+  const pendingSaleTable = refs
+    .filter((product) => dualGroups.some((group) => product.metalGroup.includes(group)) || ['copper', 'brass'].some((group) => product.metalGroup.toLowerCase().includes(group)))
+    .map((product) => {
+      const stock = stockByProduct.get(product.id) ?? { qty: 0, value: 0 }
+      const spotRaw = spotByProduct.get(product.id) ?? { amount: 0, qty: 0 }
+      const matched = matchedByProduct.get(product.id) ?? 0
+      const pendingSaleQty = Math.max(0, spotRaw.qty - matched)
+      const avgPrice = spotRaw.qty > 0 ? spotRaw.amount / spotRaw.qty : 0
+      const pendingSaleValue = pendingSaleQty * avgPrice
+      const lockedSell = poSellOpenByProduct.get(product.id) ?? 0
+      const lockedBuy = poBuyByProduct.get(product.id)?.qty ?? 0
+      const realPendingSale = stock.qty + lockedBuy - lockedSell
+      return {
+        avgPrice,
+        itemStatus: product.itemStatus,
+        lockedBuy,
+        lockedSell,
+        metalGroup: product.metalGroup,
+        pendingSaleQty,
+        pendingSaleValue,
+        productCode: product.code,
+        productId: product.id,
+        productName: product.name,
+        realPendingSale,
+        stock: stock.qty,
+        stockWAC: stock.qty > 0 ? stock.value / stock.qty : product.wac,
+      }
+    })
+    .filter((row) => row.pendingSaleQty > 0 || row.lockedSell > 0 || row.lockedBuy > 0 || row.stock !== 0)
+    .sort((left, right) => {
+      if (left.realPendingSale < 0 && right.realPendingSale >= 0) return -1
+      if (right.realPendingSale < 0 && left.realPendingSale >= 0) return 1
+      return right.pendingSaleValue - left.pendingSaleValue
+    })
+  const pendingSaleTotals = {
+    count: pendingSaleTable.length,
+    shortageCount: pendingSaleTable.filter((row) => row.realPendingSale < 0).length,
+    totalLockedBuy: pendingSaleTable.reduce((sum, row) => sum + row.lockedBuy, 0),
+    totalLockedSell: pendingSaleTable.reduce((sum, row) => sum + row.lockedSell, 0),
+    totalPendingSaleQty: pendingSaleTable.reduce((sum, row) => sum + row.pendingSaleQty, 0),
+    totalPendingSaleValue: pendingSaleTable.reduce((sum, row) => sum + row.pendingSaleValue, 0),
+    totalRealPending: pendingSaleTable.reduce((sum, row) => sum + row.realPendingSale, 0),
+    totalStock: pendingSaleTable.reduce((sum, row) => sum + row.stock, 0),
+  }
+
   const summary = {
     avgRemainPrice: productRows.reduce((sum, row) => sum + row.remainValue, 0) / Math.max(1, productRows.reduce((sum, row) => sum + row.remainQty, 0)),
     productCount: productRows.length,
@@ -354,6 +412,8 @@ export async function buildPendingSales() {
     customers: customers.map((customer) => ({ active: customer.active ?? true, id: customer.id, name: customer.name })),
     lmeConfig: lmeConfig(),
     metalGroups: Array.from(new Set(refs.map((product) => product.metalGroup).filter(Boolean))).sort(),
+    pendingSaleTable,
+    pendingSaleTotals,
     productDetails: details,
     productRows,
     reconciliation,

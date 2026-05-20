@@ -9,6 +9,8 @@ type PendingPayload = {
   customers: { id: string; name: string }[]
   lmeConfig: LmeConfig
   metalGroups: string[]
+  pendingSaleTable: AnyRow[]
+  pendingSaleTotals: Record<string, number>
   productDetails: AnyRow[]
   productRows: AnyRow[]
   reconciliation: AnyRow[]
@@ -79,17 +81,24 @@ export function PendingSalesPageClient() {
     .filter((row) => mode === 'all' || (mode === 'pending' ? num(row.remainQty) > 0 : num(row.soldQty) > 0)), [data, mode, selectedGroups])
   const details = (data?.productDetails ?? []).filter((row) => text(row.productId) === selectedProductId).filter((row) => !customerId || text(row.customerId) === customerId)
   const selectedProduct = productRows.find((row) => text(row.productId) === selectedProductId)
+  const exportPendingSales = () => {
+    downloadCsv(
+      `pending_sales_summary_${new Date().toISOString().slice(0, 10)}.csv`,
+      ['Product', 'Group', 'PO Count', 'Sold Qty', 'Remain Qty', 'Avg Price', 'WAC', 'LME Target', 'Gain vs WAC', 'Gain vs LME', 'LME %'],
+      productRows.map((row) => [text(row.productName), text(row.metalGroup), money(row.poCount), money(row.soldQty), money(row.remainQty), money(row.avgPriceRemain), money(row.wac), money(row.lmeTarget), money(row.gainVsWac), money(row.gainVsLme), money(row.lmeBuyPercent)]),
+    )
+  }
 
   return (
     <section className="space-y-3">
       <Hero tone="from-amber-600 to-orange-600" title="⏰ รายการรอขาย / Pending Sales — เทียบกับ LME" subtitle="สรุปสินค้าที่รอขาย · เปรียบเทียบกับราคา LME · กำไร/ขาดทุน · Cost Pool vs Stock" />
-      <LmeCard config={data?.lmeConfig} products={productRows} />
+      <LmeCard config={data?.lmeConfig} products={data?.productRows ?? []} />
       <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow">
         <Segment active={mode === 'pending'} color="amber" onClick={() => setMode('pending')}>⏳ ยังรอขาย</Segment>
         <Segment active={mode === 'sold'} color="emerald" onClick={() => setMode('sold')}>✅ ขายแล้ว</Segment>
         <Segment active={mode === 'all'} color="blue" onClick={() => setMode('all')}>📋 ทั้งหมด</Segment>
         <select className="control" value={customerId} onChange={(event) => setCustomerId(event.target.value)}><option value="">ทุก Customer</option>{(data?.customers ?? []).map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select>
-        <span className="flex-1" /><button className="btn-disabled" disabled type="button">📥 Export CSV</button>
+        <span className="flex-1" /><button className="rounded-lg bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700" type="button" onClick={exportPendingSales}>📥 Export CSV</button>
       </div>
       <MetalChips groups={data?.metalGroups ?? []} selected={selectedGroups} setSelected={setSelectedGroups} />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
@@ -100,6 +109,7 @@ export function PendingSalesPageClient() {
         <Metric label="กำไรรวม vs LME" value={money(data?.summary.totalGainVsLme)} tone={(data?.summary.totalGainVsLme ?? 0) >= 0 ? 'emerald' : 'red'} />
       </div>
       {!selectedProductId ? <PendingSummary rows={productRows} mode={mode} onSelect={setSelectedProductId} /> : <PendingDetails details={details} name={text(selectedProduct?.productName)} onBack={() => setSelectedProductId('')} />}
+      <PendingSaleInventory rows={data?.pendingSaleTable ?? []} totals={data?.pendingSaleTotals ?? {}} />
       <PoolStock data={data} />
       <Notice text={data?.sourceState.limitations[0]} />
       {error ? <ErrorBox text={error} /> : null}
@@ -309,7 +319,51 @@ function Hero({ action, subtitle, title, tone }: { action?: ReactNode; subtitle:
 }
 
 function LmeCard({ config, products }: { config?: LmeConfig; products: AnyRow[] }) {
-  return <><div className="rounded-xl bg-white p-4 shadow"><div className="mb-3 flex justify-between"><h3 className="font-bold text-slate-700">📊 LME Reference Pricing</h3><button className="btn-disabled" disabled type="button">💾 บันทึก</button></div><div className="grid grid-cols-2 gap-3 md:grid-cols-4"><LmeStat label="🥉 ทองแดง LME (USD/MT)" value={money(config?.lmeCopperUSD)} /><LmeStat label="🌟 ทองเหลือง LME (USD/MT)" value={money(config?.lmeBrassUSD)} /><LmeStat label="⚪ อลูมิเนียม LME (USD/MT)" value={money(config?.lmeAluminumUSD)} /><LmeStat label="💱 เรท USD/THB" value={money(config?.fxRate)} /></div><div className="mt-2 text-xs text-slate-400">⏰ อัปเดตล่าสุด: {config?.updatedAt ?? '-'} โดย {config?.updatedBy ?? '-'}</div></div><details className="rounded-xl bg-white shadow"><summary className="cursor-pointer p-3 font-bold text-slate-700">📋 ตั้งค่าผู้ซื้อซื้อที่ LME กี่ % ต่อสินค้า — เฉพาะ 🥉 ทองแดง / 🌟 ทองเหลือง</summary><SimpleTable headers={['รหัส', 'สินค้า', 'หมวด', 'LME ฐาน', '% ที่ซื้อ', 'ราคาเป้า', 'WAC', 'Diff']} rows={products.filter((row) => text(row.metalGroup).includes('ทองแดง') || text(row.metalGroup).includes('ทองเหลือง')).map((row) => [text(row.productCode), text(row.productName), text(row.metalGroup), money(text(row.metalGroup).includes('ทองแดง') ? config?.lmeCopperUSD : config?.lmeBrassUSD), `${money(row.lmeBuyPercent)}%`, money(row.lmeTarget), money(row.wac), money(num(row.wac) - num(row.lmeTarget))])} /></details></>
+  const lmeProducts = products.filter((row) => text(row.metalGroup).includes('ทองแดง') || text(row.metalGroup).includes('ทองเหลือง') || text(row.metalGroup).toLowerCase().includes('copper') || text(row.metalGroup).toLowerCase().includes('brass'))
+  return (
+    <>
+      <div className="rounded-xl bg-white p-4 shadow">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="font-bold text-slate-700">📊 LME Reference Pricing</h3>
+          <button className="btn-disabled" disabled title="รอ schema/audit สำหรับบันทึก LME config" type="button">💾 บันทึก</button>
+        </div>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <LmeInput label="🥉 ทองแดง LME (USD/MT)" value={config?.lmeCopperUSD} />
+          <LmeInput label="🌟 ทองเหลือง LME (USD/MT)" value={config?.lmeBrassUSD} />
+          <LmeInput label="⚪ อลูมิเนียม LME (USD/MT)" value={config?.lmeAluminumUSD} />
+          <LmeInput label="💱 เรท USD/THB" value={config?.fxRate} />
+        </div>
+        <div className="mt-2 text-xs text-slate-400">⏰ อัปเดตล่าสุด: {config?.updatedAt ?? '-'} โดย {config?.updatedBy ?? '-'}</div>
+      </div>
+      <details className="rounded-xl bg-white shadow">
+        <summary className="cursor-pointer p-3 font-bold text-slate-700">📋 ตั้งค่าผู้ซื้อซื้อที่ LME กี่ % ต่อสินค้า — เฉพาะ 🥉 ทองแดง / 🌟 ทองเหลือง ({lmeProducts.length} รายการ)</summary>
+        <div className="overflow-x-auto p-3">
+          <table className="w-full min-w-[820px] text-sm">
+            <thead className="bg-slate-100"><tr><th className="p-2 text-left">รหัส</th><th className="p-2 text-left">สินค้า</th><th className="p-2 text-left">หมวด</th><th className="p-2 text-right">LME ฐาน (USD/MT)</th><th className="p-2 text-right">% ที่ซื้อ</th><th className="p-2 text-right">ราคาเป้า (THB/กก.)</th><th className="p-2 text-right">WAC ปัจจุบัน</th><th className="p-2 text-right">Diff</th></tr></thead>
+            <tbody>
+              {lmeProducts.map((row) => {
+                const base = text(row.metalGroup).includes('ทองแดง') || text(row.metalGroup).toLowerCase().includes('copper') ? config?.lmeCopperUSD : config?.lmeBrassUSD
+                const diff = num(row.wac) - num(row.lmeTarget)
+                return (
+                  <tr className="border-t" key={text(row.productId)}>
+                    <td className="p-2 font-mono text-xs">{text(row.productCode)}</td>
+                    <td className="p-2">{text(row.productName)}</td>
+                    <td className="p-2 text-xs">{text(row.metalGroup) || '-'}</td>
+                    <td className="p-2 text-right text-xs text-slate-500">{base ? money(base) : '-'}</td>
+                    <td className="p-2 text-right"><input className="w-24 rounded border border-slate-300 px-2 py-1 text-right" disabled type="number" value={num(row.lmeBuyPercent)} readOnly />%</td>
+                    <td className="p-2 text-right font-bold text-blue-700">{num(row.lmeTarget) ? money(row.lmeTarget) : '-'}</td>
+                    <td className="p-2 text-right">{money(row.wac)}</td>
+                    <td className={`p-2 text-right text-xs ${diff <= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{num(row.lmeTarget) ? money(diff) : '-'}</td>
+                  </tr>
+                )
+              })}
+              {!lmeProducts.length ? <tr><td className="py-6 text-center text-slate-400" colSpan={8}>ไม่มีสินค้าหมวดทองแดง/ทองเหลือง</td></tr> : null}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </>
+  )
 }
 
 function PendingSummary({ mode, onSelect, rows }: { mode: string; onSelect: (id: string) => void; rows: AnyRow[] }) {
@@ -318,6 +372,59 @@ function PendingSummary({ mode, onSelect, rows }: { mode: string; onSelect: (id:
 
 function PendingDetails({ details, name, onBack }: { details: AnyRow[]; name: string; onBack: () => void }) {
   return <div className="space-y-3"><div className="flex justify-between rounded border-l-4 border-blue-500 bg-blue-50 p-3"><div><div className="text-xs text-slate-500">เลือกสินค้า</div><div className="font-bold text-blue-700">{name}</div></div><button className="text-sm text-slate-600" type="button" onClick={onBack}>← กลับสรุปทั้งหมด</button></div><SimpleTable headers={['เลขที่ PO', 'วันที่', 'Customer', 'จำนวน', 'ราคา', 'ขายแล้ว', 'รอขาย', 'มูลค่ารอ', 'วันส่ง']} rows={details.map((row) => [text(row.docNo), text(row.date), text(row.customerName), money(row.itemQty), money(row.itemPrice), money(row.matched), money(row.remaining), money(row.remainValue), text(row.deliveryDate)])} /></div>
+}
+
+function PendingSaleInventory({ rows, totals }: { rows: AnyRow[]; totals: Record<string, number> }) {
+  const exportRows = () => {
+    downloadCsv(
+      `pending_sale_inventory_${new Date().toISOString().slice(0, 10)}.csv`,
+      ['Product Code', 'Product Name', 'หมวด', 'Status', 'รอขาย', 'มูลค่ารอขาย', 'ราคาเฉลี่ย', 'รอขายจริง', 'ล๊อกขายรอส่ง', 'PO ซื้อรอส่ง', 'STOCK'],
+      rows.map((row) => [text(row.productCode), text(row.productName), text(row.metalGroup), text(row.itemStatus), money(row.pendingSaleQty), money(row.pendingSaleValue), money(row.avgPrice), money(row.realPendingSale), money(row.lockedSell), money(row.lockedBuy), money(row.stock)]),
+    )
+  }
+  return (
+    <div className="space-y-3">
+      <Hero tone="from-indigo-600 to-purple-700" title="📋 ตารางรอขาย" subtitle="เฉพาะ ทองแดง / ทองเหลือง · รอขายจริง = STOCK + PO ซื้อรอส่ง − ล๊อกขายรอส่ง" />
+      <div className="rounded-xl bg-indigo-50 p-3 text-xs text-indigo-900 shadow">
+        <b>รอขาย</b> = ของใน Cost Pool ที่ยังไม่ถูก Allocate · <b>ล๊อกขายรอส่ง</b> = PO Sell ที่ยังไม่ส่งของ · <b>PO ซื้อรอส่ง</b> = PO Buy ที่ยังไม่ matched · <b>STOCK</b> = ของในคลังตามจริง
+      </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <div className="rounded-xl border-l-4 border-emerald-500 bg-white p-3 shadow"><div className="text-xs text-slate-500">💰 รอขาย (Cost Pool)</div><div className="text-lg font-bold text-emerald-700">{money(totals.totalPendingSaleQty)} กก.</div><div className="text-xs text-slate-400">≈ {money(totals.totalPendingSaleValue)} ฿</div></div>
+        <div className="rounded-xl border-l-4 border-pink-500 bg-white p-3 shadow"><div className="text-xs text-slate-500">🔒 ล๊อกขายรอส่ง</div><div className="text-lg font-bold text-pink-700">{money(totals.totalLockedSell)} กก.</div><div className="text-xs text-slate-400">PO Sell (Open)</div></div>
+        <div className="rounded-xl border-l-4 border-purple-500 bg-white p-3 shadow"><div className="text-xs text-slate-500">📦 PO ซื้อรอส่ง</div><div className="text-lg font-bold text-purple-700">{money(totals.totalLockedBuy)} กก.</div><div className="text-xs text-slate-400">PO Buy (Open)</div></div>
+        <div className="rounded-xl border-l-4 border-blue-500 bg-white p-3 shadow"><div className="text-xs text-slate-500">🏷 STOCK</div><div className="text-lg font-bold text-blue-700">{money(totals.totalStock)} กก.</div><div className="text-xs text-slate-400">ของจริงในคลัง</div></div>
+        <div className={`rounded-xl border-l-4 bg-white p-3 shadow ${num(totals.totalRealPending) < 0 ? 'border-red-600' : 'border-slate-400'}`}><div className="text-xs text-slate-500">⚖ รอขายจริง (รวม)</div><div className={`text-lg font-bold ${num(totals.totalRealPending) < 0 ? 'text-red-600' : 'text-slate-700'}`}>{money(totals.totalRealPending)} กก.</div><div className={`text-xs ${num(totals.shortageCount) > 0 ? 'font-bold text-red-500' : 'text-slate-400'}`}>{num(totals.shortageCount) > 0 ? `⚠ ขาด ${money(totals.shortageCount)} รายการ` : '✓ ครบทุกรายการ'}</div></div>
+      </div>
+      <div className="overflow-hidden rounded-xl bg-white shadow">
+        <div className="flex items-center justify-between border-b border-amber-200 bg-amber-50 px-4 py-3">
+          <h3 className="text-sm font-bold text-amber-900">🟡 ตารางรอขาย — ทองแดง / ทองเหลือง ({rows.length} รายการ)</h3>
+          <button className="rounded bg-indigo-600 px-3 py-1 text-xs text-white hover:bg-indigo-700" type="button" onClick={exportRows}>📥 Export CSV</button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px] text-xs">
+            <thead className="bg-slate-100"><tr><th className="p-2 text-left">รหัส / สินค้า</th><th className="p-2 text-left">หมวด</th><th className="p-2 text-right text-emerald-700">รอขาย<br /><span className="text-[10px] font-normal text-slate-400">(กก.)</span></th><th className="p-2 text-right text-emerald-700">มูลค่ารอขาย<br /><span className="text-[10px] font-normal text-slate-400">(฿)</span></th><th className="p-2 text-right text-slate-600">ราคาเฉลี่ย<br /><span className="text-[10px] font-normal text-slate-400">(฿/กก.)</span></th><th className="p-2 text-right text-red-700">รอขายจริง<br /><span className="text-[10px] font-normal text-slate-400">(กก.)</span></th><th className="p-2 text-right text-pink-700">ล๊อกขายรอส่ง<br /><span className="text-[10px] font-normal text-slate-400">(กก.)</span></th><th className="p-2 text-right text-purple-700">PO ซื้อรอส่ง<br /><span className="text-[10px] font-normal text-slate-400">(กก.)</span></th><th className="p-2 text-right text-blue-700">STOCK<br /><span className="text-[10px] font-normal text-slate-400">(กก.)</span></th></tr></thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr className={`border-t hover:bg-slate-50 ${num(row.realPendingSale) < 0 ? 'bg-red-50' : ''}`} key={text(row.productId)}>
+                  <td className="p-2"><span className="font-mono text-slate-500">{text(row.productCode)}</span> {text(row.productName)} <span className="ml-1 text-[10px] text-slate-400">[{text(row.itemStatus)}]</span></td>
+                  <td className="p-2 text-slate-600">{text(row.metalGroup)}</td>
+                  <td className={`p-2 text-right ${num(row.pendingSaleQty) > 0 ? 'font-bold text-emerald-700' : 'text-slate-300'}`}>{money(row.pendingSaleQty)}</td>
+                  <td className={`p-2 text-right ${num(row.pendingSaleValue) > 0 ? 'font-bold text-emerald-700' : 'text-slate-300'}`}>{money(row.pendingSaleValue)}</td>
+                  <td className="p-2 text-right text-slate-600">{num(row.avgPrice) > 0 ? money(row.avgPrice) : '-'}</td>
+                  <td className={`p-2 text-right font-bold ${num(row.realPendingSale) < 0 ? 'bg-red-100 text-red-700' : num(row.realPendingSale) > 0 ? 'text-emerald-700' : 'text-slate-400'}`}>{num(row.realPendingSale) < 0 ? `⚠ ${money(row.realPendingSale)}` : money(row.realPendingSale)}</td>
+                  <td className={`p-2 text-right ${num(row.lockedSell) > 0 ? 'font-bold text-pink-700' : 'text-slate-300'}`}>{money(row.lockedSell)}</td>
+                  <td className={`p-2 text-right ${num(row.lockedBuy) > 0 ? 'font-bold text-purple-700' : 'text-slate-300'}`}>{money(row.lockedBuy)}</td>
+                  <td className={`p-2 text-right ${num(row.stock) > 0 ? 'font-bold text-blue-700' : 'text-slate-300'}`}>{money(row.stock)}</td>
+                </tr>
+              ))}
+              {!rows.length ? <tr><td className="py-8 text-center text-slate-400" colSpan={9}>ยังไม่มีข้อมูลรอขายทองแดง/ทองเหลือง</td></tr> : null}
+            </tbody>
+            {rows.length ? <tfoot className="border-t-2 border-slate-300 bg-slate-50 font-bold text-slate-700"><tr><td className="p-2" colSpan={2}>รวม ({rows.length} รายการ)</td><td className="p-2 text-right text-emerald-700">{money(totals.totalPendingSaleQty)}</td><td className="p-2 text-right text-emerald-700">{money(totals.totalPendingSaleValue)}</td><td className="p-2 text-right text-slate-400">-</td><td className={`p-2 text-right ${num(totals.totalRealPending) < 0 ? 'text-red-700' : 'text-slate-700'}`}>{money(totals.totalRealPending)}</td><td className="p-2 text-right text-pink-700">{money(totals.totalLockedSell)}</td><td className="p-2 text-right text-purple-700">{money(totals.totalLockedBuy)}</td><td className="p-2 text-right text-blue-700">{money(totals.totalStock)}</td></tr></tfoot> : null}
+          </table>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function PoolStock({ data }: { data: PendingPayload | null }) {
@@ -343,6 +450,10 @@ function MetalChips({ groups, selected, setSelected }: { groups: string[]; selec
 
 function LmeStat({ label, value }: { label: string; value: string }) {
   return <div><div className="text-xs text-blue-700">{label}</div><div className="font-bold">{value}</div></div>
+}
+
+function LmeInput({ label, value }: { label: string; value?: number }) {
+  return <label className="block text-xs text-slate-600">{label}<input className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-right text-sm font-bold" readOnly value={money(value)} /></label>
 }
 
 function Metric({ label, tone, value }: { label: string; tone: string; value: string }) {
