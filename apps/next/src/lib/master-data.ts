@@ -209,6 +209,7 @@ export type MasterDataField = {
   key: keyof MasterDataFormValues
   label: string
   optionsApiPath?: string
+  optionValueKey?: keyof MasterDataRecord
   type?: MasterDataFieldType
   options?: Array<{ label: string; value: string }>
   required?: boolean

@@ -53,7 +53,7 @@ function marketScope(value?: string | null) {
 
 async function accountBalances(asOf: Date) {
   const [accounts, bankRows] = await Promise.all([
-    prisma.accounts.findMany({ orderBy: [{ type: 'asc' }, { code: 'asc' }, { name: 'asc' }], where: { active: { not: false } } }),
+    prisma.accounts.findMany({ orderBy: [{ type: 'asc' }, { name: 'asc' }, { account_no: 'asc' }], where: { active: { not: false } } }),
     prisma.bank_statement.findMany({
       orderBy: [{ account_id: 'asc' }, { date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
       take: 60000,
@@ -72,7 +72,7 @@ async function accountBalances(asOf: Date) {
     const currency = account.currency ?? 'THB'
     return {
       balance,
-      code: account.code,
+      code: account.account_no,
       currency,
       fxRate: currency === 'THB' ? 1 : 1,
       id: account.id,

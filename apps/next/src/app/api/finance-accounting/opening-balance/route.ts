@@ -15,7 +15,7 @@ export async function GET() {
       prisma.opening_balance.findUnique({ where: { id: 'SINGLETON' } }),
       prisma.accounts.findMany({
         include: { branches: { select: { code: true, name: true } } },
-        orderBy: [{ code: 'asc' }, { name: 'asc' }],
+        orderBy: [{ name: 'asc' }, { account_no: 'asc' }],
         take: 5000,
       }),
     ])
@@ -23,7 +23,7 @@ export async function GET() {
       accounts: accounts.map((account) => ({
         branchCode: account.branches?.code || '',
         branchName: account.branches?.name || '',
-        code: account.code || '',
+        code: account.account_no || '',
         currency: account.currency || 'THB',
         name: account.name,
         odLimit: toNumber(account.od_limit),

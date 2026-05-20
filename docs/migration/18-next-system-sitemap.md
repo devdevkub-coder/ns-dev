@@ -47,7 +47,7 @@ Status terms:
 | PO Reports | 1 | 1 | 0 | outstanding only |
 | Reports | 1 | 1 | 0 | reports index |
 | Finance / Accounting | 19 | 19 | 0 | financial-dashboard, cash-flow-analysis, cf-forecast-calendar, working-capital, stock-finance, profit-leak, tax-vat-wht, pl-statement, balance-sheet, cash-flow-statement, asset-register, depreciation, asset-disposal, loan-contracts, loan-dashboard, asset-overview, equity-maint, opening-balance, historical-data |
-| Master Data | 18 | 18 | 0 | broad master-data coverage |
+| Master Data | 18 | 18 | 0 | broad master-data coverage; warehouses route retired from active navigation |
 | Admin | 6 | 6 | 0 | company, users, audit, transaction ledger; password and migration tools are client baselines |
 
 ## Route Inventory
@@ -201,17 +201,17 @@ Status terms:
 | `/master-data/customers` | ลูกค้า | done | `GET/POST /api/master-data/customers`, `GET /export`, `PATCH /{id}/status` | `customers` | `master.customers.view` |
 | `/master-data/salespersons` | พนักงานขาย | done | `GET/POST /api/master-data/salespersons`, `PATCH /{id}` | `salespersons` | `master.reference.view` |
 | `/master-data/suppliers` | ผู้ขาย | done | `GET/POST /api/master-data/suppliers`, `GET /export`, `POST /import`, `PATCH /{id}` | `suppliers` | `master.suppliers.view` |
-| `/master-data/products` | สินค้า | done | `GET/POST /api/master-data/products`, `GET /export`, `PATCH /{id}` | `products` | `master.products.view` |
+| `/master-data/products` | รายการสินค้า | done | `GET/POST /api/master-data/products`, `GET /export`, `PATCH /{id}` | `products` | `master.products.view` |
 | `/master-data/product-types` | ประเภทสินค้า | done | `GET/POST /api/master-data/product-types`, `PATCH /{id}` | `product_types` | `master.reference.view` |
 | `/master-data/product-units` | หน่วยสินค้า | done | `GET/POST /api/master-data/product-units`, `PATCH /{id}` | `product_units` | `master.reference.view` |
-| `/master-data/branches` | สาขา / คลัง | done | `GET/POST /api/master-data/branches`, `PATCH /{id}` | `branches` | `master.reference.view` |
-| `/master-data/accounts` | บัญชีเงิน | done | `GET/POST /api/master-data/accounts`, `PATCH /{id}` | `accounts` | `master.reference.view` |
+| `/master-data/branches` | สาขา/คลัง | done | `GET/POST /api/master-data/branches`, `PATCH /{id}` | `branches` | `master.reference.view` |
+| `/master-data/accounts` | บัญชีเงิน | done; no separate business code | `GET/POST /api/master-data/accounts`, `PATCH /{id}` | `accounts` | `master.reference.view` |
 | `/master-data/bank-names` | ชื่อธนาคาร | done | `GET/POST /api/master-data/bank-names`, `PATCH /{id}` | `bank_names` | `master.reference.view` |
-| `/master-data/channels` | ช่องทางซื้อ/ขาย | done | `GET/POST /api/master-data/channels`, `PATCH /{id}` | `channels` | `master.reference.view` |
+| `/master-data/channels` | ช่องทางขาย | done | `GET/POST /api/master-data/channels`, `PATCH /{id}` | `sales_channels` | `master.reference.view` |
 | `/master-data/expense-categories` | หมวดค่าใช้จ่าย | done | `GET/POST /api/master-data/expense-categories`, `PATCH /{id}` | `expense_categories` | `master.reference.view` |
 | `/master-data/directors` | กรรมการ/พนักงาน | done | `GET/POST /api/master-data/directors`, `PATCH /{id}` | `directors` | `master.reference.view` |
-| `/master-data/machines` | เครื่องจักร | done | `GET/POST /api/master-data/machines`, `PATCH /{id}` | `production_machines` | `master.reference.view` |
-| `/master-data/production-lines` | Production Line | done | `GET/POST /api/master-data/production-lines`, `PATCH /{id}` | `production_lines` | `master.reference.view` |
+| `/master-data/machines` | รายการเครื่องจักร | done; no separate business code | `GET/POST /api/master-data/machines`, `PATCH /{id}` | `production_machines` | `master.reference.view` |
+| `/master-data/production-lines` | Production Line | done; no separate business code | `GET/POST /api/master-data/production-lines`, `PATCH /{id}` | `production_lines` | `master.reference.view` |
 | `/master-data/currencies` | สกุลเงิน | done | `GET/POST /api/master-data/currencies`, `PATCH /{id}` | `currencies` | `master.reference.view` |
 | `/master-data/beneficiaries` | ผู้รับเงินต่างประเทศ | done | `GET/POST /api/master-data/beneficiaries`, `PATCH /{id}` | `beneficiaries` | `master.reference.view` |
 | `/master-data/payment-methods` | วิธีจ่าย/รับเงิน | done | `GET/POST /api/master-data/payment-methods`, `PATCH /{id}` | `payment_methods` | `master.reference.view` |

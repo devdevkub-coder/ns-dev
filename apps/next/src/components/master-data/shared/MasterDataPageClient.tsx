@@ -159,6 +159,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
         Promise.all(optionFields.map(async (field) => ({
           key: field.key,
           rows: await listMasterDataRecords(field.optionsApiPath as string),
+          valueKey: field.optionValueKey ?? 'name',
         }))),
       ])
       setRecords(rows)
@@ -166,7 +167,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
         result.key,
         result.rows
           .filter((row) => row.active)
-          .map((row) => ({ label: row.name, value: row.name })),
+          .map((row) => ({ label: row.name, value: String(row[result.valueKey] ?? row.name) })),
       ])))
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : `โหลดข้อมูล${config.entityName}ไม่ได้`)

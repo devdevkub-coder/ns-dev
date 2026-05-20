@@ -146,14 +146,14 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
   machines: {
     delegate: () => prisma.production_machines as Delegate,
     prefix: 'MC',
-    orderBy: [{ code: 'asc' }, { name: 'asc' }],
+    orderBy: [{ name: 'asc' }],
     include: { branches: true },
     map: (row) => {
       const record = asRecord(row)
       const branch = record.branches as Record<string, unknown> | null | undefined
       return {
         id: record.id,
-        code: record.code,
+        code: null,
         name: record.name,
         type: record.type,
         branchId: record.branch_id,
@@ -166,9 +166,8 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
         updatedAt: toIso(record.updated_at as Date | null),
       }
     },
-    data: (values, id, code) => ({
+    data: (values, id, _code) => ({
       id,
-      code,
       name: values.name,
       branch_id: values.branchId || null,
       type: values.type || null,
@@ -181,14 +180,14 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
   productionLines: {
     delegate: () => prisma.production_lines as Delegate,
     prefix: 'PL',
-    orderBy: [{ code: 'asc' }, { name: 'asc' }],
+    orderBy: [{ name: 'asc' }],
     include: { branches: true },
     map: (row) => {
       const record = asRecord(row)
       const branch = record.branches as Record<string, unknown> | null | undefined
       return {
         id: record.id,
-        code: record.code,
+        code: null,
         name: record.name,
         branchId: record.branch_id,
         branchName: branch?.name ?? null,
@@ -198,9 +197,8 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
         updatedAt: toIso(record.updated_at as Date | null),
       }
     },
-    data: (values, id, code) => ({
+    data: (values, id, _code) => ({
       id,
-      code,
       name: values.name,
       branch_id: values.branchId || null,
       responsible_person: values.responsiblePerson || null,

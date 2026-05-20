@@ -93,7 +93,7 @@ export async function GET(request: Request) {
     const [bankRows, suppliers] = await Promise.all([
       prisma.bank_statement.findMany({
         include: {
-          accounts: { select: { account_no: true, bank_name: true, code: true, currency: true, id: true, name: true } },
+          accounts: { select: { account_no: true, bank_name: true, currency: true, id: true, name: true } },
         },
         orderBy: [{ date: 'desc' }, { created_at: 'desc' }, { id: 'desc' }],
         take: 10000,
@@ -120,7 +120,7 @@ export async function GET(request: Request) {
       return {
         accountId: row.account_id ?? '',
         accountName: row.accounts?.name ?? '-',
-        accountNo: row.accounts?.account_no ?? row.accounts?.code ?? '',
+        accountNo: row.accounts?.account_no ?? '',
         amount: amountThb,
         amountThb,
         bankName: row.accounts?.bank_name ?? '',

@@ -40,10 +40,10 @@ export async function nextDailyDocNo(table: 'expenses' | 'payments' | 'petty_adv
 
 export async function listDailyAccounts() {
   const accounts = await prisma.accounts.findMany({
-    orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }],
+    orderBy: [{ active: 'desc' }, { name: 'asc' }, { account_no: 'asc' }],
     select: {
       active: true,
-      code: true,
+      account_no: true,
       id: true,
       name: true,
       type: true,
@@ -52,7 +52,7 @@ export async function listDailyAccounts() {
 
   return accounts.map((account) => ({
     active: account.active ?? true,
-    code: account.code,
+    code: account.account_no,
     id: account.id,
     name: account.name,
     type: account.type,

@@ -57,7 +57,7 @@ type ExpenseRow = Prisma.expensesGetPayload<{
 }>
 
 type BankRow = Prisma.bank_statementGetPayload<{
-  include: { accounts: { select: { account_no: true; bank_name: true; code: true; name: true; type: true } } }
+  include: { accounts: { select: { account_no: true; bank_name: true; name: true; type: true } } }
 }>
 
 type AccountRow = Prisma.accountsGetPayload<{
@@ -122,7 +122,7 @@ function branchRow(branch: { code?: string | null; id: string; name: string }): 
 }
 
 function bankRef(row: BankRow) {
-  return row.ref_no || row.ref_type || `${row.accounts?.code ?? row.accounts?.name ?? 'BANK'}-${dateOnly(row.date)}`
+  return row.ref_no || row.ref_type || `${row.accounts?.account_no ?? row.accounts?.name ?? 'BANK'}-${dateOnly(row.date)}`
 }
 
 function isInternalTransfer(row: BankRow) {
@@ -280,11 +280,11 @@ async function loadBalanceSheetInputs(filter: AsOfFilter) {
   return Promise.all([
     prisma.accounts.findMany({
       include: { branches: { select: { code: true, name: true } } },
-      orderBy: [{ code: 'asc' }, { name: 'asc' }],
+      orderBy: [{ name: 'asc' }, { account_no: 'asc' }],
       where: { active: true, ...branchWhere },
     }),
     prisma.bank_statement.findMany({
-      include: { accounts: { select: { account_no: true, bank_name: true, code: true, name: true, type: true } } },
+      include: { accounts: { select: { account_no: true, bank_name: true, name: true, type: true } } },
       orderBy: [{ account_id: 'asc' }, { date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
       take: 30000,
       where: { date: { lte: asOf }, ...(filter.branchId ? { accounts: { branch_id: filter.branchId } } : {}) },
@@ -336,7 +336,7 @@ export async function buildBalanceSheet(filter: AsOfFilter) {
     amount: balances.get(account.id) ?? 0,
     date: dateOnly(filter.asOf),
     description: [account.bank_name ?? account.bank, account.name, account.account_no].filter(Boolean).join(' · '),
-    refNo: account.code || account.name,
+    refNo: account.account_no || account.name,
   }))
   const cash = sumDetails(cashDetails)
   const arDetails = salesBills.map((bill: SalesBillRow) => ({
@@ -452,13 +452,13 @@ export async function buildCashFlowStatement(filter: PeriodFilter) {
   const [accounts, beforeRows, periodRows, branches] = await Promise.all([
     prisma.accounts.findMany({ where: { active: true, ...(filter.branchId ? { branch_id: filter.branchId } : {}) } }),
     prisma.bank_statement.findMany({
-      include: { accounts: { select: { account_no: true, bank_name: true, code: true, name: true, type: true } } },
+      include: { accounts: { select: { account_no: true, bank_name: true, name: true, type: true } } },
       orderBy: [{ date: 'asc' }, { id: 'asc' }],
       take: 30000,
       where: { ...accountWhere, date: { lt: fromStart } },
     }),
     prisma.bank_statement.findMany({
-      include: { accounts: { select: { account_no: true, bank_name: true, code: true, name: true, type: true } } },
+      include: { accounts: { select: { account_no: true, bank_name: true, name: true, type: true } } },
       orderBy: [{ date: 'asc' }, { id: 'asc' }],
       take: 30000,
       where: { ...accountWhere, date: { gte: fromStart, lte: toEnd } },

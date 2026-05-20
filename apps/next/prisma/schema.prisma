@@ -501,7 +501,6 @@ model webauthn_credentials {
 
 model accounts {
   id                                            String                  @id
-  code                                          String?
   name                                          String
   type                                          String
   bank_name                                     String?
@@ -1031,7 +1030,6 @@ model overseas_recipients {
 
 model production_machines {
   id                      String              @id(map: "machines_pkey")
-  code                    String              @unique(map: "machines_code_key")
   name                    String
   branch_id               String?
   type                    String?
@@ -1073,7 +1071,6 @@ model payment_methods {
 
 model production_lines {
   id                 String              @id
-  code               String              @unique
   name               String
   branch_id          String?
   responsible_person String?

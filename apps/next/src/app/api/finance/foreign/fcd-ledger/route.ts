@@ -14,8 +14,8 @@ function displayCurrency(value: string | null | undefined) {
   return (value || 'THB').trim().toUpperCase()
 }
 
-function accountLabel(account: { code: string | null; name: string }) {
-  return account.code ? `${account.code} - ${account.name}` : account.name
+function accountLabel(account: { account_no: string | null; name: string }) {
+  return account.account_no ? `${account.account_no} - ${account.name}` : account.name
 }
 
 function movementType(row: StatementRow) {
@@ -53,14 +53,13 @@ export async function GET(request: Request) {
 
     const [allAccounts, fxRates] = await Promise.all([
       prisma.accounts.findMany({
-        orderBy: [{ code: 'asc' }, { name: 'asc' }],
+        orderBy: [{ name: 'asc' }, { account_no: 'asc' }],
         select: {
           account_no: true,
           active: true,
           bank: true,
           bank_name: true,
           branches: { select: { id: true, name: true } },
-          code: true,
           currency: true,
           id: true,
           name: true,
@@ -140,7 +139,7 @@ export async function GET(request: Request) {
         accountNo: selectedAccount.account_no,
         bankName: selectedAccount.bank_name ?? selectedAccount.bank ?? '',
         branchName: selectedAccount.branches?.name ?? '',
-        code: selectedAccount.code,
+        code: selectedAccount.account_no,
         currency: selectedCurrency,
         id: selectedAccount.id,
         name: selectedAccount.name,
@@ -152,7 +151,7 @@ export async function GET(request: Request) {
           accountNo: account.account_no,
           bankName: account.bank_name ?? account.bank ?? '',
           branchName: account.branches?.name ?? '',
-          code: account.code,
+          code: account.account_no,
           currency: displayCurrency(account.currency),
           id: account.id,
           label: accountLabel(account),

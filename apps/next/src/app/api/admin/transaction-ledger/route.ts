@@ -49,7 +49,7 @@ function duplicateKey(row: {
 async function ledgerPayload(limit: number) {
   const [accounts, movements, balanceGroups] = await Promise.all([
     prisma.accounts.findMany({
-      orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }],
+      orderBy: [{ active: 'desc' }, { name: 'asc' }, { account_no: 'asc' }],
     }),
     prisma.bank_statement.findMany({
       include: { accounts: true },
@@ -231,7 +231,7 @@ async function ledgerPayload(limit: number) {
         accountNo: account.account_no,
         active: account.active ?? true,
         balance: openingBalance + (balanceTotals.get(account.id) ?? 0),
-        code: account.code ?? account.id,
+        code: account.account_no ?? account.id,
         currency: account.currency ?? 'THB',
         id: account.id,
         name: account.name,

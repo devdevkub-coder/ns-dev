@@ -22,7 +22,7 @@ export async function GET() {
     const [accounts, bankRows, salesBills, receipts, purchaseBills, payments] = await Promise.all([
       prisma.accounts.findMany({
         include: { branches: { select: { id: true, name: true } } },
-        orderBy: [{ type: 'asc' }, { code: 'asc' }, { name: 'asc' }],
+        orderBy: [{ type: 'asc' }, { name: 'asc' }, { account_no: 'asc' }],
         where: { active: true },
       }),
       prisma.bank_statement.findMany({
@@ -65,7 +65,7 @@ export async function GET() {
       balance: balances.get(account.id) ?? 0,
       bankName: account.bank_name ?? account.bank ?? '',
       branchName: account.branches?.name ?? '-',
-      code: account.code ?? '',
+      code: account.account_no ?? '',
       currency: account.currency ?? 'THB',
       id: account.id,
       name: account.name,

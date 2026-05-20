@@ -29,6 +29,7 @@ Historical target stack:
 - Use `old-apps/legacy/` and `old-apps/vue/` only as source material: copy the necessary function/module into the active app, then refactor it into the new structure.
 - Preserve the existing UI appearance and business flow where possible while implementing it in the new app.
 - For clone/migration batches, match the legacy/Vue visual surface first: cards, colors, banners, table density, button placement, labels, spacing, and compactness are part of the baseline. Do not redesign these surfaces unless the deviation is documented and approved. If the Vue clone has been simplified or has known column/layout drift, use `old-apps/legacy/` as the stronger baseline.
+- Default list-table visual pattern for legacy-style pages is a white rounded card with horizontal overflow (`bg-white rounded-xl shadow overflow-x-auto`), compact zebra table (`w-full text-sm table-zebra`), slate header (`bg-slate-100 text-slate-700`), row separators (`border-t border-slate-100`), and the existing blue/red text action buttons unless the legacy source shows a stronger page-specific treatment.
 - Refactor by module and by risk, not by wholesale replacement.
 - Large refactors must be split into reviewable batches with one clear module, transform, or behavior change per batch.
 

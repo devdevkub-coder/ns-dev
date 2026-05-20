@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     const dateFrom = url.searchParams.get('dateFrom') || undefined
     const dateTo = url.searchParams.get('dateTo') || undefined
     const [machines, rows] = await Promise.all([
-      prisma.production_machines.findMany({ include: { branches: true }, orderBy: [{ code: 'asc' }, { name: 'asc' }], where: { active: true } }),
+      prisma.production_machines.findMany({ include: { branches: true }, orderBy: [{ name: 'asc' }], where: { active: true } }),
       loadProductionMetrics({ dateFrom, dateTo }),
     ])
     const days = dateFrom && dateTo ? Math.max(1, (new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86400000 + 1) : 30

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { errorJson, masterDataJson, masterDataListJson, nextSequentialCode, normalizeCode, parseMasterDataForm, toIso, toNumber } from '@/lib/server/master-data'
+import { errorJson, masterDataJson, masterDataListJson, nextSequentialCode, parseMasterDataForm, toIso, toNumber } from '@/lib/server/master-data'
 
 export const runtime = 'nodejs'
 
@@ -14,7 +14,7 @@ const accountTypeSchema = z.enum(['cash', 'bank', 'other'])
 function mapAccount(row: AccountRow) {
   return {
     id: row.id,
-    code: row.code ?? row.id,
+    code: null,
     name: row.name,
     active: row.active ?? true,
     type: row.type,
@@ -40,9 +40,9 @@ function mapAccount(row: AccountRow) {
   }
 }
 
-async function getNextCode() {
-  const last = await prisma.accounts.findFirst({ where: { code: { startsWith: 'ACC' } }, orderBy: { code: 'desc' }, select: { code: true } })
-  return nextSequentialCode(last?.code, 'ACC')
+async function getNextAccountId() {
+  const last = await prisma.accounts.findFirst({ where: { id: { startsWith: 'ACC' } }, orderBy: { id: 'desc' }, select: { id: true } })
+  return nextSequentialCode(last?.id, 'ACC')
 }
 
 async function assertActiveBankName(bankName: string | null) {
@@ -66,7 +66,7 @@ export async function GET() {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'master.reference.view')
 
-    const rows = await prisma.accounts.findMany({ include: { branches: true }, orderBy: [{ code: 'asc' }, { name: 'asc' }] })
+    const rows = await prisma.accounts.findMany({ include: { branches: true }, orderBy: [{ name: 'asc' }, { account_no: 'asc' }] })
     return masterDataListJson(rows.map(mapAccount))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
@@ -80,14 +80,13 @@ export async function POST(request: Request) {
     requirePermission(context, 'master.reference.manage')
 
     const values = parseMasterDataForm(await request.json())
-    const code = normalizeCode(values.code, values.id || await getNextCode())
+    const id = values.id || await getNextAccountId()
     const accountType = accountTypeSchema.parse(values.type || 'bank')
     await assertActiveBankName(values.bankName)
     const row = await prisma.accounts.upsert({
-      where: { id: values.id || code },
+      where: { id },
       create: {
-        id: values.id || code,
-        code,
+        id,
         name: values.name,
         type: accountType,
         bank_name: values.bankName || null,
@@ -100,7 +99,6 @@ export async function POST(request: Request) {
         active: values.active,
       },
       update: {
-        code,
         name: values.name,
         type: accountType,
         bank_name: values.bankName || null,

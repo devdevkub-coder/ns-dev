@@ -17,11 +17,10 @@ export async function GET(request: Request) {
     const to = url.searchParams.get('to')
 
     const accounts = await prisma.accounts.findMany({
-      orderBy: [{ code: 'asc' }, { name: 'asc' }],
+      orderBy: [{ name: 'asc' }, { account_no: 'asc' }],
       select: {
         account_no: true,
         bank_name: true,
-        code: true,
         currency: true,
         id: true,
         name: true,
@@ -63,10 +62,10 @@ export async function GET(request: Request) {
         accounts: accounts.map((account) => ({
           accountNo: account.account_no,
           bankName: account.bank_name,
-          code: account.code,
+          code: account.account_no,
           currency: account.currency,
           id: account.id,
-          label: account.code ? `${account.code} - ${account.name}` : account.name,
+          label: account.account_no ? `${account.account_no} - ${account.name}` : account.name,
           name: account.name,
           type: account.type,
         })),

@@ -6,8 +6,8 @@ import { prisma } from '@/lib/server/prisma'
 
 export const runtime = 'nodejs'
 
-function accountLabel(account: { code: string | null; currency: string | null; name: string; type: string }) {
-  const prefix = account.code ? `${account.code} - ` : ''
+function accountLabel(account: { account_no: string | null; currency: string | null; name: string; type: string }) {
+  const prefix = account.account_no ? `${account.account_no} - ` : ''
   return `${prefix}${account.name} (${account.type} - ${(account.currency || 'THB').toUpperCase()})`
 }
 
@@ -22,8 +22,8 @@ export async function GET(request: Request) {
 
     const [accounts, customers, salesBills, currencies, fxRates, statementRows] = await Promise.all([
       prisma.accounts.findMany({
-        orderBy: [{ code: 'asc' }, { name: 'asc' }],
-        select: { active: true, code: true, currency: true, id: true, name: true, type: true },
+        orderBy: [{ name: 'asc' }, { account_no: 'asc' }],
+        select: { account_no: true, active: true, currency: true, id: true, name: true, type: true },
         where: { active: true },
       }),
       prisma.customers.findMany({
@@ -72,7 +72,7 @@ export async function GET(request: Request) {
       },
       filters: {
         accounts: receiptAccounts.map((account) => ({
-          code: account.code,
+          code: account.account_no,
           currency: (account.currency || 'THB').toUpperCase(),
           id: account.id,
           label: accountLabel(account),

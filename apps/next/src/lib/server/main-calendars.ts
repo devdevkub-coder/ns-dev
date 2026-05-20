@@ -70,8 +70,8 @@ function isCashAccount(account: { bank: string | null; bank_name: string | null;
 export async function buildCashFlowCalendar(monthValue?: string | null) {
   const { daysInMonth, month, next, start } = monthBounds(monthValue)
   const accounts = await prisma.accounts.findMany({
-    orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }],
-    select: { active: true, bank: true, bank_name: true, code: true, id: true, name: true, opening_balance: true, type: true },
+    orderBy: [{ active: 'desc' }, { name: 'asc' }, { account_no: 'asc' }],
+    select: { active: true, account_no: true, bank: true, bank_name: true, id: true, name: true, opening_balance: true, type: true },
     where: { active: { not: false } },
   })
   const cashAccounts = accounts.filter(isCashAccount)
@@ -137,7 +137,7 @@ export async function buildCashFlowCalendar(monthValue?: string | null) {
   })
 
   return {
-    accounts: scopedAccounts.map((account) => ({ code: account.code, id: account.id, name: account.name, type: account.type })),
+    accounts: scopedAccounts.map((account) => ({ code: account.account_no, id: account.id, name: account.name, type: account.type })),
     days,
     month,
     sourceState: {

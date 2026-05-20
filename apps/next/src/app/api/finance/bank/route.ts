@@ -91,13 +91,12 @@ export async function GET(request: Request) {
         where: statementWhere(query, true),
       }),
       prisma.accounts.findMany({
-        orderBy: [{ code: 'asc' }, { name: 'asc' }],
+        orderBy: [{ name: 'asc' }, { account_no: 'asc' }],
         select: {
           account_no: true,
           active: true,
           bank_name: true,
           branches: { select: { id: true, name: true } },
-          code: true,
           currency: true,
           id: true,
           name: true,
@@ -184,7 +183,7 @@ export async function GET(request: Request) {
           active: row.active,
           bankName: row.bank_name,
           branchName: row.branches?.name ?? '',
-          code: row.code,
+          code: row.account_no,
           currency: row.currency,
           id: row.id,
           name: row.name,
