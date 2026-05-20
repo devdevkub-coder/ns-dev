@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
-import { supplierFormSchema } from '@/lib/supplier'
-import { toSupplierWriteInput } from '@/lib/domain/supplier'
+import { customerFormSchema } from '@/lib/customer'
+import { toCustomerWriteInput } from '@/lib/domain/customer'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
@@ -12,38 +12,35 @@ const IMPORT_LIMIT = 10000
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 
 const headerMap = {
-  accountNo: ['เลขที่บัญชีรับเงิน', 'เลขบัญชี', 'accountNo'],
   active: ['สถานะ', 'active'],
   address: ['ที่อยู่เต็ม/หมายเหตุที่อยู่', 'ที่อยู่', 'address'],
   addressCountry: ['ประเทศ', 'addressCountry'],
   addressDistrict: ['อำเภอ/เขต', 'อำเภอ', 'เขต', 'addressDistrict'],
-  addressLine1: ['ที่อยู่บรรทัด 1', 'addressLine1', 'address_line1'],
-  addressLine2: ['ที่อยู่บรรทัด 2', 'addressLine2', 'address_line2'],
-  addressCity: ['เมือง', 'addressCity', 'address_city'],
   addressMoo: ['หมู่', 'addressMoo'],
   addressNo: ['บ้านเลขที่', 'addressNo'],
-  addressPostalCodeIntl: ['รหัสไปรษณีย์สากล', 'addressPostalCodeIntl', 'address_postal_code_intl'],
   addressPostalCode: ['รหัสไปรษณีย์', 'addressPostalCode'],
   addressProvince: ['จังหวัด', 'addressProvince'],
   addressRoad: ['ถนน', 'addressRoad'],
-  addressStateRegion: ['รัฐ/จังหวัด/ภูมิภาค', 'addressStateRegion', 'address_state_region'],
   addressSubdistrict: ['ตำบล/แขวง', 'ตำบล', 'แขวง', 'addressSubdistrict'],
   addressVillage: ['หมู่บ้าน/อาคาร', 'หมู่บ้าน', 'อาคาร', 'addressVillage'],
-  bankAccount: ['ชื่อบัญชีรับเงิน', 'bankAccount'],
-  bankName: ['ธนาคารรับเงิน', 'bankName'],
-  code: ['รหัสผู้ขาย', 'code'],
+  code: ['รหัสลูกค้า', 'code'],
+  contact: ['ผู้ติดต่อ', 'contact'],
+  contactFirstName: ['ชื่อผู้ติดต่อ', 'contactFirstName'],
+  contactLastName: ['นามสกุลผู้ติดต่อ', 'contactLastName'],
+  contactTitle: ['คำนำหน้าผู้ติดต่อ', 'contactTitle'],
   creditLimit: ['วงเงินเครดิต', 'creditLimit'],
   creditTerm: ['เครดิตเทอม (วัน)', 'เครดิตเทอม', 'creditTerm'],
-  countryCode: ['รหัสประเทศ (ISO)', 'countryCode', 'country_code'],
+  email: ['อีเมล', 'email'],
   firstName: ['ชื่อ', 'firstName'],
   lastName: ['นามสกุล', 'lastName'],
   marketScope: ['ประเทศ/ตลาด', 'marketScope'],
-  name: ['ชื่อผู้ขาย/บริษัท', 'ชื่อบริษัท/ร้านค้า', 'name'],
+  name: ['ชื่อลูกค้า/บริษัท', 'ชื่อบริษัท', 'name'],
   nameTitle: ['คำนำหน้าชื่อ', 'nameTitle'],
+  notes: ['หมายเหตุ', 'notes'],
   phone: ['โทรศัพท์', 'โทร', 'phone'],
-  salesName: ['ผู้ดูแล', 'salesName', 'salesId'],
+  salesId: ['รหัสพนักงานขาย', 'salesId'],
   taxId: ['เลขผู้เสียภาษี', 'taxId'],
-  type: ['ประเภทผู้ขาย', 'ประเภท', 'type'],
+  type: ['ประเภทลูกค้า', 'ประเภท', 'type'],
 } as const
 
 type ImportField = keyof typeof headerMap
@@ -79,29 +76,27 @@ function cellNumber(row: ImportRow, field: ImportField) {
   return Number.isFinite(number) ? number : null
 }
 
-function normalizeSupplierCode(value: string) {
+function normalizeCustomerCode(value: string) {
   const trimmed = value.trim()
   if (!trimmed) return null
-  const matched = trimmed.toLowerCase().match(/^(?:su|sup|s)(\d{1,5})$/)
-  if (!matched) throw new Error('รหัสผู้ขายต้องเป็นรูปแบบ SU0001-SU99999')
+  const matched = trimmed.toLowerCase().match(/^(?:cus|c)(\d{1,5})$/)
+  if (!matched) throw new Error('รหัสลูกค้าต้องเป็นรูปแบบ CUS001-CUS99999')
   const number = Number(matched[1])
-  if (!Number.isInteger(number) || number < 1 || number > 99999) throw new Error('รหัสผู้ขายต้องอยู่ระหว่าง SU0001-SU99999')
-  return `SU${String(number).padStart(4, '0')}`
+  if (!Number.isInteger(number) || number < 1 || number > 99999) throw new Error('รหัสลูกค้าต้องอยู่ระหว่าง CUS001-CUS99999')
+  return `CUS${String(number).padStart(3, '0')}`
 }
 
-function normalizeSupplierType(value: string, row: ImportRow) {
+function normalizeCustomerType(value: string, row: ImportRow) {
   const normalized = value.trim().toLowerCase()
   if (normalized === 'บุคคล' || normalized === 'person' || normalized === 'individual') return 'บุคคล'
   if (normalized === 'นิติบุคคล' || normalized === 'company' || normalized === 'corporate') return 'นิติบุคคล'
   return cellText(row, 'firstName') || cellText(row, 'lastName') ? 'บุคคล' : 'นิติบุคคล'
 }
 
-function normalizeMarketScope(value: string, countryCode: string, country: string) {
+function normalizeMarketScope(value: string, country: string) {
   const normalized = value.trim().toLowerCase()
   if (normalized === 'ต่างประเทศ' || normalized === 'foreign' || normalized === 'overseas') return 'ต่างประเทศ'
-  const normalizedCountryCode = countryCode.trim().toUpperCase()
   const normalizedCountry = country.trim().toLowerCase()
-  if (normalizedCountryCode && normalizedCountryCode !== 'TH') return 'ต่างประเทศ'
   if (normalizedCountry && normalizedCountry !== 'ไทย' && normalizedCountry !== 'thailand') return 'ต่างประเทศ'
   return 'ในประเทศ'
 }
@@ -113,19 +108,19 @@ function normalizeActive(value: string) {
   return true
 }
 
-function findSupplierSheet(workbook: XLSX.WorkBook) {
-  const namedSheet = workbook.Sheets['ผู้ขาย']
+function findCustomerSheet(workbook: XLSX.WorkBook) {
+  const namedSheet = workbook.Sheets['ลูกค้า']
   if (namedSheet) return namedSheet
 
   return workbook.SheetNames.map((name) => workbook.Sheets[name]).find((sheet) => {
     const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, blankrows: false })
-    return rows.some((row) => row.map(String).includes('รหัสผู้ขาย'))
+    return rows.some((row) => row.map(String).includes('รหัสลูกค้า'))
   })
 }
 
 function parseRows(workbook: XLSX.WorkBook) {
-  const sheet = findSupplierSheet(workbook)
-  if (!sheet) throw new Error('ไม่พบ sheet ผู้ขาย หรือ header รหัสผู้ขาย')
+  const sheet = findCustomerSheet(workbook)
+  if (!sheet) throw new Error('ไม่พบ sheet ลูกค้า หรือ header รหัสลูกค้า')
   return XLSX.utils.sheet_to_json<ImportRow>(sheet, { defval: '' })
 }
 
@@ -133,25 +128,25 @@ function firstIssueMessage(rowNumber: number, message: string) {
   return `แถว ${rowNumber}: ${message}`
 }
 
-async function nextSupplierCodeSequence(blankCodeCount: number) {
+async function nextCustomerCodeSequence(blankCodeCount: number) {
   if (blankCodeCount === 0) return []
-  const existingSuppliers = await prisma.suppliers.findMany({
+  const existingCustomers = await prisma.customers.findMany({
     select: { code: true },
-    where: { code: { startsWith: 'SU' } },
+    where: { code: { startsWith: 'CUS' } },
   })
-  const maxNumber = existingSuppliers.reduce((max, row) => {
-    const matched = String(row.code ?? '').match(/^SU(\d+)$/i)
+  const maxNumber = existingCustomers.reduce((max, row) => {
+    const matched = String(row.code ?? '').match(/^CUS(\d+)$/i)
     const value = matched ? Number(matched[1]) : 0
     return Number.isFinite(value) ? Math.max(max, value) : max
   }, 0)
   const startNumber = maxNumber + 1
-  return Array.from({ length: blankCodeCount }, (_, index) => `SU${String(startNumber + index).padStart(4, '0')}`)
+  return Array.from({ length: blankCodeCount }, (_, index) => `CUS${String(startNumber + index).padStart(3, '0')}`)
 }
 
 export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'master.suppliers.create')
+    requirePermission(context, 'master.customers.create')
 
     const form = await request.formData()
     const file = form.get('file')
@@ -176,50 +171,33 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
     if (rows.length === 0) {
-      return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่พบข้อมูลผู้ขายในไฟล์' }, { status: 400 })
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่พบข้อมูลลูกค้าในไฟล์' }, { status: 400 })
     }
     if (rows.length > IMPORT_LIMIT) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: `Import ได้สูงสุด ${IMPORT_LIMIT.toLocaleString('th-TH')} แถวต่อครั้ง` }, { status: 400 })
     }
 
-    const salespersons = await prisma.salespersons.findMany({
-      select: { code: true, id: true, name: true },
-      where: { active: { not: false } },
-    })
-    const salespersonLookup = new Map<string, { id: string; name: string }>()
-    for (const salesperson of salespersons) {
-      for (const key of [salesperson.id, salesperson.code ?? '', salesperson.name]) {
-        if (key) salespersonLookup.set(key.trim().toLowerCase(), { id: salesperson.id, name: salesperson.name })
-      }
-    }
-
     const blankCodeRows = rows.filter((row) => !cellText(row, 'code')).length
-    const generatedCodes = await nextSupplierCodeSequence(blankCodeRows)
+    const generatedCodes = await nextCustomerCodeSequence(blankCodeRows)
     let generatedCodeIndex = 0
     const issues: string[] = []
     const seenCodes = new Set<string>()
+
     const parsedRows = rows.map((row, index) => {
       const rowNumber = index + 2
       let code = ''
       try {
-        code = normalizeSupplierCode(cellText(row, 'code')) ?? generatedCodes[generatedCodeIndex] ?? ''
+        code = normalizeCustomerCode(cellText(row, 'code')) ?? generatedCodes[generatedCodeIndex] ?? ''
         if (!cellText(row, 'code')) generatedCodeIndex += 1
       } catch (caught) {
-        issues.push(firstIssueMessage(rowNumber, caught instanceof Error ? caught.message : 'รหัสผู้ขายไม่ถูกต้อง'))
+        issues.push(firstIssueMessage(rowNumber, caught instanceof Error ? caught.message : 'รหัสลูกค้าไม่ถูกต้อง'))
       }
 
-      if (code && seenCodes.has(code)) issues.push(firstIssueMessage(rowNumber, `รหัสผู้ขาย ${code} ซ้ำในไฟล์`))
+      if (code && seenCodes.has(code)) issues.push(firstIssueMessage(rowNumber, `รหัสลูกค้า ${code} ซ้ำในไฟล์`))
       if (code) seenCodes.add(code)
 
-      const salesText = cellText(row, 'salesName')
-      const salesperson = salesText ? salespersonLookup.get(salesText.toLowerCase()) : null
-      if (salesText && !salesperson) issues.push(firstIssueMessage(rowNumber, `ไม่พบผู้ดูแล "${salesText}" ในระบบ`))
-      const countryCode = cellText(row, 'countryCode').toUpperCase()
       const addressCountry = cellText(row, 'addressCountry')
-      const marketScope = normalizeMarketScope(cellText(row, 'marketScope'), countryCode, addressCountry)
-      const address = cellText(row, 'address') || null
-      const addressLine1 = cellText(row, 'addressLine1') || (marketScope === 'ต่างประเทศ' ? address : null)
-
+      const marketScope = normalizeMarketScope(cellText(row, 'marketScope'), addressCountry)
       const values = {
         id: code || undefined,
         code: code || null,
@@ -227,11 +205,12 @@ export async function POST(request: Request) {
         nameTitle: cellText(row, 'nameTitle') || null,
         firstName: cellText(row, 'firstName') || null,
         lastName: cellText(row, 'lastName') || null,
-        type: normalizeSupplierType(cellText(row, 'type'), row),
+        type: normalizeCustomerType(cellText(row, 'type'), row),
         marketScope,
         taxId: cellText(row, 'taxId') || null,
-        phone: cellText(row, 'phone') || null,
-        address,
+        phone: cellText(row, 'phone') || '',
+        email: cellText(row, 'email') || null,
+        address: cellText(row, 'address') || null,
         addressNo: cellText(row, 'addressNo') || null,
         addressMoo: cellText(row, 'addressMoo') || null,
         addressVillage: cellText(row, 'addressVillage') || null,
@@ -240,26 +219,19 @@ export async function POST(request: Request) {
         addressDistrict: cellText(row, 'addressDistrict') || null,
         addressProvince: cellText(row, 'addressProvince') || null,
         addressPostalCode: cellText(row, 'addressPostalCode') || null,
-        addressCountry: addressCountry || (marketScope === 'ในประเทศ' ? 'ไทย' : null),
-        countryCode: countryCode || (marketScope === 'ในประเทศ' ? 'TH' : null),
-        addressLine1,
-        addressLine2: cellText(row, 'addressLine2') || null,
-        addressCity: cellText(row, 'addressCity') || null,
-        addressStateRegion: cellText(row, 'addressStateRegion') || null,
-        addressPostalCodeIntl: cellText(row, 'addressPostalCodeIntl') || null,
-        bankName: cellText(row, 'bankName') || null,
-        accountNo: cellText(row, 'accountNo') || null,
-        bankAccount: cellText(row, 'bankAccount') || null,
-        branchId: null,
-        salesId: salesperson?.id ?? null,
-        salesName: salesperson?.name ?? null,
+        addressCountry: addressCountry || 'ไทย',
+        contact: cellText(row, 'contact') || null,
+        contactTitle: cellText(row, 'contactTitle') || null,
+        contactFirstName: cellText(row, 'contactFirstName') || null,
+        contactLastName: cellText(row, 'contactLastName') || null,
         creditTerm: cellNumber(row, 'creditTerm'),
         creditLimit: cellNumber(row, 'creditLimit'),
-        notes: null,
+        salesId: cellText(row, 'salesId') || null,
+        notes: cellText(row, 'notes') || null,
         active: normalizeActive(cellText(row, 'active')),
       }
 
-      const parsed = supplierFormSchema.safeParse(values)
+      const parsed = customerFormSchema.safeParse(values)
       if (!parsed.success) {
         const issue = parsed.error.issues[0]
         issues.push(firstIssueMessage(rowNumber, issue?.message ?? 'ข้อมูลไม่ถูกต้อง'))
@@ -278,14 +250,12 @@ export async function POST(request: Request) {
 
     const validRows = parsedRows.filter((row): row is NonNullable<typeof row> => row !== null)
     const codes = validRows.map((row) => row.id as string)
-    const existing = await prisma.suppliers.findMany({ select: { branch_id: true, id: true }, where: { id: { in: codes } } })
+    const existing = await prisma.customers.findMany({ select: { id: true }, where: { id: { in: codes } } })
     const existingIds = new Set(existing.map((row) => row.id))
-    const existingBranchById = new Map(existing.map((row) => [row.id, row.branch_id]))
 
     await prisma.$transaction(validRows.map((row) => {
-      const payload = toSupplierWriteInput(row)
-      if (existingBranchById.has(payload.id)) payload.branch_id = existingBranchById.get(payload.id) ?? null
-      return prisma.suppliers.upsert({
+      const payload = toCustomerWriteInput(row)
+      return prisma.customers.upsert({
         where: { id: payload.id },
         create: payload,
         update: payload,

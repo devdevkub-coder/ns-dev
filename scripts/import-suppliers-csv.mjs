@@ -398,12 +398,11 @@ async function main() {
           : name === 'ธนาคารออมสิน' ? 'BANK-GSB'
             : name === 'ธนาคารเพื่อการเกษตรและสหกรณ์การเกษตร' ? 'BANK-BAAC'
               : `BANK-CUSTOM-${Math.abs([...name].reduce((sum, char) => sum + char.charCodeAt(0), 0))}`
-      const code = id.replace(/^BANK-/, '')
       await client.query(`
-        insert into public.bank_names (id, code, name, active, created_at, updated_at)
-        values ($1, $2, $3, true, now(), now())
+        insert into public.bank_names (id, name, active, created_at, updated_at)
+        values ($1, $2, true, now(), now())
         on conflict (name) do update set active = true, updated_at = now()
-      `, [id, code, name])
+      `, [id, name])
     }
 
     await insertJsonRows(client, allRows)

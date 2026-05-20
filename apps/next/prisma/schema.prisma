@@ -634,7 +634,6 @@ model company_profiles {
 
 model bank_names {
   id         String   @id
-  code       String   @unique
   name       String   @unique
   symbol     String?
   active     Boolean  @default(true)
@@ -1506,7 +1505,6 @@ model purchase_channels {
   id             String           @id
   name           String
   active         Boolean?         @default(true)
-  code           String?
   purchase_bills purchase_bills[]
 
   @@schema("public")
@@ -1682,7 +1680,6 @@ model sales_channels {
   id          String        @id
   name        String
   active      Boolean?      @default(true)
-  code        String?
   sales_bills sales_bills[]
 
   @@schema("public")

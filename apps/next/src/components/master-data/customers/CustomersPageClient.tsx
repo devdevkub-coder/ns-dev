@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   customerFormSchema,
   exportCustomers,
+  importCustomers,
   listCustomers,
   saveCustomer,
   setCustomerActive,
@@ -122,6 +123,7 @@ export function CustomersPageClient() {
   const [error, setError] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [pendingToggleIds, setPendingToggleIds] = useState<Set<string>>(new Set())
@@ -280,6 +282,22 @@ export function CustomersPageClient() {
     }
   }
 
+  async function handleImport(file: File | null) {
+    if (!file) return
+    setError(null)
+    setIsImporting(true)
+    try {
+      const result = await importCustomers(file)
+      await loadData()
+      setPage(1)
+      window.alert(`Import สำเร็จ ${result.totalRows.toLocaleString('th-TH')} รายการ: เพิ่มใหม่ ${result.inserted.toLocaleString('th-TH')} / อัปเดต ${result.updated.toLocaleString('th-TH')}`)
+    } catch (caught) {
+      setError(getErrorMessage(caught, 'Import Excel ไม่สำเร็จ'))
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
   function setSort(key: SortKey) {
     if (sortKey === key) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
@@ -347,6 +365,19 @@ export function CustomersPageClient() {
             </select>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
+            <label className={`cursor-pointer rounded bg-blue-600 px-3 py-2 text-sm font-bold text-white ${isImporting || isLoading ? 'pointer-events-none opacity-60' : ''}`}>
+              {isImporting ? 'กำลัง Import...' : 'Import Excel'}
+              <input
+                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                className="hidden"
+                disabled={isImporting || isLoading}
+                type="file"
+                onChange={(event) => {
+                  void handleImport(event.target.files?.[0] ?? null)
+                  event.target.value = ''
+                }}
+              />
+            </label>
             <button className="rounded bg-emerald-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-60" disabled={isExporting || isLoading} type="button" onClick={() => void handleExport()}>
               {isExporting ? 'กำลัง Export...' : '📊 Export Excel'}
             </button>

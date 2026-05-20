@@ -132,7 +132,7 @@ export async function GET(request: Request) {
       }),
       prisma.purchase_channels.findMany({
         orderBy: [{ name: 'asc' }],
-        select: { active: true, code: true, id: true, name: true },
+        select: { active: true, id: true, name: true },
         where: { active: true },
       }),
     ])
@@ -261,7 +261,7 @@ export async function GET(request: Request) {
       bySupplier,
       filters: {
         branches: branches.map((row) => ({ active: row.active, code: row.code, id: row.id, name: row.name })),
-        channels: channels.map((row) => ({ active: row.active, code: row.code, id: row.id, name: row.name })),
+        channels: channels.map((row) => ({ active: row.active, code: null, id: row.id, name: row.name })),
         statuses,
         suppliers: suppliers.map((row) => ({ active: row.active, code: row.code, id: row.id, name: row.name })),
       },

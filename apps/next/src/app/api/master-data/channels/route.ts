@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { errorJson, masterDataJson, masterDataListJson, nextSequentialCode, normalizeCode, parseMasterDataForm } from '@/lib/server/master-data'
+import { errorJson, masterDataJson, masterDataListJson, nextSequentialCode, parseMasterDataForm } from '@/lib/server/master-data'
 
 export const runtime = 'nodejs'
 
@@ -13,7 +13,7 @@ const channelTypeSchema = z.enum(['purchase', 'sales'])
 function mapChannel(row: PurchaseChannel | SalesChannel, channelType: 'purchase' | 'sales') {
   return {
     id: `${channelType}:${row.id}`,
-    code: row.code ?? row.id,
+    code: null,
     name: row.name,
     active: row.active ?? true,
     type: null,
@@ -39,12 +39,12 @@ function mapChannel(row: PurchaseChannel | SalesChannel, channelType: 'purchase'
   }
 }
 
-async function getNextCode(channelType: 'purchase' | 'sales') {
+async function getNextChannelId(channelType: 'purchase' | 'sales') {
   const prefix = channelType === 'purchase' ? 'PC' : 'SC'
   const last = channelType === 'purchase'
-    ? await prisma.purchase_channels.findFirst({ where: { code: { startsWith: prefix } }, orderBy: { code: 'desc' }, select: { code: true } })
-    : await prisma.sales_channels.findFirst({ where: { code: { startsWith: prefix } }, orderBy: { code: 'desc' }, select: { code: true } })
-  return nextSequentialCode(last?.code, prefix)
+    ? await prisma.purchase_channels.findFirst({ where: { id: { startsWith: prefix } }, orderBy: { id: 'desc' }, select: { id: true } })
+    : await prisma.sales_channels.findFirst({ where: { id: { startsWith: prefix } }, orderBy: { id: 'desc' }, select: { id: true } })
+  return nextSequentialCode(last?.id, prefix)
 }
 
 export async function GET() {
@@ -53,8 +53,8 @@ export async function GET() {
     requirePermission(context, 'master.reference.view')
 
     const [purchaseRows, salesRows] = await Promise.all([
-      prisma.purchase_channels.findMany({ orderBy: [{ code: 'asc' }, { name: 'asc' }] }),
-      prisma.sales_channels.findMany({ orderBy: [{ code: 'asc' }, { name: 'asc' }] }),
+      prisma.purchase_channels.findMany({ orderBy: [{ id: 'asc' }, { name: 'asc' }] }),
+      prisma.sales_channels.findMany({ orderBy: [{ id: 'asc' }, { name: 'asc' }] }),
     ])
     return masterDataListJson([...purchaseRows.map((row) => mapChannel(row, 'purchase')), ...salesRows.map((row) => mapChannel(row, 'sales'))])
   } catch (caught) {
@@ -71,21 +71,21 @@ export async function POST(request: Request) {
     const values = parseMasterDataForm(await request.json())
     const channelType = channelTypeSchema.parse(values.channelType)
     const rawId = values.id?.replace(/^(purchase|sales):/, '')
-    const code = normalizeCode(values.code, rawId || await getNextCode(channelType))
+    const id = rawId || await getNextChannelId(channelType)
 
     if (channelType === 'sales') {
       const row = await prisma.sales_channels.upsert({
-        where: { id: rawId || code },
-        create: { id: rawId || code, code, name: values.name, active: values.active },
-        update: { code, name: values.name, active: values.active },
+        where: { id },
+        create: { id, name: values.name, active: values.active },
+        update: { name: values.name, active: values.active },
       })
       return masterDataJson(mapChannel(row, 'sales'))
     }
 
     const row = await prisma.purchase_channels.upsert({
-      where: { id: rawId || code },
-      create: { id: rawId || code, code, name: values.name, active: values.active },
-      update: { code, name: values.name, active: values.active },
+      where: { id },
+      create: { id, name: values.name, active: values.active },
+      update: { name: values.name, active: values.active },
     })
     return masterDataJson(mapChannel(row, 'purchase'))
   } catch (caught) {

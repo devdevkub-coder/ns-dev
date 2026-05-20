@@ -300,7 +300,7 @@ Reporting rule:
 - [x] ปรับชื่อ target tables ให้ชัดขึ้นโดยไม่ลบข้อมูล: `director_employees`, `production_machines`, `overseas_remittance_purposes`
 - [x] เพิ่ม customer classification/person/contact fields แบบ additive โดยไม่ลบข้อมูลเดิม
 - [x] ปรับ supplier target schema ให้ไม่มีข้อมูลผู้ติดต่อแล้ว: backup ค่าเดิมไว้ที่ `maintenance.supplier_contact_backup_20260518` ก่อน drop `contact`, `contact_title`, `contact_first_name`, `contact_last_name` จาก `public.suppliers`
-- [x] ปรับ master setup ที่เกี่ยวกับการเงิน: `bank_names` และ `currencies` ใช้ code แบบ running number พร้อม field `symbol`; `payment_methods` ไม่ใช้ข้อมูลธนาคาร/เลขบัญชีใน UI/API แล้ว
+- [x] ปรับ master setup ที่เกี่ยวกับการเงิน: `bank_names` ไม่ใช้ code แยกแล้วและเก็บเฉพาะ `id/name/symbol/active`; `currencies` ยังใช้ code แบบ running number พร้อม field `symbol`; `payment_methods` ไม่ใช้ข้อมูลธนาคาร/เลขบัญชีใน UI/API แล้ว
 - [ ] ตัดสินใจ target table/flow owner สำหรับ `directors` ว่าผูกกับ director loan / advance flows หรือคงเป็น setup-only ชั่วคราว
 - [ ] ออกแบบ schema สำหรับ document counters
 - [ ] ออกแบบ schema สำหรับ opening balance

@@ -115,7 +115,13 @@ export const customerListResultSchema = z.object({
   total: z.number().int().min(0),
   totalPages: z.number().int().min(1),
 })
+export const customerImportResultSchema = z.object({
+  inserted: z.number().int().min(0),
+  totalRows: z.number().int().min(0),
+  updated: z.number().int().min(0),
+})
 export type Customer = z.infer<typeof customerSchema>
+export type CustomerImportResult = z.infer<typeof customerImportResultSchema>
 export type CustomerListResult = z.infer<typeof customerListResultSchema>
 
 export type CustomerListOptions = {
@@ -221,6 +227,18 @@ export async function exportCustomers(options: CustomerListOptions = {}): Promis
     blob: await readBlobResponse(response, 'Export Excel ไม่สำเร็จ'),
     filename,
   }
+}
+
+export async function importCustomers(file: File): Promise<CustomerImportResult> {
+  const form = new FormData()
+  form.append('file', file)
+
+  const response = await fetch('/api/master-data/customers/import', {
+    method: 'POST',
+    body: form,
+  })
+
+  return readJsonResponse(response, customerImportResultSchema, 'Import Excel ไม่สำเร็จ')
 }
 
 export async function saveCustomer(values: CustomerFormValues): Promise<Customer> {

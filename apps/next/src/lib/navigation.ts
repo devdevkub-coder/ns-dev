@@ -49,6 +49,7 @@ const exactPathPermissions: Record<string, string> = {
   '/cash-flow-calendar': 'reports.reports.view',
   '/api/master-data/customers': 'master.customers.view',
   '/api/master-data/customers/export': 'master.customers.export',
+  '/api/master-data/customers/import': 'master.customers.create',
   '/api/master-data/products': 'master.products.view',
   '/api/master-data/products/export': 'master.products.export',
   '/api/master-data/suppliers': 'master.suppliers.view',

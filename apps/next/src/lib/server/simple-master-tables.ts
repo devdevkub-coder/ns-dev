@@ -31,6 +31,7 @@ type SimpleMasterConfig = {
   include?: unknown
   map: (row: unknown) => Record<string, unknown>
   data: (values: ReturnType<typeof parseMasterDataForm>, id: string, code: string) => Record<string, unknown>
+  nextId?: () => Promise<string>
 }
 
 const asRecord = (row: unknown) => row as Record<string, unknown>
@@ -39,6 +40,16 @@ const machineTypeSchema = z.enum(['Sorting', 'Cutting', 'Baling', 'Crushing', 'M
 const maintenanceStatusSchema = z.enum(['Normal', 'Maintenance', 'Breakdown']).nullable()
 
 type SimpleMasterValues = ReturnType<typeof parseMasterDataForm>
+
+async function nextBankNameId() {
+  const rows = await prisma.bank_names.findMany({ select: { id: true } })
+  const maxNumber = rows.reduce((max, row) => {
+    const matched = row.id.match(/^BANK-(\d+)$/i)
+    const value = matched ? Number(matched[1]) : 0
+    return Number.isFinite(value) ? Math.max(max, value) : max
+  }, 0)
+  return `BANK-${String(maxNumber + 1).padStart(3, '0')}`
+}
 
 function requireReferencePermission(permissionCode: 'master.reference.view' | 'master.reference.manage') {
   return getCurrentAuthContext().then((context) => requirePermission(context, permissionCode))
@@ -65,13 +76,14 @@ function validateSimpleMasterValues(kind: SimpleMasterKind, values: SimpleMaster
 const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
   bankNames: {
     delegate: () => prisma.bank_names as Delegate,
-    prefix: '',
-    orderBy: [{ code: 'asc' }, { name: 'asc' }],
+    prefix: 'BANK-',
+    orderBy: [{ name: 'asc' }],
+    nextId: nextBankNameId,
     map: (row) => {
       const record = asRecord(row)
       return {
         id: record.id,
-        code: record.code,
+        code: null,
         name: record.name,
         symbol: record.symbol,
         active: record.active,
@@ -81,7 +93,6 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
     },
     data: (values, id, code) => ({
       id,
-      code,
       name: values.name,
       symbol: values.symbol || null,
       active: values.active,
@@ -306,6 +317,8 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
 }
 
 async function nextId(config: SimpleMasterConfig) {
+  if (config.nextId) return config.nextId()
+
   const last = await config.delegate().findFirst({ orderBy: { id: 'desc' }, select: { id: true } })
   return nextSequentialCode(String(asRecord(last)?.id ?? ''), config.prefix, 3)
 }

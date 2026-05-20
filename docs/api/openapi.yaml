@@ -1388,6 +1388,27 @@ paths:
         "200":
           description: XLSX file response
 
+  /api/master-data/customers/import:
+    post:
+      tags: [Master Data]
+      summary: Import customers from the exported XLSX spreadsheet format
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          $ref: "#/components/responses/Ok"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
   /api/master-data/customers/{id}/status:
     patch:
       tags: [Master Data]

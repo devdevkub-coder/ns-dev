@@ -66,12 +66,10 @@ export const channelsPageConfig: MasterDataPageConfig = {
   emptyMessage: 'ไม่พบข้อมูลช่องทางซื้อ/ขาย',
   fields: [
     { key: 'channelType', label: 'ประเภทช่องทาง', type: 'select', required: true, options: [{ label: 'ซื้อ', value: 'purchase' }, { label: 'ขาย', value: 'sales' }] },
-    { key: 'code', label: 'รหัส' },
     { key: 'name', label: 'ชื่อช่องทาง', required: true },
   ],
   columns: [
     { key: 'channelType', label: 'ประเภท' },
-    { key: 'code', label: 'รหัส' },
     { key: 'name', label: 'ชื่อช่องทาง' },
     statusColumn,
   ],
@@ -150,12 +148,10 @@ export const bankNamesPageConfig: MasterDataPageConfig = {
   entityName: 'ชื่อธนาคาร',
   emptyMessage: 'ไม่พบข้อมูลชื่อธนาคาร',
   fields: [
-    { key: 'code', label: 'รหัส', required: true },
     { key: 'name', label: 'ชื่อธนาคาร', required: true },
     { key: 'symbol', label: 'สัญลักษณ์' },
   ],
   columns: [
-    { key: 'code', label: 'รหัส' },
     { key: 'name', label: 'ชื่อธนาคาร' },
     { key: 'symbol', label: 'สัญลักษณ์', align: 'center' },
     statusColumn,

@@ -132,7 +132,7 @@ export async function GET(request: Request) {
       }),
       prisma.sales_channels.findMany({
         orderBy: [{ name: 'asc' }],
-        select: { active: true, code: true, id: true, name: true },
+        select: { active: true, id: true, name: true },
         where: { active: true },
       }),
       prisma.stock_issues.findMany({
@@ -269,7 +269,7 @@ export async function GET(request: Request) {
       byCustomer,
       filters: {
         branches: branches.map((row) => ({ active: row.active, code: row.code, id: row.id, name: row.name })),
-        channels: channels.map((row) => ({ active: row.active, code: row.code, id: row.id, name: row.name })),
+        channels: channels.map((row) => ({ active: row.active, code: null, id: row.id, name: row.name })),
         customers: customers.map((row) => ({ active: row.active, code: row.code, id: row.id, name: row.name })),
         statuses,
       },
