@@ -21,20 +21,20 @@ type PoBuyFormItem = {
 }
 
 type PoBuyFormState = {
+  branchId: string
   expectedDelivery: string
   items: PoBuyFormItem[]
   notes: string
   requireDelivery: boolean
   supplierId: string
-  warehouseId: string
 }
 
 type PoBuyPayload = {
   filters: { statuses: string[] }
   options: {
+    branches: Option[]
     products: Option[]
     suppliers: Option[]
-    warehouses: Option[]
   }
   rows: PoBuyRow[]
   summary: { costingOnly: number; delivery: number; open: number; remainingAmount: number; remainingQty: number; totalAmount: number; totalRows: number }
@@ -76,12 +76,12 @@ function blankItem(): PoBuyFormItem {
 
 function blankForm(): PoBuyFormState {
   return {
+    branchId: '',
     expectedDelivery: '',
     items: [blankItem()],
     notes: '',
     requireDelivery: true,
     supplierId: '',
-    warehouseId: '',
   }
 }
 
@@ -90,7 +90,6 @@ function flattenClientErrors(values: PoBuyFormState) {
     ...values,
     expectedDelivery: values.requireDelivery ? values.expectedDelivery || null : null,
     notes: values.notes || null,
-    warehouseId: values.warehouseId || null,
   })
   if (parsed.success) return { data: parsed.data, errors: {} }
 
@@ -104,11 +103,6 @@ function flattenClientErrors(values: PoBuyFormState) {
 
 function optionLabel(option: Option) {
   return option.code ? `${option.code} - ${option.name}` : option.name
-}
-
-function warehouseLabel(option: Option) {
-  const warehouse = optionLabel(option)
-  return option.branchName ? `${option.branchName} / ${warehouse}` : warehouse
 }
 
 function searchableText(option: Option) {
@@ -367,13 +361,13 @@ export function PoBuyPageClient() {
       </div>
       {showForm ? (
         <PoBuyFormModal
+          branches={data?.options.branches ?? []}
           errors={fieldErrors}
           form={form}
           formTotals={formTotals}
           isSaving={isSaving}
           products={data?.options.products ?? []}
           suppliers={data?.options.suppliers ?? []}
-          warehouses={data?.options.warehouses ?? []}
           onAddItem={addItem}
           onClose={() => setShowForm(false)}
           onRemoveItem={removeItem}
@@ -525,13 +519,13 @@ function SupplierSearchCombobox({
 }
 
 function PoBuyFormModal({
+  branches,
   errors,
   form,
   formTotals,
   isSaving,
   products,
   suppliers,
-  warehouses,
   onAddItem,
   onClose,
   onRemoveItem,
@@ -539,13 +533,13 @@ function PoBuyFormModal({
   onUpdate,
   onUpdateItem,
 }: {
+  branches: Option[]
   errors: FieldErrors
   form: PoBuyFormState
   formTotals: { lineCount: number; totalCost: number; totalQty: number }
   isSaving: boolean
   products: Option[]
   suppliers: Option[]
-  warehouses: Option[]
   onAddItem: () => void
   onClose: () => void
   onRemoveItem: (index: number) => void
@@ -553,9 +547,9 @@ function PoBuyFormModal({
   onUpdate: <Key extends keyof PoBuyFormState>(key: Key, value: PoBuyFormState[Key]) => void
   onUpdateItem: <Key extends keyof PoBuyFormItem>(index: number, key: Key, value: PoBuyFormItem[Key]) => void
 }) {
+  const activeBranches = branches.filter((branch) => branch.active !== false)
   const activeSuppliers = suppliers.filter((supplier) => supplier.active !== false)
   const activeProducts = products.filter((product) => product.active !== false)
-  const activeWarehouses = warehouses.filter((warehouse) => warehouse.active !== false)
   const fieldError = (name: string) => errors[name] ? <div className="mt-1 text-xs text-red-600">{errors[name]}</div> : null
 
   return (
@@ -597,12 +591,12 @@ function PoBuyFormModal({
               {fieldError('supplierId')}
             </div>
             <div>
-              <label className="mb-1 block text-xs">สาขา/คลัง</label>
-              <select className="w-full rounded border px-2 py-1.5" value={form.warehouseId} onChange={(event) => onUpdate('warehouseId', event.target.value)}>
-                <option value="">--</option>
-                {activeWarehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouseLabel(warehouse)}</option>)}
+              <label className="mb-1 block text-xs">สาขา *</label>
+              <select className="w-full rounded border px-2 py-1.5" value={form.branchId} onChange={(event) => onUpdate('branchId', event.target.value)}>
+                <option value="">เลือกสาขา</option>
+                {activeBranches.map((branch) => <option key={branch.id} value={branch.id}>{optionLabel(branch)}</option>)}
               </select>
-              {fieldError('warehouseId')}
+              {fieldError('branchId')}
             </div>
             {form.requireDelivery ? (
               <div>

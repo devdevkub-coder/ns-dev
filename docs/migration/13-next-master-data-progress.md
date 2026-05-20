@@ -23,7 +23,7 @@
 | `/master-data/suppliers` | ผู้ขาย | Enhanced CRUD/export/validation Done |
 | `/master-data/products` | สินค้า | Batch 3 baseline Done |
 | `/master-data/branches` | สาขา / คลัง | Batch 2 Done |
-| `/master-data/warehouses` | คลังสินค้า | Batch 2 Done |
+| `/master-data/warehouses` | คลังสินค้า | Retired from active Next route; use Branches as the business-facing สาขา / คลัง master |
 | `/master-data/accounts` | บัญชีเงิน | Batch 2 Done |
 | `/master-data/channels` | ช่องทางซื้อ/ขาย | Batch 1 Done |
 | `/master-data/expense-categories` | หมวดค่าใช้จ่าย | Batch 1 Done |
@@ -129,7 +129,7 @@ Goal:
 
 Batch C1: Organization / finance setup
 - `/master-data/branches`
-- `/master-data/warehouses`
+- `/master-data/warehouses` (retired from active Next routes on 2026-05-20)
 - `/master-data/accounts`
 
 Tasks:
@@ -137,7 +137,7 @@ Tasks:
 - Done: shared master UI now loads rows once and handles search/sort/count/pagination in the frontend.
 - Done: row click opens detail/edit modal; the old select checkbox column was removed because there is no real batch action.
 - Done: active toggle works in the table and form where the table supports active state.
-- Done: shared form schema now validates branch/warehouse/account code/name/phone/address/bank/account/currency/numeric fields more strictly before save.
+- Done: shared form schema now validates branch/account code/name/phone/address/bank/account/currency/numeric fields more strictly before save. Warehouse validation was retired with the active warehouse master route.
 - Done: C1 API routes now enforce route-level permissions:
   - GET requires `master.reference.view`
   - POST/PATCH requires `master.reference.manage`
@@ -242,7 +242,7 @@ Continuation rule:
   - `/master-data/channels`
 - Batch 2 pages now have real Next routes, shared master-data list/form UI, API routes, Prisma/dev-target reads, add/edit baseline, search/sort, and active/inactive:
   - `/master-data/branches`
-  - `/master-data/warehouses`
+  - `/master-data/warehouses` was later retired from active Next routes; use `/master-data/branches` for the business-facing `สาขา / คลัง` master.
   - `/master-data/accounts`
 - Batch 3 baseline routes exist:
   - `/master-data/products` has been upgraded from the shared generic page to a specialized customer-style products page.
@@ -338,11 +338,12 @@ Continuation rule:
 | 2026-05-20 | Supplier CSV replacement + bank/tax repair follow-up | Passed | Replaced dev-target supplier data from `nsscrap permission and master data   - ผู้ขาย.csv`; final counts are suppliers `1888`, active CSV rows `1871`, inactive preserved referenced rows `17`, missing owners `0`, FK orphans `0`; added missing bank masters, restored 97 bank/account rows from backup where CSV was blank and name matching was reliable, and cleared all supplier tax IDs for user keying. Backups: `maintenance.supplier_replace_backup_20260520072518`, `maintenance.supplier_bank_tax_repair_backup_20260520082749`, and `maintenance.supplier_tax_clear_backup_20260520082854`. Modal/import now allow blank tax ID and hide `รหัสประเทศ (ISO)`. `npm run lint --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `git diff --check`, and `npm run build --workspace @ns-scrap-erp/next` passed |
 | 2026-05-20 | Customer/Supplier XLSX round-trip import/export follow-up | Passed | `/master-data/customers` now has Import Excel UI and `/api/master-data/customers/import` for all-or-nothing import from the exported `ลูกค้า` sheet. Customer and supplier import both use shared form schemas, upsert by canonical business code/id, and can generate new `CUS...`/`SU...` codes for template rows where code is blank. Export files include the editable fields needed to key required modal data before import |
 | 2026-05-20 | Bank name/channel code removal follow-up | Passed | `/master-data/bank-names` and `/master-data/channels` no longer show or accept code fields. Dev-target `bank_names`, `purchase_channels`, and `sales_channels` no longer have `code` columns; backup tables are `maintenance.reference_code_removal_backup_20260520090736_*`. Verified columns/counts after drop: bank names `19`, purchase channels `3`, sales channels `2`. `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `git diff --check`, and OpenAPI lint passed with existing warnings |
+| 2026-05-20 | Warehouse route retirement + branch id remap | Passed | Removed the active Next `/master-data/warehouses` page/API/config because the sidebar/business master is `/master-data/branches` (`สาขา / คลัง`). Dev-target branches are now canonical `BR001/code 01/สมุทรสาคร` and `BR002/code 02/นครสวรรค์`; all old `BR003` references in public `branch_id` columns and `user_profiles.branch_ids` were remapped after backup tables under `maintenance.branch_id_remap_20260520_1720_*`. The physical `warehouses` table remains for existing stock/purchase-bill transaction history until a separate stock-location migration is designed. |
 | 2026-05-18 | Payment method and remittance purpose simplification: `npm run prisma:generate --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run build` | Passed | `payment_methods` and `overseas_remittance_purposes` now keep only `id/code/name/active/timestamps`; old type/docs data backed up in maintenance schema |
 
 ## Open Decisions
 
-- Confirm whether `/master-data/warehouses` should remain a standalone Next route or be folded visually into `/master-data/branches` while preserving the sidebar route.
+- `/master-data/warehouses` is retired from the active Next route set. Treat `/master-data/branches` as the business-facing `สาขา / คลัง` master; keep the physical `warehouses` table only for existing transaction history until a stock-location migration is designed.
 - Decide whether `directors` should remain setup-only for now or become tied to director loan / advance flows in a later finance batch.
 - Decide final code strategy for all master keys after customer running-number pattern is validated across supplier/product/account codes.
 - Supplier duplicate rows by normalized name were cleaned in `dev-target`, but supplier `code` still has duplicate values across different suppliers. Do not rewrite these codes until the final supplier code strategy is confirmed.

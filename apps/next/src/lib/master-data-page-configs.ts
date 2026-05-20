@@ -95,24 +95,6 @@ export const branchesPageConfig: MasterDataPageConfig = {
   ],
 }
 
-export const warehousesPageConfig: MasterDataPageConfig = {
-  apiPath: '/api/master-data/warehouses',
-  createLabel: 'เพิ่มคลังสินค้า',
-  entityName: 'คลังสินค้า',
-  emptyMessage: 'ไม่พบข้อมูลคลังสินค้า',
-  fields: [
-    { key: 'code', label: 'รหัสคลัง', required: true },
-    { key: 'name', label: 'ชื่อคลัง', required: true },
-    { key: 'branchId', label: 'สาขา', type: 'select', options: [{ label: 'สมุทรสาคร', value: 'BR002' }, { label: 'นครสวรรค์', value: 'BR003' }] },
-  ],
-  columns: [
-    { key: 'code', label: 'รหัส' },
-    { key: 'name', label: 'ชื่อคลัง' },
-    { key: 'branchName', label: 'สาขา' },
-    statusColumn,
-  ],
-}
-
 export const accountsPageConfig: MasterDataPageConfig = {
   apiPath: '/api/master-data/accounts',
   createLabel: 'เพิ่มบัญชีเงิน',

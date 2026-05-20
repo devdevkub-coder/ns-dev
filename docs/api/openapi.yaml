@@ -1320,7 +1320,7 @@ paths:
     get:
       tags: [Master Data]
       summary: List a generic master data resource
-      description: Covers branches, warehouses, accounts, bank-names, salespersons, currencies, expense-categories, channels, product-types, product-units, directors, machines, production-lines, beneficiaries, payment-methods, and remittance-purposes.
+      description: Covers branches, accounts, bank-names, salespersons, currencies, expense-categories, channels, product-types, product-units, directors, machines, production-lines, beneficiaries, payment-methods, and remittance-purposes.
       parameters:
         - $ref: "#/components/parameters/MasterResource"
       responses:
@@ -1669,7 +1669,7 @@ paths:
       summary: List PO buy
       description: >
         PO Buy list/export contract. User-facing rows expose `docNo`; newly
-        created PO Buy records use the running `POBYYMM-000N` document number
+        created PO Buy records use the running `POB{branchCode}{YYMM}-NNNN` document number
         as the meaningful record id.
       parameters:
         - $ref: "#/components/parameters/POBuyQ"
@@ -1699,7 +1699,7 @@ paths:
       summary: Create PO Buy
       description: >
         Creates a delivery PO Buy or costing-only PO Buy using the legacy
-        add-list workflow. The server generates `POBYYMM-000N`, calculates
+        add-list workflow. The server generates `POB{branchCode}{YYMM}-NNNN`, calculates
         totals from item rows, and sets remaining quantity/status from
         `requireDelivery`.
       requestBody:
@@ -2820,7 +2820,6 @@ components:
           - production-lines
           - remittance-purposes
           - salespersons
-          - warehouses
   requestBodies:
     JsonBody:
       required: true
@@ -3290,13 +3289,13 @@ components:
       additionalProperties: true
     POBuyCreateRequest:
       type: object
-      required: [supplierId, items]
+      required: [branchId, supplierId, items]
       properties:
+        branchId:
+          type: string
+          description: Active branch selection. Server stores it in `branch_id`, leaves `warehouse_id` and `channel_id` null, and uses the branch code in the generated PO number.
         supplierId:
           type: string
-        warehouseId:
-          type: [string, "null"]
-          description: สาขา/คลัง selection; server derives `branch_id` from the selected warehouse and leaves `channel_id` null for new PO Buy rows.
         expectedDelivery:
           type: [string, "null"]
           format: date

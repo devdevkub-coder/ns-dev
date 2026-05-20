@@ -100,28 +100,21 @@ function bangkokDateInput(value: Date) {
 }
 
 async function optionsPayload() {
-  const [products, suppliers, warehouses] = await Promise.all([
+  const [branches, products, suppliers] = await Promise.all([
+    prisma.branches.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
     prisma.products.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true, unit: true } }),
     prisma.suppliers.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
-    prisma.warehouses.findMany({ include: { branches: { select: { code: true, name: true } } }, orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }] }),
   ])
 
   return {
+    branches,
     products,
     suppliers,
-    warehouses: warehouses.map((warehouse) => ({
-      active: warehouse.active,
-      branchId: warehouse.branch_id,
-      branchName: warehouse.branches?.name ?? null,
-      code: warehouse.code,
-      id: warehouse.id,
-      name: warehouse.name,
-    })),
   }
 }
 
-async function nextPoBuyDocNo(tx: Prisma.TransactionClient, date: string) {
-  const compactDate = date.slice(2, 4) + date.slice(5, 7)
+async function nextPoBuyDocNo(tx: Prisma.TransactionClient, date: string, branchCode: string) {
+  const compactDate = branchCode + date.slice(2, 4) + date.slice(5, 7)
   const startsWith = `POB${compactDate}-`
   const rows = await tx.$queryRaw<Array<{ doc_no: string }>>`
     select doc_no
@@ -274,14 +267,15 @@ export async function POST(request: Request) {
     const issuedAt = new Date()
     const issuedDate = bangkokDateInput(issuedAt)
     const productIds = [...new Set(values.items.map((item) => item.productId))]
-    const [supplier, warehouse, products] = await Promise.all([
+    const [branch, supplier, products] = await Promise.all([
+      prisma.branches.findFirst({ where: { active: true, id: values.branchId }, select: { code: true, id: true, name: true } }),
       prisma.suppliers.findFirst({ where: { active: true, id: values.supplierId } }),
-      values.warehouseId ? prisma.warehouses.findFirst({ where: { active: true, id: values.warehouseId } }) : Promise.resolve(null),
       prisma.products.findMany({ where: { active: true, id: { in: productIds } }, select: { active: true, code: true, id: true, name: true, unit: true } }),
     ])
 
+    if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน', fieldErrors: { branchId: ['เลือกสาขา'] } }, { status: 400 })
+    if (!/^\d{2}$/.test(branch.code)) return NextResponse.json({ code: 'BAD_REQUEST', error: 'รหัสสาขาต้องเป็นตัวเลข 2 หลักเพื่อออกเลข PO', fieldErrors: { branchId: ['รหัสสาขาต้องเป็นตัวเลข 2 หลัก'] } }, { status: 400 })
     if (!supplier) return NextResponse.json({ code: 'BAD_REQUEST', error: 'Supplier ไม่ถูกต้องหรือถูกปิดใช้งาน', fieldErrors: { supplierId: ['เลือก Supplier'] } }, { status: 400 })
-    if (values.warehouseId && !warehouse) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขา/คลังไม่ถูกต้องหรือถูกปิดใช้งาน', fieldErrors: { warehouseId: ['สาขา/คลังไม่ถูกต้องหรือถูกปิดใช้งาน'] } }, { status: 400 })
     if (values.requireDelivery && values.expectedDelivery && values.expectedDelivery < issuedDate) {
       return NextResponse.json({
         code: 'BAD_REQUEST',
@@ -302,7 +296,7 @@ export async function POST(request: Request) {
 
     const created = await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('po_buys.doc_no'))`
-      const docNo = await nextPoBuyDocNo(tx, issuedDate)
+      const docNo = await nextPoBuyDocNo(tx, issuedDate, branch.code)
       const items = poItems(values, products, docNo)
       const qty = items.reduce((sum, item) => sum + item.qty, 0)
       const remainingQty = items.reduce((sum, item) => sum + item.remainingQty, 0)
@@ -313,7 +307,7 @@ export async function POST(request: Request) {
 
       return tx.po_buys.create({
         data: {
-          branch_id: warehouse?.branch_id ?? null,
+          branch_id: branch.id,
           channel_id: null,
           created_by: actor,
           created_at: issuedAt,
@@ -339,7 +333,7 @@ export async function POST(request: Request) {
           updated_at: issuedAt,
           updated_by: actor,
           version: 1,
-          warehouse_id: values.warehouseId,
+          warehouse_id: null,
         },
         select: { doc_no: true, id: true },
       })

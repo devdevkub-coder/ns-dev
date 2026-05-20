@@ -112,7 +112,7 @@ Status terms:
 
 | Route | Label | Page status | APIs | Primary tables | Permission |
 |---|---|---|---|---|---|
-| `/purchase/po-buy` | PO Buy | create add-list enabled / read polish | `GET, POST /api/purchase/po-buy` | `po_buys`, `suppliers`, `products`, `warehouses`, `branches` | `finance.cash.view` |
+| `/purchase/po-buy` | PO Buy | create add-list enabled / branch-based numbering | `GET, POST /api/purchase/po-buy` | `po_buys`, `suppliers`, `products`, `branches` | `finance.cash.view` |
 | `/sales/po-sell` | PO Sell | read baseline | `GET /api/sales/po-sell` | `po_sells`, `customers`, `sales_channels`, `branches`, `products`, `trading_deals` / match data | `finance.cash.view` |
 | `/dual-costing/cost-pool` | Cost Pool | read-derived baseline | `GET /api/dual-costing/cost-pool` | `po_buys`, `purchase_bills`, `production_outputs`, `grade_adjustments`, `trading_deals`, `products`, `branches` | `finance.cash.view` |
 | `/dual-costing/cost-allocator` | Cost Allocator | read-only simulation baseline | `GET /api/dual-costing/cost-allocator` | `po_sells`, `sales_bills`, `trading_deals`, derived Cost Pool rows | `finance.cash.view` |
@@ -205,7 +205,6 @@ Status terms:
 | `/master-data/product-types` | ประเภทสินค้า | done | `GET/POST /api/master-data/product-types`, `PATCH /{id}` | `product_types` | `master.reference.view` |
 | `/master-data/product-units` | หน่วยสินค้า | done | `GET/POST /api/master-data/product-units`, `PATCH /{id}` | `product_units` | `master.reference.view` |
 | `/master-data/branches` | สาขา / คลัง | done | `GET/POST /api/master-data/branches`, `PATCH /{id}` | `branches` | `master.reference.view` |
-| `/master-data/warehouses` | Warehouses child page | done | `GET/POST /api/master-data/warehouses`, `PATCH /{id}` | `warehouses` | `master.reference.view` |
 | `/master-data/accounts` | บัญชีเงิน | done | `GET/POST /api/master-data/accounts`, `PATCH /{id}` | `accounts` | `master.reference.view` |
 | `/master-data/bank-names` | ชื่อธนาคาร | done | `GET/POST /api/master-data/bank-names`, `PATCH /{id}` | `bank_names` | `master.reference.view` |
 | `/master-data/channels` | ช่องทางซื้อ/ขาย | done | `GET/POST /api/master-data/channels`, `PATCH /{id}` | `channels` | `master.reference.view` |
@@ -238,7 +237,6 @@ Status terms:
 | `/forgot-password` | done | Supabase Auth reset request flow |
 | `/reset-password` | done | Supabase Auth password update flow |
 | `/sitemap` | done | Developer/checklist route, not a business module |
-| `/master-data/warehouses` | done | Real page and API exist, but the current sidebar groups warehouses under `/master-data/branches` |
 | `/` | done | Root app route |
 
 ## API Catalog Summary
