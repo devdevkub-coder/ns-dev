@@ -278,10 +278,20 @@ export async function buildAnomalyDetector(asOfValue?: string | null) {
       writeActionsEnabled: false,
     },
     stats: {
+      byCategory: Array.from(anomalies.reduce((map, item) => {
+        map.set(item.category, (map.get(item.category) ?? 0) + 1)
+        return map
+      }, new Map<string, number>()).entries()).map(([cat, count]) => ({ cat, count })).sort((left, right) => right.count - left.count),
       critical: anomalies.filter((item) => item.severity === 'critical').length,
       info: anomalies.filter((item) => item.severity === 'info').length,
+      ruleGroups: new Set(anomalies.map((item) => ruleKeyForStats(item.id))).size,
       total: anomalies.length,
       warn: anomalies.filter((item) => item.severity === 'warn').length,
     },
   }
+}
+
+function ruleKeyForStats(id: string) {
+  const keys = ['stock-orphan-val', 'stock-neg', 'cust-no-contact', 'pb-overpaid', 'pb-future', 'pb-empty', 'sb-future', 'sb-empty', 'ar-overdue', 'ap-overdue', 'margin-neg', 'acc-neg', 'cash-low', 'cust-dup', 'sup-dup', 'bs-orphan', 'trade-stuck', 'no-bill']
+  return keys.find((key) => id === key || id.startsWith(`${key}-`)) ?? (id.split('-').slice(0, -1).join('-') || id)
 }

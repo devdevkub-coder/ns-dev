@@ -64,6 +64,7 @@ Baseline notes:
 | `/daily/transfer` | 2026-05-20 | Restored the legacy transfer filter/action density: blue info copy, compact filter card, account placeholders with direction icons, clear-filter button, period chips for all/today/7 days/current month, inline count/total summary, rounded table shell, and explicit edit/delete action column. Existing create/edit POST behavior is preserved; delete remains disabled because the active Next API has no reviewed DELETE/tombstone flow. |
 | `/stock/transfer` | 2026-05-20 | Restored the legacy stock transfer density: compact search/date/from-branch/to-branch filters, all/today/7-days/current-month period chips, inline count/weight summary, blue create CTA, red/emerald source-destination modal panels, sender/receiver/notes fields, item-row density, seven-column table with kg labels, legacy empty state, and disabled cancel action shell. Existing stock ledger POST behavior is preserved; cancel/tombstone flow and sender/receiver persistence remain deferred until schema/write semantics are reviewed. |
 | `/pending-sales` | 2026-05-20 | Restored the legacy Pending Sales polish: LME Reference Pricing now uses disabled input-style fields and disabled save shell, LME percent details show product count and editable-looking percent inputs, CSV export is active client-side, gain/diff formulas now use `avgPriceRemain` like legacy, and the Patch 28 `ตารางรอขาย` section is back with formula explanation, five KPI cards, shortage highlighting, dual-costing table, footer totals, and CSV export. All changes are read/report only; LME save, LME percent persistence, matching/allocation writes, and sales-plan locks remain deferred. |
+| `/anomaly-detector` | 2026-05-20 | Restored safe legacy polish for the Anomaly Detector shell: severity cards now sit directly under the hero, As-of is a compact secondary row, category count tags are back from server `stats.byCategory`, group severity badge/title/count colors now match legacy red/amber/blue emphasis, and the checklist copy now states the active 18 rule groups instead of falsely claiming legacy 40-check coverage. Record-level jump/highlight and the remaining legacy 40-check rules remain deferred until target route highlight contracts and missing data sources are designed. |
 
 ## P1 Backlog
 
@@ -74,7 +75,6 @@ Baseline notes:
 
 | Route | Legacy view | Current issue |
 |---|---|---|
-| `/anomaly-detector` | `view-anomalyDetector` | Next scan UI is close, but legacy copy references 40 checks/11 groups and has jump-to-fix behavior. |
 
 ## Cross-Cutting Layout Tasks
 
@@ -116,5 +116,5 @@ Next routes without a direct standalone legacy page:
 
 ## Active Execution Order
 
-1. P2 Anomaly Detector polish: category strip, severity visual parity, copy/rule coverage notes, and record-level jump-to-fix follow-up.
-2. P1 Dashboard data parity follow-up: `/dashboard` server-side filters, aging buckets, cash composition, stock-by-branch/group, and richer chart datasets
+1. P1 Dashboard data parity follow-up: `/dashboard` server-side filters, aging buckets, cash composition, stock-by-branch/group, and richer chart datasets
+2. Follow-up design: Anomaly Detector legacy 40-check parity and record-level jump/highlight contracts.

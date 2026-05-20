@@ -15,7 +15,8 @@ type CashOthersPayload = {
   tradingPending: Record<string, number>
 }
 type Anomaly = { action: string; category: string; detail: string; fixHref?: string; icon: string; id: string; severity: 'critical' | 'info' | 'warn'; title: string }
-type AnomalyPayload = { anomalies: Anomaly[]; asOf: string; sourceState: { limitations: string[] }; stats: Record<string, number> }
+type AnomalyStats = { byCategory: Array<{ cat: string; count: number }>; critical: number; info: number; ruleGroups: number; total: number; warn: number }
+type AnomalyPayload = { anomalies: Anomaly[]; asOf: string; sourceState: { limitations: string[] }; stats: AnomalyStats }
 
 function today() {
   const date = new Date()
@@ -123,13 +124,18 @@ export function AnomalyDetectorPageClient() {
   return (
     <section className="space-y-4">
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-600 via-rose-600 to-pink-700 p-6 text-white shadow-xl"><div className="absolute right-0 top-0 p-4 text-9xl leading-none opacity-10">🚨</div><div className="relative"><h1 className="flex items-center gap-3 text-3xl font-bold"><span className="text-4xl">🚨</span>ตรวจจับความผิดปกติ</h1><p className="mt-2 text-sm opacity-90">ระบบสแกนตัวเลขทั้งหมด — บอกสิ่งที่ต้องเช็คและแก้ไขก่อนปัญหาบาน</p></div></div>
-      <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow"><label className="text-xs font-bold text-slate-500">As of</label><input className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold" type="date" value={asOf} onChange={(event) => setAsOf(event.target.value)} /><span className="text-xs text-slate-400">Read-only scan</span></div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <SeverityCard active={filter === ''} label="ทั้งหมด" severity="" tone="slate" value={data?.stats.total ?? 0} />
         <SeverityCard active={filter === 'critical'} label="🚨 วิกฤต" severity="critical" tone={(data?.stats.critical ?? 0) > 0 ? 'red' : 'emerald'} value={data?.stats.critical ?? 0} />
         <SeverityCard active={filter === 'warn'} label="⚠ เตือน" severity="warn" tone={(data?.stats.warn ?? 0) > 0 ? 'amber' : 'emerald'} value={data?.stats.warn ?? 0} />
         <SeverityCard active={filter === 'info'} label="ℹ ข้อมูล" severity="info" tone="blue" value={data?.stats.info ?? 0} />
       </div>
+      <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow">
+        <label className="text-xs font-bold text-slate-500">As of</label>
+        <input className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold" type="date" value={asOf} onChange={(event) => setAsOf(event.target.value)} />
+        <span className="text-xs text-slate-400">Read-only scan · {data?.stats.ruleGroups ?? 0} rule groups active</span>
+      </div>
+      {(data?.anomalies.length ?? 0) > 0 ? <CategoryTags categories={data?.stats.byCategory ?? []} /> : null}
       {(data?.anomalies.length ?? 0) === 0 ? <div className="rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 p-12 text-center shadow-lg"><div className="mb-4 text-7xl">✅</div><h2 className="mb-2 text-2xl font-bold text-emerald-700">ทุกอย่างปกติ!</h2><p className="text-slate-600">ระบบไม่พบความผิดปกติใดๆ</p></div> : null}
       {grouped.length ? <div className="space-y-2"><div className="mb-1 flex justify-end gap-2"><button className="text-xs text-blue-600 hover:underline" data-anomaly-action="expand-all" type="button">▽ ขยายทั้งหมด</button><button className="text-xs text-slate-600 hover:underline" data-anomaly-action="collapse-all" type="button">▲ ย่อทั้งหมด</button></div>{grouped.map((group) => <AnomalyGroup key={group.key} expanded={expanded[group.key] === true} group={group} />)}</div> : null}
       {filter && grouped.length === 0 ? <div className="py-12 text-center text-slate-400">ไม่มีรายการในหมวดนี้</div> : null}
@@ -216,9 +222,16 @@ function SeverityCard({ active, label, severity, tone, value }: { active: boolea
   return <button className={`rounded-xl border-2 p-4 text-left shadow-lg transition ${map[tone] ?? map.slate} ${active ? 'border-slate-700' : 'border-transparent'}`} data-anomaly-action="filter" data-severity={severity} type="button"><div className="text-xs opacity-80">{label}</div><div className="text-3xl font-bold">{value}</div></button>
 }
 
+function CategoryTags({ categories }: { categories: Array<{ cat: string; count: number }> }) {
+  return <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow"><span className="text-xs font-bold text-slate-500">📂 หมวด:</span>{categories.map((category) => <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700" key={category.cat}>{category.cat} <b className="text-red-600">{category.count}</b></span>)}</div>
+}
+
 function AnomalyGroup({ expanded, group }: { expanded: boolean; group: { category: string; icon: string; items: Anomaly[]; key: string; label: string; severity: Anomaly['severity'] } }) {
   const shell = group.severity === 'critical' ? 'border-red-600 bg-red-50' : group.severity === 'warn' ? 'border-amber-500 bg-amber-50' : 'border-blue-500 bg-blue-50'
-  return <div className={`rounded-xl border-l-4 shadow ${shell}`}><button className="flex w-full items-center gap-3 p-3 text-left hover:bg-white/40" data-anomaly-action="toggle" data-group-key={group.key} type="button"><span className="text-2xl">{group.icon}</span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="rounded bg-slate-800 px-2 py-0.5 text-xs font-bold text-white">{group.severity === 'critical' ? 'วิกฤต' : group.severity === 'warn' ? 'เตือน' : 'ข้อมูล'}</span><span className="text-xs text-slate-500">📂 {group.category}</span><span className="font-bold">{group.label}</span><span className="ml-auto text-2xl font-bold">{group.items.length}</span><span className="text-xs text-slate-500">รายการ</span></div></div><span className="text-xl text-slate-400">{expanded ? '▲' : '▼'}</span></button>{expanded ? <div className="divide-y divide-slate-200 border-t border-slate-200 bg-white/60">{group.items.map((item) => <div key={item.id} className="p-3 pl-12 hover:bg-white"><div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-[260px] flex-1"><div className="text-sm font-semibold">{item.title}</div><div className="mt-0.5 text-xs text-slate-700">{item.detail}</div><div className="mt-1 text-xs italic text-slate-500">💡 <b>แนะนำ:</b> {item.action}</div></div>{item.fixHref ? <Link className="whitespace-nowrap rounded bg-blue-600 px-3 py-1.5 text-xs font-bold text-white shadow" href={item.fixHref}>✏️ ไปแก้</Link> : null}</div></div>)}</div> : null}</div>
+  const badge = group.severity === 'critical' ? 'bg-red-600 text-white' : group.severity === 'warn' ? 'bg-amber-500 text-white' : 'bg-blue-500 text-white'
+  const textTone = group.severity === 'critical' ? 'text-red-800' : group.severity === 'warn' ? 'text-amber-800' : 'text-blue-800'
+  const countTone = group.severity === 'critical' ? 'text-red-700' : group.severity === 'warn' ? 'text-amber-700' : 'text-blue-700'
+  return <div className={`rounded-xl border-l-4 shadow ${shell}`}><button className="flex w-full items-center gap-3 p-3 text-left hover:bg-white/40" data-anomaly-action="toggle" data-group-key={group.key} type="button"><span className="text-2xl">{group.icon}</span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className={`rounded px-2 py-0.5 text-xs font-bold ${badge}`}>{group.severity === 'critical' ? 'วิกฤต' : group.severity === 'warn' ? 'เตือน' : 'ข้อมูล'}</span><span className="text-xs text-slate-500">📂 {group.category}</span><span className={`font-bold ${textTone}`}>{group.label}</span><span className={`ml-auto text-2xl font-bold ${countTone}`}>{group.items.length}</span><span className="text-xs text-slate-500">รายการ</span></div></div><span className="text-xl text-slate-400">{expanded ? '▲' : '▼'}</span></button>{expanded ? <div className="divide-y divide-slate-200 border-t border-slate-200 bg-white/60">{group.items.map((item) => <div key={item.id} className="p-3 pl-12 hover:bg-white"><div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-[260px] flex-1"><div className={`text-sm font-semibold ${textTone}`}>{item.title}</div><div className="mt-0.5 text-xs text-slate-700">{item.detail}</div><div className="mt-1 text-xs italic text-slate-500">💡 <b>แนะนำ:</b> {item.action}</div></div>{item.fixHref ? <Link className="whitespace-nowrap rounded bg-blue-600 px-3 py-1.5 text-xs font-bold text-white shadow" href={item.fixHref}>✏️ ไปแก้</Link> : null}</div></div>)}</div> : null}</div>
 }
 
 function ruleLabel(key: string) {
@@ -232,7 +245,7 @@ function ruleKey(id: string) {
 }
 
 function AnomalyChecklist() {
-  return <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600"><h3 className="mb-2 font-bold">📋 ระบบตรวจจับความผิดปกติ — สแกนหลายหมวดจากข้อมูลจริง</h3><div className="grid gap-2 md:grid-cols-2"><ul className="ml-5 list-disc space-y-0.5"><li>📦 <b>Stock:</b> ติดลบ / มูลค่ากำพร้า</li><li>📥 <b>AR:</b> ลูกหนี้เกินกำหนด</li><li>📤 <b>AP:</b> เจ้าหนี้ค้างจ่าย / จ่ายเกิน</li><li>💵 <b>Cash:</b> เงินสดต่ำ / บัญชีติดลบ / bank entry ไม่มี ref</li></ul><ul className="ml-5 list-disc space-y-0.5"><li>📤 <b>Sales:</b> บิลขาดทุน / วันที่อนาคต</li><li>🧮 <b>Bill:</b> บิลไม่มีรายการหรือยอดผิดปกติ</li><li>🔄 <b>Trading:</b> ค้าง match นาน</li><li>👥 <b>Master:</b> ชื่อซ้ำ / ไม่มี contact</li></ul></div></div>
+  return <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600"><h3 className="mb-2 font-bold">📋 ระบบตรวจจับความผิดปกติ — เปิดใช้งาน 18 rule groups จากข้อมูลจริง</h3><div className="grid gap-2 md:grid-cols-2"><ul className="ml-5 list-disc space-y-0.5"><li>📦 <b>Stock:</b> ติดลบ / มูลค่ากำพร้า</li><li>📥 <b>AR:</b> ลูกหนี้เกินกำหนด</li><li>📤 <b>AP:</b> เจ้าหนี้ค้างจ่าย / จ่ายเกิน</li><li>💵 <b>Cash:</b> เงินสดต่ำ / บัญชีติดลบ / bank entry ไม่มี ref</li><li>📤 <b>Sales:</b> บิลขาดทุน / วันที่อนาคต</li></ul><ul className="ml-5 list-disc space-y-0.5"><li>🧮 <b>Bill Content:</b> บิลซื้อ/ขายไม่มีรายการหรือยอดรายการเป็น 0</li><li>📅 <b>Date:</b> บิลซื้อ/ขายวันที่อนาคต</li><li>🔄 <b>Trading:</b> ค้าง match นาน</li><li>👥 <b>Master:</b> ชื่อซ้ำ / ไม่มี contact</li><li>📅 <b>Daily:</b> วันทำงานยังไม่มีบิลซื้อ-ขาย</li></ul></div><div className="mt-3 border-t border-slate-300 pt-3 text-[11px] text-slate-500">Legacy 40-check coverage และ record-level auto-scroll/highlight ยังเป็น follow-up จนกว่า target data contract และปลายทาง highlight query จะพร้อม.</div></div>
 }
 
 function Notice({ text }: { text?: string }) {
