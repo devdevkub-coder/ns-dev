@@ -280,7 +280,7 @@ paths:
   /api/admin/auth-events:
     get:
       tags: [Admin]
-      summary: List authentication and activity audit events
+      summary: List unified audit and activity events from app_audit_logs and app_activity_logs
       parameters:
         - $ref: "#/components/parameters/Search"
         - $ref: "#/components/parameters/Limit"
@@ -289,6 +289,18 @@ paths:
           $ref: "#/components/responses/ListOk"
         "403":
           $ref: "#/components/responses/Forbidden"
+
+  /api/activity:
+    post:
+      tags: [Admin]
+      summary: Record authenticated best-effort user activity
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/Ok"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /api/admin/transaction-ledger:
     get:

@@ -1,4 +1,5 @@
 import type { AppAuthContext } from '@/lib/server/auth-context'
+import { auditActionForEventKey, recordAuditLog, requestIp } from '@/lib/server/app-logging'
 import { prisma } from '@/lib/server/prisma'
 
 type AuthAuditEvent = {
@@ -9,23 +10,17 @@ type AuthAuditEvent = {
   targetAppUserId?: string | null
 }
 
-function requestIp(request: Request | undefined) {
-  const forwardedFor = request?.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-  const realIp = request?.headers.get('x-real-ip')?.trim()
-  const candidate = forwardedFor || realIp
-
-  if (!candidate) {
-    return null
-  }
-
-  if (!/^[0-9a-fA-F:.]+$/.test(candidate)) {
-    return null
-  }
-
-  return candidate
-}
-
 export async function recordAuthAuditEvent({ context, eventType, metadata = {}, request, targetAppUserId = null }: AuthAuditEvent) {
+  await recordAuditLog({
+    action: auditActionForEventKey(eventType),
+    context,
+    eventKey: eventType,
+    metadata,
+    request,
+    targetId: targetAppUserId,
+    targetType: targetAppUserId ? 'app_user' : null,
+  })
+
   try {
     await prisma.$executeRaw`
       insert into public.app_auth_events (

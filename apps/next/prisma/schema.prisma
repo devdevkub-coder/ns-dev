@@ -2050,6 +2050,88 @@ model warehouses {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model app_activity_logs {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  occurred_at        DateTime @default(now()) @db.Timestamptz(6)
+  activity_key       String
+  activity_type      String
+  title              String?
+  description        String?
+  actor_app_user_id  String?  @db.Uuid
+  actor_auth_user_id String?  @db.Uuid
+  actor_username     String?
+  actor_display_name String?
+  route_path         String?
+  referrer           String?
+  http_method        String?
+  request_path       String?
+  request_id         String?
+  target_type        String?
+  target_id          String?
+  target_label       String?
+  status             String   @default("success")
+  ip_address         String?  @db.Inet
+  user_agent         String?
+  metadata           Json     @default("{}")
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([actor_app_user_id], map: "idx_app_activity_logs_actor_app_user_id")
+  @@index([actor_auth_user_id], map: "idx_app_activity_logs_actor_auth_user_id")
+  @@index([activity_key], map: "idx_app_activity_logs_activity_key")
+  @@index([activity_type], map: "idx_app_activity_logs_activity_type")
+  @@index([metadata], map: "idx_app_activity_logs_metadata_gin", type: Gin)
+  @@index([occurred_at(sort: Desc)], map: "idx_app_activity_logs_occurred_at")
+  @@index([route_path], map: "idx_app_activity_logs_route_path")
+  @@index([target_type, target_id], map: "idx_app_activity_logs_target")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model app_audit_logs {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  occurred_at        DateTime @default(now()) @db.Timestamptz(6)
+  event_key          String
+  action             String
+  outcome            String   @default("success")
+  severity           String   @default("info")
+  actor_app_user_id  String?  @db.Uuid
+  actor_auth_user_id String?  @db.Uuid
+  actor_username     String?
+  actor_display_name String?
+  target_type        String?
+  target_id          String?
+  target_label       String?
+  entity_schema      String?
+  entity_table       String?
+  entity_id          String?
+  entity_label       String?
+  http_method        String?
+  request_path       String?
+  request_id         String?
+  ip_address         String?  @db.Inet
+  user_agent         String?
+  before_data        Json?
+  after_data         Json?
+  diff               Json?
+  metadata           Json     @default("{}")
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([action], map: "idx_app_audit_logs_action")
+  @@index([actor_app_user_id], map: "idx_app_audit_logs_actor_app_user_id")
+  @@index([actor_auth_user_id], map: "idx_app_audit_logs_actor_auth_user_id")
+  @@index([entity_table, entity_id], map: "idx_app_audit_logs_entity")
+  @@index([event_key], map: "idx_app_audit_logs_event_key")
+  @@index([metadata], map: "idx_app_audit_logs_metadata_gin", type: Gin)
+  @@index([occurred_at(sort: Desc)], map: "idx_app_audit_logs_occurred_at")
+  @@index([target_type, target_id], map: "idx_app_audit_logs_target")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model app_permissions {
   id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   code                 String                 @unique

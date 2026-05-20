@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { AppNavigation } from '@/components/layout/AppNavigation'
 import { AuthStatus } from '@/components/layout/AuthStatus'
@@ -23,6 +23,7 @@ export function AppShell({ children }: AppShellProps) {
   const [branches, setBranches] = useState<BranchOption[]>([])
   const [selectedBranchId, setSelectedBranchId] = useState('all')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const lastActivityPathRef = useRef<string | null>(null)
   const title = pageTitleForPath(pathname)
   const isAuthPage = pathname === '/login' || pathname === '/forgot-password' || pathname === '/reset-password'
 
@@ -56,10 +57,43 @@ export function AppShell({ children }: AppShellProps) {
     }
   }, [isAuthPage])
 
+  useEffect(() => {
+    if (isAuthPage || lastActivityPathRef.current === pathname) return
+    lastActivityPathRef.current = pathname
+
+    void fetch('/api/activity', {
+      body: JSON.stringify({
+        key: 'page.view',
+        metadata: { pageTitle: title },
+        referrer: document.referrer || null,
+        routePath: pathname,
+        title,
+        type: 'page_view',
+      }),
+      cache: 'no-store',
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    }).catch(() => {
+      // Activity logging is best-effort and must not block normal navigation.
+    })
+  }, [isAuthPage, pathname, title])
+
   function handleBranchChange(value: string) {
     setSelectedBranchId(value)
     window.localStorage.setItem(SELECTED_BRANCH_KEY, value)
     window.dispatchEvent(new CustomEvent('ns-scrap-erp-branch-change', { detail: { branchId: value === 'all' ? null : value } }))
+    void fetch('/api/activity', {
+      body: JSON.stringify({
+        key: 'branch.selected',
+        metadata: { branchId: value === 'all' ? null : value },
+        routePath: pathname,
+        title: 'เลือกสาขา',
+        type: 'action',
+      }),
+      cache: 'no-store',
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    }).catch(() => undefined)
   }
 
   if (isAuthPage) {

@@ -226,7 +226,7 @@ Status terms:
 | `/admin/change-password` | เปลี่ยน Password ของฉัน | self-service write | Supabase Auth client `signInWithPassword` + `updateUser` | `auth.users` | authenticated self-service |
 | `/admin/transaction-ledger` | Transaction Ledger | read baseline | `GET /api/admin/transaction-ledger` | transaction ledger / `bank_statement` source | `finance.cash.view` |
 | `/admin/migration-tools` | Backup / Restore | read/design baseline | no API; client reads localStorage size only | browser localStorage metadata | `system.backup.manage` |
-| `/admin/audit` | Audit & Activity Log | read baseline | `GET /api/admin/auth-events` | `auth_audit_events` | `system.audit.view` |
+| `/admin/audit` | Audit & Activity Log | split audit/activity baseline | `GET /api/admin/auth-events`, `POST /api/activity` | `app_audit_logs`, `app_activity_logs` | `system.audit.view` |
 | `/admin/users-permissions` | Users & Permissions | partial write | `GET/POST /api/admin/users`, `PATCH /api/admin/users/{id}`, `PATCH /status`, `POST /invite` | `auth.users`, `app_users`, role/permission tables | `system.users.manage` |
 
 ## Page Without Navigation Item
@@ -245,7 +245,7 @@ See `docs/api/openapi.yaml` for the current API skeleton. The OpenAPI file inten
 
 Current API groups:
 
-- Admin: company profile, audit/auth events, transaction ledger, user management
+- Admin: company profile, redesigned audit/activity events, transaction ledger, user management
 - Auth: current user context
 - Daily: payments approvals, expenses, transfers, petty advances, bill swap history
 - Master Data: customers, suppliers, products, lookup masters, Thai address lookup

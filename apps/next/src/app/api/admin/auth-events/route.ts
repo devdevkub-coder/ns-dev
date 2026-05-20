@@ -19,10 +19,16 @@ const listAuthEventsSchema = z.object({
 type AuthEventRow = {
   actor_display_name: string | null
   actor_username: string | null
+  action: string
   created_at: Date
   event_type: string
   id: string
   metadata: unknown
+  outcome: string
+  request_path: string | null
+  route_path: string | null
+  severity: string
+  stream: 'activity' | 'audit'
   target_display_name: string | null
   target_username: string | null
   user_agent: string | null
@@ -33,12 +39,12 @@ type CountRow = {
 }
 
 function groupCondition(group: z.infer<typeof listAuthEventsSchema>['group']) {
-  const authEvents = Prisma.sql`(e.event_type like '%login%' or e.event_type like '%invite%' or e.event_type like '%reset%')`
+  const authEvents = Prisma.sql`(e.stream = 'audit' and e.action in ('login', 'logout', 'invite', 'reset'))`
 
   if (group === 'auth') return authEvents
-  if (group === 'users') return Prisma.sql`(e.event_type like 'app_user.%' and not ${authEvents})`
-  if (group === 'permissions') return Prisma.sql`(e.event_type like '%permission%' or e.event_type like '%role%')`
-  if (group === 'activity') return Prisma.sql`not (e.event_type like '%login%' or e.event_type like '%invite%' or e.event_type like '%reset%' or e.event_type like 'app_user.%' or e.event_type like '%permission%' or e.event_type like '%role%')`
+  if (group === 'users') return Prisma.sql`(e.stream = 'audit' and e.event_type like 'app_user.%' and not ${authEvents})`
+  if (group === 'permissions') return Prisma.sql`(e.stream = 'audit' and e.action in ('permission', 'role'))`
+  if (group === 'activity') return Prisma.sql`e.stream = 'activity'`
   return null
 }
 
@@ -48,18 +54,22 @@ function buildWhere(values: z.infer<typeof listAuthEventsSchema>) {
 
   if (groupSql) clauses.push(groupSql)
   if (values.eventType) clauses.push(Prisma.sql`e.event_type = ${values.eventType}`)
-  if (values.actor) clauses.push(Prisma.sql`(actor.username ilike ${`%${values.actor}%`} or actor.display_name ilike ${`%${values.actor}%`})`)
-  if (values.target) clauses.push(Prisma.sql`(target.username ilike ${`%${values.target}%`} or target.display_name ilike ${`%${values.target}%`})`)
+  if (values.actor) clauses.push(Prisma.sql`(e.actor_username ilike ${`%${values.actor}%`} or e.actor_display_name ilike ${`%${values.actor}%`})`)
+  if (values.target) clauses.push(Prisma.sql`(e.target_username ilike ${`%${values.target}%`} or e.target_display_name ilike ${`%${values.target}%`})`)
   if (values.q) {
     const q = `%${values.q}%`
     clauses.push(Prisma.sql`(
       e.event_type ilike ${q}
+      or e.action ilike ${q}
+      or e.stream ilike ${q}
       or e.metadata::text ilike ${q}
       or e.user_agent ilike ${q}
-      or actor.username ilike ${q}
-      or actor.display_name ilike ${q}
-      or target.username ilike ${q}
-      or target.display_name ilike ${q}
+      or e.request_path ilike ${q}
+      or e.route_path ilike ${q}
+      or e.actor_username ilike ${q}
+      or e.actor_display_name ilike ${q}
+      or e.target_username ilike ${q}
+      or e.target_display_name ilike ${q}
     )`)
   }
 
@@ -86,29 +96,103 @@ export async function GET(request: Request) {
 
     const [rows, countRows] = await Promise.all([
       prisma.$queryRaw<AuthEventRow[]>`
+      with unified as (
+        select
+          'audit'::text as stream,
+          a.id::text as id,
+          a.event_key as event_type,
+          a.action,
+          a.outcome,
+          a.severity,
+          a.occurred_at as created_at,
+          a.metadata,
+          a.user_agent,
+          coalesce(a.actor_username, actor.username) as actor_username,
+          coalesce(a.actor_display_name, actor.display_name) as actor_display_name,
+          coalesce(target.username, a.target_label, a.target_id) as target_username,
+          coalesce(target.display_name, a.target_label) as target_display_name,
+          a.request_path,
+          null::text as route_path
+        from public.app_audit_logs a
+        left join public.app_users actor on actor.id = a.actor_app_user_id
+        left join public.app_users target on a.target_type = 'app_user' and target.id::text = a.target_id
+        union all
+        select
+          'activity'::text as stream,
+          activity.id::text as id,
+          activity.activity_key as event_type,
+          activity.activity_type as action,
+          activity.status as outcome,
+          'info'::text as severity,
+          activity.occurred_at as created_at,
+          activity.metadata,
+          activity.user_agent,
+          coalesce(activity.actor_username, actor.username) as actor_username,
+          coalesce(activity.actor_display_name, actor.display_name) as actor_display_name,
+          coalesce(activity.target_label, activity.target_id) as target_username,
+          activity.target_label as target_display_name,
+          activity.request_path,
+          activity.route_path
+        from public.app_activity_logs activity
+        left join public.app_users actor on actor.id = activity.actor_app_user_id
+      )
       select
         e.id,
+        e.stream,
         e.event_type,
+        e.action,
+        e.outcome,
+        e.severity,
         e.metadata,
         e.user_agent,
         e.created_at,
-        actor.username as actor_username,
-        actor.display_name as actor_display_name,
-        target.username as target_username,
-        target.display_name as target_display_name
-      from public.app_auth_events e
-      left join public.app_users actor on actor.id = e.actor_app_user_id
-      left join public.app_users target on target.id = e.target_app_user_id
+        e.actor_username,
+        e.actor_display_name,
+        e.target_username,
+        e.target_display_name,
+        e.request_path,
+        e.route_path
+      from unified e
       ${where}
       order by e.created_at desc
       limit ${values.pageSize}
       offset ${offset}
     `,
       prisma.$queryRaw<CountRow[]>`
+      with unified as (
+        select
+          'audit'::text as stream,
+          a.event_key as event_type,
+          a.action,
+          a.metadata,
+          a.user_agent,
+          coalesce(a.actor_username, actor.username) as actor_username,
+          coalesce(a.actor_display_name, actor.display_name) as actor_display_name,
+          coalesce(target.username, a.target_label, a.target_id) as target_username,
+          coalesce(target.display_name, a.target_label) as target_display_name,
+          a.request_path,
+          null::text as route_path
+        from public.app_audit_logs a
+        left join public.app_users actor on actor.id = a.actor_app_user_id
+        left join public.app_users target on a.target_type = 'app_user' and target.id::text = a.target_id
+        union all
+        select
+          'activity'::text as stream,
+          activity.activity_key as event_type,
+          activity.activity_type as action,
+          activity.metadata,
+          activity.user_agent,
+          coalesce(activity.actor_username, actor.username) as actor_username,
+          coalesce(activity.actor_display_name, actor.display_name) as actor_display_name,
+          coalesce(activity.target_label, activity.target_id) as target_username,
+          activity.target_label as target_display_name,
+          activity.request_path,
+          activity.route_path
+        from public.app_activity_logs activity
+        left join public.app_users actor on actor.id = activity.actor_app_user_id
+      )
       select count(*)::bigint as total
-      from public.app_auth_events e
-      left join public.app_users actor on actor.id = e.actor_app_user_id
-      left join public.app_users target on target.id = e.target_app_user_id
+      from unified e
       ${where}
     `,
     ])
@@ -125,7 +209,15 @@ export async function GET(request: Request) {
         createdAt: row.created_at.toISOString(),
         eventType: row.event_type,
         id: row.id,
-        metadata: row.metadata,
+        metadata: {
+          ...(row.metadata && typeof row.metadata === 'object' ? row.metadata as Record<string, unknown> : { value: row.metadata }),
+          action: row.action,
+          outcome: row.outcome,
+          requestPath: row.request_path,
+          routePath: row.route_path,
+          severity: row.severity,
+          stream: row.stream,
+        },
         target: row.target_username ? {
           displayName: row.target_display_name,
           username: row.target_username,
