@@ -560,7 +560,7 @@ model assets {
   created_by           String?
   created_at           DateTime?       @default(now()) @db.Timestamptz(6)
   branches             branches?       @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  suppliers            suppliers?      @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  suppliers            suppliers?      @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: Cascade)
   depreciations        depreciations[]
 
   @@schema("public")
@@ -1121,7 +1121,7 @@ model payments {
   idempotency_key String?
   accounts        accounts?  @relation(fields: [account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   branches        branches?  @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  suppliers       suppliers? @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  suppliers       suppliers? @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: Cascade)
 
   @@index([doc_no], map: "idx_payments_doc_no")
   @@index([idempotency_key], map: "idx_payments_idempotency", where: raw("(idempotency_key IS NOT NULL)"))
@@ -1212,7 +1212,7 @@ model po_buys {
   is_opening_pool   Boolean?   @default(false)
   updated_by        String?
   version           Int?       @default(1)
-  suppliers         suppliers? @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  suppliers         suppliers? @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: Cascade)
 
   @@index([doc_no], map: "idx_po_buys_doc_no")
   @@schema("public")
@@ -1488,7 +1488,7 @@ model purchase_bills {
   version                 Int?               @default(1)
   branches                branches?          @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   purchase_channels       purchase_channels? @relation(fields: [channel_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  suppliers               suppliers?         @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  suppliers               suppliers?         @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: Cascade)
   warehouses              warehouses?        @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   trading_deals           trading_deals[]
 
@@ -1935,7 +1935,7 @@ model trading_deals {
   products                products?       @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   purchase_bills          purchase_bills? @relation(fields: [purchase_bill_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   sales_bills             sales_bills?    @relation(fields: [sales_bill_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  suppliers               suppliers?      @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  suppliers               suppliers?      @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: Cascade)
 
   @@index([purchase_bill_id], map: "idx_deal_pb")
   @@index([sales_bill_id], map: "idx_deal_sb")

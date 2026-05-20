@@ -1011,8 +1011,8 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 
 - PO Buy create payload now removes client-owned `date`; server still stamps PO issue time/date and validates delivery date against that server-owned Bangkok issue date.
 - PO Buy modal removes document-number and issue-date fields; both are generated only when saving.
-- `/master-data/salespersons` code generation/validation now uses lowercase `sa001`-`sa999` sale codes. Manual values such as `sales1`/`s1`/`sa1` normalize to `sa001`; values outside the range are rejected before write.
-- `/master-data/suppliers` code generation/validation now uses lowercase `su0001`-`su99999` supplier codes so it can pass ten-thousand-level running numbers. Manual values such as `SUP1`/`s1`/`su1` normalize to `su0001`; values outside the range are rejected before write.
+- `/master-data/salespersons` code generation/validation now uses canonical uppercase `SA001`-`SA999` sale codes. Manual values such as `sales1`/`s1`/`sa1` normalize to `SA001`; values outside the range are rejected before write. New records use the same uppercase value for `id` and `code`.
+- `/master-data/suppliers` code generation/validation now uses canonical uppercase `SU0001`-`SU99999` supplier codes so it can pass ten-thousand-level running numbers. Manual values such as `SUP1`/`s1`/`su1` normalize to `SU0001`; values outside the range are rejected before write. New records use the same uppercase value for `id` and `code`.
 
 ### D3: Trading Dashboard
 

@@ -9,6 +9,7 @@
 - Keep ledger-style tables traceable and preferably append-only.
 - Prefer meaningful business-facing keys and running document numbers for records users reference, such as `doc_no`, account code, product code, customer code, or supplier code.
 - Avoid exposing UUID or opaque surrogate IDs as user-facing identifiers. Use UUID/opaque IDs only as internal primary keys when needed.
+- Store business-facing IDs/codes in canonical uppercase. When a master-data record uses a meaningful running code as its identifier, keep `id` and `code` uppercase and aligned unless a documented legacy reference requires a separate internal ID.
 - Use `auth.users` as the authentication source of truth.
 - Do not store user passwords in application tables.
 - Normalize roles and permissions instead of duplicating permission models.

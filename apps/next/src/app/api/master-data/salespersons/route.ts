@@ -41,12 +41,12 @@ function codeValidationError(message: string) {
 function normalizeSalespersonCode(value: string | null | undefined, fallback: string) {
   const rawCode = (value?.trim() || fallback).toLowerCase()
   const matched = rawCode.match(/^(?:sa|sales|s)(\d{1,3})$/)
-  if (!matched) throw codeValidationError('รหัสพนักงานขายต้องเป็นรูปแบบ sa001-sa999')
+  if (!matched) throw codeValidationError('รหัสพนักงานขายต้องเป็นรูปแบบ SA001-SA999')
 
   const number = Number(matched[1])
-  if (!Number.isInteger(number) || number < 1 || number > 999) throw codeValidationError('รหัสพนักงานขายต้องอยู่ระหว่าง sa001-sa999')
+  if (!Number.isInteger(number) || number < 1 || number > 999) throw codeValidationError('รหัสพนักงานขายต้องอยู่ระหว่าง SA001-SA999')
 
-  return `sa${String(number).padStart(3, '0')}`
+  return `SA${String(number).padStart(3, '0')}`
 }
 
 async function getNextCode() {
@@ -61,8 +61,8 @@ async function getNextCode() {
     return Number.isFinite(number) && number > max ? number : max
   }, 0)
   const nextNumber = lastNumber + 1
-  if (nextNumber > 999) throw codeValidationError('รหัสพนักงานขายเต็มช่วง sa001-sa999 แล้ว')
-  return `sa${String(nextNumber).padStart(3, '0')}`
+  if (nextNumber > 999) throw codeValidationError('รหัสพนักงานขายเต็มช่วง SA001-SA999 แล้ว')
+  return `SA${String(nextNumber).padStart(3, '0')}`
 }
 
 export async function GET() {

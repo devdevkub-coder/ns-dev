@@ -88,8 +88,8 @@ async function getNextSupplierCode() {
     return Number.isFinite(number) && number > max ? number : max
   }, 0)
   const nextNumber = lastNumber + 1
-  if (nextNumber > 99999) throw supplierCodeValidationError('รหัสผู้ขายเต็มช่วง su0001-su99999 แล้ว')
-  return `su${String(nextNumber).padStart(4, '0')}`
+  if (nextNumber > 99999) throw supplierCodeValidationError('รหัสผู้ขายเต็มช่วง SU0001-SU99999 แล้ว')
+  return `SU${String(nextNumber).padStart(4, '0')}`
 }
 
 function supplierCodeValidationError(message: string) {
@@ -99,12 +99,12 @@ function supplierCodeValidationError(message: string) {
 function normalizeSupplierCode(value: string | null | undefined, fallback: string) {
   const rawCode = (value?.trim() || fallback).toLowerCase()
   const matched = rawCode.match(/^(?:su|sup|s)(\d{1,5})$/)
-  if (!matched) throw supplierCodeValidationError('รหัสผู้ขายต้องเป็นรูปแบบ su0001-su99999')
+  if (!matched) throw supplierCodeValidationError('รหัสผู้ขายต้องเป็นรูปแบบ SU0001-SU99999')
 
   const number = Number(matched[1])
-  if (!Number.isInteger(number) || number < 1 || number > 99999) throw supplierCodeValidationError('รหัสผู้ขายต้องอยู่ระหว่าง su0001-su99999')
+  if (!Number.isInteger(number) || number < 1 || number > 99999) throw supplierCodeValidationError('รหัสผู้ขายต้องอยู่ระหว่าง SU0001-SU99999')
 
-  return `su${String(number).padStart(4, '0')}`
+  return `SU${String(number).padStart(4, '0')}`
 }
 
 async function getActiveSalespersonName(salesId: string | null) {
