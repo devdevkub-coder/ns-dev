@@ -27,7 +27,7 @@ const emptySupplierForm: SupplierFormValues = {
   firstName: null,
   lastName: null,
   type: 'นิติบุคคล',
-  taxId: null,
+  taxId: '',
   phone: '',
   address: null,
   addressNo: null,
@@ -69,7 +69,7 @@ function supplierToForm(supplier: Supplier): SupplierFormValues {
     firstName: supplier.firstName,
     lastName: supplier.lastName,
     type: supplier.type,
-    taxId: supplier.taxId,
+    taxId: supplier.taxId ?? '',
     phone: formatPhoneDisplay(supplier.phone) ?? '',
     address: supplier.address,
     addressNo: supplier.addressNo,
@@ -658,7 +658,7 @@ function SupplierForm({ supplier, bankNames, districts, isSaving, provinces, sal
     setForm((current) => ({
       ...current,
       marketScope: value,
-      countryCode: value === 'ในประเทศ' ? 'TH' : current.countryCode === 'TH' ? null : current.countryCode,
+      countryCode: value === 'ในประเทศ' ? 'TH' : null,
       addressCountry: value === 'ในประเทศ' ? 'ไทย' : current.addressCountry === 'ไทย' ? null : current.addressCountry,
       addressLine1: value === 'ในประเทศ' ? current.addressLine1 : current.addressLine1 ?? current.address,
       addressLine2: value === 'ในประเทศ' ? current.addressLine2 : current.addressLine2,
@@ -720,7 +720,7 @@ function SupplierForm({ supplier, bankNames, districts, isSaving, provinces, sal
             ) : (
               <TextField required className="md:col-span-2" error={errors.name} label="ชื่อบริษัท/ร้านค้า" value={form.name ?? ''} onChange={(value) => update('name', value || null)} />
             )}
-            <TextField error={errors.taxId} label="เลขผู้เสียภาษี" value={form.taxId ?? ''} onChange={(value) => update('taxId', value || null)} />
+            <TextField required error={errors.taxId} label="เลขผู้เสียภาษี" value={form.taxId} onChange={(value) => update('taxId', value)} />
             <SelectField required error={errors.salesId} label="ผู้ดูแล" value={form.salesId ?? ''} onChange={updateSalesperson}>
               <option value="">เลือกผู้ดูแล</option>
               {salespersons.map((salesperson) => <option key={salesperson.id} value={salesperson.id}>{salesperson.name}</option>)}
@@ -784,7 +784,6 @@ function SupplierForm({ supplier, bankNames, districts, isSaving, provinces, sal
             ) : (
               <>
                 <TextField required error={errors.addressCountry} label="ประเทศ" value={form.addressCountry ?? ''} onChange={(value) => update('addressCountry', value || null)} />
-                <TextField required error={errors.countryCode} label="รหัสประเทศ (ISO)" value={form.countryCode ?? ''} onChange={(value) => update('countryCode', value.toUpperCase() || null)} />
                 <TextField required className="md:col-span-2" error={errors.addressLine1} label="ที่อยู่บรรทัด 1" value={form.addressLine1 ?? ''} onChange={(value) => update('addressLine1', value || null)} />
                 <TextField className="md:col-span-2" error={errors.addressLine2} label="ที่อยู่บรรทัด 2" value={form.addressLine2 ?? ''} onChange={(value) => update('addressLine2', value || null)} />
                 <TextField required error={errors.addressCity} label="เมือง" value={form.addressCity ?? ''} onChange={(value) => update('addressCity', value || null)} />
