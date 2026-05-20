@@ -7,9 +7,12 @@ type Row = Record<string, string | number | boolean | null | undefined | Record<
 type Payload = {
   breakdown?: Record<string, number>
   byStatus?: Array<{ count: number; status: string }>
+  daily?: Array<{ date: string; inputQty: number; lossQty: number; outputQty: number }>
+  machineUtil?: Array<{ batches: number; name: string; qty: number }>
+  monthly?: Array<{ inputQty: number; month: string; outputQty: number }>
   rows: Row[]
   summary: Record<string, number>
-  topProducts?: Array<{ batches: number; cost: number; name: string; qty: number }>
+  topProducts?: Array<{ avgCost?: number; batches: number; code?: string; cost: number; name: string; qty: number }>
 }
 
 type Column = {
@@ -92,6 +95,23 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
   const rows = data?.rows ?? []
   const metricItems = useMemo(() => config.metrics.map((metric) => ({ ...metric, value: data?.summary?.[metric.key] ?? 0 })), [config.metrics, data?.summary])
 
+  function applyDashboardRange(range: 'last30' | 'last7' | 'last90' | 'month' | 'today' | 'year') {
+    const end = new Date()
+    const start = new Date(end)
+    if (range === 'today') {
+      // keep today
+    } else if (range === 'last7') start.setDate(start.getDate() - 6)
+    else if (range === 'last30') start.setDate(start.getDate() - 29)
+    else if (range === 'last90') start.setDate(start.getDate() - 89)
+    else if (range === 'month') start.setDate(1)
+    else if (range === 'year') {
+      start.setMonth(0)
+      start.setDate(1)
+    }
+    setDateFrom(start.toISOString().slice(0, 10))
+    setDateTo(end.toISOString().slice(0, 10))
+  }
+
   function exportCsv() {
     const header = config.columns.map((column) => column.label)
     const body = rows.map((row) => config.columns.map((column) => String(row[column.key] ?? '')))
@@ -103,6 +123,87 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
     link.download = `${mode}-${new Date().toISOString().slice(0, 10)}.csv`
     link.click()
     URL.revokeObjectURL(url)
+  }
+
+  if (mode === 'dashboard') {
+    const summary = data?.summary ?? {}
+    const topProducts = data?.topProducts ?? []
+    const byStatus = data?.byStatus ?? []
+    const daily = data?.daily ?? []
+    const monthly = data?.monthly ?? []
+    const machineUtil = data?.machineUtil ?? []
+    return (
+      <section className="space-y-4">
+        {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
+
+        <div className="rounded-2xl bg-gradient-to-r from-purple-700 to-pink-600 p-5 text-white shadow-lg">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="text-3xl font-bold">Production Dashboard</h1>
+              <p className="mt-1 text-sm opacity-90">รายงานการผลิตแบบสรุป รายวัน / รายเดือน + Charts</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                ['today', 'วันนี้'],
+                ['last7', '7 วัน'],
+                ['last30', '30 วัน'],
+                ['last90', '90 วัน'],
+                ['month', 'เดือนนี้'],
+                ['year', 'ปีนี้'],
+              ].map(([value, label]) => <button key={value} className="rounded bg-white/20 px-3 py-1.5 text-xs hover:bg-white/30" type="button" onClick={() => applyDashboardRange(value as Parameters<typeof applyDashboardRange>[0])}>{label}</button>)}
+              <input className="rounded px-2 py-1 text-xs text-slate-900" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
+              <span className="text-xs">→</span>
+              <input className="rounded px-2 py-1 text-xs text-slate-900" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <DashboardKpi label="ใบสั่งผลิต" note={`Input ${formatMoney(summary.inputQty ?? 0)} | Output ${formatMoney(summary.outputQty ?? 0)}`} tone="blue" value={formatMoney(summary.count ?? 0)} />
+          <DashboardKpi label="ผลิตได้" note="กก. ไม่รวม Loss" tone="emerald" value={formatMoney(summary.outputQty ?? 0)} />
+          <DashboardKpi label="WIP คงเหลือทั้งระบบ" note="กก. ที่ยังผลิตค้างอยู่" tone="amber" value={formatMoney(summary.totalWipQty ?? summary.wipQty ?? 0)} />
+          <DashboardKpi label="Yield %" note={`Loss ${Number(summary.lossPct ?? 0).toFixed(1)}%`} tone="purple" value={`${Number(summary.yieldPct ?? 0).toFixed(1)}%`} />
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <ChartPanel title="ผลิตรายวัน (Input/Output/Loss)" type="line" rows={daily.map((item) => ({ label: item.date.slice(5), input: item.inputQty, output: item.outputQty, loss: item.lossQty }))} />
+          <ChartPanel title="ผลิตรายเดือน (12 เดือนล่าสุด)" type="bar" rows={monthly.map((item) => ({ label: item.month.slice(5), input: item.inputQty, output: item.outputQty, loss: 0 }))} />
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="rounded-2xl bg-white p-4 shadow-lg">
+            <h3 className="mb-3 font-bold text-slate-700">สถานะใบสั่งผลิต</h3>
+            <div className="space-y-2">
+              {byStatus.map((item) => <StatusBar key={item.status} count={item.count} max={Math.max(1, ...byStatus.map((row) => row.count))} status={item.status} />)}
+              {!byStatus.length ? <div className="py-6 text-center text-sm text-slate-400">ยังไม่มีข้อมูล</div> : null}
+            </div>
+          </div>
+          <div className="overflow-hidden rounded-2xl bg-white shadow-lg lg:col-span-2">
+            <div className="border-b bg-emerald-50 p-3"><h3 className="font-bold text-emerald-700">Top 10 สินค้าที่ผลิตมากสุด</h3></div>
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50"><tr><th className="w-8 p-2 text-left">#</th><th className="p-2 text-left">Code</th><th className="p-2 text-left">สินค้า</th><th className="p-2 text-right">รอบ</th><th className="p-2 text-right">น้ำหนัก</th><th className="p-2 text-right">ต้นทุนรวม</th><th className="p-2 text-right">ต้นทุน/กก.</th></tr></thead>
+              <tbody>
+                {topProducts.map((item, index) => <tr key={item.name} className="border-t"><td className="p-2 font-bold text-emerald-700">{index + 1}</td><td className="p-2 font-mono text-xs">{item.code || '-'}</td><td className="p-2 text-xs">{item.name}</td><td className="p-2 text-right text-xs">{item.batches}</td><td className="p-2 text-right font-bold">{formatMoney(item.qty)}</td><td className="p-2 text-right text-xs">{formatMoney(item.cost)}</td><td className="p-2 text-right text-xs text-slate-600">{formatMoney(item.avgCost ?? (item.qty > 0 ? item.cost / item.qty : 0))}</td></tr>)}
+                {!topProducts.length ? <tr><td className="py-6 text-center text-slate-400" colSpan={7}>ยังไม่มีข้อมูลในช่วงนี้</td></tr> : null}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-2xl bg-white shadow-lg">
+          <div className="border-b bg-indigo-50 p-3"><h3 className="font-bold text-indigo-700">Machine Utilization (ปริมาณผลิตต่อเครื่อง)</h3></div>
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50"><tr><th className="p-2 text-left">เครื่องจักร</th><th className="p-2 text-right">รอบที่ใช้</th><th className="p-2 text-right">น้ำหนักผลิต</th></tr></thead>
+            <tbody>
+              {machineUtil.map((item) => <tr key={item.name} className="border-t"><td className="p-2">{item.name}</td><td className="p-2 text-right">{item.batches}</td><td className="p-2 text-right font-bold text-indigo-700">{formatMoney(item.qty)}</td></tr>)}
+              {!machineUtil.length ? <tr><td className="py-6 text-center text-slate-400" colSpan={3}>ยังไม่มีข้อมูล</td></tr> : null}
+            </tbody>
+          </table>
+        </div>
+
+        {isLoading ? <div className="text-center text-sm text-slate-500">กำลังโหลดข้อมูล</div> : null}
+      </section>
+    )
   }
 
   return (
@@ -149,6 +250,46 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
 
 function Metric({ label, type, value }: { label: string; type?: 'money' | 'number' | 'percent'; value: number }) {
   return <div className="rounded-lg bg-white p-3 shadow"><div className="text-xs text-slate-500">{label}</div><div className="mt-1 text-lg font-bold text-slate-900">{formatCell(value, type)}</div></div>
+}
+
+function DashboardKpi({ label, note, tone, value }: { label: string; note: string; tone: 'amber' | 'blue' | 'emerald' | 'purple'; value: string }) {
+  const classes = {
+    amber: 'border-amber-200 bg-amber-50 text-amber-700',
+    blue: 'border-blue-200 bg-blue-50 text-blue-700',
+    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    purple: 'border-purple-200 bg-purple-50 text-purple-700',
+  }
+  return <div className={`rounded-xl border p-3 ${classes[tone]}`}><div className="text-xs opacity-90">{label}</div><div className="text-2xl font-bold">{value}</div><div className="text-xs opacity-80">{note}</div></div>
+}
+
+function ChartPanel({ rows, title, type }: { rows: Array<{ input: number; label: string; loss: number; output: number }>; title: string; type: 'bar' | 'line' }) {
+  const max = Math.max(1, ...rows.flatMap((row) => [row.input, row.output, row.loss]))
+  return (
+    <div className="rounded-2xl bg-white p-4 shadow-lg">
+      <h3 className="mb-2 font-bold text-slate-700">{title}</h3>
+      <div className="flex h-[300px] items-end gap-2 overflow-x-auto border-b border-slate-100 pb-8">
+        {rows.map((row) => (
+          <div key={row.label} className="relative flex min-w-10 flex-1 items-end justify-center gap-1">
+            <div className={`${type === 'line' ? 'rounded-t' : 'rounded-t'} w-2 bg-blue-500`} style={{ height: `${Math.max(2, (row.input / max) * 240)}px` }} title={`Input ${formatMoney(row.input)}`} />
+            <div className="w-2 rounded-t bg-emerald-500" style={{ height: `${Math.max(2, (row.output / max) * 240)}px` }} title={`Output ${formatMoney(row.output)}`} />
+            {type === 'line' ? <div className="w-2 rounded-t bg-red-500" style={{ height: `${Math.max(2, (row.loss / max) * 240)}px` }} title={`Loss ${formatMoney(row.loss)}`} /> : null}
+            <span className="absolute -bottom-6 text-[10px] text-slate-400">{row.label}</span>
+          </div>
+        ))}
+        {!rows.length ? <div className="w-full self-center text-center text-sm text-slate-400">ยังไม่มีข้อมูล</div> : null}
+      </div>
+      <div className="mt-2 flex gap-4 text-xs text-slate-500"><span className="text-blue-600">Input</span><span className="text-emerald-600">Output</span>{type === 'line' ? <span className="text-red-600">Loss</span> : null}</div>
+    </div>
+  )
+}
+
+function StatusBar({ count, max, status }: { count: number; max: number; status: string }) {
+  return (
+    <div className="text-sm">
+      <div className="mb-1 flex justify-between"><span>{status}</span><b>{count}</b></div>
+      <div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-purple-500" style={{ width: `${Math.max(4, (count / max) * 100)}%` }} /></div>
+    </div>
+  )
 }
 
 function formatCell(value: Row[string], type?: Column['type']) {
