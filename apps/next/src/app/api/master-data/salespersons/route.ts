@@ -40,13 +40,13 @@ function codeValidationError(message: string) {
 
 function normalizeSalespersonCode(value: string | null | undefined, fallback: string) {
   const rawCode = (value?.trim() || fallback).toLowerCase()
-  const matched = rawCode.match(/^s(\d{1,3})$/)
-  if (!matched) throw codeValidationError('รหัสพนักงานขายต้องเป็นรูปแบบ s001-s999')
+  const matched = rawCode.match(/^(?:sa|sales|s)(\d{1,3})$/)
+  if (!matched) throw codeValidationError('รหัสพนักงานขายต้องเป็นรูปแบบ sa001-sa999')
 
   const number = Number(matched[1])
-  if (!Number.isInteger(number) || number < 1 || number > 999) throw codeValidationError('รหัสพนักงานขายต้องอยู่ระหว่าง s001-s999')
+  if (!Number.isInteger(number) || number < 1 || number > 999) throw codeValidationError('รหัสพนักงานขายต้องอยู่ระหว่าง sa001-sa999')
 
-  return `s${String(number).padStart(3, '0')}`
+  return `sa${String(number).padStart(3, '0')}`
 }
 
 async function getNextCode() {
@@ -56,13 +56,13 @@ async function getNextCode() {
     where: { code: { startsWith: 's', mode: 'insensitive' } },
   })
   const lastNumber = rows.reduce((max, row) => {
-    const matched = String(row.code ?? '').toLowerCase().match(/^s(\d{3})$/)
+    const matched = String(row.code ?? '').toLowerCase().match(/^(?:sa|sales|s)(\d{1,3})$/)
     const number = matched ? Number(matched[1]) : 0
     return Number.isFinite(number) && number > max ? number : max
   }, 0)
   const nextNumber = lastNumber + 1
-  if (nextNumber > 999) throw codeValidationError('รหัสพนักงานขายเต็มช่วง s001-s999 แล้ว')
-  return `s${String(nextNumber).padStart(3, '0')}`
+  if (nextNumber > 999) throw codeValidationError('รหัสพนักงานขายเต็มช่วง sa001-sa999 แล้ว')
+  return `sa${String(nextNumber).padStart(3, '0')}`
 }
 
 export async function GET() {

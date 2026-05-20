@@ -4,6 +4,7 @@ import { mapPrismaSupplier, toSupplierWriteInput } from '@/lib/domain/supplier'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
+import { z } from 'zod'
 import type { Prisma } from '../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
@@ -76,23 +77,34 @@ function supplierSearchWhere(q: string, supplierType: string, marketScope: strin
 }
 
 async function getNextSupplierCode() {
-  const lastSupplier = await prisma.suppliers.findFirst({
-    where: {
-      code: {
-        startsWith: 'SUP',
-      },
-    },
-    orderBy: {
-      code: 'desc',
-    },
-    select: {
-      code: true,
-    },
+  const rows = await prisma.suppliers.findMany({
+    orderBy: { code: 'desc' },
+    select: { code: true },
+    where: { code: { startsWith: 's', mode: 'insensitive' } },
   })
+  const lastNumber = rows.reduce((max, row) => {
+    const matched = String(row.code ?? '').toLowerCase().match(/^(?:su|sup|s)(\d{1,5})$/)
+    const number = matched ? Number(matched[1]) : 0
+    return Number.isFinite(number) && number > max ? number : max
+  }, 0)
+  const nextNumber = lastNumber + 1
+  if (nextNumber > 99999) throw supplierCodeValidationError('รหัสผู้ขายเต็มช่วง su0001-su99999 แล้ว')
+  return `su${String(nextNumber).padStart(4, '0')}`
+}
 
-  const lastNumber = Number(String(lastSupplier?.code ?? '').replace(/^SUP/i, ''))
-  const nextNumber = Number.isFinite(lastNumber) ? lastNumber + 1 : 1
-  return `SUP${String(nextNumber).padStart(3, '0')}`
+function supplierCodeValidationError(message: string) {
+  return new z.ZodError([{ code: 'custom', message, path: ['code'] }])
+}
+
+function normalizeSupplierCode(value: string | null | undefined, fallback: string) {
+  const rawCode = (value?.trim() || fallback).toLowerCase()
+  const matched = rawCode.match(/^(?:su|sup|s)(\d{1,5})$/)
+  if (!matched) throw supplierCodeValidationError('รหัสผู้ขายต้องเป็นรูปแบบ su0001-su99999')
+
+  const number = Number(matched[1])
+  if (!Number.isInteger(number) || number < 1 || number > 99999) throw supplierCodeValidationError('รหัสผู้ขายต้องอยู่ระหว่าง su0001-su99999')
+
+  return `su${String(number).padStart(4, '0')}`
 }
 
 async function getActiveSalespersonName(salesId: string | null) {
@@ -152,7 +164,7 @@ export async function POST(request: Request) {
     const body = await request.json()
     const values = supplierFormSchema.parse(body)
     const salesName = await getActiveSalespersonName(values.salesId)
-    const code = values.id ? values.code : await getNextSupplierCode()
+    const code = normalizeSupplierCode(values.code, values.id || await getNextSupplierCode())
     const payload = toSupplierWriteInput({ ...values, code, salesName })
 
     const supplier = await prisma.suppliers.upsert({
