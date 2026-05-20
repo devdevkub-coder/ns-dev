@@ -34,7 +34,6 @@ Baseline notes:
 
 | Route | Legacy view | Current issue | Next file |
 |---|---|---|---|
-| `/daily/expense` | `view-expense` | Next flattens expense entry to a single category row. Legacy has voucher lines, dynamic category creation, payee/bank fields, VAT/WHT per line, and pay-now vs pending modes. | `apps/next/src/components/daily/DailyExpensePageClient.tsx` |
 | `/production/orders` | `view-production` | Missing full tabbed detail editor, status/lock banners, Header/Input/Output/Process Cost/Cost Allocation tabs, and richer status actions. | `apps/next/src/components/production/ProductionOrdersPageClient.tsx` |
 | `/production/dashboard` | `view-productionDashboard` | Missing legacy hero, daily/monthly chart panels, status donut, Top 10 product card, and Machine Utilization panel. | `apps/next/src/components/production/ProductionReportPageClient.tsx` |
 | `/production/production-cost-report` | `view-productionCostReport` | Missing seven cost cards and cost-type breakdown emphasis. | `apps/next/src/components/production/ProductionReportPageClient.tsx` |
@@ -45,6 +44,7 @@ Baseline notes:
 |---|---|---|
 | `/daily/payment-approval` | 2026-05-20 | Restored legacy green gradient hero, AP/expense tabs, search/date/approved filters, select all/clear, five KPI strip, amber selected-total action bar, AP/expense dense tables, highlighted bank/account cells, local-only selection/pay amount state, and disabled approve/print controls. No approval mutation, print document generation, DB schema, or API write behavior was added. |
 | `/daily/expense-dashboard` | 2026-05-20 | Restored legacy rose/orange dashboard surface for dashboard-only mode: 3/6/12 month selector, four KPI cards, anomaly/no-anomaly panels, category-by-month heatmap, footer totals, and anomaly rule note. It uses existing `/api/daily/expenses` rows and legacy-compatible `amount + vat` dashboard math; no write/export/repair action or new API was added. |
+| `/daily/expense` | 2026-05-20 | Restored the first legacy list/read surface: blue Expense Voucher info banner and create CTA, gradient monthly/pending/paid/trend cards, category/payee progress panels, dense filter bar with date/payee/account/status/clear/export shell, and a denser table with due date, reference, category, overdue state, Net Pay emphasis, VAT/WHT breakdown, and edit action. Destructive repair tools, delete, quick-pay, multi-line voucher write, auto category creation, and export remain deferred. |
 
 ## P1 Backlog
 
@@ -110,8 +110,7 @@ Next routes without a direct standalone legacy page:
 
 ## Active Execution Order
 
-1. P0 Daily tools: `/daily/expense`
-2. P0 Production tools: `/production/orders`, `/production/dashboard`, `/production/production-cost-report`
-3. P1 PO/Reports/Main: `/po-reports/outstanding`, `/reports`, `/sales-plan`, `/dashboard`
-4. P1 Daily transaction surfaces
-5. P1/P2 production report polish
+1. P0 Production tools: `/production/orders`, `/production/dashboard`, `/production/production-cost-report`
+2. P1 PO/Reports/Main: `/po-reports/outstanding`, `/reports`, `/sales-plan`, `/dashboard`
+3. P1 Daily transaction surfaces
+4. P1/P2 production report polish

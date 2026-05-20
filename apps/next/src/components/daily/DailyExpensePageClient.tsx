@@ -61,6 +61,10 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
   const [rows, setRows] = useState<ExpenseRow[]>([])
   const [search, setSearch] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [payeeFilter, setPayeeFilter] = useState('')
+  const [accountId, setAccountId] = useState('')
   const [paidStatus, setPaidStatus] = useState('all')
   const [periodMonths, setPeriodMonths] = useState(6)
 
@@ -87,24 +91,38 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
     const query = search.trim().toLowerCase()
     return rows
       .filter((row) => !categoryId || row.categoryId === categoryId)
+      .filter((row) => !dateFrom || row.date >= dateFrom)
+      .filter((row) => !dateTo || row.date <= dateTo)
+      .filter((row) => !payeeFilter.trim() || row.payee.toLowerCase().includes(payeeFilter.trim().toLowerCase()))
+      .filter((row) => !accountId || row.accountId === accountId)
       .filter((row) => paidStatus === 'all' || row.paidStatus === paidStatus)
-      .filter((row) => !query || `${row.docNo} ${row.payee} ${row.description ?? ''}`.toLowerCase().includes(query))
+      .filter((row) => !query || `${row.docNo} ${row.payee} ${row.refDocNo ?? ''} ${row.description ?? ''}`.toLowerCase().includes(query))
       .sort((left, right) => right.date.localeCompare(left.date) || right.docNo.localeCompare(left.docNo))
-  }, [categoryId, paidStatus, rows, search])
+  }, [accountId, categoryId, dateFrom, dateTo, paidStatus, payeeFilter, rows, search])
 
   const summary = useMemo(() => {
     const month = todayDateInput().slice(0, 7)
     const monthly = rows.filter((row) => row.date.startsWith(month))
     const byCategory = new Map<string, number>()
+    const byPayee = new Map<string, number>()
     for (const row of monthly) {
       byCategory.set(row.categoryName || 'ไม่ระบุหมวด', (byCategory.get(row.categoryName || 'ไม่ระบุหมวด') ?? 0) + row.netAmount)
+      byPayee.set(row.payee || 'ไม่ระบุผู้รับเงิน', (byPayee.get(row.payee || 'ไม่ระบุผู้รับเงิน') ?? 0) + row.netAmount)
     }
+    const trend = getRecentMonths(6).map((trendMonth) => ({
+      month: trendMonth,
+      total: rows.filter((row) => row.date.startsWith(trendMonth)).reduce((sum, row) => sum + row.netAmount, 0),
+    }))
+    const topCategories = Array.from(byCategory, ([name, total]) => ({ name, total })).sort((left, right) => right.total - left.total).slice(0, 8)
     return {
+      catTotal: topCategories.reduce((sum, item) => sum + item.total, 0),
       monthlyCount: monthly.length,
       monthlyTotal: monthly.reduce((sum, row) => sum + row.netAmount, 0),
       paidTotal: rows.filter((row) => row.paidStatus === 'paid').reduce((sum, row) => sum + row.netAmount, 0),
       pendingTotal: rows.filter((row) => row.paidStatus !== 'paid').reduce((sum, row) => sum + row.netAmount, 0),
-      topCategories: Array.from(byCategory, ([name, total]) => ({ name, total })).sort((left, right) => right.total - left.total).slice(0, 8),
+      topCategories,
+      topPayees: Array.from(byPayee, ([name, total]) => ({ name, total })).sort((left, right) => right.total - left.total).slice(0, 5),
+      trend,
     }
   }, [rows])
 
@@ -240,13 +258,6 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
     <section className="space-y-4">
       {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <SummaryCard label="ค่าใช้จ่ายเดือนนี้" value={formatMoney(summary.monthlyTotal)} note={`${summary.monthlyCount} รายการ`} />
-        <SummaryCard label="รอจ่าย" value={formatMoney(summary.pendingTotal)} tone="amber" />
-        <SummaryCard label="จ่ายแล้ว" value={formatMoney(summary.paidTotal)} tone="emerald" />
-        <SummaryCard label="รายการทั้งหมด" value={String(rows.length)} />
-      </div>
-
       {dashboardOnly ? (
         <>
           <div className="rounded-xl bg-gradient-to-r from-rose-700 to-orange-600 p-5 text-white shadow">
@@ -345,19 +356,81 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
         </>
       ) : (
         <>
-          <div className="rounded-lg bg-white p-4 shadow">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-[280px] flex-1 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+              <strong>ค่าใช้จ่าย Expense Voucher</strong> — บันทึกใบแจ้งหนี้ก่อน จ่ายภายหลังก็ได้ พร้อม VAT/WHT และวันครบกำหนด
+            </div>
+            <button className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-md hover:bg-blue-700" type="button" onClick={openCreateForm}>เพิ่มค่าใช้จ่าย</button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="rounded-xl bg-gradient-to-br from-purple-500 to-fuchsia-600 p-4 text-white shadow">
+              <div className="text-xs opacity-90">ค่าใช้จ่ายเดือนนี้</div>
+              <div className="text-2xl font-bold">{formatMoney(summary.monthlyTotal)}</div>
+              <div className="mt-1 text-xs opacity-80">{summary.monthlyCount} รายการ · Net Pay</div>
+            </div>
+            <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-4 shadow">
+              <div className="text-xs text-amber-700">รอจ่าย</div>
+              <div className="text-2xl font-bold text-amber-700">{formatMoney(summary.pendingTotal)}</div>
+              <div className="mt-1 text-xs text-amber-600">ยอดค้างตามสถานะ</div>
+            </div>
+            <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4 shadow">
+              <div className="text-xs text-emerald-700">จ่ายแล้ว</div>
+              <div className="text-2xl font-bold text-emerald-700">{formatMoney(summary.paidTotal)}</div>
+              <div className="mt-1 text-xs text-emerald-600">รายการที่ปิดจ่ายแล้ว</div>
+            </div>
+            <div className="rounded-xl bg-white p-4 shadow">
+              <div className="mb-1 text-xs text-slate-600">6 เดือนล่าสุด</div>
+              <div className="flex h-[52px] items-end gap-1">
+                {summary.trend.map((item) => {
+                  const max = Math.max(1, ...summary.trend.map((trend) => trend.total))
+                  const height = Math.max(4, (item.total / max) * 44)
+                  return <div key={item.month} className="flex flex-1 flex-col items-center gap-1"><div className="w-full rounded-t bg-purple-400" style={{ height }} /><span className="text-[10px] text-slate-400">{item.month.slice(5)}</span></div>
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <ExpenseRankingPanel color="purple" emptyText="ยังไม่มีข้อมูลเดือนนี้" label="หมวดค่าใช้จ่าย (เดือนนี้)" total={summary.catTotal} rows={summary.topCategories} />
+            <ExpenseRankingPanel color="blue" emptyText="ยังไม่มีข้อมูลเดือนนี้" label="Top 5 ผู้รับเงิน (เดือนนี้)" rows={summary.topPayees} />
+          </div>
+
+          <div className="rounded-xl bg-white p-3 shadow">
             <div className="flex flex-wrap items-center gap-2">
-              <input className="min-w-56 flex-1 rounded-lg border px-3 py-2 text-sm" placeholder="ค้นหาเลขที่ / ผู้รับ / รายละเอียด" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-              <select className="rounded-lg border px-2 py-2 text-sm" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
+              <input className="min-w-[220px] flex-1 rounded-lg border px-3 py-2 text-sm" placeholder="ค้นหาเลข Voucher / ผู้รับ / อ้างอิง..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+              <label className="text-xs text-slate-500">วันที่:</label>
+              <input className="rounded-lg border px-2 py-2 text-sm" title="จากวันที่" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
+              <span className="text-slate-400">→</span>
+              <input className="rounded-lg border px-2 py-2 text-sm" title="ถึงวันที่" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
+              <select className="rounded-lg border px-3 py-2 text-sm" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
                 <option value="">ทุกหมวด</option>
                 {categories.filter((category) => category.active !== false).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
               </select>
-              <select className="rounded-lg border px-2 py-2 text-sm" value={paidStatus} onChange={(event) => setPaidStatus(event.target.value)}>
-                <option value="all">ทุกสถานะ</option>
-                <option value="pending">รอจ่าย</option>
-                <option value="paid">จ่ายแล้ว</option>
+              <input className="w-44 rounded-lg border px-3 py-2 text-sm" placeholder="ผู้รับ/Supplier..." type="search" value={payeeFilter} onChange={(event) => setPayeeFilter(event.target.value)} />
+              <select className="rounded-lg border px-3 py-2 text-sm" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
+                <option value="">ทุกบัญชี</option>
+                {accounts.filter((account) => account.active).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
               </select>
-              <button className="ml-auto rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white" type="button" onClick={openCreateForm}>+ ค่าใช้จ่าย</button>
+              <div className="flex gap-1 rounded-lg border p-0.5">
+                {[
+                  ['pending', 'รอจ่าย', 'amber'],
+                  ['paid', 'จ่ายแล้ว', 'emerald'],
+                  ['all', 'ทั้งหมด', 'slate'],
+                ].map(([value, label, tone]) => (
+                  <button key={value} className={`rounded px-2 py-1 text-xs ${paidStatus === value ? tone === 'amber' ? 'bg-amber-500 text-white' : tone === 'emerald' ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-white' : 'text-slate-600 hover:bg-slate-100'}`} type="button" onClick={() => setPaidStatus(value)}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {search || dateFrom || dateTo || categoryId || payeeFilter || accountId || paidStatus !== 'all' ? (
+                <button className="rounded bg-slate-100 px-3 py-2 text-xs hover:bg-slate-200" type="button" onClick={() => { setSearch(''); setDateFrom(''); setDateTo(''); setCategoryId(''); setPayeeFilter(''); setAccountId(''); setPaidStatus('all') }}>ล้าง</button>
+              ) : null}
+              <button className="ml-auto rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white disabled:bg-slate-300" disabled title="รอออกแบบ export field contract ก่อนเปิดใช้งาน" type="button">Export Excel ({filteredRows.length})</button>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-600">
+              <span className="rounded bg-blue-50 px-2 py-1">พบ <b className="text-blue-700">{filteredRows.length}</b> Voucher</span>
+              <span className="rounded bg-amber-50 px-2 py-1">รวม Net Pay <b className="text-amber-700">{formatMoney(filteredRows.reduce((sum, row) => sum + row.netAmount, 0))}</b></span>
             </div>
           </div>
 
@@ -399,37 +472,46 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
             </div>
           ) : null}
 
-          <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
-            <div>พบทั้งหมด <span className="font-semibold text-slate-900">{filteredRows.length}</span> รายการ · รวม <span className="font-semibold text-blue-700">{formatMoney(filteredRows.reduce((sum, row) => sum + row.netAmount, 0))}</span></div>
-          </div>
-
-          <div className="overflow-x-auto rounded-lg bg-white shadow">
+          <div className="overflow-x-auto rounded-xl bg-white shadow">
             <table className="w-full text-sm">
               <thead className="bg-slate-100">
                 <tr>
                   <th className="p-2 text-left">เลขที่</th>
                   <th className="p-2 text-left">วันที่</th>
+                  <th className="p-2 text-left">ครบกำหนด</th>
+                  <th className="p-2 text-left">อ้างอิง</th>
                   <th className="p-2 text-left">ผู้รับ</th>
-                  <th className="p-2 text-left">หมวด</th>
                   <th className="p-2 text-left">บัญชี</th>
                   <th className="p-2 text-center">สถานะ</th>
-                  <th className="p-2 text-right">Net Pay</th>
+                  <th className="bg-red-50 p-2 text-right text-red-700">Net Pay<br /><span className="text-[10px] font-normal">ยอดจ่ายจริง</span></th>
+                  <th className="p-2 text-right text-slate-500"><span className="text-[10px]">ยอด/VAT/WHT</span></th>
+                  <th className="p-2 text-center">การกระทำ</th>
                 </tr>
               </thead>
               <tbody>
-                {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={7}>กำลังโหลดข้อมูล</td></tr> : null}
-                {!isLoading && filteredRows.map((row) => (
-                  <tr key={row.id} className="cursor-pointer border-t hover:bg-slate-50" onClick={() => openEditForm(row)}>
-                    <td className="p-2 font-mono text-xs">{row.docNo}</td>
-                    <td className="p-2">{row.date}</td>
-                    <td className="p-2">{row.payee}</td>
-                    <td className="p-2">{row.categoryName}</td>
-                    <td className="p-2">{row.accountName}</td>
-                    <td className="p-2 text-center"><span className={`rounded-full px-2 py-0.5 text-xs ${row.paidStatus === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{row.paidStatus === 'paid' ? 'จ่ายแล้ว' : 'รอจ่าย'}</span></td>
-                    <td className="p-2 text-right font-semibold">{formatMoney(row.netAmount)}</td>
-                  </tr>
-                ))}
-                {!isLoading && filteredRows.length === 0 ? <tr><td className="p-6 text-center text-slate-500" colSpan={7}>ยังไม่มีรายการ</td></tr> : null}
+                {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={10}>กำลังโหลดข้อมูล</td></tr> : null}
+                {!isLoading && filteredRows.map((row) => {
+                  const overdue = row.paidStatus !== 'paid' && row.dueDate ? row.dueDate < todayDateInput() : false
+                  return (
+                    <tr key={row.id} className={`border-t hover:bg-slate-50 ${row.paidStatus === 'pending' ? 'bg-amber-50/40' : ''}`}>
+                      <td className="p-2 font-mono text-xs">{row.docNo}</td>
+                      <td className="p-2">{row.date}</td>
+                      <td className="p-2 text-xs">{row.dueDate ? <span className={overdue ? 'font-bold text-red-600' : 'text-slate-700'}>{row.dueDate}{overdue ? <span className="block text-[10px] text-red-500">เลยกำหนด</span> : null}</span> : <span className="text-slate-300">-</span>}</td>
+                      <td className="p-2 font-mono text-xs text-slate-600">{row.refDocNo || '-'}</td>
+                      <td className="p-2"><div className="font-medium">{row.payee}</div><div className="text-xs text-slate-500">{row.categoryName}</div></td>
+                      <td className="p-2">{row.accountName}</td>
+                      <td className="p-2 text-center"><span className={`rounded-full px-2 py-0.5 text-xs ${row.paidStatus === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{row.paidStatus === 'paid' ? 'จ่ายแล้ว' : 'รอจ่าย'}</span></td>
+                      <td className={`bg-red-50/60 p-2 text-right text-base font-bold ${row.paidStatus === 'pending' ? 'text-amber-700' : 'text-red-700'}`}>{formatMoney(row.netAmount)}</td>
+                      <td className="whitespace-nowrap p-2 text-right text-xs text-slate-600">
+                        <div>ยอด: <b>{formatMoney(row.amount)}</b></div>
+                        {row.vat > 0 ? <div className="text-emerald-700">+VAT: {formatMoney(row.vat)}</div> : null}
+                        {row.wht > 0 ? <div className="text-amber-700">-WHT: {formatMoney(row.wht)}</div> : null}
+                      </td>
+                      <td className="p-2 text-center"><button className="rounded bg-blue-100 px-2 py-1 text-xs font-bold text-blue-700 hover:bg-blue-200" type="button" onClick={() => openEditForm(row)}>แก้ไข</button></td>
+                    </tr>
+                  )
+                })}
+                {!isLoading && filteredRows.length === 0 ? <tr><td className="p-6 text-center text-slate-500" colSpan={10}>ยังไม่มีรายการ</td></tr> : null}
               </tbody>
             </table>
           </div>
@@ -439,9 +521,32 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
   )
 }
 
-function SummaryCard({ label, note, tone, value }: { label: string; note?: string; tone?: 'amber' | 'emerald'; value: string }) {
-  const className = tone === 'amber' ? 'bg-amber-50 text-amber-800' : tone === 'emerald' ? 'bg-emerald-50 text-emerald-800' : 'bg-white text-slate-900'
-  return <div className={`rounded-lg p-4 shadow ${className}`}><div className="text-xs opacity-80">{label}</div><div className="text-xl font-bold">{value}</div>{note ? <div className="mt-1 text-xs opacity-70">{note}</div> : null}</div>
+function ExpenseRankingPanel({ color, emptyText, label, rows, total }: { color: 'blue' | 'purple'; emptyText: string; label: string; rows: Array<{ name: string; total: number }>; total?: number }) {
+  const barClass = color === 'purple' ? 'bg-gradient-to-r from-purple-400 to-fuchsia-500' : 'bg-gradient-to-r from-blue-400 to-indigo-500'
+  const textClass = color === 'purple' ? 'text-purple-700' : 'text-blue-700'
+  const denominator = rows[0]?.total || 1
+
+  return (
+    <div className="rounded-xl bg-white p-4 shadow">
+      <div className="mb-3 text-sm font-bold text-slate-700">{label}</div>
+      {rows.length === 0 ? <div className="text-xs text-slate-400">{emptyText}</div> : null}
+      <div className="space-y-1.5">
+        {rows.map((item, index) => (
+          <div key={item.name} className="text-xs">
+            <div className="mb-0.5 flex items-center gap-2">
+              <span className="w-4 text-center font-bold text-slate-400">{index + 1}</span>
+              <span className="flex-1 truncate">{item.name}</span>
+              <span className={`font-bold ${textClass}`}>{formatMoney(item.total)}</span>
+              {total ? <span className="w-12 text-right text-xs text-slate-400">{((item.total / total) * 100).toFixed(0)}%</span> : null}
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+              <div className={`h-full ${barClass}`} style={{ width: `${Math.max(3, (item.total / denominator) * 100)}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function getRecentMonths(count: number) {
