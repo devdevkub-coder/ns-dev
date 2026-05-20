@@ -33,7 +33,6 @@ type PrismaSupplier = {
   branch_id: string | null
   sales_id: string | null
   sales_rep: string | null
-  notes: string | null
   active: boolean | null
   created_at: Date | null
   updated_at: Date | null
@@ -167,7 +166,6 @@ export function mapPrismaSupplier(row: PrismaSupplier): Supplier {
     branchName: row.branches?.name ?? row.branch_id,
     salesId: row.sales_id,
     salesName: row.sales_rep,
-    notes: row.notes,
     active: row.active ?? true,
     createdAt: row.created_at?.toISOString() ?? null,
     updatedAt: row.updated_at?.toISOString() ?? null,

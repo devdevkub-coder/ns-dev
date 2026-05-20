@@ -80,7 +80,6 @@ function supplierSearchWhere(q: string, supplierType: string, marketScope: strin
     { branch_id: { contains: q, mode: 'insensitive' } },
     { sales_id: { contains: q, mode: 'insensitive' } },
     { sales_rep: { contains: q, mode: 'insensitive' } },
-    { notes: { contains: q, mode: 'insensitive' } },
   ]
 
   return where

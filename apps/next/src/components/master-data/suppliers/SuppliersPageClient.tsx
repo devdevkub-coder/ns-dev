@@ -64,7 +64,6 @@ const emptySupplierForm: SupplierFormValues = {
   salesId: null,
   salesName: null,
   marketScope: 'ในประเทศ',
-  notes: null,
   active: true,
 }
 
@@ -124,7 +123,6 @@ function supplierToForm(supplier: Supplier): SupplierFormValues {
     salesId: supplier.salesId,
     salesName: supplier.salesName,
     marketScope: supplier.marketScope,
-    notes: supplier.notes,
     active: supplier.active,
   }
 }

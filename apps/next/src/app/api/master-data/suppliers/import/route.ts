@@ -346,7 +346,6 @@ export async function POST(request: Request) {
         branchId: null,
         salesId: salesperson?.id ?? null,
         salesName: salesperson?.name ?? null,
-        notes: null,
         active: normalizeActive(cellText(row, 'active')),
       }
 

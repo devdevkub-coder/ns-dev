@@ -152,7 +152,6 @@ export const supplierSchema = z.object({
   branchName: z.string().nullable().default(null),
   salesId: z.string().nullable().default(null),
   salesName: z.string().nullable().default(null),
-  notes: z.string().nullable().default(null),
   active: z.boolean().default(true),
   createdAt: z.string().nullable().default(null),
   updatedAt: z.string().nullable().default(null),
@@ -221,7 +220,6 @@ export const supplierFormSchema = z.object({
   branchId: optionalGeneralText('รหัสสาขา', 80),
   salesId: z.preprocess(blankToNull, z.string().trim().regex(/^[A-Za-z0-9_-]+$/, 'ผู้ดูแลมีรูปแบบไม่ถูกต้อง').nullable().default(null)),
   salesName: optionalBusinessText('ชื่อผู้ดูแล', 160),
-  notes: optionalGeneralText('หมายเหตุ', 500),
   active: z.boolean().default(true),
 }).superRefine((values, context) => {
   if (values.type === 'บุคคล') {
