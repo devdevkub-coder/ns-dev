@@ -13,6 +13,7 @@ type StockIssueQuery = {
   page: number
   pageSize: number
   search?: string
+  status?: string
   sortDirection: Prisma.SortOrder
   sortKey: string
 }
@@ -24,6 +25,7 @@ function parseStockIssueQuery(url: URL): StockIssueQuery {
     page: Math.max(1, Number(url.searchParams.get('page') ?? 1) || 1),
     pageSize: Math.min(100, Math.max(10, Number(url.searchParams.get('pageSize') ?? 10) || 10)),
     search: url.searchParams.get('search')?.trim() || undefined,
+    status: url.searchParams.get('status')?.trim() || undefined,
     sortDirection: url.searchParams.get('sortDirection') === 'asc' ? 'asc' : 'desc',
     sortKey: url.searchParams.get('sortKey') || 'date',
   }
@@ -38,6 +40,7 @@ function stockIssueWhere(query: StockIssueQuery): Prisma.stock_issuesWhereInput 
       ...(query.dateTo ? { lte: normalizeDate(query.dateTo) } : {}),
     }
   }
+  if (query.status) where.status = query.status
   if (query.search) {
     where.OR = [
       { doc_no: { contains: query.search, mode: 'insensitive' } },
@@ -108,6 +111,11 @@ export async function GET(request: Request) {
         status: row.status ?? 'pending',
         totalCost: toNumber(row.total_cost),
         totalEstAmount: toNumber(row.total_est_amount),
+        totalQty: Array.isArray(row.items) ? row.items.reduce<number>((sum, item) => {
+          if (!item || typeof item !== 'object') return sum
+          const value = (item as Record<string, unknown>).qty
+          return sum + (typeof value === 'number' ? value : typeof value === 'string' ? Number(value || 0) : 0)
+        }, 0) : 0,
         warehouseName: row.warehouses?.name ?? '-',
       })),
       totalAmount: toNumber(totals._sum.total_est_amount),
