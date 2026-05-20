@@ -238,6 +238,7 @@ export const navigationItems: NavigationItem[] = [
     label: 'สินค้า',
     section: 'master-data',
     children: [
+      { href: '/master-data/products', icon: '📋', label: 'รายการสินค้า', section: 'master-data' },
       { href: '/master-data/product-types', icon: '🏷️', label: 'ประเภทสินค้า', section: 'master-data' },
       { href: '/master-data/product-units', icon: '⚖️', label: 'หน่วยสินค้า', section: 'master-data' },
     ],
@@ -254,6 +255,7 @@ export const navigationItems: NavigationItem[] = [
     label: 'เครื่องจักร',
     section: 'master-data',
     children: [
+      { href: '/master-data/machines', icon: '📋', label: 'รายการเครื่องจักร', section: 'master-data' },
       { href: '/master-data/machine-types', icon: '🧩', label: 'ประเภทเครื่องจักร', section: 'master-data' },
     ],
   },
@@ -274,9 +276,9 @@ export function pageTitleForPath(pathname: string) {
   if (pathname === '/login') return 'เข้าสู่ระบบ'
 
   for (const item of navigationItems) {
-    if (item.href === pathname) return item.label
     const child = item.children?.find((entry) => entry.href === pathname)
     if (child) return child.label
+    if (item.href === pathname) return item.label
   }
 
   return 'NS Scrap ERP'

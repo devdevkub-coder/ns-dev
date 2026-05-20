@@ -21,20 +21,20 @@
 | `/master-data/customers` | ลูกค้า | Enhanced CRUD/export/validation Done |
 | `/master-data/salespersons` | พนักงานขาย (Sales) | Batch 1 Done |
 | `/master-data/suppliers` | ผู้ขาย | Enhanced CRUD/export/validation Done |
-| `/master-data/products` | สินค้า | Batch 3 baseline Done |
+| `/master-data/products` | รายการสินค้า | Batch 3 baseline Done; product parent menu is submenu-only |
 | `/master-data/branches` | สาขา / คลัง | Batch 2 Done |
 | `/master-data/warehouses` | คลังสินค้า | Retired from active Next route; use Branches as the business-facing สาขา / คลัง master |
 | `/master-data/accounts` | บัญชีเงิน | Batch 2 Done |
 | `/master-data/channels` | ช่องทางขาย | Simplified Done - sales channels only in UI/API |
 | `/master-data/expense-categories` | หมวดค่าใช้จ่าย | Simplified Done - no code/parent field |
 | `/master-data/directors` | กรรมการ/พนักงาน | Batch 4 Done - Target table migration added |
-| `/master-data/machines` | เครื่องจักร | Simplified Done - no maintenance status; machine type dropdown is DB-backed |
+| `/master-data/machines` | รายการเครื่องจักร | Simplified Done - no maintenance status; machine type dropdown is DB-backed; machine parent menu is submenu-only |
 | `/master-data/machine-types` | ประเภทเครื่องจักร | Done - DB-backed lookup for machine form |
 | `/master-data/production-lines` | Production Line | Batch 4 Done - Target table migration added |
-| `/master-data/currencies` | สกุลเงิน | Batch 1 Done |
+| `/master-data/currencies` | สกุลเงิน | Simplified Done - no user-facing code; symbol is required |
 | `/master-data/beneficiaries` | ผู้รับเงินต่างประเทศ | Batch 4 Done |
 | `/master-data/payment-methods` | วิธีจ่าย/รับเงิน | Batch 4 Done - Target table migration added |
-| `/master-data/remittance-purposes` | วัตถุประสงค์โอน | Batch 4 Done - Target table migration added |
+| `/master-data/remittance-purposes` | วัตถุประสงค์โอน | Simplified Done - no user-facing code |
 
 ### Out of Scope for This Batch
 
@@ -347,6 +347,7 @@ Continuation rule:
 | 2026-05-20 | Warehouse route retirement + branch id remap | Passed | Removed the active Next `/master-data/warehouses` page/API/config because the sidebar/business master is `/master-data/branches` (`สาขา / คลัง`). Dev-target branches are now canonical `BR001/code 01/สมุทรสาคร` and `BR002/code 02/นครสวรรค์`; all old `BR003` references in public `branch_id` columns and `user_profiles.branch_ids` were remapped after backup tables under `maintenance.branch_id_remap_20260520_1720_*`. The physical `warehouses` table remains for existing stock/purchase-bill transaction history until a separate stock-location migration is designed. |
 | 2026-05-20 | Master-data simplification + machine type cleanup | Passed | `/master-data/customers` now matches the supplier-style party/address form without contact person, bank account, or general notes. Product units/types no longer expose or store code fields. Channels page is now `ช่องทางขาย` over `sales_channels` only; purchase channels are retained in DB for referenced historical rows. Expense categories no longer expose code or parent category, and `expense_categories.parent_id` was dropped. Machines no longer expose or store maintenance status, `production_machines.maintenance_status` was dropped after backup, and `/master-data/machine-types` was added as the DB-backed source for machine type dropdowns. Topbar branch selector now reads active `branches` through `/api/branches`, respecting current user branch scope where available. Supplier account copy button now uses a small inline SVG icon with copied state and no CDN/dependency. Dev-target migration history repaired for `20260520125502`, `20260520125558`, and `20260520125615`; `npm run prisma:generate --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `git diff --check`, and `npm run build --workspace @ns-scrap-erp/next` passed. |
 | 2026-05-18 | Payment method and remittance purpose simplification: `npm run prisma:generate --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run build` | Passed | `payment_methods` and `overseas_remittance_purposes` now keep only `id/code/name/active/timestamps`; old type/docs data backed up in maintenance schema |
+| 2026-05-20 | Currency/remittance code removal + submenu-only parents | Passed | Product and machine sidebar parent rows are now submenu toggles only, with working child labels `รายการสินค้า` and `รายการเครื่องจักร`. Dev-target `currencies.code` and `overseas_remittance_purposes.code` were removed after backups in `maintenance.currency_code_removal_backup_20260520131607` and `maintenance.remittance_purpose_code_removal_backup_20260520131607`. Currency keeps internal `id` derived from uppercase `symbol`; foreign-finance APIs still expose a compatibility `code` value from `symbol` for current forms. Validation passed: `npm run prisma:generate --workspace @ns-scrap-erp/next`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `git diff --check`, and `npm run build --workspace @ns-scrap-erp/next`. |
 
 ## Open Decisions
 
@@ -380,9 +381,9 @@ Continuation rule:
 - Supplier phone field is grouped under `ข้อมูลผู้ขาย` in the modal; the separate contact section is not shown when phone is the only contact field.
 - Supplier table no longer keeps the unused `notes` or `version` columns. Supplier address metadata remains in `address` (`ที่อยู่เต็ม/หมายเหตุที่อยู่`), and row versioning is not currently implemented for supplier master saves.
 - Director employee bank data has been cleaned so `bank_name` and `account_no` are separate fields; director phone display follows the shared Thai phone formatter.
-- Bank name master no longer exposes or stores a separate business code; `bank_names.id` remains an internal/FK-stable primary key and `symbol` remains available for display such as `KBANK`/`SCB`. Currency master still stores `001-006` codes with symbols `THB/USD/CNY/EUR/JPY/SGD`.
-- Payment method and remittance purpose masters are plain lookup lists. Payment methods now expose only name and active status, with bilingual names such as `เงินสด (Cash)`; `payment_methods.code` was removed after backup. Remittance purposes still expose code, name, and active status. Old payment method type and remittance required document values were backed up before dropping the columns.
-- Sidebar parent menu rows with children now toggle their submenu when clicked, while still navigating to the parent page.
+- Bank name master no longer exposes or stores a separate business code; `bank_names.id` remains an internal/FK-stable primary key and `symbol` remains available for display such as `KBANK`/`SCB`. Currency master no longer stores a separate `code`; `currencies.id` is internal and currently derived from required uppercase `symbol` such as `THB/USD/CNY/EUR/JPY/SGD`.
+- Payment method and remittance purpose masters are plain lookup lists. Payment methods now expose only name and active status, with bilingual names such as `เงินสด (Cash)`; `payment_methods.code` was removed after backup. Remittance purposes now expose only name and active status; `overseas_remittance_purposes.code` was removed after backup.
+- Sidebar parent menu rows with children now toggle their submenu when clicked instead of navigating to the parent row. Product and machine pages remain reachable through the child rows `รายการสินค้า` and `รายการเครื่องจักร`.
 - `/master-data/channels` is now the sales-channel master (`ช่องทางขาย`) over `sales_channels` only. Historical `purchase_channels` rows are retained because purchase/PO rows still reference them, but they are no longer surfaced in this master UI/API.
 - Expense category master no longer stores or displays a parent category. Existing dev-target rows had no parent references before `parent_id` was dropped.
 - Machine master no longer stores or displays maintenance status. Machine type is now managed through `/master-data/machine-types`, and the machine save path validates selected type names against active rows in `production_machine_types`; there is no FK yet, so rename/cascade semantics remain a future DB design decision.

@@ -59,7 +59,7 @@ export async function GET(request: Request) {
           ...(active === 'true' ? { active: true } : active === 'false' ? { active: false } : {}),
         },
       }),
-      prisma.currencies.findMany({ orderBy: { code: 'asc' } }),
+      prisma.currencies.findMany({ orderBy: [{ symbol: 'asc' }, { name: 'asc' }] }),
     ])
 
     const rows = rates.map(mapRate)
@@ -72,8 +72,8 @@ export async function GET(request: Request) {
     return NextResponse.json({
       filters: {
         currencies: currencies.map((currency) => ({
-          code: currency.code,
-          displayCode: (currency.symbol || currency.code).toUpperCase(),
+          code: (currency.symbol || currency.id).toUpperCase(),
+          displayCode: (currency.symbol || currency.id).toUpperCase(),
           name: currency.name,
           rateToThb: toNumber(currency.rate_to_thb),
           symbol: currency.symbol,

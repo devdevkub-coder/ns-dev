@@ -10,10 +10,10 @@ export async function PATCH(_request: Request, { params }: MasterDataRouteProps)
     requirePermission(context, 'master.reference.manage')
 
     const { id } = await params
-    const row = await prisma.currencies.findUniqueOrThrow({ where: { code: id } })
+    const row = await prisma.currencies.findUniqueOrThrow({ where: { id } })
     return masterDataJson({
-      id: row.code,
-      code: row.code,
+      id: row.id,
+      code: null,
       name: row.name,
       active: true,
       type: null,

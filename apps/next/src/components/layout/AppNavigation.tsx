@@ -147,20 +147,36 @@ export function AppNavigation({ onNavigate }: AppNavigationProps) {
               return (
                 <div key={item.href}>
                   <div className={`flex border-l-4 transition hover:bg-slate-800 ${active ? 'border-blue-500 bg-slate-800 text-white' : 'border-transparent text-slate-300'}`}>
-                    <Link
-                      aria-current={pathname === item.href ? 'page' : undefined}
-                      className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2 text-left"
-                      data-active-nav={active ? 'true' : undefined}
-                      href={item.href}
-                      onClick={() => {
-                        rememberSidebarScroll()
-                        if (item.children?.length) toggleMenu(item.href)
-                        onNavigate?.()
-                      }}
-                    >
-                      <span className="w-5 text-center">{item.icon}</span>
-                      <span className="truncate">{item.label}</span>
-                    </Link>
+                    {item.children?.length ? (
+                      <button
+                        aria-current={active ? 'page' : undefined}
+                        aria-expanded={expanded}
+                        className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2 text-left"
+                        data-active-nav={active ? 'true' : undefined}
+                        type="button"
+                        onClick={() => {
+                          rememberSidebarScroll()
+                          toggleMenu(item.href)
+                        }}
+                      >
+                        <span className="w-5 text-center">{item.icon}</span>
+                        <span className="truncate">{item.label}</span>
+                      </button>
+                    ) : (
+                      <Link
+                        aria-current={pathname === item.href ? 'page' : undefined}
+                        className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2 text-left"
+                        data-active-nav={active ? 'true' : undefined}
+                        href={item.href}
+                        onClick={() => {
+                          rememberSidebarScroll()
+                          onNavigate?.()
+                        }}
+                      >
+                        <span className="w-5 text-center">{item.icon}</span>
+                        <span className="truncate">{item.label}</span>
+                      </Link>
+                    )}
                     {item.children?.length ? (
                       <button
                         aria-expanded={expanded}

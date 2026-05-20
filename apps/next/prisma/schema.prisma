@@ -690,7 +690,7 @@ model branches {
 }
 
 model currencies {
-  code        String    @id
+  id          String    @id
   name        String
   symbol      String?
   rate_to_thb Decimal?  @default(1) @db.Decimal
@@ -1090,7 +1090,6 @@ model production_lines {
 
 model overseas_remittance_purposes {
   id         String   @id(map: "remittance_purposes_pkey")
-  code       String   @unique(map: "remittance_purposes_code_key")
   name       String
   active     Boolean  @default(true)
   created_at DateTime @default(now()) @db.Timestamptz(6)

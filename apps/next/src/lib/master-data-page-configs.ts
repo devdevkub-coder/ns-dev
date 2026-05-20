@@ -28,13 +28,11 @@ export const currenciesPageConfig: MasterDataPageConfig = {
   emptyMessage: 'ไม่พบข้อมูลสกุลเงิน',
   supportsActive: false,
   fields: [
-    { key: 'code', label: 'รหัส', required: true },
     { key: 'name', label: 'ชื่อสกุลเงิน', required: true },
-    { key: 'symbol', label: 'สัญลักษณ์' },
+    { key: 'symbol', label: 'สัญลักษณ์', required: true },
     { key: 'rateToThb', label: 'อัตราเทียบบาท', type: 'number' },
   ],
   columns: [
-    { key: 'code', label: 'รหัส' },
     { key: 'name', label: 'ชื่อ' },
     { key: 'symbol', label: 'สัญลักษณ์', align: 'center' },
     { key: 'rateToThb', label: 'อัตราเทียบบาท', align: 'right', format: 'number' },
@@ -166,7 +164,7 @@ export const suppliersPageConfig: MasterDataPageConfig = {
 export const productsPageConfig: MasterDataPageConfig = {
   apiPath: '/api/master-data/products',
   createLabel: 'เพิ่มสินค้า',
-  entityName: 'สินค้า',
+  entityName: 'รายการสินค้า',
   emptyMessage: 'ไม่พบข้อมูลสินค้า',
   fields: [
     { key: 'code', label: 'รหัสสินค้า', required: true },
@@ -239,7 +237,7 @@ export const directorsPageConfig: MasterDataPageConfig = {
 export const machinesPageConfig: MasterDataPageConfig = {
   apiPath: '/api/master-data/machines',
   createLabel: 'เพิ่มเครื่องจักร',
-  entityName: 'เครื่องจักร',
+  entityName: 'รายการเครื่องจักร',
   emptyMessage: 'ไม่พบข้อมูลเครื่องจักร',
   fields: [
     { key: 'code', label: 'รหัสเครื่องจักร', required: true },
@@ -379,11 +377,9 @@ export const remittancePurposesPageConfig: MasterDataPageConfig = {
   entityName: 'วัตถุประสงค์โอน',
   emptyMessage: 'ไม่พบข้อมูลวัตถุประสงค์โอน',
   fields: [
-    { key: 'code', label: 'รหัส', required: true },
     { key: 'name', label: 'ชื่อวัตถุประสงค์', required: true },
   ],
   columns: [
-    { key: 'code', label: 'รหัส' },
     { key: 'name', label: 'ชื่อ' },
     statusColumn,
   ],

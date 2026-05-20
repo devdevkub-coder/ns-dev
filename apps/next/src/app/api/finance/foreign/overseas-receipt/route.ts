@@ -38,7 +38,7 @@ export async function GET(request: Request) {
         take: 1000,
         where: { receivable_balance: { gt: 0 } },
       }),
-      prisma.currencies.findMany({ orderBy: { code: 'asc' } }),
+      prisma.currencies.findMany({ orderBy: [{ symbol: 'asc' }, { name: 'asc' }] }),
       prisma.fx_rates.findMany({
         orderBy: [{ rate_date: 'desc' }, { updated_at: 'desc' }],
         take: 100,
@@ -80,7 +80,7 @@ export async function GET(request: Request) {
           type: account.type,
         })),
         currencies: currencies.map((currency) => ({
-          code: currency.code,
+          code: (currency.symbol || currency.id).toUpperCase(),
           name: currency.name,
           rateToThb: toNumber(currency.rate_to_thb),
           symbol: currency.symbol,
