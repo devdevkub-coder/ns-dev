@@ -24,6 +24,9 @@ Follow `AGENTS.md` first. This skill expands the project rule that every new or 
 - Email: validate email syntax and ASCII-safe address format; email inputs must also prevent or strip non-ASCII characters during typing/paste so Thai or other Unicode characters cannot remain in the field before submit. Use server-side domain/MX checks when the user wants real domain validation.
 - Phone: validate phone shape and digit count; phone inputs must also prevent or strip letters and unsupported symbols during typing/paste, allowing only digits, spaces, dashes, parentheses, dots, and leading plus. Phone inputs must enforce 9-15 digits and must not allow more than 15 digits to remain in the field. When displaying Thai phone numbers, format readable 10-digit mobile numbers as `085-555-5555` and 9-digit local numbers as `02-555-5555` where possible.
 - Tax ID: validate expected digit length before saving.
+- Thai postcode: strip every non-digit character while typing/pasting, cap the value at 5 digits, and validate the same 5-digit rule in the shared schema/API boundary.
+- Bank account number: strip every non-digit character while typing/pasting and store account numbers as digits only. Do not keep spaces, dashes, Thai letters, English letters, or punctuation in `account_no` / `bank_account` fields. Keep account holder/name fields separate and text-capable.
+- Supplier receiving accounts: choose payment method before account fields. `เงินสด` does not require bank/account data; `โอนเงิน` must require a bank and digit-only account number. Imported cash markers such as `เงินสด` must be stripped from bank/account fields.
 - Codes/IDs: validate allowed characters and length; prefer stable machine-safe characters.
 - Numbers/money/percentages: validate min/max, integer vs decimal, and reject negative values unless the business rule allows them.
 - Dates: validate format, valid calendar dates, and start/end ordering.
@@ -39,13 +42,14 @@ Validation should be strict enough to prevent malformed data, but not so strict 
 For Thai address forms, use postcode-first entry:
 
 1. Put `รหัสไปรษณีย์` before `จังหวัด`, `อำเภอ/เขต`, and `ตำบล/แขวง`.
-2. When a 5-digit postcode is entered, filter address choices to matching records.
-3. If the postcode maps to one province, auto-fill `จังหวัด`.
-4. If it maps to one district, auto-fill `อำเภอ/เขต`.
-5. If it maps to one subdistrict, auto-fill `ตำบล/แขวง`.
-6. If multiple records match, keep the dropdown enabled but restrict options to that postcode.
-7. Preserve the selected postcode when changing province/district/subdistrict unless the new selection has a known postcode.
-8. Keep address syntax validation practical: postcode must be 5 digits, Thai address text may include Thai/English text, numbers, spaces, and normal address punctuation, but must reject control characters and unreasonable length.
+2. While typing or pasting `รหัสไปรษณีย์`, keep only digits and cap the value at 5 digits.
+3. When a 5-digit postcode is entered, filter address choices to matching records.
+4. If the postcode maps to one province, auto-fill `จังหวัด`.
+5. If it maps to one district, auto-fill `อำเภอ/เขต`.
+6. If it maps to one subdistrict, auto-fill `ตำบล/แขวง`.
+7. If multiple records match, keep the dropdown enabled but restrict options to that postcode.
+8. Preserve the selected postcode when changing province/district/subdistrict unless the new selection has a known postcode.
+9. Keep address syntax validation practical: postcode must be 5 digits, Thai address text may include Thai/English text, numbers, spaces, and normal address punctuation, but must reject control characters and unreasonable length.
 
 Recommended visible order:
 

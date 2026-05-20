@@ -500,23 +500,23 @@ model webauthn_credentials {
 }
 
 model accounts {
-  id                                            String           @id
+  id                                            String                  @id
   code                                          String?
   name                                          String
   type                                          String
   bank_name                                     String?
   account_no                                    String?
-  currency                                      String?          @default("THB")
-  opening_balance                               Decimal?         @default(0) @db.Decimal
-  od_limit                                      Decimal?         @default(0) @db.Decimal
+  currency                                      String?                 @default("THB")
+  opening_balance                               Decimal?                @default(0) @db.Decimal
+  od_limit                                      Decimal?                @default(0) @db.Decimal
   branch_id                                     String?
-  active                                        Boolean?         @default(true)
-  created_at                                    DateTime?        @default(now()) @db.Timestamptz(6)
-  updated_at                                    DateTime?        @db.Timestamptz(6)
+  active                                        Boolean?                @default(true)
+  created_at                                    DateTime?               @default(now()) @db.Timestamptz(6)
+  updated_at                                    DateTime?               @db.Timestamptz(6)
   updated_by                                    String?
-  version                                       Int?             @default(1)
+  version                                       Int?                    @default(1)
   bank                                          String?
-  branches                                      branches?        @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  branches                                      branches?               @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   bank_statement                                bank_statement[]
   expenses                                      expenses[]
   loan_payments                                 loan_payments[]
@@ -524,8 +524,8 @@ model accounts {
   petty_advance_returns                         petty_advance_returns[]
   petty_advances                                petty_advances[]
   receipts                                      receipts[]
-  transfers_transfers_from_account_idToaccounts transfers[]      @relation("transfers_from_account_idToaccounts")
-  transfers_transfers_to_account_idToaccounts   transfers[]      @relation("transfers_to_account_idToaccounts")
+  transfers_transfers_from_account_idToaccounts transfers[]             @relation("transfers_from_account_idToaccounts")
+  transfers_transfers_to_account_idToaccounts   transfers[]             @relation("transfers_to_account_idToaccounts")
 
   @@schema("public")
 }
@@ -612,11 +612,11 @@ model bank_statement {
 }
 
 model company_profiles {
-  id          String    @id
+  id          String   @id
   name        String
   name_en     String?
   tax_id      String?
-  branch_code String?   @default("00000")
+  branch_code String?  @default("00000")
   address     String
   phone       String
   fax         String?
@@ -625,8 +625,8 @@ model company_profiles {
   bank_info   String?
   footer_note String?
   logo_url    String?
-  created_at  DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at  DateTime  @default(now()) @db.Timestamptz(6)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
   updated_by  String?
 
   @@schema("public")
@@ -987,17 +987,17 @@ model loans {
 }
 
 model fx_rates {
-  id            String    @id
-  rate_date     DateTime  @db.Date
+  id            String   @id
+  rate_date     DateTime @db.Date
   from_currency String
-  to_currency   String    @default("THB")
-  rate_type     String    @default("BOT Rate")
-  rate          Decimal   @db.Decimal(18, 6)
+  to_currency   String   @default("THB")
+  rate_type     String   @default("BOT Rate")
+  rate          Decimal  @db.Decimal(18, 6)
   source        String?
   note          String?
-  active        Boolean   @default(true)
-  created_at    DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at    DateTime  @default(now()) @db.Timestamptz(6)
+  active        Boolean  @default(true)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime @default(now()) @db.Timestamptz(6)
   created_by    String?
   updated_by    String?
 
@@ -1031,19 +1031,19 @@ model overseas_recipients {
 }
 
 model production_machines {
-  id                      String    @id(map: "machines_pkey")
-  code                    String    @unique(map: "machines_code_key")
+  id                      String              @id(map: "machines_pkey")
+  code                    String              @unique(map: "machines_code_key")
   name                    String
   branch_id               String?
   type                    String?
-  capacity_kg_per_hr      Decimal?  @db.Decimal(14, 3)
-  normal_yield_pct        Decimal?  @db.Decimal(7, 3)
-  std_process_cost_per_hr Decimal?  @db.Decimal(14, 2)
+  capacity_kg_per_hr      Decimal?            @db.Decimal(14, 3)
+  normal_yield_pct        Decimal?            @db.Decimal(7, 3)
+  std_process_cost_per_hr Decimal?            @db.Decimal(14, 2)
   maintenance_status      String?
-  active                  Boolean   @default(true)
-  created_at              DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at              DateTime  @default(now()) @db.Timestamptz(6)
-  branches                branches? @relation(fields: [branch_id], references: [id], onDelete: Restrict, map: "machines_branch_id_fkey")
+  active                  Boolean             @default(true)
+  created_at              DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime            @default(now()) @db.Timestamptz(6)
+  branches                branches?           @relation(fields: [branch_id], references: [id], onDelete: Restrict, map: "machines_branch_id_fkey")
   production_orders       production_orders[]
 
   @@index([active])
@@ -1064,15 +1064,15 @@ model payment_methods {
 }
 
 model production_lines {
-  id                 String    @id
-  code               String    @unique
+  id                 String              @id
+  code               String              @unique
   name               String
   branch_id          String?
   responsible_person String?
-  active             Boolean   @default(true)
-  created_at         DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at         DateTime  @default(now()) @db.Timestamptz(6)
-  branches           branches? @relation(fields: [branch_id], references: [id], onDelete: Restrict)
+  active             Boolean             @default(true)
+  created_at         DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime            @default(now()) @db.Timestamptz(6)
+  branches           branches?           @relation(fields: [branch_id], references: [id], onDelete: Restrict)
   production_orders  production_orders[]
 
   @@index([active])
@@ -1081,12 +1081,12 @@ model production_lines {
 }
 
 model overseas_remittance_purposes {
-  id           String   @id(map: "remittance_purposes_pkey")
-  code         String   @unique(map: "remittance_purposes_code_key")
-  name         String
-  active       Boolean  @default(true)
-  created_at   DateTime @default(now()) @db.Timestamptz(6)
-  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+  id         String   @id(map: "remittance_purposes_pkey")
+  code       String   @unique(map: "remittance_purposes_code_key")
+  name       String
+  active     Boolean  @default(true)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
 
   @@index([active])
   @@schema("public")
@@ -1132,19 +1132,19 @@ model payments {
 }
 
 model petty_advance_returns {
-  id             String          @id
+  id             String         @id
   advance_id     String
-  date           DateTime        @db.Date
-  amount         Decimal         @default(0) @db.Decimal
+  date           DateTime       @db.Date
+  amount         Decimal        @default(0) @db.Decimal
   account_id     String?
   notes          String?
   created_by     String?
-  created_at     DateTime        @default(now()) @db.Timestamptz(6)
+  created_at     DateTime       @default(now()) @db.Timestamptz(6)
   updated_by     String?
-  updated_at     DateTime        @default(now()) @db.Timestamptz(6)
-  version        Int             @default(1)
-  accounts       accounts?       @relation(fields: [account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  petty_advances petty_advances  @relation(fields: [advance_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  updated_at     DateTime       @default(now()) @db.Timestamptz(6)
+  version        Int            @default(1)
+  accounts       accounts?      @relation(fields: [account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  petty_advances petty_advances @relation(fields: [advance_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([account_id], map: "idx_petty_advance_returns_account")
   @@index([advance_id], map: "idx_petty_advance_returns_advance")
@@ -1273,47 +1273,47 @@ model production_inputs {
 }
 
 model production_orders {
-  id                 String               @id
-  doc_no             String
-  date               DateTime             @db.Date
-  production_type    String?
-  target_lot_no      String?
-  product_id         String?
-  qty_planned        Decimal?             @default(0) @db.Decimal
-  planned_input_qty  Decimal?             @default(0) @db.Decimal
-  planned_output_qty Decimal?             @default(0) @db.Decimal
-  branch_id          String?
-  warehouse_id       String?
-  warehouse_from_id  String?
-  warehouse_wip_id   String?
-  warehouse_to_id    String?
-  warehouse_return_id String?
-  machine_id         String?
-  production_line_id String?
-  shift              String?
-  supervisor_name    String?
-  operator_name      String?
+  id                     String               @id
+  doc_no                 String
+  date                   DateTime             @db.Date
+  production_type        String?
+  target_lot_no          String?
+  product_id             String?
+  qty_planned            Decimal?             @default(0) @db.Decimal
+  planned_input_qty      Decimal?             @default(0) @db.Decimal
+  planned_output_qty     Decimal?             @default(0) @db.Decimal
+  branch_id              String?
+  warehouse_id           String?
+  warehouse_from_id      String?
+  warehouse_wip_id       String?
+  warehouse_to_id        String?
+  warehouse_return_id    String?
+  machine_id             String?
+  production_line_id     String?
+  shift                  String?
+  supervisor_name        String?
+  operator_name          String?
   cost_allocation_method String?
-  normal_loss_percent Decimal?            @default(0) @db.Decimal
-  status             String?              @default("Open")
-  total_input_cost   Decimal?             @default(0) @db.Decimal
-  total_output_value Decimal?             @default(0) @db.Decimal
-  variance           Decimal?             @default(0) @db.Decimal
-  closed_at          DateTime?            @db.Timestamptz(6)
-  closed_by          String?
-  notes              String?
-  created_at         DateTime?            @default(now()) @db.Timestamptz(6)
-  updated_at         DateTime?            @db.Timestamptz(6)
-  updated_by         String?
-  version            Int?                 @default(1)
-  process_costs      process_costs[]
-  production_inputs  production_inputs[]
-  branches           branches?            @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  production_machines production_machines? @relation(fields: [machine_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  production_lines   production_lines?     @relation(fields: [production_line_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  products           products?            @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  warehouses         warehouses?          @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  production_outputs production_outputs[]
+  normal_loss_percent    Decimal?             @default(0) @db.Decimal
+  status                 String?              @default("Open")
+  total_input_cost       Decimal?             @default(0) @db.Decimal
+  total_output_value     Decimal?             @default(0) @db.Decimal
+  variance               Decimal?             @default(0) @db.Decimal
+  closed_at              DateTime?            @db.Timestamptz(6)
+  closed_by              String?
+  notes                  String?
+  created_at             DateTime?            @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime?            @db.Timestamptz(6)
+  updated_by             String?
+  version                Int?                 @default(1)
+  process_costs          process_costs[]
+  production_inputs      production_inputs[]
+  branches               branches?            @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  production_machines    production_machines? @relation(fields: [machine_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  production_lines       production_lines?    @relation(fields: [production_line_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  products               products?            @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  warehouses             warehouses?          @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  production_outputs     production_outputs[]
 
   @@index([machine_id])
   @@index([production_line_id])
@@ -1322,20 +1322,20 @@ model production_orders {
 }
 
 model process_costs {
-  id                    String             @id
+  id                    String            @id
   production_order_id   String
-  date                  DateTime           @db.Date
+  date                  DateTime          @db.Date
   cost_type             String
-  amount                Decimal            @default(0) @db.Decimal
-  include_in_production Boolean            @default(true)
-  status                String             @default("active")
+  amount                Decimal           @default(0) @db.Decimal
+  include_in_production Boolean           @default(true)
+  status                String            @default("active")
   notes                 String?
   created_by            String?
-  created_at            DateTime           @default(now()) @db.Timestamptz(6)
-  updated_at            DateTime           @default(now()) @db.Timestamptz(6)
+  created_at            DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime          @default(now()) @db.Timestamptz(6)
   updated_by            String?
-  version               Int                @default(1)
-  production_orders     production_orders  @relation(fields: [production_order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  version               Int               @default(1)
+  production_orders     production_orders @relation(fields: [production_order_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([production_order_id])
   @@index([date])
@@ -1491,13 +1491,13 @@ model purchase_bills {
   warehouses              warehouses?        @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   trading_deals           trading_deals[]
 
+  @@unique([doc_no], map: "uq_purchase_bills_doc_no")
   @@index([branch_id], map: "idx_pb_branch")
   @@index([date(sort: Desc)], map: "idx_pb_date")
   @@index([transaction_mode], map: "idx_pb_mode")
   @@index([status], map: "idx_pb_status")
   @@index([supplier_id], map: "idx_pb_supplier")
   @@index([doc_no], map: "idx_purchase_bills_doc_no")
-  @@unique([doc_no], map: "uq_purchase_bills_doc_no")
   @@schema("public")
 }
 
@@ -1666,13 +1666,13 @@ model sales_bills {
   warehouses                warehouses?     @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   trading_deals             trading_deals[]
 
+  @@unique([doc_no], map: "uq_sales_bills_doc_no")
   @@index([doc_no], map: "idx_sales_bills_doc_no")
   @@index([branch_id], map: "idx_sb_branch")
   @@index([customer_id], map: "idx_sb_customer")
   @@index([date(sort: Desc)], map: "idx_sb_date")
   @@index([transaction_mode], map: "idx_sb_mode")
   @@index([status], map: "idx_sb_status")
-  @@unique([doc_no], map: "uq_sales_bills_doc_no")
   @@schema("public")
 }
 
@@ -1686,16 +1686,16 @@ model sales_channels {
 }
 
 model salespersons {
-  id             String    @id
-  code           String?
-  name           String
-  phone          String?
-  email          String?
-  active         Boolean?  @default(true)
-  created_at     DateTime? @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime? @db.Timestamptz(6)
-  updated_by     String?
-  version        Int?      @default(1)
+  id         String    @id
+  code       String?
+  name       String
+  phone      String?
+  email      String?
+  active     Boolean?  @default(true)
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at DateTime? @db.Timestamptz(6)
+  updated_by String?
+  version    Int?      @default(1)
 
   @@schema("public")
 }
@@ -1804,52 +1804,51 @@ model stock_ledger {
 }
 
 model suppliers {
-  id                  String           @id
-  code                String?
-  name                String
-  tax_id              String?
-  phone               String?
-  address             String?
-  bank_name           String?
-  bank_account        String?
-  bank_account_name   String?
-  sales_rep           String?
-  credit_term         Int?             @default(0)
-  branch_id           String?
-  notes               String?
-  active              Boolean?         @default(true)
-  created_at          DateTime?        @default(now()) @db.Timestamptz(6)
-  updated_at          DateTime?        @default(now()) @db.Timestamptz(6)
-  sales_id            String?
-  updated_by          String?
-  version             Int?             @default(1)
-  type                String?
-  credit_limit        Decimal?         @db.Decimal
-  market_scope        String           @default("ในประเทศ")
-  name_title          String?
-  first_name          String?
-  last_name           String?
-  address_no          String?
-  address_moo         String?
-  address_village     String?
-  address_road        String?
-  address_subdistrict String?
-  address_district    String?
-  address_province    String?
-  address_postal_code String?
-  address_country     String?          @default("ไทย")
-  country_code        String?          @default("TH")
-  address_line1       String?
-  address_line2       String?
-  address_city        String?
-  address_state_region String?
+  id                       String                   @id
+  code                     String?
+  name                     String
+  tax_id                   String?
+  phone                    String?
+  address                  String?
+  bank_name                String?
+  bank_account             String?
+  bank_account_name        String?
+  sales_rep                String?
+  branch_id                String?
+  notes                    String?
+  active                   Boolean?                 @default(true)
+  created_at               DateTime?                @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime?                @default(now()) @db.Timestamptz(6)
+  sales_id                 String?
+  updated_by               String?
+  version                  Int?                     @default(1)
+  type                     String?
+  market_scope             String                   @default("ในประเทศ")
+  name_title               String?
+  first_name               String?
+  last_name                String?
+  address_no               String?
+  address_moo              String?
+  address_village          String?
+  address_road             String?
+  address_subdistrict      String?
+  address_district         String?
+  address_province         String?
+  address_postal_code      String?
+  address_country          String?                  @default("ไทย")
+  country_code             String?                  @default("TH")
+  address_line1            String?
+  address_line2            String?
+  address_city             String?
+  address_state_region     String?
   address_postal_code_intl String?
-  assets              assets[]
-  payments            payments[]
-  po_buys             po_buys[]
-  purchase_bills      purchase_bills[]
-  branches            branches?        @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  trading_deals       trading_deals[]
+  assets                   assets[]
+  payments                 payments[]
+  po_buys                  po_buys[]
+  purchase_bills           purchase_bills[]
+  supplier_bank_accounts   supplier_bank_accounts[]
+  branches                 branches?                @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  trading_deals            trading_deals[]
 
   @@index([branch_id], map: "idx_suppliers_branch")
   @@index([name], map: "idx_suppliers_name")
@@ -1857,6 +1856,25 @@ model suppliers {
   @@index([market_scope], map: "idx_suppliers_market_scope")
   @@index([type], map: "idx_suppliers_type")
   @@index([country_code], map: "idx_suppliers_country_code")
+  @@schema("public")
+}
+
+model supplier_bank_accounts {
+  id             String    @id
+  supplier_id    String
+  payment_method String?   @default("โอนเงิน")
+  bank_name      String?
+  account_no     String?
+  account_name   String?
+  is_primary     Boolean?  @default(false)
+  active         Boolean?  @default(true)
+  created_at     DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime? @default(now()) @db.Timestamptz(6)
+  suppliers      suppliers @relation(fields: [supplier_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([supplier_id, account_no], map: "uq_supplier_bank_accounts_supplier_account")
+  @@index([account_no], map: "idx_supplier_bank_accounts_account")
+  @@index([supplier_id], map: "idx_supplier_bank_accounts_supplier")
   @@schema("public")
 }
 

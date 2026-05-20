@@ -341,7 +341,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
   activePurchases.forEach((row) => {
     const amount = toNumber(row.payable_balance)
     if (amount <= 0) return
-    const dueDate = addDays(row.date, row.suppliers?.credit_term ?? 0)
+    const dueDate = addDays(row.date, 0)
     apAgingBuckets[agingBucket(daysBetween(dueDate, selectedDate))] += amount
   })
   const stockByBranchMap = new Map<string, { name: string; qty: number; value: number }>()

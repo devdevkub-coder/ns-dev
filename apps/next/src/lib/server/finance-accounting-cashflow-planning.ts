@@ -23,7 +23,7 @@ type SalesBill = Prisma.sales_billsGetPayload<{
 }>
 
 type PurchaseBill = Prisma.purchase_billsGetPayload<{
-  include: { suppliers: { select: { credit_term: true; name: true } } }
+  include: { suppliers: { select: { name: true } } }
 }>
 
 type Expense = Prisma.expensesGetPayload<{
@@ -138,7 +138,7 @@ async function loadBillsAsOf(asOf: Date, branchId?: string) {
       where: { ...notCancelledWhere(), ...branchWhere(branchId), date: { lte: endOfDay(asOf) } },
     }),
     prisma.purchase_bills.findMany({
-      include: { suppliers: { select: { credit_term: true, name: true } } },
+      include: { suppliers: { select: { name: true } } },
       orderBy: [{ date: 'asc' }, { doc_no: 'asc' }],
       take: 20000,
       where: { ...notCancelledWhere(), ...branchWhere(branchId), date: { lte: endOfDay(asOf) } },
@@ -164,7 +164,7 @@ function arRows(salesBills: SalesBill[], asOf: Date) {
 function apRows(purchaseBills: PurchaseBill[], asOf: Date) {
   return purchaseBills.map((bill) => {
     const balance = Math.max(0, toNumber(bill.payable_balance) || (toNumber(bill.total_amount) - toNumber(bill.paid_amount)))
-    const dueDate = dueDateFromBill(bill.date, undefined, bill.suppliers?.credit_term)
+    const dueDate = dueDateFromBill(bill.date, undefined, 0)
     return {
       docNo: bill.doc_no,
       dueDate,

@@ -152,8 +152,6 @@ export const suppliersPageConfig: MasterDataPageConfig = {
     { key: 'taxId', label: 'เลขผู้เสียภาษี' },
     { key: 'phone', label: 'โทรศัพท์' },
     { key: 'branchId', label: 'รหัสสาขา' },
-    { key: 'creditTerm', label: 'เครดิตเทอม (วัน)', type: 'number' },
-    { key: 'creditLimit', label: 'วงเงินเครดิต', type: 'number' },
     { key: 'bankName', label: 'ธนาคารรับเงิน', type: 'select', optionsApiPath: '/api/master-data/bank-names' },
     { key: 'accountNo', label: 'เลขที่บัญชีรับเงิน' },
     { key: 'address', label: 'ที่อยู่' },
@@ -167,8 +165,6 @@ export const suppliersPageConfig: MasterDataPageConfig = {
     { key: 'bankName', label: 'ธนาคารรับเงิน' },
     { key: 'accountNo', label: 'เลขที่บัญชีรับเงิน' },
     { key: 'branchName', label: 'สาขา' },
-    { key: 'creditTerm', label: 'Term', align: 'right', format: 'number' },
-    { key: 'creditLimit', label: 'วงเงินเครดิต', align: 'right', format: 'money' },
     statusColumn,
   ],
 }

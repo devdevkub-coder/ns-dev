@@ -40,7 +40,7 @@ export async function GET() {
         where: { NOT: { status: 'cancelled' } },
       }),
       prisma.purchase_bills.findMany({
-        include: { suppliers: { select: { credit_term: true, id: true, name: true } } },
+        include: { suppliers: { select: { id: true, name: true } } },
         take: 10000,
         where: { NOT: { status: 'cancelled' } },
       }),
@@ -108,7 +108,6 @@ export async function GET() {
       const paid = paymentMap.get(bill.id) ?? toNumber(bill.paid_amount)
       const balance = Math.max(0, total - paid)
       const due = new Date(bill.date)
-      due.setDate(due.getDate() + (bill.suppliers?.credit_term ?? 0))
       const aging = Math.floor((today.getTime() - due.getTime()) / 86400000)
       return { aging, balance, bucket: ageBucket(aging), dueDate: toDateOnly(due), partyName: bill.suppliers?.name ?? '-', refNo: bill.doc_no }
     }).filter((row) => row.balance > 0.01)

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { supplierFormSchema } from '@/lib/supplier'
-import { toSupplierWriteInput } from '@/lib/domain/supplier'
+import { supplierBankAccountRows, toSupplierWriteInput } from '@/lib/domain/supplier'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
@@ -13,6 +13,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024
 
 const headerMap = {
   accountNo: ['เลขที่บัญชีรับเงิน', 'เลขบัญชี', 'accountNo'],
+  accountsAll: ['บัญชีรับเงินทั้งหมด', 'bankAccounts', 'bankAccountsText'],
   active: ['สถานะ', 'active'],
   address: ['ที่อยู่เต็ม/หมายเหตุที่อยู่', 'ที่อยู่', 'address'],
   addressCountry: ['ประเทศ', 'addressCountry'],
@@ -30,10 +31,8 @@ const headerMap = {
   addressSubdistrict: ['ตำบล/แขวง', 'ตำบล', 'แขวง', 'addressSubdistrict'],
   addressVillage: ['หมู่บ้าน/อาคาร', 'หมู่บ้าน', 'อาคาร', 'addressVillage'],
   bankAccount: ['ชื่อบัญชีรับเงิน', 'bankAccount'],
-  bankName: ['ธนาคารรับเงิน', 'bankName'],
+  bankName: ['ธนาคารรับเงิน', 'ธนาคาร', 'bankName'],
   code: ['รหัสผู้ขาย', 'code'],
-  creditLimit: ['วงเงินเครดิต', 'creditLimit'],
-  creditTerm: ['เครดิตเทอม (วัน)', 'เครดิตเทอม', 'creditTerm'],
   countryCode: ['รหัสประเทศ (ISO)', 'countryCode', 'country_code'],
   firstName: ['ชื่อ', 'firstName'],
   lastName: ['นามสกุล', 'lastName'],
@@ -48,6 +47,15 @@ const headerMap = {
 
 type ImportField = keyof typeof headerMap
 type ImportRow = Record<string, unknown>
+type ImportBankAccount = {
+  id: null
+  paymentMethod: 'เงินสด' | 'โอนเงิน'
+  bankName: string | null
+  accountNo: string | null
+  bankAccount: string | null
+  isPrimary: boolean
+  active: boolean
+}
 
 function normalizeHeader(value: string) {
   return value.trim().toLowerCase().replace(/\s+/g, '')
@@ -67,16 +75,6 @@ function cellText(row: ImportRow, field: ImportField) {
   if (value === null || value === undefined) return ''
   if (value instanceof Date) return value.toISOString()
   return String(value).trim()
-}
-
-function cellNumber(row: ImportRow, field: ImportField) {
-  const value = getCell(row, field)
-  if (value === null || value === undefined || value === '') return null
-  if (typeof value === 'number') return Number.isFinite(value) ? value : null
-  const normalized = String(value).replace(/,/g, '').trim()
-  if (!normalized) return null
-  const number = Number(normalized)
-  return Number.isFinite(number) ? number : null
 }
 
 function normalizeSupplierCode(value: string) {
@@ -111,6 +109,97 @@ function normalizeActive(value: string) {
   if (!normalized) return true
   if (['ปิด', 'inactive', 'false', '0', 'no', 'n'].includes(normalized)) return false
   return true
+}
+
+function stripCashMarker(value: string) {
+  return value
+    .replace(/เงินสด/g, '')
+    .replace(/^[\s/\\\-–—:]+|[\s/\\\-–—:]+$/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
+function splitAccountNumbers(value: string) {
+  const compactHyphens = value.replace(/\s*-\s*/g, '-')
+  return compactHyphens
+    .split(/\s+/)
+    .map((part) => part.replace(/\D/g, ''))
+    .filter((part) => part.length >= 2)
+}
+
+function parseBankAccounts(row: ImportRow, supplierName: string): ImportBankAccount[] {
+  const rawAccountsAll = cellText(row, 'accountsAll')
+  if (rawAccountsAll) {
+    const accounts: ImportBankAccount[] = []
+    rawAccountsAll.split('|').forEach((segment, index) => {
+      const text = segment.trim()
+      if (!text) return
+      if (text.includes('เงินสด') && splitAccountNumbers(text).length === 0) {
+        accounts.push({
+          id: null,
+          paymentMethod: 'เงินสด',
+          bankName: null,
+          accountNo: null,
+          bankAccount: null,
+          isPrimary: index === 0,
+          active: true,
+        })
+        return
+      }
+
+      const parts = text.split('//').map((part) => part.trim()).filter(Boolean)
+      const startsWithTransfer = parts[0] === 'โอนเงิน'
+      const bankName = stripCashMarker(startsWithTransfer ? parts[1] ?? '' : parts[0] ?? '')
+      const accountText = startsWithTransfer ? parts.slice(2).join(' ') : parts.slice(1).join(' ')
+      const accountNos = splitAccountNumbers(accountText || text)
+      const accountName = startsWithTransfer ? parts[3] ?? supplierName : parts[2] ?? supplierName
+      accountNos.forEach((accountNo, accountIndex) => {
+        accounts.push({
+          id: null,
+          paymentMethod: 'โอนเงิน',
+          bankName: bankName || null,
+          accountNo,
+          bankAccount: accountName || null,
+          isPrimary: index === 0 && accountIndex === 0,
+          active: true,
+        })
+      })
+    })
+    if (accounts.length) return accounts
+  }
+
+  const rawBankText = cellText(row, 'bankName')
+  const rawAccountNo = cellText(row, 'accountNo')
+  const rawAccountName = cellText(row, 'bankAccount') || supplierName || null
+  const parts = rawBankText.split('//')
+  const bankName = stripCashMarker(parts[0] ?? rawBankText)
+  const accountText = rawAccountNo || parts.slice(1).join(' ') || rawBankText
+  const accountNos = splitAccountNumbers(accountText)
+
+  if (accountNos.length === 0) {
+    const rawCombinedText = `${rawBankText} ${rawAccountNo}`.trim()
+    return rawCombinedText.includes('เงินสด')
+      ? [{
+        id: null,
+        paymentMethod: 'เงินสด' as const,
+        bankName: null,
+        accountNo: null,
+        bankAccount: null,
+        isPrimary: true,
+        active: true,
+      }]
+      : []
+  }
+
+  return accountNos.map((accountNo, index) => ({
+    id: null,
+    paymentMethod: 'โอนเงิน' as const,
+    bankName: bankName || null,
+    accountNo,
+    bankAccount: rawAccountName,
+    isPrimary: index === 0,
+    active: true,
+  }))
 }
 
 function findSupplierSheet(workbook: XLSX.WorkBook) {
@@ -219,11 +308,14 @@ export async function POST(request: Request) {
       const marketScope = normalizeMarketScope(cellText(row, 'marketScope'), countryCode, addressCountry)
       const address = cellText(row, 'address') || null
       const addressLine1 = cellText(row, 'addressLine1') || (marketScope === 'ต่างประเทศ' ? address : null)
+      const supplierName = cellText(row, 'name') || null
+      const bankAccounts = parseBankAccounts(row, supplierName ?? '')
+      const primaryBankAccount = bankAccounts.find((account) => account.isPrimary) ?? bankAccounts[0] ?? null
 
       const values = {
         id: code || undefined,
         code: code || null,
-        name: cellText(row, 'name') || null,
+        name: supplierName,
         nameTitle: cellText(row, 'nameTitle') || null,
         firstName: cellText(row, 'firstName') || null,
         lastName: cellText(row, 'lastName') || null,
@@ -247,14 +339,13 @@ export async function POST(request: Request) {
         addressCity: cellText(row, 'addressCity') || null,
         addressStateRegion: cellText(row, 'addressStateRegion') || null,
         addressPostalCodeIntl: cellText(row, 'addressPostalCodeIntl') || null,
-        bankName: cellText(row, 'bankName') || null,
-        accountNo: cellText(row, 'accountNo') || null,
-        bankAccount: cellText(row, 'bankAccount') || null,
+        bankName: primaryBankAccount?.bankName ?? null,
+        accountNo: primaryBankAccount?.accountNo ?? null,
+        bankAccount: primaryBankAccount?.bankAccount ?? null,
+        bankAccounts,
         branchId: null,
         salesId: salesperson?.id ?? null,
         salesName: salesperson?.name ?? null,
-        creditTerm: cellNumber(row, 'creditTerm'),
-        creditLimit: cellNumber(row, 'creditLimit'),
         notes: null,
         active: normalizeActive(cellText(row, 'active')),
       }
@@ -282,15 +373,20 @@ export async function POST(request: Request) {
     const existingIds = new Set(existing.map((row) => row.id))
     const existingBranchById = new Map(existing.map((row) => [row.id, row.branch_id]))
 
-    await prisma.$transaction(validRows.map((row) => {
-      const payload = toSupplierWriteInput(row)
-      if (existingBranchById.has(payload.id)) payload.branch_id = existingBranchById.get(payload.id) ?? null
-      return prisma.suppliers.upsert({
-        where: { id: payload.id },
-        create: payload,
-        update: payload,
+    await prisma.$transaction(async (tx) => {
+      for (const row of validRows) {
+        const payload = toSupplierWriteInput(row)
+        if (existingBranchById.has(payload.id)) payload.branch_id = existingBranchById.get(payload.id) ?? null
+        await tx.suppliers.upsert({
+          where: { id: payload.id },
+          create: payload,
+          update: payload,
+        })
+        await tx.supplier_bank_accounts.deleteMany({ where: { supplier_id: payload.id } })
+        const accountRows = supplierBankAccountRows(row, payload.id)
+        if (accountRows.length) await tx.supplier_bank_accounts.createMany({ data: accountRows })
+      }
       })
-    }))
 
     const updated = validRows.filter((row) => existingIds.has(row.id as string)).length
     return NextResponse.json({

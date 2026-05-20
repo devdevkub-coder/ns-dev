@@ -103,7 +103,7 @@ export async function GET(request: Request) {
         include: {
           branches: { select: { id: true, name: true } },
           purchase_channels: { select: { id: true, name: true } },
-          suppliers: { select: { code: true, credit_term: true, id: true, name: true } },
+          suppliers: { select: { code: true, id: true, name: true } },
         },
         orderBy: [{ date: 'asc' }, { doc_no: 'asc' }],
         take: 10000,
@@ -151,7 +151,7 @@ export async function GET(request: Request) {
         const totalAmount = toNumber(bill.total_amount)
         const paidAmount = paidMap.get(bill.id) ?? toNumber(bill.paid_amount)
         const payableBalance = Math.max(0, totalAmount - paidAmount)
-        const creditTerm = bill.suppliers?.credit_term ?? 0
+        const creditTerm = 0
         const due = new Date(bill.date)
         due.setDate(due.getDate() + creditTerm)
         const aging = Math.floor((today.getTime() - due.getTime()) / 86400000)

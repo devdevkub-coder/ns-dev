@@ -33,7 +33,12 @@ export async function PATCH(request: Request, { params }: SupplierRouteProps) {
       data: {
         active: values.active,
       },
-      include: { branches: true },
+      include: {
+        branches: true,
+        supplier_bank_accounts: {
+          orderBy: [{ is_primary: 'desc' }, { id: 'asc' }],
+        },
+      },
     })
 
     return NextResponse.json(mapPrismaSupplier(supplier))

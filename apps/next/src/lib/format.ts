@@ -9,17 +9,7 @@ export function formatPhoneDisplay(value: string | null | undefined) {
 export function formatAccountNoDisplay(value: string | null | undefined) {
   if (!value) return null
 
-  return value
-    .trim()
-    .split(/\s+/)
-    .map((part) => {
-      if (part.includes('-')) return part
-
-      const digits = part.replace(/\D/g, '')
-      if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 4)}-${digits.slice(4, 9)}-${digits.slice(9)}`
-      return part
-    })
-    .join(' ')
+  return value.replace(/\D/g, '')
 }
 
 export function sanitizePhoneInput(value: string) {
@@ -38,5 +28,5 @@ export function sanitizePhoneInput(value: string) {
 }
 
 export function sanitizeAccountNoInput(value: string) {
-  return value.replace(/[^0-9\s-]/g, '').slice(0, 40)
+  return value.replace(/\D/g, '').slice(0, 40)
 }

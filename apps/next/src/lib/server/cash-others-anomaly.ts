@@ -103,7 +103,7 @@ export async function buildCashOthersSummary(asOfValue?: string | null) {
     return { amount: toNumber(bill.receivable_balance), bill, dueDate, overdueDays: Math.max(0, daysBetween(dueDate, asOf)) }
   })
   const apBills = activePurchases.filter((bill) => toNumber(bill.payable_balance) > 0).map((bill) => {
-    const dueDate = addDays(bill.date, bill.suppliers?.credit_term ?? 0)
+    const dueDate = addDays(bill.date, 0)
     return { amount: toNumber(bill.payable_balance), bill, dueDate, overdueDays: Math.max(0, daysBetween(dueDate, asOf)) }
   })
   const totalCash = cashAccounts.reduce((sum, account) => sum + account.thbEquivalent, 0)
@@ -241,7 +241,7 @@ export async function buildAnomalyDetector(asOfValue?: string | null) {
   })
   purchaseBills.filter((bill) => activeStatus(bill.status)).forEach((bill) => {
     const payable = toNumber(bill.payable_balance)
-    const dueDate = addDays(bill.date, bill.suppliers?.credit_term ?? 0)
+    const dueDate = addDays(bill.date, 0)
     const overdue = daysBetween(dueDate, asOf)
     if (payable > 0 && overdue > 60) push({ action: 'จัดคิวจ่ายหรือปรับสถานะหนี้หลังตรวจเอกสาร', category: 'AP', detail: `${bill.doc_no} เกินกำหนด ${overdue} วัน · ${payable.toLocaleString('th-TH')}`, fixHref: '/finance/ap', icon: '⚠', id: `ap-overdue-${bill.id}`, severity: overdue > 90 ? 'critical' : 'warn', title: `เจ้าหนี้ค้างจ่าย: ${bill.doc_no}` })
     if (toNumber(bill.paid_amount) - toNumber(bill.total_amount) > 1) push({ action: 'ตรวจ payment allocation และยอดบิลซื้อ', category: 'Bill Math', detail: `${bill.doc_no} จ่าย ${toNumber(bill.paid_amount).toLocaleString('th-TH')} มากกว่ายอดบิล`, fixHref: '/purchase/bills', icon: '🚨', id: `pb-overpaid-${bill.id}`, severity: 'critical', title: `บิลซื้อจ่ายเกิน: ${bill.doc_no}` })

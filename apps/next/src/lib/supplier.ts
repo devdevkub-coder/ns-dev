@@ -4,9 +4,10 @@ import { readBlobResponse, readJsonResponse } from '@/lib/api-client'
 const blankToNull = (value: unknown) => (typeof value === 'string' && value.trim() === '' ? null : value)
 const businessTextPattern = /^[\p{L}\p{M}\p{N}\s.&,()/'"-]+$/u
 const compactDigits = (value: string) => value.replace(/\D/g, '')
+const stripCashMarker = (value: string | null | undefined) => value?.replace(/เงินสด/g, '').trim() || null
 const generalTextPattern = /^[^\u0000-\u001F\u007F]+$/u
 const personNamePattern = /^[\p{L}\p{M}.' -]+$/u
-const accountNoPattern = /^[0-9][0-9\s-]{1,38}[0-9]$/
+const accountNoPattern = /^\d{2,40}$/
 const internationalPostalCodePattern = /^[A-Za-z0-9][A-Za-z0-9\s-]{0,31}$/
 
 const optionalBusinessText = (label: string, maxLength = 160) => z.preprocess(
@@ -81,13 +82,28 @@ const optionalMooSchema = z.preprocess(
 )
 
 const optionalAccountNoSchema = z.preprocess(
-  blankToNull,
+  (value) => {
+    const normalized = blankToNull(value)
+    return typeof normalized === 'string' ? normalized.replace(/\D/g, '') : normalized
+  },
   z.string().trim()
     .max(40, 'เลขบัญชียาวเกินไป')
-    .regex(accountNoPattern, 'เลขบัญชีใช้ได้เฉพาะตัวเลข ช่องว่าง และขีด')
+    .regex(accountNoPattern, 'เลขบัญชีใช้ได้เฉพาะตัวเลข')
     .nullable()
     .default(null),
 )
+
+const supplierPaymentMethodSchema = z.enum(['เงินสด', 'โอนเงิน'], { required_error: 'เลือกช่องทางการชำระเงิน' })
+
+export const supplierBankAccountSchema = z.object({
+  id: z.preprocess(blankToNull, z.string().trim().max(80, 'รหัสบัญชียาวเกินไป').nullable().default(null)),
+  paymentMethod: supplierPaymentMethodSchema.default('เงินสด'),
+  bankName: optionalGeneralText('ธนาคารรับเงิน', 120),
+  accountNo: optionalAccountNoSchema,
+  bankAccount: optionalGeneralText('ชื่อบัญชีรับเงิน', 160),
+  isPrimary: z.boolean().default(false),
+  active: z.boolean().default(true),
+})
 
 const optionalPhoneSchema = z.preprocess(
   blankToNull,
@@ -131,12 +147,11 @@ export const supplierSchema = z.object({
   bankName: z.string().nullable().default(null),
   accountNo: z.string().nullable().default(null),
   bankAccount: z.string().nullable().default(null),
+  bankAccounts: z.array(supplierBankAccountSchema).default([]),
   branchId: z.string().nullable().default(null),
   branchName: z.string().nullable().default(null),
   salesId: z.string().nullable().default(null),
   salesName: z.string().nullable().default(null),
-  creditTerm: z.number().int().nullable().default(null),
-  creditLimit: z.number().nullable().default(null),
   notes: z.string().nullable().default(null),
   active: z.boolean().default(true),
   createdAt: z.string().nullable().default(null),
@@ -202,11 +217,10 @@ export const supplierFormSchema = z.object({
   bankName: optionalGeneralText('ธนาคารรับเงิน', 120),
   accountNo: optionalAccountNoSchema,
   bankAccount: optionalGeneralText('ชื่อบัญชีรับเงิน', 160),
+  bankAccounts: z.array(supplierBankAccountSchema).default([]),
   branchId: optionalGeneralText('รหัสสาขา', 80),
   salesId: z.preprocess(blankToNull, z.string().trim().regex(/^[A-Za-z0-9_-]+$/, 'ผู้ดูแลมีรูปแบบไม่ถูกต้อง').nullable().default(null)),
   salesName: optionalBusinessText('ชื่อผู้ดูแล', 160),
-  creditTerm: z.number().int().min(0).nullable().default(null),
-  creditLimit: z.number().min(0).nullable().default(null),
   notes: optionalGeneralText('หมายเหตุ', 500),
   active: z.boolean().default(true),
 }).superRefine((values, context) => {
@@ -223,6 +237,23 @@ export const supplierFormSchema = z.object({
   if (!values.salesId) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: 'เลือกผู้ดูแล', path: ['salesId'] })
   }
+
+  const seenAccountNos = new Set<string>()
+  values.bankAccounts.forEach((account, index) => {
+    if (account.paymentMethod === 'เงินสด') return
+
+    if (!stripCashMarker(account.bankName)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'เลือกธนาคารรับเงิน', path: ['bankAccounts', index, 'bankName'] })
+    }
+    if (!account.accountNo) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'กรอกเลขที่บัญชีรับเงิน', path: ['bankAccounts', index, 'accountNo'] })
+    }
+    if (!account.accountNo) return
+    if (seenAccountNos.has(account.accountNo)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'เลขที่บัญชีรับเงินซ้ำ', path: ['bankAccounts', index, 'accountNo'] })
+    }
+    seenAccountNos.add(account.accountNo)
+  })
 
   if (values.marketScope === 'ในประเทศ') {
     if (values.countryCode && values.countryCode !== 'TH') {

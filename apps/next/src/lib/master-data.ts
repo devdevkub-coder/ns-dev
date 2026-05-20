@@ -7,7 +7,7 @@ const codePattern = /^[A-Za-z0-9_-]+$/
 const generalTextPattern = /^[^\u0000-\u001F\u007F]+$/u
 const businessTextPattern = /^[\p{L}\p{M}\p{N}\s.&,()/'"+#%-]+$/u
 const phonePattern = /^\+?[0-9][0-9\s().-]{7,24}$/
-const accountNoPattern = /^[0-9][0-9\s-]{1,38}[0-9]$/
+const accountNoPattern = /^\d{2,40}$/
 
 const optionalCode = (label: string) => z.preprocess(
   blankToNull,
@@ -40,7 +40,7 @@ const optionalAccountNo = z.preprocess(
   blankToNull,
   z.string().trim()
     .max(40, 'เลขบัญชียาวเกินไป')
-    .regex(accountNoPattern, 'เลขบัญชีใช้ได้เฉพาะตัวเลข ช่องว่าง และขีด')
+    .regex(accountNoPattern, 'เลขบัญชีใช้ได้เฉพาะตัวเลข')
     .nullable()
     .default(null),
 )

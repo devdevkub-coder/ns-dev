@@ -16,8 +16,6 @@ const EXPORT_LIMIT = 10000
 const sortColumns = {
   active: 'active',
   code: 'code',
-  creditLimit: 'credit_limit',
-  creditTerm: 'credit_term',
   accountNo: 'bank_account',
   bankName: 'bank_name',
   name: 'name',
@@ -27,7 +25,9 @@ const sortColumns = {
   type: 'type',
 } as const
 
-const supplierColumns: Array<{ key: keyof Supplier; label: string; width: number; type?: 'number' }> = [
+type SupplierExportKey = keyof Supplier | 'bankAccountsText'
+
+const supplierColumns: Array<{ key: SupplierExportKey; label: string; width: number; type?: 'number' }> = [
   { key: 'code', label: 'รหัสผู้ขาย', width: 90 },
   { key: 'name', label: 'ชื่อผู้ขาย/บริษัท', width: 220 },
   { key: 'type', label: 'ประเภทผู้ขาย', width: 110 },
@@ -40,6 +40,7 @@ const supplierColumns: Array<{ key: keyof Supplier; label: string; width: number
   { key: 'bankName', label: 'ธนาคารรับเงิน', width: 160 },
   { key: 'accountNo', label: 'เลขที่บัญชีรับเงิน', width: 160 },
   { key: 'bankAccount', label: 'ชื่อบัญชีรับเงิน', width: 180 },
+  { key: 'bankAccountsText', label: 'บัญชีรับเงินทั้งหมด', width: 320 },
   { key: 'salesName', label: 'ผู้ดูแล', width: 160 },
   { key: 'countryCode', label: 'รหัสประเทศ (ISO)', width: 120 },
   { key: 'addressCountry', label: 'ประเทศ', width: 120 },
@@ -57,8 +58,6 @@ const supplierColumns: Array<{ key: keyof Supplier; label: string; width: number
   { key: 'addressStateRegion', label: 'รัฐ/จังหวัด/ภูมิภาค', width: 160 },
   { key: 'addressPostalCodeIntl', label: 'รหัสไปรษณีย์สากล', width: 150 },
   { key: 'address', label: 'ที่อยู่เต็ม/หมายเหตุที่อยู่', width: 300 },
-  { key: 'creditTerm', label: 'เครดิตเทอม (วัน)', width: 110, type: 'number' },
-  { key: 'creditLimit', label: 'วงเงินเครดิต', width: 120, type: 'number' },
   { key: 'active', label: 'สถานะ', width: 90 },
   { key: 'createdAt', label: 'สร้างเมื่อ', width: 150 },
   { key: 'updatedAt', label: 'แก้ไขเมื่อ', width: 150 },
@@ -120,8 +119,17 @@ function supplierSearchWhere(q: string, supplierType: string, marketScope: strin
   return where
 }
 
-function formatCellValue(supplier: Supplier, key: keyof Supplier) {
-  const value = supplier[key]
+function formatBankAccounts(supplier: Supplier) {
+  return supplier.bankAccounts
+    .map((account) => account.paymentMethod === 'เงินสด'
+      ? 'เงินสด'
+      : ['โอนเงิน', account.bankName, formatAccountNoDisplay(account.accountNo), account.bankAccount].filter(Boolean).join(' // '))
+    .join(' | ')
+}
+
+function formatCellValue(supplier: Supplier, key: SupplierExportKey) {
+  if (key === 'bankAccountsText' || key === 'bankAccounts') return formatBankAccounts(supplier)
+  const value = supplier[key] as string | number | boolean | null | undefined
   if (value === null || value === undefined || value === '') return ''
   if (typeof value === 'boolean') return value ? 'ใช้งาน' : 'ปิด'
   if (typeof value === 'number') return value
@@ -168,7 +176,12 @@ export async function GET(request: Request) {
     const where = supplierSearchWhere(q, supplierType, marketScope, salesId)
     const [rows, total] = await Promise.all([
       prisma.suppliers.findMany({
-        include: { branches: true },
+        include: {
+          branches: true,
+          supplier_bank_accounts: {
+            orderBy: [{ is_primary: 'desc' }, { id: 'asc' }],
+          },
+        },
         orderBy: [{ [sortColumn]: direction }, { id: 'asc' }],
         take: EXPORT_LIMIT,
         where,

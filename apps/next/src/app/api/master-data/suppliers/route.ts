@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supplierFormSchema } from '@/lib/supplier'
-import { mapPrismaSupplier, toSupplierWriteInput } from '@/lib/domain/supplier'
+import { mapPrismaSupplier, supplierBankAccountRows, toSupplierWriteInput } from '@/lib/domain/supplier'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
@@ -12,8 +12,6 @@ export const runtime = 'nodejs'
 const sortColumns = {
   active: 'active',
   code: 'code',
-  creditLimit: 'credit_limit',
-  creditTerm: 'credit_term',
   accountNo: 'bank_account',
   bankName: 'bank_name',
   name: 'name',
@@ -22,6 +20,13 @@ const sortColumns = {
   taxId: 'tax_id',
   type: 'type',
 } as const
+
+const supplierInclude = {
+  branches: true,
+  supplier_bank_accounts: {
+    orderBy: [{ is_primary: 'desc' }, { id: 'asc' }],
+  },
+} satisfies Prisma.suppliersInclude
 
 function parseListParams(request: Request) {
   const url = new URL(request.url)
@@ -139,7 +144,7 @@ export async function GET(request: Request) {
     const where = supplierSearchWhere(q, supplierType, marketScope, salesId)
     const [suppliers, total] = await Promise.all([
       prisma.suppliers.findMany({
-        include: { branches: true },
+        include: supplierInclude,
         orderBy: [{ [sortColumn]: direction }, { id: 'asc' }],
         skip: all ? undefined : (page - 1) * pageSize,
         take: pageSize,
@@ -172,13 +177,25 @@ export async function POST(request: Request) {
     const code = normalizeSupplierCode(values.code, values.id || await getNextSupplierCode())
     const payload = toSupplierWriteInput({ ...values, code, salesName })
 
-    const supplier = await prisma.suppliers.upsert({
-      where: {
-        id: payload.id,
-      },
-      create: payload,
-      update: payload,
-      include: { branches: true },
+    const supplier = await prisma.$transaction(async (tx) => {
+      await tx.suppliers.upsert({
+        where: {
+          id: payload.id,
+        },
+        create: payload,
+        update: payload,
+      })
+
+      await tx.supplier_bank_accounts.deleteMany({ where: { supplier_id: payload.id } })
+      const accountRows = supplierBankAccountRows({ ...values, code, salesName }, payload.id)
+      if (accountRows.length) {
+        await tx.supplier_bank_accounts.createMany({ data: accountRows })
+      }
+
+      return tx.suppliers.findUniqueOrThrow({
+        where: { id: payload.id },
+        include: supplierInclude,
+      })
     })
 
     return NextResponse.json(mapPrismaSupplier(supplier))

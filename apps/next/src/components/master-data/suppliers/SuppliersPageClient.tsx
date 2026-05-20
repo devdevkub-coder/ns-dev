@@ -17,7 +17,18 @@ import { formatAccountNoDisplay, formatPhoneDisplay, sanitizeAccountNoInput, san
 import { listMasterDataRecords, type MasterDataRecord } from '@/lib/master-data'
 import { listThaiDistricts, listThaiProvinces, listThaiSubdistricts, type ThaiDistrict, type ThaiProvince, type ThaiSubdistrict } from '@/lib/thai-address'
 
-type SortKey = 'code' | 'name' | 'taxId' | 'type' | 'phone' | 'bankName' | 'accountNo' | 'salesName' | 'creditTerm' | 'creditLimit' | 'active'
+type SortKey = 'code' | 'name' | 'taxId' | 'type' | 'phone' | 'bankName' | 'accountNo' | 'salesName' | 'active'
+type SupplierBankAccountForm = SupplierFormValues['bankAccounts'][number]
+
+const emptyBankAccount: SupplierBankAccountForm = {
+  id: null,
+  paymentMethod: 'เงินสด',
+  bankName: null,
+  accountNo: null,
+  bankAccount: null,
+  isPrimary: true,
+  active: true,
+}
 
 const emptySupplierForm: SupplierFormValues = {
   id: undefined,
@@ -45,11 +56,10 @@ const emptySupplierForm: SupplierFormValues = {
   addressCity: null,
   addressStateRegion: null,
   addressPostalCodeIntl: null,
-  creditTerm: null,
-  creditLimit: null,
   bankName: null,
   accountNo: null,
   bankAccount: null,
+  bankAccounts: [emptyBankAccount],
   branchId: null,
   salesId: null,
   salesName: null,
@@ -61,6 +71,25 @@ const emptySupplierForm: SupplierFormValues = {
 const personTitleOptions = ['นาย', 'นาง', 'นางสาว', 'คุณ']
 
 function supplierToForm(supplier: Supplier): SupplierFormValues {
+  const bankAccounts = supplier.bankAccounts.length > 0
+    ? supplier.bankAccounts.map((account, index) => ({
+      ...account,
+      paymentMethod: account.paymentMethod,
+      accountNo: account.accountNo ? sanitizeAccountNoInput(account.accountNo) : null,
+      isPrimary: account.isPrimary || index === 0,
+    }))
+    : supplier.accountNo
+      ? [{
+        id: null,
+        paymentMethod: 'โอนเงิน' as const,
+        bankName: supplier.bankName,
+        accountNo: sanitizeAccountNoInput(supplier.accountNo),
+        bankAccount: supplier.bankAccount,
+        isPrimary: true,
+        active: true,
+      }]
+      : [emptyBankAccount]
+
   return {
     id: supplier.id,
     code: supplier.code,
@@ -87,11 +116,10 @@ function supplierToForm(supplier: Supplier): SupplierFormValues {
     addressCity: supplier.addressCity,
     addressStateRegion: supplier.addressStateRegion,
     addressPostalCodeIntl: supplier.addressPostalCodeIntl,
-    creditTerm: supplier.creditTerm,
-    creditLimit: supplier.creditLimit,
     bankName: supplier.bankName,
     accountNo: supplier.accountNo,
     bankAccount: supplier.bankAccount,
+    bankAccounts,
     branchId: supplier.branchId,
     salesId: supplier.salesId,
     salesName: supplier.salesName,
@@ -103,11 +131,6 @@ function supplierToForm(supplier: Supplier): SupplierFormValues {
 
 function displayValue(value: string | number | null) {
   return value === null || value === '' ? '-' : value
-}
-
-function formatMoney(value: number | null) {
-  if (value === null) return '-'
-  return value.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function uniqueValues<T>(values: T[]) {
@@ -511,8 +534,6 @@ export function SuppliersPageClient() {
                 <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('bankName')}>ธนาคารรับเงิน{sortLabel('bankName')}</button></th>
                 <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('accountNo')}>เลขที่บัญชีรับเงิน{sortLabel('accountNo')}</button></th>
                 <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('salesName')}>ผู้ดูแล{sortLabel('salesName')}</button></th>
-                <th className="p-2 text-right"><button className="font-semibold" type="button" onClick={() => setSort('creditTerm')}>Term (วัน){sortLabel('creditTerm')}</button></th>
-                <th className="p-2 text-right"><button className="font-semibold" type="button" onClick={() => setSort('creditLimit')}>วงเงินเครดิต{sortLabel('creditLimit')}</button></th>
                 <th className="p-2 text-center"><button className="font-semibold" type="button" onClick={() => setSort('active')}>สถานะ{sortLabel('active')}</button></th>
                 <th className="p-2 text-center">แก้ไข</th>
               </tr>
@@ -540,8 +561,6 @@ export function SuppliersPageClient() {
                   <td className="p-2">{displayValue(supplier.bankName)}</td>
                   <td className="p-2 font-mono text-xs">{displayValue(formatAccountNoDisplay(supplier.accountNo))}</td>
                   <td className="p-2">{displayValue(supplier.salesName)}</td>
-                  <td className="p-2 text-right">{supplier.creditTerm ?? '-'}</td>
-                  <td className="p-2 text-right">{formatMoney(supplier.creditLimit)}</td>
                   <td className="p-2 text-center">
                     <ActiveToggle
                       checked={supplier.active}
@@ -566,7 +585,7 @@ export function SuppliersPageClient() {
               ))}
               {paginatedSuppliers.length === 0 ? (
                 <tr>
-                  <td className="p-4 text-center text-sm text-slate-500" colSpan={12}>ไม่พบข้อมูลที่ค้นหา</td>
+                  <td className="p-4 text-center text-sm text-slate-500" colSpan={10}>ไม่พบข้อมูลที่ค้นหา</td>
                 </tr>
               ) : null}
             </tbody>
@@ -614,13 +633,59 @@ function SupplierForm({ supplier, bankNames, districts, isSaving, provinces, sal
     ? subdistricts.filter((subdistrict) => subdistrict.districtCode === selectedDistrict.code && (!postalCode || subdistrict.postalCode === postalCode))
     : postalSubdistricts
   const bankNameOptions = useMemo(() => {
-    const names = bankNames.map((bankName) => bankName.name)
-    if (form.bankName && !names.includes(form.bankName)) names.push(form.bankName)
+    const names = bankNames.map((bankName) => bankName.name).filter((name) => name !== 'เงินสด')
+    if (form.bankName && form.bankName !== 'เงินสด' && !names.includes(form.bankName)) names.push(form.bankName)
+    for (const account of form.bankAccounts) {
+      if (account.bankName && account.bankName !== 'เงินสด' && !names.includes(account.bankName)) names.push(account.bankName)
+    }
     return names
-  }, [bankNames, form.bankName])
+  }, [bankNames, form.bankAccounts, form.bankName])
 
   function update<K extends keyof SupplierFormValues>(key: K, value: SupplierFormValues[K]) {
     setForm((current) => ({ ...current, [key]: value }))
+  }
+
+  function updateBankAccount<K extends keyof SupplierBankAccountForm>(index: number, key: K, value: SupplierBankAccountForm[K]) {
+    setForm((current) => {
+      const bankAccounts = current.bankAccounts.map((account, accountIndex) => {
+        if (accountIndex !== index) return account
+        const nextAccount = { ...account, [key]: value }
+        if (key === 'paymentMethod' && value === 'เงินสด') {
+          return { ...nextAccount, bankName: null, accountNo: null, bankAccount: null }
+        }
+        return nextAccount
+      })
+      return { ...current, bankAccounts }
+    })
+  }
+
+  function addBankAccount() {
+    setForm((current) => ({
+      ...current,
+      bankAccounts: [
+        ...current.bankAccounts,
+        { ...emptyBankAccount, id: null, isPrimary: current.bankAccounts.length === 0 },
+      ],
+    }))
+  }
+
+  function removeBankAccount(index: number) {
+    setForm((current) => {
+      const bankAccounts = current.bankAccounts.filter((_, accountIndex) => accountIndex !== index)
+      if (!bankAccounts.length) return { ...current, bankAccounts: [{ ...emptyBankAccount }] }
+      if (!bankAccounts.some((account) => account.isPrimary)) bankAccounts[0] = { ...bankAccounts[0], isPrimary: true }
+      return { ...current, bankAccounts }
+    })
+  }
+
+  function setPrimaryBankAccount(index: number) {
+    setForm((current) => ({
+      ...current,
+      bankAccounts: current.bankAccounts.map((account, accountIndex) => ({
+        ...account,
+        isPrimary: accountIndex === index,
+      })),
+    }))
   }
 
   function updatePostalCode(value: string) {
@@ -685,7 +750,7 @@ function SupplierForm({ supplier, bankNames, districts, isSaving, provinces, sal
     event.preventDefault()
     const parsed = supplierFormSchema.safeParse(form)
     if (!parsed.success) {
-      setErrors(Object.fromEntries(parsed.error.issues.map((issue) => [String(issue.path[0]), issue.message])))
+      setErrors(Object.fromEntries(parsed.error.issues.map((issue) => [issue.path.join('.'), issue.message])))
       return
     }
 
@@ -725,8 +790,6 @@ function SupplierForm({ supplier, bankNames, districts, isSaving, provinces, sal
               <option value="">เลือกผู้ดูแล</option>
               {salespersons.map((salesperson) => <option key={salesperson.id} value={salesperson.id}>{salesperson.name}</option>)}
             </SelectField>
-            <TextField error={errors.creditTerm} label="เครดิตเทอม (วัน)" type="number" value={form.creditTerm ?? ''} onChange={(value) => update('creditTerm', value === '' ? null : Number(value))} />
-            <TextField error={errors.creditLimit} label="วงเงินเครดิต" type="number" value={form.creditLimit ?? ''} onChange={(value) => update('creditLimit', value === '' ? null : Number(value))} />
           </div>
         </section>
 
@@ -796,14 +859,60 @@ function SupplierForm({ supplier, bankNames, districts, isSaving, provinces, sal
         </section>
 
         <section>
-          <h4 className="mb-3 text-sm font-bold text-slate-700">ข้อมูลบัญชีและสาขา</h4>
-          <div className="grid gap-4 md:grid-cols-4">
-            <SelectField error={errors.bankName} label="ธนาคารรับเงิน" value={form.bankName ?? ''} onChange={(value) => update('bankName', value || null)}>
-              <option value="">ไม่ระบุ</option>
-              {bankNameOptions.map((bankName) => <option key={bankName} value={bankName}>{bankName}</option>)}
-            </SelectField>
-            <TextField error={errors.accountNo} label="เลขที่บัญชีรับเงิน" value={form.accountNo ?? ''} onChange={(value) => update('accountNo', value || null)} />
-            <TextField error={errors.bankAccount} label="ชื่อบัญชีรับเงิน" value={form.bankAccount ?? ''} onChange={(value) => update('bankAccount', value || null)} />
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h4 className="text-sm font-bold text-slate-700">ข้อมูลบัญชีและสาขา</h4>
+            <button className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" type="button" onClick={addBankAccount}>
+              + เพิ่มบัญชี
+            </button>
+          </div>
+          <div className="space-y-3">
+            {form.bankAccounts.map((account, index) => {
+              const isTransfer = account.paymentMethod === 'โอนเงิน'
+              return (
+                <div key={`${account.id ?? 'new'}-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <div className="grid gap-4 md:grid-cols-4">
+                    <SelectField required error={errors[`bankAccounts.${index}.paymentMethod`]} label="ช่องทางการชำระเงิน" value={account.paymentMethod} onChange={(value) => updateBankAccount(index, 'paymentMethod', value as SupplierBankAccountForm['paymentMethod'])}>
+                      <option value="เงินสด">เงินสด</option>
+                      <option value="โอนเงิน">โอนเงิน</option>
+                    </SelectField>
+                    {isTransfer ? (
+                      <>
+                        <SelectField required error={errors[`bankAccounts.${index}.bankName`]} label="ธนาคารรับเงิน" value={account.bankName ?? ''} onChange={(value) => updateBankAccount(index, 'bankName', value || null)}>
+                          <option value="">เลือกธนาคาร</option>
+                          {bankNameOptions.map((bankName) => <option key={bankName} value={bankName}>{bankName}</option>)}
+                        </SelectField>
+                        <TextField required error={errors[`bankAccounts.${index}.accountNo`]} label="เลขที่บัญชีรับเงิน" value={account.accountNo ?? ''} onChange={(value) => updateBankAccount(index, 'accountNo', value || null)} />
+                        <TextField error={errors[`bankAccounts.${index}.bankAccount`]} label="ชื่อบัญชีรับเงิน" value={account.bankAccount ?? ''} onChange={(value) => updateBankAccount(index, 'bankAccount', value || null)} />
+                      </>
+                    ) : (
+                      <div className="flex items-end text-sm text-slate-500 md:col-span-3">
+                        เงินสดไม่ต้องกรอกข้อมูลบัญชีรับเงิน
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                    <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-600">
+                      <input
+                        checked={account.isPrimary}
+                        className="h-4 w-4"
+                        name="primarySupplierBankAccount"
+                        type="radio"
+                        onChange={() => setPrimaryBankAccount(index)}
+                      />
+                      ใช้เป็นช่องทางหลัก
+                    </label>
+                    {form.bankAccounts.length > 1 ? (
+                      <button className="text-xs font-semibold text-red-700 hover:text-red-900" type="button" onClick={() => removeBankAccount(index)}>
+                        ลบบัญชี
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              )
+            })}
+            {errors.bankAccounts ? <div className="text-xs text-red-700">{errors.bankAccounts}</div> : null}
+          </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-4">
             <TextField error={errors.branchId} label="รหัสสาขา" value={form.branchId ?? ''} onChange={(value) => update('branchId', value || null)} />
           </div>
         </section>
@@ -838,6 +947,7 @@ function TextField({ className = '', error, label, readOnly = false, required = 
   const isPhoneField = label === 'โทรศัพท์'
   const isAccountNoField = label === 'เลขบัญชี' || label === 'เลขที่บัญชีรับเงิน'
   const isTaxIdField = label === 'เลขผู้เสียภาษี'
+  const isThaiPostalCodeField = label === 'รหัสไปรษณีย์'
 
   return (
     <label className={`block text-sm font-medium ${className}`}>
@@ -858,6 +968,8 @@ function TextField({ className = '', error, label, readOnly = false, required = 
                 ? sanitizeAccountNoInput(event.target.value)
                 : isTaxIdField
                   ? event.target.value.replace(/\D/g, '').slice(0, 13)
+                  : isThaiPostalCodeField
+                    ? event.target.value.replace(/\D/g, '').slice(0, 5)
                   : event.target.value
           onChange(nextValue)
         }}
