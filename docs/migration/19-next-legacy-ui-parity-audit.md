@@ -68,6 +68,9 @@ Baseline notes:
 | `/dashboard` | 2026-05-20 | Completed the first read-only data parity follow-up after the visual shell: dashboard period buttons and custom dates now request `/api/dashboard?from=&to=`, AR/AP aging buckets are computed server-side instead of rendering zero placeholders, cash composition includes FCD, AR, AP, OD, and Net Cash, stock-by-branch and stock-by-group now come from stock ledger balances, and monthly trend rows drive the dashboard chart panels. Branch/supplier/customer/product/group server filters and historical monthly baseline merge remain follow-up work. |
 | `/dashboard` | 2026-05-20 | Completed the second read-only data filter follow-up: dashboard branch/supplier/customer/product/group controls now become `/api/dashboard` query parameters, purchase/sales KPIs and analysis rows filter server-side, and dashboard filter options now include active branches/groups/products from the API payload. Historical monthly baseline merge and fuller option lists for supplier/customer beyond visible in-period rows remain follow-up work. |
 | `/dashboard` | 2026-05-20 | Completed the third read-only dashboard data follow-up: historical monthly rows now merge into dashboard revenue/COGS/expense totals and monthly trend rows using `historical_monthly` (`pnl/revenue`, `pnl/cogs`, and `expense`), the historical indicator shows actual merged amounts and row count, and supplier/customer filter options now come from active master data instead of only visible in-period top rows. Remaining dashboard work is now design-level only: how to reconcile historical figures with statutory GL once GL/closing-period tables exist. |
+| `/dual-costing/waiting-allocations` | 2026-05-20 | Restored the remote-legacy-only Waiting Allocations view as a read-only management queue. It derives copper/brass sales bill item quantities that are not fully represented by current deal-cost matches, restores the amber info band, five KPI cards, category summary, filters, pending/partial status chips, and disabled Allocate action shell. No allocation write, reverse, stock, or P&L behavior was added. |
+| `/dual-costing/cost-allocation-ledger` | 2026-05-20 | Restored the remote-legacy-only Allocation Ledger view as a read-only management/audit surface derived from existing `trading_deals` until a normalized allocation ledger exists. It restores the indigo info band, PO/Spot counters, cost/revenue/GP KPIs, filters, dense ledger table, and disabled export/write surface. |
+| `/dual-costing/report` | 2026-05-20 | Restored the remote-legacy-only Dual Costing Report management dashboard. It aggregates the read-only allocation ledger plus waiting allocation rows into PO Sell, Spot Sell, pending allocation, and category summaries while documenting that this is not statutory P&L and does not replace WAC/GL reporting. |
 
 ## P1 Backlog
 
@@ -108,9 +111,6 @@ Baseline notes:
 
 Legacy views without a clear active Next counterpart after excluding master/admin:
 
-- `waitingAllocations`
-- `costAllocationLedger`
-- `dualCostingReport`
 - `trackAssetOverview`
 
 Next routes without a direct standalone legacy page:
@@ -119,5 +119,6 @@ Next routes without a direct standalone legacy page:
 
 ## Active Execution Order
 
-1. Follow-up design: Anomaly Detector legacy 40-check parity and record-level jump/highlight contracts.
-2. Follow-up design: statutory dashboard/GL reconciliation once GL journal, closing period, and retained earnings contracts exist.
+1. Missing view implementation: `trackAssetOverview` / Net Worth Track Asset read-only baseline.
+2. Follow-up design: Anomaly Detector legacy 40-check parity and record-level jump/highlight contracts.
+3. Follow-up design: statutory dashboard/GL reconciliation once GL journal, closing period, and retained earnings contracts exist.

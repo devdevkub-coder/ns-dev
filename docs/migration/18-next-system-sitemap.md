@@ -116,6 +116,9 @@ Status terms:
 | `/sales/po-sell` | PO Sell | read baseline | `GET /api/sales/po-sell` | `po_sells`, `customers`, `sales_channels`, `branches`, `products`, `trading_deals` / match data | `finance.cash.view` |
 | `/dual-costing/cost-pool` | Cost Pool | read-derived baseline | `GET /api/dual-costing/cost-pool` | `po_buys`, `purchase_bills`, `production_outputs`, `grade_adjustments`, `trading_deals`, `products`, `branches` | `finance.cash.view` |
 | `/dual-costing/cost-allocator` | Cost Allocator | read-only simulation baseline | `GET /api/dual-costing/cost-allocator` | `po_sells`, `sales_bills`, `trading_deals`, derived Cost Pool rows | `finance.cash.view` |
+| `/dual-costing/waiting-allocations` | Waiting Allocations | read-derived management baseline | `GET /api/dual-costing/waiting-allocations` | `sales_bills`, `trading_deals`, `products`, `customers`, `branches` | `finance.cash.view` |
+| `/dual-costing/cost-allocation-ledger` | Allocation Ledger | read-derived management/audit baseline | `GET /api/dual-costing/cost-allocation-ledger` | `trading_deals`, `purchase_bills`, `sales_bills`, `products`, party lookups | `finance.cash.view` |
+| `/dual-costing/report` | Dual Costing Report | read-derived management dashboard baseline | `GET /api/dual-costing/report` | derived Waiting Allocations + Allocation Ledger rows | `finance.cash.view` |
 | `/dual-costing/match-log` | Match Log | read baseline | `GET /api/dual-costing/match-log` | `trading_deals`, `purchase_bills`, `sales_bills`, `products`, party lookups | `finance.cash.view` |
 | `/dual-costing/deal-margin` | Deal Margin Report | read baseline | `GET /api/dual-costing/deal-margin` | `trading_deals`, `products`, `customers`, `sales_bills` | `finance.cash.view` |
 | `/dual-costing/compare-margin` | Compare Deal vs Stock | read baseline | `GET /api/dual-costing/compare-margin` | `trading_deals`, `sales_bills` | `finance.cash.view` |

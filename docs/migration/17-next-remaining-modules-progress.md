@@ -1238,6 +1238,23 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Result: UI-D3 Match Log / Deal Margin / Compare Margin legacy UI parity revision validated and pushed.
 - Commit: `dcfa1c1 fix: restore dual costing margin legacy ui parity` pushed to `main`.
 
+### UI-D4: Remote-Only Dual Costing Views Baseline
+
+- [x] `/dual-costing/waiting-allocations`
+- [x] `/dual-costing/cost-allocation-ledger`
+- [x] `/dual-costing/report`
+- [x] validate and push
+
+#### Execution Log
+
+- Task: restore remote legacy views that were missing from local legacy/Vue source but present in `reports/legacy-ui-audit/legacy-remote-index.html`: `waitingAllocations`, `costAllocationLedger`, and `dualCostingReport`.
+- Legacy refs: `reports/legacy-ui-audit/legacy-remote-index.html:23532`, `reports/legacy-ui-audit/legacy-remote-index.html:23700`, `reports/legacy-ui-audit/legacy-remote-index.html:23916`.
+- Files changed: `apps/next/src/lib/server/dual-costing-management.ts`, `apps/next/src/app/api/dual-costing/waiting-allocations/route.ts`, `apps/next/src/app/api/dual-costing/cost-allocation-ledger/route.ts`, `apps/next/src/app/api/dual-costing/report/route.ts`, `apps/next/src/components/dual-costing/DualCostingManagementPageClient.tsx`, three page route files, `apps/next/src/lib/navigation.ts`, OpenAPI, sitemap, UI parity tracker, and current handoff.
+- DB/API changes: no schema migration and no mutation endpoint. Waiting Allocations is derived from `sales_bills.items` for copper/brass groups minus current `trading_deals` matched quantity. Allocation Ledger and Dual Costing Report are derived from current `trading_deals` because a normalized allocation ledger table does not exist yet.
+- Buttons/actions checked: Waiting Allocate, Ledger export/write, allocation reverse, stock side effects, GL posting, and statutory P&L behavior remain disabled/deferred.
+- Commands: `npm run lint --workspace @ns-scrap-erp/next` passed; `npm run type-check --workspace @ns-scrap-erp/next` passed; `npm run build --workspace @ns-scrap-erp/next` passed; `git diff --check` passed.
+- Result: UI-D4 remote-only Dual Costing views read-only baseline validated and pushed.
+
 ## Batch FF: Foreign Finance
 
 ### FF0: Module Overview

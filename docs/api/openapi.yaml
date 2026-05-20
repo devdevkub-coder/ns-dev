@@ -2124,6 +2124,116 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /api/dual-costing/waiting-allocations:
+    get:
+      tags: [Dual Costing]
+      operationId: readWaitingAllocations
+      summary: Read Waiting Allocation Queue baseline
+      description: >
+        Read-only management queue for dual-costing sales rows whose
+        copper/brass quantities are not fully allocated to current deal-cost
+        records. Allocation/write actions remain disabled until normalized
+        allocation logs, reverse rules, audit, and reconciliation are designed.
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending_allocation, partially_allocated]
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Waiting allocation rows and category summary
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/dual-costing/cost-allocation-ledger:
+    get:
+      tags: [Dual Costing]
+      operationId: readCostAllocationLedger
+      summary: Read Cost Allocation Ledger baseline
+      description: >
+        Read-only management/audit ledger derived from current trading deal
+        matches because a normalized cost allocation ledger table is not
+        present yet. Reverse/write/export actions stay deferred.
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [approved, reversed]
+        - name: targetType
+          in: query
+          schema:
+            type: string
+            enum: [PO_SELL, SPOT_SELL]
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cost allocation ledger rows and management summary
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/dual-costing/report:
+    get:
+      tags: [Dual Costing]
+      operationId: readDualCostingReport
+      summary: Read Dual Costing Report baseline
+      description: >
+        Read-only management dashboard that aggregates current deal-cost rows
+        and pending allocation rows. This is not a statutory P&L source; P&L
+        and closing reports continue to use WAC until GL/contracts exist.
+      responses:
+        "200":
+          description: Dual Costing management report summary
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /api/dual-costing/match-log:
     get:
       tags: [Dual Costing]
