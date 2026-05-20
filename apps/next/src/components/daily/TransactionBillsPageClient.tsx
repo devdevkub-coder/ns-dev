@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
@@ -676,11 +676,14 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 </div>
                 {fieldErrors.items ? <div className="mb-2 text-xs text-red-600">{fieldErrors.items}</div> : null}
                 <div className="overflow-x-auto rounded-lg border">
-                  <table className="w-full min-w-[1120px] text-sm">
+                  <table className="w-full min-w-[780px] text-sm">
                     <thead className="bg-slate-100">
                       <tr>
-                        <th className="p-2 text-left">สินค้า *</th>
-                        <th className="w-40 p-2 text-left text-indigo-700">PO</th>
+                        <th className="p-2 text-left" colSpan={4}>สินค้า *</th>
+                        <th className="p-2 text-left text-indigo-700" colSpan={form.salesId ? 3 : 2}>PO</th>
+                        <th className="w-16 p-2"></th>
+                      </tr>
+                      <tr className="border-t border-slate-200">
                         <th className="w-28 p-2 text-right">Gross</th>
                         <th className="w-28 p-2 text-right text-amber-700">หัก</th>
                         <th className="w-28 p-2 text-right text-emerald-700">สุทธิ</th>
@@ -693,35 +696,38 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     </thead>
                     <tbody>
                       {form.items.map((item, index) => (
-                        <tr key={index} className="border-t align-top hover:bg-blue-50/30">
-                          <td className="p-2">
-                            <select className="w-full rounded border px-2 py-2" value={item.productId} onChange={(event) => updateItem(index, 'productId', event.target.value)}>
-                              <option value="">เลือกสินค้า</option>
-                              {activeProducts.map((product) => <option key={product.id} value={product.id}>{product.code ? `${product.code} — ` : ''}{product.name}{product.unit ? ` (${product.unit})` : ''}</option>)}
-                            </select>
-                            <input className="mt-1.5 w-full rounded border bg-yellow-50 px-2 py-1 text-xs" placeholder="ชื่อสำหรับโชว์ในบิล (ว่าง = ใช้ชื่อ Master)" value={item.displayName ?? ''} onChange={(event) => updateItem(index, 'displayName', event.target.value || null)} />
-                          </td>
-                          <td className="p-2">
-                            <select className="w-full rounded border bg-blue-50 px-2 py-2 text-xs" value={item.poBuyId ?? ''} onChange={(event) => updateItem(index, 'poBuyId', event.target.value || null)}>
-                              <option value="">Spot Buy</option>
-                              {activePoBuys.map((po) => <option key={po.id} value={po.id}>{po.label ?? po.name}</option>)}
-                            </select>
-                          </td>
-                          <td className="p-2"><input className="w-full rounded border bg-slate-50 px-2 py-2 text-right font-mono" min="0" step="0.01" type="number" value={item.grossWeight || ''} onChange={(event) => updateItemWeights(index, 'grossWeight', Number(event.target.value || 0))} /></td>
-                          <td className="p-2"><input className="w-full rounded border bg-amber-50 px-2 py-2 text-right font-mono" min="0" step="0.01" type="number" value={item.deductWeight || ''} onChange={(event) => updateItemWeights(index, 'deductWeight', Number(event.target.value || 0))} /></td>
-                          <td className="p-2"><input className="w-full rounded border bg-emerald-50 px-2 py-2 text-right font-mono font-bold text-emerald-700" min="0" step="0.01" type="number" value={item.qty || ''} onChange={(event) => updateItem(index, 'qty', Number(event.target.value || 0))} /></td>
-                          <td className="p-2"><input className="w-full rounded border px-2 py-2 text-right font-mono" min="0" step="0.01" type="number" value={item.price || ''} onChange={(event) => updateItem(index, 'price', Number(event.target.value || 0))} /></td>
-                          {form.salesId ? <td className="p-2"><input className="w-full rounded border bg-purple-50 px-2 py-2 text-right font-mono" min="0" step="0.01" type="number" value={item.salesPrice || ''} onChange={(event) => updateItem(index, 'salesPrice', Number(event.target.value || 0))} /></td> : null}
-                          <td className="p-2"><input className="w-full rounded border px-2 py-2 text-right font-mono" min="0" step="0.01" type="number" value={item.discount || ''} onChange={(event) => updateItem(index, 'discount', Number(event.target.value || 0))} /></td>
-                          <td className="p-2 text-right font-mono font-bold text-blue-700">{formatMoney(Math.max(0, item.qty * item.price - item.discount))}</td>
-                          <td className="p-2"><button className="rounded px-3 py-2 text-red-600 hover:bg-red-50 disabled:opacity-40" disabled={form.items.length <= 1} type="button" onClick={() => removeItem(index)}>ลบ</button></td>
-                        </tr>
+                        <Fragment key={index}>
+                          <tr className="border-t align-top hover:bg-blue-50/30">
+                            <td className="p-2" colSpan={4}>
+                              <select className="w-full rounded border px-2 py-2" value={item.productId} onChange={(event) => updateItem(index, 'productId', event.target.value)}>
+                                <option value="">เลือกสินค้า</option>
+                                {activeProducts.map((product) => <option key={product.id} value={product.id}>{product.code ? `${product.code} — ` : ''}{product.name}{product.unit ? ` (${product.unit})` : ''}</option>)}
+                              </select>
+                              <input className="mt-1.5 w-full rounded border bg-yellow-50 px-2 py-1 text-xs" placeholder="ชื่อสำหรับโชว์ในบิล (ว่าง = ใช้ชื่อ Master)" value={item.displayName ?? ''} onChange={(event) => updateItem(index, 'displayName', event.target.value || null)} />
+                            </td>
+                            <td className="p-2" colSpan={form.salesId ? 3 : 2}>
+                              <select className="w-full rounded border bg-blue-50 px-2 py-2 text-xs" value={item.poBuyId ?? ''} onChange={(event) => updateItem(index, 'poBuyId', event.target.value || null)}>
+                                <option value="">Spot Buy</option>
+                                {activePoBuys.map((po) => <option key={po.id} value={po.id}>{po.label ?? po.name}</option>)}
+                              </select>
+                            </td>
+                            <td className="p-2 align-middle" rowSpan={2}><button className="rounded px-3 py-2 text-red-600 hover:bg-red-50 disabled:opacity-40" disabled={form.items.length <= 1} type="button" onClick={() => removeItem(index)}>ลบ</button></td>
+                          </tr>
+                          <tr className="border-t border-slate-100 align-top hover:bg-blue-50/30">
+                            <td className="p-2"><input className="w-full rounded border bg-slate-50 px-2 py-2 text-right font-mono" min="0" step="0.01" type="number" value={item.grossWeight || ''} onChange={(event) => updateItemWeights(index, 'grossWeight', Number(event.target.value || 0))} /></td>
+                            <td className="p-2"><input className="w-full rounded border bg-amber-50 px-2 py-2 text-right font-mono" min="0" step="0.01" type="number" value={item.deductWeight || ''} onChange={(event) => updateItemWeights(index, 'deductWeight', Number(event.target.value || 0))} /></td>
+                            <td className="p-2"><input className="w-full rounded border bg-emerald-50 px-2 py-2 text-right font-mono font-bold text-emerald-700" min="0" step="0.01" type="number" value={item.qty || ''} onChange={(event) => updateItem(index, 'qty', Number(event.target.value || 0))} /></td>
+                            <td className="p-2"><input className="w-full rounded border px-2 py-2 text-right font-mono" min="0" step="0.01" type="number" value={item.price || ''} onChange={(event) => updateItem(index, 'price', Number(event.target.value || 0))} /></td>
+                            {form.salesId ? <td className="p-2"><input className="w-full rounded border bg-purple-50 px-2 py-2 text-right font-mono" min="0" step="0.01" type="number" value={item.salesPrice || ''} onChange={(event) => updateItem(index, 'salesPrice', Number(event.target.value || 0))} /></td> : null}
+                            <td className="p-2"><input className="w-full rounded border px-2 py-2 text-right font-mono" min="0" step="0.01" type="number" value={item.discount || ''} onChange={(event) => updateItem(index, 'discount', Number(event.target.value || 0))} /></td>
+                            <td className="p-2 text-right font-mono font-bold text-blue-700">{formatMoney(Math.max(0, item.qty * item.price - item.discount))}</td>
+                          </tr>
+                        </Fragment>
                       ))}
                     </tbody>
                     <tfoot className="border-t bg-emerald-50 font-bold">
                       <tr>
-                        <td className="p-2 text-right" colSpan={2}>รวม</td>
-                        <td className="p-2 text-right font-mono">{formatMoney(form.items.reduce((sum, item) => sum + item.grossWeight, 0))}</td>
+                        <td className="p-2 text-right font-mono"><span className="mr-2 text-slate-700">รวม</span>{formatMoney(form.items.reduce((sum, item) => sum + item.grossWeight, 0))}</td>
                         <td className="p-2 text-right font-mono text-amber-700">{formatMoney(form.items.reduce((sum, item) => sum + item.deductWeight, 0))}</td>
                         <td className="p-2 text-right font-mono text-emerald-700">{formatMoney(formTotalWeight)}</td>
                         <td></td>
