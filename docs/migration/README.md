@@ -34,6 +34,7 @@
 13. [15-next-daily-transactions-progress.md](/Users/watcharathatsrithanesiganon/Documents/GitHub/ns-scrap-erp/docs/migration/15-next-daily-transactions-progress.md)
 14. [16-next-production-progress.md](/Users/watcharathatsrithanesiganon/Documents/GitHub/ns-scrap-erp/docs/migration/16-next-production-progress.md)
 15. [17-next-remaining-modules-progress.md](/Users/watcharathatsrithanesiganon/Documents/GitHub/ns-scrap-erp/docs/migration/17-next-remaining-modules-progress.md)
+16. [20-legacy-page-inventory.md](/Users/watcharathatsrithanesiganon/Documents/GitHub/ns-scrap-erp/docs/migration/20-legacy-page-inventory.md)
 
 ## Recommended Order
 
@@ -54,3 +55,4 @@
 13. ใช้ `15-next-daily-transactions-progress` ติดตามการ port กลุ่มรายการประจำวันใน Next พร้อม API/DB/permission/reconciliation
 14. ใช้ `16-next-production-progress` ติดตามการ port กลุ่มผลิตจาก legacy รวม production orders, inputs, outputs, output categories, stock ledger, cost/yield reports และ reconciliation
 15. ใช้ `17-next-remaining-modules-progress` ติดตามงานที่เหลือทุกหมวด พร้อม batch ย่อย, task ย่อย, action/modal checklist, validation และ checkpoint rule
+16. ใช้ `20-legacy-page-inventory` เป็น baseline จำนวนหน้า legacy และ view ID สำหรับเทียบ route/page migration
