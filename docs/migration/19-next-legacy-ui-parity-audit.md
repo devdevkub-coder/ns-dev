@@ -45,12 +45,12 @@ Baseline notes:
 | `/production/orders` | 2026-05-20 | Restored the first legacy production operations surface: dense filter card with date/status/preset ranges, card-grid order list with status color, target product, input/planned/output KPIs, yield bar, and cost footer; detail opens as a read-only tabbed surface with status actions disabled, target product banner, lock/status banners, six KPI cards, Header/Input/Output/Process Cost/Cost Allocation tabs, production variance panel, and allocation preview. Input/output/reverse/recompute/status mutation remains disabled. |
 | `/production/dashboard` | 2026-05-20 | Restored the legacy production dashboard surface: purple/pink hero with range presets and custom dates, four colored KPI cards, daily Input/Output/Loss chart panel, monthly Input/Output chart panel, status panel, Top 10 products table with code/cost/avg cost, and Machine Utilization table. API changes are read-only aggregate fields only; no production mutation, cost recompute, stock write, or posting behavior was added. |
 | `/production/production-cost-report` | 2026-05-20 | Restored the legacy cost report surface: date filter/export row, seven cost cards, gradient Total/Cost per Kg card, 13-column cost breakdown table, legacy CSV columns, and cost allocation method field from the read helper. It renders existing read-only `costBreakdown` data; no cost recalculation, stock mutation, or posting behavior was added. |
+| `/po-reports/outstanding` | 2026-05-20 | Restored the legacy PO outstanding report surface: purple hero, buy/sell tabs, active CSV export, four colored KPI cards per tab, partner/product filters, cost-deducted warning and read-only checkbox shell, received/sold columns, expected delivery columns, empty states, and footer totals. Cost-deducted toggle remains disabled because it is a cost-pool write side effect requiring audit/permission design. |
 
 ## P1 Backlog
 
 | Route | Legacy view | Current issue | Next file |
 |---|---|---|---|
-| `/po-reports/outstanding` | `view-poOutstanding` | Legacy purple hero, buy/sell tabs, export, supplier/customer/product filters, KPI colors, cost-deducted warning, checkbox column, received/sold columns, footer totals are missing or simplified. | `apps/next/src/components/purchase-flow/PoOutstandingPageClient.tsx` |
 | `/reports` | `view-reports` | Legacy is a tabbed aggregate report surface; Next is currently a report index/search catalog. Treat as deviation only if explicitly approved. | `apps/next/src/app/reports/ReportsIndexPageClient.tsx` |
 | `/sales-plan` | `view-salesPlan` | Legacy has dense editable planning table with product/customer/channel/container/%LME/lock/delete; Next is a read shell. | `apps/next/src/components/main/MainSalesControlClients.tsx` |
 | `/dashboard` | `view-dashboard` | Legacy has filter bar, alert cards, top supplier/customer, trend/chart panels, and four colored business sections; Next is simplified. | `apps/next/src/components/main/MainDashboardsPageClient.tsx` |
@@ -110,6 +110,6 @@ Next routes without a direct standalone legacy page:
 
 ## Active Execution Order
 
-1. P1 PO/Reports/Main: `/po-reports/outstanding`, `/reports`, `/sales-plan`, `/dashboard`
+1. P1 PO/Reports/Main: `/reports`, `/sales-plan`, `/dashboard`
 2. P1 Daily transaction surfaces
 3. P1/P2 production report polish
