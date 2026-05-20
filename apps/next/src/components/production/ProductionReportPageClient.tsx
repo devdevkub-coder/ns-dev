@@ -33,7 +33,7 @@ const configs: Record<string, { apiPath: string; columns: Column[]; metrics: Arr
     apiPath: '/api/production/wip-report',
     title: 'WIP คงเหลือ',
     metrics: [{ key: 'count', label: 'ใบที่มี WIP' }, { key: 'wipQty', label: 'WIP Qty', type: 'number' }, { key: 'wipValue', label: 'WIP Value', type: 'money' }],
-    columns: [{ key: 'docNo', label: 'ใบสั่งผลิต' }, { key: 'date', label: 'วันที่เริ่ม' }, { key: 'branchName', label: 'สาขา' }, { key: 'machineName', label: 'เครื่องจักร' }, { key: 'inputQty', label: 'Input', type: 'number' }, { key: 'outputQty', label: 'Output', type: 'number' }, { key: 'wipQty', label: 'WIP Qty', type: 'number' }, { key: 'wipValue', label: 'WIP Value', type: 'money' }, { key: 'status', label: 'สถานะ' }],
+    columns: [{ key: 'docNo', label: 'ใบสั่งผลิต' }, { key: 'date', label: 'วันที่เริ่ม' }, { key: 'ageDays', label: 'อายุ (วัน)', type: 'number' }, { key: 'branchName', label: 'สาขา' }, { key: 'machineName', label: 'เครื่องจักร' }, { key: 'inputQty', label: 'Input', type: 'number' }, { key: 'outputQty', label: 'Output', type: 'number' }, { key: 'wipQty', label: 'WIP Qty', type: 'number' }, { key: 'wipValue', label: 'WIP Value', type: 'money' }, { key: 'status', label: 'สถานะ' }],
   },
   report: {
     apiPath: '/api/production/report',
@@ -60,7 +60,7 @@ const configs: Record<string, { apiPath: string; columns: Column[]; metrics: Arr
     apiPath: '/api/production/machine-utilization',
     title: 'Machine Utilization',
     metrics: [{ key: 'count', label: 'เครื่องจักร' }, { key: 'inputQty', label: 'Input', type: 'number' }, { key: 'outputQty', label: 'Output', type: 'number' }],
-    columns: [{ key: 'name', label: 'เครื่องจักร' }, { key: 'type', label: 'ประเภท' }, { key: 'branchName', label: 'สาขา' }, { key: 'capacityKgPerHr', label: 'Capacity', type: 'number' }, { key: 'normalYieldPct', label: 'Normal Yield', type: 'percent' }, { key: 'orderCount', label: 'รอบ', type: 'number' }, { key: 'inputQty', label: 'Input', type: 'number' }, { key: 'outputQty', label: 'Output', type: 'number' }, { key: 'actualYield', label: 'Actual Yield', type: 'percent' }, { key: 'yieldDiff', label: 'Diff', type: 'percent' }, { key: 'utilization', label: 'Util %', type: 'percent' }, { key: 'maintenanceStatus', label: 'สถานะ' }],
+    columns: [{ key: 'name', label: 'เครื่องจักร' }, { key: 'type', label: 'ประเภท' }, { key: 'branchName', label: 'สาขา' }, { key: 'capacityKgPerHr', label: 'Capacity', type: 'number' }, { key: 'normalYieldPct', label: 'Normal Y%', type: 'percent' }, { key: 'orderCount', label: 'รอบ', type: 'number' }, { key: 'inputQty', label: 'Input', type: 'number' }, { key: 'outputQty', label: 'Output', type: 'number' }, { key: 'actualYield', label: 'Actual Y%', type: 'percent' }, { key: 'yieldDiff', label: 'Diff', type: 'percent' }, { key: 'estHours', label: 'Est.Hrs', type: 'number' }, { key: 'utilization', label: 'Util %', type: 'percent' }, { key: 'totalCost', label: 'ต้นทุน', type: 'money' }, { key: 'maintenanceStatus', label: 'สถานะ' }],
   },
 }
 
@@ -92,8 +92,20 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
     void loadData()
   }, [loadData])
 
-  const rows = data?.rows ?? []
+  const rows = useMemo(() => data?.rows ?? [], [data?.rows])
   const metricItems = useMemo(() => config.metrics.map((metric) => ({ ...metric, value: data?.summary?.[metric.key] ?? 0 })), [config.metrics, data?.summary])
+  const productSummary = useMemo(() => {
+    const byProduct = new Map<string, { cost: number; count: number; name: string; qty: number }>()
+    rows.forEach((row) => {
+      const name = String(row.productName ?? '-')
+      const current = byProduct.get(name) ?? { cost: 0, count: 0, name, qty: 0 }
+      current.count += 1
+      current.qty += Number(row.outputQty ?? 0)
+      current.cost += Number(row.totalCost ?? 0)
+      byProduct.set(name, current)
+    })
+    return Array.from(byProduct.values()).map((item) => ({ ...item, unitCost: item.qty > 0 ? item.cost / item.qty : 0 })).sort((left, right) => right.qty - left.qty)
+  }, [rows])
 
   function applyDashboardRange(range: 'last30' | 'last7' | 'last90' | 'month' | 'today' | 'year') {
     const end = new Date()
@@ -302,27 +314,50 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
           {config.exportable ? <button className="ml-auto rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white" type="button" onClick={exportCsv}>Export CSV</button> : null}
         </div>
       </div>
+      {mode === 'yieldLoss' ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          แสดง Yield/Loss + <b>P&amp;L Impact</b> — Output ขาดเกิน Normal = Loss สีแดง · Output เกินคาด = Gain สีเขียว · Net P&amp;L = Gain - Loss
+        </div>
+      ) : null}
+      {mode === 'machine' ? (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+          <b>Machine Utilization</b> = ชั่วโมงประมาณการ / (8 ชม./วัน x จำนวนวัน) | <b>Yield Diff</b> = Actual Yield - Normal Yield
+        </div>
+      ) : null}
       <div className="grid gap-3 md:grid-cols-6">
         {metricItems.map((metric) => <Metric key={metric.key} label={metric.label} type={metric.type} value={metric.value} />)}
       </div>
-      {mode === 'dashboard' && data?.topProducts?.length ? (
-        <div className="rounded-lg bg-white p-4 shadow">
-          <h3 className="font-semibold">Top Products</h3>
-          <div className="mt-3 grid gap-2 md:grid-cols-2">
-            {data.topProducts.map((item) => <div key={item.name} className="flex justify-between rounded border p-2 text-sm"><span>{item.name}</span><span className="font-semibold">{formatMoney(item.qty)}</span></div>)}
+      {mode === 'yieldLoss' ? (
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <ImpactCard label="Yield Gain (Output > คาดหวัง)" tone="gain" value={Number(data?.summary?.yieldGainValue ?? 0)} />
+          <ImpactCard label="Abnormal Loss (Output < Normal)" tone="loss" value={Number(data?.summary?.abnormalLossValue ?? 0)} />
+          <ImpactCard label="Net P&L Impact" tone={Number(data?.summary?.netPnL ?? 0) >= 0 ? 'netGood' : 'netBad'} value={Number(data?.summary?.netPnL ?? 0)} />
+        </div>
+      ) : null}
+      {mode === 'report' ? (
+        <div className="overflow-hidden rounded-xl bg-white shadow">
+          <h3 className="border-b px-4 py-3 font-semibold">📦 ผลผลิตแยกตามสินค้า</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-100"><tr><th className="p-2 text-left">สินค้า</th><th className="p-2 text-right">รอบ</th><th className="p-2 text-right">น้ำหนักรวม</th><th className="p-2 text-right">ต้นทุนรวม</th><th className="p-2 text-right">ต้นทุน/กก.</th></tr></thead>
+              <tbody>
+                {productSummary.map((item) => <tr key={item.name} className="border-t"><td className="p-2">{item.name}</td><td className="p-2 text-right">{item.count}</td><td className="p-2 text-right font-medium text-emerald-700">{formatMoney(item.qty)}</td><td className="p-2 text-right">{formatMoney(item.cost)}</td><td className="p-2 text-right">{formatMoney(item.unitCost)}</td></tr>)}
+                {!productSummary.length ? <tr><td className="py-6 text-center text-slate-400" colSpan={5}>ไม่มีข้อมูล</td></tr> : null}
+              </tbody>
+            </table>
           </div>
         </div>
       ) : null}
-      <div className="overflow-x-auto rounded-lg bg-white shadow">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-xl bg-white shadow">
+        <table className="w-full text-sm table-zebra">
           <thead className="bg-slate-100">
             <tr>{config.columns.map((column) => <th key={column.key} className="whitespace-nowrap p-2 text-left">{column.label}</th>)}</tr>
           </thead>
           <tbody>
             {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={config.columns.length}>กำลังโหลดข้อมูล</td></tr> : null}
             {!isLoading && rows.map((row, index) => (
-              <tr key={String(row.id ?? index)} className="border-t hover:bg-slate-50">
-                {config.columns.map((column) => <td key={column.key} className="whitespace-nowrap p-2">{formatCell(row[column.key], column.type)}</td>)}
+              <tr key={String(row.id ?? index)} className={`border-t hover:bg-slate-50 ${mode === 'wip' ? wipAgeClass(Number(row.ageDays ?? 0)) : ''}`}>
+                {config.columns.map((column) => <td key={column.key} className={`whitespace-nowrap p-2 ${cellTone(row[column.key], column, mode)}`}>{formatCell(row[column.key], column.type)}</td>)}
               </tr>
             ))}
             {!isLoading && rows.length === 0 ? <tr><td className="p-6 text-center text-slate-500" colSpan={config.columns.length}>ไม่มีข้อมูล</td></tr> : null}
@@ -335,6 +370,17 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
 
 function Metric({ label, type, value }: { label: string; type?: 'money' | 'number' | 'percent'; value: number }) {
   return <div className="rounded-lg bg-white p-3 shadow"><div className="text-xs text-slate-500">{label}</div><div className="mt-1 text-lg font-bold text-slate-900">{formatCell(value, type)}</div></div>
+}
+
+function ImpactCard({ label, tone, value }: { label: string; tone: 'gain' | 'loss' | 'netBad' | 'netGood'; value: number }) {
+  const classes = {
+    gain: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    loss: 'border-red-200 bg-red-50 text-red-700',
+    netBad: 'border-orange-300 bg-orange-50 text-orange-700',
+    netGood: 'border-blue-300 bg-blue-50 text-blue-700',
+  }
+  const prefix = tone === 'gain' || tone === 'netGood' ? '+' : tone === 'loss' ? '-' : ''
+  return <div className={`rounded-xl border-2 p-4 shadow ${classes[tone]}`}><div className="text-xs font-semibold">{label}</div><div className="mt-1 text-2xl font-bold">{prefix}{formatMoney(Math.abs(value))} ฿</div></div>
 }
 
 function DashboardKpi({ label, note, tone, value }: { label: string; note: string; tone: 'amber' | 'blue' | 'emerald' | 'purple'; value: string }) {
@@ -398,4 +444,31 @@ function formatCell(value: Row[string], type?: Column['type']) {
   if (type === 'number') return formatMoney(Number(value))
   if (type === 'percent') return `${Number(value).toLocaleString('th-TH', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}%`
   return String(value)
+}
+
+function cellTone(value: Row[string], column: Column, mode: string) {
+  if (mode === 'wip' && column.key === 'ageDays') {
+    const ageDays = Number(value ?? 0)
+    if (ageDays > 30) return 'font-bold text-red-600'
+    if (ageDays > 14) return 'font-semibold text-amber-700'
+  }
+  if (mode === 'yieldLoss' && ['abnormalLossValue', 'lossPct', 'lossQty'].includes(column.key)) return 'text-red-600'
+  if (mode === 'yieldLoss' && ['yieldGainValue', 'netPnL'].includes(column.key)) {
+    return Number(value ?? 0) >= 0 ? 'font-bold text-emerald-700' : 'font-bold text-red-600'
+  }
+  if (mode === 'machine' && column.key === 'actualYield') return 'font-bold text-emerald-700'
+  if (mode === 'machine' && column.key === 'yieldDiff') return Number(value ?? 0) >= 0 ? 'text-emerald-700' : 'text-red-600'
+  if (mode === 'machine' && column.key === 'utilization') {
+    const utilization = Number(value ?? 0)
+    if (utilization >= 70) return 'font-bold text-emerald-700'
+    if (utilization >= 40) return 'font-bold text-amber-700'
+    return 'font-bold text-red-600'
+  }
+  return ''
+}
+
+function wipAgeClass(ageDays: number) {
+  if (ageDays > 30) return 'bg-red-50/50'
+  if (ageDays > 14) return 'bg-amber-50/30'
+  return ''
 }
