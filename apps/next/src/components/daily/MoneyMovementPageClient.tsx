@@ -168,6 +168,13 @@ export function MoneyMovementPageClient({ mode }: { mode: 'payment' | 'receipt' 
   const outstandingBills = useMemo(() => data.bills
     .filter((bill) => (mode === 'payment' ? (bill.payableBalance ?? 0) > 0 : (bill.receivableBalance ?? 0) > 0))
     .slice(0, 500), [data.bills, mode])
+  const paymentSupplierId = mode === 'payment'
+    ? paymentLines.find((line) => line.supplierId)?.supplierId ?? (form as SupplierPaymentFormValues).supplierId
+    : ''
+  const paymentSelectableBills = useMemo(() => {
+    if (mode !== 'payment' || !paymentSupplierId) return outstandingBills
+    return outstandingBills.filter((bill) => bill.supplierId === paymentSupplierId)
+  }, [mode, outstandingBills, paymentSupplierId])
 
   const supplierBills = useMemo(() => {
     if (mode !== 'payment') return []
@@ -331,7 +338,7 @@ export function MoneyMovementPageClient({ mode }: { mode: 'payment' | 'receipt' 
 
   function selectPaymentLineBill(index: number, rawValue: string) {
     const docNo = rawValue.split('|')[0]?.trim()
-    const bill = outstandingBills.find((candidate) => candidate.id === rawValue || candidate.docNo === docNo)
+    const bill = paymentSelectableBills.find((candidate) => candidate.id === rawValue || candidate.docNo === docNo)
     if (!bill) {
       updatePaymentLine(index, { billText: rawValue })
       return
@@ -625,10 +632,10 @@ export function MoneyMovementPageClient({ mode }: { mode: 'payment' | 'receipt' 
                     <h4 className="font-semibold text-slate-800">รายการจ่าย ({paymentLines.length}) — เลือกบิลที่ต้องการจ่ายได้เลย ระบบจะ auto-fill Supplier</h4>
                     <button className="rounded bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700" type="button" onClick={addPaymentLine}>+ เพิ่มบรรทัด</button>
                   </div>
-                  {outstandingBills.length === 0 ? <div className="mb-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700">⚠️ ไม่มีบิลซื้อค้างจ่าย</div> : null}
+                  {paymentSelectableBills.length === 0 ? <div className="mb-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700">⚠️ ไม่มีบิลซื้อค้างจ่ายของ Supplier นี้</div> : null}
                   <div className="overflow-x-auto rounded-lg border border-slate-200">
                     <datalist id="payment-bill-options">
-                      {outstandingBills.map((bill) => (
+                      {paymentSelectableBills.map((bill) => (
                         <option key={bill.id} value={`${bill.docNo} | ${partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'} | ค้าง ${formatMoney(bill.payableBalance ?? 0)}`} />
                       ))}
                     </datalist>

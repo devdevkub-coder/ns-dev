@@ -188,6 +188,13 @@ export async function POST(request: Request) {
       ])
       const billById = new Map(lineBills.map((bill) => [bill.id, bill]))
       if (billById.size !== lineBillIds.length) throw new Error('ไม่พบบิลซื้อที่ต้องการตัดชำระ')
+      const firstSupplierId = billById.get(paymentLineTotals[0].billId)?.supplier_id ?? paymentLineTotals[0].supplierId
+      if (paymentLineTotals.some((line) => {
+        const lineSupplierId = billById.get(line.billId)?.supplier_id ?? line.supplierId
+        return lineSupplierId !== firstSupplierId
+      })) {
+        throw new Error('Payment Voucher เดียวกันต้องเป็นบิลของ Supplier เดียวกัน')
+      }
       const splitAccountCount = await tx.accounts.count({ where: { active: true, id: { in: splitAccountIds } } })
       if (splitAccountCount !== splitAccountIds.length) throw new Error('บัญชีจ่ายบางรายการไม่ถูกต้องหรือไม่ active')
       const firstBill = billById.get(paymentLineTotals[0].billId)
