@@ -74,4 +74,10 @@ export const purchaseBillFormSchema = z.object({
   path: ['vatInvoiceDate'],
 })
 
+export const purchaseBillCancelSchema = z.object({
+  id: z.string().trim().min(1, 'ระบุบิลที่ต้องการยกเลิก').max(80, 'รหัสบิลยาวเกินไป').regex(/^[A-Za-z0-9_.:-]+$/, 'รหัสบิลมีรูปแบบไม่ถูกต้อง'),
+  note: z.string().trim().min(1, 'กรอกหมายเหตุการยกเลิก').max(500, 'หมายเหตุยาวเกินไป').regex(generalTextPattern, 'หมายเหตุมีรูปแบบไม่ถูกต้อง'),
+})
+
 export type PurchaseBillFormValues = z.infer<typeof purchaseBillFormSchema>
+export type PurchaseBillCancelValues = z.infer<typeof purchaseBillCancelSchema>

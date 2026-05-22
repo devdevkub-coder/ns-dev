@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import * as XLSX from 'xlsx'
-import { purchaseBillFormSchema, type PurchaseBillFormValues } from '@/lib/purchase-bill'
+import { purchaseBillCancelSchema, purchaseBillFormSchema, type PurchaseBillFormValues } from '@/lib/purchase-bill'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
@@ -31,6 +31,7 @@ type BillQuery = {
   search?: string
   sortDirection: Prisma.SortOrder
   sortKey: string
+  status?: string
 }
 
 function branchBillCode(branchCode: string | null | undefined) {
@@ -246,6 +247,7 @@ function parseBillQuery(url: URL, includePaging = true): BillQuery {
     search: url.searchParams.get('search')?.trim() || undefined,
     sortDirection,
     sortKey: url.searchParams.get('sortKey') || 'date',
+    status: url.searchParams.get('status') || undefined,
   }
 }
 
@@ -260,6 +262,7 @@ function billWhere(query: BillQuery): Prisma.purchase_billsWhereInput {
   }
   if (query.filterMode) where.transaction_mode = query.filterMode
   if (query.filterSource) where.purchase_source = query.filterSource
+  if (query.status) where.status = query.status
   if (query.search) {
     where.OR = [
       { doc_no: { contains: query.search, mode: 'insensitive' } },
@@ -281,8 +284,8 @@ function billOrderBy(query: BillQuery): Prisma.purchase_billsOrderByWithRelation
         return { doc_no: direction }
       case 'refNo':
         return { ref_no: direction }
-      case 'createdBy':
-        return { created_by: direction }
+      case 'updatedBy':
+        return { updated_at: direction }
       case 'name':
         return { supplier_id: direction }
       case 'outstanding':
@@ -533,6 +536,45 @@ export async function PATCH(request: Request) {
     const raw = await request.json()
     const id = typeof raw?.id === 'string' ? raw.id.trim() : ''
     if (!id) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่พบบิลที่ต้องการแก้ไข' }, { status: 400 })
+    if (raw?.action === 'cancel') {
+      const values = purchaseBillCancelSchema.parse(raw)
+      const actor = currentActor(context)
+      const [existingBill, payments] = await Promise.all([
+        prisma.purchase_bills.findUnique({ where: { id: values.id } }),
+        prisma.payments.findMany({
+          select: { amount: true, discount: true, status: true, withholding_tax: true },
+          where: { bill_id: values.id, NOT: { status: 'cancelled' } },
+        }),
+      ])
+
+      if (!existingBill) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบบิลรับซื้อ' }, { status: 404 })
+      if (String(existingBill.status ?? '').toLowerCase().includes('cancel')) {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: 'บิลนี้ถูกยกเลิกแล้ว' }, { status: 400 })
+      }
+      const paidAmount = payments.reduce((sum, payment) => sum + toNumber(payment.amount) + toNumber(payment.withholding_tax) + toNumber(payment.discount), 0)
+      if (paidAmount > 0) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ยกเลิกไม่ได้ เพราะบิลนี้มีการชำระเงินแล้ว' }, { status: 400 })
+
+      const cancellationNote = `ยกเลิก: ${values.note}`
+      const nextNotes = [existingBill.notes ?? existingBill.note ?? '', cancellationNote].filter(Boolean).join('\n')
+      const cancelledBill = await prisma.$transaction(async (tx) => {
+        const bill = await tx.purchase_bills.update({
+          data: {
+            note: nextNotes,
+            notes: nextNotes,
+            payable_balance: 0,
+            status: 'cancelled',
+            updated_at: new Date(),
+            updated_by: actor,
+          },
+          select: { doc_no: true, id: true },
+          where: { id: values.id },
+        })
+        await tx.stock_ledger.deleteMany({ where: { ref_id: values.id, ref_type: 'PB' } })
+        return bill
+      })
+
+      return NextResponse.json({ docNo: cancelledBill.doc_no, id: cancelledBill.id, status: 'cancelled' })
+    }
 
     const values = purchaseBillFormSchema.parse(raw)
     const actor = currentActor(context)
