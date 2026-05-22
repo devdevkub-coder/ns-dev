@@ -185,8 +185,6 @@ export const navigationItems: NavigationItem[] = [
   { href: '/production/wip-report', icon: '⏳', label: 'WIP คงเหลือ', section: 'production' },
   { href: '/production/report', icon: '📐', label: 'รายงานการผลิต / Yield', section: 'production' },
   { href: '/production/production-cost-report', icon: '💴', label: 'Production Cost Report', section: 'production' },
-  { href: '/production/yield-loss-report', icon: '📉', label: 'Yield/Loss + Abnormal', section: 'production' },
-  { href: '/production/machine-utilization', icon: '⚙️', label: 'Machine Utilization', section: 'production' },
   { href: '/purchase/po-buy', icon: '📝', label: 'PO Buy (จองซื้อ)', section: 'dual-costing' },
   { href: '/sales/po-sell', icon: '📃', label: 'PO Sell (จองขาย)', pageTitle: 'PO Sell = จองขายล่วงหน้า - ใช้กับ Cost Allocator เพื่อคำนวณกำไรคาดการณ์ก่อนขายจริง', section: 'dual-costing' },
   { href: '/dual-costing/cost-pool', icon: '🪣', label: 'Cost Pool', section: 'dual-costing' },
