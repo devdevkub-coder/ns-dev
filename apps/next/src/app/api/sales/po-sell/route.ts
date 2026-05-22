@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server'
+import { randomUUID } from 'node:crypto'
 import * as XLSX from 'xlsx'
+import { poSellFormSchema, type PoSellFormValues } from '@/lib/sales'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { toDateOnly, toNumber } from '@/lib/server/daily'
+import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
+import type { Prisma } from '../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
 
@@ -76,6 +79,49 @@ function xlsxResponse(body: Buffer, filename: string) {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     },
   })
+}
+
+function poSellItems(values: PoSellFormValues, productById: Map<string, { code: string | null; name: string; unit: string | null }>) {
+  return values.items.map((item, index) => {
+    const product = productById.get(item.productId)
+    const totalRevenue = Math.max(0, item.qty * item.price - item.discount)
+    return {
+      discount: item.discount,
+      id: `${String(index + 1).padStart(2, '0')}`,
+      note: item.note,
+      productCode: product?.code ?? '',
+      productId: item.productId,
+      productName: product?.name ?? item.productId,
+      qty: item.qty,
+      remainingQty: item.qty,
+      totalRevenue,
+      unit: product?.unit ?? 'กก.',
+      unitPrice: item.price,
+    }
+  })
+}
+
+async function nextPoSellDocNo(date: Date) {
+  const year = String(date.getFullYear() + 543).slice(-2)
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const prefix = `POS${year}${month}-`
+  const latest = await prisma.po_sells.findFirst({
+    orderBy: { doc_no: 'desc' },
+    select: { doc_no: true },
+    where: { doc_no: { startsWith: prefix } },
+  })
+  const running = Number(latest?.doc_no?.slice(prefix.length) ?? '0') || 0
+  return `${prefix}${String(running + 1).padStart(4, '0')}`
+}
+
+async function optionsPayload() {
+  const [branches, customers, products, salesChannels] = await Promise.all([
+    prisma.branches.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
+    prisma.customers.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
+    prisma.products.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true, unit: true } }),
+    prisma.sales_channels.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, id: true, name: true } }),
+  ])
+  return { branches, customers, products, salesChannels }
 }
 
 export async function GET(request: Request) {
@@ -224,6 +270,7 @@ export async function GET(request: Request) {
         matchStatuses: Array.from(new Set(rows.map((row) => row.matchStatus))).sort(),
         statuses: Array.from(new Set(poSells.map((row) => row.status ?? 'Open'))).sort(),
       },
+      options: await optionsPayload(),
       rows,
       summary: {
         fullyMatched: rows.filter((row) => row.matchStatus === 'Fully Matched').length,
@@ -242,5 +289,73 @@ export async function GET(request: Request) {
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลด PO Sell ไม่ได้', 500)
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const context = await getCurrentAuthContext()
+    requirePermission(context, 'finance.cash.view')
+
+    const values = poSellFormSchema.parse(await request.json())
+    const actor = currentActor(context)
+    const createdAt = new Date()
+    const expectedDelivery = normalizeDate(values.expectedDelivery)
+    const productIds = [...new Set(values.items.map((item) => item.productId))]
+
+    const [customer, branch, channel, products] = await Promise.all([
+      prisma.customers.findFirst({ where: { active: true, id: values.customerId } }),
+      values.branchId ? prisma.branches.findFirst({ where: { active: true, id: values.branchId } }) : Promise.resolve(null),
+      values.channelId ? prisma.sales_channels.findFirst({ where: { active: true, id: values.channelId } }) : Promise.resolve(null),
+      prisma.products.findMany({ where: { active: true, id: { in: productIds } }, select: { code: true, id: true, name: true, unit: true } }),
+    ])
+
+    if (!customer) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ลูกค้าไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    if (values.branchId && !branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    if (values.channelId && !channel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ช่องทางขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+
+    const productById = new Map(products.map((product) => [product.id, product]))
+    const missingProduct = values.items.find((item) => !productById.has(item.productId))
+    if (missingProduct) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+
+    const items = poSellItems(values, productById)
+    const qty = items.reduce((sum, item) => sum + item.qty, 0)
+    const totalAmount = items.reduce((sum, item) => sum + item.totalRevenue, 0)
+    const firstItem = items[0]
+    const docNo = await nextPoSellDocNo(createdAt)
+    const created = await prisma.po_sells.create({
+      data: {
+        branch_id: values.branchId,
+        channel_id: values.channelId,
+        created_at: createdAt,
+        created_by: actor,
+        customer_id: values.customerId,
+        date: createdAt,
+        delivery_date: expectedDelivery,
+        doc_no: docNo,
+        expected_delivery: expectedDelivery,
+        id: `POS-${randomUUID()}`,
+        items: items as Prisma.InputJsonValue,
+        note: values.note,
+        notes: values.note,
+        product_id: firstItem?.productId ?? null,
+        qty,
+        remaining_amount: totalAmount,
+        remaining_qty: qty,
+        require_delivery: true,
+        status: 'Open',
+        total_amount: totalAmount,
+        unit_price: qty > 0 ? totalAmount / qty : 0,
+        updated_at: createdAt,
+        updated_by: actor,
+        version: 1,
+      },
+      select: { doc_no: true, id: true },
+    })
+
+    return NextResponse.json({ docNo: created.doc_no, id: created.id }, { status: 201 })
+  } catch (caught) {
+    if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
+    return apiErrorResponse(caught, 'บันทึก PO Sell ไม่ได้', 500)
   }
 }

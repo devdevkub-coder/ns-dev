@@ -2,10 +2,10 @@
 
 ## Current Status
 
-Date: 2026-05-20
+Date: 2026-05-22
 Active app: `apps/next`
 Primary remote: `new-origin`
-Last pushed checkpoint: Supplier international address and bank dropdown (`b3af79a feat: support international supplier addresses`)
+Last pushed checkpoint: Sales PO/bill create flow and topbar cleanup (pending commit)
 
 ## Current Batch
 
@@ -23,6 +23,7 @@ Goal:
 - Current implementation slice: SYS2 `/admin/migration-tools` safe read/design baseline is implemented, validated, and pushed. It preserves legacy Backup/Restore cards while disabling export, restore, cloud migration, user migration, reset, snapshot cleanup, and auto-backup actions until destructive-action design is approved.
 - Current polish slice: SYS3 `/admin/audit` and `/admin/users-permissions` polish is implemented, validated, and pushed. Audit now has current-page CSV export; Users & Permissions now has summary cards for active, branch-scoped, pending Auth link, and must-change-password users. Branch-scope enforcement remains a SYS5/auth hardening follow-up.
 - Current QA slice: SYS5 full system cleanup route QA is implemented, validated, and pushed. It confirmed all active navigation routes have dedicated pages, protected routes redirect unauthenticated users, SYS routes render authenticated desktop/mobile without page-level overflow, and the retrospective legacy UI parity backlog is now queued.
+- Current sales cleanup slice: `/sales/po-sell` moves its explanatory PO Sell copy to the app topbar, removes the in-page info banner and Top 5/outstanding panels, enables the `+ PO Sell ใหม่` form/API create path, and aligns the create modal with the compact PO Buy modal. `/sales/bills` moves its explanatory copy to the app topbar, removes the in-page sales hero and Pending Sale warning strip, enables the `+ บิลขายใหม่` form/API create path, uses one `สาขา/คลัง` dropdown from branch master in the modal, aligns item/VAT/summary/note sections with the purchase bill modal, and enables filtered Excel export. Validation passed locally: `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, and `git diff --check`.
 
 ## Previous Batch M Notes
 
