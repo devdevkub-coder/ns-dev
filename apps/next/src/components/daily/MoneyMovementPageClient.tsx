@@ -59,6 +59,13 @@ function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100
 }
 
+function parseMoneyInput(value: string) {
+  const normalized = value.replace(/,/g, '').trim()
+  if (!normalized) return 0
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
 function paymentCashAmountFromSettlement(totalAmount: number, ratePercent: number) {
   if (!Number.isFinite(ratePercent) || ratePercent <= 0 || ratePercent >= 100) return roundMoney(totalAmount)
   return roundMoney(totalAmount * (100 - ratePercent) / 100)
@@ -165,7 +172,7 @@ export function MoneyMovementPageClient({ mode }: { mode: 'payment' | 'receipt' 
   const partyMap = useMemo(() => new Map(parties.map((party) => [party.id, party.name])), [parties])
   const supplierBankAccountMap = useMemo(() => new Map((data.suppliers ?? []).map((supplier) => [supplier.id, supplier.bankAccount ?? '-'])), [data.suppliers])
   const billMap = useMemo(() => new Map(data.bills.map((bill) => [bill.id, bill])), [data.bills])
-  const paymentLines = mode === 'payment' ? (form as SupplierPaymentFormValues).lines ?? [] : []
+  const paymentLines = useMemo(() => (mode === 'payment' ? (form as SupplierPaymentFormValues).lines ?? [] : []), [form, mode])
   const selectedBill = form.billId ? billMap.get(form.billId) : null
   const selectedBillBalance = selectedBill ? (mode === 'payment' ? selectedBill.payableBalance ?? 0 : selectedBill.receivableBalance ?? 0) : 0
   const formNetAmount = mode === 'payment'
@@ -173,6 +180,7 @@ export function MoneyMovementPageClient({ mode }: { mode: 'payment' | 'receipt' 
     : form.amount - form.fee - form.withholdingTax - form.discount
   const paymentSplits = mode === 'payment' ? (form as SupplierPaymentFormValues).splits ?? [] : []
   const paymentSplitTotal = paymentSplits.reduce((sum, split) => sum + (Number(split.amount) || 0), 0)
+  const paymentLineBalanceTotal = paymentLines.reduce((sum, line) => sum + (billMap.get(line.billId)?.payableBalance ?? 0), 0)
 
   const outstandingBills = useMemo(() => data.bills
     .filter((bill) => (mode === 'payment' ? (bill.payableBalance ?? 0) > 0 : (bill.receivableBalance ?? 0) > 0))
@@ -184,6 +192,7 @@ export function MoneyMovementPageClient({ mode }: { mode: 'payment' | 'receipt' 
     if (mode !== 'payment' || !paymentSupplierId) return outstandingBills
     return outstandingBills.filter((bill) => bill.supplierId === paymentSupplierId)
   }, [mode, outstandingBills, paymentSupplierId])
+  const selectedPaymentBillIds = useMemo(() => new Set(paymentLines.map((line) => line.billId).filter(Boolean)), [paymentLines])
 
   const supplierBills = useMemo(() => {
     if (mode !== 'payment') return []
@@ -347,12 +356,17 @@ export function MoneyMovementPageClient({ mode }: { mode: 'payment' | 'receipt' 
 
   function selectPaymentLineBill(index: number, rawValue: string) {
     const docNo = rawValue.split('|')[0]?.trim()
-    const bill = paymentSelectableBills.find((candidate) => candidate.id === rawValue || candidate.docNo === docNo)
+    const bill = paymentSelectableBillsForLine(index).find((candidate) => candidate.id === rawValue || candidate.docNo === docNo)
     if (!bill) {
-      updatePaymentLine(index, { billText: rawValue })
+      updatePaymentLine(index, { amount: 0, billId: '', billText: rawValue, supplierId: '', withholdingTax: 0 })
       return
     }
     updatePaymentLine(index, paymentLineFromBill(bill))
+  }
+
+  function paymentSelectableBillsForLine(index: number) {
+    const currentBillId = paymentLines[index]?.billId ?? ''
+    return paymentSelectableBills.filter((bill) => bill.id === currentBillId || !selectedPaymentBillIds.has(bill.id))
   }
 
   function paymentLineInputValue(line: PaymentLine) {
@@ -596,12 +610,11 @@ export function MoneyMovementPageClient({ mode }: { mode: 'payment' | 'receipt' 
                         <div className="col-span-4">
                           <input
                             className="w-full rounded border px-2 py-1.5 text-right text-sm"
-                            min={0}
+                            inputMode="decimal"
                             placeholder={paymentSplits.length === 1 ? formatMoney(formNetAmount) : 'จำนวนเงิน'}
-                            step="0.01"
-                            type="number"
-                            value={String(split.amount)}
-                            onChange={(event) => updatePaymentSplit(splitIndex, { amount: Number(event.target.value) })}
+                            type="text"
+                            value={formatMoney(split.amount)}
+                            onChange={(event) => updatePaymentSplit(splitIndex, { amount: parseMoneyInput(event.target.value) })}
                           />
                         </div>
                         <div className="col-span-1 text-center">
@@ -616,9 +629,18 @@ export function MoneyMovementPageClient({ mode }: { mode: 'payment' | 'receipt' 
                         </div>
                         {split.accountId ? (
                           <div className="col-span-12 grid grid-cols-3 gap-2 pl-2 text-xs">
-                            <div className="text-blue-700">💵 คงเหลือ: <b>{formatMoney(splitBalance)}</b></div>
-                            <div className="text-amber-700">➖ จ่าย: <b>{formatMoney(splitAmount)}</b></div>
-                            <div className="text-emerald-700">📊 หลังจ่าย: <b>{formatMoney(splitBalance - splitAmount)}</b></div>
+                            <label className="block text-blue-700">
+                              <span>💵 คงเหลือ</span>
+                              <input className="mt-1 w-full bg-transparent p-0 text-right font-semibold text-blue-700 disabled:opacity-100" disabled type="text" value={formatMoney(splitBalance)} />
+                            </label>
+                            <label className="block text-amber-700">
+                              <span>➖ จ่าย</span>
+                              <input className="mt-1 w-full bg-transparent p-0 text-right font-semibold text-amber-700 disabled:opacity-100" disabled type="text" value={formatMoney(splitAmount)} />
+                            </label>
+                            <label className="block text-emerald-700">
+                              <span>📊 หลังจ่าย</span>
+                              <input className="mt-1 w-full bg-transparent p-0 text-right font-semibold text-emerald-700 disabled:opacity-100" disabled type="text" value={formatMoney(splitBalance - splitAmount)} />
+                            </label>
                           </div>
                         ) : null}
                       </div>
@@ -648,16 +670,10 @@ export function MoneyMovementPageClient({ mode }: { mode: 'payment' | 'receipt' 
                   </div>
                   {paymentSelectableBills.length === 0 ? <div className="mb-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700">⚠️ ไม่มีบิลซื้อค้างจ่ายของ Supplier นี้</div> : null}
                   <div className="overflow-x-auto rounded-lg border border-slate-200">
-                    <datalist id="payment-bill-options">
-                      {paymentSelectableBills.map((bill) => (
-                        <option key={bill.id} value={`${bill.docNo} | ${partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'} | ค้าง ${formatMoney(bill.payableBalance ?? 0)}`} />
-                      ))}
-                    </datalist>
-                    <table className="w-full min-w-[880px] text-xs">
+                    <table className="w-full min-w-[780px] text-xs">
                       <thead className="bg-slate-100 text-slate-700">
                         <tr>
                           <th className="w-80 p-1 text-left">บิล (เลขที่ · วันที่ · Supplier · ยอดค้าง)</th>
-                          <th className="p-1 text-left">Supplier</th>
                           <th className="p-1 text-right">ค้าง</th>
                           <th className="p-1 text-right">จ่าย</th>
                           <th className="p-1 text-right">WHT</th>
@@ -670,28 +686,33 @@ export function MoneyMovementPageClient({ mode }: { mode: 'payment' | 'receipt' 
                         {paymentLines.map((line, lineIndex) => {
                           const lineBill = line.billId ? billMap.get(line.billId) : null
                           const lineBalance = lineBill?.payableBalance ?? 0
+                          const lineBillOptions = paymentSelectableBillsForLine(lineIndex)
                           return (
                             <tr key={line.id ?? lineIndex} className="border-t">
                               <td className="p-1">
                                 {isBillLocked && lineIndex === 0 && selectedBill ? (
-                                  <input className="w-full rounded border bg-slate-50 px-1 py-1 text-xs font-mono" readOnly value={selectedBill.docNo} />
+                                  <input className="w-full rounded border bg-slate-50 px-1 py-1 text-xs disabled:opacity-100" disabled value={paymentLineInputValue(line)} />
                                 ) : (
                                   <input
                                     autoComplete="off"
                                     className="w-full rounded border px-1 py-1 text-xs"
-                                    list="payment-bill-options"
+                                    list={`payment-bill-options-${line.id ?? lineIndex}`}
                                     placeholder="🔍 พิมพ์เลขบิล / ชื่อ supplier..."
                                     value={paymentLineInputValue(line)}
                                     onChange={(event) => selectPaymentLineBill(lineIndex, event.target.value)}
                                   />
                                 )}
+                                <datalist id={`payment-bill-options-${line.id ?? lineIndex}`}>
+                                  {lineBillOptions.map((bill) => (
+                                    <option key={bill.id} value={`${bill.docNo} | ${partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'} | ค้าง ${formatMoney(bill.payableBalance ?? 0)}`} />
+                                  ))}
+                                </datalist>
                               </td>
-                              <td className="p-1 text-xs text-slate-600">{(partyMap.get(line.supplierId) ?? line.supplierId) || '-'}</td>
-                              <td className="p-1 text-right text-amber-700">{formatMoney(lineBalance)}</td>
-                              <td className="p-1"><input className="w-full rounded border px-1 py-1 text-right" min={0} step="0.01" type="number" value={String(line.amount)} onChange={(event) => updatePaymentLine(lineIndex, { amount: Number(event.target.value) })} /></td>
-                              <td className="p-1"><input className="w-full rounded border bg-slate-50 px-1 py-1 text-right" readOnly type="number" value={String(line.withholdingTax)} /></td>
-                              <td className="p-1"><input className="w-full rounded border px-1 py-1 text-right" min={0} step="0.01" type="number" value={String(line.discount)} onChange={(event) => updatePaymentLine(lineIndex, { discount: Number(event.target.value) })} /></td>
-                              <td className="p-1"><input className="w-full rounded border px-1 py-1 text-right" min={0} step="0.01" type="number" value={String(line.fee)} onChange={(event) => updatePaymentLine(lineIndex, { fee: Number(event.target.value) })} /></td>
+                              <td className="p-1"><input className="w-full rounded border bg-slate-50 px-1 py-1 text-right text-amber-700 disabled:opacity-100" disabled type="text" value={formatMoney(lineBalance)} /></td>
+                              <td className="p-1"><input className="w-full rounded border px-1 py-1 text-right" inputMode="decimal" type="text" value={formatMoney(line.amount)} onChange={(event) => updatePaymentLine(lineIndex, { amount: parseMoneyInput(event.target.value) })} /></td>
+                              <td className="p-1"><input className="w-full rounded border bg-slate-50 px-1 py-1 text-right disabled:opacity-100" disabled type="text" value={formatMoney(line.withholdingTax)} /></td>
+                              <td className="p-1"><input className="w-full rounded border px-1 py-1 text-right" inputMode="decimal" type="text" value={formatMoney(line.discount)} onChange={(event) => updatePaymentLine(lineIndex, { discount: parseMoneyInput(event.target.value) })} /></td>
+                              <td className="p-1"><input className="w-full rounded border px-1 py-1 text-right" inputMode="decimal" type="text" value={formatMoney(line.fee)} onChange={(event) => updatePaymentLine(lineIndex, { fee: parseMoneyInput(event.target.value) })} /></td>
                               <td className="p-1 text-center"><button className="px-1 text-red-500 disabled:text-slate-300" disabled={paymentLines.length <= 1 || (isBillLocked && lineIndex === 0)} type="button" onClick={() => removePaymentLine(lineIndex)}>×</button></td>
                             </tr>
                           )
@@ -699,19 +720,19 @@ export function MoneyMovementPageClient({ mode }: { mode: 'payment' | 'receipt' 
                       </tbody>
                       <tfoot className="bg-slate-50 font-semibold">
                         <tr>
-                          <td className="p-2 text-right" colSpan={2}>รวม</td>
-                          <td />
+                          <td className="p-2 text-right">รวม</td>
+                          <td className="p-2 text-right text-amber-700">{formatMoney(paymentLineBalanceTotal)}</td>
                           <td className="p-2 text-right text-red-700">{formatMoney(form.amount)}</td>
                           <td className="p-2 text-right">{formatMoney(form.withholdingTax)}</td>
                           <td className="p-2 text-right">{formatMoney(form.discount)}</td>
                           <td className="p-2 text-right">{formatMoney(form.fee)}</td>
                           <td />
                         </tr>
-                        <tr><td className="p-2 text-right" colSpan={8}>Net Cash Out: <span className="text-base font-bold text-red-700">{formatMoney(formNetAmount)}</span></td></tr>
+                        <tr><td className="p-2 text-right" colSpan={7}>Net Cash Out: <span className="text-base font-bold text-red-700">{formatMoney(formNetAmount)}</span></td></tr>
                       </tfoot>
                     </table>
                   </div>
-                  <div className="mt-1 text-xs text-slate-500">Net Cash Out = ยอดจ่าย - WHT + Bank Fee</div>
+                  <div className="mt-1 text-xs text-slate-500">* Net Cash Out = ยอดจ่าย - WHT + Bank Fee</div>
                 </div>
 
                 <Field label="หมายเหตุ" value={form.notes ?? ''} onChange={(value) => setForm({ ...form, notes: value })} />

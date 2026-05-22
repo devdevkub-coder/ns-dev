@@ -159,6 +159,10 @@ export async function POST(request: Request) {
       withholdingTax: values.withholdingTax,
     }]).filter((line) => line.billId && toNumber(line.amount) > 0)
     if (paymentLines.length === 0) throw new Error('เพิ่มรายการจ่ายอย่างน้อย 1 รายการ')
+    const duplicateBillIds = paymentLines
+      .map((line) => line.billId)
+      .filter((billId, index, billIds) => billIds.indexOf(billId) !== index)
+    if (duplicateBillIds.length > 0) throw new Error('รายการจ่ายต้องไม่เลือกบิลซ้ำใน Payment Voucher เดียวกัน')
     const paymentLineTotals = paymentLines.map((line, index) => ({
       ...line,
       amount: toNumber(line.amount),
