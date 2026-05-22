@@ -4,6 +4,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
@@ -182,6 +183,7 @@ export async function GET(request: Request) {
         },
       }),
       prisma.purchase_bills.findMany({
+        include: { purchase_bill_items: { orderBy: { line_no: 'asc' } } },
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         take: 10000,
         where: { NOT: { status: 'cancelled' }, ...(branchId ? { branch_id: branchId } : {}) },
@@ -213,10 +215,7 @@ export async function GET(request: Request) {
     purchaseBills
       .filter((bill) => inYearMonth(bill.date, year, month))
       .forEach((bill) => {
-        if (!Array.isArray(bill.items)) return
-        bill.items
-          .filter((item): item is JsonItem => typeof item === 'object' && item !== null)
-          .forEach((item) => {
+        purchaseBillItemRows(bill).forEach((item) => {
             const row = ensureRow(item)
             if (!row) return
             row.buyQty += itemQty(item)
@@ -294,8 +293,7 @@ export async function GET(request: Request) {
     const monthly = Array.from({ length: 12 }, (_, index) => {
       const monthKey = String(index + 1).padStart(2, '0')
       const buy = purchaseBills.filter((bill) => inYearMonth(bill.date, year, monthKey)).reduce((sum, bill) => {
-        if (!Array.isArray(bill.items)) return sum
-        bill.items.filter((item): item is JsonItem => typeof item === 'object' && item !== null).forEach((item) => {
+        purchaseBillItemRows(bill).forEach((item) => {
           const row = ensureRow(item)
           if (row && rows.some((product) => product.id === row.id)) {
             sum.amount += itemAmount(item)

@@ -17,7 +17,7 @@
 
 | Route | Legacy Component | Current Next Status | Target Notes |
 |---|---|---|---|
-| `/purchase/bills` | purchase bill flow | Batch D+ Partial Create Done | Purchase transaction list/filter/export and create modal writes header + items JSON; stock/FIFO posting still follow-up |
+| `/purchase/bills` | purchase bill flow | Batch D+ Create/Edit Done | Purchase transaction list/filter/export and create modal writes header + relational line items; stock/FIFO posting still follow-up |
 | `/sales/bills` | sales bill flow | Batch D Read Baseline Done | Sales transaction read surface; create/post/FIFO follow-up |
 | `/sales/stock-issue` | pending sale / issue flow | Batch E Read Baseline Done | Pending sale / stock issue read surface; post/convert follow-up |
 | `/daily/payment-approval` | `view-paymentApproval` | Batch B Done | Approval workbench over AP and expenses |
@@ -207,7 +207,7 @@ Status:
 - Follow-up update: purchase bills can now be edited from the `/purchase/bills` table even when supplier payments already exist. This intentionally differs from the old legacy lock rule. Edit keeps existing `payments` untouched, recomputes `paid_amount`, `payable_balance`, and `status` from payment rows, and regenerates `stock_ledger.ref_type = PB` for `STOCK` bills only.
 
 Important boundary:
-- Current create/edit path writes `purchase_bills` header + `items` JSON, AP balance fields, and `stock_ledger` rows for `STOCK` bills.
+- Current create/edit path writes `purchase_bills` header + `purchase_bill_items` relational line rows, updates AP balance fields, and writes `stock_ledger` rows for `STOCK` bills. The old `purchase_bills.items` JSONB column has been removed from the target schema.
 - `TRADING` remains a PB document but does not create stock ledger.
 - Purchase bill document remains editable after supplier payments exist by current business decision. Existing payment rows are preserved and AP balance/status is recomputed from current payment totals.
 - Existing supplier payments are not rewritten by purchase-bill edit. If totals change after payment, AP balance is recalculated from current payment rows.
@@ -333,7 +333,7 @@ Validation:
 - Next daily Batch B payment/receipt routes now have baseline pages and API routes.
 - Next daily Batch C stock transfer/audit routes now have baseline pages and API routes.
 - Next daily Batch D/E transaction read routes now have baseline pages and API routes.
-- Purchase bill create/edit flow now writes header + JSON items, generates branch/month document numbers at save time, recalculates AP status from payments, and writes stock ledger only for `STOCK` bills. The modal reads the active VAT percent from `vat_settings`, displays that percent in the VAT summary, calculates with that rate, and stores the applied percent in `purchase_bills.vat_rate_percent`.
+- Purchase bill create/edit flow now writes header + relational line items in `purchase_bill_items`, generates branch/month document numbers at save time, recalculates AP status from payments, and writes stock ledger only for `STOCK` bills. The old `purchase_bills.items` JSONB column has been removed from the target schema. The modal reads the active VAT percent from `vat_settings`, displays that percent in the VAT summary, calculates with that rate, and stores the applied percent in `purchase_bills.vat_rate_percent`.
 - Purchase bill linked read surfaces now exist for AP aging, stock ledger, trading matching, PO buy, outstanding PO, and supplier tracking.
 - Legacy daily UI/reference exists under:
   - `old-apps/legacy/index.html`

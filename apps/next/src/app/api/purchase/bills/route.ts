@@ -16,6 +16,7 @@ type PurchaseBillRow = Prisma.purchase_billsGetPayload<{
   include: {
     branches: true
     purchase_channels: true
+    purchase_bill_items: true
     suppliers: true
     warehouses: true
   }
@@ -49,7 +50,32 @@ function bangkokDateInput(value: Date) {
   return `${byType.year}-${byType.month}-${byType.day}`
 }
 
+function billItemJson(row: PurchaseBillRow['purchase_bill_items'][number]) {
+  return {
+    amount: toNumber(row.amount),
+    deductWeight: toNumber(row.deduct_weight),
+    discount: toNumber(row.discount),
+    displayName: row.display_name,
+    grossWeight: toNumber(row.gross_weight),
+    lotNo: row.lot_no,
+    note: row.note,
+    poBuyId: row.po_buy_id,
+    price: toNumber(row.price),
+    productCode: row.product_code ?? '',
+    productId: row.product_id ?? '',
+    productName: row.product_name ?? row.product_id ?? '',
+    qty: toNumber(row.qty),
+    salesPrice: toNumber(row.sales_price),
+    unit: row.unit ?? 'กก.',
+  }
+}
+
+function billItemsJson(row: PurchaseBillRow) {
+  return row.purchase_bill_items.map(billItemJson)
+}
+
 function billJson(row: PurchaseBillRow) {
+  const items = billItemsJson(row)
   return {
     branchId: row.branch_id ?? '',
     branchName: row.branches?.name ?? '-',
@@ -63,8 +89,8 @@ function billJson(row: PurchaseBillRow) {
     docNo: row.doc_no,
     hasVat: row.has_vat ?? false,
     id: row.id,
-    items: Array.isArray(row.items) ? row.items : [],
-    itemCount: Array.isArray(row.items) ? row.items.length : 0,
+    items,
+    itemCount: items.length,
     licensePlate: row.license_plate ?? '',
     note: row.note ?? row.notes ?? '',
     paidAmount: toNumber(row.paid_amount),
@@ -103,6 +129,54 @@ function calculateTotals(values: PurchaseBillFormValues, vatRatePercent: number)
   return { afterDiscount, subtotal, totalAmount, vatAmount }
 }
 
+function buildBillItems(values: PurchaseBillFormValues, productById: Map<string, { code: string; name: string; unit: string | null }>) {
+  return values.items.map((item) => {
+    const product = productById.get(item.productId)
+    const amount = Math.max(0, item.qty * item.price - item.discount)
+    return {
+      amount,
+      deductWeight: item.deductWeight,
+      discount: item.discount,
+      displayName: item.displayName,
+      grossWeight: item.grossWeight,
+      lotNo: item.lotNo,
+      note: item.note,
+      poBuyId: item.poBuyId,
+      price: item.price,
+      productCode: product?.code ?? '',
+      productId: item.productId,
+      productName: product?.name ?? item.productId,
+      qty: item.qty,
+      salesPrice: item.salesPrice,
+      unit: product?.unit ?? 'กก.',
+    }
+  })
+}
+
+function billItemCreateRows(billId: string, items: ReturnType<typeof buildBillItems>) {
+  return items.map((item, index) => ({
+    amount: item.amount,
+    deduct_weight: item.deductWeight,
+    discount: item.discount,
+    display_name: item.displayName,
+    gross_weight: item.grossWeight,
+    id: `${billId}-ITEM-${String(index + 1).padStart(4, '0')}`,
+    line_no: index + 1,
+    lot_no: item.lotNo,
+    note: item.note,
+    po_buy_id: item.poBuyId,
+    price: item.price,
+    product_code: item.productCode,
+    product_id: item.productId,
+    product_name: item.productName,
+    purchase_bill_id: billId,
+    qty: item.qty,
+    sales_price: item.salesPrice,
+    source_snapshot: item as Prisma.InputJsonValue,
+    unit: item.unit,
+  }))
+}
+
 function isDocNoConflict(caught: unknown) {
   if (!(caught instanceof Error) || !('code' in caught) || caught.code !== 'P2002') return false
   if (!('meta' in caught) || typeof caught.meta !== 'object' || caught.meta === null) return false
@@ -133,7 +207,7 @@ async function optionsPayload() {
     prisma.purchase_channels.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, id: true, name: true } }),
     prisma.po_buys.findMany({
       orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
-      select: { doc_no: true, id: true, remaining_amount: true, status: true, supplier_id: true },
+      select: { doc_no: true, id: true, remaining_amount: true, remaining_qty: true, status: true, supplier_id: true },
       take: 500,
       where: { status: { notIn: ['closed', 'Closed', 'cancelled', 'Cancelled'] } },
     }),
@@ -150,8 +224,9 @@ async function optionsPayload() {
     poBuys: poBuys.map((po) => ({
       active: !['closed', 'Closed', 'cancelled', 'Cancelled'].includes(po.status ?? ''),
       id: po.id,
-      label: `${po.doc_no}${po.remaining_amount ? ` · คงเหลือ ${toNumber(po.remaining_amount).toLocaleString('th-TH')}` : ''}`,
+      label: `${po.doc_no}${po.remaining_qty ? ` · คงเหลือ ${toNumber(po.remaining_qty).toLocaleString('th-TH')} กก.` : po.remaining_amount ? ` · คงเหลือ ${toNumber(po.remaining_amount).toLocaleString('th-TH')}` : ''}`,
       name: po.doc_no,
+      remainingQty: toNumber(po.remaining_qty),
       supplier_id: po.supplier_id,
     })),
     products,
@@ -242,6 +317,7 @@ async function rowsPayload(query: BillQuery, includePaging = true) {
       include: {
         branches: true,
         purchase_channels: true,
+        purchase_bill_items: { orderBy: { line_no: 'asc' } },
         suppliers: true,
         warehouses: true,
       },
@@ -377,27 +453,7 @@ export async function POST(request: Request) {
     const missingProduct = values.items.find((item) => !productById.has(item.productId))
     if (missingProduct) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
 
-    const items = values.items.map((item) => {
-      const product = productById.get(item.productId)
-      const amount = Math.max(0, item.qty * item.price - item.discount)
-      return {
-        amount,
-        deductWeight: item.deductWeight,
-        discount: item.discount,
-        displayName: item.displayName,
-        grossWeight: item.grossWeight,
-        lotNo: item.lotNo,
-        note: item.note,
-        poBuyId: item.poBuyId,
-        price: item.price,
-        productCode: product?.code ?? '',
-        productId: item.productId,
-        productName: product?.name ?? item.productId,
-        qty: item.qty,
-        salesPrice: item.salesPrice,
-        unit: product?.unit ?? 'กก.',
-      }
-    })
+    const items = buildBillItems(values, productById)
 
     let bill: { doc_no: string; id: string } | null = null
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -420,7 +476,6 @@ export async function POST(request: Request) {
               doc_no: docNo,
               has_vat: values.hasVat,
               id,
-              items,
               license_plate: values.licensePlate,
               note: values.note ?? values.notes,
               notes: values.notes,
@@ -447,6 +502,10 @@ export async function POST(request: Request) {
               warehouse_id: values.warehouseId,
             },
             select: { doc_no: true, id: true },
+          })
+
+          await tx.purchase_bill_items.createMany({
+            data: billItemCreateRows(createdBill.id, items),
           })
 
           if (values.transactionMode === 'STOCK') {
@@ -542,27 +601,7 @@ export async function PATCH(request: Request) {
     const missingProduct = values.items.find((item) => !productById.has(item.productId))
     if (missingProduct) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
 
-    const items = values.items.map((item) => {
-      const product = productById.get(item.productId)
-      const amount = Math.max(0, item.qty * item.price - item.discount)
-      return {
-        amount,
-        deductWeight: item.deductWeight,
-        discount: item.discount,
-        displayName: item.displayName,
-        grossWeight: item.grossWeight,
-        lotNo: item.lotNo,
-        note: item.note,
-        poBuyId: item.poBuyId,
-        price: item.price,
-        productCode: product?.code ?? '',
-        productId: item.productId,
-        productName: product?.name ?? item.productId,
-        qty: item.qty,
-        salesPrice: item.salesPrice,
-        unit: product?.unit ?? 'กก.',
-      }
-    })
+    const items = buildBillItems(values, productById)
 
     const paidAmount = payments.reduce((sum, payment) => sum + toNumber(payment.amount) + toNumber(payment.withholding_tax) + toNumber(payment.discount), 0)
     const payableBalance = Math.max(0, totals.totalAmount - paidAmount)
@@ -578,7 +617,6 @@ export async function PATCH(request: Request) {
           discount: values.discountTotal,
           discount_total: values.discountTotal,
           has_vat: values.hasVat,
-          items,
           license_plate: values.licensePlate,
           note: values.note ?? values.notes,
           notes: values.notes,
@@ -606,6 +644,11 @@ export async function PATCH(request: Request) {
         },
         select: { doc_no: true, id: true },
         where: { id },
+      })
+
+      await tx.purchase_bill_items.deleteMany({ where: { purchase_bill_id: id } })
+      await tx.purchase_bill_items.createMany({
+        data: billItemCreateRows(id, items),
       })
 
       await tx.stock_ledger.deleteMany({ where: { ref_id: id, ref_type: 'PB' } })

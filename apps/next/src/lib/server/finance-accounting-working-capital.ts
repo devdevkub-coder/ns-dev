@@ -1,6 +1,7 @@
 import type { Prisma } from '../../../generated/prisma/client'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
 
 const CANCELLED_STATUSES = ['cancelled', 'void', 'ยกเลิก']
 const DAY_MS = 86_400_000
@@ -259,7 +260,7 @@ async function profitInputs(filter: ProfitLeakFilter) {
   const date = { gte: filter.from, lte: endOfDay(filter.to) }
   return Promise.all([
     prisma.sales_bills.findMany({ include: { customers: { select: { name: true } } }, orderBy: [{ date: 'asc' }, { doc_no: 'asc' }], take: 20000, where: { ...notCancelledWhere(), ...branch, date } }),
-    prisma.purchase_bills.findMany({ include: { suppliers: { select: { name: true } } }, orderBy: [{ date: 'asc' }, { doc_no: 'asc' }], take: 20000, where: { ...notCancelledWhere(), ...branch, date } }),
+    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' } }, suppliers: { select: { name: true } } }, orderBy: [{ date: 'asc' }, { doc_no: 'asc' }], take: 20000, where: { ...notCancelledWhere(), ...branch, date } }),
     prisma.expenses.findMany({ include: { expense_categories: { select: { name: true } } }, orderBy: [{ date: 'asc' }, { doc_no: 'asc' }], take: 20000, where: { ...notCancelledWhere(), ...branch, date } }),
     prisma.loan_payments.findMany({ take: 10000, where: { ...notCancelledWhere(), date } }),
     prisma.stock_ledger.findMany({ take: 30000, where: { ...branch, date, movement_type: { contains: 'LOSS', mode: 'insensitive' } } }),
@@ -327,7 +328,7 @@ export async function buildProfitLeak(filter: ProfitLeakFilter) {
   const lowCustomers = Array.from(customerMargins.entries()).map(([id, row]) => ({ id, gpPct: row.revenue > 0 ? (row.revenue - row.cost) / row.revenue * 100 : 0, name: row.name, revenue: row.revenue }))
     .filter((row) => row.revenue > 0 && row.gpPct < filter.targetMargin).sort((left, right) => left.gpPct - right.gpPct).slice(0, 10)
   const supplierCost = new Map<string, { productName: string; qty: number; supplierName: string; value: number }>()
-  purchases.forEach((bill) => jsonRows(bill.items).forEach((item) => {
+  purchases.forEach((bill) => purchaseBillItemRows(bill).forEach((item) => {
     const productId = jsonString(item.productId, item.product_id, item.productName) || 'UNKNOWN'
     const key = `${bill.supplier_id ?? 'UNKNOWN'}|${productId}`
     const current = supplierCost.get(key) ?? { productName: jsonString(item.productName, item.name, productId) || productId, qty: 0, supplierName: bill.suppliers?.name ?? '-', value: 0 }

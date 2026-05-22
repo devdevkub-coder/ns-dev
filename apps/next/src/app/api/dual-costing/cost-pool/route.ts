@@ -4,6 +4,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
@@ -186,7 +187,7 @@ export async function GET(request: Request) {
         where: { cost_deducted: { not: true }, NOT: { status: { in: ['cancelled', 'Cancelled'] } } },
       }),
       prisma.purchase_bills.findMany({
-        include: { branches: true, suppliers: true },
+        include: { branches: true, purchase_bill_items: { orderBy: { line_no: 'asc' } }, suppliers: true },
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         take: 5000,
         where: { NOT: { status: { in: ['cancelled', 'Cancelled'] } } },
@@ -249,7 +250,7 @@ export async function GET(request: Request) {
     })
 
     purchaseBills.forEach((bill) => {
-      const items = Array.isArray(bill.items) ? bill.items.filter((item): item is PurchaseItem => typeof item === 'object' && item !== null) : []
+      const items = purchaseBillItemRows(bill) as PurchaseItem[]
       items.forEach((item, index) => {
         const qty = jsonNumber(item.netWeight ?? item.qty)
         const totalCost = jsonNumber(item.netAmount ?? item.amount) || qty * jsonNumber(item.price)

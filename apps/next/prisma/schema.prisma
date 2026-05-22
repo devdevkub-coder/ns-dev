@@ -1251,6 +1251,7 @@ model po_buys {
   is_opening_pool   Boolean?   @default(false)
   updated_by        String?
   version           Int?       @default(1)
+  purchase_bill_items purchase_bill_items[]
   suppliers         suppliers? @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: Cascade)
 
   @@index([doc_no], map: "idx_po_buys_doc_no")
@@ -1444,6 +1445,7 @@ model products {
   production_inputs  production_inputs[]
   production_orders  production_orders[]
   production_outputs production_outputs[]
+  purchase_bill_items purchase_bill_items[]
   stock_ledger       stock_ledger[]
   trading_deals      trading_deals[]
 
@@ -1495,7 +1497,6 @@ model purchase_bills {
   paid_amount             Decimal?           @default(0) @db.Decimal
   payable_balance         Decimal?           @default(0) @db.Decimal
   status                  String?            @default("open")
-  items                   Json?
   notes                   String?
   created_by              String?
   created_at              DateTime?          @default(now()) @db.Timestamptz(6)
@@ -1526,6 +1527,7 @@ model purchase_bills {
   version                 Int?               @default(1)
   branches                branches?          @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   purchase_channels       purchase_channels? @relation(fields: [channel_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  purchase_bill_items     purchase_bill_items[]
   suppliers               suppliers?         @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: Cascade)
   warehouses              warehouses?        @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   trading_deals           trading_deals[]
@@ -1537,6 +1539,39 @@ model purchase_bills {
   @@index([status], map: "idx_pb_status")
   @@index([supplier_id], map: "idx_pb_supplier")
   @@index([doc_no], map: "idx_purchase_bills_doc_no")
+  @@schema("public")
+}
+
+model purchase_bill_items {
+  id                String         @id
+  purchase_bill_id  String
+  line_no           Int
+  product_id        String?
+  product_code      String?
+  product_name      String?
+  display_name      String?
+  unit              String?
+  lot_no            String?
+  po_buy_id         String?
+  gross_weight      Decimal        @default(0) @db.Decimal
+  deduct_weight     Decimal        @default(0) @db.Decimal
+  qty               Decimal        @default(0) @db.Decimal
+  price             Decimal        @default(0) @db.Decimal
+  sales_price       Decimal        @default(0) @db.Decimal
+  discount          Decimal        @default(0) @db.Decimal
+  amount            Decimal        @default(0) @db.Decimal
+  note              String?
+  source_snapshot   Json?
+  created_at        DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime       @default(now()) @db.Timestamptz(6)
+  po_buys           po_buys?       @relation(fields: [po_buy_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  products          products?      @relation(fields: [product_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  purchase_bills    purchase_bills @relation(fields: [purchase_bill_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([purchase_bill_id, line_no], map: "uq_purchase_bill_items_bill_line")
+  @@index([po_buy_id], map: "idx_purchase_bill_items_po_buy")
+  @@index([product_id], map: "idx_purchase_bill_items_product")
+  @@index([purchase_bill_id], map: "idx_purchase_bill_items_bill")
   @@schema("public")
 }
 

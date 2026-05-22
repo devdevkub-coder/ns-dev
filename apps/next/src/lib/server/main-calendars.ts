@@ -1,6 +1,7 @@
 import type { Prisma } from '../../../generated/prisma/client'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { purchaseBillItemQty } from '@/lib/server/purchase-bill-items'
 
 type JsonItem = Prisma.JsonObject
 
@@ -163,7 +164,7 @@ export async function buildBusinessCalendar(monthValue?: string | null) {
   const [purchaseBills, salesBills, expenses, receipts, payments] = await Promise.all([
     prisma.purchase_bills.findMany({
       orderBy: [{ date: 'asc' }, { doc_no: 'asc' }],
-      select: { date: true, doc_no: true, id: true, items: true, payable_balance: true, status: true, total_amount: true },
+      include: { purchase_bill_items: { orderBy: { line_no: 'asc' } } },
       where: { date: { gte: start, lt: next } },
     }),
     prisma.sales_bills.findMany({
@@ -245,7 +246,7 @@ export async function buildBusinessCalendar(monthValue?: string | null) {
   purchaseBills.filter((bill) => activeStatus(bill.status)).forEach((bill) => {
     const row = daily.get(dayId(bill.date))
     if (!row) return
-    const qty = Array.isArray(bill.items) ? bill.items.filter(isJsonItem).reduce((sum, item) => sum + itemQty(item), 0) : 0
+    const qty = purchaseBillItemQty(bill)
     const amount = toNumber(bill.total_amount)
     row.purchaseAmount += amount
     row.purchaseQty += qty

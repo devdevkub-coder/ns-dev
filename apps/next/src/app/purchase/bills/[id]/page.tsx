@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import { AuthContextError, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
 
 export const metadata: Metadata = {
   title: 'รายละเอียดบิลรับซื้อ | NS Scrap ERP',
@@ -33,11 +34,6 @@ function money(value: number | null | undefined) {
   return (value ?? 0).toLocaleString('th-TH', { maximumFractionDigits: 2, minimumFractionDigits: 2 })
 }
 
-function itemsFromJson(value: unknown): PurchaseItem[] {
-  if (!Array.isArray(value)) return []
-  return value.filter((item): item is PurchaseItem => typeof item === 'object' && item !== null)
-}
-
 function purchaseSourceLabel(value: string | null | undefined) {
   if (value === 'PO_RECEIPT') return 'PO RECEIPT'
   if (value === 'MIXED') return 'ผสม Spot + PO'
@@ -58,6 +54,7 @@ export default async function PurchaseBillDetailPage({ params }: PageProps) {
     include: {
       branches: true,
       purchase_channels: true,
+      purchase_bill_items: { orderBy: { line_no: 'asc' } },
       suppliers: true,
       warehouses: true,
     },
@@ -66,7 +63,7 @@ export default async function PurchaseBillDetailPage({ params }: PageProps) {
 
   if (!bill) notFound()
 
-  const items = itemsFromJson(bill.items)
+  const items = purchaseBillItemRows(bill) as PurchaseItem[]
   const supplierName = bill.suppliers?.name ?? bill.supplier_id ?? '-'
   const subtotal = toNumber(bill.subtotal)
   const discount = toNumber(bill.discount_total ?? bill.discount)

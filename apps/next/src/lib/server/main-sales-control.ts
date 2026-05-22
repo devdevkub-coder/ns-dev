@@ -1,6 +1,7 @@
 import type { Prisma } from '../../../generated/prisma/client'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
 
 type JsonItem = Prisma.JsonObject
 
@@ -191,7 +192,7 @@ export async function buildPendingSales() {
     prisma.stock_ledger.findMany({ orderBy: [{ date: 'desc' }], take: 50000 }),
     prisma.customers.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, id: true, name: true } }),
     prisma.trading_deals.findMany({ orderBy: [{ date: 'desc' }], take: 10000, where: { NOT: { status: { in: ['Cancelled', 'cancelled'] } } } }),
-    prisma.purchase_bills.findMany({ orderBy: [{ date: 'desc' }], take: 10000, where: { NOT: { status: 'cancelled' } } }),
+    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' } } }, orderBy: [{ date: 'desc' }], take: 10000, where: { NOT: { status: 'cancelled' } } }),
   ])
 
   const productAgg = new Map<string, PendingProductRow>()
@@ -287,8 +288,7 @@ export async function buildPendingSales() {
 
   const spotByProduct = new Map<string, { amount: number; qty: number }>()
   purchaseBills.forEach((bill) => {
-    if (!Array.isArray(bill.items)) return
-    bill.items.filter(isJsonItem).forEach((item) => {
+    purchaseBillItemRows(bill).filter(isJsonItem).forEach((item) => {
       const product = lookupProduct(item, byKey)
       if (!product) return
       const current = spotByProduct.get(product.id) ?? { amount: 0, qty: 0 }
@@ -495,7 +495,7 @@ export async function buildSalesCommission() {
     prisma.salespersons.findMany({ orderBy: [{ name: 'asc' }], where: { active: { not: false } } }),
     prisma.suppliers.findMany({ orderBy: [{ name: 'asc' }], where: { active: { not: false } } }),
     prisma.purchase_bills.findMany({
-      include: { suppliers: true },
+      include: { purchase_bill_items: { orderBy: { line_no: 'asc' } }, suppliers: true },
       orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
       take: 10000,
       where: { date: { gte: periodFrom, lte: periodTo }, NOT: { status: 'cancelled' } },
@@ -520,7 +520,8 @@ export async function buildSalesCommission() {
   }
   const billRows = purchaseBills.map((bill) => {
     const salesId = bill.sales_id || (bill.supplier_id ? supplierSalesById.get(bill.supplier_id) : '') || '_UNASSIGNED_'
-    const qty = Array.isArray(bill.items) ? bill.items.filter(isJsonItem).reduce((sum, item) => sum + itemQty(item), 0) : 0
+    const items = purchaseBillItemRows(bill).filter(isJsonItem)
+    const qty = items.reduce((sum, item) => sum + itemQty(item), 0)
     const row = ensure(salesId)
     row.billCount += 1
     row.purchaseAmt += toNumber(bill.total_amount)
@@ -533,7 +534,7 @@ export async function buildSalesCommission() {
       facePrice: 0,
       id: bill.id,
       price: qty > 0 ? toNumber(bill.total_amount) / qty : 0,
-      productName: Array.isArray(bill.items) ? bill.items.filter(isJsonItem).map(itemProductName).filter(Boolean).slice(0, 2).join(', ') : '-',
+      productName: items.map(itemProductName).filter(Boolean).slice(0, 2).join(', ') || '-',
       qty,
       salesId,
       status: bill.status ?? '',

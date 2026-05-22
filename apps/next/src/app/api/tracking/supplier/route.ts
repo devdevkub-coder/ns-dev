@@ -4,6 +4,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
@@ -83,6 +84,7 @@ export async function GET(request: Request) {
     const [suppliers, bills, payments] = await Promise.all([
       prisma.suppliers.findMany({ orderBy: [{ name: 'asc' }], where: { active: { not: false } } }),
       prisma.purchase_bills.findMany({
+        include: { purchase_bill_items: { orderBy: { line_no: 'asc' } } },
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         take: 10000,
         where: { NOT: { status: 'cancelled' } },
@@ -98,7 +100,7 @@ export async function GET(request: Request) {
       const supplierBills = bills.filter((bill) => bill.supplier_id === supplier.id && inYearMonth(bill.date, year, month))
       const supplierPayments = payments.filter((payment) => payment.supplier_id === supplier.id && inYearMonth(payment.date, year, month))
       const purchase = supplierBills.reduce<{ amount: number; payable: number; qty: number }>((sum, bill) => {
-        const item = itemTotals(bill.items)
+        const item = itemTotals(purchaseBillItemRows(bill))
         const amount = item.amount || toNumber(bill.subtotal) || toNumber(bill.total_amount)
         return {
           amount: sum.amount + amount,
@@ -127,9 +129,7 @@ export async function GET(request: Request) {
     bills
       .filter((bill) => inYearMonth(bill.date, year, month))
       .forEach((bill) => {
-        if (!Array.isArray(bill.items)) return
-        bill.items
-          .filter((item): item is PurchaseItem => typeof item === 'object' && item !== null)
+        purchaseBillItemRows(bill)
           .forEach((item) => {
             const productName = itemProductName(item)
             const current = productMap.get(productName) ?? { amount: 0, bills: new Set<string>(), productName, qty: 0, suppliers: new Set<string>() }
@@ -155,7 +155,7 @@ export async function GET(request: Request) {
       const monthKey = String(index + 1).padStart(2, '0')
       const monthBills = bills.filter((bill) => inYearMonth(bill.date, year, monthKey))
       return monthBills.reduce<{ amount: number; month: string; qty: number }>((sum, bill) => {
-        const item = itemTotals(bill.items)
+        const item = itemTotals(purchaseBillItemRows(bill))
         const amount = item.amount || toNumber(bill.subtotal) || toNumber(bill.total_amount)
         return {
           amount: sum.amount + amount,

@@ -78,6 +78,7 @@ type Option = {
   id: string
   label?: string | null
   name: string
+  remainingQty?: number | null
   sales_id?: string | null
   supplier_id?: string | null
   unit?: string | null
@@ -134,6 +135,13 @@ function searchableOptionText(option: Option) {
 
 function formatPercent(value: number) {
   return value.toLocaleString('th-TH', { maximumFractionDigits: 2, minimumFractionDigits: value % 1 === 0 ? 0 : 2 })
+}
+
+function poQtyVariance(poQty: number, itemQty: number) {
+  const diff = poQty - itemQty
+  if (Math.abs(diff) < 0.001) return { className: 'text-emerald-700', text: 'ตรงกับ PO' }
+  if (diff > 0) return { className: 'text-amber-700', text: `ขาด ${formatMoney(diff)} กก.` }
+  return { className: 'text-red-700', text: `เกิน ${formatMoney(Math.abs(diff))} กก.` }
 }
 
 const initialPurchaseForm = (): PurchaseBillFormValues => ({
@@ -270,7 +278,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const stockIssueQty = stockIssueRows.reduce((sum, row) => sum + (row.totalQty ?? 0), 0)
   const stockIssueCost = stockIssueRows.reduce((sum, row) => sum + row.totalCost, 0)
   const stockIssueEst = stockIssueRows.reduce((sum, row) => sum + row.totalEstAmount, 0)
-  const tableColSpan = mode === 'purchase' ? 14 : mode === 'sales' ? 13 : 10
+  const tableColSpan = mode === 'purchase' ? 13 : mode === 'sales' ? 13 : 10
 
   function clearFilters() {
     setSearch('')
@@ -356,7 +364,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       [key]: value,
       ...(key === 'supplierId' ? { salesId: activeSuppliers.find((supplier) => supplier.id === value)?.sales_id ?? null } : {}),
       ...(key === 'branchId' ? { warehouseId: null } : {}),
-      ...(key === 'hasVat' && value === false ? { vatType: 'NONE' } : {}),
+      ...(key === 'hasVat' ? { vatType: value ? 'EXCLUDE' : 'NONE' } : {}),
       ...(key === 'vatInvoiceReceived' && value === false ? { vatInvoiceDate: null, vatInvoiceNo: null } : {}),
     }))
     setFieldErrors((current) => ({ ...current, [key]: '' }))
@@ -568,7 +576,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           <thead className="bg-slate-100">
             <tr>
               <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label="เลขที่" sortKey="docNo" onSort={changeSort} />
-              {mode !== 'stock-issue' ? <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label="เลขที่อ้างอิง" sortKey="refNo" onSort={changeSort} /> : null}
+              {mode === 'sales' ? <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label="เลขที่อ้างอิง" sortKey="refNo" onSort={changeSort} /> : null}
               <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label="วันที่" sortKey="date" onSort={changeSort} />
               <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label={mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า'} sortKey="name" onSort={changeSort} />
               <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label="สาขา / คลัง" sortKey="warehouse" onSort={changeSort} />
@@ -592,7 +600,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
             {!isLoading && pageRows.map((row) => (
               <tr key={row.id} className={`border-t hover:bg-slate-50 ${mode === 'purchase' && !isStockIssueRow(row) ? 'cursor-pointer' : ''}`} onClick={() => openRow(row)}>
                 <td className="p-2 font-mono text-xs">{row.docNo}</td>
-                {mode !== 'stock-issue' && !isStockIssueRow(row) ? <td className="p-2 font-mono text-xs text-slate-600">{row.refNo || '-'}</td> : null}
+                {mode === 'sales' && !isStockIssueRow(row) ? <td className="p-2 font-mono text-xs text-slate-600">{row.refNo || '-'}</td> : null}
                 <td className="p-2">{row.date}</td>
                 <td className="p-2">{'supplierName' in row ? row.supplierName : row.customerName}</td>
                 <td className="p-2">{formatBranchWarehouse(row)}</td>
@@ -643,7 +651,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="blue">2</StepBadge>ข้อมูลบิล</h4>
                 <div className="grid gap-3 md:grid-cols-3">
                 <SelectField hideCode error={fieldErrors.branchId} label="สาขา/คลัง *" options={activeBranches} value={form.branchId} onChange={(value) => updateForm('branchId', value)} />
-                <SupplierSearchCombobox className="md:col-span-3" error={fieldErrors.supplierId} options={activeSuppliers} value={form.supplierId} onChange={(value) => updateForm('supplierId', value)} />
+                <SupplierSearchCombobox className="md:col-span-2" error={fieldErrors.supplierId} options={activeSuppliers} value={form.supplierId} onChange={(value) => updateForm('supplierId', value)} />
                 <Field error={fieldErrors.licensePlate} label="ทะเบียนรถ *"><input className="w-full rounded border px-3 py-2 uppercase" placeholder="เช่น 1กข-1234 / 70-1234" value={form.licensePlate} onChange={(event) => updateForm('licensePlate', event.target.value.toUpperCase())} /></Field>
                 </div>
               </div>
@@ -661,11 +669,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                         <Fragment key={index}>
                           <tr className="border-t align-top hover:bg-blue-50/30">
                             <td className="p-2" colSpan={4}>
-                              <div className="mb-1 text-[11px] font-semibold text-slate-500">สินค้า *</div>
-                              <select className="w-full rounded border px-2 py-2" value={item.productId} onChange={(event) => updateItem(index, 'productId', event.target.value)}>
-                                <option value="">เลือกสินค้า</option>
-                                {activeProducts.map((product) => <option key={product.id} value={product.id}>{product.code ? `${product.code} — ` : ''}{product.name}{product.unit ? ` (${product.unit})` : ''}</option>)}
-                              </select>
+                              <ProductSearchCombobox inputId={`purchase-bill-product-search-${index}`} options={activeProducts} value={item.productId} onChange={(value) => updateItem(index, 'productId', value)} />
                               <input className="mt-1.5 w-full rounded border bg-yellow-50 px-2 py-1 text-xs" placeholder="ชื่อสำหรับโชว์ในบิล (ว่าง = ใช้ชื่อ Master)" value={item.displayName ?? ''} onChange={(event) => updateItem(index, 'displayName', event.target.value || null)} />
                             </td>
                             <td className="p-2" colSpan={form.salesId ? 3 : 2}>
@@ -674,6 +678,12 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                 <option value="">Spot Buy</option>
                                 {activePoBuys.map((po) => <option key={po.id} value={po.id}>{po.label ?? po.name}</option>)}
                               </select>
+                              {(() => {
+                                const remainingQty = activePoBuys.find((po) => po.id === item.poBuyId)?.remainingQty
+                                if (remainingQty === null || remainingQty === undefined) return null
+                                const variance = poQtyVariance(remainingQty, item.qty)
+                                return <div className={`mt-1 text-[11px] font-semibold ${variance.className}`}>{variance.text}</div>
+                              })()}
                             </td>
                             <td className="p-2 align-middle" rowSpan={2}><button className="rounded px-3 py-2 text-red-600 hover:bg-red-50 disabled:opacity-40" disabled={form.items.length <= 1} type="button" onClick={() => removeItem(index)}>ลบ</button></td>
                           </tr>
@@ -983,6 +993,93 @@ function SupplierSearchCombobox({
               <span className="block text-xs text-slate-500">{supplier.code ? `${supplier.code} · ` : ''}{supplier.id}</span>
             </button>
           )) : <div className="px-3 py-2 text-sm text-slate-500">ไม่พบผู้ขายที่ตรงกับคำค้นหา</div>}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function ProductSearchCombobox({
+  inputId,
+  options,
+  value,
+  onChange,
+}: {
+  inputId: string
+  options: Option[]
+  value: string
+  onChange: (productId: string) => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const selectedProduct = useMemo(() => options.find((product) => product.id === value) ?? null, [options, value])
+  const selectedLabel = selectedProduct ? optionLabel(selectedProduct) : ''
+  const listId = `${inputId}-options`
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState(selectedLabel)
+
+  useEffect(() => {
+    setQuery(selectedLabel)
+  }, [selectedLabel])
+
+  const filteredOptions = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+    const rows = normalizedQuery
+      ? options.filter((product) => searchableOptionText(product).includes(normalizedQuery))
+      : options
+    return rows.slice(0, 80)
+  }, [options, query])
+
+  const selectProduct = (product: Option) => {
+    onChange(product.id)
+    setQuery(optionLabel(product))
+    setOpen(false)
+    inputRef.current?.focus()
+  }
+
+  return (
+    <div className="relative">
+      <label className="mb-1 block text-[11px] font-semibold text-slate-500" htmlFor={inputId}>สินค้า *</label>
+      <input
+        ref={inputRef}
+        aria-autocomplete="list"
+        aria-controls={listId}
+        aria-expanded={open}
+        className="w-full rounded border border-slate-300 px-2 py-2 outline-none focus:border-blue-600"
+        id={inputId}
+        placeholder="ค้นหารหัสหรือชื่อสินค้า"
+        role="combobox"
+        type="search"
+        value={query}
+        onBlur={() => {
+          window.setTimeout(() => {
+            const exactMatch = options.find((product) => optionLabel(product).toLowerCase() === query.trim().toLowerCase())
+            if (exactMatch) {
+              onChange(exactMatch.id)
+              setQuery(optionLabel(exactMatch))
+            } else if (selectedProduct) {
+              setQuery(optionLabel(selectedProduct))
+            } else {
+              setQuery('')
+            }
+            setOpen(false)
+          }, 120)
+        }}
+        onChange={(event) => {
+          const nextQuery = event.target.value
+          setQuery(nextQuery)
+          setOpen(true)
+          if (value && nextQuery !== selectedLabel) onChange('')
+        }}
+        onFocus={() => setOpen(true)}
+      />
+      {open ? (
+        <div className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded border border-slate-200 bg-white shadow-lg" id={listId}>
+          {filteredOptions.length ? filteredOptions.map((product) => (
+            <button key={product.id} className="block w-full px-3 py-2 text-left text-xs hover:bg-blue-50" type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => selectProduct(product)}>
+              <span className="font-medium text-slate-800">{optionLabel(product)}</span>
+              {product.unit ? <span className="ml-2 text-slate-400">({product.unit})</span> : null}
+            </button>
+          )) : <div className="px-3 py-2 text-xs text-slate-500">ไม่พบสินค้า</div>}
         </div>
       ) : null}
     </div>

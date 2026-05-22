@@ -133,6 +133,7 @@ Status date: 2026-05-19
 - Current UI pattern note: legacy-style list tables should keep the white rounded shadow card, compact zebra rows, slate header, and slate row separators as the default table surface unless the legacy page has a more specific color/header pattern. Branch dropdowns should display branch names only; do not show branch codes in dropdown labels. Keep branch codes stored and visible only where the branch master or document-numbering logic explicitly needs them.
 - Current navigation cleanup: per user request on 2026-05-22, the `การเงินต่างประเทศ` / Foreign Finance category is hidden from the active Next sidebar and report index because it is not in active use/development. Existing `/finance/foreign/*` pages and APIs are retained in code as future baselines; money-moving writes remain deferred.
 - Current route retirement: per user request on 2026-05-22, `/stock/customer-return` has been removed from the active Next app because it is not used. The sidebar item, page route, API route, OpenAPI path/schema, and shared Customer Return form/schema branch were removed; no stock history or database tables were changed.
+- Current purchase-bill DB cleanup: `public.purchase_bill_items` is added as the relational line table for purchase bill products, backfilled from `purchase_bills.items`, and `/api/purchase/bills` plus active purchase-item reports now read/write line rows. The old `purchase_bills.items` JSONB column has been removed from the target schema.
 
 ## File Naming Changes
 

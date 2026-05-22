@@ -2,6 +2,7 @@ import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { buildFinancialDashboard } from '@/lib/server/finance-accounting-dashboard'
 import { loadProductionMetrics, summarizeProductionMetrics } from '@/lib/server/production-reports'
 import { prisma } from '@/lib/server/prisma'
+import { purchaseBillItemQty, purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
 
 export type MainDashboardFilter = {
   branchId?: string
@@ -144,7 +145,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
   const todayEnd = endOfDay(selectedDate)
 
   const [purchases, sales, expenses, payments, receipts, stockRows, deals, finance, productionRows, cash, bankToday, bankRange, loanSchedules, stockIssues, products, salespersons, branches, suppliers, customers, historicalRows] = await Promise.all([
-    prisma.purchase_bills.findMany({ include: { suppliers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: filter.branchId || undefined, supplier_id: filter.supplierId || undefined, date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
+    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' } }, suppliers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: filter.branchId || undefined, supplier_id: filter.supplierId || undefined, date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
     prisma.sales_bills.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: filter.branchId || undefined, customer_id: filter.customerId || undefined, date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
     prisma.expenses.findMany({ include: { expense_categories: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 3000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
     prisma.payments.findMany({ orderBy: [{ date: 'desc' }], take: 3000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
@@ -167,7 +168,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
   ])
 
   const productById = new Map(products.map((row) => [row.id, row]))
-  const activePurchases = purchases.filter((row) => activeStatus(row.status) && billHasProductOrGroup(row.items, productById, filter.productId, filter.group))
+  const activePurchases = purchases.filter((row) => activeStatus(row.status) && billHasProductOrGroup(purchaseBillItemRows(row), productById, filter.productId, filter.group))
   const activeSales = sales.filter((row) => activeStatus(row.status) && billHasProductOrGroup(row.items, productById, filter.productId, filter.group))
   const todayPurchases = activePurchases.filter((row) => row.date >= todayStart && row.date <= todayEnd)
   const todaySales = activeSales.filter((row) => row.date >= todayStart && row.date <= todayEnd)
@@ -229,7 +230,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
     return current
   }
   for (const bill of todayPurchases) {
-    for (const item of itemRows(bill.items)) {
+    for (const item of itemRows(purchaseBillItemRows(bill))) {
       const product = productById.get(item.productId)
       const group = ensureGroup(product?.metal_group ?? 'อื่นๆ')
       const row = ensureProduct(group, item.productId || 'unknown')
@@ -255,7 +256,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
     const key = bill.supplier_id ?? 'unknown'
     const current = topSuppliers.get(key) ?? { amount: 0, bills: 0, id: key, name: bill.suppliers?.name ?? bill.supplier_id ?? '-', qty: 0 }
     current.amount += toNumber(bill.total_amount)
-    current.qty += itemsQty(bill.items)
+    current.qty += purchaseBillItemQty(bill)
     current.bills += 1
     topSuppliers.set(key, current)
   }
@@ -271,7 +272,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
   }
   const productIn = new Map<string, { amount: number; code: string; group: string; id: string; name: string; qty: number }>()
   const productOut = new Map<string, { amount: number; code: string; group: string; id: string; name: string; qty: number }>()
-  for (const bill of activePurchases) for (const item of itemRows(bill.items)) {
+  for (const bill of activePurchases) for (const item of itemRows(purchaseBillItemRows(bill))) {
     const product = productById.get(item.productId)
     const current = productIn.get(item.productId) ?? { amount: 0, code: product?.code ?? '', group: product?.metal_group ?? 'อื่นๆ', id: item.productId, name: product?.name ?? '-', qty: 0 }
     current.amount += item.amount
@@ -291,7 +292,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
     const current = bySalesperson.get(key) ?? { amount: 0, bills: 0, id: key, name: salespersonById.get(key)?.name ?? (key === '__no_sales__' ? '(ไม่ระบุเซล)' : key), qty: 0, suppliers: new Set() }
     if (bill.supplier_id) current.suppliers.add(bill.supplier_id)
     current.amount += toNumber(bill.total_amount)
-    current.qty += itemsQty(bill.items)
+    current.qty += purchaseBillItemQty(bill)
     current.bills += 1
     bySalesperson.set(key, current)
   }
@@ -445,7 +446,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
       monthlyTrend: Array.from(monthlyTrendMap.values()).sort((a, b) => a.label.localeCompare(b.label)).slice(-6),
       sections: {
         cash: { ...cash, netCash: cash.cash + cash.bank + cash.fcd + finance.summary.ar - finance.summary.ap - cash.odUsed },
-        purchase: { amount: purchaseAmount, count: activePurchases.length, qty: activePurchases.reduce((sum, row) => sum + itemsQty(row.items), 0), today: todayPurchases.reduce((sum, row) => sum + toNumber(row.total_amount), 0) },
+        purchase: { amount: purchaseAmount, count: activePurchases.length, qty: activePurchases.reduce((sum, row) => sum + purchaseBillItemQty(row), 0), today: todayPurchases.reduce((sum, row) => sum + toNumber(row.total_amount), 0) },
         sales: { amount: salesAmount, count: activeSales.length, gp: grossProfit, qty: activeSales.reduce((sum, row) => sum + itemsQty(row.items), 0), today: todaySales.reduce((sum, row) => sum + toNumber(row.total_amount), 0) },
         stock: { qty: stockQty, value: stockValue },
       },
@@ -471,7 +472,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
           netProfit: salesAmount - cogs - expenseAmount,
           purchaseAmount,
           purchaseCount: activePurchases.length,
-          purchaseQty: activePurchases.reduce((sum, row) => sum + itemsQty(row.items), 0),
+          purchaseQty: activePurchases.reduce((sum, row) => sum + purchaseBillItemQty(row), 0),
           salesAmount,
           salesCount: activeSales.length,
           salesQty: activeSales.reduce((sum, row) => sum + itemsQty(row.items), 0),
@@ -498,12 +499,12 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
         sellAmt: row.sellAmt,
         sellQty: row.sellQty,
       })).sort((a, b) => (b.buyAmt + b.sellAmt) - (a.buyAmt + a.sellAmt)),
-      purchaseBills: todayPurchases.slice(0, 12).map((row) => ({ amount: toNumber(row.total_amount), docNo: row.doc_no, name: row.suppliers?.name ?? row.supplier_id ?? '-', qty: itemsQty(row.items) })),
+      purchaseBills: todayPurchases.slice(0, 12).map((row) => ({ amount: toNumber(row.total_amount), docNo: row.doc_no, name: row.suppliers?.name ?? row.supplier_id ?? '-', qty: purchaseBillItemQty(row) })),
       salesBills: todaySales.slice(0, 12).map((row) => ({ amount: toNumber(row.total_amount), docNo: row.doc_no, name: row.customers?.name ?? row.customer_id ?? '-', qty: itemsQty(row.items) })),
       summary: {
         expenseAmount: todayExpenses.reduce((sum, row) => sum + toNumber(row.amount), 0),
         purchaseAmount: todayPurchases.reduce((sum, row) => sum + toNumber(row.total_amount), 0),
-        purchaseQty: todayPurchases.reduce((sum, row) => sum + itemsQty(row.items), 0),
+        purchaseQty: todayPurchases.reduce((sum, row) => sum + purchaseBillItemQty(row), 0),
         salesAmount: todaySales.reduce((sum, row) => sum + toNumber(row.total_amount), 0),
         salesQty: todaySales.reduce((sum, row) => sum + itemsQty(row.items), 0),
       },

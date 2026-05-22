@@ -3,6 +3,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
 
 export const runtime = 'nodejs'
 
@@ -12,7 +13,7 @@ type PurchaseBillRow = {
   channel_id: string | null
   date: Date
   id: string
-  items: unknown
+  purchase_bill_items?: Array<Record<string, unknown>>
   purchase_channels: { name: string } | null
   status: string | null
   supplier_id: string | null
@@ -124,13 +125,27 @@ function purchaseItemAmount(item: JsonRow) {
   return itemWeight(item) * jsonNumber(item.price ?? item.unitPrice ?? item.unit_price)
 }
 
+function purchaseRows(bill: PurchaseBillRow) {
+  return purchaseBillItemRows(bill)
+}
+
 function billWeight(bill: { items: unknown }) {
   return jsonRows(bill.items).reduce((sum, item) => sum + itemWeight(item), 0)
 }
 
+function purchaseBillWeight(bill: PurchaseBillRow) {
+  return purchaseRows(bill).reduce((sum, item) => sum + itemWeight(item), 0)
+}
+
 function collectProductIds(purchases: PurchaseBillRow[], sales: SalesBillRow[]) {
   const ids = new Set<string>()
-  ;[...purchases, ...sales].forEach((bill) => {
+  purchases.forEach((bill) => {
+    purchaseRows(bill).forEach((item) => {
+      const productId = purchaseItemProductId(item)
+      if (productId) ids.add(productId)
+    })
+  })
+  sales.forEach((bill) => {
     jsonRows(bill.items).forEach((item) => {
       const productId = purchaseItemProductId(item)
       if (productId) ids.add(productId)
@@ -149,7 +164,7 @@ export async function GET(request: NextRequest) {
 
     const [purchases, sales] = await Promise.all([
       prisma.purchase_bills.findMany({
-        include: { purchase_channels: true, suppliers: true },
+        include: { purchase_bill_items: { orderBy: { line_no: 'asc' } }, purchase_channels: true, suppliers: true },
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         take: 10000,
         where: range ? { date: range } : undefined,
@@ -174,11 +189,11 @@ export async function GET(request: NextRequest) {
 
     activePurchases.forEach((bill) => {
       const amount = jsonNumber(bill.total_amount)
-      const weight = billWeight(bill)
+      const weight = purchaseBillWeight(bill)
       addAggregate(purchaseChannel, bill.purchase_channels?.name ?? bill.channel_id ?? 'ไม่ระบุช่องทาง', amount, weight)
       addAggregate(purchaseSupplier, bill.suppliers?.name ?? bill.supplier_id ?? 'ไม่ระบุ Supplier', amount, weight)
 
-      jsonRows(bill.items).forEach((item) => {
+      purchaseRows(bill).forEach((item) => {
         const name = itemProductName(item, productById)
         const itemAmount = purchaseItemAmount(item)
         const itemWeightValue = itemWeight(item)

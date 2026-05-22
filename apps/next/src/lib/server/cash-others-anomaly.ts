@@ -1,6 +1,7 @@
 import type { Prisma } from '../../../generated/prisma/client'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
 
 type JsonItem = Prisma.JsonObject
 type Severity = 'critical' | 'info' | 'warn'
@@ -89,7 +90,7 @@ export async function buildCashOthersSummary(asOfValue?: string | null) {
   const [cashAccounts, salesBills, purchaseBills, stockRows, stockIssues, expenses, tradingDeals] = await Promise.all([
     accountBalances(asOf),
     prisma.sales_bills.findMany({ include: { customers: true, sales_channels: true }, orderBy: [{ date: 'desc' }], take: 15000, where: { date: { lte: endOfDay(asOf) } } }),
-    prisma.purchase_bills.findMany({ include: { suppliers: true }, orderBy: [{ date: 'desc' }], take: 15000, where: { date: { lte: endOfDay(asOf) } } }),
+    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' } }, suppliers: true }, orderBy: [{ date: 'desc' }], take: 15000, where: { date: { lte: endOfDay(asOf) } } }),
     prisma.stock_ledger.findMany({ include: { products: true }, orderBy: [{ date: 'desc' }], take: 80000, where: { date: { lte: endOfDay(asOf) } } }),
     prisma.stock_issues.findMany({ orderBy: [{ date: 'desc' }], take: 5000 }),
     prisma.expenses.findMany({ orderBy: [{ date: 'desc' }], take: 5000, where: { date: new Date(`${today}T00:00:00.000Z`) } }),
@@ -205,7 +206,7 @@ export async function buildAnomalyDetector(asOfValue?: string | null) {
     accountBalances(asOf),
     prisma.stock_ledger.findMany({ include: { products: true }, orderBy: [{ date: 'desc' }], take: 80000, where: { date: { lte: endOfDay(asOf) } } }),
     prisma.sales_bills.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }], take: 10000, where: { date: { lte: endOfDay(asOf) } } }),
-    prisma.purchase_bills.findMany({ include: { suppliers: true }, orderBy: [{ date: 'desc' }], take: 10000, where: { date: { lte: endOfDay(asOf) } } }),
+    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' } }, suppliers: true }, orderBy: [{ date: 'desc' }], take: 10000, where: { date: { lte: endOfDay(asOf) } } }),
     prisma.customers.findMany({ orderBy: [{ name: 'asc' }], take: 10000, where: { active: { not: false } } }),
     prisma.suppliers.findMany({ orderBy: [{ name: 'asc' }], take: 10000, where: { active: { not: false } } }),
     prisma.bank_statement.findMany({ orderBy: [{ date: 'desc' }], take: 5000, where: { date: { lte: endOfDay(asOf) } } }),
@@ -246,7 +247,7 @@ export async function buildAnomalyDetector(asOfValue?: string | null) {
     if (payable > 0 && overdue > 60) push({ action: 'จัดคิวจ่ายหรือปรับสถานะหนี้หลังตรวจเอกสาร', category: 'AP', detail: `${bill.doc_no} เกินกำหนด ${overdue} วัน · ${payable.toLocaleString('th-TH')}`, fixHref: '/finance/ap', icon: '⚠', id: `ap-overdue-${bill.id}`, severity: overdue > 90 ? 'critical' : 'warn', title: `เจ้าหนี้ค้างจ่าย: ${bill.doc_no}` })
     if (toNumber(bill.paid_amount) - toNumber(bill.total_amount) > 1) push({ action: 'ตรวจ payment allocation และยอดบิลซื้อ', category: 'Bill Math', detail: `${bill.doc_no} จ่าย ${toNumber(bill.paid_amount).toLocaleString('th-TH')} มากกว่ายอดบิล`, fixHref: '/purchase/bills', icon: '🚨', id: `pb-overpaid-${bill.id}`, severity: 'critical', title: `บิลซื้อจ่ายเกิน: ${bill.doc_no}` })
     if (bill.date > addDays(asOf, 1)) push({ action: 'ตรวจวันที่บิลซื้อ', category: 'Date', detail: `${bill.doc_no} วันที่ ${toDateOnly(bill.date)}`, fixHref: '/purchase/bills', icon: '⚠', id: `pb-future-${bill.id}`, severity: 'warn', title: `บิลซื้อวันที่อนาคต: ${bill.doc_no}` })
-    if (Array.isArray(bill.items) && bill.items.filter(isJsonItem).reduce((sum, item) => sum + itemAmount(item), 0) === 0) push({ action: 'ตรวจรายการสินค้าและราคาในบิลซื้อ', category: 'Bill Content', detail: `${bill.doc_no} ยอดรายการเป็น 0`, fixHref: '/purchase/bills', icon: '⚠', id: `pb-empty-${bill.id}`, severity: 'warn', title: `บิลซื้อไม่มีรายการ/ราคา: ${bill.doc_no}` })
+    if (purchaseBillItemRows(bill).filter(isJsonItem).reduce((sum, item) => sum + itemAmount(item), 0) === 0) push({ action: 'ตรวจรายการสินค้าและราคาในบิลซื้อ', category: 'Bill Content', detail: `${bill.doc_no} ยอดรายการเป็น 0`, fixHref: '/purchase/bills', icon: '⚠', id: `pb-empty-${bill.id}`, severity: 'warn', title: `บิลซื้อไม่มีรายการ/ราคา: ${bill.doc_no}` })
   })
   const customerNames = new Map<string, number>()
   customers.forEach((customer) => {

@@ -1,6 +1,7 @@
 import type { Prisma } from '../../../generated/prisma/client'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
 
 type JsonItem = Prisma.JsonObject
 
@@ -153,7 +154,7 @@ export async function buildProfitCostAnalysis(filter: ProfitCostFilter) {
       },
     }),
     prisma.purchase_bills.findMany({
-      include: { branches: true, purchase_channels: true, suppliers: true },
+      include: { branches: true, purchase_bill_items: { orderBy: { line_no: 'asc' } }, purchase_channels: true, suppliers: true },
       orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
       take: 15000,
       where: {
@@ -225,18 +226,16 @@ export async function buildProfitCostAnalysis(filter: ProfitCostFilter) {
     const day = trendAggs.get(dayKey(bill.date)) ?? { buyAmount: 0, buyQty: 0, cogs: 0, gp: 0, revenue: 0, sellQty: 0 }
 
     let billQty = 0
-    if (Array.isArray(bill.items)) {
-      bill.items.filter(isJsonItem).forEach((item) => {
-        const row = ensureProductRow(item)
-        const qty = itemQty(item)
-        const amount = itemAmount(item)
-        billQty += qty
-        if (!row) return
-        row.buyQty += qty
-        row.buyAmount += amount
-        row.buyBills.add(bill.id)
-      })
-    }
+    purchaseBillItemRows(bill).filter(isJsonItem).forEach((item) => {
+      const row = ensureProductRow(item)
+      const qty = itemQty(item)
+      const amount = itemAmount(item)
+      billQty += qty
+      if (!row) return
+      row.buyQty += qty
+      row.buyAmount += amount
+      row.buyBills.add(bill.id)
+    })
 
     supplier.amount += toNumber(bill.total_amount)
     supplier.paid += toNumber(bill.paid_amount)

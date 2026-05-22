@@ -28,6 +28,7 @@
 | Remaining module plan | `docs/migration/17-next-remaining-modules-progress.md` | batch/task tree, Playwright rule, OpenAPI/sitemap preflight |
 | Next sitemap/API map | `docs/migration/18-next-system-sitemap.md` | route/page/API/permission status baseline for active Next app |
 | OpenAPI baseline | `docs/api/openapi.yaml` | skeleton API contract catalog for current Next route handlers |
+| Data dictionary | `docs/data-dictionary/` | table/column business meaning for developers; start with `purchase-bills.md` |
 | Legacy page inventory | `docs/migration/20-legacy-page-inventory.md` | counted legacy sidebar entries and view IDs from `https://sirimasth.github.io/ns-scrap-erp/` |
 | Environment status | `docs/migration/10-environment-status.md` | Supabase/Vercel/MCP/env |
 | Master data | `docs/migration/13-next-master-data-progress.md` | Next master-data tracker |
