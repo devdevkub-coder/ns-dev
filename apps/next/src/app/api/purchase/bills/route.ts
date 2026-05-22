@@ -343,36 +343,23 @@ async function rowsPayload(query: BillQuery, includePaging = true) {
 function buildWorkbook(rows: ReturnType<typeof billJson>[]) {
   const dataRows = rows.map((row) => ({
     'เลขที่': row.docNo,
-    'เลขที่อ้างอิง': row.refNo,
     'วันที่': row.date,
     'ผู้ขาย': row.supplierName,
-    'สาขา': row.branchName,
-    'คลัง': row.warehouseName,
     'ประเภท': row.transactionMode,
-    'ที่มา': row.purchaseSource,
-    'ทะเบียนรถ': row.licensePlate,
-    'เบอร์โทร': row.contactPhone,
-    'เซลที่ดูแล': row.salesId,
-    'จำนวนรายการ': row.itemCount,
-    'ส่วนลดท้ายบิล': row.discountTotal,
-    'VAT %': row.vatRatePercent,
-    'ยอดรวม': row.totalAmount,
-    'ชำระแล้ว': row.paidAmount,
-    'ค้างจ่าย': row.payableBalance,
     'สถานะ': row.status,
-    'ใบกำกับ VAT': row.hasVat ? row.vatInvoiceReceived ? 'รับแล้ว' : 'รอรับ' : 'No VAT',
+    'จำนวนรายการ': row.itemCount,
+    'ยอดรวม': row.totalAmount,
+    'ค้างจ่าย': row.payableBalance,
     'สร้างโดย': row.createdBy,
     'สร้างเมื่อ': row.createdAt,
   }))
   const workbook = XLSX.utils.book_new()
   const sheet = XLSX.utils.json_to_sheet(dataRows)
   sheet['!cols'] = [
-    { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 28 }, { wch: 18 }, { wch: 18 },
-    { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 12 },
-    { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 12 },
-    { wch: 14 }, { wch: 16 }, { wch: 22 },
+    { wch: 16 }, { wch: 12 }, { wch: 28 }, { wch: 12 }, { wch: 12 },
+    { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 22 },
   ]
-  applyWorksheetTableLayout(sheet, 21, dataRows.length + 1)
+  applyWorksheetTableLayout(sheet, 10, dataRows.length + 1)
   XLSX.utils.book_append_sheet(workbook, sheet, 'บิลรับซื้อ')
   return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer
 }
