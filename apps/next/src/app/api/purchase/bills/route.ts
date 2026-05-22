@@ -595,6 +595,9 @@ export async function PATCH(request: Request) {
     ])
 
     if (!existingBill) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบบิลรับซื้อ' }, { status: 404 })
+    if (String(existingBill.status ?? '').toLowerCase().includes('cancel')) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขไม่ได้ เพราะบิลนี้ถูกยกเลิกแล้ว' }, { status: 400 })
+    }
     const billDate = existingBill.date ? toDateOnly(existingBill.date) : bangkokDateInput(new Date())
     const vatRatePercent = toNumber(existingBill.vat_rate_percent) ?? (await activeVatRatePercent(normalizeDate(billDate)))
     const totals = calculateTotals(values, vatRatePercent)
