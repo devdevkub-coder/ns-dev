@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { errorJson, masterDataJson, masterDataListJson, normalizeCode, parseMasterDataForm, toIso } from '@/lib/server/master-data'
+import { errorJson, masterDataJson, masterDataListJson, parseMasterDataForm, toIso } from '@/lib/server/master-data'
 import type { Prisma } from '../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
@@ -36,6 +36,26 @@ function mapWarehouse(row: WarehouseRow) {
   }
 }
 
+function nextWarehouseId(name: string) {
+  const text = name.trim().toUpperCase()
+  if (text.includes('สมุทรสาคร')) {
+    if (text.startsWith('RM')) return 'RM-SK'
+    if (text.startsWith('WIP')) return 'WIP-SK'
+    if (text.startsWith('FG')) return 'FG-SK'
+  }
+  if (text.includes('นครสวรรค์') || text.includes('นครสวรค์')) {
+    if (text.startsWith('RM')) return 'RM-NS'
+    if (text.startsWith('WIP')) return 'WIP-NS'
+    if (text.startsWith('FG')) return 'FG-NS'
+  }
+  return text
+    .normalize('NFKD')
+    .replace(/[^\w\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/_+/g, '-')
+}
+
 export async function GET() {
   try {
     const context = await getCurrentAuthContext()
@@ -58,20 +78,20 @@ export async function POST(request: Request) {
     requirePermission(context, 'master.reference.manage')
 
     const values = parseMasterDataForm(await request.json())
-    const code = normalizeCode(values.code, values.id || '')
+    const id = values.id || values.code || nextWarehouseId(values.name)
     const row = await prisma.warehouses.upsert({
-      where: { id: values.id || code },
+      where: { id },
       create: {
         active: values.active,
         branch_id: values.branchId || null,
-        code,
-        id: values.id || code,
+        code: id,
+        id,
         name: values.name,
       },
       update: {
         active: values.active,
         branch_id: values.branchId || null,
-        code,
+        code: id,
         name: values.name,
       },
       include: { branches: true },

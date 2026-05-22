@@ -93,7 +93,6 @@ export const warehousesPageConfig: MasterDataPageConfig = {
   entityName: 'คลัง',
   emptyMessage: 'ไม่พบข้อมูลคลัง',
   fields: [
-    { key: 'code', label: 'รหัสคลัง', required: true },
     { key: 'name', label: 'ชื่อคลัง', required: true },
     { key: 'branchId', label: 'สาขา', type: 'select', optionsApiPath: '/api/master-data/branches', optionValueKey: 'id' },
   ],
