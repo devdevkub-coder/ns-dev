@@ -507,7 +507,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                         {row.vat > 0 ? <div className="text-emerald-700">+VAT: {formatMoney(row.vat)}</div> : null}
                         {row.wht > 0 ? <div className="text-amber-700">-WHT: {formatMoney(row.wht)}</div> : null}
                       </td>
-                      <td className="p-2 text-center"><button className="rounded bg-blue-100 px-2 py-1 text-xs font-bold text-blue-700 hover:bg-blue-200" type="button" onClick={() => openEditForm(row)}>แก้ไข</button></td>
+                      <td className="p-2 text-center"><button className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" type="button" onClick={() => openEditForm(row)}>จัดการ</button></td>
                     </tr>
                   )
                 })}

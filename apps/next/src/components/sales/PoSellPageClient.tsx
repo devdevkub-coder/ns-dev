@@ -229,7 +229,7 @@ export function PoSellPageClient() {
                 <td className={`p-2 text-right font-bold ${row.margin < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatMoney(row.margin)}</td>
                 <td className={`p-2 text-right ${row.marginPct < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatPercent(row.marginPct)}</td>
                 <td className="p-2 text-center"><StatusPill label={row.matchStatus} tone="match" /></td>
-                <td className="whitespace-nowrap p-2 text-right"><button className="mr-2 text-xs text-blue-600 opacity-50" disabled title="รอออกแบบ write permission/audit ก่อนเปิดใช้งาน" type="button">แก้</button><button className="text-xs text-red-600 opacity-50" disabled title="รอออกแบบ cancel/reconciliation ก่อนเปิดใช้งาน" type="button">ยกเลิก</button></td>
+                <td className="whitespace-nowrap p-2 text-right"><button className="mr-2 rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 opacity-50" disabled title="รอออกแบบ write permission/audit ก่อนเปิดใช้งาน" type="button">จัดการ</button><button className="text-xs text-red-600 opacity-50" disabled title="รอออกแบบ cancel/reconciliation ก่อนเปิดใช้งาน" type="button">ยกเลิก</button></td>
               </tr>
             ))}
           </tbody>

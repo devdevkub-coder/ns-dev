@@ -126,7 +126,7 @@ export function ReceiptVouchersPageClient() {
                   <td className="p-2 text-right font-semibold text-emerald-700">{formatMoney(row.totalAmount)}</td>
                   <td className="space-x-2 whitespace-nowrap p-2 text-right">
                     <button className="text-xs font-semibold text-purple-600 hover:underline" type="button" onClick={() => setPrintingRow(row)}>🖨 พิมพ์</button>
-                    <button className="text-xs text-blue-400" disabled type="button">✏️ แก้</button>
+                    <button className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:opacity-60" disabled type="button">จัดการ</button>
                     <button className="text-xs text-red-400" disabled type="button">🗑 ลบ</button>
                   </td>
                 </tr>

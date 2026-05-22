@@ -322,7 +322,7 @@ export function DailyPettyAdvancePageClient() {
                 <td className="space-x-1 whitespace-nowrap p-2 text-right">
                   <button className="text-xs text-blue-600 hover:underline" title="ดูรายละเอียด" type="button" onClick={() => setDetailRow(row)}>🔍</button>
                   {row.status === 'active' && row.remaining > 0 ? <button className="rounded bg-emerald-600 px-2 py-1 text-xs text-white" type="button" onClick={() => { setReturningRow(row); setReturnForm({ accountId: row.accountId, amount: String(Math.max(0, row.remaining)), date: todayDateInput(), notes: '' }) }}>💵 คืนเงิน</button> : null}
-                  {row.status === 'active' ? <button className="text-xs text-blue-600 hover:underline" type="button" onClick={() => openEditForm(row)}>แก้</button> : null}
+                  {row.status === 'active' ? <button className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" type="button" onClick={() => openEditForm(row)}>จัดการ</button> : null}
                   <button className="text-xs text-red-300" disabled type="button">🗑</button>
                 </td>
               </tr>

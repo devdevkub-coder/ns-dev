@@ -234,7 +234,7 @@ export function DailyTransferPageClient() {
                 <td className="p-2 text-right text-amber-700">{formatMoney(row.fee)}</td>
                 <td className="p-2">{row.byPerson || '-'}</td>
                 <td className="space-x-2 whitespace-nowrap p-2 text-right">
-                  <button className="text-xs text-blue-600 hover:underline" type="button" onClick={() => openEditForm(row)}>✏️ แก้</button>
+                  <button className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" type="button" onClick={() => openEditForm(row)}>จัดการ</button>
                   <button className="text-xs text-red-300" disabled type="button">🗑 ลบ</button>
                 </td>
               </tr>

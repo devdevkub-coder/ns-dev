@@ -182,7 +182,7 @@ export function StockLedgerPageClient() {
                 <td className="p-2 text-right font-mono text-slate-500">{formatMoney(row.unitCost)}</td>
                 <td className="p-2 text-right font-mono text-emerald-700">{row.valueIn ? formatMoney(row.valueIn) : '-'}</td>
                 <td className="p-2 text-right font-mono text-red-700">{row.valueOut ? formatMoney(row.valueOut) : '-'}</td>
-                <td className="p-2 text-center"><button className="rounded bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200" type="button" onClick={() => setSelectedRow(row)}>อ่าน</button></td>
+                <td className="p-2 text-center"><button className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" type="button" onClick={() => setSelectedRow(row)}>จัดการ</button></td>
               </tr>
             ))}
             {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={12}>ยังไม่มี Stock Movement</td></tr> : null}

@@ -357,7 +357,7 @@ function formatOperationCell(mode: Mode, row: Record<string, string | number | b
   }
   if (mode === 'adjust') {
     if (key === 'action') {
-      return <button className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-500" disabled title="รอออกแบบ reverse/audit/rollback ก่อนเปิดใช้งาน" type="button">ดู</button>
+      return <button className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:opacity-60" disabled title="รอออกแบบ reverse/audit/rollback ก่อนเปิดใช้งาน" type="button">จัดการ</button>
     }
     if (key === 'adjustType') {
       const value = String(row[key] ?? '')
