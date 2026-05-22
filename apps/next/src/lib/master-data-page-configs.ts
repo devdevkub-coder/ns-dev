@@ -69,20 +69,38 @@ export const channelsPageConfig: MasterDataPageConfig = {
 
 export const branchesPageConfig: MasterDataPageConfig = {
   apiPath: '/api/master-data/branches',
-  createLabel: 'เพิ่มสาขา/คลัง',
-  entityName: 'สาขา/คลัง',
-  emptyMessage: 'ไม่พบข้อมูลสาขา/คลัง',
+  createLabel: 'เพิ่มสาขา',
+  entityName: 'สาขา',
+  emptyMessage: 'ไม่พบข้อมูลสาขา',
   fields: [
-    { key: 'code', label: 'รหัสสาขา/คลัง', required: true },
-    { key: 'name', label: 'ชื่อสาขา/คลัง', required: true },
+    { key: 'code', label: 'รหัสสาขา', required: true },
+    { key: 'name', label: 'ชื่อสาขา', required: true },
     { key: 'phone', label: 'โทรศัพท์' },
     { key: 'address', label: 'ที่อยู่' },
   ],
   columns: [
     { key: 'code', label: 'รหัส' },
-    { key: 'name', label: 'ชื่อสาขา/คลัง' },
+    { key: 'name', label: 'ชื่อสาขา' },
     { key: 'phone', label: 'โทร' },
     { key: 'address', label: 'ที่อยู่' },
+    statusColumn,
+  ],
+}
+
+export const warehousesPageConfig: MasterDataPageConfig = {
+  apiPath: '/api/master-data/warehouses',
+  createLabel: 'เพิ่มคลัง',
+  entityName: 'คลัง',
+  emptyMessage: 'ไม่พบข้อมูลคลัง',
+  fields: [
+    { key: 'code', label: 'รหัสคลัง', required: true },
+    { key: 'name', label: 'ชื่อคลัง', required: true },
+    { key: 'branchId', label: 'สาขา', type: 'select', optionsApiPath: '/api/master-data/branches', optionValueKey: 'id' },
+  ],
+  columns: [
+    { key: 'code', label: 'รหัส' },
+    { key: 'name', label: 'ชื่อคลัง' },
+    { key: 'branchName', label: 'สาขา' },
     statusColumn,
   ],
 }
@@ -100,7 +118,7 @@ export const accountsPageConfig: MasterDataPageConfig = {
     { key: 'currency', label: 'สกุลเงิน' },
     { key: 'openingBalance', label: 'ยอดยกมา', type: 'number' },
     { key: 'odLimit', label: 'วงเงิน OD', type: 'number' },
-    { key: 'branchId', label: 'สาขา/คลัง', type: 'select', optionsApiPath: '/api/master-data/branches', optionValueKey: 'id' },
+    { key: 'branchId', label: 'สาขา', type: 'select', optionsApiPath: '/api/master-data/branches', optionValueKey: 'id' },
   ],
   columns: [
     { key: 'name', label: 'ชื่อบัญชี' },
@@ -109,7 +127,7 @@ export const accountsPageConfig: MasterDataPageConfig = {
     { key: 'accountNo', label: 'เลขที่บัญชี' },
     { key: 'currency', label: 'สกุลเงิน', align: 'center' },
     { key: 'openingBalance', label: 'ยอดยกมา', align: 'right', format: 'money' },
-    { key: 'branchName', label: 'สาขา/คลัง' },
+    { key: 'branchName', label: 'สาขา' },
     statusColumn,
   ],
 }
@@ -141,7 +159,7 @@ export const suppliersPageConfig: MasterDataPageConfig = {
     { key: 'type', label: 'ประเภท' },
     { key: 'taxId', label: 'เลขผู้เสียภาษี' },
     { key: 'phone', label: 'โทรศัพท์' },
-    { key: 'branchId', label: 'สาขา/คลัง', type: 'select', optionsApiPath: '/api/master-data/branches', optionValueKey: 'id' },
+    { key: 'branchId', label: 'สาขา', type: 'select', optionsApiPath: '/api/master-data/branches', optionValueKey: 'id' },
     { key: 'bankName', label: 'ธนาคารรับเงิน', type: 'select', optionsApiPath: '/api/master-data/bank-names' },
     { key: 'accountNo', label: 'เลขที่บัญชีรับเงิน' },
     { key: 'address', label: 'ที่อยู่' },
@@ -154,7 +172,7 @@ export const suppliersPageConfig: MasterDataPageConfig = {
     { key: 'phone', label: 'โทร' },
     { key: 'bankName', label: 'ธนาคารรับเงิน' },
     { key: 'accountNo', label: 'เลขที่บัญชีรับเงิน' },
-    { key: 'branchName', label: 'สาขา/คลัง' },
+    { key: 'branchName', label: 'สาขา' },
     statusColumn,
   ],
 }
@@ -239,7 +257,7 @@ export const machinesPageConfig: MasterDataPageConfig = {
   emptyMessage: 'ไม่พบข้อมูลเครื่องจักร',
   fields: [
     { key: 'name', label: 'ชื่อเครื่องจักร', required: true },
-    { key: 'branchId', label: 'สาขา/คลัง', type: 'select', optionsApiPath: '/api/master-data/branches', optionValueKey: 'id' },
+    { key: 'branchId', label: 'สาขา', type: 'select', optionsApiPath: '/api/master-data/branches', optionValueKey: 'id' },
     { key: 'type', label: 'ประเภท', type: 'select', optionsApiPath: '/api/master-data/machine-types' },
     { key: 'capacityKgPerHr', label: 'กำลังผลิต (กก./ชม.)', type: 'number' },
     { key: 'normalYieldPct', label: 'Normal Yield %', type: 'number' },
@@ -247,7 +265,7 @@ export const machinesPageConfig: MasterDataPageConfig = {
   ],
   columns: [
     { key: 'name', label: 'ชื่อเครื่องจักร' },
-    { key: 'branchName', label: 'สาขา/คลัง' },
+    { key: 'branchName', label: 'สาขา' },
     { key: 'type', label: 'ประเภท' },
     { key: 'capacityKgPerHr', label: 'กก./ชม.', align: 'right', format: 'number' },
     { key: 'normalYieldPct', label: 'Yield %', align: 'right', format: 'number' },
@@ -276,12 +294,12 @@ export const productionLinesPageConfig: MasterDataPageConfig = {
   emptyMessage: 'ไม่พบข้อมูล Production Line',
   fields: [
     { key: 'name', label: 'ชื่อ Line', required: true },
-    { key: 'branchId', label: 'สาขา/คลัง', type: 'select', optionsApiPath: '/api/master-data/branches', optionValueKey: 'id' },
+    { key: 'branchId', label: 'สาขา', type: 'select', optionsApiPath: '/api/master-data/branches', optionValueKey: 'id' },
     { key: 'responsiblePerson', label: 'ผู้รับผิดชอบ' },
   ],
   columns: [
     { key: 'name', label: 'ชื่อ Line' },
-    { key: 'branchName', label: 'สาขา/คลัง' },
+    { key: 'branchName', label: 'สาขา' },
     { key: 'responsiblePerson', label: 'ผู้รับผิดชอบ' },
     statusColumn,
   ],
