@@ -49,6 +49,7 @@ type PoBuyItem = {
 
 type PoBuyRow = {
   branchId: string
+  createdAt: string
   createdBy: string
   date: string
   docNo: string
@@ -65,11 +66,13 @@ type PoBuyRow = {
   supplierId: string
   supplierName: string
   totalAmount: number
+  updatedAt: string
+  updatedBy: string
 }
 
 type FieldErrors = Record<string, string>
 type PoBuySortDirection = 'asc' | 'desc'
-type PoBuySortKey = 'date' | 'docNo' | 'expectedDelivery' | 'itemCount' | 'productName' | 'qty' | 'remainingQty' | 'status' | 'supplierName' | 'totalAmount'
+type PoBuySortKey = 'date' | 'docNo' | 'expectedDelivery' | 'itemCount' | 'productName' | 'qty' | 'remainingQty' | 'status' | 'supplierName' | 'totalAmount' | 'updatedAt'
 
 function blankItem(): PoBuyFormItem {
   return { productId: '', qty: 0, unitPrice: 0 }
@@ -107,6 +110,20 @@ function optionLabel(option: Option) {
 
 function searchableText(option: Option) {
   return `${option.code ?? ''} ${option.name} ${option.id}`.toLowerCase()
+}
+
+function formatDateTime(value?: string) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString('th-TH', {
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    month: '2-digit',
+    timeZone: 'Asia/Bangkok',
+    year: '2-digit',
+  })
 }
 
 export function PoBuyPageClient() {
@@ -411,10 +428,10 @@ export function PoBuyPageClient() {
 
       <div className="overflow-x-auto rounded-lg bg-white shadow">
         <table className="w-full min-w-[1180px] text-sm">
-          <thead className="bg-slate-100"><tr><th className="p-2 text-center font-semibold text-slate-700"><input aria-label="เลือก PO ทั้งหมดในตาราง" checked={allVisibleSelected} disabled={rows.length === 0} type="checkbox" onChange={toggleVisibleSelection} /></th><PoBuySortHeader activeKey={sortKey} direction={sortDirection} label="เลขที่" sortKey="docNo" onSort={changeSort} /><PoBuySortHeader activeKey={sortKey} direction={sortDirection} label="วันที่" sortKey="date" onSort={changeSort} /><PoBuySortHeader activeKey={sortKey} direction={sortDirection} label="Supplier" sortKey="supplierName" onSort={changeSort} /><PoBuySortHeader activeKey={sortKey} direction={sortDirection} label="รายการ" sortKey="productName" onSort={changeSort} /><PoBuySortHeader activeKey={sortKey} align="right" direction={sortDirection} label="จำนวนรวม" sortKey="qty" onSort={changeSort} /><PoBuySortHeader activeKey={sortKey} align="right" direction={sortDirection} label="มูลค่ารวม" sortKey="totalAmount" onSort={changeSort} /><PoBuySortHeader activeKey={sortKey} align="right" direction={sortDirection} label="รอรับรวม" sortKey="remainingQty" onSort={changeSort} /><PoBuySortHeader activeKey={sortKey} direction={sortDirection} label="กำหนดส่ง" sortKey="expectedDelivery" onSort={changeSort} /><PoBuySortHeader activeKey={sortKey} align="center" direction={sortDirection} label="สถานะ" sortKey="status" onSort={changeSort} /><th className="p-2 text-right font-semibold text-slate-700">จัดการ</th></tr></thead>
+          <thead className="bg-slate-100"><tr><th className="p-2 text-center font-semibold text-slate-700"><input aria-label="เลือก PO ทั้งหมดในตาราง" checked={allVisibleSelected} disabled={rows.length === 0} type="checkbox" onChange={toggleVisibleSelection} /></th><PoBuySortHeader activeKey={sortKey} direction={sortDirection} label="เลขที่" sortKey="docNo" onSort={changeSort} /><PoBuySortHeader activeKey={sortKey} direction={sortDirection} label="วันที่" sortKey="date" onSort={changeSort} /><PoBuySortHeader activeKey={sortKey} direction={sortDirection} label="Supplier" sortKey="supplierName" onSort={changeSort} /><PoBuySortHeader activeKey={sortKey} direction={sortDirection} label="รายการ" sortKey="productName" onSort={changeSort} /><PoBuySortHeader activeKey={sortKey} align="right" direction={sortDirection} label="จำนวนรวม" sortKey="qty" onSort={changeSort} /><PoBuySortHeader activeKey={sortKey} align="right" direction={sortDirection} label="มูลค่ารวม" sortKey="totalAmount" onSort={changeSort} /><PoBuySortHeader activeKey={sortKey} align="right" direction={sortDirection} label="รอรับรวม" sortKey="remainingQty" onSort={changeSort} /><PoBuySortHeader activeKey={sortKey} direction={sortDirection} label="กำหนดส่ง" sortKey="expectedDelivery" onSort={changeSort} /><PoBuySortHeader activeKey={sortKey} align="center" direction={sortDirection} label="สถานะ" sortKey="status" onSort={changeSort} /><PoBuySortHeader activeKey={sortKey} direction={sortDirection} label="อัพเดตล่าสุด" sortKey="updatedAt" onSort={changeSort} /><th className="p-2 text-right font-semibold text-slate-700">จัดการ</th></tr></thead>
           <tbody>
-            {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={11}>กำลังโหลดข้อมูล</td></tr> : null}
-            {!isLoading && !error && rows.length === 0 ? <tr><td className="py-10 text-center text-slate-400" colSpan={11}>ยังไม่มี PO Buy</td></tr> : null}
+            {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={12}>กำลังโหลดข้อมูล</td></tr> : null}
+            {!isLoading && !error && rows.length === 0 ? <tr><td className="py-10 text-center text-slate-400" colSpan={12}>ยังไม่มี PO Buy</td></tr> : null}
             {!isLoading && pageRows.map((row, index) => (
               <tr key={row.id} className={`cursor-pointer border-t border-slate-100 hover:bg-slate-50 ${index % 2 === 1 ? 'bg-slate-50/40' : ''}`} onClick={() => setSelectedRow(row)}>
                 <td className="p-2 text-center"><input aria-label={`เลือก ${row.docNo}`} checked={selectedPoIds.includes(row.id)} type="checkbox" onChange={() => toggleRowSelection(row.id)} onClick={(event) => event.stopPropagation()} /></td>
@@ -427,6 +444,7 @@ export function PoBuyPageClient() {
                 <td className="p-2 text-right text-amber-700">{formatMoney(row.remainingQty)}</td>
                 <td className="p-2">{row.expectedDelivery || '-'}</td>
                 <td className="p-2 text-center"><span className={`rounded-full px-2 py-0.5 text-xs ${statusBadge(row.status)}`}>{row.status}</span></td>
+                <td className="p-2 text-xs text-slate-600"><div>{row.updatedBy || row.createdBy || '-'}</div><div className="font-mono text-[10px] text-slate-400">{formatDateTime(row.updatedAt || row.createdAt)}</div></td>
                 <td className="whitespace-nowrap p-2 text-right">
                   <button className="mr-2 rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" type="button" onClick={(event) => { event.stopPropagation(); openEditForm(row) }}>แก้ไข</button>
                   <button className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" type="button" onClick={(event) => { event.stopPropagation(); openCancelDialog(row) }}>ยกเลิก</button>
@@ -539,6 +557,7 @@ function poBuySortValue(row: PoBuyRow, key: PoBuySortKey) {
   if (key === 'remainingQty') return row.remainingQty
   if (key === 'status') return row.status
   if (key === 'supplierName') return row.supplierName
+  if (key === 'updatedAt') return row.updatedAt || row.createdAt || ''
   return row.totalAmount
 }
 

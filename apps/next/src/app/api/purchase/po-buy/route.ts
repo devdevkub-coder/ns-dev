@@ -185,6 +185,7 @@ export async function GET(request: Request) {
       const status = po.status ?? 'Open'
 
       return {
+        createdAt: po.created_at?.toISOString() ?? '',
         createdBy: po.created_by ?? '',
         branchId: po.branch_id ?? '',
         date: toDateOnly(po.date),
@@ -202,6 +203,8 @@ export async function GET(request: Request) {
         supplierId: po.supplier_id ?? '',
         supplierName: po.suppliers?.name ?? po.supplier_id ?? '-',
         totalAmount,
+        updatedAt: po.updated_at?.toISOString() ?? '',
+        updatedBy: po.updated_by ?? '',
       }
     })
       .filter((row) => selectedIds.size === 0 || selectedIds.has(row.id))
@@ -227,6 +230,8 @@ export async function GET(request: Request) {
         Status: row.status,
         Supplier: row.supplierName,
         TotalAmount: row.totalAmount,
+        UpdatedAt: row.updatedAt || row.createdAt,
+        UpdatedBy: row.updatedBy || row.createdBy,
       }))), 'po_buy.xlsx')
     }
 
