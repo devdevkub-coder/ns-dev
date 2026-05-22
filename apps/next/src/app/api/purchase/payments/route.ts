@@ -144,24 +144,54 @@ export async function POST(request: Request) {
     const actor = currentActor(context)
     const paymentDate = normalizeDate(values.date)
     const whtRatePercent = await activeWhtRatePercent(paymentDate)
-    const withholdingTax = withholdingTaxFromCashAmount(values.amount, whtRatePercent)
-    const netAmount = values.amount + values.fee
+    const paymentLines = (values.lines?.length ? values.lines : [{
+      amount: values.amount,
+      billId: values.billId,
+      discount: values.discount,
+      fee: values.fee,
+      id: null,
+      supplierId: values.supplierId,
+      withholdingTax: values.withholdingTax,
+    }]).filter((line) => line.billId && toNumber(line.amount) > 0)
+    if (paymentLines.length === 0) throw new Error('เพิ่มรายการจ่ายอย่างน้อย 1 รายการ')
+    const paymentLineTotals = paymentLines.map((line, index) => ({
+      ...line,
+      amount: toNumber(line.amount),
+      discount: toNumber(line.discount),
+      fee: toNumber(line.fee),
+      id: paymentLines.length === 1 ? id : `${id}-L${index + 1}`,
+      withholdingTax: withholdingTaxFromCashAmount(toNumber(line.amount), whtRatePercent),
+    }))
+    const totalAmount = roundMoney(paymentLineTotals.reduce((sum, line) => sum + line.amount, 0))
+    const totalFee = roundMoney(paymentLineTotals.reduce((sum, line) => sum + line.fee, 0))
+    const netAmount = totalAmount + totalFee
+    const paymentSplits = values.splits
+    const splitTotal = roundMoney(paymentSplits.reduce((sum, split) => sum + toNumber(split.amount), 0))
+    if (Math.abs(splitTotal - netAmount) > 0.01) {
+      throw new Error('รวมยอดแยกบัญชีต้องเท่ากับยอดสุทธิที่ต้องจ่าย')
+    }
+    const primaryAccountId = paymentSplits[0]?.accountId
+    if (!primaryAccountId) throw new Error('เลือกบัญชีจ่าย')
 
     const result = await prisma.$transaction(async (tx) => {
-      const [bill, account] = await Promise.all([
-        values.billId
-          ? tx.purchase_bills.findUnique({
-            select: { branch_id: true, supplier_id: true },
-            where: { id: values.billId },
-          })
-          : Promise.resolve(null),
+      const splitAccountIds = [...new Set(paymentSplits.map((split) => split.accountId))]
+      const lineBillIds = [...new Set(paymentLineTotals.map((line) => line.billId))]
+      const [lineBills, account] = await Promise.all([
+        tx.purchase_bills.findMany({
+          select: { branch_id: true, id: true, supplier_id: true },
+          where: { id: { in: lineBillIds } },
+        }),
         tx.accounts.findUnique({
           select: { branch_id: true },
-          where: { id: values.accountId },
+          where: { id: primaryAccountId },
         }),
       ])
-      if (values.billId && !bill) throw new Error('ไม่พบบิลซื้อที่ต้องการตัดชำระ')
-      const branchId = bill?.branch_id ?? account?.branch_id ?? null
+      const billById = new Map(lineBills.map((bill) => [bill.id, bill]))
+      if (billById.size !== lineBillIds.length) throw new Error('ไม่พบบิลซื้อที่ต้องการตัดชำระ')
+      const splitAccountCount = await tx.accounts.count({ where: { active: true, id: { in: splitAccountIds } } })
+      if (splitAccountCount !== splitAccountIds.length) throw new Error('บัญชีจ่ายบางรายการไม่ถูกต้องหรือไม่ active')
+      const firstBill = billById.get(paymentLineTotals[0].billId)
+      const branchId = firstBill?.branch_id ?? account?.branch_id ?? null
       if (!branchId) throw new Error('ไม่พบสาขาสำหรับออกเลขเอกสารจ่ายเงิน Supplier')
       const branch = await tx.branches.findFirst({
         select: { code: true },
@@ -177,74 +207,80 @@ export async function POST(request: Request) {
         where: { id },
       })
 
-      const payment = await tx.payments.upsert({
-        where: { id },
-        create: {
-          account_id: values.accountId,
-          amount: values.amount,
-          bank_fee: values.fee,
-          bill_id: values.billId,
-          branch_id: branchId,
-          created_by: actor,
-          date: paymentDate,
-          discount: values.discount,
-          doc_no: docNo,
-          fee: values.fee,
-          id,
-          method: values.method,
-          net_amount: netAmount,
-          notes: values.notes,
-          status: 'active',
-          supplier_id: values.supplierId,
-          updated_at: new Date(),
-          updated_by: actor,
-          voucher_id: id,
-          withholding_tax: withholdingTax,
-        },
-        update: {
-          account_id: values.accountId,
-          amount: values.amount,
-          bank_fee: values.fee,
-          bill_id: values.billId,
-          branch_id: branchId,
-          date: paymentDate,
-          discount: values.discount,
-          doc_no: docNo,
-          fee: values.fee,
-          method: values.method,
-          net_amount: netAmount,
-          notes: values.notes,
-          supplier_id: values.supplierId,
-          updated_at: new Date(),
-          updated_by: actor,
-          voucher_id: id,
-          withholding_tax: withholdingTax,
-        },
-      })
+      await tx.payments.deleteMany({ where: { voucher_id: id, id: { notIn: paymentLineTotals.map((line) => line.id) } } })
+      const payments = []
+      for (const line of paymentLineTotals) {
+        const lineBill = billById.get(line.billId)
+        const payment = await tx.payments.upsert({
+          where: { id: line.id },
+          create: {
+            account_id: primaryAccountId,
+            amount: line.amount,
+            bank_fee: line.fee,
+            bill_id: line.billId,
+            branch_id: branchId,
+            created_by: actor,
+            date: paymentDate,
+            discount: line.discount,
+            doc_no: docNo,
+            fee: line.fee,
+            id: line.id,
+            method: values.method,
+            net_amount: line.amount + line.fee,
+            notes: values.notes,
+            status: 'active',
+            supplier_id: lineBill?.supplier_id ?? line.supplierId,
+            updated_at: new Date(),
+            updated_by: actor,
+            voucher_id: id,
+            withholding_tax: line.withholdingTax,
+          },
+          update: {
+            account_id: primaryAccountId,
+            amount: line.amount,
+            bank_fee: line.fee,
+            bill_id: line.billId,
+            branch_id: branchId,
+            date: paymentDate,
+            discount: line.discount,
+            doc_no: docNo,
+            fee: line.fee,
+            method: values.method,
+            net_amount: line.amount + line.fee,
+            notes: values.notes,
+            supplier_id: lineBill?.supplier_id ?? line.supplierId,
+            updated_at: new Date(),
+            updated_by: actor,
+            voucher_id: id,
+            withholding_tax: line.withholdingTax,
+          },
+        })
+        payments.push(payment)
+      }
 
       await tx.bank_statement.deleteMany({ where: { ref_id: id, ref_type: 'PMT' } })
-      await tx.bank_statement.create({
-        data: {
-          account_id: values.accountId,
+      await tx.bank_statement.createMany({
+        data: paymentSplits.map((split, index) => ({
+          account_id: split.accountId,
           amount_in: 0,
-          amount_out: netAmount,
+          amount_out: split.amount,
           created_by: actor,
           date: paymentDate,
-          description: `${docNo} - จ่าย Supplier`,
-          id: `BS-PMT-${id}`,
+          description: `${docNo} - จ่าย Supplier${paymentSplits.length > 1 ? ` (split ${index + 1}/${paymentSplits.length})` : ''}`,
+          id: `BS-PMT-${id}-${index}`,
           ref_id: id,
           ref_no: docNo,
           ref_type: 'PMT',
           type: 'จ่ายเงิน Supplier',
-        },
+        })),
       })
 
-      const billIdsToRefresh = [...new Set([existingPayment?.bill_id, values.billId].filter(Boolean) as string[])]
+      const billIdsToRefresh = [...new Set([existingPayment?.bill_id, ...paymentLineTotals.map((line) => line.billId)].filter(Boolean) as string[])]
       for (const billId of billIdsToRefresh) {
         await refreshPurchaseBillPaymentStatus(tx, billId, actor)
       }
 
-      return payment
+      return payments[0]
     })
 
     return NextResponse.json({ id: result.id })

@@ -94,6 +94,16 @@ export const pettyAdvanceReturnFormSchema = z.object({
 
 export type PettyAdvanceReturnFormValues = z.infer<typeof pettyAdvanceReturnFormSchema>
 
+const supplierPaymentLineSchema = z.object({
+  amount: positiveMoney('ยอดจ่าย'),
+  billId: z.string().trim().min(1, 'เลือกบิลซื้อ').max(80, 'บิลซื้อยาวเกินไป').regex(/^[A-Za-z0-9_.:-]+$/, 'บิลซื้อมีรูปแบบไม่ถูกต้อง'),
+  discount: money('ส่วนลด').default(0),
+  fee: money('ค่าธรรมเนียม').default(0),
+  id: optionalSafeId('รหัสบรรทัดจ่าย'),
+  supplierId: z.string().trim().min(1, 'เลือกผู้ขาย'),
+  withholdingTax: money('ภาษีหัก ณ ที่จ่าย').default(0),
+})
+
 export const supplierPaymentFormSchema = z.object({
   id: optionalSafeId('รหัสรายการ'),
   docNo: optionalDocNo,
@@ -105,8 +115,14 @@ export const supplierPaymentFormSchema = z.object({
   withholdingTax: money('ภาษีหัก ณ ที่จ่าย').default(0),
   discount: money('ส่วนลด').default(0),
   fee: money('ค่าธรรมเนียม').default(0),
-  method: optionalBusinessText('วิธีจ่าย', 80),
+  method: z.string().trim().min(1, 'เลือกวิธีจ่าย').max(80, 'วิธีจ่ายยาวเกินไป').regex(businessTextPattern, 'วิธีจ่ายมีรูปแบบไม่ถูกต้อง'),
   notes: optionalGeneralText('หมายเหตุ', 500),
+  lines: z.array(supplierPaymentLineSchema).optional(),
+  splits: z.array(z.object({
+    accountId: z.string().trim().min(1, 'เลือกบัญชีจ่าย').max(80, 'บัญชีจ่ายยาวเกินไป').regex(/^[A-Za-z0-9_.:-]+$/, 'บัญชีจ่ายมีรูปแบบไม่ถูกต้อง'),
+    amount: positiveMoney('ยอดแยกบัญชี'),
+    id: optionalSafeId('รหัสแยกบัญชี'),
+  })).min(1, 'เลือกบัญชีจ่ายอย่างน้อย 1 รายการ'),
 })
 
 export type SupplierPaymentFormValues = z.infer<typeof supplierPaymentFormSchema>
@@ -152,6 +168,7 @@ export type StockTransferFormValues = z.infer<typeof stockTransferFormSchema>
 
 export type DailyAccountOption = {
   active: boolean
+  balance?: number
   code: string | null
   id: string
   name: string

@@ -44,14 +44,21 @@ export async function listDailyAccounts() {
     select: {
       active: true,
       account_no: true,
+      bank_statement: {
+        orderBy: [{ date: 'desc' }, { created_at: 'desc' }],
+        select: { balance: true },
+        take: 1,
+      },
       id: true,
       name: true,
+      opening_balance: true,
       type: true,
     },
   })
 
   return accounts.map((account) => ({
     active: account.active ?? true,
+    balance: toNumber(account.bank_statement[0]?.balance ?? account.opening_balance),
     code: account.account_no,
     id: account.id,
     name: account.name,

@@ -97,10 +97,12 @@ Current source of truth:
    - ถ้ากด `ทำจ่าย` จาก row ของบิล Modal จะล็อกบิลนั้นเป็น read-only ไม่ต้องเลือกบิลซ้ำ
    - `payments` ยังไม่มี row จนกว่าผู้ใช้กดบันทึก Payment Voucher
 3. เมื่อบันทึกจ่าย Supplier ที่ `POST /api/purchase/payments`
-   - สร้างหรือแก้ row ใน `payments`
-   - สร้าง `bank_statement` เงินออก `ref_type = PMT`
+   - สร้างหรือแก้ row ใน `payments`; ถ้า voucher มีหลายบิล จะสร้าง 1 row ต่อบิลโดยใช้ `doc_no` และ `voucher_id` เดียวกัน
+   - สร้าง `bank_statement` เงินออก `ref_type = PMT`; ถ้าแยกหลายบัญชีจะสร้าง 1 row ต่อบัญชีจ่าย โดยใช้ `ref_id` เดียวกัน
    - refresh บิลซื้อที่เกี่ยวข้องใน transaction เดียวกัน โดยรวมยอดจาก `payments` ที่ `status != cancelled`
-   - `billId`, `supplierId`, `accountId`, `amount`, และ `method` ต้องมีค่าใน API payload
+   - `lines`, `accountId`, `amount`, `method`, และ `splits` ต้องมีค่าใน API payload; `billId`/`supplierId` top-level ยังใช้เป็น compatibility ของบรรทัดแรก
+   - `lines` คือรายการบิลที่จะจ่าย เช่น `{ billId, supplierId, amount, withholdingTax, discount, fee }`
+   - `splits` คือบัญชีจ่ายจริงแบบ legacy split payment; ผลรวม `splits.amount` ต้องเท่ากับ `net_amount`
    - ผู้ใช้กรอกเฉพาะ `amount` เป็นยอดเงินสดที่จะทำจ่าย; `withholding_tax` คำนวณจาก `wht_settings` ที่ active ตามวันที่จ่าย
    - สูตร WHT ปัจจุบันใช้ cash amount เป็นฐาน: `withholding_tax = amount * rate / (100 - rate)` เพื่อให้ `amount + withholding_tax` ตัดยอดค้างได้ตรงกับยอด gross ของบิล
    - สูตรยอดตัดบิล: `amount + withholding_tax + discount`
@@ -128,7 +130,7 @@ Current source of truth:
 | `date` | date | yes | วันที่จ่าย | ระบบส่งจากวันที่ปัจจุบันของฟอร์ม ใช้ทั้ง payment และ bank statement |
 | `bill_id` | text | yes | บิลซื้อที่ตัดชำระ | API บังคับเลือก; ถ้าเปิดจาก row `ทำจ่าย` UI จะล็อกบิลเป็น read-only |
 | `supplier_id` | text | yes | ผู้ขายที่รับเงิน | auto-fill จากบิล |
-| `account_id` | text | yes | บัญชีจ่าย | ผู้ใช้ต้องเลือก ใช้สร้าง `bank_statement` |
+| `account_id` | text | yes | บัญชีจ่ายหลัก | เก็บบัญชีแรกจาก `splits` เพื่อ compatibility/filter; เงินออกจริงดูจาก `bank_statement` |
 | `branch_id` | text | no | สาขาของ Payment Voucher | API ดึงจาก `purchase_bills.branch_id` ก่อน ถ้าไม่มีบิลจึง fallback จาก `accounts.branch_id`; ต้องมีสาขาเพื่อออกเลขเอกสาร |
 | `amount` | numeric | yes | ยอดเงินสดที่จะทำจ่าย | ผู้ใช้กรอกช่องนี้ช่องเดียวในรายการจ่าย; นับเป็นส่วนหนึ่งของยอดตัดบิล |
 | `withholding_tax` | numeric | no | WHT | UI แสดงอ่านอย่างเดียว; API คำนวณจาก `wht_settings` active rate และไม่เชื่อค่าจาก client |
@@ -137,7 +139,26 @@ Current source of truth:
 | `net_amount` | numeric | no | เงินออกสุทธิ | `amount + fee` |
 | `method` | text | yes | วิธีจ่าย | UI บังคับเลือกใน section บัญชีจ่าย |
 | `status` | text | no | สถานะ payment | `cancelled` จะไม่ถูกนำไปรวมยอดจ่ายของบิล |
-| `voucher_id` | text | no | group voucher id | ปัจจุบัน single-row voucher ใช้ค่าเดียวกับ `id` |
+| `voucher_id` | text | no | group voucher id | ใช้รวมหลาย `payments` row ที่มาจาก Payment Voucher เดียวกัน; single-row voucher ใช้ค่าเดียวกับ `id` |
+
+## Payment Lines
+
+หน้า `/purchase/payments` ใช้รูปแบบ legacy multi-line voucher ใน section `รายการจ่าย`:
+
+- ผู้ใช้กด `+ เพิ่มบรรทัด` เพื่อเลือกบิลซื้อค้างจ่ายได้มากกว่า 1 ใบใน voucher เดียว
+- UI ส่ง `lines: [{ billId, supplierId, amount, withholdingTax, discount, fee }]`
+- API recompute WHT ต่อบรรทัดจาก `wht_settings` และใช้ `amount + withholding_tax + discount` เพื่อตัดยอดบิลแต่ละใบ
+- ทุกบรรทัดที่บันทึกสำเร็จใช้ `doc_no` เดียวกัน และมี `voucher_id` ชี้กลับไปที่ voucher เดียวกัน
+
+## Payment Account Splits
+
+หน้า `/purchase/payments` ใช้รูปแบบ legacy split payment:
+
+- ใน modal ผู้ใช้เลือกบัญชีจ่ายได้มากกว่า 1 บัญชี
+- UI ส่ง `splits: [{ accountId, amount }]` ไปที่ `POST /api/purchase/payments`
+- API validate ว่าทุกบัญชี active และยอดรวม split เท่ากับ `net_amount`
+- `payments.account_id` เก็บบัญชีแรกไว้เพื่อ compatibility กับ table/filter เดิม
+- `bank_statement` คือ source ของเงินออกตามบัญชีจริง โดยสร้าง row แยกต่อบัญชี เช่น `BS-PMT-{paymentId}-0`, `BS-PMT-{paymentId}-1`
 
 ## `purchase_bill_items` Columns
 
@@ -180,4 +201,4 @@ Current source of truth:
 - ตัดสินใจว่าจะ keep หรือ deprecate `ref_no`, `contact_phone`, `purchase_source`, `purchase_type`, `tax_invoice_no`
 - ถ้าต้องการ enforce ทะเบียนรถระดับ DB ต้อง backfill ข้อมูลเก่าก่อน แล้วค่อยเพิ่ม `NOT NULL`
 - ถ้ามี report/API ใหม่ ห้ามอ่านรายการสินค้าจากหัวบิล ให้ join หรือ include `purchase_bill_items`
-- ถ้าจะรองรับ multi-bill voucher หรือ split accounts แบบ legacy เต็มรูปแบบ ต้องออกแบบ `payments` allocation/grouping เพิ่ม ไม่ควรยัดหลายบิลใน row เดียว
+- ถ้าจะต่อยอด voucher edit/cancel ระดับกลุ่ม ต้องเพิ่มหน้ารวมตาม `voucher_id` และ policy การ reverse bank statement ทั้งชุด

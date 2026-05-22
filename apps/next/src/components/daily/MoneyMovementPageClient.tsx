@@ -43,7 +43,17 @@ type Payload = {
 }
 
 type MoneyForm = SupplierPaymentFormValues | CustomerReceiptFormValues
+type PaymentLine = NonNullable<SupplierPaymentFormValues['lines']>[number] & { billText?: string }
+type PaymentSplit = SupplierPaymentFormValues['splits'][number]
 const pageSizeOptions = [10, 25, 50, 100]
+
+function newPaymentLine(): PaymentLine {
+  return { amount: 0, billId: '', billText: '', discount: 0, fee: 0, id: `PL-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, supplierId: '', withholdingTax: 0 }
+}
+
+function newPaymentSplit(): PaymentSplit {
+  return { accountId: '', amount: 0, id: `SP-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` }
+}
 
 function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100
@@ -81,15 +91,15 @@ function initialForm(mode: 'payment' | 'receipt'): MoneyForm {
   return {
     accountId: '',
     amount: 0,
-    billId: null,
+    billId: mode === 'payment' ? '' : null,
     date: todayDateInput(),
     discount: 0,
     docNo: null,
     fee: 0,
     id: null,
-    method: null,
+    method: mode === 'payment' ? 'โอน' : null,
     notes: null,
-    ...(mode === 'payment' ? { supplierId: '' } : { customerId: '' }),
+    ...(mode === 'payment' ? { lines: [newPaymentLine()], splits: [newPaymentSplit()], supplierId: '' } : { customerId: '' }),
     withholdingTax: 0,
   } as MoneyForm
 }
@@ -146,11 +156,14 @@ export function MoneyMovementPageClient({ mode }: { mode: 'payment' | 'receipt' 
   const activeAccounts = useMemo(() => data.accounts.filter((account) => account.active), [data.accounts])
   const partyMap = useMemo(() => new Map(parties.map((party) => [party.id, party.name])), [parties])
   const billMap = useMemo(() => new Map(data.bills.map((bill) => [bill.id, bill])), [data.bills])
+  const paymentLines = mode === 'payment' ? (form as SupplierPaymentFormValues).lines ?? [] : []
   const selectedBill = form.billId ? billMap.get(form.billId) : null
   const selectedBillBalance = selectedBill ? (mode === 'payment' ? selectedBill.payableBalance ?? 0 : selectedBill.receivableBalance ?? 0) : 0
   const formNetAmount = mode === 'payment'
     ? form.amount + form.fee
     : form.amount - form.fee - form.withholdingTax - form.discount
+  const paymentSplits = mode === 'payment' ? (form as SupplierPaymentFormValues).splits ?? [] : []
+  const paymentSplitTotal = paymentSplits.reduce((sum, split) => sum + (Number(split.amount) || 0), 0)
 
   const outstandingBills = useMemo(() => data.bills
     .filter((bill) => (mode === 'payment' ? (bill.payableBalance ?? 0) > 0 : (bill.receivableBalance ?? 0) > 0))
@@ -228,8 +241,16 @@ export function MoneyMovementPageClient({ mode }: { mode: 'payment' | 'receipt' 
       ...initialForm(mode),
       amount: paymentCashAmountFromSettlement(settlementAmount, whtRatePercent),
       billId: bill.id,
+      lines: [{
+        ...newPaymentLine(),
+        amount: paymentCashAmountFromSettlement(settlementAmount, whtRatePercent),
+        billText: `${bill.docNo} | ${partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'} | ค้าง ${formatMoney(balance)}`,
+        billId: bill.id,
+        supplierId: bill.supplierId ?? '',
+        withholdingTax: withholdingTaxFromCashAmount(paymentCashAmountFromSettlement(settlementAmount, whtRatePercent), whtRatePercent),
+      }],
       supplierId: bill.supplierId ?? '',
-    } as MoneyForm)
+    } as unknown as MoneyForm)
     setIsBillLocked(true)
     setError(null)
     setFormOpen(true)
@@ -260,9 +281,115 @@ export function MoneyMovementPageClient({ mode }: { mode: 'payment' | 'receipt' 
     } as MoneyForm)
   }
 
+  function paymentLineFromBill(bill: Bill): PaymentLine {
+    const balance = bill.payableBalance ?? 0
+    const settlementAmount = balance > 0 ? balance : bill.totalAmount
+    const amount = paymentCashAmountFromSettlement(settlementAmount, whtRatePercent)
+    return {
+      ...newPaymentLine(),
+      amount,
+      billText: `${bill.docNo} | ${partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'} | ค้าง ${formatMoney(bill.payableBalance ?? 0)}`,
+      billId: bill.id,
+      supplierId: bill.supplierId ?? '',
+      withholdingTax: withholdingTaxFromCashAmount(amount, whtRatePercent),
+    }
+  }
+
+  function syncPaymentLines(nextLines: PaymentLine[]) {
+    const normalizedLines = nextLines.length > 0 ? nextLines.map((line) => ({
+      ...line,
+      amount: Number(line.amount) || 0,
+      discount: Number(line.discount) || 0,
+      fee: Number(line.fee) || 0,
+      withholdingTax: withholdingTaxFromCashAmount(Number(line.amount) || 0, whtRatePercent),
+    })) : [newPaymentLine()]
+    const firstLine = normalizedLines[0]
+    setForm({
+      ...form,
+      amount: roundMoney(normalizedLines.reduce((sum, line) => sum + line.amount, 0)),
+      billId: firstLine?.billId ?? '',
+      discount: roundMoney(normalizedLines.reduce((sum, line) => sum + line.discount, 0)),
+      fee: roundMoney(normalizedLines.reduce((sum, line) => sum + line.fee, 0)),
+      lines: normalizedLines,
+      supplierId: firstLine?.supplierId ?? '',
+      withholdingTax: roundMoney(normalizedLines.reduce((sum, line) => sum + line.withholdingTax, 0)),
+    } as MoneyForm)
+  }
+
+  function addPaymentLine() {
+    syncPaymentLines([...paymentLines, newPaymentLine()])
+  }
+
+  function removePaymentLine(index: number) {
+    if (paymentLines.length <= 1) return
+    syncPaymentLines(paymentLines.filter((_, lineIndex) => lineIndex !== index))
+  }
+
+  function updatePaymentLine(index: number, patch: Partial<PaymentLine>) {
+    syncPaymentLines(paymentLines.map((line, lineIndex) => (lineIndex === index ? { ...line, ...patch } : line)))
+  }
+
+  function selectPaymentLineBill(index: number, rawValue: string) {
+    const docNo = rawValue.split('|')[0]?.trim()
+    const bill = outstandingBills.find((candidate) => candidate.id === rawValue || candidate.docNo === docNo)
+    if (!bill) {
+      updatePaymentLine(index, { billText: rawValue })
+      return
+    }
+    updatePaymentLine(index, paymentLineFromBill(bill))
+  }
+
+  function paymentLineInputValue(line: PaymentLine) {
+    if (line.billText !== undefined) return line.billText
+    const bill = billMap.get(line.billId)
+    if (!bill) return ''
+    return `${bill.docNo} | ${partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'} | ค้าง ${formatMoney(bill.payableBalance ?? 0)}`
+  }
+
+  function syncPaymentSplits(nextSplits: PaymentSplit[]) {
+    const firstAccountId = nextSplits[0]?.accountId ?? ''
+    setForm({ ...form, accountId: firstAccountId, splits: nextSplits } as MoneyForm)
+  }
+
+  function addPaymentSplit() {
+    syncPaymentSplits([...paymentSplits, newPaymentSplit()])
+  }
+
+  function removePaymentSplit(index: number) {
+    if (paymentSplits.length <= 1) return
+    syncPaymentSplits(paymentSplits.filter((_, splitIndex) => splitIndex !== index))
+  }
+
+  function updatePaymentSplit(index: number, patch: Partial<PaymentSplit>) {
+    syncPaymentSplits(paymentSplits.map((split, splitIndex) => (splitIndex === index ? { ...split, ...patch } : split)))
+  }
+
+  function normalizedPaymentForm() {
+    const paymentForm = form as SupplierPaymentFormValues
+    const normalizedSplits = (paymentForm.splits ?? []).map((split) => ({ ...split }))
+    const normalizedLines = (paymentForm.lines ?? []).filter((line) => line.billId && (Number(line.amount) || 0) > 0)
+    if (normalizedSplits.length === 1 && normalizedSplits[0]?.accountId && (Number(normalizedSplits[0].amount) || 0) <= 0) {
+      normalizedSplits[0].amount = formNetAmount
+    }
+    return {
+      ...paymentForm,
+      amount: roundMoney(normalizedLines.reduce((sum, line) => sum + (Number(line.amount) || 0), 0)),
+      accountId: normalizedSplits[0]?.accountId ?? paymentForm.accountId,
+      billId: normalizedLines[0]?.billId ?? paymentForm.billId,
+      discount: roundMoney(normalizedLines.reduce((sum, line) => sum + (Number(line.discount) || 0), 0)),
+      fee: roundMoney(normalizedLines.reduce((sum, line) => sum + (Number(line.fee) || 0), 0)),
+      lines: normalizedLines,
+      method: paymentForm.method ?? 'โอน',
+      splits: normalizedSplits,
+      supplierId: normalizedLines[0]?.supplierId ?? paymentForm.supplierId,
+      withholdingTax: roundMoney(normalizedLines.reduce((sum, line) => sum + (Number(line.withholdingTax) || 0), 0)),
+    }
+  }
+
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const parsed = (mode === 'payment' ? supplierPaymentFormSchema : customerReceiptFormSchema).safeParse(form)
+    const payload = mode === 'payment' ? normalizedPaymentForm() : form
+    const parsed = (mode === 'payment' ? supplierPaymentFormSchema : customerReceiptFormSchema).safeParse(payload)
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? 'ข้อมูลไม่ถูกต้อง')
       return
@@ -399,96 +526,188 @@ export function MoneyMovementPageClient({ mode }: { mode: 'payment' | 'receipt' 
 
       {formOpen ? (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8">
-          <form className="w-full max-w-4xl overflow-hidden rounded-lg bg-white shadow-xl" onSubmit={save}>
-            <div className={`flex items-center justify-between border-b px-5 py-4 ${theme.muted}`}>
+          <form className={`w-full overflow-hidden rounded-lg bg-white shadow-xl ${mode === 'payment' ? 'max-w-5xl' : 'max-w-4xl'}`} onSubmit={save}>
+            <div className={`flex items-center justify-between border-b px-5 py-4 ${mode === 'payment' ? 'bg-white text-slate-900' : theme.muted}`}>
               <div>
                 <h3 className="font-bold">{mode === 'payment' ? 'สร้าง Payment Voucher' : title}</h3>
-                <p className="text-xs opacity-80">{subtitle}</p>
+                {mode === 'payment' ? null : <p className="text-xs opacity-80">{subtitle}</p>}
               </div>
               <button className="text-2xl text-slate-500" type="button" onClick={() => setFormOpen(false)}>&times;</button>
             </div>
             {mode === 'payment' ? (
               <div className="space-y-4 p-5 text-sm">
-                <div className="rounded-lg border-2 border-blue-200 bg-blue-50 p-3">
-                  <div className="mb-2 font-semibold text-blue-900">บัญชีจ่าย</div>
-                  <div className="grid gap-3 md:grid-cols-[1fr_180px_180px]">
-                    <Select allowEmpty={false} label="บัญชีต้องเลือก" placeholder="เลือกบัญชี" required value={form.accountId} onChange={(value) => setForm({ ...form, accountId: value })} options={activeAccounts} />
-                    <label className="block text-sm font-medium">
-                      วิธีจ่าย <span className="text-red-600">*</span>
-                      <select className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2" required value={form.method ?? 'โอน'} onChange={(event) => setForm({ ...form, method: event.target.value })}>
-                        <option value="โอน">โอน</option>
-                        <option value="เงินสด">เงินสด</option>
-                        <option value="เช็ค">เช็ค</option>
-                        <option value="PromptPay">PromptPay</option>
-                      </select>
-                    </label>
-                    <SummaryPill label="รายการ" value={selectedBill?.docNo ?? '-'} />
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                  <label className="block">
+                    <span className="mb-1 block text-xs">เลขที่</span>
+                    <input className="w-full rounded border bg-slate-50 px-2 py-1.5 font-mono text-sm" readOnly value="ระบบออกให้" />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs">วันที่</span>
+                    <input className="w-full rounded border bg-slate-50 px-2 py-1.5 text-sm" readOnly type="date" value={form.date} />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs">สาขา (filter)</span>
+                    <select className="w-full rounded border bg-slate-50 px-2 py-1.5 text-sm" disabled>
+                      <option value="">ทุกสาขา</option>
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs">วิธีจ่าย</span>
+                    <select className="w-full rounded border px-2 py-1.5 text-sm" required value={form.method ?? 'โอน'} onChange={(event) => setForm({ ...form, method: event.target.value })}>
+                      <option value="โอน">โอน</option>
+                      <option value="เงินสด">เงินสด</option>
+                      <option value="เช็ค">เช็ค</option>
+                      <option value="PromptPay">PromptPay</option>
+                    </select>
+                  </label>
+                </div>
+
+                <Field label="หมายเหตุ" value={form.notes ?? ''} onChange={(value) => setForm({ ...form, notes: value })} />
+
+                <div className="rounded-lg border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-3">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <h4 className="font-medium text-blue-900">💳 บัญชีจ่าย * <span className="text-xs font-normal text-slate-600">(เลือกได้หลายบัญชี กรณีวงเงินเต็ม → split)</span></h4>
+                    <button className="rounded bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700" type="button" onClick={addPaymentSplit}>+ เพิ่มบัญชี</button>
+                  </div>
+                  <div className="space-y-2">
+                    {paymentSplits.map((split, splitIndex) => {
+                      const splitAccount = activeAccounts.find((account) => account.id === split.accountId)
+                      const splitBalance = splitAccount?.balance ?? 0
+                      const splitAmount = Number(split.amount) || 0
+                      return (
+                      <div key={split.id ?? splitIndex} className="grid grid-cols-12 items-center gap-2 rounded border bg-white p-2">
+                        <div className="col-span-1 text-center text-xs font-bold text-slate-500">#{splitIndex + 1}</div>
+                        <div className="col-span-6">
+                          <select
+                            className="w-full rounded border px-2 py-1.5 text-sm"
+                            required
+                            value={split.accountId}
+                            onChange={(event) => updatePaymentSplit(splitIndex, { accountId: event.target.value })}
+                          >
+                            <option disabled value="">-- เลือกบัญชี --</option>
+                            {activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name} (คงเหลือ {formatMoney(account.balance ?? 0)})</option>)}
+                          </select>
+                        </div>
+                        <div className="col-span-4">
+                          <input
+                            className="w-full rounded border px-2 py-1.5 text-right text-sm"
+                            min={0}
+                            placeholder={paymentSplits.length === 1 ? formatMoney(formNetAmount) : 'จำนวนเงิน'}
+                            step="0.01"
+                            type="number"
+                            value={String(split.amount)}
+                            onChange={(event) => updatePaymentSplit(splitIndex, { amount: Number(event.target.value) })}
+                          />
+                        </div>
+                        <div className="col-span-1 text-center">
+                          <button
+                            className="px-1 font-bold text-red-500 hover:text-red-700 disabled:text-slate-300"
+                            disabled={paymentSplits.length <= 1}
+                            type="button"
+                            onClick={() => removePaymentSplit(splitIndex)}
+                          >
+                            ×
+                          </button>
+                        </div>
+                        {split.accountId ? (
+                          <div className="col-span-12 grid grid-cols-3 gap-2 pl-2 text-xs">
+                            <div className="text-blue-700">💵 คงเหลือ: <b>{formatMoney(splitBalance)}</b></div>
+                            <div className="text-amber-700">➖ จ่าย: <b>{formatMoney(splitAmount)}</b></div>
+                            <div className="text-emerald-700">📊 หลังจ่าย: <b>{formatMoney(splitBalance - splitAmount)}</b></div>
+                          </div>
+                        ) : null}
+                      </div>
+                      )
+                    })}
+                  </div>
+                  <div className="mt-2 grid grid-cols-3 gap-2 border-t pt-2 text-sm">
+                    <div className="rounded bg-slate-100 p-2">
+                      <div className="text-xs text-slate-600">💰 รวมแยกบัญชี</div>
+                      <div className="font-bold">{formatMoney(paymentSplitTotal)}</div>
+                    </div>
+                    <div className="rounded bg-amber-50 p-2">
+                      <div className="text-xs text-amber-700">🎯 ยอดสุทธิที่ต้องจ่าย</div>
+                      <div className="font-bold text-amber-700">{formatMoney(formNetAmount)}</div>
+                    </div>
+                    <div className={`rounded p-2 ${Math.abs(paymentSplitTotal - formNetAmount) < 0.01 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                      <div className="text-xs">{Math.abs(paymentSplitTotal - formNetAmount) < 0.01 ? 'ตรงกัน' : '⚠️ ผลต่าง'}</div>
+                      <div className="font-bold">{formatMoney(formNetAmount - paymentSplitTotal)}</div>
+                    </div>
                   </div>
                 </div>
 
                 <div>
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                    <h4 className="font-semibold text-slate-800">รายการจ่าย (1)</h4>
-                    {outstandingBills.length === 0 ? <span className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700">ไม่มีบิลซื้อค้างจ่าย</span> : null}
+                    <h4 className="font-semibold text-slate-800">รายการจ่าย ({paymentLines.length}) — เลือกบิลที่ต้องการจ่ายได้เลย ระบบจะ auto-fill Supplier</h4>
+                    <button className="rounded bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700" type="button" onClick={addPaymentLine}>+ เพิ่มบรรทัด</button>
                   </div>
+                  {outstandingBills.length === 0 ? <div className="mb-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700">⚠️ ไม่มีบิลซื้อค้างจ่าย</div> : null}
                   <div className="overflow-x-auto rounded-lg border border-slate-200">
+                    <datalist id="payment-bill-options">
+                      {outstandingBills.map((bill) => (
+                        <option key={bill.id} value={`${bill.docNo} | ${partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'} | ค้าง ${formatMoney(bill.payableBalance ?? 0)}`} />
+                      ))}
+                    </datalist>
                     <table className="w-full min-w-[880px] text-xs">
                       <thead className="bg-slate-100 text-slate-700">
                         <tr>
-                          <th className="w-80 p-2 text-left">บิล (เลขที่ · Supplier · ยอดค้าง)</th>
-                          <th className="p-2 text-left">Supplier</th>
-                          <th className="p-2 text-right">ค้าง</th>
-                          <th className="p-2 text-right">จ่าย</th>
-                          <th className="p-2 text-right">WHT</th>
-                          <th className="p-2 text-right">Discount</th>
-                          <th className="p-2 text-right">Bank Fee</th>
+                          <th className="w-80 p-1 text-left">บิล (เลขที่ · วันที่ · Supplier · ยอดค้าง)</th>
+                          <th className="p-1 text-left">Supplier</th>
+                          <th className="p-1 text-right">ค้าง</th>
+                          <th className="p-1 text-right">จ่าย</th>
+                          <th className="p-1 text-right">WHT</th>
+                          <th className="p-1 text-right">Discount</th>
+                          <th className="p-1 text-right">Bank Fee</th>
+                          <th className="w-10 p-1" />
                         </tr>
                       </thead>
                       <tbody>
-                        <tr className="border-t">
-                          <td className="p-2">
-                            {isBillLocked && selectedBill ? (
-                              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                                <div className="font-mono font-semibold">{selectedBill.docNo}</div>
-                                <div className="mt-0.5 truncate">{partyMap.get(selectedBill.supplierId ?? '') ?? selectedBill.supplierId ?? '-'}</div>
-                              </div>
-                            ) : (
-                              <BillSelect
-                                bills={outstandingBills}
-                                label=""
-                                mode={mode}
-                                partyMap={partyMap}
-                                required
-                                value={form.billId ?? ''}
-                                onChange={selectBill}
-                              />
-                            )}
-                          </td>
-                          <td className="p-2 text-slate-600">{(partyMap.get((form as SupplierPaymentFormValues).supplierId) ?? (form as SupplierPaymentFormValues).supplierId) || '-'}</td>
-                          <td className="p-2 text-right text-amber-700">{formatMoney(selectedBillBalance)}</td>
-                          <td className="p-2"><input className="w-full rounded border border-slate-300 px-2 py-1 text-right" min={0} step="0.01" type="number" value={String(form.amount)} onChange={(event) => setForm({ ...form, amount: Number(event.target.value) })} /></td>
-                          <td className="p-2 text-right">
-                            <div className="font-semibold text-amber-700">{formatMoney(form.withholdingTax)}</div>
-                          </td>
-                          <td className="p-2"><input className="w-full rounded border border-slate-300 px-2 py-1 text-right" min={0} step="0.01" type="number" value={String(form.discount)} onChange={(event) => setForm({ ...form, discount: Number(event.target.value) })} /></td>
-                          <td className="p-2"><input className="w-full rounded border border-slate-300 px-2 py-1 text-right" min={0} step="0.01" type="number" value={String(form.fee)} onChange={(event) => setForm({ ...form, fee: Number(event.target.value) })} /></td>
-                        </tr>
+                        {paymentLines.map((line, lineIndex) => {
+                          const lineBill = line.billId ? billMap.get(line.billId) : null
+                          const lineBalance = lineBill?.payableBalance ?? 0
+                          return (
+                            <tr key={line.id ?? lineIndex} className="border-t">
+                              <td className="p-1">
+                                {isBillLocked && lineIndex === 0 && selectedBill ? (
+                                  <input className="w-full rounded border bg-slate-50 px-1 py-1 text-xs font-mono" readOnly value={selectedBill.docNo} />
+                                ) : (
+                                  <input
+                                    autoComplete="off"
+                                    className="w-full rounded border px-1 py-1 text-xs"
+                                    list="payment-bill-options"
+                                    placeholder="🔍 พิมพ์เลขบิล / ชื่อ supplier..."
+                                    value={paymentLineInputValue(line)}
+                                    onChange={(event) => selectPaymentLineBill(lineIndex, event.target.value)}
+                                  />
+                                )}
+                              </td>
+                              <td className="p-1 text-xs text-slate-600">{(partyMap.get(line.supplierId) ?? line.supplierId) || '-'}</td>
+                              <td className="p-1 text-right text-amber-700">{formatMoney(lineBalance)}</td>
+                              <td className="p-1"><input className="w-full rounded border px-1 py-1 text-right" min={0} step="0.01" type="number" value={String(line.amount)} onChange={(event) => updatePaymentLine(lineIndex, { amount: Number(event.target.value) })} /></td>
+                              <td className="p-1"><input className="w-full rounded border bg-slate-50 px-1 py-1 text-right" readOnly type="number" value={String(line.withholdingTax)} /></td>
+                              <td className="p-1"><input className="w-full rounded border px-1 py-1 text-right" min={0} step="0.01" type="number" value={String(line.discount)} onChange={(event) => updatePaymentLine(lineIndex, { discount: Number(event.target.value) })} /></td>
+                              <td className="p-1"><input className="w-full rounded border px-1 py-1 text-right" min={0} step="0.01" type="number" value={String(line.fee)} onChange={(event) => updatePaymentLine(lineIndex, { fee: Number(event.target.value) })} /></td>
+                              <td className="p-1 text-center"><button className="px-1 text-red-500 disabled:text-slate-300" disabled={paymentLines.length <= 1 || (isBillLocked && lineIndex === 0)} type="button" onClick={() => removePaymentLine(lineIndex)}>×</button></td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                       <tfoot className="bg-slate-50 font-semibold">
                         <tr>
-                          <td className="p-2 text-right" colSpan={3}>รวม</td>
+                          <td className="p-2 text-right" colSpan={2}>รวม</td>
+                          <td />
                           <td className="p-2 text-right text-red-700">{formatMoney(form.amount)}</td>
                           <td className="p-2 text-right">{formatMoney(form.withholdingTax)}</td>
                           <td className="p-2 text-right">{formatMoney(form.discount)}</td>
                           <td className="p-2 text-right">{formatMoney(form.fee)}</td>
+                          <td />
                         </tr>
-                        <tr><td className="p-2 text-right" colSpan={7}>Net Cash Out: <span className="text-base font-bold text-red-700">{formatMoney(formNetAmount)}</span></td></tr>
+                        <tr><td className="p-2 text-right" colSpan={8}>Net Cash Out: <span className="text-base font-bold text-red-700">{formatMoney(formNetAmount)}</span></td></tr>
                       </tfoot>
                     </table>
                   </div>
+                  <div className="mt-1 text-xs text-slate-500">Net Cash Out = ยอดจ่าย - WHT + Bank Fee</div>
                 </div>
-
-                <Field label="หมายเหตุ" value={form.notes ?? ''} onChange={(value) => setForm({ ...form, notes: value })} />
               </div>
             ) : (
               <>
