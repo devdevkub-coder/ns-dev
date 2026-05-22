@@ -98,7 +98,7 @@ export const supplierPaymentFormSchema = z.object({
   id: optionalSafeId('รหัสรายการ'),
   docNo: optionalDocNo,
   date: requiredDate,
-  billId: optionalSafeId('บิลซื้อ'),
+  billId: z.string().trim().min(1, 'เลือกบิลซื้อ').max(80, 'บิลซื้อยาวเกินไป').regex(/^[A-Za-z0-9_.:-]+$/, 'บิลซื้อมีรูปแบบไม่ถูกต้อง'),
   supplierId: z.string().trim().min(1, 'เลือกผู้ขาย'),
   accountId: z.string().trim().min(1, 'เลือกบัญชีจ่าย'),
   amount: positiveMoney('ยอดจ่าย'),

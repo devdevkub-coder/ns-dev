@@ -7,7 +7,9 @@ Current source of truth:
 - Prisma model: `apps/next/prisma/schema.prisma` models `purchase_bills`, `purchase_bill_items`
 - Active page: `/purchase/bills`
 - Active API: `/api/purchase/bills`
+- Supplier payment API: `/api/purchase/payments`
 - DB environment for development: dev-target Supabase
+- Latest local dev-target schema-only dump: `reports/db_audit/dev_target_schema_20260522.sql`
 
 ## Table Summary
 
@@ -24,6 +26,8 @@ Current source of truth:
 - `date` คือวันที่เอกสาร/วันที่บิล
 - `created_at` คือเวลาที่สร้าง record จริง ใช้ audit
 - รายการสินค้าให้ดูที่ `purchase_bill_items` เป็นหลัก
+- การเกิดบิลซื้อไม่ได้สร้าง row ใน `payments` ทันที แต่ทำให้บิลมี `payable_balance > 0` เพื่อขึ้นคิวในหน้า `/purchase/payments`
+- การจ่ายเงินจริงเกิดจาก `payments`; หลังบันทึก payment แล้ว API จะ refresh `purchase_bills.paid_amount`, `payable_balance`, และ `status` จากผลรวม `payments` ที่ไม่ cancel
 - ฟอร์มปัจจุบันไม่ให้กรอก `ref_no`, `contact_phone`, `purchase_source`, `channel_id`, และ `sales_id` โดยตรงแล้ว แต่ column ยังอยู่เพื่อรองรับข้อมูลเดิมและ flow ที่ยังไม่ reconcile
 
 ## `purchase_bills` Columns
@@ -78,6 +82,63 @@ Current source of truth:
 | `version` | integer | no | version ของ record | เตรียมสำหรับ audit/locking/compatibility |
 | `vat_rate_percent` | numeric | yes | VAT percent ที่ใช้กับบิลนั้น | default 7.00; บิลใหม่อ่านจาก `vat_settings` แล้วบันทึก rate ที่ใช้ |
 
+## AP / Supplier Payment Flow
+
+บิลรับซื้อสร้างภาระเจ้าหนี้โดยตรงผ่าน `purchase_bills.payable_balance`:
+
+1. สร้างบิลซื้อที่ `/api/purchase/bills`
+   - `paid_amount = 0`
+   - `payable_balance = total_amount`
+   - `status = open`
+   - ถ้าเป็น `STOCK` จะเขียน `stock_ledger`; ถ้าเป็น `TRADING` ไม่เข้า stock
+2. หน้า `/purchase/payments` โหลดบิลค้างจาก `purchase_bills` ผ่าน `GET /api/purchase/payments`
+   - ใช้ `payable_balance` เพื่อแสดงบิลที่ต้องจ่าย
+   - หน้าจอแสดงบิล Supplier ในตารางเดียวกันทั้งค้างจ่าย, จ่ายบางส่วน, จ่ายครบ และยกเลิก โดยแยกจากตารางประวัติ `payments`
+   - ถ้ากด `ทำจ่าย` จาก row ของบิล Modal จะล็อกบิลนั้นเป็น read-only ไม่ต้องเลือกบิลซ้ำ
+   - `payments` ยังไม่มี row จนกว่าผู้ใช้กดบันทึก Payment Voucher
+3. เมื่อบันทึกจ่าย Supplier ที่ `POST /api/purchase/payments`
+   - สร้างหรือแก้ row ใน `payments`
+   - สร้าง `bank_statement` เงินออก `ref_type = PMT`
+   - refresh บิลซื้อที่เกี่ยวข้องใน transaction เดียวกัน โดยรวมยอดจาก `payments` ที่ `status != cancelled`
+   - `billId`, `supplierId`, `accountId`, `amount`, และ `method` ต้องมีค่าใน API payload
+   - ผู้ใช้กรอกเฉพาะ `amount` เป็นยอดเงินสดที่จะทำจ่าย; `withholding_tax` คำนวณจาก `wht_settings` ที่ active ตามวันที่จ่าย
+   - สูตร WHT ปัจจุบันใช้ cash amount เป็นฐาน: `withholding_tax = amount * rate / (100 - rate)` เพื่อให้ `amount + withholding_tax` ตัดยอดค้างได้ตรงกับยอด gross ของบิล
+   - สูตรยอดตัดบิล: `amount + withholding_tax + discount`
+   - ถ้า payment เดิมถูกแก้แล้วย้าย `bill_id` จะ refresh ทั้งบิลเก่าและบิลใหม่
+   - ถ้ายอดจ่ายรวมเกิน `purchase_bills.total_amount` เกิน 0.01 ระบบ reject และ rollback
+
+ผลลัพธ์ของสถานะบิลหลัง refresh:
+
+| Condition | `purchase_bills.status` |
+|---|---|
+| `paid_amount <= 0` | `open` |
+| `payable_balance <= 0.01` | `paid` |
+| อื่น ๆ | `partial` |
+
+`purchase_bills.paid_amount` และ `purchase_bills.payable_balance` เป็น denormalized balance fields เพื่อให้หน้ารายการ, AP, dashboard และ report อ่านเร็วขึ้น แต่ source การชำระเงินจริงคือ `payments` ที่ผูกด้วย `payments.bill_id`
+
+## `payments` Columns Used By Purchase Bills
+
+ตาราง `payments` เป็น Payment Voucher / รายการจ่าย Supplier จริง ไม่ใช่ queue เจ้าหนี้
+
+| Column | Type | Required | Meaning | Current UI/API Notes |
+|---|---:|---:|---|---|
+| `id` | text | yes | Primary key ภายในของ payment row | สร้างเป็น `PMT-*` ถ้า caller ไม่ส่ง id |
+| `doc_no` | text | yes | เลขที่ Payment Voucher | ระบบออกเลข `PMT{branchCode}{YYMM}-NNNN` เมื่อ save เช่น `PMT012605-0271`; running นับต่อจากเลขเดิมทั้ง `PMT2605-*` และ `PMT012605-*` ในเดือนเดียวกัน |
+| `date` | date | yes | วันที่จ่าย | ระบบส่งจากวันที่ปัจจุบันของฟอร์ม ใช้ทั้ง payment และ bank statement |
+| `bill_id` | text | yes | บิลซื้อที่ตัดชำระ | API บังคับเลือก; ถ้าเปิดจาก row `ทำจ่าย` UI จะล็อกบิลเป็น read-only |
+| `supplier_id` | text | yes | ผู้ขายที่รับเงิน | auto-fill จากบิล |
+| `account_id` | text | yes | บัญชีจ่าย | ผู้ใช้ต้องเลือก ใช้สร้าง `bank_statement` |
+| `branch_id` | text | no | สาขาของ Payment Voucher | API ดึงจาก `purchase_bills.branch_id` ก่อน ถ้าไม่มีบิลจึง fallback จาก `accounts.branch_id`; ต้องมีสาขาเพื่อออกเลขเอกสาร |
+| `amount` | numeric | yes | ยอดเงินสดที่จะทำจ่าย | ผู้ใช้กรอกช่องนี้ช่องเดียวในรายการจ่าย; นับเป็นส่วนหนึ่งของยอดตัดบิล |
+| `withholding_tax` | numeric | no | WHT | UI แสดงอ่านอย่างเดียว; API คำนวณจาก `wht_settings` active rate และไม่เชื่อค่าจาก client |
+| `discount` | numeric | no | ส่วนลด | นับเป็นยอดตัดบิล |
+| `fee` / `bank_fee` | numeric | no | ค่าธรรมเนียม | เพิ่ม cash out แต่ไม่ตัดยอดบิลซื้อ |
+| `net_amount` | numeric | no | เงินออกสุทธิ | `amount + fee` |
+| `method` | text | yes | วิธีจ่าย | UI บังคับเลือกใน section บัญชีจ่าย |
+| `status` | text | no | สถานะ payment | `cancelled` จะไม่ถูกนำไปรวมยอดจ่ายของบิล |
+| `voucher_id` | text | no | group voucher id | ปัจจุบัน single-row voucher ใช้ค่าเดียวกับ `id` |
+
 ## `purchase_bill_items` Columns
 
 | Column | Type | Required | Meaning | Current UI/API Notes |
@@ -119,3 +180,4 @@ Current source of truth:
 - ตัดสินใจว่าจะ keep หรือ deprecate `ref_no`, `contact_phone`, `purchase_source`, `purchase_type`, `tax_invoice_no`
 - ถ้าต้องการ enforce ทะเบียนรถระดับ DB ต้อง backfill ข้อมูลเก่าก่อน แล้วค่อยเพิ่ม `NOT NULL`
 - ถ้ามี report/API ใหม่ ห้ามอ่านรายการสินค้าจากหัวบิล ให้ join หรือ include `purchase_bill_items`
+- ถ้าจะรองรับ multi-bill voucher หรือ split accounts แบบ legacy เต็มรูปแบบ ต้องออกแบบ `payments` allocation/grouping เพิ่ม ไม่ควรยัดหลายบิลใน row เดียว
