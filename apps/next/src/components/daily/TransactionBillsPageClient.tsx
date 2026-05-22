@@ -3,14 +3,12 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
+import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { purchaseBillFormSchema, type PurchaseBillFormValues } from '@/lib/purchase-bill'
 
 type BillRow = {
   branchId?: string
   branchName?: string
-  channelId?: string
-  channelName?: string
   createdAt?: string
   createdBy?: string
   customerName?: string
@@ -29,7 +27,6 @@ type BillRow = {
     unit?: string
   }>
   itemCount: number
-  contactPhone?: string
   licensePlate?: string
   note?: string
   paidAmount?: number
@@ -86,7 +83,6 @@ type Option = {
 
 type PurchasePayload = {
   branches: Option[]
-  channels: Option[]
   poBuys: Option[]
   products: Option[]
   rows: BillRow[]
@@ -146,9 +142,6 @@ function poQtyVariance(poQty: number, itemQty: number) {
 
 const initialPurchaseForm = (): PurchaseBillFormValues => ({
   branchId: '',
-  channelId: null,
-  contactPhone: null,
-  date: todayDateInput(),
   discountTotal: 0,
   hasVat: false,
   items: [blankItem()],
@@ -180,7 +173,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const [isExporting, setIsExporting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  const [options, setOptions] = useState<Omit<PurchasePayload, 'rows'>>({ branches: [], channels: [], poBuys: [], products: [], salespersons: [], suppliers: [], warehouses: [] })
+  const [options, setOptions] = useState<Omit<PurchasePayload, 'rows'>>({ branches: [], poBuys: [], products: [], salespersons: [], suppliers: [], warehouses: [] })
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [rows, setRows] = useState<Array<BillRow | StockIssueRow>>([])
@@ -219,7 +212,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         setVatRatePercent(payload.vatRatePercent ?? 7)
         setOptions({
           branches: payload.branches,
-          channels: payload.channels,
           poBuys: payload.poBuys,
           products: payload.products,
           salespersons: payload.salespersons,
@@ -324,9 +316,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 
     return {
       branchId: row.branchId ?? '',
-      channelId: row.channelId || null,
-      contactPhone: row.contactPhone || null,
-      date: row.date,
       discountTotal: row.discountTotal ?? 0,
       hasVat: row.hasVat ?? false,
       items,

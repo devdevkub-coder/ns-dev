@@ -11,7 +11,6 @@ export type ProfitCostFilter = {
   dateFrom: string
   dateTo: string
   metalGroups?: string[]
-  purchaseChannelId?: string
   salesChannelId?: string
   supplierId?: string
 }
@@ -144,7 +143,7 @@ export async function buildProfitCostAnalysis(filter: ProfitCostFilter) {
   const toDate = endOfDay(filter.dateTo)
   const selectedMetalGroups = new Set((filter.metalGroups ?? []).map((group) => group.trim()).filter(Boolean))
 
-  const [products, purchaseBills, salesBills, stockRows, branches, purchaseChannels, salesChannels, suppliers, customers] = await Promise.all([
+  const [products, purchaseBills, salesBills, stockRows, branches, salesChannels, suppliers, customers] = await Promise.all([
     prisma.products.findMany({
       orderBy: [{ metal_group: 'asc' }, { code: 'asc' }, { name: 'asc' }],
       select: { code: true, id: true, metal_group: true, name: true, target_margin_pct: true, unit: true },
@@ -154,13 +153,12 @@ export async function buildProfitCostAnalysis(filter: ProfitCostFilter) {
       },
     }),
     prisma.purchase_bills.findMany({
-      include: { branches: true, purchase_bill_items: { orderBy: { line_no: 'asc' } }, purchase_channels: true, suppliers: true },
+      include: { branches: true, purchase_bill_items: { orderBy: { line_no: 'asc' } }, suppliers: true },
       orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
       take: 15000,
       where: {
         date: { gte: fromDate, lte: toDate },
         ...(filter.branchId ? { branch_id: filter.branchId } : {}),
-        ...(filter.purchaseChannelId ? { channel_id: filter.purchaseChannelId } : {}),
         ...(filter.supplierId ? { supplier_id: filter.supplierId } : {}),
       },
     }),
@@ -185,7 +183,6 @@ export async function buildProfitCostAnalysis(filter: ProfitCostFilter) {
       },
     }),
     prisma.branches.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, id: true, name: true } }),
-    prisma.purchase_channels.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, id: true, name: true } }),
     prisma.sales_channels.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, id: true, name: true } }),
     prisma.suppliers.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
     prisma.customers.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, credit_term: true, id: true, name: true } }),
@@ -221,8 +218,8 @@ export async function buildProfitCostAnalysis(filter: ProfitCostFilter) {
   activePurchases.forEach((bill) => {
     const supplierKey = bill.supplier_id ?? bill.suppliers?.name ?? 'ไม่ระบุ Supplier'
     const supplier = supplierAggs.get(supplierKey) ?? { amount: 0, bills: new Set<string>(), name: bill.suppliers?.name ?? supplierKey, paid: 0, payable: 0, qty: 0 }
-    const channelKey = bill.channel_id ? `purchase:${bill.channel_id}` : `purchase:${bill.purchase_channels?.name ?? 'ไม่ระบุช่องทางซื้อ'}`
-    const channel = channelAggs.get(channelKey) ?? { amount: 0, bills: new Set<string>(), gp: 0, group: 'Purchase', name: bill.purchase_channels?.name ?? 'ไม่ระบุช่องทางซื้อ', qty: 0 }
+    const channelKey = 'purchase'
+    const channel = channelAggs.get(channelKey) ?? { amount: 0, bills: new Set<string>(), gp: 0, group: 'Purchase', name: 'บิลรับซื้อ', qty: 0 }
     const day = trendAggs.get(dayKey(bill.date)) ?? { buyAmount: 0, buyQty: 0, cogs: 0, gp: 0, revenue: 0, sellQty: 0 }
 
     let billQty = 0
@@ -381,7 +378,7 @@ export async function buildProfitCostAnalysis(filter: ProfitCostFilter) {
       dateFrom: filter.dateFrom,
       dateTo: filter.dateTo,
       metalGroups: Array.from(new Set(products.map((product) => product.metal_group).filter(Boolean) as string[])).sort(),
-      purchaseChannels: purchaseChannels.map((row) => ({ active: row.active ?? true, id: row.id, name: row.name })),
+      purchaseChannels: [],
       salesChannels: salesChannels.map((row) => ({ active: row.active ?? true, id: row.id, name: row.name })),
       selectedMetalGroups: Array.from(selectedMetalGroups),
       suppliers: suppliers.map((row) => ({ active: row.active ?? true, code: row.code ?? '', id: row.id, name: row.name })),

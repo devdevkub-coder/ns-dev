@@ -15,7 +15,6 @@ export const runtime = 'nodejs'
 type PurchaseBillRow = Prisma.purchase_billsGetPayload<{
   include: {
     branches: true
-    purchase_channels: true
     purchase_bill_items: true
     suppliers: true
     warehouses: true
@@ -79,12 +78,9 @@ function billJson(row: PurchaseBillRow) {
   return {
     branchId: row.branch_id ?? '',
     branchName: row.branches?.name ?? '-',
-    channelId: row.channel_id ?? '',
-    channelName: row.purchase_channels?.name ?? '-',
-    contactPhone: row.contact_phone ?? '',
-    createdAt: row.created_at?.toISOString() ?? '',
+    createdAt: row.date?.toISOString() ?? '',
     createdBy: row.created_by ?? '-',
-    date: toDateOnly(row.date),
+    date: row.date ? toDateOnly(row.date) : '',
     discountTotal: toNumber(row.discount_total ?? row.discount),
     docNo: row.doc_no,
     hasVat: row.has_vat ?? false,
@@ -202,11 +198,10 @@ async function nextPurchaseBillDocNo(tx: Prisma.TransactionClient, date: string,
 }
 
 async function optionsPayload() {
-  const [branches, channels, poBuys, products, salespersons, suppliers, warehouses, vatRatePercent] = await Promise.all([
+  const [branches, poBuys, products, salespersons, suppliers, warehouses, vatRatePercent] = await Promise.all([
     prisma.branches.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
-    prisma.purchase_channels.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, id: true, name: true } }),
     prisma.po_buys.findMany({
-      orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
+      orderBy: [{ doc_no: 'desc' }],
       select: { doc_no: true, id: true, remaining_amount: true, remaining_qty: true, status: true, supplier_id: true },
       take: 500,
       where: { status: { notIn: ['closed', 'Closed', 'cancelled', 'Cancelled'] } },
@@ -220,7 +215,6 @@ async function optionsPayload() {
 
   return {
     branches,
-    channels,
     poBuys: poBuys.map((po) => ({
       active: !['closed', 'Closed', 'cancelled', 'Cancelled'].includes(po.status ?? ''),
       id: po.id,
@@ -261,7 +255,7 @@ function billWhere(query: BillQuery): Prisma.purchase_billsWhereInput {
   if (query.dateFrom || query.dateTo) {
     where.date = {
       ...(query.dateFrom ? { gte: normalizeDate(query.dateFrom) } : {}),
-      ...(query.dateTo ? { lte: normalizeDate(query.dateTo) } : {}),
+      ...(query.dateTo ? { lt: new Date(normalizeDate(query.dateTo).getTime() + 24 * 60 * 60 * 1000) } : {}),
     }
   }
   if (query.filterMode) where.transaction_mode = query.filterMode
@@ -316,7 +310,6 @@ async function rowsPayload(query: BillQuery, includePaging = true) {
     prisma.purchase_bills.findMany({
       include: {
         branches: true,
-        purchase_channels: true,
         purchase_bill_items: { orderBy: { line_no: 'asc' } },
         suppliers: true,
         warehouses: true,
@@ -411,11 +404,10 @@ export async function POST(request: Request) {
 
     const productIds = [...new Set(values.items.map((item) => item.productId))]
     const poBuyIds = [...new Set([values.poBuyId, ...values.items.map((item) => item.poBuyId)].filter(Boolean) as string[])]
-    const [supplier, branch, warehouse, channel, poBuys, products] = await Promise.all([
+    const [supplier, branch, warehouse, poBuys, products] = await Promise.all([
       prisma.suppliers.findFirst({ select: { id: true, sales_id: true }, where: { active: true, id: values.supplierId } }),
       values.branchId ? prisma.branches.findFirst({ where: { active: true, id: values.branchId } }) : Promise.resolve(null),
       values.warehouseId ? prisma.warehouses.findFirst({ where: { active: true, id: values.warehouseId } }) : Promise.resolve(null),
-      values.channelId ? prisma.purchase_channels.findFirst({ where: { active: true, id: values.channelId } }) : Promise.resolve(null),
       poBuyIds.length ? prisma.po_buys.findMany({ where: { id: { in: poBuyIds } } }) : Promise.resolve([]),
       prisma.products.findMany({ where: { active: true, id: { in: productIds } } }),
     ])
@@ -423,7 +415,6 @@ export async function POST(request: Request) {
     if (!supplier) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (values.branchId && !branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (values.warehouseId && !warehouse) return NextResponse.json({ code: 'BAD_REQUEST', error: 'คลังไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
-    if (values.channelId && !channel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ช่องทางไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (values.branchId && warehouse?.branch_id && warehouse.branch_id !== values.branchId) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาและคลังไม่ตรงกัน' }, { status: 400 })
     const supplierSalesId = supplier.sales_id ?? null
 
@@ -453,11 +444,8 @@ export async function POST(request: Request) {
           const createdBill = await tx.purchase_bills.create({
             data: {
               branch_id: effectiveBranch.id,
-              channel_id: values.channelId,
-              contact_phone: values.contactPhone,
-              created_at: createdAt,
+              date: createdAt,
               created_by: actor,
-              date: normalizeDate(billDate),
               discount: values.discountTotal,
               discount_total: values.discountTotal,
               doc_no: docNo,
@@ -507,7 +495,6 @@ export async function POST(request: Request) {
                 note: item.note,
                 notes: values.note ?? values.notes,
                 product_id: item.productId,
-                purchase_channel_id: values.channelId,
                 qty_in: item.qty,
                 qty_out: 0,
                 ref_id: createdBill.id,
@@ -552,12 +539,11 @@ export async function PATCH(request: Request) {
 
     const productIds = [...new Set(values.items.map((item) => item.productId))]
     const poBuyIds = [...new Set([values.poBuyId, ...values.items.map((item) => item.poBuyId)].filter(Boolean) as string[])]
-    const [existingBill, supplier, branch, warehouse, channel, poBuys, products, payments] = await Promise.all([
+    const [existingBill, supplier, branch, warehouse, poBuys, products, payments] = await Promise.all([
       prisma.purchase_bills.findUnique({ where: { id } }),
       prisma.suppliers.findFirst({ select: { id: true, sales_id: true }, where: { active: true, id: values.supplierId } }),
       values.branchId ? prisma.branches.findFirst({ where: { active: true, id: values.branchId } }) : Promise.resolve(null),
       values.warehouseId ? prisma.warehouses.findFirst({ where: { active: true, id: values.warehouseId } }) : Promise.resolve(null),
-      values.channelId ? prisma.purchase_channels.findFirst({ where: { active: true, id: values.channelId } }) : Promise.resolve(null),
       poBuyIds.length ? prisma.po_buys.findMany({ where: { id: { in: poBuyIds } } }) : Promise.resolve([]),
       prisma.products.findMany({ where: { active: true, id: { in: productIds } } }),
       prisma.payments.findMany({
@@ -567,12 +553,12 @@ export async function PATCH(request: Request) {
     ])
 
     if (!existingBill) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบบิลรับซื้อ' }, { status: 404 })
-    const vatRatePercent = toNumber(existingBill.vat_rate_percent) ?? (await activeVatRatePercent(normalizeDate(values.date)))
+    const billDate = existingBill.date ? toDateOnly(existingBill.date) : bangkokDateInput(new Date())
+    const vatRatePercent = toNumber(existingBill.vat_rate_percent) ?? (await activeVatRatePercent(normalizeDate(billDate)))
     const totals = calculateTotals(values, vatRatePercent)
     if (!supplier) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (values.branchId && !branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (values.warehouseId && !warehouse) return NextResponse.json({ code: 'BAD_REQUEST', error: 'คลังไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
-    if (values.channelId && !channel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ช่องทางไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (values.branchId && warehouse?.branch_id && warehouse.branch_id !== values.branchId) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาและคลังไม่ตรงกัน' }, { status: 400 })
     const supplierSalesId = supplier.sales_id ?? null
 
@@ -598,9 +584,6 @@ export async function PATCH(request: Request) {
       const bill = await tx.purchase_bills.update({
         data: {
           branch_id: effectiveBranch.id,
-          channel_id: values.channelId,
-          contact_phone: values.contactPhone,
-          date: normalizeDate(values.date),
           discount: values.discountTotal,
           discount_total: values.discountTotal,
           has_vat: values.hasVat,
@@ -644,14 +627,13 @@ export async function PATCH(request: Request) {
           data: items.map((item) => ({
             branch_id: effectiveBranch.id,
             created_by: actor,
-            date: normalizeDate(values.date),
+            date: normalizeDate(billDate),
             id: `SL-PB-${randomUUID()}`,
             lot_no: item.lotNo,
             movement_type: 'รับซื้อเข้า',
             note: item.note,
             notes: values.note ?? values.notes,
             product_id: item.productId,
-            purchase_channel_id: values.channelId,
             qty_in: item.qty,
             qty_out: 0,
             ref_id: id,

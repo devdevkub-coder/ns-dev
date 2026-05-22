@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { AuthContextError, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { PageTitleOverride } from '@/components/layout/PageTitleOverride'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
@@ -34,12 +35,6 @@ function money(value: number | null | undefined) {
   return (value ?? 0).toLocaleString('th-TH', { maximumFractionDigits: 2, minimumFractionDigits: 2 })
 }
 
-function purchaseSourceLabel(value: string | null | undefined) {
-  if (value === 'PO_RECEIPT') return 'PO RECEIPT'
-  if (value === 'MIXED') return 'ผสม Spot + PO'
-  return 'SPOT BUY'
-}
-
 export default async function PurchaseBillDetailPage({ params }: PageProps) {
   try {
     const context = await getCurrentAuthContext()
@@ -53,10 +48,8 @@ export default async function PurchaseBillDetailPage({ params }: PageProps) {
   const bill = await prisma.purchase_bills.findUnique({
     include: {
       branches: true,
-      purchase_channels: true,
       purchase_bill_items: { orderBy: { line_no: 'asc' } },
       suppliers: true,
-      warehouses: true,
     },
     where: { id },
   })
@@ -74,20 +67,10 @@ export default async function PurchaseBillDetailPage({ params }: PageProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="mb-1 text-sm text-slate-500">
-            <Link className="hover:text-blue-700" href="/purchase/bills">บิลรับซื้อ</Link>
-            <span className="mx-2">/</span>
-            <span>{bill.doc_no}</span>
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900">รายละเอียดบิลรับซื้อ {bill.doc_no}</h1>
-          <p className="mt-1 text-sm text-slate-500">ข้อมูลผู้ขายดึงจาก master data ผู้ขาย และรายการสินค้าเป็นข้อมูลที่บันทึกในบิล</p>
-        </div>
-        <div className="flex gap-2">
-          <Link className="rounded-lg border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50" href="/purchase/bills">กลับรายการ</Link>
-          <button className="rounded-lg bg-slate-300 px-4 py-2 text-sm font-semibold text-slate-600" disabled type="button">แก้ไขเร็ว ๆ นี้</button>
-        </div>
+      <PageTitleOverride title={`รายละเอียดบิลรับซื้อ ${bill.doc_no}`} />
+      <div className="flex flex-wrap justify-end gap-2">
+        <Link className="rounded-lg border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50" href="/purchase/bills">กลับรายการ</Link>
+        <button className="rounded-lg bg-slate-300 px-4 py-2 text-sm font-semibold text-slate-600" disabled type="button">แก้ไขเร็ว ๆ นี้</button>
       </div>
 
       <section className="grid gap-3 md:grid-cols-4">
@@ -101,16 +84,12 @@ export default async function PurchaseBillDetailPage({ params }: PageProps) {
         <h2 className="mb-3 text-base font-bold text-slate-800">ข้อมูลบิล</h2>
         <div className="grid gap-3 text-sm md:grid-cols-3">
           <Info label="เลขที่บิล" mono value={bill.doc_no} />
-          <Info label="วันที่" value={toDateOnly(bill.date)} />
-          <Info label="เลขอ้างอิง Supplier" mono value={bill.ref_no ?? '-'} />
+          <Info label="วันที่สร้างรายการ" value={bill.date ? toDateOnly(bill.date) : '-'} />
           <Info label="ผู้ขาย" value={supplierName} />
           <Info label="รหัสผู้ขาย" mono value={bill.supplier_id ?? '-'} />
-          <Info label="สาขา / คลัง" value={`${bill.branches?.name ?? '-'} / ${bill.warehouses?.name ?? '-'}`} />
-          <Info label="ช่องทางซื้อ" value={bill.purchase_channels?.name ?? '-'} />
+          <Info label="สาขา/คลัง" value={bill.branches?.name ?? '-'} />
           <Info label="ประเภทบิล" value={bill.transaction_mode ?? 'STOCK'} />
-          <Info label="ที่มา" value={purchaseSourceLabel(bill.purchase_source)} />
           <Info label="ทะเบียนรถ" value={bill.license_plate ?? '-'} />
-          <Info label="เบอร์โทร" value={bill.contact_phone ?? '-'} />
           <Info label="ผู้ทำ" value={bill.created_by ?? '-'} />
         </div>
       </section>

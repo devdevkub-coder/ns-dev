@@ -18,16 +18,32 @@ type BranchOption = {
 }
 
 const SELECTED_BRANCH_KEY = 'ns-scrap-erp-selected-branch-id'
+const PAGE_TITLE_EVENT = 'ns-scrap-erp-page-title'
 
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname()
   const [branches, setBranches] = useState<BranchOption[]>([])
   const [selectedBranchId, setSelectedBranchId] = useState('all')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [titleOverride, setTitleOverride] = useState<string | null>(null)
   const lastActivityPathRef = useRef<string | null>(null)
-  const title = pageTitleForPath(pathname)
+  const title = titleOverride ?? pageTitleForPath(pathname)
   const breadcrumbs = breadcrumbsForPath(pathname)
   const isAuthPage = pathname === '/login' || pathname === '/forgot-password' || pathname === '/reset-password'
+
+  useEffect(() => {
+    setTitleOverride(null)
+  }, [pathname])
+
+  useEffect(() => {
+    function handlePageTitle(event: Event) {
+      const nextTitle = (event as CustomEvent<{ title?: string | null }>).detail?.title
+      setTitleOverride(nextTitle || null)
+    }
+
+    window.addEventListener(PAGE_TITLE_EVENT, handlePageTitle)
+    return () => window.removeEventListener(PAGE_TITLE_EVENT, handlePageTitle)
+  }, [])
 
   useEffect(() => {
     if (isAuthPage) return

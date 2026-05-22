@@ -1480,12 +1480,10 @@ model product_types {
 model purchase_bills {
   id                      String             @id
   doc_no                  String
-  date                    DateTime           @db.Date
   ref_no                  String?
   tax_invoice_no          String?
   supplier_id             String?
   branch_id               String?
-  channel_id              String?
   warehouse_id            String?
   transaction_mode        String?            @default("STOCK")
   vat_type                String?            @default("EXCLUDE")
@@ -1499,11 +1497,10 @@ model purchase_bills {
   status                  String?            @default("open")
   notes                   String?
   created_by              String?
-  created_at              DateTime?          @default(now()) @db.Timestamptz(6)
+  date                    DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updated_at              DateTime?          @default(now()) @db.Timestamptz(6)
   sales_id                String?
   license_plate           String?
-  contact_phone           String?
   contact_name            String?
   vat_invoice_received    Boolean?           @default(false)
   vat_invoice_no          String?
@@ -1526,7 +1523,6 @@ model purchase_bills {
   deduction_amount        Decimal?           @default(0) @db.Decimal
   version                 Int?               @default(1)
   branches                branches?          @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  purchase_channels       purchase_channels? @relation(fields: [channel_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   purchase_bill_items     purchase_bill_items[]
   suppliers               suppliers?         @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: Cascade)
   warehouses              warehouses?        @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -1534,7 +1530,7 @@ model purchase_bills {
 
   @@unique([doc_no], map: "uq_purchase_bills_doc_no")
   @@index([branch_id], map: "idx_pb_branch")
-  @@index([date(sort: Desc)], map: "idx_pb_date")
+  @@index([date(sort: Desc)], map: "idx_pb_created_at")
   @@index([transaction_mode], map: "idx_pb_mode")
   @@index([status], map: "idx_pb_status")
   @@index([supplier_id], map: "idx_pb_supplier")
@@ -1576,10 +1572,9 @@ model purchase_bill_items {
 }
 
 model purchase_channels {
-  id             String           @id
-  name           String
-  active         Boolean?         @default(true)
-  purchase_bills purchase_bills[]
+  id     String   @id
+  name   String
+  active Boolean? @default(true)
 
   @@schema("public")
 }

@@ -3,7 +3,6 @@ import { z } from 'zod'
 const blankToNull = (value: unknown) => (typeof value === 'string' && value.trim() === '' ? null : value)
 const docNoPattern = /^[A-Za-z0-9_-]+$/
 const generalTextPattern = /^[^\u0000-\u001F\u007F]+$/u
-const phonePattern = /^[0-9+\s().-]+$/
 
 const optionalDocNo = (label: string) => z.preprocess(
   blankToNull,
@@ -23,18 +22,6 @@ const optionalGeneralText = (label: string, maxLength = 500) => z.preprocess(
 const requiredGeneralText = (label: string, maxLength = 500) => z.preprocess(
   (value) => (typeof value === 'string' ? value.trim() : ''),
   z.string().min(1, `กรอก${label}`).max(maxLength, `${label}ยาวเกินไป`).regex(generalTextPattern, `${label}มีรูปแบบไม่ถูกต้อง`),
-)
-
-const optionalPhone = (label: string) => z.preprocess(
-  blankToNull,
-  z.string().trim()
-    .regex(phonePattern, `${label}ใช้ได้เฉพาะตัวเลข + ช่องว่าง วงเล็บ จุด และขีด`)
-    .refine((value) => {
-      const digits = value.replace(/\D/g, '')
-      return digits.length >= 9 && digits.length <= 15
-    }, `${label}ต้องมีตัวเลข 9-15 หลัก`)
-    .nullable()
-    .default(null),
 )
 
 const money = (label: string) => z.coerce.number({ invalid_type_error: `${label}ต้องเป็นตัวเลข` }).finite(`${label}ต้องเป็นตัวเลข`).min(0, `${label}ต้องไม่ติดลบ`)
@@ -59,9 +46,6 @@ export const purchaseBillItemSchema = z.object({
 
 export const purchaseBillFormSchema = z.object({
   branchId: z.string().trim().min(1, 'เลือกสาขา/คลัง'),
-  channelId: optionalSafeId('ช่องทาง'),
-  contactPhone: optionalPhone('เบอร์โทร'),
-  date: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'วันที่ต้องเป็นรูปแบบ YYYY-MM-DD'),
   discountTotal: money('ส่วนลดท้ายบิล').default(0),
   hasVat: z.boolean().default(false),
   items: z.array(purchaseBillItemSchema).min(1, 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ'),

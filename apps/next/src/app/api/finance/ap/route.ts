@@ -12,7 +12,6 @@ export const runtime = 'nodejs'
 type ApQuery = {
   branchId: string | null
   bucket: string | null
-  channelId: string | null
   from: string | null
   page: number
   pageSize: number
@@ -41,7 +40,6 @@ function parseQuery(url: URL): ApQuery {
   return {
     branchId: url.searchParams.get('branchId') || null,
     bucket: url.searchParams.get('bucket') || null,
-    channelId: url.searchParams.get('channelId') || null,
     from: url.searchParams.get('from') || null,
     page: Number.isFinite(page) && page > 0 ? Math.floor(page) : 1,
     pageSize: Number.isFinite(pageSize) && pageSize > 0 ? Math.min(Math.floor(pageSize), 500) : 50,
@@ -57,7 +55,6 @@ function parseQuery(url: URL): ApQuery {
 function billWhere(query: ApQuery): Prisma.purchase_billsWhereInput {
   return {
     ...(query.branchId ? { branch_id: query.branchId } : {}),
-    ...(query.channelId ? { channel_id: query.channelId } : {}),
     ...(query.supplierId ? { supplier_id: query.supplierId } : {}),
     ...(query.status ? { status: query.status } : { NOT: { status: 'cancelled' } }),
     ...(query.from || query.to
@@ -98,11 +95,10 @@ export async function GET(request: Request) {
     const url = new URL(request.url)
     const query = parseQuery(url)
 
-    const [bills, payments, suppliers, branches, channels] = await Promise.all([
+    const [bills, payments, suppliers, branches] = await Promise.all([
       prisma.purchase_bills.findMany({
         include: {
           branches: { select: { id: true, name: true } },
-          purchase_channels: { select: { id: true, name: true } },
           suppliers: { select: { code: true, id: true, name: true } },
         },
         orderBy: [{ date: 'asc' }, { doc_no: 'asc' }],
@@ -128,11 +124,6 @@ export async function GET(request: Request) {
       prisma.branches.findMany({
         orderBy: [{ name: 'asc' }],
         select: { active: true, code: true, id: true, name: true },
-        where: { active: true },
-      }),
-      prisma.purchase_channels.findMany({
-        orderBy: [{ name: 'asc' }],
-        select: { active: true, id: true, name: true },
         where: { active: true },
       }),
     ])
@@ -161,7 +152,6 @@ export async function GET(request: Request) {
           branchId: bill.branch_id ?? '',
           branchName: bill.branches?.name ?? '-',
           bucket: ageBucket(aging),
-          channelName: bill.purchase_channels?.name ?? '-',
           creditTerm,
           date: toDateOnly(bill.date),
           docNo: bill.doc_no,
@@ -179,7 +169,7 @@ export async function GET(request: Request) {
       })
       .filter((row) => row.payableBalance > 0.01)
       .filter((row) => !query.bucket || row.bucket === query.bucket)
-      .filter((row) => !search || `${row.docNo} ${row.supplierCode} ${row.supplierName} ${row.channelName} ${row.branchName}`.toLowerCase().includes(search))
+      .filter((row) => !search || `${row.docNo} ${row.supplierCode} ${row.supplierName} ${row.branchName}`.toLowerCase().includes(search))
 
     allRows.sort((left, right) => {
       const direction = query.sortDirection === 'asc' ? 1 : -1
@@ -238,7 +228,6 @@ export async function GET(request: Request) {
         Aging: row.aging,
         Branch: row.branchName,
         Bucket: row.bucket,
-        Channel: row.channelName,
         Date: row.date,
         DocNo: row.docNo,
         DueDate: row.dueDate,
@@ -261,7 +250,7 @@ export async function GET(request: Request) {
       bySupplier,
       filters: {
         branches: branches.map((row) => ({ active: row.active, code: row.code, id: row.id, name: row.name })),
-        channels: channels.map((row) => ({ active: row.active, code: null, id: row.id, name: row.name })),
+        channels: [],
         statuses,
         suppliers: suppliers.map((row) => ({ active: row.active, code: row.code, id: row.id, name: row.name })),
       },

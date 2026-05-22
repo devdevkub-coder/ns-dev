@@ -20,7 +20,6 @@ export async function GET(request: NextRequest) {
       dateFrom: params.get('from') || fallback.from,
       dateTo: params.get('to') || fallback.to,
       metalGroups,
-      purchaseChannelId: params.get('purchaseChannelId') || undefined,
       salesChannelId: params.get('salesChannelId') || undefined,
       supplierId: params.get('supplierId') || undefined,
     }))

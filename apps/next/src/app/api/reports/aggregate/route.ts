@@ -10,11 +10,9 @@ export const runtime = 'nodejs'
 type JsonRow = Record<string, unknown>
 
 type PurchaseBillRow = {
-  channel_id: string | null
   date: Date
   id: string
   purchase_bill_items?: Array<Record<string, unknown>>
-  purchase_channels: { name: string } | null
   status: string | null
   supplier_id: string | null
   suppliers: { name: string } | null
@@ -164,7 +162,7 @@ export async function GET(request: NextRequest) {
 
     const [purchases, sales] = await Promise.all([
       prisma.purchase_bills.findMany({
-        include: { purchase_bill_items: { orderBy: { line_no: 'asc' } }, purchase_channels: true, suppliers: true },
+        include: { purchase_bill_items: { orderBy: { line_no: 'asc' } }, suppliers: true },
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         take: 10000,
         where: range ? { date: range } : undefined,
@@ -190,7 +188,7 @@ export async function GET(request: NextRequest) {
     activePurchases.forEach((bill) => {
       const amount = jsonNumber(bill.total_amount)
       const weight = purchaseBillWeight(bill)
-      addAggregate(purchaseChannel, bill.purchase_channels?.name ?? bill.channel_id ?? 'ไม่ระบุช่องทาง', amount, weight)
+      addAggregate(purchaseChannel, 'บิลรับซื้อ', amount, weight)
       addAggregate(purchaseSupplier, bill.suppliers?.name ?? bill.supplier_id ?? 'ไม่ระบุ Supplier', amount, weight)
 
       purchaseRows(bill).forEach((item) => {
