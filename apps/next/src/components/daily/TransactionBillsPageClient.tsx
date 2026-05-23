@@ -785,7 +785,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="blue">2</StepBadge>ข้อมูลบิล</h4>
                 <div className="grid gap-3 md:grid-cols-3">
-                <SelectField hideCode error={fieldErrors.branchId} label="สาขา/คลัง *" options={activeBranches} value={form.branchId} onChange={(value) => updateForm('branchId', value)} />
+                <SelectField hideCode error={fieldErrors.branchId} label="สาขา *" options={activeBranches} value={form.branchId} onChange={(value) => updateForm('branchId', value)} />
                 <SupplierSearchCombobox className="md:col-span-2" error={fieldErrors.supplierId} options={activeSuppliers} value={form.supplierId} onChange={(value) => updateForm('supplierId', value)} />
                 <Field error={fieldErrors.licensePlate} label="ทะเบียนรถ *"><input className="w-full rounded border px-3 py-2 uppercase" placeholder="เช่น 1กข-1234 / 70-1234" value={form.licensePlate} onChange={(event) => updateForm('licensePlate', event.target.value.toUpperCase())} /></Field>
                 </div>

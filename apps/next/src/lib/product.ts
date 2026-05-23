@@ -20,6 +20,7 @@ export const productSchema = z.object({
   code: z.string().min(1),
   name: z.string().min(1),
   active: z.boolean().default(true),
+  itemStatus: z.enum(['RM', 'WIP', 'FG', 'SCRAP']).default('RM'),
   type: z.string().nullable().default(null),
   unit: z.string().nullable().default(null),
   targetMarginPct: z.number().nullable().default(null),
@@ -69,6 +70,10 @@ export const productFormSchema = z.object({
     .min(1, 'กรอกชื่อสินค้า')
     .max(180, 'ชื่อสินค้ายาวเกินไป')
     .regex(productTextPattern, 'ชื่อสินค้ามีรูปแบบไม่ถูกต้อง'),
+  itemStatus: z.preprocess(
+    (value) => (typeof value === 'string' ? value.trim().toUpperCase() : value),
+    z.enum(['RM', 'WIP', 'FG', 'SCRAP'], { errorMap: () => ({ message: 'เลือกสถานะรับเข้าสต๊อก' }) }).default('RM'),
+  ),
   type: optionalProductText('ประเภทสินค้า', 120),
   unit: z.preprocess(
     blankToNull,

@@ -15,6 +15,7 @@ const EXPORT_LIMIT = 10000
 const sortColumns = {
   active: 'active',
   code: 'code',
+  itemStatus: 'item_status',
   name: 'name',
   targetMarginPct: 'target_margin_pct',
   type: 'type',
@@ -25,6 +26,7 @@ const productColumns: Array<{ key: keyof Product; label: string; width: number }
   { key: 'code', label: 'รหัสสินค้า', width: 90 },
   { key: 'name', label: 'ชื่อสินค้า', width: 220 },
   { key: 'type', label: 'ประเภทสินค้า', width: 140 },
+  { key: 'itemStatus', label: 'รับเข้าเป็น', width: 100 },
   { key: 'unit', label: 'หน่วย', width: 80 },
   { key: 'targetMarginPct', label: 'Target Margin %', width: 120 },
   { key: 'active', label: 'สถานะ', width: 90 },
@@ -57,6 +59,7 @@ function productSearchWhere(q: string, filters: { active: string; productType: s
   where.OR = [
     { id: { contains: q, mode: 'insensitive' } },
     { code: { contains: q, mode: 'insensitive' } },
+    { item_status: { contains: q, mode: 'insensitive' } },
     { name: { contains: q, mode: 'insensitive' } },
     { type: { contains: q, mode: 'insensitive' } },
     { unit: { contains: q, mode: 'insensitive' } },

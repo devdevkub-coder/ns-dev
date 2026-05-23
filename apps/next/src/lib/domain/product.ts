@@ -6,6 +6,7 @@ type PrismaProduct = {
   code: string
   name: string
   active: boolean | null
+  item_status: string | null
   type: string | null
   unit: string | null
   target_margin_pct: Prisma.Decimal | null
@@ -19,6 +20,7 @@ export function mapPrismaProduct(row: PrismaProduct): Product {
     code: row.code,
     name: row.name,
     active: row.active ?? true,
+    itemStatus: ['RM', 'WIP', 'FG', 'SCRAP'].includes(row.item_status ?? '') ? row.item_status : 'RM',
     type: row.type,
     unit: row.unit,
     targetMarginPct: row.target_margin_pct === null ? null : row.target_margin_pct.toNumber(),
@@ -35,6 +37,7 @@ export function toProductWriteInput(values: ProductFormValues) {
     id: parsed.id || code,
     code,
     name: parsed.name,
+    item_status: parsed.itemStatus,
     type: parsed.type || null,
     unit: parsed.unit || 'กก.',
     target_margin_pct: parsed.targetMarginPct,

@@ -15,13 +15,14 @@ import {
   type ProductFormValues,
 } from '@/lib/product'
 
-type SortKey = 'active' | 'code' | 'name' | 'targetMarginPct' | 'type' | 'unit'
+type SortKey = 'active' | 'code' | 'itemStatus' | 'name' | 'targetMarginPct' | 'type' | 'unit'
 
 const emptyProductForm: ProductFormValues = {
   id: undefined,
   code: '',
   name: '',
   active: true,
+  itemStatus: 'RM',
   type: null,
   unit: 'กก.',
   targetMarginPct: null,
@@ -33,6 +34,7 @@ function productToForm(product: Product): ProductFormValues {
     code: product.code,
     name: product.name,
     active: product.active,
+    itemStatus: product.itemStatus,
     type: product.type,
     unit: product.unit ?? 'กก.',
     targetMarginPct: product.targetMarginPct,
@@ -391,6 +393,7 @@ export function ProductsPageClient() {
                 <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('code')}>รหัส{sortLabel('code')}</button></th>
                 <th className="min-w-[220px] p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('name')}>ชื่อสินค้า{sortLabel('name')}</button></th>
                 <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('type')}>ประเภท{sortLabel('type')}</button></th>
+                <th className="p-2 text-center"><button className="font-semibold" type="button" onClick={() => setSort('itemStatus')}>รับเข้าเป็น{sortLabel('itemStatus')}</button></th>
                 <th className="p-2 text-center"><button className="font-semibold" type="button" onClick={() => setSort('unit')}>หน่วย{sortLabel('unit')}</button></th>
                 <th className="p-2 text-right"><button className="font-semibold" type="button" onClick={() => setSort('targetMarginPct')}>Target Margin{sortLabel('targetMarginPct')}</button></th>
                 <th className="p-2 text-center"><button className="font-semibold" type="button" onClick={() => setSort('active')}>สถานะ{sortLabel('active')}</button></th>
@@ -415,6 +418,7 @@ export function ProductsPageClient() {
                   <td className="p-2 font-mono text-xs">{product.code}</td>
                   <td className="p-2 font-medium">{product.name}</td>
                   <td className="p-2">{displayValue(product.type)}</td>
+                  <td className="p-2 text-center"><StockStatusBadge value={product.itemStatus} /></td>
                   <td className="p-2 text-center">{displayValue(product.unit)}</td>
                   <td className="p-2 text-right">{product.targetMarginPct === null ? '-' : `${formatNumber(product.targetMarginPct)}%`}</td>
                   <td className="p-2 text-center">
@@ -441,7 +445,7 @@ export function ProductsPageClient() {
               ))}
               {paginatedProducts.length === 0 ? (
                 <tr>
-                  <td className="p-4 text-center text-sm text-slate-500" colSpan={7}>ไม่พบข้อมูลที่ค้นหา</td>
+                  <td className="p-4 text-center text-sm text-slate-500" colSpan={8}>ไม่พบข้อมูลที่ค้นหา</td>
                 </tr>
               ) : null}
             </tbody>
@@ -503,6 +507,12 @@ function ProductForm({ isSaving, product, productTypes, productUnits, onCancel, 
               <option value="">เลือกประเภทสินค้า</option>
               {productTypes.map((type) => <option key={type} value={type}>{type}</option>)}
             </SelectField>
+            <SelectField error={errors.itemStatus} label="รับเข้าเป็น" value={form.itemStatus} onChange={(value) => update('itemStatus', value as ProductFormValues['itemStatus'])}>
+              <option value="RM">RM - วัตถุดิบ</option>
+              <option value="FG">FG - พร้อมขาย</option>
+              <option value="WIP">WIP - ระหว่างผลิต</option>
+              <option value="SCRAP">SCRAP - เศษ/ของเสีย</option>
+            </SelectField>
             <SelectField error={errors.unit} label="หน่วย" value={form.unit ?? ''} onChange={(value) => update('unit', value || null)}>
               <option value="">เลือกหน่วย</option>
               {productUnits.map((unit) => {
@@ -526,6 +536,18 @@ function ProductForm({ isSaving, product, productTypes, productUnits, onCancel, 
       </div>
     </form>
   )
+}
+
+function StockStatusBadge({ value }: { value: Product['itemStatus'] }) {
+  const className = value === 'FG'
+    ? 'bg-emerald-50 text-emerald-700'
+    : value === 'WIP'
+      ? 'bg-amber-50 text-amber-700'
+      : value === 'SCRAP'
+        ? 'bg-red-50 text-red-700'
+        : 'bg-blue-50 text-blue-700'
+
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${className}`}>{value}</span>
 }
 
 type SelectFieldProps = {

@@ -11,6 +11,7 @@ export const runtime = 'nodejs'
 const sortColumns = {
   active: 'active',
   code: 'code',
+  itemStatus: 'item_status',
   name: 'name',
   targetMarginPct: 'target_margin_pct',
   type: 'type',
@@ -44,6 +45,7 @@ function productSearchWhere(q: string, filters: { active: string; productType: s
   where.OR = [
     { id: { contains: q, mode: 'insensitive' } },
     { code: { contains: q, mode: 'insensitive' } },
+    { item_status: { contains: q, mode: 'insensitive' } },
     { name: { contains: q, mode: 'insensitive' } },
     { type: { contains: q, mode: 'insensitive' } },
     { unit: { contains: q, mode: 'insensitive' } },

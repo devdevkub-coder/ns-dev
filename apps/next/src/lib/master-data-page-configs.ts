@@ -95,11 +95,13 @@ export const warehousesPageConfig: MasterDataPageConfig = {
   fields: [
     { key: 'code', label: 'รหัสคลัง', required: true },
     { key: 'name', label: 'ชื่อคลัง', required: true },
+    { key: 'type', label: 'ประเภทคลัง', type: 'select', required: true, options: [{ label: 'RM - วัตถุดิบ', value: 'RM' }, { label: 'FG - พร้อมขาย', value: 'FG' }, { label: 'WIP - ระหว่างผลิต', value: 'WIP' }, { label: 'SCRAP - เศษ/ของเสีย', value: 'SCRAP' }] },
     { key: 'branchId', label: 'สาขา', type: 'select', required: true, optionsApiPath: '/api/master-data/branches', optionValueKey: 'id' },
   ],
   columns: [
     { key: 'code', label: 'รหัส' },
     { key: 'name', label: 'ชื่อคลัง' },
+    { key: 'type', label: 'ประเภทคลัง', align: 'center' },
     { key: 'branchName', label: 'สาขา' },
     statusColumn,
   ],

@@ -208,6 +208,9 @@ Status:
 
 Important boundary:
 - Current create/edit path writes `purchase_bills` header + `purchase_bill_items` relational line rows, updates AP balance fields, and writes `stock_ledger` rows for `STOCK` bills. The old `purchase_bills.items` JSONB column has been removed from the target schema.
+- Product master now exposes the stock receipt status (`products.item_status`) as `รับเข้าเป็น` with RM/WIP/FG/SCRAP choices. Purchase bill `STOCK` create/edit reads that value per line, auto-picks a matching branch warehouse by status hint, and stamps PB stock ledger rows with that status in `output_category`.
+- Warehouse master now has `warehouses.type` with RM/WIP/FG/SCRAP choices, so each branch can maintain separate stock locations such as สมุทรสาคร RM and สมุทรสาคร FG. Purchase bill stock routing prefers warehouse type before falling back to legacy code/name hints.
+- DB migration apply is pending. `supabase migration list --db-url "$SUPABASE_DB_URL"` on 2026-05-23 showed remote-only migration `20260519044843` plus multiple local-only migration history gaps, so dev-target needs migration history repair/pull before `20260523000100_add_warehouse_type.sql` can be pushed cleanly.
 - `TRADING` remains a PB document but does not create stock ledger.
 - Purchase bill document remains editable after supplier payments exist by current business decision. Existing payment rows are preserved and AP balance/status is recomputed from current payment totals.
 - Existing supplier payments are not rewritten by purchase-bill edit. If totals change after payment, AP balance is recalculated from current payment rows.
@@ -334,6 +337,7 @@ Validation:
 - Next daily Batch C stock transfer/audit routes now have baseline pages and API routes.
 - Next daily Batch D/E transaction read routes now have baseline pages and API routes.
 - Purchase bill create/edit flow now writes header + relational line items in `purchase_bill_items`, generates branch/month document numbers at save time, recalculates AP status from payments, and writes stock ledger only for `STOCK` bills. The old `purchase_bills.items` JSONB column has been removed from the target schema. The modal reads the active VAT percent from `vat_settings`, displays that percent in the VAT summary, calculates with that rate, and stores the applied percent in `purchase_bills.vat_rate_percent`.
+- Supplier payment save now refreshes the linked purchase bill AP fields in the same transaction: `paid_amount`, `payable_balance`, and `status` are recomputed from active `payments` rows by `bill_id`; overpayment is rejected and edits that move a payment to another bill refresh both old and new bills. Data dictionary updated at `docs/data-dictionary/purchase-bills.md`, and a dev-target schema-only snapshot was dumped to `reports/db_audit/dev_target_schema_20260522.sql`.
 - Purchase bill linked read surfaces now exist for AP aging, stock ledger, trading matching, PO buy, outstanding PO, and supplier tracking.
 - Legacy daily UI/reference exists under:
   - `old-apps/legacy/index.html`

@@ -12,6 +12,14 @@ import type { Prisma } from '../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
 
+const STOCK_STATUS_VALUES = ['RM', 'WIP', 'FG', 'SCRAP'] as const
+const PURCHASE_STOCK_WAREHOUSE_HINTS: Record<typeof STOCK_STATUS_VALUES[number], string[]> = {
+  FG: ['FG', 'FINISHED', 'พร้อมขาย'],
+  RM: ['RM', 'RAW', 'วัตถุดิบ'],
+  SCRAP: ['SCRAP', 'เศษ', 'ของเสีย'],
+  WIP: ['WIP', 'PROCESS', 'ระหว่างผลิต'],
+}
+
 type PurchaseBillRow = Prisma.purchase_billsGetPayload<{
   include: {
     branches: true
@@ -37,6 +45,24 @@ type BillQuery = {
 function branchBillCode(branchCode: string | null | undefined) {
   const digits = String(branchCode ?? '').replace(/\D/g, '')
   return digits ? digits.padStart(2, '0').slice(-2) : null
+}
+
+function normalizeStockStatus(value: string | null | undefined) {
+  const normalized = String(value ?? 'RM').toUpperCase()
+  return STOCK_STATUS_VALUES.includes(normalized as typeof STOCK_STATUS_VALUES[number])
+    ? normalized as typeof STOCK_STATUS_VALUES[number]
+    : 'RM'
+}
+
+function pickPurchaseStockWarehouse(rows: Array<{ code: string | null; id: string; name: string; type: string | null }>, status: typeof STOCK_STATUS_VALUES[number]) {
+  const activeRows = rows.filter((row) => row.id)
+  const typedWarehouse = activeRows.find((row) => normalizeStockStatus(row.type) === status && row.type)
+  if (typedWarehouse) return typedWarehouse
+
+  return activeRows.find((row) => {
+    const text = `${row.code ?? ''} ${row.name}`.toUpperCase()
+    return PURCHASE_STOCK_WAREHOUSE_HINTS[status].some((hint) => text.includes(hint.toUpperCase()))
+  }) ?? activeRows[0] ?? null
 }
 
 function bangkokDateInput(value: Date) {
@@ -126,7 +152,7 @@ function calculateTotals(values: PurchaseBillFormValues, vatRatePercent: number)
   return { afterDiscount, subtotal, totalAmount, vatAmount }
 }
 
-function buildBillItems(values: PurchaseBillFormValues, productById: Map<string, { code: string; name: string; unit: string | null }>) {
+function buildBillItems(values: PurchaseBillFormValues, productById: Map<string, { code: string; item_status: string | null; name: string; unit: string | null }>) {
   return values.items.map((item) => {
     const product = productById.get(item.productId)
     const amount = Math.max(0, item.qty * item.price - item.discount)
@@ -136,6 +162,7 @@ function buildBillItems(values: PurchaseBillFormValues, productById: Map<string,
       discount: item.discount,
       displayName: item.displayName,
       grossWeight: item.grossWeight,
+      itemStatus: normalizeStockStatus(product?.item_status),
       lotNo: item.lotNo,
       note: item.note,
       poBuyId: item.poBuyId,
@@ -407,22 +434,18 @@ export async function POST(request: Request) {
 
     const productIds = [...new Set(values.items.map((item) => item.productId))]
     const poBuyIds = [...new Set([values.poBuyId, ...values.items.map((item) => item.poBuyId)].filter(Boolean) as string[])]
-    const [supplier, branch, warehouse, poBuys, products] = await Promise.all([
+    const [supplier, branch, poBuys, products] = await Promise.all([
       prisma.suppliers.findFirst({ select: { id: true, sales_id: true }, where: { active: true, id: values.supplierId } }),
-      values.branchId ? prisma.branches.findFirst({ where: { active: true, id: values.branchId } }) : Promise.resolve(null),
-      values.warehouseId ? prisma.warehouses.findFirst({ where: { active: true, id: values.warehouseId } }) : Promise.resolve(null),
+      prisma.branches.findFirst({ where: { active: true, id: values.branchId } }),
       poBuyIds.length ? prisma.po_buys.findMany({ where: { id: { in: poBuyIds } } }) : Promise.resolve([]),
       prisma.products.findMany({ where: { active: true, id: { in: productIds } } }),
     ])
 
     if (!supplier) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
-    if (values.branchId && !branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
-    if (values.warehouseId && !warehouse) return NextResponse.json({ code: 'BAD_REQUEST', error: 'คลังไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
-    if (values.branchId && warehouse?.branch_id && warehouse.branch_id !== values.branchId) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาและคลังไม่ตรงกัน' }, { status: 400 })
+    if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     const supplierSalesId = supplier.sales_id ?? null
 
-    const effectiveBranchId = values.branchId ?? warehouse?.branch_id ?? null
-    const effectiveBranch = branch ?? (effectiveBranchId ? await prisma.branches.findFirst({ where: { active: true, id: effectiveBranchId } }) : null)
+    const effectiveBranch = branch
     const effectiveBranchCode = branchBillCode(effectiveBranch?.code)
     if (!effectiveBranch || !effectiveBranchCode) return NextResponse.json({ code: 'BAD_REQUEST', error: 'เลือกสาขาที่มีรหัสสาขา 01 หรือ 02 ก่อนบันทึกบิล' }, { status: 400 })
 
@@ -435,6 +458,17 @@ export async function POST(request: Request) {
     if (missingProduct) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
 
     const items = buildBillItems(values, productById)
+    const branchWarehouses = values.transactionMode === 'STOCK'
+      ? await prisma.warehouses.findMany({
+        orderBy: [{ code: 'asc' }, { name: 'asc' }],
+        select: { code: true, id: true, name: true, type: true },
+        where: { active: true, branch_id: effectiveBranch.id },
+      })
+      : []
+    const warehouseByStatus = new Map(STOCK_STATUS_VALUES.map((status) => [status, pickPurchaseStockWarehouse(branchWarehouses, status)]))
+    const missingWarehouseStatus = values.transactionMode === 'STOCK' ? items.find((item) => !warehouseByStatus.get(item.itemStatus))?.itemStatus : null
+    if (missingWarehouseStatus) return NextResponse.json({ code: 'BAD_REQUEST', error: `ไม่พบคลัง ${missingWarehouseStatus} ที่เปิดใช้งานสำหรับสาขานี้` }, { status: 400 })
+    const purchaseWarehouseId = values.transactionMode === 'STOCK' ? warehouseByStatus.get(items[0]?.itemStatus ?? 'RM')?.id ?? null : null
 
     let bill: { doc_no: string; id: string } | null = null
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -477,7 +511,7 @@ export async function POST(request: Request) {
               vat_invoice_received_at: values.vatInvoiceReceived ? new Date() : null,
               vat_rate_percent: vatRatePercent,
               vat_type: values.vatType,
-              warehouse_id: values.warehouseId,
+              warehouse_id: purchaseWarehouseId,
             },
             select: { doc_no: true, id: true },
           })
@@ -497,6 +531,7 @@ export async function POST(request: Request) {
                 movement_type: 'รับซื้อเข้า',
                 note: item.note,
                 notes: values.note ?? values.notes,
+                output_category: item.itemStatus,
                 product_id: item.productId,
                 qty_in: item.qty,
                 qty_out: 0,
@@ -506,7 +541,7 @@ export async function POST(request: Request) {
                 unit_cost: item.price,
                 value_in: item.amount,
                 value_out: 0,
-                warehouse_id: values.warehouseId,
+                warehouse_id: warehouseByStatus.get(item.itemStatus)?.id ?? purchaseWarehouseId,
               })),
             })
           }
@@ -581,11 +616,10 @@ export async function PATCH(request: Request) {
 
     const productIds = [...new Set(values.items.map((item) => item.productId))]
     const poBuyIds = [...new Set([values.poBuyId, ...values.items.map((item) => item.poBuyId)].filter(Boolean) as string[])]
-    const [existingBill, supplier, branch, warehouse, poBuys, products, payments] = await Promise.all([
+    const [existingBill, supplier, branch, poBuys, products, payments] = await Promise.all([
       prisma.purchase_bills.findUnique({ where: { id } }),
       prisma.suppliers.findFirst({ select: { id: true, sales_id: true }, where: { active: true, id: values.supplierId } }),
-      values.branchId ? prisma.branches.findFirst({ where: { active: true, id: values.branchId } }) : Promise.resolve(null),
-      values.warehouseId ? prisma.warehouses.findFirst({ where: { active: true, id: values.warehouseId } }) : Promise.resolve(null),
+      prisma.branches.findFirst({ where: { active: true, id: values.branchId } }),
       poBuyIds.length ? prisma.po_buys.findMany({ where: { id: { in: poBuyIds } } }) : Promise.resolve([]),
       prisma.products.findMany({ where: { active: true, id: { in: productIds } } }),
       prisma.payments.findMany({
@@ -602,13 +636,10 @@ export async function PATCH(request: Request) {
     const vatRatePercent = toNumber(existingBill.vat_rate_percent) ?? (await activeVatRatePercent(normalizeDate(billDate)))
     const totals = calculateTotals(values, vatRatePercent)
     if (!supplier) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
-    if (values.branchId && !branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
-    if (values.warehouseId && !warehouse) return NextResponse.json({ code: 'BAD_REQUEST', error: 'คลังไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
-    if (values.branchId && warehouse?.branch_id && warehouse.branch_id !== values.branchId) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาและคลังไม่ตรงกัน' }, { status: 400 })
+    if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     const supplierSalesId = supplier.sales_id ?? null
 
-    const effectiveBranchId = values.branchId ?? warehouse?.branch_id ?? null
-    const effectiveBranch = branch ?? (effectiveBranchId ? await prisma.branches.findFirst({ where: { active: true, id: effectiveBranchId } }) : null)
+    const effectiveBranch = branch
     if (!effectiveBranch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'เลือกสาขาก่อนบันทึกบิล' }, { status: 400 })
 
     const poBuyById = new Map(poBuys.map((po) => [po.id, po]))
@@ -620,6 +651,17 @@ export async function PATCH(request: Request) {
     if (missingProduct) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
 
     const items = buildBillItems(values, productById)
+    const branchWarehouses = values.transactionMode === 'STOCK'
+      ? await prisma.warehouses.findMany({
+        orderBy: [{ code: 'asc' }, { name: 'asc' }],
+        select: { code: true, id: true, name: true, type: true },
+        where: { active: true, branch_id: effectiveBranch.id },
+      })
+      : []
+    const warehouseByStatus = new Map(STOCK_STATUS_VALUES.map((status) => [status, pickPurchaseStockWarehouse(branchWarehouses, status)]))
+    const missingWarehouseStatus = values.transactionMode === 'STOCK' ? items.find((item) => !warehouseByStatus.get(item.itemStatus))?.itemStatus : null
+    if (missingWarehouseStatus) return NextResponse.json({ code: 'BAD_REQUEST', error: `ไม่พบคลัง ${missingWarehouseStatus} ที่เปิดใช้งานสำหรับสาขานี้` }, { status: 400 })
+    const purchaseWarehouseId = values.transactionMode === 'STOCK' ? warehouseByStatus.get(items[0]?.itemStatus ?? 'RM')?.id ?? null : null
 
     const paidAmount = payments.reduce((sum, payment) => sum + toNumber(payment.amount) + toNumber(payment.withholding_tax) + toNumber(payment.discount), 0)
     const payableBalance = Math.max(0, totals.totalAmount - paidAmount)
@@ -655,7 +697,7 @@ export async function PATCH(request: Request) {
           vat_invoice_received_at: values.vatInvoiceReceived ? new Date() : null,
           vat_rate_percent: vatRatePercent,
           vat_type: values.vatType,
-          warehouse_id: values.warehouseId,
+          warehouse_id: purchaseWarehouseId,
         },
         select: { doc_no: true, id: true },
         where: { id },
@@ -678,6 +720,7 @@ export async function PATCH(request: Request) {
             movement_type: 'รับซื้อเข้า',
             note: item.note,
             notes: values.note ?? values.notes,
+            output_category: item.itemStatus,
             product_id: item.productId,
             qty_in: item.qty,
             qty_out: 0,
@@ -687,7 +730,7 @@ export async function PATCH(request: Request) {
             unit_cost: item.price,
             value_in: item.amount,
             value_out: 0,
-            warehouse_id: values.warehouseId,
+            warehouse_id: warehouseByStatus.get(item.itemStatus)?.id ?? purchaseWarehouseId,
           })),
         })
       }

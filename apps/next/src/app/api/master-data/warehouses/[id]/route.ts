@@ -13,7 +13,7 @@ function mapWarehouse(row: WarehouseRow) {
     code: row.code,
     name: row.name,
     active: row.active ?? true,
-    type: null,
+    type: row.type ?? null,
     phone: null,
     email: null,
     note: null,

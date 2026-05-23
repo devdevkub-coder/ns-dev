@@ -45,7 +45,7 @@ export const purchaseBillItemSchema = z.object({
 })
 
 export const purchaseBillFormSchema = z.object({
-  branchId: z.string().trim().min(1, 'เลือกสาขา/คลัง'),
+  branchId: z.string().trim().min(1, 'เลือกสาขา'),
   discountTotal: money('ส่วนลดท้ายบิล').default(0),
   hasVat: z.boolean().default(false),
   items: z.array(purchaseBillItemSchema).min(1, 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ'),

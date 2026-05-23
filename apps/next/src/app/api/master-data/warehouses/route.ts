@@ -6,6 +6,7 @@ import type { Prisma } from '../../../../../generated/prisma/client'
 export const runtime = 'nodejs'
 
 type WarehouseRow = Prisma.warehousesGetPayload<{ include: { branches: true } }>
+const warehouseTypes = new Set(['RM', 'WIP', 'FG', 'SCRAP'])
 
 function mapWarehouse(row: WarehouseRow) {
   return {
@@ -13,7 +14,7 @@ function mapWarehouse(row: WarehouseRow) {
     code: row.code,
     name: row.name,
     active: row.active ?? true,
-    type: null,
+    type: row.type ?? null,
     phone: null,
     email: null,
     note: null,
@@ -59,6 +60,7 @@ export async function POST(request: Request) {
 
     const values = parseMasterDataForm(await request.json())
     if (!values.branchId) return errorJson(new Error('กรอกสาขา'), 'กรอกสาขา')
+    if (!values.type || !warehouseTypes.has(values.type)) return errorJson(new Error('เลือกประเภทคลัง'), 'เลือกประเภทคลัง')
     const code = normalizeCode(values.code, values.id || '')
     const id = values.id || code
     const row = await prisma.warehouses.upsert({
@@ -69,12 +71,14 @@ export async function POST(request: Request) {
         code,
         id,
         name: values.name,
+        type: values.type,
       },
       update: {
         active: values.active,
         branch_id: values.branchId || null,
         code,
         name: values.name,
+        type: values.type,
       },
       include: { branches: true },
     })
