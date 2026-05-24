@@ -257,11 +257,6 @@ export function ReportsIndexPageClient() {
 
   return (
     <section className="space-y-4">
-      <div className="rounded-md bg-gradient-to-r from-slate-700 to-blue-700 p-4 text-white shadow">
-        <h1 className="text-xl font-bold">📊 รายงานสรุป</h1>
-        <p className="mt-1 text-sm opacity-90">รายงานรวมซื้อ/ขายตามช่องทาง Supplier สินค้า และลูกค้า ตามรูปแบบ legacy</p>
-      </div>
-
       <div className="rounded-md bg-white p-4 shadow">
         <div className="flex flex-wrap items-center gap-2">
           <input className="rounded-md border px-3 py-2 text-sm" onChange={(event) => setFromDate(event.target.value)} type="date" value={fromDate} />
@@ -350,7 +345,7 @@ export function ReportsIndexPageClient() {
             <h2 className="text-base font-bold text-slate-900">รายงานอื่นในระบบ</h2>
             <p className="text-xs text-slate-500">ส่วนนี้คงไว้เป็นทางลัดไปยังรายงาน Next ที่เปิดใช้งานแล้ว</p>
           </div>
-          <input className="ml-auto min-w-52 rounded-md border px-3 py-2 text-sm" onChange={(event) => setQuery(event.target.value)} placeholder="ค้นหาชื่อรายงาน / module / path" value={query} />
+          <input className="ml-auto min-w-52 rounded-md border px-3 py-2 text-sm" onChange={(event) => setQuery(event.target.value)} placeholder="ค้นหาชื่อรายงาน / module / path" type="search" value={query} />
         </div>
 
         <div className="mt-3 flex flex-wrap gap-2">

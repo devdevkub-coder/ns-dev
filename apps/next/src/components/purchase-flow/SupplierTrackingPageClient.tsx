@@ -78,10 +78,6 @@ export function SupplierTrackingPageClient() {
 
   return (
     <section className="space-y-4">
-      <div className="rounded-md bg-gradient-to-r from-blue-700 to-indigo-700 p-4 text-white shadow-xl">
-        <h1 className="text-xl font-bold">🏭 Supplier Tracking 360°</h1>
-        <p className="mt-1 text-sm opacity-90">วิเคราะห์ผู้ขายจากบิลรับซื้อและรายการจ่ายเงิน Supplier</p>
-      </div>
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       <div className="rounded-md bg-white p-3 shadow">

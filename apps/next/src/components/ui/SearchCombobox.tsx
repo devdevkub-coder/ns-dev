@@ -28,6 +28,8 @@ export function SearchCombobox({
   value: string
   onChange: (optionId: string) => void
 }) {
+  const hasInlineRequired = label.trim().endsWith('*')
+  const labelText = hasInlineRequired ? label.trim().slice(0, -1).trimEnd() : label
   const inputRef = useRef<HTMLInputElement>(null)
   const selectedOption = useMemo(() => options.find((option) => option.id === value) ?? null, [options, value])
   const selectedLabel = selectedOption?.label ?? ''
@@ -59,7 +61,7 @@ export function SearchCombobox({
 
   return (
     <div className="relative">
-      <label className="mb-1 block text-xs" htmlFor={inputId}>{label}</label>
+      <label className="mb-1 block text-xs" htmlFor={inputId}>{labelText}{hasInlineRequired ? <span className="ml-1 text-red-600">*</span> : null}</label>
       <Input
         ref={inputRef}
         aria-autocomplete="list"
@@ -70,6 +72,7 @@ export function SearchCombobox({
         id={inputId}
         placeholder={placeholder}
         role="combobox"
+        required={hasInlineRequired}
         type="search"
         value={query}
         onClick={() => {

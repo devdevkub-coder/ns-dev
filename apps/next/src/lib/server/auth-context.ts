@@ -42,6 +42,76 @@ function metadataRole(user: User) {
   return String(user.app_metadata?.role ?? user.user_metadata?.role ?? '').toLowerCase() || null
 }
 
+const appUserAuthInclude = {
+  app_user_branch_access: true,
+  app_user_roles: {
+    include: {
+      app_roles: {
+        include: {
+          app_role_permissions: {
+            include: {
+              app_permissions: true,
+            },
+          },
+        },
+      },
+    },
+  },
+} as const
+
+async function findAppUserWithAuth(where: Parameters<typeof prisma.app_users.findUnique>[0]['where']) {
+  return prisma.app_users.findUnique({
+    include: appUserAuthInclude,
+    where,
+  })
+}
+
+type AppUserWithAuth = NonNullable<Awaited<ReturnType<typeof findAppUserWithAuth>>>
+
+function buildAppUserContext(appUser: AppUserWithAuth | null, user: User): AppAuthContext {
+  if (!appUser) {
+    throw new AuthContextError('ไม่พบข้อมูลผู้ใช้งานในระบบ', 403)
+  }
+
+  if (!appUser.active) {
+    throw new AuthContextError('บัญชีนี้ถูกปิดใช้งาน', 403)
+  }
+
+  const roles = appUser.app_user_roles
+    .map((userRole) => userRole.app_roles)
+    .filter((role) => role.active)
+  const permissionCodes = new Set<string>(
+    roles.flatMap((role) => role.app_role_permissions
+      .map((rolePermission) => rolePermission.app_permissions)
+      .filter((permission) => permission.active)
+      .map((permission) => permission.code)),
+  )
+  const roleSummaries = roles.map((role) => ({
+    branchScope: role.branch_scope,
+    code: role.code,
+    id: role.id,
+    name: role.name,
+  }))
+  const isAdmin = roleSummaries.some((role) => role.code === 'admin' || role.code === 'owner')
+
+  return {
+    appUser: {
+      active: appUser.active,
+      branchIds: appUser.app_user_branch_access.map((branch) => branch.branch_id),
+      displayName: appUser.display_name,
+      email: appUser.email,
+      id: appUser.id,
+      mustChangePassword: appUser.must_change_password,
+      username: appUser.username,
+    },
+    authUser: user,
+    fallbackRole: null,
+    isAdmin,
+    permissionCodes,
+    roles: roleSummaries,
+  }
+}
+
 export async function getSupabaseServerClient() {
   const cookieStore = await cookies()
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -79,65 +149,30 @@ export async function getCurrentAuthContext(): Promise<AppAuthContext> {
     throw new AuthContextError('กรุณาเข้าสู่ระบบ', 401)
   }
 
-  const appUser = await prisma.app_users.findUnique({
-    include: {
-      app_user_branch_access: true,
-      app_user_roles: {
-        include: {
-          app_roles: {
-            include: {
-              app_role_permissions: {
-                include: {
-                  app_permissions: true,
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-    where: {
-      auth_user_id: user.id,
-    },
+  const appUser = await findAppUserWithAuth({
+    auth_user_id: user.id,
   })
 
   if (appUser) {
-    if (!appUser.active) {
-      throw new AuthContextError('บัญชีนี้ถูกปิดใช้งาน', 403)
-    }
+    return buildAppUserContext(appUser, user)
+  }
 
-    const roles = appUser.app_user_roles
-      .map((userRole) => userRole.app_roles)
-      .filter((role) => role.active)
-    const permissionCodes = new Set(
-      roles.flatMap((role) => role.app_role_permissions
-        .map((rolePermission) => rolePermission.app_permissions)
-        .filter((permission) => permission.active)
-        .map((permission) => permission.code)),
-    )
-    const roleSummaries = roles.map((role) => ({
-      branchScope: role.branch_scope,
-      code: role.code,
-      id: role.id,
-      name: role.name,
-    }))
-    const isAdmin = roleSummaries.some((role) => role.code === 'admin' || role.code === 'owner')
-
-    return {
-      appUser: {
-        active: appUser.active,
-        branchIds: appUser.app_user_branch_access.map((branch) => branch.branch_id),
-        displayName: appUser.display_name,
-        email: appUser.email,
-        id: appUser.id,
-        mustChangePassword: appUser.must_change_password,
-        username: appUser.username,
+  const email = user.email?.trim()
+  if (email) {
+    const emailMatches = await prisma.app_users.findMany({
+      include: appUserAuthInclude,
+      orderBy: [{ created_at: 'desc' }],
+      take: 2,
+      where: {
+        email: {
+          equals: email,
+          mode: 'insensitive',
+        },
       },
-      authUser: user,
-      fallbackRole: null,
-      isAdmin,
-      permissionCodes,
-      roles: roleSummaries,
+    })
+
+    if (emailMatches.length === 1) {
+      return buildAppUserContext(emailMatches[0], user)
     }
   }
 

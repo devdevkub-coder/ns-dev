@@ -71,7 +71,6 @@ export function PlStatementPageClient() {
 
   return (
     <section className="space-y-4">
-      <Hero subtitle="รายได้จาก Sales Bills · COGS จาก WAC · ค่าใช้จ่ายจาก Expense · ค่าเสื่อม · ดอกเบี้ย · FX" title="📈 Profit & Loss Statement / งบกำไรขาดทุน" tone="pl" />
       <BaselineNotice sourceState={data?.sourceState} />
       {error ? <ErrorBox message={error} /> : null}
       <FilterPanel>
@@ -114,7 +113,6 @@ export function BalanceSheetPageClient() {
 
   return (
     <section className="space-y-4">
-      <Hero subtitle="Cash · AR · AP · Inventory (WAC) · Fixed Asset · Loan · Equity — Balanced Check" title="⚖️ Balance Sheet / งบดุล" tone="bs" />
       <BaselineNotice sourceState={data?.sourceState} />
       {error ? <ErrorBox message={error} /> : null}
       <FilterPanel>
@@ -152,7 +150,6 @@ export function CashFlowStatementPageClient() {
 
   return (
     <section className="space-y-4">
-      <Hero subtitle="Direct Method · ดึงจาก Bank Statement จริง · แยก Operating/Investing/Financing · ตัด Internal Transfer" title="💧 Cash Flow Statement / งบกระแสเงินสด" tone="cf" />
       <BaselineNotice sourceState={data?.sourceState} />
       {error ? <ErrorBox message={error} /> : null}
       <FilterPanel>
@@ -194,11 +191,6 @@ function useApi<T>(url: string) {
 function money(value?: number) {
   const amount = value ?? 0
   return amount < 0 ? `(${formatMoney(Math.abs(amount))})` : formatMoney(amount)
-}
-
-function Hero({ subtitle, title, tone }: { subtitle: string; title: string; tone: 'bs' | 'cf' | 'pl' }) {
-  const tones = { bs: 'from-blue-700 to-indigo-800', cf: 'from-cyan-600 to-sky-700', pl: 'from-emerald-600 to-teal-700' }
-  return <div className={`rounded-md bg-gradient-to-r ${tones[tone]} p-5 text-white shadow`}><h1 className="text-xl font-bold md:text-2xl">{title}</h1><p className="mt-1 text-sm text-white/85">{subtitle}</p></div>
 }
 
 function BaselineNotice({ sourceState }: { sourceState?: SourceState }) {

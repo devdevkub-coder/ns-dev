@@ -132,7 +132,7 @@ function WaitingAllocationsView() {
 
       <div className="rounded-md bg-white p-4 shadow">
         <div className="mb-3 flex flex-wrap items-center gap-2">
-          <input className="min-w-64 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหา doc no / สินค้า / ลูกค้า..." value={search} onChange={(event) => setSearch(event.target.value)} />
+          <input className="min-w-64 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหา doc no / สินค้า / ลูกค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <Select value={status} onChange={setStatus}><option value="all">ทุกสถานะ</option>{(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
           <Select value={category} onChange={setCategory}><option value="all">ทุกหมวด</option>{(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
           <span className="text-sm text-slate-500">พบ {data?.rows.length ?? 0} รายการ</span>
@@ -198,7 +198,7 @@ function AllocationLedgerView() {
       </div>
       <div className="rounded-md bg-white p-3 shadow">
         <div className="flex flex-wrap items-center gap-2">
-          <input className="min-w-64 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหา match_id / doc / สินค้า..." value={search} onChange={(event) => setSearch(event.target.value)} />
+          <input className="min-w-64 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหา match_id / doc / สินค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <Select value={targetType} onChange={setTargetType}><option value="all">ทุก source_type</option>{(data?.filters.targetTypes ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
           <Select value={category} onChange={setCategory}><option value="all">ทุกหมวด</option>{(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
           <Select value={status} onChange={setStatus}><option value="approved">✓ Approved</option><option value="reversed">⊘ Reversed</option><option value="all">ทั้งหมด</option></Select>

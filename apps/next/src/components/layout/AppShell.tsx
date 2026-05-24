@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 import { AppNavigation } from '@/components/layout/AppNavigation'
 import { AuthStatus } from '@/components/layout/AuthStatus'
 import { SELECTED_BRANCH_KEY } from '@/lib/branch-selection'
-import { breadcrumbsForPath, pageTitleForPath } from '@/lib/navigation'
+import { breadcrumbsForPath, pageSubtitleForPath, pageTitleForPath } from '@/lib/navigation'
 
 type AppShellProps = {
   children: React.ReactNode
@@ -26,9 +26,11 @@ export function AppShell({ children }: AppShellProps) {
   const [selectedBranchId, setSelectedBranchId] = useState('all')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [breadcrumbLabelOverride, setBreadcrumbLabelOverride] = useState<string | null>(null)
+  const [subtitleOverride, setSubtitleOverride] = useState<string | null>(null)
   const [titleOverride, setTitleOverride] = useState<string | null>(null)
   const lastActivityPathRef = useRef<string | null>(null)
   const title = titleOverride ?? pageTitleForPath(pathname)
+  const subtitle = subtitleOverride ?? pageSubtitleForPath(pathname)
   const breadcrumbs = breadcrumbsForPath(pathname)
   const renderedBreadcrumbs = breadcrumbLabelOverride && breadcrumbs.length > 0
     ? breadcrumbs.map((breadcrumb, index) => (index === breadcrumbs.length - 1 ? { ...breadcrumb, label: breadcrumbLabelOverride } : breadcrumb))
@@ -37,15 +39,18 @@ export function AppShell({ children }: AppShellProps) {
 
   useEffect(() => {
     setBreadcrumbLabelOverride(null)
+    setSubtitleOverride(null)
     setTitleOverride(null)
   }, [pathname])
 
   useEffect(() => {
     function handlePageTitle(event: Event) {
-      const detail = (event as CustomEvent<{ breadcrumbLabel?: string | null; title?: string | null }>).detail
+      const detail = (event as CustomEvent<{ breadcrumbLabel?: string | null; subtitle?: string | null; title?: string | null }>).detail
       const nextBreadcrumbLabel = detail?.breadcrumbLabel
+      const nextSubtitle = detail?.subtitle
       const nextTitle = detail?.title
       setBreadcrumbLabelOverride(nextBreadcrumbLabel || null)
+      setSubtitleOverride(nextSubtitle || null)
       setTitleOverride(nextTitle || null)
     }
 
@@ -148,7 +153,10 @@ export function AppShell({ children }: AppShellProps) {
             <button aria-label="เปิดเมนู" className="text-xl text-slate-600 lg:hidden" type="button" onClick={() => setSidebarOpen(!sidebarOpen)}>
               ☰
             </button>
-            <h1 className="min-w-0 break-words text-sm font-semibold leading-snug text-slate-800 sm:text-base lg:text-lg">{title}</h1>
+            <div className="min-w-0">
+              <h1 className="min-w-0 break-words text-sm font-semibold leading-snug text-slate-800 sm:text-base lg:text-lg">{title}</h1>
+              {subtitle ? <p className="mt-0.5 min-w-0 break-words text-xs leading-snug text-slate-500 sm:text-sm">{subtitle}</p> : null}
+            </div>
           </div>
 
           <div className="flex items-center gap-3">

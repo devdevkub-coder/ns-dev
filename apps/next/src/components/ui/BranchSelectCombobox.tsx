@@ -28,9 +28,12 @@ export function BranchSelectCombobox({
   widthClassName?: string
   onChange: (branchId: string | null) => void
 }) {
+  const hasInlineRequired = label.trim().endsWith('*')
+  const labelText = hasInlineRequired ? label.trim().slice(0, -1).trimEnd() : label
+
   return (
     <div className={`${className ?? ''} ${widthClassName ?? ''}`.trim() || undefined}>
-      <label className="mb-1 block text-xs" htmlFor={inputId}>{label}</label>
+      <label className="mb-1 block text-xs" htmlFor={inputId}>{labelText}{hasInlineRequired ? <span className="ml-1 text-red-600">*</span> : null}</label>
       <div className="relative">
         <Combobox
           inputId={inputId}

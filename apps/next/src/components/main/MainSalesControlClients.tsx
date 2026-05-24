@@ -91,7 +91,6 @@ export function PendingSalesPageClient() {
 
   return (
     <section className="space-y-3">
-      <Hero tone="from-amber-600 to-orange-600" title="⏰ รายการรอขาย / Pending Sales — เทียบกับ LME" subtitle="สรุปสินค้าที่รอขาย · เปรียบเทียบกับราคา LME · กำไร/ขาดทุน · Cost Pool vs Stock" />
       <LmeCard config={data?.lmeConfig} products={data?.productRows ?? []} />
       <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
         <Segment active={mode === 'pending'} color="amber" onClick={() => setMode('pending')}>⏳ ยังรอขาย</Segment>
@@ -148,7 +147,6 @@ export function SalesPlanPageClient() {
   }
   return (
     <section className="space-y-3">
-      <Hero action={<button className="rounded-md bg-white px-4 py-2 font-bold text-amber-700 opacity-70" disabled type="button">+ เพิ่มรายการ</button>} tone="from-amber-700 to-orange-600" title="📋 วางแผนการขาย (Sales Plan) — ทองแดง / ทองเหลือง" subtitle="เสนอ % LME + ช่องทางขาย → กด 🔒 Lock เพื่อยืนยันราคา → ตู้ในรอขายลดลงอัตโนมัติ" />
       <div className="grid grid-cols-2 gap-3 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm md:grid-cols-5">
         <LmeStat label="🥉 ทองแดง LME" value={`${money(data?.lmeConfig.lmeCopperUSD)} USD/MT`} />
         <LmeStat label="🌟 ทองเหลือง LME" value={`${money(data?.lmeConfig.lmeBrassUSD)} USD/MT`} />
@@ -170,6 +168,7 @@ export function SalesPlanPageClient() {
           <option value="domestic">🇹🇭 ในประเทศ</option>
         </select>
         <span className="flex-1" />
+        <button className="rounded-md bg-white px-4 py-2 font-bold text-amber-700 opacity-70" disabled type="button">+ เพิ่มรายการ</button>
         <button className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-700" onClick={exportPlan} type="button">📥 Export CSV</button>
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
@@ -300,11 +299,10 @@ export function SalesCommissionPageClient() {
   const sales = (data?.salesRows ?? []).find((row) => text(row.id) === selectedSales)
   const billRows = (data?.billRows ?? []).filter((row) => text(row.salesId) === selectedSales)
   if (selectedSales && sales) {
-    return <section className="space-y-4"><Hero action={<button className="rounded-md bg-white/20 px-3 py-2 text-sm" type="button" onClick={() => setSelectedSales('')}>← กลับ</button>} tone="from-blue-700 to-indigo-700" title={text(sales.name)} subtitle={`${text(sales.code)} · ${text(sales.phone) || '-'}`} /><div className="grid grid-cols-3 gap-3"><Metric label="จำนวนบิลรับซื้อ" value={money(billRows.length)} tone="blue" /><Metric label="น้ำหนักรวม" value={`${money(sales.qty)} กก.`} tone="amber" /><Metric label="ยอดรับซื้อรวม" value={money(sales.purchaseAmt)} tone="blue" /></div><Panel title="🏭 Supplier ในความดูแล"><SimpleTable headers={['Supplier', 'บิล', 'น้ำหนัก', 'ยอดรับซื้อ', 'ราคาเฉลี่ย/กก.', '% ของ Total']} rows={billRows.map((row) => [text(row.supplierName), '1', money(row.qty), money(row.amount), money(row.price), `${money(num(row.amount) / Math.max(1, num(sales.purchaseAmt)) * 100)}%`])} /></Panel><Panel title="📊 รายการสินค้าละเอียด"><SimpleTable headers={['วันที่', 'เลขที่บิล', 'Supplier', 'สินค้า', 'น้ำหนัก', 'ราคาซื้อ', 'ราคาหน้าใบ', 'ยอดรวม']} rows={billRows.map((row) => [text(row.date), text(row.docNo), text(row.supplierName), text(row.productName), money(row.qty), money(row.price), money(row.facePrice), money(row.amount)])} /></Panel></section>
+    return <section className="space-y-4"><div className="flex flex-wrap items-start justify-between gap-3 rounded-md border-l-4 border-blue-500 bg-blue-50 p-4"><div><div className="font-bold text-blue-700">{text(sales.name)}</div><div className="text-sm text-slate-500">{text(sales.code)} · {text(sales.phone) || '-'}</div></div><button className="rounded-md bg-white px-3 py-2 text-sm text-slate-600 shadow-sm" type="button" onClick={() => setSelectedSales('')}>← กลับ</button></div><div className="grid grid-cols-3 gap-3"><Metric label="จำนวนบิลรับซื้อ" value={money(billRows.length)} tone="blue" /><Metric label="น้ำหนักรวม" value={`${money(sales.qty)} กก.`} tone="amber" /><Metric label="ยอดรับซื้อรวม" value={money(sales.purchaseAmt)} tone="blue" /></div><Panel title="🏭 Supplier ในความดูแล"><SimpleTable headers={['Supplier', 'บิล', 'น้ำหนัก', 'ยอดรับซื้อ', 'ราคาเฉลี่ย/กก.', '% ของ Total']} rows={billRows.map((row) => [text(row.supplierName), '1', money(row.qty), money(row.amount), money(row.price), `${money(num(row.amount) / Math.max(1, num(sales.purchaseAmt)) * 100)}%`])} /></Panel><Panel title="📊 รายการสินค้าละเอียด"><SimpleTable headers={['วันที่', 'เลขที่บิล', 'Supplier', 'สินค้า', 'น้ำหนัก', 'ราคาซื้อ', 'ราคาหน้าใบ', 'ยอดรวม']} rows={billRows.map((row) => [text(row.date), text(row.docNo), text(row.supplierName), text(row.productName), money(row.qty), money(row.price), money(row.facePrice), money(row.amount)])} /></Panel></section>
   }
   return (
     <section className="space-y-4">
-      <Hero tone="from-blue-700 to-indigo-700" title="💼 Sales Tracking — ผลงานพนักงาน" subtitle="ผูก Sales กับ Supplier · ดึงยอดบิลรับซื้อ · กดการ์ดเพื่อดูรายละเอียด" />
       <div className="rounded-md bg-white p-4 shadow"><div className="flex flex-wrap items-center gap-2"><span className="text-xs text-slate-500">📅 ช่วงเวลา:</span>{['วันนี้', '7 วัน', 'เดือนนี้', 'ไตรมาส', 'ปีนี้'].map((p) => <button key={p} className="rounded-md bg-slate-100 px-3 py-1.5 text-xs font-bold" disabled type="button">{p}</button>)}<input className="control" type="date" value={data?.filters.dateFrom ?? ''} readOnly /><span>→</span><input className="control" type="date" value={data?.filters.dateTo ?? ''} readOnly /><button className="btn-disabled ml-auto" disabled type="button">📥 Export CSV</button></div><div className="mt-2 text-xs"><span className="chip">📋 บิลซื้อ <b>{money(data?.totals.bills)}</b></span></div></div>
       <div className="grid gap-4 md:grid-cols-2"><BigCard label="📦 น้ำหนักรับซื้อรวม" tone="from-amber-500 to-orange-600" value={`${money(data?.totals.qty)} กก.`} /><BigCard label="💰 ยอดรับซื้อรวม" tone="from-blue-600 to-indigo-700" value={money(data?.totals.purchaseAmt)} /></div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{(data?.salesRows ?? []).map((row) => <button key={text(row.id)} className="rounded-md border-l-4 border-blue-500 bg-white p-5 text-left shadow-lg hover:bg-blue-50" type="button" onClick={() => setSelectedSales(text(row.id))}><div className="font-bold">{text(row.name)}</div><div className="text-xs text-slate-500">{text(row.code)} · {text(row.phone)}</div><div className="mt-3 grid grid-cols-2 gap-2 text-xs"><Mini label="บิล" value={money(row.billCount)} /><Mini label="Supplier" value={money(row.supplierCount)} /></div><Metric label="น้ำหนักรับซื้อ" value={`${money(row.qty)} กก.`} tone="amber" /><Metric label="ยอดรับซื้อรวม" value={money(row.purchaseAmt)} tone="blue" /><Metric label="ค่าคอมเดือนนี้" value={money(row.commission)} tone={row.eligible ? 'emerald' : 'slate'} /></button>)}</div>
@@ -312,10 +310,6 @@ export function SalesCommissionPageClient() {
       <Notice text={data?.sourceState.limitations[0]} />{error ? <ErrorBox text={error} /> : null}
     </section>
   )
-}
-
-function Hero({ action, subtitle, title, tone }: { action?: ReactNode; subtitle: string; title: string; tone: string }) {
-  return <div className={`rounded-md bg-gradient-to-r ${tone} p-4 text-white shadow`}><div className="flex items-start justify-between gap-3"><div><h1 className="text-xl font-bold">{title}</h1><p className="mt-1 text-sm opacity-80">{subtitle}</p></div>{action}</div></div>
 }
 
 function LmeCard({ config, products }: { config?: LmeConfig; products: AnyRow[] }) {
@@ -384,7 +378,9 @@ function PendingSaleInventory({ rows, totals }: { rows: AnyRow[]; totals: Record
   }
   return (
     <div className="space-y-3">
-      <Hero tone="from-indigo-600 to-purple-700" title="📋 ตารางรอขาย" subtitle="เฉพาะ ทองแดง / ทองเหลือง · รอขายจริง = STOCK + PO ซื้อรอส่ง − ล๊อกขายรอส่ง" />
+      <div className="rounded-md border-l-4 border-indigo-500 bg-indigo-50 p-3 text-sm text-indigo-900">
+        <b>📋 ตารางรอขาย</b><span className="ml-2">เฉพาะ ทองแดง / ทองเหลือง · รอขายจริง = STOCK + PO ซื้อรอส่ง − ล๊อกขายรอส่ง</span>
+      </div>
       <div className="rounded-md bg-indigo-50 p-3 text-xs text-indigo-900 shadow">
         <b>รอขาย</b> = ของใน Cost Pool ที่ยังไม่ถูก Allocate · <b>ล๊อกขายรอส่ง</b> = PO Sell ที่ยังไม่ส่งของ · <b>PO ซื้อรอส่ง</b> = PO Buy ที่ยังไม่ matched · <b>STOCK</b> = ของในคลังตามจริง
       </div>
@@ -428,7 +424,7 @@ function PendingSaleInventory({ rows, totals }: { rows: AnyRow[]; totals: Record
 }
 
 function PoolStock({ data }: { data: PendingPayload | null }) {
-  return <><Hero tone="from-indigo-600 to-purple-700" title="📦 Pool & Stock Inventory" subtitle="PO On-Order = จองซื้อ · Spot in Pool = บิลรับซื้อจริง − matched · Stock จริง = จาก Stock Ledger · Pool ≠ Stock" /><div className="grid grid-cols-2 gap-3 md:grid-cols-4"><Metric label="PO On-Order" value={`${money(data?.reconTotals.totalPoOnOrderQty)} กก.`} tone="purple" /><Metric label="Spot in Pool" value={`${money(data?.reconTotals.totalSpotInPoolQty)} กก.`} tone="emerald" /><Metric label="Stock จริง" value={`${money(data?.reconTotals.totalStockQty)} กก.`} tone="blue" /><Metric label="จำนวนสินค้า" value={money(data?.reconTotals.productCount)} tone="slate" /></div><SimpleTable headers={['รหัส / สินค้า', 'หมวด · Status', 'PO On-Order', 'Spot in Pool', 'Stock จริง', 'WAC']} rows={(data?.reconciliation ?? []).map((row) => [`${text(row.productCode)} ${text(row.productName)}`, `${text(row.metalGroup)} · ${text(row.itemStatus)}`, money(row.poOnOrderQty), money(row.spotInPoolQty), money(row.stockQty), money(row.stockWAC)])} /></>
+  return <><div className="rounded-md border-l-4 border-indigo-500 bg-indigo-50 p-3 text-sm text-indigo-900"><b>📦 Pool & Stock Inventory</b><span className="ml-2">PO On-Order = จองซื้อ · Spot in Pool = บิลรับซื้อจริง − matched · Stock จริง = จาก Stock Ledger · Pool ≠ Stock</span></div><div className="grid grid-cols-2 gap-3 md:grid-cols-4"><Metric label="PO On-Order" value={`${money(data?.reconTotals.totalPoOnOrderQty)} กก.`} tone="purple" /><Metric label="Spot in Pool" value={`${money(data?.reconTotals.totalSpotInPoolQty)} กก.`} tone="emerald" /><Metric label="Stock จริง" value={`${money(data?.reconTotals.totalStockQty)} กก.`} tone="blue" /><Metric label="จำนวนสินค้า" value={money(data?.reconTotals.productCount)} tone="slate" /></div><SimpleTable headers={['รหัส / สินค้า', 'หมวด · Status', 'PO On-Order', 'Spot in Pool', 'Stock จริง', 'WAC']} rows={(data?.reconciliation ?? []).map((row) => [`${text(row.productCode)} ${text(row.productName)}`, `${text(row.metalGroup)} · ${text(row.itemStatus)}`, money(row.poOnOrderQty), money(row.spotInPoolQty), money(row.stockQty), money(row.stockWAC)])} /></>
 }
 
 function SimpleTable({ empty = 'ไม่มีข้อมูล', headers, rowClick, rows }: { empty?: string; headers: string[]; rowClick?: (index: number) => void; rows: string[][] }) {

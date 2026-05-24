@@ -118,7 +118,7 @@ export function StockLedgerPageClient() {
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <select className="min-w-[260px] max-w-md flex-1 rounded-md border px-3 py-2 text-sm" value={productId} onChange={(event) => { setPage(1); setProductId(event.target.value) }}>
-          <option value="">🔍 พิมพ์รหัส/ชื่อสินค้า — เลือกดูสต๊อก...</option>
+          <option value="">พิมพ์รหัส/ชื่อสินค้า — เลือกดูสต๊อก...</option>
           {(data?.reference.products ?? []).filter((item) => item.active !== false).map((item) => <option key={item.id} value={item.id}>{item.code ? `${item.code} - ${item.name}` : item.name}</option>)}
         </select>
         <select className="rounded-md border px-3 py-2 text-sm" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>

@@ -71,11 +71,6 @@ export function BillSwapHistoryPageClient() {
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="rounded-md bg-gradient-to-r from-rose-600 to-pink-600 p-5 text-white shadow">
-        <h1 className="text-2xl font-bold">📜 ประวัติเปลี่ยน Supplier ในบิลซื้อ — ราคาก่อน VAT</h1>
-        <p className="mt-1 text-sm opacity-80">Track การเปลี่ยนราคาต่อรายการสินค้า — ส่วนต่างไม่รวม VAT</p>
-      </div>
-
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Kpi label="จำนวนรายการเปลี่ยน" value={totals.rows.toLocaleString('th-TH')} tone="white" />
         <Kpi label="น้ำหนักรวม (กก.)" value={formatMoney(totals.weight)} tone="blue" />
@@ -84,7 +79,7 @@ export function BillSwapHistoryPageClient() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
-        <input className="min-w-[240px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="🔍 ค้นหาชื่อ Supplier / สินค้า / บิล..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+        <input className="min-w-[240px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="ค้นหาชื่อ Supplier / สินค้า / บิล..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
         <div className="text-sm text-slate-600">พบ <span className="font-semibold text-slate-900">{filteredRows.length}</span> รายการ</div>
       </div>
 

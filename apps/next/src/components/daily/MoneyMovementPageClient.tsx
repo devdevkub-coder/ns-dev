@@ -614,17 +614,12 @@ export function MoneyMovementPageClient({
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       {mode === 'payment' ? null : (
-        <div className={`rounded-md bg-gradient-to-r ${theme.banner} p-5 text-white shadow`}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="text-sm font-semibold opacity-90">{subtitle}</div>
-              <h1 className="text-2xl font-bold">รับเงิน Customer</h1>
-              <p className="mt-1 text-sm opacity-90">บันทึกเงินเข้าบัญชีและประวัติ voucher รับ Customer</p>
-            </div>
-            <UiButton className={`font-bold shadow ${theme.action}`} type="button" variant="default" onClick={openForm}>
-              + รับเงิน Customer
-            </UiButton>
-          </div>
+        <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
+          <span className="text-sm font-semibold text-slate-600">{subtitle}</span>
+          <span className="flex-1" />
+          <UiButton className="font-bold shadow" type="button" variant="default" onClick={openForm}>
+            + รับเงิน Customer
+          </UiButton>
         </div>
       )}
 

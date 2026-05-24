@@ -23,10 +23,16 @@ function searchableOptionText(option: Option) {
   return `${option.code ?? ''} ${option.name} ${option.id}`.toLowerCase()
 }
 
+function renderFieldLabel(label: string) {
+  const hasInlineRequired = label.trim().endsWith('*')
+  const labelText = hasInlineRequired ? label.trim().slice(0, -1).trimEnd() : label
+  return <>{labelText}{hasInlineRequired ? <span className="ml-1 text-red-600">*</span> : null}</>
+}
+
 export function Field({ children, className, error, label }: { children: ReactNode; className?: string; error?: string; label: string }) {
   return (
     <label className={className}>
-      <span className="mb-1 block text-xs font-bold text-slate-700">{label}</span>
+      <span className="mb-1 block text-xs font-bold text-slate-700">{renderFieldLabel(label)}</span>
       {children}
       {error ? <span className="mt-1 block text-xs text-red-600">{error}</span> : null}
     </label>

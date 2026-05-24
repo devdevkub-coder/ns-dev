@@ -109,7 +109,7 @@ export function MatchLogPageClient() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <input className="w-64 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหา match_id / source / GA..." value={search} onChange={(event) => setSearch(event.target.value)} />
+        <input className="w-64 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหา match_id / source / GA..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
         <select className="rounded-md border bg-amber-50 px-3 py-2 text-sm font-medium" value={matchType} onChange={(event) => setMatchType(event.target.value)}>
           <option value="all">ทุก Match Type</option>
           {(data?.filters.matchTypes ?? []).map((item) => <option key={item} value={item}>{matchTypeLabel(item)}</option>)}

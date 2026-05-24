@@ -100,13 +100,6 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
 
   return (
     <section className="space-y-4">
-      <div className={`${mode === 'status-convert' ? 'rounded-md' : 'rounded-md'} bg-gradient-to-r ${meta.accent} p-5 text-white shadow ${mode === 'convert' ? 'flex items-start justify-between gap-4' : ''}`}>
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold">{mode === 'convert' ? '🔀 Grade Adjustment / ปรับเกรดสินค้า' : mode === 'adjust' ? '🔢 Stock Count Adjustment / ปรับสต๊อกจากการนับจริง' : '🔄 ปรับสถานะสินค้า (Status Convert)'}</h1>
-          <p className="mt-1 text-sm opacity-90">{descriptionFor(mode)}</p>
-        </div>
-        {mode === 'convert' ? <a className="shrink-0 rounded-md bg-white px-4 py-2 font-bold text-cyan-700 hover:bg-cyan-50" href={`${pathname}?new=1`}>+ ปรับเกรดใหม่</a> : null}
-      </div>
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
       {mode === 'status-convert' ? <StatusConvertTip /> : null}
       {mode === 'adjust' ? <AdjustPrincipleBox /> : null}
@@ -114,7 +107,8 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
       <div className={mode === 'convert' || mode === 'adjust' ? 'flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow' : 'rounded-md bg-white p-3 shadow'}>
         <div className="flex flex-wrap items-center gap-2">
           {mode === 'adjust' ? <a className="rounded-md bg-amber-600 px-4 py-2 font-bold text-white hover:bg-amber-700" href={`${pathname}?new=1`}>+ ปรับสต๊อกใหม่ (Quick Adjust)</a> : null}
-          <input className="min-w-[200px] flex-1 rounded-md border px-3 py-2 text-sm" placeholder={mode === 'convert' ? 'ค้นหา doc/source/target/ref...' : mode === 'adjust' ? 'ค้นหา doc/สินค้า/เหตุผล...' : '🔍 ค้นหาเลขที่/สินค้า/หมายเหตุ...'} type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          {mode === 'convert' ? <a className="rounded-md bg-cyan-600 px-4 py-2 font-bold text-white hover:bg-cyan-700" href={`${pathname}?new=1`}>+ ปรับเกรดใหม่</a> : null}
+          <input className="min-w-[200px] flex-1 rounded-md border px-3 py-2 text-sm" placeholder={mode === 'convert' ? 'ค้นหา doc/source/target/ref...' : mode === 'adjust' ? 'ค้นหา doc/สินค้า/เหตุผล...' : 'ค้นหาเลขที่/สินค้า/หมายเหตุ...'} type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           {mode === 'convert' ? (
             <>
               <select className="rounded-md border bg-amber-50 px-3 py-2 text-sm font-medium" value={sourceTypeFilter} onChange={(event) => setSourceTypeFilter(event.target.value)}>

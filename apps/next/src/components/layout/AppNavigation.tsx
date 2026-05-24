@@ -10,7 +10,6 @@ type AppNavigationProps = {
 }
 
 const SIDEBAR_SCROLL_KEY = 'ns-scrap-erp-sidebar-scroll-top'
-const SIDEBAR_SECTION_KEY = 'ns-scrap-erp-sidebar-sections'
 
 export function AppNavigation({ onNavigate }: AppNavigationProps) {
   const pathname = usePathname()
@@ -18,10 +17,8 @@ export function AppNavigation({ onNavigate }: AppNavigationProps) {
   const hasRestoredScrollRef = useRef(false)
   const suppressScrollSaveRef = useRef(false)
   const [authContext, setAuthContext] = useState<{ isAdmin: boolean; permissions: string[] } | null>(null)
-  const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set())
-  const [expandedSections, setExpandedSections] = useState<Set<NavigationSectionKey>>(
-    () => new Set(navigationSections.map((section) => section.key)),
-  )
+  const [expandedMenu, setExpandedMenu] = useState<string | null>(null)
+  const [expandedSection, setExpandedSection] = useState<NavigationSectionKey | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -60,43 +57,6 @@ export function AppNavigation({ onNavigate }: AppNavigationProps) {
       }))
       .filter((item) => canAccessPath(item.href, authContext) || Boolean(item.children?.length))
   }, [authContext])
-
-  useEffect(() => {
-    const activeParent = navigationItems.find((item) => item.children?.some((child) => child.href === pathname))
-    if (!activeParent) return
-
-    setExpandedMenus((current) => new Set(current).add(activeParent.href))
-  }, [pathname])
-
-  useEffect(() => {
-    const savedSections = window.sessionStorage.getItem(SIDEBAR_SECTION_KEY)
-    if (!savedSections) return
-
-    try {
-      const parsed = JSON.parse(savedSections)
-      if (!Array.isArray(parsed)) return
-      const nextSections = parsed.filter((value): value is NavigationSectionKey =>
-        navigationSections.some((section) => section.key === value),
-      )
-      if (nextSections.length > 0) {
-        setExpandedSections(new Set(nextSections))
-      }
-    } catch {
-      // Ignore malformed session data and fall back to default expanded sections.
-    }
-  }, [])
-
-  useEffect(() => {
-    const activeItem = visibleItems.find((item) => item.href === pathname || item.children?.some((child) => child.href === pathname))
-    if (!activeItem) return
-
-    setExpandedSections((current) => {
-      if (current.has(activeItem.section)) return current
-      const next = new Set(current).add(activeItem.section)
-      window.sessionStorage.setItem(SIDEBAR_SECTION_KEY, JSON.stringify(Array.from(next)))
-      return next
-    })
-  }, [pathname, visibleItems])
 
   useEffect(() => {
     const nav = navRef.current
@@ -143,7 +103,7 @@ export function AppNavigation({ onNavigate }: AppNavigationProps) {
     })
 
     return () => window.cancelAnimationFrame(frame)
-  }, [expandedMenus, pathname, visibleItems])
+  }, [expandedMenu, expandedSection, pathname, visibleItems])
 
   function rememberSidebarScroll() {
     if (suppressScrollSaveRef.current) return
@@ -153,28 +113,12 @@ export function AppNavigation({ onNavigate }: AppNavigationProps) {
   }
 
   function toggleMenu(href: string) {
-    setExpandedMenus((current) => {
-      const next = new Set(current)
-      if (next.has(href)) {
-        next.delete(href)
-      } else {
-        next.add(href)
-      }
-      return next
-    })
+    setExpandedMenu((current) => current === href ? null : href)
   }
 
   function toggleSection(sectionKey: NavigationSectionKey) {
-    setExpandedSections((current) => {
-      const next = new Set(current)
-      if (next.has(sectionKey)) {
-        next.delete(sectionKey)
-      } else {
-        next.add(sectionKey)
-      }
-      window.sessionStorage.setItem(SIDEBAR_SECTION_KEY, JSON.stringify(Array.from(next)))
-      return next
-    })
+    setExpandedSection((current) => current === sectionKey ? null : sectionKey)
+    setExpandedMenu(null)
   }
 
   return (
@@ -182,7 +126,7 @@ export function AppNavigation({ onNavigate }: AppNavigationProps) {
       {navigationSections.map((section) => {
         const items = visibleItems.filter((item) => item.section === section.key)
         if (!items.length) return null
-        const sectionExpanded = expandedSections.has(section.key)
+        const sectionExpanded = expandedSection === section.key
 
         return (
           <div key={section.key}>
@@ -198,7 +142,7 @@ export function AppNavigation({ onNavigate }: AppNavigationProps) {
             {sectionExpanded ? items.map((item) => {
               const childActive = item.children?.some((child) => child.href === pathname) ?? false
               const active = pathname === item.href || childActive
-              const expanded = expandedMenus.has(item.href)
+              const expanded = expandedMenu === item.href
 
               return (
                 <div key={item.href}>

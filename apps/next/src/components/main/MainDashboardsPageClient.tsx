@@ -227,13 +227,6 @@ function DashboardView(props: {
           <button className="ml-auto rounded-md bg-amber-500 px-3 py-1 font-bold text-slate-900 hover:bg-amber-600" onClick={clearFilters} type="button">✕ ล้าง Filter</button>
         </div>
       </div>
-      <div className="relative overflow-hidden rounded-md bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 p-6 text-white shadow-2xl">
-        <div className="relative flex flex-wrap items-baseline justify-between gap-3">
-          <div><h1 className="flex items-center gap-2 text-3xl font-bold">📊 Financial Dashboard</h1><p className="mt-1 text-sm opacity-90">ภาพรวมทางการเงิน · Real-time overview</p></div>
-          <div className="rounded-md-full bg-white/20 px-3 py-1.5 text-xs font-medium">📅 {data?.filters.from} → {data?.filters.to}</div>
-        </div>
-      </div>
-
       <div className="rounded-md border border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50 p-4 shadow-sm">
         {(data?.dashboard.historical.rows ?? 0) > 0 ? (
           <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs">
@@ -354,13 +347,6 @@ function OwnerDailyView({ data }: { data: MainPayload | null }) {
   const gapPositive = (plan?.gap ?? 0) >= 0
   return (
     <>
-      <div className="relative overflow-hidden rounded-md bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500 p-6 text-white shadow-xl">
-        <div className="absolute right-4 top-0 text-8xl leading-none opacity-10">☀️</div>
-        <div className="relative">
-          <h1 className="flex items-center gap-3 text-3xl font-bold"><span className="text-4xl">☀️</span>Owner Daily Control</h1>
-          <p className="mt-2 text-sm opacity-90">เปิดดูทุกเช้า · ตรวจสอบสถานะการเงินครบทุกมุมก่อนเริ่มวัน</p>
-        </div>
-      </div>
       <div className={`relative overflow-hidden rounded-md p-6 text-white shadow-xl ${gapPositive ? 'bg-gradient-to-br from-emerald-500 to-teal-700' : 'bg-gradient-to-br from-red-500 to-rose-700 ring-4 ring-red-200'}`}>
         <div className="absolute right-3 top-2 text-7xl opacity-15">{gapPositive ? '✅' : '⚠️'}</div>
         <div className="relative">
@@ -433,16 +419,11 @@ function DailyReportView({ data, date, rangeFrom, rangeMode, rangeTo, setDate, s
   }
   return (
     <>
-      <div className="rounded-md bg-gradient-to-r from-amber-600 to-orange-600 p-5 text-white shadow-lg">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><h1 className="text-3xl font-bold">📰 Daily Report</h1><p className="mt-1 text-sm opacity-90">รายงานสรุปประจำวัน — ทุกตัวเลขสำคัญในหน้าเดียว</p></div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button className="rounded-md bg-white/20 px-3 py-2 text-sm font-bold hover:bg-white/30" type="button" onClick={() => shiftDate(-1)}>← วันก่อน</button>
-            <input className="rounded-md bg-white px-3 py-2 text-sm font-bold text-slate-900" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
-            <button className="rounded-md bg-white/20 px-3 py-2 text-sm font-bold hover:bg-white/30 disabled:cursor-not-allowed disabled:opacity-30" disabled={isToday} type="button" onClick={() => shiftDate(1)}>วันถัดไป →</button>
-            <button className={isToday ? 'rounded-md bg-white px-4 py-2 text-sm font-bold text-amber-700' : 'rounded-md bg-yellow-300 px-4 py-2 text-sm font-bold text-amber-900 hover:bg-yellow-200'} type="button" onClick={() => setDate(today())}>📍 วันนี้</button>
-          </div>
-        </div>
+      <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
+        <button className="rounded-md bg-slate-100 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200" type="button" onClick={() => shiftDate(-1)}>← วันก่อน</button>
+        <input className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-900" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+        <button className="rounded-md bg-slate-100 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-30" disabled={isToday} type="button" onClick={() => shiftDate(1)}>วันถัดไป →</button>
+        <button className={isToday ? 'rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white' : 'rounded-md bg-yellow-300 px-4 py-2 text-sm font-bold text-amber-900 hover:bg-yellow-200'} type="button" onClick={() => setDate(today())}>📍 วันนี้</button>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <DailyBigCard count={purchaseCount} icon="📥" label="ยอดรับซื้อ" sub={`เฉลี่ย ${money((summary.purchaseAmount ?? 0) / Math.max(1, summary.purchaseQty ?? 0))} ฿/กก.`} tone="from-blue-600 to-indigo-700" value={money(summary.purchaseAmount)} weight={money(summary.purchaseQty)} />
@@ -578,10 +559,6 @@ function SalespersonTable({ rows }: { rows: { amount: number; bills: number; id:
 
 function money(value?: number) {
   return formatMoney(value ?? 0)
-}
-
-function Hero({ subtitle, title, tone }: { subtitle: string; title: string; tone: string }) {
-  return <div className={`relative overflow-hidden rounded-md bg-gradient-to-br ${tone} p-6 text-white shadow-2xl`}><h1 className="text-3xl font-bold">{title}</h1><p className="mt-1 text-sm opacity-85">{subtitle}</p></div>
 }
 
 function toneClass(tone: string) {

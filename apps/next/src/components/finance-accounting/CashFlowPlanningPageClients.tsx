@@ -77,7 +77,6 @@ export function CashFlowAnalysisPageClient() {
 
   return (
     <section className="space-y-4">
-      <Hero subtitle="ตอบ 6 คำถามสำคัญ: กำไร vs เงินสด · Stock/AR Trap · Collection Rate · OD Forecast" title="🔍 Cash Flow Analysis / วิเคราะห์เชิงลึก" tone="analysis" />
       <BaselineNotice sourceState={data?.sourceState} />
       {error ? <ErrorBox message={error} /> : null}
       <FilterPanel>
@@ -117,7 +116,6 @@ export function CashFlowForecastCalendarPageClient() {
 
   return (
     <section className="space-y-4">
-      <Hero subtitle="พยากรณ์เงินสดรายวัน · Expected Receipt/Payment · Loan/Tax/Payroll Due · เห็นวันเงินติดลบ" title="📅 Cash Flow Forecast Calendar" tone="forecast" />
       <BaselineNotice sourceState={data?.sourceState} />
       {error ? <ErrorBox message={error} /> : null}
       <FilterPanel>
@@ -163,11 +161,6 @@ function useApi<T>(url: string) {
 function money(value?: number) {
   const amount = value ?? 0
   return amount < 0 ? `(${formatMoney(Math.abs(amount))})` : formatMoney(amount)
-}
-
-function Hero({ subtitle, title, tone }: { subtitle: string; title: string; tone: 'analysis' | 'forecast' }) {
-  const gradient = tone === 'analysis' ? 'from-cyan-700 to-blue-800' : 'from-sky-700 to-blue-800'
-  return <div className={`rounded-md bg-gradient-to-r ${gradient} p-5 text-white shadow`}><h1 className="text-xl font-bold md:text-2xl">{title}</h1><p className="mt-1 text-sm opacity-80">{subtitle}</p></div>
 }
 
 function BaselineNotice({ sourceState }: { sourceState?: SourceState }) {

@@ -74,10 +74,6 @@ export function PoOutstandingPageClient() {
 
   return (
     <section className="space-y-4">
-      <div className="rounded-md bg-gradient-to-r from-purple-700 to-indigo-700 p-5 text-white shadow">
-        <h1 className="text-2xl font-bold">รายงาน PO ซื้อ / PO ขาย คงเหลือ</h1>
-        <p className="mt-1 text-sm opacity-80">PO Buy ที่ยังไม่ได้รับของ + PO Sell ที่ยังไม่ได้ส่งของ เรียงตามวันที่</p>
-      </div>
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       <div className="flex gap-1 rounded-md bg-white p-2 shadow">

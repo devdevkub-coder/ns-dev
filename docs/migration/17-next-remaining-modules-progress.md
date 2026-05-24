@@ -137,6 +137,10 @@
 - Testing:
   - [ ] automated smoke test สำหรับ master/data transaction routes
   - [ ] browser QA authenticated route walk
+- Warehouse weight ticket:
+  - [ ] turn `/daily/weight-tickets` from UI prototype into real module
+  - [ ] design schema/status/numbering for `weight_tickets`, `weight_ticket_items`, `weight_ticket_buckets`, and attachments
+  - [ ] decide PO receipt vs spot buy source flow and bill linkage
 
 ## Batch PRE: System Map and API Contract Baseline
 

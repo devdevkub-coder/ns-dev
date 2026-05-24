@@ -227,7 +227,7 @@ export function PaymentLinesSection({
                       autoComplete="off"
                       className="h-8 w-full px-1 py-1 text-xs"
                       list={`payment-bill-options-${line.id ?? lineIndex}`}
-                      placeholder="🔍 พิมพ์เลขบิล / ชื่อ supplier..."
+                      placeholder="พิมพ์เลขบิล / ชื่อ supplier..."
                       value={paymentLineInputValue(line)}
                       onChange={(event) => onSelectPaymentLineBill(lineIndex, event.target.value)}
                     />

@@ -15,6 +15,12 @@ type Bill = {
   supplierId?: string | null
 }
 
+function renderFieldLabel(label: string) {
+  const hasInlineRequired = label.trim().endsWith('*')
+  const labelText = hasInlineRequired ? label.trim().slice(0, -1).trimEnd() : label
+  return <>{labelText}{hasInlineRequired ? <span className="ml-1 text-red-600">*</span> : null}</>
+}
+
 export function BillSelect(props: {
   bills: Bill[]
   label: string
@@ -46,7 +52,7 @@ export function BillSelect(props: {
 
   return (
     <label className="block text-sm font-medium">
-      {props.label ? <span>{props.label}{props.required ? <span className="text-red-600"> *</span> : null}</span> : null}
+      {props.label ? <span>{renderFieldLabel(props.label)}{props.required && !props.label.trim().endsWith('*') ? <span className="text-red-600"> *</span> : null}</span> : null}
       <UiSelect className={`${props.label ? 'mt-1.5' : ''} w-full`} required={props.required} value={props.value} onChange={(event) => props.onChange(event.target.value)}>
         <option value="">{placeholder}</option>
         {props.bills.map((bill) => {
@@ -60,7 +66,7 @@ export function BillSelect(props: {
 }
 
 export function Field(props: { label: string; onChange: (value: string) => void; readOnly?: boolean; type?: string; value: string }) {
-  return <label className="block text-sm font-medium">{props.label}{props.type === 'date' ? <DatePickerInput className="mt-1.5 w-full" readOnly={props.readOnly} value={props.value} onChange={props.onChange} /> : <UiInput className="mt-1.5 w-full" readOnly={props.readOnly} type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange(event.target.value)} />}</label>
+  return <label className="block text-sm font-medium">{renderFieldLabel(props.label)}{props.type === 'date' ? <DatePickerInput className="mt-1.5 w-full" readOnly={props.readOnly} value={props.value} onChange={props.onChange} /> : <UiInput className="mt-1.5 w-full" readOnly={props.readOnly} type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange(event.target.value)} />}</label>
 }
 
 export function SelectField(props: { allowEmpty?: boolean; label: string; onChange: (value: string) => void; options: Array<{ id: string; name: string }>; placeholder?: string; required?: boolean; value: string }) {
@@ -82,7 +88,7 @@ export function SelectField(props: { allowEmpty?: boolean; label: string; onChan
 
   return (
     <label className="block text-sm font-medium">
-      {props.label}{props.required ? <span className="text-red-600"> *</span> : null}
+      {renderFieldLabel(props.label)}{props.required && !props.label.trim().endsWith('*') ? <span className="text-red-600"> *</span> : null}
       <UiSelect className="mt-1.5 w-full" required={props.required ?? !allowEmpty} value={props.value} onChange={(event) => props.onChange(event.target.value)}>
         <option value="">ไม่ระบุ</option>
         {props.options.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}

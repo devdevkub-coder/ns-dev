@@ -199,10 +199,6 @@ export function AccountsPayablePageClient() {
 
   return (
     <section className="space-y-4">
-      <div className="rounded-md bg-gradient-to-r from-red-600 to-rose-600 p-5 text-white shadow">
-        <h1 className="text-2xl font-bold">📤 รายการค้างจ่าย / Accounts Payable</h1>
-        <p className="mt-1 text-sm opacity-80">สรุปยอดค้างจ่าย Supplier · Aging Buckets · Detail per Bill</p>
-      </div>
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">

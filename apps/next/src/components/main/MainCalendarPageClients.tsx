@@ -106,7 +106,6 @@ export function CashFlowCalendarPageClient() {
 
   return (
     <section className="space-y-4">
-      <div className="rounded-md border border-blue-200 bg-blue-50 p-4 text-sm font-semibold text-blue-800 shadow-sm">📅 Cash Flow Calendar — ปฏิทินรายวันของเงินเข้า/ออก จากบัญชี Cash/Bank/OD ทั้งหมด — คลิกแต่ละวันเพื่อ Drill Down</div>
       <MonthControls month={month} setMonth={setMonth} />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <Metric label="ยอดต้นเดือน" value={money(summary.openingCash)} tone="slate" />
@@ -162,7 +161,6 @@ export function BusinessCalendarPageClient() {
 
   return (
     <section className="space-y-4">
-      <div className="rounded-md border border-purple-200 bg-purple-50 p-4 text-sm font-semibold text-purple-800 shadow-sm">🗓️ Business Calendar — ปฏิทินรายวัน: ยอดซื้อ / ยอดขาย / ค่าใช้จ่าย / รับ / จ่าย / Actual GP / Net Cash Flow</div>
       <div className="flex flex-wrap items-center gap-2">
         <MonthControls month={month} setMonth={setMonth} />
         <div className="flex flex-wrap gap-2 rounded-md bg-white p-2 shadow">{(['combined', 'purchase', 'sales', 'expense'] as Mode[]).map((item) => <ModeButton key={item} active={mode === item} mode={item} onClick={() => setMode(item)} />)}</div>

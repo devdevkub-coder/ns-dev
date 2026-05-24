@@ -146,10 +146,6 @@ export function StockBalancePageClient() {
 
   return (
     <section>
-      <div className="mb-4 rounded-md bg-gradient-to-r from-blue-700 to-cyan-700 p-5 text-white shadow">
-        <h1 className="text-2xl font-bold">📦 สต๊อกคงเหลือ / Stock Balance</h1>
-        <p className="mt-1 text-sm opacity-80">แยกตามหมวดสินค้า (ทองแดง/ทองเหลือง/เหล็ก) และสถานะ RM/WIP/FG</p>
-      </div>
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
       <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-5">
         <Metric label="น้ำหนักสต๊อกรวม" value={`${formatMoney(summary.qty)} กก.`} tone="blue" />
@@ -177,7 +173,7 @@ export function StockBalancePageClient() {
         </select>
         <div className="min-w-56">
           <select className="w-full rounded-md border px-3 py-2 text-sm" value={productId} onChange={(event) => setProductId(event.target.value)}>
-            <option value="">🔍 พิมพ์/เลือกสินค้า — กดเพื่อดูรายละเอียด</option>
+            <option value="">พิมพ์/เลือกสินค้า — กดเพื่อดูรายละเอียด</option>
             {data?.reference.products.map((item) => <option key={item.id} value={item.id}>{item.code ? `${item.code} - ${item.name}` : item.name}</option>)}
           </select>
         </div>

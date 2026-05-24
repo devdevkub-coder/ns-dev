@@ -110,16 +110,6 @@ export function ProfitCostAnalysisPageClient() {
 
   return (
     <section className="space-y-4">
-      <div className="overflow-hidden rounded-md bg-gradient-to-br from-purple-700 via-indigo-700 to-slate-900 p-5 text-white shadow-2xl">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-3xl font-bold">💎 Profit & Cost Analysis</h1>
-            <p className="mt-1 text-sm text-purple-100">วิเคราะห์ซื้อ ขาย COGS GP และ Stock Value ด้วย WAC/ต้นทุนจากบิลขาย</p>
-          </div>
-          <button className="rounded-md bg-white/15 px-4 py-2 text-sm font-bold text-white opacity-70" disabled type="button">Export CSV</button>
-        </div>
-      </div>
-
       <div className="rounded-md bg-white p-4 shadow-lg">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
           <Field label="จากวันที่"><input className={controlClass} type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></Field>
@@ -140,6 +130,9 @@ export function ProfitCostAnalysisPageClient() {
             {metalGroups.map((group) => <button key={group} className={`${chipClass} ${selectedMetalGroups.includes(group) ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-700'}`} type="button" onClick={() => toggleMetalGroup(group)}>{group}</button>)}
             {metalGroups.length === 0 ? <span className="text-sm text-slate-400">ไม่มีหมวดสินค้า</span> : null}
           </div>
+        </div>
+        <div className="mt-4 flex justify-end border-t pt-3">
+          <button className="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white opacity-70" disabled type="button">Export CSV</button>
         </div>
       </div>
 

@@ -89,7 +89,7 @@ export function ReceiptVouchersPageClient() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white p-3 shadow-sm">
-          <input className="min-w-[260px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="🔍 ค้นเลขที่ / ชื่อผู้รับ / เลขบิลซื้อ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <input className="min-w-[260px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="ค้นเลขที่ / ชื่อผู้รับ / เลขบิลซื้อ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <button className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white opacity-60" disabled type="button">+ สร้างใบสำคัญรับเงิน</button>
         </div>
 

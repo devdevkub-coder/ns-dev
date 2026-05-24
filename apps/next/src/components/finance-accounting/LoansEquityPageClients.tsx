@@ -78,7 +78,11 @@ export function LoanContractsPageClient() {
 
   return (
     <section className="space-y-4">
-      <Hero actions={<><DisabledButton>📥 Template</DisabledButton><DisabledButton>📤 Import Excel</DisabledButton><DisabledButton strong>+ เพิ่มสัญญา</DisabledButton></>} subtitle="BSL · Leasing · Hire Purchase · Bank Loan · OD · FCD Loan · Director Loan" title="🏦 Loan / Leasing / BSL Contracts" tone="loan" />
+      <div className="flex flex-wrap gap-2 rounded-md bg-white p-3 shadow">
+        <DisabledButton>📥 Template</DisabledButton>
+        <DisabledButton>📤 Import Excel</DisabledButton>
+        <DisabledButton strong>+ เพิ่มสัญญา</DisabledButton>
+      </div>
       {error ? <ErrorBox message={error} /> : null}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="จำนวนสัญญา" value={data?.summary.count ?? 0} />
@@ -87,7 +91,7 @@ export function LoanContractsPageClient() {
         <StatCard label="เกินกำหนด" value={formatMoney(data?.summary.overdue)} tone="red" />
       </div>
       <FilterPanel>
-        <input className="min-w-0 flex-1 rounded-md border border-slate-200 px-3 py-2 text-sm" placeholder="ค้นหา loanNo/contractNo/lender..." value={search} onChange={(event) => setSearch(event.target.value)} />
+        <input className="min-w-0 flex-1 rounded-md border border-slate-200 px-3 py-2 text-sm" placeholder="ค้นหา loanNo/contractNo/lender..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
         <select className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm" value={type} onChange={(event) => setType(event.target.value)}>
           <option value="all">Type: ทั้งหมด</option>
           {(data?.filters.types ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
@@ -115,7 +119,6 @@ export function LoanDashboardPageClient() {
   const maxType = Math.max(...(data?.byType ?? []).map((row) => row.value), 0)
   return (
     <section className="space-y-4">
-      <Hero subtitle="Total Outstanding · Due · Overdue · Interest · Next 7/30 days" title="📊 Loan / Leasing Dashboard" tone="dashboard" />
       {error ? <ErrorBox message={error} /> : null}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
         <div className="relative overflow-hidden rounded-md bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-700 p-6 text-white shadow-lg lg:col-span-2">
@@ -149,7 +152,6 @@ export function EquityMaintenancePageClient() {
   const row = data?.row
   return (
     <section className="space-y-4">
-      <Hero subtitle="ใช้คำนวณ Total Equity ในงบดุล (Current Year P&L คำนวณอัตโนมัติจาก Transactions)" title="👑 Equity / ทุนจดทะเบียน & ส่วนของผู้ถือหุ้น" tone="equity" />
       {error ? <ErrorBox message={error} /> : null}
       <div className="max-w-xl rounded-md bg-white p-5 shadow">
         <div className="grid grid-cols-2 gap-3 text-sm">
@@ -170,7 +172,6 @@ export function OpeningBalancePageClient() {
   const tabs = ['⚙️ Setup', '💵 Cash/Bank/FCD/OD', '📥 AR ลูกหนี้', '📦 AP ต้นทุน', '💸 AP ค่าใช้จ่าย', '📦 Stock', '🏗️ Fixed Asset', '🏦 Loan', '🧾 VAT/WHT', '➕ Other', '👑 Equity/YTD', '⚖️ BS Check + Lock']
   return (
     <section className="space-y-4">
-      <Hero subtitle="ตั้งยอดก่อนเริ่มใช้ระบบจริง · Cash/Bank/FCD/OD · AR/AP · Stock · Fixed Asset · Loan · VAT/WHT · Equity" title="🚀 Opening Balance / ตั้งต้นยอดก่อน Go-Live" tone="opening" />
       {error ? <ErrorBox message={error} /> : null}
       <div className="flex flex-wrap gap-2 rounded-md bg-white p-3 shadow"><DisabledButton strong>💾 Save ทันที</DisabledButton><DisabledButton>☁️ ⬆ Push to Cloud</DisabledButton>{tabs.map((tab, index) => <span key={tab} className={`rounded-md px-3 py-2 text-sm ${index === 0 ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'}`}>{tab}</span>)}</div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5"><StatCard label="AR" value={formatMoney(data?.summary.ar)} tone="blue" /><StatCard label="AP Cost" value={formatMoney(data?.summary.apCost)} tone="red" /><StatCard label="AP Expense" value={formatMoney(data?.summary.apExpense)} tone="red" /><StatCard label="Stock" value={formatMoney(data?.summary.stock)} tone="amber" /><StatCard label="Net Other" value={formatMoney(data?.summary.netOther)} /></div>
@@ -212,11 +213,6 @@ function useApi<T>(url: string) {
     dailyFetchJson<T>(url).then(setData).catch((caught) => setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลไม่ได้')).finally(() => setIsLoading(false))
   }, [url])
   return { data, error, isLoading }
-}
-
-function Hero({ actions, subtitle, title, tone }: { actions?: ReactNode; subtitle: string; title: string; tone: 'dashboard' | 'equity' | 'loan' | 'opening' }) {
-  const tones = { dashboard: 'from-cyan-700 to-blue-800', equity: 'from-purple-700 to-pink-700', loan: 'from-blue-700 to-cyan-700', opening: 'from-indigo-700 to-blue-700' }
-  return <div className={`flex flex-col gap-4 rounded-md bg-gradient-to-r ${tones[tone]} p-5 text-white shadow md:flex-row md:items-center md:justify-between`}><div><h1 className="text-xl font-bold md:text-2xl">{title}</h1><p className="mt-1 text-sm text-white/85">{subtitle}</p></div>{actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}</div>
 }
 
 function DisabledButton({ children, strong = false }: { children: ReactNode; strong?: boolean }) {

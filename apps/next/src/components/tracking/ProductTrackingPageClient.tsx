@@ -134,10 +134,6 @@ export function ProductTrackingPageClient() {
 
   return (
     <section className="space-y-4">
-      <div className="rounded-md bg-gradient-to-r from-amber-500 to-orange-600 p-4 text-white shadow-xl">
-        <h1 className="text-xl font-bold">📦 Product Tracking 360°</h1>
-        <p className="mt-1 text-sm opacity-90">วิเคราะห์สินค้าจากยอดซื้อ ยอดขาย กำไร Stock และ WAC</p>
-      </div>
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       <div className="rounded-md bg-white p-3 shadow">

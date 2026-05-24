@@ -80,7 +80,6 @@ export function WorkingCapitalPageClient() {
 
   return (
     <section className="space-y-4">
-      <Hero subtitle="Cash Conversion Cycle · AR/AP/Inv Days · Stock Turnover · Current/Quick Ratio" title="⚙️ Working Capital Analysis" tone="working" />
       <BaselineNotice sourceState={data?.sourceState} />
       {error ? <ErrorBox message={error} /> : null}
       <FilterPanel>
@@ -142,7 +141,6 @@ export function StockFinancePageClient() {
 
   return (
     <section className="space-y-4">
-      <Hero subtitle="วิเคราะห์ Stock เชิงการเงิน · Paid/Unpaid · RM/WIP/FG · Aging · Slow Moving · Margin Potential" title="📦 Stock Finance Analysis" tone="stock" />
       <BaselineNotice sourceState={data?.sourceState} />
       {error ? <ErrorBox message={error} /> : null}
       <FilterPanel><DateInput label="As of" value={asOf} onChange={setAsOf} /><BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} /></FilterPanel>
@@ -177,7 +175,6 @@ export function ProfitLeakPageClient() {
 
   return (
     <section className="space-y-4">
-      <Hero subtitle="ดูว่ากำไรหายตรงไหน · 10 จุดรั่วไหลของกำไร" title="🔻 Profit Leak Dashboard" tone="leak" />
       <BaselineNotice sourceState={data?.sourceState} />
       {error ? <ErrorBox message={error} /> : null}
       <FilterPanel><DateInput label="From" value={from} onChange={setFrom} /><DateInput label="To" value={to} onChange={setTo} /><label className="flex items-center gap-2 text-sm"><span>Target GP %</span><input className="w-20 rounded-md border px-2 py-1.5 text-right text-sm" step="0.1" type="number" value={targetMargin} onChange={(event) => setTargetMargin(Number(event.target.value))} /></label><BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} /><span className="rounded-md bg-red-100 px-3 py-1.5 text-sm font-bold text-red-700">รวมรั่วไหล: {money(data?.summary.totalLeak)}</span></FilterPanel>
@@ -225,11 +222,6 @@ function money(value?: number) {
 
 function percent(value: number, total: number) {
   return total > 0 ? (value / total * 100).toFixed(1) : '0.0'
-}
-
-function Hero({ subtitle, title, tone }: { subtitle: string; title: string; tone: 'leak' | 'stock' | 'working' }) {
-  const gradient = tone === 'working' ? 'from-teal-700 to-cyan-700' : tone === 'stock' ? 'from-amber-700 to-orange-700' : 'from-rose-700 to-red-700'
-  return <div className={`rounded-md bg-gradient-to-r ${gradient} p-5 text-white shadow`}><h1 className="text-xl font-bold md:text-2xl">{title}</h1><p className="mt-1 text-sm opacity-80">{subtitle}</p></div>
 }
 
 function BaselineNotice({ sourceState }: { sourceState?: SourceState }) {

@@ -190,11 +190,6 @@ export function DailyPettyAdvancePageClient() {
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="rounded-md bg-gradient-to-r from-purple-700 to-pink-600 p-5 text-white shadow">
-        <h1 className="text-2xl font-bold">🏦 เงินสำรองจ่าย / กู้กรรมการ</h1>
-        <p className="mt-1 text-sm opacity-90">ติดตามเงินที่จ่ายล่วงหน้าให้กรรมการ/พนักงานไปใช้จ่าย — รายละเอียดบิลที่จ่ายแต่ละก้อน + การคืนเงิน</p>
-      </div>
-
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <SummaryCard label="📋 รายการทั้งหมด" value={String(summary.count)} />
         <SummaryCard label="⏰ ค้างคืน (active)" tone="amber" value={String(summary.active)} />
@@ -219,7 +214,7 @@ export function DailyPettyAdvancePageClient() {
 
       <div className="rounded-md bg-white p-3 shadow">
         <div className="flex flex-wrap items-center gap-2">
-          <input className="min-w-56 flex-1 rounded-md border px-3 py-2 text-sm" placeholder="🔍 ค้นหา..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <input className="min-w-56 flex-1 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหา..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <select className="rounded-md border px-2 py-2 text-sm" value={type} onChange={(event) => setType(event.target.value)}>
             <option value="">ทุกประเภท</option>
             <option value="DIRECTOR_LOAN">👔 กู้กรรมการ</option>

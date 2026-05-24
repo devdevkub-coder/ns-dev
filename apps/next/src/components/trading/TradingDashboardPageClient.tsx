@@ -97,11 +97,6 @@ export function TradingDashboardPageClient() {
 
   return (
     <section className="space-y-4">
-      <div className="rounded-md bg-gradient-to-r from-violet-700 to-fuchsia-700 p-5 text-white shadow">
-        <h1 className="flex items-center gap-2 text-2xl font-bold">🔄 Trading Dashboard</h1>
-        <p className="mt-1 text-sm opacity-80">รายการ Trading (ซื้อมาขายไป) แยกออกจาก Stock — ไม่กระทบ Stock On Hand / WAC</p>
-      </div>
-
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">

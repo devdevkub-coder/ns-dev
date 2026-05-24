@@ -33,7 +33,6 @@ export function TaxVatWhtPageClient() {
 
   return (
     <section className="space-y-4">
-      <Hero />
       <BaselineNotice sourceState={data?.sourceState} />
       {error ? <ErrorBox message={error} /> : null}
       <FilterPanel>
@@ -102,10 +101,6 @@ function useApi<T>(url: string) {
 function money(value?: number) {
   const amount = value ?? 0
   return amount < 0 ? `(${formatMoney(Math.abs(amount))})` : formatMoney(amount)
-}
-
-function Hero() {
-  return <div className="rounded-md bg-gradient-to-r from-rose-600 to-pink-700 p-5 text-white shadow"><h1 className="text-xl font-bold md:text-2xl">🧾 Tax / VAT / WHT</h1><p className="mt-1 text-sm opacity-80">VAT ซื้อ-ขาย · VAT Payable · WHT ถูกหัก / หักไว้ · Tax Calendar 6 เดือน · เอกสารภาษีไม่ครบ</p></div>
 }
 
 function BaselineNotice({ sourceState }: { sourceState?: SourceState }) {

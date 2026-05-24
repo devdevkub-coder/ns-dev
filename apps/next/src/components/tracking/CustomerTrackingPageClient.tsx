@@ -74,10 +74,6 @@ export function CustomerTrackingPageClient() {
 
   return (
     <section className="space-y-4">
-      <div className="rounded-md bg-gradient-to-r from-emerald-600 to-teal-700 p-4 text-white shadow-xl">
-        <h1 className="text-xl font-bold">👥 Customer Tracking 360°</h1>
-        <p className="mt-1 text-sm opacity-90">วิเคราะห์ลูกค้าจากยอดขาย รับเงิน ลูกหนี้ และกำไรขั้นต้น</p>
-      </div>
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       <div className="rounded-md bg-white p-3 shadow">

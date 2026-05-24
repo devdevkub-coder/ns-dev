@@ -19,6 +19,7 @@ export type NavigationItem = {
   icon: string
   label: string
   pageTitle?: string
+  pageSubtitle?: string
   section: NavigationSectionKey
 }
 
@@ -152,34 +153,42 @@ export const navigationSections: Array<{ key: NavigationSectionKey; label: strin
 ]
 
 export const navigationItems: NavigationItem[] = [
-  { href: '/owner-daily', icon: '☀️', label: 'Owner Daily Control (เปิดทุกเช้า)', section: 'main' },
-  { href: '/anomaly-detector', icon: '🚨', label: 'ตรวจจับความผิดปกติ', section: 'main' },
-  { href: '/daily-report', icon: '📰', label: 'Daily Report (รายงานประจำวัน)', section: 'main' },
-  { href: '/dashboard', icon: '📊', label: 'Dashboard', section: 'main' },
-  { href: '/profit-cost-analysis', icon: '💎', label: 'Profit & Cost Analysis', section: 'main' },
-  { href: '/pending-sales', icon: '⏰', label: 'รายการรอขาย', section: 'main' },
-  { href: '/sales-plan', icon: '📋', label: 'วางแผนการขาย (LME)', section: 'main' },
-  { href: '/sales-commission', icon: '💼', label: 'Sales Tracking Dashboard', section: 'main' },
-  { href: '/cash-flow-calendar', icon: '📅', label: 'Cash Flow Calendar', section: 'main' },
-  { href: '/business-calendar', icon: '🗓️', label: 'Business Calendar', section: 'main' },
-  { href: '/cash-others-summary', icon: '💰', label: 'Cash & Others Summary', section: 'main' },
-  { href: '/tracking/customer', icon: '👥', label: 'Customer Tracking', section: 'tracking' },
-  { href: '/tracking/supplier', icon: '🏭', label: 'Supplier Tracking', section: 'tracking' },
-  { href: '/tracking/product', icon: '📦', label: 'Product Tracking', section: 'tracking' },
+  { href: '/owner-daily', icon: '☀️', label: 'Owner Daily Control (เปิดทุกเช้า)', pageTitle: 'Owner Daily Control', pageSubtitle: 'เปิดดูทุกเช้า · ตรวจสอบสถานะการเงินครบทุกมุมก่อนเริ่มวัน', section: 'main' },
+  { href: '/anomaly-detector', icon: '🚨', label: 'ตรวจจับความผิดปกติ', pageSubtitle: 'ระบบสแกนตัวเลขทั้งหมด — บอกสิ่งที่ต้องเช็คและแก้ไขก่อนปัญหาบาน', section: 'main' },
+  { href: '/daily-report', icon: '📰', label: 'Daily Report (รายงานประจำวัน)', pageTitle: 'Daily Report', pageSubtitle: 'รายงานสรุปประจำวัน — ทุกตัวเลขสำคัญในหน้าเดียว', section: 'main' },
+  { href: '/dashboard', icon: '📊', label: 'Dashboard', pageTitle: 'Financial Dashboard', pageSubtitle: 'ภาพรวมทางการเงิน · Real-time overview', section: 'main' },
+  { href: '/profit-cost-analysis', icon: '💎', label: 'Profit & Cost Analysis', pageSubtitle: 'วิเคราะห์ซื้อ ขาย COGS GP และ Stock Value ด้วย WAC/ต้นทุนจากบิลขาย', section: 'main' },
+  { href: '/pending-sales', icon: '⏰', label: 'รายการรอขาย', pageTitle: 'รายการรอขาย / Pending Sales', pageSubtitle: 'สรุปสินค้าที่รอขาย · เปรียบเทียบกับราคา LME · กำไร/ขาดทุน · Cost Pool vs Stock', section: 'main' },
+  { href: '/sales-plan', icon: '📋', label: 'วางแผนการขาย (LME)', pageTitle: 'วางแผนการขาย (Sales Plan) — ทองแดง / ทองเหลือง', pageSubtitle: 'เสนอ % LME + ช่องทางขาย → กดล็อกเพื่อยืนยันราคา → ตู้ในรอขายลดลงอัตโนมัติ', section: 'main' },
+  { href: '/sales-commission', icon: '💼', label: 'Sales Tracking Dashboard', pageTitle: 'Sales Tracking — ผลงานพนักงาน', pageSubtitle: 'ผูก Sales กับ Supplier · ดึงยอดบิลรับซื้อ · กดการ์ดเพื่อดูรายละเอียด', section: 'main' },
+  { href: '/cash-flow-calendar', icon: '📅', label: 'Cash Flow Calendar', pageSubtitle: 'ปฏิทินรายวันของเงินเข้า/ออก จากบัญชี Cash/Bank/OD ทั้งหมด — คลิกแต่ละวันเพื่อ Drill Down', section: 'main' },
+  { href: '/business-calendar', icon: '🗓️', label: 'Business Calendar', pageSubtitle: 'ปฏิทินรายวัน: ยอดซื้อ / ยอดขาย / ค่าใช้จ่าย / รับ / จ่าย / Actual GP / Net Cash Flow', section: 'main' },
+  { href: '/cash-others-summary', icon: '💰', label: 'Cash & Others Summary', pageSubtitle: 'สรุปสินทรัพย์ / หนี้สิน / สภาพคล่อง สำหรับเจ้าของ', section: 'main' },
+  { href: '/tracking/customer', icon: '👥', label: 'Customer Tracking', pageTitle: 'Customer Tracking 360°', pageSubtitle: 'วิเคราะห์ลูกค้าจากยอดขาย รับเงิน ลูกหนี้ และกำไรขั้นต้น', section: 'tracking' },
+  { href: '/tracking/supplier', icon: '🏭', label: 'Supplier Tracking', pageTitle: 'Supplier Tracking 360°', pageSubtitle: 'วิเคราะห์ผู้ขายจากบิลรับซื้อและรายการจ่ายเงิน Supplier', section: 'tracking' },
+  { href: '/tracking/product', icon: '📦', label: 'Product Tracking', pageTitle: 'Product Tracking 360°', pageSubtitle: 'วิเคราะห์สินค้าจากยอดซื้อ ยอดขาย กำไร Stock และ WAC', section: 'tracking' },
   { href: '/purchase/bills', icon: '📥', label: 'บิลรับซื้อ', pageTitle: 'บิลรับซื้อ-บันทึกบิลซื้อแบบ Stock / Trading พร้อม PO receipt, VAT, WAC และเอกสารรับสินค้า', section: 'daily' },
   { href: '/sales/bills', icon: '📤', label: 'บิลขาย', pageTitle: 'บิลขาย-ดูบิลขาย, สถานะรับเงิน, Gross Profit, ค้างรับ และ Trading match baseline', section: 'daily' },
-  { href: '/sales/stock-issue', icon: '📦', label: 'เบิกออกรอบิล (Pending Sale)', section: 'daily' },
-  { href: '/daily/payment-approval', icon: '✅', label: 'อนุมัติโอนเงิน (Payment Approval)', pageTitle: 'อนุมัติโอนเงิน (Payment Approval) - เช็ครายการที่จะจ่าย แล้วพิมพ์ใบอนุมัติส่งให้ cashier', section: 'daily' },
-  { href: '/purchase/payments', icon: '💸', label: 'จ่ายเงิน Supplier', pageTitle: 'จ่ายเงิน Supplier-บันทึกเงินออกจากบัญชี', section: 'daily' },
-  { href: '/purchase/payment-history', icon: '📜', label: 'ประวัติการจ่ายเงิน', pageTitle: 'ประวัติการจ่ายเงิน-ดูประวัติ voucher จ่ายเงิน Supplier ที่ทำไปแล้ว', section: 'daily' },
+  {
+    href: '/sales/stock-issue',
+    icon: '📦',
+    label: 'เบิกออกรอบิล (Pending Sale)',
+    pageTitle: 'เบิกออกรอบิล (Pending Sale)',
+    pageSubtitle: 'เบิกสินค้าออกจากคลังก่อนเปิดบิลขายจริง — สต๊อกตัดทันที พอจะเปิดบิลค่อยกดเปิดบิลขาย',
+    section: 'daily',
+  },
+  { href: '/daily/payment-approval', icon: '✅', label: 'อนุมัติโอนเงิน (Payment Approval)', pageSubtitle: 'เช็ครายการที่จะจ่าย แล้วพิมพ์ใบอนุมัติส่งให้ cashier', section: 'daily' },
+  { href: '/purchase/payments', icon: '💸', label: 'จ่ายเงิน Supplier', pageSubtitle: 'บันทึกเงินออกจากบัญชี', section: 'daily' },
+  { href: '/purchase/payment-history', icon: '📜', label: 'ประวัติการจ่ายเงิน', pageSubtitle: 'ดูประวัติ voucher จ่ายเงิน Supplier ที่ทำไปแล้ว', section: 'daily' },
   { href: '/purchase/receipt-vouchers', icon: '🧾', label: 'ใบสำคัญรับเงิน (Receipt Voucher)', section: 'daily' },
-  { href: '/sales/receipts', icon: '💰', label: 'รับเงิน Customer', section: 'daily' },
+  { href: '/sales/receipts', icon: '💰', label: 'รับเงิน Customer', pageSubtitle: 'บันทึกเงินเข้าบัญชีและประวัติ voucher รับ Customer', section: 'daily' },
+  { href: '/daily/weight-tickets', icon: '⚖️', label: 'ชั่งสินค้า (เข้า/ออก)', pageSubtitle: 'บันทึกใบชั่งรถเข้า/ออก, หลายถัง, รูปแนบ และส่งต่อให้ออกบิลในขั้นถัดไป', section: 'daily' },
   { href: '/daily/transfer', icon: '🔄', label: 'โอนเงินระหว่างบัญชี', section: 'daily' },
   { href: '/daily/expense', icon: '🧾', label: 'ค่าใช้จ่าย', section: 'daily' },
-  { href: '/daily/petty-advance', icon: '🏦', label: 'เงินสำรองจ่าย / กู้กรรมการ', section: 'daily' },
+  { href: '/daily/petty-advance', icon: '🏦', label: 'เงินสำรองจ่าย / กู้กรรมการ', pageSubtitle: 'ติดตามเงินที่จ่ายล่วงหน้าให้กรรมการ/พนักงานไปใช้จ่าย — รายละเอียดบิลที่จ่ายแต่ละก้อน + การคืนเงิน', section: 'daily' },
   { href: '/daily/expense-dashboard', icon: '📊', label: 'Dashboard ค่าใช้จ่าย', section: 'daily' },
   { href: '/stock/transfer', icon: '🚚', label: 'โอนสินค้าระหว่างสาขา', section: 'daily' },
-  { href: '/daily/bill-swap-history', icon: '🔄', label: 'ประวัติเปลี่ยน Supplier ในบิล', section: 'daily' },
+  { href: '/daily/bill-swap-history', icon: '🔄', label: 'ประวัติเปลี่ยน Supplier ในบิล', pageTitle: 'ประวัติเปลี่ยน Supplier ในบิลซื้อ — ราคาก่อน VAT', pageSubtitle: 'Track การเปลี่ยนราคาต่อรายการสินค้า — ส่วนต่างไม่รวม VAT', section: 'daily' },
   { href: '/production/orders', icon: '🏭', label: 'ใบสั่งผลิต', section: 'production' },
   { href: '/production/output-categories', icon: '🏷️', label: 'หมวดหมู่ผลผลิต', section: 'production' },
   { href: '/production/dashboard', icon: '📊', label: 'Production Dashboard', section: 'production' },
@@ -197,38 +206,38 @@ export const navigationItems: NavigationItem[] = [
   { href: '/dual-costing/deal-margin', icon: '💎', label: 'Deal Margin Report', section: 'dual-costing' },
   { href: '/dual-costing/compare-margin', icon: '⚖️', label: 'Compare Deal vs Stock', section: 'dual-costing' },
   { href: '/finance/ar', icon: '📈', label: 'ลูกหนี้ (AR)', section: 'finance-debt' },
-  { href: '/finance/ap', icon: '📉', label: 'เจ้าหนี้ (AP)', section: 'finance-debt' },
-  { href: '/finance/bank', icon: '🏦', label: 'Cash / Bank Statement', section: 'finance-debt' },
+  { href: '/finance/ap', icon: '📉', label: 'เจ้าหนี้ (AP)', pageTitle: 'รายการค้างจ่าย / Accounts Payable', pageSubtitle: 'สรุปยอดค้างจ่าย Supplier · Aging Buckets · Detail per Bill', section: 'finance-debt' },
+  { href: '/finance/bank', icon: '🏦', label: 'Cash / Bank Statement', pageTitle: 'Bank Statement Dashboard', pageSubtitle: 'เดินบัญชี — ดู Cash Flow รายบัญชีพร้อม Chart', section: 'finance-debt' },
   { href: '/finance/cash-position', icon: '💼', label: 'Cash Position', section: 'finance-debt' },
   { href: '/finance/supplier-advance', icon: '⏪', label: 'จ่ายล่วงหน้า Supplier', section: 'finance-debt' },
   { href: '/finance/customer-advance', icon: '⏩', label: 'รับล่วงหน้าจาก Customer', section: 'finance-debt' },
-  { href: '/stock/balance', icon: '📦', label: 'สต๊อกคงเหลือ', section: 'stock' },
+  { href: '/stock/balance', icon: '📦', label: 'สต๊อกคงเหลือ', pageTitle: 'สต๊อกคงเหลือ / Stock Balance', pageSubtitle: 'แยกตามหมวดสินค้า (ทองแดง/ทองเหลือง/เหล็ก) และสถานะ RM/WIP/FG', section: 'stock' },
   { href: '/stock/ledger', icon: '📋', label: 'Stock Ledger', section: 'stock' },
-  { href: '/stock/status-convert', icon: '🔄', label: 'ปรับสถานะสินค้า (RM→FG)', section: 'stock' },
-  { href: '/stock/convert', icon: '🔀', label: 'Grade Adjustment / ปรับเกรด', section: 'stock' },
-  { href: '/stock/adjust', icon: '🔢', label: 'นับสต๊อก / Stock Count Adjust', section: 'stock' },
-  { href: '/trading/dashboard', icon: '🔄', label: 'Trading Dashboard', section: 'trading' },
-  { href: '/trading/matching', icon: '🤝', label: 'Trading Matching / จับคู่ดีล', section: 'trading' },
-  { href: '/po-reports/outstanding', icon: '📑', label: 'PO ซื้อ/ขาย คงเหลือ', section: 'po-reports' },
-  { href: '/reports', icon: '📑', label: 'รายงานทั้งหมด', section: 'reports' },
-  { href: '/finance-accounting/financial-dashboard', icon: '💼', label: 'Financial Dashboard', section: 'finance-accounting' },
-  { href: '/finance-accounting/cash-flow-analysis', icon: '🔍', label: 'Cash Flow Analysis', section: 'finance-accounting' },
-  { href: '/finance-accounting/cf-forecast-calendar', icon: '📅', label: 'CF Forecast Calendar', section: 'finance-accounting' },
-  { href: '/finance-accounting/working-capital', icon: '⚙️', label: 'Working Capital Analysis', section: 'finance-accounting' },
-  { href: '/finance-accounting/stock-finance', icon: '📦', label: 'Stock Finance Analysis', section: 'finance-accounting' },
-  { href: '/finance-accounting/profit-leak', icon: '🔻', label: 'Profit Leak Dashboard', section: 'finance-accounting' },
-  { href: '/finance-accounting/tax-vat-wht', icon: '🧾', label: 'Tax / VAT / WHT', section: 'finance-accounting' },
-  { href: '/finance-accounting/pl-statement', icon: '📈', label: 'งบกำไรขาดทุน (P&L)', section: 'finance-accounting' },
-  { href: '/finance-accounting/balance-sheet', icon: '⚖️', label: 'งบดุล (Balance Sheet)', section: 'finance-accounting' },
-  { href: '/finance-accounting/cash-flow-statement', icon: '💧', label: 'งบกระแสเงินสด', section: 'finance-accounting' },
-  { href: '/finance-accounting/asset-register', icon: '🏗️', label: 'Fixed Assets / ทรัพย์สิน', section: 'finance-accounting' },
-  { href: '/finance-accounting/depreciation', icon: '📉', label: 'ค่าเสื่อมราคา', section: 'finance-accounting' },
-  { href: '/finance-accounting/asset-disposal', icon: '🗑️', label: 'จำหน่ายทรัพย์สิน', section: 'finance-accounting' },
-  { href: '/finance-accounting/loan-contracts', icon: '🏦', label: 'Loan / Leasing / BSL', section: 'finance-accounting' },
-  { href: '/finance-accounting/loan-dashboard', icon: '📊', label: 'Loan Dashboard', section: 'finance-accounting' },
+  { href: '/stock/status-convert', icon: '🔄', label: 'ปรับสถานะสินค้า (RM→FG)', pageSubtitle: 'เปลี่ยนสถานะ RM ↔ WIP ↔ FG ไม่ต้องเปิดใบสั่งผลิต · สร้าง Stock Ledger 2 ฝั่งอัตโนมัติ · เก็บประวัติพร้อมเหตุผล', section: 'stock' },
+  { href: '/stock/convert', icon: '🔀', label: 'Grade Adjustment / ปรับเกรด', pageSubtitle: 'ตัดสินค้าต้นทางและเพิ่มสินค้าปลายทางด้วยต้นทุน WAC ของ source', section: 'stock' },
+  { href: '/stock/adjust', icon: '🔢', label: 'นับสต๊อก / Stock Count Adjust', pageSubtitle: 'หาของไม่เจอ · สต๊อกตัด 0 แล้ว แต่ในระบบยังมี · นับเกินระบบ — Quick Adjust ทีละ row · Note-only ไม่ลง P&L', section: 'stock' },
+  { href: '/trading/dashboard', icon: '🔄', label: 'Trading Dashboard', pageSubtitle: 'รายการ Trading (ซื้อมาขายไป) แยกออกจาก Stock — ไม่กระทบ Stock On Hand / WAC', section: 'trading' },
+  { href: '/trading/matching', icon: '🤝', label: 'Trading Matching / จับคู่ดีล', pageSubtitle: 'จับคู่บิลซื้อ Trading กับบิลขาย Trading → คำนวณ GP ต่อดีล (ก่อน VAT)', section: 'trading' },
+  { href: '/po-reports/outstanding', icon: '📑', label: 'PO ซื้อ/ขาย คงเหลือ', pageTitle: 'รายงาน PO ซื้อ / PO ขาย คงเหลือ', pageSubtitle: 'PO Buy ที่ยังไม่ได้รับของ + PO Sell ที่ยังไม่ได้ส่งของ เรียงตามวันที่', section: 'po-reports' },
+  { href: '/reports', icon: '📑', label: 'รายงานทั้งหมด', pageTitle: 'รายงานสรุป', pageSubtitle: 'รายงานรวมซื้อ/ขายตามช่องทาง Supplier สินค้า และลูกค้า ตามรูปแบบ legacy', section: 'reports' },
+  { href: '/finance-accounting/financial-dashboard', icon: '💼', label: 'Financial Dashboard', pageSubtitle: 'รายเดือน · KPI ครบ 19 ตัว + Analysis 7 มุมมอง', section: 'finance-accounting' },
+  { href: '/finance-accounting/cash-flow-analysis', icon: '🔍', label: 'Cash Flow Analysis', pageSubtitle: 'ตอบ 6 คำถามสำคัญ: กำไร vs เงินสด · Stock/AR Trap · Collection Rate · OD Forecast', section: 'finance-accounting' },
+  { href: '/finance-accounting/cf-forecast-calendar', icon: '📅', label: 'CF Forecast Calendar', pageSubtitle: 'พยากรณ์เงินสดรายวัน · Expected Receipt/Payment · Loan/Tax/Payroll Due · เห็นวันเงินติดลบ', section: 'finance-accounting' },
+  { href: '/finance-accounting/working-capital', icon: '⚙️', label: 'Working Capital Analysis', pageSubtitle: 'Cash Conversion Cycle · AR/AP/Inv Days · Stock Turnover · Current/Quick Ratio', section: 'finance-accounting' },
+  { href: '/finance-accounting/stock-finance', icon: '📦', label: 'Stock Finance Analysis', pageSubtitle: 'วิเคราะห์ Stock เชิงการเงิน · Paid/Unpaid · RM/WIP/FG · Aging · Slow Moving · Margin Potential', section: 'finance-accounting' },
+  { href: '/finance-accounting/profit-leak', icon: '🔻', label: 'Profit Leak Dashboard', pageSubtitle: 'ดูว่ากำไรหายตรงไหน · 10 จุดรั่วไหลของกำไร', section: 'finance-accounting' },
+  { href: '/finance-accounting/tax-vat-wht', icon: '🧾', label: 'Tax / VAT / WHT', pageSubtitle: 'VAT ซื้อ-ขาย · VAT Payable · WHT ถูกหัก / หักไว้ · Tax Calendar 6 เดือน · เอกสารภาษีไม่ครบ', section: 'finance-accounting' },
+  { href: '/finance-accounting/pl-statement', icon: '📈', label: 'งบกำไรขาดทุน (P&L)', pageSubtitle: 'รายได้จาก Sales Bills · COGS จาก WAC · ค่าใช้จ่ายจาก Expense · ค่าเสื่อม · ดอกเบี้ย · FX', section: 'finance-accounting' },
+  { href: '/finance-accounting/balance-sheet', icon: '⚖️', label: 'งบดุล (Balance Sheet)', pageSubtitle: 'Cash · AR · AP · Inventory (WAC) · Fixed Asset · Loan · Equity — Balanced Check', section: 'finance-accounting' },
+  { href: '/finance-accounting/cash-flow-statement', icon: '💧', label: 'งบกระแสเงินสด', pageSubtitle: 'Direct Method · ดึงจาก Bank Statement จริง · แยก Operating/Investing/Financing · ตัด Internal Transfer', section: 'finance-accounting' },
+  { href: '/finance-accounting/asset-register', icon: '🏗️', label: 'Fixed Assets / ทรัพย์สิน', pageTitle: 'Fixed Asset Register / ทะเบียนทรัพย์สิน', pageSubtitle: 'บันทึก/ติดตาม Land · Building · Machinery · Vehicle · Equipment · Lease Asset', section: 'finance-accounting' },
+  { href: '/finance-accounting/depreciation', icon: '📉', label: 'ค่าเสื่อมราคา', pageTitle: 'Depreciation / ค่าเสื่อมราคา', pageSubtitle: 'คำนวณค่าเสื่อมจากทะเบียนทรัพย์สินแบบ read baseline ก่อนออกแบบ GL/posting', section: 'finance-accounting' },
+  { href: '/finance-accounting/asset-disposal', icon: '🗑️', label: 'จำหน่ายทรัพย์สิน', pageTitle: 'Asset Disposal / จำหน่ายทรัพย์สิน', pageSubtitle: 'ขาย / Scrap / Write Off / Lost — คำนวณ Gain/Loss อัตโนมัติจาก NBV', section: 'finance-accounting' },
+  { href: '/finance-accounting/loan-contracts', icon: '🏦', label: 'Loan / Leasing / BSL', pageTitle: 'Loan / Leasing / BSL Contracts', pageSubtitle: 'BSL · Leasing · Hire Purchase · Bank Loan · OD · FCD Loan · Director Loan', section: 'finance-accounting' },
+  { href: '/finance-accounting/loan-dashboard', icon: '📊', label: 'Loan Dashboard', pageSubtitle: 'Total Outstanding · Due · Overdue · Interest · Next 7/30 days', section: 'finance-accounting' },
   { href: '/finance-accounting/asset-overview', icon: '💎', label: 'Net Worth / Track Asset', section: 'finance-accounting' },
-  { href: '/finance-accounting/equity-maint', icon: '👑', label: 'Equity / ทุนจดทะเบียน', section: 'finance-accounting' },
-  { href: '/finance-accounting/opening-balance', icon: '🚀', label: 'Opening Balance / ตั้งต้นยอด', section: 'finance-accounting' },
+  { href: '/finance-accounting/equity-maint', icon: '👑', label: 'Equity / ทุนจดทะเบียน', pageSubtitle: 'ใช้คำนวณ Total Equity ในงบดุล (Current Year P&L คำนวณอัตโนมัติจาก Transactions)', section: 'finance-accounting' },
+  { href: '/finance-accounting/opening-balance', icon: '🚀', label: 'Opening Balance / ตั้งต้นยอด', pageTitle: 'Opening Balance / ตั้งต้นยอดก่อน Go-Live', pageSubtitle: 'ตั้งยอดก่อนเริ่มใช้ระบบจริง · Cash/Bank/FCD/OD · AR/AP · Stock · Fixed Asset · Loan · VAT/WHT · Equity', section: 'finance-accounting' },
   { href: '/finance-accounting/historical-data', icon: '📅', label: 'ข้อมูลย้อนหลัง ม.ค.-เม.ย. 2026 (ก่อน Go-Live)', section: 'finance-accounting' },
   { href: '/master-data/customers', icon: '👥', label: 'ลูกค้า', section: 'master-data' },
   { href: '/master-data/salespersons', icon: '👨‍💼', label: 'พนักงานขาย (Sales)', section: 'master-data' },
@@ -268,7 +277,6 @@ export const navigationItems: NavigationItem[] = [
   { href: '/master-data/remittance-purposes', icon: '🎯', label: 'วัตถุประสงค์โอน', section: 'master-data' },
   { href: '/admin/system-settings', icon: '⚙️', label: 'ตั้งค่าระบบ', section: 'admin' },
   { href: '/admin/company-profile', icon: '🏢', label: 'ข้อมูลบริษัท (สำหรับใบพิมพ์)', section: 'admin' },
-  { href: '/admin/change-password', icon: '🔒', label: 'เปลี่ยน Password ของฉัน', section: 'admin' },
   { href: '/admin/transaction-ledger', icon: '📒', label: 'Transaction Ledger (เช็คเงินเข้า-ออก)', section: 'admin' },
   { href: '/admin/migration-tools', icon: '💾', label: 'Backup / Restore (สำคัญ)', section: 'admin' },
   { href: '/admin/audit', icon: '🔍', label: 'Audit & Activity Log', section: 'admin' },
@@ -285,6 +293,18 @@ export function pageTitleForPath(pathname: string) {
   }
 
   return 'NS Scrap ERP'
+}
+
+export function pageSubtitleForPath(pathname: string) {
+  if (pathname === '/login') return null
+
+  for (const item of navigationItems) {
+    const child = item.children?.find((entry) => entry.href === pathname)
+    if (child) return child.pageSubtitle ?? null
+    if (item.href === pathname) return item.pageSubtitle ?? null
+  }
+
+  return null
 }
 
 export function breadcrumbsForPath(pathname: string): BreadcrumbItem[] {

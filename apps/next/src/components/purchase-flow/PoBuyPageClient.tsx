@@ -708,7 +708,7 @@ function SupplierSearchCombobox({
         label: optionLabel(supplier),
         searchText: searchableText(supplier),
       }))}
-      placeholder="🔍 พิมพ์ชื่อ Supplier..."
+      placeholder="พิมพ์ชื่อ Supplier..."
       value={value}
       onChange={onChange}
     />
@@ -773,7 +773,7 @@ function PoBuyFormModal({
               {fieldError('supplierId')}
             </div>
             <div>
-              <label className="mb-1 block text-xs">สาขา/คลัง *</label>
+              <label className="mb-1 block text-xs">สาขา/คลัง <span className="text-red-600">*</span></label>
               <UiSelect className="h-9 w-full px-2 py-1.5" value={form.branchId} onChange={(event) => onUpdate('branchId', event.target.value)}>
                 <option value="">เลือกสาขา/คลัง</option>
                 {activeBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
@@ -781,7 +781,7 @@ function PoBuyFormModal({
               {fieldError('branchId')}
             </div>
             <div>
-              <label className="mb-1 block text-xs">วันส่งมอบ *</label>
+              <label className="mb-1 block text-xs">วันส่งมอบ <span className="text-red-600">*</span></label>
               <DatePickerInput className="h-9 w-full" required value={form.expectedDelivery} onChange={(value) => onUpdate('expectedDelivery', value)} />
               {fieldError('expectedDelivery')}
             </div>
@@ -801,7 +801,7 @@ function PoBuyFormModal({
                   <TableRow key={index}>
                     <TableCell className="p-1 align-top">
                         <UiSelect className="h-9 w-full px-2 py-1.5" value={item.productId} onChange={(event) => onUpdateItem(index, 'productId', event.target.value)}>
-                          <option value="">🔍 พิมพ์รหัส/ชื่อสินค้า...</option>
+                          <option value="">พิมพ์รหัส/ชื่อสินค้า...</option>
                           {activeProducts.map((product) => <option key={product.id} value={product.id}>{optionLabel(product)}</option>)}
                         </UiSelect>
                         {fieldError(`items.${index}.productId`)}

@@ -37,7 +37,7 @@ Status terms:
 |---|---:|---:|---:|---|
 | Main | 11 | 11 | 0 | all 11 read/read-design APIs |
 | Tracking | 3 | 1 | 2 | supplier only |
-| Daily | 13 | 13 | 0 | partial |
+| Daily | 14 | 14 | 0 | partial |
 | Production | 8 | 8 | 0 | read baseline plus output category write |
 | Dual Costing | 7 | 1 | 6 | PO buy only |
 | Finance and Debt | 6 | 1 | 5 | AP only |
@@ -88,6 +88,7 @@ Status terms:
 | `/purchase/payments` | จ่ายเงิน Supplier | partial write | `GET/POST /api/purchase/payments` | `payments`, `purchase_bills`, `accounts` | `finance.cash.view` |
 | `/purchase/receipt-vouchers` | ใบสำคัญรับเงิน | read baseline | `GET /api/purchase/receipt-vouchers` | `receipt_vouchers` | `finance.cash.view` |
 | `/sales/receipts` | รับเงิน Customer | partial write | `GET/POST /api/sales/receipts` | `receipts`, `sales_bills`, `accounts` | `finance.cash.view` |
+| `/daily/weight-tickets` | ชั่งสินค้า (เข้า/ออก) | UI prototype | no API yet; local client state only | proposed `weight_tickets`, `weight_ticket_items`, `weight_ticket_buckets`, ticket attachments | `finance.cash.view` |
 | `/daily/transfer` | โอนเงินระหว่างบัญชี | partial write | `GET/POST /api/daily/transfers` | `bank_statement`, `accounts` | `finance.cash.view` |
 | `/daily/expense` | ค่าใช้จ่าย | partial write | `GET/POST /api/daily/expenses` | `expenses`, `bank_statement` | `finance.cash.view` |
 | `/daily/petty-advance` | เงินสำรองจ่าย / กู้กรรมการ | partial write | `GET/POST /api/daily/petty-advances`, `POST /api/daily/petty-advances/returns` | `petty_advances`, `bank_statement` | `finance.cash.view` |

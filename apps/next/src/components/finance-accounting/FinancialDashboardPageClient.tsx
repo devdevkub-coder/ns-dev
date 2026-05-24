@@ -31,10 +31,6 @@ export function FinancialDashboardPageClient() {
 
   return (
     <section className="space-y-4">
-      <div className="rounded-md bg-gradient-to-r from-violet-700 to-purple-700 p-5 text-white shadow">
-        <h1 className="text-xl font-bold md:text-2xl">💼 Financial Dashboard</h1>
-        <p className="mt-1 text-sm opacity-80">รายเดือน {data?.filters.monthStart.slice(0, 7) ?? asOf.slice(0, 7)} · KPI ครบ 19 ตัว + Analysis 7 มุมมอง</p>
-      </div>
       <div className="rounded-md border-l-4 border-amber-400 bg-amber-50 p-3 text-sm text-amber-900">
         <b>Financial Dashboard read baseline</b><span className="ml-2">management dashboard จาก operational helpers ยังไม่ใช่ GL/statutory report</span>
         {data ? <div className="mt-1 text-xs text-amber-800">{data.sourceState.limitations[0]}</div> : null}

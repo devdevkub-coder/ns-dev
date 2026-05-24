@@ -236,7 +236,7 @@ export function PoSellPageClient() {
 
       <div className="mb-4 space-y-2 rounded-md bg-white p-3 shadow">
         <div className="flex flex-wrap items-center gap-2">
-          <input className="min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm" placeholder="🔍 ค้นหาเลข PO / ชื่อ Customer / ชื่อสินค้า / หมายเหตุ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <input className="min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหาเลข PO / ชื่อ Customer / ชื่อสินค้า / หมายเหตุ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <label className="text-xs text-slate-500">วันที่:</label>
           <DatePickerInput ariaLabel="จากวันที่" className="w-[130px]" title="จากวันที่" value={fromDate} onChange={setFromDate} />
           <span className="text-slate-400">→</span>
@@ -408,8 +408,14 @@ function StatusPill({ label, tone = 'status' }: { label: string; tone?: 'match' 
   return <span className={`inline-flex rounded-md-full px-2 py-0.5 text-xs ${color}`}>{label || '-'}</span>
 }
 
+function renderFieldLabel(label: string) {
+  const hasInlineRequired = label.trim().endsWith('*')
+  const labelText = hasInlineRequired ? label.trim().slice(0, -1).trimEnd() : label
+  return <>{labelText}{hasInlineRequired ? <span className="ml-1 text-red-600">*</span> : null}</>
+}
+
 function Field({ children, className, error, label }: { children: ReactNode; className?: string; error?: string; label: string }) {
-  return <label className={className}><span className="mb-1 block text-xs font-bold text-slate-700">{label}</span>{children}{error ? <span className="mt-1 block text-xs text-red-600">{error}</span> : null}</label>
+  return <label className={className}><span className="mb-1 block text-xs font-bold text-slate-700">{renderFieldLabel(label)}</span>{children}{error ? <span className="mt-1 block text-xs text-red-600">{error}</span> : null}</label>
 }
 
 function SelectField({ className, error, label, onChange, options, placeholder = 'เลือก', value }: { className?: string; error?: string; label: string; onChange: (value: string) => void; options: Option[]; placeholder?: string; value: string }) {

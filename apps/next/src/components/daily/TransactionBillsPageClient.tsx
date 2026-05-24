@@ -655,10 +655,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     <section className="space-y-4">
       {mode === 'stock-issue' ? (
         <>
-          <div className="rounded-md bg-gradient-to-r from-amber-500 to-orange-500 p-5 text-white shadow">
-            <h1 className="text-2xl font-bold">📦 เบิกออกรอบิล (Pending Sale)</h1>
-            <p className="mt-1 text-sm opacity-90">เบิกสินค้าออกจากคลังก่อนเปิดบิลขายจริง — สต๊อกตัดทันที พอจะเปิดบิลค่อยกดเปิดบิลขาย</p>
-          </div>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <TransactionKpi label="⏰ Pending / รายการ" tone="amber" value={`${totalRows.toLocaleString('th-TH')} ใบ`} />
             <TransactionKpi label="น้ำหนักรวมในหน้า" tone="blue" value={`${formatMoney(stockIssueQty)} กก.`} />

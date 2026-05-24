@@ -69,17 +69,12 @@ export function AssetRegisterPageClient() {
 
   return (
     <section className="space-y-4">
-      <Hero
-        actions={<>
-          <DisabledButton>📄 Template</DisabledButton>
-          <DisabledButton>📥 Import</DisabledButton>
-          <DisabledButton>📤 Export CSV</DisabledButton>
-          <DisabledButton strong>+ เพิ่มทรัพย์สิน</DisabledButton>
-        </>}
-        subtitle="บันทึก/ติดตาม Land · Building · Machinery · Vehicle · Equipment · Lease Asset"
-        title="🏗️ Fixed Asset Register / ทะเบียนทรัพย์สิน"
-        tone="asset"
-      />
+      <div className="flex flex-wrap gap-2 rounded-md bg-white p-3 shadow">
+        <DisabledButton>📄 Template</DisabledButton>
+        <DisabledButton>📥 Import</DisabledButton>
+        <DisabledButton>📤 Export CSV</DisabledButton>
+        <DisabledButton strong>+ เพิ่มทรัพย์สิน</DisabledButton>
+      </div>
 
       {error ? <ErrorBox message={error} /> : null}
 
@@ -115,7 +110,7 @@ export function AssetRegisterPageClient() {
       </div>
 
       <FilterPanel>
-        <input className="min-w-0 flex-1 rounded-md border border-slate-200 px-3 py-2 text-sm" placeholder="ค้นหา รหัส / ชื่อ / สถานที่ / สาขา" value={search} onChange={(event) => setSearch(event.target.value)} />
+        <input className="min-w-0 flex-1 rounded-md border border-slate-200 px-3 py-2 text-sm" placeholder="ค้นหา รหัส / ชื่อ / สถานที่ / สาขา" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
         <select className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm" value={category} onChange={(event) => setCategory(event.target.value)}>
           <option value="all">ทุกหมวด</option>
           {(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
@@ -173,12 +168,6 @@ export function DepreciationPageClient() {
 
   return (
     <section className="space-y-4">
-      <Hero
-        actions={<DisabledButton strong>▶ Run ค่าเสื่อมงวดนี้</DisabledButton>}
-        subtitle="คำนวณค่าเสื่อมจากทะเบียนทรัพย์สินแบบ read baseline ก่อนออกแบบ GL/posting"
-        title="📉 Depreciation / ค่าเสื่อมราคา"
-        tone="depreciation"
-      />
       {error ? <ErrorBox message={error} /> : null}
       <FilterPanel>
         <select className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm" value={month} onChange={(event) => setMonth(event.target.value)}>
@@ -189,6 +178,8 @@ export function DepreciationPageClient() {
         <Chip tone="blue">Asset ที่คิดค่าเสื่อม {data?.pendingAssets.length ?? 0}</Chip>
         <Chip tone="emerald">Run แล้วงวดนี้ 0</Chip>
         <Chip tone="amber">รอ Run {data?.pendingAssets.length ?? 0}</Chip>
+        <span className="flex-1" />
+        <DisabledButton strong>▶ Run ค่าเสื่อมงวดนี้</DisabledButton>
       </FilterPanel>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <StatCard label="Asset ที่รอ Run" value={data?.summary.pendingAssets ?? 0} tone="amber" />
@@ -231,13 +222,12 @@ export function AssetDisposalPageClient() {
 
   return (
     <section className="space-y-4">
-      <Hero
-        actions={<DisabledButton strong>+ Disposal</DisabledButton>}
-        subtitle="ขาย / Scrap / Write Off / Lost — คำนวณ Gain/Loss อัตโนมัติจาก NBV"
-        title="🗑️ Asset Disposal / จำหน่ายทรัพย์สิน"
-        tone="disposal"
-      />
       {error ? <ErrorBox message={error} /> : null}
+      <FilterPanel>
+        <span className="text-sm text-slate-500">รายการจำหน่ายทรัพย์สินแบบ read-only baseline</span>
+        <span className="flex-1" />
+        <DisabledButton strong>+ Disposal</DisabledButton>
+      </FilterPanel>
       <TableShell>
         <table className="w-full text-xs">
           <thead className="bg-slate-100 text-slate-600"><tr><Th>วันที่</Th><Th>Asset</Th><Th>ประเภท</Th><Th align="right">ราคาขาย</Th><Th align="right">NBV ณ วันที่</Th><Th align="right">Gain/(Loss)</Th><Th>เหตุผล</Th></tr></thead>
@@ -248,15 +238,6 @@ export function AssetDisposalPageClient() {
       </TableShell>
     </section>
   )
-}
-
-function Hero({ actions, subtitle, title, tone }: { actions: ReactNode; subtitle: string; title: string; tone: 'asset' | 'depreciation' | 'disposal' }) {
-  const tones = {
-    asset: 'from-amber-600 to-orange-600',
-    depreciation: 'from-red-600 to-rose-600',
-    disposal: 'from-slate-700 to-zinc-700',
-  }
-  return <div className={`flex flex-col gap-4 rounded-md bg-gradient-to-r ${tones[tone]} p-5 text-white shadow md:flex-row md:items-center md:justify-between`}><div><h1 className="text-xl font-bold md:text-2xl">{title}</h1><p className="mt-1 text-sm text-white/85">{subtitle}</p></div><div className="flex flex-wrap gap-2">{actions}</div></div>
 }
 
 function DisabledButton({ children, strong = false }: { children: ReactNode; strong?: boolean }) {
