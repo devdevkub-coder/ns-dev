@@ -541,7 +541,12 @@ At every checkpoint, update docs as if a new session will start from only the re
   - Payment approval persistence/printing
   - AP/AR allocation/reconciliation
 - Auth/permission:
-  - branch-scope enforcement
+  - branch-scope enforcement:
+    - Use `app_user_branch_access` as the scoped access source; admin/owner roles can be all-branch users.
+    - Frontend branch selectors are UX only; APIs must enforce branch scope by intersecting requested branch filters with allowed branch ids.
+    - `/api/branches` should return only active branches visible to the current user; `all` means all allowed branches.
+    - Detail APIs should return 404/403 for records outside scope.
+    - Recommended first batch: Purchase APIs (`/api/purchase/bills`, `/api/purchase/payments`, `/api/purchase/payment-history`, `/api/purchase/po-buy`), then Sales/Stock/Daily/Finance.
   - full legacy role matrix migration
 
 ## Validation Baseline

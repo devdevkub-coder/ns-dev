@@ -179,6 +179,14 @@ Reporting rule:
 - [x] เปลี่ยนจาก admin-only guard เป็น normalized permission guard สำหรับ mapped paths พร้อม legacy admin/owner fallback ระหว่าง transition
 - [x] เพิ่ม API permission guard สำหรับ view/create/update/export/status ของ user management และ key master APIs: customer/supplier/product
 - [ ] เพิ่ม branch-scope enforcement สำหรับ role ที่จำกัดสาขา
+  - [ ] ทำ server helper กลาง เช่น `getBranchScope(context)` จาก `app_user_branch_access` และ role admin/owner
+  - [ ] นิยาม contract: `all` ใน UI หมายถึงทุกสาขาที่ user มีสิทธิ์ ไม่ใช่ทุกสาขาในระบบ
+  - [ ] แก้ `/api/branches` ให้คืนเฉพาะ active branches ที่ user มีสิทธิ์; admin/owner เห็นทั้งหมด
+  - [ ] บังคับ branch filter ใน API/query ที่มี `branch_id` หรือสาขาเอกสาร โดย intersect ระหว่าง requested branch กับ allowed branches
+  - [ ] ถ้า list/filter ขอ branch ที่ไม่มีสิทธิ์ ให้คืน empty หรือ 403 ตาม contract ของหน้านั้น; ถ้า detail by id ข้ามสาขา ให้คืน 404/403 เพื่อกันเดาข้อมูล
+  - [ ] เริ่ม batch แรกที่ Purchase: `/api/purchase/bills`, `/api/purchase/payments`, `/api/purchase/payment-history`, `/api/purchase/po-buy`
+  - [ ] ต่อด้วย Sales, Stock, Daily, Finance APIs ที่มีข้อมูลผูกสาขา
+  - [ ] เพิ่ม browser/API smoke test สำหรับ user ที่มีสิทธิ์สาขาเดียวต้องไม่เห็นข้อมูลอีกสาขา
 - [x] นิยาม role ที่เห็น cost/profit/cash/financials ใน `app_roles`
 
 ## Phase 4: Master Data and Key Basic Data

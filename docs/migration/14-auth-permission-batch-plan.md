@@ -58,6 +58,13 @@
   - Implemented admin/master-data error case baseline: API responses normalize auth, validation, conflict, not-found, database, and server failures; client pages normalize network, permission, conflict, and invalid-response messages before showing them in Thai.
   - `app_set_updated_at()` has fixed `search_path = public`
 - Master-data route-level API guards now enforce normalized permissions directly for customer, supplier, and product view/create/status/export actions, in addition to proxy path checks.
+- Branch-scope enforcement is the next auth/permission hardening item. The target behavior is:
+  - `app_user_branch_access` is the source for scoped branch access; admin/owner roles can be treated as all-branch users.
+  - UI selectors may improve UX, but data security must be enforced in server APIs and queries.
+  - `/api/branches` should return only active branches visible to the current user. The topbar value `all` means all visible/allowed branches, not all branches globally.
+  - Any API with branch-bound data must intersect requested branch filters with the current user's allowed branch ids.
+  - Detail endpoints should return 404/403 for records outside the user's branch scope.
+  - First implementation batch should cover purchase APIs that are already actively used in UI filters: bills, payments, payment history, and PO buy.
 - RLS/permission model is not final; current app gating now uses normalized permissions for mapped paths, but table-level RLS rollout still needs table-by-table UAT.
 - Supabase advisors still report many legacy/base tables with policies but RLS disabled; those are not changed in this auth batch because enabling them globally could break legacy-compatible flows and needs a table-by-table UAT plan.
 
@@ -312,6 +319,7 @@ Validation:
 - Should system roles be editable, clone-only, or fully locked?
 - Should role permissions be menu-only first, then action-level later, or action-level from the start?
 - Which routes require branch-scope filtering in Phase 1?
+- Phase 1 branch-scope priority is Purchase first (`/api/purchase/bills`, `/api/purchase/payments`, `/api/purchase/payment-history`, `/api/purchase/po-buy`), then Sales/Stock/Daily/Finance APIs with branch-bound records.
 - Should reset password be invite-only for new users, or should admins also set temporary passwords? Current recommendation: no admin-set password; use invite/reset email.
 
 ## Latest Validation
