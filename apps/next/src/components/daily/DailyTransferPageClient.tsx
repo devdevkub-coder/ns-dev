@@ -1,7 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney, todayDateInput, transferFormSchema, type DailyAccountOption, type TransferFormValues } from '@/lib/daily'
+import { formatDateDisplay } from '@/lib/format'
 
 type TransferRow = TransferFormValues & {
   docNo: string
@@ -159,9 +161,9 @@ export function DailyTransferPageClient() {
       <div className="space-y-2 rounded-md bg-white p-3 shadow">
         <div className="flex flex-wrap items-center gap-2">
           <input className="min-w-56 flex-1 rounded-md border px-3 py-2 text-sm" placeholder="🔍 ค้นหาเลขที่ / หมายเหตุ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <input className="rounded-md border px-2 py-2 text-sm" type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPeriod('') }} />
+          <DatePickerInput className="w-[130px]" value={dateFrom} onChange={(value) => { setDateFrom(value); setPeriod('') }} />
           <span className="text-slate-400">→</span>
-          <input className="rounded-md border px-2 py-2 text-sm" type="date" value={dateTo} onChange={(event) => { setDateTo(event.target.value); setPeriod('') }} />
+          <DatePickerInput className="w-[130px]" value={dateTo} onChange={(value) => { setDateTo(value); setPeriod('') }} />
           <select className="rounded-md border px-2 py-2 text-sm" value={fromAccountId} onChange={(event) => setFromAccountId(event.target.value)}>
             <option value="">📤 ทุกบัญชีต้นทาง</option>
             {accounts.filter((account) => account.active).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
@@ -227,7 +229,7 @@ export function DailyTransferPageClient() {
             {!isLoading && filteredRows.map((row) => (
               <tr key={row.id} className="border-t hover:bg-slate-50">
                 <td className="p-2 font-mono text-xs">{row.docNo}</td>
-                <td className="p-2">{row.date}</td>
+                <td className="p-2">{formatDateDisplay(row.date)}</td>
                 <td className="p-2 text-red-600">{row.fromAccountName}</td>
                 <td className="p-2 text-emerald-700">{row.toAccountName}</td>
                 <td className="p-2 text-right font-medium">{formatMoney(row.amount)}</td>
@@ -261,7 +263,9 @@ function TextField(props: { error?: string; label: string; onChange?: (value: st
   return (
     <label className="block text-sm font-medium">
       {props.label}{props.required ? <span className="text-red-600"> *</span> : null}
-      <input className={`mt-1.5 w-full rounded-md border px-3 py-2 outline-none ${props.error ? 'border-red-400 bg-red-50' : 'border-slate-300'} ${props.readOnly ? 'bg-slate-50' : ''}`} readOnly={props.readOnly} type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange?.(event.target.value)} />
+      {props.type === 'date'
+        ? <DatePickerInput className="mt-1.5 w-full" readOnly={props.readOnly} required={props.required} value={props.value} onChange={(value) => props.onChange?.(value)} />
+        : <input className={`mt-1.5 w-full rounded-md border px-3 py-2 outline-none ${props.error ? 'border-red-400 bg-red-50' : 'border-slate-300'} ${props.readOnly ? 'bg-slate-50' : ''}`} readOnly={props.readOnly} type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange?.(event.target.value)} />}
       {props.error ? <span className="mt-1 block text-xs text-red-700">{props.error}</span> : null}
     </label>
   )

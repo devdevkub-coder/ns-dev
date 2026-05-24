@@ -1,7 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney, pettyAdvanceFormSchema, pettyAdvanceReturnFormSchema, todayDateInput, type DailyAccountOption, type PettyAdvanceFormValues } from '@/lib/daily'
+import { formatDateDisplay } from '@/lib/format'
 
 type PettyAdvanceRow = PettyAdvanceFormValues & {
   accountName: string
@@ -311,7 +313,7 @@ export function DailyPettyAdvancePageClient() {
             {!isLoading && filteredRows.map((row) => (
               <tr key={row.id} className="border-t hover:bg-purple-50">
                 <td className="p-2 font-mono text-xs">{row.docNo}</td>
-                <td className="p-2">{row.date}</td>
+                <td className="p-2">{formatDateDisplay(row.date)}</td>
                 <td className="p-2"><span className={`rounded-md px-2 py-0.5 text-xs ${row.type === 'DIRECTOR_LOAN' ? 'bg-purple-100 text-purple-700' : 'bg-amber-100 text-amber-700'}`}>{row.type === 'DIRECTOR_LOAN' ? '👔 กู้กรรมการ' : '💵 เงินสำรองจ่าย'}</span></td>
                 <td className="p-2 font-medium">{row.recipientName}</td>
                 <td className="p-2 text-right">{formatMoney(row.amount)}</td>
@@ -343,7 +345,7 @@ function DetailModal({ onClose, row }: { onClose: () => void; row: PettyAdvanceR
         <div className="flex items-start justify-between border-b bg-purple-50 px-5 py-3">
           <div>
             <h3 className="text-lg font-bold">📋 รายละเอียด {row.docNo} — {row.recipientName}</h3>
-            <div className="mt-0.5 text-xs text-slate-600">{row.type === 'DIRECTOR_LOAN' ? '👔 กู้กรรมการ' : '💵 เงินสำรองจ่าย'} · {row.date} · จำนวน {formatMoney(row.amount)} บาท</div>
+            <div className="mt-0.5 text-xs text-slate-600">{row.type === 'DIRECTOR_LOAN' ? '👔 กู้กรรมการ' : '💵 เงินสำรองจ่าย'} · {formatDateDisplay(row.date)} · จำนวน {formatMoney(row.amount)} บาท</div>
           </div>
           <button className="text-2xl text-slate-400" type="button" onClick={onClose}>&times;</button>
         </div>
@@ -410,7 +412,9 @@ function TextField(props: { error?: string; label: string; onChange?: (value: st
   return (
     <label className="block text-sm font-medium">
       {props.label}{props.required ? <span className="text-red-600"> *</span> : null}
-      <input className={`mt-1.5 w-full rounded-md border px-3 py-2 outline-none ${props.error ? 'border-red-400 bg-red-50' : 'border-slate-300'} ${props.readOnly ? 'bg-slate-50' : ''}`} readOnly={props.readOnly} type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange?.(event.target.value)} />
+      {props.type === 'date'
+        ? <DatePickerInput className="mt-1.5 w-full" readOnly={props.readOnly} required={props.required} value={props.value} onChange={(value) => props.onChange?.(value)} />
+        : <input className={`mt-1.5 w-full rounded-md border px-3 py-2 outline-none ${props.error ? 'border-red-400 bg-red-50' : 'border-slate-300'} ${props.readOnly ? 'bg-slate-50' : ''}`} readOnly={props.readOnly} type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange?.(event.target.value)} />}
       {props.error ? <span className="mt-1 block text-xs text-red-700">{props.error}</span> : null}
     </label>
   )

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { formatDateDisplay } from '@/lib/format'
 
 type VoucherItem = {
   amount?: number | string | null
@@ -118,7 +119,7 @@ export function ReceiptVouchersPageClient() {
               {!isLoading && filteredRows.map((row) => (
                 <tr key={row.id} className="border-t hover:bg-blue-50/30">
                   <td className="p-2 font-mono text-xs font-semibold text-slate-700">{row.docNo}</td>
-                  <td className="p-2">{row.date}</td>
+                  <td className="p-2">{formatDateDisplay(row.date)}</td>
                   <td className="p-2 font-medium text-slate-800">{row.sellerName || '-'}</td>
                   <td className="p-2 font-mono text-xs text-slate-500">{row.sellerTaxId || '-'}</td>
                   <td className="p-2 font-mono text-xs">{row.purchaseBillDocNo || '-'}</td>
@@ -177,7 +178,7 @@ function PrintPreview({ onClose, row }: { onClose: () => void; row: ReceiptVouch
           <div className="mt-1 text-xs">ข้อมูลบริษัทจาก Company Profile จะแสดงในใบพิมพ์ฉบับ production เมื่อเชื่อม company profile payload กับ preview นี้</div>
         </div>
         <div className="mb-3 text-center text-2xl font-bold underline">ใบสำคัญรับเงิน</div>
-        <div className="mb-3 text-right text-sm"><b>วันที่</b> {row.date}</div>
+        <div className="mb-3 text-right text-sm"><b>วันที่</b> {formatDateDisplay(row.date)}</div>
         <div className="mb-4 space-y-1 text-sm">
           <div><b>ข้าพเจ้า</b> {row.sellerName || '-'} <span className="ml-4"><b>เลขประจำตัวผู้เสียภาษี</b> {row.sellerTaxId || '-'}</span></div>
           <div><b>ที่อยู่</b> {row.sellerAddress || '-'}</div>

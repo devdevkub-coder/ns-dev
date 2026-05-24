@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react'
 
+import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { FormSelectField } from '@/components/ui/FormSelectField'
 import { Input } from '@/components/ui/Input'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
@@ -53,7 +54,11 @@ export function InputField({
 }) {
   return (
     <Field className={className} error={error} label={label}>
-      <Input className={inputClassName} placeholder={placeholder} type={type} value={value} onChange={(event) => onChange(event.target.value)} />
+      {type === 'date' ? (
+        <DatePickerInput className={inputClassName ?? 'w-full'} value={value} onChange={onChange} />
+      ) : (
+        <Input className={inputClassName} placeholder={placeholder} type={type} value={value} onChange={(event) => onChange(event.target.value)} />
+      )}
     </Field>
   )
 }

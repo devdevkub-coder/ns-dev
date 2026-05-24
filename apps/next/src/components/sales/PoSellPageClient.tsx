@@ -1,8 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { formatDateDisplay } from '@/lib/format'
 import { poSellFormSchema, type PoSellFormValues } from '@/lib/sales'
 
 type Option = {
@@ -80,6 +82,7 @@ const initialPoSellForm = (): PoSellFormValues => ({
 })
 
 export function PoSellPageClient() {
+  const latestLoadRequestRef = useRef(0)
   const [data, setData] = useState<PoSellPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -103,13 +106,19 @@ export function PoSellPageClient() {
   }, [fromDate, toDate])
 
   const loadData = useCallback(async () => {
+    const requestId = latestLoadRequestRef.current + 1
+    latestLoadRequestRef.current = requestId
     setError(null)
     setIsLoading(true)
     try {
-      setData(await dailyFetchJson<PoSellPayload>(`/api/sales/po-sell${dateQuery ? `?${dateQuery}` : ''}`))
+      const payload = await dailyFetchJson<PoSellPayload>(`/api/sales/po-sell${dateQuery ? `?${dateQuery}` : ''}`)
+      if (latestLoadRequestRef.current !== requestId) return
+      setData(payload)
     } catch (caught) {
+      if (latestLoadRequestRef.current !== requestId) return
       setError(caught instanceof Error ? caught.message : 'โหลด PO Sell ไม่ได้')
     } finally {
+      if (latestLoadRequestRef.current !== requestId) return
       setIsLoading(false)
     }
   }, [dateQuery])
@@ -229,9 +238,9 @@ export function PoSellPageClient() {
         <div className="flex flex-wrap items-center gap-2">
           <input className="min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm" placeholder="🔍 ค้นหาเลข PO / ชื่อ Customer / ชื่อสินค้า / หมายเหตุ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <label className="text-xs text-slate-500">วันที่:</label>
-          <input aria-label="จากวันที่" className="rounded-md border px-2 py-2 text-sm" title="จากวันที่" type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
+          <DatePickerInput ariaLabel="จากวันที่" className="w-[130px]" title="จากวันที่" value={fromDate} onChange={setFromDate} />
           <span className="text-slate-400">→</span>
-          <input aria-label="ถึงวันที่" className="rounded-md border px-2 py-2 text-sm" title="ถึงวันที่" type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
+          <DatePickerInput ariaLabel="ถึงวันที่" className="w-[130px]" title="ถึงวันที่" value={toDate} onChange={setToDate} />
           {hasFilters ? <button className="rounded-md bg-slate-100 px-3 py-2 text-xs hover:bg-slate-200" type="button" onClick={resetFilters}>✕ ล้าง</button> : null}
           <a className="ml-auto rounded-md bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700" href={exportHref}>Export Excel</a>
           <button className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-60" disabled={isSaving} type="button" onClick={openCreateForm}>+ PO Sell ใหม่</button>
@@ -297,7 +306,7 @@ export function PoSellPageClient() {
             {!isLoading && pageRows.map((row) => (
               <tr key={row.id} className="border-t hover:bg-slate-50">
                 <td className="p-2 font-mono">{row.docNo}</td>
-                <td className="p-2">{row.date}</td>
+                <td className="p-2">{formatDateDisplay(row.date)}</td>
                 <td className="p-2">{row.customerName}</td>
                 <td className="p-2 text-xs"><div>{row.productName || '-'}</div>{row.itemCount > 1 ? <div className="text-slate-400">+ อีก {row.itemCount - 1} รายการ</div> : null}</td>
                 <td className="p-2 text-right">{formatMoney(row.qty)}</td>
@@ -325,7 +334,7 @@ export function PoSellPageClient() {
                 <SelectField className="col-span-2" error={fieldErrors.customerId} label="Customer *" options={activeCustomers} value={form.customerId} onChange={(value) => updateForm('customerId', value)} />
                 <SelectField error={fieldErrors.branchId} label="สาขา/คลัง *" options={activeBranches} value={form.branchId ?? ''} onChange={(value) => updateForm('branchId', value || null)} />
                 <SelectField error={fieldErrors.channelId} label="ช่องทางขาย" options={activeChannels} value={form.channelId ?? ''} onChange={(value) => updateForm('channelId', value || null)} />
-                <Field error={fieldErrors.expectedDelivery} label="วันส่งมอบ *"><input className="w-full rounded-md border px-2 py-1.5" required type="date" value={form.expectedDelivery} onChange={(event) => updateForm('expectedDelivery', event.target.value)} /></Field>
+                <Field error={fieldErrors.expectedDelivery} label="วันส่งมอบ *"><DatePickerInput className="w-full" required value={form.expectedDelivery} onChange={(value) => updateForm('expectedDelivery', value)} /></Field>
               </div>
 
               <div>

@@ -1,3 +1,16 @@
+import { format, parseISO } from 'date-fns'
+
+export function formatDateDisplay(value: string | null | undefined) {
+  if (!value) return '-'
+
+  const normalized = value.includes('T') ? value.slice(0, 10) : value
+  try {
+    return format(parseISO(normalized), 'dd/MM/yyyy')
+  } catch {
+    return value
+  }
+}
+
 export function formatPhoneDisplay(value: string | null | undefined) {
   if (!value) return null
   const digits = value.replace(/\D/g, '')

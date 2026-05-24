@@ -12,6 +12,7 @@ import { TableNumberCell } from '@/components/ui/TableNumberCell'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/Tooltip'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { formatDateDisplay } from '@/lib/format'
 import { poBuyFormSchema, type PoBuyFormValues } from '@/lib/po-buy'
 
 type Option = {
@@ -453,7 +454,7 @@ export function PoBuyPageClient() {
             <TableRow key={row.id} className={`cursor-pointer border-slate-100 hover:bg-slate-50 ${index % 2 === 1 ? 'bg-slate-50/40' : ''}`} onClick={() => setSelectedRow(row)}>
                 <TableCell className="text-center"><input aria-label={`เลือก ${row.docNo}`} checked={selectedPoIds.includes(row.id)} type="checkbox" onChange={() => toggleRowSelection(row.id)} onClick={(event) => event.stopPropagation()} /></TableCell>
                 <TableCell className="w-36 whitespace-nowrap font-mono">{row.docNo}</TableCell>
-                <TableCell className="w-28 whitespace-nowrap">{row.date}</TableCell>
+                <TableCell className="w-28 whitespace-nowrap">{formatDateDisplay(row.date)}</TableCell>
                 <TableCell className="w-36">{row.supplierName}</TableCell>
                 <TableCell>
                   <PoBuyTruncatedText text={row.productName} />
@@ -461,7 +462,7 @@ export function PoBuyPageClient() {
                 <TableNumberCell value={formatMoney(row.qty)} />
                 <TableNumberCell strong value={formatMoney(row.totalAmount)} widthClass="w-32 max-w-32" />
                 <TableNumberCell tone="amber" value={formatMoney(row.remainingQty)} />
-                <TableCell className="w-28 whitespace-nowrap">{row.expectedDelivery || '-'}</TableCell>
+                <TableCell className="w-28 whitespace-nowrap">{formatDateDisplay(row.expectedDelivery)}</TableCell>
                 <TableCell className="text-center"><PoBuyNoteIndicator note={row.notes} poNo={row.docNo} /></TableCell>
                 <TableCell className="w-28 whitespace-nowrap text-center"><span className={`rounded-full px-2 py-0.5 ${statusBadge(row.status)}`}>{row.status}</span></TableCell>
                 <TableCell className="w-28 whitespace-nowrap text-xs text-slate-600"><div className="truncate">{row.updatedBy || row.createdBy || '-'}</div><div className="font-mono text-[10px] text-slate-400">{formatDateTime(row.updatedAt || row.createdAt)}</div></TableCell>
@@ -781,7 +782,7 @@ function PoBuyFormModal({
             </div>
             <div>
               <label className="mb-1 block text-xs">วันส่งมอบ *</label>
-              <UiInput className="h-9 w-full px-2 py-1.5" required type="date" value={form.expectedDelivery} onChange={(event) => onUpdate('expectedDelivery', event.target.value)} />
+              <DatePickerInput className="h-9 w-full" required value={form.expectedDelivery} onChange={(value) => onUpdate('expectedDelivery', value)} />
               {fieldError('expectedDelivery')}
             </div>
           </div>
@@ -853,8 +854,8 @@ function PoBuyDetailModal({ onClose, row }: { onClose: () => void; row: PoBuyRow
           </div>
         </DialogHeader>
         <div className="grid gap-3 p-4 md:grid-cols-3">
-          <Detail label="วันที่สร้างเอกสาร" value={row.date || '-'} />
-          <Detail label="วันที่กำหนดส่ง" value={row.expectedDelivery || '-'} />
+          <Detail label="วันที่สร้างเอกสาร" value={formatDateDisplay(row.date)} />
+          <Detail label="วันที่กำหนดส่ง" value={formatDateDisplay(row.expectedDelivery)} />
           <Detail label="สถานะ" value={row.status} />
           <Detail label="Qty" value={formatMoney(row.qty)} />
           <Detail label="คงเหลือ" value={formatMoney(row.remainingQty)} />

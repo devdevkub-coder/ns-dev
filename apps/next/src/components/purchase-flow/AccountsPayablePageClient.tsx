@@ -1,7 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
+import { formatDateDisplay } from '@/lib/format'
 
 type SelectOption = {
   active: boolean | null
@@ -94,6 +96,7 @@ function currentMonthStart() {
 }
 
 export function AccountsPayablePageClient() {
+  const latestLoadRequestRef = useRef(0)
   const [data, setData] = useState<ApPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isExporting, setIsExporting] = useState(false)
@@ -131,13 +134,19 @@ export function AccountsPayablePageClient() {
   }, [branchId, bucket, channelId, from, page, q, sortDirection, sortKey, status, supplierId, to])
 
   const loadData = useCallback(async () => {
+    const requestId = latestLoadRequestRef.current + 1
+    latestLoadRequestRef.current = requestId
     setError(null)
     setIsLoading(true)
     try {
-      setData(await dailyFetchJson<ApPayload>(`/api/finance/ap?${query.toString()}`))
+      const payload = await dailyFetchJson<ApPayload>(`/api/finance/ap?${query.toString()}`)
+      if (latestLoadRequestRef.current !== requestId) return
+      setData(payload)
     } catch (caught) {
+      if (latestLoadRequestRef.current !== requestId) return
       setError(caught instanceof Error ? caught.message : 'โหลด AP ไม่ได้')
     } finally {
+      if (latestLoadRequestRef.current !== requestId) return
       setIsLoading(false)
     }
   }, [query])
@@ -312,11 +321,11 @@ export function AccountsPayablePageClient() {
           <span className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-500">พบ {data?.pagination.totalRows ?? 0} รายการ</span>
           <label className="text-xs text-slate-500">
             จากวันที่
-            <input className="mt-1 w-full rounded-md border px-3 py-2 text-sm text-slate-900" type="date" value={from} onChange={(event) => { setPage(1); setFrom(event.target.value) }} />
+            <DatePickerInput className="mt-1 w-full" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
           </label>
           <label className="text-xs text-slate-500">
             ถึงวันที่
-            <input className="mt-1 w-full rounded-md border px-3 py-2 text-sm text-slate-900" type="date" value={to} onChange={(event) => { setPage(1); setTo(event.target.value) }} />
+            <DatePickerInput className="mt-1 w-full" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
           </label>
           <button className="rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700" type="button" onClick={() => { setBranchId(''); setBucket(''); setChannelId(''); setFrom(''); setPage(1); setQ(''); setStatus(''); setSupplierId(''); setTo('') }}>ล้างตัวกรอง</button>
         </div>
@@ -453,8 +462,8 @@ function DetailTable({
             <tr key={row.id} className={`border-t ${row.aging > 30 ? 'bg-red-50/50' : row.aging > 0 ? 'bg-amber-50/30' : ''}`}>
               <td className="p-2">{row.supplierName}</td>
               <td className="p-2"><button className="font-mono text-xs text-blue-600" type="button" onClick={() => onOpen(row)}>{row.docNo}</button></td>
-              <td className="p-2">{row.date}</td>
-              <td className="p-2">{row.dueDate}</td>
+              <td className="p-2">{formatDateDisplay(row.date)}</td>
+              <td className="p-2">{formatDateDisplay(row.dueDate)}</td>
               <td className="p-2 text-center"><span className={`rounded-md px-2 py-0.5 text-xs ${bucketClass(row.bucket)}`}>{row.bucket} ({row.aging})</span></td>
               <td className="p-2 text-right">{formatMoney(row.totalAmount)}</td>
               <td className="p-2 text-right text-emerald-600">{formatMoney(row.paidAmount)}</td>
@@ -489,8 +498,8 @@ function DetailModal({ onClose, row }: { onClose: () => void; row: ApRow }) {
           <button className="rounded-md bg-slate-100 px-3 py-1 text-sm" type="button" onClick={onClose}>ปิด</button>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <Info label="วันที่บิล" value={row.date} />
-          <Info label="ครบกำหนด" value={row.dueDate} />
+          <Info label="วันที่บิล" value={formatDateDisplay(row.date)} />
+          <Info label="ครบกำหนด" value={formatDateDisplay(row.dueDate)} />
           <Info label="Credit term" value={`${row.creditTerm} วัน`} />
           <Info label="อายุหนี้" value={`${row.aging} วัน (${row.bucket})`} />
           <Info label="ช่องทางซื้อ" value={row.channelName} />

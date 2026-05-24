@@ -1,5 +1,6 @@
 'use client'
 
+import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { FormSelectField } from '@/components/ui/FormSelectField'
 import { Input as UiInput } from '@/components/ui/Input'
 import { Select as UiSelect } from '@/components/ui/Select'
@@ -59,7 +60,7 @@ export function BillSelect(props: {
 }
 
 export function Field(props: { label: string; onChange: (value: string) => void; readOnly?: boolean; type?: string; value: string }) {
-  return <label className="block text-sm font-medium">{props.label}<UiInput className="mt-1.5 w-full" readOnly={props.readOnly} type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange(event.target.value)} /></label>
+  return <label className="block text-sm font-medium">{props.label}{props.type === 'date' ? <DatePickerInput className="mt-1.5 w-full" readOnly={props.readOnly} value={props.value} onChange={props.onChange} /> : <UiInput className="mt-1.5 w-full" readOnly={props.readOnly} type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange(event.target.value)} />}</label>
 }
 
 export function SelectField(props: { allowEmpty?: boolean; label: string; onChange: (value: string) => void; options: Array<{ id: string; name: string }>; placeholder?: string; required?: boolean; value: string }) {

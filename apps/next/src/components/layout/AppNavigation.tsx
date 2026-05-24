@@ -3,13 +3,14 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { canAccessPath, navigationItems, navigationSections } from '@/lib/navigation'
+import { canAccessPath, navigationItems, navigationSections, type NavigationSectionKey } from '@/lib/navigation'
 
 type AppNavigationProps = {
   onNavigate?: () => void
 }
 
 const SIDEBAR_SCROLL_KEY = 'ns-scrap-erp-sidebar-scroll-top'
+const SIDEBAR_SECTION_KEY = 'ns-scrap-erp-sidebar-sections'
 
 export function AppNavigation({ onNavigate }: AppNavigationProps) {
   const pathname = usePathname()
@@ -18,6 +19,9 @@ export function AppNavigation({ onNavigate }: AppNavigationProps) {
   const suppressScrollSaveRef = useRef(false)
   const [authContext, setAuthContext] = useState<{ isAdmin: boolean; permissions: string[] } | null>(null)
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set())
+  const [expandedSections, setExpandedSections] = useState<Set<NavigationSectionKey>>(
+    () => new Set(navigationSections.map((section) => section.key)),
+  )
 
   useEffect(() => {
     let mounted = true
@@ -63,6 +67,36 @@ export function AppNavigation({ onNavigate }: AppNavigationProps) {
 
     setExpandedMenus((current) => new Set(current).add(activeParent.href))
   }, [pathname])
+
+  useEffect(() => {
+    const savedSections = window.sessionStorage.getItem(SIDEBAR_SECTION_KEY)
+    if (!savedSections) return
+
+    try {
+      const parsed = JSON.parse(savedSections)
+      if (!Array.isArray(parsed)) return
+      const nextSections = parsed.filter((value): value is NavigationSectionKey =>
+        navigationSections.some((section) => section.key === value),
+      )
+      if (nextSections.length > 0) {
+        setExpandedSections(new Set(nextSections))
+      }
+    } catch {
+      // Ignore malformed session data and fall back to default expanded sections.
+    }
+  }, [])
+
+  useEffect(() => {
+    const activeItem = visibleItems.find((item) => item.href === pathname || item.children?.some((child) => child.href === pathname))
+    if (!activeItem) return
+
+    setExpandedSections((current) => {
+      if (current.has(activeItem.section)) return current
+      const next = new Set(current).add(activeItem.section)
+      window.sessionStorage.setItem(SIDEBAR_SECTION_KEY, JSON.stringify(Array.from(next)))
+      return next
+    })
+  }, [pathname, visibleItems])
 
   useEffect(() => {
     const nav = navRef.current
@@ -130,16 +164,38 @@ export function AppNavigation({ onNavigate }: AppNavigationProps) {
     })
   }
 
+  function toggleSection(sectionKey: NavigationSectionKey) {
+    setExpandedSections((current) => {
+      const next = new Set(current)
+      if (next.has(sectionKey)) {
+        next.delete(sectionKey)
+      } else {
+        next.add(sectionKey)
+      }
+      window.sessionStorage.setItem(SIDEBAR_SECTION_KEY, JSON.stringify(Array.from(next)))
+      return next
+    })
+  }
+
   return (
     <nav ref={navRef} className="flex-1 overflow-y-auto py-3 text-sm" aria-label="Main navigation" onScroll={rememberSidebarScroll}>
       {navigationSections.map((section) => {
         const items = visibleItems.filter((item) => item.section === section.key)
         if (!items.length) return null
+        const sectionExpanded = expandedSections.has(section.key)
 
         return (
           <div key={section.key}>
-            <div className="px-4 pb-1 pt-4 text-xs uppercase tracking-wider text-slate-500">{section.label}</div>
-            {items.map((item) => {
+            <button
+              aria-expanded={sectionExpanded}
+              className="flex w-full items-center justify-between px-4 pb-1 pt-4 text-left text-xs uppercase tracking-wider text-slate-500 transition hover:text-slate-300"
+              type="button"
+              onClick={() => toggleSection(section.key)}
+            >
+              <span>{section.label}</span>
+              <span className="text-[10px]">{sectionExpanded ? '▾' : '▸'}</span>
+            </button>
+            {sectionExpanded ? items.map((item) => {
               const childActive = item.children?.some((child) => child.href === pathname) ?? false
               const active = pathname === item.href || childActive
               const expanded = expandedMenus.has(item.href)
@@ -217,7 +273,7 @@ export function AppNavigation({ onNavigate }: AppNavigationProps) {
                   ) : null}
                 </div>
               )
-            })}
+            }) : null}
           </div>
         )
       })}

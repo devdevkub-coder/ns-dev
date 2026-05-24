@@ -1,7 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { formatDateDisplay } from '@/lib/format'
 
 type TradingPayload = {
   deals: Array<{ customerName: string; date: string; dealNo: string; grossProfit: number; grossProfitPct: number; id: string; matchedPurchaseAmount: number; matchedQty: number; matchedSalesAmount: number; productName: string; purchaseBillNo: string; salesBillNo: string; status: string; supplierName: string }>
@@ -175,8 +177,8 @@ export function TradingMatchingPageClient() {
             <option value="all">ทุกสถานะ</option>
             {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
-          <input aria-label="วันที่เริ่มต้น" className="rounded-md border px-3 py-2 text-sm" type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
-          <input aria-label="วันที่สิ้นสุด" className="rounded-md border px-3 py-2 text-sm" type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
+          <DatePickerInput ariaLabel="วันที่เริ่มต้น" className="w-[130px]" value={fromDate} onChange={setFromDate} />
+          <DatePickerInput ariaLabel="วันที่สิ้นสุด" className="w-[130px]" value={toDate} onChange={setToDate} />
           <input className="min-w-64 flex-1 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหา deal / PB / SB / คู่ค้า / สินค้า" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           {hasFilters ? <button className="rounded-md border px-3 py-2 text-sm" type="button" onClick={resetFilters}>ล้าง</button> : null}
           <a className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white" href={exportHref}>Export XLSX</a>
@@ -196,7 +198,7 @@ export function TradingMatchingPageClient() {
               <tbody>
                 {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={13}>กำลังโหลดข้อมูล</td></tr> : null}
                 {!isLoading && !error && visibleDeals.length === 0 ? <tr><td className="py-8 text-center text-slate-400" colSpan={13}>ยังไม่มีดีล Trading — กด + จับคู่ใหม่</td></tr> : null}
-                {!isLoading && visibleDeals.map((row) => <tr key={row.id} className={`border-t hover:bg-slate-50 ${row.status.toLowerCase().includes('cancel') ? 'bg-slate-50 text-slate-400 line-through' : ''}`}><td className="p-2 font-mono text-xs">{row.dealNo}</td><td className="p-2 text-xs">{row.date}</td><td className="p-2 font-mono text-xs">{row.purchaseBillNo || '-'}</td><td className="p-2 text-xs">{row.supplierName}</td><td className="p-2 font-mono text-xs">{row.salesBillNo || '-'}</td><td className="p-2 text-xs">{row.customerName}</td><td className="p-2 text-right">{formatMoney(row.matchedQty)}</td><td className={`p-2 text-right ${row.status.toLowerCase().includes('cancel') ? '' : 'text-red-600'}`}>{formatMoney(row.matchedPurchaseAmount)}</td><td className={`p-2 text-right ${row.status.toLowerCase().includes('cancel') ? '' : 'text-emerald-700'}`}>{formatMoney(row.matchedSalesAmount)}</td><td className={`p-2 text-right font-bold ${row.status.toLowerCase().includes('cancel') ? '' : row.grossProfit >= 0 ? 'text-purple-700' : 'text-red-600'}`}>{formatMoney(row.grossProfit)}</td><td className="p-2 text-right">{row.grossProfitPct.toFixed(2)}%</td><td className="p-2 text-center"><span className={`rounded-md px-2 py-0.5 text-xs ${statusBadge(row.status)}`}>{row.status}</span></td><td className="whitespace-nowrap p-2"><button className="mr-2 rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" type="button" onClick={() => setSelectedDeal(row)}>จัดการ</button><button className="mr-2 text-xs text-blue-600 opacity-50" type="button" disabled>🔄 Recalc</button><button className="text-xs text-red-600 opacity-50" type="button" disabled>Reverse</button></td></tr>)}
+                {!isLoading && visibleDeals.map((row) => <tr key={row.id} className={`border-t hover:bg-slate-50 ${row.status.toLowerCase().includes('cancel') ? 'bg-slate-50 text-slate-400 line-through' : ''}`}><td className="p-2 font-mono text-xs">{row.dealNo}</td><td className="p-2 text-xs">{formatDateDisplay(row.date)}</td><td className="p-2 font-mono text-xs">{row.purchaseBillNo || '-'}</td><td className="p-2 text-xs">{row.supplierName}</td><td className="p-2 font-mono text-xs">{row.salesBillNo || '-'}</td><td className="p-2 text-xs">{row.customerName}</td><td className="p-2 text-right">{formatMoney(row.matchedQty)}</td><td className={`p-2 text-right ${row.status.toLowerCase().includes('cancel') ? '' : 'text-red-600'}`}>{formatMoney(row.matchedPurchaseAmount)}</td><td className={`p-2 text-right ${row.status.toLowerCase().includes('cancel') ? '' : 'text-emerald-700'}`}>{formatMoney(row.matchedSalesAmount)}</td><td className={`p-2 text-right font-bold ${row.status.toLowerCase().includes('cancel') ? '' : row.grossProfit >= 0 ? 'text-purple-700' : 'text-red-600'}`}>{formatMoney(row.grossProfit)}</td><td className="p-2 text-right">{row.grossProfitPct.toFixed(2)}%</td><td className="p-2 text-center"><span className={`rounded-md px-2 py-0.5 text-xs ${statusBadge(row.status)}`}>{row.status}</span></td><td className="whitespace-nowrap p-2"><button className="mr-2 rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" type="button" onClick={() => setSelectedDeal(row)}>จัดการ</button><button className="mr-2 text-xs text-blue-600 opacity-50" type="button" disabled>🔄 Recalc</button><button className="text-xs text-red-600 opacity-50" type="button" disabled>Reverse</button></td></tr>)}
               </tbody>
             </table>
           </div>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePathname } from 'next/navigation'
+import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 import type { StatusConvertFormValues, StockAdjustFormValues, StockConvertFormValues, StockOption } from '@/lib/stock'
 
@@ -139,8 +140,8 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
                 <option value="LOSS">📉 นับขาด</option>
                 <option value="GAIN">📈 นับเกิน</option>
               </select>
-              <input className="rounded-md border px-3 py-2 text-sm" title="จากวันที่" type="date" value={fromDateFilter} onChange={(event) => setFromDateFilter(event.target.value)} />
-              <input className="rounded-md border px-3 py-2 text-sm" title="ถึงวันที่" type="date" value={toDateFilter} onChange={(event) => setToDateFilter(event.target.value)} />
+              <DatePickerInput className="w-[130px]" title="จากวันที่" value={fromDateFilter} onChange={setFromDateFilter} />
+              <DatePickerInput className="w-[130px]" title="ถึงวันที่" value={toDateFilter} onChange={setToDateFilter} />
               <button className="rounded-md bg-slate-700 px-3 py-2 text-sm text-white opacity-60" disabled title="รอ export contract สำหรับ stock adjustment" type="button">📥 CSV</button>
             </>
           ) : mode === 'status-convert' ? (
@@ -382,7 +383,7 @@ function Metric({ cardClassName = 'rounded-md bg-white p-3 shadow', label, value
 }
 
 function Field(props: { label: string; onChange: (value: string) => void; type?: string; value: string }) {
-  return <label className="block text-sm font-medium">{props.label}<input className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2" type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange(event.target.value)} /></label>
+  return <label className="block text-sm font-medium">{props.label}{props.type === 'date' ? <DatePickerInput className="mt-1.5 w-full" value={props.value} onChange={props.onChange} /> : <input className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2" type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange(event.target.value)} />}</label>
 }
 
 function Select(props: { label: string; onChange: (value: string) => void; options: StockOption[]; value: string }) {

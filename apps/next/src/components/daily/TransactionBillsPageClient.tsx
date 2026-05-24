@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Download } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -16,6 +16,7 @@ import { Table, TableBody, TableHeader, TableRow } from '@/components/ui/Table'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/Tooltip'
 import { SELECTED_BRANCH_KEY } from '@/lib/branch-selection'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { formatDateDisplay } from '@/lib/format'
 import { purchaseBillCancelSchema, purchaseBillFormSchema, type PurchaseBillCancelValues, type PurchaseBillFormValues } from '@/lib/purchase-bill'
 import { salesBillFormSchema, type SalesBillFormValues } from '@/lib/sales'
 
@@ -256,6 +257,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const [totalAmount, setTotalAmount] = useState(0)
   const [totalRows, setTotalRows] = useState(0)
   const [vatRatePercent, setVatRatePercent] = useState(7)
+  const latestLoadRequestRef = useRef(0)
   const apiPath = mode === 'purchase' ? '/api/purchase/bills' : mode === 'sales' ? '/api/sales/bills' : '/api/sales/stock-issue'
   const requestPath = useMemo(() => {
     const params = new URLSearchParams({
@@ -274,11 +276,14 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   }, [apiPath, dateFrom, dateTo, filterMode, mode, page, pageSize, search, sortDirection, sortKey, statusFilter])
 
   const loadData = useCallback(async () => {
+    const requestId = latestLoadRequestRef.current + 1
+    latestLoadRequestRef.current = requestId
     setIsLoading(true)
     setError(null)
     try {
       if (mode === 'purchase') {
         const payload = await dailyFetchJson<PurchasePayload>(requestPath)
+        if (latestLoadRequestRef.current !== requestId) return
         setRows(payload.rows)
         setTotalAmount(payload.totalAmount ?? 0)
         setTotalRows(payload.totalRows ?? payload.rows.length)
@@ -295,6 +300,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         })
       } else if (mode === 'sales') {
         const payload = await dailyFetchJson<SalesPayload>(requestPath)
+        if (latestLoadRequestRef.current !== requestId) return
         setRows(payload.rows)
         setTotalAmount(payload.totalAmount ?? 0)
         setTotalRows(payload.totalRows ?? payload.rows.length)
@@ -309,13 +315,16 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         }))
       } else {
         const payload = await dailyFetchJson<TransactionPayload>(requestPath)
+        if (latestLoadRequestRef.current !== requestId) return
         setRows(payload.rows)
         setTotalAmount(payload.totalAmount ?? 0)
         setTotalRows(payload.totalRows ?? payload.rows.length)
       }
     } catch (caught) {
+      if (latestLoadRequestRef.current !== requestId) return
       setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลไม่ได้')
     } finally {
+      if (latestLoadRequestRef.current !== requestId) return
       setIsLoading(false)
     }
   }, [mode, requestPath])
@@ -760,7 +769,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               <TableRow key={row.id} className={`hover:bg-slate-50 ${mode === 'purchase' && !isStockIssueRow(row) ? 'cursor-pointer' : ''}`} onClick={() => openRow(row)}>
                 <td className="p-2 font-mono text-xs">{row.docNo}</td>
                 {mode === 'sales' && !isStockIssueRow(row) ? <td className="p-2 font-mono text-xs text-slate-600">{row.refNo || '-'}</td> : null}
-                <td className="p-2">{row.date}</td>
+                <td className="p-2">{formatDateDisplay(row.date)}</td>
                 <td className="p-2">{'supplierName' in row ? row.supplierName : row.customerName}</td>
                 {mode !== 'purchase' ? <td className="p-2">{formatBranchWarehouse(row)}</td> : null}
                 {mode !== 'stock-issue' && !isStockIssueRow(row) ? <td className="p-2 text-center"><span className={`rounded-md-full px-2 py-0.5 text-xs font-semibold ${row.transactionMode === 'TRADING' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>{row.transactionMode ?? '-'}</span></td> : null}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 
@@ -81,6 +81,7 @@ function currentMonthStart() {
 }
 
 export function AccountsReceivablePageClient() {
+  const latestLoadRequestRef = useRef(0)
   const [data, setData] = useState<ArPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isExporting, setIsExporting] = useState(false)
@@ -117,13 +118,19 @@ export function AccountsReceivablePageClient() {
   }, [branchId, bucket, channelId, customerId, from, page, q, sortDirection, sortKey, status, to])
 
   const loadData = useCallback(async () => {
+    const requestId = latestLoadRequestRef.current + 1
+    latestLoadRequestRef.current = requestId
     setError(null)
     setIsLoading(true)
     try {
-      setData(await dailyFetchJson<ArPayload>(`/api/finance/ar?${query.toString()}`))
+      const payload = await dailyFetchJson<ArPayload>(`/api/finance/ar?${query.toString()}`)
+      if (latestLoadRequestRef.current !== requestId) return
+      setData(payload)
     } catch (caught) {
+      if (latestLoadRequestRef.current !== requestId) return
       setError(caught instanceof Error ? caught.message : 'โหลด AR ไม่ได้')
     } finally {
+      if (latestLoadRequestRef.current !== requestId) return
       setIsLoading(false)
     }
   }, [query])

@@ -136,7 +136,7 @@ export function canAccessPath(pathname: string, context: { isAdmin?: boolean; pe
 }
 
 export const navigationSections: Array<{ key: NavigationSectionKey; label: string }> = [
-  { key: 'main', label: 'หน้าหลัก' },
+  { key: 'main', label: 'Dashboard & Reports' },
   { key: 'tracking', label: 'Tracking 360°' },
   { key: 'daily', label: 'รายการประจำวัน' },
   { key: 'production', label: 'การผลิต' },

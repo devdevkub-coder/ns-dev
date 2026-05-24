@@ -1,7 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, expenseFormSchema, formatMoney, todayDateInput, type DailyAccountOption, type ExpenseFormValues } from '@/lib/daily'
+import { formatDateDisplay } from '@/lib/format'
 
 type CategoryOption = { active: boolean | null; id: string; name: string }
 type ExpenseRow = ExpenseFormValues & {
@@ -400,9 +402,9 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
             <div className="flex flex-wrap items-center gap-2">
               <input className="min-w-[220px] flex-1 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหาเลข Voucher / ผู้รับ / อ้างอิง..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
               <label className="text-xs text-slate-500">วันที่:</label>
-              <input className="rounded-md border px-2 py-2 text-sm" title="จากวันที่" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
+              <DatePickerInput className="w-[130px]" title="จากวันที่" value={dateFrom} onChange={setDateFrom} />
               <span className="text-slate-400">→</span>
-              <input className="rounded-md border px-2 py-2 text-sm" title="ถึงวันที่" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
+              <DatePickerInput className="w-[130px]" title="ถึงวันที่" value={dateTo} onChange={setDateTo} />
               <select className="rounded-md border px-3 py-2 text-sm" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
                 <option value="">ทุกหมวด</option>
                 {categories.filter((category) => category.active !== false).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
@@ -495,8 +497,8 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                   return (
                     <tr key={row.id} className={`border-t hover:bg-slate-50 ${row.paidStatus === 'pending' ? 'bg-amber-50/40' : ''}`}>
                       <td className="p-2 font-mono text-xs">{row.docNo}</td>
-                      <td className="p-2">{row.date}</td>
-                      <td className="p-2 text-xs">{row.dueDate ? <span className={overdue ? 'font-bold text-red-600' : 'text-slate-700'}>{row.dueDate}{overdue ? <span className="block text-[10px] text-red-500">เลยกำหนด</span> : null}</span> : <span className="text-slate-300">-</span>}</td>
+                      <td className="p-2">{formatDateDisplay(row.date)}</td>
+                      <td className="p-2 text-xs">{row.dueDate ? <span className={overdue ? 'font-bold text-red-600' : 'text-slate-700'}>{formatDateDisplay(row.dueDate)}{overdue ? <span className="block text-[10px] text-red-500">เลยกำหนด</span> : null}</span> : <span className="text-slate-300">-</span>}</td>
                       <td className="p-2 font-mono text-xs text-slate-600">{row.refDocNo || '-'}</td>
                       <td className="p-2"><div className="font-medium">{row.payee}</div><div className="text-xs text-slate-500">{row.categoryName}</div></td>
                       <td className="p-2">{row.accountName}</td>
@@ -566,7 +568,9 @@ function TextField(props: { error?: string; label: string; onChange?: (value: st
   return (
     <label className="block text-sm font-medium">
       {props.label}{props.required ? <span className="text-red-600"> *</span> : null}
-      <input className={`mt-1.5 w-full rounded-md border px-3 py-2 outline-none ${props.error ? 'border-red-400 bg-red-50' : 'border-slate-300'} ${props.readOnly ? 'bg-slate-50' : ''}`} readOnly={props.readOnly} type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange?.(event.target.value)} />
+      {props.type === 'date'
+        ? <DatePickerInput className="mt-1.5 w-full" readOnly={props.readOnly} required={props.required} value={props.value} onChange={(value) => props.onChange?.(value)} />
+        : <input className={`mt-1.5 w-full rounded-md border px-3 py-2 outline-none ${props.error ? 'border-red-400 bg-red-50' : 'border-slate-300'} ${props.readOnly ? 'bg-slate-50' : ''}`} readOnly={props.readOnly} type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange?.(event.target.value)} />}
       {props.error ? <span className="mt-1 block text-xs text-red-700">{props.error}</span> : null}
     </label>
   )

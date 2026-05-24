@@ -1,7 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney, stockTransferFormSchema, todayDateInput, type StockTransferFormValues } from '@/lib/daily'
+import { formatDateDisplay } from '@/lib/format'
 
 type Option = { active: boolean | null; branch_id?: string | null; code?: string | null; id: string; name: string }
 type Row = { date: string; docNo: string; from: string; id: string; itemCount: number; notes: string; to: string; totalQty: number }
@@ -126,9 +128,9 @@ export function StockTransferPageClient() {
       <div className="space-y-2 rounded-md bg-white p-3 shadow">
         <div className="flex flex-wrap items-center gap-2">
           <input className="min-w-[220px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="ค้นหาเลขที่ / ต้นทาง / ปลายทาง / หมายเหตุ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <input className="rounded-md border border-slate-300 px-2 py-2 text-sm" type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPeriod('') }} />
+          <DatePickerInput className="w-[130px]" value={dateFrom} onChange={(value) => { setDateFrom(value); setPeriod('') }} />
           <span className="text-slate-400">→</span>
-          <input className="rounded-md border border-slate-300 px-2 py-2 text-sm" type="date" value={dateTo} onChange={(event) => { setDateTo(event.target.value); setPeriod('') }} />
+          <DatePickerInput className="w-[130px]" value={dateTo} onChange={(value) => { setDateTo(value); setPeriod('') }} />
           <select className="rounded-md border border-slate-300 px-2 py-2 text-sm" value={fromBranchId} onChange={(event) => setFromBranchId(event.target.value)}>
             <option value="">ทุกสาขาต้นทาง</option>
             {branchOptions.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
@@ -198,7 +200,7 @@ export function StockTransferPageClient() {
           <thead className="bg-slate-100"><tr><th className="p-2 text-left">เลขที่</th><th className="p-2 text-left">วันที่</th><th className="p-2 text-left">จาก</th><th className="p-2 text-left">ไป</th><th className="p-2 text-left">รายการ</th><th className="p-2 text-right">น้ำหนักรวม</th><th className="p-2 text-right"></th></tr></thead>
           <tbody>
             {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={7}>กำลังโหลดข้อมูล</td></tr> : null}
-            {!isLoading && rows.map((row) => <tr key={row.id} className="border-t hover:bg-slate-50"><td className="p-2 font-mono text-xs">{row.docNo}</td><td className="p-2">{row.date}</td><td className="p-2 text-red-600">{row.from}</td><td className="p-2 text-emerald-600">{row.to}</td><td className="p-2">{row.itemCount} รายการ</td><td className="p-2 text-right font-semibold">{formatMoney(row.totalQty)} กก.</td><td className="p-2 text-right"><button className="text-xs text-slate-400" disabled title="รอออกแบบ cancel/tombstone flow" type="button">ยกเลิก</button></td></tr>)}
+            {!isLoading && rows.map((row) => <tr key={row.id} className="border-t hover:bg-slate-50"><td className="p-2 font-mono text-xs">{row.docNo}</td><td className="p-2">{formatDateDisplay(row.date)}</td><td className="p-2 text-red-600">{row.from}</td><td className="p-2 text-emerald-600">{row.to}</td><td className="p-2">{row.itemCount} รายการ</td><td className="p-2 text-right font-semibold">{formatMoney(row.totalQty)} กก.</td><td className="p-2 text-right"><button className="text-xs text-slate-400" disabled title="รอออกแบบ cancel/tombstone flow" type="button">ยกเลิก</button></td></tr>)}
             {!isLoading && rows.length === 0 ? <tr><td className="py-8 text-center text-slate-400" colSpan={7}>ยังไม่มีรายการ</td></tr> : null}
           </tbody>
         </table>
@@ -224,7 +226,7 @@ function PeriodButton(props: { active: boolean; label: string; onClick: () => vo
 }
 
 function Field(props: { compact?: boolean; label: string; onChange: (value: string) => void; type?: string; value: string }) {
-  return <label className={`${props.compact ? 'text-xs text-slate-600' : 'text-sm'} block font-medium`}>{props.label}<input className={`${props.compact ? 'mt-1 rounded-md px-2 py-1.5 text-sm' : 'mt-1.5 rounded-md px-3 py-2'} w-full border border-slate-300`} type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange(event.target.value)} /></label>
+  return <label className={`${props.compact ? 'text-xs text-slate-600' : 'text-sm'} block font-medium`}>{props.label}{props.type === 'date' ? <DatePickerInput className={`${props.compact ? 'mt-1' : 'mt-1.5'} w-full`} value={props.value} onChange={props.onChange} /> : <input className={`${props.compact ? 'mt-1 rounded-md px-2 py-1.5 text-sm' : 'mt-1.5 rounded-md px-3 py-2'} w-full border border-slate-300`} type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange(event.target.value)} />}</label>
 }
 
 function Select(props: { compact?: boolean; label: string; onChange: (value: string) => void; options: Option[]; value: string }) {

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { formatDateDisplay } from '@/lib/format'
 
 type ApprovalPayload = {
   apRows: Array<{ bankAccount: string; bankName: string; date: string; docNo: string; id: string; paidAmount: number; payableBalance: number; supplierName: string; totalAmount: number }>
@@ -272,7 +273,7 @@ export function PaymentApprovalPageClient() {
                     <TableRow key={row.id} className={`hover:bg-slate-50 ${selectedRow?.selected ? 'bg-emerald-50' : ''}`}>
                       <TableCell><input checked={selectedRow?.selected ?? false} className="h-4 w-4 rounded-md border-slate-300" type="checkbox" onChange={(event) => setSelected(row, event.target.checked)} /></TableCell>
                       <TableCell className="font-mono text-xs">{row.docNo}</TableCell>
-                      <TableCell className="text-xs">{row.date}</TableCell>
+                      <TableCell className="text-xs">{formatDateDisplay(row.date)}</TableCell>
                       <TableCell className="font-semibold">{row.supplierName}</TableCell>
                       <TableCell>
                         {row.bankAccount ? (
@@ -317,8 +318,8 @@ export function PaymentApprovalPageClient() {
                   return (
                     <TableRow key={row.id} className={`hover:bg-slate-50 ${selectedRow?.selected ? 'bg-emerald-50' : ''}`}>
                       <TableCell><input checked={selectedRow?.selected ?? false} className="h-4 w-4 rounded-md border-slate-300" type="checkbox" onChange={(event) => setSelected(row, event.target.checked)} /></TableCell>
-                      <TableCell className="text-xs"><div className="font-mono font-bold">{row.docNo}</div><div className="text-slate-500">{row.date}</div></TableCell>
-                      <TableCell className="text-xs">{row.dueDate ? <span className={overdue ? 'font-bold text-red-600' : 'text-slate-700'}>{row.dueDate}{overdue ? <span className="block text-[10px] text-red-500">เลยกำหนด</span> : null}</span> : <span className="text-slate-300">-</span>}</TableCell>
+                      <TableCell className="text-xs"><div className="font-mono font-bold">{row.docNo}</div><div className="text-slate-500">{formatDateDisplay(row.date)}</div></TableCell>
+                      <TableCell className="text-xs">{row.dueDate ? <span className={overdue ? 'font-bold text-red-600' : 'text-slate-700'}>{formatDateDisplay(row.dueDate)}{overdue ? <span className="block text-[10px] text-red-500">เลยกำหนด</span> : null}</span> : <span className="text-slate-300">-</span>}</TableCell>
                       <TableCell className="font-semibold">{row.payee}</TableCell>
                       <TableCell>{row.accountName ? <span className="whitespace-nowrap rounded-md bg-yellow-100 px-2 py-1 text-xs font-semibold text-blue-900">{row.accountName}</span> : <span className="text-xs text-amber-600">ไม่มี - แก้ที่บิลหรือ Master</span>}</TableCell>
                       <TableCell className="text-xs">{row.refDocNo ? <div className="font-mono text-slate-700">{row.refDocNo}</div> : <span className="text-slate-300">-</span>}</TableCell>

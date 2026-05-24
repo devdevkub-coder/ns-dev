@@ -13,47 +13,93 @@ function formatDate(date: Date | undefined) {
   return format(date, 'yyyy-MM-dd')
 }
 
+function formatDisplayDate(date: Date | undefined) {
+  if (!date) return ''
+  return format(date, 'dd/MM/yyyy')
+}
+
 function parseDate(value: string) {
   if (!value.trim()) return undefined
-  const parsed = parse(value, 'yyyy-MM-dd', new Date())
+
+  const trimmed = value.trim()
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(trimmed)
+    ? parse(trimmed, 'yyyy-MM-dd', new Date())
+    : parse(trimmed, 'dd/MM/yyyy', new Date())
+
   return Number.isNaN(parsed.getTime()) ? undefined : parsed
 }
 
 export function DatePickerInput({
+  ariaLabel,
   className,
+  disabled = false,
   id,
-  placeholder = 'YYYY-MM-DD',
+  placeholder = '24/05/2026',
+  readOnly = false,
+  required = false,
   showClearButton = true,
   showTodayButton = true,
+  title,
   value,
   onChange,
 }: {
+  ariaLabel?: string
   className?: string
-  id: string
+  disabled?: boolean
+  id?: string
   placeholder?: string
+  readOnly?: boolean
+  required?: boolean
   showClearButton?: boolean
   showTodayButton?: boolean
+  title?: string
   value: string
   onChange: (value: string) => void
 }) {
+  const generatedId = React.useId()
+  const resolvedId = id ?? generatedId
   const [open, setOpen] = React.useState(false)
   const selectedDate = React.useMemo(() => parseDate(value), [value])
   const [month, setMonth] = React.useState<Date | undefined>(selectedDate)
-  const [inputValue, setInputValue] = React.useState(value)
+  const [inputValue, setInputValue] = React.useState(formatDisplayDate(selectedDate))
 
   React.useEffect(() => {
-    setInputValue(value)
     const nextDate = parseDate(value)
+    setInputValue(formatDisplayDate(nextDate))
     if (nextDate) setMonth(nextDate)
   }, [value])
 
   return (
     <InputGroup className={className ?? 'w-[130px]'}>
       <InputGroupInput
-        id={id}
-        value={inputValue}
+        aria-label={ariaLabel}
+        disabled={disabled}
+        id={resolvedId}
         placeholder={placeholder}
+        readOnly={readOnly}
+        required={required}
+        title={title}
+        value={inputValue}
+        onBlur={() => {
+          if (readOnly) return
+
+          const nextDate = parseDate(inputValue)
+          if (nextDate) {
+            setInputValue(formatDisplayDate(nextDate))
+            onChange(formatDate(nextDate))
+            return
+          }
+
+          if (!inputValue.trim()) {
+            onChange('')
+            return
+          }
+
+          setInputValue(formatDisplayDate(parseDate(value)))
+        }}
         onChange={(event) => {
+          if (readOnly) return
+
           const nextValue = event.target.value
           setInputValue(nextValue)
           const nextDate = parseDate(nextValue)
@@ -64,21 +110,8 @@ export function DatePickerInput({
           }
           if (!nextValue.trim()) onChange('')
         }}
-        onBlur={() => {
-          const nextDate = parseDate(inputValue)
-          if (nextDate) {
-            const normalized = formatDate(nextDate)
-            setInputValue(normalized)
-            onChange(normalized)
-            return
-          }
-          if (!inputValue.trim()) {
-            onChange('')
-            return
-          }
-          setInputValue(value)
-        }}
         onKeyDown={(event) => {
+          if (readOnly || disabled) return
           if (event.key === 'ArrowDown') {
             event.preventDefault()
             setOpen(true)
@@ -88,7 +121,7 @@ export function DatePickerInput({
       <InputGroupAddon align="inline-end">
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
-            <InputGroupButton aria-label="เลือกวันที่" size="icon" type="button" variant="ghost">
+            <InputGroupButton aria-label="เลือกวันที่" disabled={disabled} size="icon" type="button" variant="ghost">
               <CalendarIcon className="h-4 w-4" />
               <span className="sr-only">Select date</span>
             </InputGroupButton>
@@ -96,12 +129,12 @@ export function DatePickerInput({
           <PopoverContent align="end" alignOffset={-8} className="w-auto overflow-hidden p-0" sideOffset={10}>
             <Calendar
               mode="single"
-              selected={selectedDate}
               month={month}
+              selected={selectedDate}
               onMonthChange={setMonth}
               onSelect={(date) => {
                 const nextValue = formatDate(date)
-                setInputValue(nextValue)
+                setInputValue(formatDisplayDate(date))
                 onChange(nextValue)
                 setOpen(false)
               }}
@@ -110,7 +143,8 @@ export function DatePickerInput({
               <div className="flex items-center justify-between border-t border-slate-200 px-3 py-2">
                 {showClearButton ? (
                   <button
-                    className="rounded-md px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
+                    className="rounded-md px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                    disabled={disabled || readOnly}
                     type="button"
                     onClick={() => {
                       setInputValue('')
@@ -123,13 +157,14 @@ export function DatePickerInput({
                 ) : <span />}
                 {showTodayButton ? (
                   <button
-                    className="rounded-md px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
+                    className="rounded-md px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                    disabled={disabled || readOnly}
                     type="button"
                     onClick={() => {
-                      const today = formatDate(new Date())
-                      setInputValue(today)
-                      setMonth(new Date())
-                      onChange(today)
+                      const today = new Date()
+                      setInputValue(formatDisplayDate(today))
+                      setMonth(today)
+                      onChange(formatDate(today))
                       setOpen(false)
                     }}
                   >

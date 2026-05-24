@@ -10,7 +10,7 @@ import { Input as UiInput } from '@/components/ui/Input'
 import { Select as UiSelect } from '@/components/ui/Select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
 import { customerReceiptFormSchema, dailyFetchJson, formatMoney, supplierPaymentFormSchema, todayDateInput, type CustomerReceiptFormValues, type DailyAccountOption, type SupplierPaymentFormValues } from '@/lib/daily'
-import { formatAccountNoDisplay } from '@/lib/format'
+import { formatAccountNoDisplay, formatDateDisplay } from '@/lib/format'
 
 type PartyBankAccount = {
   accountNo?: string | null
@@ -717,7 +717,7 @@ export function MoneyMovementPageClient({
                   return (
                     <TableRow key={bill.id} className="cursor-pointer hover:bg-slate-50" onClick={() => openFormForBill(bill)}>
                       <TableCell className="font-mono text-xs font-semibold text-slate-700">{bill.docNo}</TableCell>
-                      <TableCell>{bill.date || '-'}</TableCell>
+                      <TableCell>{formatDateDisplay(bill.date)}</TableCell>
                       <TableCell className="max-w-72 truncate font-medium text-slate-800">{partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'}</TableCell>
                       <TableCell className="w-36 text-xs text-slate-600">
                         {supplierBankAccounts.length > 0 ? (
@@ -992,7 +992,7 @@ export function MoneyMovementPageClient({
                   return (
                     <TableRow key={row.id} className="hover:bg-slate-50">
                       <TableCell className="font-mono text-xs font-semibold text-slate-700">{row.docNo}</TableCell>
-                      <TableCell>{row.date}</TableCell>
+                      <TableCell>{formatDateDisplay(row.date)}</TableCell>
                       <TableCell className="font-medium text-slate-800">{row.partyName}</TableCell>
                       <TableCell className="text-xs">
                         <div className="space-y-1">

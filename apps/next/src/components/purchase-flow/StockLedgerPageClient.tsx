@@ -1,8 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { formatDateDisplay } from '@/lib/format'
 import type { StockOption } from '@/lib/stock'
 
 type StockLedgerPayload = {
@@ -41,6 +43,7 @@ type StockLedgerRow = {
 }
 
 export function StockLedgerPageClient() {
+  const latestLoadRequestRef = useRef(0)
   const [balanceMode, setBalanceMode] = useState<'product' | 'warehouse'>('product')
   const [branchId, setBranchId] = useState('')
   const [data, setData] = useState<StockLedgerPayload | null>(null)
@@ -56,6 +59,8 @@ export function StockLedgerPageClient() {
   const [toDate, setToDate] = useState('')
 
   const loadData = useCallback(async () => {
+    const requestId = latestLoadRequestRef.current + 1
+    latestLoadRequestRef.current = requestId
     setError(null)
     setIsLoading(true)
     try {
@@ -66,10 +71,14 @@ export function StockLedgerPageClient() {
       if (productId) params.set('productId', productId)
       if (toDate) params.set('to', toDate)
       if (negativeOnly) params.set('negativeOnly', 'true')
-      setData(await dailyFetchJson<StockLedgerPayload>(`/api/stock/ledger?${params.toString()}`))
+      const payload = await dailyFetchJson<StockLedgerPayload>(`/api/stock/ledger?${params.toString()}`)
+      if (latestLoadRequestRef.current !== requestId) return
+      setData(payload)
     } catch (caught) {
+      if (latestLoadRequestRef.current !== requestId) return
       setError(caught instanceof Error ? caught.message : 'โหลด Stock Ledger ไม่ได้')
     } finally {
+      if (latestLoadRequestRef.current !== requestId) return
       setIsLoading(false)
     }
   }, [balanceMode, branchId, fromDate, movementType, negativeOnly, page, productId, toDate])
@@ -120,9 +129,9 @@ export function StockLedgerPageClient() {
           <option value="">⚙ ทุกประเภท</option>
           {(data?.movementTypes ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
-        <input className="rounded-md border px-3 py-2 text-sm" title="จากวันที่" type="date" value={fromDate} onChange={(event) => { setPage(1); setFromDate(event.target.value) }} />
+        <DatePickerInput className="w-[130px]" title="จากวันที่" value={fromDate} onChange={(value) => { setPage(1); setFromDate(value) }} />
         <span className="text-slate-400">→</span>
-        <input className="rounded-md border px-3 py-2 text-sm" title="ถึงวันที่" type="date" value={toDate} onChange={(event) => { setPage(1); setToDate(event.target.value) }} />
+        <DatePickerInput className="w-[130px]" title="ถึงวันที่" value={toDate} onChange={(value) => { setPage(1); setToDate(value) }} />
         {productId || branchId || movementType || fromDate || toDate || negativeOnly ? <button className="rounded-md bg-slate-100 px-3 py-2 text-xs hover:bg-slate-200" type="button" onClick={() => { setBranchId(''); setFromDate(''); setMovementType(''); setNegativeOnly(false); setPage(1); setProductId(''); setSearch(''); setToDate('') }}>✕ ล้าง</button> : null}
         <div className="inline-flex overflow-hidden rounded-md border border-slate-300 text-xs" title="โหมดคำนวณ Running Balance">
           <button className={`px-3 py-2 font-bold ${balanceMode === 'product' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-100'}`} title="คำนวณยอดต่อสินค้าเท่านั้น (ตรงกับหน้า Stock Balance + Drilldown)" type="button" onClick={() => { setPage(1); setBalanceMode('product') }}>📦 ต่อสินค้า</button>
@@ -171,7 +180,7 @@ export function StockLedgerPageClient() {
             {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={12}>กำลังโหลดข้อมูล</td></tr> : null}
             {!isLoading && rows.map((row) => (
               <tr key={row.id} className={row.runningBalanceByProduct < 0 ? 'border-t border-red-200 bg-red-50/60' : 'border-t hover:bg-slate-50'}>
-                <td className="whitespace-nowrap p-2">{row.date}</td>
+                <td className="whitespace-nowrap p-2">{formatDateDisplay(row.date)}</td>
                 <td className="whitespace-nowrap p-2"><span className="font-mono text-xs text-slate-500">{row.refNo || '-'}</span></td>
                 <td className="p-2"><Counterparty name={row.counterpartyName} refType={row.refType} /></td>
                 <td className="whitespace-nowrap p-2"><span className={`rounded-md px-2 py-0.5 text-xs font-medium ${row.qtyIn > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{row.movementType}</span></td>
