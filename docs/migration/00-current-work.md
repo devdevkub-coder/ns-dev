@@ -60,6 +60,7 @@ Goal:
     - read contract: `/api/purchase/po-buy` should prefer summary-table reads for KPI cards and use row-list aggregation only as temporary fallback before migration apply
 - Current sales flow design task: target sales-side document flow is now documented in `docs/notes/Sales Flow.md` using the same pattern as `docs/notes/Purchase Flow.md`. The target flow keeps `POS` for PO Sell, `PSALE` for Pending Sale/Stock Issue, `SB` for Sales Bill, and `RCP` for Receipt; if stock is issued before billing, `PSALE` is the stock movement source and the later sales bill must not cut stock again. Follow-up implementation should add sales status logs, summary tables, branch-aware numbering, and transaction-safe write services for PO Sell -> PSALE -> SB -> RCP.
 - Current flow menu-map follow-up: `docs/notes/Purchase Flow.md` and `docs/notes/Sales Flow.md` now include a separate `มุมเมนูที่ใช้ในแต่ละขั้นตอน` section. It maps each manual step to the active navigation label and route, while marking automatic system updates as `ระบบอัตโนมัติ`.
+- Current role/branch caveat follow-up: both Purchase Flow and Sales Flow now include a separate `มุมสิทธิ์และสาขา` section. The menu map is explicitly documented as a functional path, not a final permission contract; real access must come from the pending role matrix and `app_user_branch_access`, with `ทุกสาขา` meaning only branches allowed for the current user.
 
 ## Previous Batch M Notes
 
