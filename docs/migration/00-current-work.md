@@ -58,6 +58,7 @@ Goal:
     - source of truth: aggregate from `public.po_buys` only; do not derive summary from UI row lists
     - refresh contract: on every PO create/update/cancel and every downstream receive flow that mutates `po_buys.status` / `remaining_qty` / `remaining_amount`, refresh the affected global row and affected branch row in the same controlled write path
     - read contract: `/api/purchase/po-buy` should prefer summary-table reads for KPI cards and use row-list aggregation only as temporary fallback before migration apply
+- Current sales flow design task: target sales-side document flow is now documented in `docs/notes/Sales Flow.md` after checking legacy `view-poSell`, `view-stockIssue`, `view-sales`, and `view-receipt`. The target flow keeps `POS` for PO Sell, `PSALE` for Pending Sale/Stock Issue, `SB` for Sales Bill, and `RCP` for Receipt; if stock is issued before billing, `PSALE` is the stock movement source and the later sales bill must not cut stock again. Follow-up implementation should add sales status logs, summary tables, branch-aware numbering, and transaction-safe write services for PO Sell -> PSALE -> SB -> RCP.
 
 ## Previous Batch M Notes
 

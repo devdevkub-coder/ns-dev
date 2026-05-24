@@ -26,6 +26,7 @@ created: 2026-05-16
 - [[Architecture Map]] - map สรุป architecture, tech stack, environment, database และ auth
 - [[Migration Documents]] - MOC สำหรับเอกสาร migration ทั้งชุด
 - [[Purchase Flow]] - flow ซื้อแบบละเอียด: กรอกอะไร, ได้เลขเอกสารอะไร, สถานะอะไร, และผลกระทบต่อ PO/WT/PB/Payment
+- [[Sales Flow]] - flow ขายแบบละเอียด: PO Sell, Pending Sale/PSALE, Sales Bill, Receipt, เลขเอกสาร, สถานะ, stock/AR effect
 
 ## Migration Entry Points
 
@@ -56,3 +57,4 @@ created: 2026-05-16
 - [[Migration Documents]]
 - [[Architecture Map]]
 - [[Purchase Flow]]
+- [[Sales Flow]]

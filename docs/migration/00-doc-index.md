@@ -33,6 +33,7 @@
 | OpenAPI baseline | `docs/api/openapi.yaml` | skeleton API contract catalog for current Next route handlers |
 | Data dictionary | `docs/data-dictionary/` | table/column business meaning for developers; start with `purchase-bills.md` |
 | Purchase flow | `docs/notes/Purchase Flow.md` | target purchase flow: what users fill, generated document numbers, Thai statuses, and PO/WT/PB/Payment effects |
+| Sales flow | `docs/notes/Sales Flow.md` | target sales flow: PO Sell, Pending Sale/PSALE, Sales Bill, Receipt, generated document numbers, Thai statuses, stock and AR effects |
 | Legacy page inventory | `docs/migration/20-legacy-page-inventory.md` | counted legacy sidebar entries and view IDs from `https://sirimasth.github.io/ns-scrap-erp/` |
 | Environment status | `docs/migration/10-environment-status.md` | Supabase/Vercel/MCP/env |
 | Master data | `docs/migration/13-next-master-data-progress.md` | Next master-data tracker |
