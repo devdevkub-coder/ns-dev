@@ -196,7 +196,7 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
-    const validRows = parsedRows.filter((row): row is NonNullable<typeof row> => row !== null)
+    const validRows = parsedRows.filter((row): row is NonNullable<typeof row> & { code: string } => row !== null && Boolean(row.code))
     try {
       await Promise.all(validRows.flatMap((row) => [
         assertActiveProductType(row.type),

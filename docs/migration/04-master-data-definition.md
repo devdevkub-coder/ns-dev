@@ -21,6 +21,7 @@
 ### Product Domain
 
 - products
+- impurities / สิ่งเจือปน
 - product grade
 - item status
 - unit of measure

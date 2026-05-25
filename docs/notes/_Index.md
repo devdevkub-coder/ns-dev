@@ -25,8 +25,8 @@ created: 2026-05-16
 - [[Current Module Status]] - สถานะล่าสุดของ Vue modules ที่ย้ายเข้า `old-apps/vue/`
 - [[Architecture Map]] - map สรุป architecture, tech stack, environment, database และ auth
 - [[Migration Documents]] - MOC สำหรับเอกสาร migration ทั้งชุด
-- [[Purchase Flow]] - flow ซื้อแบบละเอียด: กรอกอะไร, ได้เลขเอกสารอะไร, สถานะอะไร, และผลกระทบต่อ PO/WT/PB/Payment
-- [[Sales Flow]] - flow ขายแบบละเอียด: PO Sell, Pending Sale/PSALE, Sales Bill, Receipt, เลขเอกสาร, สถานะ, stock/AR effect
+- [[Purchase Flow]] - flow ซื้อแบบละเอียด: Stock/Trading, PO/Spot, ใบรับของ/WTI, ใบส่งของ/WTO, กรอกจำนวน/น้ำหนัก, ปิดรับไม่ครบ, เลขเอกสาร, สถานะ, และผลกระทบต่อ PO/PB/Payment/Stock/Cost Pool
+- [[Sales Flow]] - flow ขายแบบละเอียด: PO Sell, Pending Sale/PSALE, ใบส่งของ/WTO, บิลขาย Trading จากหลายบิลซื้อพร้อม stock line, Sales Bill, Receipt, เลขเอกสาร, สถานะ, stock/AR effect
 
 ## Migration Entry Points
 

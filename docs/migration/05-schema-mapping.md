@@ -19,9 +19,11 @@
 | `customers` | keep | `customers` | review business key and branch access |
 | `suppliers` | keep | `suppliers` | dedupe and validate data quality |
 | `products` | keep | `products` | add grade/status sub-structure if needed |
+| `impurities` | new target master | `impurities` | additive master for user-maintained impurity names; WTI/WTO line UI uses active impurity rows when deduction mode is `หัก` or `หัก%`, while durable ticket persistence still needs a normalized receipt-line reference design |
 | `accounts` | keep | `cash_bank_accounts` or `accounts` | clarify scope |
-| `purchase_bills` | refactor | `purchase_bills` + `purchase_bill_lines` | move `items jsonb` to lines |
-| `sales_bills` | refactor | `sales_bills` + `sales_bill_lines` | move `items jsonb` to lines |
+| `purchase_bills` | refactor | `purchase_bills` + `purchase_bill_lines` + receipt/PO allocation lines + header discount expense entry | move `items jsonb` to lines; Stock bills choose receipt lines and allocate to PO or Spot Buy; line items must keep `ราคาหน้าใบ` / `sales_price` for Sale Tracking commission; target has only header-level `ส่วนลดท้ายใบ`, no line-item discount |
+| `/daily/weight-tickets` prototype | refactor | `weight_tickets` + `weight_ticket_lines` + ticket images | target has no plain `WT` document; inbound receiving issues `ใบรับของ / Weight Ticket In` with `WTI{branchCode}{YYMM}-NNNN`, outbound delivery issues `ใบส่งของ / Weight Ticket Out` with `WTO{branchCode}{YYMM}-NNNN`; header needs direction, auto document date/time/entered-by, branch, party, vehicle plate; lines need gross weight, deduction mode, impurity reference when deducted, deduction value, net weight; PO/Spot cut happens later in Stock purchase bill allocation |
+| `sales_bills` | refactor | `sales_bills` + `sales_bill_lines` + purchase/stock/PO allocation lines | move `items jsonb` to lines; Trading sales choose multiple purchase bills first, auto-fill sale lines from purchase bills, allow manual stock lines, and allocate each line to PO Sell when applicable |
 | `payments` | refactor | `supplier_payments` + allocations | move `lines jsonb` out |
 | `receipts` | refactor | `customer_receipts` + allocations | normalize allocation model |
 | `stock_ledger` | refactor | `inventory_transactions` + lines | review event model |
@@ -38,6 +40,17 @@
 ## Transform Topics
 
 - document headers and line extraction
+- purchase mode split: Stock + PO, Stock + Spot, Trading + PO, Trading + Spot
+- `ใบรับของ / WTI` header/line mapping with system-owned date/time/entered-by, vehicle plate, branch, product weights, impurity deduction mode, and image evidence
+- `ใบส่งของ / WTO` header/line mapping for outbound delivery evidence, weights, vehicle/customer context, and image evidence
+- no plain `WT` document number in target; use `WTI`/`WTO` prefixes and keep status for lifecycle only
+- many-to-many allocation for Stock purchase bill receipt lines to PO/Spot cuts
+- mixed Stock bill allocation where one receipt line can be split between PO and Spot Buy when receipt weight exceeds PO remaining
+- purchase bill item `ราคาหน้าใบ` / `sales_price` mapping for Sale Tracking commission calculation
+- header-only purchase bill discount mapping: `ส่วนลดท้ายใบ` posts as expense/separate entry and does not reduce product cost/WAC/Cost Pool
+- Trading sales bill source allocation: selected purchase bills can be many-to-one sales bill sources, manual stock lines create stock out, and PO Sell cuts happen at sales bill line level
+- PO Buy short-close action (`ปิดรับไม่ครบ`) with reason/status log and remaining quantity release
+- Cost Pool eligibility filter by product metal group: copper/brass only
 - JSON to relational mapping
 - role and permission normalization
 - app user and auth user linking

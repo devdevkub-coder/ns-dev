@@ -88,6 +88,25 @@ async function assertActiveProductUnit(unit: string | null) {
   }
 }
 
+async function getNextProductCode() {
+  const existingProducts = await prisma.products.findMany({
+    select: { code: true },
+    where: { code: { startsWith: 'SKU' } },
+  })
+  const maxNumber = existingProducts.reduce((max, row) => {
+    const matched = String(row.code ?? '').match(/^SKU(\d+)$/i)
+    const value = matched ? Number(matched[1]) : 0
+    return Number.isFinite(value) ? Math.max(max, value) : max
+  }, 0)
+  const nextNumber = maxNumber + 1
+
+  if (nextNumber > 99999) {
+    throw new Error('รหัสสินค้าเต็มช่วง SKU001-SKU99999 แล้ว')
+  }
+
+  return `SKU${String(nextNumber).padStart(3, '0')}`
+}
+
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
@@ -121,18 +140,28 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    const values = productFormSchema.parse(await request.json())
+    const formValues = productFormSchema.parse(await request.json())
+    const isUpdate = Boolean(formValues.id)
+    requirePermission(context, isUpdate ? 'master.products.update' : 'master.products.create')
+    const values = formValues.id
+      ? formValues
+      : productFormSchema.parse({ ...formValues, code: await getNextProductCode() })
     await Promise.all([
       assertActiveProductType(values.type),
       assertActiveProductUnit(values.unit),
     ])
     const payload = toProductWriteInput(values)
 
-    const existing = await prisma.products.findUnique({ where: { id: payload.id } })
     if (values.id) {
-      requirePermission(context, 'master.products.update')
+      const codeOwner = await prisma.products.findFirst({ select: { id: true }, where: { code: payload.code } })
+      if (codeOwner && codeOwner.id !== payload.id) {
+        return NextResponse.json({ code: 'CONFLICT', error: 'รหัสสินค้านี้มีอยู่แล้ว' }, { status: 409 })
+      }
     } else {
-      requirePermission(context, 'master.products.create')
+      const existing = await prisma.products.findFirst({
+        select: { id: true },
+        where: { OR: [{ id: payload.id }, { code: payload.code }] },
+      })
       if (existing) {
         return NextResponse.json({ code: 'CONFLICT', error: 'รหัสสินค้านี้มีอยู่แล้ว' }, { status: 409 })
       }

@@ -925,6 +925,17 @@ model historical_monthly {
   @@schema("public")
 }
 
+model impurities {
+  id         String   @id
+  name       String
+  active     Boolean  @default(true)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([active])
+  @@schema("public")
+}
+
 model loan_payments {
   id               String          @id
   doc_no           String

@@ -59,11 +59,15 @@ export type ProductListOptions = {
 export const productFormSchema = z.object({
   id: z.string().trim().regex(codePattern, 'รหัสภายในสินค้ามีรูปแบบไม่ถูกต้อง').optional(),
   code: z.preprocess(
-    (value) => (typeof value === 'string' ? value.trim().toUpperCase() : value),
+    (value) => {
+      const normalized = blankToNull(value)
+      return typeof normalized === 'string' ? normalized.trim().toUpperCase() : normalized
+    },
     z.string()
-    .min(1, 'กรอกรหัสสินค้า')
-    .max(40, 'รหัสสินค้ายาวเกินไป')
-    .regex(productCodePattern, 'รหัสสินค้าต้องเป็นรูปแบบ SKU001-SKU99999'),
+      .max(40, 'รหัสสินค้ายาวเกินไป')
+      .regex(productCodePattern, 'รหัสสินค้าต้องเป็นรูปแบบ SKU001-SKU99999')
+      .nullable()
+      .default(null),
   ),
   name: z.string().trim()
     .min(1, 'กรอกชื่อสินค้า')
@@ -83,6 +87,10 @@ export const productFormSchema = z.object({
       .default('กก.'),
   ),
   active: z.boolean().default(true),
+}).superRefine((values, context) => {
+  if (values.id && !values.code) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'ไม่พบรหัสสินค้า', path: ['code'] })
+  }
 })
 
 export type ProductFormValues = z.infer<typeof productFormSchema>

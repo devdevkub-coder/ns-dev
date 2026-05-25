@@ -18,6 +18,11 @@
 - total amount
 - paid amount
 - payable balance
+- Stock purchase quantities/weights from `ใบรับของ` to purchase bill
+- PO cut quantities/weights for both Stock + PO and Trading + PO
+- Trading purchase bills must not create stock movements
+- Cost Pool must include only copper/brass eligible products (`ทองแดง`, `ทองเหลือง`, `copper`, `brass`)
+- PO Buy rows closed as `ปิดรับไม่ครบ` must not leave remaining undelivered quantity in Cost Pool candidate/available quantity
 
 ### Sales
 

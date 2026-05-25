@@ -28,7 +28,11 @@ export function mapPrismaProduct(row: PrismaProduct): Product {
 
 export function toProductWriteInput(values: ProductFormValues) {
   const parsed = productFormSchema.parse(values)
-  const code = parsed.code.toUpperCase()
+  const code = parsed.code?.toUpperCase() || parsed.id || ''
+
+  if (!code) {
+    throw new Error('ไม่พบรหัสสินค้า')
+  }
 
   return {
     id: parsed.id || code,

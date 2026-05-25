@@ -1,21 +1,37 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { CheckCircle2, ImagePlus, Minus, Package2, Plus, Scale, Trash2, Truck } from 'lucide-react'
-import Image from 'next/image'
+import Link from 'next/link'
+import { CheckCircle2, ImagePlus, Plus, Trash2, Truck } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
-import { DatePickerInput } from '@/components/ui/date-picker-input'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
-import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
+import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import { Select } from '@/components/ui/Select'
+import { listImpurities } from '@/lib/impurity'
 import { cn } from '@/lib/utils'
-
-type TicketType = 'inbound' | 'outbound'
-type DeductMode = 'none' | 'percent' | 'kg'
-type AttachmentCategory = 'condition' | 'delivery' | 'onsite' | 'vehicle'
+import {
+  branchOptions,
+  calculateLineTotals,
+  calculateTicketTotals,
+  createWeightTicketLine,
+  currentDocumentDate,
+  findOptionLabel,
+  formatWeight,
+  generateDocumentNo,
+  getPartyOptions,
+  loadStoredWeightTickets,
+  normalizeDecimalInput,
+  normalizeVehicleNo,
+  productOptions,
+  saveStoredWeightTicket,
+  type DeductionMode,
+  type OptionItem,
+  type StoredWeightTicket,
+  type WeightTicketLine,
+  type WeightTicketType,
+} from '@/lib/weight-tickets'
 
 type AttachmentPreview = {
   fileName: string
@@ -23,685 +39,599 @@ type AttachmentPreview = {
   url: string
 }
 
-type BucketRow = {
-  id: string
-  weight: string
-}
-
-type TicketItem = {
-  attachments: AttachmentPreview[]
-  buckets: BucketRow[]
-  deductMode: DeductMode
-  deductValue: string
-  id: string
-  note: string
-  productId: string
-}
-
-type GeneralAttachmentGroup = {
-  files: AttachmentPreview[]
-  id: AttachmentCategory
-  label: string
+type FormWeightTicketLine = WeightTicketLine & {
+  imageFiles: AttachmentPreview[]
 }
 
 type FormState = {
   branchId: string
-  date: string
-  employeeId: string
-  items: TicketItem[]
+  lines: FormWeightTicketLine[]
   partyId: string
   remark: string
-  referenceNo: string
-  sourceType: 'po' | 'spot'
-  time: string
+  type: WeightTicketType
   vehicleNo: string
 }
 
-const branches: SearchComboboxOption[] = [
-  { description: 'สาขาหลักสำหรับรับซื้อและคลัง RM', id: 'BR001', label: 'สมุทรสาคร · BR001' },
-  { description: 'สาขาผลิตและคลัง WIP/FG', id: 'BR002', label: 'นครสวรรค์ · BR002' },
-]
-
-const employees: SearchComboboxOption[] = [
-  { description: 'พนักงานชั่งกะเช้า', id: 'EMP-AOM', label: 'อ้อม · เครื่องชั่ง A' },
-  { description: 'หัวหน้าคลัง', id: 'EMP-KWAN', label: 'กวาง · หัวหน้าคลัง' },
-  { description: 'เจ้าหน้าที่ลานชั่ง', id: 'EMP-TIK', label: 'ติ๊ก · ลานรับซื้อ' },
-]
-
-const suppliers: SearchComboboxOption[] = [
-  { description: 'Supplier · ซื้อสด', id: 'SUP-001', label: 'บริษัท รุ่งเศษโลหะ' },
-  { description: 'Supplier · ตาม PO', id: 'SUP-002', label: 'หจก. โชคไพบูลย์รีไซเคิล' },
-  { description: 'Supplier · หน้างาน', id: 'SUP-003', label: 'คุณสมชาย รถคอก' },
-]
-
-const customers: SearchComboboxOption[] = [
-  { description: 'Customer · ส่งขายตรง', id: 'CUS-001', label: 'บริษัท ไทยเมททัลเทรด' },
-  { description: 'Customer · โรงหล่อ', id: 'CUS-002', label: 'โรงหล่อสยามอินดัสเทรียล' },
-  { description: 'Customer · ลานปลายทาง', id: 'CUS-003', label: 'บริษัท ยูไนเต็ดคอปเปอร์' },
-]
-
-const products: SearchComboboxOption[] = [
-  { description: 'RM · ทองแดงเบอร์ 1', id: 'PROD-CU1', label: 'ทองแดงเบอร์ 1' },
-  { description: 'RM · ทองแดงเบอร์ 2', id: 'PROD-CU2', label: 'ทองแดงเบอร์ 2' },
-  { description: 'RM · ทองเหลืองป่น', id: 'PROD-BRASS', label: 'ทองเหลืองป่น' },
-  { description: 'FG · อินกอตทองแดง', id: 'PROD-INGOT', label: 'อินกอตทองแดง' },
-]
-
-const attachmentLabels: Record<AttachmentCategory, string> = {
-  condition: 'สภาพสินค้า',
-  delivery: 'ใบส่งของ',
-  onsite: 'หน้างาน',
-  vehicle: 'รถ',
-}
-
-function makeId(prefix: string) {
-  return `${prefix}-${Math.random().toString(36).slice(2, 10)}`
-}
-
-function currentDate() {
-  return new Date().toISOString().slice(0, 10)
-}
-
-function currentTime() {
-  return new Date().toTimeString().slice(0, 5)
-}
-
-function createBucket(): BucketRow {
+function createFormWeightTicketLine(id?: string): FormWeightTicketLine {
   return {
-    id: makeId('bucket'),
-    weight: '',
-  }
-}
-
-function createItem(): TicketItem {
-  return {
-    attachments: [],
-    buckets: [createBucket()],
-    deductMode: 'none',
-    deductValue: '',
-    id: makeId('item'),
-    note: '',
-    productId: '',
+    ...createWeightTicketLine(id),
+    imageFiles: [],
   }
 }
 
 function initialForm(): FormState {
   return {
     branchId: '',
-    date: currentDate(),
-    employeeId: '',
-    items: [createItem()],
+    lines: [createFormWeightTicketLine('line-1')],
     partyId: '',
     remark: '',
-    referenceNo: '',
-    sourceType: 'spot',
-    time: currentTime(),
+    type: 'WTI',
     vehicleNo: '',
   }
 }
 
-function toNumber(value: string) {
-  const numeric = Number(value)
-  return Number.isFinite(numeric) ? numeric : 0
+function makeFileId() {
+  return `file-${Math.random().toString(36).slice(2, 10)}`
 }
 
-function formatWeight(value: number) {
-  return value.toLocaleString('th-TH', { maximumFractionDigits: 2, minimumFractionDigits: 2 })
+function getLineImages(line: FormWeightTicketLine) {
+  return line.imageFiles ?? []
 }
 
-function itemTotals(item: TicketItem) {
-  const grossWeight = item.buckets.reduce((sum, bucket) => sum + toNumber(bucket.weight), 0)
-  const deductWeight = item.deductMode === 'percent'
-    ? grossWeight * Math.max(0, toNumber(item.deductValue)) / 100
-    : item.deductMode === 'kg'
-      ? Math.max(0, toNumber(item.deductValue))
-      : 0
-  return {
-    deductWeight: Math.min(deductWeight, grossWeight),
-    grossWeight,
-    netWeight: Math.max(0, grossWeight - Math.min(deductWeight, grossWeight)),
-  }
-}
-
-function generalAttachmentState(): GeneralAttachmentGroup[] {
-  return [
-    { files: [], id: 'vehicle', label: attachmentLabels.vehicle },
-    { files: [], id: 'delivery', label: attachmentLabels.delivery },
-    { files: [], id: 'onsite', label: attachmentLabels.onsite },
-    { files: [], id: 'condition', label: attachmentLabels.condition },
-  ]
+function getLineImpurityId(line: FormWeightTicketLine) {
+  return line.impurityId ?? ''
 }
 
 export function WeightTicketsPageClient() {
   const [form, setForm] = useState<FormState>(initialForm)
-  const [generalAttachments, setGeneralAttachments] = useState<GeneralAttachmentGroup[]>(generalAttachmentState)
-  const [itemDialogId, setItemDialogId] = useState<string | null>(null)
+  const [branches, setBranches] = useState<OptionItem[]>(branchOptions)
+  const [suppliers, setSuppliers] = useState<OptionItem[]>(getPartyOptions('WTI'))
+  const [customers, setCustomers] = useState<OptionItem[]>(getPartyOptions('WTO'))
+  const [products, setProducts] = useState<OptionItem[]>(productOptions)
+  const [impurities, setImpurities] = useState<OptionItem[]>([])
+  const [savedTicket, setSavedTicket] = useState<StoredWeightTicket | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [saveState, setSaveState] = useState<'idle' | 'saved'>('idle')
-  const [ticketType, setTicketType] = useState<TicketType>('inbound')
   const [touched, setTouched] = useState<Record<string, boolean>>({})
 
-  const partyOptions = ticketType === 'inbound' ? suppliers : customers
-  const partyLabel = ticketType === 'inbound' ? 'Supplier / ผู้ขาย*' : 'Customer / ลูกค้า*'
-  const ticketTheme = ticketType === 'inbound'
-    ? {
-        accent: 'from-emerald-500 via-green-500 to-lime-400',
-        badge: 'bg-emerald-100 text-emerald-800',
-        panel: 'border-emerald-200 bg-emerald-50/70',
-        ring: 'ring-emerald-100',
-        summary: 'รับซื้อเข้า',
-      }
-    : {
-        accent: 'from-rose-500 via-red-500 to-orange-400',
-        badge: 'bg-rose-100 text-rose-800',
-        panel: 'border-rose-200 bg-rose-50/70',
-        ring: 'ring-rose-100',
-        summary: 'ขายออก',
-      }
+  const partyOptions = form.type === 'WTI' ? suppliers : customers
+  const totals = useMemo(() => calculateTicketTotals(form.lines), [form.lines])
 
-  const itemMap = useMemo(() => new Map(form.items.map((item) => [item.id, item])), [form.items])
-  const activeItem = itemDialogId ? itemMap.get(itemDialogId) ?? null : null
+  useEffect(() => {
+    let cancelled = false
 
-  const totals = useMemo(() => {
-    return form.items.reduce((summary, item) => {
-      const total = itemTotals(item)
-      summary.grossWeight += total.grossWeight
-      summary.deductWeight += total.deductWeight
-      summary.netWeight += total.netWeight
-      return summary
-    }, { deductWeight: 0, grossWeight: 0, netWeight: 0 })
-  }, [form.items])
+    async function loadOptionData() {
+      try {
+        const [branchResponse, supplierResponse, customerResponse, productResponse] = await Promise.all([
+          fetch('/api/branches'),
+          fetch('/api/master-data/suppliers?all=1'),
+          fetch('/api/master-data/customers?all=1'),
+          fetch('/api/master-data/products?all=1&active=active'),
+        ])
+
+        if (branchResponse.ok) {
+          const data = await branchResponse.json() as { branches?: Array<{ code?: string | null; id: string; name: string }> }
+          const nextBranches = (data.branches ?? []).map((branch) => ({
+            code: branch.code ?? undefined,
+            description: branch.code ? `รหัสสาขา ${branch.code}` : undefined,
+            id: branch.id,
+            label: branch.name,
+          }))
+          if (!cancelled && nextBranches.length) setBranches(nextBranches)
+        }
+
+        if (supplierResponse.ok) {
+          const data = await supplierResponse.json() as { rows?: Array<{ code?: string | null; id: string; name: string }> }
+          const nextSuppliers = (data.rows ?? []).map((supplier) => ({
+            code: supplier.code ?? undefined,
+            description: supplier.code ? `Supplier · ${supplier.code}` : 'Supplier',
+            id: supplier.id,
+            label: supplier.name,
+          }))
+          if (!cancelled && nextSuppliers.length) setSuppliers(nextSuppliers)
+        }
+
+        if (customerResponse.ok) {
+          const data = await customerResponse.json() as { rows?: Array<{ code?: string | null; id: string; name: string }> }
+          const nextCustomers = (data.rows ?? []).map((customer) => ({
+            code: customer.code ?? undefined,
+            description: customer.code ? `Customer · ${customer.code}` : 'Customer',
+            id: customer.id,
+            label: customer.name,
+          }))
+          if (!cancelled && nextCustomers.length) setCustomers(nextCustomers)
+        }
+
+        if (productResponse.ok) {
+          const data = await productResponse.json() as { rows?: Array<{ code?: string | null; id: string; itemStatus?: string | null; name: string; unit?: string | null }> }
+          const nextProducts = (data.rows ?? []).map((product) => ({
+            code: product.code ?? undefined,
+            description: [product.itemStatus, product.unit].filter(Boolean).join(' · ') || product.code || undefined,
+            id: product.id,
+            label: product.name,
+          }))
+          if (!cancelled && nextProducts.length) setProducts(nextProducts)
+        }
+
+        const nextImpurities = await listImpurities()
+        if (!cancelled) {
+          setImpurities(nextImpurities
+            .filter((impurity) => impurity.active)
+            .map((impurity) => ({ id: impurity.id, label: impurity.name })))
+        }
+      } catch {
+        // Keep fallback prototype options if a protected master-data endpoint is unavailable.
+      }
+    }
+
+    void loadOptionData()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const errors = useMemo(() => {
     const next: Record<string, string> = {}
-    if (!form.date) next.date = 'เลือกวันที่'
-    if (!form.time) next.time = 'ระบุเวลา'
-    if (!form.vehicleNo.trim()) next.vehicleNo = 'กรอกทะเบียนรถ'
-    if (!form.partyId) next.partyId = `เลือก${ticketType === 'inbound' ? 'ผู้ขาย' : 'ลูกค้า'}`
     if (!form.branchId) next.branchId = 'เลือกสาขา'
-    if (!form.employeeId) next.employeeId = 'เลือกพนักงานชั่ง'
-    form.items.forEach((item, index) => {
-      if (!item.productId) next[`item-${item.id}-product`] = `เลือกรายการสินค้าบรรทัดที่ ${index + 1}`
-      const nonZeroBuckets = item.buckets.filter((bucket) => toNumber(bucket.weight) > 0)
-      if (nonZeroBuckets.length === 0) next[`item-${item.id}-bucket`] = `กรอกน้ำหนักอย่างน้อย 1 ถังในบรรทัดที่ ${index + 1}`
+    if (!form.partyId) next.partyId = form.type === 'WTI' ? 'เลือกผู้ขาย' : 'เลือกลูกค้า'
+    if (form.vehicleNo.trim().length < 2) next.vehicleNo = 'กรอกทะเบียนรถ'
+
+    form.lines.forEach((line, index) => {
+      const lineTotals = calculateLineTotals(line)
+      if (!line.productId) next[`line-${line.id}-product`] = `เลือกสินค้าบรรทัดที่ ${index + 1}`
+      if (lineTotals.grossWeight <= 0) next[`line-${line.id}-gross`] = `กรอกน้ำหนักบรรทัดที่ ${index + 1}`
+      if (getLineImages(line).length === 0) next[`line-${line.id}-images`] = `แนบรูปภาพบรรทัดที่ ${index + 1} อย่างน้อย 1 รูป`
+      if (line.deductionMode !== 'none' && !getLineImpurityId(line)) {
+        next[`line-${line.id}-impurity`] = impurities.length > 0 ? `เลือกสิ่งเจือปนบรรทัดที่ ${index + 1}` : 'ยังไม่มีสิ่งเจือปนที่ใช้งานใน master data'
+      }
+      if (line.deductionMode === 'percent' && Number(line.deductionValue || 0) > 100) {
+        next[`line-${line.id}-deduction`] = 'หัก % ต้องไม่เกิน 100'
+      }
+      if (line.deductionMode === 'kg' && Number(line.deductionValue || 0) > lineTotals.grossWeight) {
+        next[`line-${line.id}-deduction`] = 'น้ำหนักหักต้องไม่เกินน้ำหนักรวม'
+      }
     })
     return next
-  }, [form, ticketType])
+  }, [form, impurities.length])
 
-  const isValid = Object.keys(errors).length === 0
-
-  function markTouched(key: string) {
-    setTouched((current) => ({ ...current, [key]: true }))
-  }
+  const ticketTheme = form.type === 'WTI'
+    ? {
+        badge: 'bg-emerald-100 text-emerald-800',
+        border: 'border-emerald-200',
+        button: 'bg-emerald-600 hover:bg-emerald-700',
+        panel: 'bg-emerald-50',
+        summary: 'ใบรับของ / Weight Ticket In',
+      }
+    : {
+        badge: 'bg-rose-100 text-rose-800',
+        border: 'border-rose-200',
+        button: 'bg-rose-600 hover:bg-rose-700',
+        panel: 'bg-rose-50',
+        summary: 'ใบส่งของ / Weight Ticket Out',
+      }
 
   function showError(key: string) {
     return touched[key] ? errors[key] : undefined
+  }
+
+  function markTouched(key: string) {
+    setTouched((current) => ({ ...current, [key]: true }))
   }
 
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }))
   }
 
-  function updateItem(itemId: string, updater: (item: TicketItem) => TicketItem) {
+  function updateLine(lineId: string, updater: (line: FormWeightTicketLine) => FormWeightTicketLine) {
     setForm((current) => ({
       ...current,
-      items: current.items.map((item) => item.id === itemId ? updater(item) : item),
+      lines: current.lines.map((line) => line.id === lineId ? updater(line) : line),
     }))
   }
 
-  function addItem() {
-    setForm((current) => ({ ...current, items: [...current.items, createItem()] }))
+  function addLine() {
+    setForm((current) => ({ ...current, lines: [...current.lines, createFormWeightTicketLine()] }))
   }
 
-  function removeItem(itemId: string) {
+  function removeLine(lineId: string) {
     setForm((current) => ({
       ...current,
-      items: current.items.length === 1 ? current.items : current.items.filter((item) => item.id !== itemId),
-    }))
-    setItemDialogId((current) => current === itemId ? null : current)
-  }
-
-  function addBucket(itemId: string) {
-    updateItem(itemId, (item) => ({ ...item, buckets: [...item.buckets, createBucket()] }))
-  }
-
-  function removeBucket(itemId: string, bucketId: string) {
-    updateItem(itemId, (item) => ({
-      ...item,
-      buckets: item.buckets.length === 1 ? item.buckets : item.buckets.filter((bucket) => bucket.id !== bucketId),
+      lines: current.lines.length === 1 ? current.lines : current.lines.filter((line) => line.id !== lineId),
     }))
   }
 
-  function updateBucket(itemId: string, bucketId: string, value: string) {
-    updateItem(itemId, (item) => ({
-      ...item,
-      buckets: item.buckets.map((bucket) => bucket.id === bucketId ? { ...bucket, weight: value } : bucket),
-    }))
-  }
-
-  function appendAttachment(files: FileList | null, onAppend: (nextFiles: AttachmentPreview[]) => void) {
+  function appendLineImages(lineId: string, files: FileList | null) {
     if (!files?.length) return
     const nextFiles = Array.from(files).map((file) => ({
       fileName: file.name,
-      id: makeId('file'),
+      id: makeFileId(),
       url: URL.createObjectURL(file),
     }))
-    onAppend(nextFiles)
+    updateLine(lineId, (line) => ({ ...line, imageFiles: [...getLineImages(line), ...nextFiles] }))
+    markTouched(`line-${lineId}-images`)
   }
 
-  function saveTicket() {
-    setTouched({
-      branchId: true,
-      date: true,
-      employeeId: true,
-      partyId: true,
-      time: true,
-      vehicleNo: true,
-      ...Object.fromEntries(form.items.flatMap((item) => [
-        [`item-${item.id}-product`, true],
-        [`item-${item.id}-bucket`, true],
-      ])),
-    })
+  function resetForm() {
+    setForm(initialForm())
+    setSavedTicket(null)
+    setTouched({})
+    setIsSaving(false)
+  }
 
-    if (!isValid) return
+  async function resolveEnteredBy() {
+    try {
+      const response = await fetch('/api/auth/me')
+      if (!response.ok) return 'ผู้ใช้ปัจจุบัน'
+      const data = await response.json() as {
+        appUser?: { displayName?: string | null; email?: string | null; username?: string | null } | null
+        authUser?: { email?: string | null }
+        user?: { displayName?: string | null; username?: string | null } | null
+      }
+      return data.appUser?.displayName
+        || data.user?.displayName
+        || data.appUser?.username
+        || data.user?.username
+        || data.appUser?.email
+        || data.authUser?.email
+        || 'ผู้ใช้ปัจจุบัน'
+    } catch {
+      return 'ผู้ใช้ปัจจุบัน'
+    }
+  }
+
+  async function saveTicket() {
+    const nextTouched: Record<string, boolean> = {
+      branchId: true,
+      partyId: true,
+      vehicleNo: true,
+    }
+    form.lines.forEach((line) => {
+      nextTouched[`line-${line.id}-product`] = true
+      nextTouched[`line-${line.id}-gross`] = true
+      nextTouched[`line-${line.id}-deduction`] = true
+      nextTouched[`line-${line.id}-images`] = true
+      nextTouched[`line-${line.id}-impurity`] = true
+    })
+    setTouched(nextTouched)
+    if (Object.keys(errors).length > 0) return
 
     setIsSaving(true)
-    setSaveState('idle')
+    const existingTickets = loadStoredWeightTickets()
+    const documentNo = generateDocumentNo(form.type, form.branchId, existingTickets, branches)
+    const documentDate = currentDocumentDate()
+    const enteredBy = await resolveEnteredBy()
+    const storedLines = form.lines.map((line) => {
+      const { imageFiles = [], ...lineData } = line
+      const lineTotals = calculateLineTotals(line)
+      const impurityId = getLineImpurityId(line)
+      return {
+        ...lineData,
+        deductionWeight: lineTotals.deductionWeight,
+        grossWeightValue: lineTotals.grossWeight,
+        imageCount: imageFiles.length,
+        imageNames: imageFiles.map((file) => file.fileName),
+        impurityId,
+        impurityName: impurityId ? findOptionLabel(impurities, impurityId) : '',
+        netWeight: lineTotals.netWeight,
+        productName: findOptionLabel(products, line.productId),
+      }
+    })
+    const imageNames = form.lines.flatMap((line) => getLineImages(line).map((file) => file.fileName))
+    const ticket: StoredWeightTicket = {
+      branchId: form.branchId,
+      branchName: findOptionLabel(branches, form.branchId),
+      createdAt: new Date().toISOString(),
+      documentDate,
+      documentNo,
+      enteredBy,
+      id: crypto.randomUUID(),
+      imageCount: imageNames.length,
+      imageNames,
+      lines: storedLines,
+      partyId: form.partyId,
+      partyName: findOptionLabel(partyOptions, form.partyId),
+      remark: form.remark.trim(),
+      status: form.type === 'WTI' ? 'received' : 'delivered',
+      totals,
+      type: form.type,
+      vehicleNo: form.vehicleNo.trim(),
+    }
+    saveStoredWeightTicket(ticket)
     window.setTimeout(() => {
+      setSavedTicket(ticket)
       setIsSaving(false)
-      setSaveState('saved')
-    }, 900)
+    }, 250)
   }
 
   return (
-    <div className="space-y-5 pb-28">
-      <section className={cn('overflow-hidden rounded-xl border bg-white shadow-sm', ticketTheme.ring)}>
-        <div className={cn('bg-gradient-to-r px-4 py-4 text-white sm:px-6', ticketTheme.accent)}>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="space-y-2">
-              <div className={cn('inline-flex rounded-full px-3 py-1 text-xs font-semibold shadow-sm', ticketTheme.badge)}>
-                {ticketTheme.summary} · Warehouse Weight Ticket
+    <div className="space-y-5 pb-32">
+      <div>
+        <Card className={cn('border p-4', ticketTheme.border, ticketTheme.panel)}>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className={cn('inline-flex rounded-md px-2.5 py-1 text-xs font-semibold', ticketTheme.badge)}>
+                {ticketTheme.summary}
               </div>
-              <div>
-                <h2 className="text-2xl font-semibold tracking-tight">ชั่งสินค้า (เข้า/ออก)</h2>
-                <p className="mt-1 max-w-3xl text-sm text-white/90">
-                  บันทึกน้ำหนักรถเข้า/ออกแบบหลายรายการสินค้า รองรับหลายถัง รูปประกอบ และส่งต่อให้งานออกบิลในขั้นถัดไป
-                </p>
-              </div>
+              <h2 className="mt-2 text-lg font-semibold text-slate-900">ชั่งสินค้า / รับ-ส่งของ</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                ระบบจะออกเลขเอกสาร วันที่ เวลา และผู้กรอกหลังบันทึก
+              </p>
             </div>
-            <div className="grid gap-2 text-xs sm:grid-cols-3">
-              {['Realtime น้ำหนัก', 'รองรับหลายถัง', 'ต่อยอดกับ PO / Spot Buy'].map((chip) => (
-                <div className="rounded-xl border border-white/25 bg-white/10 px-3 py-2 backdrop-blur-sm" key={chip}>{chip}</div>
-              ))}
+            <div className="inline-flex rounded-md bg-white p-1 shadow-sm ring-1 ring-slate-200">
+              {([
+                { icon: <Truck className="size-4" />, label: 'ใบรับของ WTI', value: 'WTI' },
+                { icon: <Truck className="size-4 rotate-180" />, label: 'ใบส่งของ WTO', value: 'WTO' },
+              ] as const).map((option) => {
+                const active = form.type === option.value
+                return (
+                  <button
+                    className={cn(
+                      'inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm transition',
+                      active ? `${ticketTheme.button} text-white` : 'text-slate-600 hover:bg-slate-100',
+                    )}
+                    key={option.value}
+                    type="button"
+                    onClick={() => setForm((current) => ({ ...current, partyId: '', type: option.value }))}
+                  >
+                    {option.icon}
+                    {option.label}
+                  </button>
+                )
+              })}
             </div>
           </div>
-        </div>
-
-        <div className="border-t border-slate-200 bg-slate-50 px-4 py-4 sm:px-6">
-          <div className="inline-flex rounded-2xl bg-white p-1 shadow-sm ring-1 ring-slate-200">
-            {([
-              { icon: <Truck className="size-4" />, key: 'inbound', label: 'เข้า (รับซื้อ)' },
-              { icon: <Truck className="size-4 rotate-180" />, key: 'outbound', label: 'ออก (ขาย)' },
-            ] as const).map((option) => {
-              const active = option.key === ticketType
-              return (
-                <button
-                  className={cn(
-                    'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition',
-                    active
-                      ? option.key === 'inbound'
-                        ? 'bg-emerald-500 text-white shadow-sm'
-                        : 'bg-rose-500 text-white shadow-sm'
-                      : 'text-slate-600 hover:bg-slate-100',
-                  )}
-                  key={option.key}
-                  type="button"
-                  onClick={() => setTicketType(option.key)}
-                >
-                  {option.icon}
-                  {option.label}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      </section>
-
-      <div className="sticky top-0 z-10 rounded-xl bg-slate-950 px-4 py-3 text-white shadow-xl">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <SummaryStat icon={<Scale className="size-4" />} label="น้ำหนักรวม" value={`${formatWeight(totals.grossWeight)} กก.`} />
-          <SummaryStat icon={<Minus className="size-4" />} label="หักรวม" value={`${formatWeight(totals.deductWeight)} กก.`} />
-          <SummaryStat icon={<Package2 className="size-4" />} label="น้ำหนักสุทธิ" value={`${formatWeight(totals.netWeight)} กก.`} />
-        </div>
+        </Card>
       </div>
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
+      <div>
         <div className="space-y-5">
-          <Card className="rounded-xl border-slate-200 p-5 shadow-sm">
-            <SectionHeader title="ข้อมูลทั่วไป" subtitle="บังคับกรอกเพื่อส่งต่อไปยังงานออกบิลหรือเอกสารขนส่ง" />
+          <Card className="p-5">
+            <SectionHeader title="ข้อมูลหัวเอกสาร" subtitle="ผู้ใช้เลือกเฉพาะข้อมูลหน้างาน ส่วนวันที่ เวลา และผู้กรอกเป็นข้อมูลระบบ" />
             <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <FieldBlock error={showError('date')} label="วันที่*">
-                <DatePickerInput className="w-full" value={form.date} onChange={(value) => { markTouched('date'); updateForm('date', value) }} />
-              </FieldBlock>
-              <FieldBlock error={showError('time')} label="เวลา*">
-                <Input type="time" value={form.time} onBlur={() => markTouched('time')} onChange={(event) => updateForm('time', event.target.value)} />
-              </FieldBlock>
+              <SearchCombobox
+                error={showError('branchId')}
+                inputId="weight-ticket-branch"
+                label="สาขา*"
+                options={branches}
+                placeholder="เลือกสาขา"
+                value={form.branchId}
+                onChange={(value) => {
+                  markTouched('branchId')
+                  updateForm('branchId', value)
+                }}
+              />
+              <SearchCombobox
+                error={showError('partyId')}
+                inputId="weight-ticket-party"
+                label={form.type === 'WTI' ? 'ผู้ขาย*' : 'ลูกค้า*'}
+                options={partyOptions}
+                placeholder={form.type === 'WTI' ? 'ค้นหาผู้ขาย' : 'ค้นหาลูกค้า'}
+                value={form.partyId}
+                onChange={(value) => {
+                  markTouched('partyId')
+                  updateForm('partyId', value)
+                }}
+              />
               <FieldBlock error={showError('vehicleNo')} label="ทะเบียนรถ*">
-                <Input placeholder="เช่น 83-5476" value={form.vehicleNo} onBlur={() => markTouched('vehicleNo')} onChange={(event) => updateForm('vehicleNo', event.target.value.toUpperCase())} />
-              </FieldBlock>
-              <SearchCombobox error={showError('partyId')} inputId="weight-party" label={partyLabel} options={partyOptions} placeholder={`ค้นหา${ticketType === 'inbound' ? 'ผู้ขาย' : 'ลูกค้า'}`} value={form.partyId} onChange={(value) => updateForm('partyId', value)} />
-              <SearchCombobox error={showError('branchId')} inputId="weight-branch" label="สาขา*" options={branches} placeholder="เลือกสาขา" value={form.branchId} onChange={(value) => updateForm('branchId', value)} />
-              <SearchCombobox error={showError('employeeId')} inputId="weight-employee" label="พนักงานชั่ง*" options={employees} placeholder="เลือกพนักงานชั่ง" value={form.employeeId} onChange={(value) => updateForm('employeeId', value)} />
-            </div>
-          </Card>
-
-          <Card className="rounded-xl border-slate-200 p-5 shadow-sm">
-            <SectionHeader title="ข้อมูลอ้างอิงต้นทาง" subtitle="รองรับทั้ง PO Buy และ Spot Buy เพื่อส่งต่อไปงานออกบิลอย่างถูก flow" />
-            <div className="mt-4 grid gap-4 md:grid-cols-[12rem_minmax(0,1fr)]">
-              <FieldBlock label="Source Type">
-                <Select value={form.sourceType} onChange={(event) => updateForm('sourceType', event.target.value as FormState['sourceType'])}>
-                  <option value="spot">Spot Buy / สดหน้างาน</option>
-                  <option value="po">PO Receipt / รับตาม PO</option>
-                </Select>
-              </FieldBlock>
-              <FieldBlock label={form.sourceType === 'po' ? 'เลข PO / ใบรับเข้า' : 'เลขใบรับเข้า / หมายเลขอ้างอิง'}>
                 <Input
-                  placeholder={form.sourceType === 'po' ? 'เช่น POB012605-0018 / GRN012605-0004' : 'เช่น GRN012605-0008 หรือหมายเลขภายนอก'}
-                  value={form.referenceNo}
-                  onChange={(event) => updateForm('referenceNo', event.target.value.toUpperCase())}
+                  placeholder="เช่น 83-5476"
+                  value={form.vehicleNo}
+                  onBlur={() => markTouched('vehicleNo')}
+                  onChange={(event) => updateForm('vehicleNo', normalizeVehicleNo(event.target.value))}
                 />
               </FieldBlock>
             </div>
           </Card>
 
-          <Card className="rounded-xl border-slate-200 p-5 shadow-sm">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <SectionHeader title="รายการสินค้า + น้ำหนักแต่ละถัง" subtitle="เพิ่มได้หลายรายการในใบเดียว แต่ละรายการมี bucket rows และหักน้ำหนักแบบ realtime" />
-              <button
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:from-blue-500 hover:to-indigo-500"
-                type="button"
-                onClick={addItem}
-              >
-                <Plus className="size-4" />
-                เพิ่มรายการสินค้า
-              </button>
-            </div>
+          <Card className="p-5">
+            <SectionHeader title="สินค้าและน้ำหนัก" subtitle="เลือกสินค้า กรอกน้ำหนัก และเลือกวิธีหักสิ่งเจือปนต่อรายการ" />
 
             <div className="mt-4 space-y-4">
-              {form.items.map((item, index) => {
-                const totalsByItem = itemTotals(item)
+              {form.lines.map((line, index) => {
+                const lineTotals = calculateLineTotals(line)
                 return (
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 shadow-sm" key={item.id}>
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-3 flex items-center gap-2">
-                          <span className="rounded-full bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white">รายการ {index + 1}</span>
-                          <span className="text-xs text-slate-500">{item.buckets.length} ถัง</span>
-                        </div>
-                        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_11rem_10rem]">
-                          <SearchCombobox error={showError(`item-${item.id}-product`)} inputId={`product-${item.id}`} label="สินค้า*" options={products} placeholder="ค้นหาสินค้า" value={item.productId} onChange={(value) => updateItem(item.id, (current) => ({ ...current, productId: value }))} />
-                          <FieldBlock label="รูปแบบหัก">
-                            <Select value={item.deductMode} onChange={(event) => updateItem(item.id, (current) => ({ ...current, deductMode: event.target.value as DeductMode }))}>
-                              <option value="none">ไม่หัก</option>
-                              <option value="percent">หัก %</option>
-                              <option value="kg">หักเป็นกก.</option>
-                            </Select>
-                          </FieldBlock>
-                          <FieldBlock label={item.deductMode === 'percent' ? 'หัก %' : item.deductMode === 'kg' ? 'หัก กก.' : 'หัก'}>
-                            <Input
-                              disabled={item.deductMode === 'none'}
-                              inputMode="decimal"
-                              placeholder={item.deductMode === 'percent' ? '0.00' : '0.00 กก.'}
-                              value={item.deductValue}
-                              onChange={(event) => updateItem(item.id, (current) => ({ ...current, deductValue: event.target.value }))}
-                            />
-                          </FieldBlock>
-                        </div>
-
-                        <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-white p-3">
-                          <div className="mb-2 flex items-center justify-between">
-                            <div>
-                              <div className="text-sm font-medium text-slate-800">น้ำหนักแต่ละถัง</div>
-                              <div className="text-xs text-slate-500">กรอกน้ำหนักแต่ละถังแล้วระบบจะรวมให้อัตโนมัติ</div>
-                            </div>
-                            <Button size="xs" type="button" variant="outline" onClick={() => addBucket(item.id)}>+ เพิ่มถัง</Button>
+                  <div className="rounded-md border border-slate-200 bg-slate-50 p-4" key={line.id}>
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="inline-flex rounded-md bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white">รายการ {index + 1}</div>
+                      <Button disabled={form.lines.length === 1} size="xs" type="button" variant="outline" onClick={() => removeLine(line.id)}>
+                        <Trash2 className="mr-1 size-3" />
+                        ลบ
+                      </Button>
+                    </div>
+                    <div className={cn(
+                      'grid gap-4',
+                      line.deductionMode === 'none'
+                        ? 'xl:grid-cols-[minmax(0,1.4fr)_10rem_10rem_10rem]'
+                        : 'xl:grid-cols-[minmax(0,1.3fr)_10rem_10rem_minmax(0,1fr)_10rem]',
+                    )}
+                    >
+                      <SearchCombobox
+                        error={showError(`line-${line.id}-product`)}
+                        inputId={`weight-product-${line.id}`}
+                        label="สินค้า*"
+                        options={products}
+                        placeholder="เลือกสินค้า"
+                        value={line.productId}
+                        onChange={(value) => {
+                          markTouched(`line-${line.id}-product`)
+                          updateLine(line.id, (current) => ({ ...current, productId: value }))
+                        }}
+                      />
+                      <FieldBlock error={showError(`line-${line.id}-gross`)} label="น้ำหนักรวม กก.*">
+                        <Input
+                          inputMode="decimal"
+                          placeholder="0.00"
+                          value={line.grossWeight}
+                          onBlur={() => markTouched(`line-${line.id}-gross`)}
+                          onChange={(event) => updateLine(line.id, (current) => ({ ...current, grossWeight: normalizeDecimalInput(event.target.value) }))}
+                        />
+                      </FieldBlock>
+                      <FieldBlock label="หักสิ่งเจือปน">
+                        <Select
+                          value={line.deductionMode}
+                          onChange={(event) => {
+                            const deductionMode = event.target.value as DeductionMode
+                            updateLine(line.id, (current) => ({
+                              ...current,
+                              deductionMode,
+                              deductionValue: '',
+                              impurityId: deductionMode === 'none' ? '' : getLineImpurityId(current),
+                            }))
+                          }}
+                        >
+                          <option value="none">ไม่หัก</option>
+                          <option value="kg">หัก</option>
+                          <option value="percent">หัก %</option>
+                        </Select>
+                      </FieldBlock>
+                      {line.deductionMode !== 'none' ? (
+                        <SearchCombobox
+                          error={showError(`line-${line.id}-impurity`)}
+                          inputId={`weight-impurity-${line.id}`}
+                          label="สิ่งเจือปน*"
+                          options={impurities}
+                          placeholder={impurities.length > 0 ? 'เลือกสิ่งเจือปน' : 'ยังไม่มีสิ่งเจือปนที่ใช้งาน'}
+                          value={getLineImpurityId(line)}
+                          onChange={(value) => {
+                            markTouched(`line-${line.id}-impurity`)
+                            updateLine(line.id, (current) => ({ ...current, impurityId: value }))
+                          }}
+                        />
+                      ) : null}
+                      <FieldBlock error={showError(`line-${line.id}-deduction`)} label={line.deductionMode === 'percent' ? 'ค่าหัก %' : 'น้ำหนักหัก กก.'}>
+                        <Input
+                          disabled={line.deductionMode === 'none'}
+                          inputMode="decimal"
+                          placeholder={line.deductionMode === 'percent' ? '0.00' : '0.00'}
+                          value={line.deductionValue}
+                          onBlur={() => markTouched(`line-${line.id}-deduction`)}
+                          onChange={(event) => updateLine(line.id, (current) => ({ ...current, deductionValue: normalizeDecimalInput(event.target.value) }))}
+                        />
+                      </FieldBlock>
+                    </div>
+                    <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                      <MiniMetric label="Gross" value={`${formatWeight(lineTotals.grossWeight)} กก.`} />
+                      <MiniMetric label="Deduct" value={`${formatWeight(lineTotals.deductionWeight)} กก.`} />
+                      <MiniMetric label="Net" value={`${formatWeight(lineTotals.netWeight)} กก.`} />
+                    </div>
+                    <div className="mt-4 rounded-md border border-dashed border-slate-300 bg-white p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <div className="text-sm font-medium text-slate-800">
+                            รูปภาพรายการสินค้า<span className="ml-1 text-red-600">*</span>
                           </div>
-                          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                            {item.buckets.map((bucket, bucketIndex) => (
-                              <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" key={bucket.id}>
-                                <span className="text-xs font-medium text-slate-500">ถัง {bucketIndex + 1}</span>
-                                <Input
-                                  className="h-9"
-                                  inputMode="decimal"
-                                  placeholder="0.00"
-                                  value={bucket.weight}
-                                  onBlur={() => markTouched(`item-${item.id}-bucket`)}
-                                  onChange={(event) => updateBucket(item.id, bucket.id, event.target.value)}
-                                />
-                                <button className="text-slate-400 hover:text-red-500" type="button" onClick={() => removeBucket(item.id, bucket.id)}>
-                                  <Trash2 className="size-4" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                          {showError(`item-${item.id}-bucket`) ? <div className="mt-2 text-xs text-red-600">{showError(`item-${item.id}-bucket`)}</div> : null}
+                          <div className="text-xs text-slate-500">ต้องมีอย่างน้อย 1 รูปต่อรายการสินค้า</div>
+                          {showError(`line-${line.id}-images`) ? <div className="mt-1 text-xs text-red-600">{showError(`line-${line.id}-images`)}</div> : null}
                         </div>
+                        <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-slate-800">
+                          <ImagePlus className="size-4" />
+                          เพิ่มรูปภาพ
+                          <input
+                            accept="image/*"
+                            className="hidden"
+                            multiple
+                            type="file"
+                            onChange={(event) => {
+                              appendLineImages(line.id, event.target.files)
+                              event.target.value = ''
+                            }}
+                          />
+                        </label>
                       </div>
-
-                      <div className="w-full rounded-xl bg-slate-950 p-4 text-white lg:w-72">
-                        <div className="grid gap-3">
-                          <MiniMetric label="น้ำหนักรวม" value={`${formatWeight(totalsByItem.grossWeight)} กก.`} />
-                          <MiniMetric label="น้ำหนักหัก" value={`${formatWeight(totalsByItem.deductWeight)} กก.`} />
-                          <MiniMetric label="สุทธิ" value={`${formatWeight(totalsByItem.netWeight)} กก.`} />
-                        </div>
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          <Button size="xs" type="button" variant="secondary" onClick={() => setItemDialogId(item.id)}>
-                            รายละเอียดรายการ
-                          </Button>
-                          <Button size="xs" type="button" variant="outline" onClick={() => removeItem(item.id)}>
-                            ลบรายการ
-                          </Button>
-                        </div>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {getLineImages(line).length === 0 ? <div className="rounded-md bg-slate-50 px-4 py-5 text-center text-sm text-slate-400">ยังไม่มีรูปภาพรายการนี้</div> : null}
+                        {getLineImages(line).map((file) => (
+                          <div className="rounded-md border border-slate-200 bg-slate-50 p-3" key={file.id}>
+                            <div className="truncate text-sm font-medium text-slate-800">{file.fileName}</div>
+                            <div className="mt-3 flex items-center justify-between gap-2">
+                              <span className="text-xs text-slate-500">แนบกับรายการ {index + 1}</span>
+                              <Button
+                                size="xs"
+                                type="button"
+                                variant="outline"
+                                onClick={() => updateLine(line.id, (current) => ({
+                                  ...current,
+                                  imageFiles: getLineImages(current).filter((entry) => entry.id !== file.id),
+                                }))}
+                              >
+                                ลบ
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
+                    <FieldBlock label="หมายเหตุรายการ">
+                      <Input
+                        className="mt-3"
+                        placeholder="เช่น ของเปียก มีเศษปน หรือรายละเอียดหน้างาน"
+                        value={line.note}
+                        onChange={(event) => updateLine(line.id, (current) => ({ ...current, note: event.target.value.slice(0, 160) }))}
+                      />
+                    </FieldBlock>
                   </div>
                 )
               })}
             </div>
-          </Card>
-
-          <Card className="rounded-xl border-slate-200 p-5 shadow-sm">
-            <SectionHeader title="รูปประกอบทั่วไป" subtitle="รองรับหลายรูปต่อหมวดเพื่อเก็บหลักฐานหน้างาน" />
-            <div className="mt-4 grid gap-4 lg:grid-cols-2">
-              {generalAttachments.map((group) => (
-                <AttachmentUploader
-                  files={group.files}
-                  key={group.id}
-                  label={group.label}
-                  onAdd={(files) => appendAttachment(files, (nextFiles) => setGeneralAttachments((current) => current.map((entry) => entry.id === group.id ? { ...entry, files: [...entry.files, ...nextFiles] } : entry)))}
-                  onRemove={(fileId) => setGeneralAttachments((current) => current.map((entry) => entry.id === group.id ? { ...entry, files: entry.files.filter((file) => file.id !== fileId) } : entry))}
-                />
-              ))}
+            <div className="mt-4 flex justify-end">
+              <Button className="w-full sm:w-auto" type="button" onClick={addLine}>
+                <Plus className="mr-2 size-4" />
+                เพิ่มสินค้า
+              </Button>
             </div>
           </Card>
 
-          <Card className="rounded-xl border-slate-200 p-5 shadow-sm">
-            <SectionHeader title="หมายเหตุ" subtitle="จดสถานะสินค้า, ปัญหาหน้างาน, หักพิเศษ หรือคำสั่งเพิ่มเติม" />
+          <Card className="p-5">
+            <SectionHeader title="หมายเหตุท้ายเอกสาร" subtitle="ใช้บันทึกข้อมูลหน้างานที่ office ต้องเห็นตอนเลือกเอกสารไปออกบิล" />
             <textarea
-              className="mt-4 min-h-36 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none ring-0 transition focus:border-blue-400"
-              placeholder="ระบุหมายเหตุเพิ่มเติม..."
+              className="mt-4 min-h-28 w-full rounded-md border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-blue-400"
+              placeholder="ระบุหมายเหตุเพิ่มเติม"
               value={form.remark}
-              onChange={(event) => updateForm('remark', event.target.value)}
+              onChange={(event) => updateForm('remark', event.target.value.slice(0, 500))}
             />
           </Card>
         </div>
+      </div>
 
-        <div className="space-y-5">
-          <Card className={cn('rounded-xl border p-5 shadow-sm', ticketTheme.panel)}>
-            <SectionHeader title="Ready Check" subtitle="เช็กความพร้อมก่อนบันทึกใบชั่ง" />
-            <div className="mt-4 space-y-2 text-sm">
-              <ChecklistItem done={Boolean(form.date && form.time)} label="วันที่และเวลา" />
-              <ChecklistItem done={Boolean(form.vehicleNo.trim())} label="ทะเบียนรถ" />
-              <ChecklistItem done={Boolean(form.partyId)} label={ticketType === 'inbound' ? 'Supplier / ผู้ขาย' : 'Customer / ลูกค้า'} />
-              <ChecklistItem done={Boolean(form.branchId && form.employeeId)} label="สาขาและพนักงานชั่ง" />
-              <ChecklistItem done={form.items.every((item) => Boolean(item.productId) && item.buckets.some((bucket) => toNumber(bucket.weight) > 0))} label="รายการสินค้าและน้ำหนัก" />
-            </div>
-          </Card>
-
-          <Card className="rounded-xl border-slate-200 p-5 shadow-sm">
-            <SectionHeader title="Feature Roadmap" subtitle="ของที่ควรต่อใน batch ถัดไป" />
-            <div className="mt-4 flex flex-wrap gap-2">
-              {['Print ใบชั่ง', 'PDF Export', 'QR Code', 'Offline Mode', 'Auto Sync', 'Audit Log', 'เครื่องชั่งจริง'].map((feature) => (
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600" key={feature}>{feature}</span>
-              ))}
-            </div>
-          </Card>
-        </div>
-      </section>
-
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-sm">
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-sm lg:left-64">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-sm text-slate-600">
-            {saveState === 'saved'
-              ? <span className="inline-flex items-center gap-2 font-medium text-emerald-600"><CheckCircle2 className="size-4" />บันทึกใบชั่งตัวอย่างสำเร็จแล้ว</span>
-              : `พร้อมบันทึก ${form.items.length} รายการ · สุทธิ ${formatWeight(totals.netWeight)} กก.`}
+          <div className="min-w-0">
+            {savedTicket ? (
+              <span className="inline-flex items-center gap-2 text-sm font-medium text-emerald-700">
+                <CheckCircle2 className="size-4" />
+                บันทึก {savedTicket.documentNo} แล้ว
+              </span>
+            ) : (
+              <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-sm sm:flex sm:flex-wrap sm:items-center sm:gap-x-5">
+                <FooterMetric label="รายการ" value={`${form.lines.length} รายการ`} />
+                <FooterMetric label="น้ำหนักรวม" value={`${formatWeight(totals.grossWeight)} กก.`} />
+                <FooterMetric label="หัก" value={`${formatWeight(totals.deductionWeight)} กก.`} />
+                <FooterMetric emphasis label="สุทธิ" value={`${formatWeight(totals.netWeight)} กก.`} />
+              </div>
+            )}
           </div>
-          <div className="flex gap-2">
-            <Button type="button" variant="secondary" onClick={() => {
-              setForm(initialForm())
-              setGeneralAttachments(generalAttachmentState())
-              setTouched({})
-              setSaveState('idle')
-            }}
-            >
-              ยกเลิก
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={resetForm}>ล้างฟอร์ม</Button>
+            {savedTicket ? (
+              <Button asChild variant="outline">
+                <Link href="/daily/weight-ticket-list">ดูในรายการ</Link>
+              </Button>
+            ) : null}
+            <Button className={ticketTheme.button} disabled={isSaving} type="button" onClick={saveTicket}>
+              {isSaving ? 'กำลังบันทึก...' : `บันทึก${form.type === 'WTI' ? 'ใบรับของ' : 'ใบส่งของ'}`}
             </Button>
-            <button
-              className="inline-flex min-w-40 items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:from-blue-500 hover:via-indigo-500 hover:to-violet-500 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isSaving}
-              type="button"
-              onClick={saveTicket}
-            >
-              {isSaving ? 'กำลังบันทึกใบชั่ง...' : saveState === 'saved' ? 'บันทึกแล้ว' : 'บันทึกใบชั่ง'}
-            </button>
           </div>
         </div>
       </div>
-
-      <Dialog open={Boolean(activeItem)} onOpenChange={(open) => setItemDialogId(open ? itemDialogId : null)}>
-        <DialogContent className="h-[100svh] max-w-5xl rounded-none p-0 sm:h-[92svh] sm:rounded-xl" hideClose>
-          {activeItem ? (
-            <div className="flex h-full flex-col">
-              <DialogHeader className="border-b bg-slate-950 px-5 py-4 text-white">
-                <DialogTitle className="text-lg">รายละเอียดรายการสินค้า</DialogTitle>
-                <DialogDescription className="text-slate-300">
-                  แก้น้ำหนักแต่ละถัง, หักน้ำหนัก, รูปประกอบเฉพาะรายการ และหมายเหตุของรายการนี้
-                </DialogDescription>
-              </DialogHeader>
-              <div className="flex-1 overflow-y-auto px-5 py-5">
-                <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
-                  <div className="space-y-5">
-                    <Card className="rounded-xl p-4">
-                      <SectionHeader title="สินค้าและ Bucket Weight" subtitle="แก้ไขต่อถังได้ละเอียดใน modal แบบ full-height" />
-                      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_10rem_10rem]">
-                        <SearchCombobox inputId="dialog-product" label="สินค้า*" options={products} placeholder="ค้นหาสินค้า" value={activeItem.productId} onChange={(value) => updateItem(activeItem.id, (current) => ({ ...current, productId: value }))} />
-                        <FieldBlock label="รูปแบบหัก">
-                          <Select value={activeItem.deductMode} onChange={(event) => updateItem(activeItem.id, (current) => ({ ...current, deductMode: event.target.value as DeductMode }))}>
-                            <option value="none">ไม่หัก</option>
-                            <option value="percent">หัก %</option>
-                            <option value="kg">หัก กก.</option>
-                          </Select>
-                        </FieldBlock>
-                        <FieldBlock label="ค่าหัก">
-                          <Input
-                            disabled={activeItem.deductMode === 'none'}
-                            inputMode="decimal"
-                            placeholder="0.00"
-                            value={activeItem.deductValue}
-                            onChange={(event) => updateItem(activeItem.id, (current) => ({ ...current, deductValue: event.target.value }))}
-                          />
-                        </FieldBlock>
-                      </div>
-                      <div className="mt-4 space-y-3">
-                        {activeItem.buckets.map((bucket, index) => (
-                          <div className="grid gap-3 rounded-xl border border-slate-200 p-3 sm:grid-cols-[7rem_minmax(0,1fr)_auto]" key={bucket.id}>
-                            <div className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-600">ถัง {index + 1}</div>
-                            <Input inputMode="decimal" placeholder="0.00" value={bucket.weight} onChange={(event) => updateBucket(activeItem.id, bucket.id, event.target.value)} />
-                            <Button size="xs" type="button" variant="outline" onClick={() => removeBucket(activeItem.id, bucket.id)}>ลบ</Button>
-                          </div>
-                        ))}
-                      </div>
-                      <Button className="mt-4" size="sm" type="button" variant="outline" onClick={() => addBucket(activeItem.id)}>+ เพิ่มถัง</Button>
-                    </Card>
-
-                    <Card className="rounded-xl p-4">
-                      <SectionHeader title="รูปแนบรายการนี้" subtitle="เช่น รูปกองสินค้า, สภาพผิว, ป้าย lot หรือหน้างานเฉพาะรายการ" />
-                      <div className="mt-4">
-                        <AttachmentUploader
-                          files={activeItem.attachments}
-                          label="ถ่ายรูป / เลือกรูป"
-                          onAdd={(files) => appendAttachment(files, (nextFiles) => updateItem(activeItem.id, (current) => ({ ...current, attachments: [...current.attachments, ...nextFiles] })))}
-                          onRemove={(fileId) => updateItem(activeItem.id, (current) => ({ ...current, attachments: current.attachments.filter((file) => file.id !== fileId) }))}
-                        />
-                      </div>
-                    </Card>
-
-                    <Card className="rounded-xl p-4">
-                      <SectionHeader title="หมายเหตุรายการ" subtitle="ใช้กับของเปียก, มีเศษปน, ต้องหักพิเศษ หรือบันทึกคำอธิบายสินค้า" />
-                      <textarea
-                        className="mt-4 min-h-32 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-blue-400"
-                        placeholder="หมายเหตุเฉพาะรายการ"
-                        value={activeItem.note}
-                        onChange={(event) => updateItem(activeItem.id, (current) => ({ ...current, note: event.target.value }))}
-                      />
-                    </Card>
-                  </div>
-
-                  <div className="space-y-4">
-                    <Card className="rounded-xl bg-slate-950 p-4 text-white">
-                      <SectionHeader className="text-white" subtitleClassName="text-slate-300" title="สรุปรายการนี้" subtitle="อัปเดต realtime ตาม bucket และค่าหัก" />
-                      <div className="mt-4 grid gap-3">
-                        <MiniMetric label="Gross" value={`${formatWeight(itemTotals(activeItem).grossWeight)} กก.`} />
-                        <MiniMetric label="Deduct" value={`${formatWeight(itemTotals(activeItem).deductWeight)} กก.`} />
-                        <MiniMetric label="Net" value={`${formatWeight(itemTotals(activeItem).netWeight)} กก.`} />
-                      </div>
-                    </Card>
-                  </div>
-                </div>
-              </div>
-              <DialogFooter className="border-t bg-white">
-                <Button type="button" variant="secondary" onClick={() => setItemDialogId(null)}>ปิด</Button>
-                <button
-                  className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 px-4 py-2 text-sm font-semibold text-white shadow-sm"
-                  type="button"
-                  onClick={() => setItemDialogId(null)}
-                >
-                  ใช้ข้อมูลรายการนี้
-                </button>
-              </DialogFooter>
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
 
-function SectionHeader({
-  className,
-  subtitle,
-  subtitleClassName,
-  title,
-}: {
-  className?: string
-  subtitle: string
-  subtitleClassName?: string
-  title: string
-}) {
+function SectionHeader({ subtitle, title }: { subtitle: string; title: string }) {
   return (
     <div>
-      <h3 className={cn('text-base font-semibold text-slate-900', className)}>{title}</h3>
-      <p className={cn('mt-1 text-sm text-slate-500', subtitleClassName)}>{subtitle}</p>
+      <h3 className="text-base font-semibold text-slate-900">{title}</h3>
+      <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
     </div>
   )
 }
@@ -715,88 +645,35 @@ function FieldBlock({
   error?: string
   label: string
 }) {
+  const hasInlineRequired = label.trim().endsWith('*')
+  const labelText = hasInlineRequired ? label.trim().slice(0, -1).trimEnd() : label
+
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-slate-600">{label}</label>
+      <label className="mb-1 block text-xs font-medium text-slate-600">
+        {labelText}
+        {hasInlineRequired ? <span className="ml-1 text-red-600">*</span> : null}
+      </label>
       {children}
       {error ? <div className="mt-1 text-xs text-red-600">{error}</div> : null}
     </div>
   )
 }
 
-function SummaryStat({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-      <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-400">{icon}{label}</div>
-      <div className="mt-2 text-2xl font-semibold tabular-nums">{value}</div>
-    </div>
-  )
-}
-
 function MiniMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-white/10 px-3 py-3">
-      <div className="text-xs uppercase tracking-wide text-slate-300">{label}</div>
-      <div className="mt-1 text-lg font-semibold tabular-nums text-white">{value}</div>
+    <div className="rounded-md bg-slate-950 px-3 py-3 text-white">
+      <div className="text-xs uppercase text-slate-300">{label}</div>
+      <div className="mt-1 text-lg font-semibold tabular-nums">{value}</div>
     </div>
   )
 }
 
-function ChecklistItem({ done, label }: { done: boolean; label: string }) {
+function FooterMetric({ emphasis = false, label, value }: { emphasis?: boolean; label: string; value: string }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className={cn('inline-flex size-5 items-center justify-center rounded-full text-[11px] font-bold', done ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500')}>
-        {done ? '✓' : '!'}
-      </span>
-      <span className={done ? 'text-slate-700' : 'text-slate-500'}>{label}</span>
-    </div>
-  )
-}
-
-function AttachmentUploader({
-  files,
-  label,
-  onAdd,
-  onRemove,
-}: {
-  files: AttachmentPreview[]
-  label: string
-  onAdd: (files: FileList | null) => void
-  onRemove: (fileId: string) => void
-}) {
-  return (
-    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="text-sm font-medium text-slate-800">{label}</div>
-          <div className="text-xs text-slate-500">ถ่ายรูป / เลือกรูป ได้หลายไฟล์ พร้อม preview</div>
-        </div>
-        <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-slate-100">
-          <ImagePlus className="size-4" />
-          ถ่ายรูป / เลือกรูป
-          <input className="hidden" multiple type="file" accept="image/*" onChange={(event) => {
-            onAdd(event.target.files)
-            event.target.value = ''
-          }}
-          />
-        </label>
-      </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {files.length === 0 ? <div className="rounded-xl bg-white px-4 py-6 text-center text-sm text-slate-400 shadow-sm">ยังไม่มีรูป</div> : null}
-        {files.map((file) => (
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" key={file.id}>
-            <Image alt={file.fileName} className="h-32 w-full object-cover" height={128} src={file.url} unoptimized width={320} />
-            <div className="flex items-center justify-between gap-2 px-3 py-2">
-              <div className="min-w-0 text-xs text-slate-600">
-                <div className="truncate font-medium text-slate-800">{file.fileName}</div>
-              </div>
-              <button className="text-slate-400 hover:text-red-500" type="button" onClick={() => onRemove(file.id)}>
-                <Trash2 className="size-4" />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+    <div className="min-w-0">
+      <div className="text-[11px] font-medium text-slate-500">{label}</div>
+      <div className={cn('font-semibold tabular-nums', emphasis ? 'text-emerald-700' : 'text-slate-900')}>{value}</div>
     </div>
   )
 }

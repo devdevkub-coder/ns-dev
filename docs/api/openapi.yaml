@@ -1530,6 +1530,80 @@ paths:
         "200":
           $ref: "#/components/responses/Ok"
 
+  /api/master-data/impurities:
+    get:
+      tags: [Master Data]
+      operationId: listImpurities
+      summary: List impurity master rows
+      description: >
+        Returns impurity master rows for the `รายการสิ่งเจือปน` page. The
+        `/daily/weight-tickets` WTI/WTO form consumes this endpoint and shows
+        active rows in the line-level impurity dropdown when deduction mode is
+        `หัก` or `หัก%`.
+      responses:
+        "200":
+          description: Impurity master rows sorted by name.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImpurityListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [Master Data]
+      operationId: createOrUpdateImpurity
+      summary: Create or update impurity master row
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImpurityWriteRequest"
+      responses:
+        "200":
+          description: Saved impurity master row.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Impurity"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/master-data/impurities/{id}:
+    patch:
+      tags: [Master Data]
+      operationId: updateImpurityStatus
+      summary: Update impurity active status
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImpurityStatusRequest"
+      responses:
+        "200":
+          description: Updated impurity master row.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Impurity"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /api/master-data/thai-address:
     get:
       tags: [Master Data]
@@ -2793,6 +2867,7 @@ components:
           - currencies
           - directors
           - expense-categories
+          - impurities
           - machines
           - payment-methods
           - product-types
@@ -2844,6 +2919,12 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
+    Conflict:
+      description: Request conflicts with existing data
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
     StockWriteOk:
       description: Stock write completed and traceable ledger rows were created
       content:
@@ -2862,6 +2943,64 @@ components:
         message:
           type: string
       additionalProperties: true
+    Impurity:
+      type: object
+      required: [active, createdAt, id, name, updatedAt]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          example: IMP-001
+        name:
+          type: string
+          minLength: 1
+          maxLength: 180
+          description: User-facing impurity name used by WTI/WTO deduction lines.
+          example: ดิน/ฝุ่น
+        active:
+          type: boolean
+          description: Only active rows should be selectable in `/daily/weight-tickets` deduction dropdowns.
+        createdAt:
+          type: [string, "null"]
+          format: date-time
+        updatedAt:
+          type: [string, "null"]
+          format: date-time
+      additionalProperties: false
+    ImpurityListResponse:
+      type: object
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/Impurity"
+      additionalProperties: false
+    ImpurityStatusRequest:
+      type: object
+      required: [active]
+      properties:
+        active:
+          type: boolean
+      additionalProperties: false
+    ImpurityWriteRequest:
+      type: object
+      required: [name]
+      properties:
+        id:
+          type: string
+          description: Optional when editing an existing impurity; omitted for create.
+          minLength: 1
+          example: IMP-001
+        name:
+          type: string
+          minLength: 1
+          maxLength: 180
+          pattern: "^[\\p{L}\\p{M}\\p{N}\\s.&,()/'\"+#%/-]+$"
+        active:
+          type: boolean
+          default: true
+      additionalProperties: false
     FcdLedgerAccountOption:
       type: object
       required: [currency, id, label, name]

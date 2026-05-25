@@ -47,7 +47,7 @@ Status terms:
 | PO Reports | 1 | 1 | 0 | outstanding only |
 | Reports | 1 | 1 | 0 | reports index |
 | Finance / Accounting | 19 | 19 | 0 | financial-dashboard, cash-flow-analysis, cf-forecast-calendar, working-capital, stock-finance, profit-leak, tax-vat-wht, pl-statement, balance-sheet, cash-flow-statement, asset-register, depreciation, asset-disposal, loan-contracts, loan-dashboard, asset-overview, equity-maint, opening-balance, historical-data |
-| Master Data | 18 | 18 | 0 | broad master-data coverage; warehouses route retired from active navigation |
+| Master Data | 19 | 19 | 0 | broad master-data coverage; warehouses route retired from active navigation |
 | Admin | 6 | 6 | 0 | company, users, audit, transaction ledger; password and migration tools are client baselines |
 
 ## Route Inventory
@@ -88,7 +88,8 @@ Status terms:
 | `/purchase/payments` | จ่ายเงิน Supplier | partial write | `GET/POST /api/purchase/payments` | `payments`, `purchase_bills`, `accounts` | `finance.cash.view` |
 | `/purchase/receipt-vouchers` | ใบสำคัญรับเงิน | read baseline | `GET /api/purchase/receipt-vouchers` | `receipt_vouchers` | `finance.cash.view` |
 | `/sales/receipts` | รับเงิน Customer | partial write | `GET/POST /api/sales/receipts` | `receipts`, `sales_bills`, `accounts` | `finance.cash.view` |
-| `/daily/weight-tickets` | ชั่งสินค้า (เข้า/ออก) | UI prototype | no API yet; local client state only | proposed `weight_tickets`, `weight_ticket_items`, `weight_ticket_buckets`, ticket attachments | `finance.cash.view` |
+| `/daily/weight-tickets` | ชั่งสินค้า / รับ-ส่งของ | UI/localStorage prototype | no API yet; local client state only | create WTI/WTO documents from branch, party, vehicle, product weights, deduction mode, and line-level image names with at least one image per product line; document number/date/time/entered-by are generated on save and not previewed; no plain `WT` document number | `finance.cash.view` |
+| `/daily/weight-ticket-list` | รายการใบรับ-ส่งของ | UI/localStorage prototype | no API yet; local client state only | list/search/filter WTI/WTO documents for office follow-up and bill selection | `finance.cash.view` |
 | `/daily/transfer` | โอนเงินระหว่างบัญชี | partial write | `GET/POST /api/daily/transfers` | `bank_statement`, `accounts` | `finance.cash.view` |
 | `/daily/expense` | ค่าใช้จ่าย | partial write | `GET/POST /api/daily/expenses` | `expenses`, `bank_statement` | `finance.cash.view` |
 | `/daily/petty-advance` | เงินสำรองจ่าย / กู้กรรมการ | partial write | `GET/POST /api/daily/petty-advances`, `POST /api/daily/petty-advances/returns` | `petty_advances`, `bank_statement` | `finance.cash.view` |
@@ -205,6 +206,7 @@ User-facing navigation status: hidden for now per user request on 2026-05-22 bec
 | `/master-data/salespersons` | พนักงานขาย | done | `GET/POST /api/master-data/salespersons`, `PATCH /{id}` | `salespersons` | `master.reference.view` |
 | `/master-data/suppliers` | ผู้ขาย | done | `GET/POST /api/master-data/suppliers`, `GET /export`, `POST /import`, `PATCH /{id}` | `suppliers` | `master.suppliers.view` |
 | `/master-data/products` | รายการสินค้า | done | `GET/POST /api/master-data/products`, `GET /export`, `PATCH /{id}` | `products` | `master.products.view` |
+| `/master-data/impurities` | รายการสิ่งเจือปน | done | `GET/POST /api/master-data/impurities`, `PATCH /{id}` | `impurities` | `master.reference.view` |
 | `/master-data/product-types` | ประเภทสินค้า | done | `GET/POST /api/master-data/product-types`, `PATCH /{id}` | `product_types` | `master.reference.view` |
 | `/master-data/product-units` | หน่วยสินค้า | done | `GET/POST /api/master-data/product-units`, `PATCH /{id}` | `product_units` | `master.reference.view` |
 | `/master-data/branches` | สาขา/คลัง | done | `GET/POST /api/master-data/branches`, `PATCH /{id}` | `branches` | `master.reference.view` |

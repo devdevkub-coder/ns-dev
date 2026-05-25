@@ -229,6 +229,29 @@ Reporting rule:
 
 ### 4.5 Purchase Transaction State, History, and Summary
 
+- [ ] Finalize purchase flow target schema for four purchase modes
+  - [ ] `Stock + PO`: use `ใบรับของ` before purchase bill, create stock ledger, cut PO through purchase-bill allocation from receipt lines
+  - [ ] `Stock + Spot Buy / No PO`: use `ใบรับของ` before purchase bill, create stock ledger, do not cut PO
+  - [ ] `Trading + PO`: do not use `ใบรับของ`, enter quantity/weight in purchase bill, do not create stock ledger, cut PO from purchase bill lines
+  - [ ] `Trading + Spot`: do not use `ใบรับของ`, enter quantity/weight in purchase bill, do not create stock ledger, do not cut PO
+  - [ ] Support many-to-many allocation through Stock purchase bills: one `ใบรับของ` can cut multiple PO and one PO can have multiple `ใบรับของ`
+  - [ ] Support mixed allocation for one receipt: PO lines plus `Spot Buy` lines when receipt qty/weight exceeds selected PO
+  - [ ] Define Stock purchase bill UI rule: choose branch + supplier, select receipt, display receipt products/weights, then allocate each receipt line to PO or Spot
+  - [ ] Add purchase bill line field `ราคาหน้าใบ` / `sales_price` in the item section and expose it to Sale Tracking commission calculation
+  - [ ] Remove line-item discount from target purchase bill item section; support only header-level `ส่วนลดท้ายใบ`
+  - [ ] Post `ส่วนลดท้ายใบ` as expense/separate entry and ensure it does not reduce product cost, stock ledger cost, WAC, or Cost Pool
+  - [ ] Refactor the `/daily/weight-tickets` prototype into `WTI`/`WTO` business documents; target has no plain `WT` document number
+  - [ ] Define `ใบรับของ / Weight Ticket In` document number as `WTI{branchCode}{YYMM}-NNNN`
+  - [ ] Define `ใบรับของ` header fields: auto document date, creation time, entered-by user, branch, supplier, vehicle plate, and image evidence
+  - [ ] Define `ใบรับของ` line fields: product, gross weight, deduction mode (`ไม่หัก`, `หัก`, `หัก%`), deduction weight/percent, and net weight
+  - [ ] Define outbound `ใบส่งของ / Weight Ticket Out` document number as `WTO{branchCode}{YYMM}-NNNN` in the sales/delivery flow, separate from `ใบรับของ`
+  - [ ] Keep document direction in prefix/field (`WTI`/`WTO`); keep status for lifecycle only, not for in/out semantics
+  - [ ] Define create page/menu as `ชั่งสินค้า / รับ-ส่งของ`
+  - [ ] Define list page/menu as `รายการใบรับ-ส่งของ` for WTI/WTO search, filters, detail, and bill-selection follow-up
+  - [x] Add UI/localStorage prototype for `/daily/weight-tickets` and `/daily/weight-ticket-list`; real schema/API persistence remains pending
+  - [ ] Add PO Buy action `ปิดรับไม่ครบ` with required reason, status log, remaining-qty close, and no rewrite of existing receipt/bill/stock/payment rows
+  - [ ] Limit Cost Pool eligibility to copper/brass product groups (`ทองแดง`, `ทองเหลือง`, `copper`, `brass`) only
+  - [ ] Ensure `ปิดรับไม่ครบ` removes/release remaining PO qty from Cost Pool candidate only for eligible copper/brass products
 - [ ] เพิ่ม maintained summary table สำหรับ PO Buy KPI cards (`po_buy_summary_current`)
   - [ ] กำหนด schema `scope_type + scope_key` สำหรับ global row (`all/all`) และ branch rows (`branch/{branch_id}`)
   - [ ] เพิ่ม columns อย่างน้อย `total_rows`, `open_count`, `partial_count`, `received_count`, `cancelled_count`, `remaining_qty`, `remaining_amount`, `total_amount`, `updated_at`
@@ -371,6 +394,8 @@ Reporting rule:
 
 - [ ] map `sales_bills.items jsonb`
 - [ ] design `sales_bill_lines`
+- [ ] Design Trading sales bill flow: choose multiple purchase bills first, auto-fill sale lines, allow manual stock lines, and allocate each line to PO Sell
+- [ ] Define sales bill allocation tables/rules for `sales bill -> purchase bill`, `sales bill -> stock`, and `sales bill -> PO Sell`
 - [ ] define COGS/FIFO rule
 - [ ] define receipt relation
 

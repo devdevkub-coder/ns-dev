@@ -137,9 +137,10 @@
 - Testing:
   - [ ] automated smoke test สำหรับ master/data transaction routes
   - [ ] browser QA authenticated route walk
-- Warehouse weight ticket:
-  - [ ] turn `/daily/weight-tickets` from UI prototype into real module
-  - [ ] design schema/status/numbering for `weight_tickets`, `weight_ticket_items`, `weight_ticket_buckets`, and attachments
+- Warehouse weight ticket / WTI-WTO:
+  - [x] adjust `/daily/weight-tickets` UI prototype to WTI/WTO business wording and add `/daily/weight-ticket-list` UI/localStorage list surface
+  - [ ] turn `/daily/weight-tickets` from localStorage prototype into real module
+  - [ ] design schema/status/numbering for `weight_tickets`, `weight_ticket_items`, `weight_ticket_buckets`, and attachments with document prefixes `WTI{branchCode}{YYMM}-NNNN` for inbound ใบรับของ and `WTO{branchCode}{YYMM}-NNNN` for outbound ใบส่งของ; no plain `WT` document number
   - [ ] decide PO receipt vs spot buy source flow and bill linkage
 
 ## Batch PRE: System Map and API Contract Baseline
@@ -905,7 +906,8 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Shared flow summary:
   - PO Buy can represent delivery PO or costing-only/opening pool; do not assume every PO Buy becomes stock receipt.
   - PO Sell is the sales commitment target for deal costing; its match status depends on cost allocation/match logs.
-  - Cost Pool is read-derived from PO Buy, purchase bill lines, production outputs, grade adjustments, and active matches.
+  - Cost Pool is read-derived from eligible copper/brass sources only (`ทองแดง`, `ทองเหลือง`, `copper`, `brass`): PO Buy, purchase bill lines, production outputs, grade adjustments, and active matches. Non-copper/brass stock stays in stock/WAC and must not enter Cost Pool.
+  - PO Buy `ปิดรับไม่ครบ` must remove/release the remaining undelivered PO quantity from Cost Pool candidate/availability while preserving already received/billed stock rows.
   - Cost Allocator should be preview/simulation-first until the source formula and status transitions are confirmed.
   - Trading Dashboard/Matching uses trading-mode purchase/sales bills plus `trading_deals`; write actions need stricter idempotency and reversal rules before implementation.
 - Buttons/actions/modal/export inventory:
@@ -1072,6 +1074,7 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - DB/API changes: added runtime `GET /api/dual-costing/cost-pool` with `q`, `productId`, `costType`, `sourceType`, `status`, `availableOnly`, `sort`, `from`, `to`, and `format=xlsx`; reads `po_buys`, `purchase_bills`, `production_outputs`, `grade_adjustments`, and `trading_deals`. No schema migration.
 - Buttons/actions checked: page is read-only with filter reset, export, and detail modal only. Allocate/confirm/reverse/recalc actions remain deferred because dedicated cost allocation source links and reconciliation rules are not locked.
 - Data assumptions: Cost Pool rows use business-facing derived lot refs like `CP-POB-*`, `CP-SPT-*`, `CP-PRD-*`, and `CP-RGD-*`; UUID/source ids remain internal fields. PO Buy rows use remaining item quantity when line items are available. Purchase bill usage is reduced by known active `trading_deals.matched_purchase_amount`; PO Buy, production, and regrade usage remains available until real match/allocation links exist.
+- Target rule update: Cost Pool must include only copper/brass product groups (`ทองแดง`, `ทองเหลือง`, `copper`, `brass`). When a PO Buy is closed as `ปิดรับไม่ครบ`, remaining undelivered quantity must be excluded from Cost Pool candidate/available quantity; actual received/billed stock must remain traceable.
 - Playwright smoke: subagent unauth smoke confirmed `/dual-costing/cost-pool` redirects to `/login?redirect=%2Fdual-costing%2Fcost-pool` and unauth API returns `401`. Authenticated main smoke confirmed legacy-style amber warning band, blue/orange/purple cost cards, 5 summary cards, filters, table columns, export link, and detail modal; desktop/mobile had no page overflow and no console errors after duplicate derived lot refs were fixed.
 - Commands: `git diff --check`, `npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npx --yes @redocly/cli lint docs/api/openapi.yaml --max-problems 130`, and `npm run build --workspace @ns-scrap-erp/next` passed. OpenAPI lint still reports existing skeleton warnings only.
 - Result: D5 Cost Pool read-derived baseline implemented and validated; allocate/reverse/recalc/write behavior remains deferred.

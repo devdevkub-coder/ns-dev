@@ -26,7 +26,7 @@ const stockStatusOptions = [
 
 const emptyProductForm: ProductFormValues = {
   id: undefined,
-  code: '',
+  code: null,
   name: '',
   active: true,
   itemStatus: 'RM',
@@ -518,7 +518,7 @@ function ProductForm({ isSaving, product, productTypes, productUnits, onCancel, 
         <section>
           <h4 className="mb-3 text-sm font-bold text-slate-700">ข้อมูลสินค้า</h4>
           <div className="grid gap-4 md:grid-cols-4">
-            <TextField error={errors.code} label="รหัสสินค้า *" readOnly={Boolean(form.id)} value={form.code} onChange={(value) => update('code', value)} />
+            {form.id ? <TextField error={errors.code} label="รหัสสินค้า" readOnly value={form.code ?? ''} onChange={(value) => update('code', value)} /> : null}
             <TextField className="md:col-span-2" error={errors.name} label="ชื่อสินค้า *" value={form.name} onChange={(value) => update('name', value)} />
             <SelectField error={errors.type} label="ประเภทสินค้า" value={form.type ?? ''} onChange={(value) => update('type', value || null)}>
               <option value="">เลือกประเภทสินค้า</option>
