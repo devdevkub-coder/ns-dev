@@ -26,6 +26,7 @@ created: 2026-05-16
 - [[Architecture Map]] - map สรุป architecture, tech stack, environment, database และ auth
 - [[Migration Documents]] - MOC สำหรับเอกสาร migration ทั้งชุด
 - [[Purchase Flow]] - flow ซื้อแบบละเอียด: Stock/Trading, PO/Spot, ใบรับของ/WTI, ใบส่งของ/WTO, กรอกจำนวน/น้ำหนัก, ปิดรับไม่ครบ, เลขเอกสาร, สถานะ, และผลกระทบต่อ PO/PB/Payment/Stock/Cost Pool
+- [[WTI Product Summary Design]] - design decision สำหรับการแยก `WTI` เป็น raw lot layer + per-product summary layer เพื่อให้ `บิลรับซื้อ` ใช้ยอดรวมต่อสินค้าได้โดยไม่เสีย trace ของ lot ชั่ง
 - [[Sales Flow]] - flow ขายแบบละเอียด: PO Sell, Pending Sale/PSALE, ใบส่งของ/WTO, บิลขาย Trading จากหลายบิลซื้อพร้อม stock line, Sales Bill, Receipt, เลขเอกสาร, สถานะ, stock/AR effect
 
 ## Migration Entry Points

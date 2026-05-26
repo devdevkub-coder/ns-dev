@@ -182,7 +182,6 @@ export const navigationItems: NavigationItem[] = [
   { href: '/purchase/payment-history', icon: '📜', label: 'ประวัติการจ่ายเงิน', pageSubtitle: 'ดูประวัติ voucher จ่ายเงิน Supplier ที่ทำไปแล้ว', section: 'daily' },
   { href: '/purchase/receipt-vouchers', icon: '🧾', label: 'ใบสำคัญรับเงิน (Receipt Voucher)', section: 'daily' },
   { href: '/sales/receipts', icon: '💰', label: 'รับเงิน Customer', pageSubtitle: 'บันทึกเงินเข้าบัญชีและประวัติ voucher รับ Customer', section: 'daily' },
-  { href: '/daily/weight-tickets', icon: '⚖️', label: 'ชั่งสินค้า / รับ-ส่งของ', pageSubtitle: 'ออก WTI ใบรับของหรือ WTO ใบส่งของ พร้อมน้ำหนัก หักสิ่งเจือปน รูปภาพ และทะเบียนรถ', section: 'daily' },
   { href: '/daily/weight-ticket-list', icon: '📋', label: 'รายการใบรับ-ส่งของ', pageSubtitle: 'ค้นหาและกรอง WTI/WTO เพื่อเปิดรายละเอียดหรือเลือกเอกสารไปออกบิล', section: 'daily' },
   { href: '/daily/transfer', icon: '🔄', label: 'โอนเงินระหว่างบัญชี', section: 'daily' },
   { href: '/daily/expense', icon: '🧾', label: 'ค่าใช้จ่าย', section: 'daily' },

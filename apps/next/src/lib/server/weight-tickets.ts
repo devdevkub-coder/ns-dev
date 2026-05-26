@@ -17,11 +17,23 @@ export type WeightTicketQuery = {
   type?: string
 }
 
+type WeightTicketUsage = {
+  purchaseCount: number
+  purchaseDocNos: string[]
+  salesCount: number
+  salesDocNos: string[]
+}
+
 type WeightTicketRow = Prisma.weight_ticketsGetPayload<{
   include: {
     branches: true
     customers: true
     suppliers: true
+    weight_ticket_product_summaries: {
+      orderBy: {
+        product_name: 'asc'
+      }
+    }
     weight_ticket_lines: {
       orderBy: {
         line_no: 'asc'
@@ -192,18 +204,102 @@ export function buildWeightTicketLineRows(
   })
 }
 
+export function buildWeightTicketProductSummaryRows(
+  ticketId: string,
+  lineRows: Array<{
+    deduct_weight: number
+    deduction_mode: string
+    deduction_value: number
+    gross_weight: number
+    id: string
+    impurity_id: string | null
+    net_weight: number
+    product_id: string
+    product_name: string
+    weight_ticket_id: string
+  }>,
+) {
+  const grouped = new Map<string, {
+    billedWeight: number
+    deductWeight: number
+    grossWeight: number
+    lineCount: number
+    lineIds: string[]
+    mixedProfiles: Set<string>
+    netWeight: number
+    productId: string
+    productName: string
+    summaryId: string
+  }>()
+
+  lineRows.forEach((line) => {
+    const existing = grouped.get(line.product_id)
+    const profileKey = `${line.deduction_mode}|${line.impurity_id ?? ''}|${line.deduction_value ?? 0}`
+    if (existing) {
+      existing.deductWeight += line.deduct_weight
+      existing.grossWeight += line.gross_weight
+      existing.lineCount += 1
+      existing.lineIds.push(line.id)
+      existing.mixedProfiles.add(profileKey)
+      existing.netWeight += line.net_weight
+      return
+    }
+
+    grouped.set(line.product_id, {
+      billedWeight: 0,
+      deductWeight: line.deduct_weight,
+      grossWeight: line.gross_weight,
+      lineCount: 1,
+      lineIds: [line.id],
+      mixedProfiles: new Set([profileKey]),
+      netWeight: line.net_weight,
+      productId: line.product_id,
+      productName: line.product_name,
+      summaryId: `WTS-${randomUUID()}`,
+    })
+  })
+
+  const summaryRows = [...grouped.values()].map((summary) => ({
+    billed_weight: summary.billedWeight,
+    created_at: new Date(),
+    deduct_weight: summary.deductWeight,
+    gross_weight: summary.grossWeight,
+    has_mixed_deduction_profiles: summary.mixedProfiles.size > 1,
+    id: summary.summaryId,
+    line_count: summary.lineCount,
+    net_weight: summary.netWeight,
+    product_id: summary.productId,
+    product_name: summary.productName,
+    remaining_weight: summary.netWeight,
+    updated_at: new Date(),
+    weight_ticket_id: ticketId,
+  }))
+
+  const bridgeRows = [...grouped.values()].flatMap((summary) => summary.lineIds.map((lineId) => ({
+    created_at: new Date(),
+    id: `WTSL-${randomUUID()}`,
+    summary_id: summary.summaryId,
+    weight_ticket_line_id: lineId,
+  })))
+
+  return { bridgeRows, summaryRows }
+}
+
 export async function getWeightTicketUsageCounts(tx: Prisma.TransactionClient | PrismaClientLike, ticketId: string) {
-  const purchaseRows = await tx.$queryRaw<Array<{ bill_count: number }>>`
+  const purchaseRows = await tx.$queryRaw<Array<{ bill_count: number; doc_nos: string[] | null }>>`
     select count(distinct pb.id)::int as bill_count
-    from public.purchase_bills pb
-    join public.purchase_bill_items pbi on pbi.purchase_bill_id = pb.id
+         , array_remove(array_agg(distinct pb.doc_no), null) as doc_nos
+    from public.purchase_bill_receipt_allocations pbra
+    join public.purchase_bills pb on pb.id = pbra.purchase_bill_id
     where coalesce(pb.status, '') <> 'cancelled'
-      and coalesce(pbi.source_snapshot ->> 'receiptTicketId', '') = ${ticketId}
+      and pbra.weight_ticket_id = ${ticketId}
   `
 
   return {
     purchaseCount: purchaseRows[0]?.bill_count ?? 0,
+    purchaseDocNos: [...(purchaseRows[0]?.doc_nos ?? [])].sort((left, right) => left.localeCompare(right, 'th')),
     salesCount: 0,
+    salesDocNos: [],
   }
 }
 
@@ -239,11 +335,11 @@ type PrismaClientLike = {
   $queryRaw<T = unknown>(query: TemplateStringsArray | Prisma.Sql, ...values: unknown[]): Promise<T>
 }
 
-export function canMutateWeightTicket(row: { status: string | null }, usage: { purchaseCount: number; salesCount: number }) {
+export function canMutateWeightTicket(row: { status: string | null }, usage: WeightTicketUsage) {
   return row.status !== 'cancelled' && usage.purchaseCount === 0 && usage.salesCount === 0
 }
 
-export function mapWeightTicketRow(row: WeightTicketRow, usage: { purchaseCount: number; salesCount: number }) {
+export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsage) {
   const canMutate = canMutateWeightTicket(row, usage)
   const lineRows = row.weight_ticket_lines.map((line: WeightTicketRow['weight_ticket_lines'][number]) => ({
     deductionMode: (line.deduction_mode ?? 'none') as 'none' | 'kg' | 'percent',
@@ -262,6 +358,18 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: { purchaseCount:
     productName: line.product_name,
   }))
   const lineImageNames = lineRows.flatMap((line: { imageNames: string[] }) => line.imageNames)
+  const productSummaries = row.weight_ticket_product_summaries.map((summary) => ({
+    billedWeight: toNumber(summary.billed_weight),
+    deductWeight: toNumber(summary.deduct_weight),
+    grossWeight: toNumber(summary.gross_weight),
+    hasMixedDeductionProfiles: summary.has_mixed_deduction_profiles ?? false,
+    id: summary.id,
+    lineCount: summary.line_count ?? 0,
+    netWeight: toNumber(summary.net_weight),
+    productId: summary.product_id,
+    productName: summary.product_name,
+    remainingWeight: toNumber(summary.remaining_weight),
+  }))
 
   return {
     branchId: row.branch_id,
@@ -280,6 +388,7 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: { purchaseCount:
     lines: lineRows,
     partyId: row.doc_type === 'WTI' ? row.supplier_id ?? '' : row.customer_id ?? '',
     partyName: row.party_name,
+    productSummaries,
     remark: row.remark ?? '',
     status: (row.status ?? defaultTicketStatus(row.doc_type as WeightTicketType)) as WeightTicketStatus,
     totals: {
@@ -292,7 +401,9 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: { purchaseCount:
     updatedAt: row.updated_at?.toISOString() ?? null,
     updatedBy: row.updated_by ?? row.created_by ?? row.entered_by ?? '-',
     usedInPurchaseBillCount: usage.purchaseCount,
+    usedInPurchaseBillDocNos: usage.purchaseDocNos,
     usedInSalesBillCount: usage.salesCount,
+    usedInSalesBillDocNos: usage.salesDocNos,
     vehicleImageCount: row.vehicle_image_count ?? 0,
     vehicleImageNames: row.vehicle_image_names ?? [],
     vehicleNo: row.vehicle_no,

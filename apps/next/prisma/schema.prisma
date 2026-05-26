@@ -1269,6 +1269,7 @@ model po_buys {
   is_opening_pool   Boolean?   @default(false)
   updated_by        String?
   version           Int?       @default(1)
+  purchase_bill_po_allocations purchase_bill_po_allocations[]
   purchase_bill_items purchase_bill_items[]
   suppliers         suppliers? @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: Cascade)
 
@@ -1466,6 +1467,7 @@ model products {
   stock_ledger       stock_ledger[]
   trading_deals      trading_deals[]
   weight_ticket_lines weight_ticket_lines[]
+  weight_ticket_product_summaries weight_ticket_product_summaries[]
 
   @@index([metal_group], map: "idx_products_metal_group")
   @@index([item_status], map: "idx_products_status")
@@ -1544,6 +1546,8 @@ model purchase_bills {
   deduction_amount        Decimal?           @default(0) @db.Decimal
   version                 Int?               @default(1)
   branches                branches?          @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  purchase_bill_po_allocations purchase_bill_po_allocations[]
+  purchase_bill_receipt_allocations purchase_bill_receipt_allocations[]
   purchase_bill_items     purchase_bill_items[]
   suppliers               suppliers?         @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: Cascade)
   warehouses              warehouses?        @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -1583,12 +1587,55 @@ model purchase_bill_items {
   updated_at        DateTime       @default(now()) @db.Timestamptz(6)
   po_buys           po_buys?       @relation(fields: [po_buy_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   products          products?      @relation(fields: [product_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  purchase_bill_po_allocations purchase_bill_po_allocations[]
   purchase_bills    purchase_bills @relation(fields: [purchase_bill_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  purchase_bill_receipt_allocations purchase_bill_receipt_allocations[]
 
   @@unique([purchase_bill_id, line_no], map: "uq_purchase_bill_items_bill_line")
   @@index([po_buy_id], map: "idx_purchase_bill_items_po_buy")
   @@index([product_id], map: "idx_purchase_bill_items_product")
   @@index([purchase_bill_id], map: "idx_purchase_bill_items_bill")
+  @@schema("public")
+}
+
+model purchase_bill_receipt_allocations {
+  id                               String                         @id
+  purchase_bill_id                 String
+  purchase_bill_item_id            String                         @unique
+  weight_ticket_id                 String
+  weight_ticket_product_summary_id String
+  allocated_qty                    Decimal                        @default(0) @db.Decimal
+  allocated_gross_weight           Decimal                        @default(0) @db.Decimal
+  allocated_deduct_weight          Decimal                        @default(0) @db.Decimal
+  created_at                       DateTime                       @default(now()) @db.Timestamptz(6)
+  created_by                       String?
+  purchase_bill_items              purchase_bill_items            @relation(fields: [purchase_bill_item_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  purchase_bills                   purchase_bills                 @relation(fields: [purchase_bill_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  weight_ticket_product_summaries  weight_ticket_product_summaries @relation(fields: [weight_ticket_product_summary_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  weight_tickets                   weight_tickets                 @relation(fields: [weight_ticket_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([purchase_bill_id], map: "idx_purchase_bill_receipt_allocations_bill")
+  @@index([weight_ticket_id], map: "idx_purchase_bill_receipt_allocations_ticket")
+  @@index([weight_ticket_product_summary_id], map: "idx_purchase_bill_receipt_allocations_summary")
+  @@schema("public")
+}
+
+model purchase_bill_po_allocations {
+  id                    String              @id
+  purchase_bill_id      String
+  purchase_bill_item_id String              @unique
+  po_buy_id             String
+  allocated_qty         Decimal             @default(0) @db.Decimal
+  allocated_amount      Decimal             @default(0) @db.Decimal
+  unit_price_snapshot   Decimal             @default(0) @db.Decimal
+  created_at            DateTime            @default(now()) @db.Timestamptz(6)
+  created_by            String?
+  po_buys               po_buys             @relation(fields: [po_buy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  purchase_bill_items   purchase_bill_items @relation(fields: [purchase_bill_item_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  purchase_bills        purchase_bills      @relation(fields: [purchase_bill_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([po_buy_id], map: "idx_purchase_bill_po_allocations_po")
+  @@index([purchase_bill_id], map: "idx_purchase_bill_po_allocations_bill")
   @@schema("public")
 }
 
@@ -1818,8 +1865,10 @@ model weight_tickets {
   updated_by          String?
   branches            branches             @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   customers           customers?           @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  purchase_bill_receipt_allocations purchase_bill_receipt_allocations[]
   suppliers           suppliers?           @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   weight_ticket_lines weight_ticket_lines[]
+  weight_ticket_product_summaries weight_ticket_product_summaries[]
 
   @@index([branch_id], map: "idx_weight_tickets_branch")
   @@index([customer_id], map: "idx_weight_tickets_customer")
@@ -1851,11 +1900,50 @@ model weight_ticket_lines {
   impurities       impurities?    @relation(fields: [impurity_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   products         products       @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   weight_tickets   weight_tickets @relation(fields: [weight_ticket_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  weight_ticket_product_summary_lines weight_ticket_product_summary_lines[]
 
   @@index([impurity_id], map: "idx_weight_ticket_lines_impurity")
   @@index([product_id], map: "idx_weight_ticket_lines_product")
   @@index([weight_ticket_id], map: "idx_weight_ticket_lines_ticket")
   @@unique([weight_ticket_id, line_no], map: "uq_weight_ticket_lines_ticket_line")
+  @@schema("public")
+}
+
+model weight_ticket_product_summaries {
+  id                           String                              @id
+  weight_ticket_id             String
+  product_id                   String
+  product_name                 String
+  line_count                   Int                                 @default(0)
+  gross_weight                 Decimal                             @default(0) @db.Decimal
+  deduct_weight                Decimal                             @default(0) @db.Decimal
+  net_weight                   Decimal                             @default(0) @db.Decimal
+  billed_weight                Decimal                             @default(0) @db.Decimal
+  remaining_weight             Decimal                             @default(0) @db.Decimal
+  has_mixed_deduction_profiles Boolean                             @default(false)
+  created_at                   DateTime                            @default(now()) @db.Timestamptz(6)
+  updated_at                   DateTime                            @default(now()) @db.Timestamptz(6)
+  purchase_bill_receipt_allocations purchase_bill_receipt_allocations[]
+  products                     products                            @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  weight_tickets               weight_tickets                      @relation(fields: [weight_ticket_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  weight_ticket_product_summary_lines weight_ticket_product_summary_lines[]
+
+  @@index([product_id], map: "idx_weight_ticket_product_summaries_product")
+  @@index([weight_ticket_id], map: "idx_weight_ticket_product_summaries_ticket")
+  @@unique([weight_ticket_id, product_id], map: "uq_weight_ticket_product_summaries_ticket_product")
+  @@schema("public")
+}
+
+model weight_ticket_product_summary_lines {
+  id                    String                          @id
+  summary_id            String
+  weight_ticket_line_id String                          @unique(map: "uq_weight_ticket_product_summary_lines_line")
+  created_at            DateTime                        @default(now()) @db.Timestamptz(6)
+  weight_ticket_lines   weight_ticket_lines             @relation(fields: [weight_ticket_line_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  weight_ticket_product_summaries weight_ticket_product_summaries @relation(fields: [summary_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([summary_id], map: "idx_weight_ticket_product_summary_lines_summary")
+  @@unique([summary_id, weight_ticket_line_id], map: "uq_weight_ticket_product_summary_lines_summary_line")
   @@schema("public")
 }
 

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { readJsonResponse } from '@/lib/api-client'
 import { companyProfileSchema, emptyCompanyProfile, type CompanyProfileFormValues } from '@/lib/company-profile'
-import { statusLabels, type WeightTicketRecord } from '@/lib/weight-tickets'
+import { displayWeightTicketStatus, type WeightTicketRecord } from '@/lib/weight-tickets'
 
 const companyProfilePayloadSchema = z.object({
   profile: companyProfileSchema,
@@ -34,6 +34,11 @@ function formatDateTime(value?: string | null) {
 }
 
 export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: CompanyProfileFormValues) {
+  const isReceipt = ticket.type === 'WTI'
+  const docTitle = isReceipt ? 'ใบรับสินค้า' : 'ใบส่งของ'
+  const partyLabel = isReceipt ? 'ผู้ขาย/ผู้ส่งของ' : 'ลูกค้า/ผู้รับสินค้า'
+  const signatureLeft = isReceipt ? 'ผู้ส่งสินค้า' : 'ผู้ส่งของ'
+  const signatureMiddle = isReceipt ? 'ผู้รับเข้าคลัง' : 'ผู้รับของ'
   const rows = ticket.lines.map((line, index) => `
     <tr>
       <td class="c">${index + 1}</td>
@@ -65,10 +70,10 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
     .filter(Boolean)
     .join('')
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>ใบรับสินค้า ${escapeHtml(ticket.documentNo)}</title>
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(docTitle)} ${escapeHtml(ticket.documentNo)}</title>
     <style>
       @page { size: A4; margin: 0.5in; }
-      body { font-family: 'Sarabun', 'TH Sarabun New', Arial, sans-serif; font-size: 13px; color: #0f172a; margin: 0; padding: 0; line-height: 1.4; }
+      body { font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 13px; color: #0f172a; margin: 0; padding: 0; line-height: 1.4; }
       .page { padding: 12px; }
       .head { position: relative; padding-bottom: 14px; border-bottom: 2px solid #334155; margin-bottom: 14px; }
       .co-name { font-size: 22px; font-weight: 700; margin: 0; }
@@ -130,7 +135,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
           <div class="co-info">${companyInfo}</div>
         </div>
         <div class="doc-info">
-          <div class="title">ใบรับสินค้า</div>
+          <div class="title">${escapeHtml(docTitle)}</div>
           <div class="num">เลขที่: <b>${escapeHtml(ticket.documentNo)}</b></div>
           <div>วันที่ ${escapeHtml(ticket.documentDate || '-')}</div>
           <div>เวลา ${escapeHtml(formatDateTime(ticket.createdAt))}</div>
@@ -138,11 +143,11 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       </div>
 
       <div class="meta">
-        <div><b style="color:#475569">ผู้ขาย/ผู้ส่งของ:</b> <b style="font-size:14px">${escapeHtml(ticket.partyName || '-')}</b></div>
+        <div><b style="color:#475569">${escapeHtml(partyLabel)}:</b> <b style="font-size:14px">${escapeHtml(ticket.partyName || '-')}</b></div>
         <div><b style="color:#475569">ทะเบียนรถ:</b> <b style="font-size:14px">${escapeHtml(ticket.vehicleNo || '-')}</b></div>
         <div><b style="color:#475569">สาขา:</b> <b style="font-size:14px">${escapeHtml(ticket.branchName || '-')}</b></div>
         <div><b style="color:#475569">พนักงานชั่ง:</b> <b style="font-size:14px">${escapeHtml(ticket.enteredBy || '-')}</b></div>
-        <div><b style="color:#475569">สถานะ:</b> <b style="font-size:14px">${escapeHtml(statusLabels[ticket.status])}</b></div>
+        <div><b style="color:#475569">สถานะ:</b> <b style="font-size:14px">${escapeHtml(displayWeightTicketStatus(ticket.type, ticket.status))}</b></div>
       </div>
 
       <table class="items">
@@ -178,18 +183,18 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
         <div>${escapeHtml(ticket.remark || '-')}</div>
       </div>
 
-      ${vehicleImageBlocks ? `<div class="photos"><div style="font-size:13px;font-weight:700;color:#475569;margin-bottom:10px;border-bottom:2px solid #cbd5e1;padding-bottom:6px">📷 รูปรถส่งของ</div><div class="photos-grid">${vehicleImageBlocks}</div></div>` : ''}
+      ${vehicleImageBlocks ? `<div class="photos"><div style="font-size:13px;font-weight:700;color:#475569;margin-bottom:10px;border-bottom:2px solid #cbd5e1;padding-bottom:6px">📷 รูปรถ${isReceipt ? 'ส่งของ' : 'ขนส่ง'}</div><div class="photos-grid">${vehicleImageBlocks}</div></div>` : ''}
 
       <div class="signatures">
         <div class="sig">
-          <div class="line">ผู้ส่งสินค้า</div>
+          <div class="line">${escapeHtml(signatureLeft)}</div>
         </div>
         <div class="sig">
           <div class="line">พนักงานชั่ง</div>
           <div style="font-size:10px;color:#64748b;margin-top:2px">${escapeHtml(ticket.enteredBy || '')}</div>
         </div>
         <div class="sig">
-          <div class="line">ผู้รับเข้าคลัง</div>
+          <div class="line">${escapeHtml(signatureMiddle)}</div>
         </div>
         <div class="sig">
           <div class="line">ผู้อนุมัติ</div>
@@ -206,7 +211,6 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
 }
 
 export async function openWeightTicketReceiptPrint(ticket: WeightTicketRecord) {
-  if (ticket.type !== 'WTI') return
   const response = await fetch('/api/admin/company-profile', { cache: 'no-store' })
   const payload = await readJsonResponse(response, companyProfilePayloadSchema, 'โหลดข้อมูลบริษัทไม่สำเร็จ')
   const profile = payload.profile ?? emptyCompanyProfile

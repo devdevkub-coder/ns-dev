@@ -139,12 +139,10 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
           </Button>
         </div>
         <div className="flex flex-wrap gap-2">
-          {ticket.type === 'WTI' ? (
-            <Button disabled={isPrinting} type="button" variant="outline" onClick={() => void handlePrintReceipt()}>
-              <Printer className="mr-2 size-4" />
-              {isPrinting ? 'กำลังเตรียมใบพิมพ์...' : 'พิมพ์ใบรับสินค้า'}
-            </Button>
-          ) : null}
+          <Button disabled={isPrinting} type="button" variant="outline" onClick={() => void handlePrintReceipt()}>
+            <Printer className="mr-2 size-4" />
+            {isPrinting ? 'กำลังเตรียมใบพิมพ์...' : ticket.type === 'WTI' ? 'พิมพ์ใบรับสินค้า' : 'พิมพ์ใบส่งของ'}
+          </Button>
           {ticket.canEdit ? (
             <Button asChild type="button" variant="outline">
               <Link href={`/daily/weight-tickets?id=${encodeURIComponent(ticket.id)}`}>
@@ -163,7 +161,6 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
               <DetailItem
                 label={ticket.type === 'WTI' ? 'ใบรับของ' : 'ใบส่งของ'}
                 value={ticket.documentNo}
-                valueClassName="font-mono"
               />
               <DetailItem label="วันที่/เวลาสร้าง" value={formatDateTime(ticket.createdAt)} />
               <DetailItem label="ผู้กรอก" value={ticket.enteredBy} />
@@ -175,6 +172,18 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                 <DetailItem label="อ้างอิงบิลขาย" value={`${ticket.usedInSalesBillCount} รายการ`} />
               )}
             </div>
+            {ticket.type === 'WTI' && ticket.usedInPurchaseBillDocNos.length > 0 ? (
+              <div className="mt-4 rounded-md bg-slate-50 px-4 py-3">
+                <div className="text-xs font-medium text-slate-500">เลขที่บิลซื้อที่อ้างอิง</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {ticket.usedInPurchaseBillDocNos.map((docNo) => (
+                    <span className="rounded-md bg-white px-2.5 py-1 text-xs text-slate-700 shadow-sm" key={docNo}>
+                      {docNo}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             {ticket.remark ? (
               <div className="mt-4 rounded-md bg-slate-50 px-4 py-3">
                 <div className="text-xs font-medium text-slate-500">
@@ -198,7 +207,11 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <MetricCard icon={<ClipboardList className="size-4" />} label="สาขา" value={ticket.branchName} />
             <MetricCard icon={<Scale className="size-4" />} label="น้ำหนักสุทธิ" value={`${formatWeight(ticket.totals.netWeight)} กก.`} />
-            <MetricCard icon={<Package2 className="size-4" />} label="รายการสินค้า" value={`${ticket.lines.length} รายการ`} />
+            <MetricCard
+              icon={<Package2 className="size-4" />}
+              label="สินค้าหลังรวม"
+              value={`${ticket.productSummaries.length} สินค้า / ${ticket.lines.length} lot`}
+            />
           </div>
 
           <Card className="p-5">
@@ -216,73 +229,107 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
           </Card>
 
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
-            <Card className="overflow-hidden p-0">
-              <div className="border-b border-slate-200 px-5 py-4">
-                <SectionTitle subtitle="รองรับเอกสารยาวหลายสิบรายการ" title="รายการสินค้า" />
-              </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200 text-sm">
-                  <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
-                    <tr>
-                      <th className="px-3 py-3 text-left">ลำดับ</th>
-                      <th className="px-3 py-3 text-left">สินค้า</th>
-                      <th className="px-3 py-3 text-left">หมายเหตุ</th>
-                      <th className="px-3 py-3 text-right">Gross</th>
-                      <th className="px-3 py-3 text-right">หัก</th>
-                      <th className="px-3 py-3 text-right">Net</th>
-                      <th className="px-3 py-3 text-left">สิ่งเจือปน</th>
-                      <th className="px-3 py-3 text-left">รูป</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {ticket.lines.map((line, index) => (
-                      <tr key={line.id}>
-                        <td className="whitespace-nowrap px-3 py-3 text-slate-500">{index + 1}</td>
-                        <td className="px-3 py-3 font-medium text-slate-900">{line.productName}</td>
-                        <td className="px-3 py-3 text-slate-600">{line.note || '-'}</td>
-                        <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(line.grossWeightValue)}</td>
-                        <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(line.deductionWeight)}</td>
-                        <td className="whitespace-nowrap px-3 py-3 text-right font-semibold tabular-nums text-slate-900">{formatWeight(line.netWeight)}</td>
-                        <td className="px-3 py-3 text-slate-600">{line.impurityName || '-'}</td>
-                        <td className="px-3 py-3">
-                          {line.imageCount > 0 ? (
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="whitespace-nowrap text-slate-500">{line.imageCount} รูป</span>
-                              {line.imageNames.map(decodeStoredImageAsset).filter((image) => image.url).length > 0 ? (
-                                <button
-                                  className="text-sm font-medium text-blue-700 hover:underline"
-                                  type="button"
-                                  onClick={() => {
-                                    const previewableImages = line.imageNames
-                                      .map(decodeStoredImageAsset)
-                                      .filter((image): image is { fileName: string; rawValue: string; url: string } => Boolean(image.url))
-                                      .map((image) => ({
-                                        fileName: image.fileName,
-                                        url: image.url,
-                                      }))
-                                    if (previewableImages.length > 0) {
-                                      setLineGallery({
-                                        activeIndex: 0,
-                                        images: previewableImages,
-                                        title: line.productName,
-                                      })
-                                    }
-                                  }}
-                                >
-                                  ดูรูป
-                                </button>
-                              ) : null}
-                            </div>
-                          ) : (
-                            <span className="text-slate-400">-</span>
-                          )}
-                        </td>
+            <div className="space-y-4">
+              <Card className="overflow-hidden p-0">
+                <div className="border-b border-slate-200 px-5 py-4">
+                  <SectionTitle subtitle="รองรับเอกสารยาวหลายสิบรายการ" title="รายการสินค้าแยกตาม lot" />
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
+                      <tr>
+                        <th className="px-3 py-3 text-left">ลำดับ</th>
+                        <th className="px-3 py-3 text-left">สินค้า</th>
+                        <th className="px-3 py-3 text-left">หมายเหตุ</th>
+                        <th className="px-3 py-3 text-right">Gross</th>
+                        <th className="px-3 py-3 text-right">หัก</th>
+                        <th className="px-3 py-3 text-right">Net</th>
+                        <th className="px-3 py-3 text-left">สิ่งเจือปน</th>
+                        <th className="px-3 py-3 text-left">รูป</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {ticket.lines.map((line, index) => (
+                        <tr key={line.id}>
+                          <td className="whitespace-nowrap px-3 py-3 text-slate-500">{index + 1}</td>
+                          <td className="px-3 py-3 font-medium text-slate-900">{line.productName}</td>
+                          <td className="px-3 py-3 text-slate-600">{line.note || '-'}</td>
+                          <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(line.grossWeightValue)}</td>
+                          <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(line.deductionWeight)}</td>
+                          <td className="whitespace-nowrap px-3 py-3 text-right font-semibold tabular-nums text-slate-900">{formatWeight(line.netWeight)}</td>
+                          <td className="px-3 py-3 text-slate-600">{line.impurityName || '-'}</td>
+                          <td className="px-3 py-3">
+                            {line.imageCount > 0 ? (
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="whitespace-nowrap text-slate-500">{line.imageCount} รูป</span>
+                                {line.imageNames.map(decodeStoredImageAsset).filter((image) => image.url).length > 0 ? (
+                                  <button
+                                    className="text-sm font-medium text-blue-700 hover:underline"
+                                    type="button"
+                                    onClick={() => {
+                                      const previewableImages = line.imageNames
+                                        .map(decodeStoredImageAsset)
+                                        .filter((image): image is { fileName: string; rawValue: string; url: string } => Boolean(image.url))
+                                        .map((image) => ({
+                                          fileName: image.fileName,
+                                          url: image.url,
+                                        }))
+                                      if (previewableImages.length > 0) {
+                                        setLineGallery({
+                                          activeIndex: 0,
+                                          images: previewableImages,
+                                          title: line.productName,
+                                        })
+                                      }
+                                    }}
+                                  >
+                                    ดูรูป
+                                  </button>
+                                ) : null}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+
+              <Card className="overflow-hidden p-0">
+                <div className="border-b border-slate-200 px-5 py-4">
+                  <SectionTitle subtitle="รวมสินค้าชนิดเดียวกันในเอกสารเดียวกันก่อนนำไปใช้ออกบิล" title="สรุปต่อสินค้า" />
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
+                      <tr>
+                        <th className="px-3 py-3 text-left">ลำดับ</th>
+                        <th className="px-3 py-3 text-left">สินค้า</th>
+                        <th className="px-3 py-3 text-left">จำนวน lot</th>
+                        <th className="px-3 py-3 text-right">Gross รวม</th>
+                        <th className="px-3 py-3 text-right">หักรวม</th>
+                        <th className="px-3 py-3 text-right">Net รวม</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {ticket.productSummaries.map((summary, index) => (
+                        <tr key={summary.id}>
+                          <td className="whitespace-nowrap px-3 py-3 text-slate-500">{index + 1}</td>
+                          <td className="px-3 py-3 font-medium text-slate-900">{summary.productName}</td>
+                          <td className="px-3 py-3 text-slate-600">{summary.lineCount} lot</td>
+                          <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(summary.grossWeight)}</td>
+                          <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(summary.deductWeight)}</td>
+                          <td className="whitespace-nowrap px-3 py-3 text-right font-semibold tabular-nums text-slate-900">{formatWeight(summary.netWeight)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            </div>
 
             <Card className="p-5">
               <SectionTitle subtitle="สถานะปัจจุบันของเอกสาร" title="สถานะ" />
@@ -307,6 +354,13 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                       ? `บิลซื้อ ${ticket.usedInPurchaseBillCount} รายการ`
                       : `บิลขาย ${ticket.usedInSalesBillCount} รายการ`}
                   </div>
+                  {ticket.type === 'WTI' && ticket.usedInPurchaseBillDocNos.length > 0 ? (
+                    <div className="mt-2 space-y-1 text-xs text-slate-600">
+                      {ticket.usedInPurchaseBillDocNos.map((docNo) => (
+                        <div key={docNo}>{docNo}</div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
                 {ticket.cancelledAt ? (
                   <div className="rounded-md bg-slate-50 px-4 py-3">
@@ -334,7 +388,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                 <div className="rounded-md border border-slate-200 bg-white px-3 py-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="font-medium text-slate-900">{timelineLabel(event.eventKey, event.action)}</div>
-                    <div className="font-mono text-xs text-slate-400">{formatDateTime(event.occurredAt)}</div>
+                    <div className="text-xs text-slate-400">{formatDateTime(event.occurredAt)}</div>
                   </div>
                   <div className="mt-1 text-sm text-slate-600">{event.actorName}</div>
                   {'cancelNote' in event.metadata && typeof event.metadata.cancelNote === 'string' && event.metadata.cancelNote ? (

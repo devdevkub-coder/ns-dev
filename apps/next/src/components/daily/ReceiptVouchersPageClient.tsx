@@ -118,11 +118,11 @@ export function ReceiptVouchersPageClient() {
               {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={8}>กำลังโหลดข้อมูล</td></tr> : null}
               {!isLoading && filteredRows.map((row) => (
                 <tr key={row.id} className="border-t hover:bg-blue-50/30">
-                  <td className="p-2 font-mono text-xs font-semibold text-slate-700">{row.docNo}</td>
+                  <td className="p-2 text-xs font-semibold text-slate-700">{row.docNo}</td>
                   <td className="p-2">{formatDateDisplay(row.date)}</td>
                   <td className="p-2 font-medium text-slate-800">{row.sellerName || '-'}</td>
-                  <td className="p-2 font-mono text-xs text-slate-500">{row.sellerTaxId || '-'}</td>
-                  <td className="p-2 font-mono text-xs">{row.purchaseBillDocNo || '-'}</td>
+                  <td className="p-2 text-xs text-slate-500">{row.sellerTaxId || '-'}</td>
+                  <td className="p-2 text-xs">{row.purchaseBillDocNo || '-'}</td>
                   <td className="p-2 text-right">{formatMoney(row.totalQty)}</td>
                   <td className="p-2 text-right font-semibold text-emerald-700">{formatMoney(row.totalAmount)}</td>
                   <td className="space-x-2 whitespace-nowrap p-2 text-right">
@@ -172,7 +172,7 @@ function PrintPreview({ onClose, row }: { onClose: () => void; row: ReceiptVouch
           <button className="rounded-md bg-red-500 px-3 py-1 text-xs" type="button" onClick={onClose}>ปิด</button>
         </div>
       </div>
-      <div className="mx-auto max-w-[210mm] bg-white p-8 text-black" style={{ fontFamily: "'Sarabun', 'TH Sarabun New', Arial, sans-serif", fontSize: '14px' }}>
+      <div className="mx-auto max-w-[210mm] bg-white p-8 text-black" style={{ fontFamily: "'Noto Sans Thai', Arial, sans-serif", fontSize: '14px' }}>
         <div className="mb-4 border-b-2 border-gray-300 pb-3">
           <div className="text-lg font-bold">NS Scrap ERP</div>
           <div className="mt-1 text-xs">ข้อมูลบริษัทจาก Company Profile จะแสดงในใบพิมพ์ฉบับ production เมื่อเชื่อม company profile payload กับ preview นี้</div>

@@ -8,6 +8,7 @@ import { prisma } from '@/lib/server/prisma'
 import {
   branchScopeIds,
   buildWeightTicketLineRows,
+  buildWeightTicketProductSummaryRows,
   canMutateWeightTicket,
   defaultTicketStatus,
   getWeightTicketTimeline,
@@ -24,6 +25,9 @@ const ticketInclude = {
   branches: true,
   customers: true,
   suppliers: true,
+  weight_ticket_product_summaries: {
+    orderBy: { product_name: 'asc' },
+  },
   weight_ticket_lines: {
     orderBy: { line_no: 'asc' },
   },
@@ -159,6 +163,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         })()
         : existing.doc_no
       const lineRows = buildWeightTicketLineRows(existing.id, values, productById, impurityById)
+      const { bridgeRows, summaryRows } = buildWeightTicketProductSummaryRows(existing.id, lineRows)
       const imageCount = values.vehicleImageNames.length + lineRows.reduce((sum, line) => sum + line.image_count, 0)
 
       await tx.weight_tickets.update({
@@ -188,8 +193,11 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         },
         where: { id: existing.id },
       })
+      await tx.weight_ticket_product_summaries.deleteMany({ where: { weight_ticket_id: existing.id } })
       await tx.weight_ticket_lines.deleteMany({ where: { weight_ticket_id: existing.id } })
       await tx.weight_ticket_lines.createMany({ data: lineRows })
+      await tx.weight_ticket_product_summaries.createMany({ data: summaryRows })
+      await tx.weight_ticket_product_summary_lines.createMany({ data: bridgeRows })
 
       return tx.weight_tickets.findUniqueOrThrow({
         include: ticketInclude,

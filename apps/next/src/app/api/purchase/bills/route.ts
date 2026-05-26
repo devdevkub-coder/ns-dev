@@ -33,6 +33,14 @@ type WeightTicketOptionRow = Prisma.weight_ticketsGetPayload<{
   include: {
     branches: true
     suppliers: true
+    weight_ticket_product_summaries: {
+      include: {
+        weight_ticket_product_summary_lines: true
+      }
+      orderBy: {
+        product_name: 'asc'
+      }
+    }
     weight_ticket_lines: {
       orderBy: {
         line_no: 'asc'
@@ -107,6 +115,10 @@ function billItemJson(row: PurchaseBillRow['purchase_bill_items'][number]) {
     productName: row.product_name ?? row.product_id ?? '',
     qty: toNumber(row.qty),
     receiptLineId: typeof snapshot.receiptLineId === 'string' ? snapshot.receiptLineId : null,
+    receiptLineIds: Array.isArray(snapshot.receiptLineIds)
+      ? snapshot.receiptLineIds.filter((value): value is string => typeof value === 'string')
+      : [],
+    receiptSummaryId: typeof snapshot.receiptSummaryId === 'string' ? snapshot.receiptSummaryId : null,
     receiptTicketDocNo: typeof snapshot.receiptTicketDocNo === 'string' ? snapshot.receiptTicketDocNo : null,
     receiptTicketId: typeof snapshot.receiptTicketId === 'string' ? snapshot.receiptTicketId : null,
     salesPrice: toNumber(row.sales_price),
@@ -170,10 +182,16 @@ function calculateTotals(values: PurchaseBillFormValues, vatRatePercent: number)
   return { afterDiscount, subtotal, totalAmount, vatAmount }
 }
 
-function buildBillItems(values: PurchaseBillFormValues, productById: Map<string, { code: string; item_status: string | null; name: string; unit: string | null }>) {
+function buildBillItems(
+  values: PurchaseBillFormValues,
+  productById: Map<string, { code: string; item_status: string | null; name: string; unit: string | null }>,
+  poBuyById: Map<string, { unit_price: Prisma.Decimal | null }>,
+) {
   return values.items.map((item) => {
     const product = productById.get(item.productId)
-    const amount = Math.max(0, item.qty * item.price - item.discount)
+    const poBuy = item.poBuyId ? poBuyById.get(item.poBuyId) : null
+    const price = poBuy ? toNumber(poBuy.unit_price) : item.price
+    const amount = Math.max(0, item.qty * price - item.discount)
     return {
       amount,
       deductWeight: item.deductWeight,
@@ -184,12 +202,14 @@ function buildBillItems(values: PurchaseBillFormValues, productById: Map<string,
       lotNo: item.lotNo,
       note: item.note,
       poBuyId: item.poBuyId,
-      price: item.price,
+      price,
       productCode: product?.code ?? '',
       productId: item.productId,
       productName: product?.name ?? item.productId,
       qty: item.qty,
       receiptLineId: item.receiptLineId,
+      receiptLineIds: item.receiptLineIds,
+      receiptSummaryId: item.receiptSummaryId,
       receiptTicketDocNo: item.receiptTicketDocNo,
       receiptTicketId: item.receiptTicketId,
       salesPrice: item.salesPrice,
@@ -225,6 +245,8 @@ function billItemCreateRows(billId: string, items: ReturnType<typeof buildBillIt
         productName: item.productName,
         qty: item.qty,
         receiptLineId: item.receiptLineId ?? null,
+        receiptLineIds: item.receiptLineIds ?? [],
+        receiptSummaryId: item.receiptSummaryId ?? null,
         receiptTicketDocNo: item.receiptTicketDocNo ?? null,
         receiptTicketId: item.receiptTicketId ?? null,
       } as Prisma.InputJsonValue,
@@ -232,37 +254,81 @@ function billItemCreateRows(billId: string, items: ReturnType<typeof buildBillIt
     }))
 }
 
-function receiptLineUsageKey(ticketId: string, lineId: string) {
-  return `${ticketId}::${lineId}`
+function buildPurchaseBillReceiptAllocationRows(
+  billId: string,
+  itemRows: ReturnType<typeof billItemCreateRows>,
+  summaryById: Map<string, { deduct_weight: Prisma.Decimal | null; gross_weight: Prisma.Decimal | null; net_weight: Prisma.Decimal | null; weight_ticket_id: string }>,
+  actor: string,
+) {
+  return itemRows.flatMap((item) => {
+    const snapshot = item.source_snapshot && typeof item.source_snapshot === 'object'
+      ? item.source_snapshot as Record<string, unknown>
+      : {}
+    const summaryId = typeof snapshot.receiptSummaryId === 'string' ? snapshot.receiptSummaryId : ''
+    if (!summaryId) return []
+    const summary = summaryById.get(summaryId)
+    if (!summary) return []
+    const allocatedQty = toNumber(item.qty)
+    const netWeight = toNumber(summary.net_weight)
+    const ratio = netWeight > 0 ? allocatedQty / netWeight : 0
+    return [{
+      allocated_deduct_weight: toNumber(summary.deduct_weight) * ratio,
+      allocated_gross_weight: toNumber(summary.gross_weight) * ratio,
+      allocated_qty: allocatedQty,
+      created_by: actor,
+      id: `PBRA-${randomUUID()}`,
+      purchase_bill_id: billId,
+      purchase_bill_item_id: item.id,
+      weight_ticket_id: summary.weight_ticket_id,
+      weight_ticket_product_summary_id: summaryId,
+    }]
+  })
 }
 
-async function buildWeightTicketUsageMap(ticketIds: string[]) {
-  if (ticketIds.length === 0) return new Map<string, number>()
-  const rows = await prisma.purchase_bills.findMany({
+function buildPurchaseBillPoAllocationRows(
+  billId: string,
+  itemRows: ReturnType<typeof billItemCreateRows>,
+  actor: string,
+) {
+  return itemRows.flatMap((item) => {
+    if (!item.po_buy_id) return []
+    return [{
+      allocated_amount: toNumber(item.amount),
+      allocated_qty: toNumber(item.qty),
+      created_by: actor,
+      id: `PBPA-${randomUUID()}`,
+      po_buy_id: item.po_buy_id,
+      purchase_bill_id: billId,
+      purchase_bill_item_id: item.id,
+      unit_price_snapshot: toNumber(item.price),
+    }]
+  })
+}
+
+function receiptSummaryUsageKey(ticketId: string, summaryId: string) {
+  return `${ticketId}::${summaryId}`
+}
+
+async function buildWeightTicketUsageMap(tickets: WeightTicketOptionRow[]) {
+  if (tickets.length === 0) return new Map<string, number>()
+  const ticketIds = tickets.map((ticket) => ticket.id)
+  const rows = await prisma.purchase_bill_receipt_allocations.findMany({
     select: {
-      purchase_bill_items: {
-        select: {
-          qty: true,
-          source_snapshot: true,
-        },
-      },
+      allocated_qty: true,
+      weight_ticket_id: true,
+      weight_ticket_product_summary_id: true,
     },
     where: {
-      NOT: { status: 'cancelled' },
+      weight_ticket_id: { in: ticketIds },
+      purchase_bills: {
+        NOT: { status: 'cancelled' },
+      },
     },
   })
   const usageMap = new Map<string, number>()
-  rows.forEach((bill) => {
-    bill.purchase_bill_items.forEach((item) => {
-      const snapshot = item.source_snapshot && typeof item.source_snapshot === 'object'
-        ? item.source_snapshot as Record<string, unknown>
-        : {}
-      const ticketId = typeof snapshot.receiptTicketId === 'string' ? snapshot.receiptTicketId : ''
-      const lineId = typeof snapshot.receiptLineId === 'string' ? snapshot.receiptLineId : ''
-      if (!ticketId || !lineId || !ticketIds.includes(ticketId)) return
-      const key = receiptLineUsageKey(ticketId, lineId)
-      usageMap.set(key, (usageMap.get(key) ?? 0) + toNumber(item.qty))
-    })
+  rows.forEach((row) => {
+    const key = receiptSummaryUsageKey(row.weight_ticket_id, row.weight_ticket_product_summary_id)
+    usageMap.set(key, (usageMap.get(key) ?? 0) + toNumber(row.allocated_qty))
   })
   return usageMap
 }
@@ -280,45 +346,44 @@ async function loadReceiptAvailability(ticketId: string, excludeBillId?: string)
       include: {
         branches: true,
         suppliers: true,
+        weight_ticket_product_summaries: {
+          include: {
+            weight_ticket_product_summary_lines: true,
+          },
+          orderBy: { product_name: 'asc' },
+        },
         weight_ticket_lines: { orderBy: { line_no: 'asc' } },
       },
       where: { id: ticketId },
     }),
-    prisma.purchase_bills.findMany({
-      include: {
-        purchase_bill_items: {
-          select: {
-            qty: true,
-            source_snapshot: true,
-          },
-        },
+    prisma.purchase_bill_receipt_allocations.findMany({
+      select: {
+        allocated_qty: true,
+        purchase_bill_id: true,
+        weight_ticket_id: true,
+        weight_ticket_product_summary_id: true,
       },
       where: {
-        NOT: { status: 'cancelled' },
+        weight_ticket_id: ticketId,
+        purchase_bills: {
+          NOT: { status: 'cancelled' },
+        },
       },
     }),
   ])
 
   const usageMap = new Map<string, number>()
-  bills.forEach((bill) => {
-    if (excludeBillId && bill.id === excludeBillId) return
-    bill.purchase_bill_items.forEach((item) => {
-      const snapshot = item.source_snapshot && typeof item.source_snapshot === 'object'
-        ? item.source_snapshot as Record<string, unknown>
-        : {}
-      const sourceTicketId = typeof snapshot.receiptTicketId === 'string' ? snapshot.receiptTicketId : ''
-      const lineId = typeof snapshot.receiptLineId === 'string' ? snapshot.receiptLineId : ''
-      if (sourceTicketId !== ticketId || !lineId) return
-      const key = receiptLineUsageKey(sourceTicketId, lineId)
-      usageMap.set(key, (usageMap.get(key) ?? 0) + toNumber(item.qty))
-    })
+  bills.forEach((row) => {
+    if (excludeBillId && row.purchase_bill_id === excludeBillId) return
+    const key = receiptSummaryUsageKey(row.weight_ticket_id, row.weight_ticket_product_summary_id)
+    usageMap.set(key, (usageMap.get(key) ?? 0) + toNumber(row.allocated_qty))
   })
 
-  return { ticket, usageMap }
+  return { ticket }
 }
 
-function receiptLineMap(ticket: NonNullable<Awaited<ReturnType<typeof loadReceiptAvailability>>['ticket']>) {
-  return new Map(ticket.weight_ticket_lines.map((line) => [line.id, line]))
+function receiptSummaryMap(ticket: NonNullable<Awaited<ReturnType<typeof loadReceiptAvailability>>['ticket']>) {
+  return new Map(ticket.weight_ticket_product_summaries.map((summary) => [summary.id, summary]))
 }
 
 function extractReferencedReceiptTicketIdsFromValues(values: PurchaseBillFormValues) {
@@ -334,12 +399,16 @@ function extractReferencedReceiptTicketIdsFromBillItems(items: Array<{ source_sn
   }).filter(Boolean))]
 }
 
-async function validateStockReceiptSelection(values: PurchaseBillFormValues, excludeBillId?: string) {
+async function validateStockReceiptSelection(
+  values: PurchaseBillFormValues,
+  poBuyById: Map<string, { product_id: string | null; remaining_qty: Prisma.Decimal | null; supplier_id: string | null }>,
+  excludeBillId?: string,
+) {
   if (!values.receiptTicketId) {
     return { error: 'เลือกใบรับของ' as const }
   }
 
-  const { ticket, usageMap } = await loadReceiptAvailability(values.receiptTicketId, excludeBillId)
+  const { ticket } = await loadReceiptAvailability(values.receiptTicketId, excludeBillId)
   if (!ticket || ticket.doc_type !== 'WTI' || ticket.cancelled_at) {
     return { error: 'ใบรับของที่เลือกไม่ถูกต้อง' as const }
   }
@@ -350,39 +419,68 @@ async function validateStockReceiptSelection(values: PurchaseBillFormValues, exc
     return { error: 'ใบรับของต้องเป็นผู้ขายเดียวกับบิลรับซื้อ' as const }
   }
 
-  const lineById = receiptLineMap(ticket)
-  const requestedQtyByLine = new Map<string, number>()
+  const summaryById = receiptSummaryMap(ticket)
+  const lineToSummaryId = new Map<string, string>()
+  ticket.weight_ticket_product_summaries.forEach((summary) => {
+    summary.weight_ticket_product_summary_lines.forEach((bridge) => {
+      lineToSummaryId.set(bridge.weight_ticket_line_id, summary.id)
+    })
+  })
+
+  const requestedQtyBySummary = new Map<string, number>()
+  const requestedQtyByPo = new Map<string, number>()
   for (const item of values.items) {
-    if (item.receiptTicketId !== ticket.id || !item.receiptLineId) {
+    const resolvedSummaryId = item.receiptSummaryId ?? (item.receiptLineId ? lineToSummaryId.get(item.receiptLineId) ?? null : null)
+    if (item.receiptTicketId !== ticket.id || !resolvedSummaryId) {
       return { error: 'รายการ Stock ต้องอ้างอิงรายการจากใบรับของเดียวกัน' as const }
     }
-    const line = lineById.get(item.receiptLineId)
-    if (!line) {
+    const summary = summaryById.get(resolvedSummaryId)
+    if (!summary) {
       return { error: 'มีรายการอ้างอิงใบรับของที่ไม่ถูกต้อง' as const }
     }
-    if (line.product_id !== item.productId) {
+    if (summary.product_id !== item.productId) {
       return { error: 'สินค้าในบิลไม่ตรงกับสินค้าในใบรับของ' as const }
     }
-    requestedQtyByLine.set(item.receiptLineId, (requestedQtyByLine.get(item.receiptLineId) ?? 0) + item.qty)
+    if (item.poBuyId) {
+      const poBuy = poBuyById.get(item.poBuyId)
+      if (!poBuy) {
+        return { error: 'PO Buy ที่เลือกไม่ถูกต้อง' as const }
+      }
+      if (poBuy.supplier_id && poBuy.supplier_id !== values.supplierId) {
+        return { error: 'PO Buy ต้องเป็นผู้ขายเดียวกับบิลรับซื้อ' as const }
+      }
+      if (poBuy.product_id && poBuy.product_id !== item.productId) {
+        return { error: 'PO Buy ต้องเป็นสินค้าเดียวกับรายการที่เลือก' as const }
+      }
+      requestedQtyByPo.set(item.poBuyId, (requestedQtyByPo.get(item.poBuyId) ?? 0) + item.qty)
+    }
+    requestedQtyBySummary.set(resolvedSummaryId, (requestedQtyBySummary.get(resolvedSummaryId) ?? 0) + item.qty)
   }
 
-  for (const [lineId, requestedQty] of requestedQtyByLine.entries()) {
-    const line = lineById.get(lineId)
-    if (!line) continue
-    const availableQty = Math.max(0, toNumber(line.net_weight) - (usageMap.get(receiptLineUsageKey(ticket.id, lineId)) ?? 0))
+  for (const summary of ticket.weight_ticket_product_summaries) {
+    const summaryId = summary.id
+    const availableQty = Math.max(0, toNumber(summary.remaining_weight))
+    const requestedQty = requestedQtyBySummary.get(summaryId) ?? 0
     if (requestedQty > availableQty + 0.0001) {
-      return { error: `จำนวนเกินน้ำหนักคงเหลือของ ${line.product_name}` as const }
+      return { error: `จำนวนเกินน้ำหนักคงเหลือของ ${summary.product_name}` as const }
     }
   }
 
-  return { ticket, usageMap }
+  for (const [poBuyId, requestedQty] of requestedQtyByPo.entries()) {
+    const poBuy = poBuyById.get(poBuyId)
+    if (!poBuy) continue
+    const remainingQty = toNumber(poBuy.remaining_qty)
+    if (requestedQty > remainingQty + 0.0001) {
+      return { error: `จำนวนเกินคงเหลือของ PO ${poBuyId}` as const }
+    }
+  }
+
+  return { ticket }
 }
 
 function weightTicketOptionJson(row: WeightTicketOptionRow, usageMap: Map<string, number>) {
   const lines = row.weight_ticket_lines.map((line) => {
     const sourceNetWeight = toNumber(line.net_weight)
-    const usedQty = usageMap.get(receiptLineUsageKey(row.id, line.id)) ?? 0
-    const remainingQty = Math.max(0, sourceNetWeight - usedQty)
     return {
       deductWeight: toNumber(line.deduct_weight),
       grossWeight: toNumber(line.gross_weight),
@@ -392,10 +490,29 @@ function weightTicketOptionJson(row: WeightTicketOptionRow, usageMap: Map<string
       note: line.note ?? '',
       productId: line.product_id,
       productName: line.product_name,
-      remainingQty,
-      usedQty,
+      remainingQty: sourceNetWeight,
+      usedQty: 0,
     }
-  }).filter((line) => line.remainingQty > 0.0001)
+  })
+
+  const productSummaries = row.weight_ticket_product_summaries.map((summary) => {
+    const usedQty = usageMap.get(receiptSummaryUsageKey(row.id, summary.id)) ?? 0
+    const netWeight = toNumber(summary.net_weight)
+    const remainingWeight = Math.max(0, netWeight - usedQty)
+    return {
+      billedWeight: toNumber(summary.billed_weight),
+      deductWeight: toNumber(summary.deduct_weight),
+      grossWeight: toNumber(summary.gross_weight),
+      hasMixedDeductionProfiles: summary.has_mixed_deduction_profiles ?? false,
+      id: summary.id,
+      lineCount: summary.line_count ?? 0,
+      netWeight,
+      productId: summary.product_id,
+      productName: summary.product_name,
+      remainingWeight,
+      sourceLineIds: summary.weight_ticket_product_summary_lines.map((bridge) => bridge.weight_ticket_line_id),
+    }
+  }).filter((summary) => summary.remainingWeight > 0.0001)
 
   return {
     branchId: row.branch_id,
@@ -404,6 +521,7 @@ function weightTicketOptionJson(row: WeightTicketOptionRow, usageMap: Map<string
     documentNo: row.doc_no,
     id: row.id,
     lines,
+    productSummaries,
     partyName: row.party_name,
     status: row.status,
     supplierId: row.supplier_id ?? '',
@@ -417,6 +535,12 @@ async function refreshWeightTicketStatuses(tx: Prisma.TransactionClient, ticketI
 
   const ticketRows = await tx.weight_tickets.findMany({
     include: {
+      weight_ticket_product_summaries: {
+        include: {
+          weight_ticket_product_summary_lines: true,
+        },
+        orderBy: { product_name: 'asc' },
+      },
       weight_ticket_lines: {
         orderBy: { line_no: 'asc' },
       },
@@ -427,30 +551,26 @@ async function refreshWeightTicketStatuses(tx: Prisma.TransactionClient, ticketI
     },
   })
 
-  const billRows = await tx.purchase_bills.findMany({
-    include: {
-      purchase_bill_items: {
-        select: {
-          qty: true,
-          source_snapshot: true,
-        },
-      },
+  const allocationRows = await tx.purchase_bill_receipt_allocations.findMany({
+    select: {
+      allocated_qty: true,
+      weight_ticket_id: true,
+      weight_ticket_product_summary_id: true,
     },
     where: {
-      NOT: { status: 'cancelled' },
+      weight_ticket_id: { in: uniqueTicketIds },
+      purchase_bills: {
+        NOT: { status: 'cancelled' },
+      },
     },
   })
 
   const qtyByTicketId = new Map<string, number>()
-  billRows.forEach((bill) => {
-    bill.purchase_bill_items.forEach((item) => {
-      const snapshot = item.source_snapshot && typeof item.source_snapshot === 'object'
-        ? item.source_snapshot as Record<string, unknown>
-        : {}
-      const ticketId = typeof snapshot.receiptTicketId === 'string' ? snapshot.receiptTicketId : ''
-      if (!ticketId || !uniqueTicketIds.includes(ticketId)) return
-      qtyByTicketId.set(ticketId, (qtyByTicketId.get(ticketId) ?? 0) + toNumber(item.qty))
-    })
+  const qtyBySummaryKey = new Map<string, number>()
+  allocationRows.forEach((row) => {
+    qtyByTicketId.set(row.weight_ticket_id, (qtyByTicketId.get(row.weight_ticket_id) ?? 0) + toNumber(row.allocated_qty))
+    const summaryKey = receiptSummaryUsageKey(row.weight_ticket_id, row.weight_ticket_product_summary_id)
+    qtyBySummaryKey.set(summaryKey, (qtyBySummaryKey.get(summaryKey) ?? 0) + toNumber(row.allocated_qty))
   })
 
   await Promise.all(ticketRows.map(async (ticket) => {
@@ -470,6 +590,20 @@ async function refreshWeightTicketStatuses(tx: Prisma.TransactionClient, ticketI
       where: { id: ticket.id },
     })
   }))
+
+  await Promise.all(ticketRows.flatMap((ticket) => ticket.weight_ticket_product_summaries.map(async (summary) => {
+    const billedWeight = qtyBySummaryKey.get(receiptSummaryUsageKey(ticket.id, summary.id)) ?? 0
+    const netWeight = toNumber(summary.net_weight)
+    const remainingWeight = Math.max(0, netWeight - billedWeight)
+    await tx.weight_ticket_product_summaries.update({
+      data: {
+        billed_weight: billedWeight,
+        remaining_weight: remainingWeight,
+        updated_at: new Date(),
+      },
+      where: { id: summary.id },
+    })
+  })))
 }
 
 function isDocNoConflict(caught: unknown) {
@@ -514,6 +648,12 @@ async function optionsPayload() {
       include: {
         branches: true,
         suppliers: true,
+        weight_ticket_product_summaries: {
+          include: {
+            weight_ticket_product_summary_lines: true,
+          },
+          orderBy: { product_name: 'asc' },
+        },
         weight_ticket_lines: { orderBy: { line_no: 'asc' } },
       },
       orderBy: [{ document_date: 'desc' }, { doc_no: 'desc' }],
@@ -525,7 +665,7 @@ async function optionsPayload() {
       },
     }),
   ])
-  const usageMap = await buildWeightTicketUsageMap(weightTickets.map((ticket) => ticket.id))
+  const usageMap = await buildWeightTicketUsageMap(weightTickets)
 
   return {
     branches,
@@ -542,7 +682,7 @@ async function optionsPayload() {
     products,
     receipts: weightTickets
       .map((ticket) => weightTicketOptionJson(ticket, usageMap))
-      .filter((ticket) => ticket.lines.length > 0),
+      .filter((ticket) => ticket.productSummaries.length > 0),
     salespersons,
     suppliers,
     vatRatePercent,
@@ -769,14 +909,24 @@ export async function POST(request: Request) {
     const missingProduct = values.items.find((item) => !productById.has(item.productId))
     if (missingProduct) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
 
+    let receiptSummarySourceMap = new Map<string, { deduct_weight: Prisma.Decimal | null; gross_weight: Prisma.Decimal | null; net_weight: Prisma.Decimal | null; weight_ticket_id: string }>()
     if (values.transactionMode === 'STOCK') {
-      const receiptValidation = await validateStockReceiptSelection(values)
+      const receiptValidation = await validateStockReceiptSelection(values, poBuyById)
       if ('error' in receiptValidation) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: receiptValidation.error }, { status: 400 })
       }
+      receiptSummarySourceMap = new Map(receiptValidation.ticket.weight_ticket_product_summaries.map((summary) => [
+        summary.id,
+        {
+          deduct_weight: summary.deduct_weight,
+          gross_weight: summary.gross_weight,
+          net_weight: summary.net_weight,
+          weight_ticket_id: summary.weight_ticket_id,
+        },
+      ]))
     }
 
-    const items = buildBillItems(values, productById)
+    const items = buildBillItems(values, productById, poBuyById)
     const purchaseSource = derivePurchaseSource(items, values.purchaseSource)
     const branchWarehouses = values.transactionMode === 'STOCK'
       ? await prisma.warehouses.findMany({
@@ -836,9 +986,16 @@ export async function POST(request: Request) {
             select: { doc_no: true, id: true },
           })
 
-          await tx.purchase_bill_items.createMany({
-            data: billItemCreateRows(createdBill.id, items),
-          })
+          const itemRows = billItemCreateRows(createdBill.id, items)
+          await tx.purchase_bill_items.createMany({ data: itemRows })
+          const receiptAllocationRows = buildPurchaseBillReceiptAllocationRows(createdBill.id, itemRows, receiptSummarySourceMap, actor)
+          if (receiptAllocationRows.length > 0) {
+            await tx.purchase_bill_receipt_allocations.createMany({ data: receiptAllocationRows })
+          }
+          const poAllocationRows = buildPurchaseBillPoAllocationRows(createdBill.id, itemRows, actor)
+          if (poAllocationRows.length > 0) {
+            await tx.purchase_bill_po_allocations.createMany({ data: poAllocationRows })
+          }
 
           if (values.transactionMode === 'STOCK') {
             await tx.stock_ledger.createMany({
@@ -930,6 +1087,8 @@ export async function PATCH(request: Request) {
           where: { id: values.id },
         })
         await tx.stock_ledger.deleteMany({ where: { ref_id: values.id, ref_type: 'PB' } })
+        await tx.purchase_bill_receipt_allocations.deleteMany({ where: { purchase_bill_id: values.id } })
+        await tx.purchase_bill_po_allocations.deleteMany({ where: { purchase_bill_id: values.id } })
         await refreshWeightTicketStatuses(tx, extractReferencedReceiptTicketIdsFromBillItems(existingBillItems))
         return bill
       })
@@ -980,14 +1139,24 @@ export async function PATCH(request: Request) {
     const missingProduct = values.items.find((item) => !productById.has(item.productId))
     if (missingProduct) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
 
+    let receiptSummarySourceMap = new Map<string, { deduct_weight: Prisma.Decimal | null; gross_weight: Prisma.Decimal | null; net_weight: Prisma.Decimal | null; weight_ticket_id: string }>()
     if (values.transactionMode === 'STOCK') {
-      const receiptValidation = await validateStockReceiptSelection(values, id)
+      const receiptValidation = await validateStockReceiptSelection(values, poBuyById, id)
       if ('error' in receiptValidation) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: receiptValidation.error }, { status: 400 })
       }
+      receiptSummarySourceMap = new Map(receiptValidation.ticket.weight_ticket_product_summaries.map((summary) => [
+        summary.id,
+        {
+          deduct_weight: summary.deduct_weight,
+          gross_weight: summary.gross_weight,
+          net_weight: summary.net_weight,
+          weight_ticket_id: summary.weight_ticket_id,
+        },
+      ]))
     }
 
-    const items = buildBillItems(values, productById)
+    const items = buildBillItems(values, productById, poBuyById)
     const purchaseSource = derivePurchaseSource(items, values.purchaseSource)
     const branchWarehouses = values.transactionMode === 'STOCK'
       ? await prisma.warehouses.findMany({
@@ -1041,10 +1210,19 @@ export async function PATCH(request: Request) {
         where: { id },
       })
 
+      await tx.purchase_bill_receipt_allocations.deleteMany({ where: { purchase_bill_id: id } })
+      await tx.purchase_bill_po_allocations.deleteMany({ where: { purchase_bill_id: id } })
       await tx.purchase_bill_items.deleteMany({ where: { purchase_bill_id: id } })
-      await tx.purchase_bill_items.createMany({
-        data: billItemCreateRows(id, items),
-      })
+      const itemRows = billItemCreateRows(id, items)
+      await tx.purchase_bill_items.createMany({ data: itemRows })
+      const receiptAllocationRows = buildPurchaseBillReceiptAllocationRows(id, itemRows, receiptSummarySourceMap, actor)
+      if (receiptAllocationRows.length > 0) {
+        await tx.purchase_bill_receipt_allocations.createMany({ data: receiptAllocationRows })
+      }
+      const poAllocationRows = buildPurchaseBillPoAllocationRows(id, itemRows, actor)
+      if (poAllocationRows.length > 0) {
+        await tx.purchase_bill_po_allocations.createMany({ data: poAllocationRows })
+      }
 
       await tx.stock_ledger.deleteMany({ where: { ref_id: id, ref_type: 'PB' } })
       if (values.transactionMode === 'STOCK') {

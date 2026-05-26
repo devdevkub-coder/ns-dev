@@ -39,6 +39,8 @@ export const purchaseBillItemSchema = z.object({
   productId: z.string().trim().min(1, 'เลือกสินค้า'),
   qty: positiveMoney('จำนวน/น้ำหนัก'),
   receiptLineId: optionalSafeId('รายการใบรับของ'),
+  receiptLineIds: z.array(z.string().trim().max(80).regex(/^[A-Za-z0-9_.:-]+$/, 'รายการใบรับของมีรูปแบบไม่ถูกต้อง')).default([]),
+  receiptSummaryId: optionalSafeId('สรุปรายการใบรับของ'),
   receiptTicketDocNo: optionalDocNo('เลขที่ใบรับของ'),
   receiptTicketId: optionalSafeId('ใบรับของ'),
   salesPrice: money('ราคาหน้าใบ').default(0),
@@ -86,11 +88,11 @@ export const purchaseBillFormSchema = z.object({
 
   if (value.transactionMode === 'STOCK') {
     value.items.forEach((item, index) => {
-      if (!item.receiptTicketId || !item.receiptLineId) {
+      if (!item.receiptTicketId || (!item.receiptSummaryId && !item.receiptLineId)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: 'รายการ Stock ต้องมาจากใบรับของ',
-          path: ['items', index, 'receiptLineId'],
+          path: ['items', index, 'receiptSummaryId'],
         })
       }
 

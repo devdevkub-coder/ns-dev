@@ -25,6 +25,19 @@ export type WeightTicketRecordLine = WeightTicketLine & {
   productName: string
 }
 
+export type WeightTicketProductSummary = {
+  billedWeight: number
+  deductWeight: number
+  grossWeight: number
+  hasMixedDeductionProfiles: boolean
+  id: string
+  lineCount: number
+  netWeight: number
+  productId: string
+  productName: string
+  remainingWeight: number
+}
+
 export type WeightTicketRecord = {
   branchId: string
   branchName: string
@@ -42,6 +55,7 @@ export type WeightTicketRecord = {
   lines: WeightTicketRecordLine[]
   partyId: string
   partyName: string
+  productSummaries: WeightTicketProductSummary[]
   remark: string
   status: WeightTicketStatus
   totals: {
@@ -54,7 +68,9 @@ export type WeightTicketRecord = {
   updatedAt: string | null
   updatedBy: string
   usedInPurchaseBillCount: number
+  usedInPurchaseBillDocNos: string[]
   usedInSalesBillCount: number
+  usedInSalesBillDocNos: string[]
   vehicleImageCount: number
   vehicleImageNames: string[]
   vehicleNo: string
@@ -171,6 +187,19 @@ const weightTicketTimelineSchema = z.object({
   outcome: z.enum(['blocked', 'failure', 'success']),
 })
 
+const weightTicketProductSummarySchema = z.object({
+  billedWeight: z.number(),
+  deductWeight: z.number(),
+  grossWeight: z.number(),
+  hasMixedDeductionProfiles: z.boolean(),
+  id: z.string(),
+  lineCount: z.number().int().nonnegative(),
+  netWeight: z.number(),
+  productId: z.string(),
+  productName: z.string(),
+  remainingWeight: z.number(),
+})
+
 export const weightTicketRecordSchema = z.object({
   branchId: z.string(),
   branchName: z.string(),
@@ -188,6 +217,7 @@ export const weightTicketRecordSchema = z.object({
   lines: z.array(weightTicketRecordLineSchema),
   partyId: z.string(),
   partyName: z.string(),
+  productSummaries: z.array(weightTicketProductSummarySchema).default([]),
   remark: z.string(),
   status: statusEnum,
   totals: z.object({
@@ -200,7 +230,9 @@ export const weightTicketRecordSchema = z.object({
   updatedAt: z.string().nullable(),
   updatedBy: z.string(),
   usedInPurchaseBillCount: z.number().int().nonnegative(),
+  usedInPurchaseBillDocNos: z.array(z.string()).default([]),
   usedInSalesBillCount: z.number().int().nonnegative(),
+  usedInSalesBillDocNos: z.array(z.string()).default([]),
   vehicleImageCount: z.number().int().nonnegative(),
   vehicleImageNames: z.array(z.string()),
   vehicleNo: z.string(),
@@ -340,7 +372,8 @@ export const statusLabels: Record<WeightTicketStatus, string> = {
 
 export function displayWeightTicketStatus(type: WeightTicketType, status: WeightTicketStatus) {
   if (type === 'WTI') {
-    if (status === 'billed') return 'ออกบิลแล้ว'
+    if (status === 'partially_billed') return 'ออกบิลแล้วบางส่วน'
+    if (status === 'billed') return 'เสร็จสิ้น'
     if (status === 'cancelled') return 'ยกเลิก'
     return 'รับของแล้ว'
   }
@@ -357,6 +390,7 @@ export function displayWeightTicketStatus(type: WeightTicketType, status: Weight
 export function weightTicketStatusBadgeClass(type: WeightTicketType, status: WeightTicketStatus) {
   if (status === 'cancelled') return 'text-rose-700'
   if (type === 'WTI') {
+    if (status === 'partially_billed') return 'text-amber-700'
     if (status === 'billed') return 'text-blue-700'
     return 'text-emerald-700'
   }

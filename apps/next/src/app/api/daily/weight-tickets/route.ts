@@ -10,6 +10,7 @@ import {
   bangkokDateInput,
   branchScopeIds,
   buildWeightTicketLineRows,
+  buildWeightTicketProductSummaryRows,
   defaultTicketStatus,
   enteredByLabel,
   getWeightTicketTimeline,
@@ -28,6 +29,9 @@ const ticketInclude = {
   branches: true,
   customers: true,
   suppliers: true,
+  weight_ticket_product_summaries: {
+    orderBy: { product_name: 'asc' },
+  },
   weight_ticket_lines: {
     orderBy: { line_no: 'asc' },
   },
@@ -155,6 +159,7 @@ export async function POST(request: Request) {
       const docNo = await nextWeightTicketDocNo(tx, values.type, branchCode, documentDate)
       const ticketId = `WT-${randomUUID()}`
       const lineRows = buildWeightTicketLineRows(ticketId, values, productById, impurityById)
+      const { bridgeRows, summaryRows } = buildWeightTicketProductSummaryRows(ticketId, lineRows)
       const imageCount = values.vehicleImageNames.length + lineRows.reduce((sum, line) => sum + line.image_count, 0)
 
       await tx.weight_tickets.create({
@@ -182,6 +187,8 @@ export async function POST(request: Request) {
         },
       })
       await tx.weight_ticket_lines.createMany({ data: lineRows })
+      await tx.weight_ticket_product_summaries.createMany({ data: summaryRows })
+      await tx.weight_ticket_product_summary_lines.createMany({ data: bridgeRows })
 
       return tx.weight_tickets.findUniqueOrThrow({
         include: ticketInclude,

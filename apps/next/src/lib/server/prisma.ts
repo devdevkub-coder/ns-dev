@@ -7,6 +7,11 @@ const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient
 }
 
+function hasWeightTicketSummaryDelegates(client: PrismaClient) {
+  return typeof client.weight_ticket_product_summaries?.createMany === 'function'
+    && typeof client.weight_ticket_product_summary_lines?.createMany === 'function'
+}
+
 function createPrismaClient() {
   const connectionString = process.env.DATABASE_URL
 
@@ -25,6 +30,11 @@ function createPrismaClient() {
 }
 
 function getPrismaClient() {
+  if (globalForPrisma.prisma && !hasWeightTicketSummaryDelegates(globalForPrisma.prisma)) {
+    void globalForPrisma.prisma.$disconnect().catch(() => {})
+    globalForPrisma.prisma = undefined
+  }
+
   globalForPrisma.prisma ??= createPrismaClient()
   return globalForPrisma.prisma
 }

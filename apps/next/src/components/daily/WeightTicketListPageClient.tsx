@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Plus, Printer, Search, Share2, SquarePen, XCircle } from 'lucide-react'
 import { getErrorMessage } from '@/lib/api-client'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
@@ -37,8 +37,9 @@ const pageSize = 10
 const statusOptionsByType: Record<WeightTicketType, Array<{ label: string; values: StatusFilter[] }>> = {
   WTI: [
     { label: 'ทุกสถานะ', values: [] },
-    { label: 'รับของแล้ว', values: ['received', 'partially_billed'] },
-    { label: 'ออกบิลแล้ว', values: ['billed'] },
+    { label: 'รับของแล้ว', values: ['received'] },
+    { label: 'ออกบิลแล้วบางส่วน', values: ['partially_billed'] },
+    { label: 'เสร็จสิ้น', values: ['billed'] },
     { label: 'ยกเลิก', values: ['cancelled'] },
   ],
   WTO: [
@@ -122,13 +123,11 @@ function SegmentMulti({
 
 export function WeightTicketListPageClient() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const initialTypeFilter = searchParams.get('type') === 'WTO' ? 'WTO' : 'WTI'
   const [tickets, setTickets] = useState<WeightTicketRecord[]>([])
   const [totalRows, setTotalRows] = useState(0)
   const [branches, setBranches] = useState<OptionItem[]>([])
   const [query, setQuery] = useState('')
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>(initialTypeFilter)
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('WTI')
   const [statusFilter, setStatusFilter] = useState<StatusFilter[]>([])
   const [sortBy, setSortBy] = useState<WeightTicketSortBy>('createdAt')
   const [sortDir, setSortDir] = useState<WeightTicketSortDir>('desc')
@@ -172,6 +171,22 @@ export function WeightTicketListPageClient() {
     void loadBranches()
     return () => {
       cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const type = new URLSearchParams(window.location.search).get('type')
+    if (type === 'WTO') {
+      setTypeFilter('WTO')
+      setStatusFilter([])
+      setPage(1)
+      return
+    }
+    if (type === 'WTI') {
+      setTypeFilter('WTI')
+      setStatusFilter([])
+      setPage(1)
     }
   }, [])
 
@@ -270,7 +285,7 @@ export function WeightTicketListPageClient() {
         <Button asChild>
           <Link href="/daily/weight-tickets">
             <Plus className="mr-2 size-4" />
-            ชั่งสินค้า / รับ-ส่งของ
+            สร้างใบรับ-ส่งของ
           </Link>
         </Button>
       </div>
@@ -369,7 +384,7 @@ export function WeightTicketListPageClient() {
                 <th className="px-3 py-3 text-right font-semibold text-slate-700">จัดการ</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody>
               {isLoading ? (
                 <tr>
                   <td className="px-3 py-10 text-center text-slate-500" colSpan={10}>กำลังโหลดข้อมูล</td>
@@ -388,7 +403,7 @@ export function WeightTicketListPageClient() {
                   key={ticket.id}
                   onClick={() => router.push(`/daily/weight-ticket-list/${encodeURIComponent(ticket.documentNo)}`)}
                 >
-                  <td className="whitespace-nowrap px-3 py-3 font-mono text-slate-900">{ticket.documentNo}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-slate-900">{ticket.documentNo}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-slate-600">{formatDateTime(ticket.createdAt)}</td>
                   <td className="px-3 py-3 text-slate-900">{ticket.partyName}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-slate-600">{ticket.branchName}</td>
@@ -408,24 +423,22 @@ export function WeightTicketListPageClient() {
                   </td>
                   <td className="px-3 py-3 text-slate-600">
                     <div className="truncate">{ticket.updatedBy}</div>
-                    <div className="font-mono text-[11px] text-slate-400">{formatDateTime(ticket.updatedAt || ticket.createdAt)}</div>
+                    <div className="text-[11px] text-slate-400">{formatDateTime(ticket.updatedAt || ticket.createdAt)}</div>
                   </td>
                   <td className="whitespace-nowrap px-3 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      {ticket.type === 'WTI' ? (
-                        <Button
-                          size="xs"
-                          type="button"
-                          variant="outline"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            void handlePrintTicket(ticket)
-                          }}
-                        >
-                          <Printer className="mr-1 size-3" />
-                          {printingTicketId === ticket.id ? 'กำลังเตรียม...' : 'พิมพ์'}
-                        </Button>
-                      ) : null}
+                      <Button
+                        size="xs"
+                        type="button"
+                        variant="outline"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          void handlePrintTicket(ticket)
+                        }}
+                      >
+                        <Printer className="mr-1 size-3" />
+                        {printingTicketId === ticket.id ? 'กำลังเตรียม...' : 'พิมพ์'}
+                      </Button>
                       <Button
                         size="xs"
                         type="button"
@@ -488,7 +501,7 @@ export function WeightTicketListPageClient() {
           </DialogHeader>
           <div className="space-y-3 px-4 pb-4">
             <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
-              <div className="font-mono text-sm text-slate-900">{cancelTicket?.documentNo}</div>
+              <div className="text-sm text-slate-900">{cancelTicket?.documentNo}</div>
               {cancelTicket ? (
                 <div className="mt-1 flex items-center gap-2">
                   <span className="text-xs text-slate-500">สถานะเอกสาร:</span>

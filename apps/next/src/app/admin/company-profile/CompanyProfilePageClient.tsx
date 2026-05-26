@@ -77,7 +77,7 @@ function buildPreviewHtml(kind: PreviewKind, profile: CompanyProfileFormValues) 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(docTitle)} ตัวอย่าง</title>
     <style>
       @page { size: A4; margin: 12mm; }
-      body { font-family: 'Sarabun', 'TH Sarabun New', Arial, sans-serif; font-size: 13px; color: #111; margin: 0; padding: 0; }
+      body { font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 13px; color: #111; margin: 0; padding: 0; }
       .header { display: flex; justify-content: space-between; align-items: start; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 10px; }
       .co-name { font-size: 18px; font-weight: bold; }
       .co-info { font-size: 11px; color: #444; line-height: 1.5; }
@@ -270,12 +270,12 @@ export function CompanyProfilePageClient() {
       return
     }
     previewWindow.document.open()
-    previewWindow.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>กำลังเตรียมตัวอย่าง</title></head><body style="font-family:sans-serif;padding:24px">กำลังบันทึกและเตรียมตัวอย่าง...</body></html>')
+    previewWindow.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>กำลังเตรียมตัวอย่าง</title></head><body style="font-family:\'Noto Sans Thai\',sans-serif;padding:24px">กำลังบันทึกและเตรียมตัวอย่าง...</body></html>')
     previewWindow.document.close()
     const saved = await save()
     if (!saved) {
       previewWindow.document.open()
-      previewWindow.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>ไม่สามารถเปิดตัวอย่าง</title></head><body style="font-family:sans-serif;padding:24px;color:#b91c1c">กรุณาตรวจสอบข้อมูลในฟอร์มก่อนเปิดตัวอย่าง</body></html>')
+      previewWindow.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>ไม่สามารถเปิดตัวอย่าง</title></head><body style="font-family:\'Noto Sans Thai\',sans-serif;padding:24px;color:#b91c1c">กรุณาตรวจสอบข้อมูลในฟอร์มก่อนเปิดตัวอย่าง</body></html>')
       previewWindow.document.close()
       previewWindow.focus()
       return

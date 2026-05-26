@@ -20,6 +20,12 @@
 - Dense but readable: ข้อมูลแน่นได้ แต่ spacing, alignment, และ hierarchy ต้องนิ่ง
 - One source of wording: คำเรียกเอกสาร, สถานะ, สาขา/คลัง, payment terms ต้องไม่สลับไปมา
 
+## Typography
+
+- user-facing baseline font ของ active Next app คือ `Noto Sans Thai`
+- form controls (`button`, `input`, `select`, `textarea`) ต้องใช้ baseline เดียวกับ body
+- print/preview templates ของ active app ต้องใช้ `Noto Sans Thai` เช่นกัน เว้นแต่มีเอกสาร legacy override ที่อนุมัติไว้ชัดเจน
+
 ## List Page Pattern
 
 ใช้กับหน้ากลุ่ม transaction และ report list เป็นหลัก
@@ -59,18 +65,50 @@ Rules:
 
 ## Table Pattern
 
-default list table surface:
+ตารางใน active app ต้องอ้างอิงมาตรฐานกลางจาก section นี้ ไม่อ้างอิง `/purchase/bills` หรือหน้าใดหน้าหนึ่งเป็น baseline แบบ implicit
+
+### Shared Base
 
 - container: white background, rounded corners, shadow
 - header: `bg-slate-100` เป็น default เว้นแต่หน้ามี legacy header pattern เฉพาะ
-- rows: compact, อ่านง่าย, ใช้ slate separators
-- legacy-style action text/link ในตารางให้คงโทนที่ผู้ใช้คุ้นเคย เว้นแต่มีปุ่ม page-specific ที่ชัดกว่า
+- row height: compact, อ่านง่าย, spacing ต้องนิ่งข้ามหน้า
 - sorting: กดที่ header โดยตรง
 - empty state: ใช้ข้อความสั้นตรงไปตรงมา เช่น `ยังไม่มีรายการ`
 - loading state: ใช้ข้อความ `กำลังโหลดข้อมูล`
 - action column อยู่ขวาสุดเสมอ
+- legacy-style action text/link ในตารางให้คงโทนที่ผู้ใช้คุ้นเคย เว้นแต่มีปุ่ม page-specific ที่ชัดกว่า
+- status cell ใช้ pattern `dot + สีข้อความ` เป็น baseline กลาง; หลีกเลี่ยง badge background ถ้าไม่จำเป็นตาม legacy/page override
 
-ถ้าหน้าใดมี legacy header color เฉพาะ เช่น AP/AR/finance table ให้ถือว่าเป็น page-specific override
+### Table / Plain
+
+ใช้กับ transaction list ที่ต้องการความเบา, scan เร็ว, และไม่ต้องพึ่งเส้นคั่นแถว เช่น:
+
+- `/daily/weight-ticket-list`
+
+Rules:
+
+- ไม่มีเส้นคั่นใน `tbody`
+- ใช้ `hover:bg-*` และ spacing ช่วยแยกแถวแทนเส้น
+- header ยังคงแยกจาก body ได้ด้วย `thead` background
+- เหมาะกับหน้าที่มี status/action เด่นและ user กดเข้า detail จากทั้งแถว
+
+### Table / Lined
+
+ใช้กับหน้าที่ข้อมูลแน่น, มีตัวเลขหลายคอลัมน์, หรือผู้ใช้ต้องไล่แถวเทียบกันแบบ ledger/listing เช่น:
+
+- `/purchase/bills`
+- `/sales/bills`
+- `/purchase/po-buy`
+
+Rules:
+
+- ใช้ slate row separators ใน `tbody`
+- divider ต้องเบา (`divide-slate-100` หรือใกล้เคียง) ไม่หนักเกินจนรบกวนสายตา
+- คง hover state ได้ แต่ไม่ใช้เส้นเข้มซ้อนหลายชั้น
+
+### Overrides
+
+ถ้าหน้าใดมี legacy header color เฉพาะ เช่น AP/AR/finance table ให้ถือว่าเป็น page-specific override และบันทึกไว้ใน `docs/migration/00-current-work.md`
 
 ## Pagination Pattern
 
