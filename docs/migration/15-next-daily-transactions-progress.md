@@ -130,6 +130,10 @@ Tasks:
 - Documentation split on 2026-05-28: `docs/notes/Payment Flow.md` is now the canonical note for payment approval, queued payment items, payment history, advance payment, and supplier advance-refund rules. `docs/notes/Purchase Flow.md` remains canonical for purchase-side source documents and bill-state rules.
 - Implementation slice on 2026-05-28: `/purchase/advance-payments` now starts the active `ADV` document surface for supplier deposit / advance payment capture. The first additive DB slice creates `supplier_advance_payments` and `supplier_advance_allocations`, and the page/API captures Supplier, branch, payment method/account intent, amount, and large-scale source fields. Approval queue ingestion, payment posting, purchase-bill allocation, and supplier refund remain follow-up tasks.
 - Vehicle-photo input follow-up on 2026-05-29: `/purchase/advance-payments` now uses a browser file picker for `รูปภาพรถ` instead of a URL textbox. This slice stores selected filenames in `supplier_advance_payments.vehicle_photo_names`; it does not upload binaries to Supabase Storage yet.
+- Done on 2026-05-29: `MoneyMovementPageClient` no longer hardcodes `เงินสด / โอน / เช็ค / PromptPay` for `/purchase/payments` and `/sales/receipts`. Both routes now read payment-method options from `public.payment_methods`, and the customer receipt form now uses a payment-method select sourced from that master instead of a free-text field.
+- Done on 2026-05-29: supplier payment-account rendering in `/purchase/payments` no longer branches on a direct `เงินสด` string check. Account visibility now follows payment-method grouping resolved from the active `payment_methods` master, matching the supplier master-data cleanup already applied elsewhere.
+- Done on 2026-05-29: `/daily/payment-approval` removed its hardcoded payment-method fallback for destination account rows, so the queue no longer displays a baked-in transfer method when snapshot/master data is available.
+- Done smoke on 2026-05-29: local validation passed (`npm run type-check --workspace @ns-scrap-erp/next`, `npm run lint --workspace @ns-scrap-erp/next`, `npm run build --workspace @ns-scrap-erp/next`, `git diff --check`) and browser smoke passed for `/purchase/payments`, `/sales/receipts`, and `/daily/payment-approval`.
 - Open task batch on 2026-05-28 for approval-item implementation:
   - rename active wording/menu to `อนุมัติจ่ายเงิน`
   - add advance-payment source documents into the same queue design
@@ -152,6 +156,7 @@ Tasks:
   - Complete the payment-history cancellation path so voucher rollback also updates history UI/status cleanly after approval state rollback.
   - Add print payload/view for `ใบอนุมัติโอนเงิน` from approval snapshot.
   - Add browser smoke for `void guard` and `paid guard` once the void path exists.
+  - `ReceiptVouchersPageClient` print preview still has a user-visible fallback text `รับเงินสด` when `receipt_vouchers.payment_method` is blank; keep this as the next payment-method cleanup batch before broader cash/bank inference work in dashboard/calendar surfaces.
   - Legacy compare checkpoint (from `old-apps/legacy/index.html`):
     - Legacy stores approvals in `db.paymentApprovals`.
     - Legacy row shape is minimal: `id`, `refType`, `refId`, `approvedAmount`, `status`, `approvedBy`, `approvedAt`, `note`.
