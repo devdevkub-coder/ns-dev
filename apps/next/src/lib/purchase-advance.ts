@@ -23,8 +23,8 @@ const optionalDocNo = z.preprocess(
 
 const attachmentValueSchema = z.string().trim().min(1, 'ไฟล์รูปภาพไม่ถูกต้อง').max(255, 'ชื่อไฟล์รูปภาพยาวเกินไป').regex(generalTextPattern, 'ชื่อไฟล์รูปภาพมีรูปแบบไม่ถูกต้อง')
 
-const requiredDate = z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'วันที่ต้องเป็นรูปแบบ YYYY-MM-DD')
-const optionalDate = z.preprocess(blankToNull, requiredDate.nullable().default(null))
+const requiredDateTime = z.string().trim().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, 'วันที่และเวลาต้องเป็นรูปแบบ YYYY-MM-DDTHH:mm')
+const optionalDateTime = z.preprocess(blankToNull, requiredDateTime.nullable().default(null))
 const money = (label: string) => z.coerce.number({ invalid_type_error: `${label}ต้องเป็นตัวเลข` }).finite(`${label}ต้องเป็นตัวเลข`).min(0, `${label}ต้องไม่ติดลบ`)
 const positiveMoney = (label: string) => money(label).gt(0, `${label}ต้องมากกว่า 0`)
 
@@ -46,10 +46,10 @@ export const supplierAdvancePaymentFormSchema = z.object({
   docNo: optionalDocNo,
   driverName: optionalBusinessText('พนักงานขับรถ', 160),
   fundingAccountId: z.string().trim().min(1, 'เลือกบัญชีที่จ่าย').max(80, 'บัญชีที่จ่ายยาวเกินไป').regex(safeIdPattern, 'บัญชีที่จ่ายมีรูปแบบไม่ถูกต้อง'),
-  inDate: optionalDate,
+  inDate: optionalDateTime,
   largeScaleDocNo: optionalDocNo,
   netWeight: money('น้ำหนักสุทธิ'),
-  outDate: optionalDate,
+  outDate: optionalDateTime,
   paymentMethod: z.string().trim().min(1, 'เลือกวิธีจ่าย').max(80, 'วิธีจ่ายยาวเกินไป').regex(businessTextPattern, 'วิธีจ่ายมีรูปแบบไม่ถูกต้อง'),
   plateNo: optionalBusinessText('ทะเบียนรถ', 60),
   pricePerKg: money('ราคา/กก.'),
@@ -63,10 +63,16 @@ export const supplierAdvancePaymentFormSchema = z.object({
   weightOut: money('น้ำหนักออก'),
 }).refine((value) => {
   if (!value.inDate || !value.outDate) return true
-  return value.outDate >= value.inDate
+  return new Date(`${value.outDate}:00+07:00`).getTime() >= new Date(`${value.inDate}:00+07:00`).getTime()
 }, {
   message: 'วันที่ออกต้องไม่ก่อนวันที่เข้า',
   path: ['outDate'],
 })
 
 export type SupplierAdvancePaymentFormValues = z.infer<typeof supplierAdvancePaymentFormSchema>
+
+export const supplierAdvancePaymentCancelSchema = z.object({
+  note: z.string().trim().min(1, 'กรุณาระบุเหตุผลการยกเลิก').max(1000, 'เหตุผลการยกเลิกยาวเกินไป').regex(generalTextPattern, 'เหตุผลการยกเลิกมีรูปแบบไม่ถูกต้อง'),
+})
+
+export type SupplierAdvancePaymentCancelValues = z.infer<typeof supplierAdvancePaymentCancelSchema>

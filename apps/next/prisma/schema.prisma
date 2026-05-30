@@ -2163,8 +2163,8 @@ model supplier_advance_payments {
   funding_account_id           String?
   status                       String                         @default("pending_approval")
   large_scale_doc_no           String?
-  in_date                      DateTime?                      @db.Date
-  out_date                     DateTime?                      @db.Date
+  in_date                      DateTime?                      @db.Timestamptz(6)
+  out_date                     DateTime?                      @db.Timestamptz(6)
   plate_no                     String?
   vehicle_photo_url            String?
   vehicle_photo_names          String[]                       @default([])

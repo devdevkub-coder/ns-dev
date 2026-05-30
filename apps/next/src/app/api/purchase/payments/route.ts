@@ -83,6 +83,7 @@ export async function GET() {
         findMany: (args: unknown) => Promise<Array<{
           approved_amount: unknown
           approved_at: Date | null
+          doc_no: string | null
           destination_account_no_snapshot: string | null
           destination_bank_name_snapshot: string | null
           destination_payment_method_snapshot: string | null
@@ -123,6 +124,7 @@ export async function GET() {
         select: {
           approved_amount: true,
           approved_at: true,
+          doc_no: true,
           destination_account_no_snapshot: true,
           destination_bank_name_snapshot: true,
           destination_payment_method_snapshot: true,
@@ -180,11 +182,12 @@ export async function GET() {
             approvalPaymentMethod: approval.destination_payment_method_snapshot ?? '',
             approvedAmount,
             date: toDateOnly(bill.date),
-            docNo: approval.source_doc_no_snapshot ?? bill.doc_no,
+            docNo: approval.doc_no ?? approval.source_doc_no_snapshot ?? bill.doc_no,
             id: bill.id,
             paidAmount: paidAgainstApproval,
             payableBalance,
             status: approval.status ?? '',
+            sourceDocNo: approval.source_doc_no_snapshot ?? bill.doc_no,
             supplierId: approval.party_id ?? bill.supplier_id,
             totalAmount: approvedAmount,
           }

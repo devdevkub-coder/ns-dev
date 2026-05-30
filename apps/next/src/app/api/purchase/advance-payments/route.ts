@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
 import { supplierAdvancePaymentFormSchema } from '@/lib/purchase-advance'
 import { apiErrorResponse } from '@/lib/server/api-error'
+import { recordAuditLog } from '@/lib/server/app-logging'
+import { advancePaymentStatusLabel, mapAdvancePaymentRow, parseBangkokDateTimeInput } from '@/lib/server/advance-payments'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, listDailyAccounts, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
@@ -16,7 +18,16 @@ type AdvancePaymentRow = Prisma.supplier_advance_paymentsGetPayload<{
     accounts: true
     branches: true
     suppliers: true
-    supplier_advance_allocations: true
+    supplier_advance_allocations: {
+      include: {
+        purchase_bills: {
+          select: {
+            doc_no: true
+            id: true
+          }
+        }
+      }
+    }
   }
 }>
 
@@ -27,56 +38,8 @@ type PaymentMethodOption = {
   type: string
 }
 
-function statusLabel(status: string) {
-  const labels: Record<string, string> = {
-    allocated: 'ใช้หักบิลแล้ว',
-    approved: 'อนุมัติแล้ว',
-    cancelled: 'ยกเลิก',
-    paid: 'จ่ายแล้ว',
-    partially_allocated: 'ใช้หักบิลบางส่วน',
-    pending_approval: 'ยังไม่อนุมัติ',
-    refunded: 'คืนเงินแล้ว',
-    refunding: 'รอคืนเงิน',
-  }
-  return labels[status] ?? status
-}
-
 function rowJson(row: AdvancePaymentRow) {
-  const amount = toNumber(row.amount)
-  const allocatedAmount = toNumber(row.allocated_amount)
-  const remainingAmount = Math.max(0, toNumber(row.remaining_amount))
-
-  return {
-    accountName: row.accounts?.name ?? '-',
-    advanceDate: toDateOnly(row.advance_date),
-    allocatedAmount,
-    amount,
-    branchName: row.branches.name,
-    customerName: row.customer_name ?? '',
-    docNo: row.doc_no,
-    driverName: row.driver_name ?? '',
-    fundingAccountId: row.funding_account_id ?? '',
-    id: row.id,
-    inDate: toDateOnly(row.in_date),
-    largeScaleDocNo: row.large_scale_doc_no ?? '',
-    netWeight: toNumber(row.net_weight),
-    outDate: toDateOnly(row.out_date),
-    paymentMethod: row.payment_method ?? '',
-    plateNo: row.plate_no ?? '',
-    pricePerKg: toNumber(row.price_per_kg),
-    productName: row.product_name ?? '',
-    remainingAmount,
-    remark: row.remark ?? '',
-    scaleOperator: row.scale_operator ?? '',
-    senderName: row.sender_name ?? '',
-    status: row.status,
-    statusLabel: statusLabel(row.status),
-    supplierCode: row.suppliers.code ?? '',
-    supplierName: row.suppliers.name,
-    vehiclePhotoNames: row.vehicle_photo_names ?? [],
-    weightIn: toNumber(row.weight_in),
-    weightOut: toNumber(row.weight_out),
-  }
+  return mapAdvancePaymentRow(row)
 }
 
 function parsePositiveInt(value: string | null, fallback: number, max: number) {
@@ -257,7 +220,13 @@ export async function GET(request: Request) {
           accounts: true,
           branches: true,
           suppliers: true,
-          supplier_advance_allocations: true,
+          supplier_advance_allocations: {
+            include: {
+              purchase_bills: {
+                select: { doc_no: true, id: true },
+              },
+            },
+          },
         },
         orderBy: orderByFor(sortKey, sortDirection),
         skip: (page - 1) * pageSize,
@@ -301,7 +270,13 @@ export async function GET(request: Request) {
           accounts: true,
           branches: true,
           suppliers: true,
-          supplier_advance_allocations: true,
+          supplier_advance_allocations: {
+            include: {
+              purchase_bills: {
+                select: { doc_no: true, id: true },
+              },
+            },
+          },
         },
         orderBy: orderByFor(sortKey, sortDirection),
         take: 10000,
@@ -379,10 +354,10 @@ export async function POST(request: Request) {
         driver_name: values.driverName,
         funding_account_id: values.fundingAccountId,
         id,
-        in_date: values.inDate ? normalizeDate(values.inDate) : null,
+        in_date: values.inDate ? parseBangkokDateTimeInput(values.inDate) : null,
         large_scale_doc_no: values.largeScaleDocNo,
         net_weight: values.netWeight,
-        out_date: values.outDate ? normalizeDate(values.outDate) : null,
+        out_date: values.outDate ? parseBangkokDateTimeInput(values.outDate) : null,
         payment_method: values.paymentMethod,
         plate_no: values.plateNo,
         price_per_kg: values.pricePerKg,
@@ -399,10 +374,24 @@ export async function POST(request: Request) {
         weight_in: values.weightIn,
         weight_out: values.weightOut,
       },
-      select: { id: true },
+      select: { doc_no: true, id: true },
     })
 
-    return NextResponse.json({ id: result.id })
+    await recordAuditLog({
+      afterData: { docNo: result.doc_no, id: result.id },
+      context,
+      entityId: result.id,
+      entityLabel: result.doc_no,
+      entitySchema: 'public',
+      entityTable: 'supplier_advance_payments',
+      eventKey: 'purchase.advance-payment.created',
+      metadata: {
+        status: advancePaymentStatusLabel('pending_approval'),
+      },
+      request,
+    })
+
+    return NextResponse.json({ docNo: result.doc_no, id: result.id })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'บันทึกรายการจ่ายเงินล่วงหน้าไม่ได้', 400)

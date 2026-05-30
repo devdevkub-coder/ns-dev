@@ -142,11 +142,11 @@ export async function POST(request: Request) {
             data: {
               paid_at: remainingBalance <= 0.01 ? new Date() : null,
               payment_id: remainingBalance <= 0.01 ? latestPayment?.paymentId ?? null : null,
-              status: remainingSettled <= 0.01 ? 'voided' : remainingBalance <= 0.01 ? 'paid' : 'approved',
+              status: remainingBalance <= 0.01 ? 'paid' : 'approved',
               updated_at: new Date(),
-              void_reason: remainingSettled <= 0.01 ? payload.reason : null,
-              voided_at: remainingSettled <= 0.01 ? new Date() : null,
-              voided_by: remainingSettled <= 0.01 ? actor : null,
+              void_reason: null,
+              voided_at: null,
+              voided_by: null,
             },
             where: { id: approval.id },
           })

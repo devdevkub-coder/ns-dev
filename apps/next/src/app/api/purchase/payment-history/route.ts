@@ -11,29 +11,7 @@ export async function GET() {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'finance.cash.view')
 
-    const prismaExt = prisma as typeof prisma & {
-      payment_approvals: {
-        findMany: (args: unknown) => Promise<Array<{
-          approved_amount: unknown
-          approved_at: Date | null
-          doc_no: string | null
-          destination_account_no_snapshot: string | null
-          destination_bank_name_snapshot: string | null
-          destination_payment_method_snapshot: string | null
-          id: string
-          note: string | null
-          party_name_snapshot: string | null
-          source_doc_no_snapshot: string | null
-          source_id: string
-          status: string
-          void_reason: string | null
-          voided_at: Date | null
-          payments: Array<{ id: string }>
-        }>>
-      }
-    }
-
-    const [accounts, bills, payments, voidedApprovals] = await Promise.all([
+    const [accounts, bills, payments] = await Promise.all([
       listDailyAccounts(),
       prisma.purchase_bills.findMany({
         orderBy: [{ date: 'desc' }],
@@ -44,28 +22,6 @@ export async function GET() {
         include: { accounts: true, suppliers: true },
         orderBy: [{ date: 'desc' }, { created_at: 'desc' }],
         take: 5000,
-      }),
-      prismaExt.payment_approvals.findMany({
-        orderBy: [{ voided_at: 'desc' }, { approved_at: 'desc' }],
-        select: {
-          approved_amount: true,
-          approved_at: true,
-          doc_no: true,
-          destination_account_no_snapshot: true,
-          destination_bank_name_snapshot: true,
-          destination_payment_method_snapshot: true,
-          id: true,
-          note: true,
-          party_name_snapshot: true,
-          payments: { select: { id: true } },
-          source_doc_no_snapshot: true,
-          source_id: true,
-          status: true,
-          void_reason: true,
-          voided_at: true,
-        },
-        take: 5000,
-        where: { source_type: 'purchase_bill', status: 'voided' },
       }),
     ])
     const billDocNoById = new Map(bills.map((bill) => [bill.id, bill.doc_no]))
@@ -161,43 +117,6 @@ export async function GET() {
       if (!row.billDocNo && billDocNo) row.billDocNo = billDocNo
       if (payment.status === 'cancelled') row.status = 'cancelled'
     })
-
-    voidedApprovals
-      .filter((approval) => approval.payments.length === 0)
-      .forEach((approval) => {
-        const rowId = `APPROVAL-${approval.id}`
-        const approvalDocNo = String(approval.doc_no ?? approval.id).trim() || approval.id
-        const accountNo = approval.destination_account_no_snapshot?.trim() ?? ''
-        const bankName = approval.destination_bank_name_snapshot?.trim()
-          || approval.destination_payment_method_snapshot?.trim()
-          || 'ยังไม่ได้ทำจ่าย'
-        const accountSummary = accountNo ? `${bankName} · ${accountNo}` : bankName
-        const billDocNo = approval.source_doc_no_snapshot ?? billDocNoById.get(approval.source_id) ?? approval.source_id
-        const amount = toNumber(approval.approved_amount)
-
-        voucherRows.set(rowId, {
-          accountId: '',
-          accountName: bankName,
-          accountNames: [bankName],
-          accountSummaries: [accountSummary],
-          approvalIds: [approval.id],
-          amount,
-          billDocNo,
-          billDocNos: [billDocNo],
-          date: toDateOnly(approval.voided_at ?? approval.approved_at),
-          docNo: approvalDocNo,
-          fee: 0,
-          id: rowId,
-          method: approval.destination_payment_method_snapshot ?? '',
-          netAmount: amount,
-          notes: approval.void_reason ?? approval.note ?? '',
-          partyName: approval.party_name_snapshot ?? '-',
-          status: 'cancelled',
-          supplierId: '',
-          withholdingTax: 0,
-        })
-      })
-
     return NextResponse.json({
       accounts,
       bills: bills.map((bill) => ({

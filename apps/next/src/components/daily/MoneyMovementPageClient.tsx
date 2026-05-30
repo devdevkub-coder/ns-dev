@@ -33,6 +33,7 @@ type Bill = {
   paidAmount?: number
   payableBalance?: number
   receivableBalance?: number
+  sourceDocNo?: string
   status?: string
   supplierId?: string | null
   totalAmount: number
@@ -228,9 +229,6 @@ export function MoneyMovementPageClient({
   const [isBillLocked, setIsBillLocked] = useState(false)
   const [moneyDrafts, setMoneyDrafts] = useState<Record<string, string>>({})
   const [copiedAccountKey, setCopiedAccountKey] = useState<string | null>(null)
-  const [cancelApprovalReason, setCancelApprovalReason] = useState('')
-  const [cancelApprovalTarget, setCancelApprovalTarget] = useState<Bill | null>(null)
-  const [isCancellingApproval, setIsCancellingApproval] = useState(false)
 
   const apiPath = historyOnly && mode === 'payment'
     ? '/api/purchase/payment-history'
@@ -661,32 +659,6 @@ export function MoneyMovementPageClient({
       : 'bg-emerald-500'
   }
 
-  async function cancelApprovedPaymentQueue() {
-    if (!cancelApprovalTarget?.approvalId) return
-    if (!cancelApprovalReason.trim()) {
-      setError('กรุณาระบุเหตุผลการยกเลิก')
-      return
-    }
-    setIsCancellingApproval(true)
-    setError(null)
-    try {
-      await dailyFetchJson('/api/purchase/payments/cancel-approved', {
-        body: JSON.stringify({
-          approvalId: cancelApprovalTarget.approvalId,
-          reason: cancelApprovalReason.trim(),
-        }),
-        method: 'POST',
-      })
-      setCancelApprovalTarget(null)
-      setCancelApprovalReason('')
-      await loadData()
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'ยกเลิกรายการรอจ่ายไม่ได้')
-    } finally {
-      setIsCancellingApproval(false)
-    }
-  }
-
   return (
     <section className="space-y-5">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
@@ -713,8 +685,8 @@ export function MoneyMovementPageClient({
         <>
           <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
             <div>
-              <h2 className="text-lg font-bold text-slate-900">บิล Supplier ค้างจ่าย</h2>
-              <p className="mt-1 text-sm text-slate-500">แสดงเฉพาะรายการที่ยังมียอดคงเหลือให้ทำจ่าย</p>
+              <h2 className="text-lg font-bold text-slate-900">รายการรอออก PMT</h2>
+              <p className="mt-1 text-sm text-slate-500">แสดงเฉพาะ approval items ที่อนุมัติแล้วและพร้อมสร้าง Payment Voucher</p>
             </div>
           </div>
           <div className="space-y-2 rounded-md bg-white p-3 shadow">
@@ -769,16 +741,16 @@ export function MoneyMovementPageClient({
           <Table className="min-w-[1220px]">
             <TableHeader className="text-slate-700">
               <tr>
-                <TableHead>เลขบิล</TableHead>
+                <TableHead>เลขที่รายการ</TableHead>
                 <TableHead>วันที่</TableHead>
                 <TableHead>Supplier</TableHead>
                 <TableHead className="w-36">ธนาคาร</TableHead>
                 <TableHead>เลขบัญชี</TableHead>
                 <TableHead className="w-40 text-right">ยอดรวม</TableHead>
                 <TableHead className="w-40 text-right">จ่ายแล้ว</TableHead>
-                <TableHead className="w-40 text-right">คงเหลือ</TableHead>
+                <TableHead className="w-40 text-right">คงเหลือรอออก PMT</TableHead>
                 <TableHead className="w-20 text-right">อายุ(วัน)</TableHead>
-                <TableHead className="w-24 text-center" />
+                <TableHead className="w-20 text-center" />
               </tr>
             </TableHeader>
             <TableBody>
@@ -788,8 +760,11 @@ export function MoneyMovementPageClient({
                   const supplier = supplierMap.get(bill.supplierId ?? '')
                   const supplierBankAccounts = approvalBankAccountLines(bill).length > 0 ? approvalBankAccountLines(bill) : supplierBankAccountLines(supplier, paymentMethods)
                   return (
-                    <TableRow key={bill.id} className="cursor-pointer hover:bg-slate-50" onClick={() => openFormForBill(bill)}>
-                      <TableCell className="font-mono text-xs font-semibold text-slate-700">{bill.docNo}</TableCell>
+                    <TableRow key={`${bill.id}:${bill.approvalId ?? 'no-approval'}`} className="cursor-pointer hover:bg-slate-50" onClick={() => openFormForBill(bill)}>
+                      <TableCell className="font-mono text-xs font-semibold text-slate-700">
+                        <div>{bill.docNo}</div>
+                        {bill.sourceDocNo && bill.sourceDocNo !== bill.docNo ? <div className="mt-1 font-sans text-[11px] font-normal text-slate-500">อ้างอิง {bill.sourceDocNo}</div> : null}
+                      </TableCell>
                       <TableCell>{formatDateDisplay(bill.date)}</TableCell>
                       <TableCell className="max-w-72 truncate font-medium text-slate-800">{partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'}</TableCell>
                       <TableCell className="w-36 text-xs text-slate-600">
@@ -854,35 +829,18 @@ export function MoneyMovementPageClient({
                       <TableCell className={`w-40 whitespace-nowrap text-right font-bold tabular-nums ${balance > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{formatMoney(balance)}</TableCell>
                       <TableCell className="w-20 whitespace-nowrap text-right tabular-nums">{ageInDays(bill.date)}</TableCell>
                       <TableCell className="text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <UiButton
-                            className="font-normal"
-                            size="xs"
-                            type="button"
-                            variant="outline"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              openFormForBill(bill)
-                            }}
-                          >
-                            ทำจ่าย
-                          </UiButton>
-                          <UiButton
-                            className="font-normal text-rose-700"
-                            disabled={(bill.paidAmount ?? 0) > 0.01 || !bill.approvalId}
-                            size="xs"
-                            type="button"
-                            variant="outline"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              setCancelApprovalTarget(bill)
-                              setCancelApprovalReason('')
-                              setError(null)
-                            }}
-                          >
-                            ยกเลิก
-                          </UiButton>
-                        </div>
+                        <UiButton
+                          className="font-normal"
+                          size="xs"
+                          type="button"
+                          variant="outline"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            openFormForBill(bill)
+                          }}
+                        >
+                          ทำจ่าย
+                        </UiButton>
                       </TableCell>
                     </TableRow>
                   )
@@ -1159,59 +1117,6 @@ export function MoneyMovementPageClient({
         </>
       ) : null}
 
-      {mode === 'payment' && !historyOnly && cancelApprovalTarget ? (
-        <Dialog open onOpenChange={(open) => {
-          if (!open && !isCancellingApproval) {
-            setCancelApprovalTarget(null)
-            setCancelApprovalReason('')
-          }
-        }}>
-          <DialogContent className="max-w-lg p-0" hideClose>
-            <DialogHeader className="border-b px-5 py-4">
-              <DialogTitle className="font-bold text-slate-900">ยกเลิกรายการรอจ่าย</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 px-5 py-4 text-sm">
-              <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-slate-700">
-                <div><span className="font-semibold">เลขที่บิล:</span> {cancelApprovalTarget.docNo}</div>
-                <div><span className="font-semibold">{partyLabel}:</span> {partyMap.get(cancelApprovalTarget.supplierId ?? '') ?? cancelApprovalTarget.supplierId ?? '-'}</div>
-                <div><span className="font-semibold">ยอดค้างจ่าย:</span> {formatMoney(cancelApprovalTarget.payableBalance ?? 0)}</div>
-              </div>
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-slate-600">เหตุผลการยกเลิก</span>
-                <textarea
-                  className="min-h-28 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-0 transition focus:border-rose-500 focus:ring-2 focus:ring-rose-200"
-                  placeholder="ระบุเหตุผลการยกเลิกรายการรอจ่าย"
-                  value={cancelApprovalReason}
-                  onChange={(event) => setCancelApprovalReason(event.target.value)}
-                />
-              </label>
-            </div>
-            <DialogFooter className="border-t px-5 py-4">
-              <UiButton
-                className="font-normal text-slate-600"
-                disabled={isCancellingApproval}
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  setCancelApprovalTarget(null)
-                  setCancelApprovalReason('')
-                }}
-              >
-                ปิด
-              </UiButton>
-              <UiButton
-                className="bg-rose-600 px-5 font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
-                disabled={isCancellingApproval || !cancelApprovalReason.trim()}
-                type="button"
-                variant="default"
-                onClick={() => void cancelApprovedPaymentQueue()}
-              >
-                ยืนยันยกเลิกรายการรอจ่าย
-              </UiButton>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      ) : null}
     </section>
   )
 }

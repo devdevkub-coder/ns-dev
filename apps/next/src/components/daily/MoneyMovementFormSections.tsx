@@ -235,9 +235,15 @@ export function PaymentLinesSection({
                     />
                   )}
                   <datalist id={`payment-bill-options-${line.id ?? lineIndex}`}>
-                    {lineBillOptions.map((bill) => (
-                      <option key={bill.id} value={`${bill.docNo} | ${partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'} | ค้าง ${formatMoney(bill.payableBalance ?? 0)}`} />
-                    ))}
+                    {lineBillOptions.map((bill, optionIndex) => {
+                      const optionKey = `${bill.id}:${bill.approvalId ?? bill.docNo}:${optionIndex}`
+                      return (
+                        <option
+                          key={optionKey}
+                          value={`${bill.docNo} | ${partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'} | ค้าง ${formatMoney(bill.payableBalance ?? 0)}`}
+                        />
+                      )
+                    })}
                   </datalist>
                 </TableCell>
                 <TableCell className="p-1"><UiInput className="h-8 w-full bg-slate-50 px-1 py-1 text-right text-amber-700 disabled:opacity-100" disabled type="text" value={formatMoney(lineBalance)} /></TableCell>

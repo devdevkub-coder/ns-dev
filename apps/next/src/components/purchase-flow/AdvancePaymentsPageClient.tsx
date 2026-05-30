@@ -4,12 +4,14 @@ import { ArrowLeft, Download, ImagePlus, Plus, Save, X } from 'lucide-react'
 import type React from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { Select } from '@/components/ui/Select'
 import { dailyFetchJson, formatMoney, type DailyAccountOption } from '@/lib/daily'
+import { formatDateDisplay } from '@/lib/format'
 import { supplierAdvancePaymentFormSchema } from '@/lib/purchase-advance'
 
 type OptionRow = {
@@ -33,24 +35,71 @@ type AdvancePaymentRow = {
   accountName: string
   advanceDate: string
   allocatedAmount: number
+  allocations: AdvancePaymentAllocation[]
+  branchId: string
+  canCancel: boolean
+  canEdit: boolean
   amount: number
   branchName: string
+  cancelReason: string
+  cancelledAt: string
+  createdAt: string
+  createdBy: string
   customerName: string
   docNo: string
+  driverName: string
+  fundingAccountId: string
   id: string
+  inDate: string
   largeScaleDocNo: string
   netWeight: number
+  outDate: string
   paymentMethod: string
   plateNo: string
   pricePerKg: number
   productName: string
   remainingAmount: number
+  remark: string
+  scaleOperator: string
+  senderName: string
   status: string
   statusLabel: string
   supplierCode: string
+  supplierId: string
   supplierName: string
+  lockedReason?: string
+  updatedAt: string
+  updatedBy: string
+  vehiclePhotoNames: string[]
   weightIn: number
   weightOut: number
+}
+
+type AdvancePaymentAllocation = {
+  allocatedAmount: number
+  allocatedAt: string
+  allocatedBy: string
+  id: string
+  purchaseBillDocNo: string
+  purchaseBillId: string
+  status: string
+  voidReason: string
+  voidedAt: string
+  voidedBy: string
+}
+
+type AdvancePaymentTimelineEvent = {
+  action: string
+  actorName: string
+  eventKey: string
+  id: string
+  metadata: Record<string, unknown>
+  occurredAt: string
+  outcome: 'blocked' | 'failure' | 'success'
+}
+
+type AdvancePaymentDetail = AdvancePaymentRow & {
+  timeline: AdvancePaymentTimelineEvent[]
 }
 
 type Payload = {
@@ -107,6 +156,13 @@ const emptyForm = (): FormState => ({
   weightOut: '',
 })
 
+function currentDateTimeLocalValue() {
+  const now = new Date()
+  const offset = now.getTimezoneOffset()
+  const local = new Date(now.getTime() - (offset * 60 * 1000))
+  return local.toISOString().slice(0, 16)
+}
+
 function isCashAccount(account: DailyAccountOption) {
   return String(account.type ?? '').trim().toLowerCase() === 'cash'
 }
@@ -116,9 +172,17 @@ function normalizedAccountType(value: string | null | undefined) {
 }
 
 export function AdvancePaymentsPageClient() {
+  const [cancelNote, setCancelNote] = useState('')
+  const [cancelNoteError, setCancelNoteError] = useState('')
   const [data, setData] = useState<Payload | null>(null)
+  const [detail, setDetail] = useState<AdvancePaymentDetail | null>(null)
+  const [editingAdvanceId, setEditingAdvanceId] = useState<string | null>(null)
+  const [editingAdvanceNo, setEditingAdvanceNo] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false)
+  const [isDetailLoading, setIsDetailLoading] = useState(false)
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [form, setForm] = useState<FormState>(() => emptyForm())
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -206,6 +270,8 @@ export function AdvancePaymentsPageClient() {
   }, [form.netWeight, form.pricePerKg])
 
   const closeForm = useCallback(() => {
+    setEditingAdvanceId(null)
+    setEditingAdvanceNo(null)
     setIsFormOpen(false)
     setVehiclePhotoFiles((current) => {
       current.forEach((file) => {
@@ -216,15 +282,108 @@ export function AdvancePaymentsPageClient() {
   }, [])
 
   const openForm = useCallback(() => {
+    const defaultDateTime = currentDateTimeLocalValue()
+    setEditingAdvanceId(null)
+    setEditingAdvanceNo(null)
     setFieldErrors({})
     setError(null)
-    setForm((current) => ({
+    setForm(() => ({
       ...emptyForm(),
       branchId: '',
       fundingAccountId: '',
+      inDate: defaultDateTime,
+      outDate: defaultDateTime,
       paymentMethod: '',
     }))
     setIsFormOpen(true)
+  }, [])
+
+  const openEditForm = useCallback((row: AdvancePaymentDetail | AdvancePaymentRow) => {
+    const defaultDateTime = currentDateTimeLocalValue()
+    const matchedProduct = (data?.products ?? []).find((product) => product.name === row.productName)
+    setEditingAdvanceId(row.id)
+    setEditingAdvanceNo(row.docNo)
+    setFieldErrors({})
+    setError(null)
+    setForm({
+      amount: row.amount ? String(row.amount) : '',
+      branchId: 'branchId' in row ? row.branchId : '',
+      customerName: row.customerName ?? '',
+      docNo: row.docNo ?? '',
+      driverName: 'driverName' in row ? row.driverName : '',
+      fundingAccountId: 'fundingAccountId' in row ? row.fundingAccountId : '',
+      inDate: 'inDate' in row && row.inDate ? row.inDate : defaultDateTime,
+      largeScaleDocNo: row.largeScaleDocNo ?? '',
+      netWeight: String(row.netWeight ?? ''),
+      outDate: 'outDate' in row && row.outDate ? row.outDate : defaultDateTime,
+      paymentMethod: row.paymentMethod ?? '',
+      plateNo: 'plateNo' in row ? row.plateNo : '',
+      pricePerKg: String(row.pricePerKg ?? ''),
+      productId: matchedProduct?.id ?? '',
+      productName: row.productName ?? '',
+      remark: 'remark' in row ? row.remark : '',
+      scaleOperator: 'scaleOperator' in row ? row.scaleOperator : '',
+      senderName: 'senderName' in row ? row.senderName : '',
+      supplierId: 'supplierId' in row ? row.supplierId : '',
+      weightIn: String(row.weightIn ?? ''),
+      weightOut: String(row.weightOut ?? ''),
+    })
+    setVehiclePhotoFiles(
+      ('vehiclePhotoNames' in row ? row.vehiclePhotoNames : []).map((fileName) => ({
+        fileName,
+        id: `existing-${fileName}`,
+        url: null,
+      })),
+    )
+    setIsDetailOpen(false)
+    setDetail(null)
+    setIsFormOpen(true)
+  }, [data?.products])
+
+  const openCancelDialog = useCallback((row: AdvancePaymentDetail | AdvancePaymentRow) => {
+    setDetail('timeline' in row ? row : null)
+    setCancelNote('')
+    setCancelNoteError('')
+    setError(null)
+    setIsCancelDialogOpen(true)
+  }, [])
+
+  const closeCancelDialog = useCallback(() => {
+    setCancelNote('')
+    setCancelNoteError('')
+    setIsCancelDialogOpen(false)
+  }, [])
+
+  const loadDetail = useCallback(async (rowId: string) => {
+    setError(null)
+    setIsDetailLoading(true)
+    setIsDetailOpen(true)
+    try {
+      const payload = await dailyFetchJson<AdvancePaymentDetail>(`/api/purchase/advance-payments/${rowId}`)
+      setDetail(payload)
+    } catch (caught) {
+      setIsDetailOpen(false)
+      setDetail(null)
+      setError(caught instanceof Error ? caught.message : 'โหลดรายละเอียด ADV ไม่ได้')
+    } finally {
+      setIsDetailLoading(false)
+    }
+  }, [])
+
+  const openCancelFromRow = useCallback(async (rowId: string) => {
+    setError(null)
+    setIsDetailLoading(true)
+    try {
+      const payload = await dailyFetchJson<AdvancePaymentDetail>(`/api/purchase/advance-payments/${rowId}`)
+      setDetail(payload)
+      setCancelNote('')
+      setCancelNoteError('')
+      setIsCancelDialogOpen(true)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'โหลดรายละเอียด ADV ไม่ได้')
+    } finally {
+      setIsDetailLoading(false)
+    }
   }, [])
 
   const updateForm = (field: string, value: string) => {
@@ -287,15 +446,43 @@ export function AdvancePaymentsPageClient() {
 
     setIsSaving(true)
     try {
-      await dailyFetchJson('/api/purchase/advance-payments', {
+      const saved = await dailyFetchJson<{ id: string }>(editingAdvanceId ? `/api/purchase/advance-payments/${editingAdvanceId}` : '/api/purchase/advance-payments', {
         body: JSON.stringify(parsed.data),
-        method: 'POST',
+        method: editingAdvanceId ? 'PUT' : 'POST',
       })
       setForm(emptyForm())
       closeForm()
       await loadData()
+      if (saved.id) await loadDetail(saved.id)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'บันทึกรายการจ่ายเงินล่วงหน้าไม่ได้')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const submitCancel = async () => {
+    const row = detail
+    if (!row) return
+    const note = cancelNote.trim()
+    if (!note) {
+      setCancelNoteError('กรอกเหตุผลการยกเลิก')
+      return
+    }
+    setError(null)
+    setCancelNoteError('')
+    setIsSaving(true)
+    try {
+      await dailyFetchJson(`/api/purchase/advance-payments/${row.id}`, {
+        body: JSON.stringify({ note }),
+        method: 'PATCH',
+      })
+      closeCancelDialog()
+      setIsDetailOpen(false)
+      setDetail(null)
+      await loadData()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'ยกเลิกรายการ ADV ไม่ได้')
     } finally {
       setIsSaving(false)
     }
@@ -334,8 +521,8 @@ export function AdvancePaymentsPageClient() {
           <div className="rounded-md bg-white p-4 shadow">
           <div className="mb-4">
             <div>
-              <div className="text-sm font-semibold text-slate-900">สร้างรายการจ่ายเงินล่วงหน้า / มัดจำ</div>
-              <div className="text-xs text-slate-500">บันทึกเอกสาร ADV ใหม่จากข้อมูลใบชั่งใหญ่และข้อมูลการจ่ายเงิน</div>
+              <div className="text-sm font-semibold text-slate-900">{editingAdvanceId ? `แก้ไขรายการ ADV ${editingAdvanceNo ?? ''}` : 'สร้างรายการจ่ายเงินล่วงหน้า / มัดจำ'}</div>
+              <div className="text-xs text-slate-500">{editingAdvanceId ? 'แก้ไขได้เฉพาะรายการที่ยังไม่อนุมัติ และยังไม่ถูกใช้หักบิล' : 'บันทึกเอกสาร ADV ใหม่จากข้อมูลใบชั่งใหญ่และข้อมูลการจ่ายเงิน'}</div>
             </div>
           </div>
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -359,10 +546,16 @@ export function AdvancePaymentsPageClient() {
                     </Select>
                   </Field>
                   <Field error={fieldErrors.fundingAccountId} label="บัญชีที่จ่าย *">
-                    <Select className={form.fundingAccountId ? '' : 'text-slate-400'} value={form.fundingAccountId} onChange={(event) => updateForm('fundingAccountId', event.target.value)}>
-                      <option disabled value="">เลือกบัญชี</option>
+                    <Select
+                      className={form.fundingAccountId ? '' : 'text-slate-400'}
+                      disabled={!form.paymentMethod}
+                      value={form.fundingAccountId}
+                      onChange={(event) => updateForm('fundingAccountId', event.target.value)}
+                    >
+                      <option disabled value="">{form.paymentMethod ? 'เลือกบัญชี' : 'เลือกวิธีจ่ายก่อน'}</option>
                       {filteredAccounts.map((account) => <option key={account.id} value={account.id}>{accountOptionLabel(account)}</option>)}
                     </Select>
+                    {!form.paymentMethod ? <p className="mt-1 text-xs text-slate-500">กรุณาเลือกวิธีจ่ายก่อน แล้วระบบจะเปิดรายการบัญชีที่รองรับ</p> : null}
                     {form.paymentMethod && filteredAccounts.length === 0 ? <p className="mt-1 text-xs text-amber-700">ไม่พบบัญชีที่รองรับวิธีจ่ายนี้</p> : null}
                   </Field>
                   <MoneyInputField error={fieldErrors.amount} label="ยอดมัดจำ *" value={form.amount} onChange={(value) => updateForm('amount', value)} />
@@ -375,12 +568,8 @@ export function AdvancePaymentsPageClient() {
               >
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                   <InputField error={fieldErrors.largeScaleDocNo} label="เลขที่ใบชั่งใหญ่" value={form.largeScaleDocNo} onChange={(value) => updateForm('largeScaleDocNo', value)} />
-                  <Field error={fieldErrors.inDate} label="วันที่เข้า">
-                    <DatePickerInput className="w-full" value={form.inDate} onChange={(value) => updateForm('inDate', value)} />
-                  </Field>
-                  <Field error={fieldErrors.outDate} label="วันที่ออก">
-                    <DatePickerInput className="w-full" value={form.outDate} onChange={(value) => updateForm('outDate', value)} />
-                  </Field>
+                  <InputField className="max-w-[220px]" error={fieldErrors.inDate} label="วันที่รถเข้า" step="60" type="datetime-local" value={form.inDate} onChange={(value) => updateForm('inDate', value)} />
+                  <InputField className="max-w-[220px]" error={fieldErrors.outDate} label="วันที่รถออก" step="60" type="datetime-local" value={form.outDate} onChange={(value) => updateForm('outDate', value)} />
                 </div>
               </FormSection>
 
@@ -478,7 +667,7 @@ export function AdvancePaymentsPageClient() {
               <SummaryLine label="ยอดมัดจำ" value={formatMoney(Number(form.amount) || 0)} />
               <SummaryLine label="ส่วนต่าง" value={formatMoney((Number(form.amount) || 0) - computedAmount)} />
               <div className="mt-4 flex gap-2">
-                <Button disabled={isSaving} type="button" onClick={submitForm}><Save className="mr-1 h-4 w-4" />บันทึก ADV</Button>
+                <Button disabled={isSaving} type="button" onClick={submitForm}><Save className="mr-1 h-4 w-4" />{isSaving ? 'กำลังบันทึก...' : editingAdvanceId ? 'บันทึกการแก้ไข' : 'บันทึก ADV'}</Button>
                 <Button type="button" variant="outline" onClick={closeForm}>ปิด</Button>
               </div>
             </div>
@@ -555,15 +744,15 @@ export function AdvancePaymentsPageClient() {
                   <AdvancePaymentSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ยอดมัดจำ" sortKey="amount" onSort={changeSort} />
                   <AdvancePaymentSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ใช้แล้ว" sortKey="allocatedAmount" onSort={changeSort} />
                   <AdvancePaymentSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="คงเหลือ" sortKey="remainingAmount" onSort={changeSort} />
-                  <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="บัญชีจ่าย" sortKey="accountName" onSort={changeSort} />
                   <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="สถานะ" sortKey="status" onSort={changeSort} />
+                  <th className="p-2 text-right text-xs font-semibold text-slate-700">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {isLoading ? <tr><td className="p-8 text-center text-slate-500" colSpan={11}>กำลังโหลดข้อมูล</td></tr> : null}
                 {!isLoading && (data?.rows ?? []).length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={11}>ยังไม่มีรายการจ่ายเงินล่วงหน้า</td></tr> : null}
                 {!isLoading && (data?.rows ?? []).map((row) => (
-                  <tr key={row.id} className="hover:bg-slate-50">
+                  <tr key={row.id} className="cursor-pointer hover:bg-slate-50" onClick={() => void loadDetail(row.id)}>
                     <td className="p-2 font-mono text-xs whitespace-nowrap">{row.docNo}</td>
                     <td className="p-2 whitespace-nowrap">{row.advanceDate}</td>
                     <td className="p-2">{row.supplierName}</td>
@@ -573,8 +762,39 @@ export function AdvancePaymentsPageClient() {
                     <td className="p-2 text-right font-medium tabular-nums">{formatMoney(row.amount)}</td>
                     <td className="p-2 text-right tabular-nums">{formatMoney(row.allocatedAmount)}</td>
                     <td className="p-2 text-right font-semibold text-amber-700 tabular-nums">{formatMoney(row.remainingAmount)}</td>
-                    <td className="p-2">{row.paymentMethod} · {row.accountName}</td>
                     <td className="p-2"><StatusDot status={row.status} label={row.statusLabel} /></td>
+                    <td className="p-2 text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          className="px-2 py-1 text-xs"
+                          disabled={!row.canEdit}
+                          size="xs"
+                          title={!row.canEdit ? row.lockedReason ?? 'รายการนี้ยังแก้ไขไม่ได้' : undefined}
+                          type="button"
+                          variant="outline"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            openEditForm(row)
+                          }}
+                        >
+                          แก้ไข
+                        </Button>
+                        <Button
+                          className="px-2 py-1 text-xs"
+                          disabled={!row.canCancel}
+                          size="xs"
+                          title={!row.canCancel ? row.lockedReason ?? 'รายการนี้ยังยกเลิกไม่ได้' : undefined}
+                          type="button"
+                          variant="outline"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            void openCancelFromRow(row.id)
+                          }}
+                        >
+                          ยกเลิก
+                        </Button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -582,6 +802,174 @@ export function AdvancePaymentsPageClient() {
           </div>
         </>
       )}
+      <Dialog open={isDetailOpen} onOpenChange={(open) => {
+        setIsDetailOpen(open)
+        if (!open) setDetail(null)
+      }}>
+        <DialogContent className="max-h-[85vh] max-w-5xl overflow-y-auto" fallbackTitle="รายละเอียด ADV">
+          <DialogHeader>
+            <DialogTitle>{detail?.docNo ? `รายละเอียด ${detail.docNo}` : 'รายละเอียด ADV'}</DialogTitle>
+            <DialogDescription>กดที่รายการเพื่อดูข้อมูลเอกสาร การหักบิลย้อนหลัง และ timeline ของรายการ ADV</DialogDescription>
+          </DialogHeader>
+          {isDetailLoading ? <div className="px-4 pb-6 text-sm text-slate-500">กำลังโหลดรายละเอียด...</div> : null}
+          {!isDetailLoading && detail ? (
+            <div className="space-y-4 px-4 pb-4">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                <Metric label="ยอดมัดจำ" value={formatMoney(detail.amount)} />
+                <Metric label="ใช้หักบิลแล้ว" value={formatMoney(detail.allocatedAmount)} />
+                <Metric label="คงเหลือ" tone="amber" value={formatMoney(detail.remainingAmount)} />
+                <Metric label="สถานะ" value={detail.statusLabel} />
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+                <div className="rounded-md border border-slate-200 p-4">
+                  <div className="mb-3 text-sm font-semibold text-slate-900">ข้อมูลเอกสาร</div>
+                  <DetailGrid
+                    items={[
+                      ['ผู้ขาย', detail.supplierName],
+                      ['สาขา', detail.branchName],
+                      ['วิธีจ่าย', detail.paymentMethod || '-'],
+                      ['บัญชีที่จ่าย', detail.accountName || '-'],
+                      ['วันที่เอกสาร', formatDateDisplay(detail.advanceDate)],
+                      ['วันที่รถเข้า', formatDateTimeDisplay(detail.inDate)],
+                      ['วันที่รถออก', formatDateTimeDisplay(detail.outDate)],
+                      ['ใบชั่งใหญ่', detail.largeScaleDocNo || '-'],
+                      ['ทะเบียนรถ', detail.plateNo || '-'],
+                      ['ชื่อลูกค้า', detail.customerName || '-'],
+                      ['สินค้า', detail.productName || '-'],
+                      ['น้ำหนักเข้า', formatMoney(detail.weightIn)],
+                      ['น้ำหนักออก', formatMoney(detail.weightOut)],
+                      ['น้ำหนักสุทธิ', formatMoney(detail.netWeight)],
+                      ['ราคา/กก.', formatMoney(detail.pricePerKg)],
+                      ['ผู้ชั่ง', detail.scaleOperator || '-'],
+                      ['ผู้ส่ง', detail.senderName || '-'],
+                      ['คนขับรถ', detail.driverName || '-'],
+                      ['หมายเหตุ', detail.remark || '-'],
+                    ]}
+                  />
+                  {detail.vehiclePhotoNames.length > 0 ? (
+                    <div className="mt-4">
+                      <div className="mb-2 text-xs font-medium text-slate-600">รูปภาพรถ</div>
+                      <div className="flex flex-wrap gap-2">
+                        {detail.vehiclePhotoNames.map((name) => <span key={name} className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-700">{name}</span>)}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-md border border-slate-200 p-4">
+                    <div className="mb-3 text-sm font-semibold text-slate-900">การติดตามสถานะ</div>
+                    <DetailGrid
+                      items={[
+                        ['สร้างโดย', detail.createdBy || '-'],
+                        ['สร้างเมื่อ', formatDateTimeDisplay(detail.createdAt)],
+                        ['อัปเดตล่าสุดโดย', detail.updatedBy || '-'],
+                        ['อัปเดตล่าสุดเมื่อ', formatDateTimeDisplay(detail.updatedAt)],
+                        ['ยกเลิกเมื่อ', detail.cancelledAt ? formatDateTimeDisplay(detail.cancelledAt) : '-'],
+                        ['เหตุผลยกเลิก', detail.cancelReason || '-'],
+                      ]}
+                    />
+                  </div>
+
+                  <div className="rounded-md border border-slate-200 p-4">
+                    <div className="mb-3 text-sm font-semibold text-slate-900">รายการหักบิล</div>
+                    {detail.allocations.length === 0 ? <div className="text-sm text-slate-400">ยังไม่มีการใช้ ADV หักบิล</div> : (
+                      <div className="space-y-2">
+                        {detail.allocations.map((allocation) => (
+                          <div key={allocation.id} className="rounded-md bg-slate-50 p-3 text-sm">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <div className="font-medium text-slate-800">{allocation.purchaseBillDocNo || '-'}</div>
+                                <div className="text-xs text-slate-500">{allocation.status === 'voided' ? 'ยกเลิกการหักบิลแล้ว' : 'หักบิลแล้ว'} โดย {allocation.status === 'voided' ? allocation.voidedBy || '-' : allocation.allocatedBy || '-'}</div>
+                              </div>
+                              <div className="text-right font-semibold tabular-nums text-slate-900">{formatMoney(allocation.allocatedAmount)}</div>
+                            </div>
+                            <div className="mt-1 text-xs text-slate-500">
+                              {allocation.status === 'voided'
+                                ? `ยกเลิกเมื่อ ${formatDateTimeDisplay(allocation.voidedAt)}${allocation.voidReason ? ` · ${allocation.voidReason}` : ''}`
+                                : `หักเมื่อ ${formatDateTimeDisplay(allocation.allocatedAt)}`}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-md border border-slate-200 p-4">
+                <div className="mb-3 text-sm font-semibold text-slate-900">Timeline</div>
+                {detail.timeline.length === 0 ? <div className="text-sm text-slate-400">ยังไม่มี timeline ของรายการนี้</div> : (
+                  <div className="space-y-3">
+                    {detail.timeline.map((event) => (
+                      <div key={event.id} className="flex gap-3 rounded-md bg-slate-50 p-3">
+                        <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${timelineTone(event)}`} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="text-sm font-medium text-slate-900">{timelineLabel(event)}</div>
+                            <div className="text-xs text-slate-500">{formatDateTimeDisplay(event.occurredAt)}</div>
+                          </div>
+                          <div className="mt-1 text-xs text-slate-600">โดย {event.actorName || '-'}</div>
+                          {timelineMetadataText(event) ? <div className="mt-1 text-xs text-slate-500">{timelineMetadataText(event)}</div> : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              disabled={!detail?.canEdit}
+              title={!detail?.canEdit ? detail?.lockedReason ?? 'รายการนี้ยังแก้ไขไม่ได้' : undefined}
+              type="button"
+              variant="outline"
+              onClick={() => detail ? openEditForm(detail) : undefined}
+            >
+              แก้ไข
+            </Button>
+            <Button
+              disabled={!detail?.canCancel}
+              title={!detail?.canCancel ? detail?.lockedReason ?? 'รายการนี้ยังยกเลิกไม่ได้' : undefined}
+              type="button"
+              variant="outline"
+              onClick={() => detail ? openCancelDialog(detail) : undefined}
+            >
+              ยกเลิก
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => setIsDetailOpen(false)}>ปิด</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isCancelDialogOpen} onOpenChange={(open) => {
+        setIsCancelDialogOpen(open)
+        if (!open) closeCancelDialog()
+      }}>
+        <DialogContent className="max-w-lg" fallbackTitle="ยกเลิกรายการ ADV">
+          <DialogHeader>
+            <DialogTitle>ยกเลิกรายการ ADV {detail?.docNo ?? ''}</DialogTitle>
+            <DialogDescription>ระบบจะเปลี่ยนสถานะเป็นยกเลิกและเก็บเหตุผลไว้ใน timeline</DialogDescription>
+          </DialogHeader>
+          <div className="px-4 pb-4">
+            <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor="advance-payment-cancel-note">เหตุผลการยกเลิก *</label>
+            <textarea
+              id="advance-payment-cancel-note"
+              className={`w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100 ${cancelNoteError ? 'border-red-400 bg-red-50' : ''}`.trim()}
+              rows={4}
+              value={cancelNote}
+              onChange={(event) => setCancelNote(event.target.value)}
+            />
+            {cancelNoteError ? <div className="mt-1 text-xs text-red-600">{cancelNoteError}</div> : null}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={closeCancelDialog}>ปิด</Button>
+            <Button className="bg-red-600 hover:bg-red-700" disabled={isSaving} type="button" onClick={submitCancel}>{isSaving ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }
@@ -619,13 +1007,13 @@ function FormSection({ children, description, title }: { children: React.ReactNo
   )
 }
 
-function InputField({ error, label, onChange, type = 'text', value, ...props }: { error?: string; label: string; onChange: (value: string) => void; type?: string; value: string } & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'value'>) {
+function InputField({ className, error, label, onChange, type = 'text', value, ...props }: { error?: string; label: string; onChange: (value: string) => void; type?: string; value: string } & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'value'>) {
   const numberClassName = type === 'number'
     ? '[appearance:textfield] text-right [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
     : ''
   return (
     <Field error={error} label={label}>
-      <Input aria-invalid={Boolean(error)} className={`${numberClassName} ${error ? 'border-red-400 bg-red-50' : ''}`.trim()} type={type} value={value} onChange={(event) => onChange(event.target.value)} {...props} />
+      <Input aria-invalid={Boolean(error)} className={`${numberClassName} ${error ? 'border-red-400 bg-red-50' : ''} ${className ?? ''}`.trim()} type={type} value={value} onChange={(event) => onChange(event.target.value)} {...props} />
     </Field>
   )
 }
@@ -744,4 +1132,65 @@ function StatusDot({ label, status }: { label: string; status: string }) {
 
 function SummaryLine({ label, value }: { label: string; value: string }) {
   return <div className="mt-3 flex items-center justify-between text-sm"><span className="text-slate-500">{label}</span><span className="font-semibold tabular-nums">{value}</span></div>
+}
+
+function formatDateTimeDisplay(value: string | null | undefined) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value.replace('T', ' ')
+  }
+  return date.toLocaleString('th-TH', {
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    month: '2-digit',
+    timeZone: 'Asia/Bangkok',
+    year: 'numeric',
+  })
+}
+
+function DetailGrid({ items }: { items: Array<[string, string]> }) {
+  return (
+    <div className="grid gap-x-4 gap-y-2 md:grid-cols-2">
+      {items.map(([label, value]) => (
+        <div key={label} className="min-w-0">
+          <div className="text-xs text-slate-500">{label}</div>
+          <div className="truncate text-sm text-slate-900" title={value}>{value}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function timelineTone(event: AdvancePaymentTimelineEvent) {
+  if (event.outcome === 'failure') return 'bg-red-500'
+  if (event.outcome === 'blocked') return 'bg-amber-500'
+  if (event.action === 'cancel' || event.eventKey.includes('cancel')) return 'bg-red-500'
+  if (event.action === 'allocate' || event.eventKey.includes('allocated')) return 'bg-blue-500'
+  return 'bg-emerald-500'
+}
+
+function timelineLabel(event: AdvancePaymentTimelineEvent) {
+  if (event.eventKey === 'purchase.advance-payment.created') return 'สร้างรายการ ADV'
+  if (event.eventKey === 'purchase.advance-payment.updated') return 'แก้ไขรายการ ADV'
+  if (event.eventKey === 'purchase.advance-payment.cancelled') return 'ยกเลิกรายการ ADV'
+  if (event.eventKey === 'purchase.advance-payment.allocated') return 'ใช้ ADV หักบิล'
+  if (event.eventKey === 'purchase.advance-payment.allocation-voided') return 'ยกเลิกการหักบิล ADV'
+  return event.action
+}
+
+function timelineMetadataText(event: AdvancePaymentTimelineEvent) {
+  if (event.eventKey === 'purchase.advance-payment.allocated' || event.eventKey === 'purchase.advance-payment.allocation-voided') {
+    const purchaseBillDocNo = String(event.metadata.purchaseBillDocNo ?? '')
+    const allocatedAmount = typeof event.metadata.allocatedAmount === 'number'
+      ? formatMoney(event.metadata.allocatedAmount)
+      : ''
+    const voidReason = String(event.metadata.voidReason ?? '')
+    return [purchaseBillDocNo ? `บิล ${purchaseBillDocNo}` : '', allocatedAmount ? `จำนวน ${allocatedAmount}` : '', voidReason].filter(Boolean).join(' · ')
+  }
+  if (event.eventKey === 'purchase.advance-payment.cancelled') {
+    return String(event.metadata.cancelReason ?? '')
+  }
+  return ''
 }
