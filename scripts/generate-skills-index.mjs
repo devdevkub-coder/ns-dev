@@ -292,19 +292,20 @@ async function writeSummary(outputFile, skills) {
 function parseArgs() {
   const args = new Set(process.argv.slice(2))
   const repoRoot = process.cwd()
+  const outputDir = path.join(repoRoot, 'codex/skills')
 
   if (args.has('--global')) {
     const home = process.env.HOME
     if (!home) throw new Error('HOME is required to index global skills.')
     return {
-      outputFile: path.join(repoRoot, 'reports/skills/global-skills-index.json'),
+      outputFile: path.join(outputDir, 'global-skills-index.json'),
       skillsDir: path.join(home, '.codex/skills'),
       sourceLabel: 'global-codex',
     }
   }
 
   return {
-    outputFile: path.join(repoRoot, '.agents/skills-index.json'),
+    outputFile: path.join(outputDir, 'project-skills-index.json'),
     skillsDir: path.join(repoRoot, '.agents/skills'),
     sourceLabel: 'project',
   }

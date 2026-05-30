@@ -1,0 +1,110 @@
+[
+  {
+    "id": "nextjs",
+    "path": "skills/nextjs",
+    "category": "web-engineering",
+    "name": "nextjs16-skills",
+    "description": "Key facts and links for Next.js 16. Use for planning, writing, and troubleshooting Next.js 16 changes.",
+    "risk": "unknown",
+    "source": "project",
+    "date_added": null,
+    "category_confidence": 0.92,
+    "category_reason": "keyword-match:react,nextjs,next.js"
+  },
+  {
+    "id": "webapp-testing",
+    "path": "skills/webapp-testing",
+    "category": "web-engineering",
+    "name": "webapp-testing",
+    "description": "Project-level toolkit for testing NS Scrap ERP local web applications with Playwright. Use for legacy index.html checks, Vue/Vite route smoke tests, frontend behavior debugging, screenshots, browser logs, auth/permission UI flows, and UAT readiness.",
+    "risk": "unknown",
+    "source": "project",
+    "date_added": null,
+    "category_confidence": 0.92,
+    "category_reason": "keyword-match:vue,frontend,html"
+  },
+  {
+    "id": "ns-scrap-erp-input-validation",
+    "path": "skills/ns-scrap-erp-input-validation",
+    "category": "database",
+    "name": "ns-scrap-erp-input-validation",
+    "description": "Project-specific validation checklist for NS Scrap ERP forms, API payloads, master data, and customer/business records. Use when adding or changing any input field, Zod schema, form, API mutation, or database-backed write flow.",
+    "risk": "unknown",
+    "source": "project",
+    "date_added": null,
+    "category_confidence": 0.88,
+    "category_reason": "keyword-match:database,schema"
+  },
+  {
+    "id": "supabase",
+    "path": "skills/supabase",
+    "category": "database",
+    "name": "supabase",
+    "description": "Use when doing ANY task involving Supabase. Triggers: Supabase products (Database, Auth, Edge Functions, Realtime, Storage, Vectors, Cron, Queues); client libraries and SSR integrations (supabase-js, @supabase/ssr) in Next.js, React, SvelteKit, Astro, Remix; auth issues (login, logout, sessions, JWT, cookies, getSession, getUser, getClaims, RLS); Supabase CLI or MCP server; schema changes, migrations, security audits, Postgres extensions (pg_graphql, pg_cron, pg_vector).",
+    "risk": "unknown",
+    "source": "project",
+    "date_added": null,
+    "category_confidence": 0.92,
+    "category_reason": "keyword-match:database,sql,postgres"
+  },
+  {
+    "id": "supabase-postgres-best-practices",
+    "path": "skills/supabase-postgres-best-practices",
+    "category": "database",
+    "name": "supabase-postgres-best-practices",
+    "description": "Postgres performance optimization and best practices from Supabase. Use this skill when writing, reviewing, or optimizing Postgres queries, schema designs, or database configurations.",
+    "risk": "unknown",
+    "source": "project",
+    "date_added": null,
+    "category_confidence": 0.92,
+    "category_reason": "keyword-match:database,sql,postgres"
+  },
+  {
+    "id": "ns-scrap-erp-quality-audit",
+    "path": "skills/ns-scrap-erp-quality-audit",
+    "category": "testing-qa",
+    "name": "ns-scrap-erp-quality-audit",
+    "description": "Project-specific quality audit workflow for NS Scrap ERP. Use in this repo when reviewing legacy UI behavior, click paths, shared state side effects, browser smoke tests, accessibility, responsive layout, release readiness, workspace tooling, or final verification after a migration/refactor slice. Always read AGENTS.md first.",
+    "risk": "unknown",
+    "source": "project",
+    "date_added": null,
+    "category_confidence": 1,
+    "category_reason": "override:id"
+  },
+  {
+    "id": "codebase-migrate",
+    "path": "skills/codebase-migrate",
+    "category": "migration",
+    "name": "codebase-migrate",
+    "description": "Run NS Scrap ERP large codebase migrations and multi-file refactors in local reviewable batches. Use for legacy-to-Vue route migration, schema cleanup, repeated transforms, auth/permission refactors, and module-by-module modernization. Do not assume Composio CLI, Linear, Jira, or GitHub PR automation unless explicitly requested.",
+    "risk": "unknown",
+    "source": "project",
+    "date_added": null,
+    "category_confidence": 1,
+    "category_reason": "override:id"
+  },
+  {
+    "id": "ns-scrap-erp-migration",
+    "path": "skills/ns-scrap-erp-migration",
+    "category": "migration",
+    "name": "ns-scrap-erp-migration",
+    "description": "Project-specific shortcut for NS Scrap ERP rehabilitation, database redesign, Supabase Auth/RLS, schema mapping, migration planning, reconciliation, and phase prioritization. Use in this repo when a task affects DB model, migration docs, Supabase environments, master data, auth/permissions, or migration assumptions; read AGENTS.md as the central source of truth.",
+    "risk": "unknown",
+    "source": "project",
+    "date_added": null,
+    "category_confidence": 1,
+    "category_reason": "override:id"
+  },
+  {
+    "id": "ns-scrap-erp-obsidian",
+    "path": "skills/ns-scrap-erp-obsidian",
+    "category": "documentation",
+    "name": "ns-scrap-erp-obsidian",
+    "description": "Project-specific shortcut for NS Scrap ERP Obsidian notes, MOCs, decision logs, ADR-style notes, migration document links, frontmatter, tags, aliases, and vault navigation. Use in this repo when editing docs/notes or Obsidian-oriented project documentation; read AGENTS.md as the central source of truth.",
+    "risk": "unknown",
+    "source": "project",
+    "date_added": null,
+    "category_confidence": 0.92,
+    "category_reason": "keyword-match:obsidian,adr,documentation"
+  }
+]
