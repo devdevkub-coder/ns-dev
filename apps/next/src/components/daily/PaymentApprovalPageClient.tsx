@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
@@ -34,7 +33,6 @@ type ApprovalApRow = {
   id: string
   paidAmount: number
   payableBalance: number
-  sourceId: string
   sourceDocNo: string
   sourceLabel: string
   sourceType: 'advance_payment' | 'purchase_bill'
@@ -55,9 +53,7 @@ type ApprovalExpenseRow = {
   id: string
   payee: string
   refDocNo: string
-  sourceId: string
   sourceDocNo: string
-  sourceType: 'expense'
   totalAmount: number
 }
 
@@ -73,6 +69,11 @@ type ApprovalSortKey = 'bankAccount' | 'date' | 'docNo' | 'dueDate' | 'paidAmoun
 type ApprovalDetailState =
   | { row: ApprovalApRow; tab: 'ap' }
   | { row: ApprovalExpenseRow; tab: 'expense' }
+type SplitDraft = {
+  amount: number
+  destinationId: string
+  id: string
+}
 
 const pageSizeOptions = [10, 25, 50, 100]
 const approvalFilterOptions: Array<{ label: string; value: ApprovalFilter }> = [
@@ -80,6 +81,18 @@ const approvalFilterOptions: Array<{ label: string; value: ApprovalFilter }> = [
   { label: 'ยังไม่อนุมัติ', value: 'pending' },
   { label: 'อนุมัติแล้ว', value: 'approved' },
 ]
+
+function formatDecimalWithGrouping(value: number) {
+  return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function normalizeMoneyDraft(value: string) {
+  return value.replace(/,/g, '')
+}
+
+function isValidMoneyDraft(value: string) {
+  return /^\d*(\.\d{0,2})?$/.test(value)
+}
 
 function destinationSummaryLabel(row: ApprovalApRow) {
   if (row.approvalStatus !== 'pending') return row.destinationLabel || '-'
@@ -102,10 +115,16 @@ function approvalStatusDot(status: ApprovalApRow['approvalStatus']) {
   return 'bg-slate-300'
 }
 
-function sourceDetailHref(row: ApprovalApRow | ApprovalExpenseRow) {
-  if (row.sourceType === 'purchase_bill') return `/purchase/bills/${row.sourceId}`
-  if (row.sourceType === 'advance_payment') return `/purchase/advance-payments/${row.sourceId}`
-  return `/daily/expense/${row.sourceId}`
+function newSplitDraft(optionId: string, amount: number): SplitDraft {
+  return {
+    amount,
+    destinationId: optionId,
+    id: `SPLIT-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  }
+}
+
+function defaultDestinationId(row: ApprovalApRow) {
+  return row.bankAccounts[0]?.id ?? ''
 }
 
 function approvalSortValue(
@@ -174,7 +193,9 @@ export function PaymentApprovalPageClient() {
   const [data, setData] = useState<ApprovalPayload>({ apRows: [], expenseRows: [] })
   const [detail, setDetail] = useState<ApprovalDetailState | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [inputDrafts, setInputDrafts] = useState<Record<string, string>>({})
   const [isLoading, setIsLoading] = useState(true)
+  const [isSubmittingApproval, setIsSubmittingApproval] = useState(false)
   const [approvalFilter, setApprovalFilter] = useState<ApprovalFilter>('pending')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -183,6 +204,7 @@ export function PaymentApprovalPageClient() {
   const [search, setSearch] = useState('')
   const [sortDirection, setSortDirection] = useState<ApprovalSortDirection>('desc')
   const [sortKey, setSortKey] = useState<ApprovalSortKey>('date')
+  const [splitDrafts, setSplitDrafts] = useState<SplitDraft[]>([])
   const [tab, setTab] = useState<ApprovalTab>('ap')
 
   const loadData = useCallback(async () => {
@@ -200,6 +222,14 @@ export function PaymentApprovalPageClient() {
   useEffect(() => {
     void loadData()
   }, [loadData])
+
+  useEffect(() => {
+    if (detail?.tab !== 'ap' || detail.row.approvalStatus !== 'pending') return
+    setSplitDrafts((current) => {
+      if (current.length > 0) return current
+      return [newSplitDraft(defaultDestinationId(detail.row), detail.row.payableBalance)]
+    })
+  }, [detail])
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -249,6 +279,10 @@ export function PaymentApprovalPageClient() {
     }, { approvedCount: 0, pendingCount: 0, totalFull: 0, totalPaid: 0, totalRemain: 0 })
   }, [filteredRows])
 
+  const splitTotal = splitDrafts.reduce((sum, split) => sum + split.amount, 0)
+  const currentDetailRow = detail?.tab === 'ap' ? detail.row : null
+  const splitDiff = currentDetailRow ? currentDetailRow.payableBalance - splitTotal : 0
+
   useEffect(() => {
     setPage(1)
   }, [approvalFilter, dateFrom, dateTo, pageSize, search, sortDirection, sortKey, tab])
@@ -273,11 +307,105 @@ export function PaymentApprovalPageClient() {
 
   function openDetail(nextDetail: ApprovalDetailState) {
     setError(null)
+    setInputDrafts({})
     setDetail(nextDetail)
+    if (nextDetail.tab === 'ap' && nextDetail.row.approvalStatus === 'pending') {
+      setSplitDrafts([newSplitDraft(defaultDestinationId(nextDetail.row), nextDetail.row.payableBalance)])
+    } else {
+      setSplitDrafts([])
+    }
   }
 
   function closeDetail() {
     setDetail(null)
+    setInputDrafts({})
+    setSplitDrafts([])
+  }
+
+  function addSplit() {
+    if (!currentDetailRow) return
+    setSplitDrafts((current) => [...current, newSplitDraft(defaultDestinationId(currentDetailRow), 0)])
+  }
+
+  function removeSplit(splitId: string) {
+    setSplitDrafts((current) => current.length <= 1 ? current : current.filter((split) => split.id !== splitId))
+    setInputDrafts((current) => {
+      const next = { ...current }
+      delete next[splitId]
+      return next
+    })
+  }
+
+  function updateSplit(splitId: string, patch: Partial<SplitDraft>) {
+    setSplitDrafts((current) => current.map((split) => split.id === splitId ? { ...split, ...patch } : split))
+  }
+
+  function handleSplitAmountFocus(split: SplitDraft) {
+    setInputDrafts((current) => ({
+      ...current,
+      [split.id]: normalizeMoneyDraft(current[split.id] ?? formatDecimalWithGrouping(split.amount)),
+    }))
+  }
+
+  function handleSplitAmountChange(split: SplitDraft, value: string) {
+    const normalized = normalizeMoneyDraft(value)
+    if (!isValidMoneyDraft(normalized)) return
+    setInputDrafts((current) => ({
+      ...current,
+      [split.id]: normalized,
+    }))
+    const parsed = Number(normalized)
+    if (Number.isFinite(parsed)) updateSplit(split.id, { amount: parsed })
+  }
+
+  function handleSplitAmountBlur(split: SplitDraft) {
+    setInputDrafts((current) => ({
+      ...current,
+      [split.id]: formatDecimalWithGrouping(split.amount),
+    }))
+  }
+
+  function splitValidationMessage(row: ApprovalApRow | null) {
+    if (!row) return 'ไม่พบรายการที่ต้องการอนุมัติ'
+    if (splitDrafts.length === 0) return 'เพิ่มอย่างน้อย 1 รายการอนุมัติ'
+    for (const split of splitDrafts) {
+      if (!split.destinationId) return 'เลือกช่องทางจ่ายปลายทางให้ครบทุกบรรทัด'
+      if (!Number.isFinite(split.amount) || split.amount <= 0) return 'ยอดอนุมัติย่อยต้องมากกว่า 0'
+    }
+    if (splitTotal - row.payableBalance > 0.01) {
+      return `ยอดรวมรายการอนุมัติต้องไม่เกิน ${formatMoney(row.payableBalance)} บาท`
+    }
+    return null
+  }
+
+  async function approveCurrentDetail() {
+    if (!currentDetailRow) return
+    const validationError = splitValidationMessage(currentDetailRow)
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+    setIsSubmittingApproval(true)
+    setError(null)
+    try {
+      await dailyFetchJson('/api/daily/payment-approval', {
+        body: JSON.stringify({
+          sourceId: currentDetailRow.id,
+          sourceType: currentDetailRow.sourceType,
+          splits: splitDrafts.map((split) => ({
+            approvedAmount: split.amount,
+            destinationId: split.destinationId,
+          })),
+        }),
+        method: 'POST',
+      })
+      closeDetail()
+      await loadData()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'อนุมัติจ่ายเงินไม่ได้')
+    } finally {
+      setIsSubmittingApproval(false)
+    }
   }
 
   return (
@@ -302,7 +430,7 @@ export function PaymentApprovalPageClient() {
           </button>
         </div>
 
-        <div className="space-y-3 border-b px-4 py-4">
+        <div className="space-y-3 border-b p-3">
           <div className="flex flex-wrap items-center gap-2">
             <Input className="min-w-[260px] flex-1 rounded-md" placeholder="ค้นหาเลขที่ / ชื่อ / ช่องทางจ่าย..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
             <label className="text-xs text-slate-500">วันที่:</label>
@@ -328,7 +456,7 @@ export function PaymentApprovalPageClient() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm text-slate-600">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm text-slate-600">
           <div>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
           <div className="flex flex-wrap items-center gap-2">
             <Select aria-label="จำนวนรายการต่อหน้า" className="h-9 w-auto px-2 py-1" value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))}>
@@ -353,11 +481,10 @@ export function PaymentApprovalPageClient() {
                   <SortableHead align="right" currentKey={sortKey} direction={sortDirection} label="ชำระแล้ว" sortKey="paidAmount" onSort={changeSort} />
                   <SortableHead align="right" currentKey={sortKey} direction={sortDirection} label="คงเหลือ / อนุมัติ" sortKey="payableBalance" onSort={changeSort} />
                   <TableHead className="text-center">สถานะ</TableHead>
-                  <TableHead className="text-center">รายละเอียด</TableHead>
                 </tr>
               </TableHeader>
               <TableBody>
-                {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={9}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+                {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={8}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
                 {!isLoading && apRows.map((row) => (
                   <TableRow key={row.id} className="cursor-pointer border-0 hover:bg-slate-50" onClick={() => openDetail({ row, tab: 'ap' })}>
                     <TableCell className="text-xs">
@@ -380,18 +507,9 @@ export function PaymentApprovalPageClient() {
                         {approvalStatusLabel(row.approvalStatus)}
                       </span>
                     </TableCell>
-                    <TableCell className="text-center text-xs">
-                      <Link
-                        className="rounded-md border border-slate-300 px-2 py-1 text-slate-700 hover:bg-slate-50"
-                        href={sourceDetailHref(row)}
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        เปิดเอกสาร
-                      </Link>
-                    </TableCell>
                   </TableRow>
                 ))}
-                {!isLoading && totalRows === 0 ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={9}>ไม่มีรายการรออนุมัติจ่ายเงิน</TableCell></TableRow> : null}
+                {!isLoading && totalRows === 0 ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={8}>ไม่มีรายการรออนุมัติจ่ายเงิน</TableCell></TableRow> : null}
               </TableBody>
             </Table>
           ) : (
@@ -404,11 +522,10 @@ export function PaymentApprovalPageClient() {
                   <TableHead>รายละเอียด / อ้างอิง</TableHead>
                   <SortableHead align="right" currentKey={sortKey} direction={sortDirection} label="ยอดเต็ม" sortKey="totalAmount" onSort={changeSort} />
                   <TableHead className="text-center">สถานะ</TableHead>
-                  <TableHead className="text-center">รายละเอียด</TableHead>
                 </tr>
               </TableHeader>
               <TableBody>
-                {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={7}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+                {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={6}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
                 {!isLoading && expenseRows.map((row) => {
                   const overdue = row.dueDate ? row.dueDate < new Date().toISOString().slice(0, 10) : false
                   return (
@@ -427,19 +544,10 @@ export function PaymentApprovalPageClient() {
                           {approvalStatusLabel(row.approvalStatus)}
                         </span>
                       </TableCell>
-                      <TableCell className="text-center text-xs">
-                        <Link
-                          className="rounded-md border border-slate-300 px-2 py-1 text-slate-700 hover:bg-slate-50"
-                          href={sourceDetailHref(row)}
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          เปิดเอกสาร
-                        </Link>
-                      </TableCell>
                     </TableRow>
                   )
                 })}
-                {!isLoading && totalRows === 0 ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={7}>ไม่มีค่าใช้จ่ายค้างจ่าย</TableCell></TableRow> : null}
+                {!isLoading && totalRows === 0 ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={6}>ไม่มีค่าใช้จ่ายค้างจ่าย</TableCell></TableRow> : null}
               </TableBody>
             </Table>
           )}
@@ -466,12 +574,73 @@ export function PaymentApprovalPageClient() {
                 <DetailItem label="สถานะ" value={approvalStatusLabel(detail.row.approvalStatus)} />
               </div>
 
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <DetailItem label="เลขที่อนุมัติ" value={detail.row.approvalDisplayDocNo ?? '-'} />
-                <DetailItem label="ช่องทางจ่าย / ปลายทาง" value={detail.row.destinationLabel || destinationSummaryLabel(detail.row)} />
-                <DetailItem label="ยอดอนุมัติ" value={detail.row.approvalStatus === 'approved' ? formatMoney(detail.row.approvedAmount) : '-'} />
-                <DetailItem label="เปิดเอกสารต้นทาง" value={detail.row.sourceDocNo} />
-              </div>
+              {detail.row.approvalStatus === 'pending' ? (
+                <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">แบ่งรายการอนุมัติจ่าย</div>
+                      <div className="text-xs text-slate-500">1 source document สามารถแตก approval items หลายรายการได้</div>
+                    </div>
+                    <Button size="sm" type="button" onClick={addSplit}>+ เพิ่มรายการย่อย</Button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {splitDrafts.map((split, index) => (
+                      <div key={split.id} className="grid grid-cols-12 gap-2 rounded-md border border-slate-200 bg-white p-3">
+                        <div className="col-span-12 text-xs font-semibold text-slate-500 md:col-span-1 md:pt-2">#{index + 1}</div>
+                        <div className="col-span-12 md:col-span-6">
+                          <label className="block text-xs text-slate-600">
+                            ช่องทางจ่าย / บัญชีปลายทาง
+                            <Select className="mt-1 h-9" value={split.destinationId} onChange={(event) => updateSplit(split.id, { destinationId: event.target.value })}>
+                              <option value="">เลือกช่องทางจ่าย</option>
+                              {detail.row.bankAccounts.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                            </Select>
+                          </label>
+                        </div>
+                        <div className="col-span-10 md:col-span-4">
+                          <label className="block text-xs text-slate-600">
+                            ยอดอนุมัติ
+                            <Input
+                              className="mt-1 h-9 text-right"
+                              inputMode="decimal"
+                              type="text"
+                              value={inputDrafts[split.id] ?? formatDecimalWithGrouping(split.amount)}
+                              onBlur={() => handleSplitAmountBlur(split)}
+                              onChange={(event) => handleSplitAmountChange(split, event.target.value)}
+                              onFocus={() => handleSplitAmountFocus(split)}
+                            />
+                          </label>
+                        </div>
+                        <div className="col-span-2 flex items-end justify-end md:col-span-1">
+                          <Button disabled={splitDrafts.length <= 1} size="sm" type="button" variant="outline" onClick={() => removeSplit(split.id)}>ลบ</Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <div className="rounded-md bg-white p-3 shadow-sm">
+                      <div className="text-xs text-slate-500">รวมอนุมัติรอบนี้</div>
+                      <div className="text-lg font-bold text-slate-900">{formatMoney(splitTotal)}</div>
+                    </div>
+                    <div className="rounded-md bg-white p-3 shadow-sm">
+                      <div className="text-xs text-slate-500">ยอดคงเหลือที่อนุมัติได้</div>
+                      <div className="text-lg font-bold text-red-700">{formatMoney(detail.row.payableBalance)}</div>
+                    </div>
+                    <div className={`rounded-md p-3 shadow-sm ${splitDiff >= -0.01 ? 'bg-white' : 'bg-red-50'}`}>
+                      <div className="text-xs text-slate-500">คงเหลือหลังแตก approval</div>
+                      <div className={`text-lg font-bold ${splitDiff >= -0.01 ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(splitDiff)}</div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <DetailItem label="เลขที่อนุมัติ" value={detail.row.approvalDisplayDocNo ?? detail.row.docNo} />
+                  <DetailItem label="ช่องทางจ่าย / ปลายทาง" value={detail.row.destinationLabel || '-'} />
+                  <DetailItem label="ยอดอนุมัติ" value={formatMoney(detail.row.approvedAmount)} />
+                  <DetailItem label="สถานะ" value={approvalStatusLabel(detail.row.approvalStatus)} />
+                </div>
+              )}
             </div>
           ) : detail?.tab === 'expense' ? (
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -488,9 +657,9 @@ export function PaymentApprovalPageClient() {
           ) : null}
 
           <DialogFooter>
-            {detail ? (
-              <Button asChild>
-                <Link href={sourceDetailHref(detail.row)}>เปิดเอกสารต้นทาง</Link>
+            {currentDetailRow && currentDetailRow.approvalStatus === 'pending' ? (
+              <Button disabled={isSubmittingApproval || Boolean(splitValidationMessage(currentDetailRow))} onClick={() => void approveCurrentDetail()}>
+                {isSubmittingApproval ? 'กำลังอนุมัติ...' : 'ยืนยันอนุมัติรายการนี้'}
               </Button>
             ) : null}
             <Button type="button" variant="outline" onClick={closeDetail}>ปิด</Button>

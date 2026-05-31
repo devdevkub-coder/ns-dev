@@ -185,7 +185,7 @@ export const navigationItems: NavigationItem[] = [
   { href: '/sales/receipts', icon: '💰', label: 'รับเงิน Customer', pageSubtitle: 'บันทึกเงินเข้าบัญชีและประวัติ voucher รับ Customer', section: 'daily' },
   { href: '/daily/weight-ticket-list', icon: '📋', label: 'รายการใบรับ-ส่งของ', pageSubtitle: 'ค้นหาและกรอง WTI/WTO เพื่อเปิดรายละเอียดหรือเลือกเอกสารไปออกบิล', section: 'daily' },
   { href: '/daily/transfer', icon: '🔄', label: 'โอนเงินระหว่างบัญชี', section: 'daily' },
-  { href: '/daily/expense', icon: '🧾', label: 'ค่าใช้จ่าย', section: 'daily' },
+  { href: '/daily/expense', icon: '🧾', label: 'ค่าใช้จ่าย', pageSubtitle: 'บันทึกใบแจ้งหนี้ก่อนจ่ายจริง พร้อม VAT, WHT, วันครบกำหนด และสถานะการจ่าย', section: 'daily' },
   { href: '/daily/petty-advance', icon: '🏦', label: 'เงินสำรองจ่าย / กู้กรรมการ', pageSubtitle: 'ติดตามเงินที่จ่ายล่วงหน้าให้กรรมการ/พนักงานไปใช้จ่าย — รายละเอียดบิลที่จ่ายแต่ละก้อน + การคืนเงิน', section: 'daily' },
   { href: '/daily/expense-dashboard', icon: '📊', label: 'Dashboard ค่าใช้จ่าย', section: 'daily' },
   { href: '/stock/transfer', icon: '🚚', label: 'โอนสินค้าระหว่างสาขา', section: 'daily' },

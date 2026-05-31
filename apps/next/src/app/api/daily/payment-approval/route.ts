@@ -185,7 +185,7 @@ export async function GET() {
         orderBy: [{ date: 'asc' }, { doc_no: 'asc' }],
         take: 5000,
         where: {
-          paid_status: { not: 'paid' },
+          status: { notIn: ['paid', 'cancelled'] },
         },
       }),
       prismaExt.payment_approvals.findMany({

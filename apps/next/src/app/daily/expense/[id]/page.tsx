@@ -26,8 +26,12 @@ function text(value: string | null | undefined) {
   return String(value ?? '').trim() || '-'
 }
 
-function paidStatusLabel(value: string | null | undefined) {
-  return String(value ?? '').toLowerCase() === 'paid' ? 'จ่ายแล้ว' : 'รอจ่าย'
+function expenseStatusLabel(value: string | null | undefined) {
+  const normalized = String(value ?? '').toLowerCase()
+  if (normalized === 'approved') return 'อนุมัติแล้ว'
+  if (normalized === 'paid') return 'เสร็จสิ้น'
+  if (normalized === 'cancelled') return 'ยกเลิกแล้ว'
+  return 'ยังไม่อนุมัติ'
 }
 
 function DetailCard({ label, value }: { label: string; value: string }) {
@@ -103,7 +107,7 @@ export default async function ExpenseDetailPage({ params }: PageProps) {
         <DetailCard label="เลขที่เอกสาร" value={row.doc_no} />
         <DetailCard label="วันที่เอกสาร" value={dateOrDash(row.date)} />
         <DetailCard label="ครบกำหนด" value={dateOrDash(row.due_date)} />
-        <DetailCard label="สถานะจ่าย" value={paidStatusLabel(row.paid_status)} />
+        <DetailCard label="สถานะเอกสาร" value={expenseStatusLabel(row.status ?? row.paid_status)} />
         <DetailCard label="หมวดค่าใช้จ่าย" value={row.expense_categories?.name ?? text(row.category_id)} />
         <DetailCard label="ผู้รับเงิน" value={text(row.payee)} />
         <DetailCard label="บัญชีจ่าย" value={row.accounts?.name ?? text(row.account_id)} />

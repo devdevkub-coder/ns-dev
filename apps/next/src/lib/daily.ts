@@ -57,14 +57,14 @@ export const expenseFormSchema = z.object({
   payee: z.string().trim().min(1, 'กรอกผู้รับเงิน').max(180, 'ผู้รับเงินยาวเกินไป').regex(businessTextPattern, 'ผู้รับเงินมีรูปแบบไม่ถูกต้อง'),
   description: optionalGeneralText('รายละเอียด', 500),
   amount: positiveMoney('ยอดก่อน VAT'),
-  vat: money('VAT').default(0),
-  wht: money('WHT').default(0),
+  hasVat: z.boolean().default(false),
+  hasWht: z.boolean().default(false),
   accountId: optionalSafeId('บัญชีจ่าย'),
   branchId: optionalSafeId('สาขา'),
   taxInvoiceNo: optionalDocNo,
-  paidStatus: z.enum(['pending', 'paid']).default('pending'),
+  status: z.enum(['pending_approval', 'approved', 'paid', 'cancelled']).default('pending_approval'),
   notes: optionalGeneralText('หมายเหตุ', 500),
-}).refine((value) => value.paidStatus !== 'paid' || Boolean(value.accountId), {
+}).refine((value) => value.status !== 'paid' || Boolean(value.accountId), {
   message: 'เลือกบัญชีจ่ายเมื่อสถานะเป็นจ่ายแล้ว',
   path: ['accountId'],
 })
