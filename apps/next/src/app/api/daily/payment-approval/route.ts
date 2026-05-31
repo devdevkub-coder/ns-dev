@@ -248,6 +248,7 @@ export async function GET() {
         payableBalance: pendingAmount,
         sourceLabel: 'บิลซื้อ',
         sourceDocNo: bill.doc_no,
+        sourceId: bill.id,
         sourceType: 'purchase_bill' as const,
         supplierName: bill.suppliers?.name ?? bill.supplier_id ?? '-',
         totalAmount,
@@ -268,6 +269,7 @@ export async function GET() {
         payableBalance: toNumber(approval.approved_amount),
         sourceLabel: 'บิลซื้อ',
         sourceDocNo: bill.doc_no,
+        sourceId: bill.id,
         sourceType: 'purchase_bill' as const,
         supplierName: approval.party_name_snapshot ?? bill.suppliers?.name ?? bill.supplier_id ?? '-',
         totalAmount: toNumber(approval.approved_amount),
@@ -302,6 +304,7 @@ export async function GET() {
         payableBalance: pendingAmount,
         sourceLabel: 'ADV',
         sourceDocNo: advance.doc_no,
+        sourceId: advance.id,
         sourceType: 'advance_payment' as const,
         supplierName: advance.suppliers?.name ?? advance.supplier_id ?? '-',
         totalAmount,
@@ -322,6 +325,7 @@ export async function GET() {
         payableBalance: toNumber(approval.approved_amount),
         sourceLabel: 'ADV',
         sourceDocNo: advance.doc_no,
+        sourceId: advance.id,
         sourceType: 'advance_payment' as const,
         supplierName: approval.party_name_snapshot ?? advance.suppliers?.name ?? advance.supplier_id ?? '-',
         totalAmount: toNumber(approval.approved_amount),
@@ -347,7 +351,9 @@ export async function GET() {
         id: expense.id,
         payee: expense.payee ?? '-',
         refDocNo: expense.ref_doc_no ?? '',
+        sourceId: expense.id,
         sourceDocNo: expense.doc_no,
+        sourceType: 'expense' as const,
         totalAmount: pendingAmount,
       }] : []
       const approvedRows = activeApprovals.map((approval) => ({
@@ -363,7 +369,9 @@ export async function GET() {
         id: `${expense.id}:${approval.id}`,
         payee: approval.party_name_snapshot ?? expense.payee ?? '-',
         refDocNo: expense.ref_doc_no ?? '',
+        sourceId: expense.id,
         sourceDocNo: expense.doc_no,
+        sourceType: 'expense' as const,
         totalAmount: toNumber(approval.approved_amount),
       }))
       return [...pendingRows, ...approvedRows]
