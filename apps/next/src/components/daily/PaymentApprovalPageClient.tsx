@@ -465,22 +465,23 @@ export function PaymentApprovalPageClient() {
             })}
           </div>
         </div>
+      </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm text-slate-600">
-          <div>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Select aria-label="จำนวนรายการต่อหน้า" className="h-9 w-auto px-2 py-1" value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))}>
-              {pageSizeOptions.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-            </Select>
-            <Button disabled={currentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
-            <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-            <Button disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>
-          </div>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
+        <div>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select aria-label="จำนวนรายการต่อหน้า" className="h-9 w-auto px-2 py-1" value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))}>
+            {pageSizeOptions.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
+          </Select>
+          <Button disabled={currentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
+          <span className="px-1">หน้า {currentPage} / {totalPages}</span>
+          <Button disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>
         </div>
+      </div>
 
-        <div>
-          {tab === 'ap' || tab === 'advance' ? (
-            <Table>
+      <div>
+        {tab === 'ap' || tab === 'advance' ? (
+          <Table>
               <TableHeader>
                 <tr>
                   <SortableHead align="left" currentKey={sortKey} direction={sortDirection} label="เลขที่เอกสาร" sortKey="docNo" onSort={changeSort} />
@@ -565,9 +566,8 @@ export function PaymentApprovalPageClient() {
                 })}
                 {!isLoading && totalRows === 0 ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={6}>ไม่มีค่าใช้จ่ายค้างจ่าย</TableCell></TableRow> : null}
               </TableBody>
-            </Table>
-          )}
-        </div>
+          </Table>
+        )}
       </div>
 
       <Dialog open={Boolean(detail)} onOpenChange={(open) => { if (!open) closeDetail() }}>
