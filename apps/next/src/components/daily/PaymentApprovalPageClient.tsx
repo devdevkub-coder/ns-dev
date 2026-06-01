@@ -63,7 +63,7 @@ type ApprovalPayload = {
 }
 
 type ApprovalTab = 'ap' | 'expense'
-type ApprovalFilter = 'all' | 'pending' | 'approved'
+type ApprovalStatusFilter = Array<'pending' | 'approved'>
 type ApprovalSortDirection = 'asc' | 'desc'
 type ApprovalSortKey = 'bankAccount' | 'date' | 'docNo' | 'dueDate' | 'paidAmount' | 'partyName' | 'payableBalance' | 'totalAmount'
 type ApprovalDetailState =
@@ -76,10 +76,10 @@ type SplitDraft = {
 }
 
 const pageSizeOptions = [10, 25, 50, 100]
-const approvalFilterOptions: Array<{ label: string; value: ApprovalFilter }> = [
-  { label: 'ทั้งหมด', value: 'all' },
-  { label: 'ยังไม่อนุมัติ', value: 'pending' },
-  { label: 'อนุมัติแล้ว', value: 'approved' },
+const approvalFilterOptions: Array<{ label: string; values: ApprovalStatusFilter }> = [
+  { label: 'ทุกสถานะ', values: [] },
+  { label: 'ยังไม่อนุมัติ', values: ['pending'] },
+  { label: 'อนุมัติแล้ว', values: ['approved'] },
 ]
 
 function formatDecimalWithGrouping(value: number) {
@@ -189,6 +189,38 @@ function SortableHead({
   )
 }
 
+function SegmentMulti({
+  current,
+  label,
+  onClick,
+  values,
+}: {
+  current: ApprovalStatusFilter
+  label: string
+  onClick: (next: ApprovalStatusFilter) => void
+  values: ApprovalStatusFilter
+}) {
+  const active = values.length === 0
+    ? current.length === 0
+    : values.every((value) => current.includes(value))
+
+  return (
+    <button
+      className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white hover:bg-slate-50'}`}
+      type="button"
+      onClick={() => {
+        if (values.length === 0) {
+          onClick([])
+          return
+        }
+        onClick(active ? current.filter((item) => !values.includes(item)) : Array.from(new Set([...current, ...values])))
+      }}
+    >
+      {label}
+    </button>
+  )
+}
+
 export function PaymentApprovalPageClient() {
   const [data, setData] = useState<ApprovalPayload>({ apRows: [], expenseRows: [] })
   const [detail, setDetail] = useState<ApprovalDetailState | null>(null)
@@ -196,7 +228,7 @@ export function PaymentApprovalPageClient() {
   const [inputDrafts, setInputDrafts] = useState<Record<string, string>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmittingApproval, setIsSubmittingApproval] = useState(false)
-  const [approvalFilter, setApprovalFilter] = useState<ApprovalFilter>('pending')
+  const [statusFilter, setStatusFilter] = useState<ApprovalStatusFilter>([])
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [page, setPage] = useState(1)
@@ -240,11 +272,10 @@ export function PaymentApprovalPageClient() {
       if (query && !haystack.includes(query)) return false
       if (dateFrom && rowDate < dateFrom) return false
       if (dateTo && rowDate > dateTo) return false
-      if (approvalFilter === 'approved' && row.approvalStatus !== 'approved') return false
-      if (approvalFilter === 'pending' && row.approvalStatus !== 'pending') return false
+      if (statusFilter.length > 0 && !statusFilter.includes(row.approvalStatus)) return false
       return true
     })
-  }, [approvalFilter, data.apRows, data.expenseRows, dateFrom, dateTo, search, tab])
+  }, [data.apRows, data.expenseRows, dateFrom, dateTo, search, statusFilter, tab])
 
   const rows = useMemo(() => {
     const collator = new Intl.Collator('th-TH', { numeric: true, sensitivity: 'base' })
@@ -285,10 +316,10 @@ export function PaymentApprovalPageClient() {
 
   useEffect(() => {
     setPage(1)
-  }, [approvalFilter, dateFrom, dateTo, pageSize, search, sortDirection, sortKey, tab])
+  }, [dateFrom, dateTo, pageSize, search, sortDirection, sortKey, statusFilter, tab])
 
   function clearFilters() {
-    setApprovalFilter('all')
+    setStatusFilter([])
     setDateFrom('')
     setDateTo('')
     setSearch('')
@@ -437,20 +468,19 @@ export function PaymentApprovalPageClient() {
             <DatePickerInput id="payment-approval-date-from" value={dateFrom} onChange={setDateFrom} />
             <span className="text-slate-400">→</span>
             <DatePickerInput id="payment-approval-date-to" value={dateTo} onChange={setDateTo} />
-            {(search || dateFrom || dateTo || approvalFilter !== 'all' || sortKey !== 'date' || sortDirection !== 'desc') ? <Button size="xs" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</Button> : null}
+            {(search || dateFrom || dateTo || statusFilter.length > 0 || sortKey !== 'date' || sortDirection !== 'desc') ? <Button size="xs" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</Button> : null}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+            <span className="text-xs text-slate-500">สถานะ:</span>
             {approvalFilterOptions.map((option) => {
-              const active = approvalFilter === option.value
               return (
-                <button
-                  key={option.value}
-                  className={`rounded-md border px-3 py-1.5 text-sm transition-colors ${active ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900'}`}
-                  type="button"
-                  onClick={() => setApprovalFilter(option.value)}
-                >
-                  {option.label}
-                </button>
+                <SegmentMulti
+                  key={option.label}
+                  current={statusFilter}
+                  label={option.label}
+                  onClick={setStatusFilter}
+                  values={option.values}
+                />
               )
             })}
           </div>

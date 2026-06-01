@@ -98,6 +98,10 @@ function expenseRowTone(status: ExpenseFormValues['status']) {
   return ''
 }
 
+function canMutateExpense(status: ExpenseFormValues['status']) {
+  return status === 'pending_approval'
+}
+
 export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnly?: boolean }) {
   const [accounts, setAccounts] = useState<DailyAccountOption[]>([])
   const [categories, setCategories] = useState<CategoryOption[]>([])
@@ -287,6 +291,10 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
   }
 
   function openEditForm(row: ExpenseRow) {
+    if (!canMutateExpense(row.status)) {
+      setError('แก้ไขได้เฉพาะรายการค่าใช้จ่ายที่ยังไม่อนุมัติ')
+      return
+    }
     setForm({
       accountId: row.accountId,
       amount: row.amount,
@@ -305,13 +313,32 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
       status: row.status,
       taxInvoiceNo: row.taxInvoiceNo,
     })
+    setError(null)
     setFieldErrors({})
     setFormOpen(true)
   }
 
+  async function cancelExpense(row: ExpenseRow) {
+    if (!canMutateExpense(row.status)) {
+      setError('ยกเลิกได้เฉพาะรายการค่าใช้จ่ายที่ยังไม่อนุมัติ')
+      return
+    }
+    if (!window.confirm(`ยืนยันยกเลิกรายการ ${row.docNo} ?`)) return
+
+    setError(null)
+    try {
+      await dailyFetchJson(`/api/daily/expenses/${row.id}`, {
+        method: 'PATCH',
+      })
+      await loadData()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'ยกเลิกรายการค่าใช้จ่ายไม่ได้')
+    }
+  }
+
   async function saveForm(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const parsed = expenseFormSchema.safeParse(form)
+    const parsed = expenseFormSchema.safeParse({ ...form, status: 'pending_approval' })
     if (!parsed.success) {
       const nextFieldErrors = Object.fromEntries(parsed.error.issues.map((issue) => [String(issue.path[0]), issue.message]))
       setFieldErrors(nextFieldErrors)
@@ -540,14 +567,12 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                         </div>
                         <div data-field="status">
                           <label className="mb-1 block text-xs font-medium text-slate-600">
-                            สถานะ
+                            สถานะเอกสาร
                           </label>
-                          <select className="h-9 w-full rounded-md border border-slate-300 px-3 text-sm outline-none" value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as ExpenseFormValues['status'] })}>
-                            <option value="pending_approval">ยังไม่อนุมัติ</option>
-                            <option value="approved">อนุมัติแล้ว</option>
-                            <option value="paid">เสร็จสิ้น</option>
-                            <option value="cancelled">ยกเลิกแล้ว</option>
-                          </select>
+                          <div className="flex h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700">
+                            {form.id ? expenseStatusLabel(form.status) : 'ยังไม่อนุมัติ'}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-500">สถานะจะเปลี่ยนผ่าน flow อนุมัติจ่ายเงินเท่านั้น</div>
                         </div>
                       </div>
                     </div>
@@ -637,7 +662,16 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                         {row.vat > 0 ? <div className="text-emerald-700">+VAT: {formatMoney(row.vat)}</div> : null}
                         {row.wht > 0 ? <div className="text-amber-700">-WHT: {formatMoney(row.wht)}</div> : null}
                       </td>
-                      <td className="p-2 text-center"><button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" type="button" onClick={() => openEditForm(row)}>แก้ไข</button></td>
+                      <td className="p-2 text-center">
+                        {canMutateExpense(row.status) ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" type="button" onClick={() => openEditForm(row)}>แก้ไข</button>
+                            <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50" type="button" onClick={() => void cancelExpense(row)}>ยกเลิก</button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-300">-</span>
+                        )}
+                      </td>
                     </tr>
                   )
                 })}

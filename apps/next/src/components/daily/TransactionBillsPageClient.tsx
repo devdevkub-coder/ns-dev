@@ -23,6 +23,9 @@ import { purchaseBillCancelSchema, purchaseBillFormSchema, type PurchaseBillCanc
 import { salesBillFormSchema, type SalesBillFormValues } from '@/lib/sales'
 
 type BillRow = {
+  advanceAllocatedAmount?: number
+  advancePaymentDocNo?: string
+  advancePaymentId?: string
   branchId?: string
   branchName?: string
   canEdit?: boolean
@@ -92,21 +95,26 @@ type StockIssueRow = {
 
 type Option = {
   active?: boolean | null
+  advanceDate?: string | null
+  amount?: number | null
   branch_id?: string | null
   code?: string | null
   id: string
   label?: string | null
   name: string
   product_id?: string | null
+  remainingAmount?: number | null
   remainingQty?: number | null
   sales_id?: string | null
   sales_name?: string | null
+  status?: string | null
   supplier_id?: string | null
   unitPrice?: number | null
   unit?: string | null
 }
 
 type PurchasePayload = {
+  advancePayments: Option[]
   branches: Option[]
   poBuys: Option[]
   products: Option[]
@@ -245,6 +253,7 @@ function ExportButton({ isExporting, onClick }: { isExporting: boolean; onClick:
 }
 
 const initialPurchaseForm = (): PurchaseBillFormValues => ({
+  advancePaymentId: null,
   branchId: '',
   discountTotal: 0,
   hasVat: false,
@@ -324,7 +333,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const [isExporting, setIsExporting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  const [options, setOptions] = useState<OptionsPayload>({ branches: [], customers: [], poBuys: [], products: [], receipts: [], salesChannels: [], salespersons: [], suppliers: [], warehouses: [] })
+  const [options, setOptions] = useState<OptionsPayload>({ advancePayments: [], branches: [], customers: [], poBuys: [], products: [], receipts: [], salesChannels: [], salespersons: [], suppliers: [], warehouses: [] })
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [preferredBranchId, setPreferredBranchId] = useState<string | null>(null)
@@ -372,6 +381,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         setTotalRows(payload.totalRows ?? payload.rows.length)
         setVatRatePercent(payload.vatRatePercent ?? 7)
         setOptions({
+          advancePayments: payload.advancePayments,
           branches: payload.branches,
           customers: [],
           poBuys: payload.poBuys,
@@ -436,6 +446,12 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const activeBranches = options.branches.filter((option) => option.active !== false)
   const resolvedPreferredBranchId = preferredBranchId && activeBranches.some((branch) => branch.id === preferredBranchId) ? preferredBranchId : null
   const activePoBuys = options.poBuys.filter((option) => option.active !== false && (!form.supplierId || option.supplier_id === form.supplierId))
+  const activeAdvancePayments = options.advancePayments.filter((option) => {
+    if (!form.supplierId || option.supplier_id !== form.supplierId) return false
+    if (form.branchId && option.branch_id && option.branch_id !== form.branchId) return false
+    const isSelected = option.id === form.advancePaymentId
+    return isSelected || (option.remainingAmount ?? 0) > 0.01
+  })
   const activeCustomers = options.customers.filter((option) => option.active !== false)
   const activeProducts = options.products.filter((option) => option.active !== false)
   const activeReceipts = options.receipts.filter((receipt) => {
@@ -460,6 +476,19 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const formAfterDiscount = Math.max(0, formSubtotal - form.discountTotal)
   const formVat = !form.hasVat || form.vatType === 'NONE' ? 0 : form.vatType === 'INCLUDE' ? formAfterDiscount * formVatRatePercent / (100 + formVatRatePercent) : formAfterDiscount * (formVatRatePercent / 100)
   const formTotal = form.hasVat && form.vatType === 'EXCLUDE' ? formAfterDiscount + formVat : formAfterDiscount
+  const selectedAdvancePayment = form.advancePaymentId
+    ? activeAdvancePayments.find((option) => option.id === form.advancePaymentId)
+      ?? options.advancePayments.find((option) => option.id === form.advancePaymentId)
+      ?? null
+    : null
+  const editingAdvanceCarry = editingBill && editingBill.advancePaymentId === form.advancePaymentId
+    ? editingBill.advanceAllocatedAmount ?? 0
+    : 0
+  const availableAdvanceAmount = selectedAdvancePayment
+    ? Math.max(0, (selectedAdvancePayment.remainingAmount ?? 0) + editingAdvanceCarry)
+    : 0
+  const formAdvanceApplied = Math.min(formTotal, availableAdvanceAmount)
+  const formNetPayable = Math.max(0, formTotal - formAdvanceApplied)
   const salesSubtotal = salesForm.items.reduce((sum, item) => sum + Math.max(0, item.qty * item.price - item.discount), 0)
   const salesAfterDiscount = Math.max(0, salesSubtotal - salesForm.discountTotal)
   const salesVat = !salesForm.hasVat || salesForm.vatType === 'NONE' ? 0 : salesForm.vatType === 'INCLUDE' ? salesAfterDiscount * formVatRatePercent / (100 + formVatRatePercent) : salesAfterDiscount * (formVatRatePercent / 100)
@@ -687,6 +716,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     }))
 
     return {
+      advancePaymentId: row.advancePaymentId || null,
       branchId: row.branchId ?? '',
       discountTotal: row.discountTotal ?? 0,
       hasVat: row.hasVat ?? false,
@@ -800,6 +830,12 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       }
 
       if (key === 'branchId' || key === 'supplierId') {
+        if (key === 'supplierId' && value !== current.supplierId) {
+          next.advancePaymentId = null
+        }
+        if (key === 'branchId' && value !== current.branchId) {
+          next.advancePaymentId = null
+        }
         if (next.transactionMode === 'STOCK') {
           resetStockDependentFields(next)
         }
@@ -1530,6 +1566,21 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                       <input checked={form.hasVat} className="size-5" disabled={!stockReceiptSelected} type="checkbox" onChange={(event) => updateForm('hasVat', event.target.checked)} />
                       <span className="font-bold text-slate-700">มี {vatLabel}</span>
                     </label>
+                    <SelectField
+                      error={fieldErrors.advancePaymentId}
+                      errorKey="advancePaymentId"
+                      label="เอกสารจ่ายเงินล่วงหน้า/มัดจำ"
+                      options={activeAdvancePayments}
+                      placeholder={form.supplierId ? 'เลือกเลขที่เอกสาร ADV' : 'เลือกผู้ขายก่อน'}
+                      value={form.advancePaymentId ?? ''}
+                      onChange={(value) => updateForm('advancePaymentId', value || null)}
+                    />
+                    {selectedAdvancePayment ? (
+                      <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                        <div>เอกสาร: {selectedAdvancePayment.name}</div>
+                        <div>ยอดคงเหลือที่ใช้ได้: {formatMoney(availableAdvanceAmount)} บาท</div>
+                      </div>
+                    ) : null}
                     <InputField error={fieldErrors.discountTotal} errorKey="discountTotal" inputClassName="text-right tabular-nums" label="ส่วนลดท้ายบิล (บาท)" type="number" value={form.discountTotal ? String(form.discountTotal) : ''} onChange={(value) => {
                       if (!stockReceiptSelected) return
                       updateForm('discountTotal', Number(value || 0))
@@ -1541,7 +1592,9 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     {form.discountTotal > 0 ? <SummaryLine label="หักส่วนลด" tone="red" value={`-${formatMoney(form.discountTotal)}`} /> : null}
                     <SummaryLine label="หลังส่วนลด" value={formatMoney(formAfterDiscount)} />
                     {form.hasVat ? <SummaryLine label={vatLabel} value={formatMoney(formVat)} /> : null}
-                    <div className="mt-2 flex justify-between border-t-2 border-blue-400 pt-2 text-lg font-bold"><span>ยอดสุทธิ</span><span className="tabular-nums text-blue-700">{formatMoney(formTotal)}</span></div>
+                    {formAdvanceApplied > 0 ? <SummaryLine label="หัก ADV/มัดจำ" tone="red" value={`-${formatMoney(formAdvanceApplied)}`} /> : null}
+                    <SummaryLine label="ยอดสุทธิก่อนหัก ADV" value={formatMoney(formTotal)} />
+                    <div className="mt-2 flex justify-between border-t-2 border-blue-400 pt-2 text-lg font-bold"><span>ยอดสุทธิที่ต้องจ่าย</span><span className="tabular-nums text-blue-700">{formatMoney(formNetPayable)}</span></div>
                   </div>
                 </div>
               </div>

@@ -1,8 +1,17 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Button } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import {
+  DualCostingErrorBox,
+  DualCostingFilterCard,
+  DualCostingHint,
+  DualCostingPageSection,
+  DualCostingPanel,
+  DualCostingStatCard,
+} from './DualCostingPageShell'
 
 type Totals = {
   cost: number
@@ -56,44 +65,62 @@ export function CompareMarginPageClient() {
     void loadData()
   }, [loadData])
 
+  const hasActiveFilters = Boolean(fromDate || toDate)
+
   return (
-    <section>
-      <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-        เปรียบเทียบ <strong>Deal Margin</strong> (จาก PO Sell + Match Log) กับ <strong>Stock Margin</strong> (จากบิลขายจริง + WAC)
-      </div>
+    <DualCostingPageSection>
+      <DualCostingHint tone="blue">
+        เปรียบเทียบ <strong>Deal Margin</strong> จาก matched deals กับ <strong>Stock Margin</strong> จากบิลขายจริงและ WAC เพื่อดูความต่างเชิงบริหาร ไม่ใช่งบทางการ
+      </DualCostingHint>
 
-      {error ? <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
+      <DualCostingErrorBox error={error} />
 
-      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <MarginCard label="Deal Cost (จากการจองดีล)" tone="deal" totals={data?.dealTotals} />
         <MarginCard label="Stock Cost (จากบิลขายจริง + WAC)" tone="stock" totals={data?.stockTotals} />
       </div>
 
-      <div className="mb-4 rounded-md bg-white p-6 shadow">
-        <h3 className="mb-3 font-semibold">⚖️ ส่วนต่าง Deal vs Stock</h3>
+      <DualCostingPanel title="ส่วนต่าง Deal vs Stock">
         <div className="grid grid-cols-1 gap-3 text-center md:grid-cols-3">
-          <DiffCard label="Revenue Diff" goodWhenPositive value={data?.diff.revenue ?? 0} />
+          <DiffCard goodWhenPositive label="Revenue Diff" value={data?.diff.revenue ?? 0} />
           <DiffCard label="Cost Diff" value={data?.diff.cost ?? 0} />
-          <DiffCard label="Margin Diff (จริง - คาดการณ์)" goodWhenPositive prominent value={data?.diff.margin ?? 0} />
+          <DiffCard goodWhenPositive label="Margin Diff (จริง - คาดการณ์)" prominent value={data?.diff.margin ?? 0} />
         </div>
         <div className="mt-4 text-xs text-slate-500">
-          Margin Diff อาจมาจาก: ต้นทุนจริงต่างจาก Match, รับของบางส่วน, Grade Adjust, Production Loss, WAC เปลี่ยน, FX/Hedge PnL
+          Margin Diff อาจมาจากต้นทุนจริงต่างจาก match, รับของบางส่วน, grade adjust, production loss, WAC เปลี่ยน หรือ FX/Hedge PnL
         </div>
+      </DualCostingPanel>
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <DualCostingStatCard label="Deal Revenue" tone="purple" value={formatMoney(data?.dealTotals.revenue ?? 0)} />
+        <DualCostingStatCard label="Stock Revenue" tone="emerald" value={formatMoney(data?.stockTotals.revenue ?? 0)} />
+        <DualCostingStatCard label="Deal Rows" value={String(data?.dealTotals.rows ?? 0)} />
+        <DualCostingStatCard label="Sales Bill Rows" value={String(data?.stockTotals.rows ?? 0)} />
       </div>
 
-      <div className="mt-4 flex flex-wrap items-end justify-between gap-3 rounded-md border border-slate-200 bg-white/70 p-3 text-xs text-slate-500">
-        <div className="flex flex-wrap gap-2">
-          <DatePickerInput className="w-[130px]" value={fromDate} onChange={setFromDate} />
-          <DatePickerInput className="w-[130px]" value={toDate} onChange={setToDate} />
+      <DualCostingFilterCard>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-slate-500">วันที่:</span>
+            <DatePickerInput id="compare-margin-from" value={fromDate} onChange={setFromDate} />
+            <span className="text-slate-400">→</span>
+            <DatePickerInput id="compare-margin-to" value={toDate} onChange={setToDate} />
+            {hasActiveFilters ? <Button size="xs" type="button" variant="secondary" onClick={() => { setFromDate(''); setToDate('') }}>✕ ล้าง</Button> : null}
+          </div>
+          <div className="text-xs text-slate-500">ช่วงวันที่มีผลกับทั้ง deal และ sales bill comparison</div>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <span>Deal rows: <strong className="text-slate-700">{data?.dealTotals.rows ?? 0}</strong></span>
-          <span>Sales bill rows: <strong className="text-slate-700">{data?.stockTotals.rows ?? 0}</strong></span>
-        </div>
-      </div>
+      </DualCostingFilterCard>
 
-      {isLoading ? <div className="mt-4 rounded-md bg-white p-4 text-sm text-slate-500 shadow">กำลังโหลดข้อมูล</div> : null}
-    </section>
+      {isLoading ? <div className="rounded-md bg-white p-4 text-sm text-slate-500 shadow">กำลังโหลดข้อมูล</div> : null}
+
+      {(data?.notes.length ?? 0) > 0 ? (
+        <DualCostingPanel title="หมายเหตุข้อมูล">
+          <ul className="space-y-1 text-sm text-slate-600">
+            {(data?.notes ?? []).map((note) => <li key={note}>• {note}</li>)}
+          </ul>
+        </DualCostingPanel>
+      ) : null}
+    </DualCostingPageSection>
   )
 }
 
@@ -101,7 +128,7 @@ function MarginCard({ label, tone, totals }: { label: string; tone: 'deal' | 'st
   const classes = tone === 'deal' ? 'from-purple-600 to-pink-700' : 'from-emerald-600 to-teal-700'
   return (
     <div className={`rounded-md bg-gradient-to-br ${classes} p-6 text-white shadow`}>
-      <div className="mb-2 text-sm opacity-80">{tone === 'deal' ? '💎 ' : '📊 '}{label}</div>
+      <div className="mb-2 text-sm opacity-80">{label}</div>
       <div className="space-y-2 text-sm">
         <div className="flex justify-between"><span>{tone === 'deal' ? 'Total Revenue (PO Sell)' : 'Total Revenue (Sales Bills)'}</span><span className="font-bold">{formatMoney(totals?.revenue ?? 0)}</span></div>
         <div className="flex justify-between"><span>{tone === 'deal' ? 'Total Matched Cost' : 'Total COGS (จาก WAC)'}</span><span className="font-bold">{formatMoney(totals?.cost ?? 0)}</span></div>

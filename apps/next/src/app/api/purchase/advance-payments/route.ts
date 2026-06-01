@@ -293,7 +293,7 @@ export async function GET(request: Request) {
           { label: 'ทั้งหมด', value: 'all' },
           { label: 'ยังไม่อนุมัติ', value: 'pending_approval' },
           { label: 'อนุมัติแล้ว', value: 'approved' },
-          { label: 'จ่ายแล้ว', value: 'paid' },
+          { label: 'เสร็จสิ้น', value: 'paid' },
           { label: 'ใช้หักบิลบางส่วน', value: 'partially_allocated' },
           { label: 'ใช้หักบิลแล้ว', value: 'allocated' },
           { label: 'รอคืนเงิน', value: 'refunding' },

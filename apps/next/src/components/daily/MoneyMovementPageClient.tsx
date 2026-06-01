@@ -692,16 +692,6 @@ export function MoneyMovementPageClient({
     <section className="space-y-5">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      {mode === 'payment' ? null : (
-        <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
-          <span className="text-sm font-semibold text-slate-600">{subtitle}</span>
-          <span className="flex-1" />
-          <UiButton className="font-bold shadow" type="button" variant="default" onClick={openForm}>
-            + รับเงิน Customer
-          </UiButton>
-        </div>
-      )}
-
       <div className="grid gap-3 md:grid-cols-5">
         <KpiCard label="จำนวน Voucher" value={rows.length.toLocaleString('th-TH')} tone="slate" />
         <KpiCard label={amountLabel} value={formatMoney(metrics.rowAmount)} tone={mode === 'payment' ? 'rose' : 'emerald'} />
@@ -1014,7 +1004,12 @@ export function MoneyMovementPageClient({
         <>
           <div className="space-y-2 rounded-md bg-white p-3 shadow">
             <div className="flex flex-wrap items-center gap-2">
-              <UiInput className="min-w-[260px] flex-1 rounded-md" placeholder="ค้นหาเลขที่ / ชื่อ / บัญชี / หมายเหตุ" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+              <UiInput className="h-9 min-w-[260px] flex-1 rounded-md" placeholder="ค้นหาเลขที่ / ชื่อ / บัญชี / หมายเหตุ" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+              {mode === 'receipt' ? (
+                <UiButton className="font-bold shadow" type="button" variant="default" onClick={openForm}>
+                  + รับเงิน Customer
+                </UiButton>
+              ) : null}
               <label className="text-xs text-slate-500">วันที่:</label>
               <DatePickerInput id={`${mode}-history-date-from`} value={dateFrom} onChange={setDateFrom} />
               <span className="text-slate-400">→</span>
@@ -1024,7 +1019,7 @@ export function MoneyMovementPageClient({
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-slate-500">เรียง:</span>
               <UiSelect
-                className="w-auto min-w-[220px]"
+                className="h-9 w-auto min-w-[220px]"
                 value={`${historySortField}:${historySortDirection}`}
                 onChange={(event) => {
                   const [field, direction] = event.target.value.split(':') as [HistorySortField, 'asc' | 'desc']
@@ -1046,7 +1041,7 @@ export function MoneyMovementPageClient({
                 <option value="netAmount:asc">สุทธิ น้อยสุด</option>
               </UiSelect>
               <span className="text-xs text-slate-500">บัญชี:</span>
-              <UiSelect className="w-auto min-w-[180px]" value={accountFilter} onChange={(event) => setAccountFilter(event.target.value)}>
+              <UiSelect className="h-9 w-auto min-w-[180px]" value={accountFilter} onChange={(event) => setAccountFilter(event.target.value)}>
                 <option value="">ทุกบัญชี</option>
                 {activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
               </UiSelect>
@@ -1076,90 +1071,92 @@ export function MoneyMovementPageClient({
             ) : null}
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
-            <div>พบทั้งหมด <span className="font-semibold text-slate-900">{historyTotalRows}</span> รายการ</div>
-            <div className="flex flex-wrap items-center gap-2">
-              <UiSelect
-                aria-label="จำนวนรายการต่อหน้าประวัติ"
-                className="h-9 w-auto min-w-[96px] px-2"
-                value={historyPageSize}
-                onChange={(event) => setHistoryPageSize(Number(event.target.value))}
-              >
-                {pageSizeOptions.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-              </UiSelect>
-              <UiButton className="font-normal" disabled={historyCurrentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setHistoryPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</UiButton>
-              <span className="px-1">หน้า {historyCurrentPage} / {historyTotalPages}</span>
-              <UiButton className="font-normal" disabled={historyCurrentPage >= historyTotalPages} size="sm" type="button" variant="outline" onClick={() => setHistoryPage((value) => Math.min(historyTotalPages, value + 1))}>ถัดไป</UiButton>
+          <div className={mode === 'receipt' ? 'overflow-hidden rounded-md bg-white shadow' : ''}>
+            <div className={`flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600 ${mode === 'receipt' ? 'border-b border-slate-200 px-3 py-3' : ''}`}>
+              <div>พบทั้งหมด <span className="font-semibold text-slate-900">{historyTotalRows}</span> รายการ</div>
+              <div className="flex flex-wrap items-center gap-2">
+                <UiSelect
+                  aria-label="จำนวนรายการต่อหน้าประวัติ"
+                  className="h-9 w-auto min-w-[96px] px-2"
+                  value={historyPageSize}
+                  onChange={(event) => setHistoryPageSize(Number(event.target.value))}
+                >
+                  {pageSizeOptions.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
+                </UiSelect>
+                <UiButton className="font-normal" disabled={historyCurrentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setHistoryPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</UiButton>
+                <span className="px-1">หน้า {historyCurrentPage} / {historyTotalPages}</span>
+                <UiButton className="font-normal" disabled={historyCurrentPage >= historyTotalPages} size="sm" type="button" variant="outline" onClick={() => setHistoryPage((value) => Math.min(historyTotalPages, value + 1))}>ถัดไป</UiButton>
+              </div>
             </div>
-          </div>
 
-          <Table className="min-w-[1260px]">
-            <TableHeader className="text-slate-700">
-              <tr>
-                <TableHead><button className="font-semibold" type="button" onClick={() => toggleHistorySort('docNo')}>เลขที่รายการ{historySortLabel('docNo')}</button></TableHead>
-                <TableHead><button className="font-semibold" type="button" onClick={() => toggleHistorySort('date')}>วันที่สร้างรายการ{historySortLabel('date')}</button></TableHead>
-                <TableHead><button className="font-semibold" type="button" onClick={() => toggleHistorySort('partyName')}>{partyLabel}{historySortLabel('partyName')}</button></TableHead>
-                <TableHead>บิลอ้างอิง</TableHead>
-                <TableHead><button className="font-semibold" type="button" onClick={() => toggleHistorySort('accountName')}>บัญชีที่ใช้ทำจ่าย{historySortLabel('accountName')}</button></TableHead>
-                <TableHead className="w-44 text-right"><button className="font-semibold" type="button" onClick={() => toggleHistorySort('amount')}>{amountLabel}{historySortLabel('amount')}</button></TableHead>
-                <TableHead className="w-40 text-right">WHT</TableHead>
-                <TableHead className="w-40 text-right">Bank Fee</TableHead>
-                <TableHead className="w-44 text-right"><button className="font-semibold" type="button" onClick={() => toggleHistorySort('netAmount')}>สุทธิ{historySortLabel('netAmount')}</button></TableHead>
-                {mode === 'payment' ? <TableHead>สถานะ</TableHead> : null}
-                <TableHead>หมายเหตุ</TableHead>
-                <TableHead className="text-center">Action</TableHead>
-              </tr>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={mode === 'payment' ? 12 : 11}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
-                {!isLoading && historyPageRows.map((row) => {
-                  const billDocNos = row.billDocNos?.length ? row.billDocNos : [row.billId ? (billMap.get(row.billId)?.docNo ?? row.billDocNo ?? row.billId) : (row.billDocNo ?? '-')]
-                  const accountSummaries = row.accountSummaries?.length ? row.accountSummaries : [row.accountName]
-                  return (
-                    <TableRow key={row.id} className="hover:bg-slate-50">
-                      <TableCell className="font-mono text-xs font-semibold text-slate-700">{row.docNo}</TableCell>
-                      <TableCell>{formatDateDisplay(row.date)}</TableCell>
-                      <TableCell className="font-medium text-slate-800">{row.partyName}</TableCell>
-                      <TableCell className="text-xs">
-                        <div className="space-y-1">
-                          <div className="font-semibold text-slate-700">{billDocNos.length.toLocaleString('th-TH')} บิล</div>
-                          {billDocNos.map((docNo) => <div key={`${row.id}-bill-${docNo}`} className="font-mono text-slate-700">{docNo}</div>)}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-xs text-slate-800">
-                        <div className="space-y-1">
-                          <div className="font-semibold text-slate-700">{accountSummaries.length.toLocaleString('th-TH')} บัญชี</div>
-                          {accountSummaries.map((summary) => <div key={`${row.id}-account-${summary}`} className="whitespace-nowrap">{summary}</div>)}
-                        </div>
-                      </TableCell>
-                      <TableCell className="w-44 whitespace-nowrap text-right font-semibold tabular-nums">{formatMoney(row.amount)}</TableCell>
-                      <TableCell className="w-40 whitespace-nowrap text-right text-amber-700 tabular-nums">{formatMoney(row.withholdingTax)}</TableCell>
-                      <TableCell className="w-40 whitespace-nowrap text-right text-slate-600 tabular-nums">{formatMoney(row.fee)}</TableCell>
-                      <TableCell className={`w-44 whitespace-nowrap text-right font-bold tabular-nums ${theme.strong}`}>{formatMoney(row.netAmount)}</TableCell>
-                      {mode === 'payment' ? (
-                        <TableCell>
-                          <div className={`inline-flex items-center gap-2 text-sm font-medium ${paymentStatusTone(row.status)}`}>
-                            <span className={`h-2 w-2 rounded-full ${paymentStatusDot(row.status)}`} />
-                            <span>{paymentStatusLabel(row.status)}</span>
+            <Table className="min-w-[1260px]">
+              <TableHeader className="text-slate-700">
+                <tr>
+                  <TableHead><button className="font-semibold" type="button" onClick={() => toggleHistorySort('docNo')}>เลขที่รายการ{historySortLabel('docNo')}</button></TableHead>
+                  <TableHead><button className="font-semibold" type="button" onClick={() => toggleHistorySort('date')}>วันที่สร้างรายการ{historySortLabel('date')}</button></TableHead>
+                  <TableHead><button className="font-semibold" type="button" onClick={() => toggleHistorySort('partyName')}>{partyLabel}{historySortLabel('partyName')}</button></TableHead>
+                  <TableHead>บิลอ้างอิง</TableHead>
+                  <TableHead><button className="font-semibold" type="button" onClick={() => toggleHistorySort('accountName')}>บัญชีที่ใช้ทำจ่าย{historySortLabel('accountName')}</button></TableHead>
+                  <TableHead className="w-44 text-right"><button className="font-semibold" type="button" onClick={() => toggleHistorySort('amount')}>{amountLabel}{historySortLabel('amount')}</button></TableHead>
+                  <TableHead className="w-40 text-right">WHT</TableHead>
+                  <TableHead className="w-40 text-right">Bank Fee</TableHead>
+                  <TableHead className="w-44 text-right"><button className="font-semibold" type="button" onClick={() => toggleHistorySort('netAmount')}>สุทธิ{historySortLabel('netAmount')}</button></TableHead>
+                  {mode === 'payment' ? <TableHead>สถานะ</TableHead> : null}
+                  <TableHead>หมายเหตุ</TableHead>
+                  <TableHead className="text-center">Action</TableHead>
+                </tr>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={mode === 'payment' ? 12 : 11}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+                  {!isLoading && historyPageRows.map((row) => {
+                    const billDocNos = row.billDocNos?.length ? row.billDocNos : [row.billId ? (billMap.get(row.billId)?.docNo ?? row.billDocNo ?? row.billId) : (row.billDocNo ?? '-')]
+                    const accountSummaries = row.accountSummaries?.length ? row.accountSummaries : [row.accountName]
+                    return (
+                      <TableRow key={row.id} className="hover:bg-slate-50">
+                        <TableCell className="font-mono text-xs font-semibold text-slate-700">{row.docNo}</TableCell>
+                        <TableCell>{formatDateDisplay(row.date)}</TableCell>
+                        <TableCell className="font-medium text-slate-800">{row.partyName}</TableCell>
+                        <TableCell className="text-xs">
+                          <div className="space-y-1">
+                            <div className="font-semibold text-slate-700">{billDocNos.length.toLocaleString('th-TH')} บิล</div>
+                            {billDocNos.map((docNo) => <div key={`${row.id}-bill-${docNo}`} className="font-mono text-slate-700">{docNo}</div>)}
                           </div>
                         </TableCell>
-                      ) : null}
-                      <TableCell className="max-w-56 truncate text-slate-600">{row.notes || '-'}</TableCell>
-                      {mode === 'payment' ? (
-                        <TableCell className="text-center">
-                          <span className="text-xs text-slate-400">ไม่มี action</span>
+                        <TableCell className="text-xs text-slate-800">
+                          <div className="space-y-1">
+                            <div className="font-semibold text-slate-700">{accountSummaries.length.toLocaleString('th-TH')} บัญชี</div>
+                            {accountSummaries.map((summary) => <div key={`${row.id}-account-${summary}`} className="whitespace-nowrap">{summary}</div>)}
+                          </div>
                         </TableCell>
-                      ) : (
-                        <TableCell className="text-center">
-                          <UiButton className="font-normal text-slate-400" disabled size="xs" type="button" variant="outline">ดู/พิมพ์</UiButton>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  )
-                })}
-              {!isLoading && historyPageRows.length === 0 ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={mode === 'payment' ? 12 : 11}>ยังไม่มีรายการ</TableCell></TableRow> : null}
-            </TableBody>
-          </Table>
+                        <TableCell className="w-44 whitespace-nowrap text-right font-semibold tabular-nums">{formatMoney(row.amount)}</TableCell>
+                        <TableCell className="w-40 whitespace-nowrap text-right text-amber-700 tabular-nums">{formatMoney(row.withholdingTax)}</TableCell>
+                        <TableCell className="w-40 whitespace-nowrap text-right text-slate-600 tabular-nums">{formatMoney(row.fee)}</TableCell>
+                        <TableCell className={`w-44 whitespace-nowrap text-right font-bold tabular-nums ${theme.strong}`}>{formatMoney(row.netAmount)}</TableCell>
+                        {mode === 'payment' ? (
+                          <TableCell>
+                            <div className={`inline-flex items-center gap-2 text-sm font-medium ${paymentStatusTone(row.status)}`}>
+                              <span className={`h-2 w-2 rounded-full ${paymentStatusDot(row.status)}`} />
+                              <span>{paymentStatusLabel(row.status)}</span>
+                            </div>
+                          </TableCell>
+                        ) : null}
+                        <TableCell className="max-w-56 truncate text-slate-600">{row.notes || '-'}</TableCell>
+                        {mode === 'payment' ? (
+                          <TableCell className="text-center">
+                            <span className="text-xs text-slate-400">ไม่มี action</span>
+                          </TableCell>
+                        ) : (
+                          <TableCell className="text-center">
+                            <UiButton className="font-normal text-slate-400" disabled size="xs" type="button" variant="outline">ดู/พิมพ์</UiButton>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    )
+                  })}
+                {!isLoading && historyPageRows.length === 0 ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={mode === 'payment' ? 12 : 11}>ยังไม่มีรายการ</TableCell></TableRow> : null}
+              </TableBody>
+            </Table>
+          </div>
         </>
       ) : null}
 

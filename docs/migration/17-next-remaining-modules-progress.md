@@ -1158,6 +1158,20 @@ Priority: สูง เพราะผูกกับ AP/AR/payment/receipt/bank
 - Result: D8 Dual Costing QA checkpoint passed with targeted contract/UI fixes; permission split remains a future auth batch.
 - Commit: `c91d814 fix: tighten dual costing qa findings` pushed to `main`.
 
+#### D8.1 Dual Costing Design Alignment Follow-up
+
+- Task: Align all active `/dual-costing/*` pages to the current Next design shell without changing the read-only business contract.
+- Files changed: `apps/next/src/components/dual-costing/CostPoolPageClient.tsx`, `CostAllocatorPageClient.tsx`, `MatchLogPageClient.tsx`, `DealMarginPageClient.tsx`, `CompareMarginPageClient.tsx`, `DualCostingManagementPageClient.tsx`, new `DualCostingPageShell.tsx`, all active `apps/next/src/app/dual-costing/*/page.tsx` wrappers, and migration handoff docs.
+- Design/system changes: moved route explanatory copy into the app top bar through `PageTitleOverride`, standardized white filter shells / KPI cards / table wrappers across all active dual-costing routes, and preserved legacy dual-costing accents only where they still carry business meaning.
+- Route-specific parity fixes:
+  - `Cost Pool` now exposes search + from/to date filters in the active filter shell and keeps the cost-type summary strip plus available-value emphasis.
+  - `Cost Allocator` restores the missing step `⓪` source selector shell before product selection and keeps preview as read-only.
+  - `Match Log`, `Deal Margin`, and `Compare Margin` now share the same filter/count/table rhythm as the rest of the active app instead of isolated local wrappers.
+  - `Waiting Allocations`, `Cost Allocation Ledger`, and `Dual Costing Report` now use the same management-report shell pattern as the other active report/list pages.
+- Business behavior: no allocation write, reverse, stock mutation, or GL behavior was added; this is a layout/design-consistency batch only.
+- Commands: `npm run type-check --workspace @ns-scrap-erp/next` passed; `npm run lint --workspace @ns-scrap-erp/next` passed; `npm run build --workspace @ns-scrap-erp/next` passed; `git diff --check` passed.
+- Result: dual-costing category shell is now internally consistent with current `docs/design.md` list/report patterns while preserving the legacy dual-costing read-only flow.
+
 ### UI-D1: PO Buy / Trading Matching Legacy UI Parity Revision
 
 - [x] `/purchase/po-buy` legacy info banner/KPI/top/outstanding/filter/purpose-tab/table shell parity

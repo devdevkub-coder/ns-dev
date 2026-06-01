@@ -30,6 +30,11 @@ type ExpenseWithRelations = Prisma.expensesGetPayload<{
   }
 }>
 
+function isPendingApprovalExpenseStatus(status: string | null | undefined) {
+  const normalized = String(status ?? '').toLowerCase()
+  return normalized === 'pending_approval' || normalized === 'pending' || normalized === ''
+}
+
 function expenseJson(row: ExpenseWithRelations) {
   const rawStatus = String(row.status ?? row.paid_status ?? '').toLowerCase()
   const status = rawStatus === 'approved' || rawStatus === 'paid' || rawStatus === 'cancelled' || rawStatus === 'pending_approval'
@@ -184,15 +189,19 @@ export async function POST(request: Request) {
 
     const result = await prisma.$transaction(async (tx) => {
       const existingExpense = values.id ? await tx.expenses.findUnique({
-        select: { date: true, doc_no: true },
+        select: { date: true, doc_no: true, status: true },
         where: { id: values.id },
       }) : null
+      if (existingExpense && !isPendingApprovalExpenseStatus(existingExpense.status)) {
+        throw new Error('แก้ไขได้เฉพาะรายการค่าใช้จ่ายที่ยังไม่อนุมัติ')
+      }
 
       const documentDateInput = existingExpense
         ? toDateOnly(existingExpense.date)
         : bangkokDateInput(new Date())
       const documentDate = normalizeDate(documentDateInput)
       const docNo = existingExpense?.doc_no ?? await nextDailyDocNo('expenses', 'EXP', documentDateInput)
+      const persistedStatus = 'pending_approval'
 
       const expense = await tx.expenses.upsert({
         where: { id },
@@ -209,11 +218,11 @@ export async function POST(request: Request) {
           id,
           net_amount: netAmount,
           notes: values.notes,
-          paid_at: values.status === 'paid' ? new Date() : null,
-          paid_status: values.status === 'paid' ? 'paid' : 'unpaid',
+          paid_at: null,
+          paid_status: 'unpaid',
           payee: values.payee,
           ref_doc_no: values.refDocNo,
-          status: values.status,
+          status: persistedStatus,
           tax_invoice_no: values.taxInvoiceNo,
           updated_at: new Date(),
           updated_by: actor,
@@ -234,11 +243,11 @@ export async function POST(request: Request) {
           due_date: values.dueDate ? normalizeDate(values.dueDate) : null,
           net_amount: netAmount,
           notes: values.notes,
-          paid_at: values.status === 'paid' ? new Date() : null,
-          paid_status: values.status === 'paid' ? 'paid' : 'unpaid',
+          paid_at: null,
+          paid_status: 'unpaid',
           payee: values.payee,
           ref_doc_no: values.refDocNo,
-          status: values.status,
+          status: persistedStatus,
           tax_invoice_no: values.taxInvoiceNo,
           updated_at: new Date(),
           updated_by: actor,
@@ -256,24 +265,6 @@ export async function POST(request: Request) {
           ref_type: 'EXP',
         },
       })
-
-      if (values.status === 'paid' && values.accountId) {
-        await tx.bank_statement.create({
-          data: {
-            account_id: values.accountId,
-            amount_in: 0,
-            amount_out: netAmount,
-            created_by: actor,
-            date: documentDate,
-            description: `${docNo} - ${values.payee}`,
-            id: `BS-EXP-${id}`,
-            ref_id: id,
-            ref_no: docNo,
-            ref_type: 'EXP',
-            type: 'จ่ายค่าใช้จ่าย',
-          },
-        })
-      }
 
       return expense
     })

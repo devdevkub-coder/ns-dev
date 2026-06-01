@@ -1,7 +1,21 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Button } from '@/components/ui/Button'
+import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { Input } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Select'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { formatDateDisplay } from '@/lib/format'
+import {
+  DualCostingCountRow,
+  DualCostingErrorBox,
+  DualCostingFilterCard,
+  DualCostingHint,
+  DualCostingPageSection,
+  DualCostingStatCard,
+} from './DualCostingPageShell'
 
 type CostPoolRow = {
   availableQty: number
@@ -86,8 +100,9 @@ export function CostPoolPageClient() {
   }, [loadData])
 
   const exportHref = `/api/dual-costing/cost-pool?${queryString ? `${queryString}&` : ''}format=xlsx`
+  const hasActiveFilters = Boolean(search || fromDate || toDate || productId !== 'all' || costType !== 'all' || sourceType !== 'all' || status !== 'all' || !availableOnly || sort !== 'FIFO')
 
-  const resetFilters = () => {
+  function resetFilters() {
     setAvailableOnly(true)
     setCostType('all')
     setFromDate('')
@@ -100,13 +115,12 @@ export function CostPoolPageClient() {
   }
 
   return (
-    <section className="space-y-4">
-      <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-        <strong>💰 Cost Pool</strong> — ต้นทุนที่ <b>เหลือรอขาย</b> (ไม่ใช่ Stock จริง) ใช้สำหรับ <b>Match กับ PO Sell</b> เท่านั้น<br />
-        <span className="text-xs">⚠ Cost Pool ≠ Stock จริง — Stock ใช้ WAC ลง P/L · Pool ใช้ต้นทุนจริงต่อ lot สำหรับ Match Deal</span>
-      </div>
+    <DualCostingPageSection>
+      <DualCostingHint tone="amber">
+        <strong>Cost Pool</strong> คือต้นทุนคงเหลือที่รอ match กับ PO Sell ไม่ใช่ stock จริง และยังต้องแยกจาก WAC ที่ใช้ลง P/L ตามหลักบัญชี
+      </DualCostingHint>
 
-      {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
+      <DualCostingErrorBox error={error} />
 
       <div className="grid gap-3 md:grid-cols-3">
         {costTypeCards.map((card) => {
@@ -124,75 +138,103 @@ export function CostPoolPageClient() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <Metric label="Original Qty" value={formatMoney(data?.summary.originalQty ?? 0)} />
-        <Metric label="Matched Qty" value={formatMoney(data?.summary.usedQty ?? 0)} tone="amber" />
-        <Metric label="Available Qty" value={formatMoney(data?.summary.availableQty ?? 0)} tone="emerald" />
-        <Metric label="มูลค่ารวม" value={formatMoney(data?.summary.originalValue ?? 0)} />
-        <Metric label="Available Value" value={formatMoney(data?.summary.availableValue ?? 0)} tone="emerald" />
+        <DualCostingStatCard label="Original Qty" value={formatMoney(data?.summary.originalQty ?? 0)} />
+        <DualCostingStatCard label="Matched Qty" tone="amber" value={formatMoney(data?.summary.usedQty ?? 0)} />
+        <DualCostingStatCard label="Available Qty" tone="emerald" value={formatMoney(data?.summary.availableQty ?? 0)} />
+        <DualCostingStatCard label="มูลค่าต้นทุนรวม" value={formatMoney(data?.summary.originalValue ?? 0)} />
+        <DualCostingStatCard label="Available Value" tone="emerald" value={formatMoney(data?.summary.availableValue ?? 0)} />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-          <select aria-label="สินค้า" className="rounded-md border px-3 py-2 text-sm" value={productId} onChange={(event) => setProductId(event.target.value)}>
+      <DualCostingFilterCard>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            className="min-w-[240px] flex-1 rounded-md"
+            placeholder="ค้นหาเลขที่ / คู่ค้า / สินค้า..."
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+          <span className="text-xs text-slate-500">วันที่:</span>
+          <DatePickerInput id="cost-pool-date-from" value={fromDate} onChange={setFromDate} />
+          <span className="text-slate-400">→</span>
+          <DatePickerInput id="cost-pool-date-to" value={toDate} onChange={setToDate} />
+          <Select aria-label="สินค้า" className="w-auto min-w-[180px]" value={productId} onChange={(event) => setProductId(event.target.value)}>
             <option value="all">ทุกสินค้า</option>
             {(data?.filters.products ?? []).map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
-          </select>
-          <select aria-label="Cost Type" className="rounded-md border bg-amber-50 px-3 py-2 text-sm font-medium" value={costType} onChange={(event) => setCostType(event.target.value)}>
+          </Select>
+          <Select aria-label="Cost Type" className="w-auto min-w-[160px]" value={costType} onChange={(event) => setCostType(event.target.value)}>
             <option value="all">ทุก Cost Type</option>
             {(data?.filters.costTypes ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
-          </select>
-          <select aria-label="Source Type" className="rounded-md border px-3 py-2 text-sm" value={sourceType} onChange={(event) => setSourceType(event.target.value)}>
+          </Select>
+          <Select aria-label="Source Type" className="w-auto min-w-[160px]" value={sourceType} onChange={(event) => setSourceType(event.target.value)}>
             <option value="all">ทุก Source</option>
             {(data?.filters.sourceTypes ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
-          </select>
-          <select aria-label="สถานะ" className="rounded-md border px-3 py-2 text-sm" value={status} onChange={(event) => setStatus(event.target.value)}>
+          </Select>
+          <Select aria-label="สถานะ" className="w-auto min-w-[150px]" value={status} onChange={(event) => setStatus(event.target.value)}>
             <option value="all">ทุกสถานะ</option>
             {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
-          </select>
-          <select aria-label="เรียงลำดับ" className="rounded-md border px-3 py-2 text-sm" value={sort} onChange={(event) => setSort(event.target.value)}>
-            <option value="FIFO">เรียง FIFO</option>
-            <option value="LIFO">เรียง LIFO</option>
+          </Select>
+          <Select aria-label="เรียงลำดับ" className="w-auto min-w-[160px]" value={sort} onChange={(event) => setSort(event.target.value)}>
+            <option value="FIFO">FIFO</option>
+            <option value="LIFO">LIFO</option>
             <option value="Cheap">ต้นทุนถูกก่อน</option>
             <option value="Expensive">ต้นทุนแพงก่อน</option>
-          </select>
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-emerald-700"><input checked={availableOnly} className="h-4 w-4" type="checkbox" onChange={(event) => setAvailableOnly(event.target.checked)} /> แสดงเฉพาะ Available</label>
-          {(fromDate || toDate || search) ? <button className="rounded-md border px-3 py-2 text-sm" type="button" onClick={resetFilters}>ล้าง</button> : null}
-          <a className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white" href={exportHref}>Export XLSX</a>
-      </div>
+          </Select>
+          <label className="flex h-10 cursor-pointer items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-sm text-emerald-700">
+            <input checked={availableOnly} className="h-4 w-4" type="checkbox" onChange={(event) => setAvailableOnly(event.target.checked)} />
+            แสดงเฉพาะ Available
+          </label>
+          {hasActiveFilters ? <Button size="xs" type="button" variant="secondary" onClick={resetFilters}>✕ ล้าง</Button> : null}
+          <Button asChild size="sm" variant="export">
+            <a href={exportHref}>Export XLSX</a>
+          </Button>
+        </div>
+      </DualCostingFilterCard>
 
-      <div className="overflow-x-auto rounded-md bg-white shadow">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-100"><tr><th className="p-2 text-left">Cost Type</th><th className="p-2 text-left">Source</th><th className="p-2 text-left">เลขที่</th><th className="p-2 text-left">วันที่</th><th className="p-2 text-left">Counterparty</th><th className="p-2 text-left">สินค้า</th><th className="p-2 text-right">Original</th><th className="p-2 text-right">Matched</th><th className="bg-emerald-50 p-2 text-right">Available</th><th className="p-2 text-right">฿/หน่วย</th><th className="bg-emerald-50 p-2 text-right">Available Value</th><th className="p-2 text-center">สถานะ</th></tr></thead>
-          <tbody>
-            {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={12}>กำลังโหลดข้อมูล</td></tr> : null}
-            {!isLoading && !error && (data?.rows.length ?? 0) === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={12}>Cost Pool ว่าง — ไม่มี lot ตามตัวกรอง</td></tr> : null}
-            {!isLoading && (data?.rows ?? []).map((row) => (
-              <tr key={row.costPoolId} className="border-t">
-                <td className="p-2"><span className={`rounded-md px-2 py-0.5 text-[10px] font-medium ${costTypeBadgeClass(row.costType)}`}>{row.costType}</span></td>
-                <td className="p-2"><span className={`rounded-md px-2 py-0.5 text-[10px] ${sourceBadgeClass(row.sourceType)}`}>{row.sourceType}</span></td>
-                <td className="p-2 font-mono text-xs">{row.sourceNo}</td>
-                <td className="p-2 text-xs">{row.date}</td>
-                <td className="p-2 text-xs">{row.counterparty}</td>
-                <td className="p-2 text-xs">{row.productName}</td>
-                <td className="p-2 text-right">{formatMoney(row.qty)}</td>
-                <td className="p-2 text-right text-amber-700">{formatMoney(row.usedQty)}</td>
-                <td className="bg-emerald-50/30 p-2 text-right font-bold text-emerald-700">{formatMoney(row.availableQty)}</td>
-                <td className="p-2 text-right">{formatMoney(row.unitCost)}</td>
-                <td className="bg-emerald-50/30 p-2 text-right font-medium text-emerald-700">{formatMoney(row.availableValue)}</td>
-                <td className="p-2 text-center"><span className={`rounded-md px-2 py-0.5 text-[10px] ${statusBadgeClass(row.status)}`}>{row.status}</span></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
+      <DualCostingCountRow countValue={data?.rows.length ?? 0}>
+        <span className="text-xs text-slate-500">เรียงตาม {sort}</span>
+      </DualCostingCountRow>
+
+      <Table className="[&_tbody_tr]:border-slate-100">
+        <TableHeader>
+          <tr>
+            <TableHead>Cost Type</TableHead>
+            <TableHead>Source</TableHead>
+            <TableHead>เลขที่</TableHead>
+            <TableHead>วันที่</TableHead>
+            <TableHead>คู่ค้า</TableHead>
+            <TableHead>สินค้า</TableHead>
+            <TableHead className="text-right">Original</TableHead>
+            <TableHead className="text-right">Matched</TableHead>
+            <TableHead className="bg-emerald-50 text-right">Available</TableHead>
+            <TableHead className="text-right">฿/หน่วย</TableHead>
+            <TableHead className="bg-emerald-50 text-right">Available Value</TableHead>
+            <TableHead className="text-center">สถานะ</TableHead>
+          </tr>
+        </TableHeader>
+        <TableBody>
+          {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={12}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+          {!isLoading && !error && (data?.rows.length ?? 0) === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-400" colSpan={12}>Cost Pool ว่างตามตัวกรองปัจจุบัน</TableCell></TableRow> : null}
+          {!isLoading && (data?.rows ?? []).map((row) => (
+            <TableRow key={row.costPoolId} className="hover:bg-slate-50">
+              <TableCell><span className={`rounded-md px-2 py-0.5 text-[10px] font-medium ${costTypeBadgeClass(row.costType)}`}>{row.costType}</span></TableCell>
+              <TableCell><span className={`rounded-md px-2 py-0.5 text-[10px] ${sourceBadgeClass(row.sourceType)}`}>{row.sourceType}</span></TableCell>
+              <TableCell className="font-mono text-xs">{row.sourceNo}</TableCell>
+              <TableCell className="whitespace-nowrap text-xs">{formatDateDisplay(row.date)}</TableCell>
+              <TableCell className="text-xs">{row.counterparty}</TableCell>
+              <TableCell className="text-xs">{row.productName}</TableCell>
+              <TableCell className="text-right">{formatMoney(row.qty)}</TableCell>
+              <TableCell className="text-right text-amber-700">{formatMoney(row.usedQty)}</TableCell>
+              <TableCell className="bg-emerald-50/40 text-right font-bold text-emerald-700">{formatMoney(row.availableQty)}</TableCell>
+              <TableCell className="text-right">{formatMoney(row.unitCost)}</TableCell>
+              <TableCell className="bg-emerald-50/40 text-right font-medium text-emerald-700">{formatMoney(row.availableValue)}</TableCell>
+              <TableCell className="text-center"><StatusIndicator status={row.status} /></TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </DualCostingPageSection>
   )
-}
-
-function Metric({ label, tone = 'normal', value }: { label: string; tone?: 'amber' | 'emerald' | 'normal'; value: string }) {
-  const toneClass = { amber: 'text-amber-700', emerald: 'text-emerald-700', normal: 'text-slate-900' }[tone]
-  const bgClass = tone === 'emerald' ? 'bg-emerald-50' : 'bg-white'
-  const labelClass = tone === 'amber' ? 'text-amber-600' : tone === 'emerald' ? 'text-emerald-600' : 'text-slate-500'
-  return <div className={`rounded-md p-3 shadow ${bgClass}`}><div className={`text-xs ${labelClass}`}>{label}</div><div className={`mt-1 text-base font-bold ${toneClass}`}>{value}</div></div>
 }
 
 const costTypeCards = [
@@ -221,12 +263,28 @@ function CostTypeCard({
     orange: 'border-orange-500 bg-orange-50 text-orange-700',
     purple: 'border-purple-500 bg-purple-50 text-purple-700',
   }[tone]
+
   return (
     <div className={`rounded-md border-l-4 p-3 ${classes}`}>
       <div className="text-xs font-bold">{label}</div>
       <div className="mt-1 text-lg font-bold">{formatMoney(availableQty)} กก.</div>
       <div className="text-xs">{formatMoney(availableValue)} ฿ · {count} lots · {costType}</div>
     </div>
+  )
+}
+
+function StatusIndicator({ status }: { status: string }) {
+  const tones = status === 'Available'
+    ? 'bg-emerald-500'
+    : status === 'Partially Used'
+      ? 'bg-amber-500'
+      : 'bg-slate-400'
+
+  return (
+    <span className="inline-flex items-center gap-2 rounded-md px-2 py-0.5 text-[11px] text-slate-700">
+      <span className={`h-2.5 w-2.5 rounded-full ${tones}`} />
+      {status}
+    </span>
   )
 }
 
@@ -241,10 +299,4 @@ function sourceBadgeClass(type: string) {
   if (type === 'Regrade') return 'bg-purple-100 text-purple-700'
   if (type === 'PO_Buy') return 'bg-cyan-100 text-cyan-700'
   return 'bg-blue-100 text-blue-700'
-}
-
-function statusBadgeClass(status: string) {
-  if (status === 'Available') return 'bg-emerald-100 text-emerald-700'
-  if (status === 'Partially Used') return 'bg-amber-100 text-amber-700'
-  return 'bg-slate-200 text-slate-600'
 }

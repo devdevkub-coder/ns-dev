@@ -7,6 +7,7 @@ import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requ
 import { currentActor, listDailyAccounts, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { getActivePaymentMethods } from '@/lib/server/payment-methods'
 import { prisma } from '@/lib/server/prisma'
+import { refreshPurchaseBillSettlement } from '@/lib/server/purchase-bill-settlement'
 import { activeWhtRatePercent } from '@/lib/server/tax-settings'
 
 export const runtime = 'nodejs'
@@ -43,37 +44,14 @@ async function nextSupplierPaymentDocNo(tx: Prisma.TransactionClient, date: stri
 
 async function refreshPurchaseBillPaymentStatus(tx: Prisma.TransactionClient, billId: string, actor: string) {
   const bill = await tx.purchase_bills.findUnique({
-    select: { id: true, status: true, total_amount: true },
+    select: { id: true, status: true },
     where: { id: billId },
   })
   if (!bill) throw new Error('ไม่พบบิลซื้อที่ต้องการตัดชำระ')
   if (String(bill.status ?? '').toLowerCase().includes('cancel')) {
     throw new Error('ตัดชำระไม่ได้ เพราะบิลซื้อถูกยกเลิกแล้ว')
   }
-
-  const payments = await tx.payments.findMany({
-    select: { amount: true, discount: true, status: true, withholding_tax: true },
-    where: { bill_id: billId, NOT: { status: 'cancelled' } },
-  })
-  const paidAmount = payments.reduce((sum, payment) => (
-    sum + toNumber(payment.amount) + toNumber(payment.withholding_tax) + toNumber(payment.discount)
-  ), 0)
-  const totalAmount = toNumber(bill.total_amount)
-  if (paidAmount - totalAmount > 0.01) throw new Error('ยอดจ่ายรวมเกินยอดค้างของบิลซื้อ')
-
-  const payableBalance = Math.max(0, totalAmount - paidAmount)
-  const status = paidAmount <= 0 ? 'unpaid' : payableBalance <= 0.01 ? 'paid' : 'partial'
-
-  await tx.purchase_bills.update({
-    data: {
-      paid_amount: paidAmount,
-      payable_balance: payableBalance,
-      status,
-      updated_at: new Date(),
-      updated_by: actor,
-    },
-    where: { id: billId },
-  })
+  await refreshPurchaseBillSettlement(tx, billId, actor)
 }
 
 export async function GET() {

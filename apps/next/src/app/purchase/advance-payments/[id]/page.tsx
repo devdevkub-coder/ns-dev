@@ -22,7 +22,7 @@ function labelStatus(status: string | null | undefined) {
   const normalized = String(status ?? '').toLowerCase()
   if (normalized === 'pending_approval') return 'ยังไม่อนุมัติ'
   if (normalized === 'approved') return 'รอจ่าย'
-  if (normalized === 'paid') return 'จ่ายแล้ว'
+  if (normalized === 'paid') return 'เสร็จสิ้น'
   if (normalized === 'partially_allocated') return 'ใช้หักบางส่วน'
   if (normalized === 'allocated') return 'ใช้หักครบ'
   if (normalized === 'refunding') return 'รอคืนเงิน'

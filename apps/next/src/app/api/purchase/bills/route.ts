@@ -7,6 +7,7 @@ import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requ
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { PO_BUY_STATUS, reconcilePoBuys } from '@/lib/server/po-buy-reconciliation'
 import { prisma } from '@/lib/server/prisma'
+import { refreshPurchaseBillSettlement, refreshSupplierAdvancePaymentAllocation } from '@/lib/server/purchase-bill-settlement'
 import { activeVatRatePercent } from '@/lib/server/tax-settings'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import type { Prisma } from '../../../../../generated/prisma/client'
@@ -25,6 +26,16 @@ type PurchaseBillRow = Prisma.purchase_billsGetPayload<{
   include: {
     branches: true
     purchase_bill_items: true
+    supplier_advance_allocations: {
+      include: {
+        supplier_advance_payments: {
+          select: {
+            doc_no: true
+            id: true
+          }
+        }
+      }
+    }
     suppliers: true
     warehouses: true
   }
@@ -140,7 +151,11 @@ function billItemsJson(row: PurchaseBillRow) {
 
 function billJson(row: PurchaseBillRow, paymentDocNos: string[] = []) {
   const items = billItemsJson(row)
+  const activeAdvanceAllocation = row.supplier_advance_allocations.find((allocation) => allocation.status === 'active') ?? null
   return {
+    advanceAllocatedAmount: activeAdvanceAllocation ? toNumber(activeAdvanceAllocation.allocated_amount) : 0,
+    advancePaymentDocNo: activeAdvanceAllocation?.supplier_advance_payments?.doc_no ?? '',
+    advancePaymentId: activeAdvanceAllocation?.advance_payment_id ?? '',
     branchId: row.branch_id ?? '',
     branchName: row.branches?.name ?? '-',
     createdAt: row.date?.toISOString() ?? '',
@@ -311,6 +326,132 @@ function buildPurchaseBillPoAllocationRows(
       unit_price_snapshot: toNumber(item.price),
     }]
   })
+}
+
+async function validateAdvancePaymentSelection(
+  tx: Prisma.TransactionClient,
+  values: Pick<PurchaseBillFormValues, 'advancePaymentId' | 'branchId' | 'supplierId'>,
+  billId?: string,
+) {
+  if (!values.advancePaymentId) return null
+
+  const advancePayment = await tx.supplier_advance_payments.findUnique({
+    select: {
+      amount: true,
+      branch_id: true,
+      cancelled_at: true,
+      doc_no: true,
+      id: true,
+      status: true,
+      supplier_id: true,
+    },
+    where: { id: values.advancePaymentId },
+  })
+  if (!advancePayment || advancePayment.cancelled_at) {
+    throw new Error('ไม่พบเอกสาร ADV ที่ต้องการใช้หักบิล')
+  }
+  if (advancePayment.branch_id !== values.branchId) {
+    throw new Error('เอกสาร ADV ต้องอยู่สาขาเดียวกับบิลรับซื้อ')
+  }
+  if (advancePayment.supplier_id !== values.supplierId) {
+    throw new Error('เอกสาร ADV ต้องเป็นผู้ขายเดียวกับบิลรับซื้อ')
+  }
+  if (!['paid', 'partially_allocated', 'allocated'].includes(advancePayment.status)) {
+    throw new Error('เอกสาร ADV นี้ยังไม่พร้อมใช้หักบิล')
+  }
+
+  const allocations = await tx.supplier_advance_allocations.findMany({
+    select: { allocated_amount: true, purchase_bill_id: true, status: true },
+    where: {
+      advance_payment_id: advancePayment.id,
+      status: 'active',
+    },
+  })
+
+  const allocatedToOtherBills = allocations.reduce((sum, allocation) => (
+    allocation.purchase_bill_id === billId ? sum : sum + toNumber(allocation.allocated_amount)
+  ), 0)
+  const availableAmount = Math.max(0, toNumber(advancePayment.amount) - allocatedToOtherBills)
+  if (availableAmount <= 0.01) {
+    throw new Error('เอกสาร ADV นี้ไม่มียอดคงเหลือสำหรับใช้หักบิลแล้ว')
+  }
+
+  return {
+    availableAmount,
+    docNo: advancePayment.doc_no,
+    id: advancePayment.id,
+  }
+}
+
+async function resetPurchaseBillAdvanceAllocation(
+  tx: Prisma.TransactionClient,
+  billId: string,
+  actor: string,
+  reason: string,
+) {
+  const activeAllocations = await tx.supplier_advance_allocations.findMany({
+    select: { advance_payment_id: true, id: true },
+    where: {
+      purchase_bill_id: billId,
+      status: 'active',
+    },
+  })
+  if (activeAllocations.length === 0) return
+
+  const now = new Date()
+  await tx.supplier_advance_allocations.updateMany({
+    data: {
+      status: 'voided',
+      updated_at: now,
+      void_reason: reason,
+      voided_at: now,
+      voided_by: actor,
+    },
+    where: {
+      purchase_bill_id: billId,
+      status: 'active',
+    },
+  })
+
+  const advanceIds = [...new Set(activeAllocations.map((allocation) => allocation.advance_payment_id))]
+  for (const advanceId of advanceIds) {
+    await refreshSupplierAdvancePaymentAllocation(tx, advanceId)
+  }
+}
+
+async function applyPurchaseBillAdvanceAllocation(
+  tx: Prisma.TransactionClient,
+  params: {
+    actor: string
+    billId: string
+    maxAmount: number
+    values: Pick<PurchaseBillFormValues, 'advancePaymentId' | 'branchId' | 'supplierId'>
+  },
+) {
+  await resetPurchaseBillAdvanceAllocation(tx, params.billId, params.actor, 'เปลี่ยนการอ้างอิงเอกสาร ADV ในบิลรับซื้อ')
+  if (!params.values.advancePaymentId || params.maxAmount <= 0.01) return 0
+
+  const advancePayment = await validateAdvancePaymentSelection(tx, params.values, params.billId)
+  if (!advancePayment) return 0
+
+  const allocatedAmount = Math.min(params.maxAmount, advancePayment.availableAmount)
+  if (allocatedAmount <= 0.01) return 0
+
+  await tx.supplier_advance_allocations.create({
+    data: {
+      advance_payment_id: advancePayment.id,
+      allocated_amount: allocatedAmount,
+      allocated_at: new Date(),
+      allocated_by: params.actor,
+      id: `SAA-${randomUUID()}`,
+      purchase_bill_id: params.billId,
+      status: 'active',
+      updated_at: new Date(),
+    },
+  })
+
+  await refreshSupplierAdvancePaymentAllocation(tx, advancePayment.id)
+  return allocatedAmount
 }
 
 function receiptSummaryUsageKey(ticketId: string, summaryId: string) {
@@ -650,7 +791,25 @@ async function nextPurchaseBillDocNo(tx: Prisma.TransactionClient, date: string,
 }
 
 async function optionsPayload() {
-  const [branches, poBuys, products, salespersons, suppliers, warehouses, vatRatePercent, weightTickets] = await Promise.all([
+  const [advancePayments, branches, poBuys, products, salespersons, suppliers, warehouses, vatRatePercent, weightTickets] = await Promise.all([
+    prisma.supplier_advance_payments.findMany({
+      orderBy: [{ advance_date: 'desc' }, { doc_no: 'desc' }],
+      select: {
+        advance_date: true,
+        amount: true,
+        branch_id: true,
+        doc_no: true,
+        id: true,
+        remaining_amount: true,
+        status: true,
+        supplier_id: true,
+      },
+      take: 500,
+      where: {
+        cancelled_at: null,
+        status: { in: ['paid', 'partially_allocated', 'allocated'] },
+      },
+    }),
     prisma.branches.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
     prisma.po_buys.findMany({
       orderBy: [{ doc_no: 'desc' }],
@@ -687,6 +846,18 @@ async function optionsPayload() {
   const usageMap = await buildWeightTicketUsageMap(weightTickets)
 
   return {
+    advancePayments: advancePayments.map((advance) => ({
+      active: true,
+      advanceDate: toDateOnly(advance.advance_date),
+      amount: toNumber(advance.amount),
+      branch_id: advance.branch_id,
+      id: advance.id,
+      label: `${advance.doc_no} · คงเหลือ ${toNumber(advance.remaining_amount).toLocaleString('th-TH')} บาท`,
+      name: advance.doc_no,
+      remainingAmount: toNumber(advance.remaining_amount),
+      status: advance.status,
+      supplier_id: advance.supplier_id,
+    })),
     branches,
     poBuys: poBuys.map((po) => ({
       active: (po.status === PO_BUY_STATUS.OPEN || po.status === PO_BUY_STATUS.PARTIAL) && toNumber(po.remaining_qty) > 0.0001,
@@ -814,6 +985,14 @@ async function rowsPayload(query: BillQuery, includePaging = true) {
       include: {
         branches: true,
         purchase_bill_items: { orderBy: { line_no: 'asc' } },
+        supplier_advance_allocations: {
+          include: {
+            supplier_advance_payments: {
+              select: { doc_no: true, id: true },
+            },
+          },
+          orderBy: [{ allocated_at: 'desc' }],
+        },
         suppliers: true,
         warehouses: true,
       },
@@ -1096,6 +1275,13 @@ export async function POST(request: Request) {
             await tx.purchase_bill_po_allocations.createMany({ data: poAllocationRows })
           }
           await reconcilePoBuys(tx, extractReferencedPoBuyIdsFromValues(values), { actor })
+          await applyPurchaseBillAdvanceAllocation(tx, {
+            actor,
+            billId: createdBill.id,
+            maxAmount: totals.totalAmount,
+            values,
+          })
+          await refreshPurchaseBillSettlement(tx, createdBill.id, actor)
 
           if (values.transactionMode === 'STOCK') {
             await tx.stock_ledger.createMany({
@@ -1204,6 +1390,7 @@ export async function PATCH(request: Request) {
         await tx.stock_ledger.deleteMany({ where: { ref_id: values.id, ref_type: 'PB' } })
         await tx.purchase_bill_receipt_allocations.deleteMany({ where: { purchase_bill_id: values.id } })
         await tx.purchase_bill_po_allocations.deleteMany({ where: { purchase_bill_id: values.id } })
+        await resetPurchaseBillAdvanceAllocation(tx, values.id, actor, 'ยกเลิกบิลรับซื้อ')
         await reconcilePoBuys(tx, extractReferencedPoBuyIdsFromBillItems(existingBillItems), { actor })
         await refreshWeightTicketStatuses(tx, extractReferencedReceiptTicketIdsFromBillItems(existingBillItems))
         return bill
@@ -1305,10 +1492,6 @@ export async function PATCH(request: Request) {
     if (missingWarehouseStatus) return NextResponse.json({ code: 'BAD_REQUEST', error: `ไม่พบคลัง ${missingWarehouseStatus} ที่เปิดใช้งานสำหรับสาขานี้` }, { status: 400 })
     const purchaseWarehouseId = values.transactionMode === 'STOCK' ? warehouseByStatus.get(items[0]?.itemStatus ?? 'RM')?.id ?? null : null
 
-    const paidAmount = activePaidAmount
-    const payableBalance = Math.max(0, totals.totalAmount - paidAmount)
-    const status = paidAmount <= 0 ? 'unpaid' : payableBalance <= 0.01 ? 'paid' : 'partial'
-
     const updatedBill = await prisma.$transaction(async (tx) => {
       const bill = await tx.purchase_bills.update({
         data: {
@@ -1319,13 +1502,13 @@ export async function PATCH(request: Request) {
           license_plate: null,
           note: values.note ?? values.notes,
           notes: values.notes,
-          paid_amount: paidAmount,
-          payable_balance: payableBalance,
+          paid_amount: toNumber(existingBill.paid_amount),
+          payable_balance: toNumber(existingBill.payable_balance),
           po_buy_id: values.poBuyId,
           purchase_source: purchaseSource,
           ref_no: values.refNo,
           sales_id: supplierSalesId,
-          status,
+          status: existingBill.status,
           subtotal: totals.subtotal,
           supplier_id: values.supplierId,
           total_amount: totals.totalAmount,
@@ -1358,6 +1541,12 @@ export async function PATCH(request: Request) {
       if (poAllocationRows.length > 0) {
         await tx.purchase_bill_po_allocations.createMany({ data: poAllocationRows })
       }
+      await applyPurchaseBillAdvanceAllocation(tx, {
+        actor,
+        billId: id,
+        maxAmount: totals.totalAmount,
+        values,
+      })
       await reconcilePoBuys(tx, [
         ...extractReferencedPoBuyIdsFromValues(values),
         ...extractReferencedPoBuyIdsFromBillItems(existingBillItems),
@@ -1395,10 +1584,17 @@ export async function PATCH(request: Request) {
         ...extractReferencedReceiptTicketIdsFromBillItems(existingBillItems),
       ])
 
-      return bill
+      const settlement = await refreshPurchaseBillSettlement(tx, id, actor)
+      return { ...bill, ...settlement }
     })
 
-    return NextResponse.json({ docNo: updatedBill.doc_no, id: updatedBill.id, paidAmount, payableBalance, status })
+    return NextResponse.json({
+      docNo: updatedBill.doc_no,
+      id: updatedBill.id,
+      paidAmount: updatedBill.paidAmount,
+      payableBalance: updatedBill.payableBalance,
+      status: updatedBill.status,
+    })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'แก้ไขบิลรับซื้อไม่ได้', 400)

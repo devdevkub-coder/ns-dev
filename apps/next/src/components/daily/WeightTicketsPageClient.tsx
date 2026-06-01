@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, ImagePlus, Plus, Trash2, Truck } from 'lucide-react'
+import { CheckCircle2, ImagePlus, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { Card } from '@/components/ui/Card'
@@ -13,6 +13,7 @@ import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxList }
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getErrorMessage } from '@/lib/api-client'
 import { listImpurities } from '@/lib/impurity'
 import { cn } from '@/lib/utils'
@@ -426,43 +427,14 @@ export function WeightTicketsPageClient({ ticketId = '' }: { ticketId?: string }
   return (
     <div className="space-y-5 pb-32">
       <div>
-        <Card className={cn('border p-4', ticketTheme.border, ticketTheme.panel)}>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <div className={cn('inline-flex rounded-md px-2.5 py-1 text-xs font-semibold', ticketTheme.badge)}>
-                {ticketTheme.summary}
-              </div>
-              <h2 className="mt-2 text-lg font-semibold text-slate-900">ชั่งสินค้า / รับ-ส่งของ</h2>
-              <p className="mt-1 text-sm text-slate-600">
-                {editingTicketId ? 'แก้ไขได้จนกว่าจะถูกนำไปใช้กับบิลรับซื้อหรือบิลขาย' : 'ระบบจะออกเลขเอกสาร วันที่ เวลา และผู้กรอกหลังบันทึก'}
-              </p>
-            </div>
-            <div className="lg:min-w-[24rem]">
-              <div className="inline-flex rounded-md bg-white p-1 shadow-sm ring-1 ring-slate-200">
-                {([
-                  { icon: <Truck className="size-4" />, label: 'ใบรับของ WTI', value: 'WTI' },
-                  { icon: <Truck className="size-4 rotate-180" />, label: 'ใบส่งของ WTO', value: 'WTO' },
-                ] as const).map((option) => {
-                  const active = form.type === option.value
-                  return (
-                    <button
-                      className={cn(
-                        'inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm transition',
-                        active ? `${ticketTheme.button} text-white` : 'text-slate-600 hover:bg-slate-100',
-                      )}
-                      key={option.value}
-                      type="button"
-                      onClick={() => setForm((current) => ({ ...current, partyId: '', type: option.value }))}
-                    >
-                      {option.icon}
-                      {option.label}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        </Card>
+        <div>
+          <Tabs value={form.type} onValueChange={(value) => setForm((current) => ({ ...current, partyId: '', type: value as WeightTicketType }))}>
+            <TabsList className="w-full justify-start" variant="line">
+              <TabsTrigger value="WTI" variant="line">ใบรับของ WTI</TabsTrigger>
+              <TabsTrigger value="WTO" variant="line">ใบส่งของ WTO</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
       </div>
 
       {loadError ? (

@@ -4,6 +4,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { refreshPurchaseBillSettlement } from '@/lib/server/purchase-bill-settlement'
 
 export const runtime = 'nodejs'
 
@@ -18,34 +19,11 @@ function roundMoney(value: number) {
 
 async function refreshPurchaseBillPaymentStatus(tx: Parameters<typeof prisma.$transaction>[0] extends (arg: infer T) => Promise<unknown> ? T : never, billId: string, actor: string) {
   const bill = await tx.purchase_bills.findUnique({
-    select: { id: true, total_amount: true },
+    select: { id: true },
     where: { id: billId },
   })
   if (!bill) throw new Error('ไม่พบบิลซื้อที่ต้องการคำนวณสถานะใหม่')
-
-  const payments = await tx.payments.findMany({
-    select: { amount: true, discount: true, status: true, withholding_tax: true },
-    where: { bill_id: billId, NOT: { status: 'cancelled' } },
-  })
-  const paidAmount = payments.reduce((sum, payment) => (
-    sum + toNumber(payment.amount) + toNumber(payment.withholding_tax) + toNumber(payment.discount)
-  ), 0)
-  const totalAmount = toNumber(bill.total_amount)
-  if (paidAmount - totalAmount > 0.01) throw new Error('ยอดจ่ายรวมเกินยอดค้างของบิลซื้อ')
-
-  const payableBalance = Math.max(0, totalAmount - paidAmount)
-  const status = paidAmount <= 0 ? 'unpaid' : payableBalance <= 0.01 ? 'paid' : 'partial'
-
-  await tx.purchase_bills.update({
-    data: {
-      paid_amount: paidAmount,
-      payable_balance: payableBalance,
-      status,
-      updated_at: new Date(),
-      updated_by: actor,
-    },
-    where: { id: billId },
-  })
+  await refreshPurchaseBillSettlement(tx, billId, actor)
 }
 
 export async function POST(request: Request) {

@@ -1,6 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Button } from '@/components/ui/Button'
+import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { Input } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Select'
+import { TableNumberCell } from '@/components/ui/TableNumberCell'
+import { Table, TableBody, TableHeader, TableRow } from '@/components/ui/Table'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 
@@ -39,11 +45,15 @@ type ReceiptVoucherRow = {
 }
 
 export function ReceiptVouchersPageClient() {
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [printingRow, setPrintingRow] = useState<ReceiptVoucherRow | null>(null)
   const [rows, setRows] = useState<ReceiptVoucherRow[]>([])
   const [search, setSearch] = useState('')
-  const [printingRow, setPrintingRow] = useState<ReceiptVoucherRow | null>(null)
 
   const loadData = useCallback(async () => {
     setIsLoading(true)
@@ -68,82 +78,124 @@ export function ReceiptVouchersPageClient() {
     return () => window.clearTimeout(timer)
   }, [printingRow])
 
+  useEffect(() => {
+    setPage(1)
+  }, [dateFrom, dateTo, pageSize, search])
+
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase()
-    return rows.filter((row) => !query || `${row.docNo} ${row.purchaseBillDocNo} ${row.sellerName} ${row.sellerTaxId}`.toLowerCase().includes(query))
-  }, [rows, search])
+    return rows.filter((row) => {
+      const inDateRange = (!dateFrom || row.date >= dateFrom) && (!dateTo || row.date <= dateTo)
+      if (!inDateRange) return false
+      if (!query) return true
+      return `${row.docNo} ${row.purchaseBillDocNo} ${row.sellerName} ${row.sellerTaxId} ${row.licensePlate}`.toLowerCase().includes(query)
+    })
+  }, [dateFrom, dateTo, rows, search])
 
   const totals = useMemo(() => ({
     amount: filteredRows.reduce((sum, row) => sum + row.totalAmount, 0),
     qty: filteredRows.reduce((sum, row) => sum + row.totalQty, 0),
+    withPurchaseBill: filteredRows.filter((row) => row.purchaseBillDocNo).length,
   }), [filteredRows])
+
+  const totalRows = filteredRows.length
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const pagedRows = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  const hasActiveFilter = Boolean(search || dateFrom || dateTo)
+
+  function clearFilters() {
+    setSearch('')
+    setDateFrom('')
+    setDateTo('')
+  }
 
   return (
     <>
       <section className="space-y-4 print:hidden">
         {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-        <div className="rounded-md border-l-4 border-blue-400 bg-blue-50 p-3 shadow-sm">
-          <h2 className="text-xl font-bold text-slate-900">🧾 ใบสำคัญรับเงิน (Receipt Voucher)</h2>
-          <p className="mt-1 text-sm text-slate-600">ใช้ออกให้ Supplier บุคคลธรรมดาเซ็นรับเงิน (กรณีไม่มีใบเสร็จของ Supplier) — ดึงข้อมูลจากบิลซื้อ + แก้ไขส่วนที่ขาดได้ + พิมพ์ออกได้</p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+          <KpiCard label="จำนวนเอกสาร" tone="slate" value={totalRows.toLocaleString('th-TH')} />
+          <KpiCard label="น้ำหนักรวม (กก.)" tone="blue" value={formatMoney(totals.qty)} />
+          <KpiCard label="จำนวนเงินรวม" tone="emerald" value={formatMoney(totals.amount)} />
+          <KpiCard label="มีบิลอ้างอิง" tone="violet" value={totals.withPurchaseBill.toLocaleString('th-TH')} />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white p-3 shadow-sm">
-          <input className="min-w-[260px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="ค้นเลขที่ / ชื่อผู้รับ / เลขบิลซื้อ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <button className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white opacity-60" disabled type="button">+ สร้างใบสำคัญรับเงิน</button>
+        <div className="rounded-md bg-white p-3 shadow">
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              className="min-w-[260px] flex-1 rounded-md"
+              placeholder="ค้นเลขที่ / ชื่อผู้รับ / เลขบิลซื้อ / ทะเบียน..."
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+            <span className="text-xs text-slate-500">วันที่:</span>
+            <DatePickerInput id="receipt-vouchers-date-from" value={dateFrom} onChange={setDateFrom} />
+            <span className="text-slate-400">→</span>
+            <DatePickerInput id="receipt-vouchers-date-to" value={dateTo} onChange={setDateTo} />
+            {hasActiveFilter ? <Button size="xs" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</Button> : null}
+            <Button disabled type="button">+ สร้างใบสำคัญรับเงิน</Button>
+          </div>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-4">
-          <Kpi label="จำนวนเอกสาร" value={filteredRows.length.toLocaleString('th-TH')} tone="blue" />
-          <Kpi label="น้ำหนักรวม (กก.)" value={formatMoney(totals.qty)} tone="slate" />
-          <Kpi label="จำนวนเงินรวม" value={formatMoney(totals.amount)} tone="emerald" />
-          <Kpi label="มีบิลอ้างอิง" value={filteredRows.filter((row) => row.purchaseBillDocNo).length.toLocaleString('th-TH')} tone="violet" />
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
+          <div>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              aria-label="จำนวนรายการต่อหน้า"
+              className="h-9 w-auto px-2 py-1"
+              value={pageSize}
+              onChange={(event) => setPageSize(Number(event.target.value))}
+            >
+              <option value={10}>10 / หน้า</option>
+              <option value={25}>25 / หน้า</option>
+              <option value={50}>50 / หน้า</option>
+              <option value={100}>100 / หน้า</option>
+            </Select>
+            <Button disabled={currentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
+            <span className="px-1">หน้า {currentPage} / {totalPages}</span>
+            <Button disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>
+          </div>
         </div>
 
-        <div className="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
-          <table className="w-full min-w-[980px] text-sm">
-            <thead className="bg-slate-100">
-              <tr>
-                <th className="p-2 text-left">เลขที่</th>
-                <th className="p-2 text-left">วันที่</th>
-                <th className="p-2 text-left">ผู้รับเงิน</th>
-                <th className="p-2 text-left">เลขประจำตัวผู้เสียภาษี</th>
-                <th className="p-2 text-left">บิลซื้อ</th>
-                <th className="p-2 text-right">น้ำหนัก (กก.)</th>
-                <th className="p-2 text-right">จำนวนเงิน</th>
-                <th className="p-2 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={8}>กำลังโหลดข้อมูล</td></tr> : null}
-              {!isLoading && filteredRows.map((row) => (
-                <tr key={row.id} className="border-t hover:bg-blue-50/30">
-                  <td className="p-2 text-xs font-semibold text-slate-700">{row.docNo}</td>
-                  <td className="p-2">{formatDateDisplay(row.date)}</td>
-                  <td className="p-2 font-medium text-slate-800">{row.sellerName || '-'}</td>
-                  <td className="p-2 text-xs text-slate-500">{row.sellerTaxId || '-'}</td>
-                  <td className="p-2 text-xs">{row.purchaseBillDocNo || '-'}</td>
-                  <td className="p-2 text-right">{formatMoney(row.totalQty)}</td>
-                  <td className="p-2 text-right font-semibold text-emerald-700">{formatMoney(row.totalAmount)}</td>
-                  <td className="space-x-2 whitespace-nowrap p-2 text-right">
-                    <button className="text-xs font-semibold text-purple-600 hover:underline" type="button" onClick={() => setPrintingRow(row)}>🖨 พิมพ์</button>
-                    <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:opacity-60" disabled type="button">จัดการ</button>
-                    <button className="text-xs text-red-400" disabled type="button">🗑 ลบ</button>
-                  </td>
-                </tr>
-              ))}
-              {!isLoading && filteredRows.length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={8}>ยังไม่มีใบสำคัญรับเงิน — กดปุ่มด้านบนเพื่อสร้างใหม่</td></tr> : null}
-            </tbody>
-            <tfoot className="bg-slate-100 font-semibold">
-              <tr>
-                <td className="p-2 text-right" colSpan={5}>รวม</td>
-                <td className="p-2 text-right">{formatMoney(totals.qty)}</td>
-                <td className="p-2 text-right text-emerald-700">{formatMoney(totals.amount)}</td>
-                <td className="p-2" />
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+        <Table className="[&_tbody_tr]:border-slate-100">
+          <TableHeader>
+            <tr>
+              <th className="p-2 text-left">เลขที่</th>
+              <th className="p-2 text-left">วันที่</th>
+              <th className="p-2 text-left">ผู้รับเงิน</th>
+              <th className="p-2 text-left">เลขประจำตัวผู้เสียภาษี</th>
+              <th className="p-2 text-left">บิลซื้อ</th>
+              <th className="p-2 text-left">ทะเบียน</th>
+              <th className="p-2 text-right">น้ำหนัก (กก.)</th>
+              <th className="p-2 text-right">จำนวนเงิน</th>
+              <th className="p-2 text-right">จัดการ</th>
+            </tr>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? <TableRow><td className="p-8 text-center text-slate-500" colSpan={9}>กำลังโหลดข้อมูล</td></TableRow> : null}
+            {!isLoading && pagedRows.map((row) => (
+              <TableRow key={row.id} className="hover:bg-slate-50">
+                <td className="whitespace-nowrap p-2 text-xs font-semibold text-slate-700">{row.docNo}</td>
+                <td className="whitespace-nowrap p-2">{formatDateDisplay(row.date)}</td>
+                <td className="p-2 font-medium text-slate-800">{row.sellerName || '-'}</td>
+                <td className="p-2 text-xs text-slate-500">{row.sellerTaxId || '-'}</td>
+                <td className="p-2 text-xs text-slate-700">{row.purchaseBillDocNo || '-'}</td>
+                <td className="p-2 text-xs text-slate-600">{row.licensePlate || '-'}</td>
+                <TableNumberCell value={formatMoney(row.totalQty)} />
+                <TableNumberCell strong value={formatMoney(row.totalAmount)} />
+                <td className="space-x-2 whitespace-nowrap p-2 text-right">
+                  <button className="text-xs font-semibold text-purple-600 hover:underline" type="button" onClick={() => setPrintingRow(row)}>พิมพ์</button>
+                  <button className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-400" disabled type="button">แก้ไข</button>
+                  <button className="text-xs text-slate-400" disabled type="button">ลบ</button>
+                </td>
+              </TableRow>
+            ))}
+            {!isLoading && totalRows === 0 ? <TableRow><td className="p-8 text-center text-slate-400" colSpan={9}>ยังไม่มีใบสำคัญรับเงิน</td></TableRow> : null}
+          </TableBody>
+        </Table>
       </section>
 
       {printingRow ? <PrintPreview row={printingRow} onClose={() => setPrintingRow(null)} /> : null}
@@ -151,14 +203,19 @@ export function ReceiptVouchersPageClient() {
   )
 }
 
-function Kpi({ label, tone, value }: { label: string; tone: 'blue' | 'emerald' | 'slate' | 'violet'; value: string }) {
+function KpiCard({ label, tone, value }: { label: string; tone: 'blue' | 'emerald' | 'slate' | 'violet'; value: string }) {
   const tones = {
-    blue: 'border-blue-200 bg-blue-50 text-blue-700',
-    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    slate: 'border-slate-200 bg-white text-slate-800',
-    violet: 'border-violet-200 bg-violet-50 text-violet-700',
+    blue: 'text-blue-700',
+    emerald: 'text-emerald-700',
+    slate: 'text-slate-800',
+    violet: 'text-violet-700',
   }
-  return <div className={`rounded-md border p-3 shadow-sm ${tones[tone]}`}><div className="text-xs font-semibold text-slate-500">{label}</div><div className="mt-1 text-xl font-bold">{value}</div></div>
+  return (
+    <div className="rounded-md bg-white p-3 shadow">
+      <div className="text-xs text-slate-500">{label}</div>
+      <div className={`mt-1 text-lg font-bold ${tones[tone]}`}>{value}</div>
+    </div>
+  )
 }
 
 function PrintPreview({ onClose, row }: { onClose: () => void; row: ReceiptVoucherRow }) {

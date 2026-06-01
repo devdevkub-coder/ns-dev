@@ -50,6 +50,7 @@ export const purchaseBillItemSchema = z.object({
 })
 
 export const purchaseBillFormSchema = z.object({
+  advancePaymentId: optionalSafeId('เอกสารจ่ายเงินล่วงหน้า'),
   branchId: z.string().trim().min(1, 'เลือกสาขา'),
   discountTotal: money('ส่วนลดท้ายบิล').default(0),
   hasVat: z.boolean().default(false),

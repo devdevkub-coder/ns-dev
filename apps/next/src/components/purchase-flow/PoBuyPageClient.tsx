@@ -974,9 +974,9 @@ function PoBuyFormModal({
               {fieldError('supplierId')}
             </div>
             <div>
-              <label className="mb-1 block text-xs">สาขา/คลัง <span className="text-red-600">*</span></label>
-              <UiSelect className="h-9 w-full px-2 py-1.5" value={form.branchId} onChange={(event) => onUpdate('branchId', event.target.value)}>
-                <option value="">เลือกสาขา/คลัง</option>
+              <label className="mb-1 block text-xs">สาขา <span className="text-red-600">*</span></label>
+              <UiSelect className={`h-9 w-full px-2 py-1.5 ${form.branchId ? '' : 'text-slate-400'}`} value={form.branchId} onChange={(event) => onUpdate('branchId', event.target.value)}>
+                <option disabled value="">เลือกสาขา</option>
                 {activeBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
               </UiSelect>
               {fieldError('branchId')}

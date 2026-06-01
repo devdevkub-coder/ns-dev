@@ -1,7 +1,17 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Button } from '@/components/ui/Button'
+import { Select } from '@/components/ui/Select'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import {
+  DualCostingErrorBox,
+  DualCostingHint,
+  DualCostingPageSection,
+  DualCostingPanel,
+  DualCostingStatCard,
+} from './DualCostingPageShell'
 
 type ProductOption = {
   code: string
@@ -69,14 +79,16 @@ export function CostAllocatorPageClient() {
   const [selectedPoSellId, setSelectedPoSellId] = useState('')
   const [selectedProductId, setSelectedProductId] = useState('')
   const [showPreview, setShowPreview] = useState(false)
+  const [sourceType, setSourceType] = useState('po-sell')
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams()
     params.set('mode', allocationMode)
+    params.set('sourceType', sourceType)
     if (selectedProductId) params.set('productId', selectedProductId)
     if (selectedPoSellId) params.set('poSellId', selectedPoSellId)
     return params.toString()
-  }, [allocationMode, selectedPoSellId, selectedProductId])
+  }, [allocationMode, selectedPoSellId, selectedProductId, sourceType])
 
   const loadData = useCallback(async () => {
     setError(null)
@@ -98,122 +110,161 @@ export function CostAllocatorPageClient() {
   const hasSelection = Boolean(selectedProductId)
   const hasPoSell = Boolean(data?.selectedPoSell)
   const hasCandidates = (data?.candidates.length ?? 0) > 0
+  const sourceTypeButtons = data?.filters.sourceTypes ?? ['po-sell', 'spot-sell']
+  const sourceTypeLabel = sourceType === 'po-sell' ? 'PO Sell' : 'Spot Sell'
+  const sourceTypeReady = sourceType === 'po-sell'
 
-  const resetSale = () => {
+  function resetSale() {
     setSelectedPoSellId('')
     setShowPreview(false)
   }
 
   return (
-    <section className="space-y-4">
-      <div className="rounded-md border border-purple-200 bg-purple-50 p-3 text-sm text-purple-800">
-        <strong>Cost Allocator</strong> — เลือก<strong>สินค้า</strong> → เลือก<strong>PO ขาย</strong> → Auto/Manual Match ต้นทุนจาก Cost Pool
-      </div>
+    <DualCostingPageSection>
+      <DualCostingHint tone="purple">
+        <strong>Cost Allocator</strong> ใช้เลือกดีลขาย จากนั้น preview การหยิบต้นทุนจริงจาก Cost Pool ตามลำดับที่กำหนด โดย batch นี้ยังเป็น read-only และยังไม่เขียน match log จริง
+      </DualCostingHint>
 
-      {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
+      <DualCostingErrorBox error={error} />
 
-      <div className="rounded-md bg-white p-4 shadow">
-        <h3 className="mb-3 font-semibold">① เลือกสินค้าที่ต้องการ Match ต้นทุน</h3>
-        <select className="w-full rounded-md border px-3 py-2 text-base" value={selectedProductId} onChange={(event) => { setSelectedProductId(event.target.value); resetSale() }}>
-          <option value="">— เลือกสินค้า —</option>
-          {(data?.filters.products ?? []).map((product) => <option key={product.id} value={product.id}>{product.code ? `${product.code} - ` : ''}{product.name}{product.metalGroup ? ` · ${product.metalGroup}` : ''}</option>)}
-        </select>
-        {hasSelection ? (
-          <div className="mt-3 grid grid-cols-2 gap-3 rounded-md bg-purple-50 p-3 text-sm md:grid-cols-4">
-            <SummaryItem label="Cost Pool ของสินค้านี้" value={`${data?.summary.poolCount ?? 0} รายการ`} />
-            <SummaryItem label="น้ำหนักพร้อมจัดสรร" tone="blue" value={`${formatMoney(data?.summary.poolQty ?? 0)} กก.`} />
-            <SummaryItem label="มูลค่าต้นทุนรวม" value={formatMoney(data?.summary.poolValue ?? 0)} />
-            <SummaryItem label="ต้นทุนเฉลี่ย/กก." tone="emerald" value={formatMoney(data?.summary.poolAvgCost ?? 0)} />
+      <DualCostingPanel title="⓪ เลือกประเภทปลายทางที่จะ Match ต้นทุน">
+        <div className="flex flex-wrap gap-2">
+          {sourceTypeButtons.map((item) => {
+            const active = sourceType === item
+            return (
+              <button
+                key={item}
+                className={`rounded-md border px-4 py-2 text-sm font-medium transition-colors ${active ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
+                type="button"
+                onClick={() => {
+                  setSourceType(item)
+                  setSelectedProductId('')
+                  resetSale()
+                }}
+              >
+                {item === 'po-sell' ? 'PO Sell' : 'Spot Sell'}
+              </button>
+            )
+          })}
+        </div>
+        {!sourceTypeReady ? (
+          <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            Spot Sell allocator ยังเป็น shell ตาม design เดิม แต่ data source / write flow ยังไม่เปิดใน batch นี้ จึงแสดงผล read-only เพื่อให้ layout ตรงกับหมวด dual costing ก่อน
           </div>
         ) : null}
-        {hasSelection && !isLoading && (data?.summary.poolCount ?? 0) === 0 ? <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-700">ยังไม่มีต้นทุนใน Cost Pool สำหรับสินค้านี้ - สร้าง PO Buy หรือบันทึกบิลซื้อสินค้านี้ก่อน</div> : null}
-      </div>
+      </DualCostingPanel>
+
+      <DualCostingPanel title="① เลือกสินค้าที่ต้องการ Match ต้นทุน">
+        <Select
+          className="w-full rounded-md"
+          value={selectedProductId}
+          onChange={(event) => {
+            setSelectedProductId(event.target.value)
+            resetSale()
+          }}
+        >
+          <option value="">— เลือกสินค้า —</option>
+          {(data?.filters.products ?? []).map((product) => <option key={product.id} value={product.id}>{product.code ? `${product.code} - ` : ''}{product.name}{product.metalGroup ? ` · ${product.metalGroup}` : ''}</option>)}
+        </Select>
+        {hasSelection ? (
+          <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <DualCostingStatCard label="Cost Pool ของสินค้านี้" value={`${data?.summary.poolCount ?? 0} รายการ`} />
+            <DualCostingStatCard label="น้ำหนักพร้อมจัดสรร" tone="blue" value={`${formatMoney(data?.summary.poolQty ?? 0)} กก.`} />
+            <DualCostingStatCard label="มูลค่าต้นทุนรวม" value={formatMoney(data?.summary.poolValue ?? 0)} />
+            <DualCostingStatCard label="ต้นทุนเฉลี่ย/กก." tone="emerald" value={formatMoney(data?.summary.poolAvgCost ?? 0)} />
+          </div>
+        ) : null}
+        {hasSelection && !isLoading && (data?.summary.poolCount ?? 0) === 0 ? <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-700">ยังไม่มีต้นทุนใน Cost Pool สำหรับสินค้านี้</div> : null}
+      </DualCostingPanel>
 
       {hasSelection ? (
-        <div className="rounded-md bg-white p-4 shadow">
-          <h3 className="mb-3 font-semibold">② เลือก PO ขาย ของสินค้านี้ที่จะ Match ต้นทุน</h3>
+        <DualCostingPanel title={`② เลือก ${sourceTypeLabel} ที่ต้องการ Match ต้นทุน`}>
           <div className="grid gap-3 md:grid-cols-3">
             <div className="md:col-span-2">
-              <label className="mb-1 block text-xs">PO Sell *</label>
-              <select className="w-full rounded-md border px-2 py-2" value={selectedPoSellId} onChange={(event) => { setSelectedPoSellId(event.target.value); setShowPreview(false) }}>
-                <option value="">-- เลือก PO ขาย --</option>
+              <label className="mb-1 block text-xs text-slate-500">{sourceTypeLabel} *</label>
+              <Select
+                disabled={!sourceTypeReady}
+                value={selectedPoSellId}
+                onChange={(event) => {
+                  setSelectedPoSellId(event.target.value)
+                  setShowPreview(false)
+                }}
+              >
+                <option value="">{sourceTypeReady ? '-- เลือก PO ขาย --' : '-- ยังไม่พร้อมใช้งาน --'}</option>
                 {(data?.poSells ?? []).map((po) => <option key={po.id} value={po.id}>{po.docNo} | {po.customerName} | จองขาย {formatMoney(po.qty)} กก. · เหลือต้อง match {formatMoney(po.remainingQty)} กก. · ฿{formatMoney(po.unitPrice)}/กก.</option>)}
-              </select>
-              {!isLoading && (data?.poSells.length ?? 0) === 0 ? <div className="mt-1 text-xs text-amber-700">⚠ ไม่มี PO ขาย ของสินค้านี้ที่ยังไม่ match — สร้าง PO Sell ก่อน</div> : null}
+              </Select>
+              {!isLoading && sourceTypeReady && (data?.poSells.length ?? 0) === 0 ? <div className="mt-1 text-xs text-amber-700">ไม่มี PO ขาย ของสินค้านี้ที่ยังไม่ match</div> : null}
             </div>
             <div>
-              <label className="mb-1 block text-xs">Allocation Mode</label>
-              <select className="w-full rounded-md border px-2 py-2" value={allocationMode} onChange={(event) => setAllocationMode(event.target.value)}>
+              <label className="mb-1 block text-xs text-slate-500">Allocation Mode</label>
+              <Select value={allocationMode} onChange={(event) => setAllocationMode(event.target.value)}>
                 <option value="FIFO">FIFO - ต้นทุนเก่าก่อน</option>
-                <option value="Cheap">Cheap First - ต้นทุนถูกก่อน (Max Margin)</option>
-                <option value="Expensive">Expensive First - ต้นทุนแพงก่อน (Conservative)</option>
+                <option value="LIFO">LIFO - ต้นทุนใหม่ก่อน</option>
+                <option value="Cheap">Cheap First - ต้นทุนถูกก่อน</option>
+                <option value="Expensive">Expensive First - ต้นทุนแพงก่อน</option>
                 <option value="Manual">Manual - เลือกเอง</option>
-              </select>
+              </Select>
             </div>
           </div>
 
           {hasPoSell ? (
-            <div className="mt-3 grid grid-cols-2 gap-3 rounded-md bg-slate-50 p-3 text-sm md:grid-cols-5">
-              <SummaryItem label="Customer" value={data?.selectedPoSell?.customerName ?? '-'} />
-              <SummaryItem label="สินค้า" value={selectedProduct?.name ?? data?.selectedPoSell?.productName ?? '-'} />
-              <SummaryItem label="จำนวนรวม" value={`${formatMoney(data?.selectedPoSell?.qty ?? 0)} กก.`} />
-              <SummaryItem label="ราคาขาย" value={formatMoney(data?.selectedPoSell?.unitPrice ?? 0)} />
-              <SummaryItem label="ต้อง Match อีก" tone="amber" value={`${formatMoney(data?.selectedPoSell?.remainingQty ?? 0)} กก.`} />
+            <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-5">
+              <DualCostingStatCard label="Customer" value={data?.selectedPoSell?.customerName ?? '-'} />
+              <DualCostingStatCard label="สินค้า" value={selectedProduct?.name ?? data?.selectedPoSell?.productName ?? '-'} />
+              <DualCostingStatCard label="จำนวนรวม" value={`${formatMoney(data?.selectedPoSell?.qty ?? 0)} กก.`} />
+              <DualCostingStatCard label="ราคาขาย" tone="emerald" value={formatMoney(data?.selectedPoSell?.unitPrice ?? 0)} />
+              <DualCostingStatCard label="ต้อง Match อีก" tone="amber" value={`${formatMoney(data?.selectedPoSell?.remainingQty ?? 0)} กก.`} />
             </div>
           ) : null}
+
           {hasPoSell ? (
-            <div className="mt-3">
-              <button className="rounded-md bg-blue-600 px-5 py-2 text-sm font-bold text-white hover:bg-blue-700" type="button" onClick={() => setShowPreview(true)}>🎯 Auto Match จาก Cost Pool</button>
+            <div className="mt-3 flex justify-end">
+              <Button type="button" onClick={() => setShowPreview(true)}>Preview Auto Match</Button>
             </div>
           ) : null}
-        </div>
+        </DualCostingPanel>
       ) : null}
 
       {showPreview && hasCandidates ? (
-        <div className="rounded-md bg-white p-4 shadow">
-          <h3 className="mb-3 font-semibold">2. Preview การ Match (ปรับ qty_to_use ได้สำหรับ Manual)</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-100"><tr><th className="p-2 text-left">Source</th><th className="p-2 text-left">เลขที่</th><th className="p-2 text-left">Counterparty</th><th className="p-2 text-right">Available</th><th className="p-2 text-right">ต้นทุน/หน่วย</th><th className="p-2 text-right">qty ที่ใช้</th><th className="p-2 text-right">มูลค่าใช้</th></tr></thead>
-              <tbody>
-                {(data?.candidates ?? []).map((row) => (
-                  <tr key={row.costPoolId} className="border-t">
-                    <td className="p-2"><span className="rounded-md bg-blue-100 px-2 py-0.5 text-xs text-blue-700">{row.sourceType}</span></td>
-                    <td className="p-2 font-mono text-xs">{row.sourceNo}</td>
-                    <td className="p-2">{row.counterparty}</td>
-                    <td className="p-2 text-right">{formatMoney(row.availableQty)}</td>
-                    <td className="p-2 text-right">{formatMoney(row.unitCost)}</td>
-                    <td className="p-2 text-right"><input className="w-24 rounded-md border px-2 py-1 text-right" disabled type="number" value={row.qtyToUse} readOnly /></td>
-                    <td className="p-2 text-right font-medium">{formatMoney(row.totalCostUse)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <DualCostingPanel title="③ Preview การ Match">
+          <Table className="[&_tbody_tr]:border-slate-100">
+            <TableHeader>
+              <tr>
+                <TableHead>Source</TableHead>
+                <TableHead>เลขที่</TableHead>
+                <TableHead>Counterparty</TableHead>
+                <TableHead className="text-right">Available</TableHead>
+                <TableHead className="text-right">ต้นทุน/หน่วย</TableHead>
+                <TableHead className="text-right">qty ที่ใช้</TableHead>
+                <TableHead className="text-right">มูลค่าใช้</TableHead>
+              </tr>
+            </TableHeader>
+            <TableBody>
+              {(data?.candidates ?? []).map((row) => (
+                <TableRow key={row.costPoolId} className="hover:bg-slate-50">
+                  <TableCell><span className="rounded-md bg-blue-100 px-2 py-0.5 text-xs text-blue-700">{row.sourceType}</span></TableCell>
+                  <TableCell className="font-mono text-xs">{row.sourceNo}</TableCell>
+                  <TableCell>{row.counterparty}</TableCell>
+                  <TableCell className="text-right">{formatMoney(row.availableQty)}</TableCell>
+                  <TableCell className="text-right">{formatMoney(row.unitCost)}</TableCell>
+                  <TableCell className="text-right font-medium text-blue-700">{formatMoney(row.qtyToUse)}</TableCell>
+                  <TableCell className="text-right font-medium">{formatMoney(row.totalCostUse)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <DualCostingStatCard label="รวมที่จะ Match" tone="blue" value={`${formatMoney(data?.summary.totalToMatch ?? 0)} กก.`} />
+            <DualCostingStatCard label="รายได้คาดการณ์" tone="emerald" value={formatMoney(data?.summary.expectedRevenue ?? 0)} />
+            <DualCostingStatCard label="ต้นทุนที่จะตัด" tone="red" value={formatMoney(data?.summary.totalCostMatch ?? 0)} />
+            <DualCostingStatCard label="Expected Margin" tone={(data?.summary.expectedMargin ?? 0) >= 0 ? 'purple' : 'red'} value={formatMoney(data?.summary.expectedMargin ?? 0)} />
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-3 text-center md:grid-cols-4">
-            <MetricBox label="รวมที่จะ Match" tone="blue" value={`${formatMoney(data?.summary.totalToMatch ?? 0)} กก.`} />
-            <MetricBox label="รายได้คาดการณ์" tone="emerald" value={formatMoney(data?.summary.expectedRevenue ?? 0)} />
-            <MetricBox label="ต้นทุนที่จะตัด" tone="red" value={formatMoney(data?.summary.totalCostMatch ?? 0)} />
-            <MetricBox label="Expected Margin" tone={(data?.summary.expectedMargin ?? 0) >= 0 ? 'purple' : 'red'} value={formatMoney(data?.summary.expectedMargin ?? 0)} />
+          <div className="mt-4 flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setShowPreview(false)}>ปิด Preview</Button>
+            <Button disabled type="button">ยืนยัน Match</Button>
           </div>
-          <div className="mt-4 flex justify-end gap-2"><button className="px-4 py-2 text-sm" type="button" onClick={() => setShowPreview(false)}>ยกเลิก</button><button className="rounded-md bg-purple-600 px-5 py-2 text-sm font-medium text-white opacity-60" disabled type="button">✓ ยืนยัน Match → สร้าง Match Log</button></div>
-        </div>
+        </DualCostingPanel>
       ) : null}
-    </section>
+    </DualCostingPageSection>
   )
-}
-
-function SummaryItem({ label, tone = 'normal', value }: { label: string; tone?: 'amber' | 'blue' | 'emerald' | 'normal'; value: string }) {
-  const valueClass = { amber: 'text-amber-700', blue: 'text-blue-700', emerald: 'text-emerald-700', normal: 'text-slate-900' }[tone]
-  return <div><div className="text-xs text-slate-500">{label}</div><div className={`font-bold ${valueClass}`}>{value}</div></div>
-}
-
-function MetricBox({ label, tone, value }: { label: string; tone: 'blue' | 'emerald' | 'purple' | 'red'; value: string }) {
-  const classes = {
-    blue: 'bg-blue-50 text-blue-700',
-    emerald: 'bg-emerald-50 text-emerald-700',
-    purple: 'bg-purple-50 text-purple-700',
-    red: 'bg-red-50 text-red-700',
-  }[tone]
-  return <div className={`rounded-md p-3 ${classes}`}><div className="text-xs opacity-80">{label}</div><div className="font-bold">{value}</div></div>
 }

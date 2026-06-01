@@ -1,6 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Button } from '@/components/ui/Button'
+import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { Input } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Select'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 
 type Row = {
@@ -22,8 +26,12 @@ type Row = {
 }
 
 export function BillSwapHistoryPageClient() {
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const [rows, setRows] = useState<Row[]>([])
   const [search, setSearch] = useState('')
 
@@ -42,6 +50,10 @@ export function BillSwapHistoryPageClient() {
 
   useEffect(() => { void loadData() }, [loadData])
 
+  useEffect(() => {
+    setPage(1)
+  }, [dateFrom, dateTo, pageSize, search])
+
   const enrichedRows = useMemo(() => rows.map((row) => {
     const weight = row.beforePrice > 0 ? row.beforeAmount / row.beforePrice : row.afterPrice > 0 ? row.afterAmount / row.afterPrice : 0
     return {
@@ -56,8 +68,12 @@ export function BillSwapHistoryPageClient() {
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase()
-    return enrichedRows.filter((row) => !query || `${row.billDocNo} ${row.billId} ${row.beforeSupplierName} ${row.afterSupplierName} ${row.productName} ${row.reason}`.toLowerCase().includes(query))
-  }, [enrichedRows, search])
+    return enrichedRows.filter((row) => {
+      const inDateRange = (!dateFrom || row.swapDate >= dateFrom) && (!dateTo || row.swapDate <= dateTo)
+      if (!inDateRange) return false
+      return !query || `${row.billDocNo} ${row.billId} ${row.beforeSupplierName} ${row.afterSupplierName} ${row.productName} ${row.reason}`.toLowerCase().includes(query)
+    })
+  }, [dateFrom, dateTo, enrichedRows, search])
 
   const totals = useMemo(() => ({
     after: filteredRows.reduce((sum, row) => sum + row.afterAmount, 0),
@@ -67,20 +83,64 @@ export function BillSwapHistoryPageClient() {
     weight: filteredRows.reduce((sum, row) => sum + row.weight, 0),
   }), [filteredRows])
 
+  const totalRows = filteredRows.length
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const pagedRows = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  const hasActiveFilter = Boolean(search || dateFrom || dateTo)
+
+  function clearFilters() {
+    setSearch('')
+    setDateFrom('')
+    setDateTo('')
+  }
+
   return (
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
         <Kpi label="จำนวนรายการเปลี่ยน" value={totals.rows.toLocaleString('th-TH')} tone="white" />
         <Kpi label="น้ำหนักรวม (กก.)" value={formatMoney(totals.weight)} tone="blue" />
         <Kpi label="ยอดเก่า / ยอดใหม่" value={`${formatMoney(totals.before)} / ${formatMoney(totals.after)}`} tone="slate" />
         <Kpi label="ส่วนต่างรวม (ก่อน VAT)" value={formatMoney(totals.diff)} tone={totals.diff >= 0 ? 'emerald' : 'red'} />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow">
-        <input className="min-w-[240px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="ค้นหาชื่อ Supplier / สินค้า / บิล..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-        <div className="text-sm text-slate-600">พบ <span className="font-semibold text-slate-900">{filteredRows.length}</span> รายการ</div>
+      <div className="rounded-md bg-white p-3 shadow">
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            className="min-w-[260px] flex-1 rounded-md"
+            placeholder="ค้นหาชื่อ Supplier / สินค้า / บิล..."
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+          <span className="text-xs text-slate-500">วันที่:</span>
+          <DatePickerInput id="bill-swap-history-date-from" value={dateFrom} onChange={setDateFrom} />
+          <span className="text-slate-400">→</span>
+          <DatePickerInput id="bill-swap-history-date-to" value={dateTo} onChange={setDateTo} />
+          {hasActiveFilter ? <Button size="xs" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</Button> : null}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
+        <div>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            aria-label="จำนวนรายการต่อหน้า"
+            className="h-9 w-auto px-2 py-1"
+            value={pageSize}
+            onChange={(event) => setPageSize(Number(event.target.value))}
+          >
+            <option value={10}>10 / หน้า</option>
+            <option value={25}>25 / หน้า</option>
+            <option value={50}>50 / หน้า</option>
+            <option value={100}>100 / หน้า</option>
+          </Select>
+          <Button disabled={currentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
+          <span className="px-1">หน้า {currentPage} / {totalPages}</span>
+          <Button disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-md bg-white shadow">
@@ -103,7 +163,7 @@ export function BillSwapHistoryPageClient() {
           </thead>
           <tbody>
             {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={12}>กำลังโหลดข้อมูล</td></tr> : null}
-            {!isLoading && filteredRows.map((row) => (
+            {!isLoading && pagedRows.map((row) => (
               <tr key={row.id} className="border-t hover:bg-slate-50">
                 <td className="p-2">{row.swapDate}</td>
                 <td className="p-2 font-mono text-xs">{row.billDocNo || row.billId}</td>
@@ -119,9 +179,9 @@ export function BillSwapHistoryPageClient() {
                 <td className="max-w-60 truncate p-2 text-slate-600">{row.reason || '-'}</td>
               </tr>
             ))}
-            {!isLoading && filteredRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={12}>ยังไม่มีประวัติการเปลี่ยน Supplier</td></tr> : null}
+            {!isLoading && totalRows === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={12}>ยังไม่มีประวัติการเปลี่ยน Supplier</td></tr> : null}
           </tbody>
-          {filteredRows.length > 0 ? (
+          {totalRows > 0 ? (
             <tfoot>
               <tr className="bg-slate-100 font-bold">
                 <td className="p-2 text-right" colSpan={5}>รวม</td>

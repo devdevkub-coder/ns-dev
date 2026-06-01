@@ -1,7 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Button } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { Input } from '@/components/ui/Input'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
 import { dailyFetchJson, formatMoney, todayDateInput, transferFormSchema, type DailyAccountOption, type TransferFormValues } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 
@@ -154,34 +157,30 @@ export function DailyTransferPageClient() {
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-        <strong>โอนเงินระหว่างบัญชี</strong> — สร้าง Bank Statement 2 ฝั่ง
-      </div>
-
       <div className="space-y-2 rounded-md bg-white p-3 shadow">
         <div className="flex flex-wrap items-center gap-2">
-          <input className="min-w-56 flex-1 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหาเลขที่ / หมายเหตุ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <Input className="h-9 min-w-[260px] flex-1" placeholder="ค้นหาเลขที่ / หมายเหตุ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <DatePickerInput className="w-[130px]" value={dateFrom} onChange={(value) => { setDateFrom(value); setPeriod('') }} />
           <span className="text-slate-400">→</span>
           <DatePickerInput className="w-[130px]" value={dateTo} onChange={(value) => { setDateTo(value); setPeriod('') }} />
-          <select className="rounded-md border px-2 py-2 text-sm" value={fromAccountId} onChange={(event) => setFromAccountId(event.target.value)}>
-            <option value="">📤 ทุกบัญชีต้นทาง</option>
+          <select className="h-9 rounded-md border border-slate-300 px-2 py-2 text-sm" value={fromAccountId} onChange={(event) => setFromAccountId(event.target.value)}>
+            <option value="">ทุกบัญชีต้นทาง</option>
             {accounts.filter((account) => account.active).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
           </select>
-          <select className="rounded-md border px-2 py-2 text-sm" value={toAccountId} onChange={(event) => setToAccountId(event.target.value)}>
-            <option value="">📥 ทุกบัญชีปลายทาง</option>
+          <select className="h-9 rounded-md border border-slate-300 px-2 py-2 text-sm" value={toAccountId} onChange={(event) => setToAccountId(event.target.value)}>
+            <option value="">ทุกบัญชีปลายทาง</option>
             {accounts.filter((account) => account.active).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
           </select>
-          {search || dateFrom || dateTo || fromAccountId || toAccountId ? <button className="rounded-md bg-slate-100 px-3 py-2 text-xs hover:bg-slate-200" type="button" onClick={clearFilters}>✕ ล้าง</button> : null}
-          <button className="ml-auto rounded-md bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700" type="button" onClick={openCreateForm}>+ โอนใหม่</button>
+          {search || dateFrom || dateTo || fromAccountId || toAccountId ? <Button size="sm" type="button" variant="secondary" onClick={clearFilters}>ล้าง</Button> : null}
+          <Button className="ml-auto" size="sm" type="button" onClick={openCreateForm}>+ โอนใหม่</Button>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-slate-500">📅 ช่วง:</span>
+          <span className="text-xs text-slate-500">ช่วง:</span>
           <PeriodButton active={period === ''} label="ทั้งหมด" tone="slate" onClick={() => applyPeriod('')} />
           <PeriodButton active={period === 'today'} label="วันนี้" tone="blue" onClick={() => applyPeriod('today')} />
           <PeriodButton active={period === 'week'} label="7 วัน" tone="emerald" onClick={() => applyPeriod('week')} />
           <PeriodButton active={period === 'month'} label="เดือนนี้" tone="amber" onClick={() => applyPeriod('month')} />
-          <span className="ml-auto text-xs text-slate-500">📊 พบ <b className="text-slate-700">{filteredRows.length}</b> รายการ · 💰 รวม <b className="text-blue-700">{formatMoney(totalAmount)}</b></span>
+          <span className="ml-auto text-xs text-slate-500">พบ <b className="text-slate-700">{filteredRows.length}</b> รายการ · รวม <b className="text-blue-700">{formatMoney(totalAmount)}</b></span>
         </div>
       </div>
 
@@ -202,49 +201,47 @@ export function DailyTransferPageClient() {
               <TextField error={fieldErrors.byPerson} label="ผู้ทำรายการ" value={form.byPerson ?? ''} onChange={(value) => setForm({ ...form, byPerson: value })} />
               <TextField error={fieldErrors.notes} label="หมายเหตุ" value={form.notes ?? ''} onChange={(value) => setForm({ ...form, notes: value })} />
             </div>
-            <div className="flex justify-end gap-2 border-t px-5 py-4">
-              <button className="rounded-md px-4 py-2 text-sm text-slate-600 hover:bg-slate-100" type="button" onClick={() => setFormOpen(false)}>ยกเลิก</button>
-              <button className="rounded-md bg-slate-900 px-5 py-2 text-sm font-semibold text-white disabled:opacity-60" disabled={isSaving} type="submit">{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</button>
+            <div className="flex justify-end gap-2 border-t bg-slate-50 px-5 py-4">
+              <Button size="sm" type="button" variant="ghost" onClick={() => setFormOpen(false)}>ยกเลิก</Button>
+              <Button disabled={isSaving} size="sm" type="submit">{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</Button>
             </div>
           </form>
         </div>
       ) : null}
 
-      <div className="overflow-x-auto rounded-md bg-white shadow">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-100">
-            <tr>
-              <th className="p-2 text-left">เลขที่</th>
-              <th className="p-2 text-left">วันที่</th>
-              <th className="p-2 text-left">จาก</th>
-              <th className="p-2 text-left">เข้า</th>
-              <th className="p-2 text-right">จำนวน</th>
-              <th className="p-2 text-right">Fee</th>
-              <th className="p-2 text-left">ผู้ทำ</th>
-              <th className="p-2 text-right">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={8}>กำลังโหลดข้อมูล</td></tr> : null}
-            {!isLoading && filteredRows.map((row) => (
-              <tr key={row.id} className="border-t hover:bg-slate-50">
-                <td className="p-2 font-mono text-xs">{row.docNo}</td>
-                <td className="p-2">{formatDateDisplay(row.date)}</td>
-                <td className="p-2 text-red-600">{row.fromAccountName}</td>
-                <td className="p-2 text-emerald-700">{row.toAccountName}</td>
-                <td className="p-2 text-right font-medium">{formatMoney(row.amount)}</td>
-                <td className="p-2 text-right text-amber-700">{formatMoney(row.fee)}</td>
-                <td className="p-2">{row.byPerson || '-'}</td>
-                <td className="space-x-2 whitespace-nowrap p-2 text-right">
-                  <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" type="button" onClick={() => openEditForm(row)}>จัดการ</button>
-                  <button className="text-xs text-red-300" disabled type="button">🗑 ลบ</button>
-                </td>
-              </tr>
-            ))}
-            {!isLoading && filteredRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={8}>ยังไม่มีรายการ</td></tr> : null}
-          </tbody>
-        </table>
-      </div>
+      <Table>
+        <TableHeader>
+          <tr>
+            <TableHead>เลขที่</TableHead>
+            <TableHead>วันที่</TableHead>
+            <TableHead>จาก</TableHead>
+            <TableHead>เข้า</TableHead>
+            <TableHead className="text-right">จำนวน</TableHead>
+            <TableHead className="text-right">ค่าธรรมเนียม</TableHead>
+            <TableHead>ผู้ทำ</TableHead>
+            <TableHead className="text-right">Action</TableHead>
+          </tr>
+        </TableHeader>
+        <TableBody>
+          {isLoading ? <tr><td className="p-8 text-center text-slate-500" colSpan={8}>กำลังโหลดข้อมูล</td></tr> : null}
+          {!isLoading && filteredRows.map((row) => (
+            <TableRow key={row.id} className="hover:bg-slate-50">
+              <TableCell className="font-mono text-xs">{row.docNo}</TableCell>
+              <TableCell className="whitespace-nowrap">{formatDateDisplay(row.date)}</TableCell>
+              <TableCell className="text-red-600">{row.fromAccountName}</TableCell>
+              <TableCell className="text-emerald-700">{row.toAccountName}</TableCell>
+              <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">{formatMoney(row.amount)}</TableCell>
+              <TableCell className="whitespace-nowrap text-right text-amber-700 tabular-nums">{formatMoney(row.fee)}</TableCell>
+              <TableCell>{row.byPerson || '-'}</TableCell>
+              <TableCell className="space-x-2 whitespace-nowrap text-right">
+                <Button size="xs" type="button" variant="outline" onClick={() => openEditForm(row)}>จัดการ</Button>
+                <button className="text-xs text-red-300" disabled type="button">ลบ</button>
+              </TableCell>
+            </TableRow>
+          ))}
+          {!isLoading && filteredRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={8}>ยังไม่มีรายการ</td></tr> : null}
+        </TableBody>
+      </Table>
     </section>
   )
 }
@@ -261,11 +258,11 @@ function PeriodButton(props: { active: boolean; label: string; onClick: () => vo
 
 function TextField(props: { error?: string; label: string; onChange?: (value: string) => void; readOnly?: boolean; required?: boolean; type?: string; value: string }) {
   return (
-    <label className="block text-sm font-medium">
+    <label className="block text-xs font-medium text-slate-600">
       {props.label}{props.required ? <span className="text-red-600"> *</span> : null}
       {props.type === 'date'
         ? <DatePickerInput className="mt-1.5 w-full" readOnly={props.readOnly} required={props.required} value={props.value} onChange={(value) => props.onChange?.(value)} />
-        : <input className={`mt-1.5 w-full rounded-md border px-3 py-2 outline-none ${props.error ? 'border-red-400 bg-red-50' : 'border-slate-300'} ${props.readOnly ? 'bg-slate-50' : ''}`} readOnly={props.readOnly} type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange?.(event.target.value)} />}
+        : <Input className={`mt-1.5 h-9 ${props.error ? 'border-red-400 bg-red-50' : ''} ${props.readOnly ? 'bg-slate-50' : ''}`} readOnly={props.readOnly} type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange?.(event.target.value)} />}
       {props.error ? <span className="mt-1 block text-xs text-red-700">{props.error}</span> : null}
     </label>
   )
@@ -273,9 +270,9 @@ function TextField(props: { error?: string; label: string; onChange?: (value: st
 
 function SelectField(props: { error?: string; label: string; onChange: (value: string) => void; options: DailyAccountOption[]; required?: boolean; value: string }) {
   return (
-    <label className="block text-sm font-medium">
+    <label className="block text-xs font-medium text-slate-600">
       {props.label}{props.required ? <span className="text-red-600"> *</span> : null}
-      <select className={`mt-1.5 w-full rounded-md border px-3 py-2 outline-none ${props.error ? 'border-red-400 bg-red-50' : 'border-slate-300'}`} value={props.value} onChange={(event) => props.onChange(event.target.value)}>
+      <select className={`mt-1.5 h-9 w-full rounded-md border px-3 py-2 text-sm outline-none ${props.error ? 'border-red-400 bg-red-50' : 'border-slate-300'}`} value={props.value} onChange={(event) => props.onChange(event.target.value)}>
         <option value="">ไม่ระบุ</option>
         {props.options.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
       </select>

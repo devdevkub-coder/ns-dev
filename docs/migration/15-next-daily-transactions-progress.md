@@ -147,6 +147,7 @@ Tasks:
 - Done on 2026-05-30: `Purchase Flow.md` state/use-case matrix is corrected back to the queue-cancel model. `/purchase/payments` remains the waiting-payment queue, but it still allows cancelling the queue item before payment execution.
 - Browser smoke required on 2026-05-30 after the correction: verify `PMA approved -> /purchase/payments -> ยกเลิก -> source returns to /daily/payment-approval -> /purchase/payment-history shows ยกเลิกแล้ว`.
 - Done on 2026-05-29: `MoneyMovementPageClient` no longer hardcodes `เงินสด / โอน / เช็ค / PromptPay` for `/purchase/payments` and `/sales/receipts`. Both routes now read payment-method options from `public.payment_methods`, and the customer receipt form now uses a payment-method select sourced from that master instead of a free-text field.
+- Done on 2026-05-31: `/sales/receipts` receipt-mode layout in `MoneyMovementPageClient` was cleaned up to match the active design shell. The page no longer renders a duplicate in-body Receipt Voucher action row; the `+ รับเงิน Customer` CTA now sits in the white filter toolbar, compact toolbar controls use the shared sizing baseline, and the receipt history count/pagination row now lives inside the same white table shell above the list.
 - Done on 2026-05-29: supplier payment-account rendering in `/purchase/payments` no longer branches on a direct `เงินสด` string check. Account visibility now follows payment-method grouping resolved from the active `payment_methods` master, matching the supplier master-data cleanup already applied elsewhere.
 - Done on 2026-05-29: `/daily/payment-approval` removed its hardcoded payment-method fallback for destination account rows, so the queue no longer displays a baked-in transfer method when snapshot/master data is available.
 - Done on 2026-05-30: `/daily/expense` create/edit modal no longer exposes `เลขที่เอกสาร`, `วันที่เอกสาร`, or helper hint copy before save. New expense rows receive both values only at save time from the server, while edits preserve the original generated values.
@@ -214,6 +215,8 @@ Tasks:
   - `โอนระหว่างสาขา-ออก`
   - `โอนระหว่างสาขา-เข้า`
 - Done: implemented bill swap history read page/API using existing `bill_swap_history`.
+- Done on 2026-05-31: realigned `/stock/transfer` to the active design shell. The page now uses the shared filter/action row, count + page-size + pagination row above the table, the shared lined table, and a larger sectioned create modal instead of the earlier compact local modal layout.
+- Done on 2026-05-31: stock transfer create validation now follows the central required-field error pattern from `docs/design.md` with red field state, inline error text, and focus on the first invalid field after submit.
 - Follow-up: stock transfer cost currently records `unit_cost = 0` until WAC/lot cost source is confirmed for Next.
 - Follow-up: cancel/void action is not implemented yet; financial/stock traceability decision is still pending.
 

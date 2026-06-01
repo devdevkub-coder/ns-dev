@@ -39,7 +39,7 @@ export function advancePaymentStatusLabel(status: string) {
     allocated: 'ใช้หักบิลแล้ว',
     approved: 'อนุมัติแล้ว',
     cancelled: 'ยกเลิก',
-    paid: 'จ่ายแล้ว',
+    paid: 'เสร็จสิ้น',
     partially_allocated: 'ใช้หักบิลบางส่วน',
     pending_approval: 'ยังไม่อนุมัติ',
     refunded: 'คืนเงินแล้ว',
