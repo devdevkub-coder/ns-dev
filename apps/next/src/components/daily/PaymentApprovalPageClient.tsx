@@ -62,8 +62,8 @@ type ApprovalPayload = {
   expenseRows: ApprovalExpenseRow[]
 }
 
-type ApprovalTab = 'ap' | 'expense'
-type ApprovalStatusFilter = Array<'pending' | 'approved'>
+type ApprovalTab = 'advance' | 'ap' | 'expense'
+type ApprovalFilter = 'all' | 'pending' | 'approved'
 type ApprovalSortDirection = 'asc' | 'desc'
 type ApprovalSortKey = 'bankAccount' | 'date' | 'docNo' | 'dueDate' | 'paidAmount' | 'partyName' | 'payableBalance' | 'totalAmount'
 type ApprovalDetailState =
@@ -76,10 +76,10 @@ type SplitDraft = {
 }
 
 const pageSizeOptions = [10, 25, 50, 100]
-const approvalFilterOptions: Array<{ label: string; values: ApprovalStatusFilter }> = [
-  { label: 'ทุกสถานะ', values: [] },
-  { label: 'ยังไม่อนุมัติ', values: ['pending'] },
-  { label: 'อนุมัติแล้ว', values: ['approved'] },
+const approvalFilterOptions: Array<{ label: string; value: ApprovalFilter }> = [
+  { label: 'ทั้งหมด', value: 'all' },
+  { label: 'ยังไม่อนุมัติ', value: 'pending' },
+  { label: 'อนุมัติแล้ว', value: 'approved' },
 ]
 
 function formatDecimalWithGrouping(value: number) {
@@ -189,38 +189,6 @@ function SortableHead({
   )
 }
 
-function SegmentMulti({
-  current,
-  label,
-  onClick,
-  values,
-}: {
-  current: ApprovalStatusFilter
-  label: string
-  onClick: (next: ApprovalStatusFilter) => void
-  values: ApprovalStatusFilter
-}) {
-  const active = values.length === 0
-    ? current.length === 0
-    : values.every((value) => current.includes(value))
-
-  return (
-    <button
-      className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white hover:bg-slate-50'}`}
-      type="button"
-      onClick={() => {
-        if (values.length === 0) {
-          onClick([])
-          return
-        }
-        onClick(active ? current.filter((item) => !values.includes(item)) : Array.from(new Set([...current, ...values])))
-      }}
-    >
-      {label}
-    </button>
-  )
-}
-
 export function PaymentApprovalPageClient() {
   const [data, setData] = useState<ApprovalPayload>({ apRows: [], expenseRows: [] })
   const [detail, setDetail] = useState<ApprovalDetailState | null>(null)
@@ -228,7 +196,7 @@ export function PaymentApprovalPageClient() {
   const [inputDrafts, setInputDrafts] = useState<Record<string, string>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmittingApproval, setIsSubmittingApproval] = useState(false)
-  const [statusFilter, setStatusFilter] = useState<ApprovalStatusFilter>([])
+  const [approvalFilter, setApprovalFilter] = useState<ApprovalFilter>('pending')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [page, setPage] = useState(1)
@@ -263,19 +231,27 @@ export function PaymentApprovalPageClient() {
     })
   }, [detail])
 
+  const purchaseApprovalRows = useMemo(() => data.apRows.filter((row) => row.sourceType === 'purchase_bill'), [data.apRows])
+  const advanceApprovalRows = useMemo(() => data.apRows.filter((row) => row.sourceType === 'advance_payment'), [data.apRows])
+
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase()
-    const source = tab === 'ap' ? data.apRows : data.expenseRows
+    const source = tab === 'ap'
+      ? purchaseApprovalRows
+      : tab === 'advance'
+        ? advanceApprovalRows
+        : data.expenseRows
     return source.filter((row) => {
       const rowDate = row.date || ''
       const haystack = `${row.docNo} ${row.sourceDocNo} ${'supplierName' in row ? row.supplierName : row.payee} ${'bankAccounts' in row ? destinationSummaryLabel(row) : `${row.accountName} ${row.destinationLabel} ${row.refDocNo}`}`.toLowerCase()
       if (query && !haystack.includes(query)) return false
       if (dateFrom && rowDate < dateFrom) return false
       if (dateTo && rowDate > dateTo) return false
-      if (statusFilter.length > 0 && !statusFilter.includes(row.approvalStatus)) return false
+      if (approvalFilter === 'approved' && row.approvalStatus !== 'approved') return false
+      if (approvalFilter === 'pending' && row.approvalStatus !== 'pending') return false
       return true
     })
-  }, [data.apRows, data.expenseRows, dateFrom, dateTo, search, statusFilter, tab])
+  }, [advanceApprovalRows, approvalFilter, data.expenseRows, dateFrom, dateTo, purchaseApprovalRows, search, tab])
 
   const rows = useMemo(() => {
     const collator = new Intl.Collator('th-TH', { numeric: true, sensitivity: 'base' })
@@ -316,10 +292,10 @@ export function PaymentApprovalPageClient() {
 
   useEffect(() => {
     setPage(1)
-  }, [dateFrom, dateTo, pageSize, search, sortDirection, sortKey, statusFilter, tab])
+  }, [approvalFilter, dateFrom, dateTo, pageSize, search, sortDirection, sortKey, tab])
 
   function clearFilters() {
-    setStatusFilter([])
+    setApprovalFilter('all')
     setDateFrom('')
     setDateTo('')
     setSearch('')
@@ -454,7 +430,10 @@ export function PaymentApprovalPageClient() {
       <div className="overflow-hidden rounded-md bg-white shadow">
         <div className="flex border-b">
           <button className={`border-b-2 px-5 py-3 text-sm font-medium ${tab === 'ap' ? 'border-red-600 text-red-700' : 'border-transparent text-slate-500'}`} type="button" onClick={() => setTab('ap')}>
-            ต้นทุน / Supplier <span className="ml-2 rounded-md-full bg-red-100 px-2 py-0.5 text-xs text-red-700">{data.apRows.length}</span>
+            ต้นทุน / Supplier <span className="ml-2 rounded-md-full bg-red-100 px-2 py-0.5 text-xs text-red-700">{purchaseApprovalRows.length}</span>
+          </button>
+          <button className={`border-b-2 px-5 py-3 text-sm font-medium ${tab === 'advance' ? 'border-amber-600 text-amber-700' : 'border-transparent text-slate-500'}`} type="button" onClick={() => setTab('advance')}>
+            จ่ายเงินล่วงหน้า / มัดจำ <span className="ml-2 rounded-md-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700">{advanceApprovalRows.length}</span>
           </button>
           <button className={`border-b-2 px-5 py-3 text-sm font-medium ${tab === 'expense' ? 'border-purple-600 text-purple-700' : 'border-transparent text-slate-500'}`} type="button" onClick={() => setTab('expense')}>
             ค่าใช้จ่าย <span className="ml-2 rounded-md-full bg-purple-100 px-2 py-0.5 text-xs text-purple-700">{data.expenseRows.length}</span>
@@ -468,19 +447,20 @@ export function PaymentApprovalPageClient() {
             <DatePickerInput id="payment-approval-date-from" value={dateFrom} onChange={setDateFrom} />
             <span className="text-slate-400">→</span>
             <DatePickerInput id="payment-approval-date-to" value={dateTo} onChange={setDateTo} />
-            {(search || dateFrom || dateTo || statusFilter.length > 0 || sortKey !== 'date' || sortDirection !== 'desc') ? <Button size="xs" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</Button> : null}
+            {(search || dateFrom || dateTo || approvalFilter !== 'all' || sortKey !== 'date' || sortDirection !== 'desc') ? <Button size="xs" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</Button> : null}
           </div>
-          <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
-            <span className="text-xs text-slate-500">สถานะ:</span>
+          <div className="flex flex-wrap items-center gap-2">
             {approvalFilterOptions.map((option) => {
+              const active = approvalFilter === option.value
               return (
-                <SegmentMulti
-                  key={option.label}
-                  current={statusFilter}
-                  label={option.label}
-                  onClick={setStatusFilter}
-                  values={option.values}
-                />
+                <button
+                  key={option.value}
+                  className={`rounded-md border px-3 py-1.5 text-sm transition-colors ${active ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900'}`}
+                  type="button"
+                  onClick={() => setApprovalFilter(option.value)}
+                >
+                  {option.label}
+                </button>
               )
             })}
           </div>
@@ -499,7 +479,7 @@ export function PaymentApprovalPageClient() {
         </div>
 
         <div>
-          {tab === 'ap' ? (
+          {tab === 'ap' || tab === 'advance' ? (
             <Table>
               <TableHeader>
                 <tr>
@@ -539,7 +519,13 @@ export function PaymentApprovalPageClient() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {!isLoading && totalRows === 0 ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={8}>ไม่มีรายการรออนุมัติจ่ายเงิน</TableCell></TableRow> : null}
+                {!isLoading && totalRows === 0 ? (
+                  <TableRow>
+                    <TableCell className="p-6 text-center text-slate-500" colSpan={8}>
+                      {tab === 'advance' ? 'ไม่มีรายการจ่ายเงินล่วงหน้า / มัดจำรออนุมัติ' : 'ไม่มีรายการต้นทุน / Supplier รออนุมัติ'}
+                    </TableCell>
+                  </TableRow>
+                ) : null}
               </TableBody>
             </Table>
           ) : (
