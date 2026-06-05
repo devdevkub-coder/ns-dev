@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { errorJson, masterDataJson, masterDataListJson, nextSequentialCode, parseMasterDataForm } from '@/lib/server/master-data'
+import { errorJson, masterDataJson, masterDataListJson, nextSequentialCode, normalizeCode, parseMasterDataForm } from '@/lib/server/master-data'
 
 export const runtime = 'nodejs'
 
@@ -9,8 +9,8 @@ const accountCurrencySchema = z.string().trim().regex(/^[A-Z]{3}$/, 'สกุ�
 
 function mapBeneficiary(row: Awaited<ReturnType<typeof prisma.overseas_recipients.findMany>>[number]) {
   return {
-    id: row.id,
-    code: row.id,
+    id: row.code,
+    code: row.code,
     name: row.name,
     active: row.active ?? true,
     country: row.country,
@@ -21,17 +21,12 @@ function mapBeneficiary(row: Awaited<ReturnType<typeof prisma.overseas_recipient
   }
 }
 
-async function getNextCode() {
-  const last = await prisma.overseas_recipients.findFirst({ where: { id: { startsWith: 'BEN' } }, orderBy: { id: 'desc' }, select: { id: true } })
-  return nextSequentialCode(last?.id, 'BEN')
-}
-
 export async function GET() {
   try {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'master.reference.view')
 
-    const rows = await prisma.overseas_recipients.findMany({ orderBy: { name: 'asc' } })
+    const rows = await prisma.overseas_recipients.findMany({ orderBy: [{ code: 'asc' }, { name: 'asc' }] })
     return masterDataListJson(rows.map(mapBeneficiary))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
@@ -45,13 +40,30 @@ export async function POST(request: Request) {
     requirePermission(context, 'master.reference.manage')
 
     const values = parseMasterDataForm(await request.json())
-    const id = values.id || values.code || await getNextCode()
+    const existing = values.id
+      ? await prisma.overseas_recipients.findFirst({
+        select: { code: true, id: true },
+        where: { code: values.id },
+      })
+      : null
     const accountCurrency = accountCurrencySchema.parse(values.accountCurrency || 'USD')
-    const row = await prisma.overseas_recipients.upsert({
-      where: { id },
-      create: { id, name: values.name, country: values.country || null, bank_name: values.bankName || null, account_no: values.accountNo || null, swift: values.swift || null, currency: accountCurrency, active: values.active },
-      update: { name: values.name, country: values.country || null, bank_name: values.bankName || null, account_no: values.accountNo || null, swift: values.swift || null, currency: accountCurrency, active: values.active },
-    })
+    if (values.id && !existing) {
+      throw new Error('ไม่พบผู้รับเงินต่างประเทศที่ต้องการแก้ไข')
+    }
+    const latest = existing
+      ? null
+      : await prisma.overseas_recipients.findFirst({
+        orderBy: { code: 'desc' },
+        select: { code: true },
+      })
+    const beneficiaryCode = normalizeCode(
+      values.code,
+      existing?.code ?? nextSequentialCode(latest?.code, 'BEN-', 3),
+    )
+    const data = { code: beneficiaryCode, name: values.name, country: values.country || null, bank_name: values.bankName || null, account_no: values.accountNo || null, swift: values.swift || null, currency: accountCurrency, active: values.active }
+    const row = existing
+      ? await prisma.overseas_recipients.update({ where: { id: existing.id }, data })
+      : await prisma.overseas_recipients.create({ data })
     return masterDataJson(mapBeneficiary(row))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

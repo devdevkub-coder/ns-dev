@@ -1,5 +1,5 @@
-import { randomUUID } from 'node:crypto'
 import { Prisma } from '../../../generated/prisma/client'
+import { parseInternalBigIntId, stringifyBusinessValue } from '@/lib/business-code'
 import { toNumber } from '@/lib/server/daily'
 
 export const PO_BUY_STATUS = {
@@ -10,12 +10,23 @@ export const PO_BUY_STATUS = {
   SHORT_CLOSED: 'Short Closed',
 } as const
 
+export const PO_BUY_STATUS_ACTION = {
+  CANCELLED: 'cancelled',
+  CREATED: 'created',
+  EDITED: 'edited',
+  RECEIVED_FULL: 'received_full',
+  RECEIVED_PARTIAL: 'received_partial',
+  SHORT_CLOSED: 'short_closed',
+  STATUS_SYNCED: 'status_synced',
+} as const
+
 type DbClient = Prisma.TransactionClient
 
 type PoBuyRow = Awaited<ReturnType<DbClient['po_buys']['findMany']>>[number]
 
 type DraftPoItem = {
   productId: string
+  productIdKey: string
   productName: string
   qty: number
   raw: Record<string, unknown>
@@ -23,6 +34,10 @@ type DraftPoItem = {
 }
 
 const EPSILON = 0.0001
+
+function asBusinessScalar(value: unknown) {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'bigint' ? value : null
+}
 
 function jsonNumber(value: unknown) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0
@@ -37,8 +52,33 @@ function normalizePoItems(row: PoBuyRow) {
   if (Array.isArray(row.items) && row.items.length > 0) {
     const jsonItems = (row.items as unknown[]).filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
     return jsonItems.map((item) => ({
-        productId: typeof item.productId === 'string' ? item.productId : row.product_id ?? '',
-        productName: typeof item.productName === 'string' ? item.productName : row.product_id ?? '',
+        productId: stringifyBusinessValue(
+          typeof item.productCode === 'string'
+            ? item.productCode
+            : typeof item.productId === 'string' && !/^\d+$/.test(item.productId)
+              ? item.productId
+              : null,
+        ),
+        productIdKey: stringifyBusinessValue(
+          parseInternalBigIntId(
+            typeof item.productIdInternal === 'number'
+              ? BigInt(item.productIdInternal)
+              : typeof item.productIdInternal === 'string' || typeof item.productIdInternal === 'bigint'
+                ? item.productIdInternal
+                : typeof item.productId === 'number'
+                  ? BigInt(item.productId)
+                  : typeof item.productId === 'string' || typeof item.productId === 'bigint'
+                    ? item.productId
+                    : row.product_id,
+          ) ?? (
+            typeof item.productId === 'string' || typeof item.productId === 'number' || typeof item.productId === 'bigint'
+              ? item.productId
+              : row.product_id
+          ),
+        ),
+        productName: stringifyBusinessValue(
+          typeof item.productName === 'string' ? item.productName : typeof item.productCode === 'string' ? item.productCode : null,
+        ),
         qty: jsonNumber(item.qty),
         raw: item,
         unitPrice: jsonNumber(item.unitPrice ?? row.unit_price),
@@ -46,12 +86,13 @@ function normalizePoItems(row: PoBuyRow) {
   }
 
   return [{
-    productId: row.product_id ?? '',
-    productName: row.product_id ?? '',
+    productId: '',
+    productIdKey: stringifyBusinessValue(row.product_id),
+    productName: '-',
     qty: jsonNumber(row.qty),
     raw: {
-      productId: row.product_id ?? '',
-      productName: row.product_id ?? '',
+      productId: '',
+      productName: '-',
       qty: jsonNumber(row.qty),
       unitPrice: jsonNumber(row.unit_price),
     },
@@ -62,10 +103,10 @@ function normalizePoItems(row: PoBuyRow) {
 function remainingItemsAfterAllocation(items: DraftPoItem[], allocatedQtyByProduct: Map<string, number>, forceZeroRemaining: boolean) {
   const allocationLeft = new Map(allocatedQtyByProduct)
   return items.map((item) => {
-    const allocatedForProduct = Math.max(0, allocationLeft.get(item.productId) ?? 0)
+    const allocatedForProduct = Math.max(0, allocationLeft.get(item.productIdKey) ?? 0)
     const consumedOnThisLine = forceZeroRemaining ? item.qty : Math.min(item.qty, allocatedForProduct)
     const remainingQty = forceZeroRemaining ? 0 : Math.max(0, item.qty - consumedOnThisLine)
-    allocationLeft.set(item.productId, Math.max(0, allocatedForProduct - consumedOnThisLine))
+    allocationLeft.set(item.productIdKey, Math.max(0, allocatedForProduct - consumedOnThisLine))
 
     return {
       ...item.raw,
@@ -95,46 +136,110 @@ function nextPoStatus(params: {
 async function insertStatusLogs(
   tx: DbClient,
   entries: Array<{
+    action: string
     createdBy?: string | null
+    createdAt?: Date
+    fromStatus?: string | null
     meta?: Prisma.InputJsonValue
     note?: string | null
-    poBuyId: string
-    status: string
+    poBuyDocNo: string
+    poBuyId: bigint
+    toStatus: string
   }>,
 ) {
   if (entries.length === 0) return
-  await tx.po_buy_status_logs.createMany({
-    data: entries.map((entry) => ({
-      ...(entry.meta !== undefined ? { meta: entry.meta } : {}),
-      created_at: new Date(),
-      created_by: entry.createdBy ?? null,
-      id: `POL-${randomUUID()}`,
-      note: entry.note ?? null,
-      po_buy_id: entry.poBuyId,
-      status: entry.status,
-    })),
-  })
+  const poBuyIds = [...new Set(entries.map((entry) => entry.poBuyId))]
+  const existingCounts = await Promise.all(
+    poBuyIds.map(async (poBuyId) => [
+      poBuyId,
+      await tx.po_buy_status_logs.count({ where: { po_buy_id: poBuyId } }),
+    ] as const),
+  )
+  const nextSequenceByPoId = new Map(existingCounts)
+
+  for (const entry of entries) {
+    const nextSequence = (nextSequenceByPoId.get(entry.poBuyId) ?? 0) + 1
+    nextSequenceByPoId.set(entry.poBuyId, nextSequence)
+
+    await tx.po_buy_status_logs.create({
+      data: {
+        action: entry.action,
+        created_at: entry.createdAt ?? new Date(),
+        created_by: entry.createdBy ?? null,
+        event_key: `POBLOG-${entry.poBuyDocNo}-${String(nextSequence).padStart(4, '0')}`,
+        from_status: entry.fromStatus ?? null,
+        ...(entry.meta !== undefined ? { meta: entry.meta } : {}),
+        note: entry.note ?? null,
+        po_buy_doc_no: entry.poBuyDocNo,
+        po_buy_id: entry.poBuyId,
+        to_status: entry.toStatus,
+      },
+    })
+  }
 }
 
-export async function createInitialPoBuyStatusLog(tx: DbClient, params: { actor?: string | null; poBuyId: string }) {
+function inferStatusAction(params: { fromStatus?: string | null; reason?: string | null; toStatus: string }) {
+  if (params.reason === 'create') return PO_BUY_STATUS_ACTION.CREATED
+  if (params.reason === 'edit') return PO_BUY_STATUS_ACTION.EDITED
+  if (params.reason === 'cancel_action') return PO_BUY_STATUS_ACTION.CANCELLED
+  if (params.reason === 'short_close_action') return PO_BUY_STATUS_ACTION.SHORT_CLOSED
+  if (params.toStatus === PO_BUY_STATUS.PARTIAL) return PO_BUY_STATUS_ACTION.RECEIVED_PARTIAL
+  if (params.toStatus === PO_BUY_STATUS.RECEIVED) return PO_BUY_STATUS_ACTION.RECEIVED_FULL
+  if (params.toStatus === PO_BUY_STATUS.CANCELLED) return PO_BUY_STATUS_ACTION.CANCELLED
+  if (params.toStatus === PO_BUY_STATUS.SHORT_CLOSED) return PO_BUY_STATUS_ACTION.SHORT_CLOSED
+  if (!params.fromStatus || params.fromStatus === params.toStatus) return PO_BUY_STATUS_ACTION.STATUS_SYNCED
+  return PO_BUY_STATUS_ACTION.STATUS_SYNCED
+}
+
+export async function appendPoBuyStatusLog(
+  tx: DbClient,
+  params: {
+    actor?: string | null
+    createdAt?: Date
+    fromStatus?: string | null
+    meta?: Prisma.InputJsonValue
+    note?: string | null
+    poBuyDocNo: string
+    poBuyId: bigint
+    reason?: string | null
+    toStatus: string
+  },
+) {
   await insertStatusLogs(tx, [{
+    action: inferStatusAction({ fromStatus: params.fromStatus, reason: params.reason ?? null, toStatus: params.toStatus }),
+    createdAt: params.createdAt,
     createdBy: params.actor ?? null,
-    meta: { reason: 'create' },
+    fromStatus: params.fromStatus ?? null,
+    meta: params.meta,
+    note: params.note ?? null,
+    poBuyDocNo: params.poBuyDocNo,
     poBuyId: params.poBuyId,
-    status: PO_BUY_STATUS.OPEN,
+    toStatus: params.toStatus,
+  }])
+}
+
+export async function createInitialPoBuyStatusLog(tx: DbClient, params: { actor?: string | null; poBuyDocNo: string; poBuyId: bigint }) {
+  await insertStatusLogs(tx, [{
+    action: PO_BUY_STATUS_ACTION.CREATED,
+    createdBy: params.actor ?? null,
+    fromStatus: null,
+    meta: { reason: 'create' },
+    poBuyDocNo: params.poBuyDocNo,
+    poBuyId: params.poBuyId,
+    toStatus: PO_BUY_STATUS.OPEN,
   }])
 }
 
 export async function reconcilePoBuys(
   tx: DbClient,
-  poBuyIds: string[],
+  poBuyIds: bigint[],
   options?: {
     actor?: string | null
-    statusMetaByPoId?: Map<string, Prisma.InputJsonValue>
-    statusNoteByPoId?: Map<string, string>
+    statusMetaByPoId?: Map<bigint, Prisma.InputJsonValue>
+    statusNoteByPoId?: Map<bigint, string>
   },
 ) {
-  const uniquePoIds = [...new Set(poBuyIds.filter(Boolean))]
+  const uniquePoIds = [...new Set(poBuyIds)]
   if (uniquePoIds.length === 0) return
 
   const [poRows, allocations] = await Promise.all([
@@ -149,21 +254,24 @@ export async function reconcilePoBuys(
   ])
 
   const activeAllocations = allocations.filter((allocation) => String(allocation.purchase_bills.status ?? '').toLowerCase() !== 'cancelled')
-  const allocationsByPo = new Map<string, { amount: number; qtyByProduct: Map<string, number> }>()
+  const allocationsByPo = new Map<bigint, { amount: number; qtyByProduct: Map<string, number> }>()
   activeAllocations.forEach((allocation) => {
     const current = allocationsByPo.get(allocation.po_buy_id) ?? { amount: 0, qtyByProduct: new Map<string, number>() }
-    const productId = allocation.purchase_bill_items.product_id ?? ''
+    const productId = stringifyBusinessValue(allocation.purchase_bill_items.product_id)
     current.amount += toNumber(allocation.allocated_amount)
     current.qtyByProduct.set(productId, (current.qtyByProduct.get(productId) ?? 0) + toNumber(allocation.allocated_qty))
     allocationsByPo.set(allocation.po_buy_id, current)
   })
 
   const logEntries: Array<{
+    action: string
     createdBy?: string | null
+    fromStatus?: string | null
     meta?: Prisma.InputJsonValue
     note?: string | null
-    poBuyId: string
-    status: string
+    poBuyDocNo: string
+    poBuyId: bigint
+    toStatus: string
   }> = []
 
   for (const row of poRows) {
@@ -202,9 +310,16 @@ export async function reconcilePoBuys(
     })
 
     if (currentStatus !== nextStatus) {
+      const meta = options?.statusMetaByPoId?.get(row.id)
       logEntries.push({
+        action: inferStatusAction({
+          fromStatus: currentStatus,
+          reason: typeof meta === 'object' && meta !== null && 'reason' in meta ? String((meta as Record<string, unknown>).reason ?? '') : null,
+          toStatus: nextStatus,
+        }),
         createdBy: options?.actor ?? row.updated_by ?? row.created_by ?? null,
-        meta: options?.statusMetaByPoId?.get(row.id) ?? {
+        fromStatus: currentStatus,
+        meta: meta ?? {
           allocatedAmount: allocated.amount,
           hasShortClose,
           remainingAmount,
@@ -213,8 +328,9 @@ export async function reconcilePoBuys(
           totalQty,
         },
         note: options?.statusNoteByPoId?.get(row.id) ?? (hasShortClose ? row.short_closed_note : null),
+        poBuyDocNo: row.doc_no,
         poBuyId: row.id,
-        status: nextStatus,
+        toStatus: nextStatus,
       })
     }
   }

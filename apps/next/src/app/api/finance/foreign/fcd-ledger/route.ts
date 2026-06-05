@@ -1,6 +1,8 @@
 import type { Prisma } from '../../../../../../generated/prisma/client'
 import { NextResponse } from 'next/server'
+import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
+import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
@@ -48,6 +50,8 @@ export async function GET(request: Request) {
 
     const url = new URL(request.url)
     const accountId = url.searchParams.get('accountId')
+    const accountReference = await findActiveAccountReferenceByCode(accountId)
+    const internalAccountId = accountReference?.id ?? null
     const from = url.searchParams.get('from')
     const to = url.searchParams.get('to')
 
@@ -60,6 +64,7 @@ export async function GET(request: Request) {
           bank: true,
           bank_name: true,
           branches: { select: { id: true, name: true } },
+          code: true,
           currency: true,
           id: true,
           name: true,
@@ -79,7 +84,7 @@ export async function GET(request: Request) {
       const currency = displayCurrency(account.currency)
       return account.type === 'FCD' || (currency !== 'THB' && currency.length > 0)
     })
-    const selectedAccount = accounts.find((account) => account.id === accountId) ?? accounts[0] ?? null
+    const selectedAccount = accounts.find((account) => account.id === internalAccountId) ?? accounts[0] ?? null
 
     const rateFor = buildRateLookup(fxRates)
 
@@ -102,7 +107,7 @@ export async function GET(request: Request) {
       foreignIn: 0,
       foreignOut: 0,
       fxRate: 0,
-      id: `${selectedAccount.id}:opening`,
+      id: `opening-${requireBusinessCode(selectedAccount.code, `บัญชีเงิน ${selectedAccount.id}`)}`,
       refNo: '-',
       thbBal,
       thbIn: 0,
@@ -125,7 +130,7 @@ export async function GET(request: Request) {
         foreignIn,
         foreignOut,
         fxRate,
-        id: row.id,
+        id: row.doc_no,
         refNo: row.ref_no || row.ref_type || '-',
         thbBal,
         thbIn,
@@ -139,9 +144,9 @@ export async function GET(request: Request) {
         accountNo: selectedAccount.account_no,
         bankName: selectedAccount.bank_name ?? selectedAccount.bank ?? '',
         branchName: selectedAccount.branches?.name ?? '',
-        code: selectedAccount.account_no,
+        code: requireBusinessCode(selectedAccount.code, `บัญชีเงิน ${selectedAccount.id}`),
         currency: selectedCurrency,
-        id: selectedAccount.id,
+        id: requireBusinessCode(selectedAccount.code, `บัญชีเงิน ${selectedAccount.id}`),
         name: selectedAccount.name,
         openingBalance: toNumber(selectedAccount.opening_balance),
         type: selectedAccount.type,
@@ -151,9 +156,9 @@ export async function GET(request: Request) {
           accountNo: account.account_no,
           bankName: account.bank_name ?? account.bank ?? '',
           branchName: account.branches?.name ?? '',
-          code: account.account_no,
+          code: requireBusinessCode(account.code, `บัญชีเงิน ${account.id}`),
           currency: displayCurrency(account.currency),
-          id: account.id,
+          id: requireBusinessCode(account.code, `บัญชีเงิน ${account.id}`),
           label: accountLabel(account),
           name: account.name,
           type: account.type,

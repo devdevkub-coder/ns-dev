@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
+import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
@@ -113,8 +114,8 @@ export async function GET(request: Request) {
       return {
         avgBuy: purchase.qty > 0 ? purchase.amount / purchase.qty : 0,
         billCount: supplierBills.length,
-        code: supplier.code ?? '',
-        id: supplier.id,
+        code: requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`),
+        id: requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`),
         paidAmount,
         paidPct: paidAmount + purchase.payable > 0 ? (paidAmount / (paidAmount + purchase.payable)) * 100 : 0,
         payable: purchase.payable,
@@ -125,18 +126,18 @@ export async function GET(request: Request) {
       }
     }).filter((row) => row.billCount > 0 || row.qty > 0 || row.payable > 0).sort((left, right) => right.purchaseAmount - left.purchaseAmount)
 
-    const productMap = new Map<string, { amount: number; bills: Set<string>; productName: string; qty: number; suppliers: Set<string> }>()
+    const productMap = new Map<string, { amount: number; bills: Set<string>; productName: string; qty: number; suppliers: Set<bigint> }>()
     bills
       .filter((bill) => inYearMonth(bill.date, year, month))
       .forEach((bill) => {
         purchaseBillItemRows(bill)
           .forEach((item) => {
             const productName = itemProductName(item)
-            const current = productMap.get(productName) ?? { amount: 0, bills: new Set<string>(), productName, qty: 0, suppliers: new Set<string>() }
+            const current = productMap.get(productName) ?? { amount: 0, bills: new Set<string>(), productName, qty: 0, suppliers: new Set<bigint>() }
             current.amount += jsonNumber(item.netAmount ?? item.amount ?? item.totalAmount ?? item.total)
             current.qty += jsonNumber(item.netWeight ?? item.qty)
-            current.bills.add(bill.id)
-            if (bill.supplier_id) current.suppliers.add(bill.supplier_id)
+            current.bills.add(bill.doc_no)
+            if (bill.supplier_id != null) current.suppliers.add(bill.supplier_id)
             productMap.set(productName, current)
           })
       })

@@ -1,4 +1,5 @@
 import type { AppAuthContext } from '@/lib/server/auth-context'
+import { parseInternalBigIntId } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
 
 type LogMetadata = Record<string, boolean | number | string | null>
@@ -110,6 +111,8 @@ export async function recordAuditLog({
   targetLabel = null,
   targetType = null,
 }: AuditLogInput) {
+  const actorAppUserId = parseInternalBigIntId(context.appUser?.id)
+
   try {
     await prisma.$executeRaw`
       insert into public.app_audit_logs (
@@ -141,7 +144,7 @@ export async function recordAuditLog({
         ${action ?? auditActionForEventKey(eventKey)},
         ${outcome},
         ${severity},
-        ${context.appUser?.id ?? null}::uuid,
+        ${actorAppUserId}::bigint,
         ${context.authUser.id}::uuid,
         ${context.appUser?.username ?? context.authUser.email ?? null},
         ${context.appUser?.displayName ?? null},
@@ -182,6 +185,8 @@ export async function recordActivityLog({
   targetType = null,
   title = null,
 }: ActivityLogInput) {
+  const actorAppUserId = parseInternalBigIntId(context.appUser?.id)
+
   try {
     await prisma.$executeRaw`
       insert into public.app_activity_logs (
@@ -209,7 +214,7 @@ export async function recordActivityLog({
         ${activityType},
         ${title},
         ${description},
-        ${context.appUser?.id ?? null}::uuid,
+        ${actorAppUserId}::bigint,
         ${context.authUser.id}::uuid,
         ${context.appUser?.username ?? context.authUser.email ?? null},
         ${context.appUser?.displayName ?? null},

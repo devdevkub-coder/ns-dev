@@ -14,7 +14,6 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024
 const headerMap = {
   active: ['สถานะ', 'active'],
   code: ['รหัสสินค้า', 'code'],
-  id: ['รหัสภายใน', 'id'],
   itemStatus: ['ประเภทคลังที่จะรับเข้า', 'รับเข้าเป็น', 'สถานะรับเข้าสต๊อก', 'itemStatus', 'item_status'],
   name: ['ชื่อสินค้า', 'name'],
   type: ['ประเภทสินค้า', 'ประเภท', 'type'],
@@ -157,20 +156,15 @@ export async function POST(request: Request) {
     let generatedCodeIndex = 0
     const issues: string[] = []
     const seenCodes = new Set<string>()
-    const seenIds = new Set<string>()
     const parsedRows = rows.map((row, index) => {
       const rowNumber = index + 2
       const rawCode = cellText(row, 'code')
       const code = rawCode ? normalizeProductCode(rawCode) : generatedCodes[generatedCodeIndex] ?? ''
       if (!rawCode) generatedCodeIndex += 1
-      const id = cellText(row, 'id') || code
       if (code && seenCodes.has(code)) issues.push(firstIssueMessage(rowNumber, `รหัสสินค้า ${code} ซ้ำในไฟล์`))
       if (code) seenCodes.add(code)
-      if (id && seenIds.has(id)) issues.push(firstIssueMessage(rowNumber, `รหัสภายใน ${id} ซ้ำในไฟล์`))
-      if (id) seenIds.add(id)
 
       const values = {
-        id: id || undefined,
         code,
         name: cellText(row, 'name'),
         itemStatus: cellText(row, 'itemStatus') || 'RM',
@@ -209,26 +203,27 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
-    const ids = validRows.map((row) => row.id || row.code)
     const codes = validRows.map((row) => row.code)
     const existing = await prisma.products.findMany({
       select: { code: true, id: true },
-      where: { OR: [{ id: { in: ids } }, { code: { in: codes } }] },
+      where: { code: { in: codes } },
     })
-    const existingIds = new Set(existing.map((row) => row.id))
     const existingIdByCode = new Map(existing.map((row) => [row.code, row.id]))
 
     await prisma.$transaction(validRows.map((row) => {
       const existingId = existingIdByCode.get(row.code)
-      const payload = toProductWriteInput({ ...row, id: existingId || row.id })
-      return prisma.products.upsert({
-        where: { id: payload.id },
-        create: payload,
-        update: payload,
-      })
+      const payload = toProductWriteInput(row)
+      return existingId
+        ? prisma.products.update({
+          where: { id: existingId },
+          data: payload,
+        })
+        : prisma.products.create({
+          data: payload,
+        })
     }))
 
-    const updated = validRows.filter((row) => existingIds.has(row.id || row.code) || existingIdByCode.has(row.code)).length
+    const updated = validRows.filter((row) => existingIdByCode.has(row.code)).length
     return NextResponse.json({
       inserted: validRows.length - updated,
       totalRows: validRows.length,

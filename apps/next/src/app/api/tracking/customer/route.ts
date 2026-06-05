@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
+import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
@@ -74,27 +76,28 @@ export async function GET(request: Request) {
     const year = url.searchParams.get('year') || String(new Date().getFullYear())
     const month = url.searchParams.get('month')
     const customerId = url.searchParams.get('customerId')
+    const customer = customerId ? await findActiveCustomerReferenceByCodeOrId(customerId) : null
     const search = url.searchParams.get('q')?.trim().toLowerCase()
 
     const [customers, bills, receipts] = await Promise.all([
       prisma.customers.findMany({
         orderBy: [{ code: 'asc' }, { name: 'asc' }],
         select: { active: true, code: true, credit_limit: true, id: true, name: true },
-        where: { active: { not: false }, ...(customerId ? { id: customerId } : {}) },
+        where: { active: { not: false }, ...(customer ? { id: customer.id } : {}) },
       }),
       prisma.sales_bills.findMany({
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         take: 10000,
-        where: { NOT: { status: 'cancelled' }, ...(customerId ? { customer_id: customerId } : {}) },
+        where: { NOT: { status: 'cancelled' }, ...(customer ? { customer_id: customer.id } : {}) },
       }),
       prisma.receipts.findMany({
         orderBy: [{ date: 'desc' }],
         take: 10000,
-        where: { NOT: { status: 'cancelled' }, ...(customerId ? { customer_id: customerId } : {}) },
+        where: { NOT: { status: 'cancelled' }, ...(customer ? { customer_id: customer.id } : {}) },
       }),
     ])
 
-    const receivedByBill = new Map<string, number>()
+    const receivedByBill = new Map<bigint, number>()
     receipts.forEach((receipt) => {
       if (!receipt.bill_id) return
       const amount = toNumber(receipt.amount) + toNumber(receipt.withholding_tax) + toNumber(receipt.discount)
@@ -123,12 +126,12 @@ export async function GET(request: Request) {
         avgSell: totals.qty > 0 ? totals.revenue / totals.qty : 0,
         billCount: totals.billCount,
         cogs: totals.cogs,
-        code: customer.code ?? '',
+        code: requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`),
         creditLimit: toNumber(customer.credit_limit),
         customerName: customer.name,
         gp,
         gpPct: totals.revenue > 0 ? (gp / totals.revenue) * 100 : 0,
-        id: customer.id,
+        id: requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`),
         profitPerKg: totals.qty > 0 ? gp / totals.qty : 0,
         qty: totals.qty,
         receivable: totals.receivable,
@@ -173,7 +176,10 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       filters: {
-        customers: customers.map((customer) => ({ active: customer.active, code: customer.code, id: customer.id, name: customer.name })),
+        customers: customers.map((customer) => {
+          const code = requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`)
+          return { active: customer.active, code, id: code, name: customer.name }
+        }),
       },
       monthly,
       rows,

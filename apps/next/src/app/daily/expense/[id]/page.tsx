@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { PageTitleOverride } from '@/components/layout/PageTitleOverride'
+import { parseInternalBigIntId } from '@/lib/business-code'
 import { AuthContextError, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
@@ -53,6 +54,7 @@ export default async function ExpenseDetailPage({ params }: PageProps) {
   }
 
   const { id } = await params
+  const internalId = parseInternalBigIntId(id)
   const row = await prisma.expenses.findFirst({
     include: {
       accounts: true,
@@ -60,7 +62,10 @@ export default async function ExpenseDetailPage({ params }: PageProps) {
       expense_categories: true,
     },
     where: {
-      OR: [{ id }, { doc_no: id }],
+      OR: [
+        ...(internalId != null ? [{ id: internalId }] : []),
+        { doc_no: id },
+      ],
     },
   })
 
@@ -108,10 +113,10 @@ export default async function ExpenseDetailPage({ params }: PageProps) {
         <DetailCard label="วันที่เอกสาร" value={dateOrDash(row.date)} />
         <DetailCard label="ครบกำหนด" value={dateOrDash(row.due_date)} />
         <DetailCard label="สถานะเอกสาร" value={expenseStatusLabel(row.status ?? row.paid_status)} />
-        <DetailCard label="หมวดค่าใช้จ่าย" value={row.expense_categories?.name ?? text(row.category_id)} />
+        <DetailCard label="หมวดค่าใช้จ่าย" value={row.expense_categories?.name ?? '-'} />
         <DetailCard label="ผู้รับเงิน" value={text(row.payee)} />
-        <DetailCard label="บัญชีจ่าย" value={row.accounts?.name ?? text(row.account_id)} />
-        <DetailCard label="สาขา" value={row.branches?.name ?? text(row.branch_id)} />
+        <DetailCard label="บัญชีจ่าย" value={row.accounts?.name ?? '-'} />
+        <DetailCard label="สาขา" value={row.branches?.name ?? '-'} />
         <DetailCard label="เลขอ้างอิง" value={text(row.ref_doc_no)} />
         <DetailCard label="เลขใบกำกับภาษี" value={text(row.tax_invoice_no)} />
         <DetailCard label="รายละเอียด" value={text(row.description)} />

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
@@ -11,20 +12,20 @@ type JsonRow = Record<string, unknown>
 
 type PurchaseBillRow = {
   date: Date
-  id: string
+  id: bigint
   purchase_bill_items?: Array<Record<string, unknown>>
   status: string | null
-  supplier_id: string | null
+  supplier_id: bigint | null
   suppliers: { name: string } | null
   total_amount: unknown
 }
 
 type SalesBillRow = {
-  channel_id: string | null
+  channel_id: bigint | null
   customers: { name: string } | null
-  customer_id: string | null
+  customer_id: bigint | null
   date: Date
-  id: string
+  id: bigint
   items: unknown
   cogs_amount: unknown
   gross_profit: unknown
@@ -110,7 +111,7 @@ function itemProductName(item: JsonRow, productById: Map<string, string>) {
   const direct = item.productName ?? item.product_name ?? item.name
   if (typeof direct === 'string' && direct.trim()) return direct.trim()
   const productId = purchaseItemProductId(item)
-  return productId ? productById.get(productId) ?? productId : 'ไม่ระบุสินค้า'
+  return productId ? productById.get(productId) ?? 'ไม่ระบุสินค้า' : 'ไม่ระบุสินค้า'
 }
 
 function itemWeight(item: JsonRow) {
@@ -177,9 +178,9 @@ export async function GET(request: NextRequest) {
 
     const activePurchases = purchases.filter((bill) => activeStatus(bill.status))
     const activeSales = sales.filter((bill) => activeStatus(bill.status))
-    const productIds = collectProductIds(activePurchases, activeSales)
-    const productRows = productIds.length ? await prisma.products.findMany({ select: { id: true, name: true }, where: { id: { in: productIds } } }) : []
-    const productById = new Map(productRows.map((product) => [product.id, product.name]))
+    const productCodes = collectProductIds(activePurchases, activeSales)
+    const productRows = productCodes.length ? await prisma.products.findMany({ select: { code: true, id: true, name: true }, where: { code: { in: productCodes } } }) : []
+    const productById = new Map(productRows.map((product) => [requireBusinessCode(product.code, `สินค้า ${product.id}`), product.name]))
 
     const purchaseChannel = new Map<string, AggregateRow>()
     const purchaseSupplier = new Map<string, AggregateRow>()
@@ -189,7 +190,7 @@ export async function GET(request: NextRequest) {
       const amount = jsonNumber(bill.total_amount)
       const weight = purchaseBillWeight(bill)
       addAggregate(purchaseChannel, 'บิลรับซื้อ', amount, weight)
-      addAggregate(purchaseSupplier, bill.suppliers?.name ?? bill.supplier_id ?? 'ไม่ระบุ Supplier', amount, weight)
+      addAggregate(purchaseSupplier, bill.suppliers?.name ?? 'ไม่ระบุ Supplier', amount, weight)
 
       purchaseRows(bill).forEach((item) => {
         const name = itemProductName(item, productById)
@@ -212,8 +213,8 @@ export async function GET(request: NextRequest) {
       const cost = jsonNumber(bill.total_cost ?? bill.cogs_amount)
       const profit = jsonNumber(bill.gross_profit) || amount - cost
       const weight = billWeight(bill)
-      const channelName = bill.sales_channels?.name ?? bill.channel_id ?? 'ไม่ระบุช่องทาง'
-      const customerName = bill.customers?.name ?? bill.customer_id ?? 'ไม่ระบุ Customer'
+      const channelName = bill.sales_channels?.name ?? 'ไม่ระบุช่องทาง'
+      const customerName = bill.customers?.name ?? '-'
 
       const channel = salesChannel.get(channelName) ?? { amount: 0, cost: 0, count: 0, marginPct: 0, name: channelName, profit: 0, weight: 0 }
       channel.amount += amount

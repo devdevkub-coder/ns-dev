@@ -1,8 +1,11 @@
 import type { Prisma } from '../../../../../generated/prisma/client'
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
+import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
+import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
@@ -54,11 +57,11 @@ function parseQuery(url: URL): ArQuery {
   }
 }
 
-function billWhere(query: ArQuery): Prisma.sales_billsWhereInput {
+function billWhere(query: ArQuery, branchId: bigint | null, channelId: bigint | null, customerId: bigint | null): Prisma.sales_billsWhereInput {
   return {
-    ...(query.branchId ? { branch_id: query.branchId } : {}),
-    ...(query.channelId ? { channel_id: query.channelId } : {}),
-    ...(query.customerId ? { customer_id: query.customerId } : {}),
+    ...(branchId !== null ? { branch_id: branchId } : {}),
+    ...(channelId != null ? { channel_id: channelId } : {}),
+    ...(customerId != null ? { customer_id: customerId } : {}),
     ...(query.status ? { status: query.status } : { NOT: { status: 'cancelled' } }),
     ...(query.from || query.to
       ? {
@@ -97,17 +100,25 @@ export async function GET(request: Request) {
 
     const url = new URL(request.url)
     const query = parseQuery(url)
+    const branch = query.branchId ? await findActiveBranchReferenceByCodeOrId(query.branchId) : null
+    const customer = query.customerId ? await findActiveCustomerReferenceByCodeOrId(query.customerId) : null
+    const channel = query.channelId
+      ? await prisma.sales_channels.findFirst({
+          select: { id: true },
+          where: { active: true, code: query.channelId.trim().toUpperCase() },
+        })
+      : null
 
     const [bills, receipts, customers, branches, channels, pendingIssues] = await Promise.all([
       prisma.sales_bills.findMany({
         include: {
-          branches: { select: { id: true, name: true } },
+          branches: { select: { code: true, id: true, name: true } },
           customers: { select: { code: true, credit_term: true, id: true, name: true } },
-          sales_channels: { select: { id: true, name: true } },
+          sales_channels: { select: { code: true, id: true, name: true } },
         },
         orderBy: [{ date: 'asc' }, { doc_no: 'asc' }],
         take: 10000,
-        where: billWhere(query),
+        where: billWhere(query, branch?.id ?? null, channel?.id ?? null, customer?.id ?? null),
       }),
       prisma.receipts.findMany({
         select: {
@@ -132,20 +143,20 @@ export async function GET(request: Request) {
       }),
       prisma.sales_channels.findMany({
         orderBy: [{ name: 'asc' }],
-        select: { active: true, id: true, name: true },
+        select: { active: true, code: true, id: true, name: true },
         where: { active: true },
       }),
       prisma.stock_issues.findMany({
         select: { total_cost: true, total_est_amount: true },
         take: 10000,
         where: {
-          ...(query.branchId ? { branch_id: query.branchId } : {}),
+          ...(branch?.id != null ? { branch_id: branch.id } : {}),
           status: 'pending',
         },
       }),
     ])
 
-    const receivedMap = new Map<string, number>()
+    const receivedMap = new Map<bigint, number>()
     receipts.forEach((receipt) => {
       if (!receipt.bill_id) return
       const total = toNumber(receipt.amount) + toNumber(receipt.withholding_tax) + toNumber(receipt.discount)
@@ -166,18 +177,18 @@ export async function GET(request: Request) {
 
         return {
           aging,
-          branchId: bill.branch_id ?? '',
+          branchId: bill.branches?.code ?? '',
           branchName: bill.branches?.name ?? '-',
           bucket: ageBucket(aging),
           channelName: bill.sales_channels?.name ?? '-',
           creditTerm,
           customerCode: bill.customers?.code ?? '',
-          customerId: bill.customer_id ?? '',
-          customerName: bill.customers?.name ?? bill.customer_id ?? '-',
+          customerId: bill.customers?.code ?? '',
+          customerName: bill.customers?.name ?? '-',
           date: toDateOnly(bill.date),
           docNo: bill.doc_no,
           dueDate: toDateOnly(due),
-          id: bill.id,
+          id: bill.doc_no,
           receivableBalance,
           receivedAmount,
           status: bill.status ?? 'open',
@@ -268,9 +279,15 @@ export async function GET(request: Request) {
       byBucket,
       byCustomer,
       filters: {
-        branches: branches.map((row) => ({ active: row.active, code: row.code, id: row.id, name: row.name })),
-        channels: channels.map((row) => ({ active: row.active, code: null, id: row.id, name: row.name })),
-        customers: customers.map((row) => ({ active: row.active, code: row.code, id: row.id, name: row.name })),
+        branches: branches.map((row) => ({ active: row.active, code: row.code, id: row.code, name: row.name })),
+        channels: channels.map((row) => {
+          const code = requireBusinessCode(row.code, `ช่องทางขาย ${row.id}`)
+          return { active: row.active, code, id: code, name: row.name }
+        }),
+        customers: customers.map((row) => {
+          const code = requireBusinessCode(row.code, `ลูกค้า ${row.id}`)
+          return { active: row.active, code, id: code, name: row.name }
+        }),
         statuses,
       },
       pagination: {

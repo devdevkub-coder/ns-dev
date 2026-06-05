@@ -1,5 +1,9 @@
+import { requireBusinessCode } from '@/lib/business-code'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { buildFinancialDashboard } from '@/lib/server/finance-accounting-dashboard'
+import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
+import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
+import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 import { loadProductionMetrics, summarizeProductionMetrics } from '@/lib/server/production-reports'
 import { prisma } from '@/lib/server/prisma'
 import { purchaseBillItemQty, purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
@@ -112,7 +116,7 @@ async function cashBalances(asOf: Date) {
       where: { date: { lte: endOfDay(asOf) } },
     }),
   ])
-  const balances = new Map<string, number>()
+  const balances = new Map<bigint, number>()
   accounts.forEach((account) => balances.set(account.id, toNumber(account.opening_balance)))
   bankRows.forEach((row) => {
     if (!row.account_id) return
@@ -137,6 +141,9 @@ async function cashBalances(asOf: Date) {
 }
 
 export async function buildMainDashboards(filter: MainDashboardFilter) {
+  const customer = filter.customerId ? await findActiveCustomerReferenceByCodeOrId(filter.customerId) : null
+  const branch = filter.branchId ? await findActiveBranchReferenceByCodeOrId(filter.branchId) : null
+  const supplier = filter.supplierId ? await findActiveSupplierReferenceByCodeOrId(filter.supplierId) : null
   const selectedDate = filter.date
   const fallback = defaultRange(selectedDate)
   const from = filter.dateFrom || fallback.from
@@ -145,15 +152,15 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
   const todayEnd = endOfDay(selectedDate)
 
   const [purchases, sales, expenses, payments, receipts, stockRows, deals, finance, productionRows, cash, bankToday, bankRange, loanSchedules, stockIssues, products, salespersons, branches, suppliers, customers, historicalRows] = await Promise.all([
-    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' } }, suppliers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: filter.branchId || undefined, supplier_id: filter.supplierId || undefined, date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
-    prisma.sales_bills.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: filter.branchId || undefined, customer_id: filter.customerId || undefined, date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
+    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' } }, suppliers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, supplier_id: supplier?.id, date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
+    prisma.sales_bills.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, customer_id: customer?.id || undefined, date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
     prisma.expenses.findMany({ include: { expense_categories: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 3000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
     prisma.payments.findMany({ orderBy: [{ date: 'desc' }], take: 3000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
     prisma.receipts.findMany({ orderBy: [{ date: 'desc' }], take: 3000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
     prisma.stock_ledger.findMany({ include: { branches: true, products: true }, orderBy: [{ date: 'desc' }], take: 20000 }),
     prisma.trading_deals.findMany({ orderBy: [{ date: 'desc' }], take: 3000 }),
-    buildFinancialDashboard({ asOf: selectedDate }),
-    loadProductionMetrics({ dateFrom: from, dateTo: to }),
+    buildFinancialDashboard({ asOf: selectedDate, branchId: filter.branchId }),
+    loadProductionMetrics({ branchId: filter.branchId, dateFrom: from, dateTo: to }),
     cashBalances(selectedDate),
     prisma.bank_statement.findMany({ include: { accounts: true }, orderBy: [{ date: 'desc' }], where: { date: { gte: todayStart, lte: todayEnd } } }),
     prisma.bank_statement.findMany({ include: { accounts: true }, orderBy: [{ date: 'asc' }], take: 10000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
@@ -162,12 +169,12 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
     prisma.products.findMany({ where: { active: { not: false } } }),
     prisma.salespersons.findMany({ where: { active: { not: false } } }),
     prisma.branches.findMany({ orderBy: [{ name: 'asc' }], where: { active: { not: false } } }),
-    prisma.suppliers.findMany({ orderBy: [{ name: 'asc' }], select: { id: true, name: true }, where: { active: { not: false } } }),
-    prisma.customers.findMany({ orderBy: [{ name: 'asc' }], select: { id: true, name: true }, where: { active: { not: false } } }),
+    prisma.suppliers.findMany({ orderBy: [{ name: 'asc' }], select: { code: true, id: true, name: true }, where: { active: { not: false } } }),
+    prisma.customers.findMany({ orderBy: [{ name: 'asc' }], select: { code: true, id: true, name: true }, where: { active: { not: false } } }),
     prisma.historical_monthly.findMany({ orderBy: [{ year: 'asc' }, { month: 'asc' }], take: 5000 }),
   ])
 
-  const productById = new Map(products.map((row) => [row.id, row]))
+  const productById = new Map(products.map((row) => [String(row.id), row]))
   const activePurchases = purchases.filter((row) => activeStatus(row.status) && billHasProductOrGroup(purchaseBillItemRows(row), productById, filter.productId, filter.group))
   const activeSales = sales.filter((row) => activeStatus(row.status) && billHasProductOrGroup(row.items, productById, filter.productId, filter.group))
   const todayPurchases = activePurchases.filter((row) => row.date >= todayStart && row.date <= todayEnd)
@@ -186,8 +193,8 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
   }
   const bankByAccountMap = new Map<string, { cashIn: number; cashOut: number; name: string; type: string }>()
   for (const row of bankToday) {
-    const key = row.account_id ?? 'unknown'
-    const current = bankByAccountMap.get(key) ?? { cashIn: 0, cashOut: 0, name: row.accounts?.name ?? row.account_id ?? '-', type: row.accounts?.type ?? '-' }
+    const key = row.account_id == null ? 'unknown' : String(row.account_id)
+    const current = bankByAccountMap.get(key) ?? { cashIn: 0, cashOut: 0, name: row.accounts?.name ?? '-', type: row.accounts?.type ?? '-' }
     current.cashIn += toNumber(row.amount_in)
     current.cashOut += toNumber(row.amount_out)
     bankByAccountMap.set(key, current)
@@ -225,7 +232,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
   }
   const ensureProduct = (group: ReturnType<typeof ensureGroup>, productId: string) => {
     const product = productById.get(productId)
-    const current = group.products.get(productId) ?? { buyAmt: 0, buyQty: 0, productCode: product?.code ?? '', productId, productName: product?.name ?? '-', sellAmt: 0, sellQty: 0 }
+    const current = group.products.get(productId) ?? { buyAmt: 0, buyQty: 0, productCode: product?.code ?? '', productId: product?.code ?? '', productName: product?.name ?? '-', sellAmt: 0, sellQty: 0 }
     group.products.set(productId, current)
     return current
   }
@@ -253,8 +260,8 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
   }
   const topSuppliers = new Map<string, { amount: number; bills: number; id: string; name: string; qty: number }>()
   for (const bill of activePurchases) {
-    const key = bill.supplier_id ?? 'unknown'
-    const current = topSuppliers.get(key) ?? { amount: 0, bills: 0, id: key, name: bill.suppliers?.name ?? bill.supplier_id ?? '-', qty: 0 }
+    const key = bill.suppliers?.code ?? bill.suppliers?.name ?? '__missing_supplier__'
+    const current = topSuppliers.get(key) ?? { amount: 0, bills: 0, id: bill.suppliers?.code ?? '', name: bill.suppliers?.name ?? '-', qty: 0 }
     current.amount += toNumber(bill.total_amount)
     current.qty += purchaseBillItemQty(bill)
     current.bills += 1
@@ -262,8 +269,8 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
   }
   const topCustomers = new Map<string, { amount: number; bills: number; gp: number; id: string; name: string; qty: number }>()
   for (const bill of activeSales) {
-    const key = bill.customer_id ?? 'unknown'
-    const current = topCustomers.get(key) ?? { amount: 0, bills: 0, gp: 0, id: key, name: bill.customers?.name ?? bill.customer_id ?? '-', qty: 0 }
+    const key = bill.customers?.code ? requireBusinessCode(bill.customers.code, `ลูกค้าบิลขาย ${bill.id}`) : '__unknown_customer__'
+    const current = topCustomers.get(key) ?? { amount: 0, bills: 0, gp: 0, id: key === '__unknown_customer__' ? '' : key, name: bill.customers?.name ?? '-', qty: 0 }
     current.amount += toNumber(bill.total_amount)
     current.gp += toNumber(bill.gross_profit)
     current.qty += itemsQty(bill.items)
@@ -274,23 +281,24 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
   const productOut = new Map<string, { amount: number; code: string; group: string; id: string; name: string; qty: number }>()
   for (const bill of activePurchases) for (const item of itemRows(purchaseBillItemRows(bill))) {
     const product = productById.get(item.productId)
-    const current = productIn.get(item.productId) ?? { amount: 0, code: product?.code ?? '', group: product?.metal_group ?? 'อื่นๆ', id: item.productId, name: product?.name ?? '-', qty: 0 }
+    const current = productIn.get(item.productId) ?? { amount: 0, code: product?.code ?? '', group: product?.metal_group ?? 'อื่นๆ', id: product?.code ?? '', name: product?.name ?? '-', qty: 0 }
     current.amount += item.amount
     current.qty += item.qty
     productIn.set(item.productId, current)
   }
   for (const bill of activeSales) for (const item of itemRows(bill.items)) {
     const product = productById.get(item.productId)
-    const current = productOut.get(item.productId) ?? { amount: 0, code: product?.code ?? '', group: product?.metal_group ?? 'อื่นๆ', id: item.productId, name: product?.name ?? '-', qty: 0 }
+    const current = productOut.get(item.productId) ?? { amount: 0, code: product?.code ?? '', group: product?.metal_group ?? 'อื่นๆ', id: product?.code ?? '', name: product?.name ?? '-', qty: 0 }
     current.amount += item.amount
     current.qty += item.qty
     productOut.set(item.productId, current)
   }
   const bySalesperson = new Map<string, { amount: number; bills: number; id: string; name: string; qty: number; suppliers: Set<string> }>()
   for (const bill of activePurchases) {
-    const key = bill.sales_id ?? '__no_sales__'
-    const current = bySalesperson.get(key) ?? { amount: 0, bills: 0, id: key, name: salespersonById.get(key)?.name ?? (key === '__no_sales__' ? '(ไม่ระบุเซล)' : key), qty: 0, suppliers: new Set() }
-    if (bill.supplier_id) current.suppliers.add(bill.supplier_id)
+    const salesperson = bill.sales_id == null ? null : salespersonById.get(bill.sales_id)
+    const key = salesperson?.code ? requireBusinessCode(salesperson.code, `พนักงานขาย ${salesperson.id}`) : '__no_sales__'
+    const current = bySalesperson.get(key) ?? { amount: 0, bills: 0, id: key === '__no_sales__' ? '' : key, name: salesperson?.name ?? '(ไม่ระบุเซล)', qty: 0, suppliers: new Set() }
+    if (bill.suppliers?.code) current.suppliers.add(bill.suppliers.code)
     current.amount += toNumber(bill.total_amount)
     current.qty += purchaseBillItemQty(bill)
     current.bills += 1
@@ -312,7 +320,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
   }
   const expenseCategoryMap = new Map<string, { amount: number; count: number; name: string }>()
   for (const row of todayExpenses) {
-    const key = row.expense_categories?.name ?? row.category_id ?? 'ไม่ระบุ'
+    const key = row.expense_categories?.name ?? 'ไม่ระบุ'
     const current = expenseCategoryMap.get(key) ?? { amount: 0, count: 0, name: key }
     current.amount += toNumber(row.amount)
     current.count += 1
@@ -320,9 +328,9 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
   }
   const loanToday = loanSchedules.map((row) => ({
     amount: Math.max(0, toNumber(row.total_due_amount) - toNumber(row.paid_amount)),
-    contractNo: row.loans?.contract_no ?? row.loan_id ?? '-',
+    contractNo: row.loans?.contract_no ?? '-',
     due: dateOnly(row.due_date),
-    id: row.id,
+    id: row.loans?.contract_no ? `${row.loans.contract_no}-${row.installment_no ?? 0}` : '',
     installmentNo: row.installment_no ?? 0,
   })).filter((row) => row.amount > 0)
   const pendingIssues = stockIssues.filter((issue) => ['pending', 'draft', 'open'].includes((issue.status ?? '').toLowerCase()))
@@ -351,8 +359,8 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
     const qty = toNumber(row.qty_in) - toNumber(row.qty_out)
     const value = toNumber(row.value_in) - toNumber(row.value_out)
     if (Math.abs(qty) < 0.001 && Math.abs(value) < 0.001) return
-    const branchKey = row.branch_id ?? 'unknown'
-    const branch = stockByBranchMap.get(branchKey) ?? { name: row.branches?.name ?? row.branch_id ?? '-', qty: 0, value: 0 }
+    const branchKey = row.branch_id === null || row.branch_id === undefined ? 'unknown' : String(row.branch_id)
+    const branch = stockByBranchMap.get(branchKey) ?? { name: row.branches?.name ?? '-', qty: 0, value: 0 }
     branch.qty += qty
     branch.value += value
     stockByBranchMap.set(branchKey, branch)
@@ -390,22 +398,31 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
   })
   const arDueRows = activeSales.map((row) => {
     const dueDate = addDays(row.date, row.credit_term ?? 0)
-    return { amount: toNumber(row.receivable_balance), daysOverdue: Math.max(0, daysBetween(dueDate, selectedDate)), docNo: row.doc_no, due: dateOnly(dueDate), id: row.id, name: row.customers?.name ?? row.customer_id ?? '-' }
+    return { amount: toNumber(row.receivable_balance), daysOverdue: Math.max(0, daysBetween(dueDate, selectedDate)), docNo: row.doc_no, due: dateOnly(dueDate), id: row.doc_no, name: row.customers?.name ?? '-' }
   }).filter((row) => row.amount > 0 && row.due <= dateOnly(selectedDate)).sort((a, b) => b.daysOverdue - a.daysOverdue || b.amount - a.amount)
   const apDueRows = activePurchases.map((row) => {
     const dueDate = row.date
-    return { amount: toNumber(row.payable_balance), docNo: row.doc_no, due: dateOnly(dueDate), id: row.id, name: row.suppliers?.name ?? row.supplier_id ?? '-' }
+    return { amount: toNumber(row.payable_balance), docNo: row.doc_no, due: dateOnly(dueDate), id: row.doc_no, name: row.suppliers?.name ?? '-' }
   }).filter((row) => row.amount > 0 && row.due <= dateOnly(selectedDate)).sort((a, b) => b.amount - a.amount)
   const tradingPurchases = activePurchases.filter((row) => row.transaction_mode === 'TRADING' && toNumber(row.paid_amount) > 0)
   const tradingPaidTotal = tradingPurchases.reduce((sum, row) => sum + toNumber(row.paid_amount), 0)
 
   return {
     filterOptions: {
-      branches: branches.map((row) => ({ id: row.id, name: row.name })),
-      customers: customers.map((row) => ({ id: row.id, name: row.name })),
+      branches: branches.map((row) => {
+        const code = requireBusinessCode(row.code, `สาขา ${row.id}`)
+        return { id: code, name: row.name }
+      }),
+      customers: customers.map((row) => {
+        const code = requireBusinessCode(row.code, `ลูกค้า ${row.id}`)
+        return { code, id: code, name: row.name }
+      }),
       groups: Array.from(new Set(products.map((row) => row.metal_group ?? 'อื่นๆ'))).sort(),
-      products: products.map((row) => ({ code: row.code, id: row.id, name: row.name })),
-      suppliers: suppliers.map((row) => ({ id: row.id, name: row.name })),
+      products: products.map((row) => ({ code: row.code, id: row.code, name: row.name })),
+      suppliers: suppliers.map((row) => {
+        const code = requireBusinessCode(row.code, `ผู้ขาย ${row.id}`)
+        return { code, id: code, name: row.name }
+      }),
     },
     filters: { date: dateOnly(selectedDate), from, to },
     sourceState: {
@@ -490,7 +507,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
         net: (todayBankCashIn || cashIn) - (todayBankCashOut || cashOut),
       },
       expenseByCategory: Array.from(expenseCategoryMap.values()).sort((a, b) => b.amount - a.amount),
-      expenseRows: todayExpenses.slice(0, 12).map((row) => ({ amount: toNumber(row.amount), category: row.expense_categories?.name ?? row.category_id ?? '-', docNo: row.doc_no, payee: row.payee ?? '-' })),
+      expenseRows: todayExpenses.slice(0, 12).map((row) => ({ amount: toNumber(row.amount), category: row.expense_categories?.name ?? '-', docNo: row.doc_no, payee: row.payee ?? '-' })),
       groupBreakdown: Array.from(groupMap.values()).map((row) => ({
         buyAmt: row.buyAmt,
         buyQty: row.buyQty,
@@ -499,8 +516,8 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
         sellAmt: row.sellAmt,
         sellQty: row.sellQty,
       })).sort((a, b) => (b.buyAmt + b.sellAmt) - (a.buyAmt + a.sellAmt)),
-      purchaseBills: todayPurchases.slice(0, 12).map((row) => ({ amount: toNumber(row.total_amount), docNo: row.doc_no, name: row.suppliers?.name ?? row.supplier_id ?? '-', qty: purchaseBillItemQty(row) })),
-      salesBills: todaySales.slice(0, 12).map((row) => ({ amount: toNumber(row.total_amount), docNo: row.doc_no, name: row.customers?.name ?? row.customer_id ?? '-', qty: itemsQty(row.items) })),
+      purchaseBills: todayPurchases.slice(0, 12).map((row) => ({ amount: toNumber(row.total_amount), docNo: row.doc_no, name: row.suppliers?.name ?? '-', qty: purchaseBillItemQty(row) })),
+      salesBills: todaySales.slice(0, 12).map((row) => ({ amount: toNumber(row.total_amount), docNo: row.doc_no, name: row.customers?.name ?? '-', qty: itemsQty(row.items) })),
       summary: {
         expenseAmount: todayExpenses.reduce((sum, row) => sum + toNumber(row.amount), 0),
         purchaseAmount: todayPurchases.reduce((sum, row) => sum + toNumber(row.total_amount), 0),
@@ -516,7 +533,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
         ap: apDueRows.slice(0, 10),
         ar: arDueRows.slice(0, 10),
       },
-      expensesToday: todayExpenses.slice(0, 10).map((row) => ({ amount: toNumber(row.amount), docNo: row.doc_no, id: row.id, payee: row.payee ?? '-', title: row.expense_categories?.name ?? row.category_id ?? '-' })),
+      expensesToday: todayExpenses.slice(0, 10).map((row) => ({ amount: toNumber(row.amount), docNo: row.doc_no, id: row.doc_no, payee: row.payee ?? '-', title: row.expense_categories?.name ?? '-' })),
       loanToday: loanToday.slice(0, 10),
       pending: {
         fgQty,

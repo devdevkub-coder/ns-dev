@@ -1,3 +1,4 @@
+import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { errorJson, masterDataJson, masterDataListJson, parseMasterDataForm, toIso, toNumber } from '@/lib/server/master-data'
@@ -5,9 +6,10 @@ import { errorJson, masterDataJson, masterDataListJson, parseMasterDataForm, toI
 export const runtime = 'nodejs'
 
 function mapCurrency(row: Awaited<ReturnType<typeof prisma.currencies.findMany>>[number]) {
+  const outwardId = requireBusinessCode(row.code, `สกุลเงิน ${row.id}`)
   return {
-    id: row.id,
-    code: null,
+    id: outwardId,
+    code: outwardId,
     name: row.name,
     active: true,
     type: null,
@@ -38,7 +40,7 @@ export async function GET() {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'master.reference.view')
 
-    const rows = await prisma.currencies.findMany({ orderBy: [{ symbol: 'asc' }, { name: 'asc' }] })
+    const rows = await prisma.currencies.findMany({ orderBy: [{ code: 'asc' }, { symbol: 'asc' }, { name: 'asc' }] })
     return masterDataListJson(rows.map(mapCurrency))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
@@ -52,14 +54,24 @@ export async function POST(request: Request) {
     requirePermission(context, 'master.reference.manage')
 
     const values = parseMasterDataForm(await request.json())
+    const existing = values.id
+      ? await prisma.currencies.findFirst({
+        select: { id: true },
+        where: {
+          OR: [{ code: values.id.toUpperCase() }, ...(parseInternalBigIntId(values.id) != null ? [{ id: parseInternalBigIntId(values.id) as bigint }] : [])],
+        } as any,
+      })
+      : null
     const symbol = values.symbol?.trim().toUpperCase()
     if (!symbol) throw new Error('กรอกสัญลักษณ์สกุลเงิน')
-    const id = values.id || symbol
-    const row = await prisma.currencies.upsert({
-      where: { id },
-      create: { id, name: values.name, symbol, rate_to_thb: values.rateToThb },
-      update: { name: values.name, symbol, rate_to_thb: values.rateToThb },
-    })
+    const row = existing
+      ? await prisma.currencies.update({
+        where: { id: existing.id },
+        data: { code: symbol, name: values.name, symbol, rate_to_thb: values.rateToThb },
+      })
+      : await prisma.currencies.create({
+        data: { code: symbol, name: values.name, symbol, rate_to_thb: values.rateToThb },
+      })
     return masterDataJson(mapCurrency(row))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

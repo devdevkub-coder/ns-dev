@@ -4,7 +4,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
-import { averageCostForStock, quantityForStock, stockReferenceData } from '@/lib/server/stock'
+import { averageCostForStock, normalizeStockReferenceInput, quantityForStock, stockReferenceData } from '@/lib/server/stock'
 import { statusConvertFormSchema } from '@/lib/stock'
 
 export const runtime = 'nodejs'
@@ -39,7 +39,7 @@ export async function GET() {
       rows: rows.map((row) => ({
         branchName: row.branches?.name ?? '-',
         date: toDateOnly(row.date),
-        id: row.ref_id ?? row.id,
+        id: row.ref_no ?? '',
         lotNo: row.lot_no ?? '',
         note: row.notes ?? '',
         productCode: row.products?.code ?? '',
@@ -65,18 +65,28 @@ export async function POST(request: Request) {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'stock.ledger.view')
     const values = statusConvertFormSchema.parse(await request.json())
+    const references = await normalizeStockReferenceInput({ branchId: values.branchId, productId: values.productId, warehouseId: values.warehouseId })
+    if (!references.branchId) {
+      return NextResponse.json({ error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    }
+    if (!references.warehouseId) {
+      return NextResponse.json({ error: 'คลังไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    }
+    if (!references.productId) {
+      return NextResponse.json({ error: 'สินค้าไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    }
     const availableQty = await quantityForStock({
-      branchId: values.branchId,
+      branchId: references.branchId,
       lotNo: values.lotNo,
-      productId: values.productId,
+      productId: references.productId,
       status: values.fromStatus,
-      warehouseId: values.warehouseId,
+      warehouseId: references.warehouseId,
     })
     if (values.qty > availableQty + 0.000001) {
       return NextResponse.json({ error: `จำนวนเกินสต๊อกที่มี (${availableQty.toLocaleString('th-TH')})` }, { status: 400 })
     }
 
-    const unitCost = await averageCostForStock({ branchId: values.branchId, lotNo: values.lotNo, productId: values.productId, warehouseId: values.warehouseId })
+    const unitCost = await averageCostForStock({ branchId: references.branchId, lotNo: values.lotNo, productId: references.productId, warehouseId: references.warehouseId })
     const value = values.qty * unitCost
     const refId = `SC-${randomUUID()}`
     const refNo = values.docNo ?? await nextDocNo()
@@ -85,16 +95,15 @@ export async function POST(request: Request) {
     await prisma.stock_ledger.createMany({
       data: [
         {
-          branch_id: values.branchId,
+          branch_id: references.branchId,
           created_by: actor,
           date: normalizeDate(values.date),
-          id: `SL-SC-${randomUUID()}`,
           lot_no: values.lotNo,
           movement_type: 'STATUS_CONVERT_OUT',
           note: values.toStatus,
           notes: values.reason ?? values.notes,
           output_category: values.fromStatus,
-          product_id: values.productId,
+          product_id: references.productId,
           qty_in: 0,
           qty_out: values.qty,
           ref_id: refId,
@@ -103,19 +112,18 @@ export async function POST(request: Request) {
           unit_cost: unitCost,
           value_in: 0,
           value_out: value,
-          warehouse_id: values.warehouseId,
+          warehouse_id: references.warehouseId,
         },
         {
-          branch_id: values.branchId,
+          branch_id: references.branchId,
           created_by: actor,
           date: normalizeDate(values.date),
-          id: `SL-SC-${randomUUID()}`,
           lot_no: values.lotNo,
           movement_type: 'STATUS_CONVERT_IN',
           note: values.fromStatus,
           notes: values.reason ?? values.notes,
           output_category: values.toStatus,
-          product_id: values.productId,
+          product_id: references.productId,
           qty_in: values.qty,
           qty_out: 0,
           ref_id: refId,
@@ -124,12 +132,12 @@ export async function POST(request: Request) {
           unit_cost: unitCost,
           value_in: value,
           value_out: 0,
-          warehouse_id: values.warehouseId,
+          warehouse_id: references.warehouseId,
         },
       ],
     })
 
-    return NextResponse.json({ id: refId, refNo })
+    return NextResponse.json({ id: refNo, refNo })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'บันทึกปรับสถานะไม่ได้', 400)

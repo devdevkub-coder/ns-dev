@@ -52,7 +52,7 @@ type MainPayload = {
   }
   filterOptions: {
     branches: { id: string; name: string }[]
-    customers: { id: string; name: string }[]
+    customers: { code?: string; id: string; name: string }[]
     groups: string[]
     products: { code: string; id: string; name: string }[]
     suppliers: { id: string; name: string }[]
@@ -235,7 +235,7 @@ function DashboardView(props: {
           <select className="max-w-xs rounded-md border border-white/20 bg-white/10 px-2 py-1 text-white" value={dashboardBranchId} onChange={(event) => setDashboardBranchId(event.target.value)}><option className="text-slate-900" value="">🏢 ทุกสาขา</option>{(data?.filterOptions.branches ?? []).map((row) => <option className="text-slate-900" key={row.id} value={row.id}>{row.name}</option>)}</select>
           <select className="max-w-xs rounded-md border border-white/20 bg-white/10 px-2 py-1 text-white" value={dashboardGroup} onChange={(event) => setDashboardGroup(event.target.value)}><option className="text-slate-900" value="">📦 ทุกหมวด</option>{(data?.filterOptions.groups ?? []).map((group) => <option className="text-slate-900" key={group} value={group}>{group}</option>)}</select>
           <select className="max-w-xs rounded-md border border-white/20 bg-white/10 px-2 py-1 text-white" value={dashboardSupplierId} onChange={(event) => setDashboardSupplierId(event.target.value)}><option className="text-slate-900" value="">🏭 ทุก Supplier</option>{(data?.filterOptions.suppliers ?? []).map((row) => <option className="text-slate-900" key={row.id} value={row.id}>{row.name}</option>)}</select>
-          <select className="max-w-xs rounded-md border border-white/20 bg-white/10 px-2 py-1 text-white" value={dashboardCustomerId} onChange={(event) => setDashboardCustomerId(event.target.value)}><option className="text-slate-900" value="">👥 ทุก Customer</option>{(data?.filterOptions.customers ?? []).map((row) => <option className="text-slate-900" key={row.id} value={row.id}>{row.name}</option>)}</select>
+          <select className="max-w-xs rounded-md border border-white/20 bg-white/10 px-2 py-1 text-white" value={dashboardCustomerId} onChange={(event) => setDashboardCustomerId(event.target.value)}><option className="text-slate-900" value="">👥 ทุก Customer</option>{(data?.filterOptions.customers ?? []).map((row) => <option className="text-slate-900" key={row.id} value={row.id}>{row.code ? `${row.code} - ${row.name}` : row.name}</option>)}</select>
           <select className="max-w-xs rounded-md border border-white/20 bg-white/10 px-2 py-1 text-white" value={dashboardProductId} onChange={(event) => setDashboardProductId(event.target.value)}><option className="text-slate-900" value="">🏷 ทุกสินค้า</option>{(data?.filterOptions.products ?? []).slice(0, 300).map((row) => <option className="text-slate-900" key={`${row.id}-${row.code}`} value={row.id}>{row.code} - {row.name}</option>)}</select>
           <button className="ml-auto rounded-md bg-amber-500 px-3 py-1 font-bold text-slate-900 hover:bg-amber-600" onClick={clearFilters} type="button">✕ ล้าง Filter</button>
         </div>

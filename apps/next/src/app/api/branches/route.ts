@@ -14,14 +14,14 @@ export async function GET() {
       select: { code: true, id: true, name: true },
       where: {
         active: true,
-        ...(scopedBranchIds.length ? { id: { in: scopedBranchIds } } : {}),
+        ...(scopedBranchIds.length ? { code: { in: scopedBranchIds } } : {}),
       },
     })
 
     return NextResponse.json({
       branches: rows.map((row) => ({
         code: row.code,
-        id: row.id,
+        id: row.code,
         name: row.name,
       })),
     })

@@ -11,6 +11,12 @@ const optionalDocNo = z.preprocess(
   z.string().trim().max(40, 'เลขที่เอกสารยาวเกินไป').regex(docNoPattern, 'เลขที่เอกสารใช้ได้เฉพาะอังกฤษ ตัวเลข ขีดกลาง และ underscore').nullable().default(null),
 )
 
+const requiredDocNo = (label: string) => z.string()
+  .trim()
+  .min(1, `เลือก${label}`)
+  .max(40, `${label}ยาวเกินไป`)
+  .regex(docNoPattern, `${label}ใช้ได้เฉพาะอังกฤษ ตัวเลข ขีดกลาง และ underscore`)
+
 const optionalBusinessText = (label: string, maxLength = 180) => z.preprocess(
   blankToNull,
   z.string().trim().max(maxLength, `${label}ยาวเกินไป`).regex(businessTextPattern, `${label}มีรูปแบบไม่ถูกต้อง`).nullable().default(null),
@@ -96,9 +102,9 @@ export const pettyAdvanceReturnFormSchema = z.object({
 export type PettyAdvanceReturnFormValues = z.infer<typeof pettyAdvanceReturnFormSchema>
 
 const supplierPaymentLineSchema = z.object({
-  approvalId: optionalSafeId('รหัสอนุมัติจ่าย'),
+  approvalId: optionalDocNo,
   amount: positiveMoney('ยอดจ่าย'),
-  billId: z.string().trim().min(1, 'เลือกบิลซื้อ').max(80, 'บิลซื้อยาวเกินไป').regex(/^[A-Za-z0-9_.:-]+$/, 'บิลซื้อมีรูปแบบไม่ถูกต้อง'),
+  billId: requiredDocNo('บิลซื้อ'),
   discount: money('ส่วนลด').default(0),
   fee: money('ค่าธรรมเนียม').default(0),
   id: optionalSafeId('รหัสบรรทัดจ่าย'),
@@ -110,7 +116,7 @@ export const supplierPaymentFormSchema = z.object({
   id: optionalSafeId('รหัสรายการ'),
   docNo: optionalDocNo,
   date: requiredDate,
-  billId: z.string().trim().min(1, 'เลือกบิลซื้อ').max(80, 'บิลซื้อยาวเกินไป').regex(/^[A-Za-z0-9_.:-]+$/, 'บิลซื้อมีรูปแบบไม่ถูกต้อง'),
+  billId: requiredDocNo('บิลซื้อ'),
   supplierId: z.string().trim().min(1, 'เลือกผู้ขาย'),
   accountId: z.string().trim().min(1, 'เลือกบัญชีจ่าย'),
   amount: positiveMoney('ยอดจ่าย'),

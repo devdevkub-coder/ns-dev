@@ -1,8 +1,9 @@
 import { Prisma } from '../../../generated/prisma/client'
+import { requireBusinessCode } from '@/lib/business-code'
 import { customerFormSchema, customerSchema, type Customer, type CustomerFormValues } from '@/lib/customer'
 
 type PrismaCustomer = {
-  id: string
+  id: bigint
   code: string | null
   name: string
   name_title: string | null
@@ -31,16 +32,22 @@ type PrismaCustomer = {
   address_postal_code_intl: string | null
   credit_term: number | null
   credit_limit: Prisma.Decimal | null
-  sales_id: string | null
+  sales_id: bigint | null
   active: boolean | null
   created_at: Date | null
   updated_at: Date | null
 }
 
-export function mapPrismaCustomer(row: PrismaCustomer): Customer {
+export function mapPrismaCustomer(
+  row: PrismaCustomer,
+  overrides?: {
+    salesId?: string | null
+  },
+): Customer {
+  const outwardId = requireBusinessCode(row.code, `ลูกค้า ${row.id}`)
   return customerSchema.parse({
-    id: row.id,
-    code: row.code ?? row.id,
+    id: outwardId,
+    code: outwardId,
     name: row.name,
     nameTitle: row.name_title,
     firstName: row.first_name,
@@ -68,7 +75,7 @@ export function mapPrismaCustomer(row: PrismaCustomer): Customer {
     addressPostalCodeIntl: row.address_postal_code_intl,
     creditTerm: row.credit_term,
     creditLimit: row.credit_limit === null ? null : row.credit_limit.toNumber(),
-    salesId: row.sales_id,
+    salesId: overrides?.salesId ?? null,
     active: row.active ?? true,
     createdAt: row.created_at?.toISOString() ?? null,
     updatedAt: row.updated_at?.toISOString() ?? null,
@@ -113,7 +120,12 @@ function domesticAddressLine1(values: CustomerFormValues) {
   ].map((part) => part?.trim()).filter(Boolean).join(' ') || null
 }
 
-export function toCustomerWriteInput(values: CustomerFormValues) {
+export function toCustomerWriteInput(
+  values: CustomerFormValues,
+  overrides?: {
+    salesId?: bigint | null
+  },
+) {
   const parsed = customerFormSchema.parse(values)
   const code = parsed.code?.toUpperCase() || parsed.id || ''
   const personName = [parsed.nameTitle, parsed.firstName, parsed.lastName].map((part) => part?.trim()).filter(Boolean).join(' ')
@@ -121,7 +133,6 @@ export function toCustomerWriteInput(values: CustomerFormValues) {
   const isDomestic = parsed.marketScope === 'ในประเทศ'
 
   return {
-    id: parsed.id || code,
     code,
     name: name || code,
     name_title: parsed.type === 'บุคคล' ? parsed.nameTitle || null : null,
@@ -150,7 +161,7 @@ export function toCustomerWriteInput(values: CustomerFormValues) {
     address_postal_code_intl: isDomestic ? parsed.addressPostalCodeIntl || parsed.addressPostalCode || null : parsed.addressPostalCodeIntl || null,
     credit_term: parsed.creditTerm,
     credit_limit: parsed.creditLimit,
-    sales_id: parsed.salesId || null,
+    sales_id: overrides?.salesId ?? null,
     active: parsed.active,
   }
 }

@@ -5,6 +5,7 @@ import { formatPhoneDisplay } from '@/lib/format'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
+import { listSalespersonReferencesByIds } from '@/lib/server/salesperson-reference'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import type { Customer } from '@/lib/customer'
 import type { Prisma } from '../../../../../../generated/prisma/client'
@@ -57,7 +58,6 @@ const customerColumns: Array<{ key: keyof Customer; label: string; width: number
   { key: 'active', label: 'สถานะ', width: 90 },
   { key: 'createdAt', label: 'สร้างเมื่อ', width: 150 },
   { key: 'updatedAt', label: 'แก้ไขเมื่อ', width: 150 },
-  { key: 'id', label: 'รหัสภายใน', width: 180 },
 ]
 
 function parseExportParams(request: Request) {
@@ -86,7 +86,6 @@ function customerSearchWhere(q: string, customerType: string, marketScope: strin
   if (!q) return where
 
   where.OR = [
-    { id: { contains: q, mode: 'insensitive' } },
     { code: { contains: q, mode: 'insensitive' } },
     { name: { contains: q, mode: 'insensitive' } },
     { type: { contains: q, mode: 'insensitive' } },
@@ -99,7 +98,6 @@ function customerSearchWhere(q: string, customerType: string, marketScope: strin
     { address_city: { contains: q, mode: 'insensitive' } },
     { address_state_region: { contains: q, mode: 'insensitive' } },
     { country_code: { contains: q, mode: 'insensitive' } },
-    { sales_id: { contains: q, mode: 'insensitive' } },
   ]
 
   return where
@@ -158,7 +156,10 @@ export async function GET(request: Request) {
       prisma.customers.count({ where }),
     ])
 
-    const customers = rows.map(mapPrismaCustomer)
+    const salespersonReferences = await listSalespersonReferencesByIds(rows.map((row) => row.sales_id))
+    const customers = rows.map((row) => mapPrismaCustomer(row as any, {
+      salesId: salespersonReferences.get(String(row.sales_id ?? ''))?.code ?? null,
+    }))
     const body = buildWorkbook(customers, total, { customerType, marketScope, q })
     const filename = `customers_${new Date().toISOString().slice(0, 10)}.xlsx`
 

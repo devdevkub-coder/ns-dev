@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { Prisma } from '../../../../../generated/prisma/client'
+import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
@@ -45,6 +46,7 @@ type ProductRow = {
 }
 
 type JsonItem = Prisma.JsonObject
+type ProductRef = { code: string; id: bigint; name: string }
 
 function isCancelled(status: string) {
   return status === 'Cancelled' || status === 'cancelled'
@@ -78,12 +80,32 @@ function itemAmount(item: JsonItem) {
   return itemQty(item) * jsonNumber(item.price ?? item.unitPrice)
 }
 
-function itemProductId(item: JsonItem) {
-  return String(item.productId ?? item.product_id ?? item.id ?? item.productCode ?? item.code ?? item.productName ?? item.name ?? 'unknown')
+function itemProductCode(item: JsonItem, productById: Map<bigint, ProductRef>) {
+  const direct = item.productCode ?? item.code ?? item.productId ?? item.product_id
+  if (typeof direct === 'string' && direct.trim()) {
+    const trimmed = direct.trim()
+    if (/^\d+$/.test(trimmed)) {
+      const product = productById.get(BigInt(trimmed))
+      return product ? requireBusinessCode(product.code, `สินค้า ${product.id}`) : ''
+    }
+    return trimmed
+  }
+  if (typeof direct === 'number' || typeof direct === 'bigint') {
+    const product = productById.get(BigInt(direct))
+    return product ? requireBusinessCode(product.code, `สินค้า ${product.id}`) : ''
+  }
+  return ''
 }
 
-function itemProductName(item: JsonItem) {
-  return String(item.productName ?? item.displayName ?? item.name ?? item.productCode ?? item.code ?? item.productId ?? item.product_id ?? 'ไม่ระบุสินค้า')
+function itemProductName(item: JsonItem, productById: Map<bigint, ProductRef>) {
+  const direct = item.productName ?? item.displayName ?? item.name
+  if (typeof direct === 'string' && direct.trim()) return direct.trim()
+  const code = itemProductCode(item, productById)
+  if (!code) return 'ไม่ระบุสินค้า'
+  for (const product of productById.values()) {
+    if (product.code === code) return product.name
+  }
+  return 'ไม่ระบุสินค้า'
 }
 
 function firstDayOfCurrentMonth() {
@@ -117,7 +139,7 @@ export async function GET(request: Request) {
     const to = url.searchParams.get('to') || toDateOnly(new Date())
     const activeStatusFilter = statusFilter && statusFilter !== 'all' ? statusFilter : null
 
-    const [purchaseBills, salesBills, deals] = await Promise.all([
+    const [purchaseBills, salesBills, deals, products] = await Promise.all([
       prisma.purchase_bills.findMany({
         include: { suppliers: true },
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
@@ -139,7 +161,9 @@ export async function GET(request: Request) {
         orderBy: [{ date: 'desc' }, { deal_no: 'desc' }],
         take: 5000,
       }),
+      prisma.products.findMany({ select: { code: true, id: true, name: true } }),
     ])
+    const productById = new Map(products.map((product) => [product.id, { ...product, code: requireBusinessCode(product.code, `สินค้า ${product.id}`) }]))
 
     const rows = deals.map((deal) => {
       const salesAmount = toNumber(deal.matched_sales_amount)
@@ -147,20 +171,20 @@ export async function GET(request: Request) {
       const grossProfit = salesAmount - purchaseAmount
 
       return {
-        customerName: deal.customers?.name ?? deal.customer_id ?? '-',
+        customerName: deal.customers?.name ?? '-',
         date: toDateOnly(deal.date),
         dealNo: deal.deal_no,
         grossProfit,
         grossProfitPct: salesAmount > 0 ? (grossProfit / salesAmount) * 100 : 0,
-        id: deal.id,
+        id: deal.deal_no,
         matchedPurchaseAmount: purchaseAmount,
         matchedQty: toNumber(deal.matched_qty),
         matchedSalesAmount: salesAmount,
-        productName: deal.products?.name ?? deal.product_id ?? '-',
+        productName: deal.products?.name ?? '-',
         purchaseBillNo: deal.purchase_bill_no ?? '',
         salesBillNo: deal.sales_bill_no ?? '',
         status: deal.status ?? 'Open',
-        supplierName: deal.suppliers?.name ?? deal.supplier_id ?? '-',
+        supplierName: deal.suppliers?.name ?? '-',
       }
     })
       .filter((row) => !activeStatusFilter || row.status === activeStatusFilter)
@@ -173,8 +197,8 @@ export async function GET(request: Request) {
 
     const activeRows = rows.filter((row) => !isCancelled(row.status))
     const activeDeals = deals.filter((deal) => !isCancelled(deal.status ?? ''))
-    const matchedPurchaseCostByBill = new Map<string, number>()
-    const matchedSalesCostByBill = new Map<string, number>()
+    const matchedPurchaseCostByBill = new Map<bigint, number>()
+    const matchedSalesCostByBill = new Map<bigint, number>()
     activeDeals.forEach((deal) => {
       if (deal.purchase_bill_id) matchedPurchaseCostByBill.set(deal.purchase_bill_id, (matchedPurchaseCostByBill.get(deal.purchase_bill_id) ?? 0) + toNumber(deal.matched_purchase_amount))
       if (deal.sales_bill_id) matchedSalesCostByBill.set(deal.sales_bill_id, (matchedSalesCostByBill.get(deal.sales_bill_id) ?? 0) + toNumber(deal.matched_purchase_amount))
@@ -188,9 +212,9 @@ export async function GET(request: Request) {
         return {
           date: toDateOnly(bill.date),
           docNo: bill.doc_no,
-          id: bill.id,
+          id: bill.doc_no,
           matchedAmount,
-          partyName: bill.suppliers?.name ?? bill.supplier_id ?? '-',
+          partyName: bill.suppliers?.name ?? '-',
           remainingAmount: Math.max(0, total - matchedAmount),
           totalAmount: total,
         }
@@ -207,9 +231,9 @@ export async function GET(request: Request) {
         return {
           date: toDateOnly(bill.date),
           docNo: bill.doc_no,
-          id: bill.id,
+          id: bill.doc_no,
           matchedAmount,
-          partyName: bill.customers?.name ?? bill.customer_id ?? '-',
+          partyName: bill.customers?.name ?? '-',
           remainingAmount: Math.max(0, total - matchedAmount),
           totalAmount: total,
         }
@@ -252,7 +276,7 @@ export async function GET(request: Request) {
         const date = toDateOnly(bill.date)
         return date >= from && date <= to
       })
-      .filter((bill) => !q || `${bill.doc_no} ${bill.customers?.name ?? bill.customer_id ?? ''}`.toLowerCase().includes(q))
+      .filter((bill) => !q || `${bill.doc_no} ${bill.customers?.name ?? ''}`.toLowerCase().includes(q))
       .forEach((bill) => {
         const billTotal = toNumber(bill.subtotal) || toNumber(bill.total_amount)
         const billMatchedCost = matchedSalesCostByBill.get(bill.id) ?? 0
@@ -262,8 +286,9 @@ export async function GET(request: Request) {
           const sales = itemAmount(item)
           const qty = itemQty(item)
           const share = billTotal > 0 ? sales / billTotal : 0
-          const key = itemProductId(item)
-          const current = productRowsByKey.get(key) ?? { cost: 0, gp: 0, gpPct: 0, productId: key, productName: itemProductName(item), qty: 0, sales: 0 }
+          const key = itemProductCode(item, productById)
+          if (!key) return
+          const current = productRowsByKey.get(key) ?? { cost: 0, gp: 0, gpPct: 0, productId: key, productName: itemProductName(item, productById), qty: 0, sales: 0 }
           current.qty += qty
           current.sales += sales
           current.cost += billMatchedCost * share

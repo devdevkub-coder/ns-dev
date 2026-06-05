@@ -93,6 +93,7 @@
 | `18-next-system-sitemap.md` | Next route/page/API/permission status map |
 | `19-next-legacy-ui-parity-audit.md` | post-SYS legacy UI parity audit excluding master-data/admin |
 | `20-legacy-page-inventory.md` | legacy sidebar page count and view ID inventory |
+| `21-db-first-identifier-cutover.md` | DB-first identifier cutover tracker, inventory, and wave log |
 
 ## Planned Documents
 

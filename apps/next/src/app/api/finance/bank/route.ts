@@ -1,7 +1,9 @@
 import type { Prisma } from '../../../../../generated/prisma/client'
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
+import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
+import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
@@ -37,9 +39,9 @@ function parseQuery(url: URL): BankQuery {
   }
 }
 
-function statementWhere(query: BankQuery, includeBeforeFrom: boolean): Prisma.bank_statementWhereInput {
+function statementWhere(query: BankQuery, internalAccountId: bigint | null, includeBeforeFrom: boolean): Prisma.bank_statementWhereInput {
   return {
-    ...(query.accountId ? { account_id: query.accountId } : {}),
+    ...(internalAccountId != null ? { account_id: internalAccountId } : {}),
     ...(query.refType ? { ref_type: query.refType } : {}),
     ...(query.type ? { type: query.type } : {}),
     ...(query.to || (!includeBeforeFrom && query.from)
@@ -80,6 +82,8 @@ export async function GET(request: Request) {
     const url = new URL(request.url)
     const query = parseQuery(url)
     const search = query.q?.trim().toLowerCase()
+    const accountReference = await findActiveAccountReferenceByCode(query.accountId)
+    const internalAccountId = accountReference?.id ?? null
 
     const [sourceRows, accounts] = await Promise.all([
       prisma.bank_statement.findMany({
@@ -88,7 +92,7 @@ export async function GET(request: Request) {
         },
         orderBy: [{ account_id: 'asc' }, { date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
         take: 10000,
-        where: statementWhere(query, true),
+        where: statementWhere(query, internalAccountId, true),
       }),
       prisma.accounts.findMany({
         orderBy: [{ name: 'asc' }, { account_no: 'asc' }],
@@ -97,6 +101,7 @@ export async function GET(request: Request) {
           active: true,
           bank_name: true,
           branches: { select: { id: true, name: true } },
+          code: true,
           currency: true,
           id: true,
           name: true,
@@ -107,18 +112,20 @@ export async function GET(request: Request) {
       }),
     ])
 
+    const accountCodeByInternalId = new Map(accounts.map((account) => [String(account.id), requireBusinessCode(account.code, `บัญชีเงิน ${account.id}`)] as const))
     const runningByAccount = new Map<string, number>()
-    accounts.forEach((account) => runningByAccount.set(account.id, toNumber(account.opening_balance)))
+    accounts.forEach((account) => runningByAccount.set(String(account.id), toNumber(account.opening_balance)))
 
     const rowsWithRunning = sourceRows.map((row) => {
-      const accountId = row.account_id ?? ''
-      const previous = runningByAccount.get(accountId) ?? 0
+      const internalAccountKey = row.account_id?.toString() ?? ''
+      const outwardAccountId = internalAccountKey ? (accountCodeByInternalId.get(internalAccountKey) ?? '') : ''
+      const previous = runningByAccount.get(internalAccountKey) ?? 0
       const movement = toNumber(row.amount_in) - toNumber(row.amount_out)
       const runningBalance = row.balance === null || row.balance === undefined ? previous + movement : toNumber(row.balance)
-      runningByAccount.set(accountId, runningBalance)
+      runningByAccount.set(internalAccountKey, runningBalance)
       return {
-        accountId,
-        accountName: row.accounts?.name ?? row.account_id ?? '-',
+        accountId: outwardAccountId,
+        accountName: row.accounts?.name ?? '-',
         accountNo: row.accounts?.account_no ?? '',
         amountIn: toNumber(row.amount_in),
         amountOut: toNumber(row.amount_out),
@@ -127,10 +134,11 @@ export async function GET(request: Request) {
         cashFlowCategory: row.cash_flow_category ?? '',
         date: toDateOnly(row.date),
         description: row.description ?? row.desc ?? '',
-        id: row.id,
+        id: row.doc_no,
         movement,
         note: row.note ?? '',
-        refId: row.ref_id ?? '',
+        docNo: row.doc_no,
+        refId: row.ref_no ?? row.doc_no,
         refNo: row.ref_no ?? '',
         refType: row.ref_type ?? '',
         runningBalance,
@@ -164,6 +172,7 @@ export async function GET(request: Request) {
         Balance: row.runningBalance,
         Date: row.date,
         Description: row.description,
+        DocNo: row.docNo,
         RefNo: row.refNo,
         RefType: row.refType,
         Type: row.type,
@@ -183,9 +192,9 @@ export async function GET(request: Request) {
           active: row.active,
           bankName: row.bank_name,
           branchName: row.branches?.name ?? '',
-          code: row.account_no,
+          code: requireBusinessCode(row.code, `บัญชีเงิน ${row.id}`),
           currency: row.currency,
-          id: row.id,
+          id: requireBusinessCode(row.code, `บัญชีเงิน ${row.id}`),
           name: row.name,
           openingBalance: toNumber(row.opening_balance),
           type: row.type,

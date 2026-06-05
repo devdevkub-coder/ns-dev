@@ -1,4 +1,6 @@
 import type { Prisma } from '../../../generated/prisma/client'
+import { parseInternalBigIntId } from '@/lib/business-code'
+import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { prisma } from '@/lib/server/prisma'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 
@@ -40,10 +42,11 @@ export type ProductionOrderMetric = {
   yieldPct: number
 }
 
-export function productionWhere(filters: ProductionReportFilters): Prisma.production_ordersWhereInput {
+export function productionWhere(filters: ProductionReportFilters, branchId?: bigint | null): Prisma.production_ordersWhereInput {
+  const machineId = parseInternalBigIntId(filters.machineId)
   return {
-    ...(filters.branchId ? { branch_id: filters.branchId } : {}),
-    ...(filters.machineId ? { machine_id: filters.machineId } : {}),
+    ...(branchId != null ? { branch_id: branchId } : {}),
+    ...(machineId != null ? { machine_id: machineId } : {}),
     ...(filters.status ? { status: filters.status } : {}),
     ...(filters.dateFrom || filters.dateTo ? {
       date: {
@@ -56,6 +59,7 @@ export function productionWhere(filters: ProductionReportFilters): Prisma.produc
 }
 
 export async function loadProductionMetrics(filters: ProductionReportFilters = {}) {
+  const branch = filters.branchId ? await findActiveBranchReferenceByCodeOrId(filters.branchId) : null
   const [orders, categories] = await Promise.all([
     prisma.production_orders.findMany({
       include: {
@@ -69,22 +73,22 @@ export async function loadProductionMetrics(filters: ProductionReportFilters = {
         warehouses: true,
       },
       orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
-      where: productionWhere(filters),
+      where: productionWhere(filters, branch?.id ?? null),
     }),
     prisma.production_output_categories.findMany(),
   ])
-  const categoryByCode = new Map(categories.map((category) => [category.code, category]))
+  const categoryById = new Map(categories.map((category) => [category.id, category]))
 
   return orders.map((order): ProductionOrderMetric => {
     const inputQty = order.production_inputs.reduce((sum, input) => sum + toNumber(input.qty), 0)
     const inputCost = order.production_inputs.reduce((sum, input) => sum + toNumber(input.total_cost), 0) || toNumber(order.total_input_cost)
     const outputs = order.production_outputs.filter((output) => {
-      const category = output.output_category ? categoryByCode.get(output.output_category) : null
-      return output.output_category !== 'LOSS' && output.output_status !== 'LOSS' && output.output_type !== 'Loss' && category?.stock_effect !== 'loss'
+      const category = output.output_category != null ? categoryById.get(output.output_category) : null
+      return output.output_status !== 'LOSS' && output.output_type !== 'Loss' && category?.stock_effect !== 'loss'
     })
     const losses = order.production_outputs.filter((output) => {
-      const category = output.output_category ? categoryByCode.get(output.output_category) : null
-      return output.output_category === 'LOSS' || output.output_status === 'LOSS' || output.output_type === 'Loss' || category?.stock_effect === 'loss'
+      const category = output.output_category != null ? categoryById.get(output.output_category) : null
+      return output.output_status === 'LOSS' || output.output_type === 'Loss' || category?.stock_effect === 'loss'
     })
     const outputQty = outputs.reduce((sum, output) => sum + toNumber(output.qty), 0)
     const lossQty = losses.reduce((sum, output) => sum + toNumber(output.qty), 0)
@@ -105,7 +109,7 @@ export async function loadProductionMetrics(filters: ProductionReportFilters = {
         .reduce((map, cost) => map.set(cost.cost_type, (map.get(cost.cost_type) ?? 0) + toNumber(cost.amount)), new Map<string, number>())),
       date: toDateOnly(order.date),
       docNo: order.doc_no,
-      id: order.id,
+      id: order.doc_no,
       inputCost,
       inputQty,
       lossPct: inputQty > 0 ? lossQty / inputQty * 100 : 0,
@@ -116,7 +120,7 @@ export async function loadProductionMetrics(filters: ProductionReportFilters = {
       outputValue,
       processCost,
       productCode: order.products?.code ?? '',
-      productName: order.products?.name ?? order.product_id ?? '-',
+      productName: order.products?.name ?? '-',
       productionLineName: order.production_lines?.name ?? '-',
       productionType: order.production_type ?? '-',
       status: order.status ?? 'Open',

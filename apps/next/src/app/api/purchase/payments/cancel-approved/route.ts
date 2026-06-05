@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { requireDocumentNo } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, toNumber } from '@/lib/server/daily'
@@ -19,20 +20,21 @@ export async function POST(request: Request) {
 
     const payload = cancelApprovedSchema.parse(await request.json())
     const actor = currentActor(context)
+    const approvalDocNo = requireDocumentNo(payload.approvalId, 'รายการอนุมัติจ่าย')
 
     await prisma.$transaction(async (tx) => {
       const txExt = tx as typeof tx & {
         payment_approvals: {
-          findUnique: (args: unknown) => Promise<{
-            id: string
+          findFirst: (args: unknown) => Promise<{
+            id: bigint
             status: string | null
           } | null>
           update: (args: unknown) => Promise<unknown>
         }
       }
 
-      const approval = await txExt.payment_approvals.findUnique({
-        where: { id: payload.approvalId },
+      const approval = await txExt.payment_approvals.findFirst({
+        where: { doc_no: approvalDocNo },
       })
       if (!approval || approval.status !== 'approved') {
         throw new Error('ไม่พบรายการรอจ่ายที่ต้องการยกเลิก หรือรายการนี้ไม่อยู่ในสถานะรอจ่ายแล้ว')
@@ -41,7 +43,7 @@ export async function POST(request: Request) {
       const activePayments = await tx.payments.findMany({
         select: { amount: true, discount: true, withholding_tax: true },
         where: {
-          payment_approval_id: payload.approvalId,
+          payment_approval_id: approval.id,
           NOT: { status: 'cancelled' },
         },
       })
@@ -62,7 +64,7 @@ export async function POST(request: Request) {
           voided_at: new Date(),
           voided_by: actor,
         },
-        where: { id: payload.approvalId },
+        where: { id: approval.id },
       })
     })
 

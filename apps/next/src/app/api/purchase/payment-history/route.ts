@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireBusinessCode, requireDocumentNo, stringifyBusinessValue } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { listDailyAccounts, toDateOnly, toNumber } from '@/lib/server/daily'
@@ -20,7 +21,7 @@ export async function GET() {
           destination_account_no_snapshot: string | null
           destination_bank_name_snapshot: string | null
           destination_payment_method_snapshot: string | null
-          id: string
+          id: bigint
           note: string | null
           party_name_snapshot: string | null
           source_doc_no_snapshot: string | null
@@ -28,12 +29,12 @@ export async function GET() {
           status: string
           void_reason: string | null
           voided_at: Date | null
-          payments: Array<{ id: string }>
+          payments: Array<{ id: bigint }>
         }>>
       }
     }
 
-    const [accounts, bills, payments, voidedApprovals] = await Promise.all([
+    const [accounts, bills, payments, suppliers, voidedApprovals] = await Promise.all([
       listDailyAccounts(),
       prisma.purchase_bills.findMany({
         orderBy: [{ date: 'desc' }],
@@ -44,6 +45,10 @@ export async function GET() {
         include: { accounts: true, suppliers: true },
         orderBy: [{ date: 'desc' }, { created_at: 'desc' }],
         take: 5000,
+      }),
+      prisma.suppliers.findMany({
+        orderBy: [{ name: 'asc' }],
+        select: { code: true, id: true, name: true },
       }),
       prismaExt.payment_approvals.findMany({
         orderBy: [{ voided_at: 'desc' }, { approved_at: 'desc' }],
@@ -68,7 +73,21 @@ export async function GET() {
         where: { source_type: 'purchase_bill', status: 'voided' },
       }),
     ])
+    const paymentApprovalIds = [...new Set(payments.map((payment) => payment.payment_approval_id).filter((approvalId): approvalId is bigint => approvalId != null))]
+    const activeApprovals = paymentApprovalIds.length > 0 ? await prismaExt.payment_approvals.findMany({
+      select: {
+        doc_no: true,
+        id: true,
+      },
+      where: {
+        id: { in: paymentApprovalIds },
+      },
+    }) : []
+    const supplierCodeById = new Map(suppliers.map((supplier) => [supplier.id, requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`)]))
     const billDocNoById = new Map(bills.map((bill) => [bill.id, bill.doc_no]))
+    const approvalDocNoByInternalId = new Map(
+      activeApprovals.map((approval) => [stringifyBusinessValue(approval.id), requireDocumentNo(approval.doc_no, `อนุมัติจ่าย ${approval.id}`)] as const),
+    )
     const voucherIds = [...new Set(payments.map((payment) => payment.voucher_id).filter((voucherId): voucherId is string => Boolean(voucherId)))]
     const bankStatements = voucherIds.length > 0 ? await prisma.bank_statement.findMany({
       include: { accounts: true },
@@ -108,44 +127,47 @@ export async function GET() {
     }>()
 
     payments.forEach((payment) => {
-      const voucherKey = payment.voucher_id ?? payment.doc_no ?? payment.id
+      const voucherKey = payment.voucher_id ?? payment.doc_no
+      if (!voucherKey) return
       const existing = voucherRows.get(voucherKey)
-      const billDocNo = payment.bill_id ? (billDocNoById.get(payment.bill_id) ?? payment.bill_id) : ''
+      const billDocNo = payment.bill_id ? (billDocNoById.get(payment.bill_id) ?? '') : ''
       if (!existing) {
         const statementRows = bankStatementsByVoucherId.get(voucherKey) ?? []
         const accountEntries = statementRows.length > 0
           ? statementRows.map((row) => ({
-              accountId: row.account_id ?? '',
-              accountName: row.accounts?.name ?? row.account_id ?? '-',
+              accountId: row.accounts?.code ?? '',
+              accountName: row.accounts?.name ?? '-',
               amount: toNumber(row.amount_out),
             }))
           : [{
-              accountId: payment.account_id ?? '',
-              accountName: payment.accounts?.name ?? payment.account_id ?? '-',
+              accountId: payment.accounts?.code ?? '',
+              accountName: payment.accounts?.name ?? '-',
               amount: toNumber(payment.net_amount),
             }]
         const uniqueAccountEntries = accountEntries.filter((entry, index, entries) => (
           entries.findIndex((candidate) => candidate.accountId === entry.accountId && candidate.accountName === entry.accountName) === index
         ))
         voucherRows.set(voucherKey, {
-          accountId: uniqueAccountEntries[0]?.accountId ?? payment.account_id ?? '',
+          accountId: uniqueAccountEntries[0]?.accountId ?? payment.accounts?.code ?? '',
           accountName: uniqueAccountEntries[0]?.accountName ?? payment.accounts?.name ?? '-',
           accountNames: uniqueAccountEntries.map((entry) => entry.accountName),
           accountSummaries: uniqueAccountEntries.map((entry) => `${entry.accountName} · ${toNumber(entry.amount).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`),
-          approvalIds: payment.payment_approval_id ? [payment.payment_approval_id] : [],
+          approvalIds: payment.payment_approval_id
+            ? [approvalDocNoByInternalId.get(stringifyBusinessValue(payment.payment_approval_id)) ?? ''].filter(Boolean)
+            : [],
           amount: 0,
           billDocNo,
           billDocNos: billDocNo ? [billDocNo] : [],
           date: toDateOnly(payment.date),
           docNo: payment.doc_no,
           fee: 0,
-          id: voucherKey,
+          id: payment.doc_no,
           method: payment.method ?? '',
           netAmount: 0,
           notes: payment.notes ?? '',
-          partyName: payment.suppliers?.name ?? payment.supplier_id ?? '-',
+          partyName: payment.suppliers?.name ?? '-',
           status: payment.status ?? 'active',
-          supplierId: payment.supplier_id ?? '',
+          supplierId: payment.supplier_id ? (supplierCodeById.get(payment.supplier_id) ?? '') : '',
           withholdingTax: 0,
         })
       }
@@ -156,7 +178,10 @@ export async function GET() {
       row.fee += toNumber(payment.fee ?? payment.bank_fee)
       row.netAmount += toNumber(payment.net_amount)
       row.withholdingTax += toNumber(payment.withholding_tax)
-      if (payment.payment_approval_id && !row.approvalIds.includes(payment.payment_approval_id)) row.approvalIds.push(payment.payment_approval_id)
+      if (payment.payment_approval_id) {
+        const approvalId = approvalDocNoByInternalId.get(stringifyBusinessValue(payment.payment_approval_id)) ?? ''
+        if (approvalId && !row.approvalIds.includes(approvalId)) row.approvalIds.push(approvalId)
+      }
       if (billDocNo && !row.billDocNos.includes(billDocNo)) row.billDocNos.push(billDocNo)
       if (!row.billDocNo && billDocNo) row.billDocNo = billDocNo
       if (payment.status === 'cancelled') row.status = 'cancelled'
@@ -165,14 +190,15 @@ export async function GET() {
     voidedApprovals
       .filter((approval) => approval.payments.length === 0)
       .forEach((approval) => {
-        const rowId = `APPROVAL-${approval.id}`
-        const approvalDocNo = String(approval.doc_no ?? approval.id).trim() || approval.id
+        const approvalDocNo = requireDocumentNo(approval.doc_no, `อนุมัติจ่าย ${approval.id}`)
+        const rowId = approvalDocNo
         const accountNo = approval.destination_account_no_snapshot?.trim() ?? ''
         const bankName = approval.destination_bank_name_snapshot?.trim()
           || approval.destination_payment_method_snapshot?.trim()
           || 'ยังไม่ได้ทำจ่าย'
         const accountSummary = accountNo ? `${bankName} · ${accountNo}` : bankName
-        const billDocNo = approval.source_doc_no_snapshot ?? billDocNoById.get(approval.source_id) ?? approval.source_id
+        const resolvedBillId = BigInt(approval.source_id)
+        const billDocNo = approval.source_doc_no_snapshot ?? billDocNoById.get(resolvedBillId) ?? ''
         const amount = toNumber(approval.approved_amount)
 
         voucherRows.set(rowId, {
@@ -180,10 +206,10 @@ export async function GET() {
           accountName: bankName,
           accountNames: [bankName],
           accountSummaries: [accountSummary],
-          approvalIds: [approval.id],
+          approvalIds: [approvalDocNo],
           amount,
           billDocNo,
-          billDocNos: [billDocNo],
+          billDocNos: billDocNo ? [billDocNo] : [],
           date: toDateOnly(approval.voided_at ?? approval.approved_at),
           docNo: approvalDocNo,
           fee: 0,
@@ -202,7 +228,7 @@ export async function GET() {
       accounts,
       bills: bills.map((bill) => ({
         docNo: bill.doc_no,
-        id: bill.id,
+        id: bill.doc_no,
       })),
       rows: Array.from(voucherRows.values()),
     })

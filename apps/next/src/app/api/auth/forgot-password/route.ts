@@ -23,7 +23,7 @@ function resolveRedirectTo(request: Request, requestedRedirectTo: unknown) {
   return fallback
 }
 
-async function recordPublicResetRequest(request: Request, appUserId: string | null, metadata: Record<string, boolean | string | null>) {
+async function recordPublicResetRequest(request: Request, appUserId: bigint | null, metadata: Record<string, boolean | string | null>) {
   try {
     await prisma.$transaction([
       prisma.$executeRaw`
@@ -45,7 +45,7 @@ async function recordPublicResetRequest(request: Request, appUserId: string | nu
           'success',
           'info',
           ${appUserId ? 'app_user' : null},
-          ${appUserId},
+          ${appUserId == null ? null : appUserId.toString()},
           ${request.method},
           ${new URL(request.url).pathname},
           ${requestIp(request)}::inet,
@@ -61,7 +61,7 @@ async function recordPublicResetRequest(request: Request, appUserId: string | nu
           ip_address,
           user_agent
         ) values (
-          ${appUserId}::uuid,
+          ${appUserId}::bigint,
           'app_user.reset_requested',
           ${JSON.stringify(metadata)}::jsonb,
           ${requestIp(request)}::inet,
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
   })
 
   await recordPublicResetRequest(request, appUser?.id ?? null, {
-    foundActiveAppUser: Boolean(appUser?.id),
+    foundActiveAppUser: appUser != null,
     identifierType: identifierIsEmail ? 'email' : 'username',
     source: 'self_service',
     username: appUser?.username ?? null,

@@ -1,5 +1,5 @@
-import { randomUUID } from 'node:crypto'
 import type { Prisma } from '../../../generated/prisma/client'
+import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
 import { calculateLineTotals, type WeightTicketFormValues, type WeightTicketStatus, type WeightTicketType } from '@/lib/weight-tickets'
 import type { AppAuthContext } from '@/lib/server/auth-context'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
@@ -24,17 +24,33 @@ type WeightTicketUsage = {
   salesDocNos: string[]
 }
 
-type WeightTicketRow = Prisma.weight_ticketsGetPayload<{
+export type WeightTicketRow = Prisma.weight_ticketsGetPayload<{
   include: {
     branches: true
     customers: true
     suppliers: true
     weight_ticket_product_summaries: {
+      include: {
+        products: {
+          select: {
+            code: true
+            id: true
+          }
+        }
+      }
       orderBy: {
         product_name: 'asc'
       }
     }
     weight_ticket_lines: {
+      include: {
+        products: {
+          select: {
+            code: true
+            id: true
+          }
+        }
+      }
       orderBy: {
         line_no: 'asc'
       }
@@ -142,8 +158,8 @@ export async function nextWeightTicketDocNo(
 
 export function weightTicketWhere(query: WeightTicketQuery, scopedBranchIds: string[]): Prisma.weight_ticketsWhereInput {
   const andWhere: Prisma.weight_ticketsWhereInput[] = []
-  if (scopedBranchIds.length) andWhere.push({ branch_id: { in: scopedBranchIds } })
-  if (query.branchId) andWhere.push({ branch_id: query.branchId })
+  if (scopedBranchIds.length) andWhere.push({ branches: { code: { in: scopedBranchIds } } })
+  if (query.branchId) andWhere.push({ branches: { code: query.branchId } })
 
   const where: Prisma.weight_ticketsWhereInput = andWhere.length ? { AND: andWhere } : {}
   if (query.type) where.doc_type = query.type
@@ -168,10 +184,10 @@ export function weightTicketWhere(query: WeightTicketQuery, scopedBranchIds: str
 }
 
 export function buildWeightTicketLineRows(
-  ticketId: string,
+  ticketId: bigint,
   values: WeightTicketFormValues,
-  productById: Map<string, { id: string; name: string }>,
-  impurityById: Map<string, { id: string; name: string }>,
+  productByCode: Map<string, { code: string; id: bigint; name: string }>,
+  impurityById: Map<bigint, { id: bigint; name: string }>,
 ) {
   return values.lines.map((line, index) => {
     const lineTotals = calculateLineTotals({
@@ -179,83 +195,83 @@ export function buildWeightTicketLineRows(
       deductionValue: String(line.deductionValue),
       grossWeight: String(line.grossWeight),
     })
-    const impurity = line.impurityId ? impurityById.get(line.impurityId) : null
-    const product = productById.get(line.productId)
+    const productCode = line.productId.trim().toUpperCase()
+    const product = productByCode.get(productCode)
+    const impurityId = parseInternalBigIntId(line.impurityId)
+    if (!product) {
+      throw new Error(`สินค้า ${line.productId} ไม่มี business code ที่ใช้งานได้`)
+    }
+    const impurity = impurityId == null ? null : impurityById.get(impurityId)
 
     return {
       deduct_weight: lineTotals.deductionWeight,
       deduction_mode: line.deductionMode,
       deduction_value: line.deductionMode === 'none' ? 0 : Number(line.deductionValue),
       gross_weight: lineTotals.grossWeight,
-      // Client line ids such as `line-1` are UI-only and must never become
-      // persistent DB primary keys, otherwise new documents collide.
-      id: `WTL-${randomUUID()}`,
       image_count: line.imageNames.length,
       image_names: line.imageNames,
-      impurity_id: impurity?.id ?? null,
+      impurity_id: impurityId ?? null,
       impurity_name: impurity?.name ?? null,
       line_no: index + 1,
       net_weight: lineTotals.netWeight,
       note: line.note || null,
-      product_id: line.productId,
-      product_name: product?.name ?? line.productId,
+      product_id: product.id,
+      product_name: product.name,
       weight_ticket_id: ticketId,
     }
   })
 }
 
 export function buildWeightTicketProductSummaryRows(
-  ticketId: string,
+  ticketId: bigint,
   lineRows: Array<{
-    deduct_weight: number
+    deduct_weight: number | Prisma.Decimal
     deduction_mode: string
-    deduction_value: number
-    gross_weight: number
-    id: string
-    impurity_id: string | null
-    net_weight: number
-    product_id: string
+    deduction_value: number | Prisma.Decimal | null
+    gross_weight: number | Prisma.Decimal
+    id: bigint
+    impurity_id: bigint | null
+    net_weight: number | Prisma.Decimal
+    product_id: bigint
     product_name: string
-    weight_ticket_id: string
+    weight_ticket_id: bigint
   }>,
 ) {
-  const grouped = new Map<string, {
+  const grouped = new Map<bigint, {
     billedWeight: number
     deductWeight: number
     grossWeight: number
     lineCount: number
-    lineIds: string[]
+    lineIds: bigint[]
     mixedProfiles: Set<string>
     netWeight: number
-    productId: string
+    productId: bigint
     productName: string
-    summaryId: string
   }>()
 
   lineRows.forEach((line) => {
     const existing = grouped.get(line.product_id)
     const profileKey = `${line.deduction_mode}|${line.impurity_id ?? ''}|${line.deduction_value ?? 0}`
     if (existing) {
-      existing.deductWeight += line.deduct_weight
-      existing.grossWeight += line.gross_weight
+      existing.deductWeight += toNumber(line.deduct_weight)
+      existing.grossWeight += toNumber(line.gross_weight)
       existing.lineCount += 1
       existing.lineIds.push(line.id)
       existing.mixedProfiles.add(profileKey)
-      existing.netWeight += line.net_weight
+      existing.netWeight += toNumber(line.net_weight)
       return
     }
 
     grouped.set(line.product_id, {
       billedWeight: 0,
-      deductWeight: line.deduct_weight,
-      grossWeight: line.gross_weight,
+      deductWeight: toNumber(line.deduct_weight),
+      grossWeight: toNumber(line.gross_weight),
       lineCount: 1,
       lineIds: [line.id],
       mixedProfiles: new Set([profileKey]),
-      netWeight: line.net_weight,
+      netWeight: toNumber(line.net_weight),
       productId: line.product_id,
       productName: line.product_name,
-      summaryId: `WTS-${randomUUID()}`,
     })
   })
 
@@ -265,8 +281,8 @@ export function buildWeightTicketProductSummaryRows(
     deduct_weight: summary.deductWeight,
     gross_weight: summary.grossWeight,
     has_mixed_deduction_profiles: summary.mixedProfiles.size > 1,
-    id: summary.summaryId,
     line_count: summary.lineCount,
+    lineIds: summary.lineIds,
     net_weight: summary.netWeight,
     product_id: summary.productId,
     product_name: summary.productName,
@@ -274,18 +290,10 @@ export function buildWeightTicketProductSummaryRows(
     updated_at: new Date(),
     weight_ticket_id: ticketId,
   }))
-
-  const bridgeRows = [...grouped.values()].flatMap((summary) => summary.lineIds.map((lineId) => ({
-    created_at: new Date(),
-    id: `WTSL-${randomUUID()}`,
-    summary_id: summary.summaryId,
-    weight_ticket_line_id: lineId,
-  })))
-
-  return { bridgeRows, summaryRows }
+  return { summaryRows }
 }
 
-export async function getWeightTicketUsageCounts(tx: Prisma.TransactionClient | PrismaClientLike, ticketId: string) {
+export async function getWeightTicketUsageCounts(tx: Prisma.TransactionClient | PrismaClientLike, ticketId: bigint) {
   const purchaseRows = await tx.$queryRaw<Array<{ bill_count: number; doc_nos: string[] | null }>>`
     select count(distinct pb.id)::int as bill_count
          , array_remove(array_agg(distinct pb.doc_no), null) as doc_nos
@@ -303,7 +311,7 @@ export async function getWeightTicketUsageCounts(tx: Prisma.TransactionClient | 
   }
 }
 
-export async function getWeightTicketTimeline(tx: Prisma.TransactionClient | PrismaClientLike, ticketId: string) {
+export async function getWeightTicketTimeline(tx: Prisma.TransactionClient | PrismaClientLike, ticketId: bigint) {
   const rows = await tx.$queryRaw<WeightTicketTimelineRow[]>`
     select
       a.id::text as id,
@@ -324,7 +332,7 @@ export async function getWeightTicketTimeline(tx: Prisma.TransactionClient | Pri
     action: row.action,
     actorName: row.actor_display_name ?? row.actor_username ?? '-',
     eventKey: row.event_key,
-    id: row.id,
+    id: row.event_key,
     metadata: row.metadata && typeof row.metadata === 'object' ? row.metadata as Record<string, unknown> : {},
     occurredAt: row.occurred_at.toISOString(),
     outcome: (row.outcome === 'blocked' || row.outcome === 'failure' ? row.outcome : 'success') as 'blocked' | 'failure' | 'success',
@@ -347,14 +355,14 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
     deductionWeight: toNumber(line.deduct_weight),
     grossWeight: toNumber(line.gross_weight).toString(),
     grossWeightValue: toNumber(line.gross_weight),
-    id: line.id,
+    id: `${row.doc_no}:${line.line_no}`,
     imageCount: line.image_count ?? 0,
     imageNames: line.image_names ?? [],
-    impurityId: line.impurity_id ?? '',
+    impurityId: line.impurity_id == null ? '' : String(line.impurity_id),
     impurityName: line.impurity_name ?? '',
     netWeight: toNumber(line.net_weight),
     note: line.note ?? '',
-    productId: line.product_id,
+    productId: requireBusinessCode(line.products.code, `สินค้า ${line.products.id}`),
     productName: line.product_name,
   }))
   const lineImageNames = lineRows.flatMap((line: { imageNames: string[] }) => line.imageNames)
@@ -363,17 +371,17 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
     deductWeight: toNumber(summary.deduct_weight),
     grossWeight: toNumber(summary.gross_weight),
     hasMixedDeductionProfiles: summary.has_mixed_deduction_profiles ?? false,
-    id: summary.id,
+    id: `${row.doc_no}:${requireBusinessCode(summary.products.code, `สินค้า ${summary.products.id}`)}:${summary.line_count ?? 0}`,
     lineCount: summary.line_count ?? 0,
     netWeight: toNumber(summary.net_weight),
-    productId: summary.product_id,
+    productId: requireBusinessCode(summary.products.code, `สินค้า ${summary.products.id}`),
     productName: summary.product_name,
     remainingWeight: toNumber(summary.remaining_weight),
   }))
 
   return {
-    branchId: row.branch_id,
-    branchName: row.branches?.name ?? row.branch_id,
+    branchId: row.branches?.code ?? '',
+    branchName: row.branches?.name ?? '-',
     canCancel: canMutate,
     canEdit: canMutate,
     cancelNote: row.cancel_note ?? '',
@@ -382,11 +390,11 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
     documentDate: toDateOnly(row.document_date),
     documentNo: row.doc_no,
     enteredBy: row.entered_by ?? row.created_by ?? '-',
-    id: row.id,
+    id: row.doc_no,
     imageCount: row.image_count ?? 0,
     imageNames: [...(row.vehicle_image_names ?? []), ...lineImageNames],
     lines: lineRows,
-    partyId: row.doc_type === 'WTI' ? row.supplier_id ?? '' : row.customer_id ?? '',
+    partyId: row.doc_type === 'WTI' ? row.suppliers?.code ?? '' : row.customers?.code ?? '',
     partyName: row.party_name,
     productSummaries,
     remark: row.remark ?? '',

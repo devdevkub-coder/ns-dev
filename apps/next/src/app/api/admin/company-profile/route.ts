@@ -7,8 +7,6 @@ import { prisma } from '@/lib/server/prisma'
 
 export const runtime = 'nodejs'
 
-const PROFILE_ID = 'default'
-
 function companyProfileJson(row: {
   address: string
   bank_info: string | null
@@ -44,8 +42,8 @@ export async function GET() {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'system.settings.manage')
 
-    const row = await prisma.company_profiles.findUnique({
-      where: { id: PROFILE_ID },
+    const row = await prisma.company_profiles.findFirst({
+      orderBy: { id: 'asc' },
     })
 
     if (!row) {
@@ -81,40 +79,46 @@ export async function PUT(request: Request) {
 
     const values = companyProfileSchema.parse(await request.json())
     const actor = currentActor(context)
-    const row = await prisma.company_profiles.upsert({
-      create: {
-        address: values.address,
-        bank_info: values.bankInfo,
-        branch_code: values.branchCode,
-        email: values.email,
-        fax: values.fax,
-        footer_note: values.footerNote,
-        id: PROFILE_ID,
-        logo_url: values.logoUrl,
-        name: values.name,
-        name_en: values.nameEn,
-        phone: values.phone,
-        tax_id: values.taxId,
-        updated_by: actor,
-        website: values.website,
-      },
-      update: {
-        address: values.address,
-        bank_info: values.bankInfo,
-        branch_code: values.branchCode,
-        email: values.email,
-        fax: values.fax,
-        footer_note: values.footerNote,
-        logo_url: values.logoUrl,
-        name: values.name,
-        name_en: values.nameEn,
-        phone: values.phone,
-        tax_id: values.taxId,
-        updated_by: actor,
-        website: values.website,
-      },
-      where: { id: PROFILE_ID },
+    const existing = await prisma.company_profiles.findFirst({
+      orderBy: { id: 'asc' },
+      select: { id: true },
     })
+    const row = existing
+      ? await prisma.company_profiles.update({
+          data: {
+            address: values.address,
+            bank_info: values.bankInfo,
+            branch_code: values.branchCode,
+            email: values.email,
+            fax: values.fax,
+            footer_note: values.footerNote,
+            logo_url: values.logoUrl,
+            name: values.name,
+            name_en: values.nameEn,
+            phone: values.phone,
+            tax_id: values.taxId,
+            updated_by: actor,
+            website: values.website,
+          },
+          where: { id: existing.id },
+        })
+      : await prisma.company_profiles.create({
+          data: {
+            address: values.address,
+            bank_info: values.bankInfo,
+            branch_code: values.branchCode,
+            email: values.email,
+            fax: values.fax,
+            footer_note: values.footerNote,
+            logo_url: values.logoUrl,
+            name: values.name,
+            name_en: values.nameEn,
+            phone: values.phone,
+            tax_id: values.taxId,
+            updated_by: actor,
+            website: values.website,
+          },
+        })
 
     return NextResponse.json({ profile: companyProfileJson(row) })
   } catch (caught) {

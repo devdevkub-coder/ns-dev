@@ -1,3 +1,4 @@
+import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { errorJson, masterDataJson, type MasterDataRouteProps, toIso, toNumber } from '@/lib/server/master-data'
@@ -10,10 +11,15 @@ export async function PATCH(_request: Request, { params }: MasterDataRouteProps)
     requirePermission(context, 'master.reference.manage')
 
     const { id } = await params
-    const row = await prisma.currencies.findUniqueOrThrow({ where: { id } })
+    const row = await prisma.currencies.findFirstOrThrow({
+      where: {
+        OR: [{ code: id.toUpperCase() }, ...(parseInternalBigIntId(id) != null ? [{ id: parseInternalBigIntId(id) as bigint }] : [])],
+      } as any,
+    })
+    const outwardId = requireBusinessCode(row.code, `สกุลเงิน ${row.id}`)
     return masterDataJson({
-      id: row.id,
-      code: null,
+      id: outwardId,
+      code: outwardId,
       name: row.name,
       active: true,
       type: null,

@@ -63,20 +63,25 @@ export default async function AdvancePaymentDetailPage({ params }: PageProps) {
       accounts: true,
       branches: true,
       supplier_advance_allocations: {
-        include: {
+        select: {
+          allocation_key: true,
+          allocated_amount: true,
+          created_at: true,
+          id: true,
           purchase_bills: {
             select: {
               doc_no: true,
               id: true,
             },
           },
+          purchase_bill_id: true,
         },
         orderBy: { created_at: 'asc' },
       },
       suppliers: true,
     },
     where: {
-      OR: [{ id }, { doc_no: id }],
+      doc_no: id,
     },
   })
 
@@ -121,10 +126,10 @@ export default async function AdvancePaymentDetailPage({ params }: PageProps) {
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <DetailCard label="เลขที่เอกสาร" value={row.doc_no} />
         <DetailCard label="วันที่เอกสาร" value={dateOrDash(row.advance_date)} />
-        <DetailCard label="สาขา" value={row.branches?.name ?? row.branch_id} />
-        <DetailCard label="ผู้ขาย" value={row.suppliers?.name ?? row.supplier_id} />
+        <DetailCard label="สาขา" value={row.branches?.name ?? '-'} />
+        <DetailCard label="ผู้ขาย" value={row.suppliers?.name ?? '-'} />
         <DetailCard label="วิธีจ่าย" value={text(row.payment_method)} />
-        <DetailCard label="บัญชีที่จ่าย" value={row.accounts?.name ?? text(row.funding_account_id)} />
+        <DetailCard label="บัญชีที่จ่าย" value={row.accounts?.name ?? '-'} />
         <DetailCard label="เลขเอกสารชั่งใหญ่" value={text(row.large_scale_doc_no)} />
         <DetailCard label="ทะเบียนรถ" value={text(row.plate_no)} />
         <DetailCard label="สินค้า" value={text(row.product_name)} />
@@ -150,11 +155,11 @@ export default async function AdvancePaymentDetailPage({ params }: PageProps) {
             </thead>
             <tbody>
               {row.supplier_advance_allocations.map((allocation) => (
-                <tr key={allocation.id} className="border-t">
+                <tr key={allocation.allocation_key} className="border-t">
                   <td className="p-2">{dateOrDash(allocation.created_at)}</td>
                   <td className="p-2">
                     {allocation.purchase_bills ? (
-                      <Link className="text-blue-700 hover:underline" href={`/purchase/bills/${allocation.purchase_bills.id}`}>
+                      <Link className="text-blue-700 hover:underline" href={`/purchase/bills/${allocation.purchase_bills.doc_no}`}>
                         {allocation.purchase_bills.doc_no}
                       </Link>
                     ) : '-'}

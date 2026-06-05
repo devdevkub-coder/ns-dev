@@ -1,3 +1,4 @@
+import { requireBusinessCode } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { errorJson, masterDataJson, masterDataListJson, normalizeCode, parseMasterDataForm, toIso } from '@/lib/server/master-data'
@@ -5,9 +6,10 @@ import { errorJson, masterDataJson, masterDataListJson, normalizeCode, parseMast
 export const runtime = 'nodejs'
 
 function mapBranch(row: Awaited<ReturnType<typeof prisma.branches.findMany>>[number]) {
+  const outwardId = requireBusinessCode(row.code, `สาขา ${row.id}`)
   return {
-    id: row.id,
-    code: row.code,
+    id: outwardId,
+    code: outwardId,
     name: row.name,
     active: row.active ?? true,
     type: null,
@@ -23,7 +25,7 @@ function mapBranch(row: Awaited<ReturnType<typeof prisma.branches.findMany>>[num
     currency: null,
     openingBalance: null,
     odLimit: null,
-    branchId: row.id,
+    branchId: outwardId,
     branchName: row.name,
     address: row.address,
     commissionPct: null,
@@ -52,10 +54,21 @@ export async function POST(request: Request) {
     requirePermission(context, 'master.reference.manage')
 
     const values = parseMasterDataForm(await request.json())
+    const existing = values.id
+      ? await prisma.branches.findFirst({
+        select: { id: true },
+        where: {
+          OR: [
+            { code: values.id.toUpperCase() },
+            ...(values.id.match(/^\d+$/) ? [{ id: BigInt(values.id) }] : []),
+          ],
+        },
+      })
+      : null
     const code = normalizeCode(values.code, values.id || '')
     const row = await prisma.branches.upsert({
-      where: { id: values.id || code },
-      create: { id: values.id || code, code, name: values.name, phone: values.phone || null, address: values.address || null, active: values.active },
+      where: existing ? { id: existing.id } : { code },
+      create: { code, name: values.name, phone: values.phone || null, address: values.address || null, active: values.active },
       update: { code, name: values.name, phone: values.phone || null, address: values.address || null, active: values.active },
     })
     return masterDataJson(mapBranch(row))

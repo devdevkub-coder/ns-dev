@@ -1,4 +1,6 @@
 import type { Prisma } from '../../../generated/prisma/client'
+import { outwardCustomerReference } from '@/lib/server/customer-reference'
+import { requireBusinessCode } from '@/lib/business-code'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
@@ -7,7 +9,7 @@ type JsonItem = Prisma.JsonObject
 
 type ProductRef = {
   code: string
-  id: string
+  id: bigint
   itemStatus: string
   metalGroup: string
   name: string
@@ -80,7 +82,7 @@ function itemProductCode(item: JsonItem) {
 }
 
 function productKey(product: ProductRef) {
-  return [product.id, product.code, product.name].map((value) => value.trim().toLowerCase()).filter(Boolean)
+  return [String(product.id), product.code, product.name].map((value) => value.trim().toLowerCase()).filter(Boolean)
 }
 
 function lookupProduct(item: JsonItem, productsByKey: Map<string, ProductRef>) {
@@ -154,7 +156,7 @@ async function productsContext() {
   return { byKey, refs }
 }
 
-function poSellItems(row: { items: unknown; product_id: string | null; qty: unknown; remaining_qty: unknown; unit_price: unknown }, productsByKey: Map<string, ProductRef>) {
+function poSellItems(row: { items: unknown; product_id: bigint | null; qty: unknown; remaining_qty: unknown; unit_price: unknown }, productsByKey: Map<string, ProductRef>) {
   if (Array.isArray(row.items) && row.items.length) {
     return row.items.filter(isJsonItem).map((item) => {
       const product = lookupProduct(item, productsByKey)
@@ -164,7 +166,7 @@ function poSellItems(row: { items: unknown; product_id: string | null; qty: unkn
       return {
         product,
         productCode: product?.code ?? itemProductCode(item),
-        productId: product?.id ?? (itemProductId(item) || itemProductName(item)),
+        productId: product?.code ?? '',
         productName: product?.name ?? (itemProductName(item) || 'ไม่ระบุสินค้า'),
         qty,
         remainingQty,
@@ -172,12 +174,12 @@ function poSellItems(row: { items: unknown; product_id: string | null; qty: unkn
       }
     })
   }
-  const product = row.product_id ? productsByKey.get(row.product_id.trim().toLowerCase()) : undefined
+  const product = row.product_id != null ? productsByKey.get(String(row.product_id).trim().toLowerCase()) : undefined
   return [{
     product,
     productCode: product?.code ?? '',
-    productId: product?.id ?? row.product_id ?? 'ไม่ระบุสินค้า',
-    productName: product?.name ?? row.product_id ?? 'ไม่ระบุสินค้า',
+    productId: product?.code ?? '',
+    productName: product?.name ?? 'ไม่ระบุสินค้า',
     qty: jsonNumber(row.qty),
     remainingQty: jsonNumber(row.remaining_qty ?? row.qty),
     unitPrice: jsonNumber(row.unit_price),
@@ -190,7 +192,7 @@ export async function buildPendingSales() {
     prisma.po_sells.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000 }),
     prisma.po_buys.findMany({ orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000 }),
     prisma.stock_ledger.findMany({ orderBy: [{ date: 'desc' }], take: 50000 }),
-    prisma.customers.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, id: true, name: true } }),
+    prisma.customers.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
     prisma.trading_deals.findMany({ orderBy: [{ date: 'desc' }], take: 10000, where: { NOT: { status: { in: ['Cancelled', 'cancelled'] } } } }),
     prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' } } }, orderBy: [{ date: 'desc' }], take: 10000, where: { NOT: { status: 'cancelled' } } }),
   ])
@@ -199,7 +201,7 @@ export async function buildPendingSales() {
   const details: Array<{ customerId: string; customerName: string; date: string; deliveryDate: string; docNo: string; id: string; itemPrice: number; itemQty: number; matched: number; productId: string; remaining: number; remainValue: number }> = []
   const ensureAgg = (values: { product?: ProductRef; productCode: string; productId: string; productName: string }) => {
     const product = values.product
-    const key = product?.id ?? values.productId
+    const key = product ? String(product.id) : values.productId
     const metalGroup = product?.metalGroup ?? ''
     if (!productAgg.has(key)) {
       productAgg.set(key, {
@@ -237,13 +239,14 @@ export async function buildPendingSales() {
       row.soldQty += sold
       row.remainValue += remaining * item.unitPrice
       row.soldValue += sold * item.unitPrice
+      const customerRef = outwardCustomerReference(po.customers, po.customer_id)
       details.push({
-        customerId: po.customer_id ?? '',
-        customerName: po.customers?.name ?? po.customer_id ?? '-',
+        customerId: customerRef.customerId ?? '',
+        customerName: customerRef.customerName ?? '-',
         date: toDateOnly(po.date),
         deliveryDate: toDateOnly(po.delivery_date ?? po.expected_delivery),
         docNo: po.doc_no,
-        id: `${po.id}:${item.productId}`,
+        id: `${po.doc_no}:${item.productId}`,
         itemPrice: item.unitPrice,
         itemQty: qty,
         matched: sold,
@@ -271,22 +274,22 @@ export async function buildPendingSales() {
     }
   }).sort((left, right) => right.remainValue - left.remainValue)
 
-  const stockByProduct = new Map<string, { qty: number; value: number }>()
+  const stockByProduct = new Map<bigint, { qty: number; value: number }>()
   stockRows.forEach((stock) => {
-    if (!stock.product_id) return
+    if (stock.product_id == null) return
     const current = stockByProduct.get(stock.product_id) ?? { qty: 0, value: 0 }
     current.qty += toNumber(stock.qty_in) - toNumber(stock.qty_out)
     current.value += toNumber(stock.value_in) - toNumber(stock.value_out)
     stockByProduct.set(stock.product_id, current)
   })
 
-  const matchedByProduct = new Map<string, number>()
+  const matchedByProduct = new Map<bigint, number>()
   tradingDeals.forEach((deal) => {
-    if (!deal.product_id) return
+    if (deal.product_id == null) return
     matchedByProduct.set(deal.product_id, (matchedByProduct.get(deal.product_id) ?? 0) + toNumber(deal.matched_qty))
   })
 
-  const spotByProduct = new Map<string, { amount: number; qty: number }>()
+  const spotByProduct = new Map<bigint, { amount: number; qty: number }>()
   purchaseBills.forEach((bill) => {
     purchaseBillItemRows(bill).filter(isJsonItem).forEach((item) => {
       const product = lookupProduct(item, byKey)
@@ -298,9 +301,9 @@ export async function buildPendingSales() {
     })
   })
 
-  const poBuyByProduct = new Map<string, { amount: number; qty: number }>()
+  const poBuyByProduct = new Map<bigint, { amount: number; qty: number }>()
   poBuys.filter((po) => activeStatus(po.status)).forEach((po) => {
-    const product = po.product_id ? byKey.get(po.product_id.trim().toLowerCase()) : undefined
+    const product = po.product_id != null ? byKey.get(String(po.product_id).trim().toLowerCase()) : undefined
     if (!product) return
     const qty = toNumber(po.remaining_qty ?? po.qty)
     const amount = toNumber(po.remaining_amount) || qty * toNumber(po.unit_price)
@@ -314,7 +317,7 @@ export async function buildPendingSales() {
   poSells.filter((po) => activeStatus(po.status) && !['fully matched', 'closed'].includes((po.status ?? '').toLowerCase())).forEach((po) => {
     poSellItems(po, byKey).forEach((item) => {
       if (!item.product?.id && !item.productId) return
-      const key = item.product?.id ?? item.productId
+      const key = item.product ? String(item.product.id) : item.productId
       poSellOpenByProduct.set(key, (poSellOpenByProduct.get(key) ?? 0) + Math.max(0, item.remainingQty))
     })
   })
@@ -333,7 +336,7 @@ export async function buildPendingSales() {
       poOnOrderQty: po.qty,
       poOnOrderValue: po.amount,
       productCode: product.code,
-      productId: product.id,
+      productId: product.code,
       productName: product.name,
       spotAvgPrice,
       spotInPoolQty: spotQty,
@@ -354,7 +357,7 @@ export async function buildPendingSales() {
       const pendingSaleQty = Math.max(0, spotRaw.qty - matched)
       const avgPrice = spotRaw.qty > 0 ? spotRaw.amount / spotRaw.qty : 0
       const pendingSaleValue = pendingSaleQty * avgPrice
-      const lockedSell = poSellOpenByProduct.get(product.id) ?? 0
+      const lockedSell = poSellOpenByProduct.get(String(product.id)) ?? 0
       const lockedBuy = poBuyByProduct.get(product.id)?.qty ?? 0
       const realPendingSale = stock.qty + lockedBuy - lockedSell
       return {
@@ -409,7 +412,10 @@ export async function buildPendingSales() {
   }
 
   return {
-    customers: customers.map((customer) => ({ active: customer.active ?? true, id: customer.id, name: customer.name })),
+    customers: customers.map((customer) => {
+      const code = requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`)
+      return { active: customer.active ?? true, code, id: code, name: customer.name }
+    }),
     lmeConfig: lmeConfig(),
     metalGroups: Array.from(new Set(refs.map((product) => product.metalGroup).filter(Boolean))).sort(),
     pendingSaleTable,
@@ -501,51 +507,54 @@ export async function buildSalesCommission() {
       where: { date: { gte: periodFrom, lte: periodTo }, NOT: { status: 'cancelled' } },
     }),
   ])
-  const salesById = new Map(salespersons.map((sales) => [sales.id, sales]))
-  const supplierSalesById = new Map(suppliers.map((supplier) => [supplier.id, supplier.sales_id ?? '']))
+  const salesById = new Map(salespersons.map((sales) => [String(sales.id), sales]))
+  const salesCodeById = new Map(salespersons.map((sales) => [String(sales.id), requireBusinessCode(sales.code, `พนักงานขาย ${sales.id}`)]))
+  const supplierSalesById = new Map(suppliers.map((supplier) => [String(supplier.id), supplier.sales_id != null ? (salesCodeById.get(String(supplier.sales_id)) ?? '') : '']))
   const supplierCounts = new Map<string, Set<string>>()
   suppliers.forEach((supplier) => {
-    const salesId = supplier.sales_id || '_UNASSIGNED_'
+    const salesId = supplier.sales_id != null ? (salesCodeById.get(String(supplier.sales_id)) ?? '_UNASSIGNED_') : '_UNASSIGNED_'
     const set = supplierCounts.get(salesId) ?? new Set<string>()
-    set.add(supplier.id)
+    if (supplier.code) set.add(requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`))
     supplierCounts.set(salesId, set)
   })
   const summary = new Map<string, { billCount: number; id: string; name: string; phone: string; purchaseAmt: number; qty: number; supplierIds: Set<string> }>()
   const ensure = (id: string) => {
     if (!summary.has(id)) {
       const sales = salesById.get(id)
-      summary.set(id, { billCount: 0, id, name: id === '_UNASSIGNED_' ? '(ไม่ได้กำหนด Sales)' : sales?.name ?? id, phone: sales?.phone ?? '', purchaseAmt: 0, qty: 0, supplierIds: supplierCounts.get(id) ?? new Set<string>() })
+      summary.set(id, { billCount: 0, id, name: id === '_UNASSIGNED_' ? '(ไม่ได้กำหนด Sales)' : sales?.name ?? '-', phone: sales?.phone ?? '', purchaseAmt: 0, qty: 0, supplierIds: supplierCounts.get(id) ?? new Set<string>() })
     }
     return summary.get(id)!
   }
   const billRows = purchaseBills.map((bill) => {
-    const salesId = bill.sales_id || (bill.supplier_id ? supplierSalesById.get(bill.supplier_id) : '') || '_UNASSIGNED_'
+    const salesId = bill.sales_id != null
+      ? (salesCodeById.get(String(bill.sales_id)) ?? '_UNASSIGNED_')
+      : (bill.supplier_id ? (supplierSalesById.get(String(bill.supplier_id)) || '_UNASSIGNED_') : '_UNASSIGNED_')
     const items = purchaseBillItemRows(bill).filter(isJsonItem)
     const qty = items.reduce((sum, item) => sum + itemQty(item), 0)
     const row = ensure(salesId)
     row.billCount += 1
     row.purchaseAmt += toNumber(bill.total_amount)
     row.qty += qty
-    if (bill.supplier_id) row.supplierIds.add(bill.supplier_id)
+    if (bill.suppliers?.code) row.supplierIds.add(requireBusinessCode(bill.suppliers.code, `ผู้ขายบิลซื้อ ${bill.id}`))
     return {
       amount: toNumber(bill.total_amount),
       date: toDateOnly(bill.date),
       docNo: bill.doc_no,
       facePrice: 0,
-      id: bill.id,
+      id: bill.doc_no,
       price: qty > 0 ? toNumber(bill.total_amount) / qty : 0,
       productName: items.map(itemProductName).filter(Boolean).slice(0, 2).join(', ') || '-',
       qty,
       salesId,
       status: bill.status ?? '',
-      supplierName: bill.suppliers?.name ?? bill.supplier_id ?? '-',
+      supplierName: bill.suppliers?.name ?? '-',
     }
   })
   const threshold = 1000000
   const salesRows = Array.from(summary.values()).map((row) => ({
     avgPrice: row.qty > 0 ? row.purchaseAmt / row.qty : 0,
     billCount: row.billCount,
-    code: salesById.get(row.id)?.code ?? (row.id === '_UNASSIGNED_' ? '-' : row.id),
+    code: row.id === '_UNASSIGNED_' ? '-' : (salesById.get(row.id)?.code ? requireBusinessCode(salesById.get(row.id)!.code, `พนักงานขาย ${salesById.get(row.id)!.id}`) : ''),
     commission: row.purchaseAmt >= threshold ? Math.floor(row.purchaseAmt / 500000) * 500 : 0,
     eligible: row.purchaseAmt >= threshold,
     id: row.id,
@@ -566,7 +575,10 @@ export async function buildSalesCommission() {
       limitations: ['Period changes, CSV export, supplier assignment, bulk assignment, and persisted commission closing remain disabled until authorization and audit are designed.'],
       writeActionsEnabled: false,
     },
-    suppliers: suppliers.map((supplier) => ({ code: supplier.code ?? '', id: supplier.id, name: supplier.name, phone: supplier.phone ?? '', salesId: supplier.sales_id ?? '' })),
+    suppliers: suppliers.map((supplier) => {
+      const code = requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`)
+      return { code, id: code, name: supplier.name, phone: supplier.phone ?? '', salesId: supplier.sales_id != null ? (salesCodeById.get(String(supplier.sales_id)) ?? '') : '' }
+    }),
     totals: {
       bills: salesRows.reduce((sum, row) => sum + row.billCount, 0),
       purchaseAmt: salesRows.reduce((sum, row) => sum + row.purchaseAmt, 0),

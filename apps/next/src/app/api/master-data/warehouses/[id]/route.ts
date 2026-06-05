@@ -1,6 +1,8 @@
+import { requireBusinessCode } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { errorJson, masterDataJson, type MasterDataRouteProps, toIso, updateMasterDataStatusSchema } from '@/lib/server/master-data'
+import { outwardBranchReference } from '@/lib/server/branch-reference'
 import type { Prisma } from '../../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
@@ -8,9 +10,10 @@ export const runtime = 'nodejs'
 type WarehouseRow = Prisma.warehousesGetPayload<{ include: { branches: true } }>
 
 function mapWarehouse(row: WarehouseRow) {
+  const outwardId = requireBusinessCode(row.code, `คลัง ${row.id}`)
   return {
-    id: row.id,
-    code: row.code,
+    id: outwardId,
+    code: outwardId,
     name: row.name,
     active: row.active ?? true,
     type: row.type ?? null,
@@ -26,8 +29,7 @@ function mapWarehouse(row: WarehouseRow) {
     currency: null,
     openingBalance: null,
     odLimit: null,
-    branchId: row.branch_id,
-    branchName: row.branches?.name ?? null,
+    ...outwardBranchReference(row.branches, row.branch_id),
     address: null,
     commissionPct: null,
     baseSalary: null,
@@ -43,10 +45,20 @@ export async function PATCH(request: Request, { params }: MasterDataRouteProps) 
 
     const { id } = await params
     const values = updateMasterDataStatusSchema.parse(await request.json())
+    const resolved = await prisma.warehouses.findFirst({
+      select: { id: true },
+      where: {
+        OR: [
+          { code: id.toUpperCase() },
+          ...(id.match(/^\d+$/) ? [{ id: BigInt(id) }] : []),
+        ],
+      },
+    })
+    if (!resolved) throw new Error('ไม่พบคลังที่ต้องการอัปเดต')
     const row = await prisma.warehouses.update({
       data: { active: values.active },
       include: { branches: true },
-      where: { id },
+      where: { id: resolved.id },
     })
     return masterDataJson(mapWarehouse(row))
   } catch (caught) {

@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
-import { randomUUID } from 'node:crypto'
+import { stringifyBusinessValue } from '@/lib/business-code'
 import { transferFormSchema } from '@/lib/daily'
 import { apiErrorResponse } from '@/lib/server/api-error'
+import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { bankStatementTransferRows, currentActor, listDailyAccounts, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { bankStatementTransferRows, currentActor, listDailyAccounts, nextDailyDocNo, nextDailyDocNos, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import type { Prisma } from '../../../../../generated/prisma/client'
 
@@ -16,6 +17,18 @@ type TransferWithAccounts = Prisma.transfersGetPayload<{
   }
 }>
 
+async function findTransferByDocNo(
+  client: Prisma.TransactionClient | typeof prisma,
+  value: string,
+  select?: Prisma.transfersSelect,
+) {
+  const transfersClient = client.transfers as typeof prisma.transfers
+  return transfersClient.findFirst({
+    select,
+    where: { doc_no: value },
+  })
+}
+
 function transferJson(row: TransferWithAccounts) {
   return {
     amount: toNumber(row.amount),
@@ -23,12 +36,12 @@ function transferJson(row: TransferWithAccounts) {
     date: toDateOnly(row.date),
     docNo: row.doc_no,
     fee: toNumber(row.fee ?? row.bank_fee),
-    fromAccountId: row.from_account_id ?? '',
+    fromAccountId: row.accounts_transfers_from_account_idToaccounts?.code ?? '',
     fromAccountName: row.accounts_transfers_from_account_idToaccounts?.name ?? '-',
-    id: row.id,
+    id: row.doc_no,
     notes: row.notes ?? '',
     status: row.status ?? 'active',
-    toAccountId: row.to_account_id ?? '',
+    toAccountId: row.accounts_transfers_to_account_idToaccounts?.code ?? '',
     toAccountName: row.accounts_transfers_to_account_idToaccounts?.name ?? '-',
   }
 }
@@ -63,68 +76,79 @@ export async function POST(request: Request) {
     requirePermission(context, 'finance.cash.view')
 
     const values = transferFormSchema.parse(await request.json())
-    const id = values.id ?? `TRF-${randomUUID()}`
-    const docNo = values.docNo ?? await nextDailyDocNo('transfers', 'TRF', values.date)
     const actor = currentActor(context)
-
     const [fromAccount, toAccount] = await Promise.all([
-      prisma.accounts.findUnique({ where: { id: values.fromAccountId } }),
-      prisma.accounts.findUnique({ where: { id: values.toAccountId } }),
+      findActiveAccountReferenceByCode(values.fromAccountId),
+      findActiveAccountReferenceByCode(values.toAccountId),
     ])
-
     if (!fromAccount || !toAccount) {
-      return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่พบบัญชีต้นทางหรือปลายทาง' }, { status: 400 })
+      throw new Error('บัญชีต้นทางหรือปลายทางไม่ถูกต้อง')
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      const transfer = await tx.transfers.upsert({
-        where: { id },
-        create: {
-          amount: values.amount,
-          bank_fee: values.fee,
-          created_by: actor,
-          date: normalizeDate(values.date),
-          doc_no: docNo,
-          fee: values.fee,
-          from_account_id: values.fromAccountId,
-          id,
-          notes: values.notes,
-          status: 'active',
-          to_account_id: values.toAccountId,
-          updated_at: new Date(),
-          updated_by: actor,
-        },
-        update: {
-          amount: values.amount,
-          bank_fee: values.fee,
-          date: normalizeDate(values.date),
-          doc_no: docNo,
-          fee: values.fee,
-          from_account_id: values.fromAccountId,
-          notes: values.notes,
-          to_account_id: values.toAccountId,
-          updated_at: new Date(),
-          updated_by: actor,
-        },
-      })
+      const existingTransfer = values.id
+        ? await findTransferByDocNo(tx, values.id, {
+            doc_no: true,
+            id: true,
+            status: true,
+          })
+        : null
+      if (values.id && !existingTransfer) {
+        throw new Error('ไม่พบรายการโอนเงิน')
+      }
+      const docNo = values.docNo ?? existingTransfer?.doc_no ?? await nextDailyDocNo('transfers', 'TRF', values.date)
+      const transfer = existingTransfer
+        ? await tx.transfers.update({
+            where: { id: existingTransfer.id },
+            data: {
+              amount: values.amount,
+              bank_fee: values.fee,
+              date: normalizeDate(values.date),
+              doc_no: docNo,
+              fee: values.fee,
+              from_account_id: fromAccount.id,
+              notes: values.notes,
+              to_account_id: toAccount.id,
+              updated_at: new Date(),
+              updated_by: actor,
+            },
+          })
+        : await tx.transfers.create({
+            data: {
+              amount: values.amount,
+              bank_fee: values.fee,
+              created_by: actor,
+              date: normalizeDate(values.date),
+              doc_no: docNo,
+              fee: values.fee,
+              from_account_id: fromAccount.id,
+              notes: values.notes,
+              status: 'active',
+              to_account_id: toAccount.id,
+              updated_at: new Date(),
+              updated_by: actor,
+            },
+          })
 
       await tx.bank_statement.deleteMany({
         where: {
-          ref_id: id,
+          ref_id: transfer.id.toString(),
           ref_type: 'TRF',
         },
       })
+      const statementDocNos = await nextDailyDocNos('bank_statement', 'BST', values.date, 2)
       await tx.bank_statement.createMany({
         data: bankStatementTransferRows({
           amount: values.amount,
           by: actor,
           date: values.date,
           docNo,
+          entryDocNos: [statementDocNos[0]!, statementDocNos[1]!],
           fee: values.fee,
-          fromAccountId: values.fromAccountId,
+          fromAccountId: stringifyBusinessValue(fromAccount.id),
           fromAccountName: fromAccount.name,
-          id,
-          toAccountId: values.toAccountId,
+          id: transfer.id.toString(),
+          toAccountId: stringifyBusinessValue(toAccount.id),
           toAccountName: toAccount.name,
         }),
       })
@@ -132,7 +156,7 @@ export async function POST(request: Request) {
       return transfer
     })
 
-    return NextResponse.json({ id: result.id })
+    return NextResponse.json({ id: result.doc_no })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'บันทึกรายการโอนเงินไม่ได้', 400)

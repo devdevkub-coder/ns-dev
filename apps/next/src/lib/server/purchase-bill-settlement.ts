@@ -10,7 +10,7 @@ function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100
 }
 
-export async function calculatePurchaseBillSettlement(tx: PurchaseBillSettlementTx, billId: string) {
+export async function calculatePurchaseBillSettlement(tx: PurchaseBillSettlementTx, billId: bigint) {
   const [bill, payments, advanceAllocations] = await Promise.all([
     tx.purchase_bills.findUnique({
       select: { id: true, status: true, total_amount: true },
@@ -50,7 +50,7 @@ export async function calculatePurchaseBillSettlement(tx: PurchaseBillSettlement
   }
 }
 
-export async function refreshPurchaseBillSettlement(tx: PurchaseBillSettlementTx, billId: string, actor: string) {
+export async function refreshPurchaseBillSettlement(tx: PurchaseBillSettlementTx, billId: bigint, actor: string) {
   const settlement = await calculatePurchaseBillSettlement(tx, billId)
   await tx.purchase_bills.update({
     data: {
@@ -65,7 +65,7 @@ export async function refreshPurchaseBillSettlement(tx: PurchaseBillSettlementTx
   return settlement
 }
 
-export async function refreshSupplierAdvancePaymentAllocation(tx: PurchaseBillSettlementTx, advancePaymentId: string) {
+export async function refreshSupplierAdvancePaymentAllocation(tx: PurchaseBillSettlementTx, advancePaymentId: bigint) {
   const [advancePayment, activeAllocations] = await Promise.all([
     tx.supplier_advance_payments.findUnique({
       select: { amount: true, id: true, status: true },

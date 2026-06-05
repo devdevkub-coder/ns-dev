@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { resetPasswordSchema } from '@/lib/auth'
-import { getSupabaseClient } from '@/lib/supabase'
+import { getSessionSafely, getSupabaseClient } from '@/lib/supabase'
 
 export function ResetPasswordPageClient() {
   const router = useRouter()
@@ -24,11 +24,18 @@ export function ResetPasswordPageClient() {
 
     let mounted = true
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return
-      setIsSessionReady(Boolean(data.session))
-      setSessionEmail(data.session?.user.email ?? '')
-    })
+    void (async () => {
+      try {
+        const session = await getSessionSafely(supabase)
+        if (!mounted) return
+        setIsSessionReady(Boolean(session))
+        setSessionEmail(session?.user.email ?? '')
+      } catch {
+        if (!mounted) return
+        setIsSessionReady(false)
+        setSessionEmail('')
+      }
+    })()
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsSessionReady(Boolean(session))

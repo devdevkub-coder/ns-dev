@@ -61,7 +61,7 @@ async function accountBalances(asOf: Date) {
       where: { date: { lte: endOfDay(asOf) } },
     }),
   ])
-  const balances = new Map<string, number>()
+  const balances = new Map<bigint, number>()
   accounts.forEach((account) => balances.set(account.id, toNumber(account.opening_balance)))
   bankRows.forEach((row) => {
     if (!row.account_id) return
@@ -137,7 +137,7 @@ export async function buildCashOthersSummary(asOfValue?: string | null) {
     return acc
   }, { cost: 0, count: 0, est: 0, qty: 0 })
 
-  const matchedByPurchase = new Map<string, number>()
+  const matchedByPurchase = new Map<bigint, number>()
   tradingDeals.filter((deal) => activeStatus(deal.status)).forEach((deal) => {
     if (!deal.purchase_bill_id) return
     matchedByPurchase.set(deal.purchase_bill_id, (matchedByPurchase.get(deal.purchase_bill_id) ?? 0) + toNumber(deal.matched_purchase_amount))
@@ -216,8 +216,8 @@ export async function buildAnomalyDetector(asOfValue?: string | null) {
   const push = (item: (typeof anomalies)[number]) => anomalies.push(item)
   const stockByProduct = new Map<string, { name: string; qty: number; value: number }>()
   stockRows.forEach((row) => {
-    const key = row.product_id ?? 'unknown'
-    const current = stockByProduct.get(key) ?? { name: row.products?.name ?? key, qty: 0, value: 0 }
+    const key = row.products?.code ?? 'unknown'
+    const current = stockByProduct.get(key) ?? { name: row.products?.name ?? 'ไม่ระบุสินค้า', qty: 0, value: 0 }
     current.qty += toNumber(row.qty_in) - toNumber(row.qty_out)
     current.value += toNumber(row.value_in) - toNumber(row.value_out)
     stockByProduct.set(key, current)
@@ -226,7 +226,7 @@ export async function buildAnomalyDetector(asOfValue?: string | null) {
     if (row.qty < -0.001) push({ action: 'ตรวจ Stock Ledger และรายการเบิก/ขายที่ทำให้ยอดติดลบ', category: 'Stock', detail: `${row.name} คงเหลือ ${row.qty.toLocaleString('th-TH')} กก.`, fixHref: '/stock/ledger', icon: '🚨', id: `stock-neg-${key}`, severity: 'critical', title: `Stock ติดลบ: ${row.name}` })
     if (Math.abs(row.qty) < 0.001 && Math.abs(row.value) > 1) push({ action: 'ตรวจมูลค่าคงค้างและทำ adjustment/reconciliation หลังออกแบบ write flow', category: 'Stock', detail: `${row.name} qty 0 แต่มูลค่า ${row.value.toLocaleString('th-TH')}`, fixHref: '/stock/ledger', icon: '⚠', id: `stock-orphan-val-${key}`, severity: 'warn', title: `Stock 0 แต่มีมูลค่า: ${row.name}` })
   })
-  cash.filter((account) => account.thbEquivalent < 0).forEach((account) => push({ action: 'ตรวจ Bank Statement และ OD limit', category: 'Cash', detail: `${account.name} balance ${account.thbEquivalent.toLocaleString('th-TH')}`, fixHref: '/finance/bank', icon: '🚨', id: `acc-neg-${account.id}`, severity: 'critical', title: `บัญชีติดลบ: ${account.name}` }))
+  cash.filter((account) => account.thbEquivalent < 0).forEach((account) => push({ action: 'ตรวจ Bank Statement และ OD limit', category: 'Cash', detail: `${account.name} balance ${account.thbEquivalent.toLocaleString('th-TH')}`, fixHref: '/finance/bank', icon: '🚨', id: `acc-neg-${String(account.id)}`, severity: 'critical', title: `บัญชีติดลบ: ${account.name}` }))
   if (cash.reduce((sum, account) => sum + account.thbEquivalent, 0) < 100000) push({ action: 'ตรวจ cash position และรายการรับ/จ่ายระยะสั้น', category: 'Cash', detail: 'เงินสด/ธนาคารรวมต่ำกว่า 100,000 บาท', fixHref: '/cash-others-summary', icon: '⚠', id: 'cash-low-total', severity: 'warn', title: 'เงินสดต่ำ' })
 
   salesBills.filter((bill) => activeStatus(bill.status)).forEach((bill) => {
@@ -263,7 +263,7 @@ export async function buildAnomalyDetector(asOfValue?: string | null) {
   supplierNames.forEach((count, name) => {
     if (count > 1) push({ action: 'ตรวจ duplicate supplier master', category: 'Master', detail: `${name} มี ${count} records`, fixHref: '/master-data/suppliers', icon: '⚠', id: `sup-dup-${name}`, severity: 'warn', title: `Supplier ชื่อซ้ำ: ${name}` })
   })
-  bankRows.filter((row) => !row.ref_id && !row.ref_no && (toNumber(row.amount_in) || toNumber(row.amount_out))).slice(0, 30).forEach((row) => push({ action: 'ผูก ref หรือระบุคำอธิบายที่ตรวจสอบได้', category: 'Cash', detail: `${toDateOnly(row.date)} · ${row.description ?? row.desc ?? '-'} · ${(toNumber(row.amount_in) - toNumber(row.amount_out)).toLocaleString('th-TH')}`, fixHref: '/finance/bank', icon: 'ℹ', id: `bs-orphan-${row.id}`, severity: 'info', title: 'Bank entry ไม่มี ref' }))
+  bankRows.filter((row) => !row.ref_id && !row.ref_no && (toNumber(row.amount_in) || toNumber(row.amount_out))).slice(0, 30).forEach((row) => push({ action: 'ผูก ref หรือระบุคำอธิบายที่ตรวจสอบได้', category: 'Cash', detail: `${toDateOnly(row.date)} · ${row.description ?? row.desc ?? '-'} · ${(toNumber(row.amount_in) - toNumber(row.amount_out)).toLocaleString('th-TH')}`, fixHref: '/finance/bank', icon: 'ℹ', id: `bs-orphan-${row.doc_no}`, severity: 'info', title: 'Bank entry ไม่มี ref' }))
   tradingDeals.filter((deal) => activeStatus(deal.status) && !['matched', 'closed'].includes((deal.status ?? '').toLowerCase()) && daysBetween(deal.date, asOf) > 30).forEach((deal) => push({ action: 'เปิด Trading Matching เพื่อตรวจการจับคู่', category: 'Trading', detail: `${deal.deal_no} ค้าง ${daysBetween(deal.date, asOf)} วัน`, fixHref: '/trading/matching', icon: '⚠', id: `trade-stuck-${deal.id}`, severity: 'warn', title: `Trading ค้าง match นาน: ${deal.deal_no}` }))
   const todayPurchases = purchaseBills.filter((bill) => activeStatus(bill.status) && toDateOnly(bill.date) === today).length
   const todaySales = salesBills.filter((bill) => activeStatus(bill.status) && toDateOnly(bill.date) === today).length

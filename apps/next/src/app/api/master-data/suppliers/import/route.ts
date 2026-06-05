@@ -320,10 +320,10 @@ export async function POST(request: Request) {
         where: { active: true },
       }),
     ])
-    const salespersonLookup = new Map<string, { id: string; name: string }>()
+    const salespersonLookup = new Map<string, { code: string | null; id: bigint; name: string }>()
     for (const salesperson of salespersons) {
       for (const key of [salesperson.id, salesperson.code ?? '', salesperson.name]) {
-        if (key) salespersonLookup.set(key.trim().toLowerCase(), { id: salesperson.id, name: salesperson.name })
+        if (key) salespersonLookup.set(String(key).trim().toLowerCase(), { code: salesperson.code, id: salesperson.id, name: salesperson.name })
       }
     }
 
@@ -389,7 +389,7 @@ export async function POST(request: Request) {
         bankAccount: primaryBankAccount?.bankAccount ?? null,
         bankAccounts,
         branchId: null,
-        salesId: salesperson?.id ?? null,
+        salesId: salesperson?.code ?? null,
         salesName: salesperson?.name ?? null,
         active: normalizeActive(cellText(row, 'active')),
       }
@@ -423,26 +423,30 @@ export async function POST(request: Request) {
 
     const validRows = parsedRows.filter((row): row is NonNullable<typeof row> => row !== null)
     const codes = validRows.map((row) => row.id as string)
-    const existing = await prisma.suppliers.findMany({ select: { branch_id: true, id: true }, where: { id: { in: codes } } })
-    const existingIds = new Set(existing.map((row) => row.id))
-    const existingBranchById = new Map(existing.map((row) => [row.id, row.branch_id]))
+    const existing = await prisma.suppliers.findMany({ select: { branch_id: true, code: true, id: true }, where: { code: { in: codes } } })
+    const existingIds = new Set(existing.map((row) => row.code ?? '').filter(Boolean))
+    const existingByCode = new Map(existing.map((row) => [row.code ?? '', row]))
 
     await prisma.$transaction(async (tx) => {
       for (const row of validRows) {
         const payload = toSupplierWriteInput(row, paymentMethods)
-        if (existingBranchById.has(payload.id)) payload.branch_id = existingBranchById.get(payload.id) ?? null
-        await tx.suppliers.upsert({
-          where: { id: payload.id },
-          create: payload,
-          update: payload,
-        })
-        await tx.supplier_bank_accounts.deleteMany({ where: { supplier_id: payload.id } })
-        const accountRows = supplierBankAccountRows(row, payload.id, paymentMethods)
+        const existingRow = existingByCode.get(payload.code ?? '')
+        if (existingRow) payload.branch_id = existingRow.branch_id ?? null
+        const savedSupplier = existingRow
+          ? await tx.suppliers.update({
+            where: { id: existingRow.id },
+            data: payload as Parameters<typeof tx.suppliers.update>[0]['data'],
+          })
+          : await tx.suppliers.create({
+            data: payload as Parameters<typeof tx.suppliers.create>[0]['data'],
+          })
+        await tx.supplier_bank_accounts.deleteMany({ where: { supplier_id: savedSupplier.id } })
+        const accountRows = supplierBankAccountRows(row, savedSupplier.id, payload.code ?? String(row.id ?? ''), paymentMethods)
         if (accountRows.length) await tx.supplier_bank_accounts.createMany({ data: accountRows })
       }
-      })
+    })
 
-    const updated = validRows.filter((row) => existingIds.has(row.id as string)).length
+    const updated = validRows.filter((row) => existingIds.has(String(row.id ?? ''))).length
     return NextResponse.json({
       inserted: validRows.length - updated,
       totalRows: validRows.length,

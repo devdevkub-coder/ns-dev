@@ -1,16 +1,19 @@
 import type { Prisma } from '../../../generated/prisma/client'
+import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
+import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { findActiveWarehouseReferenceByCodeOrId } from '@/lib/server/warehouse-reference'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import * as XLSX from 'xlsx'
 
 export type StockBalanceKey = {
-  branchId: string | null
+  branchId: string | bigint | null
   lotNo: string | null
   notAvailable: boolean
   productId: string | null
   status: string | null
-  warehouseId: string | null
+  warehouseId: string | bigint | null
 }
 
 export function stockKey(input: StockBalanceKey) {
@@ -26,15 +29,15 @@ export function stockKey(input: StockBalanceKey) {
 
 export function stockWhere(input: {
   asOf?: string | null
-  branchId?: string | null
+  branchId?: bigint | null
   from?: string | null
   lotNo?: string | null
   movementType?: string | null
-  productId?: string | null
+  productId?: bigint | null
   refType?: string | null
   status?: string | null
   to?: string | null
-  warehouseId?: string | null
+  warehouseId?: bigint | null
 }): Prisma.stock_ledgerWhereInput {
   return {
     ...(input.productId ? { product_id: input.productId } : {}),
@@ -45,6 +48,34 @@ export function stockWhere(input: {
     ...(input.lotNo ? { lot_no: { contains: input.lotNo, mode: 'insensitive' } } : {}),
     ...(input.status ? { output_category: input.status } : {}),
     ...dateWhere(input),
+  }
+}
+
+export async function normalizeStockReferenceInput(input: {
+  branchId?: string | bigint | null
+  productId?: string | bigint | null
+  warehouseId?: string | bigint | null
+}): Promise<{ branchId: bigint | null; productId: bigint | null; warehouseId: bigint | null }> {
+  const [branch, warehouse, product] = await Promise.all([
+    input.branchId ? findActiveBranchReferenceByCodeOrId(input.branchId) : Promise.resolve(null),
+    input.warehouseId ? findActiveWarehouseReferenceByCodeOrId(input.warehouseId) : Promise.resolve(null),
+    input.productId
+      ? prisma.products.findFirst({
+        select: { id: true },
+        where: {
+          OR: [
+            { code: String(input.productId).trim().toUpperCase() },
+            ...(parseInternalBigIntId(input.productId) != null ? [{ id: parseInternalBigIntId(input.productId) as bigint }] : []),
+          ],
+        },
+      })
+      : Promise.resolve(null),
+  ])
+
+  return {
+    branchId: branch?.id ?? null,
+    productId: product?.id ?? null,
+    warehouseId: warehouse?.id ?? null,
   }
 }
 
@@ -64,29 +95,45 @@ function dateWhere(input: { asOf?: string | null; from?: string | null; to?: str
 export async function stockReferenceData() {
   const [branches, warehouses, products, customers] = await Promise.all([
     prisma.branches.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
-    prisma.warehouses.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, branch_id: true, code: true, id: true, name: true } }),
+    prisma.warehouses.findMany({
+      orderBy: [{ name: 'asc' }],
+      select: { active: true, branches: { select: { code: true } }, branch_id: true, code: true, id: true, name: true },
+    }),
     prisma.products.findMany({ orderBy: [{ code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, item_status: true, metal_group: true, name: true } }),
     prisma.customers.findMany({ orderBy: [{ code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
   ])
 
   return {
-    branches: branches.map((row) => ({ active: row.active, code: row.code, id: row.id, name: row.name })),
-    customers: customers.map((row) => ({ active: row.active, code: row.code, id: row.id, name: row.name })),
-    products: products.map((row) => ({ active: row.active, code: row.code, id: row.id, metalGroup: row.metal_group, name: row.name, status: row.item_status })),
-    warehouses: warehouses.map((row) => ({ active: row.active, branchId: row.branch_id, code: row.code, id: row.id, name: row.name })),
+    branches: branches.map((row) => {
+      const code = requireBusinessCode(row.code, `สาขา ${row.id}`)
+      return { active: row.active, code, id: code, name: row.name }
+    }),
+    customers: customers.map((row) => {
+      const code = requireBusinessCode(row.code, `ลูกค้า ${row.id}`)
+      return { active: row.active, code, id: code, name: row.name }
+    }),
+    products: products.map((row) => ({ active: row.active, code: row.code, id: row.code, metalGroup: row.metal_group, name: row.name, status: row.item_status })),
+    warehouses: warehouses.map((row) => ({
+      active: row.active,
+      branchId: row.branches ? requireBusinessCode(row.branches.code, `สาขาคลัง ${row.branch_id ?? row.id}`) : null,
+      code: row.code,
+      id: row.code,
+      name: row.name,
+    })),
   }
 }
 
 export async function stockBalanceSnapshot(input: {
   asOf?: string | null
-  branchId?: string | null
+  branchId?: string | bigint | null
   lotNo?: string | null
-  productId?: string | null
+  productId?: string | bigint | null
   q?: string | null
   status?: string | null
-  warehouseId?: string | null
+  warehouseId?: string | bigint | null
 }) {
-  const where = stockWhere(input)
+  const normalizedInput = await normalizeStockReferenceInput(input)
+  const where = stockWhere(normalizedInput)
   const ledgerRows = await prisma.stock_ledger.findMany({
     include: { branches: true, products: true, warehouses: true },
     orderBy: [{ date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
@@ -115,29 +162,29 @@ export async function stockBalanceSnapshot(input: {
   for (const row of ledgerRows) {
     const productStatus = row.output_category ?? row.products?.item_status ?? '-'
     const key = stockKey({
-      branchId: row.branch_id ?? null,
+      branchId: row.branches?.code ?? null,
       lotNo: row.lot_no ?? null,
       notAvailable: row.not_available_for_sale === true,
-      productId: row.product_id ?? null,
+      productId: row.products?.code ?? null,
       status: productStatus,
-      warehouseId: row.warehouse_id ?? null,
+      warehouseId: row.warehouses?.code ?? null,
     })
     const current = grouped.get(key) ?? {
       avgCost: 0,
-      branchId: row.branch_id ?? '',
+      branchId: row.branches?.code ?? '',
       branchName: row.branches?.name ?? '-',
       key,
       lastDate: toDateOnly(row.date),
       lotNo: row.lot_no ?? '',
       notAvailable: row.not_available_for_sale === true,
       productCode: row.products?.code ?? '',
-      productId: row.product_id ?? '',
+      productId: row.products?.code ?? '',
       productMetalGroup: row.products?.metal_group ?? 'อื่นๆ',
-      productName: row.products?.name ?? row.product_id ?? '-',
+      productName: row.products?.name ?? '-',
       qty: 0,
       status: productStatus,
       value: 0,
-      warehouseId: row.warehouse_id ?? '',
+      warehouseId: row.warehouses?.code ?? '',
       warehouseName: row.warehouses?.name ?? '-',
     }
     current.qty += toNumber(row.qty_in) - toNumber(row.qty_out)
@@ -180,14 +227,14 @@ export async function stockBalanceSnapshot(input: {
   return { byStatus, rows, summary }
 }
 
-export async function averageCostForStock(input: { branchId?: string | null; lotNo?: string | null; productId: string; warehouseId?: string | null }) {
+export async function averageCostForStock(input: { branchId?: bigint | null; lotNo?: string | null; productId: string | bigint; warehouseId?: bigint | null }) {
   const snapshot = await stockBalanceSnapshot(input)
   const totalQty = snapshot.rows.reduce((sum, row) => sum + row.qty, 0)
   const totalValue = snapshot.rows.reduce((sum, row) => sum + row.value, 0)
   return totalQty > 0 ? totalValue / totalQty : 0
 }
 
-export async function quantityForStock(input: { branchId?: string | null; lotNo?: string | null; productId: string; status?: string | null; warehouseId?: string | null }) {
+export async function quantityForStock(input: { branchId?: bigint | null; lotNo?: string | null; productId: string | bigint; status?: string | null; warehouseId?: bigint | null }) {
   const snapshot = await stockBalanceSnapshot(input)
   return snapshot.rows.reduce((sum, row) => sum + row.qty, 0)
 }

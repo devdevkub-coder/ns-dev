@@ -68,23 +68,21 @@ export async function proxy(request: NextRequest) {
     return pathname.startsWith('/api/') ? jsonError('กรุณาเข้าสู่ระบบ', 401) : loginRedirect(request)
   }
 
-  const { data: currentAppUserId } = await supabase.rpc('current_app_user_id')
-  if (currentAppUserId && !isPasswordChangeAllowedPath(pathname)) {
-    const { data: appUser } = await supabase
-      .from('app_users')
-      .select('must_change_password')
-      .eq('id', currentAppUserId)
-      .maybeSingle<{ must_change_password: boolean }>()
+  const { data: currentAppUser } = await supabase
+    .from('app_users')
+    .select('id, must_change_password')
+    .eq('auth_user_id', user.id)
+    .eq('active', true)
+    .maybeSingle<{ id: number; must_change_password: boolean }>()
 
-    if (appUser?.must_change_password === true) {
-      if (pathname.startsWith('/api/')) {
-        return jsonError('ต้องเปลี่ยน password ก่อนใช้งาน', 403)
-      }
-      const redirectUrl = request.nextUrl.clone()
-      redirectUrl.pathname = '/admin/change-password'
-      redirectUrl.searchParams.set('redirect', `${request.nextUrl.pathname}${request.nextUrl.search}`)
-      return NextResponse.redirect(redirectUrl)
+  if (currentAppUser?.must_change_password === true && !isPasswordChangeAllowedPath(pathname)) {
+    if (pathname.startsWith('/api/')) {
+      return jsonError('ต้องเปลี่ยน password ก่อนใช้งาน', 403)
     }
+    const redirectUrl = request.nextUrl.clone()
+    redirectUrl.pathname = '/admin/change-password'
+    redirectUrl.searchParams.set('redirect', `${request.nextUrl.pathname}${request.nextUrl.search}`)
+    return NextResponse.redirect(redirectUrl)
   }
 
   const requiredPermission = permissionForPath(pathname)
@@ -103,9 +101,7 @@ export async function proxy(request: NextRequest) {
       return response
     }
   } else {
-    const { data: appUserId, error: appUserError } = await supabase.rpc('current_app_user_id')
-
-    if (!appUserError && appUserId) {
+    if (currentAppUser?.id != null) {
       return response
     }
   }

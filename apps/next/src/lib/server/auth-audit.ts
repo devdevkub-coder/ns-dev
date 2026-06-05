@@ -1,4 +1,5 @@
 import type { AppAuthContext } from '@/lib/server/auth-context'
+import { parseInternalBigIntId } from '@/lib/business-code'
 import { auditActionForEventKey, recordAuditLog, requestIp } from '@/lib/server/app-logging'
 import { prisma } from '@/lib/server/prisma'
 
@@ -11,14 +12,16 @@ type AuthAuditEvent = {
 }
 
 export async function recordAuthAuditEvent({ context, eventType, metadata = {}, request, targetAppUserId = null }: AuthAuditEvent) {
+  const parsedTargetAppUserId = parseInternalBigIntId(targetAppUserId)
+
   await recordAuditLog({
     action: auditActionForEventKey(eventType),
     context,
     eventKey: eventType,
     metadata,
     request,
-    targetId: targetAppUserId,
-    targetType: targetAppUserId ? 'app_user' : null,
+    targetId: parsedTargetAppUserId?.toString() ?? null,
+    targetType: parsedTargetAppUserId != null ? 'app_user' : null,
   })
 
   try {
@@ -32,9 +35,9 @@ export async function recordAuthAuditEvent({ context, eventType, metadata = {}, 
         ip_address,
         user_agent
       ) values (
-        ${context.appUser?.id ?? null}::uuid,
+        ${parseInternalBigIntId(context.appUser?.id) ?? null}::bigint,
         ${context.authUser.id}::uuid,
-        ${targetAppUserId}::uuid,
+        ${parsedTargetAppUserId}::bigint,
         ${eventType},
         ${JSON.stringify(metadata)}::jsonb,
         ${requestIp(request)}::inet,

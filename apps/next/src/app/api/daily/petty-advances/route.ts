@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { randomUUID } from 'node:crypto'
 import { pettyAdvanceFormSchema } from '@/lib/daily'
 import { apiErrorResponse } from '@/lib/server/api-error'
+import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, listDailyAccounts, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
@@ -20,28 +20,41 @@ type PettyAdvanceWithRelations = Prisma.petty_advancesGetPayload<{
   }
 }>
 
+async function findPettyAdvanceByDocNo(
+  client: Prisma.TransactionClient | typeof prisma,
+  value: string,
+  select?: Prisma.petty_advancesSelect,
+) {
+  const advancesClient = client.petty_advances as typeof prisma.petty_advances
+  return advancesClient.findFirst({
+    select,
+    where: { doc_no: value },
+  })
+}
+
 function advanceJson(row: PettyAdvanceWithRelations) {
   const returned = toNumber(row.returned_amount)
   const spent = 0
   const amount = toNumber(row.amount)
 
   return {
-    accountId: row.account_id ?? '',
+    accountId: row.accounts?.code ?? '',
     accountName: row.accounts?.name ?? '-',
     amount,
     date: toDateOnly(row.date),
     docNo: row.doc_no,
-    id: row.id,
+    id: row.doc_no,
     notes: row.notes ?? '',
     recipientName: row.recipient_name,
     remaining: amount - spent - returned,
     returned,
     returns: row.petty_advance_returns?.map((entry) => ({
-      accountId: entry.account_id ?? '',
+      accountId: entry.accounts?.code ?? '',
       accountName: entry.accounts?.name ?? '-',
       amount: toNumber(entry.amount),
       date: toDateOnly(entry.date),
-      id: entry.id,
+      docNo: entry.doc_no,
+      id: entry.doc_no,
       notes: entry.notes ?? '',
     })) ?? [],
     spent,
@@ -83,57 +96,72 @@ export async function POST(request: Request) {
     requirePermission(context, 'finance.cash.view')
 
     const values = pettyAdvanceFormSchema.parse(await request.json())
-    const id = values.id ?? `PADV-${randomUUID()}`
-    const docNo = values.docNo ?? await nextDailyDocNo('petty_advances', 'PADV', values.date)
     const actor = currentActor(context)
+    const account = await findActiveAccountReferenceByCode(values.accountId)
+    if (!account) {
+      throw new Error('บัญชีจ่ายออกไม่ถูกต้อง')
+    }
 
     const result = await prisma.$transaction(async (tx) => {
-      const advance = await tx.petty_advances.upsert({
-        where: { id },
-        create: {
-          account_id: values.accountId,
-          amount: values.amount,
-          created_by: actor,
-          date: normalizeDate(values.date),
-          doc_no: docNo,
-          id,
-          notes: values.notes,
-          recipient_name: values.recipientName,
-          status: values.status,
-          type: values.type,
-          updated_at: new Date(),
-          updated_by: actor,
-        },
-        update: {
-          account_id: values.accountId,
-          amount: values.amount,
-          date: normalizeDate(values.date),
-          doc_no: docNo,
-          notes: values.notes,
-          recipient_name: values.recipientName,
-          status: values.status,
-          type: values.type,
-          updated_at: new Date(),
-          updated_by: actor,
-        },
-      })
+      const existingAdvance = values.id
+        ? await findPettyAdvanceByDocNo(tx, values.id, {
+            doc_no: true,
+            id: true,
+          })
+        : null
+      if (values.id && !existingAdvance) {
+        throw new Error('ไม่พบรายการเงินสำรองจ่าย')
+      }
+      const docNo = values.docNo ?? existingAdvance?.doc_no ?? await nextDailyDocNo('petty_advances', 'PADV', values.date)
+      const advance = existingAdvance
+        ? await tx.petty_advances.update({
+            where: { id: existingAdvance.id },
+            data: {
+              account_id: account.id,
+              amount: values.amount,
+              date: normalizeDate(values.date),
+              doc_no: docNo,
+              notes: values.notes,
+              recipient_name: values.recipientName,
+              status: values.status,
+              type: values.type,
+              updated_at: new Date(),
+              updated_by: actor,
+            },
+          })
+        : await tx.petty_advances.create({
+            data: {
+              account_id: account.id,
+              amount: values.amount,
+              created_by: actor,
+              date: normalizeDate(values.date),
+              doc_no: docNo,
+              notes: values.notes,
+              recipient_name: values.recipientName,
+              status: values.status,
+              type: values.type,
+              updated_at: new Date(),
+              updated_by: actor,
+            },
+          })
 
       await tx.bank_statement.deleteMany({
         where: {
-          ref_id: id,
+          ref_id: advance.id.toString(),
           ref_type: 'PADV',
         },
       })
+      const statementDocNo = await nextDailyDocNo('bank_statement', 'BST', values.date)
       await tx.bank_statement.create({
         data: {
-          account_id: values.accountId,
+          account_id: account.id,
           amount_in: 0,
           amount_out: values.amount,
           created_by: actor,
           date: normalizeDate(values.date),
           description: `${docNo} - ${values.recipientName}${values.notes ? ` (${values.notes})` : ''}`,
-          id: `BS-PADV-${id}`,
-          ref_id: id,
+          doc_no: statementDocNo,
+          ref_id: advance.id.toString(),
           ref_no: docNo,
           ref_type: 'PADV',
           type: values.type === 'DIRECTOR_LOAN' ? 'กู้กรรมการ' : 'เงินสำรองจ่าย',
@@ -143,7 +171,7 @@ export async function POST(request: Request) {
       return advance
     })
 
-    return NextResponse.json({ id: result.id })
+    return NextResponse.json({ id: result.doc_no })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'บันทึกเงินสำรองจ่ายไม่ได้', 400)

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
@@ -52,22 +53,23 @@ export async function GET() {
     ])
 
     const balances = new Map<string, number>()
-    accounts.forEach((account) => balances.set(account.id, toNumber(account.opening_balance)))
+    accounts.forEach((account) => balances.set(account.id.toString(), toNumber(account.opening_balance)))
     bankRows.forEach((row) => {
       if (!row.account_id) return
-      const previous = balances.get(row.account_id) ?? 0
+      const accountId = row.account_id.toString()
+      const previous = balances.get(accountId) ?? 0
       const next = row.balance === null || row.balance === undefined ? previous + toNumber(row.amount_in) - toNumber(row.amount_out) : toNumber(row.balance)
-      balances.set(row.account_id, next)
+      balances.set(accountId, next)
     })
 
     const accountRows = accounts.map((account) => ({
       accountNo: account.account_no ?? '',
-      balance: balances.get(account.id) ?? 0,
+      balance: balances.get(account.id.toString()) ?? 0,
       bankName: account.bank_name ?? account.bank ?? '',
       branchName: account.branches?.name ?? '-',
-      code: account.account_no ?? '',
+      code: requireBusinessCode(account.code, `บัญชีเงิน ${account.id}`),
       currency: account.currency ?? 'THB',
-      id: account.id,
+      id: requireBusinessCode(account.code, `บัญชีเงิน ${account.id}`),
       name: account.name,
       odLimit: toNumber(account.od_limit),
       type: account.type,
@@ -81,12 +83,12 @@ export async function GET() {
       return map
     }, new Map<string, { accounts: number; balance: number; type: string }>()).values()).sort((left, right) => right.balance - left.balance)
 
-    const receiptMap = new Map<string, number>()
+    const receiptMap = new Map<bigint, number>()
     receipts.forEach((receipt) => {
       if (!receipt.bill_id) return
       receiptMap.set(receipt.bill_id, (receiptMap.get(receipt.bill_id) ?? 0) + toNumber(receipt.amount) + toNumber(receipt.withholding_tax) + toNumber(receipt.discount))
     })
-    const paymentMap = new Map<string, number>()
+    const paymentMap = new Map<bigint, number>()
     payments.forEach((payment) => {
       if (!payment.bill_id) return
       paymentMap.set(payment.bill_id, (paymentMap.get(payment.bill_id) ?? 0) + toNumber(payment.amount) + toNumber(payment.withholding_tax) + toNumber(payment.discount))

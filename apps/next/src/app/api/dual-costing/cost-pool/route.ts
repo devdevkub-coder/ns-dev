@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
+import { requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
@@ -37,16 +38,22 @@ type PurchaseItem = {
   netWeight?: number | string | null
   productName?: string | null
   price?: number | string | null
-  productId?: string | null
+  productId?: string | number | bigint | null
   qty?: number | string | null
 }
 
 type PoItem = {
-  productId?: string | null
+  productId?: string | number | bigint | null
   productName?: string | null
   qty?: number | string | null
   remainingQty?: number | string | null
   unitPrice?: number | string | null
+}
+
+type ProductRef = {
+  code: string
+  id: bigint
+  name: string
 }
 
 function jsonNumber(value: unknown) {
@@ -62,23 +69,40 @@ function isCancelled(status: string | null | undefined) {
   return status === 'cancelled' || status === 'Cancelled'
 }
 
+function resolveProductCode(value: string | number | bigint | null | undefined, productById: Map<bigint, ProductRef>) {
+  if (typeof value === 'string' && value.trim()) {
+    const trimmed = value.trim()
+    if (/^\d+$/.test(trimmed)) {
+      const product = productById.get(BigInt(trimmed))
+      return product ? requireBusinessCode(product.code, `สินค้า ${product.id}`) : ''
+    }
+    return trimmed
+  }
+  if (typeof value === 'number' || typeof value === 'bigint') {
+    const product = productById.get(BigInt(value))
+    return product ? requireBusinessCode(product.code, `สินค้า ${product.id}`) : ''
+  }
+  return ''
+}
+
 function itemsFromPo(row: {
   items: unknown
-  product_id: string | null
+  product_id: bigint | null
   qty: unknown
   remaining_qty: unknown
   unit_price: unknown
-}, productById: Map<string, string>) {
+}, productById: Map<bigint, ProductRef>) {
   if (Array.isArray(row.items) && row.items.length) {
     return row.items
       .filter((item): item is PoItem => typeof item === 'object' && item !== null)
       .map((item, index) => {
-        const productId = item.productId ?? row.product_id ?? ''
+        const productId = resolveProductCode(item.productId ?? row.product_id, productById)
+        const resolvedProduct = row.product_id ? productById.get(row.product_id) ?? null : null
         const qty = jsonNumber(item.remainingQty ?? item.qty)
         return {
           lineId: `${productId || 'line'}-${index}`,
           productId,
-          productName: item.productName ?? (productId ? productById.get(productId) : null) ?? productId ?? '-',
+          productName: item.productName ?? resolvedProduct?.name ?? '-',
           qty,
           unitCost: jsonNumber(item.unitPrice ?? row.unit_price),
         }
@@ -86,9 +110,9 @@ function itemsFromPo(row: {
   }
 
   return [{
-    lineId: row.product_id ?? 'header',
-    productId: row.product_id ?? '',
-    productName: row.product_id ? productById.get(row.product_id) ?? row.product_id : '-',
+    lineId: row.product_id ? productById.get(row.product_id)?.code ?? 'header' : 'header',
+    productId: row.product_id ? productById.get(row.product_id)?.code ?? '' : '',
+    productName: row.product_id ? productById.get(row.product_id)?.name ?? '-' : '-',
     qty: jsonNumber(row.remaining_qty ?? row.qty),
     unitCost: jsonNumber(row.unit_price),
   }]
@@ -193,7 +217,7 @@ export async function GET(request: Request) {
         where: { NOT: { status: { in: ['cancelled', 'Cancelled'] } } },
       }),
       prisma.production_outputs.findMany({
-        include: { production_orders: { include: { branches: true } } },
+        include: { production_orders: { include: { branches: true } }, production_output_categories: true },
         orderBy: [{ date: 'desc' }],
         take: 5000,
         where: { total_cost: { gt: 0 } },
@@ -208,11 +232,12 @@ export async function GET(request: Request) {
         take: 10000,
         where: { NOT: { status: { in: ['cancelled', 'Cancelled'] } } },
       }),
-      prisma.products.findMany({ select: { id: true, name: true } }),
+      prisma.products.findMany({ select: { code: true, id: true, name: true } }),
       prisma.branches.findMany({ select: { id: true, name: true } }),
     ])
 
-    const productById = new Map(products.map((product) => [product.id, product.name]))
+    const productById = new Map(products.map((product) => [product.id, { ...product, code: requireBusinessCode(product.code, `สินค้า ${product.id}`) }]))
+    const productByCode = new Map(Array.from(productById.values()).map((product) => [product.code, product]))
     const branchById = new Map(branches.map((branch) => [branch.id, branch.name]))
     const sourceIdByPoolId = new Map<string, string>()
 
@@ -225,19 +250,19 @@ export async function GET(request: Request) {
         const unitCost = item.unitCost
         if (qty <= 0 || unitCost <= 0) return
         const costPoolId = `CP-POB-${po.doc_no}-${item.lineId}`
-        sourceIdByPoolId.set(costPoolId, po.id)
+        sourceIdByPoolId.set(costPoolId, stringifyBusinessValue(po.id))
         rows.push({
           availableQty: qty,
           availableValue: qty * unitCost,
-          branchName: po.branch_id ? branchById.get(po.branch_id) ?? po.branch_id : '-',
+          branchName: po.branch_id ? branchById.get(po.branch_id) ?? '-' : '-',
           costPoolId,
           costType: 'Purchase',
-          counterparty: po.suppliers?.name ?? po.supplier_id ?? '-',
+          counterparty: po.suppliers?.name ?? '-',
           date: toDateOnly(po.date),
           productId: item.productId,
           productName: item.productName,
           qty,
-          sourceId: po.id,
+          sourceId: stringifyBusinessValue(po.id),
           sourceLineId: item.lineId,
           sourceNo: po.doc_no,
           sourceType: 'PO_Buy',
@@ -256,21 +281,21 @@ export async function GET(request: Request) {
         const totalCost = jsonNumber(item.netAmount ?? item.amount) || qty * jsonNumber(item.price)
         const unitCost = qty > 0 ? totalCost / qty : 0
         if (qty <= 0 || unitCost <= 0) return
-        const product = item.productId ?? ''
+        const product = resolveProductCode(item.productId, productById)
         const costPoolId = `CP-SPT-${bill.doc_no}-${index}-${product || 'line'}`
-        sourceIdByPoolId.set(costPoolId, bill.id)
+        sourceIdByPoolId.set(costPoolId, stringifyBusinessValue(bill.id))
         rows.push({
           availableQty: qty,
           availableValue: qty * unitCost,
-          branchName: bill.branches?.name ?? bill.branch_id ?? '-',
+          branchName: bill.branches?.name ?? '-',
           costPoolId,
           costType: 'Purchase',
-          counterparty: bill.suppliers?.name ?? bill.supplier_id ?? '-',
+          counterparty: bill.suppliers?.name ?? '-',
           date: toDateOnly(bill.date),
           productId: product,
-          productName: product ? productById.get(product) ?? item.productName ?? item.displayName ?? product : item.productName ?? item.displayName ?? '-',
+          productName: product ? productByCode.get(product)?.name ?? item.productName ?? item.displayName ?? '-' : item.productName ?? item.displayName ?? '-',
           qty,
-          sourceId: bill.id,
+          sourceId: stringifyBusinessValue(bill.id),
           sourceLineId: String(index),
           sourceNo: bill.doc_no,
           sourceType: 'Spot_Buy',
@@ -283,27 +308,28 @@ export async function GET(request: Request) {
     })
 
     productionOutputs.forEach((output) => {
-      const category = output.output_category ?? ''
+      const category = output.production_output_categories?.code ?? ''
       if (category === 'LOSS' || category === 'CUSTOMER_RETURN') return
       const qty = toNumber(output.qty)
       const totalCost = toNumber(output.total_cost)
       const unitCost = qty > 0 ? totalCost / qty : 0
       if (qty <= 0 || unitCost <= 0) return
       const sourceNo = output.production_orders?.doc_no ?? toDateOnly(output.date)
-      const costPoolId = `CP-PRD-${sourceNo}-${output.product_id ?? 'product'}`
-      sourceIdByPoolId.set(costPoolId, output.id)
+      const productCode = output.product_id ? productById.get(output.product_id)?.code ?? 'product' : 'product'
+      const costPoolId = `CP-PRD-${sourceNo}-${productCode}`
+      sourceIdByPoolId.set(costPoolId, stringifyBusinessValue(output.id))
       rows.push({
         availableQty: qty,
         availableValue: qty * unitCost,
-        branchName: output.production_orders?.branches?.name ?? output.production_orders?.branch_id ?? '-',
+        branchName: output.production_orders?.branches?.name ?? '-',
         costPoolId,
         costType: 'Production',
         counterparty: output.production_orders?.doc_no ? `Production Order ${output.production_orders.doc_no}` : 'Production',
         date: toDateOnly(output.date),
-        productId: output.product_id ?? '',
-        productName: output.product_id ? productById.get(output.product_id) ?? output.product_id : '-',
+        productId: output.product_id ? productById.get(output.product_id)?.code ?? '' : '',
+        productName: output.product_id ? productById.get(output.product_id)?.name ?? '-' : '-',
         qty,
-        sourceId: output.id,
+        sourceId: stringifyBusinessValue(output.id),
         sourceLineId: '',
         sourceNo,
         sourceType: 'Production',
@@ -320,20 +346,21 @@ export async function GET(request: Request) {
       const unitCost = qty > 0 ? totalCost / qty : 0
       if (qty <= 0 || unitCost <= 0) return
       const sourceNo = adjustment.doc_no || toDateOnly(adjustment.date)
-      const costPoolId = `CP-RGD-${sourceNo}-${adjustment.product_id ?? 'product'}`
-      sourceIdByPoolId.set(costPoolId, adjustment.id)
+      const productCode = adjustment.product_id ? productById.get(adjustment.product_id)?.code ?? 'product' : 'product'
+      const costPoolId = `CP-RGD-${sourceNo}-${productCode}`
+      sourceIdByPoolId.set(costPoolId, stringifyBusinessValue(adjustment.id))
       rows.push({
         availableQty: qty,
         availableValue: qty * unitCost,
-        branchName: adjustment.warehouses?.name ?? adjustment.warehouse_id ?? '-',
+        branchName: adjustment.warehouses?.name ?? '-',
         costPoolId,
         costType: 'Regrade',
         counterparty: 'Regrade / Grade Adjustment',
         date: toDateOnly(adjustment.date),
-        productId: adjustment.product_id ?? '',
-        productName: adjustment.product_id ? productById.get(adjustment.product_id) ?? adjustment.product_id : '-',
+        productId: adjustment.product_id ? productById.get(adjustment.product_id)?.code ?? '' : '',
+        productName: adjustment.product_id ? productById.get(adjustment.product_id)?.name ?? '-' : '-',
         qty,
-        sourceId: adjustment.id,
+        sourceId: stringifyBusinessValue(adjustment.id),
         sourceLineId: '',
         sourceNo,
         sourceType: 'Regrade',
@@ -347,7 +374,8 @@ export async function GET(request: Request) {
     const usedValueByPurchaseBillId = new Map<string, number>()
     tradingDeals.forEach((deal) => {
       if (!deal.purchase_bill_id || isCancelled(deal.status)) return
-      usedValueByPurchaseBillId.set(deal.purchase_bill_id, (usedValueByPurchaseBillId.get(deal.purchase_bill_id) ?? 0) + toNumber(deal.matched_purchase_amount))
+      const purchaseBillId = stringifyBusinessValue(deal.purchase_bill_id)
+      usedValueByPurchaseBillId.set(purchaseBillId, (usedValueByPurchaseBillId.get(purchaseBillId) ?? 0) + toNumber(deal.matched_purchase_amount))
     })
 
     const rowsWithUsage = applyUsedValue(rows, usedValueByPurchaseBillId, sourceIdByPoolId)

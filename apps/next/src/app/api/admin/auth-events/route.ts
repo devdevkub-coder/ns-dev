@@ -109,13 +109,16 @@ export async function GET(request: Request) {
           a.user_agent,
           coalesce(a.actor_username, actor.username) as actor_username,
           coalesce(a.actor_display_name, actor.display_name) as actor_display_name,
-          coalesce(target.username, a.target_label, a.target_id) as target_username,
+          coalesce(target.username, a.target_label) as target_username,
           coalesce(target.display_name, a.target_label) as target_display_name,
           a.request_path,
           null::text as route_path
         from public.app_audit_logs a
         left join public.app_users actor on actor.id = a.actor_app_user_id
-        left join public.app_users target on a.target_type = 'app_user' and target.id::text = a.target_id
+        left join public.app_users target
+          on a.target_type = 'app_user'
+          and a.target_id ~ '^[0-9]+$'
+          and target.id = a.target_id::bigint
         union all
         select
           'activity'::text as stream,
@@ -129,7 +132,7 @@ export async function GET(request: Request) {
           activity.user_agent,
           coalesce(activity.actor_username, actor.username) as actor_username,
           coalesce(activity.actor_display_name, actor.display_name) as actor_display_name,
-          coalesce(activity.target_label, activity.target_id) as target_username,
+          activity.target_label as target_username,
           activity.target_label as target_display_name,
           activity.request_path,
           activity.route_path
@@ -168,13 +171,16 @@ export async function GET(request: Request) {
           a.user_agent,
           coalesce(a.actor_username, actor.username) as actor_username,
           coalesce(a.actor_display_name, actor.display_name) as actor_display_name,
-          coalesce(target.username, a.target_label, a.target_id) as target_username,
+          coalesce(target.username, a.target_label) as target_username,
           coalesce(target.display_name, a.target_label) as target_display_name,
           a.request_path,
           null::text as route_path
         from public.app_audit_logs a
         left join public.app_users actor on actor.id = a.actor_app_user_id
-        left join public.app_users target on a.target_type = 'app_user' and target.id::text = a.target_id
+        left join public.app_users target
+          on a.target_type = 'app_user'
+          and a.target_id ~ '^[0-9]+$'
+          and target.id = a.target_id::bigint
         union all
         select
           'activity'::text as stream,
@@ -184,7 +190,7 @@ export async function GET(request: Request) {
           activity.user_agent,
           coalesce(activity.actor_username, actor.username) as actor_username,
           coalesce(activity.actor_display_name, actor.display_name) as actor_display_name,
-          coalesce(activity.target_label, activity.target_id) as target_username,
+          activity.target_label as target_username,
           activity.target_label as target_display_name,
           activity.request_path,
           activity.route_path
@@ -208,7 +214,7 @@ export async function GET(request: Request) {
         } : null,
         createdAt: row.created_at.toISOString(),
         eventType: row.event_type,
-        id: row.id,
+        id: `${row.event_type}:${row.created_at.toISOString()}:${row.stream}`,
         metadata: {
           ...(row.metadata && typeof row.metadata === 'object' ? row.metadata as Record<string, unknown> : { value: row.metadata }),
           action: row.action,

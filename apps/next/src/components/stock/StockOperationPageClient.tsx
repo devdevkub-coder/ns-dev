@@ -16,7 +16,22 @@ type OperationColumn = {
   headerClassName?: string
   key: string
   label: string
+  sortable?: boolean
 }
+type SortDirection = 'asc' | 'desc'
+type StatusConvertSortKey =
+  | 'createdBy'
+  | 'date'
+  | 'locationDisplay'
+  | 'lotNo'
+  | 'note'
+  | 'productDisplay'
+  | 'qty'
+  | 'refNo'
+  | 'statusFlow'
+  | 'value'
+
+const STATUS_CONVERT_PAGE_SIZES = [10, 20, 50, 100]
 
 const config = {
   adjust: {
@@ -51,6 +66,10 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
   const [search, setSearch] = useState('')
   const [sourceTypeFilter, setSourceTypeFilter] = useState('')
   const [toDateFilter, setToDateFilter] = useState('')
+  const [statusConvertPage, setStatusConvertPage] = useState(1)
+  const [statusConvertPageSize, setStatusConvertPageSize] = useState(20)
+  const [statusConvertSortDirection, setStatusConvertSortDirection] = useState<SortDirection>('desc')
+  const [statusConvertSortKey, setStatusConvertSortKey] = useState<StatusConvertSortKey>('date')
 
   const loadData = useCallback(async () => {
     setError(null)
@@ -84,6 +103,40 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
       .filter((row) => mode !== 'adjust' || !toDateFilter || String(row.date ?? '') <= toDateFilter)
   }, [adjustBranchFilter, adjustTypeFilter, costStatusFilter, data.rows, fromDateFilter, mode, search, sourceTypeFilter, toDateFilter])
 
+  useEffect(() => {
+    if (mode === 'status-convert') setStatusConvertPage(1)
+  }, [mode, rows.length, search])
+
+  const statusConvertSortedRows = useMemo(() => {
+    if (mode !== 'status-convert') return rows
+    return [...rows].sort((left, right) => compareStatusConvertRows(left, right, statusConvertSortKey, statusConvertSortDirection))
+  }, [mode, rows, statusConvertSortDirection, statusConvertSortKey])
+
+  const statusConvertTotalPages = useMemo(() => {
+    if (mode !== 'status-convert') return 1
+    return Math.max(1, Math.ceil(statusConvertSortedRows.length / statusConvertPageSize))
+  }, [mode, statusConvertPageSize, statusConvertSortedRows.length])
+
+  useEffect(() => {
+    if (mode !== 'status-convert') return
+    setStatusConvertPage((currentPage) => Math.min(currentPage, statusConvertTotalPages))
+  }, [mode, statusConvertTotalPages])
+
+  const visibleRows = useMemo(() => {
+    if (mode !== 'status-convert') return rows
+    const startIndex = (statusConvertPage - 1) * statusConvertPageSize
+    return statusConvertSortedRows.slice(startIndex, startIndex + statusConvertPageSize)
+  }, [mode, rows, statusConvertPage, statusConvertPageSize, statusConvertSortedRows])
+
+  function toggleStatusConvertSort(nextKey: StatusConvertSortKey) {
+    if (statusConvertSortKey === nextKey) {
+      setStatusConvertSortDirection((currentDirection) => (currentDirection === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+    setStatusConvertSortKey(nextKey)
+    setStatusConvertSortDirection(nextKey === 'date' ? 'desc' : 'asc')
+  }
+
   async function submit(values: StatusConvertFormValues | StockConvertFormValues | StockAdjustFormValues) {
     setError(null)
     setIsSaving(true)
@@ -101,22 +154,28 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
   return (
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
-      {mode === 'status-convert' ? <StatusConvertTip /> : null}
       {mode === 'adjust' ? <AdjustPrincipleBox /> : null}
       <SummaryCards mode={mode} rows={rows} />
-      <div className={mode === 'convert' || mode === 'adjust' ? 'flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow' : 'rounded-md bg-white p-3 shadow'}>
-        <div className="flex flex-wrap items-center gap-2">
+      <div className={mode === 'status-convert' ? 'rounded-md bg-white p-3 shadow' : mode === 'convert' || mode === 'adjust' ? 'flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow' : 'rounded-md bg-white p-3 shadow'}>
+        <div className={`flex flex-wrap items-center gap-2 ${mode === 'status-convert' ? 'justify-between' : ''}`}>
+          <div className={`flex flex-wrap items-center gap-2 ${mode === 'status-convert' ? 'flex-1' : ''}`}>
+            <input className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder={mode === 'convert' ? 'ค้นหา doc/source/target/ref...' : mode === 'adjust' ? 'ค้นหา doc/สินค้า/เหตุผล...' : 'ค้นหาเลขที่/สินค้า/หมายเหตุ...'} type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+            {mode === 'status-convert' && search ? (
+              <button className="h-9 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" type="button" onClick={() => setSearch('')}>
+                ล้างค้นหา
+              </button>
+            ) : null}
+          </div>
           {mode === 'adjust' ? <a className="rounded-md bg-amber-600 px-4 py-2 font-bold text-white hover:bg-amber-700" href={`${pathname}?new=1`}>+ ปรับสต๊อกใหม่ (Quick Adjust)</a> : null}
           {mode === 'convert' ? <a className="rounded-md bg-cyan-600 px-4 py-2 font-bold text-white hover:bg-cyan-700" href={`${pathname}?new=1`}>+ ปรับเกรดใหม่</a> : null}
-          <input className="min-w-[200px] flex-1 rounded-md border px-3 py-2 text-sm" placeholder={mode === 'convert' ? 'ค้นหา doc/source/target/ref...' : mode === 'adjust' ? 'ค้นหา doc/สินค้า/เหตุผล...' : 'ค้นหาเลขที่/สินค้า/หมายเหตุ...'} type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           {mode === 'convert' ? (
             <>
-              <select className="rounded-md border bg-amber-50 px-3 py-2 text-sm font-medium" value={sourceTypeFilter} onChange={(event) => setSourceTypeFilter(event.target.value)}>
+              <select className="h-9 rounded-md border bg-amber-50 px-3 py-2 text-sm font-medium" value={sourceTypeFilter} onChange={(event) => setSourceTypeFilter(event.target.value)}>
                 <option value="">ทุก Source Type</option>
                 <option value="Manual">📝 Manual</option>
                 <option value="Production Order">🏭 Production Order</option>
               </select>
-              <select className="rounded-md border px-3 py-2 text-sm" value={costStatusFilter} onChange={(event) => setCostStatusFilter(event.target.value)}>
+              <select className="h-9 rounded-md border px-3 py-2 text-sm" value={costStatusFilter} onChange={(event) => setCostStatusFilter(event.target.value)}>
                 <option value="">ทุก Cost Status</option>
                 <option value="allocated">✓ Allocated</option>
                 <option value="pending_cost">⏳ Pending Cost</option>
@@ -125,25 +184,66 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
             </>
           ) : mode === 'adjust' ? (
             <>
-              <select className="rounded-md border px-3 py-2 text-sm" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
+              <select className="h-9 rounded-md border px-3 py-2 text-sm" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
                 <option value="">ทุกสาขา</option>
                 {data.reference.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
               </select>
-              <select className="rounded-md border px-3 py-2 text-sm" value={adjustTypeFilter} onChange={(event) => setAdjustTypeFilter(event.target.value)}>
+              <select className="h-9 rounded-md border px-3 py-2 text-sm" value={adjustTypeFilter} onChange={(event) => setAdjustTypeFilter(event.target.value)}>
                 <option value="">ทุกประเภท</option>
                 <option value="LOSS">📉 นับขาด</option>
                 <option value="GAIN">📈 นับเกิน</option>
               </select>
               <DatePickerInput className="w-[130px]" title="จากวันที่" value={fromDateFilter} onChange={setFromDateFilter} />
               <DatePickerInput className="w-[130px]" title="ถึงวันที่" value={toDateFilter} onChange={setToDateFilter} />
-              <button className="rounded-md bg-slate-700 px-3 py-2 text-sm text-white opacity-60" disabled title="รอ export contract สำหรับ stock adjustment" type="button">📥 CSV</button>
+              <button className="h-9 rounded-md bg-slate-700 px-3 py-2 text-sm text-white opacity-60" disabled title="รอ export contract สำหรับ stock adjustment" type="button">📥 CSV</button>
             </>
           ) : mode === 'status-convert' ? (
-            <a className="rounded-md bg-purple-600 px-4 py-2 text-sm font-bold text-white hover:bg-purple-700" href={`${pathname}?new=1`}>+ ปรับสถานะใหม่</a>
+            <>
+              <button className="h-9 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" type="button" onClick={() => void loadData()}>Refresh</button>
+              <a className="inline-flex h-9 items-center rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800" href={`${pathname}?new=1`}>+ ปรับสถานะใหม่</a>
+            </>
           ) : <a className="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white" href={`${pathname}?new=1`}>+ เพิ่มรายการ</a>}
           {mode === 'status-convert' ? null : <button className="rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700" type="button" onClick={() => void loadData()}>Refresh</button>}
         </div>
       </div>
+      {mode === 'status-convert' ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
+          <span>พบทั้งหมด {rows.length} รายการ</span>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <select
+              className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700"
+              value={String(statusConvertPageSize)}
+              onChange={(event) => {
+                setStatusConvertPageSize(Number(event.target.value))
+                setStatusConvertPage(1)
+              }}
+            >
+              {STATUS_CONVERT_PAGE_SIZES.map((pageSize) => (
+                <option key={pageSize} value={pageSize}>
+                  {pageSize} / หน้า
+                </option>
+              ))}
+            </select>
+            <button
+              className="h-9 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={statusConvertPage <= 1}
+              type="button"
+              onClick={() => setStatusConvertPage((currentPage) => Math.max(1, currentPage - 1))}
+            >
+              ก่อนหน้า
+            </button>
+            <span className="px-1">หน้า {statusConvertPage} / {statusConvertTotalPages}</span>
+            <button
+              className="h-9 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={statusConvertPage >= statusConvertTotalPages}
+              type="button"
+              onClick={() => setStatusConvertPage((currentPage) => Math.min(statusConvertTotalPages, currentPage + 1))}
+            >
+              ถัดไป
+            </button>
+          </div>
+        </div>
+      ) : null}
       {formOpen ? (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8">
           <div className="w-full max-w-3xl overflow-hidden rounded-md bg-white shadow-xl">
@@ -154,7 +254,14 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
           </div>
         </div>
       ) : null}
-      <OperationTable isLoading={isLoading} mode={mode} rows={rows} />
+      <OperationTable
+        isLoading={isLoading}
+        mode={mode}
+        rows={visibleRows}
+        sortDirection={mode === 'status-convert' ? statusConvertSortDirection : undefined}
+        sortKey={mode === 'status-convert' ? statusConvertSortKey : undefined}
+        onSortChange={mode === 'status-convert' ? toggleStatusConvertSort : undefined}
+      />
       {mode === 'adjust' ? <AdjustUsageBox /> : null}
     </section>
   )
@@ -215,15 +322,6 @@ function SummaryCards({ mode, rows }: { mode: Mode; rows: Payload['rows'] }) {
   )
 }
 
-function StatusConvertTip() {
-  return (
-    <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-      💡 <b>วิธีใช้:</b> เลือกสินค้า + คลัง + จำนวน → เปลี่ยนสถานะปลายทาง → กดบันทึก<br />
-      ถ้าปรับครบทั้งหมด → product.itemStatus จะเปลี่ยนตามอัตโนมัติ · ถ้าปรับบางส่วน → จะเหลือทั้ง RM และ FG (ต้นทุนเดียวกัน)
-    </div>
-  )
-}
-
 function AdjustPrincipleBox() {
   return (
     <div className="rounded-md border-l-4 border-amber-500 bg-amber-50 p-3 text-xs text-slate-700">
@@ -252,12 +350,45 @@ function AdjustUsageBox() {
   )
 }
 
-function OperationTable({ isLoading, mode, rows }: { isLoading: boolean; mode: Mode; rows: Payload['rows'] }) {
+function OperationTable({
+  isLoading,
+  mode,
+  onSortChange,
+  rows,
+  sortDirection,
+  sortKey,
+}: {
+  isLoading: boolean
+  mode: Mode
+  onSortChange?: (key: StatusConvertSortKey) => void
+  rows: Payload['rows']
+  sortDirection?: SortDirection
+  sortKey?: StatusConvertSortKey
+}) {
   const columns = columnsFor(mode)
   return (
     <div className={mode === 'convert' || mode === 'status-convert' ? 'overflow-x-auto rounded-md bg-white shadow' : 'overflow-x-auto rounded-md bg-white shadow'}>
       <table className={mode === 'convert' ? 'w-full min-w-[1300px] text-sm' : mode === 'status-convert' ? 'w-full min-w-[1120px] text-sm' : 'w-full min-w-[1000px] text-sm'}>
-        <thead className="bg-slate-100"><tr>{columns.map((column) => <th key={column.key} className={`p-2 text-left ${column.headerClassName ?? ''}`}>{column.label}</th>)}</tr></thead>
+        <thead className="bg-slate-100">
+          <tr>
+            {columns.map((column) => (
+              <th key={column.key} className={`p-2 text-left ${column.headerClassName ?? ''}`}>
+                {mode === 'status-convert' && column.sortable && onSortChange ? (
+                  <button
+                    className="inline-flex items-center gap-1 font-medium text-slate-700 hover:text-slate-900"
+                    type="button"
+                    onClick={() => onSortChange(column.key as StatusConvertSortKey)}
+                  >
+                    <span>{column.label}</span>
+                    <span className="text-xs text-slate-400">{sortKey === column.key ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}</span>
+                  </button>
+                ) : (
+                  column.label
+                )}
+              </th>
+            ))}
+          </tr>
+        </thead>
         <tbody>
           {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={columns.length}>กำลังโหลดข้อมูล</td></tr> : null}
           {!isLoading && rows.map((row, index) => <tr key={String(row.id ?? index)} className="border-t hover:bg-slate-50">{columns.map((column) => <td key={column.key} className={`p-2 ${column.cellClassName ?? ''}`}>{formatOperationCell(mode, row, column.key)}</td>)}</tr>)}
@@ -276,7 +407,16 @@ function emptyTextFor(mode: Mode) {
 
 function columnsFor(mode: Mode): OperationColumn[] {
   if (mode === 'status-convert') return [
-    { key: 'date', label: 'วันที่' }, { key: 'refNo', label: 'เลขที่' }, { key: 'productDisplay', label: 'สินค้า' }, { key: 'lotNo', label: 'Lot' }, { key: 'locationDisplay', label: 'สาขา/คลัง' }, { key: 'qty', label: 'จำนวน (กก.)', cellClassName: 'text-right font-bold text-purple-700' }, { key: 'value', label: 'มูลค่า', cellClassName: 'text-right text-slate-600' }, { key: 'statusFlow', label: 'เปลี่ยนสถานะ', cellClassName: 'text-center' }, { key: 'note', label: 'เหตุผล' }, { key: 'createdBy', label: 'ผู้ทำ' },
+    { key: 'date', label: 'วันที่', sortable: true },
+    { key: 'refNo', label: 'เลขที่', sortable: true },
+    { key: 'productDisplay', label: 'สินค้า', sortable: true },
+    { key: 'lotNo', label: 'Lot', sortable: true },
+    { key: 'locationDisplay', label: 'สาขา/คลัง', sortable: true },
+    { key: 'qty', label: 'จำนวน (กก.)', cellClassName: 'text-right font-bold text-purple-700', sortable: true },
+    { key: 'value', label: 'มูลค่า', cellClassName: 'text-right text-slate-600', sortable: true },
+    { key: 'statusFlow', label: 'เปลี่ยนสถานะ', cellClassName: 'text-center', sortable: true },
+    { key: 'note', label: 'เหตุผล', sortable: true },
+    { key: 'createdBy', label: 'ผู้ทำ', sortable: true },
   ]
   if (mode === 'convert') return [
     { key: 'sourceType', label: 'Source Type' },
@@ -316,6 +456,40 @@ function formatCell(value: unknown) {
   if (typeof value === 'number') return formatMoney(value)
   if (typeof value === 'boolean') return value ? 'Yes' : 'No'
   return String(value ?? '-')
+}
+
+function normalizeSortValue(value: string | number | boolean | null | undefined) {
+  if (typeof value === 'number') return value
+  if (typeof value === 'boolean') return value ? 1 : 0
+  return String(value ?? '').trim().toLowerCase()
+}
+
+function statusConvertSortValue(row: Record<string, string | number | boolean | null>, key: StatusConvertSortKey) {
+  if (key === 'productDisplay') return `${String(row.productCode ?? '')} ${String(row.productName ?? '')}`.trim().toLowerCase()
+  if (key === 'locationDisplay') return `${String(row.branchName ?? '')} ${String(row.warehouseName ?? '')}`.trim().toLowerCase()
+  if (key === 'statusFlow') return `${String(row.statusFrom ?? '')} ${String(row.statusTo ?? '')}`.trim().toLowerCase()
+  if (key === 'note') return normalizeSortValue(row.note ?? row.reason)
+  return normalizeSortValue(row[key])
+}
+
+function compareStatusConvertRows(
+  left: Record<string, string | number | boolean | null>,
+  right: Record<string, string | number | boolean | null>,
+  key: StatusConvertSortKey,
+  direction: SortDirection,
+) {
+  const leftValue = statusConvertSortValue(left, key)
+  const rightValue = statusConvertSortValue(right, key)
+  let result = 0
+  if (typeof leftValue === 'number' && typeof rightValue === 'number') {
+    result = leftValue - rightValue
+  } else {
+    result = String(leftValue).localeCompare(String(rightValue), 'th')
+  }
+  if (result === 0) {
+    result = String(left.id ?? '').localeCompare(String(right.id ?? ''), 'th')
+  }
+  return direction === 'asc' ? result : result * -1
 }
 
 function formatOperationCell(mode: Mode, row: Record<string, string | number | boolean | null>, key: string) {

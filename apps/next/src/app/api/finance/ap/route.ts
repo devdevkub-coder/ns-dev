@@ -1,10 +1,13 @@
 import type { Prisma } from '../../../../../generated/prisma/client'
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
+import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
@@ -52,10 +55,10 @@ function parseQuery(url: URL): ApQuery {
   }
 }
 
-function billWhere(query: ApQuery): Prisma.purchase_billsWhereInput {
+function billWhere(query: ApQuery, branchId: bigint | null, supplierId: bigint | null): Prisma.purchase_billsWhereInput {
   return {
-    ...(query.branchId ? { branch_id: query.branchId } : {}),
-    ...(query.supplierId ? { supplier_id: query.supplierId } : {}),
+    ...(branchId !== null ? { branch_id: branchId } : {}),
+    ...(supplierId !== null ? { supplier_id: supplierId } : {}),
     ...(query.status ? { status: query.status } : { NOT: { status: 'cancelled' } }),
     ...(query.from || query.to
       ? {
@@ -94,16 +97,18 @@ export async function GET(request: Request) {
 
     const url = new URL(request.url)
     const query = parseQuery(url)
+    const branch = query.branchId ? await findActiveBranchReferenceByCodeOrId(query.branchId) : null
+    const supplier = query.supplierId ? await findActiveSupplierReferenceByCodeOrId(query.supplierId) : null
 
     const [bills, payments, suppliers, branches] = await Promise.all([
       prisma.purchase_bills.findMany({
         include: {
-          branches: { select: { id: true, name: true } },
+          branches: { select: { code: true, id: true, name: true } },
           suppliers: { select: { code: true, id: true, name: true } },
         },
         orderBy: [{ date: 'asc' }, { doc_no: 'asc' }],
         take: 10000,
-        where: billWhere(query),
+        where: billWhere(query, branch?.id ?? null, supplier?.id ?? null),
       }),
       prisma.payments.findMany({
         select: {
@@ -128,7 +133,7 @@ export async function GET(request: Request) {
       }),
     ])
 
-    const paidMap = new Map<string, number>()
+    const paidMap = new Map<bigint, number>()
     payments.forEach((payment) => {
       if (!payment.bill_id) return
       const total = toNumber(payment.amount) + toNumber(payment.withholding_tax) + toNumber(payment.discount)
@@ -149,20 +154,20 @@ export async function GET(request: Request) {
 
         return {
           aging,
-          branchId: bill.branch_id ?? '',
+          branchId: bill.branches?.code ?? '',
           branchName: bill.branches?.name ?? '-',
           bucket: ageBucket(aging),
           creditTerm,
           date: toDateOnly(bill.date),
           docNo: bill.doc_no,
           dueDate: toDateOnly(due),
-          id: bill.id,
+          id: bill.doc_no,
           paidAmount,
           payableBalance,
           status: bill.status ?? 'open',
           supplierCode: bill.suppliers?.code ?? '',
-          supplierId: bill.supplier_id ?? '',
-          supplierName: bill.suppliers?.name ?? bill.supplier_id ?? '-',
+          supplierId: bill.suppliers?.code ?? '',
+          supplierName: bill.suppliers?.name ?? '-',
           totalAmount,
           transactionMode: bill.transaction_mode ?? 'STOCK',
         }
@@ -249,10 +254,13 @@ export async function GET(request: Request) {
       byBucket,
       bySupplier,
       filters: {
-        branches: branches.map((row) => ({ active: row.active, code: row.code, id: row.id, name: row.name })),
+        branches: branches.map((row) => ({ active: row.active, code: row.code, id: row.code, name: row.name })),
         channels: [],
         statuses,
-        suppliers: suppliers.map((row) => ({ active: row.active, code: row.code, id: row.id, name: row.name })),
+        suppliers: suppliers.map((row) => {
+          const code = requireBusinessCode(row.code, `ผู้ขาย ${row.id}`)
+          return { active: row.active, code, id: code, name: row.name }
+        }),
       },
       pagination: {
         page: query.page,

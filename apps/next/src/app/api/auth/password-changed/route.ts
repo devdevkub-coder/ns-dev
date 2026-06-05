@@ -29,7 +29,7 @@ export async function POST(request: Request) {
         source: 'self_service',
       },
       request,
-      targetAppUserId: context.appUser.id,
+      targetAppUserId: context.appUser.id.toString(),
     })
 
     return NextResponse.json({ cleared: true })

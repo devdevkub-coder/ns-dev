@@ -87,15 +87,18 @@ export async function GET(request: Request) {
         allocationMode: deal.auto_created ? 'Auto' : 'Trading',
         costType: 'Purchase' as const,
         date: toDateOnly(deal.date),
-        id: deal.id,
+        id: deal.deal_no,
         matchId: deal.deal_no,
         matchType: 'sales' as const,
-        product: deal.products?.name ?? deal.product_id ?? '-',
+        product: deal.products?.name ?? '-',
         qtyUsed,
         sourceNo: deal.purchase_bill_no ?? deal.purchase_bills?.doc_no ?? '-',
         sourceType: 'Trading_Deal' as const,
         status: isCancelled(deal.status) ? 'reversed' as const : 'approved' as const,
-        target: deal.sales_bill_no ?? deal.sales_bills?.doc_no ?? deal.customers?.name ?? deal.customer_id ?? '-',
+        target: deal.sales_bill_no
+          ?? deal.sales_bills?.doc_no
+          ?? deal.customers?.name
+          ?? '-',
         totalCost,
         unitCost: qtyUsed > 0 ? totalCost / qtyUsed : 0,
       }

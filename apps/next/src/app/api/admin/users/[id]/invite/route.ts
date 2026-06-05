@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { parseInternalBigIntId } from '@/lib/business-code'
 import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
 import { authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
@@ -8,7 +9,7 @@ import { getSupabaseAdminClient, getSupabasePublicServerClient } from '@/lib/ser
 export const runtime = 'nodejs'
 
 const routeParamsSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().trim().regex(/^\d+$/, 'รหัสผู้ใช้ไม่ถูกต้อง'),
 })
 
 const inviteUserSchema = z.object({
@@ -17,6 +18,14 @@ const inviteUserSchema = z.object({
 
 type AdminUserInviteRouteProps = {
   params: Promise<unknown>
+}
+
+function parseAppUserId(value: string) {
+  const parsed = parseInternalBigIntId(value)
+  if (parsed == null) {
+    throw new Error('รหัสผู้ใช้ไม่ถูกต้อง')
+  }
+  return parsed
 }
 
 function resolveRedirectTo(request: Request, requestedRedirectTo: string | undefined) {
@@ -40,7 +49,8 @@ export async function POST(request: Request, { params }: AdminUserInviteRoutePro
     const context = await getCurrentAuthContext()
     requirePermission(context, 'system.users.manage')
 
-    const { id } = routeParamsSchema.parse(await params)
+    const { id: rawId } = routeParamsSchema.parse(await params)
+    const id = parseAppUserId(rawId)
     const body = inviteUserSchema.parse(await request.json().catch(() => ({})))
     const redirectTo = resolveRedirectTo(request, body.redirectTo)
 
@@ -88,7 +98,7 @@ export async function POST(request: Request, { params }: AdminUserInviteRoutePro
           username: appUser.username,
         },
         request,
-        targetAppUserId: appUser.id,
+        targetAppUserId: appUser.id.toString(),
       })
 
       return NextResponse.json({ mode: 'reset', sent: true })
@@ -130,7 +140,7 @@ export async function POST(request: Request, { params }: AdminUserInviteRoutePro
         username: appUser.username,
       },
       request,
-      targetAppUserId: appUser.id,
+      targetAppUserId: appUser.id.toString(),
     })
 
     return NextResponse.json({ mode: 'invite', sent: true })

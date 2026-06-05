@@ -4,13 +4,22 @@ import { errorJson, masterDataJson, masterDataListJson, nextSequentialCode, pars
 
 export const runtime = 'nodejs'
 
-function mapExpenseCategory(row: Awaited<ReturnType<typeof prisma.expense_categories.findMany>>[number]) {
+type ExpenseCategoryRow = Awaited<ReturnType<typeof prisma.expense_categories.findMany>>[number] & {
+  expense_types?: {
+    code: string
+    name: string
+    active: boolean | null
+  } | null
+}
+
+function mapExpenseCategory(row: ExpenseCategoryRow) {
   return {
-    id: row.id,
-    code: null,
+    id: row.code,
+    code: row.code,
     name: row.name,
     active: row.active ?? true,
-    type: null,
+    type: row.expense_types?.code ?? null,
+    typeLabel: row.expense_types?.name ?? null,
     phone: null,
     email: null,
     note: null,
@@ -34,8 +43,8 @@ function mapExpenseCategory(row: Awaited<ReturnType<typeof prisma.expense_catego
 }
 
 async function getNextId() {
-  const last = await prisma.expense_categories.findFirst({ where: { id: { startsWith: 'EXP' } }, orderBy: { id: 'desc' }, select: { id: true } })
-  return nextSequentialCode(last?.id, 'EXP')
+  const last = await prisma.expense_categories.findFirst({ where: { code: { startsWith: 'EXC-' } }, orderBy: { code: 'desc' }, select: { code: true } })
+  return nextSequentialCode(last?.code, 'EXC-')
 }
 
 export async function GET() {
@@ -43,7 +52,10 @@ export async function GET() {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'master.reference.view')
 
-    const rows = await prisma.expense_categories.findMany({ orderBy: { name: 'asc' } })
+    const rows = await prisma.expense_categories.findMany({
+      include: { expense_types: { select: { code: true, name: true, active: true } } },
+      orderBy: [{ code: 'asc' }, { name: 'asc' }],
+    })
     return masterDataListJson(rows.map(mapExpenseCategory))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
@@ -57,12 +69,27 @@ export async function POST(request: Request) {
     requirePermission(context, 'master.reference.manage')
 
     const values = parseMasterDataForm(await request.json())
-    const id = values.id || await getNextId()
-    const row = await prisma.expense_categories.upsert({
-      where: { id },
-      create: { id, name: values.name, active: values.active },
-      update: { name: values.name, active: values.active },
-    })
+    let expenseTypeId: bigint | null = null
+    if (values.type) {
+      const expenseType = await prisma.expense_types.findFirst({
+        where: { active: true, code: values.type },
+        select: { id: true },
+      })
+      if (!expenseType) throw new Error('ประเภทค่าใช้จ่ายที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
+      expenseTypeId = expenseType.id
+    }
+    const code = values.code || values.id || await getNextId()
+    const existing = await prisma.expense_categories.findUnique({ select: { id: true }, where: { code } })
+    const row = existing
+      ? await prisma.expense_categories.update({
+          data: { active: values.active, code, expense_type_id: expenseTypeId, name: values.name },
+          include: { expense_types: { select: { code: true, name: true, active: true } } },
+          where: { id: existing.id },
+        })
+      : await prisma.expense_categories.create({
+          data: { active: values.active, code, expense_type_id: expenseTypeId, name: values.name },
+          include: { expense_types: { select: { code: true, name: true, active: true } } },
+        })
     return masterDataJson(mapExpenseCategory(row))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

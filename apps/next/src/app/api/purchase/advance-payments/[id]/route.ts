@@ -10,9 +10,12 @@ import {
   mapAdvancePaymentRow,
   parseBangkokDateTimeInput,
 } from '@/lib/server/advance-payments'
+import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
+import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 
 export const runtime = 'nodejs'
 
@@ -21,26 +24,30 @@ const advancePaymentInclude = {
   branches: true,
   suppliers: true,
   supplier_advance_allocations: {
-    include: {
+    select: {
+      allocation_key: true,
+      allocated_amount: true,
+      allocated_at: true,
+      allocated_by: true,
+      id: true,
       purchase_bills: {
         select: {
           doc_no: true,
           id: true,
         },
       },
+      status: true,
+      void_reason: true,
+      voided_at: true,
+      voided_by: true,
     },
   },
 } as const
 
-async function findAdvancePayment(idOrDocNo: string) {
+async function findAdvancePayment(docNo: string) {
   return prisma.supplier_advance_payments.findFirst({
     include: advancePaymentInclude,
-    where: {
-      OR: [
-        { doc_no: idOrDocNo },
-        { id: idOrDocNo },
-      ],
-    },
+    where: { doc_no: docNo },
   })
 }
 
@@ -57,7 +64,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
     return NextResponse.json({
       ...mapAdvancePaymentRow(advancePayment),
-      timeline: await getAdvancePaymentTimeline(prisma, advancePayment.id),
+      timeline: await getAdvancePaymentTimeline(prisma, advancePayment.id.toString()),
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
@@ -81,13 +88,13 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     }
 
     const [branch, fundingAccount, paymentMethod, product, supplier] = await Promise.all([
-      prisma.branches.findFirst({ select: { id: true, name: true }, where: { active: true, id: values.branchId } }),
-      prisma.accounts.findFirst({ select: { id: true, type: true }, where: { active: true, id: values.fundingAccountId } }),
+      findActiveBranchReferenceByCodeOrId(values.branchId),
+      findActiveAccountReferenceByCode(values.fundingAccountId),
       prisma.payment_methods.findFirst({ select: { id: true, name: true, type: true }, where: { active: true, name: values.paymentMethod } }),
       values.productName
         ? prisma.products.findFirst({ select: { id: true, name: true }, where: { active: true, name: values.productName } })
         : Promise.resolve(null),
-      prisma.suppliers.findFirst({ select: { id: true, name: true }, where: { active: true, id: values.supplierId } }),
+      findActiveSupplierReferenceByCodeOrId(values.supplierId),
     ])
 
     if (!branch) {
@@ -114,10 +121,10 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     const updated = await prisma.supplier_advance_payments.update({
       data: {
         amount: values.amount,
-        branch_id: values.branchId,
+        branch_id: branch.id,
         customer_name: values.customerName,
         driver_name: values.driverName,
-        funding_account_id: values.fundingAccountId,
+        funding_account_id: fundingAccount.id,
         in_date: values.inDate ? parseBangkokDateTimeInput(values.inDate) : null,
         large_scale_doc_no: values.largeScaleDocNo,
         net_weight: values.netWeight,
@@ -130,7 +137,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         remark: values.remark,
         scale_operator: values.scaleOperator,
         sender_name: values.senderName,
-        supplier_id: values.supplierId,
+        supplier_id: supplier.id,
         updated_at: updatedAt,
         updated_by: actor,
         vehicle_photo_names: values.vehiclePhotoNames,
@@ -146,7 +153,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       afterData: mapped,
       beforeData: mapAdvancePaymentRow(existing),
       context: auth,
-      entityId: updated.id,
+      entityId: updated.id.toString(),
       entityLabel: updated.doc_no,
       entitySchema: 'public',
       entityTable: 'supplier_advance_payments',
@@ -159,7 +166,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
 
     return NextResponse.json({
       ...mapped,
-      timeline: await getAdvancePaymentTimeline(prisma, updated.id),
+      timeline: await getAdvancePaymentTimeline(prisma, updated.id.toString()),
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
@@ -202,7 +209,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       afterData: mapped,
       beforeData: mapAdvancePaymentRow(existing),
       context: auth,
-      entityId: updated.id,
+      entityId: updated.id.toString(),
       entityLabel: updated.doc_no,
       entitySchema: 'public',
       entityTable: 'supplier_advance_payments',
@@ -216,7 +223,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
     return NextResponse.json({
       ...mapped,
-      timeline: await getAdvancePaymentTimeline(prisma, updated.id),
+      timeline: await getAdvancePaymentTimeline(prisma, updated.id.toString()),
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { parseInternalBigIntId } from '@/lib/business-code'
 import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
 import { authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
@@ -11,11 +12,19 @@ const updateUserStatusSchema = z.object({
 })
 
 const routeParamsSchema = z.object({
-  id: z.string().min(1),
+  id: z.string().trim().regex(/^\d+$/, 'รหัสผู้ใช้ไม่ถูกต้อง'),
 })
 
 type AdminUserStatusRouteProps = {
   params: Promise<unknown>
+}
+
+function parseAppUserId(value: string) {
+  const parsed = parseInternalBigIntId(value)
+  if (parsed == null) {
+    throw new Error('รหัสผู้ใช้ไม่ถูกต้อง')
+  }
+  return parsed
 }
 
 export async function PATCH(request: Request, { params }: AdminUserStatusRouteProps) {
@@ -23,7 +32,8 @@ export async function PATCH(request: Request, { params }: AdminUserStatusRoutePr
     const context = await getCurrentAuthContext()
     requirePermission(context, 'system.users.manage')
 
-    const { id } = routeParamsSchema.parse(await params)
+    const { id: rawId } = routeParamsSchema.parse(await params)
+    const id = parseAppUserId(rawId)
     const values = updateUserStatusSchema.parse(await request.json())
 
     if (context.appUser?.id === id && values.active === false) {
@@ -48,12 +58,12 @@ export async function PATCH(request: Request, { params }: AdminUserStatusRoutePr
         username: user.username,
       },
       request,
-      targetAppUserId: user.id,
+      targetAppUserId: user.id.toString(),
     })
 
     return NextResponse.json({
       active: user.active,
-      id: user.id,
+      id: user.id.toString(),
       updatedAt: user.updated_at.toISOString(),
     })
   } catch (caught) {

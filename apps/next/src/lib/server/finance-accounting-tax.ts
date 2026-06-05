@@ -1,4 +1,6 @@
 import type { Prisma } from '../../../generated/prisma/client'
+import { requireBusinessCode } from '@/lib/business-code'
+import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 
@@ -55,7 +57,7 @@ function notCancelledWhere() {
   return { NOT: { status: { in: CANCELLED_STATUSES } } }
 }
 
-function branchWhere(branchId?: string) {
+function branchWhere(branchId?: bigint | null) {
   return branchId ? { branch_id: branchId } : {}
 }
 
@@ -75,12 +77,16 @@ async function listBranches() {
     select: { code: true, id: true, name: true },
     where: { active: true },
   })
-  return branches.map((branch) => ({ code: branch.code ?? '', id: branch.id, name: branch.name }))
+  return branches.map((branch) => {
+    const code = requireBusinessCode(branch.code, `สาขา ${branch.id}`)
+    return { code, id: code, name: branch.name }
+  })
 }
 
 async function loadPeriod(filter: TaxFilter) {
   const { end, start } = periodBounds(filter.year, filter.month)
-  const where = { ...branchWhere(filter.branchId), date: { gte: start, lte: end } }
+  const branch = filter.branchId ? await findActiveBranchReferenceByCodeOrId(filter.branchId) : null
+  const where = { ...branchWhere(branch?.id ?? null), date: { gte: start, lte: end } }
   return Promise.all([
     prisma.sales_bills.findMany({
       include: { customers: { select: { name: true } } },
@@ -206,7 +212,12 @@ function sum(items: TaxItem[], key: 'vat' | 'wht') {
 }
 
 async function monthlySummary(year: number, month: number, branchId?: string) {
-  const [sales, purchases, expenses, payments, receipts] = await loadPeriod({ branchId, month, year })
+  const [salesRaw, purchasesRaw, expensesRaw, paymentsRaw, receiptsRaw] = await loadPeriod({ branchId, month, year })
+  const sales = salesRaw as SalesBill[]
+  const purchases = purchasesRaw as PurchaseBill[]
+  const expenses = expensesRaw as Expense[]
+  const payments = paymentsRaw as Payment[]
+  const receipts = receiptsRaw as Receipt[]
   const vatOutput = salesVatOutput(sales)
   const vatInput = [...purchaseVatInput(purchases), ...expenseVatInput(expenses)]
   const whtCharged = [...paymentWht(payments), ...expenseWht(expenses)]
@@ -227,7 +238,12 @@ async function monthlySummary(year: number, month: number, branchId?: string) {
 
 export async function buildTaxVatWht(filter: TaxFilter) {
   const [periodRows, branches] = await Promise.all([loadPeriod(filter), listBranches()])
-  const [sales, purchases, expenses, payments, receipts] = periodRows
+  const [salesRaw, purchasesRaw, expensesRaw, paymentsRaw, receiptsRaw] = periodRows
+  const sales = salesRaw as SalesBill[]
+  const purchases = purchasesRaw as PurchaseBill[]
+  const expenses = expensesRaw as Expense[]
+  const payments = paymentsRaw as Payment[]
+  const receipts = receiptsRaw as Receipt[]
   const vatOutputItems = salesVatOutput(sales)
   const vatInputItems = [...purchaseVatInput(purchases), ...expenseVatInput(expenses)].sort((left, right) => left.date.localeCompare(right.date) || left.no.localeCompare(right.no))
   const whtChargedItems = [...paymentWht(payments), ...expenseWht(expenses)].sort((left, right) => left.date.localeCompare(right.date) || left.no.localeCompare(right.no))

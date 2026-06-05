@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server'
-import { randomUUID } from 'node:crypto'
 import * as XLSX from 'xlsx'
+import { parseInternalBigIntId, requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { poBuyCancelSchema, poBuyFormSchema, poBuyShortCloseSchema, poBuyUpdateSchema, type PoBuyFormValues } from '@/lib/po-buy'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
-import { createInitialPoBuyStatusLog, PO_BUY_STATUS, reconcilePoBuys } from '@/lib/server/po-buy-reconciliation'
+import { appendPoBuyStatusLog, createInitialPoBuyStatusLog, PO_BUY_STATUS, reconcilePoBuys } from '@/lib/server/po-buy-reconciliation'
 import { prisma } from '@/lib/server/prisma'
+import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
+import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import type { Prisma } from '../../../../../generated/prisma/client'
 
@@ -28,6 +30,14 @@ type ProductOption = {
   unit: string | null
 }
 
+type ProductRow = {
+  active: boolean | null
+  code: string | null
+  id: bigint
+  name: string
+  unit: string | null
+}
+
 function jsonNumber(value: unknown) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0
   if (typeof value === 'string') {
@@ -39,17 +49,17 @@ function jsonNumber(value: unknown) {
 
 function itemsFromPo(row: {
   items: unknown
-  product_id: string | null
+  product_id: bigint | null
   qty: unknown
   remaining_qty: unknown
   unit_price: unknown
-}, productById: Map<string, { id: string; name: string | null }>, productName: string) {
+}, productById: Map<bigint, { code: string | null; id: bigint; name: string | null }>, productName: string) {
   if (Array.isArray(row.items) && row.items.length) {
     return row.items
       .filter((item): item is PoItem => typeof item === 'object' && item !== null)
       .map((item) => ({
         productId: item.productId ?? '',
-        productName: item.productName ?? (item.productId ? productById.get(item.productId)?.name : null) ?? productName,
+        productName: item.productName ?? productName,
         qty: jsonNumber(item.qty),
         remainingQty: jsonNumber(item.remainingQty ?? item.qty),
         unitPrice: jsonNumber(item.unitPrice),
@@ -57,7 +67,7 @@ function itemsFromPo(row: {
   }
 
   return [{
-    productId: row.product_id ?? '',
+    productId: row.product_id != null ? requireBusinessCode(productById.get(row.product_id)?.code, `สินค้า ${row.product_id}`) : '',
     productName,
     qty: jsonNumber(row.qty),
     remainingQty: jsonNumber(row.remaining_qty ?? row.qty),
@@ -90,6 +100,93 @@ function dateInRange(date: string, from: string | null, to: string | null) {
   return true
 }
 
+function stringifyComparable(value: unknown) {
+  if (value == null) return ''
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean') return String(value)
+  return JSON.stringify(value)
+}
+
+function buildPoBuyEditMeta(params: {
+  branchCode: string
+  existing: {
+    branch_id: bigint | null
+    doc_no: string
+    expected_delivery: Date | null
+    items: Prisma.JsonValue | null
+    notes: string | null
+    qty: Prisma.Decimal | null
+    remaining_amount: Prisma.Decimal | null
+    remaining_qty: Prisma.Decimal | null
+    supplier_id: bigint | null
+    total_amount: Prisma.Decimal | null
+  }
+  items: ReturnType<typeof poItems>
+  previousBranchCode: string
+  previousSupplierCode: string
+  issuedDate: string
+  supplierCode: string
+  values: { expectedDelivery: string; notes: string | null }
+}) {
+  const nextItemSnapshots = params.items.map((item) => ({
+    productCode: item.productId,
+    productName: item.productName,
+    qty: item.qty,
+    remainingQty: item.remainingQty,
+    unitPrice: item.unitPrice,
+  }))
+  const existingItems = Array.isArray(params.existing.items)
+    ? (params.existing.items as unknown[]).map((item) => {
+        const record = typeof item === 'object' && item !== null ? item as Record<string, unknown> : {}
+        return {
+          productCode: stringifyComparable(record.productId),
+          productName: stringifyComparable(record.productName),
+          qty: jsonNumber(record.qty),
+          remainingQty: jsonNumber(record.remainingQty),
+          unitPrice: jsonNumber(record.unitPrice),
+        }
+      })
+    : []
+  const beforeSnapshot = {
+    branchCode: params.previousBranchCode,
+    docNo: params.existing.doc_no,
+    expectedDelivery: toDateOnly(params.existing.expected_delivery),
+    itemCount: existingItems.length,
+    items: existingItems,
+    notes: params.existing.notes ?? '',
+    remainingAmount: toNumber(params.existing.remaining_amount),
+    remainingQty: toNumber(params.existing.remaining_qty),
+    supplierCode: params.previousSupplierCode,
+    totalAmount: toNumber(params.existing.total_amount),
+    totalQty: toNumber(params.existing.qty),
+  }
+  const afterSnapshot = {
+    branchCode: params.branchCode,
+    docNo: params.existing.doc_no,
+    expectedDelivery: params.values.expectedDelivery || params.issuedDate,
+    itemCount: nextItemSnapshots.length,
+    items: nextItemSnapshots,
+    notes: params.values.notes ?? '',
+    remainingAmount: params.items.reduce((sum, item) => sum + item.remainingQty * item.unitPrice, 0),
+    remainingQty: params.items.reduce((sum, item) => sum + item.remainingQty, 0),
+    supplierCode: params.supplierCode,
+    totalAmount: params.items.reduce((sum, item) => sum + item.totalCost, 0),
+    totalQty: params.items.reduce((sum, item) => sum + item.qty, 0),
+  }
+  const changedFields = Object.keys(afterSnapshot).filter((key) => {
+    const beforeValue = beforeSnapshot[key as keyof typeof beforeSnapshot]
+    const afterValue = afterSnapshot[key as keyof typeof afterSnapshot]
+    return stringifyComparable(beforeValue) !== stringifyComparable(afterValue)
+  })
+
+  return {
+    after: afterSnapshot,
+    before: beforeSnapshot,
+    changedFields,
+    reason: 'edit',
+  } satisfies Prisma.InputJsonValue
+}
+
 function bangkokDateInput(value: Date) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     day: '2-digit',
@@ -101,17 +198,65 @@ function bangkokDateInput(value: Date) {
   return `${part('year')}-${part('month')}-${part('day')}`
 }
 
+async function resolveProductsByCodeOrId(productRefs: string[]) {
+  const normalizedRefs = [...new Set(productRefs.map((value) => value.trim()).filter(Boolean))]
+  const internalIds = normalizedRefs
+    .map((value) => parseInternalBigIntId(value))
+    .filter((value): value is bigint => value != null)
+  const products = await prisma.products.findMany({
+    select: { active: true, code: true, id: true, name: true, unit: true },
+    where: {
+      OR: [
+        ...(normalizedRefs.length > 0 ? [{ code: { in: normalizedRefs } }] : []),
+        ...(internalIds.length > 0 ? [{ id: { in: internalIds } }] : []),
+      ],
+    },
+  })
+  return {
+    byInternalId: new Map(products.map((product) => [product.id, product])),
+    byRef: new Map(products.flatMap((product) => {
+      const outwardId = requireBusinessCode(product.code, `สินค้า ${product.id}`)
+      return [
+        [outwardId, product] as const,
+        [stringifyBusinessValue(product.id), product] as const,
+      ]
+    })),
+    rows: products,
+  }
+}
+
+async function resolvePoBuyByDocNoOrId(idOrDocNo: string) {
+  const internalId = parseInternalBigIntId(idOrDocNo)
+  return prisma.po_buys.findFirst({
+    where: {
+      OR: [
+        { doc_no: idOrDocNo },
+        ...(internalId != null ? [{ id: internalId }] : []),
+      ],
+    },
+  })
+}
+
 async function optionsPayload() {
   const [branches, products, suppliers] = await Promise.all([
-    prisma.branches.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
+    prisma.branches.findMany({
+      orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }],
+      select: { active: true, code: true, id: true, name: true },
+    }),
     prisma.products.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true, unit: true } }),
     prisma.suppliers.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
   ])
 
   return {
-    branches,
-    products,
-    suppliers,
+    branches: branches.map((branch) => ({ ...branch, id: branch.code })),
+    products: products.map((product) => ({
+      active: product.active,
+      code: requireBusinessCode(product.code, `สินค้า ${product.id}`),
+      id: requireBusinessCode(product.code, `สินค้า ${product.id}`),
+      name: product.name,
+      unit: product.unit,
+    })),
+    suppliers: suppliers.map((supplier) => ({ ...supplier, id: requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`) })),
   }
 }
 
@@ -131,15 +276,18 @@ async function nextPoBuyDocNo(tx: Prisma.TransactionClient, date: string, branch
   return `${startsWith}${String(lastNumber + 1).padStart(4, '0')}`
 }
 
-function poItems(values: PoBuyFormValues, products: ProductOption[], docNo: string) {
-  const productById = new Map(products.map((product) => [product.id, product]))
+function poItems(values: PoBuyFormValues, products: ProductRow[], docNo: string) {
+  const productById = new Map(products.map((product) => {
+    const outwardId = requireBusinessCode(product.code, `สินค้า ${product.id}`)
+    return [outwardId, product] as const
+  }))
   return values.items.map((item, index) => {
     const product = productById.get(item.productId)
     return {
-      id: `${docNo}-${String(index + 1).padStart(2, '0')}`,
-      productCode: product?.code ?? '',
+      productCode: product?.code ? requireBusinessCode(product.code, `สินค้า ${product.id}`) : '',
       productId: item.productId,
-      productName: product?.name ?? item.productId,
+      productIdInternal: product ? stringifyBusinessValue(product.id) : '',
+      productName: product?.name ?? item.productId ?? '-',
       qty: item.qty,
       remainingQty: item.qty,
       totalCost: item.qty * item.unitPrice,
@@ -173,18 +321,20 @@ export async function GET(request: Request) {
       orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
       take: 5000,
     })
-    const itemProductIds = poRows.flatMap((row) => Array.isArray(row.items)
-      ? row.items
-        .filter((item): item is PoItem => typeof item === 'object' && item !== null)
-        .map((item) => item.productId)
-        .filter(Boolean)
-      : [])
-    const productIds = [...new Set([...poRows.map((row) => row.product_id).filter(Boolean), ...itemProductIds] as string[])]
-    const products = productIds.length ? await prisma.products.findMany({ where: { id: { in: productIds } } }) : []
+    const productIds = [...new Set(poRows.map((row) => row.product_id).filter((value): value is bigint => value != null))]
+    const branchIds = [...new Set(poRows.map((row) => row.branch_id).filter((id): id is bigint => id !== null))]
+    const supplierIds = [...new Set(poRows.map((row) => row.supplier_id).filter((id): id is bigint => id != null))]
+    const [branches, products, suppliers] = await Promise.all([
+      branchIds.length ? prisma.branches.findMany({ where: { id: { in: branchIds } }, select: { code: true, id: true, name: true } }) : Promise.resolve([]),
+      productIds.length ? prisma.products.findMany({ where: { id: { in: productIds } } }) : Promise.resolve([]),
+      supplierIds.length ? prisma.suppliers.findMany({ where: { id: { in: supplierIds } }, select: { code: true, id: true, name: true } }) : Promise.resolve([]),
+    ])
+    const branchById = new Map(branches.map((branch) => [branch.id, branch]))
     const productById = new Map(products.map((product) => [product.id, product]))
+    const supplierById = new Map(suppliers.map((supplier) => [supplier.id, supplier]))
 
     const rows = poRows.map((po) => {
-      const productName = po.product_id ? productById.get(po.product_id)?.name ?? po.product_id : ''
+      const productName = po.product_id ? productById.get(po.product_id)?.name ?? '-' : '-'
       const items = itemsFromPo(po, productById, productName)
       const qty = items.reduce((sum, item) => sum + item.qty, 0) || toNumber(po.qty)
       const remainingQty = items.reduce((sum, item) => sum + item.remainingQty, 0) || toNumber(po.remaining_qty)
@@ -195,11 +345,11 @@ export async function GET(request: Request) {
       return {
         createdAt: po.created_at?.toISOString() ?? '',
         createdBy: po.created_by ?? '',
-        branchId: po.branch_id ?? '',
+        branchId: po.branch_id ? branchById.get(po.branch_id)?.code ?? '' : '',
         date: toDateOnly(po.date),
         docNo: po.doc_no,
         expectedDelivery: toDateOnly(po.expected_delivery),
-        id: po.id,
+        id: po.doc_no,
         itemCount: items.length,
         items,
         notes: po.notes ?? po.note ?? '',
@@ -213,15 +363,19 @@ export async function GET(request: Request) {
         shortClosedQty: toNumber(po.short_closed_qty),
         status,
         statusLogs: po.po_buy_status_logs.map((log) => ({
+          action: log.action,
           createdAt: log.created_at?.toISOString() ?? '',
           createdBy: log.created_by ?? '',
-          id: log.id,
+          eventKey: log.event_key,
+          fromStatus: log.from_status ?? '',
+          id: log.event_key,
           meta: log.meta,
           note: log.note ?? '',
-          status: log.status,
+          poBuyDocNo: log.po_buy_doc_no,
+          toStatus: log.to_status,
         })),
-        supplierId: po.supplier_id ?? '',
-        supplierName: po.suppliers?.name ?? po.supplier_id ?? '-',
+        supplierId: po.supplier_id ? (supplierById.get(po.supplier_id)?.code ?? '') : '',
+        supplierName: po.suppliers?.name ?? '-',
         totalAmount,
         updatedAt: po.updated_at?.toISOString() ?? '',
         updatedBy: po.updated_by ?? '',
@@ -289,10 +443,10 @@ export async function POST(request: Request) {
     const issuedAt = new Date()
     const issuedDate = bangkokDateInput(issuedAt)
     const productIds = [...new Set(values.items.map((item) => item.productId))]
-    const [branch, supplier, products] = await Promise.all([
-      prisma.branches.findFirst({ where: { active: true, id: values.branchId }, select: { code: true, id: true, name: true } }),
-      prisma.suppliers.findFirst({ where: { active: true, id: values.supplierId } }),
-      prisma.products.findMany({ where: { active: true, id: { in: productIds } }, select: { active: true, code: true, id: true, name: true, unit: true } }),
+    const [branch, supplier, resolvedProducts] = await Promise.all([
+      findActiveBranchReferenceByCodeOrId(values.branchId),
+      findActiveSupplierReferenceByCodeOrId(values.supplierId),
+      resolveProductsByCodeOrId(productIds),
     ])
 
     if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน', fieldErrors: { branchId: ['เลือกสาขา'] } }, { status: 400 })
@@ -306,8 +460,7 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
-    const productById = new Map(products.map((product) => [product.id, product]))
-    const missingProductIndex = values.items.findIndex((item) => !productById.has(item.productId))
+    const missingProductIndex = values.items.findIndex((item) => !resolvedProducts.byRef.has(item.productId))
     if (missingProductIndex >= 0) {
       return NextResponse.json({
         code: 'BAD_REQUEST',
@@ -319,7 +472,7 @@ export async function POST(request: Request) {
     const created = await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('po_buys.doc_no'))`
       const docNo = await nextPoBuyDocNo(tx, issuedDate, branch.code)
-      const items = poItems(values, products, docNo)
+      const items = poItems(values, resolvedProducts.rows, docNo)
       const qty = items.reduce((sum, item) => sum + item.qty, 0)
       const remainingQty = items.reduce((sum, item) => sum + item.remainingQty, 0)
       const totalAmount = items.reduce((sum, item) => sum + item.totalCost, 0)
@@ -337,17 +490,16 @@ export async function POST(request: Request) {
           delivery_date: deliveryDate,
           doc_no: docNo,
           expected_delivery: deliveryDate,
-          id: docNo,
           is_opening_pool: false,
           items,
           note: values.notes,
           notes: values.notes,
-          product_id: firstItem.productId,
+          product_id: parseInternalBigIntId(firstItem.productIdInternal),
           qty,
           remaining_amount: remainingAmount,
           remaining_qty: remainingQty,
           status: 'Open',
-          supplier_id: values.supplierId,
+          supplier_id: supplier.id,
           total_amount: totalAmount,
           unit_price: firstItem.unitPrice,
           updated_at: issuedAt,
@@ -357,11 +509,11 @@ export async function POST(request: Request) {
         },
         select: { doc_no: true, id: true },
       })
-      await createInitialPoBuyStatusLog(tx, { actor, poBuyId: createdRow.id })
+      await createInitialPoBuyStatusLog(tx, { actor, poBuyDocNo: createdRow.doc_no, poBuyId: createdRow.id })
       return createdRow
     })
 
-    return NextResponse.json({ docNo: created.doc_no, id: created.id }, { status: 201 })
+    return NextResponse.json({ docNo: created.doc_no, id: created.doc_no }, { status: 201 })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'บันทึก PO Buy ไม่ได้', 500)
@@ -377,10 +529,10 @@ export async function PUT(request: Request) {
     const actor = currentActor(context)
     const productIds = [...new Set(values.items.map((item) => item.productId))]
     const [existing, branch, supplier, products] = await Promise.all([
-      prisma.po_buys.findUnique({ where: { id: values.id } }),
-      prisma.branches.findFirst({ where: { active: true, id: values.branchId }, select: { id: true } }),
-      prisma.suppliers.findFirst({ where: { active: true, id: values.supplierId } }),
-      prisma.products.findMany({ where: { active: true, id: { in: productIds } }, select: { active: true, code: true, id: true, name: true, unit: true } }),
+      resolvePoBuyByDocNoOrId(values.id),
+      findActiveBranchReferenceByCodeOrId(values.branchId),
+      findActiveSupplierReferenceByCodeOrId(values.supplierId),
+      resolveProductsByCodeOrId(productIds),
     ])
 
     if (!existing) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบ PO Buy ที่ต้องการแก้ไข' }, { status: 404 })
@@ -394,6 +546,10 @@ export async function PUT(request: Request) {
     }
     if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน', fieldErrors: { branchId: ['เลือกสาขา'] } }, { status: 400 })
     if (!supplier) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายไม่ถูกต้องหรือถูกปิดใช้งาน', fieldErrors: { supplierId: ['เลือกผู้ขาย'] } }, { status: 400 })
+    const [previousBranch, previousSupplier] = await Promise.all([
+      existing.branch_id != null ? findActiveBranchReferenceByCodeOrId(stringifyBusinessValue(existing.branch_id)) : Promise.resolve(null),
+      existing.supplier_id != null ? findActiveSupplierReferenceByCodeOrId(stringifyBusinessValue(existing.supplier_id)) : Promise.resolve(null),
+    ])
 
     const issuedDate = bangkokDateInput(existing.created_at ?? new Date())
     if (values.expectedDelivery < issuedDate) {
@@ -404,8 +560,7 @@ export async function PUT(request: Request) {
       }, { status: 400 })
     }
 
-    const productById = new Map(products.map((product) => [product.id, product]))
-    const missingProductIndex = values.items.findIndex((item) => !productById.has(item.productId))
+    const missingProductIndex = values.items.findIndex((item) => !products.byRef.has(item.productId))
     if (missingProductIndex >= 0) {
       return NextResponse.json({
         code: 'BAD_REQUEST',
@@ -414,7 +569,7 @@ export async function PUT(request: Request) {
       }, { status: 400 })
     }
 
-    const items = poItems(values, products, existing.doc_no)
+    const items = poItems(values, products.rows, existing.doc_no)
     const qty = items.reduce((sum, item) => sum + item.qty, 0)
     const remainingQty = items.reduce((sum, item) => sum + item.remainingQty, 0)
     const totalAmount = items.reduce((sum, item) => sum + item.totalCost, 0)
@@ -422,30 +577,53 @@ export async function PUT(request: Request) {
     const firstItem = items[0]
     const deliveryDate = normalizeDate(values.expectedDelivery)
 
-    const updated = await prisma.po_buys.update({
-      where: { id: values.id },
-      data: {
-        branch_id: branch.id,
-        delivery_date: deliveryDate,
-        expected_delivery: deliveryDate,
-        items,
-        note: values.notes,
-        notes: values.notes,
-        product_id: firstItem.productId,
-        qty,
-        remaining_amount: remainingAmount,
-        remaining_qty: remainingQty,
-        supplier_id: values.supplierId,
-        total_amount: totalAmount,
-        unit_price: firstItem.unitPrice,
-        updated_at: new Date(),
-        updated_by: actor,
-        version: { increment: 1 },
-      },
-      select: { doc_no: true, id: true },
+    const updatedAt = new Date()
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.po_buys.update({
+        where: { id: existing.id },
+        data: {
+          branch_id: branch.id,
+          delivery_date: deliveryDate,
+          expected_delivery: deliveryDate,
+          items,
+          note: values.notes,
+          notes: values.notes,
+          product_id: parseInternalBigIntId(firstItem.productIdInternal),
+          qty,
+          remaining_amount: remainingAmount,
+          remaining_qty: remainingQty,
+          supplier_id: supplier.id,
+          total_amount: totalAmount,
+          unit_price: firstItem.unitPrice,
+          updated_at: updatedAt,
+          updated_by: actor,
+          version: { increment: 1 },
+        },
+        select: { doc_no: true, id: true, status: true },
+      })
+      await appendPoBuyStatusLog(tx, {
+        actor,
+        createdAt: updatedAt,
+        fromStatus: existing.status ?? PO_BUY_STATUS.OPEN,
+        meta: buildPoBuyEditMeta({
+          branchCode: branch.code,
+          existing,
+          items,
+          previousBranchCode: previousBranch?.code ?? '',
+          previousSupplierCode: previousSupplier?.code ?? '',
+          issuedDate,
+          supplierCode: supplier.code,
+          values: { expectedDelivery: values.expectedDelivery, notes: values.notes },
+        }),
+        poBuyDocNo: existing.doc_no,
+        poBuyId: existing.id,
+        reason: 'edit',
+        toStatus: row.status ?? PO_BUY_STATUS.OPEN,
+      })
+      return row
     })
 
-    return NextResponse.json({ docNo: updated.doc_no, id: updated.id })
+    return NextResponse.json({ docNo: updated.doc_no, id: updated.doc_no })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'แก้ไข PO Buy ไม่ได้', 500)
@@ -463,7 +641,7 @@ export async function PATCH(request: Request) {
 
     if (action === 'shortClose') {
       const values = poBuyShortCloseSchema.parse(raw)
-      const existing = await prisma.po_buys.findUnique({ where: { id: values.id } })
+      const existing = await resolvePoBuyByDocNoOrId(values.id)
       if (!existing) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบ PO Buy ที่ต้องการปิดรับไม่ครบ' }, { status: 404 })
       if (existing.status === PO_BUY_STATUS.CANCELLED) return NextResponse.json({ code: 'BAD_REQUEST', error: 'PO Buy นี้ถูกยกเลิกแล้ว' }, { status: 400 })
       if (existing.status === PO_BUY_STATUS.SHORT_CLOSED) return NextResponse.json({ code: 'BAD_REQUEST', error: 'PO Buy นี้ถูกปิดรับไม่ครบแล้ว' }, { status: 400 })
@@ -473,10 +651,10 @@ export async function PATCH(request: Request) {
 
       const shortClosedAt = new Date()
       const updated = await prisma.$transaction(async (tx) => {
-        const current = await tx.po_buys.findUnique({ where: { id: values.id } })
+        const current = await resolvePoBuyByDocNoOrId(values.id)
         if (!current) throw new Error('NOT_FOUND')
         const updatedRow = await tx.po_buys.update({
-          where: { id: values.id },
+          where: { id: current.id },
           data: {
             short_closed_amount: toNumber(current.remaining_amount),
             short_closed_at: shortClosedAt,
@@ -489,19 +667,19 @@ export async function PATCH(request: Request) {
           },
           select: { doc_no: true, id: true },
         })
-        await reconcilePoBuys(tx, [values.id], {
+        await reconcilePoBuys(tx, [current.id], {
           actor,
-          statusMetaByPoId: new Map([[values.id, { reason: 'short_close_action' }]]),
-          statusNoteByPoId: new Map([[values.id, values.note]]),
+          statusMetaByPoId: new Map([[current.id, { reason: 'short_close_action' }]]),
+          statusNoteByPoId: new Map([[current.id, values.note]]),
         })
         return updatedRow
       })
 
-      return NextResponse.json({ docNo: updated.doc_no, id: updated.id, status: PO_BUY_STATUS.SHORT_CLOSED })
+      return NextResponse.json({ docNo: updated.doc_no, id: updated.doc_no, status: PO_BUY_STATUS.SHORT_CLOSED })
     }
 
     const values = poBuyCancelSchema.parse(raw)
-    const existing = await prisma.po_buys.findUnique({ where: { id: values.id } })
+    const existing = await resolvePoBuyByDocNoOrId(values.id)
     if (!existing) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบ PO Buy ที่ต้องการยกเลิก' }, { status: 404 })
     if (String(existing.status ?? '').toLowerCase().includes('cancel')) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'PO Buy นี้ถูกยกเลิกแล้ว' }, { status: 400 })
@@ -519,7 +697,7 @@ export async function PATCH(request: Request) {
     const cancelledAt = new Date()
     const updated = await prisma.$transaction(async (tx) => {
       const row = await tx.po_buys.update({
-        where: { id: values.id },
+        where: { id: existing.id },
         data: {
           cancel_note: values.note,
           cancelled_at: cancelledAt,
@@ -533,21 +711,21 @@ export async function PATCH(request: Request) {
         },
         select: { doc_no: true, id: true },
       })
-      await tx.po_buy_status_logs.create({
-        data: {
-          created_at: cancelledAt,
-          created_by: actor,
-          id: `POL-${randomUUID()}`,
-          meta: { reason: 'cancel_action' },
-          note: values.note,
-          po_buy_id: values.id,
-          status: PO_BUY_STATUS.CANCELLED,
-        },
+      await appendPoBuyStatusLog(tx, {
+        actor,
+        createdAt: cancelledAt,
+        fromStatus: existing.status ?? PO_BUY_STATUS.OPEN,
+        meta: { reason: 'cancel_action' },
+        note: values.note,
+        poBuyDocNo: existing.doc_no,
+        poBuyId: existing.id,
+        reason: 'cancel_action',
+        toStatus: PO_BUY_STATUS.CANCELLED,
       })
       return row
     })
 
-    return NextResponse.json({ docNo: updated.doc_no, id: updated.id })
+    return NextResponse.json({ docNo: updated.doc_no, id: updated.doc_no })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'ยกเลิก PO Buy ไม่ได้', 500)

@@ -37,7 +37,6 @@ const transactionLedgerPayloadSchema = z.object({
     description: z.string(),
     id: z.string(),
     linkedBills: z.array(z.object({
-      billId: z.string(),
       docNo: z.string(),
       type: z.enum(['PB', 'SB']),
     })),
@@ -356,7 +355,7 @@ export function TransactionLedgerPageClient() {
                 <td className="p-2 text-xs">
                   {row.linkedBills.length > 0 ? (
                     <div className="flex flex-wrap gap-1">
-                      {row.linkedBills.map((bill) => <span key={`${row.id}-${bill.type}-${bill.billId}`} className="rounded-md bg-blue-50 px-2 py-0.5 font-mono text-blue-700">{bill.type}:{bill.docNo}</span>)}
+                      {row.linkedBills.map((bill) => <span key={`${row.id}-${bill.type}-${bill.docNo}`} className="rounded-md bg-blue-50 px-2 py-0.5 font-mono text-blue-700">{bill.type}:{bill.docNo}</span>)}
                     </div>
                   ) : '-'}
                 </td>

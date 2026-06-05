@@ -4,7 +4,9 @@ import { customerFormSchema } from '@/lib/customer'
 import { toCustomerWriteInput } from '@/lib/domain/customer'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { prisma } from '@/lib/server/prisma'
+import { findActiveSalespersonReferenceByCodeOrId } from '@/lib/server/salesperson-reference'
 
 export const runtime = 'nodejs'
 
@@ -254,20 +256,35 @@ export async function POST(request: Request) {
     }
 
     const validRows = parsedRows.filter((row): row is NonNullable<typeof row> => row !== null)
-    const codes = validRows.map((row) => row.id as string)
-    const existing = await prisma.customers.findMany({ select: { id: true }, where: { id: { in: codes } } })
-    const existingIds = new Set(existing.map((row) => row.id))
+    const existingReferences = await Promise.all(validRows.map((row) => findActiveCustomerReferenceByCodeOrId(row.id)))
+    const salespersonReferences = await Promise.all(validRows.map((row) => row.salesId ? findActiveSalespersonReferenceByCodeOrId(row.salesId) : Promise.resolve(null)))
+    const existingIds = new Set(existingReferences.map((row) => (row ? String(row.id) : '')).filter(Boolean))
 
-    await prisma.$transaction(validRows.map((row) => {
-      const payload = toCustomerWriteInput(row)
-      return prisma.customers.upsert({
-        where: { id: payload.id },
-        create: payload,
-        update: payload,
+    const missingSalespersonIndex = salespersonReferences.findIndex((row, index) => validRows[index]?.salesId && !row)
+    if (missingSalespersonIndex >= 0) {
+      return NextResponse.json({
+        code: 'VALIDATION_ERROR',
+        error: `Import Excel ไม่สำเร็จ: แถว ${missingSalespersonIndex + 2}: พนักงานขายไม่ถูกต้องหรือถูกปิดใช้งาน`,
+      }, { status: 400 })
+    }
+
+    await prisma.$transaction(validRows.map((row, index) => {
+      const payload = toCustomerWriteInput(row, {
+        salesId: salespersonReferences[index]?.id ?? null,
+      })
+      const existing = existingReferences[index]
+      if (existing) {
+        return prisma.customers.update({
+          where: { id: existing.id },
+          data: payload as Parameters<typeof prisma.customers.update>[0]['data'],
+        })
+      }
+      return prisma.customers.create({
+        data: payload as Parameters<typeof prisma.customers.create>[0]['data'],
       })
     }))
 
-    const updated = validRows.filter((row) => existingIds.has(row.id as string)).length
+    const updated = existingReferences.filter(Boolean).length
     return NextResponse.json({
       inserted: validRows.length - updated,
       totalRows: validRows.length,

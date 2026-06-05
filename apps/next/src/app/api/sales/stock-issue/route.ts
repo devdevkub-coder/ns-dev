@@ -103,10 +103,10 @@ export async function GET(request: Request) {
       rows: rows.map((row) => ({
         branchName: row.branches?.name ?? '-',
         convertedToBillId: row.converted_to_bill_id ?? '',
-        customerName: row.customers?.name ?? row.customer_id ?? '-',
+        customerName: row.customers?.name ?? '-',
         date: toDateOnly(row.date),
         docNo: row.doc_no,
-        id: row.id,
+        id: row.doc_no,
         itemCount: Array.isArray(row.items) ? row.items.length : 0,
         status: row.status ?? 'pending',
         totalCost: toNumber(row.total_cost),

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
     const [accounts, customers, salesBills, currencies, fxRates, statementRows] = await Promise.all([
       prisma.accounts.findMany({
         orderBy: [{ name: 'asc' }, { account_no: 'asc' }],
-        select: { account_no: true, active: true, currency: true, id: true, name: true, type: true },
+        select: { account_no: true, active: true, code: true, currency: true, id: true, name: true, type: true },
         where: { active: true },
       }),
       prisma.customers.findMany({
@@ -34,7 +35,7 @@ export async function GET(request: Request) {
       }),
       prisma.sales_bills.findMany({
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
-        select: { customer_id: true, doc_no: true, id: true, receivable_balance: true, total_amount: true },
+        select: { customer_id: true, customers: { select: { code: true } }, doc_no: true, id: true, receivable_balance: true, total_amount: true },
         take: 1000,
         where: { receivable_balance: { gt: 0 } },
       }),
@@ -74,20 +75,20 @@ export async function GET(request: Request) {
         accounts: receiptAccounts.map((account) => ({
           code: account.account_no,
           currency: (account.currency || 'THB').toUpperCase(),
-          id: account.id,
+          id: requireBusinessCode(account.code, `บัญชีเงิน ${account.id}`),
           label: accountLabel(account),
           name: account.name,
           type: account.type,
         })),
         currencies: currencies.map((currency) => ({
-          code: (currency.symbol || currency.id).toUpperCase(),
+          code: (currency.symbol ?? '').trim().toUpperCase(),
           name: currency.name,
           rateToThb: toNumber(currency.rate_to_thb),
           symbol: currency.symbol,
         })),
         customers: customers.map((customer) => ({
-          code: customer.code,
-          id: customer.id,
+          code: requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`),
+          id: requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`),
           label: customer.code ? `${customer.code} - ${customer.name}` : customer.name,
           marketScope: customer.market_scope,
           name: customer.name,
@@ -100,9 +101,9 @@ export async function GET(request: Request) {
           toCurrency: rate.to_currency,
         })),
         salesBills: salesBills.map((bill) => ({
-          customerId: bill.customer_id,
+          customerId: bill.customers?.code ? requireBusinessCode(bill.customers.code, `ลูกค้าบิลขาย ${bill.id}`) : '',
           docNo: bill.doc_no,
-          id: bill.id,
+          id: bill.doc_no,
           receivableBalance: toNumber(bill.receivable_balance),
           totalAmount: toNumber(bill.total_amount),
         })),
@@ -113,7 +114,7 @@ export async function GET(request: Request) {
         description: row.description ?? row.desc ?? '',
         docNo: row.ref_no || row.ref_type || '-',
         feeThb: row.ref_type === 'ORC-FEE' ? toNumber(row.amount_out) : 0,
-        id: row.id,
+        id: row.doc_no,
         status: 'Posted Bank Row',
         type: row.ref_type || row.type || 'ORC',
       })),

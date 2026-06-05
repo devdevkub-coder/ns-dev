@@ -1,13 +1,17 @@
 import * as XLSX from 'xlsx'
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
+import { requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { supplierAdvancePaymentFormSchema } from '@/lib/purchase-advance'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { recordAuditLog } from '@/lib/server/app-logging'
 import { advancePaymentStatusLabel, mapAdvancePaymentRow, parseBangkokDateTimeInput } from '@/lib/server/advance-payments'
+import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, listDailyAccounts, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
+import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import type { Prisma } from '../../../../../generated/prisma/client'
 
@@ -19,13 +23,22 @@ type AdvancePaymentRow = Prisma.supplier_advance_paymentsGetPayload<{
     branches: true
     suppliers: true
     supplier_advance_allocations: {
-      include: {
+      select: {
+        allocation_key: true
+        allocated_amount: true
+        allocated_at: true
+        allocated_by: true
+        id: true
         purchase_bills: {
           select: {
             doc_no: true
             id: true
           }
         }
+        status: true
+        void_reason: true
+        voided_at: true
+        voided_by: true
       }
     }
   }
@@ -140,11 +153,8 @@ function bangkokDateString(date: Date) {
   return `${year}-${month}-${day}`
 }
 
-async function nextAdvanceDocNo(branchId: string, date: string) {
-  const branch = await prisma.branches.findUnique({
-    select: { code: true },
-    where: { id: branchId },
-  })
+async function nextAdvanceDocNo(branchValue: string | bigint, date: string) {
+  const branch = await findActiveBranchReferenceByCodeOrId(branchValue)
   const branchCode = (branch?.code ?? '00').replace(/\D/g, '').padStart(2, '0').slice(0, 2)
   const compactDate = date.slice(2, 4) + date.slice(5, 7)
   const startsWith = `ADV${branchCode}${compactDate}-`
@@ -208,7 +218,7 @@ export async function GET(request: Request) {
       }),
       prisma.payment_methods.findMany({
         orderBy: [{ active: 'desc' }, { name: 'asc' }],
-        select: { active: true, id: true, name: true, type: true },
+        select: { active: true, code: true, name: true, type: true },
       }),
       prisma.products.findMany({
         orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }],
@@ -221,10 +231,19 @@ export async function GET(request: Request) {
           branches: true,
           suppliers: true,
           supplier_advance_allocations: {
-            include: {
+            select: {
+              allocation_key: true,
+              allocated_amount: true,
+              allocated_at: true,
+              allocated_by: true,
+              id: true,
               purchase_bills: {
                 select: { doc_no: true, id: true },
               },
+              status: true,
+              void_reason: true,
+              voided_at: true,
+              voided_by: true,
             },
           },
         },
@@ -271,10 +290,19 @@ export async function GET(request: Request) {
           branches: true,
           suppliers: true,
           supplier_advance_allocations: {
-            include: {
+            select: {
+              allocation_key: true,
+              allocated_amount: true,
+              allocated_at: true,
+              allocated_by: true,
+              id: true,
               purchase_bills: {
                 select: { doc_no: true, id: true },
               },
+              status: true,
+              void_reason: true,
+              voided_at: true,
+              voided_by: true,
             },
           },
         },
@@ -287,7 +315,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       accounts,
-      branches,
+      branches: branches.map((branch) => ({ ...branch, id: branch.code })),
       filters: {
         statuses: [
           { label: 'ทั้งหมด', value: 'all' },
@@ -309,7 +337,7 @@ export async function GET(request: Request) {
       },
       paymentMethods: paymentMethods.map((method): PaymentMethodOption => ({
         active: method.active,
-        id: method.id,
+        id: method.code,
         name: method.name,
         type: method.type,
       })),
@@ -322,7 +350,7 @@ export async function GET(request: Request) {
       })),
       rows: mappedRows,
       summary,
-      suppliers,
+      suppliers: suppliers.map((supplier) => ({ ...supplier, id: requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`) })),
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
@@ -336,24 +364,36 @@ export async function POST(request: Request) {
     requirePermission(context, 'finance.cash.view')
 
     const values = supplierAdvancePaymentFormSchema.parse(await request.json())
+    const [branch, supplier] = await Promise.all([
+      findActiveBranchReferenceByCodeOrId(values.branchId),
+      findActiveSupplierReferenceByCodeOrId(values.supplierId),
+    ])
+    if (!branch) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน', fieldErrors: { branchId: ['เลือกสาขา'] } }, { status: 400 })
+    }
+    if (!supplier) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายไม่ถูกต้องหรือถูกปิดใช้งาน', fieldErrors: { supplierId: ['เลือกผู้ขาย'] } }, { status: 400 })
+    }
     const actor = currentActor(context)
     const createdAt = new Date()
     const advanceDate = bangkokDateString(createdAt)
-    const id = `ADV-${randomUUID()}`
-    const docNo = values.docNo ?? await nextAdvanceDocNo(values.branchId, advanceDate)
+    const docNo = values.docNo ?? await nextAdvanceDocNo(branch.id, advanceDate)
+    const fundingAccount = values.fundingAccountId ? await findActiveAccountReferenceByCode(values.fundingAccountId) : null
+    if (values.fundingAccountId && fundingAccount == null) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'บัญชีจ่ายไม่ถูกต้อง', fieldErrors: { fundingAccountId: ['เลือกบัญชีจ่าย'] } }, { status: 400 })
+    }
 
     const result = await prisma.supplier_advance_payments.create({
       data: {
         advance_date: normalizeDate(advanceDate),
         allocated_amount: 0,
         amount: values.amount,
-        branch_id: values.branchId,
+        branch_id: branch.id,
         created_by: actor,
         customer_name: values.customerName,
         doc_no: docNo,
         driver_name: values.driverName,
-        funding_account_id: values.fundingAccountId,
-        id,
+        funding_account_id: fundingAccount?.id ?? null,
         in_date: values.inDate ? parseBangkokDateTimeInput(values.inDate) : null,
         large_scale_doc_no: values.largeScaleDocNo,
         net_weight: values.netWeight,
@@ -367,7 +407,7 @@ export async function POST(request: Request) {
         scale_operator: values.scaleOperator,
         sender_name: values.senderName,
         status: 'pending_approval',
-        supplier_id: values.supplierId,
+        supplier_id: supplier.id,
         updated_at: createdAt,
         updated_by: actor,
         vehicle_photo_names: values.vehiclePhotoNames,
@@ -378,9 +418,9 @@ export async function POST(request: Request) {
     })
 
     await recordAuditLog({
-      afterData: { docNo: result.doc_no, id: result.id },
+      afterData: { docNo: result.doc_no, id: result.doc_no },
       context,
-      entityId: result.id,
+      entityId: stringifyBusinessValue(result.id),
       entityLabel: result.doc_no,
       entitySchema: 'public',
       entityTable: 'supplier_advance_payments',
@@ -391,7 +431,7 @@ export async function POST(request: Request) {
       request,
     })
 
-    return NextResponse.json({ docNo: result.doc_no, id: result.id })
+    return NextResponse.json({ docNo: result.doc_no, id: result.doc_no })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'บันทึกรายการจ่ายเงินล่วงหน้าไม่ได้', 400)

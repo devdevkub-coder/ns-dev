@@ -8,11 +8,6 @@ export const runtime = 'nodejs'
 
 type FxGainLossRow = Awaited<ReturnType<typeof prisma.fx_gain_loss.findMany>>[number]
 
-function isOpaqueReference(value: string | null | undefined) {
-  if (!value) return true
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value) || value.length > 40
-}
-
 function mapRow(row: FxGainLossRow, referenceBySource: Map<string, string>) {
   const foreignAmount = toNumber(row.amount_fc)
   const originalFxRate = toNumber(row.rate_book)
@@ -20,19 +15,20 @@ function mapRow(row: FxGainLossRow, referenceBySource: Map<string, string>) {
   const gainLossAmount = toNumber(row.gain_loss)
   const sourceKey = row.ref_type && row.ref_id ? `${row.ref_type}:${row.ref_id}` : ''
   const referenceNo = sourceKey ? referenceBySource.get(sourceKey) : null
+  const outwardReference = referenceNo ?? '-'
   return {
     currency: (row.currency || '').toUpperCase(),
     date: toDateOnly(row.date),
     foreignAmount,
     fxGainLossAmount: gainLossAmount,
     gainLossType: gainLossAmount > 0 ? 'gain' : gainLossAmount < 0 ? 'loss' : 'neutral',
-    id: row.id,
+    id: `${toDateOnly(row.date)}:${(row.currency || '').toUpperCase()}:${outwardReference}:${gainLossAmount.toFixed(4)}`,
     notes: row.notes ?? '',
     originalFxRate,
     originalThbValue: foreignAmount * originalFxRate,
-    reference: referenceNo || (isOpaqueReference(row.ref_id) ? row.ref_type || '-' : row.ref_id),
+    reference: outwardReference,
     referenceNo,
-    sourceRefId: row.ref_id,
+    sourceRefId: outwardReference,
     settlementFxRate,
     settlementThbValue: foreignAmount * settlementFxRate,
     transactionType: row.ref_type || 'FX Gain/Loss',
@@ -87,7 +83,7 @@ export async function GET(request: Request) {
       },
       rows: mappedRows,
       schemaState: {
-        referenceResolution: 'bank_statement.ref_no when matched, otherwise ref_type or non-opaque ref_id',
+        referenceResolution: 'bank_statement.ref_no when matched, otherwise "-"',
         realizedOnly: true,
         sourceTable: 'fx_gain_loss',
         unrealizedSource: 'not_available',

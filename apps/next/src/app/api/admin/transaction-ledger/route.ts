@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { parseInternalBigIntId, requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import { toNumber } from '@/lib/server/master-data'
@@ -14,7 +15,6 @@ const querySchema = z.object({
 })
 
 type LinkedBill = {
-  billId: string
   docNo: string
   type: 'PB' | 'SB'
 }
@@ -27,20 +27,28 @@ function uniqueStrings(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.filter((value): value is string => Boolean(value))))
 }
 
+function uniqueBigInts(values: Array<string | number | bigint | null | undefined>) {
+  const ids = values
+    .map((value) => parseInternalBigIntId(typeof value === 'number' ? BigInt(value) : value))
+    .filter((value): value is bigint => value != null)
+  return [...new Set(ids)]
+}
+
 function duplicateKey(row: {
-  account_id: string | null
+  account_id: bigint | null
   amount_in: Parameters<typeof toNumber>[0]
   amount_out: Parameters<typeof toNumber>[0]
   date: Date
+  doc_no: string
   ref_id: string | null
   ref_no: string | null
   ref_type: string | null
 }) {
   return [
     row.ref_type ?? '-',
-    row.ref_no ?? row.ref_id ?? '-',
+    row.ref_no ?? row.doc_no ?? '-',
     toDate(row.date) ?? '-',
-    row.account_id ?? '-',
+    stringifyBusinessValue(row.account_id, '-'),
     (toNumber(row.amount_in) ?? 0).toFixed(2),
     (toNumber(row.amount_out) ?? 0).toFixed(2),
   ].join('|')
@@ -64,40 +72,41 @@ async function ledgerPayload(limit: number) {
   ])
 
   const refIds = uniqueStrings(movements.map((row) => row.ref_id))
+  const refInternalIds = uniqueBigInts(refIds)
   const [payments, receipts, expenses, transfers, pettyAdvances, pettyReturns] = await Promise.all([
     prisma.payments.findMany({
       include: { suppliers: true },
-      where: { OR: [{ id: { in: refIds } }, { voucher_id: { in: refIds } }] },
+      where: { OR: [{ id: { in: refInternalIds } }, { voucher_id: { in: refIds } }] },
     }),
     prisma.receipts.findMany({
       include: { customers: true },
-      where: { OR: [{ id: { in: refIds } }, { voucher_id: { in: refIds } }] },
+      where: { OR: [{ id: { in: refInternalIds } }, { voucher_id: { in: refIds } }] },
     }),
     prisma.expenses.findMany({
       include: { expense_categories: true },
-      where: { OR: [{ id: { in: refIds } }, { voucher_id: { in: refIds } }, { doc_no: { in: refIds } }] },
+      where: { OR: [{ id: { in: refInternalIds } }, { voucher_id: { in: refIds } }, { doc_no: { in: refIds } }] },
     }),
     prisma.transfers.findMany({
       include: {
         accounts_transfers_from_account_idToaccounts: true,
         accounts_transfers_to_account_idToaccounts: true,
       },
-      where: { id: { in: refIds } },
+      where: { id: { in: refInternalIds } },
     }),
     prisma.petty_advances.findMany({
-      where: { id: { in: refIds } },
+      where: { id: { in: refInternalIds } },
     }),
     prisma.petty_advance_returns.findMany({
       include: { petty_advances: true },
-      where: { id: { in: refIds } },
+      where: { OR: [{ id: { in: refInternalIds } }, { doc_no: { in: refIds } }] },
     }),
   ])
 
   const purchaseBills = await prisma.purchase_bills.findMany({
-    where: { id: { in: uniqueStrings(payments.map((payment) => payment.bill_id)) } },
+    where: { id: { in: uniqueBigInts(payments.map((payment) => payment.bill_id)) } },
   })
   const salesBills = await prisma.sales_bills.findMany({
-    where: { id: { in: uniqueStrings(receipts.map((receipt) => receipt.bill_id)) } },
+    where: { id: { in: uniqueBigInts(receipts.map((receipt) => receipt.bill_id)) } },
   })
 
   const purchaseBillById = new Map(purchaseBills.map((bill) => [bill.id, bill]))
@@ -105,25 +114,28 @@ async function ledgerPayload(limit: number) {
 
   const paymentByKey = new Map<string, (typeof payments)[number]>()
   for (const payment of payments) {
-    paymentByKey.set(payment.id, payment)
+    paymentByKey.set(stringifyBusinessValue(payment.id), payment)
     if (payment.voucher_id) paymentByKey.set(payment.voucher_id, payment)
   }
   const receiptByKey = new Map<string, (typeof receipts)[number]>()
   for (const receipt of receipts) {
-    receiptByKey.set(receipt.id, receipt)
+    receiptByKey.set(stringifyBusinessValue(receipt.id), receipt)
     if (receipt.voucher_id) receiptByKey.set(receipt.voucher_id, receipt)
   }
   const expenseByKey = new Map<string, (typeof expenses)[number]>()
   for (const expense of expenses) {
-    expenseByKey.set(expense.id, expense)
+    expenseByKey.set(stringifyBusinessValue(expense.id), expense)
     expenseByKey.set(expense.doc_no, expense)
     if (expense.voucher_id) expenseByKey.set(expense.voucher_id, expense)
   }
-  const transferById = new Map(transfers.map((transfer) => [transfer.id, transfer]))
-  const pettyAdvanceById = new Map(pettyAdvances.map((advance) => [advance.id, advance]))
-  const pettyReturnById = new Map(pettyReturns.map((entry) => [entry.id, entry]))
+  const transferById = new Map(transfers.map((transfer) => [stringifyBusinessValue(transfer.id), transfer]))
+  const pettyAdvanceById = new Map(pettyAdvances.map((advance) => [stringifyBusinessValue(advance.id), advance]))
+  const pettyReturnById = new Map(pettyReturns.flatMap((entry) => {
+    const keys = [entry.doc_no, stringifyBusinessValue(entry.id)].filter(Boolean)
+    return keys.map((key) => [key, entry] as const)
+  }))
 
-  const balanceTotals = new Map<string, number>()
+  const balanceTotals = new Map<bigint, number>()
   for (const group of balanceGroups) {
     if (!group.account_id) continue
     balanceTotals.set(group.account_id, (toNumber(group._sum.amount_in) ?? 0) - (toNumber(group._sum.amount_out) ?? 0))
@@ -131,13 +143,14 @@ async function ledgerPayload(limit: number) {
 
   const openingBalanceByAccount = new Map(accounts.map((account) => [account.id, toNumber(account.opening_balance) ?? 0]))
   const runningByAccount = new Map(openingBalanceByAccount)
-  const runningBalanceById = new Map<string, number>()
+  const runningBalanceById = new Map<bigint, number>()
   for (const row of [...movements].sort((left, right) => {
     const dateOrder = left.date.getTime() - right.date.getTime()
     if (dateOrder !== 0) return dateOrder
     const createdOrder = (left.created_at?.getTime() ?? 0) - (right.created_at?.getTime() ?? 0)
     if (createdOrder !== 0) return createdOrder
-    return left.id.localeCompare(right.id)
+    if (left.id === right.id) return 0
+    return left.id < right.id ? -1 : 1
   })) {
     if (!row.account_id) continue
     const nextBalance = (runningByAccount.get(row.account_id) ?? 0) + (toNumber(row.amount_in) ?? 0) - (toNumber(row.amount_out) ?? 0)
@@ -153,10 +166,10 @@ async function ledgerPayload(limit: number) {
   const duplicateGroups = Array.from(duplicateMap.values())
     .filter((group) => group.length > 1)
     .map((group) => ({
-      accountName: group[0].accounts?.name ?? group[0].account_id ?? '-',
+      accountName: group[0].accounts?.name ?? '-',
       count: group.length,
-      ids: group.map((row) => row.id),
-      refNo: group[0].ref_no ?? group[0].ref_id ?? '-',
+      ids: group.map((row) => row.doc_no),
+      refNo: group[0].ref_no ?? group[0].doc_no ?? '-',
       refType: group[0].ref_type ?? group[0].type ?? 'BANK',
       totalIn: group.reduce((sum, row) => sum + (toNumber(row.amount_in) ?? 0), 0),
       totalOut: group.reduce((sum, row) => sum + (toNumber(row.amount_out) ?? 0), 0),
@@ -171,19 +184,19 @@ async function ledgerPayload(limit: number) {
 
     if (refType === 'PMT' && refId) {
       const payment = paymentByKey.get(refId)
-      payee = payment?.suppliers?.name ?? payment?.supplier_id ?? ''
+      payee = payment?.suppliers?.name ?? '-'
       sourceLabel = payment?.doc_no ?? ''
       if (payment?.bill_id) {
         const bill = purchaseBillById.get(payment.bill_id)
-        linkedBills.push({ billId: payment.bill_id, docNo: bill?.doc_no ?? payment.bill_id, type: 'PB' })
+        if (bill?.doc_no) linkedBills.push({ docNo: bill.doc_no, type: 'PB' })
       }
     } else if (refType === 'RCP' && refId) {
       const receipt = receiptByKey.get(refId)
-      payee = receipt?.customers?.name ?? receipt?.customer_id ?? ''
+      payee = receipt?.customers?.name ?? '-'
       sourceLabel = receipt?.doc_no ?? ''
       if (receipt?.bill_id) {
         const bill = salesBillById.get(receipt.bill_id)
-        linkedBills.push({ billId: receipt.bill_id, docNo: bill?.doc_no ?? receipt.bill_id, type: 'SB' })
+        if (bill?.doc_no) linkedBills.push({ docNo: bill.doc_no, type: 'SB' })
       }
     } else if (refType === 'EXP' && refId) {
       const expense = expenseByKey.get(refId)
@@ -191,8 +204,8 @@ async function ledgerPayload(limit: number) {
       sourceLabel = expense?.expense_categories?.name ?? expense?.doc_no ?? ''
     } else if (refType === 'TRF' && refId) {
       const transfer = transferById.get(refId)
-      const fromName = transfer?.accounts_transfers_from_account_idToaccounts?.name ?? transfer?.from_account_id ?? '-'
-      const toName = transfer?.accounts_transfers_to_account_idToaccounts?.name ?? transfer?.to_account_id ?? '-'
+      const fromName = transfer?.accounts_transfers_from_account_idToaccounts?.name ?? '-'
+      const toName = transfer?.accounts_transfers_to_account_idToaccounts?.name ?? '-'
       payee = `${fromName} → ${toName}`
       sourceLabel = transfer?.doc_no ?? ''
     } else if (refType === 'PADV' && refId) {
@@ -201,23 +214,23 @@ async function ledgerPayload(limit: number) {
       sourceLabel = advance?.doc_no ?? ''
     } else if (refType === 'PRET' && refId) {
       const entry = pettyReturnById.get(refId)
-      payee = entry?.petty_advances.recipient_name ?? ''
-      sourceLabel = entry?.petty_advances.doc_no ?? ''
+      payee = entry?.petty_advances?.recipient_name ?? ''
+      sourceLabel = entry?.doc_no ?? entry?.petty_advances?.doc_no ?? ''
     }
 
     return {
-      accountId: row.account_id,
-      accountName: row.accounts?.name ?? row.account_id ?? '-',
+      accountId: row.accounts?.code ?? '',
+      accountName: row.accounts?.name ?? '-',
       amountIn: toNumber(row.amount_in) ?? 0,
       amountOut: toNumber(row.amount_out) ?? 0,
       date: toDate(row.date) ?? '',
       description: row.description ?? row.desc ?? row.note ?? '',
-      id: row.id,
+      id: row.doc_no,
       linkedBills,
       note: row.note ?? '',
       payee,
-      refId,
-      refNo: row.ref_no ?? sourceLabel ?? row.id,
+      refId: row.ref_no ?? sourceLabel ?? row.doc_no,
+      refNo: row.ref_no ?? sourceLabel ?? row.doc_no,
       refType,
       runningBalance: runningBalanceById.get(row.id) ?? null,
       sourceLabel,
@@ -226,14 +239,15 @@ async function ledgerPayload(limit: number) {
 
   return {
     accounts: accounts.map((account) => {
+      const code = requireBusinessCode(account.code, `บัญชีเงิน ${account.id}`)
       const openingBalance = toNumber(account.opening_balance) ?? 0
       return {
         accountNo: account.account_no,
         active: account.active ?? true,
         balance: openingBalance + (balanceTotals.get(account.id) ?? 0),
-        code: account.account_no ?? account.id,
+        code,
         currency: account.currency ?? 'THB',
-        id: account.id,
+        id: code,
         name: account.name,
         odLimit: toNumber(account.od_limit) ?? 0,
         openingBalance,

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
+import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
+import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
@@ -13,6 +15,8 @@ export async function GET(request: Request) {
 
     const url = new URL(request.url)
     const accountId = url.searchParams.get('accountId')
+    const accountReference = await findActiveAccountReferenceByCode(accountId)
+    const internalAccountId = accountReference?.id ?? null
     const from = url.searchParams.get('from')
     const to = url.searchParams.get('to')
 
@@ -21,6 +25,7 @@ export async function GET(request: Request) {
       select: {
         account_no: true,
         bank_name: true,
+        code: true,
         currency: true,
         id: true,
         name: true,
@@ -28,7 +33,7 @@ export async function GET(request: Request) {
       },
       where: { active: true },
     })
-    const selectedAccount = accounts.find((account) => account.id === accountId) ?? accounts[0] ?? null
+    const selectedAccount = accounts.find((account) => account.id === internalAccountId) ?? accounts[0] ?? null
 
     const erpRows = selectedAccount ? await prisma.bank_statement.findMany({
       orderBy: [{ date: 'desc' }, { created_at: 'desc' }, { id: 'desc' }],
@@ -52,7 +57,7 @@ export async function GET(request: Request) {
       },
       erpRows: erpRows.map((row) => ({
         date: toDateOnly(row.date),
-        id: row.id,
+        id: row.doc_no,
         in: toNumber(row.amount_in),
         out: toNumber(row.amount_out),
         refNo: row.ref_no || row.ref_type || '-',
@@ -62,9 +67,9 @@ export async function GET(request: Request) {
         accounts: accounts.map((account) => ({
           accountNo: account.account_no,
           bankName: account.bank_name,
-          code: account.account_no,
+          code: requireBusinessCode(account.code, `บัญชีเงิน ${account.id}`),
           currency: account.currency,
-          id: account.id,
+          id: requireBusinessCode(account.code, `บัญชีเงิน ${account.id}`),
           label: account.account_no ? `${account.account_no} - ${account.name}` : account.name,
           name: account.name,
           type: account.type,
@@ -72,7 +77,7 @@ export async function GET(request: Request) {
       },
       importedRows: [],
       selectedAccount: selectedAccount ? {
-        id: selectedAccount.id,
+        id: requireBusinessCode(selectedAccount.code, `บัญชีเงิน ${selectedAccount.id}`),
         name: selectedAccount.name,
       } : null,
       stats: {

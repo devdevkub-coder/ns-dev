@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { parseInternalBigIntId } from '@/lib/business-code'
 import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
 import { authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { findActiveBranchReferencesByCodes } from '@/lib/server/branch-reference'
 import { prisma } from '@/lib/server/prisma'
 
 export const runtime = 'nodejs'
@@ -12,7 +14,7 @@ const adminUserFormSchema = z.object({
   displayName: z.string().trim().min(1, 'กรอกชื่อผู้ใช้').max(160, 'ชื่อผู้ใช้ยาวเกินไป'),
   email: z.string().trim().email('รูปแบบอีเมลไม่ถูกต้อง'),
   mustChangePassword: z.boolean().default(false),
-  roleIds: z.array(z.string().uuid()).min(1, 'เลือก role อย่างน้อย 1 รายการ'),
+  roleIds: z.array(z.string().trim().regex(/^\d+$/, 'Role ไม่ถูกต้อง')).min(1, 'เลือก role อย่างน้อย 1 รายการ'),
   username: z.string().trim()
     .min(3, 'Username ต้องมีอย่างน้อย 3 ตัวอักษร')
     .max(60, 'Username ยาวเกินไป')
@@ -23,26 +25,37 @@ function toIso(value: Date | null) {
   return value ? value.toISOString() : null
 }
 
+function parseRoleIds(roleIds: string[]) {
+  const parsed = roleIds.map((roleId) => parseInternalBigIntId(roleId))
+
+  if (parsed.some((roleId) => roleId == null)) {
+    throw new Error('Role ที่เลือกไม่ถูกต้อง')
+  }
+
+  return parsed as bigint[]
+}
+
 async function assertUserRefs(roleIds: string[], branchIds: string[]) {
+  const parsedRoleIds = parseRoleIds(roleIds)
   const [roles, branches] = await Promise.all([
     prisma.app_roles.findMany({
       select: { id: true },
-      where: { id: { in: roleIds }, active: true },
+      where: { id: { in: parsedRoleIds }, active: true },
     }),
-    branchIds.length
-      ? prisma.branches.findMany({
-          select: { id: true },
-          where: { id: { in: branchIds }, active: true },
-        })
-      : Promise.resolve([]),
+    findActiveBranchReferencesByCodes(branchIds),
   ])
 
-  if (roles.length !== new Set(roleIds).size) {
+  if (roles.length !== new Set(parsedRoleIds.map((roleId) => roleId.toString())).size) {
     throw new Error('Role ที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
   }
 
   if (branchIds.length && branches.length !== new Set(branchIds).size) {
     throw new Error('สาขาที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
+  }
+
+  return {
+    branchRefs: branches,
+    roleRefIds: parsedRoleIds,
   }
 }
 
@@ -81,7 +94,7 @@ export async function GET() {
     return NextResponse.json({
       branches: branches.map((branch) => ({
         code: branch.code,
-        id: branch.id,
+        id: branch.code,
         name: branch.name,
       })),
       roles: roles.map((role) => ({
@@ -94,29 +107,29 @@ export async function GET() {
         canSeeProfit: role.can_see_profit,
         code: role.code,
         description: role.description,
-        id: role.id,
+        id: role.id.toString(),
         isSystem: role.is_system,
         name: role.name,
       })),
       users: users.map((user) => ({
         active: user.active,
         authUserId: user.auth_user_id,
-        branchIds: user.app_user_branch_access.map((branch) => branch.branch_id),
+        branchIds: user.app_user_branch_access.map((branch) => branch.branches.code),
         branches: user.app_user_branch_access.map((branch) => ({
           code: branch.branches.code,
-          id: branch.branch_id,
+          id: branch.branches.code,
           name: branch.branches.name,
         })),
         createdAt: toIso(user.created_at),
         displayName: user.display_name,
         email: user.email,
-        id: user.id,
+        id: user.id.toString(),
         lastLoginAt: toIso(user.last_login_at),
         mustChangePassword: user.must_change_password,
         roles: user.app_user_roles.map((userRole) => ({
           branchScope: userRole.app_roles.branch_scope,
           code: userRole.app_roles.code,
-          id: userRole.role_id,
+          id: userRole.role_id.toString(),
           name: userRole.app_roles.name,
         })),
         updatedAt: toIso(user.updated_at),
@@ -134,7 +147,7 @@ export async function POST(request: Request) {
     requirePermission(context, 'system.users.manage')
 
     const values = adminUserFormSchema.parse(await request.json())
-    await assertUserRefs(values.roleIds, values.branchIds)
+    const { branchRefs, roleRefIds } = await assertUserRefs(values.roleIds, values.branchIds)
 
     const existing = await prisma.app_users.findFirst({
       where: {
@@ -164,7 +177,7 @@ export async function POST(request: Request) {
       })
 
       await tx.app_user_roles.createMany({
-        data: values.roleIds.map((roleId) => ({
+        data: roleRefIds.map((roleId) => ({
           created_by: actor,
           role_id: roleId,
           user_id: created.id,
@@ -174,7 +187,7 @@ export async function POST(request: Request) {
       if (values.branchIds.length) {
         await tx.app_user_branch_access.createMany({
           data: values.branchIds.map((branchId) => ({
-            branch_id: branchId,
+            branch_id: branchRefs.find((branch) => branch.code === branchId.toUpperCase())!.id,
             created_by: actor,
             user_id: created.id,
           })),
@@ -194,10 +207,10 @@ export async function POST(request: Request) {
         username: user.username,
       },
       request,
-      targetAppUserId: user.id,
+      targetAppUserId: user.id.toString(),
     })
 
-    return NextResponse.json({ id: user.id }, { status: 201 })
+    return NextResponse.json({ id: user.id.toString() }, { status: 201 })
   } catch (caught) {
     return authContextErrorResponse(caught)
   }

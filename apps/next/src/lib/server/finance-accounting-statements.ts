@@ -1,4 +1,6 @@
 import type { Prisma } from '../../../generated/prisma/client'
+import { requireBusinessCode } from '@/lib/business-code'
+import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 
@@ -117,8 +119,9 @@ function moneyLine(section: string, label: string, amount: number, details?: Det
   return { amount, details, label, level, section, tone }
 }
 
-function branchRow(branch: { code?: string | null; id: string; name: string }): BranchRow {
-  return { code: branch.code ?? '', id: branch.id, name: branch.name }
+function branchRow(branch: { code?: string | null; id: string | bigint; name: string }): BranchRow {
+  const code = requireBusinessCode(branch.code, `สาขา ${branch.id}`)
+  return { code, id: code, name: branch.name }
 }
 
 function bankRef(row: BankRow) {
@@ -148,7 +151,8 @@ async function listBranches() {
 
 async function loadPlInputs(filter: PeriodFilter) {
   const dateWhere = { gte: filter.from, lte: filter.to }
-  const branchWhere = filter.branchId ? { branch_id: filter.branchId } : {}
+  const branch = filter.branchId ? await findActiveBranchReferenceByCodeOrId(filter.branchId) : null
+  const branchWhere = branch?.id != null ? { branch_id: branch.id } : {}
   return Promise.all([
     prisma.sales_bills.findMany({
       include: { branches: { select: { code: true, name: true } }, customers: { select: { name: true } } },
@@ -166,7 +170,7 @@ async function loadPlInputs(filter: PeriodFilter) {
       include: { assets: { select: { branch_id: true, code: true, name: true } } },
       orderBy: [{ date: 'asc' }],
       take: 10000,
-      where: { date: dateWhere, ...(filter.branchId ? { assets: { branch_id: filter.branchId } } : {}) },
+      where: { date: dateWhere, ...(branch?.id != null ? { assets: { branch_id: branch.id } } : {}) },
     }),
     prisma.loan_payments.findMany({
       include: { loans: { select: { contract_no: true, lender_name: true } } },
@@ -184,7 +188,10 @@ async function loadPlInputs(filter: PeriodFilter) {
 }
 
 export async function buildPlStatement(filter: PeriodFilter) {
-  const [salesBills, expenses, depreciations, loanPayments, fxRows, branches] = await loadPlInputs(filter)
+  const [salesBillsRaw, expensesRaw, depreciationsRaw, loanPayments, fxRows, branches] = await loadPlInputs(filter)
+  const salesBills = salesBillsRaw as SalesBillRow[]
+  const expenses = expensesRaw as ExpenseRow[]
+  const depreciations = depreciationsRaw as Array<Prisma.depreciationsGetPayload<{ include: { assets: { select: { branch_id: true; code: true; name: true } } } }>>
   const salesDetails = salesBills.map((bill: SalesBillRow) => ({
     amount: toNumber(bill.subtotal) || toNumber(bill.total_amount) - toNumber(bill.vat_amount),
     date: dateOnly(bill.date),
@@ -276,7 +283,8 @@ export async function buildPlStatement(filter: PeriodFilter) {
 
 async function loadBalanceSheetInputs(filter: AsOfFilter) {
   const asOf = endOfDay(filter.asOf)
-  const branchWhere = filter.branchId ? { branch_id: filter.branchId } : {}
+  const branch = filter.branchId ? await findActiveBranchReferenceByCodeOrId(filter.branchId) : null
+  const branchWhere = branch?.id != null ? { branch_id: branch.id } : {}
   return Promise.all([
     prisma.accounts.findMany({
       include: { branches: { select: { code: true, name: true } } },
@@ -287,7 +295,7 @@ async function loadBalanceSheetInputs(filter: AsOfFilter) {
       include: { accounts: { select: { account_no: true, bank_name: true, name: true, type: true } } },
       orderBy: [{ account_id: 'asc' }, { date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
       take: 30000,
-      where: { date: { lte: asOf }, ...(filter.branchId ? { accounts: { branch_id: filter.branchId } } : {}) },
+      where: { date: { lte: asOf }, ...(branch?.id != null ? { accounts: { branch_id: branch.id } } : {}) },
     }),
     prisma.sales_bills.findMany({
       include: { branches: { select: { code: true, name: true } }, customers: { select: { name: true } } },
@@ -310,7 +318,7 @@ async function loadBalanceSheetInputs(filter: AsOfFilter) {
       include: { depreciations: { where: { date: { lte: asOf } } } },
       orderBy: [{ code: 'asc' }],
       take: 10000,
-      where: { ...(filter.branchId ? { branch_id: filter.branchId } : {}) },
+      where: { ...(branch?.id != null ? { branch_id: branch.id } : {}) },
     }),
     prisma.loans.findMany({
       include: { loan_payments: { where: { date: { lte: asOf } } }, loan_schedules: true },
@@ -323,8 +331,13 @@ async function loadBalanceSheetInputs(filter: AsOfFilter) {
 }
 
 export async function buildBalanceSheet(filter: AsOfFilter) {
-  const [accounts, bankRows, salesBills, purchaseBills, stockRows, assets, loans, equity, branches] = await loadBalanceSheetInputs(filter)
-  const balances = new Map<string, number>()
+  const [accountsRaw, bankRowsRaw, salesBillsRaw, purchaseBillsRaw, stockRows, assetsRaw, loans, equity, branches] = await loadBalanceSheetInputs(filter)
+  const accounts = accountsRaw as AccountRow[]
+  const bankRows = bankRowsRaw as BankRow[]
+  const salesBills = salesBillsRaw as SalesBillRow[]
+  const purchaseBills = purchaseBillsRaw as PurchaseBillRow[]
+  const assets = assetsRaw as AssetRow[]
+  const balances = new Map<bigint, number>()
   accounts.forEach((account: AccountRow) => balances.set(account.id, toNumber(account.opening_balance)))
   bankRows.forEach((row: BankRow) => {
     if (!row.account_id) return
@@ -448,9 +461,10 @@ export async function buildBalanceSheet(filter: AsOfFilter) {
 export async function buildCashFlowStatement(filter: PeriodFilter) {
   const fromStart = filter.from
   const toEnd = endOfDay(filter.to)
-  const accountWhere = filter.branchId ? { accounts: { branch_id: filter.branchId } } : {}
-  const [accounts, beforeRows, periodRows, branches] = await Promise.all([
-    prisma.accounts.findMany({ where: { active: true, ...(filter.branchId ? { branch_id: filter.branchId } : {}) } }),
+  const branch = filter.branchId ? await findActiveBranchReferenceByCodeOrId(filter.branchId) : null
+  const accountWhere = branch?.id != null ? { accounts: { branch_id: branch.id } } : {}
+  const [accountsRaw, beforeRowsRaw, periodRowsRaw, branches] = await Promise.all([
+    prisma.accounts.findMany({ include: { branches: { select: { code: true, name: true } } }, where: { active: true, ...(branch?.id != null ? { branch_id: branch.id } : {}) } }),
     prisma.bank_statement.findMany({
       include: { accounts: { select: { account_no: true, bank_name: true, name: true, type: true } } },
       orderBy: [{ date: 'asc' }, { id: 'asc' }],
@@ -465,6 +479,9 @@ export async function buildCashFlowStatement(filter: PeriodFilter) {
     }),
     listBranches(),
   ])
+  const accounts = accountsRaw as AccountRow[]
+  const beforeRows = beforeRowsRaw as BankRow[]
+  const periodRows = periodRowsRaw as BankRow[]
   const openingCash = accounts.reduce((sum, account) => sum + toNumber(account.opening_balance), 0) + beforeRows.reduce((sum, row) => sum + toNumber(row.amount_in) - toNumber(row.amount_out), 0)
   const activityRows = periodRows.filter((row: BankRow) => !isInternalTransfer(row)).map((row: BankRow) => {
     const inflow = toNumber(row.amount_in)

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
+import { stringifyBusinessValue } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
@@ -68,8 +69,8 @@ export async function GET(request: Request) {
     ])
 
     const activeDeals = deals.filter((deal) => !isCancelled(deal.status))
-    const matchedPurchaseMap = new Map<string, number>()
-    const matchedSalesMap = new Map<string, number>()
+    const matchedPurchaseMap = new Map<bigint, number>()
+    const matchedSalesMap = new Map<bigint, number>()
     activeDeals.forEach((deal) => {
       if (deal.purchase_bill_id) matchedPurchaseMap.set(deal.purchase_bill_id, (matchedPurchaseMap.get(deal.purchase_bill_id) ?? 0) + toNumber(deal.matched_purchase_amount))
       if (deal.sales_bill_id) matchedSalesMap.set(deal.sales_bill_id, (matchedSalesMap.get(deal.sales_bill_id) ?? 0) + toNumber(deal.matched_sales_amount))
@@ -81,10 +82,10 @@ export async function GET(request: Request) {
       return {
         date: toDateOnly(bill.date),
         docNo: bill.doc_no,
-        id: bill.id,
+        id: bill.doc_no,
         matchedAmount,
         remainingAmount: Math.max(0, total - matchedAmount),
-        supplierName: bill.suppliers?.name ?? bill.supplier_id ?? '-',
+        supplierName: bill.suppliers?.name ?? '-',
         totalAmount: total,
       }
     })
@@ -96,10 +97,10 @@ export async function GET(request: Request) {
       const total = toNumber(bill.subtotal) || toNumber(bill.total_amount)
       const matchedAmount = matchedSalesMap.get(bill.id) ?? 0
       return {
-        customerName: bill.customers?.name ?? bill.customer_id ?? '-',
+        customerName: bill.customers?.name ?? '-',
         date: toDateOnly(bill.date),
         docNo: bill.doc_no,
-        id: bill.id,
+        id: bill.doc_no,
         matchedAmount,
         remainingAmount: Math.max(0, total - matchedAmount),
         totalAmount: total,
@@ -114,20 +115,20 @@ export async function GET(request: Request) {
       const purchaseAmount = toNumber(deal.matched_purchase_amount)
       const grossProfit = salesAmount - purchaseAmount
       return {
-        customerName: deal.customers?.name ?? deal.customer_id ?? '-',
+        customerName: deal.customers?.name ?? '-',
         date: toDateOnly(deal.date),
         dealNo: deal.deal_no,
         grossProfit,
         grossProfitPct: salesAmount > 0 ? (grossProfit / salesAmount) * 100 : 0,
-        id: deal.id,
+        id: deal.deal_no,
         matchedPurchaseAmount: purchaseAmount,
         matchedQty: toNumber(deal.matched_qty),
         matchedSalesAmount: salesAmount,
-        productName: deal.products?.name ?? deal.product_id ?? '-',
+        productName: deal.products?.name ?? '-',
         purchaseBillNo: deal.purchase_bill_no ?? '',
         salesBillNo: deal.sales_bill_no ?? '',
         status: deal.status ?? '',
-        supplierName: deal.suppliers?.name ?? deal.supplier_id ?? '-',
+        supplierName: deal.suppliers?.name ?? '-',
       }
     })
       .filter((deal) => !activeStatusFilter || deal.status === activeStatusFilter)
@@ -141,7 +142,7 @@ export async function GET(request: Request) {
     if (url.searchParams.get('format') === 'xlsx') {
       return xlsxResponse(buildWorkbook(dealRows.map((deal) => ({
         Cost: deal.matchedPurchaseAmount,
-        Customer: deal.customerName,
+        Customer: stringifyBusinessValue(deal.customerName),
         Date: deal.date,
         DealNo: deal.dealNo,
         GP: deal.grossProfit,
@@ -152,7 +153,7 @@ export async function GET(request: Request) {
         Sales: deal.matchedSalesAmount,
         SalesBillNo: deal.salesBillNo,
         Status: deal.status,
-        Supplier: deal.supplierName,
+        Supplier: stringifyBusinessValue(deal.supplierName),
       }))), 'trading_matching.xlsx')
     }
 

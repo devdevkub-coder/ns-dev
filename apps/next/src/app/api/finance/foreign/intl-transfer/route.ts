@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
@@ -23,17 +24,17 @@ export async function GET(request: Request) {
     const [accounts, beneficiaries, purposes, currencies, fxRates, statementRows] = await Promise.all([
       prisma.accounts.findMany({
         orderBy: [{ name: 'asc' }, { account_no: 'asc' }],
-        select: { account_no: true, active: true, currency: true, id: true, name: true, type: true },
+        select: { account_no: true, active: true, code: true, currency: true, id: true, name: true, type: true },
         where: { active: true },
       }),
       prisma.overseas_recipients.findMany({
         orderBy: [{ name: 'asc' }],
-        select: { active: true, country: true, currency: true, id: true, name: true },
+        select: { active: true, code: true, country: true, currency: true, id: true, name: true },
         where: { active: true },
       }),
       prisma.overseas_remittance_purposes.findMany({
         orderBy: [{ name: 'asc' }],
-        select: { active: true, id: true, name: true },
+        select: { active: true, code: true, id: true, name: true },
         where: { active: true },
       }),
       prisma.currencies.findMany({ orderBy: [{ symbol: 'asc' }, { name: 'asc' }] }),
@@ -64,22 +65,23 @@ export async function GET(request: Request) {
       },
       filters: {
         accounts: accounts.map((account) => ({
-          code: account.account_no,
+          code: requireBusinessCode(account.code, `บัญชี ${account.id}`),
           currency: (account.currency || 'THB').toUpperCase(),
-          id: account.id,
+          id: requireBusinessCode(account.code, `บัญชี ${account.id}`),
           label: accountLabel(account),
           name: account.name,
           type: account.type,
         })),
         beneficiaries: beneficiaries.map((beneficiary) => ({
+          code: beneficiary.code,
           country: beneficiary.country,
           currency: (beneficiary.currency || 'USD').toUpperCase(),
-          id: beneficiary.id,
-          label: beneficiary.country ? `${beneficiary.name} (${beneficiary.country})` : beneficiary.name,
+          id: requireBusinessCode(beneficiary.code, `ผู้รับเงินต่างประเทศ ${beneficiary.id}`),
+          label: beneficiary.country ? `${beneficiary.code} - ${beneficiary.name} (${beneficiary.country})` : `${beneficiary.code} - ${beneficiary.name}`,
           name: beneficiary.name,
         })),
         currencies: currencies.map((currency) => ({
-          code: (currency.symbol || currency.id).toUpperCase(),
+          code: (currency.symbol ?? '').trim().toUpperCase(),
           name: currency.name,
           rateToThb: toNumber(currency.rate_to_thb),
           symbol: currency.symbol,
@@ -92,8 +94,9 @@ export async function GET(request: Request) {
           toCurrency: rate.to_currency,
         })),
         purposes: purposes.map((purpose) => ({
-          id: purpose.id,
-          label: purpose.name,
+          code: requireBusinessCode(purpose.code, `วัตถุประสงค์โอน ${purpose.id}`),
+          id: requireBusinessCode(purpose.code, `วัตถุประสงค์โอน ${purpose.id}`),
+          label: `${requireBusinessCode(purpose.code, `วัตถุประสงค์โอน ${purpose.id}`)} - ${purpose.name}`,
           name: purpose.name,
         })),
       },
@@ -103,7 +106,7 @@ export async function GET(request: Request) {
         description: row.description ?? row.desc ?? '',
         docNo: row.ref_no || row.ref_type || '-',
         fee: 0,
-        id: row.id,
+        id: row.doc_no,
         status: 'Posted Bank Row',
         type: row.type || 'โอนเงินต่างประเทศ',
       })),

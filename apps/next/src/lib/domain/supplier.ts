@@ -1,3 +1,4 @@
+import { requireBusinessCode } from '@/lib/business-code'
 import {
   resolveSupplierPaymentMethodName,
   supplierFormSchema,
@@ -9,7 +10,7 @@ import {
 } from '@/lib/supplier'
 
 type PrismaSupplier = {
-  id: string
+  id: bigint
   code: string | null
   name: string
   name_title: string | null
@@ -38,15 +39,16 @@ type PrismaSupplier = {
   bank_name: string | null
   bank_account: string | null
   bank_account_name: string | null
-  branch_id: string | null
-  sales_id: string | null
+  branch_id: bigint | null
+  sales_id: bigint | null
   sales_rep: string | null
   active: boolean | null
   created_at: Date | null
   updated_at: Date | null
-  branches?: { name: string } | null
+  branches?: { code: string | null; name: string } | null
   supplier_bank_accounts?: Array<{
-    id: string
+    code: string | null
+    id: bigint
     payment_method: string | null
     bank_name: string | null
     account_no: string | null
@@ -58,8 +60,8 @@ type PrismaSupplier = {
 }
 
 type SupplierBankAccountWriteRow = {
-  id: string
-  supplier_id: string
+  code: string
+  supplier_id: bigint
   payment_method: string
   bank_name: string | null
   account_no: string | null
@@ -97,7 +99,8 @@ function primaryBankAccount(values: SupplierFormValues, paymentMethods: Supplier
 
 export function supplierBankAccountRows(
   values: SupplierFormValues,
-  supplierId: string,
+  supplierId: bigint,
+  supplierCode: string,
   paymentMethods: SupplierPaymentMethodRecord[],
 ) {
   const parsed = supplierFormSchema.parse(values)
@@ -110,7 +113,7 @@ export function supplierBankAccountRows(
 
     if (paymentMethodGroup === 'cash') {
       rows.push({
-        id: account.id || `${supplierId}-CASH-${index + 1}`,
+        code: `${supplierCode}-BA${String(rows.length + 1).padStart(2, '0')}`,
         supplier_id: supplierId,
         payment_method: paymentMethod,
         bank_name: null,
@@ -128,7 +131,7 @@ export function supplierBankAccountRows(
     seenAccountNos.add(accountNo)
 
     rows.push({
-      id: account.id || `${supplierId}-${accountNo}`,
+      code: `${supplierCode}-BA${String(rows.length + 1).padStart(2, '0')}`,
       supplier_id: supplierId,
       payment_method: paymentMethod,
       bank_name: normalizeBankName(account.bankName),
@@ -147,10 +150,14 @@ export function supplierBankAccountRows(
 export function mapPrismaSupplier(
   row: PrismaSupplier,
   paymentMethods: SupplierPaymentMethodRecord[] = [],
+  overrides?: {
+    salesId?: string | null
+  },
 ): Supplier {
+  const outwardId = requireBusinessCode(row.code, `ผู้ขาย ${row.id}`)
   return supplierSchema.parse({
-    id: row.id,
-    code: row.code ?? row.id,
+    id: outwardId,
+    code: outwardId,
     name: row.name,
     nameTitle: row.name_title,
     firstName: row.first_name,
@@ -179,7 +186,7 @@ export function mapPrismaSupplier(
     accountNo: normalizeAccountNo(row.bank_account),
     bankAccount: row.bank_account_name,
     bankAccounts: (row.supplier_bank_accounts ?? []).map((account) => ({
-      id: account.id,
+      id: requireBusinessCode(account.code, `บัญชีรับเงินผู้ขาย ${account.id}`),
       paymentMethod: resolveSupplierPaymentMethodName(account.payment_method, paymentMethods) ?? (String(account.payment_method ?? '').trim() || 'เงินสด'),
       bankName: normalizeBankName(account.bank_name),
       accountNo: normalizeAccountNo(account.account_no),
@@ -188,9 +195,9 @@ export function mapPrismaSupplier(
       isPrimary: account.is_primary ?? false,
       active: account.active ?? true,
     })),
-    branchId: row.branch_id,
-    branchName: row.branches?.name ?? row.branch_id,
-    salesId: row.sales_id,
+    branchId: row.branches?.code ?? null,
+    branchName: row.branches?.name ?? null,
+    salesId: overrides?.salesId ?? null,
     salesName: row.sales_rep,
     active: row.active ?? true,
     createdAt: row.created_at?.toISOString() ?? null,
@@ -239,6 +246,11 @@ function domesticAddressLine1(values: SupplierFormValues) {
 export function toSupplierWriteInput(
   values: SupplierFormValues,
   paymentMethods: SupplierPaymentMethodRecord[],
+  branchId?: bigint | null,
+  overrides?: {
+    salesId?: bigint | null
+    salesName?: string | null
+  },
 ) {
   const parsed = supplierFormSchema.parse(values)
   const code = (parsed.code || parsed.id || '').toUpperCase()
@@ -251,7 +263,6 @@ export function toSupplierWriteInput(
     : null)
 
   return {
-    id: parsed.id || code,
     code,
     name: name || code,
     name_title: parsed.type === 'บุคคล' ? parsed.nameTitle || null : null,
@@ -280,9 +291,9 @@ export function toSupplierWriteInput(
     bank_name: normalizeBankName(primaryAccount?.bankName) || null,
     bank_account: primaryAccount?.accountNo || null,
     bank_account_name: primaryAccount?.bankAccount || null,
-    branch_id: parsed.branchId || null,
-    sales_id: parsed.salesId || null,
-    sales_rep: parsed.salesName || null,
+    branch_id: branchId ?? null,
+    sales_id: overrides?.salesId ?? null,
+    sales_rep: overrides?.salesName ?? (parsed.salesName || null),
     active: parsed.active,
   }
 }

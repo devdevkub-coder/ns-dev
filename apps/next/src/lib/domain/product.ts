@@ -1,7 +1,8 @@
+import { requireBusinessCode } from '@/lib/business-code'
 import { productFormSchema, productSchema, type Product, type ProductFormValues } from '@/lib/product'
 
 type PrismaProduct = {
-  id: string
+  id: bigint
   code: string
   name: string
   active: boolean | null
@@ -13,9 +14,10 @@ type PrismaProduct = {
 }
 
 export function mapPrismaProduct(row: PrismaProduct): Product {
+  const outwardId = requireBusinessCode(row.code, `สินค้า ${row.id}`)
   return productSchema.parse({
-    id: row.id,
-    code: row.code,
+    id: outwardId,
+    code: outwardId,
     name: row.name,
     active: row.active ?? true,
     itemStatus: ['RM', 'WIP', 'FG', 'SCRAP'].includes(row.item_status ?? '') ? row.item_status : 'RM',
@@ -35,7 +37,6 @@ export function toProductWriteInput(values: ProductFormValues) {
   }
 
   return {
-    id: parsed.id || code,
     code,
     name: parsed.name,
     item_status: parsed.itemStatus,

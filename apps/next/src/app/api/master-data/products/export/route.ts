@@ -30,7 +30,6 @@ const productColumns: Array<{ key: keyof Product; label: string; width: number }
   { key: 'active', label: 'สถานะ', width: 90 },
   { key: 'createdAt', label: 'สร้างเมื่อ', width: 150 },
   { key: 'updatedAt', label: 'แก้ไขเมื่อ', width: 150 },
-  { key: 'id', label: 'รหัสภายใน', width: 160 },
 ]
 
 function parseExportParams(request: Request) {
@@ -55,7 +54,6 @@ function productSearchWhere(q: string, filters: { active: string; productType: s
   if (!q) return where
 
   where.OR = [
-    { id: { contains: q, mode: 'insensitive' } },
     { code: { contains: q, mode: 'insensitive' } },
     { item_status: { contains: q, mode: 'insensitive' } },
     { name: { contains: q, mode: 'insensitive' } },

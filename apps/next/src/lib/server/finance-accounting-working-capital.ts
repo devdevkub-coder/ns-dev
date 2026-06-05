@@ -1,4 +1,6 @@
 import type { Prisma } from '../../../generated/prisma/client'
+import { requireBusinessCode } from '@/lib/business-code'
+import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
@@ -45,7 +47,7 @@ function notCancelledWhere() {
   return { NOT: { status: { in: CANCELLED_STATUSES } } }
 }
 
-function branchWhere(branchId?: string) {
+function branchWhere(branchId?: bigint | null) {
   return branchId ? { branch_id: branchId } : {}
 }
 
@@ -68,10 +70,13 @@ async function listBranches() {
     select: { code: true, id: true, name: true },
     where: { active: true },
   })
-  return branches.map((branch) => ({ code: branch.code ?? '', id: branch.id, name: branch.name }))
+  return branches.map((branch) => {
+    const code = requireBusinessCode(branch.code, `สาขา ${branch.id}`)
+    return { code, id: code, name: branch.name }
+  })
 }
 
-async function cashAsOf(asOf: Date, branchId?: string) {
+async function cashAsOf(asOf: Date, branchId?: bigint | null) {
   const [accounts, bankRows] = await Promise.all([
     prisma.accounts.findMany({ select: { id: true, opening_balance: true }, where: { active: true, ...branchWhere(branchId) } }),
     prisma.bank_statement.findMany({
@@ -80,7 +85,7 @@ async function cashAsOf(asOf: Date, branchId?: string) {
       where: { date: { lte: endOfDay(asOf) }, ...(branchId ? { accounts: { branch_id: branchId } } : {}) },
     }),
   ])
-  const balances = new Map<string, number>()
+  const balances = new Map<bigint, number>()
   accounts.forEach((account) => balances.set(account.id, toNumber(account.opening_balance)))
   bankRows.forEach((row) => {
     if (!row.account_id) return
@@ -110,7 +115,7 @@ function jsonString(...values: unknown[]) {
   return ''
 }
 
-async function stockSnapshot(asOf: Date, branchId?: string) {
+async function stockSnapshot(asOf: Date, branchId?: bigint | null) {
   const rows = await prisma.stock_ledger.findMany({
     include: { products: { select: { code: true, item_status: true, metal_group: true, name: true, std_price: true } } },
     orderBy: [{ date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
@@ -121,14 +126,14 @@ async function stockSnapshot(asOf: Date, branchId?: string) {
   let paidValue = 0
   let unpaidValue = 0
   rows.forEach((row) => {
-    const productId = row.product_id ?? 'UNKNOWN'
+    const productId = row.product_id == null ? 'UNKNOWN' : String(row.product_id)
     const current = byProduct.get(productId) ?? {
       ageDays: 0,
-      code: row.products?.code ?? productId,
+      code: row.products?.code ?? '',
       daysSinceSale: 9999,
-      id: productId,
+      id: row.products?.code ?? '',
       metalGroup: row.products?.metal_group ?? '-',
-      name: row.products?.name ?? productId,
+      name: row.products?.name ?? '-',
       qty: 0,
       status: row.output_category ?? row.products?.item_status ?? 'OTHER',
       stdPrice: toNumber(row.products?.std_price),
@@ -154,17 +159,18 @@ async function stockSnapshot(asOf: Date, branchId?: string) {
 }
 
 async function workingInputs(filter: PeriodDaysFilter) {
+  const branchRef = filter.branchId ? await findActiveBranchReferenceByCodeOrId(filter.branchId) : null
   const from = addDays(filter.asOf, -filter.periodDays + 1)
   const to = endOfDay(filter.asOf)
-  const branch = branchWhere(filter.branchId)
+  const branch = branchWhere(branchRef?.id ?? null)
   return Promise.all([
     prisma.sales_bills.findMany({ include: { customers: { select: { name: true } } }, take: 20000, where: { ...notCancelledWhere(), ...branch, date: { gte: from, lte: to } } }),
     prisma.purchase_bills.findMany({ include: { suppliers: { select: { name: true } } }, take: 20000, where: { ...notCancelledWhere(), ...branch, date: { gte: from, lte: to } } }),
-    prisma.sales_bills.findMany({ take: 20000, where: { ...notCancelledWhere(), ...branch, date: { lte: to } } }),
-    prisma.purchase_bills.findMany({ take: 20000, where: { ...notCancelledWhere(), ...branch, date: { lte: to } } }),
+    prisma.sales_bills.findMany({ include: { customers: { select: { name: true } } }, take: 20000, where: { ...notCancelledWhere(), ...branch, date: { lte: to } } }),
+    prisma.purchase_bills.findMany({ include: { suppliers: { select: { name: true } } }, take: 20000, where: { ...notCancelledWhere(), ...branch, date: { lte: to } } }),
     prisma.loan_schedules.findMany({ take: 10000, where: { due_date: { gte: filter.asOf, lte: addDays(filter.asOf, 365) }, payment_status: { not: 'Paid' } } }),
-    stockSnapshot(filter.asOf, filter.branchId),
-    cashAsOf(filter.asOf, filter.branchId),
+    stockSnapshot(filter.asOf, branchRef?.id ?? null),
+    cashAsOf(filter.asOf, branchRef?.id ?? null),
     listBranches(),
   ])
 }
@@ -212,7 +218,8 @@ export async function buildWorkingCapital(filter: PeriodDaysFilter) {
 }
 
 export async function buildStockFinance(filter: PeriodDaysFilter) {
-  const stock = await stockSnapshot(filter.asOf, filter.branchId)
+  const branchRef = filter.branchId ? await findActiveBranchReferenceByCodeOrId(filter.branchId) : null
+  const stock = await stockSnapshot(filter.asOf, branchRef?.id ?? null)
   const branches = await listBranches()
   const totalValue = Math.max(0, stock.totalValue)
   const byStatus = stock.products.reduce<Record<string, number>>((acc, row) => {
@@ -256,11 +263,12 @@ export async function buildStockFinance(filter: PeriodDaysFilter) {
 }
 
 async function profitInputs(filter: ProfitLeakFilter) {
-  const branch = branchWhere(filter.branchId)
+  const branchRef = filter.branchId ? await findActiveBranchReferenceByCodeOrId(filter.branchId) : null
+  const branch = branchWhere(branchRef?.id ?? null)
   const date = { gte: filter.from, lte: endOfDay(filter.to) }
   return Promise.all([
-    prisma.sales_bills.findMany({ include: { customers: { select: { name: true } } }, orderBy: [{ date: 'asc' }, { doc_no: 'asc' }], take: 20000, where: { ...notCancelledWhere(), ...branch, date } }),
-    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' } }, suppliers: { select: { name: true } } }, orderBy: [{ date: 'asc' }, { doc_no: 'asc' }], take: 20000, where: { ...notCancelledWhere(), ...branch, date } }),
+    prisma.sales_bills.findMany({ include: { customers: { select: { code: true, name: true } } }, orderBy: [{ date: 'asc' }, { doc_no: 'asc' }], take: 20000, where: { ...notCancelledWhere(), ...branch, date } }),
+    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' } }, suppliers: { select: { code: true, name: true } } }, orderBy: [{ date: 'asc' }, { doc_no: 'asc' }], take: 20000, where: { ...notCancelledWhere(), ...branch, date } }),
     prisma.expenses.findMany({ include: { expense_categories: { select: { name: true } } }, orderBy: [{ date: 'asc' }, { doc_no: 'asc' }], take: 20000, where: { ...notCancelledWhere(), ...branch, date } }),
     prisma.loan_payments.findMany({ take: 10000, where: { ...notCancelledWhere(), date } }),
     prisma.stock_ledger.findMany({ take: 30000, where: { ...branch, date, movement_type: { contains: 'LOSS', mode: 'insensitive' } } }),
@@ -283,10 +291,10 @@ export async function buildProfitLeak(filter: ProfitLeakFilter) {
       customer: bill.customers?.name ?? '-',
       date: dateOnly(bill.date),
       docNo: bill.doc_no,
-      id: `${bill.id}-${index}`,
+      id: `${bill.doc_no}-${index + 1}`,
       loss: Math.max(0, -profit || (cost > price ? (cost - price) * qty : 0)),
       price,
-      productName: jsonString(item.productName, item.name, item.productId) || '-',
+      productName: jsonString(item.productName, item.name) || '-',
       qty,
       unitCost: cost,
     }
@@ -296,13 +304,13 @@ export async function buildProfitLeak(filter: ProfitLeakFilter) {
     const cost = toNumber(bill.cogs_amount) || toNumber(bill.total_cost)
     const gp = revenue - cost
     const gpPct = revenue > 0 ? gp / revenue * 100 : 0
-    return { customer: bill.customers?.name ?? '-', docNo: bill.doc_no, gpPct, id: bill.id, revenue, shortfall: Math.max(0, filter.targetMargin / 100 * revenue - gp) }
+    return { customer: bill.customers?.name ?? '-', docNo: bill.doc_no, gpPct, id: bill.doc_no, revenue, shortfall: Math.max(0, filter.targetMargin / 100 * revenue - gp) }
   }).filter((row) => row.revenue > 0 && row.gpPct < filter.targetMargin).sort((left, right) => right.shortfall - left.shortfall).slice(0, 15)
   const expenseByCategory = new Map<string, { amount: number; date: string; docNo: string; id: string; payee: string }[]>()
   expenses.forEach((expense) => {
-    const key = expense.expense_categories?.name ?? expense.category_id ?? 'OTHER'
+    const key = expense.expense_categories?.name ?? 'OTHER'
     const rows = expenseByCategory.get(key) ?? []
-    rows.push({ amount: toNumber(expense.net_amount) || toNumber(expense.amount), date: dateOnly(expense.date), docNo: expense.doc_no, id: expense.id, payee: expense.payee ?? '-' })
+    rows.push({ amount: toNumber(expense.net_amount) || toNumber(expense.amount), date: dateOnly(expense.date), docNo: expense.doc_no, id: expense.doc_no, payee: expense.payee ?? '-' })
     expenseByCategory.set(key, rows)
   })
   const outliers = Array.from(expenseByCategory.entries()).flatMap(([category, rows]) => {
@@ -319,7 +327,7 @@ export async function buildProfitLeak(filter: ProfitLeakFilter) {
   const bankFee = payments.reduce((sum, row) => sum + toNumber(row.bank_fee) + toNumber(row.fee), 0) + receipts.reduce((sum, row) => sum + toNumber(row.bank_fee), 0)
   const customerMargins = new Map<string, { cost: number; name: string; revenue: number }>()
   sales.forEach((bill) => {
-    const key = bill.customer_id ?? 'UNKNOWN'
+    const key = bill.customers?.code ? requireBusinessCode(bill.customers.code, `ลูกค้าบิลขาย ${bill.id}`) : 'UNKNOWN'
     const current = customerMargins.get(key) ?? { cost: 0, name: bill.customers?.name ?? '-', revenue: 0 }
     current.revenue += toNumber(bill.total_amount)
     current.cost += toNumber(bill.cogs_amount) || toNumber(bill.total_cost)
@@ -329,9 +337,10 @@ export async function buildProfitLeak(filter: ProfitLeakFilter) {
     .filter((row) => row.revenue > 0 && row.gpPct < filter.targetMargin).sort((left, right) => left.gpPct - right.gpPct).slice(0, 10)
   const supplierCost = new Map<string, { productName: string; qty: number; supplierName: string; value: number }>()
   purchases.forEach((bill) => purchaseBillItemRows(bill).forEach((item) => {
-    const productId = jsonString(item.productId, item.product_id, item.productName) || 'UNKNOWN'
-    const key = `${bill.supplier_id ?? 'UNKNOWN'}|${productId}`
-    const current = supplierCost.get(key) ?? { productName: jsonString(item.productName, item.name, productId) || productId, qty: 0, supplierName: bill.suppliers?.name ?? '-', value: 0 }
+    const productId = jsonString(item.productCode, item.code, item.productName, item.name) || 'UNKNOWN'
+    const supplierCode = bill.suppliers?.code ? requireBusinessCode(bill.suppliers.code, `ผู้ขายบิลซื้อ ${bill.id}`) : 'UNKNOWN'
+    const key = `${supplierCode}|${productId}`
+    const current = supplierCost.get(key) ?? { productName: jsonString(item.productName, item.name) || '-', qty: 0, supplierName: bill.suppliers?.name ?? '-', value: 0 }
     current.qty += jsonNumber(item.netWeight, item.weight, item.qty)
     current.value += jsonNumber(item.netAmount, item.amount, item.total)
     supplierCost.set(key, current)

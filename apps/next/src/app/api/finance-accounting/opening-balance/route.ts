@@ -12,7 +12,7 @@ export async function GET() {
     requirePermission(context, 'finance.financials.view')
 
     const [row, accounts] = await Promise.all([
-      prisma.opening_balance.findUnique({ where: { id: 'SINGLETON' } }),
+      prisma.opening_balance.findFirst({ orderBy: { id: 'asc' } }),
       prisma.accounts.findMany({
         include: { branches: { select: { code: true, name: true } } },
         orderBy: [{ name: 'asc' }, { account_no: 'asc' }],
@@ -37,7 +37,7 @@ export async function GET() {
       },
       row: {
         data: row?.data ?? null,
-        id: row?.id ?? 'SINGLETON',
+        id: row?.id?.toString() ?? '',
         updatedAt: row?.updated_at?.toISOString() || '',
         updatedBy: row?.updated_by || '',
       },

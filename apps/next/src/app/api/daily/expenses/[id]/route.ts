@@ -11,6 +11,13 @@ function isPendingApprovalExpenseStatus(status: string | null | undefined) {
   return normalized === 'pending_approval' || normalized === 'pending' || normalized === ''
 }
 
+async function findExpenseByDocNo(id: string) {
+  return prisma.expenses.findFirst({
+    select: { doc_no: true, id: true, status: true },
+    where: { doc_no: id },
+  })
+}
+
 export async function PATCH(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const auth = await getCurrentAuthContext()
@@ -19,10 +26,7 @@ export async function PATCH(_request: Request, context: { params: Promise<{ id: 
     const { id } = await context.params
     const actor = currentActor(auth)
 
-    const expense = await prisma.expenses.findUnique({
-      select: { id: true, status: true },
-      where: { id },
-    })
+    const expense = await findExpenseByDocNo(id)
 
     if (!expense) {
       return NextResponse.json({ error: 'ไม่พบรายการค่าใช้จ่าย' }, { status: 404 })
@@ -40,18 +44,18 @@ export async function PATCH(_request: Request, context: { params: Promise<{ id: 
           updated_at: new Date(),
           updated_by: actor,
         },
-        where: { id },
+        where: { id: expense.id },
       })
 
       await tx.bank_statement.deleteMany({
         where: {
-          ref_id: id,
+          ref_id: expense.id.toString(),
           ref_type: 'EXP',
         },
       })
     })
 
-    return NextResponse.json({ id })
+    return NextResponse.json({ id: expense.doc_no })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'ยกเลิกรายการค่าใช้จ่ายไม่ได้', 400)

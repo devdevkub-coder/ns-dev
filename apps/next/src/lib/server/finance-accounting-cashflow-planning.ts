@@ -1,4 +1,6 @@
+import { requireBusinessCode } from '@/lib/business-code'
 import type { Prisma } from '../../../generated/prisma/client'
+import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { buildTaxVatWht } from '@/lib/server/finance-accounting-tax'
 import { prisma } from '@/lib/server/prisma'
@@ -68,7 +70,7 @@ function notCancelledWhere() {
   return { NOT: { status: { in: CANCELLED_STATUSES } } }
 }
 
-function branchWhere(branchId?: string) {
+function branchWhere(branchId?: bigint | null) {
   return branchId ? { branch_id: branchId } : {}
 }
 
@@ -90,10 +92,13 @@ async function listBranches() {
     select: { code: true, id: true, name: true },
     where: { active: true },
   })
-  return branches.map((branch) => ({ code: branch.code ?? '', id: branch.id, name: branch.name }))
+  return branches.map((branch) => {
+    const code = requireBusinessCode(branch.code, `สาขา ${branch.id}`)
+    return { code, id: code, name: branch.name }
+  })
 }
 
-async function cashAsOf(asOf: Date, branchId?: string) {
+async function cashAsOf(asOf: Date, branchId?: bigint | null) {
   const [accounts, bankRows] = await Promise.all([
     prisma.accounts.findMany({
       select: { id: true, od_limit: true, opening_balance: true },
@@ -106,7 +111,7 @@ async function cashAsOf(asOf: Date, branchId?: string) {
       where: { date: { lte: endOfDay(asOf) }, ...(branchId ? { accounts: { branch_id: branchId } } : {}) },
     }),
   ])
-  const balances = new Map<string, number>()
+  const balances = new Map<bigint, number>()
   accounts.forEach((account) => balances.set(account.id, toNumber(account.opening_balance)))
   bankRows.forEach((row: BankRow) => {
     if (!row.account_id) return
@@ -129,7 +134,7 @@ function daysBetween(left: Date, right: Date) {
   return Math.floor((left.getTime() - right.getTime()) / DAY_MS)
 }
 
-async function loadBillsAsOf(asOf: Date, branchId?: string) {
+async function loadBillsAsOf(asOf: Date, branchId?: bigint | null) {
   return Promise.all([
     prisma.sales_bills.findMany({
       include: { customers: { select: { credit_term: true, name: true } } },
@@ -155,7 +160,7 @@ function arRows(salesBills: SalesBill[], asOf: Date) {
       daysOverdue: Math.max(0, daysBetween(asOf, dueDate)),
       docNo: bill.doc_no,
       dueDate,
-      id: bill.id,
+      id: bill.doc_no,
       receivableBalance: balance,
     }
   }).filter((row) => row.receivableBalance > 0.01)
@@ -169,7 +174,7 @@ function apRows(purchaseBills: PurchaseBill[], asOf: Date) {
       docNo: bill.doc_no,
       dueDate,
       daysToDue: Math.ceil((dueDate.getTime() - asOf.getTime()) / DAY_MS),
-      id: bill.id,
+      id: bill.doc_no,
       payableBalance: balance,
       supplierName: bill.suppliers?.name ?? '-',
     }
@@ -179,7 +184,8 @@ function apRows(purchaseBills: PurchaseBill[], asOf: Date) {
 async function loadPeriod(filter: AnalysisFilter) {
   const from = filter.from
   const to = endOfDay(filter.to)
-  const branch = branchWhere(filter.branchId)
+  const branchRef = filter.branchId ? await findActiveBranchReferenceByCodeOrId(filter.branchId) : null
+  const branch = branchWhere(branchRef?.id ?? null)
   return Promise.all([
     prisma.sales_bills.findMany({ take: 20000, where: { ...notCancelledWhere(), ...branch, date: { gte: from, lte: to } } }),
     prisma.purchase_bills.findMany({ take: 20000, where: { ...notCancelledWhere(), ...branch, date: { gte: from, lte: to } } }),
@@ -198,8 +204,9 @@ async function loadPeriod(filter: AnalysisFilter) {
 
 export async function buildCashFlowAnalysis(filter: AnalysisFilter) {
   const [sales, purchases, expenses, receipts, payments, loanPayments, stockRows, branches] = await loadPeriod(filter)
-  const [salesAsOf, purchasesAsOf] = await loadBillsAsOf(filter.to, filter.branchId)
-  const cash = await cashAsOf(filter.to, filter.branchId)
+  const branchRef = filter.branchId ? await findActiveBranchReferenceByCodeOrId(filter.branchId) : null
+  const [salesAsOf, purchasesAsOf] = await loadBillsAsOf(filter.to, branchRef?.id ?? null)
+  const cash = await cashAsOf(filter.to, branchRef?.id ?? null)
   const revenue = sales.reduce((sum, bill) => sum + (toNumber(bill.subtotal) || toNumber(bill.total_amount) - toNumber(bill.vat_amount)), 0)
   const purchasesTotal = purchases.reduce((sum, bill) => sum + (toNumber(bill.subtotal) || toNumber(bill.total_amount) - toNumber(bill.vat_amount)), 0)
   const cogs = sales.reduce((sum, bill) => sum + (toNumber(bill.cogs_amount) || toNumber(bill.total_cost)), 0)
@@ -331,9 +338,10 @@ export async function buildCashFlowAnalysis(filter: AnalysisFilter) {
 
 async function loadForecastInputs(filter: ForecastFilter) {
   const end = addDays(filter.startDate, filter.horizon)
-  const branch = branchWhere(filter.branchId)
+  const branchRef = filter.branchId ? await findActiveBranchReferenceByCodeOrId(filter.branchId) : null
+  const branch = branchWhere(branchRef?.id ?? null)
   return Promise.all([
-    loadBillsAsOf(end, filter.branchId),
+    loadBillsAsOf(end, branchRef?.id ?? null),
     prisma.expenses.findMany({
       include: { expense_categories: { select: { name: true } } },
       orderBy: [{ due_date: 'asc' }, { date: 'asc' }],
@@ -346,7 +354,7 @@ async function loadForecastInputs(filter: ForecastFilter) {
       take: 10000,
       where: { due_date: { lte: endOfDay(end) }, payment_status: { not: 'Paid' } },
     }),
-    cashAsOf(filter.startDate, filter.branchId),
+    cashAsOf(filter.startDate, branchRef?.id ?? null),
     listBranches(),
   ])
 }

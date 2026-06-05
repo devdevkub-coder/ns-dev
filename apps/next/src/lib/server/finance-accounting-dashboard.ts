@@ -1,4 +1,6 @@
+import { requireBusinessCode } from '@/lib/business-code'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
+import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { buildCashFlowAnalysis } from '@/lib/server/finance-accounting-cashflow-planning'
 import { buildBalanceSheet, buildPlStatement } from '@/lib/server/finance-accounting-statements'
 import { buildStockFinance, buildWorkingCapital } from '@/lib/server/finance-accounting-working-capital'
@@ -50,15 +52,16 @@ function sourceState() {
 }
 
 async function cashSplit(asOf: Date, branchId?: string) {
+  const branch = branchId ? await findActiveBranchReferenceByCodeOrId(branchId) : null
   const [accounts, bankRows] = await Promise.all([
-    prisma.accounts.findMany({ where: { active: true, ...(branchId ? { branch_id: branchId } : {}) } }),
+    prisma.accounts.findMany({ where: { active: true, ...(branch?.id != null ? { branch_id: branch.id } : {}) } }),
     prisma.bank_statement.findMany({
       orderBy: [{ account_id: 'asc' }, { date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
       take: 30000,
-      where: { date: { lte: endOfDay(asOf) }, ...(branchId ? { accounts: { branch_id: branchId } } : {}) },
+      where: { date: { lte: endOfDay(asOf) }, ...(branch?.id != null ? { accounts: { branch_id: branch.id } } : {}) },
     }),
   ])
-  const balances = new Map<string, number>()
+  const balances = new Map<bigint, number>()
   accounts.forEach((account) => balances.set(account.id, toNumber(account.opening_balance)))
   bankRows.forEach((row) => {
     if (!row.account_id) return
@@ -128,7 +131,10 @@ export async function buildFinancialDashboard(filter: FinancialDashboardFilter) 
 
   return {
     assetComp,
-    branches: branches.map((branch) => ({ code: branch.code ?? '', id: branch.id, name: branch.name })),
+    branches: branches.map((branch) => {
+      const code = requireBusinessCode(branch.code, `สาขา ${branch.id}`)
+      return { code, id: code, name: branch.name }
+    }),
     cashPeriods: [
       { cashIn: cashInToday, label: 'วันนี้', need: cashNeedToday },
       { cashIn: cashIn7, label: '7 วัน', need: cashNeed7 },

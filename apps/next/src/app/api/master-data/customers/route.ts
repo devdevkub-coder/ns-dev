@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
 import { resolveMx } from 'node:dns/promises'
+import { parseInternalBigIntId } from '@/lib/business-code'
 import { customerFormSchema } from '@/lib/customer'
 import { mapPrismaCustomer, toCustomerWriteInput } from '@/lib/domain/customer'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
+import { findActiveSalespersonReferenceByCodeOrId, listSalespersonReferencesByIds } from '@/lib/server/salesperson-reference'
 import type { Prisma } from '../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
@@ -50,7 +52,6 @@ function customerSearchWhere(q: string, customerType: string, marketScope: strin
   if (!q) return where
 
   where.OR = [
-      { id: { contains: q, mode: 'insensitive' } },
       { code: { contains: q, mode: 'insensitive' } },
       { name: { contains: q, mode: 'insensitive' } },
       { type: { contains: q, mode: 'insensitive' } },
@@ -63,7 +64,6 @@ function customerSearchWhere(q: string, customerType: string, marketScope: strin
       { address_city: { contains: q, mode: 'insensitive' } },
       { address_state_region: { contains: q, mode: 'insensitive' } },
       { country_code: { contains: q, mode: 'insensitive' } },
-      { sales_id: { contains: q, mode: 'insensitive' } },
     ]
 
   return where
@@ -123,9 +123,12 @@ export async function GET(request: Request) {
       }),
       prisma.customers.count({ where }),
     ])
+    const salespersonReferences = await listSalespersonReferencesByIds(customers.map((customer) => customer.sales_id))
 
     return NextResponse.json({
-      rows: customers.map(mapPrismaCustomer),
+      rows: customers.map((customer) => mapPrismaCustomer(customer as any, {
+        salesId: salespersonReferences.get(String(customer.sales_id ?? ''))?.code ?? null,
+      })),
       page: all ? 1 : page,
       pageSize,
       total,
@@ -145,18 +148,45 @@ export async function POST(request: Request) {
     const body = await request.json()
     const values = customerFormSchema.parse(body)
     await assertEmailDomainCanReceiveMail(values.email)
-    const code = values.id ? values.code : await getNextCustomerCode()
-    const payload = toCustomerWriteInput({ ...values, code })
+    const existingCustomer = values.id
+      ? await prisma.customers.findFirst({
+        select: { code: true, id: true },
+        where: {
+          OR: [
+            { code: values.id.toUpperCase() },
+            ...(parseInternalBigIntId(values.id) != null ? [{ id: parseInternalBigIntId(values.id) as bigint }] : []),
+          ],
+        } as Prisma.customersWhereInput,
+      })
+      : null
+    const resolvedSalesperson = values.salesId
+      ? await findActiveSalespersonReferenceByCodeOrId(values.salesId)
+      : null
 
-    const customer = await prisma.customers.upsert({
-      where: {
-        id: payload.id,
+    if (values.salesId && !resolvedSalesperson) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'พนักงานขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    }
+
+    const code = values.id ? values.code ?? existingCustomer?.code ?? values.id : await getNextCustomerCode()
+    const payload = toCustomerWriteInput(
+      { ...values, code },
+      {
+        salesId: resolvedSalesperson?.id ?? null,
       },
-      create: payload,
-      update: payload,
-    })
+    )
 
-    return NextResponse.json(mapPrismaCustomer(customer))
+    const customer = existingCustomer
+      ? await prisma.customers.update({
+        where: { id: existingCustomer.id },
+        data: payload as Prisma.customersUpdateInput,
+      })
+      : await prisma.customers.create({
+        data: payload as Prisma.customersCreateInput,
+      })
+
+    return NextResponse.json(mapPrismaCustomer(customer as any, {
+      salesId: resolvedSalesperson?.code ?? null,
+    }))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'บันทึกข้อมูลลูกค้าไม่ได้', 400)

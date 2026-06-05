@@ -1,3 +1,4 @@
+import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { errorJson, masterDataJson, masterDataListJson, parseMasterDataForm, toIso } from '@/lib/server/master-data'
@@ -6,9 +7,10 @@ import { z } from 'zod'
 export const runtime = 'nodejs'
 
 function mapSalesperson(row: Awaited<ReturnType<typeof prisma.salespersons.findMany>>[number]) {
+  const outwardId = requireBusinessCode(row.code, `พนักงานขาย ${row.id}`)
   return {
-    id: row.id,
-    code: row.code ?? row.id,
+    id: outwardId,
+    code: outwardId,
     name: row.name,
     active: row.active ?? true,
     type: null,
@@ -84,25 +86,30 @@ export async function POST(request: Request) {
     requirePermission(context, 'master.reference.manage')
 
     const values = parseMasterDataForm(await request.json())
+    const existing = values.id
+      ? await prisma.salespersons.findFirst({
+        select: { id: true },
+        where: {
+          OR: [{ code: values.id.toUpperCase() }, ...(parseInternalBigIntId(values.id) != null ? [{ id: parseInternalBigIntId(values.id) as bigint }] : [])],
+        } as any,
+      })
+      : null
     const code = normalizeSalespersonCode(values.code, values.id || await getNextCode())
-    const row = await prisma.salespersons.upsert({
-      where: { id: values.id || code },
-      create: {
-        id: values.id || code,
-        code,
-        name: values.name,
-        phone: values.phone || null,
-        email: values.email || null,
-        active: values.active,
-      },
-      update: {
-        code,
-        name: values.name,
-        phone: values.phone || null,
-        email: values.email || null,
-        active: values.active,
-      },
-    })
+    const data = {
+      code,
+      name: values.name,
+      phone: values.phone || null,
+      email: values.email || null,
+      active: values.active,
+    }
+    const row = existing
+      ? await prisma.salespersons.update({
+        where: { id: existing.id },
+        data: data as Parameters<typeof prisma.salespersons.update>[0]['data'],
+      })
+      : await prisma.salespersons.create({
+        data: data as Parameters<typeof prisma.salespersons.create>[0]['data'],
+      })
     return masterDataJson(mapSalesperson(row))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

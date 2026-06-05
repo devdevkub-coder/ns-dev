@@ -1,4 +1,5 @@
 import type { Prisma } from '../../../generated/prisma/client'
+import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
 
 export function toDateOnly(value: Date | null | undefined) {
@@ -18,7 +19,7 @@ export function currentActor(context: { appUser: { username: string } | null; au
   return context.appUser?.username ?? context.authUser.email ?? '-'
 }
 
-export async function nextDailyDocNo(table: 'expenses' | 'payments' | 'petty_advances' | 'purchase_bills' | 'receipts' | 'sales_bills' | 'transfers', prefix: string, date: string) {
+export async function nextDailyDocNo(table: 'bank_statement' | 'expenses' | 'payments' | 'petty_advance_returns' | 'petty_advances' | 'purchase_bills' | 'receipts' | 'sales_bills' | 'transfers', prefix: string, date: string) {
   const compactDate = date.slice(2, 4) + date.slice(5, 7)
   const startsWith = `${prefix}${compactDate}-`
   const model = prisma[table] as unknown as {
@@ -38,6 +39,32 @@ export async function nextDailyDocNo(table: 'expenses' | 'payments' | 'petty_adv
   return `${startsWith}${String(nextNumber).padStart(4, '0')}`
 }
 
+export async function nextDailyDocNos(
+  table: 'bank_statement' | 'expenses' | 'payments' | 'petty_advance_returns' | 'petty_advances' | 'purchase_bills' | 'receipts' | 'sales_bills' | 'transfers',
+  prefix: string,
+  date: string,
+  count: number,
+) {
+  if (count <= 0) return []
+  const compactDate = date.slice(2, 4) + date.slice(5, 7)
+  const startsWith = `${prefix}${compactDate}-`
+  const model = prisma[table] as unknown as {
+    findFirst: (args: {
+      orderBy: { doc_no: 'desc' }
+      select: { doc_no: true }
+      where: { doc_no: { startsWith: string } }
+    }) => Promise<{ doc_no: string } | null>
+  }
+  const last = await model.findFirst({
+    orderBy: { doc_no: 'desc' },
+    select: { doc_no: true },
+    where: { doc_no: { startsWith } },
+  })
+  const lastNumber = Number(String(last?.doc_no ?? '').slice(startsWith.length))
+  const startNumber = Number.isFinite(lastNumber) ? lastNumber + 1 : 1
+  return Array.from({ length: count }, (_, index) => `${startsWith}${String(startNumber + index).padStart(4, '0')}`)
+}
+
 export async function listDailyAccounts() {
   const accounts = await prisma.accounts.findMany({
     orderBy: [{ active: 'desc' }, { name: 'asc' }, { account_no: 'asc' }],
@@ -49,6 +76,7 @@ export async function listDailyAccounts() {
         select: { balance: true },
         take: 1,
       },
+      code: true,
       id: true,
       name: true,
       opening_balance: true,
@@ -60,7 +88,7 @@ export async function listDailyAccounts() {
     active: account.active ?? true,
     balance: toNumber(account.bank_statement[0]?.balance ?? account.opening_balance),
     code: account.account_no,
-    id: account.id,
+    id: requireBusinessCode(account.code, `บัญชีเงิน ${account.id}`),
     name: account.name,
     type: account.type,
   }))
@@ -71,6 +99,7 @@ export function bankStatementTransferRows(values: {
   by: string
   date: string
   docNo: string
+  entryDocNos: [string, string]
   fee: number
   fromAccountId: string
   fromAccountName: string
@@ -78,28 +107,33 @@ export function bankStatementTransferRows(values: {
   toAccountId: string
   toAccountName: string
 }): Prisma.bank_statementCreateManyInput[] {
+  const fromAccountId = parseInternalBigIntId(values.fromAccountId)
+  const toAccountId = parseInternalBigIntId(values.toAccountId)
+  if (fromAccountId == null || toAccountId == null) {
+    throw new Error('บัญชีต้นทางหรือปลายทางไม่ถูกต้อง')
+  }
   return [
     {
-      account_id: values.fromAccountId,
+      account_id: fromAccountId,
       amount_in: 0,
       amount_out: values.amount + values.fee,
       created_by: values.by,
       date: normalizeDate(values.date),
       description: `โอนเข้า ${values.toAccountName}`,
-      id: `BS-TRF-${values.id}-from`,
+      doc_no: values.entryDocNos[0],
       ref_id: values.id,
       ref_no: values.docNo,
       ref_type: 'TRF',
       type: 'โอนระหว่างบัญชี',
     },
     {
-      account_id: values.toAccountId,
+      account_id: toAccountId,
       amount_in: values.amount,
       amount_out: 0,
       created_by: values.by,
       date: normalizeDate(values.date),
       description: `รับโอนจาก ${values.fromAccountName}`,
-      id: `BS-TRF-${values.id}-to`,
+      doc_no: values.entryDocNos[1],
       ref_id: values.id,
       ref_no: values.docNo,
       ref_type: 'TRF',

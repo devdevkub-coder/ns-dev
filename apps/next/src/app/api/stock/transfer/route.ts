@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'node:crypto'
+import { requireBusinessCode, requireDocumentNo } from '@/lib/business-code'
 import { stockTransferFormSchema } from '@/lib/daily'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { normalizeStockReferenceInput } from '@/lib/server/stock'
+import { findActiveWarehouseReferenceByCodeOrId } from '@/lib/server/warehouse-reference'
 
 export const runtime = 'nodejs'
 
@@ -26,8 +30,18 @@ export async function GET() {
     requirePermission(context, 'stock.ledger.view')
 
     const [branches, warehouses, products, ledgerRows] = await Promise.all([
-      prisma.branches.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, id: true, name: true } }),
-      prisma.warehouses.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, branch_id: true, id: true, name: true } }),
+      prisma.branches.findMany({ orderBy: [{ code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
+      prisma.warehouses.findMany({
+        orderBy: [{ code: 'asc' }, { name: 'asc' }],
+        select: {
+          active: true,
+          branches: { select: { code: true } },
+          branch_id: true,
+          code: true,
+          id: true,
+          name: true,
+        },
+      }),
       prisma.products.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
       prisma.stock_ledger.findMany({
         include: { branches: true, products: true, warehouses: true },
@@ -48,10 +62,10 @@ export async function GET() {
       totalQty: number
     }>()
     for (const row of ledgerRows) {
-      const key = row.ref_id ?? row.ref_no ?? row.id
+      const key = requireDocumentNo(row.ref_no, `stock_ledger ${row.id}`)
       const current = grouped.get(key) ?? {
         date: toDateOnly(row.date),
-        docNo: row.ref_no ?? key,
+        docNo: key,
         from: '',
         id: key,
         itemCount: 0,
@@ -70,10 +84,20 @@ export async function GET() {
     }
 
     return NextResponse.json({
-      branches,
-      products,
+      branches: branches.map((branch) => ({
+        ...branch,
+        id: branch.code,
+      })),
+      products: products.map((product) => ({
+        ...product,
+        id: product.code,
+      })),
       rows: Array.from(grouped.values()),
-      warehouses,
+      warehouses: warehouses.map((warehouse) => ({
+        ...warehouse,
+        branch_id: warehouse.branches ? requireBusinessCode(warehouse.branches.code, `สาขาคลัง ${warehouse.branch_id ?? warehouse.id}`) : null,
+        id: warehouse.code,
+      })),
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
@@ -90,18 +114,44 @@ export async function POST(request: Request) {
     const refId = `ST-${randomUUID()}`
     const docNo = values.docNo ?? await nextStockTransferDocNo(values.date)
     const actor = currentActor(context)
+    const [fromBranch, toBranch, fromWarehouse, toWarehouse] = await Promise.all([
+      findActiveBranchReferenceByCodeOrId(values.fromBranchId),
+      findActiveBranchReferenceByCodeOrId(values.toBranchId),
+      findActiveWarehouseReferenceByCodeOrId(values.fromWarehouseId),
+      findActiveWarehouseReferenceByCodeOrId(values.toWarehouseId),
+    ])
+
+    if (!fromBranch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาต้นทางไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    if (!toBranch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาปลายทางไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    if (!fromWarehouse) return NextResponse.json({ code: 'BAD_REQUEST', error: 'คลังต้นทางไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    if (!toWarehouse) return NextResponse.json({ code: 'BAD_REQUEST', error: 'คลังปลายทางไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    if (fromWarehouse.branchCode && fromWarehouse.branchCode !== fromBranch.code) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาต้นทางและคลังต้นทางไม่ตรงกัน' }, { status: 400 })
+    }
+    if (toWarehouse.branchCode && toWarehouse.branchCode !== toBranch.code) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาปลายทางและคลังปลายทางไม่ตรงกัน' }, { status: 400 })
+    }
+    const normalizedItems = await Promise.all(values.items.map(async (item, index) => {
+      const productReference = await normalizeStockReferenceInput({ productId: item.productId })
+      if (!productReference.productId) {
+        throw new Error(`สินค้าแถวที่ ${index + 1} ไม่ถูกต้องหรือถูกปิดใช้งาน`)
+      }
+      return {
+        ...item,
+        productId: productReference.productId,
+      }
+    }))
 
     await prisma.$transaction(async (tx) => {
       await tx.stock_ledger.deleteMany({ where: { ref_id: refId, ref_type: 'ST' } })
-      for (const item of values.items) {
+      for (const item of normalizedItems) {
         const unitCost = 0
         await tx.stock_ledger.createMany({
           data: [
             {
-              branch_id: values.fromBranchId,
+              branch_id: fromBranch.id,
               created_by: actor,
               date: normalizeDate(values.date),
-              id: `SL-ST-${randomUUID()}`,
               lot_no: item.lotNo,
               movement_type: 'โอนระหว่างสาขา-ออก',
               notes: values.notes,
@@ -114,13 +164,12 @@ export async function POST(request: Request) {
               unit_cost: unitCost,
               value_in: 0,
               value_out: 0,
-              warehouse_id: values.fromWarehouseId,
+              warehouse_id: fromWarehouse.id,
             },
             {
-              branch_id: values.toBranchId,
+              branch_id: toBranch.id,
               created_by: actor,
               date: normalizeDate(values.date),
-              id: `SL-ST-${randomUUID()}`,
               lot_no: item.lotNo,
               movement_type: 'โอนระหว่างสาขา-เข้า',
               notes: values.notes,
@@ -133,14 +182,14 @@ export async function POST(request: Request) {
               unit_cost: unitCost,
               value_in: 0,
               value_out: 0,
-              warehouse_id: values.toWarehouseId,
+              warehouse_id: toWarehouse.id,
             },
           ],
         })
       }
     })
 
-    return NextResponse.json({ id: refId })
+    return NextResponse.json({ id: docNo, refNo: docNo })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'บันทึกโอนสินค้าไม่ได้', 400)

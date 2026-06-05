@@ -266,7 +266,10 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
         result.key,
         result.rows
           .filter((row) => row.active)
-          .map((row) => ({ label: row.name, value: String(row[result.valueKey] ?? row.name) })),
+          .map((row) => ({
+            label: row.code ? `${row.code} - ${row.name}` : row.name,
+            value: String(row[result.valueKey] ?? row.name),
+          })),
       ])))
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : `โหลดข้อมูล${config.entityName}ไม่ได้`)

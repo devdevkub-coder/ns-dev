@@ -101,10 +101,10 @@ export async function buildCashFlowCalendar(monthValue?: string | null) {
     const key = dayId(row.date)
     if (!entriesByDay.has(key)) entriesByDay.set(key, [])
     entriesByDay.get(key)!.push({
-      account: accountNames.get(row.account_id ?? '') ?? '-',
+      account: row.account_id != null ? (accountNames.get(row.account_id) ?? '-') : '-',
       date: key,
       description: row.description ?? row.desc ?? '-',
-      id: row.id,
+      id: row.ref_no ?? '-',
       in: toNumber(row.amount_in),
       out: toNumber(row.amount_out),
       refNo: row.ref_no ?? '-',
@@ -251,7 +251,7 @@ export async function buildBusinessCalendar(monthValue?: string | null) {
     row.purchaseAmount += amount
     row.purchaseQty += qty
     row.apIncrease += toNumber(bill.payable_balance) || amount
-    row.purchaseDocs.push({ amount, docNo: bill.doc_no, id: bill.id, qty })
+    row.purchaseDocs.push({ amount, docNo: bill.doc_no, id: bill.doc_no, qty })
   })
 
   salesBills.filter((bill) => activeStatus(bill.status)).forEach((bill) => {
@@ -266,7 +266,7 @@ export async function buildBusinessCalendar(monthValue?: string | null) {
     row.cogs += cogs
     row.gp += gp
     row.arIncrease += toNumber(bill.receivable_balance) || amount
-    row.saleDocs.push({ amount, cogs, docNo: bill.doc_no, gp, id: bill.id, qty })
+    row.saleDocs.push({ amount, cogs, docNo: bill.doc_no, gp, id: bill.doc_no, qty })
   })
 
   expenses.filter((expense) => activeStatus(expense.status)).forEach((expense) => {
@@ -274,7 +274,7 @@ export async function buildBusinessCalendar(monthValue?: string | null) {
     if (!row) return
     const amount = toNumber(expense.net_amount) || toNumber(expense.amount)
     row.expenseAmount += amount
-    row.expenseDocs.push({ amount, category: expense.expense_categories?.name ?? '-', docNo: expense.doc_no, id: expense.id, payee: expense.payee ?? '-' })
+    row.expenseDocs.push({ amount, category: expense.expense_categories?.name ?? '-', docNo: expense.doc_no, id: expense.doc_no, payee: expense.payee ?? '-' })
   })
 
   receipts.filter((receipt) => activeStatus(receipt.status)).forEach((receipt) => {
@@ -282,7 +282,7 @@ export async function buildBusinessCalendar(monthValue?: string | null) {
     if (!row) return
     const amount = toNumber(receipt.net_amount) || toNumber(receipt.amount)
     row.receiptAmount += amount
-    row.receiptDocs.push({ amount, docNo: receipt.doc_no, id: receipt.id })
+    row.receiptDocs.push({ amount, docNo: receipt.doc_no, id: receipt.doc_no })
   })
 
   payments.filter((payment) => activeStatus(payment.status)).forEach((payment) => {
@@ -290,7 +290,7 @@ export async function buildBusinessCalendar(monthValue?: string | null) {
     if (!row) return
     const amount = toNumber(payment.net_amount) || toNumber(payment.amount)
     row.paymentAmount += amount
-    row.paymentDocs.push({ amount, docNo: payment.doc_no, id: payment.id })
+    row.paymentDocs.push({ amount, docNo: payment.doc_no, id: payment.doc_no })
   })
 
   const days = Array.from(daily.values()).map((row) => ({ ...row, netCash: row.receiptAmount - row.paymentAmount - row.expenseAmount }))

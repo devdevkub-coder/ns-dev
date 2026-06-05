@@ -245,7 +245,7 @@ function StockLedgerDetailModal({ onClose, row }: { onClose: () => void; row: St
             <DetailRow label="วันที่" value={row.date || '-'} />
             <DetailRow label="เลขบิล" value={row.refNo || '-'} mono />
             <DetailRow label="Ref Type" value={row.refType || '-'} />
-            <DetailRow label="Ref ID" value={row.refId || '-'} mono />
+            <DetailRow label="Ref No" value={row.refId || '-'} mono />
             <DetailRow label="Movement" value={row.movementType || '-'} />
           </DetailPanel>
 

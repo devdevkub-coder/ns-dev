@@ -90,12 +90,16 @@ type PoBuyRow = {
   shortClosedQty: number
   status: string
   statusLogs: Array<{
+    action: string
     createdAt: string
     createdBy: string
+    eventKey: string
+    fromStatus: string
     id: string
     meta: unknown
     note: string
-    status: string
+    poBuyDocNo: string
+    toStatus: string
   }>
   supplierId: string
   supplierName: string
@@ -185,6 +189,50 @@ function poBuyStatusLabel(status: string) {
   if (key === 'partial') return 'รับบางส่วน'
   if (key === 'received') return 'รับครบ'
   return 'ยังไม่รับ'
+}
+
+function poBuyStatusActionLabel(action: string) {
+  switch (action) {
+    case 'created':
+      return 'สร้างเอกสาร'
+    case 'edited':
+      return 'แก้ไขเอกสาร'
+    case 'received_partial':
+      return 'ตัดรับบางส่วน'
+    case 'received_full':
+      return 'ตัดรับครบ'
+    case 'short_closed':
+      return 'ปิดรับไม่ครบ'
+    case 'cancelled':
+      return 'ยกเลิกเอกสาร'
+    default:
+      return 'อัปเดตสถานะ'
+  }
+}
+
+function poBuyStatusTransitionLabel(log: PoBuyRow['statusLogs'][number]) {
+  if (!log.fromStatus) return poBuyStatusLabel(log.toStatus)
+  if (log.fromStatus === log.toStatus) return poBuyStatusLabel(log.toStatus)
+  return `${poBuyStatusLabel(log.fromStatus)} -> ${poBuyStatusLabel(log.toStatus)}`
+}
+
+function poBuyStatusMetaText(meta: unknown) {
+  if (!meta || typeof meta !== 'object') return ''
+  const record = meta as Record<string, unknown>
+  if (Array.isArray(record.changedFields) && record.changedFields.length > 0) {
+    const changedFields = record.changedFields
+      .filter((value): value is string => typeof value === 'string' && value.length > 0)
+      .join(', ')
+    return changedFields ? `แก้ไขฟิลด์: ${changedFields}` : ''
+  }
+  if (typeof record.reason === 'string' && record.reason.length > 0) {
+    if (record.reason === 'short_close_action') return 'เหตุการณ์: ปิดรับไม่ครบ'
+    if (record.reason === 'cancel_action') return 'เหตุการณ์: ยกเลิกเอกสาร'
+    if (record.reason === 'create') return 'เหตุการณ์: สร้างเอกสาร'
+    if (record.reason === 'edit') return 'เหตุการณ์: แก้ไขเอกสาร'
+    return `เหตุการณ์: ${record.reason}`
+  }
+  return ''
 }
 
 function ExportButton({ href }: { href: string }) {
@@ -1100,10 +1148,14 @@ function PoBuyDetailModal({ onClose, row }: { onClose: () => void; row: PoBuyRow
             {row.statusLogs.length === 0 ? <div className="text-sm text-slate-500">ยังไม่มีประวัติสถานะ</div> : row.statusLogs.map((log) => (
               <div key={log.id} className="border-b border-slate-200 pb-2 last:border-b-0 last:pb-0">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-medium text-slate-800">{poBuyStatusLabel(log.status)}</div>
+                  <div>
+                    <div className="text-sm font-medium text-slate-800">{poBuyStatusActionLabel(log.action)}</div>
+                    <div className="text-xs text-slate-500">{poBuyStatusTransitionLabel(log)}</div>
+                  </div>
                   <div className="text-xs text-slate-500">{formatDateTime(log.createdAt)}</div>
                 </div>
                 <div className="mt-0.5 text-xs text-slate-500">{log.createdBy || '-'}</div>
+                {poBuyStatusMetaText(log.meta) ? <div className="mt-1 text-xs text-slate-500">{poBuyStatusMetaText(log.meta)}</div> : null}
                 {log.note ? <div className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{log.note}</div> : null}
               </div>
             ))}

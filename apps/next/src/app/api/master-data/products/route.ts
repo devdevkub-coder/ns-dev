@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { mapPrismaProduct, toProductWriteInput } from '@/lib/domain/product'
+import { parseInternalBigIntId } from '@/lib/business-code'
 import { productFormSchema } from '@/lib/product'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
@@ -42,7 +43,6 @@ function productSearchWhere(q: string, filters: { active: string; productType: s
   if (!q) return where
 
   where.OR = [
-    { id: { contains: q, mode: 'insensitive' } },
     { code: { contains: q, mode: 'insensitive' } },
     { item_status: { contains: q, mode: 'insensitive' } },
     { name: { contains: q, mode: 'insensitive' } },
@@ -141,8 +141,19 @@ export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
     const formValues = productFormSchema.parse(await request.json())
+    const existingProduct = formValues.id
+      ? await prisma.products.findFirst({
+        select: { id: true },
+        where: {
+          OR: [{ code: formValues.id.toUpperCase() }, ...(parseInternalBigIntId(formValues.id) != null ? [{ id: parseInternalBigIntId(formValues.id) as bigint }] : [])],
+        } as Prisma.productsWhereInput,
+      })
+      : null
     const isUpdate = Boolean(formValues.id)
     requirePermission(context, isUpdate ? 'master.products.update' : 'master.products.create')
+    if (formValues.id && !existingProduct) {
+      return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบสินค้าที่ต้องการแก้ไข' }, { status: 404 })
+    }
     const values = formValues.id
       ? formValues
       : productFormSchema.parse({ ...formValues, code: await getNextProductCode() })
@@ -152,23 +163,13 @@ export async function POST(request: Request) {
     ])
     const payload = toProductWriteInput(values)
 
-    if (values.id) {
-      const codeOwner = await prisma.products.findFirst({ select: { id: true }, where: { code: payload.code } })
-      if (codeOwner && codeOwner.id !== payload.id) {
-        return NextResponse.json({ code: 'CONFLICT', error: 'รหัสสินค้านี้มีอยู่แล้ว' }, { status: 409 })
-      }
-    } else {
-      const existing = await prisma.products.findFirst({
-        select: { id: true },
-        where: { OR: [{ id: payload.id }, { code: payload.code }] },
-      })
-      if (existing) {
-        return NextResponse.json({ code: 'CONFLICT', error: 'รหัสสินค้านี้มีอยู่แล้ว' }, { status: 409 })
-      }
+    const codeOwner = await prisma.products.findFirst({ select: { id: true }, where: { code: payload.code } })
+    if (codeOwner && (!existingProduct || codeOwner.id !== existingProduct.id)) {
+      return NextResponse.json({ code: 'CONFLICT', error: 'รหัสสินค้านี้มีอยู่แล้ว' }, { status: 409 })
     }
 
-    const product = values.id
-      ? await prisma.products.update({ where: { id: payload.id }, data: payload })
+    const product = existingProduct
+      ? await prisma.products.update({ where: { id: existingProduct.id }, data: payload })
       : await prisma.products.create({ data: payload })
 
     return NextResponse.json(mapPrismaProduct(product))

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
@@ -31,13 +32,28 @@ type CostPoolPayload = {
 
 type PoSellItem = {
   productCode?: string | null
-  productId?: string | null
+  productId?: string | number | bigint | null
   productName?: string | null
   qty?: number | string | null
   remainingQty?: number | string | null
   totalAmount?: number | string | null
   totalRevenue?: number | string | null
   unitPrice?: number | string | null
+}
+
+type ProductRef = {
+  code: string
+  id: bigint
+  metal_group: string | null
+  name: string
+}
+
+type PoSellSourceRow = {
+  items: unknown
+  product_id: bigint | null
+  qty: unknown
+  remaining_qty: unknown
+  unit_price: unknown
 }
 
 type SaleRow = {
@@ -62,14 +78,30 @@ function jsonNumber(value: unknown) {
   return toNumber(value as { toNumber: () => number } | null | undefined)
 }
 
-function itemRows(row: { items: unknown; product_id: string | null; qty: unknown; remaining_qty: unknown; unit_price: unknown }, productName: string) {
+function resolveProductCode(value: string | number | bigint | null | undefined, productById: Map<bigint, ProductRef>) {
+  if (typeof value === 'string' && value.trim()) {
+    const trimmed = value.trim()
+    if (/^\d+$/.test(trimmed)) {
+      const product = productById.get(BigInt(trimmed))
+      return product ? requireBusinessCode(product.code, `สินค้า ${product.id}`) : ''
+    }
+    return trimmed
+  }
+  if (typeof value === 'number' || typeof value === 'bigint') {
+    const product = productById.get(BigInt(value))
+    return product ? requireBusinessCode(product.code, `สินค้า ${product.id}`) : ''
+  }
+  return ''
+}
+
+function itemRows(row: PoSellSourceRow, fallbackProduct: ProductRef | null, productById: Map<bigint, ProductRef>) {
   if (Array.isArray(row.items) && row.items.length) {
     return row.items
       .filter((item): item is PoSellItem => typeof item === 'object' && item !== null)
       .map((item, index) => ({
-        lineId: `${item.productId ?? row.product_id ?? 'line'}-${index}`,
-        productId: item.productId ?? row.product_id ?? '',
-        productName: item.productName ?? item.productCode ?? productName,
+        lineId: `${resolveProductCode(item.productCode ?? item.productId ?? row.product_id, productById) || 'line'}-${index}`,
+        productId: resolveProductCode(item.productCode ?? item.productId ?? row.product_id, productById),
+        productName: item.productName ?? item.productCode ?? fallbackProduct?.name ?? '-',
         qty: jsonNumber(item.qty),
         remainingQty: jsonNumber(item.remainingQty ?? item.qty),
         totalAmount: jsonNumber(item.totalRevenue ?? item.totalAmount),
@@ -78,9 +110,9 @@ function itemRows(row: { items: unknown; product_id: string | null; qty: unknown
   }
 
   return [{
-    lineId: row.product_id ?? 'header',
-    productId: row.product_id ?? '',
-    productName,
+    lineId: fallbackProduct?.code || 'header',
+    productId: fallbackProduct?.code ?? '',
+    productName: fallbackProduct?.name ?? '-',
     qty: jsonNumber(row.qty),
     remainingQty: jsonNumber(row.remaining_qty ?? row.qty),
     totalAmount: 0,
@@ -144,18 +176,19 @@ export async function GET(request: Request) {
       prisma.products.findMany({ select: { code: true, id: true, metal_group: true, name: true } }),
     ])
 
-    const productById = new Map(products.map((product) => [product.id, product]))
-    const salesBillIdsByPoSellId = new Map<string, Set<string>>()
+    const productById = new Map(products.map((product) => [product.id, { ...product, code: requireBusinessCode(product.code, `สินค้า ${product.id}`) }]))
+    const productByCode = new Map(Array.from(productById.values()).map((product) => [product.code, product]))
+    const salesBillIdsByPoSellId = new Map<bigint, Set<bigint>>()
     salesBills.forEach((bill) => {
       if (!bill.po_sell_id) return
-      const current = salesBillIdsByPoSellId.get(bill.po_sell_id) ?? new Set<string>()
+      const current = salesBillIdsByPoSellId.get(bill.po_sell_id) ?? new Set<bigint>()
       current.add(bill.id)
       salesBillIdsByPoSellId.set(bill.po_sell_id, current)
     })
 
-    const matchedQtyByPoSellId = new Map<string, number>()
+    const matchedQtyByPoSellId = new Map<bigint, number>()
     poSells.forEach((po) => {
-      const billIds = salesBillIdsByPoSellId.get(po.id) ?? new Set<string>()
+      const billIds = salesBillIdsByPoSellId.get(po.id) ?? new Set<bigint>()
       let matchedQty = 0
       tradingDeals.forEach((deal) => {
         if (deal.sales_bill_id && billIds.has(deal.sales_bill_id) && !isCancelled(deal.status)) matchedQty += toNumber(deal.matched_qty)
@@ -164,8 +197,8 @@ export async function GET(request: Request) {
     })
 
     const salesRows: SaleRow[] = poSells.flatMap((po) => {
-      const fallbackProductName = po.product_id ? productById.get(po.product_id)?.name ?? po.product_id : ''
-      const items = itemRows(po, fallbackProductName)
+      const fallbackProduct = po.product_id ? productById.get(po.product_id) ?? null : null
+      const items = itemRows(po, fallbackProduct, productById)
       const matchedQty = matchedQtyByPoSellId.get(po.id) ?? 0
       return items.map((item) => {
         const qty = item.qty || jsonNumber(po.qty)
@@ -173,13 +206,13 @@ export async function GET(request: Request) {
         const remainingQty = Math.max(0, itemRemainingQty - matchedQty)
         const unitPrice = item.unitPrice || (qty > 0 ? (item.totalAmount || toNumber(po.total_amount)) / qty : 0)
         return {
-          customerName: po.customers?.name ?? po.customer_id ?? '-',
+          customerName: po.customers?.name ?? '-',
           date: toDateOnly(po.date),
           docNo: po.doc_no,
-          id: `${po.id}-${item.lineId}`,
+          id: `${stringifyBusinessValue(po.id)}-${item.lineId}`,
           matchedQty,
           productId: item.productId,
-          productName: item.productName || fallbackProductName || '-',
+          productName: item.productName || fallbackProduct?.name || '-',
           qty,
           remainingQty,
           unitPrice,
@@ -190,14 +223,14 @@ export async function GET(request: Request) {
     const poolRows = costPool.rows.filter((row) => row.productId && row.availableQty > 0)
     const productIds = new Set([...salesRows.map((row) => row.productId), ...poolRows.map((row) => row.productId)])
     const productOptions = Array.from(productIds).map((id) => {
-      const product = productById.get(id)
+      const product = productByCode.get(id)
       const poolForProduct = poolRows.filter((row) => row.productId === id)
       const salesForProduct = salesRows.filter((row) => row.productId === id)
       return {
-        code: product?.code ?? '',
+        code: product?.code ?? id,
         id,
         metalGroup: product?.metal_group ?? '',
-        name: product?.name ?? poolRows.find((row) => row.productId === id)?.productName ?? salesRows.find((row) => row.productId === id)?.productName ?? id,
+        name: product?.name ?? poolRows.find((row) => row.productId === id)?.productName ?? salesRows.find((row) => row.productId === id)?.productName ?? '-',
         poolCount: poolForProduct.length,
         poolQty: poolForProduct.reduce((sum, row) => sum + row.availableQty, 0),
         poSellCount: salesForProduct.length,

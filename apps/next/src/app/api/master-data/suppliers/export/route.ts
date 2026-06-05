@@ -6,6 +6,7 @@ import { formatAccountNoDisplay, formatPhoneDisplay } from '@/lib/format'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
+import { findActiveSalespersonReferenceByCodeOrId, listSalespersonReferencesByIds } from '@/lib/server/salesperson-reference'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import type { Supplier } from '@/lib/supplier'
 import type { Prisma } from '../../../../../../generated/prisma/client'
@@ -63,7 +64,6 @@ const supplierColumns: Array<{ key: SupplierExportKey; label: string; width: num
   { key: 'active', label: 'สถานะ', width: 90 },
   { key: 'createdAt', label: 'สร้างเมื่อ', width: 150 },
   { key: 'updatedAt', label: 'แก้ไขเมื่อ', width: 150 },
-  { key: 'id', label: 'รหัสภายใน', width: 180 },
 ]
 
 function parseExportParams(request: Request) {
@@ -79,7 +79,7 @@ function parseExportParams(request: Request) {
   return { supplierType, direction, marketScope, q, salesId, sortColumn }
 }
 
-function supplierSearchWhere(q: string, supplierType: string, marketScope: string, salesId: string): Prisma.suppliersWhereInput {
+function supplierSearchWhere(q: string, supplierType: string, marketScope: string, salesId: bigint | null): Prisma.suppliersWhereInput {
   const where: Prisma.suppliersWhereInput = {}
 
   if (supplierType) {
@@ -90,14 +90,13 @@ function supplierSearchWhere(q: string, supplierType: string, marketScope: strin
     where.market_scope = marketScope
   }
 
-  if (salesId) {
+  if (salesId != null) {
     where.sales_id = salesId
   }
 
   if (!q) return where
 
   where.OR = [
-    { id: { contains: q, mode: 'insensitive' } },
     { code: { contains: q, mode: 'insensitive' } },
     { name: { contains: q, mode: 'insensitive' } },
     { type: { contains: q, mode: 'insensitive' } },
@@ -112,8 +111,7 @@ function supplierSearchWhere(q: string, supplierType: string, marketScope: strin
     { bank_name: { contains: q, mode: 'insensitive' } },
     { bank_account: { contains: q, mode: 'insensitive' } },
     { bank_account_name: { contains: q, mode: 'insensitive' } },
-    { branch_id: { contains: q, mode: 'insensitive' } },
-    { sales_id: { contains: q, mode: 'insensitive' } },
+    { branches: { code: { contains: q, mode: 'insensitive' } } },
     { sales_rep: { contains: q, mode: 'insensitive' } },
   ]
 
@@ -179,7 +177,8 @@ export async function GET(request: Request) {
     requirePermission(context, 'master.suppliers.export')
 
     const { supplierType, direction, marketScope, q, salesId, sortColumn } = parseExportParams(request)
-    const where = supplierSearchWhere(q, supplierType, marketScope, salesId)
+    const resolvedSalesperson = salesId ? await findActiveSalespersonReferenceByCodeOrId(salesId) : null
+    const where = supplierSearchWhere(q, supplierType, marketScope, resolvedSalesperson?.id ?? null)
     const [rows, total, paymentMethods] = await Promise.all([
       prisma.suppliers.findMany({
         include: {
@@ -199,9 +198,14 @@ export async function GET(request: Request) {
         where: { active: true },
       }),
     ])
+    const visibleRows = salesId && !resolvedSalesperson ? [] : rows
+    const visibleTotal = salesId && !resolvedSalesperson ? 0 : total
+    const salespersonReferences = await listSalespersonReferencesByIds(visibleRows.map((row) => row.sales_id))
 
-    const suppliers = rows.map((row) => mapPrismaSupplier(row, paymentMethods))
-    const body = buildWorkbook(suppliers, paymentMethods, total, { supplierType, marketScope, q, salesId })
+    const suppliers = visibleRows.map((row) => mapPrismaSupplier(row as any, paymentMethods, {
+      salesId: salespersonReferences.get(String(row.sales_id ?? ''))?.code ?? null,
+    }))
+    const body = buildWorkbook(suppliers, paymentMethods, visibleTotal, { supplierType, marketScope, q, salesId })
     const filename = `suppliers_${new Date().toISOString().slice(0, 10)}.xlsx`
 
     return new NextResponse(new Uint8Array(body), {

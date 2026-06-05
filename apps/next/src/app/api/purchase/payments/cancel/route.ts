@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { parseInternalBigIntId, stringifyBusinessValue } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, toNumber } from '@/lib/server/daily'
+import { appendPurchaseBillStatusLog, PURCHASE_BILL_STATUS_ACTION } from '@/lib/server/purchase-bill-history'
 import { prisma } from '@/lib/server/prisma'
 import { refreshPurchaseBillSettlement } from '@/lib/server/purchase-bill-settlement'
 
 export const runtime = 'nodejs'
+
+type DecimalLike = number | { toNumber: () => number } | null | undefined
 
 const cancelPaymentSchema = z.object({
   reason: z.string().trim().min(1, 'กรุณาระบุเหตุผลการยกเลิกการจ่ายเงิน').max(1000, 'เหตุผลยาวเกินไป'),
@@ -17,7 +21,7 @@ function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100
 }
 
-async function refreshPurchaseBillPaymentStatus(tx: Parameters<typeof prisma.$transaction>[0] extends (arg: infer T) => Promise<unknown> ? T : never, billId: string, actor: string) {
+async function refreshPurchaseBillPaymentStatus(tx: Parameters<typeof prisma.$transaction>[0] extends (arg: infer T) => Promise<unknown> ? T : never, billId: bigint, actor: string) {
   const bill = await tx.purchase_bills.findUnique({
     select: { id: true },
     where: { id: billId },
@@ -38,8 +42,8 @@ export async function POST(request: Request) {
       const txExt = tx as typeof tx & {
         payment_approvals: {
           findMany: (args: unknown) => Promise<Array<{
-            approved_amount: unknown
-            id: string
+            approved_amount: DecimalLike
+            id: bigint
           }>>
           update: (args: unknown) => Promise<unknown>
         }
@@ -64,8 +68,15 @@ export async function POST(request: Request) {
         throw new Error('ไม่พบรายการจ่ายเงินที่ต้องการยกเลิก หรือรายการนี้ถูกยกเลิกไปแล้ว')
       }
 
-      const approvalIds = [...new Set(payments.map((payment) => payment.payment_approval_id).filter(Boolean) as string[])]
-      const billIds = [...new Set(payments.map((payment) => payment.bill_id).filter(Boolean) as string[])]
+      const approvalIds = [...new Set(payments.map((payment) => payment.payment_approval_id).filter((value): value is bigint => value != null))]
+      const billIds = [...new Set(payments.map((payment) => payment.bill_id).filter((value): value is bigint => value != null))]
+      const bills = billIds.length > 0
+        ? await tx.purchase_bills.findMany({
+          select: { doc_no: true, id: true, status: true },
+          where: { id: { in: billIds } },
+        })
+        : []
+      const billById = new Map(bills.map((bill) => [bill.id, bill]))
 
       await tx.payments.updateMany({
         data: {
@@ -98,9 +109,9 @@ export async function POST(request: Request) {
           },
         })
         const settledByApprovalId = new Map<string, number>()
-        const latestPaymentByApprovalId = new Map<string, { createdAt: Date | null; paymentId: string }>()
+        const latestPaymentByApprovalId = new Map<string, { createdAt: Date | null; paymentId: bigint }>()
         remainingPayments.forEach((payment) => {
-          const approvalId = payment.payment_approval_id
+          const approvalId = payment.payment_approval_id ? stringifyBusinessValue(payment.payment_approval_id) : ''
           if (!approvalId) return
           const settled = toNumber(payment.amount) + toNumber(payment.withholding_tax) + toNumber(payment.discount)
           settledByApprovalId.set(approvalId, roundMoney((settledByApprovalId.get(approvalId) ?? 0) + settled))
@@ -113,9 +124,10 @@ export async function POST(request: Request) {
 
         for (const approval of approvals) {
           const approvedAmount = toNumber(approval.approved_amount)
-          const remainingSettled = settledByApprovalId.get(approval.id) ?? 0
+          const approvalId = stringifyBusinessValue(approval.id)
+          const remainingSettled = settledByApprovalId.get(approvalId) ?? 0
           const remainingBalance = Math.max(0, approvedAmount - remainingSettled)
-          const latestPayment = latestPaymentByApprovalId.get(approval.id)
+          const latestPayment = latestPaymentByApprovalId.get(approvalId)
           await txExt.payment_approvals.update({
             data: {
               paid_at: remainingBalance <= 0.01 ? new Date() : null,
@@ -133,6 +145,24 @@ export async function POST(request: Request) {
 
       for (const billId of billIds) {
         await refreshPurchaseBillPaymentStatus(tx, billId, actor)
+        const currentBill = billById.get(billId)
+        const refreshedBill = await tx.purchase_bills.findUnique({
+          select: { status: true },
+          where: { id: billId },
+        })
+        if (!currentBill) continue
+        await appendPurchaseBillStatusLog(tx, {
+          action: PURCHASE_BILL_STATUS_ACTION.PAYMENT_REVERSED,
+          actor,
+          fromStatus: currentBill.status,
+          meta: {
+            reversedVoucherId: payload.voucherId,
+          },
+          note: payload.reason,
+          purchaseBillDocNo: currentBill.doc_no,
+          purchaseBillId: billId,
+          toStatus: refreshedBill?.status ?? currentBill.status ?? 'unpaid',
+        })
       }
     })
 

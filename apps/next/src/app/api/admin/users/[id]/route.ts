@@ -1,13 +1,15 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { parseInternalBigIntId } from '@/lib/business-code'
 import { recordAuthAuditEvent } from '@/lib/server/auth-audit'
 import { authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { findActiveBranchReferencesByCodes } from '@/lib/server/branch-reference'
 import { prisma } from '@/lib/server/prisma'
 
 export const runtime = 'nodejs'
 
 const routeParamsSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().trim().regex(/^\d+$/, 'รหัสผู้ใช้ไม่ถูกต้อง'),
 })
 
 const adminUserFormSchema = z.object({
@@ -16,7 +18,7 @@ const adminUserFormSchema = z.object({
   displayName: z.string().trim().min(1, 'กรอกชื่อผู้ใช้').max(160, 'ชื่อผู้ใช้ยาวเกินไป'),
   email: z.string().trim().email('รูปแบบอีเมลไม่ถูกต้อง'),
   mustChangePassword: z.boolean().default(false),
-  roleIds: z.array(z.string().uuid()).min(1, 'เลือก role อย่างน้อย 1 รายการ'),
+  roleIds: z.array(z.string().trim().regex(/^\d+$/, 'Role ไม่ถูกต้อง')).min(1, 'เลือก role อย่างน้อย 1 รายการ'),
   username: z.string().trim()
     .min(3, 'Username ต้องมีอย่างน้อย 3 ตัวอักษร')
     .max(60, 'Username ยาวเกินไป')
@@ -27,26 +29,45 @@ type AdminUserRouteProps = {
   params: Promise<unknown>
 }
 
+function parseAppUserId(value: string) {
+  const parsed = parseInternalBigIntId(value)
+  if (parsed == null) {
+    throw new Error('รหัสผู้ใช้ไม่ถูกต้อง')
+  }
+  return parsed
+}
+
+function parseRoleIds(roleIds: string[]) {
+  const parsed = roleIds.map((roleId) => parseInternalBigIntId(roleId))
+
+  if (parsed.some((roleId) => roleId == null)) {
+    throw new Error('Role ที่เลือกไม่ถูกต้อง')
+  }
+
+  return parsed as bigint[]
+}
+
 async function assertUserRefs(roleIds: string[], branchIds: string[]) {
+  const parsedRoleIds = parseRoleIds(roleIds)
   const [roles, branches] = await Promise.all([
     prisma.app_roles.findMany({
       select: { id: true },
-      where: { id: { in: roleIds }, active: true },
+      where: { id: { in: parsedRoleIds }, active: true },
     }),
-    branchIds.length
-      ? prisma.branches.findMany({
-          select: { id: true },
-          where: { id: { in: branchIds }, active: true },
-        })
-      : Promise.resolve([]),
+    findActiveBranchReferencesByCodes(branchIds),
   ])
 
-  if (roles.length !== new Set(roleIds).size) {
+  if (roles.length !== new Set(parsedRoleIds.map((roleId) => roleId.toString())).size) {
     throw new Error('Role ที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
   }
 
   if (branchIds.length && branches.length !== new Set(branchIds).size) {
     throw new Error('สาขาที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
+  }
+
+  return {
+    branchRefs: branches,
+    roleRefIds: parsedRoleIds,
   }
 }
 
@@ -55,9 +76,10 @@ export async function PATCH(request: Request, { params }: AdminUserRouteProps) {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'system.users.manage')
 
-    const { id } = routeParamsSchema.parse(await params)
+    const { id: rawId } = routeParamsSchema.parse(await params)
+    const id = parseAppUserId(rawId)
     const values = adminUserFormSchema.parse(await request.json())
-    await assertUserRefs(values.roleIds, values.branchIds)
+    const { branchRefs, roleRefIds } = await assertUserRefs(values.roleIds, values.branchIds)
 
     if (context.appUser?.id === id && values.active === false) {
       return NextResponse.json({ error: 'ไม่สามารถปิดบัญชีของตัวเองได้' }, { status: 400 })
@@ -94,7 +116,7 @@ export async function PATCH(request: Request, { params }: AdminUserRouteProps) {
 
       await tx.app_user_roles.deleteMany({ where: { user_id: id } })
       await tx.app_user_roles.createMany({
-        data: values.roleIds.map((roleId) => ({
+        data: roleRefIds.map((roleId) => ({
           created_by: actor,
           role_id: roleId,
           user_id: id,
@@ -106,7 +128,7 @@ export async function PATCH(request: Request, { params }: AdminUserRouteProps) {
       if (values.branchIds.length) {
         await tx.app_user_branch_access.createMany({
           data: values.branchIds.map((branchId) => ({
-            branch_id: branchId,
+            branch_id: branchRefs.find((branch) => branch.code === branchId.toUpperCase())!.id,
             created_by: actor,
             user_id: id,
           })),
@@ -124,10 +146,10 @@ export async function PATCH(request: Request, { params }: AdminUserRouteProps) {
         username: values.username,
       },
       request,
-      targetAppUserId: id,
+      targetAppUserId: id.toString(),
     })
 
-    return NextResponse.json({ id })
+    return NextResponse.json({ id: id.toString() })
   } catch (caught) {
     return authContextErrorResponse(caught)
   }

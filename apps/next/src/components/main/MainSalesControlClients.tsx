@@ -7,7 +7,7 @@ import { formatDateDisplay } from '@/lib/format'
 type AnyRow = Record<string, number | string | boolean | null | undefined>
 type LmeConfig = { fxRate: number; kgPerContainer: number; lmeAluminumUSD: number; lmeBrassUSD: number; lmeCopperUSD: number; updatedAt: string; updatedBy: string }
 type PendingPayload = {
-  customers: { id: string; name: string }[]
+  customers: { code?: string; id: string; name: string }[]
   lmeConfig: LmeConfig
   metalGroups: string[]
   pendingSaleTable: AnyRow[]
@@ -97,7 +97,7 @@ export function PendingSalesPageClient() {
         <Segment active={mode === 'pending'} color="amber" onClick={() => setMode('pending')}>⏳ ยังรอขาย</Segment>
         <Segment active={mode === 'sold'} color="emerald" onClick={() => setMode('sold')}>✅ ขายแล้ว</Segment>
         <Segment active={mode === 'all'} color="blue" onClick={() => setMode('all')}>📋 ทั้งหมด</Segment>
-        <select className="control" value={customerId} onChange={(event) => setCustomerId(event.target.value)}><option value="">ทุก Customer</option>{(data?.customers ?? []).map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select>
+        <select className="control" value={customerId} onChange={(event) => setCustomerId(event.target.value)}><option value="">ทุก Customer</option>{(data?.customers ?? []).map((customer) => <option key={customer.id} value={customer.id}>{customer.code ? `${customer.code} - ${customer.name}` : customer.name}</option>)}</select>
         <span className="flex-1" /><button className="rounded-md bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700" type="button" onClick={exportPendingSales}>📥 Export CSV</button>
       </div>
       <MetalChips groups={data?.metalGroups ?? []} selected={selectedGroups} setSelected={setSelectedGroups} />

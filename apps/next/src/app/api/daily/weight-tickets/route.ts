@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server'
-import { randomUUID } from 'node:crypto'
+import { parseInternalBigIntId } from '@/lib/business-code'
 import { weightTicketFormSchema } from '@/lib/weight-tickets'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { recordAuditLog } from '@/lib/server/app-logging'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor } from '@/lib/server/daily'
+import { findActiveBranchReferenceByCodeOrId, findActiveBranchReferencesByCodes } from '@/lib/server/branch-reference'
+import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { prisma } from '@/lib/server/prisma'
+import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 import {
   bangkokDateInput,
   branchScopeIds,
@@ -30,9 +33,19 @@ const ticketInclude = {
   customers: true,
   suppliers: true,
   weight_ticket_product_summaries: {
+    include: {
+      products: {
+        select: { code: true, id: true },
+      },
+    },
     orderBy: { product_name: 'asc' },
   },
   weight_ticket_lines: {
+    include: {
+      products: {
+        select: { code: true, id: true },
+      },
+    },
     orderBy: { line_no: 'asc' },
   },
 } as const
@@ -77,27 +90,28 @@ export async function POST(request: Request) {
 
     const values = weightTicketFormSchema.parse(await request.json())
     const scopedBranchIds = branchScopeIds(context)
-    const productIds = [...new Set(values.lines.map((line) => line.productId))]
-    const impurityIds = [...new Set(values.lines.map((line) => line.impurityId).filter(Boolean))]
+    const parsedImpurityIds = values.lines.map((line) => parseInternalBigIntId(line.impurityId))
+    const productCodes = [...new Set(values.lines.map((line) => line.productId.trim().toUpperCase()).filter(Boolean))]
+    const impurityIds = [...new Set(parsedImpurityIds.filter((value): value is bigint => value != null))]
 
-    const [branch, supplier, customer, products, impurities] = await Promise.all([
+    const [scopedBranches, branch, supplier, customer, products, impurities] = await Promise.all([
+      findActiveBranchReferencesByCodes(scopedBranchIds),
       prisma.branches.findFirst({
         select: { code: true, id: true, name: true },
         where: {
           active: true,
-          id: values.branchId,
-          ...(scopedBranchIds.length ? { id: { in: scopedBranchIds } } : {}),
+          code: values.branchId.toUpperCase(),
         },
       }),
       values.type === 'WTI'
-        ? prisma.suppliers.findFirst({ select: { id: true, name: true }, where: { active: true, id: values.partyId } })
+        ? findActiveSupplierReferenceByCodeOrId(values.partyId)
         : Promise.resolve(null),
       values.type === 'WTO'
-        ? prisma.customers.findFirst({ select: { id: true, name: true }, where: { active: true, id: values.partyId } })
+        ? findActiveCustomerReferenceByCodeOrId(values.partyId)
         : Promise.resolve(null),
       prisma.products.findMany({
-        select: { id: true, name: true },
-        where: { active: true, id: { in: productIds } },
+        select: { code: true, id: true, name: true },
+        where: { active: true, code: { in: productCodes } },
       }),
       impurityIds.length
         ? prisma.impurities.findMany({
@@ -107,7 +121,7 @@ export async function POST(request: Request) {
         : Promise.resolve([]),
     ])
 
-    if (!branch) {
+    if (!branch || (scopedBranchIds.length && !scopedBranches.some((item) => item.id === branch.id))) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือไม่มีสิทธิ์ใช้งาน', fieldErrors: { branchId: ['เลือกสาขา'] } }, { status: 400 })
     }
     if (values.type === 'WTI' && !supplier) {
@@ -117,8 +131,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'ลูกค้าไม่ถูกต้องหรือถูกปิดใช้งาน', fieldErrors: { partyId: ['เลือกลูกค้า'] } }, { status: 400 })
     }
 
-    const productById = new Map(products.map((product) => [product.id, product]))
-    const missingProductIndex = values.lines.findIndex((line) => !productById.has(line.productId))
+    const productByCode = new Map(products.map((product) => [product.code.trim().toUpperCase(), product] as const))
+    const missingProductIndex = values.lines.findIndex((_, index) => {
+      const productCode = values.lines[index]?.productId.trim().toUpperCase() ?? ''
+      return !productCode || !productByCode.has(productCode)
+    })
     if (missingProductIndex >= 0) {
       return NextResponse.json({
         code: 'BAD_REQUEST',
@@ -127,8 +144,11 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
-    const impurityById = new Map(impurities.map((impurity) => [impurity.id, impurity]))
-    const missingImpurityIndex = values.lines.findIndex((line) => line.impurityId && !impurityById.has(line.impurityId))
+    const impurityById = new Map(impurities.map((impurity) => [impurity.id, impurity] as const))
+    const missingImpurityIndex = values.lines.findIndex((line, index) => {
+      const impurityId = parsedImpurityIds[index]
+      return Boolean(line.impurityId) && (impurityId == null || !impurityById.has(impurityId))
+    })
     if (missingImpurityIndex >= 0) {
       return NextResponse.json({
         code: 'BAD_REQUEST',
@@ -157,12 +177,7 @@ export async function POST(request: Request) {
       await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('weight_tickets.doc_no'))`
       const branchCode = String(branch.code ?? '').replace(/\D/g, '').slice(-2).padStart(2, '0')
       const docNo = await nextWeightTicketDocNo(tx, values.type, branchCode, documentDate)
-      const ticketId = `WT-${randomUUID()}`
-      const lineRows = buildWeightTicketLineRows(ticketId, values, productById, impurityById)
-      const { bridgeRows, summaryRows } = buildWeightTicketProductSummaryRows(ticketId, lineRows)
-      const imageCount = values.vehicleImageNames.length + lineRows.reduce((sum, line) => sum + line.image_count, 0)
-
-      await tx.weight_tickets.create({
+      const createdTicket = await tx.weight_tickets.create({
         data: {
           branch_id: branch.id,
           created_by: actor,
@@ -172,8 +187,7 @@ export async function POST(request: Request) {
           document_date: new Date(`${documentDate}T00:00:00.000Z`),
           entered_by: enteredBy,
           gross_weight: totals.grossWeight,
-          id: ticketId,
-          image_count: imageCount,
+          image_count: values.vehicleImageNames.length,
           net_weight: totals.netWeight,
           party_name: values.type === 'WTI' ? supplier?.name ?? '' : customer?.name ?? '',
           remark: values.remark || null,
@@ -186,13 +200,32 @@ export async function POST(request: Request) {
           vehicle_no: values.vehicleNo,
         },
       })
-      await tx.weight_ticket_lines.createMany({ data: lineRows })
-      await tx.weight_ticket_product_summaries.createMany({ data: summaryRows })
-      await tx.weight_ticket_product_summary_lines.createMany({ data: bridgeRows })
+      const lineRows = buildWeightTicketLineRows(createdTicket.id, values, productByCode, impurityById)
+      const createdLines = await Promise.all(lineRows.map((data) => tx.weight_ticket_lines.create({ data })))
+      const imageCount = values.vehicleImageNames.length + createdLines.reduce((sum, line) => sum + (line.image_count ?? 0), 0)
+      const { summaryRows } = buildWeightTicketProductSummaryRows(createdTicket.id, createdLines)
+      const createdSummaries = await Promise.all(summaryRows.map(({ lineIds, ...data }) => tx.weight_ticket_product_summaries.create({ data })))
+      const summaryIdByProductId = new Map(createdSummaries.map((summary) => [String(summary.product_id), summary.id] as const))
+      const bridgeRows = summaryRows.flatMap(({ lineIds, product_id }) => {
+        const summaryId = summaryIdByProductId.get(String(product_id))
+        if (summaryId == null) return []
+        return lineIds.map((lineId) => ({
+          created_at: new Date(),
+          summary_id: summaryId,
+          weight_ticket_line_id: lineId,
+        }))
+      })
+      if (bridgeRows.length) {
+        await tx.weight_ticket_product_summary_lines.createMany({ data: bridgeRows })
+      }
+      await tx.weight_tickets.update({
+        data: { image_count: imageCount },
+        where: { id: createdTicket.id },
+      })
 
       return tx.weight_tickets.findUniqueOrThrow({
         include: ticketInclude,
-        where: { id: ticketId },
+        where: { id: createdTicket.id },
       })
     })
 
@@ -202,7 +235,7 @@ export async function POST(request: Request) {
       action: 'create',
       afterData: weightTicketAuditSnapshot(mapped),
       context,
-      entityId: created.id,
+      entityId: String(created.id),
       entityLabel: created.doc_no,
       entitySchema: 'public',
       entityTable: 'weight_tickets',
@@ -213,7 +246,7 @@ export async function POST(request: Request) {
         type: mapped.type,
       },
       request,
-      targetId: created.id,
+      targetId: String(created.id),
       targetLabel: created.doc_no,
       targetType: 'weight_ticket',
     })

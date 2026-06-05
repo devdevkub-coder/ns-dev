@@ -1,15 +1,17 @@
+import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { errorJson, masterDataJson, masterDataListJson, nextSequentialCode, parseMasterDataForm } from '@/lib/server/master-data'
+import { errorJson, masterDataJson, masterDataListJson, parseMasterDataForm } from '@/lib/server/master-data'
 
 export const runtime = 'nodejs'
 
 type SalesChannel = Awaited<ReturnType<typeof prisma.sales_channels.findMany>>[number]
 
 function mapChannel(row: SalesChannel) {
+  const outwardId = requireBusinessCode(row.code, `ช่องทางขาย ${row.id}`)
   return {
-    id: `sales:${row.id}`,
-    code: null,
+    id: outwardId,
+    code: outwardId,
     name: row.name,
     active: row.active ?? true,
     type: null,
@@ -35,9 +37,18 @@ function mapChannel(row: SalesChannel) {
   }
 }
 
-async function getNextChannelId() {
-  const last = await prisma.sales_channels.findFirst({ where: { id: { startsWith: 'SC' } }, orderBy: { id: 'desc' }, select: { id: true } })
-  return nextSequentialCode(last?.id, 'SC')
+async function getNextChannelCode() {
+  const rows = await prisma.sales_channels.findMany({
+    orderBy: { code: 'desc' },
+    select: { code: true },
+    where: { code: { startsWith: 'SC' } },
+  })
+  const lastNumber = rows.reduce((max, row) => {
+    const matched = String(row.code ?? '').match(/^SC(\d+)$/i)
+    const value = matched ? Number(matched[1]) : 0
+    return Number.isFinite(value) ? Math.max(max, value) : max
+  }, 0)
+  return `SC${String(lastNumber + 1).padStart(3, '0')}`
 }
 
 export async function GET() {
@@ -45,7 +56,7 @@ export async function GET() {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'master.reference.view')
 
-    const salesRows = await prisma.sales_channels.findMany({ orderBy: [{ name: 'asc' }, { id: 'asc' }] })
+    const salesRows = await prisma.sales_channels.findMany({ orderBy: [{ code: 'asc' }, { name: 'asc' }, { id: 'asc' }] })
     return masterDataListJson(salesRows.map(mapChannel))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
@@ -59,14 +70,23 @@ export async function POST(request: Request) {
     requirePermission(context, 'master.reference.manage')
 
     const values = parseMasterDataForm(await request.json())
-    const rawId = values.id?.replace(/^(purchase|sales):/, '')
-    const id = rawId || await getNextChannelId()
-
-    const row = await prisma.sales_channels.upsert({
-      where: { id },
-      create: { id, name: values.name, active: values.active },
-      update: { name: values.name, active: values.active },
-    })
+    const existing = values.id
+      ? await prisma.sales_channels.findFirst({
+        select: { id: true },
+        where: {
+          OR: [{ code: values.id.toUpperCase() }, ...(parseInternalBigIntId(values.id) != null ? [{ id: parseInternalBigIntId(values.id) as bigint }] : [])],
+        } as any,
+      })
+      : null
+    const code = (values.code?.trim() || values.id?.trim() || await getNextChannelCode()).toUpperCase()
+    const row = existing
+      ? await prisma.sales_channels.update({
+        where: { id: existing.id },
+        data: { code, name: values.name, active: values.active },
+      })
+      : await prisma.sales_channels.create({
+        data: { code, name: values.name, active: values.active },
+      })
     return masterDataJson(mapChannel(row))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

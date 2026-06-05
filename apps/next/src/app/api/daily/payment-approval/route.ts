@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
-import { randomUUID } from 'node:crypto'
 import type { Prisma } from '../../../../../generated/prisma/client'
 import { z } from 'zod'
 import { defaultPaymentMethodNameByGroup, paymentMethodGroupFromValue, resolvePaymentMethodName } from '@/lib/account-payment-method'
+import { requireBusinessCode } from '@/lib/business-code'
+import { requireDocumentNo } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
@@ -30,16 +31,38 @@ type ApprovalDestinationOption = {
   paymentMethod: string
 }
 
+async function findApprovalSourceByDocNo(
+  tx: Prisma.TransactionClient,
+  sourceType: 'purchase_bill' | 'advance_payment' | 'expense',
+  value: string,
+) {
+  if (sourceType === 'purchase_bill') {
+    return tx.purchase_bills.findFirst({
+      select: { id: true },
+      where: { doc_no: value, NOT: { status: 'cancelled' } },
+    })
+  }
+  if (sourceType === 'advance_payment') {
+    return tx.supplier_advance_payments.findFirst({
+      select: { id: true },
+      where: { doc_no: value, status: { not: 'cancelled' } },
+    })
+  }
+  return tx.expenses.findFirst({
+    select: { id: true },
+    where: { doc_no: value, status: { notIn: ['paid', 'cancelled'] } },
+  })
+}
+
 function normalizeSupplierBankAccounts(params: {
-  fallbackAccountNo: string | null | undefined
-  fallbackBankName: string | null | undefined
   paymentMethods: ActivePaymentMethod[]
   rows:
     | Array<{
+        code: string | null
         account_no: string | null
         active: boolean | null
         bank_name: string | null
-        id: string
+        id: bigint
         is_primary: boolean | null
         payment_method: string | null
       }>
@@ -53,31 +76,12 @@ function normalizeSupplierBankAccounts(params: {
     .map((account) => ({
       accountNo: account.account_no ?? '',
       bankName: account.bank_name ?? '',
-      id: account.id,
+      id: requireBusinessCode(account.code, `บัญชีรับเงินผู้ขาย ${account.id}`),
       isPrimary: account.is_primary ?? false,
       kind: 'bank' as const,
       label: [account.bank_name ?? '', account.account_no ?? ''].filter(Boolean).join(' / ') || resolvePaymentMethodName(account.payment_method, params.paymentMethods) || defaultBankMethod || 'ไม่ระบุ',
       paymentMethod: resolvePaymentMethodName(account.payment_method, params.paymentMethods) ?? defaultBankMethod,
     }))
-
-  const fallbackAccountNo = String(params.fallbackAccountNo ?? '').trim()
-  const fallbackBankName = String(params.fallbackBankName ?? '').trim()
-  if (fallbackAccountNo || fallbackBankName) {
-    const hasFallback = options.some((account) => (
-      account.accountNo.trim() === fallbackAccountNo && account.bankName.trim() === fallbackBankName
-    ))
-    if (!hasFallback) {
-      options.unshift({
-        accountNo: fallbackAccountNo,
-        bankName: fallbackBankName,
-        id: `legacy:${fallbackBankName}:${fallbackAccountNo}`,
-        isPrimary: options.length === 0,
-        kind: 'bank',
-        label: [fallbackBankName, fallbackAccountNo].filter(Boolean).join(' / ') || defaultBankMethod || 'ไม่ระบุ',
-        paymentMethod: defaultBankMethod,
-      })
-    }
-  }
 
   if (cashMethod) {
     const hasCash = options.some((option) => paymentMethodGroupFromValue(option.paymentMethod, params.paymentMethods) === 'cash')
@@ -125,24 +129,6 @@ async function nextPaymentApprovalDocNo(
 
 export async function GET() {
   try {
-    const prismaExt = prisma as typeof prisma & {
-      payment_approvals: {
-        findMany: (args: unknown) => Promise<Array<{
-          approved_amount: unknown
-          approved_at: Date | null
-          created_at: Date | null
-          destination_account_no_snapshot: string | null
-          destination_bank_name_snapshot: string | null
-          destination_payment_method_snapshot: string | null
-          doc_no: string | null
-          id: string
-          party_name_snapshot: string | null
-          source_id: string
-          source_type: string
-          status: string
-        }>>
-      }
-    }
     const context = await getCurrentAuthContext()
     requirePermission(context, 'finance.cash.view')
 
@@ -188,7 +174,7 @@ export async function GET() {
           status: { notIn: ['paid', 'cancelled'] },
         },
       }),
-      prismaExt.payment_approvals.findMany({
+      prisma.payment_approvals.findMany({
         orderBy: [{ approved_at: 'desc' }, { created_at: 'desc' }],
         take: 5000,
         where: {
@@ -220,13 +206,12 @@ export async function GET() {
     }
 
     const apRows = purchaseBills.flatMap((bill: typeof purchaseBills[number]) => {
-      const activeApprovals = approvedByPurchaseBillId.get(bill.id) ?? []
+      const billId = bill.id.toString()
+      const activeApprovals = approvedByPurchaseBillId.get(billId) ?? []
       const totalAmount = toNumber(bill.total_amount)
       const paidAmount = toNumber(bill.paid_amount)
       const payableBalance = Math.max(0, toNumber(bill.payable_balance) || totalAmount - paidAmount)
       const bankAccounts = normalizeSupplierBankAccounts({
-        fallbackAccountNo: bill.suppliers?.bank_account,
-        fallbackBankName: bill.suppliers?.bank_name,
         paymentMethods,
         rows: bill.suppliers?.supplier_bank_accounts,
       })
@@ -234,55 +219,56 @@ export async function GET() {
       const pendingAmount = Math.max(0, payableBalance - approvedOutstanding)
       const pendingRows = pendingAmount > 0.01 ? [{
         approvalDisplayDocNo: null,
-        bankAccount: bill.suppliers?.bank_account ?? '',
+        bankAccount: '',
         bankAccounts,
         approvalId: null,
         approvalStatus: 'pending' as const,
         approvedAmount: 0,
         destinationLabel: '',
-        bankName: bill.suppliers?.bank_name ?? '',
+        bankName: '',
         date: toDateOnly(bill.date),
         docNo: bill.doc_no,
-        id: bill.id,
+        id: bill.doc_no,
         paidAmount,
         payableBalance: pendingAmount,
         sourceLabel: 'บิลซื้อ',
         sourceDocNo: bill.doc_no,
-        sourceId: bill.id,
+        sourceId: bill.doc_no,
         sourceType: 'purchase_bill' as const,
-        supplierName: bill.suppliers?.name ?? bill.supplier_id ?? '-',
+        supplierName: bill.suppliers?.name ?? '-',
         totalAmount,
       }] : []
-      const approvedRows = activeApprovals.map((approval) => ({
-        approvalDisplayDocNo: approval.doc_no ?? approval.id,
+      const approvedRows = activeApprovals.map((approval) => {
+        const approvalDocNo = requireDocumentNo(approval.doc_no, `อนุมัติจ่าย ${approval.id}`)
+        return {
+        approvalDisplayDocNo: approvalDocNo,
         bankAccount: approval.destination_account_no_snapshot ?? '',
         bankAccounts: [],
-        approvalId: approval.id,
+        approvalId: approvalDocNo,
         approvalStatus: 'approved' as const,
         approvedAmount: toNumber(approval.approved_amount),
         destinationLabel: [approval.destination_payment_method_snapshot ?? '', approval.destination_bank_name_snapshot ?? '', approval.destination_account_no_snapshot ?? ''].filter(Boolean).join(' / '),
         bankName: approval.destination_bank_name_snapshot ?? '',
         date: toDateOnly(approval.approved_at ?? bill.date),
-        docNo: approval.doc_no ?? approval.id,
-        id: `${bill.id}:${approval.id}`,
+        docNo: approvalDocNo,
+        id: approvalDocNo,
         paidAmount: 0,
         payableBalance: toNumber(approval.approved_amount),
         sourceLabel: 'บิลซื้อ',
         sourceDocNo: bill.doc_no,
-        sourceId: bill.id,
+        sourceId: bill.doc_no,
         sourceType: 'purchase_bill' as const,
-        supplierName: approval.party_name_snapshot ?? bill.suppliers?.name ?? bill.supplier_id ?? '-',
+        supplierName: approval.party_name_snapshot ?? bill.suppliers?.name ?? '-',
         totalAmount: toNumber(approval.approved_amount),
-      }))
+      }})
       return [...pendingRows, ...approvedRows]
     })
 
     const advanceRows = advancePayments.flatMap((advance: typeof advancePayments[number]) => {
-      const activeApprovals = approvedByAdvanceId.get(advance.id) ?? []
+      const advanceId = advance.id.toString()
+      const activeApprovals = approvedByAdvanceId.get(advanceId) ?? []
       const totalAmount = toNumber(advance.amount)
       const bankAccounts = normalizeSupplierBankAccounts({
-        fallbackAccountNo: advance.suppliers?.bank_account,
-        fallbackBankName: advance.suppliers?.bank_name,
         paymentMethods,
         rows: advance.suppliers?.supplier_bank_accounts,
       })
@@ -290,52 +276,55 @@ export async function GET() {
       const pendingAmount = Math.max(0, totalAmount - approvedOutstanding)
       const pendingRows = pendingAmount > 0.01 ? [{
         approvalDisplayDocNo: null,
-        bankAccount: advance.suppliers?.bank_account ?? '',
+        bankAccount: '',
         bankAccounts,
         approvalId: null,
         approvalStatus: 'pending' as const,
         approvedAmount: 0,
         destinationLabel: '',
-        bankName: advance.suppliers?.bank_name ?? '',
+        bankName: '',
         date: toDateOnly(advance.advance_date),
         docNo: advance.doc_no,
-        id: advance.id,
+        id: advance.doc_no,
         paidAmount: 0,
         payableBalance: pendingAmount,
         sourceLabel: 'ADV',
         sourceDocNo: advance.doc_no,
-        sourceId: advance.id,
+        sourceId: advance.doc_no,
         sourceType: 'advance_payment' as const,
-        supplierName: advance.suppliers?.name ?? advance.supplier_id ?? '-',
+        supplierName: advance.suppliers?.name ?? '-',
         totalAmount,
       }] : []
-      const approvedRows = activeApprovals.map((approval) => ({
-        approvalDisplayDocNo: approval.doc_no ?? approval.id,
+      const approvedRows = activeApprovals.map((approval) => {
+        const approvalDocNo = requireDocumentNo(approval.doc_no, `อนุมัติจ่าย ${approval.id}`)
+        return {
+        approvalDisplayDocNo: approvalDocNo,
         bankAccount: approval.destination_account_no_snapshot ?? '',
         bankAccounts: [],
-        approvalId: approval.id,
+        approvalId: approvalDocNo,
         approvalStatus: 'approved' as const,
         approvedAmount: toNumber(approval.approved_amount),
         destinationLabel: [approval.destination_payment_method_snapshot ?? '', approval.destination_bank_name_snapshot ?? '', approval.destination_account_no_snapshot ?? ''].filter(Boolean).join(' / '),
         bankName: approval.destination_bank_name_snapshot ?? '',
         date: toDateOnly(approval.approved_at ?? advance.advance_date),
-        docNo: approval.doc_no ?? approval.id,
-        id: `${advance.id}:${approval.id}`,
+        docNo: approvalDocNo,
+        id: approvalDocNo,
         paidAmount: 0,
         payableBalance: toNumber(approval.approved_amount),
         sourceLabel: 'ADV',
         sourceDocNo: advance.doc_no,
-        sourceId: advance.id,
+        sourceId: advance.doc_no,
         sourceType: 'advance_payment' as const,
-        supplierName: approval.party_name_snapshot ?? advance.suppliers?.name ?? advance.supplier_id ?? '-',
+        supplierName: approval.party_name_snapshot ?? advance.suppliers?.name ?? '-',
         totalAmount: toNumber(approval.approved_amount),
-      }))
+      }})
       return [...pendingRows, ...approvedRows]
     })
 
     const expenseRows = expenses.flatMap((expense: typeof expenses[number]) => {
       const amount = toNumber(expense.net_amount) || toNumber(expense.amount) + toNumber(expense.vat) - toNumber(expense.wht)
-      const activeApprovals = approvedByExpenseId.get(expense.id) ?? []
+      const expenseId = expense.id.toString()
+      const activeApprovals = approvedByExpenseId.get(expenseId) ?? []
       const approvedOutstanding = activeApprovals.reduce((sum, approval) => sum + toNumber(approval.approved_amount), 0)
       const pendingAmount = Math.max(0, amount - approvedOutstanding)
       const pendingRows = pendingAmount > 0.01 ? [{
@@ -348,32 +337,34 @@ export async function GET() {
         destinationLabel: '',
         docNo: expense.doc_no,
         dueDate: toDateOnly(expense.due_date),
-        id: expense.id,
+        id: expense.doc_no,
         payee: expense.payee ?? '-',
         refDocNo: expense.ref_doc_no ?? '',
-        sourceId: expense.id,
+        sourceId: expense.doc_no,
         sourceDocNo: expense.doc_no,
         sourceType: 'expense' as const,
         totalAmount: pendingAmount,
       }] : []
-      const approvedRows = activeApprovals.map((approval) => ({
+      const approvedRows = activeApprovals.map((approval) => {
+        const approvalDocNo = requireDocumentNo(approval.doc_no, `อนุมัติจ่าย ${approval.id}`)
+        return {
         accountName: approval.destination_bank_name_snapshot || approval.destination_payment_method_snapshot || '',
-        approvalDisplayDocNo: approval.doc_no ?? approval.id,
-        approvalId: approval.id,
+        approvalDisplayDocNo: approvalDocNo,
+        approvalId: approvalDocNo,
         approvalStatus: 'approved' as const,
         approvedAmount: toNumber(approval.approved_amount),
         date: toDateOnly(approval.approved_at ?? expense.date),
         destinationLabel: [approval.destination_payment_method_snapshot ?? '', approval.destination_bank_name_snapshot ?? '', approval.destination_account_no_snapshot ?? ''].filter(Boolean).join(' / '),
-        docNo: approval.doc_no ?? approval.id,
+        docNo: approvalDocNo,
         dueDate: toDateOnly(expense.due_date),
-        id: `${expense.id}:${approval.id}`,
+        id: approvalDocNo,
         payee: approval.party_name_snapshot ?? expense.payee ?? '-',
         refDocNo: expense.ref_doc_no ?? '',
-        sourceId: expense.id,
+        sourceId: expense.doc_no,
         sourceDocNo: expense.doc_no,
         sourceType: 'expense' as const,
         totalAmount: toNumber(approval.approved_amount),
-      }))
+      }})
       return [...pendingRows, ...approvedRows]
     })
 
@@ -390,7 +381,7 @@ export async function POST(request: Request) {
     requirePermission(context, 'finance.cash.view')
 
     const values = approvalRequestSchema.parse(await request.json())
-    const actor = context.appUser?.id || context.authUser.id
+    const actor = context.appUser?.username ?? context.authUser.email ?? context.authUser.id
     const paymentMethods = await getActivePaymentMethods()
 
     if (values.sourceType === 'expense') {
@@ -398,11 +389,10 @@ export async function POST(request: Request) {
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      const txExt = tx as typeof tx & {
-        payment_approvals: {
-          create: (args: unknown) => Promise<{ id: string }>
-          findMany: (args: unknown) => Promise<Array<{ approved_amount: unknown; source_id: string }>>
-        }
+      const sourceRecord = await findApprovalSourceByDocNo(tx, values.sourceType, values.sourceId)
+      const sourceInternalId = sourceRecord?.id ?? null
+      if (sourceInternalId == null) {
+        throw new Error('รหัสเอกสารที่ต้องการอนุมัติไม่ถูกต้อง')
       }
       const bills = await tx.purchase_bills.findMany({
         include: {
@@ -414,7 +404,7 @@ export async function POST(request: Request) {
           },
         },
         where: {
-          id: values.sourceType === 'purchase_bill' ? values.sourceId : '__NO_PURCHASE_BILL__',
+          ...(values.sourceType === 'purchase_bill' ? { id: sourceInternalId } : { id: BigInt(-1) }),
           NOT: { status: 'cancelled' },
         },
       })
@@ -430,17 +420,17 @@ export async function POST(request: Request) {
           },
         },
         where: {
-          id: values.sourceType === 'advance_payment' ? values.sourceId : '__NO_ADVANCE_PAYMENT__',
+          ...(values.sourceType === 'advance_payment' ? { id: sourceInternalId } : { id: BigInt(-1) }),
           status: { not: 'cancelled' },
         },
       })
       if (values.sourceType === 'advance_payment' && advancePayments.length !== 1) throw new Error('ไม่พบรายการ ADV ที่ต้องการอนุมัติ หรือรายการถูกยกเลิกแล้ว')
 
-      const billById = new Map(bills.map((bill) => [bill.id, bill]))
-      const advanceById = new Map(advancePayments.map((advance) => [advance.id, advance]))
-      const existingApprovals = await txExt.payment_approvals.findMany({
+      const billById = new Map(bills.map((bill) => [bill.id.toString(), bill]))
+      const advanceById = new Map(advancePayments.map((advance) => [advance.id.toString(), advance]))
+      const existingApprovals = await tx.payment_approvals.findMany({
         where: {
-          source_id: values.sourceId,
+          source_id: sourceInternalId.toString(),
           source_type: values.sourceType,
           status: 'approved',
         },
@@ -457,7 +447,7 @@ export async function POST(request: Request) {
         const totalAmount = toNumber(bill.total_amount)
         const paidAmount = toNumber(bill.paid_amount)
         const payableBalance = Math.max(0, toNumber(bill.payable_balance) || totalAmount - paidAmount)
-        const alreadyApproved = approvedAmountBySourceId.get(bill.id) ?? 0
+      const alreadyApproved = approvedAmountBySourceId.get(bill.id.toString()) ?? 0
         const pendingAmount = Math.max(0, payableBalance - alreadyApproved)
         const cycleAmount = values.splits.reduce((sum, split) => sum + split.approvedAmount, 0)
         if (cycleAmount - pendingAmount > 0.01) {
@@ -465,8 +455,6 @@ export async function POST(request: Request) {
         }
 
         const destinations = normalizeSupplierBankAccounts({
-          fallbackAccountNo: bill.suppliers?.bank_account,
-          fallbackBankName: bill.suppliers?.bank_name,
           paymentMethods,
           rows: bill.suppliers?.supplier_bank_accounts,
         })
@@ -477,7 +465,7 @@ export async function POST(request: Request) {
           const selectedDestination = destinations.find((option) => option.id === split.destinationId)
           if (!selectedDestination) throw new Error(`ไม่พบช่องทางจ่ายปลายทางของ ${bill.doc_no}`)
           const docNo = values.splits.length > 1 ? `${cycleDocNo}/${index + 1}` : cycleDocNo
-          const approval = await txExt.payment_approvals.create({
+          const approval = await tx.payment_approvals.create({
             data: {
               approved_amount: split.approvedAmount,
               approved_at: approvedAt,
@@ -487,12 +475,11 @@ export async function POST(request: Request) {
               destination_bank_name_snapshot: selectedDestination.kind === 'cash' ? null : selectedDestination.bankName || null,
               destination_payment_method_snapshot: selectedDestination.paymentMethod || null,
               doc_no: docNo,
-              id: `PMA-${randomUUID()}`,
-              party_id: bill.supplier_id,
-              party_name_snapshot: bill.suppliers?.name ?? bill.supplier_id ?? null,
+              party_id: bill.suppliers?.code ?? null,
+              party_name_snapshot: bill.suppliers?.name ?? null,
               source_date_snapshot: bill.date ? normalizeDate(toDateOnly(bill.date)) : null,
               source_doc_no_snapshot: bill.doc_no,
-              source_id: bill.id,
+              source_id: bill.id.toString(),
               source_type: 'purchase_bill',
               status: 'approved',
             },
@@ -508,7 +495,7 @@ export async function POST(request: Request) {
           throw new Error(`รายการ ${advance.doc_no} ไม่ได้อยู่ในสถานะยังไม่อนุมัติแล้ว`)
         }
         const totalAmount = toNumber(advance.amount)
-        const alreadyApproved = approvedAmountBySourceId.get(advance.id) ?? 0
+        const alreadyApproved = approvedAmountBySourceId.get(advance.id.toString()) ?? 0
         const pendingAmount = Math.max(0, totalAmount - alreadyApproved)
         const cycleAmount = values.splits.reduce((sum, split) => sum + split.approvedAmount, 0)
         if (cycleAmount - pendingAmount > 0.01) {
@@ -516,8 +503,6 @@ export async function POST(request: Request) {
         }
 
         const destinations = normalizeSupplierBankAccounts({
-          fallbackAccountNo: advance.suppliers?.bank_account,
-          fallbackBankName: advance.suppliers?.bank_name,
           paymentMethods,
           rows: advance.suppliers?.supplier_bank_accounts,
         })
@@ -528,7 +513,7 @@ export async function POST(request: Request) {
           const selectedDestination = destinations.find((option) => option.id === split.destinationId)
           if (!selectedDestination) throw new Error(`ไม่พบช่องทางจ่ายปลายทางของ ${advance.doc_no}`)
           const docNo = values.splits.length > 1 ? `${cycleDocNo}/${index + 1}` : cycleDocNo
-          const approval = await txExt.payment_approvals.create({
+          const approval = await tx.payment_approvals.create({
             data: {
               approved_amount: split.approvedAmount,
               approved_at: approvedAt,
@@ -538,12 +523,11 @@ export async function POST(request: Request) {
               destination_bank_name_snapshot: selectedDestination.kind === 'cash' ? null : selectedDestination.bankName || null,
               destination_payment_method_snapshot: selectedDestination.paymentMethod || null,
               doc_no: docNo,
-              id: `PMA-${randomUUID()}`,
-              party_id: advance.supplier_id,
-              party_name_snapshot: advance.suppliers?.name ?? advance.supplier_id ?? null,
+              party_id: advance.suppliers?.code ?? null,
+              party_name_snapshot: advance.suppliers?.name ?? null,
               source_date_snapshot: advance.advance_date ? normalizeDate(toDateOnly(advance.advance_date)) : null,
               source_doc_no_snapshot: advance.doc_no,
-              source_id: advance.id,
+              source_id: advance.id.toString(),
               source_type: 'advance_payment',
               status: 'approved',
             },
@@ -560,7 +544,10 @@ export async function POST(request: Request) {
         })
       }
 
-      return created
+      return created.map((approval) => ({
+        ...approval,
+        id: requireDocumentNo(approval.doc_no, `อนุมัติจ่าย ${approval.id}`),
+      }))
     })
 
     return NextResponse.json({ items: result })

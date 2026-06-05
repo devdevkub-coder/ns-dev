@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
@@ -23,13 +24,16 @@ function jsonNumber(value: unknown) {
   return toNumber(value as { toNumber: () => number } | null | undefined)
 }
 
-function poItems(row: { items: unknown; product_id: string | null; qty: unknown; remaining_qty: unknown; unit_price: unknown }, productName: string) {
+function poItems(
+  row: { items: unknown; product_id: bigint | null; qty: unknown; remaining_qty: unknown; unit_price: unknown },
+  product: { code: string; name: string } | null,
+) {
   if (Array.isArray(row.items) && row.items.length) {
     return row.items
       .filter((item): item is PoItem => typeof item === 'object' && item !== null)
       .map((item) => ({
         productId: item.productId ?? '',
-        productName: item.productName ?? productName,
+        productName: item.productName ?? product?.name ?? '-',
         qty: jsonNumber(item.qty),
         remainingQty: jsonNumber(item.remainingQty ?? item.qty),
         unitPrice: jsonNumber(item.unitPrice),
@@ -37,8 +41,8 @@ function poItems(row: { items: unknown; product_id: string | null; qty: unknown;
   }
 
   return [{
-    productId: row.product_id ?? '',
-    productName,
+    productId: product?.code ?? '',
+    productName: product?.name ?? '-',
     qty: jsonNumber(row.qty),
     remainingQty: jsonNumber(row.remaining_qty ?? row.qty),
     unitPrice: jsonNumber(row.unit_price),
@@ -71,20 +75,21 @@ export async function GET() {
       }),
     ])
 
-    const productIds = [...new Set([...poBuys.map((row) => row.product_id), ...poSells.map((row) => row.product_id)].filter(Boolean) as string[])]
-    const products = productIds.length ? await prisma.products.findMany({ where: { id: { in: productIds } } }) : []
+    const productIds = [...new Set([...poBuys.map((row) => row.product_id), ...poSells.map((row) => row.product_id)].filter((value): value is bigint => value != null))]
+    const products = productIds.length ? await prisma.products.findMany({ select: { code: true, id: true, name: true }, where: { id: { in: productIds } } }) : []
     const productById = new Map(products.map((product) => [product.id, product]))
 
     const buyRows = poBuys.flatMap((po) => {
-      const productName = po.product_id ? productById.get(po.product_id)?.name ?? po.product_id : ''
-      return poItems(po, productName)
+      const productRow = po.product_id ? productById.get(po.product_id) ?? null : null
+      const product = productRow ? { code: requireBusinessCode(productRow.code, `สินค้า ${productRow.id}`), name: productRow.name } : null
+      return poItems(po, product)
         .filter((item) => item.remainingQty > 0.001)
         .map((item) => ({
           date: toDateOnly(po.date),
           docNo: po.doc_no,
           expectedDelivery: toDateOnly(po.expected_delivery),
           id: `${po.id}:${item.productId}`,
-          partnerName: po.suppliers?.name ?? po.supplier_id ?? '-',
+          partnerName: po.suppliers?.name ?? '-',
           productId: item.productId,
           productName: item.productName,
           qty: item.qty,
@@ -97,15 +102,16 @@ export async function GET() {
     })
 
     const sellRows = poSells.flatMap((po) => {
-      const productName = po.product_id ? productById.get(po.product_id)?.name ?? po.product_id : ''
-      return poItems(po, productName)
+      const productRow = po.product_id ? productById.get(po.product_id) ?? null : null
+      const product = productRow ? { code: requireBusinessCode(productRow.code, `สินค้า ${productRow.id}`), name: productRow.name } : null
+      return poItems(po, product)
         .filter((item) => item.remainingQty > 0.001)
         .map((item) => ({
           date: toDateOnly(po.date),
           docNo: po.doc_no,
           expectedDelivery: toDateOnly(po.expected_delivery),
           id: `${po.id}:${item.productId}`,
-          partnerName: po.customers?.name ?? po.customer_id ?? '-',
+          partnerName: po.customers?.name ?? '-',
           productId: item.productId,
           productName: item.productName,
           qty: item.qty,

@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { parseInternalBigIntId } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
-import { buildStockWorkbook, stockReferenceData, stockWhere, xlsxResponse } from '@/lib/server/stock'
+import { buildStockWorkbook, normalizeStockReferenceInput, stockReferenceData, stockWhere, xlsxResponse } from '@/lib/server/stock'
 import { stockQuerySchema } from '@/lib/stock'
 
 export const runtime = 'nodejs'
@@ -27,7 +28,8 @@ export async function GET(request: Request) {
     const url = new URL(request.url)
     const query = ledgerQuerySchema.parse(Object.fromEntries(url.searchParams))
     const skip = (query.page - 1) * query.pageSize
-    const where = stockWhere(query)
+    const normalizedQuery = await normalizeStockReferenceInput(query)
+    const where = stockWhere(normalizedQuery)
     const orderBy = [{ date: query.direction }, { created_at: query.direction }, { id: query.direction }]
 
     const [allRowsRaw, pageRowsRaw, reference, total] = await Promise.all([
@@ -53,8 +55,14 @@ export async function GET(request: Request) {
       warehouses?: { name: string } | null
     }>
 
-    const purchaseBillIds = [...new Set(pageRows.filter((row) => row.ref_type === 'PB' && row.ref_id).map((row) => row.ref_id as string))]
-    const salesBillIds = [...new Set(pageRows.filter((row) => row.ref_type === 'SB' && row.ref_id).map((row) => row.ref_id as string))]
+    const purchaseBillIds = [...new Set(pageRows
+      .filter((row) => row.ref_type === 'PB' && row.ref_id)
+      .map((row) => parseInternalBigIntId(row.ref_id))
+      .filter((id): id is bigint => id !== null))]
+    const salesBillIds = [...new Set(pageRows
+      .filter((row) => row.ref_type === 'SB' && row.ref_id)
+      .map((row) => parseInternalBigIntId(row.ref_id))
+      .filter((id): id is bigint => id !== null))]
     const [purchaseBills, salesBills] = await Promise.all([
       purchaseBillIds.length
         ? prisma.purchase_bills.findMany({ include: { suppliers: true }, where: { id: { in: purchaseBillIds } } })
@@ -70,36 +78,39 @@ export async function GET(request: Request) {
     const runningByRowId = new Map<string, number>()
     for (const row of allRows) {
       const key = query.balanceMode === 'warehouse'
-        ? `${row.product_id ?? ''}|${row.branch_id ?? ''}|${row.warehouse_id ?? ''}|${row.lot_no ?? ''}|${row.output_category ?? row.products?.item_status ?? ''}`
-        : row.product_id ?? ''
+        ? `${String(row.product_id ?? '')}|${String(row.branch_id ?? '')}|${String(row.warehouse_id ?? '')}|${row.lot_no ?? ''}|${row.output_category ?? row.products?.item_status ?? ''}`
+        : String(row.product_id ?? '')
       if (!key) continue
       const nextBalance = (balanceByKey.get(key) ?? 0) + toNumber(row.qty_in) - toNumber(row.qty_out)
       balanceByKey.set(key, nextBalance)
-      runningByRowId.set(row.id, nextBalance)
+      runningByRowId.set(String(row.id), nextBalance)
     }
 
     let payloadRows = pageRows.map((row) => {
-      const purchaseBill = row.ref_type === 'PB' && row.ref_id ? purchaseById.get(row.ref_id) : null
-      const salesBill = row.ref_type === 'SB' && row.ref_id ? salesById.get(row.ref_id) : null
+      const purchaseBillId = row.ref_type === 'PB' && row.ref_id ? parseInternalBigIntId(row.ref_id) : null
+      const salesBillId = row.ref_type === 'SB' && row.ref_id ? parseInternalBigIntId(row.ref_id) : null
+      const purchaseBill = purchaseBillId != null ? purchaseById.get(purchaseBillId) : null
+      const salesBill = salesBillId != null ? salesById.get(salesBillId) : null
+      const outwardRefNo = row.ref_no ?? purchaseBill?.doc_no ?? salesBill?.doc_no ?? ''
       return {
         branchName: row.branches?.name ?? '-',
         counterpartyName: purchaseBill?.suppliers?.name ?? salesBill?.customers?.name ?? '-',
         date: toDateOnly(row.date),
-        id: row.id,
+        id: row.ledger_key,
         movementType: row.movement_type,
         lotNo: row.lot_no ?? '',
         note: row.note ?? row.notes ?? '',
         notAvailableForSale: row.not_available_for_sale === true,
         outputCategory: row.output_category ?? row.products?.item_status ?? '',
         productCode: row.products?.code ?? '',
-        productId: row.product_id ?? '',
-        productName: row.products?.name ?? row.product_id ?? '-',
+        productId: row.products?.code ?? '',
+        productName: row.products?.name ?? '-',
         qtyIn: toNumber(row.qty_in),
         qtyOut: toNumber(row.qty_out),
-        refId: row.ref_id ?? '',
-        refNo: row.ref_no ?? '',
+        refId: outwardRefNo,
+        refNo: outwardRefNo,
         refType: row.ref_type ?? '',
-        runningBalanceByProduct: runningByRowId.get(row.id) ?? 0,
+        runningBalanceByProduct: runningByRowId.get(String(row.id)) ?? 0,
         unitCost: toNumber(row.unit_cost),
         valueIn: toNumber(row.value_in),
         valueOut: toNumber(row.value_out),

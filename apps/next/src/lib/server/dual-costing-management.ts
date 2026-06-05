@@ -2,6 +2,7 @@ import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 
 type JsonItem = Record<string, unknown>
+type ProductRef = { code: string; id: bigint; metal_group: string | null; name: string }
 
 export type WaitingAllocationRow = {
   allocatedQty: number
@@ -68,12 +69,28 @@ function isJsonItem(value: unknown): value is JsonItem {
   return typeof value === 'object' && value !== null
 }
 
-function itemProductId(item: JsonItem) {
-  return jsonString(item.productId, item.product_id, item.id)
+function itemProductCode(item: JsonItem, productById: Map<string, ProductRef>) {
+  const direct = jsonString(item.productCode, item.code, item.productId)
+  if (direct) {
+    if (/^\d+$/.test(direct)) return productById.get(direct)?.code ?? ''
+    return direct
+  }
+  const rawInternal = item.product_id ?? item.id
+  if (typeof rawInternal === 'number' || typeof rawInternal === 'bigint') {
+    return productById.get(String(rawInternal))?.code ?? ''
+  }
+  return ''
 }
 
-function itemProductName(item: JsonItem) {
-  return jsonString(item.productName, item.displayName, item.name, item.productCode, item.code, itemProductId(item))
+function itemProductName(item: JsonItem, productById: Map<string, ProductRef>) {
+  const direct = jsonString(item.productName, item.displayName, item.name)
+  if (direct) return direct
+  const code = itemProductCode(item, productById)
+  if (!code) return '-'
+  for (const product of productById.values()) {
+    if (product.code === code) return product.name
+  }
+  return '-'
 }
 
 function itemQty(item: JsonItem) {
@@ -118,7 +135,8 @@ export async function buildDualCostingManagement() {
     prisma.products.findMany({ select: { code: true, id: true, metal_group: true, name: true } }),
   ])
 
-  const productById = new Map(products.map((product) => [product.id, product]))
+  const productById = new Map(products.map((product) => [String(product.id), { ...product, code: product.code }]))
+  const productByCode = new Map(Array.from(productById.values()).map((product) => [product.code, product]))
   const matchedBySaleProduct = new Map<string, { cost: number; qty: number; revenue: number }>()
   tradingDeals.filter((deal) => !isCancelled(deal.status)).forEach((deal) => {
     if (!deal.sales_bill_id || !deal.product_id) return
@@ -137,10 +155,10 @@ export async function buildDualCostingManagement() {
 
     const items = (bill.items as unknown[]).filter(isJsonItem)
     items.forEach((item, index) => {
-      const productId = itemProductId(item)
+      const productId = itemProductCode(item, productById)
       if (!productId) return
 
-      const product = productById.get(productId)
+      const product = productByCode.get(productId)
       if (!isDualCostingGroup(product?.metal_group)) return
 
       const qty = itemQty(item)
@@ -155,19 +173,19 @@ export async function buildDualCostingManagement() {
       waitingRows.push({
         allocatedQty,
         allocationStatus: allocatedQty > 0 ? 'partially_allocated' : 'pending_allocation',
-        branchName: bill.branches?.name ?? bill.branch_id ?? '-',
-        customerName: bill.customers?.name ?? bill.customer_id ?? '-',
+        branchName: bill.branches?.name ?? '-',
+        customerName: bill.customers?.name ?? '-',
         date: toDateOnly(bill.date),
         docNo: bill.doc_no,
-        id: `${bill.id}-${productId}-${index}`,
+        id: `${bill.doc_no}-${productId}-${index}`,
         itemId: jsonString(item.id, item.lineId, `${index}`),
         metalGroup: product?.metal_group ?? '-',
         productId,
-        productName: product ? `${product.code} - ${product.name}` : itemProductName(item),
+        productName: product ? `${product.code} - ${product.name}` : itemProductName(item, productById),
         qty,
         remainingQty,
         revenuePending: remainingQty * unitPrice,
-        salesBillId: bill.id,
+        salesBillId: bill.doc_no,
         unitPrice,
       })
     })
@@ -179,7 +197,7 @@ export async function buildDualCostingManagement() {
     const allocatedRevenue = toNumber(deal.matched_sales_amount)
     const grossProfit = allocatedRevenue - totalCost
     const targetType = deal.sales_bills?.po_sell_id ? 'PO_SELL' : 'SPOT_SELL'
-    const product = deal.products ?? (deal.product_id ? productById.get(deal.product_id) : null)
+    const product = deal.products ?? (deal.product_id != null ? productById.get(String(deal.product_id)) : null)
     return {
       allocatedAt: deal.created_at?.toISOString() ?? toDateOnly(deal.date),
       allocatedBy: deal.created_by ?? '-',
@@ -190,11 +208,11 @@ export async function buildDualCostingManagement() {
       date: toDateOnly(deal.date),
       gpPct: pct(grossProfit, allocatedRevenue),
       grossProfit,
-      id: deal.id,
+      id: deal.deal_no,
       matchId: deal.deal_no,
       productCategory: product?.metal_group ?? '-',
-      productId: deal.product_id ?? '',
-      productName: product ? `${product.code} - ${product.name}` : deal.product_id ?? '-',
+      productId: product?.code ?? '',
+      productName: product ? `${product.code} - ${product.name}` : '-',
       saleDocNo: deal.sales_bill_no ?? deal.sales_bills?.doc_no ?? deal.customers?.name ?? '-',
       saleQty: qty,
       sourceNo: deal.purchase_bill_no ?? deal.purchase_bills?.doc_no ?? deal.suppliers?.name ?? '-',

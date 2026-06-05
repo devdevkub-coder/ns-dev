@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server'
-import { randomUUID } from 'node:crypto'
 import * as XLSX from 'xlsx'
 import { salesBillFormSchema, type SalesBillFormValues } from '@/lib/sales'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
+import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { currentActor, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
+import { findActiveSalesChannelReferenceByCode } from '@/lib/server/sales-channel-reference'
 import { activeVatRatePercent } from '@/lib/server/tax-settings'
+import { findActiveWarehouseReferenceByCodeOrId } from '@/lib/server/warehouse-reference'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import type { Prisma } from '../../../../../generated/prisma/client'
 
@@ -52,16 +56,17 @@ function parseBillQuery(url: URL, includePaging = true): BillQuery {
 
 function billJson(row: SalesBillRow) {
   return {
+    branchId: row.branches?.code ?? '',
     branchName: row.branches?.name ?? '-',
-    channelId: row.channel_id ?? '',
+    channelId: row.sales_channels?.code ?? '',
     channelName: row.sales_channels?.name ?? '-',
     createdAt: row.created_at?.toISOString(),
     createdBy: row.created_by ?? '',
-    customerName: row.customers?.name ?? row.customer_id ?? '-',
+    customerName: row.customers?.name ?? '-',
     date: toDateOnly(row.date),
     docNo: row.doc_no,
     grossProfit: toNumber(row.gross_profit),
-    id: row.id,
+    id: row.doc_no,
     itemCount: Array.isArray(row.items) ? row.items.length : 0,
     receivableBalance: toNumber(row.receivable_balance),
     receivedAmount: toNumber(row.received_amount),
@@ -74,6 +79,7 @@ function billJson(row: SalesBillRow) {
     vatInvoiceDate: row.vat_invoice_date ? toDateOnly(row.vat_invoice_date) : '',
     vatInvoiceIssued: row.vat_invoice_issued ?? false,
     vatInvoiceNo: row.vat_invoice_no ?? '',
+    warehouseId: row.warehouses?.code ?? '',
     warehouseName: row.warehouses?.name ?? '-',
   }
 }
@@ -140,18 +146,23 @@ function calculateSalesTotals(values: SalesBillFormValues, vatRatePercent: numbe
   return { subtotal, totalAmount, vatAmount }
 }
 
-function salesItems(values: SalesBillFormValues, productById: Map<string, { code: string | null; name: string; unit: string | null }>) {
+function salesItems(
+  values: SalesBillFormValues,
+  parsedProductIds: bigint[],
+  productById: Map<bigint, { code: string | null; name: string; unit: string | null }>,
+) {
   return values.items.map((item, index) => {
-    const product = productById.get(item.productId)
+    const productId = parsedProductIds[index]
+    const product = productById.get(productId)
     const amount = Math.max(0, item.qty * item.price - item.discount)
     return {
       amount,
       discount: item.discount,
       id: `${String(index + 1).padStart(2, '0')}`,
       note: item.note,
-      productCode: product?.code ?? '',
-      productId: item.productId,
-      productName: product?.name ?? item.productId,
+      productCode: requireBusinessCode(product?.code, `สินค้า ${productId}`),
+      productId: requireBusinessCode(product?.code, `สินค้า ${productId}`),
+      productName: product?.name ?? '',
       qty: item.qty,
       unit: product?.unit ?? 'กก.',
       unitPrice: item.price,
@@ -164,12 +175,47 @@ async function salesOptionsPayload() {
     prisma.branches.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
     prisma.customers.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
     prisma.products.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true, unit: true } }),
-    prisma.sales_channels.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, id: true, name: true } }),
-    prisma.warehouses.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, branch_id: true, id: true, name: true } }),
+    prisma.sales_channels.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
+    prisma.warehouses.findMany({
+      orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }],
+      select: {
+        active: true,
+        branches: { select: { code: true } },
+        branch_id: true,
+        code: true,
+        id: true,
+        name: true,
+      },
+    }),
     activeVatRatePercent(new Date()),
   ])
 
-  return { branches, customers, products, salesChannels, vatRatePercent, warehouses }
+  return {
+    branches: branches.map((branch) => ({
+      ...branch,
+      id: branch.code,
+    })),
+    customers: customers.map((customer) => ({
+      ...customer,
+      id: requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`),
+    })),
+    products: products.map((product) => ({
+      ...product,
+      id: requireBusinessCode(product.code, `สินค้า ${product.id}`),
+    })),
+    salesChannels: salesChannels.map((channel) => ({
+      ...channel,
+      id: requireBusinessCode(channel.code, `ช่องทางขาย ${channel.id}`),
+    })),
+    vatRatePercent,
+    warehouses: warehouses.map((warehouse) => ({
+      active: warehouse.active,
+      branch_id: warehouse.branches ? requireBusinessCode(warehouse.branches.code, `สาขาคลัง ${warehouse.branch_id ?? warehouse.id}`) : null,
+      code: warehouse.code,
+      id: warehouse.code,
+      name: warehouse.name,
+    })),
+  }
 }
 
 function buildWorkbook(rows: ReturnType<typeof billJson>[]) {
@@ -263,50 +309,62 @@ export async function POST(request: Request) {
     const billDate = createdAt.toISOString().slice(0, 10)
     const vatRatePercent = await activeVatRatePercent(normalizeDate(billDate))
     const totals = calculateSalesTotals(values, vatRatePercent)
-    const productIds = [...new Set(values.items.map((item) => item.productId))]
+    const parsedPoSellId = values.poSellId ? parseInternalBigIntId(values.poSellId) : null
+    const requestedProductCodes = values.items.map((item) => item.productId?.trim() ?? '')
+    const invalidProductIndex = requestedProductCodes.findIndex((productCode) => !productCode)
+    if (invalidProductIndex >= 0) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าที่เลือกไม่ถูกต้อง' }, { status: 400 })
+    }
+    const productCodes = [...new Set(requestedProductCodes)]
+    const [branch, warehouse] = await Promise.all([
+      values.branchId ? findActiveBranchReferenceByCodeOrId(values.branchId) : Promise.resolve(null),
+      values.warehouseId ? findActiveWarehouseReferenceByCodeOrId(values.warehouseId) : Promise.resolve(null),
+    ])
 
-    const [customer, branch, channel, warehouse, products] = await Promise.all([
-      prisma.customers.findFirst({ where: { active: true, id: values.customerId } }),
-      values.branchId ? prisma.branches.findFirst({ where: { active: true, id: values.branchId } }) : Promise.resolve(null),
-      values.channelId ? prisma.sales_channels.findFirst({ where: { active: true, id: values.channelId } }) : Promise.resolve(null),
-      values.warehouseId ? prisma.warehouses.findFirst({ where: { active: true, id: values.warehouseId } }) : Promise.resolve(null),
-      prisma.products.findMany({ where: { active: true, id: { in: productIds } }, select: { code: true, id: true, name: true, unit: true } }),
+    const [customer, channel, products] = await Promise.all([
+      findActiveCustomerReferenceByCodeOrId(values.customerId),
+      values.channelId ? findActiveSalesChannelReferenceByCode(values.channelId) : Promise.resolve(null),
+      prisma.products.findMany({ where: { active: true, code: { in: productCodes } }, select: { code: true, id: true, name: true, unit: true } }),
     ])
 
     if (!customer) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ลูกค้าไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (values.branchId && !branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (values.channelId && !channel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ช่องทางขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (values.warehouseId && !warehouse) return NextResponse.json({ code: 'BAD_REQUEST', error: 'คลังไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
-    if (values.branchId && warehouse?.branch_id && warehouse.branch_id !== values.branchId) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาและคลังไม่ตรงกัน' }, { status: 400 })
+    if (branch?.code && warehouse?.branchCode && warehouse.branchCode !== branch.code) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาและคลังไม่ตรงกัน' }, { status: 400 })
 
+    if (values.poSellId && !parsedPoSellId) return NextResponse.json({ code: 'BAD_REQUEST', error: 'PO Sell ไม่ถูกต้อง' }, { status: 400 })
+
+    const productByCode = new Map(products.map((product) => [requireBusinessCode(product.code, `สินค้า ${product.id}`), product]))
+    const parsedProductIds = requestedProductCodes.map((productCode) => productByCode.get(productCode)?.id ?? null)
+    const missingProduct = requestedProductCodes.find((productCode) => !productByCode.has(productCode))
+    if (missingProduct || parsedProductIds.some((productId) => productId == null)) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    }
     const productById = new Map(products.map((product) => [product.id, product]))
-    const missingProduct = values.items.find((item) => !productById.has(item.productId))
-    if (missingProduct) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
 
     const docNo = await nextDailyDocNo('sales_bills', 'SB', billDate)
-    const id = `SB-${randomUUID()}`
-    const items = salesItems(values, productById)
+    const items = salesItems(values, parsedProductIds as bigint[], productById)
     const totalCost = 0
 
     const created = await prisma.sales_bills.create({
       data: {
-        branch_id: values.branchId,
-        channel_id: values.channelId,
+        branch_id: branch?.id ?? null,
+        channel_id: channel?.id ?? null,
         created_at: createdAt,
         created_by: actor,
-        customer_id: values.customerId,
+        customer_id: customer.id,
         date: normalizeDate(billDate),
         discount: values.discountTotal,
         discount_total: values.discountTotal,
         doc_no: docNo,
         gross_profit: totals.totalAmount - totalCost,
         has_vat: values.hasVat,
-        id,
         items: items as Prisma.InputJsonValue,
         license_plate: values.licensePlate,
         note: values.note,
         notes: values.note,
-        po_sell_id: values.poSellId,
+        po_sell_id: parsedPoSellId,
         receivable_balance: totals.totalAmount,
         received_amount: 0,
         ref_no: values.refNo,
@@ -322,12 +380,12 @@ export async function POST(request: Request) {
         vat_invoice_issued: values.vatInvoiceIssued,
         vat_invoice_no: values.vatInvoiceNo,
         vat_type: values.vatType,
-        warehouse_id: values.warehouseId,
+        warehouse_id: warehouse?.id ?? null,
       },
       select: { doc_no: true, id: true },
     })
 
-    return NextResponse.json({ docNo: created.doc_no, id: created.id }, { status: 201 })
+    return NextResponse.json({ docNo: created.doc_no, id: created.doc_no }, { status: 201 })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'บันทึกบิลขายไม่ได้', 500)

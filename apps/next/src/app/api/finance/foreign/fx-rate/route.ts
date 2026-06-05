@@ -14,12 +14,36 @@ function rateId(values: { fromCurrency: string; rateDate: string; rateType: stri
   return `FX-${values.rateDate.replaceAll('-', '')}-${values.fromCurrency}-${values.toCurrency}-${suffix}`
 }
 
+function parseRateId(value: string | null | undefined) {
+  const normalized = String(value ?? '').trim().toUpperCase()
+  const matched = normalized.match(/^FX-(\d{8})-([A-Z0-9]{3,6})-([A-Z0-9]{3,6})-(.+)$/)
+  if (!matched) return null
+
+  const [, compactDate, fromCurrency, toCurrency, rateTypeSuffix] = matched
+  const yyyy = compactDate.slice(0, 4)
+  const mm = compactDate.slice(4, 6)
+  const dd = compactDate.slice(6, 8)
+  if (!yyyy || !mm || !dd) return null
+
+  return {
+    fromCurrency,
+    rateDate: `${yyyy}-${mm}-${dd}`,
+    rateType: rateTypeSuffix.replaceAll('-', ' ').trim(),
+    toCurrency,
+  }
+}
+
 function mapRate(row: FxRateRow) {
   return {
     active: row.active,
     createdAt: row.created_at.toISOString(),
     fromCurrency: row.from_currency,
-    id: row.id,
+    id: rateId({
+      fromCurrency: row.from_currency,
+      rateDate: toDateOnly(row.rate_date),
+      rateType: row.rate_type,
+      toCurrency: row.to_currency,
+    }),
     note: row.note,
     rate: toNumber(row.rate),
     rateDate: toDateOnly(row.rate_date),
@@ -72,8 +96,8 @@ export async function GET(request: Request) {
     return NextResponse.json({
       filters: {
         currencies: currencies.map((currency) => ({
-          code: (currency.symbol || currency.id).toUpperCase(),
-          displayCode: (currency.symbol || currency.id).toUpperCase(),
+          code: (currency.symbol ?? '').trim().toUpperCase(),
+          displayCode: (currency.symbol ?? '').trim().toUpperCase(),
           name: currency.name,
           rateToThb: toNumber(currency.rate_to_thb),
           symbol: currency.symbol,
@@ -102,7 +126,6 @@ export async function POST(request: Request) {
     requirePermission(context, 'finance.cash.view')
 
     const values = fxRateFormSchema.parse(await request.json())
-    const id = values.id || rateId(values)
     const row = await prisma.fx_rates.upsert({
       where: { rate_date_from_currency_to_currency_rate_type: {
         from_currency: values.fromCurrency,
@@ -114,7 +137,6 @@ export async function POST(request: Request) {
         active: values.active,
         created_by: currentActor(context),
         from_currency: values.fromCurrency,
-        id,
         note: values.note,
         rate: values.rate,
         rate_date: normalizeDate(values.rateDate),
@@ -146,8 +168,23 @@ export async function PATCH(request: Request) {
 
     const values = fxRateFormSchema.parse(await request.json())
     if (!values.id) return NextResponse.json({ error: 'ระบุรหัส FX Rate' }, { status: 400 })
+    const existingRate = parseRateId(values.id)
+    if (!existingRate) return NextResponse.json({ error: 'รหัส FX Rate ไม่ถูกต้อง' }, { status: 400 })
+    const existingRow = await prisma.fx_rates.findFirst({
+      select: { id: true },
+      where: {
+        from_currency: existingRate.fromCurrency,
+        rate_date: normalizeDate(existingRate.rateDate),
+        rate_type: {
+          equals: existingRate.rateType,
+          mode: 'insensitive',
+        },
+        to_currency: existingRate.toCurrency,
+      },
+    })
+    if (!existingRow) return NextResponse.json({ error: 'ไม่พบ FX Rate เดิมที่ต้องการแก้ไข' }, { status: 404 })
     const row = await prisma.fx_rates.update({
-      where: { id: values.id },
+      where: { id: existingRow.id },
       data: {
         active: values.active,
         from_currency: values.fromCurrency,

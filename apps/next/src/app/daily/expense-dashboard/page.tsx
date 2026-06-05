@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { PageTitleOverride } from '@/components/layout/PageTitleOverride'
 import { DailyExpensePageClient } from '@/components/daily/DailyExpensePageClient'
 
 export const metadata: Metadata = {
@@ -6,5 +7,13 @@ export const metadata: Metadata = {
 }
 
 export default function DailyExpenseDashboardPage() {
-  return <DailyExpensePageClient dashboardOnly />
+  return (
+    <>
+      <PageTitleOverride
+        subtitle="สรุปแต่ละหมวดเทียบเดือนย้อนหลัง และตรวจหาความผิดปกติเทียบค่าเฉลี่ย"
+        title="Dashboard ค่าใช้จ่าย"
+      />
+      <DailyExpensePageClient dashboardOnly />
+    </>
+  )
 }

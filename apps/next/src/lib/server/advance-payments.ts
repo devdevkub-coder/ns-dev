@@ -23,10 +23,10 @@ type AdvancePaymentAuditRow = {
 }
 
 type AllocationTimelineRow = {
+  allocation_key: string
   allocated_amount: number | { toNumber: () => number } | null
   allocated_at: Date
   allocated_by: string | null
-  id: string
   purchase_bill_doc_no: string | null
   status: string
   void_reason: string | null
@@ -113,13 +113,22 @@ type AdvancePaymentRow = Prisma.supplier_advance_paymentsGetPayload<{
     branches: true
     suppliers: true
     supplier_advance_allocations: {
-      include: {
+      select: {
+        allocation_key: true
+        allocated_amount: true
+        allocated_at: true
+        allocated_by: true
+        id: true
         purchase_bills: {
           select: {
             doc_no: true
             id: true
           }
         }
+        status: true
+        void_reason: true
+        voided_at: true
+        voided_by: true
       }
     }
   }
@@ -135,9 +144,9 @@ export function mapAdvancePaymentRow(row: AdvancePaymentRow) {
       allocatedAmount: toNumber(allocation.allocated_amount),
       allocatedAt: allocation.allocated_at.toISOString(),
       allocatedBy: allocation.allocated_by ?? '',
-      id: allocation.id,
+      id: allocation.allocation_key,
       purchaseBillDocNo: allocation.purchase_bills?.doc_no ?? '',
-      purchaseBillId: allocation.purchase_bills?.id ?? '',
+      purchaseBillId: allocation.purchase_bills?.doc_no ?? '',
       status: allocation.status,
       voidReason: allocation.void_reason ?? '',
       voidedAt: allocation.voided_at?.toISOString() ?? '',
@@ -151,7 +160,7 @@ export function mapAdvancePaymentRow(row: AdvancePaymentRow) {
     allocatedAmount,
     allocations: allocationRows,
     amount,
-    branchId: row.branch_id,
+    branchId: row.branches?.code ?? '',
     branchName: row.branches.name,
     canCancel: canMutate,
     canEdit: canMutate,
@@ -162,8 +171,8 @@ export function mapAdvancePaymentRow(row: AdvancePaymentRow) {
     customerName: row.customer_name ?? '',
     docNo: row.doc_no,
     driverName: row.driver_name ?? '',
-    fundingAccountId: row.funding_account_id ?? '',
-    id: row.id,
+    fundingAccountId: row.accounts?.code ?? '',
+    id: row.doc_no,
     inDate: toBangkokDateTimeInput(row.in_date),
     largeScaleDocNo: row.large_scale_doc_no ?? '',
     lockedReason: canMutate ? '' : advancePaymentMutationReason(row, 'edit'),
@@ -180,7 +189,7 @@ export function mapAdvancePaymentRow(row: AdvancePaymentRow) {
     status: row.status,
     statusLabel: advancePaymentStatusLabel(row.status),
     supplierCode: row.suppliers.code ?? '',
-    supplierId: row.supplier_id,
+    supplierId: row.suppliers.code ?? '',
     supplierName: row.suppliers.name,
     updatedAt: row.updated_at.toISOString(),
     updatedBy: row.updated_by ?? '',
@@ -213,7 +222,7 @@ export async function getAdvancePaymentTimeline(tx: PrismaClientLike, advancePay
     `,
     tx.$queryRaw<AllocationTimelineRow[]>`
       select
-        saa.id::text as id,
+        saa.allocation_key,
         saa.allocated_amount,
         saa.allocated_at,
         saa.allocated_by,
@@ -233,7 +242,7 @@ export async function getAdvancePaymentTimeline(tx: PrismaClientLike, advancePay
     action: row.action ?? 'system',
     actorName: row.actor_display_name ?? row.actor_username ?? '-',
     eventKey: row.event_key,
-    id: row.id,
+    id: row.event_key,
     metadata: row.metadata && typeof row.metadata === 'object' ? row.metadata as Record<string, unknown> : {},
     occurredAt: row.occurred_at.toISOString(),
     outcome: (row.outcome === 'blocked' || row.outcome === 'failure' ? row.outcome : 'success') as 'blocked' | 'failure' | 'success',
@@ -244,11 +253,12 @@ export async function getAdvancePaymentTimeline(tx: PrismaClientLike, advancePay
       allocatedAmount: toNumber(row.allocated_amount),
       purchaseBillDocNo: row.purchase_bill_doc_no ?? '',
     }
+    const allocationDocNo = row.purchase_bill_doc_no ?? row.allocated_at.toISOString()
     const createdEvent: AdvancePaymentTimelineEvent = {
       action: 'allocate',
       actorName: row.allocated_by ?? '-',
       eventKey: 'purchase.advance-payment.allocated',
-      id: `alloc-${row.id}`,
+      id: `${row.allocation_key}:allocated`,
       metadata: baseMetadata,
       occurredAt: row.allocated_at.toISOString(),
       outcome: 'success',
@@ -258,7 +268,7 @@ export async function getAdvancePaymentTimeline(tx: PrismaClientLike, advancePay
           action: 'void',
           actorName: row.voided_by ?? '-',
           eventKey: 'purchase.advance-payment.allocation-voided',
-          id: `alloc-void-${row.id}`,
+          id: `${row.allocation_key}:voided`,
           metadata: {
             ...baseMetadata,
             voidReason: row.void_reason ?? '',

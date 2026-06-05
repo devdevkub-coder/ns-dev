@@ -15,7 +15,6 @@ type PageProps = {
 }
 
 type TimelineEvent = {
-  amount?: number
   date: string
   details: string[]
   title: string
@@ -35,6 +34,44 @@ function purchaseBillStatusLabel(status: string | null | undefined) {
   return status ?? '-'
 }
 
+function purchaseBillHistoryActionLabel(action: string | null | undefined) {
+  switch (String(action ?? '').toLowerCase()) {
+    case 'created':
+      return 'สร้างบิลรับซื้อ'
+    case 'edited':
+      return 'แก้ไขบิลรับซื้อ'
+    case 'payment_recorded':
+      return 'บันทึกการชำระเงิน'
+    case 'payment_reversed':
+      return 'ยกเลิกการชำระเงิน'
+    case 'cancelled':
+      return 'ยกเลิกบิล'
+    default:
+      return 'อัปเดตสถานะบิล'
+  }
+}
+
+function purchaseBillHistoryTone(action: string | null | undefined): TimelineEvent['tone'] {
+  switch (String(action ?? '').toLowerCase()) {
+    case 'created':
+      return 'blue'
+    case 'edited':
+      return 'amber'
+    case 'payment_recorded':
+      return 'emerald'
+    case 'payment_reversed':
+    case 'cancelled':
+      return 'rose'
+    default:
+      return 'slate'
+  }
+}
+
+function historyMetaValue(meta: unknown, key: string) {
+  if (!meta || typeof meta !== 'object' || Array.isArray(meta)) return null
+  return (meta as Record<string, unknown>)[key]
+}
+
 function sourceSnapshotValue(snapshot: unknown, key: string) {
   if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return null
   const value = (snapshot as Record<string, unknown>)[key]
@@ -51,9 +88,12 @@ export default async function PurchaseBillDetailPage({ params }: PageProps) {
   }
 
   const { id } = await params
-  const bill = await prisma.purchase_bills.findUnique({
+  const bill = await prisma.purchase_bills.findFirst({
     include: {
       branches: true,
+      purchase_bill_status_logs: {
+        orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+      },
       purchase_bill_items: {
         include: {
           purchase_bill_po_allocations: {
@@ -61,7 +101,6 @@ export default async function PurchaseBillDetailPage({ params }: PageProps) {
               po_buys: {
                 select: {
                   doc_no: true,
-                  id: true,
                 },
               },
             },
@@ -70,7 +109,6 @@ export default async function PurchaseBillDetailPage({ params }: PageProps) {
             include: {
               weight_ticket_product_summaries: {
                 select: {
-                  id: true,
                   line_count: true,
                   product_name: true,
                 },
@@ -78,7 +116,6 @@ export default async function PurchaseBillDetailPage({ params }: PageProps) {
               weight_tickets: {
                 select: {
                   doc_no: true,
-                  id: true,
                 },
               },
             },
@@ -88,60 +125,41 @@ export default async function PurchaseBillDetailPage({ params }: PageProps) {
       },
       suppliers: true,
     },
-    where: { id },
+    where: {
+      doc_no: id,
+    },
   })
 
   if (!bill) notFound()
 
-  const paymentRows = await prisma.payments.findMany({
-    include: { accounts: true },
-    orderBy: [{ created_at: 'asc' }, { date: 'asc' }],
-    where: {
-      bill_id: id,
-      NOT: { status: 'cancelled' },
-    },
-  })
-  const voucherIds = [...new Set(paymentRows.map((payment) => payment.voucher_id).filter((voucherId): voucherId is string => Boolean(voucherId)))]
-  const bankStatementRows = voucherIds.length > 0 ? await prisma.bank_statement.findMany({
-    include: { accounts: true },
-    orderBy: [{ created_at: 'asc' }, { date: 'asc' }],
-    where: {
-      ref_id: { in: voucherIds },
-      ref_type: 'PMT',
-    },
-  }) : []
-
   const allocationRows = bill.purchase_bill_items.map((item, index) => {
-    const receiptAllocation = item.purchase_bill_receipt_allocations[0] ?? null
-    const poAllocation = item.purchase_bill_po_allocations[0] ?? null
+    const receiptAllocation = item.purchase_bill_receipt_allocations
+    const poAllocation = item.purchase_bill_po_allocations
     const allocatedGrossWeight = receiptAllocation ? toNumber(receiptAllocation.allocated_gross_weight) : toNumber(item.gross_weight)
     const allocatedDeductWeight = receiptAllocation ? toNumber(receiptAllocation.allocated_deduct_weight) : toNumber(item.deduct_weight)
     const allocatedQty = receiptAllocation ? toNumber(receiptAllocation.allocated_qty) : toNumber(item.qty)
     const receiptTicketDocNo = receiptAllocation?.weight_tickets.doc_no
       ?? sourceSnapshotValue(item.source_snapshot, 'receiptTicketDocNo')
       ?? '-'
-    const receiptSummaryId = receiptAllocation?.weight_ticket_product_summary_id
-      ?? sourceSnapshotValue(item.source_snapshot, 'receiptSummaryId')
-      ?? '-'
+    const lineNo = item.line_no ?? index + 1
     const receiptSummaryLabel = receiptAllocation?.weight_ticket_product_summaries
-      ? `รวมจาก ${receiptAllocation.weight_ticket_product_summaries.line_count ?? 0} lot`
+      ? `รวมจาก ${receiptAllocation.weight_ticket_product_summaries.line_count ?? 0} lot · ${receiptAllocation.weight_ticket_product_summaries.product_name ?? '-'}`
       : '-'
-    const poDocNo = poAllocation?.po_buys.doc_no ?? item.po_buy_id ?? null
+    const poDocNo = poAllocation?.po_buys.doc_no ?? null
 
     return {
       amount: toNumber(item.amount),
       deductWeight: allocatedDeductWeight,
       grossWeight: allocatedGrossWeight,
-      lineId: item.id,
-      lineNo: item.line_no ?? index + 1,
+      lineId: `${bill.doc_no}:${lineNo}`,
+      lineNo,
       note: item.note ?? '',
       poDocNo,
       price: toNumber(item.price),
       productCode: item.product_code ?? '',
-      productId: item.product_id ?? '',
-      productName: item.display_name ?? item.product_name ?? item.product_id ?? '-',
+      productId: item.product_code ?? item.display_name ?? item.product_name ?? `${bill.doc_no}:line-${lineNo}`,
+      productName: item.display_name ?? item.product_name ?? '-',
       qty: allocatedQty,
-      receiptSummaryId,
       receiptSummaryLabel,
       receiptTicketDocNo,
       sourceLabel: poDocNo ?? 'Spot Buy',
@@ -191,108 +209,47 @@ export default async function PurchaseBillDetailPage({ params }: PageProps) {
     unit: string
   }>()).values())
 
-  const supplierName = bill.suppliers?.name ?? bill.supplier_id ?? '-'
+  const supplierName = bill.suppliers?.name ?? '-'
   const subtotal = toNumber(bill.subtotal)
   const discount = toNumber(bill.discount_total ?? bill.discount)
   const vatAmount = toNumber(bill.vat_amount)
   const totalAmount = toNumber(bill.total_amount)
   const payableBalance = toNumber(bill.payable_balance)
   const paidAmount = toNumber(bill.paid_amount)
-  const paymentEvents = Array.from(paymentRows.reduce((map, payment) => {
-    const key = payment.voucher_id ?? payment.doc_no ?? payment.id
-    const current = map.get(key) ?? {
-      accountNames: new Set<string>(),
-      amount: 0,
-      bankFee: 0,
-      date: toDateOnly(payment.date),
-      docNo: payment.doc_no,
-      notes: payment.notes ?? '',
-      voucherId: payment.voucher_id ?? payment.id,
-      withholdingTax: 0,
+  const timeline: TimelineEvent[] = bill.purchase_bill_status_logs.map((log) => {
+    const amount = historyMetaValue(log.meta, 'amount')
+    const accountCode = historyMetaValue(log.meta, 'accountCode')
+    const accountName = historyMetaValue(log.meta, 'accountName')
+    const discount = historyMetaValue(log.meta, 'discount')
+    const fee = historyMetaValue(log.meta, 'fee')
+    const paymentDocNo = historyMetaValue(log.meta, 'paymentDocNo')
+    const transactionMode = historyMetaValue(log.meta, 'transactionMode')
+    const voucherId = historyMetaValue(log.meta, 'voucherId')
+    const withholdingTax = historyMetaValue(log.meta, 'withholdingTax')
+    const details = [
+      `สถานะ ${log.from_status && log.from_status !== log.to_status
+        ? `${purchaseBillStatusLabel(log.from_status)} -> ${purchaseBillStatusLabel(log.to_status)}`
+        : purchaseBillStatusLabel(log.to_status)}`,
+      `ผู้ทำ ${log.created_by ?? '-'}`,
+    ]
+    if (typeof paymentDocNo === 'string' && paymentDocNo) details.push(`เลขที่การชำระเงิน ${paymentDocNo}`)
+    if (typeof voucherId === 'string' && voucherId) details.push(`Voucher ${voucherId}`)
+    if (typeof amount === 'number') details.push(`ยอดจ่าย ${money(amount)}`)
+    if (typeof withholdingTax === 'number') details.push(`WHT ${money(withholdingTax)}`)
+    if (typeof discount === 'number') details.push(`ส่วนลด ${money(discount)}`)
+    if (typeof fee === 'number') details.push(`Fee ${money(fee)}`)
+    if ((typeof accountName === 'string' && accountName) || (typeof accountCode === 'string' && accountCode)) {
+      details.push(`บัญชี ${[typeof accountCode === 'string' && accountCode ? accountCode : null, typeof accountName === 'string' && accountName ? accountName : null].filter(Boolean).join(' - ')}`)
     }
-    current.amount += toNumber(payment.amount)
-    current.bankFee += toNumber(payment.bank_fee ?? payment.fee)
-    current.withholdingTax += toNumber(payment.withholding_tax)
-    map.set(key, current)
-    return map
-  }, new Map<string, {
-    accountNames: Set<string>
-    amount: number
-    bankFee: number
-    date: string
-    docNo: string
-    notes: string
-    voucherId: string
-    withholdingTax: number
-  }>()).values()).map((event) => {
-    bankStatementRows
-      .filter((row) => row.ref_id === event.voucherId)
-      .forEach((row) => event.accountNames.add(row.accounts?.name ?? row.account_id ?? '-'))
-    return event
+    if (typeof transactionMode === 'string' && transactionMode) details.push(`โหมด ${transactionMode}`)
+    if (log.note) details.push(`หมายเหตุ ${log.note}`)
+    return {
+      date: toDateOnly(log.created_at),
+      details,
+      title: purchaseBillHistoryActionLabel(log.action),
+      tone: purchaseBillHistoryTone(log.action),
+    }
   })
-
-  const timeline: TimelineEvent[] = [
-    {
-      date: bill.date ? toDateOnly(bill.date) : '-',
-      details: [
-        `เลขที่บิล ${bill.doc_no}`,
-        `ผู้ขาย ${supplierName}`,
-        `ยอดสุทธิ ${money(totalAmount)}`,
-        `ผู้ทำ ${bill.created_by ?? '-'}`,
-      ],
-      title: 'สร้างบิลรับซื้อ',
-      tone: 'blue',
-    },
-    ...paymentEvents.map((event) => ({
-      amount: event.amount,
-      date: event.date,
-      details: [
-        `เลขที่การชำระเงิน ${event.docNo}`,
-        `ยอดจ่าย ${money(event.amount)}`,
-        `WHT ${money(event.withholdingTax)}`,
-        `Fee ${money(event.bankFee)}`,
-        `บัญชี ${event.accountNames.size > 0 ? Array.from(event.accountNames).join(', ') : '-'}`,
-        `หมายเหตุ ${event.notes || '-'}`,
-      ],
-      title: 'ชำระเงิน',
-      tone: 'emerald' as const,
-    })),
-  ]
-
-  if (bill.updated_at && bill.updated_by && bill.updated_by !== bill.created_by) {
-    timeline.push({
-      date: toDateOnly(bill.updated_at),
-      details: [
-        `ผู้แก้ไข ${bill.updated_by}`,
-        `ยอดชำระแล้ว ${money(paidAmount)}`,
-        `คงเหลือ ${money(payableBalance)}`,
-      ],
-      title: 'แก้ไขบิลล่าสุด',
-      tone: 'amber',
-    })
-  }
-
-  if (String(bill.status ?? '').toLowerCase().includes('cancel')) {
-    timeline.push({
-      date: bill.cancelled_at ? toDateOnly(bill.cancelled_at) : (bill.updated_at ? toDateOnly(bill.updated_at) : '-'),
-      details: [
-        `ผู้ยกเลิก ${bill.cancelled_by ?? bill.updated_by ?? '-'}`,
-        `หมายเหตุ ${bill.cancel_note ?? '-'}`,
-      ],
-      title: 'ยกเลิกบิล',
-      tone: 'rose',
-    })
-  } else if (payableBalance <= 0.01 && paidAmount > 0) {
-    timeline.push({
-      date: bill.updated_at ? toDateOnly(bill.updated_at) : '-',
-      details: [
-        `ยอดชำระแล้ว ${money(paidAmount)}`,
-        `สถานะ ${purchaseBillStatusLabel(bill.status)}`,
-      ],
-      title: 'ชำระครบ',
-      tone: 'slate',
-    })
-  }
 
   return (
     <div className="space-y-4">
@@ -314,7 +271,7 @@ export default async function PurchaseBillDetailPage({ params }: PageProps) {
           <Info label="เลขที่บิล" value={bill.doc_no} />
           <Info label="วันที่สร้างรายการ" value={bill.date ? toDateOnly(bill.date) : '-'} />
           <Info label="ผู้ขาย" value={supplierName} />
-          <Info label="รหัสผู้ขาย" value={bill.supplier_id ?? '-'} />
+          <Info label="รหัสผู้ขาย" value={bill.suppliers?.code ?? '-'} />
           <Info label="สาขา/คลัง" value={bill.branches?.name ?? '-'} />
           <Info label="ประเภทบิล" value={bill.transaction_mode ?? 'STOCK'} />
           <Info label="สถานะการชำระเงิน" value={purchaseBillStatusLabel(bill.status)} />
@@ -393,7 +350,6 @@ export default async function PurchaseBillDetailPage({ params }: PageProps) {
                   </td>
                   <td className="px-3 py-2 align-top">
                     <div className="text-slate-900">{item.receiptSummaryLabel}</div>
-                    <div className="text-xs text-slate-500">{item.receiptSummaryId !== '-' ? item.receiptSummaryId : ''}</div>
                   </td>
                   <td className="px-3 py-2 align-top">
                     <div className="text-slate-900">{item.sourceLabel}</div>

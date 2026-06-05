@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server'
-import { randomUUID } from 'node:crypto'
 import * as XLSX from 'xlsx'
 import { poSellFormSchema, type PoSellFormValues } from '@/lib/sales'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
+import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
+import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { findActiveSalesChannelReferenceByCode } from '@/lib/server/sales-channel-reference'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import type { Prisma } from '../../../../../generated/prisma/client'
 
@@ -31,12 +34,23 @@ function jsonNumber(value: unknown) {
   return toNumber(value as { toNumber: () => number } | null | undefined)
 }
 
-function itemRows(row: { items: unknown; product_id: string | null; qty: unknown; remaining_qty: unknown; unit_price: unknown }, productName: string) {
+function outwardProductCode(value: string | undefined) {
+  if (!value) return ''
+  const normalized = value.trim()
+  if (!normalized || /^\d+$/.test(normalized)) return ''
+  return normalized
+}
+
+function itemRows(
+  row: { items: unknown; product_id: bigint | null; qty: unknown; remaining_qty: unknown; unit_price: unknown },
+  fallbackProductCode: string,
+  productName: string,
+) {
   if (Array.isArray(row.items) && row.items.length) {
     return row.items
       .filter((item): item is PoSellItem => typeof item === 'object' && item !== null)
       .map((item) => ({
-        productId: item.productId ?? '',
+        productId: outwardProductCode(item.productCode) || outwardProductCode(item.productId) || fallbackProductCode,
         productName: item.productName ?? item.productCode ?? productName,
         qty: jsonNumber(item.qty),
         remainingQty: jsonNumber(item.remainingQty ?? item.qty),
@@ -46,7 +60,7 @@ function itemRows(row: { items: unknown; product_id: string | null; qty: unknown
   }
 
   return [{
-    productId: row.product_id ?? '',
+    productId: fallbackProductCode,
     productName,
     qty: jsonNumber(row.qty),
     remainingQty: jsonNumber(row.remaining_qty ?? row.qty),
@@ -81,17 +95,22 @@ function xlsxResponse(body: Buffer, filename: string) {
   })
 }
 
-function poSellItems(values: PoSellFormValues, productById: Map<string, { code: string | null; name: string; unit: string | null }>) {
+function poSellItems(
+  values: PoSellFormValues,
+  parsedProductIds: bigint[],
+  productById: Map<bigint, { code: string | null; name: string; unit: string | null }>,
+) {
   return values.items.map((item, index) => {
-    const product = productById.get(item.productId)
+    const productId = parsedProductIds[index]
+    const product = productById.get(productId)
     const totalRevenue = Math.max(0, item.qty * item.price - item.discount)
     return {
       discount: item.discount,
       id: `${String(index + 1).padStart(2, '0')}`,
       note: item.note,
-      productCode: product?.code ?? '',
-      productId: item.productId,
-      productName: product?.name ?? item.productId,
+      productCode: requireBusinessCode(product?.code, `สินค้า ${productId}`),
+      productId: requireBusinessCode(product?.code, `สินค้า ${productId}`),
+      productName: product?.name ?? '',
       qty: item.qty,
       remainingQty: item.qty,
       totalRevenue,
@@ -119,9 +138,26 @@ async function optionsPayload() {
     prisma.branches.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
     prisma.customers.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
     prisma.products.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true, unit: true } }),
-    prisma.sales_channels.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, id: true, name: true } }),
+    prisma.sales_channels.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
   ])
-  return { branches, customers, products, salesChannels }
+  return {
+    branches: branches.map((branch) => ({
+      ...branch,
+      id: requireBusinessCode(branch.code, `สาขา ${branch.id}`),
+    })),
+    customers: customers.map((customer) => ({
+      ...customer,
+      id: requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`),
+    })),
+    products: products.map((product) => ({
+      ...product,
+      id: requireBusinessCode(product.code, `สินค้า ${product.id}`),
+    })),
+    salesChannels: salesChannels.map((channel) => ({
+      ...channel,
+      id: requireBusinessCode(channel.code, `ช่องทางขาย ${channel.id}`),
+    })),
+  }
 }
 
 export async function GET(request: Request) {
@@ -149,7 +185,7 @@ export async function GET(request: Request) {
         take: 5000,
         where: from || to ? { date: dateWhere } : undefined,
       }),
-      prisma.branches.findMany({ select: { id: true, name: true } }),
+      prisma.branches.findMany({ select: { code: true, id: true, name: true } }),
       prisma.sales_channels.findMany({ select: { id: true, name: true } }),
       prisma.products.findMany({ select: { code: true, id: true, name: true } }),
       prisma.sales_bills.findMany({
@@ -168,15 +204,15 @@ export async function GET(request: Request) {
     const channelById = new Map(channels.map((channel) => [channel.id, channel]))
     const productById = new Map(products.map((product) => [product.id, product]))
 
-    const salesBillIdsByPoSellId = new Map<string, Set<string>>()
+    const salesBillIdsByPoSellId = new Map<bigint, Set<bigint>>()
     salesBills.forEach((bill) => {
       if (!bill.po_sell_id) return
-      const current = salesBillIdsByPoSellId.get(bill.po_sell_id) ?? new Set<string>()
+      const current = salesBillIdsByPoSellId.get(bill.po_sell_id) ?? new Set<bigint>()
       current.add(bill.id)
       salesBillIdsByPoSellId.set(bill.po_sell_id, current)
     })
 
-    const tradingDealsBySalesBillId = new Map<string, typeof tradingDeals>()
+    const tradingDealsBySalesBillId = new Map<bigint, typeof tradingDeals>()
     tradingDeals.forEach((deal) => {
       if (!deal.sales_bill_id) return
       const current = tradingDealsBySalesBillId.get(deal.sales_bill_id) ?? []
@@ -184,9 +220,9 @@ export async function GET(request: Request) {
       tradingDealsBySalesBillId.set(deal.sales_bill_id, current)
     })
 
-    const matchedByPoSellId = new Map<string, { cost: number; qty: number; salesAmount: number }>()
+    const matchedByPoSellId = new Map<bigint, { cost: number; qty: number; salesAmount: number }>()
     poSells.forEach((po) => {
-      const billIds = salesBillIdsByPoSellId.get(po.id) ?? new Set<string>()
+      const billIds = salesBillIdsByPoSellId.get(po.id) ?? new Set<bigint>()
       let cost = 0
       let qty = 0
       let salesAmount = 0
@@ -202,8 +238,10 @@ export async function GET(request: Request) {
     })
 
     const rows = poSells.map((po) => {
-      const fallbackProductName = po.product_id ? productById.get(po.product_id)?.name ?? po.product_id : ''
-      const items = itemRows(po, fallbackProductName)
+      const fallbackProduct = po.product_id ? productById.get(po.product_id) : null
+      const fallbackProductCode = fallbackProduct?.code ? requireBusinessCode(fallbackProduct.code, `สินค้า ${po.product_id}`) : ''
+      const fallbackProductName = fallbackProduct?.name ?? ''
+      const items = itemRows(po, fallbackProductCode, fallbackProductName)
       const qty = items.reduce((sum, item) => sum + item.qty, 0) || toNumber(po.qty)
       const remainingQty = items.reduce((sum, item) => sum + item.remainingQty, 0) || toNumber(po.remaining_qty)
       const totalAmount = toNumber(po.total_amount) || items.reduce((sum, item) => sum + (item.totalAmount || item.qty * item.unitPrice), 0)
@@ -214,13 +252,13 @@ export async function GET(request: Request) {
       const currentMatchStatus = matchStatus(matched.qty, qty)
 
       return {
-        branchName: po.branch_id ? branchById.get(po.branch_id)?.name ?? po.branch_id : '-',
-        channelName: po.channel_id ? channelById.get(po.channel_id)?.name ?? po.channel_id : '-',
-        customerName: po.customers?.name ?? po.customer_id ?? '-',
+        branchName: po.branch_id ? branchById.get(po.branch_id)?.name ?? '-' : '-',
+        channelName: po.channel_id ? channelById.get(po.channel_id)?.name ?? '-' : '-',
+        customerName: po.customers?.name ?? '-',
         date: toDateOnly(po.date),
         docNo: po.doc_no,
         expectedDelivery: toDateOnly(po.expected_delivery),
-        id: po.id,
+        id: po.doc_no,
         itemCount: items.length,
         margin,
         marginPct: totalAmount > 0 ? (margin / totalAmount) * 100 : 0,
@@ -246,7 +284,7 @@ export async function GET(request: Request) {
       return xlsxResponse(buildWorkbook(rows.map((row) => ({
         Branch: row.branchName,
         Channel: row.channelName,
-        Customer: row.customerName,
+        Customer: stringifyBusinessValue(row.customerName),
         Date: row.date,
         DocNo: row.docNo,
         ExpectedDelivery: row.expectedDelivery,
@@ -301,44 +339,51 @@ export async function POST(request: Request) {
     const actor = currentActor(context)
     const createdAt = new Date()
     const expectedDelivery = normalizeDate(values.expectedDelivery)
-    const productIds = [...new Set(values.items.map((item) => item.productId))]
+    const requestedProductCodes = values.items.map((item) => item.productId?.trim() ?? '')
+    const invalidProductIndex = requestedProductCodes.findIndex((productCode) => !productCode)
+    if (invalidProductIndex >= 0) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าที่เลือกไม่ถูกต้อง' }, { status: 400 })
+    }
+    const productCodes = [...new Set(requestedProductCodes)]
 
     const [customer, branch, channel, products] = await Promise.all([
-      prisma.customers.findFirst({ where: { active: true, id: values.customerId } }),
-      values.branchId ? prisma.branches.findFirst({ where: { active: true, id: values.branchId } }) : Promise.resolve(null),
-      values.channelId ? prisma.sales_channels.findFirst({ where: { active: true, id: values.channelId } }) : Promise.resolve(null),
-      prisma.products.findMany({ where: { active: true, id: { in: productIds } }, select: { code: true, id: true, name: true, unit: true } }),
+      findActiveCustomerReferenceByCodeOrId(values.customerId),
+      values.branchId ? findActiveBranchReferenceByCodeOrId(values.branchId) : Promise.resolve(null),
+      values.channelId ? findActiveSalesChannelReferenceByCode(values.channelId) : Promise.resolve(null),
+      prisma.products.findMany({ where: { active: true, code: { in: productCodes } }, select: { code: true, id: true, name: true, unit: true } }),
     ])
 
     if (!customer) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ลูกค้าไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (values.branchId && !branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (values.channelId && !channel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ช่องทางขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
 
+    const productByCode = new Map(products.map((product) => [requireBusinessCode(product.code, `สินค้า ${product.id}`), product]))
+    const parsedProductIds = requestedProductCodes.map((productCode) => productByCode.get(productCode)?.id ?? null)
+    const missingProduct = requestedProductCodes.find((productCode) => !productByCode.has(productCode))
+    if (missingProduct || parsedProductIds.some((productId) => productId == null)) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    }
     const productById = new Map(products.map((product) => [product.id, product]))
-    const missingProduct = values.items.find((item) => !productById.has(item.productId))
-    if (missingProduct) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
 
-    const items = poSellItems(values, productById)
+    const items = poSellItems(values, parsedProductIds as bigint[], productById)
     const qty = items.reduce((sum, item) => sum + item.qty, 0)
     const totalAmount = items.reduce((sum, item) => sum + item.totalRevenue, 0)
-    const firstItem = items[0]
     const docNo = await nextPoSellDocNo(createdAt)
     const created = await prisma.po_sells.create({
       data: {
-        branch_id: values.branchId,
-        channel_id: values.channelId,
+        branch_id: branch?.id ?? null,
+        channel_id: channel?.id ?? null,
         created_at: createdAt,
         created_by: actor,
-        customer_id: values.customerId,
+        customer_id: customer.id,
         date: createdAt,
         delivery_date: expectedDelivery,
         doc_no: docNo,
         expected_delivery: expectedDelivery,
-        id: `POS-${randomUUID()}`,
         items: items as Prisma.InputJsonValue,
         note: values.note,
         notes: values.note,
-        product_id: firstItem?.productId ?? null,
+        product_id: parsedProductIds[0] ?? null,
         qty,
         remaining_amount: totalAmount,
         remaining_qty: qty,
@@ -353,7 +398,7 @@ export async function POST(request: Request) {
       select: { doc_no: true, id: true },
     })
 
-    return NextResponse.json({ docNo: created.doc_no, id: created.id }, { status: 201 })
+    return NextResponse.json({ docNo: created.doc_no, id: created.doc_no }, { status: 201 })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'บันทึก PO Sell ไม่ได้', 500)

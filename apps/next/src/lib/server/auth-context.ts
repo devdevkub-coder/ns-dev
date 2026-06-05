@@ -7,7 +7,7 @@ import { prisma } from '@/lib/server/prisma'
 export type AppRoleSummary = {
   branchScope: string
   code: string
-  id: string
+  id: bigint | null
   name: string
 }
 
@@ -17,7 +17,7 @@ export type AppAuthContext = {
     branchIds: string[]
     displayName: string | null
     email: string | null
-    id: string
+    id: bigint
     mustChangePassword: boolean
     username: string
   } | null
@@ -42,8 +42,20 @@ function metadataRole(user: User) {
   return String(user.app_metadata?.role ?? user.user_metadata?.role ?? '').toLowerCase() || null
 }
 
+function serializeInternalId(value: bigint | null | undefined) {
+  return value == null ? null : value.toString()
+}
+
 const appUserAuthInclude = {
-  app_user_branch_access: true,
+  app_user_branch_access: {
+    include: {
+      branches: {
+        select: {
+          code: true,
+        },
+      },
+    },
+  },
   app_user_roles: {
     include: {
       app_roles: {
@@ -97,7 +109,7 @@ function buildAppUserContext(appUser: AppUserWithAuth | null, user: User): AppAu
   return {
     appUser: {
       active: appUser.active,
-      branchIds: appUser.app_user_branch_access.map((branch) => branch.branch_id),
+      branchIds: appUser.app_user_branch_access.map((branch) => branch.branches.code),
       displayName: appUser.display_name,
       email: appUser.email,
       id: appUser.id,
@@ -194,7 +206,7 @@ export async function getCurrentAuthContext(): Promise<AppAuthContext> {
     fallbackRole,
     isAdmin: fallbackRole === 'admin' || fallbackRole === 'owner',
     permissionCodes: new Set(),
-    roles: fallbackRole ? [{ branchScope: 'all', code: fallbackRole, id: fallbackRole, name: fallbackRole }] : [],
+    roles: fallbackRole ? [{ branchScope: 'all', code: fallbackRole, id: null, name: fallbackRole }] : [],
   }
 }
 
@@ -214,7 +226,12 @@ export function authContextErrorResponse(caught: unknown) {
 
 export function serializeAuthContext(context: AppAuthContext) {
   return {
-    appUser: context.appUser,
+    appUser: context.appUser
+      ? {
+        ...context.appUser,
+        id: serializeInternalId(context.appUser.id),
+      }
+      : null,
     authUser: {
       email: context.authUser.email,
       id: context.authUser.id,
@@ -224,7 +241,10 @@ export function serializeAuthContext(context: AppAuthContext) {
     isAdmin: context.isAdmin,
     mustChangePassword: context.appUser?.mustChangePassword ?? false,
     permissions: Array.from(context.permissionCodes).sort(),
-    roles: context.roles,
+    roles: context.roles.map((role) => ({
+      ...role,
+      id: serializeInternalId(role.id),
+    })),
     user: context.appUser
       ? {
         displayName: context.appUser.displayName,

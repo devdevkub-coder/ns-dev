@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
+import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
@@ -15,15 +17,15 @@ type JsonItem = {
   code?: string
   displayName?: string
   grossProfit?: number | string
-  id?: string
+  id?: string | bigint
   name?: string
   netAmount?: number | string
   netWeight?: number | string
   price?: number | string
   productCode?: string
-  productId?: string
+  productId?: string | bigint
   productName?: string
-  product_id?: string
+  product_id?: string | bigint
   profit?: number | string
   qty?: number | string
   total?: number | string
@@ -37,7 +39,7 @@ type JsonItem = {
 type ProductRef = {
   active: boolean | null
   code: string
-  id: string
+  id: bigint
   item_status: string | null
   metal_group: string | null
   name: string
@@ -54,6 +56,7 @@ type ProductAgg = {
   gp: number
   id: string
   itemStatus: string
+  matchKey: string
   metalGroup: string
   name: string
   sellBills: Set<string>
@@ -72,6 +75,10 @@ function jsonNumber(value: unknown) {
     return Number.isFinite(parsed) ? parsed : 0
   }
   return 0
+}
+
+function isJsonItem(value: unknown): value is JsonItem {
+  return typeof value === 'object' && value !== null
 }
 
 function inYearMonth(date: Date, year: string | null, month: string | null) {
@@ -98,7 +105,7 @@ function itemCost(item: JsonItem) {
 }
 
 function productLookupKeys(product: ProductRef) {
-  return [product.id, product.code, product.name].map((value) => value.trim().toLowerCase()).filter(Boolean)
+  return [String(product.id), product.code, product.name].map((value) => value.trim().toLowerCase()).filter(Boolean)
 }
 
 function itemLookupKeys(item: JsonItem) {
@@ -115,7 +122,7 @@ function itemLookupKeys(item: JsonItem) {
 }
 
 function itemFallbackName(item: JsonItem) {
-  return item.productName ?? item.displayName ?? item.name ?? item.productCode ?? item.code ?? item.productId ?? item.product_id ?? 'ไม่ระบุสินค้า'
+  return item.productName ?? item.displayName ?? item.name ?? item.productCode ?? item.code ?? 'ไม่ระบุสินค้า'
 }
 
 function buildWorkbook(rows: Array<Record<string, string | number>>) {
@@ -137,7 +144,7 @@ function xlsxResponse(body: Buffer, filename: string) {
   })
 }
 
-function createAgg(product?: ProductRef, fallbackName = 'ไม่ระบุสินค้า'): ProductAgg {
+function createAgg(product: ProductRef | undefined, fallbackName: string, matchKey: string): ProductAgg {
   return {
     buyAmount: 0,
     buyBills: new Set<string>(),
@@ -145,8 +152,9 @@ function createAgg(product?: ProductRef, fallbackName = 'ไม่ระบุ�
     code: product?.code ?? '',
     cogs: 0,
     gp: 0,
-    id: product?.id ?? fallbackName,
+    id: product?.code ?? '',
     itemStatus: product?.item_status ?? '',
+    matchKey,
     metalGroup: product?.metal_group ?? '',
     name: product?.name ?? fallbackName,
     revenue: 0,
@@ -171,6 +179,16 @@ export async function GET(request: Request) {
     const metalGroup = url.searchParams.get('metalGroup')
     const branchId = url.searchParams.get('branchId')
     const search = url.searchParams.get('q')?.trim().toLowerCase()
+    const branch = branchId ? await findActiveBranchReferenceByCodeOrId(branchId) : null
+    const normalizedProductId = productId ? await prisma.products.findFirst({
+      select: { id: true },
+      where: {
+        OR: [
+          { code: productId.trim().toUpperCase() },
+          ...(parseInternalBigIntId(productId) != null ? [{ id: parseInternalBigIntId(productId) as bigint }] : []),
+        ],
+      },
+    }) : null
 
     const [products, purchaseBills, salesBills, stockRows] = await Promise.all([
       prisma.products.findMany({
@@ -178,7 +196,7 @@ export async function GET(request: Request) {
         select: { active: true, code: true, id: true, item_status: true, metal_group: true, name: true, type: true, unit: true },
         where: {
           active: { not: false },
-          ...(productId ? { id: productId } : {}),
+          ...(normalizedProductId?.id != null ? { id: normalizedProductId.id } : {}),
           ...(metalGroup ? { metal_group: metalGroup } : {}),
         },
       }),
@@ -186,17 +204,17 @@ export async function GET(request: Request) {
         include: { purchase_bill_items: { orderBy: { line_no: 'asc' } } },
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         take: 10000,
-        where: { NOT: { status: 'cancelled' }, ...(branchId ? { branch_id: branchId } : {}) },
+        where: { NOT: { status: 'cancelled' }, ...(branch?.id != null ? { branch_id: branch.id } : {}) },
       }),
       prisma.sales_bills.findMany({
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         take: 10000,
-        where: { NOT: { status: 'cancelled' }, ...(branchId ? { branch_id: branchId } : {}) },
+        where: { NOT: { status: 'cancelled' }, ...(branch?.id != null ? { branch_id: branch.id } : {}) },
       }),
       prisma.stock_ledger.findMany({
         orderBy: [{ date: 'desc' }],
         take: 20000,
-        where: { ...(productId ? { product_id: productId } : {}), ...(branchId ? { branch_id: branchId } : {}) },
+        where: { ...(normalizedProductId?.id != null ? { product_id: normalizedProductId.id } : {}), ...(branch?.id != null ? { branch_id: branch.id } : {}) },
       }),
     ])
 
@@ -207,8 +225,8 @@ export async function GET(request: Request) {
     const ensureRow = (item: JsonItem) => {
       const product = itemLookupKeys(item).map((key) => productsByKey.get(key)).find(Boolean)
       if ((productId || metalGroup) && !product) return null
-      const key = product?.id ?? itemFallbackName(item)
-      if (!rowsByKey.has(key)) rowsByKey.set(key, createAgg(product, itemFallbackName(item)))
+      const key = product ? String(product.id) : `name:${itemFallbackName(item)}`
+      if (!rowsByKey.has(key)) rowsByKey.set(key, createAgg(product, itemFallbackName(item), key))
       return rowsByKey.get(key) ?? null
     }
 
@@ -220,7 +238,7 @@ export async function GET(request: Request) {
             if (!row) return
             row.buyQty += itemQty(item)
             row.buyAmount += itemAmount(item)
-            row.buyBills.add(bill.id)
+            row.buyBills.add(bill.doc_no)
           })
       })
 
@@ -228,8 +246,9 @@ export async function GET(request: Request) {
       .filter((bill) => inYearMonth(bill.date, year, month))
       .forEach((bill) => {
         if (!Array.isArray(bill.items)) return
-        bill.items
-          .filter((item): item is JsonItem => typeof item === 'object' && item !== null)
+        const salesItems = bill.items as unknown[]
+        salesItems
+          .filter(isJsonItem)
           .forEach((item) => {
             const row = ensureRow(item)
             if (!row) return
@@ -240,16 +259,17 @@ export async function GET(request: Request) {
             row.revenue += revenue
             row.cogs += cogs
             row.gp += gp
-            row.sellBills.add(bill.id)
+            row.sellBills.add(bill.doc_no)
           })
       })
 
     stockRows.forEach((stock) => {
       if (!stock.product_id) return
-      const product = productsByKey.get(stock.product_id.trim().toLowerCase())
+      const product = productsByKey.get(String(stock.product_id).trim().toLowerCase())
       if (!product) return
-      if (!rowsByKey.has(product.id)) rowsByKey.set(product.id, createAgg(product))
-      const row = rowsByKey.get(product.id)!
+      const productKey = String(product.id)
+      if (!rowsByKey.has(productKey)) rowsByKey.set(productKey, createAgg(product, product.name, productKey))
+      const row = rowsByKey.get(productKey)!
       row.stockQty += toNumber(stock.qty_in) - toNumber(stock.qty_out)
       row.stockValue += toNumber(stock.value_in) - toNumber(stock.value_out)
     })
@@ -267,6 +287,7 @@ export async function GET(request: Request) {
         gpPct: row.revenue > 0 ? (row.gp / row.revenue) * 100 : 0,
         id: row.id,
         itemStatus: row.itemStatus,
+        matchKey: row.matchKey,
         metalGroup: row.metalGroup,
         name: row.name,
         productName: row.name,
@@ -295,7 +316,7 @@ export async function GET(request: Request) {
       const buy = purchaseBills.filter((bill) => inYearMonth(bill.date, year, monthKey)).reduce((sum, bill) => {
         purchaseBillItemRows(bill).forEach((item) => {
           const row = ensureRow(item)
-          if (row && rows.some((product) => product.id === row.id)) {
+          if (row && rows.some((product) => product.matchKey === row.matchKey)) {
             sum.amount += itemAmount(item)
             sum.qty += itemQty(item)
           }
@@ -304,9 +325,10 @@ export async function GET(request: Request) {
       }, { amount: 0, qty: 0 })
       const sell = salesBills.filter((bill) => inYearMonth(bill.date, year, monthKey)).reduce((sum, bill) => {
         if (!Array.isArray(bill.items)) return sum
-        bill.items.filter((item): item is JsonItem => typeof item === 'object' && item !== null).forEach((item) => {
+        const salesItems = bill.items as unknown[]
+        salesItems.filter(isJsonItem).forEach((item) => {
           const row = ensureRow(item)
-          if (row && rows.some((product) => product.id === row.id)) {
+          if (row && rows.some((product) => product.matchKey === row.matchKey)) {
             const revenue = itemAmount(item)
             const cogs = itemCost(item)
             sum.gp += jsonNumber(item.profit ?? item.grossProfit) || revenue - cogs
@@ -343,7 +365,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       filters: {
         metalGroups: Array.from(new Set(products.map((product) => product.metal_group).filter(Boolean))).sort(),
-        products: products.map((product) => ({ active: product.active, code: product.code, id: product.id, metalGroup: product.metal_group, name: product.name })),
+        products: products.map((product) => ({ active: product.active, code: product.code, id: requireBusinessCode(product.code, `สินค้า ${product.id}`), metalGroup: product.metal_group, name: product.name })),
       },
       monthly,
       rows,

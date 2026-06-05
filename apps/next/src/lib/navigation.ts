@@ -296,7 +296,16 @@ export const navigationItems: NavigationItem[] = [
   },
   { href: '/master-data/bank-names', icon: '🏦', label: 'ชื่อธนาคาร', section: 'master-data' },
   { href: '/master-data/channels', icon: '🔀', label: 'ช่องทางขาย', section: 'master-data' },
-  { href: '/master-data/expense-categories', icon: '📂', label: 'หมวดค่าใช้จ่าย', section: 'master-data' },
+  {
+    href: '/master-data/expense-categories',
+    icon: '💸',
+    label: 'ค่าใช้จ่าย',
+    section: 'master-data',
+    children: [
+      { href: '/master-data/expense-categories', icon: '📂', label: 'หมวดค่าใช้จ่าย', section: 'master-data' },
+      { href: '/master-data/expense-types', icon: '🧩', label: 'ประเภทค่าใช้จ่าย', section: 'master-data' },
+    ],
+  },
   { href: '/master-data/directors', icon: '🧑‍💼', label: 'กรรมการ/พนักงาน', section: 'master-data' },
   {
     href: '/master-data/machines',

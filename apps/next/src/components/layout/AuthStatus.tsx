@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { getSupabaseClient } from '@/lib/supabase'
+import { getSessionSafely, getSupabaseClient } from '@/lib/supabase'
 
 type AuthStatusProfile = {
   roles: Array<{
@@ -82,12 +82,22 @@ export function AuthStatus() {
       }
     }
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return
-      setSession(data.session)
-      void loadProfile(data.session)
-      setIsLoading(false)
-    })
+    void (async () => {
+      try {
+        const nextSession = await getSessionSafely(supabase)
+        if (!mounted) return
+        setSession(nextSession)
+        void loadProfile(nextSession)
+      } catch {
+        if (!mounted) return
+        setSession(null)
+        setProfile({ roles: [], userEmail: '' })
+      } finally {
+        if (mounted) {
+          setIsLoading(false)
+        }
+      }
+    })()
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession)

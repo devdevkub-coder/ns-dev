@@ -1,12 +1,18 @@
 import { NextResponse } from 'next/server'
-import { randomUUID } from 'node:crypto'
 import { pettyAdvanceReturnFormSchema } from '@/lib/daily'
 import { apiErrorResponse } from '@/lib/server/api-error'
+import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { currentActor, normalizeDate, toNumber } from '@/lib/server/daily'
+import { currentActor, nextDailyDocNo, normalizeDate, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 
 export const runtime = 'nodejs'
+
+async function findPettyAdvanceByDocNo(value: string) {
+  return prisma.petty_advances.findFirst({
+    where: { doc_no: value },
+  })
+}
 
 export async function POST(request: Request) {
   try {
@@ -14,13 +20,14 @@ export async function POST(request: Request) {
     requirePermission(context, 'finance.cash.view')
 
     const values = pettyAdvanceReturnFormSchema.parse(await request.json())
-    const id = `PRET-${randomUUID()}`
     const actor = currentActor(context)
+    const account = await findActiveAccountReferenceByCode(values.accountId)
+    if (!account) {
+      throw new Error('บัญชีรับคืนไม่ถูกต้อง')
+    }
 
     const result = await prisma.$transaction(async (tx) => {
-      const advance = await tx.petty_advances.findUnique({
-        where: { id: values.advanceId },
-      })
+      const advance = await findPettyAdvanceByDocNo(values.advanceId)
 
       if (!advance) {
         return null
@@ -28,12 +35,12 @@ export async function POST(request: Request) {
 
       const entry = await tx.petty_advance_returns.create({
         data: {
-          account_id: values.accountId,
-          advance_id: values.advanceId,
+          account_id: account.id,
+          advance_id: advance.id,
           amount: values.amount,
           created_by: actor,
           date: normalizeDate(values.date),
-          id,
+          doc_no: await nextDailyDocNo('petty_advance_returns', 'PRET', values.date),
           notes: values.notes,
         },
       })
@@ -48,20 +55,20 @@ export async function POST(request: Request) {
           updated_at: new Date(),
           updated_by: actor,
         },
-        where: { id: values.advanceId },
+        where: { id: advance.id },
       })
 
       await tx.bank_statement.create({
         data: {
-          account_id: values.accountId,
+          account_id: account.id,
           amount_in: values.amount,
           amount_out: 0,
           created_by: actor,
           date: normalizeDate(values.date),
           description: `คืน ${advance.doc_no} โดย ${advance.recipient_name}`,
-          id: `BS-PRET-${id}`,
-          ref_id: id,
-          ref_no: advance.doc_no,
+          doc_no: await nextDailyDocNo('bank_statement', 'BST', values.date),
+          ref_id: entry.doc_no,
+          ref_no: entry.doc_no,
           ref_type: 'PRET',
           type: 'คืนเงินสำรองจ่าย',
         },
@@ -74,7 +81,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบรายการเงินสำรอง' }, { status: 404 })
     }
 
-    return NextResponse.json({ id: result.id })
+    return NextResponse.json({ docNo: result.doc_no, id: result.doc_no })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'บันทึกคืนเงินสำรองจ่ายไม่ได้', 400)

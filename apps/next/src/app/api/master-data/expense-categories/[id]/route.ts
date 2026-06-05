@@ -11,13 +11,18 @@ export async function PATCH(request: Request, { params }: MasterDataRouteProps) 
 
     const { id } = await params
     const values = updateMasterDataStatusSchema.parse(await request.json())
-    const row = await prisma.expense_categories.update({ where: { id }, data: { active: values.active } })
+    const row = await prisma.expense_categories.update({
+      where: { code: id },
+      data: { active: values.active },
+      include: { expense_types: { select: { code: true, name: true } } },
+    })
     return masterDataJson({
-      id: row.id,
-      code: null,
+      id: row.code,
+      code: row.code,
       name: row.name,
       active: row.active ?? true,
-      type: null,
+      type: row.expense_types?.code ?? null,
+      typeLabel: row.expense_types?.name ?? null,
       phone: null,
       email: null,
       note: null,

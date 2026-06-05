@@ -376,11 +376,6 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
 
       {dashboardOnly ? (
         <>
-          <div className="rounded-md bg-gradient-to-r from-rose-700 to-orange-600 p-5 text-white shadow">
-            <h1 className="text-2xl font-bold">Dashboard ค่าใช้จ่าย</h1>
-            <p className="mt-1 text-sm opacity-90">สรุปแต่ละหมวดเทียบเดือนย้อนหลัง และตรวจหาความผิดปกติเทียบค่าเฉลี่ย</p>
-          </div>
-
           <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-3 text-sm shadow">
             <span className="text-slate-600">ดูย้อนหลัง:</span>
             {[3, 6, 12].map((months) => (

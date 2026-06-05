@@ -1,7 +1,11 @@
 import type { Prisma } from '../../../generated/prisma/client'
+import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
+import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
+import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
+import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 
 type JsonItem = Prisma.JsonObject
 
@@ -17,7 +21,7 @@ export type ProfitCostFilter = {
 
 type ProductRef = {
   code: string
-  id: string
+  id: bigint
   metalGroup: string
   name: string
   unit: string
@@ -105,7 +109,7 @@ function itemLookupKeys(item: JsonItem) {
 }
 
 function productLookupKeys(product: ProductRef) {
-  return [product.id, product.code, product.name].map((value) => value.trim().toLowerCase()).filter(Boolean)
+  return [String(product.id), product.code, product.name].map((value) => value.trim().toLowerCase()).filter(Boolean)
 }
 
 function fallbackName(item: JsonItem) {
@@ -120,7 +124,7 @@ function createProductAgg(product?: ProductRef, name = 'ไม่ระบุส
     code: product?.code ?? '',
     cogs: 0,
     gp: 0,
-    id: product?.id ?? name,
+    id: product?.code ?? '',
     metalGroup: product?.metalGroup ?? '',
     name: product?.name ?? name,
     revenue: 0,
@@ -141,6 +145,10 @@ export async function buildProfitCostAnalysis(filter: ProfitCostFilter) {
   const fromDate = startOfDay(filter.dateFrom)
   const toDate = endOfDay(filter.dateTo)
   const selectedMetalGroups = new Set((filter.metalGroups ?? []).map((group) => group.trim()).filter(Boolean))
+  const branch = filter.branchId ? await findActiveBranchReferenceByCodeOrId(filter.branchId) : null
+  const customer = filter.customerId ? await findActiveCustomerReferenceByCodeOrId(filter.customerId) : null
+  const supplier = filter.supplierId ? await findActiveSupplierReferenceByCodeOrId(filter.supplierId) : null
+  const salesChannelId = parseInternalBigIntId(filter.salesChannelId)
 
   const [products, purchaseBills, salesBills, stockRows, branches, salesChannels, suppliers, customers] = await Promise.all([
     prisma.products.findMany({
@@ -157,8 +165,8 @@ export async function buildProfitCostAnalysis(filter: ProfitCostFilter) {
       take: 15000,
       where: {
         date: { gte: fromDate, lte: toDate },
-        ...(filter.branchId ? { branch_id: filter.branchId } : {}),
-        ...(filter.supplierId ? { supplier_id: filter.supplierId } : {}),
+        ...(branch?.id != null ? { branch_id: branch.id } : {}),
+        ...(supplier ? { supplier_id: supplier.id } : {}),
       },
     }),
     prisma.sales_bills.findMany({
@@ -167,9 +175,9 @@ export async function buildProfitCostAnalysis(filter: ProfitCostFilter) {
       take: 15000,
       where: {
         date: { gte: fromDate, lte: toDate },
-        ...(filter.branchId ? { branch_id: filter.branchId } : {}),
-        ...(filter.customerId ? { customer_id: filter.customerId } : {}),
-        ...(filter.salesChannelId ? { channel_id: filter.salesChannelId } : {}),
+        ...(branch?.id != null ? { branch_id: branch.id } : {}),
+        ...(customer ? { customer_id: customer.id } : {}),
+        ...(salesChannelId != null ? { channel_id: salesChannelId } : {}),
       },
     }),
     prisma.stock_ledger.findMany({
@@ -178,11 +186,11 @@ export async function buildProfitCostAnalysis(filter: ProfitCostFilter) {
       take: 50000,
       where: {
         date: { lte: toDate },
-        ...(filter.branchId ? { branch_id: filter.branchId } : {}),
+        ...(branch?.id != null ? { branch_id: branch.id } : {}),
       },
     }),
-    prisma.branches.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, id: true, name: true } }),
-    prisma.sales_channels.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, id: true, name: true } }),
+    prisma.branches.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
+    prisma.sales_channels.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
     prisma.suppliers.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
     prisma.customers.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, credit_term: true, id: true, name: true } }),
   ])
@@ -201,7 +209,7 @@ export async function buildProfitCostAnalysis(filter: ProfitCostFilter) {
   const ensureProductRow = (item: JsonItem) => {
     const product = itemLookupKeys(item).map((key) => productsByKey.get(key)).find(Boolean)
     if (selectedMetalGroups.size && (!product || !selectedMetalGroups.has(product.metalGroup))) return null
-    const key = product?.id ?? fallbackName(item)
+    const key = product ? String(product.id) : fallbackName(item)
     if (!productAggs.has(key)) productAggs.set(key, createProductAgg(product, fallbackName(item)))
     return productAggs.get(key) ?? null
   }
@@ -214,8 +222,8 @@ export async function buildProfitCostAnalysis(filter: ProfitCostFilter) {
   const trendAggs = new Map<string, { buyAmount: number; buyQty: number; cogs: number; gp: number; revenue: number; sellQty: number }>()
 
   activePurchases.forEach((bill) => {
-    const supplierKey = bill.supplier_id ?? bill.suppliers?.name ?? 'ไม่ระบุ Supplier'
-    const supplier = supplierAggs.get(supplierKey) ?? { amount: 0, bills: new Set<string>(), name: bill.suppliers?.name ?? supplierKey, paid: 0, payable: 0, qty: 0 }
+    const supplierKey = bill.suppliers?.code ?? bill.suppliers?.name ?? '__missing_supplier__'
+    const supplierRow = supplierAggs.get(supplierKey) ?? { amount: 0, bills: new Set<string>(), name: bill.suppliers?.name ?? 'ไม่ระบุ Supplier', paid: 0, payable: 0, qty: 0 }
     const channelKey = 'purchase'
     const channel = channelAggs.get(channelKey) ?? { amount: 0, bills: new Set<string>(), gp: 0, group: 'Purchase', name: 'บิลรับซื้อ', qty: 0 }
     const day = trendAggs.get(dayKey(bill.date)) ?? { buyAmount: 0, buyQty: 0, cogs: 0, gp: 0, revenue: 0, sellQty: 0 }
@@ -229,19 +237,19 @@ export async function buildProfitCostAnalysis(filter: ProfitCostFilter) {
       if (!row) return
       row.buyQty += qty
       row.buyAmount += amount
-      row.buyBills.add(bill.id)
+        row.buyBills.add(bill.doc_no)
     })
 
-    supplier.amount += toNumber(bill.total_amount)
-    supplier.paid += toNumber(bill.paid_amount)
-    supplier.payable += toNumber(bill.payable_balance)
-    supplier.qty += billQty
-    supplier.bills.add(bill.id)
-    supplierAggs.set(supplierKey, supplier)
+    supplierRow.amount += toNumber(bill.total_amount)
+    supplierRow.paid += toNumber(bill.paid_amount)
+    supplierRow.payable += toNumber(bill.payable_balance)
+    supplierRow.qty += billQty
+    supplierRow.bills.add(bill.doc_no)
+    supplierAggs.set(supplierKey, supplierRow)
 
     channel.amount += toNumber(bill.total_amount)
     channel.qty += billQty
-    channel.bills.add(bill.id)
+    channel.bills.add(bill.doc_no)
     channelAggs.set(channelKey, channel)
 
     day.buyAmount += toNumber(bill.total_amount)
@@ -250,9 +258,11 @@ export async function buildProfitCostAnalysis(filter: ProfitCostFilter) {
   })
 
   activeSales.forEach((bill) => {
-    const customerKey = bill.customer_id ?? bill.customers?.name ?? 'ไม่ระบุ Customer'
-    const customer = customerAggs.get(customerKey) ?? { amount: 0, bills: new Set<string>(), cogs: 0, gp: 0, name: bill.customers?.name ?? customerKey, receivable: 0, received: 0, qty: 0 }
-    const channelKey = bill.channel_id ? `sales:${bill.channel_id}` : `sales:${bill.sales_channels?.name ?? 'ไม่ระบุช่องทางขาย'}`
+    const customerKey = bill.customers?.code ? requireBusinessCode(bill.customers.code, `ลูกค้าบิลขาย ${bill.id}`) : '__unknown_customer__'
+    const customerRow = customerAggs.get(customerKey) ?? { amount: 0, bills: new Set<string>(), cogs: 0, gp: 0, name: bill.customers?.name ?? '-', receivable: 0, received: 0, qty: 0 }
+    const channelKey = bill.sales_channels?.code
+      ? `sales:${requireBusinessCode(bill.sales_channels.code, `ช่องทางขายบิลขาย ${bill.id}`)}`
+      : `sales:${bill.sales_channels?.name ?? 'ไม่ระบุช่องทางขาย'}`
     const channel = channelAggs.get(channelKey) ?? { amount: 0, bills: new Set<string>(), gp: 0, group: 'Sales', name: bill.sales_channels?.name ?? 'ไม่ระบุช่องทางขาย', qty: 0 }
     const day = trendAggs.get(dayKey(bill.date)) ?? { buyAmount: 0, buyQty: 0, cogs: 0, gp: 0, revenue: 0, sellQty: 0 }
     const billCogs = toNumber(bill.cogs_amount || bill.total_cost)
@@ -274,23 +284,23 @@ export async function buildProfitCostAnalysis(filter: ProfitCostFilter) {
         row.revenue += revenue
         row.cogs += proportionalCogs
         row.gp += gp
-        row.sellBills.add(bill.id)
+        row.sellBills.add(bill.doc_no)
       })
     }
 
-    customer.amount += toNumber(bill.total_amount)
-    customer.cogs += billCogs
-    customer.gp += billGp
-    customer.received += toNumber(bill.received_amount || bill.paid_amount)
-    customer.receivable += toNumber(bill.receivable_balance)
-    customer.qty += billQty
-    customer.bills.add(bill.id)
-    customerAggs.set(customerKey, customer)
+    customerRow.amount += toNumber(bill.total_amount)
+    customerRow.cogs += billCogs
+    customerRow.gp += billGp
+    customerRow.received += toNumber(bill.received_amount || bill.paid_amount)
+    customerRow.receivable += toNumber(bill.receivable_balance)
+    customerRow.qty += billQty
+    customerRow.bills.add(bill.doc_no)
+    customerAggs.set(customerKey, customerRow)
 
     channel.amount += toNumber(bill.total_amount)
     channel.gp += billGp
     channel.qty += billQty
-    channel.bills.add(bill.id)
+    channel.bills.add(bill.doc_no)
     channelAggs.set(channelKey, channel)
 
     day.revenue += toNumber(bill.total_amount)
@@ -302,11 +312,12 @@ export async function buildProfitCostAnalysis(filter: ProfitCostFilter) {
 
   stockRows.forEach((stock) => {
     if (!stock.product_id) return
-    const product = productsByKey.get(stock.product_id.trim().toLowerCase())
+    const product = productsByKey.get(String(stock.product_id).trim().toLowerCase())
     if (selectedMetalGroups.size && (!product || !selectedMetalGroups.has(product.metalGroup))) return
     if (!product) return
-    if (!productAggs.has(product.id)) productAggs.set(product.id, createProductAgg(product))
-    const row = productAggs.get(product.id)!
+    const productKey = String(product.id)
+    if (!productAggs.has(productKey)) productAggs.set(productKey, createProductAgg(product))
+    const row = productAggs.get(productKey)!
     row.stockQty += toNumber(stock.qty_in) - toNumber(stock.qty_out)
     row.stockValue += toNumber(stock.value_in) - toNumber(stock.value_out)
   })
@@ -371,15 +382,27 @@ export async function buildProfitCostAnalysis(filter: ProfitCostFilter) {
   return {
     alerts,
     filters: {
-      branches: branches.map((row) => ({ active: row.active ?? true, id: row.id, name: row.name })),
-      customers: customers.map((row) => ({ active: row.active ?? true, code: row.code ?? '', creditTerm: row.credit_term ?? 0, id: row.id, name: row.name })),
+      branches: branches.map((row) => {
+        const code = requireBusinessCode(row.code, `สาขา ${row.id}`)
+        return { active: row.active ?? true, code, id: code, name: row.name }
+      }),
+      customers: customers.map((row) => {
+        const code = requireBusinessCode(row.code, `ลูกค้า ${row.id}`)
+        return { active: row.active ?? true, code, creditTerm: row.credit_term ?? 0, id: code, name: row.name }
+      }),
       dateFrom: filter.dateFrom,
       dateTo: filter.dateTo,
       metalGroups: Array.from(new Set(products.map((product) => product.metal_group).filter(Boolean) as string[])).sort(),
       purchaseChannels: [],
-      salesChannels: salesChannels.map((row) => ({ active: row.active ?? true, id: row.id, name: row.name })),
+      salesChannels: salesChannels.map((row) => {
+        const code = requireBusinessCode(row.code, `ช่องทางขาย ${row.id}`)
+        return { active: row.active ?? true, code, id: code, name: row.name }
+      }),
       selectedMetalGroups: Array.from(selectedMetalGroups),
-      suppliers: suppliers.map((row) => ({ active: row.active ?? true, code: row.code ?? '', id: row.id, name: row.name })),
+      suppliers: suppliers.map((row) => {
+        const code = requireBusinessCode(row.code, `ผู้ขาย ${row.id}`)
+        return { active: row.active ?? true, code, id: code, name: row.name }
+      }),
     },
     rows: {
       channels: Array.from(channelAggs.values()).map((row) => ({ amount: row.amount, billCount: row.bills.size, gp: row.gp, group: row.group, name: row.name, qty: row.qty, gpPct: row.amount > 0 ? (row.gp / row.amount) * 100 : 0 })).sort((left, right) => right.amount - left.amount),

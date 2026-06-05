@@ -1,6 +1,7 @@
 import type { Prisma } from '../../../../../generated/prisma/client'
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
+import { requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
@@ -93,7 +94,7 @@ export async function GET(request: Request) {
     const [bankRows, customers] = await Promise.all([
       prisma.bank_statement.findMany({
         include: {
-          accounts: { select: { account_no: true, bank_name: true, currency: true, id: true, name: true } },
+          accounts: { select: { account_no: true, bank_name: true, code: true, currency: true, id: true, name: true } },
         },
         orderBy: [{ date: 'desc' }, { created_at: 'desc' }, { id: 'desc' }],
         take: 10000,
@@ -106,19 +107,19 @@ export async function GET(request: Request) {
       }),
     ])
 
-    const customerById = new Map(customers.map((customer) => [customer.id, customer]))
-    const customerByName = new Map(customers.map((customer) => [customer.name.trim().toLowerCase(), customer]))
-
+    const customerByCode = new Map(
+      customers.map((customer) => [requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`), customer] as const),
+    )
     const allRows = bankRows.map((row) => {
       const description = row.description ?? row.desc ?? ''
       const customerNameFromText = extractCustomerName(description)
-      const customer = customerById.get(row.ref_id ?? '') ?? customerByName.get(customerNameFromText.toLowerCase())
+      const customer = customerByCode.get(String(row.ref_id ?? '').trim())
       const amountThb = toNumber(row.amount_in)
       const usedAmount = 0
       const remainingAmount = Math.max(0, amountThb - usedAmount)
       const status = statusFor(remainingAmount, usedAmount)
       return {
-        accountId: row.account_id ?? '',
+        accountId: row.accounts?.code ?? '',
         accountName: row.accounts?.name ?? '-',
         accountNo: row.accounts?.account_no ?? '',
         amount: amountThb,
@@ -126,13 +127,13 @@ export async function GET(request: Request) {
         bankName: row.accounts?.bank_name ?? '',
         currency: row.accounts?.currency ?? 'THB',
         customerCode: customer?.code ?? '',
-        customerId: customer?.id ?? '',
+        customerId: customer?.code ?? '',
         customerName: customer?.name ?? customerNameFromText,
         date: toDateOnly(row.date),
         description,
-        docNo: row.ref_no ?? row.id,
+        docNo: row.ref_no ?? row.doc_no,
         fxRate: 1,
-        id: row.ref_id ?? row.id,
+        id: row.doc_no,
         remainingAmount,
         source: 'bank_statement' as const,
         status,
@@ -142,7 +143,7 @@ export async function GET(request: Request) {
       .filter((row) => !query.status || row.status === query.status)
       .filter((row) => !search || `${row.docNo} ${row.customerCode} ${row.customerName} ${row.accountName} ${row.description}`.toLowerCase().includes(search))
 
-    allRows.sort((left, right) => (left.date.localeCompare(right.date) || left.docNo.localeCompare(right.docNo)) * (query.sortDirection === 'asc' ? 1 : -1))
+    allRows.sort((left, right) => (left.date.localeCompare(right.date) || stringifyBusinessValue(left.docNo).localeCompare(stringifyBusinessValue(right.docNo))) * (query.sortDirection === 'asc' ? 1 : -1))
 
     if (url.searchParams.get('format') === 'xlsx') {
       return xlsxResponse(buildWorkbook(allRows.map((row) => ({
@@ -165,7 +166,10 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       filters: {
-        customers,
+        customers: customers.map((customer) => {
+          const code = requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`)
+          return { active: customer.active, code, id: code, name: customer.name }
+        }),
         statuses: ['Open', 'Partially Used', 'Fully Used', 'Cancelled'],
       },
       pagination: {

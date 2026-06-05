@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { Prisma } from '../../../../../generated/prisma/client'
+import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
@@ -85,28 +86,28 @@ export async function GET(request: Request) {
     const payloadRows = rows.map((row) => {
       const inputQty = row.production_inputs.reduce((sum, input) => sum + toNumber(input.qty), 0)
       const outputQty = row.production_outputs.reduce((sum, output) => sum + toNumber(output.qty), 0)
-      const outputCategories = [...new Set(row.production_outputs.map((output) => output.output_category).filter(Boolean) as string[])]
+      const outputCategories = [...new Set(row.production_outputs.map((output) => String(output.output_category ?? '')).filter((value) => value.length > 0))]
 
       return {
         branchName: row.branches?.name ?? '-',
         closedAt: row.closed_at?.toISOString() ?? null,
         date: toDateOnly(row.date),
         docNo: row.doc_no,
-        id: row.id,
+        id: row.doc_no,
         inputCost: toNumber(row.total_input_cost),
         inputCount: row.production_inputs.length,
         inputQty,
         notes: row.notes ?? '',
         outputCategories: outputCategories.map((code) => ({
           code,
-          name: categoryByCode.get(code)?.name_th ?? code,
+          name: categoryByCode.get(String(code))?.name_th ?? String(code),
         })),
         outputCount: row.production_outputs.length,
         outputQty,
         outputValue: toNumber(row.total_output_value),
         productCode: row.products?.code ?? '',
-        productId: row.product_id ?? '',
-        productName: row.products?.name ?? row.product_id ?? '-',
+        productId: row.products?.code ? requireBusinessCode(row.products.code, `สินค้า ${row.product_id}`) : '',
+        productName: row.products?.name ?? '-',
         qtyPlanned: toNumber(row.qty_planned),
         status: row.status ?? 'Open',
         variance: toNumber(row.variance),

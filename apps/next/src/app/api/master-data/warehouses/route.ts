@@ -1,6 +1,8 @@
+import { requireBusinessCode } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { errorJson, masterDataJson, masterDataListJson, normalizeCode, parseMasterDataForm, toIso } from '@/lib/server/master-data'
+import { findActiveBranchReferenceByCodeOrId, outwardBranchReference } from '@/lib/server/branch-reference'
 import type { Prisma } from '../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
@@ -9,9 +11,10 @@ type WarehouseRow = Prisma.warehousesGetPayload<{ include: { branches: true } }>
 const warehouseTypes = new Set(['RM', 'WIP', 'FG', 'SCRAP'])
 
 function mapWarehouse(row: WarehouseRow) {
+  const outwardId = requireBusinessCode(row.code, `คลัง ${row.id}`)
   return {
-    id: row.id,
-    code: row.code,
+    id: outwardId,
+    code: outwardId,
     name: row.name,
     active: row.active ?? true,
     type: row.type ?? null,
@@ -27,8 +30,7 @@ function mapWarehouse(row: WarehouseRow) {
     currency: null,
     openingBalance: null,
     odLimit: null,
-    branchId: row.branch_id,
-    branchName: row.branches?.name ?? null,
+    ...outwardBranchReference(row.branches, row.branch_id),
     address: null,
     commissionPct: null,
     baseSalary: null,
@@ -61,21 +63,32 @@ export async function POST(request: Request) {
     const values = parseMasterDataForm(await request.json())
     if (!values.branchId) return errorJson(new Error('กรอกสาขา'), 'กรอกสาขา')
     if (!values.type || !warehouseTypes.has(values.type)) return errorJson(new Error('เลือกประเภทคลัง'), 'เลือกประเภทคลัง')
+    const branch = await findActiveBranchReferenceByCodeOrId(values.branchId)
+    if (!branch) return errorJson(new Error('เลือกสาขา'), 'สาขาที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
+    const existing = values.id
+      ? await prisma.warehouses.findFirst({
+        select: { id: true },
+        where: {
+          OR: [
+            { code: values.id.toUpperCase() },
+            ...(values.id.match(/^\d+$/) ? [{ id: BigInt(values.id) }] : []),
+          ],
+        },
+      })
+      : null
     const code = normalizeCode(values.code, values.id || '')
-    const id = values.id || code
     const row = await prisma.warehouses.upsert({
-      where: { id },
+      where: existing ? { id: existing.id } : { code },
       create: {
         active: values.active,
-        branch_id: values.branchId || null,
+        branch_id: branch.id,
         code,
-        id,
         name: values.name,
         type: values.type,
       },
       update: {
         active: values.active,
-        branch_id: values.branchId || null,
+        branch_id: branch.id,
         code,
         name: values.name,
         type: values.type,

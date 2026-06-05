@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
-import { randomUUID } from 'node:crypto'
 import * as XLSX from 'xlsx'
 import { expenseFormSchema } from '@/lib/daily'
 import { apiErrorResponse } from '@/lib/server/api-error'
+import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, listDailyAccounts, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { prisma } from '@/lib/server/prisma'
 import { activeVatRatePercent, activeWhtRatePercent } from '@/lib/server/tax-settings'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
@@ -26,6 +27,7 @@ function bangkokDateInput(value: Date) {
 type ExpenseWithRelations = Prisma.expensesGetPayload<{
   include: {
     accounts: true
+    branches: true
     expense_categories: true
   }
 }>
@@ -33,6 +35,18 @@ type ExpenseWithRelations = Prisma.expensesGetPayload<{
 function isPendingApprovalExpenseStatus(status: string | null | undefined) {
   const normalized = String(status ?? '').toLowerCase()
   return normalized === 'pending_approval' || normalized === 'pending' || normalized === ''
+}
+
+async function findExpenseByDocNo(
+  client: Prisma.TransactionClient | typeof prisma,
+  value: string,
+  select?: Prisma.expensesSelect,
+) {
+  const expensesClient = client.expenses as typeof prisma.expenses
+  return expensesClient.findFirst({
+    select,
+    where: { doc_no: value },
+  })
 }
 
 function expenseJson(row: ExpenseWithRelations) {
@@ -43,11 +57,11 @@ function expenseJson(row: ExpenseWithRelations) {
       ? 'paid'
       : 'pending_approval'
   return {
-    accountId: row.account_id ?? '',
+    accountId: row.accounts?.code ?? '',
     accountName: row.accounts?.name ?? '-',
     amount: toNumber(row.amount),
-    branchId: row.branch_id ?? '',
-    categoryId: row.category_id ?? '',
+    branchId: row.branches?.code ?? '',
+    categoryId: row.expense_categories?.code ?? '',
     categoryName: row.expense_categories?.name ?? '-',
     date: toDateOnly(row.date),
     description: row.description ?? '',
@@ -55,7 +69,7 @@ function expenseJson(row: ExpenseWithRelations) {
     dueDate: toDateOnly(row.due_date),
     hasVat: toNumber(row.vat ?? row.vat_amount) > 0,
     hasWht: toNumber(row.wht ?? row.wht_amount) > 0,
-    id: row.id,
+    id: row.doc_no,
     netAmount: toNumber(row.net_amount),
     notes: row.notes ?? '',
     payee: row.payee ?? '',
@@ -125,21 +139,27 @@ export async function GET(request: Request) {
     const dateFrom = url.searchParams.get('dateFrom') || ''
     const dateTo = url.searchParams.get('dateTo') || ''
 
+    const accountReference = accountId ? await findActiveAccountReferenceByCode(accountId) : null
+    if (accountId && accountReference == null) {
+      throw new Error('บัญชีไม่ถูกต้อง')
+    }
+
     const [accounts, categories, rows, vatRatePercent, whtRatePercent] = await Promise.all([
       listDailyAccounts(),
       prisma.expense_categories.findMany({
         orderBy: [{ active: 'desc' }, { name: 'asc' }],
-        select: { active: true, id: true, name: true },
+        select: { active: true, code: true, name: true },
       }),
       prisma.expenses.findMany({
         include: {
           accounts: true,
+          branches: true,
           expense_categories: true,
         },
         orderBy: [{ date: 'desc' }, { created_at: 'desc' }],
         where: {
-          ...(categoryId ? { category_id: categoryId } : {}),
-          ...(accountId ? { account_id: accountId } : {}),
+          ...(categoryId ? { expense_categories: { is: { code: categoryId } } } : {}),
+          ...(accountReference != null ? { account_id: accountReference.id } : {}),
           ...(statuses.length > 0 ? { status: { in: statuses } } : {}),
           ...(dateFrom || dateTo
             ? {
@@ -164,7 +184,12 @@ export async function GET(request: Request) {
       return xlsxResponse(buildWorkbook(mappedRows), `daily_expenses_${new Date().toISOString().slice(0, 10)}.xlsx`)
     }
 
-    return NextResponse.json({ accounts, categories, rows: mappedRows, settings: { vatRatePercent, whtRatePercent } })
+    return NextResponse.json({
+      accounts,
+      categories: categories.map((row) => ({ active: row.active, id: row.code, name: row.name })),
+      rows: mappedRows,
+      settings: { vatRatePercent, whtRatePercent },
+    })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลดรายการค่าใช้จ่ายไม่ได้', 500)
@@ -177,21 +202,46 @@ export async function POST(request: Request) {
     requirePermission(context, 'finance.cash.view')
 
     const values = expenseFormSchema.parse(await request.json())
-    const id = values.id ?? `EXP-${randomUUID()}`
     const actor = currentActor(context)
-    const [vatRatePercent, whtRatePercent] = await Promise.all([
+    const [vatRatePercent, whtRatePercent, account] = await Promise.all([
       activeVatRatePercent(new Date()),
       activeWhtRatePercent(new Date()),
+      values.accountId
+        ? findActiveAccountReferenceByCode(values.accountId)
+        : Promise.resolve(null),
     ])
+    const category = values.categoryId
+      ? await prisma.expense_categories.findUnique({
+          select: { id: true },
+          where: { code: values.categoryId },
+        })
+      : null
+    const branch = values.branchId ? await findActiveBranchReferenceByCodeOrId(values.branchId) : null
+    if (values.categoryId && !category) {
+      throw new Error('หมวดค่าใช้จ่ายไม่ถูกต้องหรือถูกปิดใช้งาน')
+    }
+    if (values.branchId && !branch) {
+      throw new Error('สาขาไม่ถูกต้องหรือถูกปิดใช้งาน')
+    }
+    if (values.accountId && !account) {
+      throw new Error('บัญชีจ่ายไม่ถูกต้อง')
+    }
     const vatAmount = values.hasVat ? Math.round(((values.amount * vatRatePercent / 100) + Number.EPSILON) * 100) / 100 : 0
     const whtAmount = values.hasWht ? Math.round(((values.amount * whtRatePercent / 100) + Number.EPSILON) * 100) / 100 : 0
     const netAmount = values.amount + vatAmount - whtAmount
 
     const result = await prisma.$transaction(async (tx) => {
-      const existingExpense = values.id ? await tx.expenses.findUnique({
-        select: { date: true, doc_no: true, status: true },
-        where: { id: values.id },
-      }) : null
+      const existingExpense = values.id
+        ? await findExpenseByDocNo(tx, values.id, {
+            date: true,
+            doc_no: true,
+            id: true,
+            status: true,
+          })
+        : null
+      if (values.id && !existingExpense) {
+        throw new Error('ไม่พบรายการค่าใช้จ่าย')
+      }
       if (existingExpense && !isPendingApprovalExpenseStatus(existingExpense.status)) {
         throw new Error('แก้ไขได้เฉพาะรายการค่าใช้จ่ายที่ยังไม่อนุมัติ')
       }
@@ -203,65 +253,67 @@ export async function POST(request: Request) {
       const docNo = existingExpense?.doc_no ?? await nextDailyDocNo('expenses', 'EXP', documentDateInput)
       const persistedStatus = 'pending_approval'
 
-      const expense = await tx.expenses.upsert({
-        where: { id },
-        create: {
-          account_id: values.accountId,
-          amount: values.amount,
-          branch_id: values.branchId,
-          category_id: values.categoryId,
-          created_by: actor,
-          date: documentDate,
-          description: values.description,
-          doc_no: docNo,
-          due_date: values.dueDate ? normalizeDate(values.dueDate) : null,
-          id,
-          net_amount: netAmount,
-          notes: values.notes,
-          paid_at: null,
-          paid_status: 'unpaid',
-          payee: values.payee,
-          ref_doc_no: values.refDocNo,
-          status: persistedStatus,
-          tax_invoice_no: values.taxInvoiceNo,
-          updated_at: new Date(),
-          updated_by: actor,
-          vat: vatAmount,
-          vat_amount: vatAmount,
-          voucher_id: id,
-          wht: whtAmount,
-          wht_amount: whtAmount,
-        },
-        update: {
-          account_id: values.accountId,
-          amount: values.amount,
-          branch_id: values.branchId,
-          category_id: values.categoryId,
-          date: documentDate,
-          description: values.description,
-          doc_no: docNo,
-          due_date: values.dueDate ? normalizeDate(values.dueDate) : null,
-          net_amount: netAmount,
-          notes: values.notes,
-          paid_at: null,
-          paid_status: 'unpaid',
-          payee: values.payee,
-          ref_doc_no: values.refDocNo,
-          status: persistedStatus,
-          tax_invoice_no: values.taxInvoiceNo,
-          updated_at: new Date(),
-          updated_by: actor,
-          vat: vatAmount,
-          vat_amount: vatAmount,
-          voucher_id: id,
-          wht: whtAmount,
-          wht_amount: whtAmount,
-        },
-      })
+      const expense = existingExpense
+        ? await tx.expenses.update({
+            where: { id: existingExpense.id },
+            data: {
+              account_id: account?.id ?? null,
+              amount: values.amount,
+              branch_id: branch?.id ?? null,
+              category_id: category?.id ?? null,
+              date: documentDate,
+              description: values.description,
+              doc_no: docNo,
+              due_date: values.dueDate ? normalizeDate(values.dueDate) : null,
+              net_amount: netAmount,
+              notes: values.notes,
+              paid_at: null,
+              paid_status: 'unpaid',
+              payee: values.payee,
+              ref_doc_no: values.refDocNo,
+              status: persistedStatus,
+              tax_invoice_no: values.taxInvoiceNo,
+              updated_at: new Date(),
+              updated_by: actor,
+              vat: vatAmount,
+              vat_amount: vatAmount,
+              voucher_id: docNo,
+              wht: whtAmount,
+              wht_amount: whtAmount,
+            },
+          })
+        : await tx.expenses.create({
+            data: {
+              account_id: account?.id ?? null,
+              amount: values.amount,
+              branch_id: branch?.id ?? null,
+              category_id: category?.id ?? null,
+              created_by: actor,
+              date: documentDate,
+              description: values.description,
+              doc_no: docNo,
+              due_date: values.dueDate ? normalizeDate(values.dueDate) : null,
+              net_amount: netAmount,
+              notes: values.notes,
+              paid_at: null,
+              paid_status: 'unpaid',
+              payee: values.payee,
+              ref_doc_no: values.refDocNo,
+              status: persistedStatus,
+              tax_invoice_no: values.taxInvoiceNo,
+              updated_at: new Date(),
+              updated_by: actor,
+              vat: vatAmount,
+              vat_amount: vatAmount,
+              voucher_id: docNo,
+              wht: whtAmount,
+              wht_amount: whtAmount,
+            },
+          })
 
       await tx.bank_statement.deleteMany({
         where: {
-          ref_id: id,
+          ref_id: expense.id.toString(),
           ref_type: 'EXP',
         },
       })
@@ -269,7 +321,7 @@ export async function POST(request: Request) {
       return expense
     })
 
-    return NextResponse.json({ id: result.id })
+    return NextResponse.json({ id: result.doc_no })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'บันทึกรายการค่าใช้จ่ายไม่ได้', 400)
