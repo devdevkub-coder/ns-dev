@@ -8,6 +8,7 @@ import {
   type SupplierFormValues,
   type SupplierPaymentMethodRecord,
 } from '@/lib/supplier'
+import { z } from 'zod'
 
 type PrismaSupplier = {
   id: bigint
@@ -36,9 +37,6 @@ type PrismaSupplier = {
   address_city: string | null
   address_state_region: string | null
   address_postal_code_intl: string | null
-  bank_name: string | null
-  bank_account: string | null
-  bank_account_name: string | null
   branch_id: bigint | null
   sales_id: bigint | null
   sales_rep: string | null
@@ -50,12 +48,16 @@ type PrismaSupplier = {
     code: string | null
     id: bigint
     payment_method: string | null
-    bank_name: string | null
     account_no: string | null
     account_name: string | null
     branch_code: string | null
     is_primary: boolean | null
     active: boolean | null
+    bank_name_id: bigint | null
+    bank_names?: {
+      code: string | null
+      name: string
+    } | null
   }>
 }
 
@@ -63,7 +65,7 @@ type SupplierBankAccountWriteRow = {
   code: string
   supplier_id: bigint
   payment_method: string
-  bank_name: string | null
+  bank_name_id: bigint | null
   account_no: string | null
   account_name: string | null
   branch_code: string | null
@@ -84,6 +86,16 @@ function normalizeBankName(value: string | null | undefined) {
   return normalized || null
 }
 
+type BankNameReference = {
+  id: bigint
+  name: string
+}
+
+function primarySupplierBankAccount(row: PrismaSupplier) {
+  const accounts = row.supplier_bank_accounts ?? []
+  return accounts.find((account) => account.is_primary) ?? accounts[0] ?? null
+}
+
 function primaryBankAccount(values: SupplierFormValues, paymentMethods: SupplierPaymentMethodRecord[]) {
   const accounts = values.bankAccounts
     .map((account) => ({
@@ -102,6 +114,7 @@ export function supplierBankAccountRows(
   supplierId: bigint,
   supplierCode: string,
   paymentMethods: SupplierPaymentMethodRecord[],
+  bankNamesByName: Map<string, BankNameReference>,
 ) {
   const parsed = supplierFormSchema.parse(values)
   const seenAccountNos = new Set<string>()
@@ -116,7 +129,7 @@ export function supplierBankAccountRows(
         code: `${supplierCode}-BA${String(rows.length + 1).padStart(2, '0')}`,
         supplier_id: supplierId,
         payment_method: paymentMethod,
-        bank_name: null,
+        bank_name_id: null,
         account_no: null,
         account_name: null,
         branch_code: null,
@@ -127,14 +140,23 @@ export function supplierBankAccountRows(
     }
 
     const accountNo = normalizeAccountNo(account.accountNo)
+    const bankName = normalizeBankName(account.bankName)
+    const bankNameReference = bankName ? bankNamesByName.get(bankName) ?? null : null
     if (!accountNo || seenAccountNos.has(accountNo)) return
+    if (!bankNameReference) {
+      throw new z.ZodError([{
+        code: 'custom',
+        message: `ไม่พบธนาคาร "${bankName ?? ''}" ใน master bank names`,
+        path: ['bankAccounts', index, 'bankName'],
+      }])
+    }
     seenAccountNos.add(accountNo)
 
     rows.push({
       code: `${supplierCode}-BA${String(rows.length + 1).padStart(2, '0')}`,
       supplier_id: supplierId,
       payment_method: paymentMethod,
-      bank_name: normalizeBankName(account.bankName),
+      bank_name_id: bankNameReference?.id ?? null,
       account_no: accountNo,
       account_name: account.bankAccount || null,
       branch_code: account.branchCode || null,
@@ -155,6 +177,7 @@ export function mapPrismaSupplier(
   },
 ): Supplier {
   const outwardId = requireBusinessCode(row.code, `ผู้ขาย ${row.id}`)
+  const primaryAccount = primarySupplierBankAccount(row)
   return supplierSchema.parse({
     id: outwardId,
     code: outwardId,
@@ -182,13 +205,13 @@ export function mapPrismaSupplier(
     addressCity: row.address_city,
     addressStateRegion: row.address_state_region,
     addressPostalCodeIntl: row.address_postal_code_intl,
-    bankName: row.bank_name,
-    accountNo: normalizeAccountNo(row.bank_account),
-    bankAccount: row.bank_account_name,
+    bankName: normalizeBankName(primaryAccount?.bank_names?.name),
+    accountNo: normalizeAccountNo(primaryAccount?.account_no),
+    bankAccount: primaryAccount?.account_name ?? null,
     bankAccounts: (row.supplier_bank_accounts ?? []).map((account) => ({
       id: requireBusinessCode(account.code, `บัญชีรับเงินผู้ขาย ${account.id}`),
       paymentMethod: resolveSupplierPaymentMethodName(account.payment_method, paymentMethods) ?? (String(account.payment_method ?? '').trim() || 'เงินสด'),
-      bankName: normalizeBankName(account.bank_name),
+      bankName: normalizeBankName(account.bank_names?.name),
       accountNo: normalizeAccountNo(account.account_no),
       bankAccount: account.account_name,
       branchCode: account.branch_code,
@@ -258,9 +281,6 @@ export function toSupplierWriteInput(
   const name = parsed.type === 'บุคคล' ? personName || parsed.name : parsed.name
   const isDomestic = parsed.marketScope === 'ในประเทศ'
   const countryCode = isDomestic ? 'TH' : parsed.countryCode?.toUpperCase() ?? null
-  const primaryAccount = primaryBankAccount(parsed, paymentMethods) ?? (normalizeAccountNo(parsed.accountNo)
-    ? { accountNo: normalizeAccountNo(parsed.accountNo), bankName: normalizeBankName(parsed.bankName), bankAccount: parsed.bankAccount }
-    : null)
 
   return {
     code,
@@ -288,9 +308,6 @@ export function toSupplierWriteInput(
     address_city: isDomestic ? parsed.addressCity || parsed.addressDistrict || null : parsed.addressCity || null,
     address_state_region: isDomestic ? parsed.addressStateRegion || parsed.addressProvince || null : parsed.addressStateRegion || null,
     address_postal_code_intl: isDomestic ? parsed.addressPostalCodeIntl || parsed.addressPostalCode || null : parsed.addressPostalCodeIntl || null,
-    bank_name: normalizeBankName(primaryAccount?.bankName) || null,
-    bank_account: primaryAccount?.accountNo || null,
-    bank_account_name: primaryAccount?.bankAccount || null,
     branch_id: branchId ?? null,
     sales_id: overrides?.salesId ?? null,
     sales_rep: overrides?.salesName ?? (parsed.salesName || null),

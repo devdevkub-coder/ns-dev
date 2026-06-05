@@ -61,7 +61,8 @@ function normalizeSupplierBankAccounts(params: {
         code: string | null
         account_no: string | null
         active: boolean | null
-        bank_name: string | null
+        bank_name_id: bigint | null
+        bank_names: { code: string | null; name: string } | null
         id: bigint
         is_primary: boolean | null
         payment_method: string | null
@@ -75,11 +76,11 @@ function normalizeSupplierBankAccounts(params: {
     .filter((account) => account.active !== false)
     .map((account) => ({
       accountNo: account.account_no ?? '',
-      bankName: account.bank_name ?? '',
+      bankName: account.bank_names?.name ?? '',
       id: requireBusinessCode(account.code, `บัญชีรับเงินผู้ขาย ${account.id}`),
       isPrimary: account.is_primary ?? false,
       kind: 'bank' as const,
-      label: [account.bank_name ?? '', account.account_no ?? ''].filter(Boolean).join(' / ') || resolvePaymentMethodName(account.payment_method, params.paymentMethods) || defaultBankMethod || 'ไม่ระบุ',
+      label: [account.bank_names?.name ?? '', account.account_no ?? ''].filter(Boolean).join(' / ') || resolvePaymentMethodName(account.payment_method, params.paymentMethods) || defaultBankMethod || 'ไม่ระบุ',
       paymentMethod: resolvePaymentMethodName(account.payment_method, params.paymentMethods) ?? defaultBankMethod,
     }))
 
@@ -138,6 +139,11 @@ export async function GET() {
           suppliers: {
             include: {
               supplier_bank_accounts: {
+                include: {
+                  bank_names: {
+                    select: { code: true, name: true },
+                  },
+                },
                 orderBy: [{ is_primary: 'desc' }, { id: 'asc' }],
               },
             },
@@ -155,6 +161,11 @@ export async function GET() {
           suppliers: {
             include: {
               supplier_bank_accounts: {
+                include: {
+                  bank_names: {
+                    select: { code: true, name: true },
+                  },
+                },
                 orderBy: [{ is_primary: 'desc' }, { id: 'asc' }],
               },
             },
@@ -399,7 +410,13 @@ export async function POST(request: Request) {
           branches: true,
           suppliers: {
             include: {
-              supplier_bank_accounts: true,
+              supplier_bank_accounts: {
+                include: {
+                  bank_names: {
+                    select: { code: true, name: true },
+                  },
+                },
+              },
             },
           },
         },
@@ -415,7 +432,13 @@ export async function POST(request: Request) {
           branches: true,
           suppliers: {
             include: {
-              supplier_bank_accounts: true,
+              supplier_bank_accounts: {
+                include: {
+                  bank_names: {
+                    select: { code: true, name: true },
+                  },
+                },
+              },
             },
           },
         },

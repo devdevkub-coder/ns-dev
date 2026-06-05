@@ -309,7 +309,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: `Import ได้สูงสุด ${IMPORT_LIMIT.toLocaleString('th-TH')} แถวต่อครั้ง` }, { status: 400 })
     }
 
-    const [salespersons, paymentMethods] = await Promise.all([
+    const [salespersons, paymentMethods, bankNameRows] = await Promise.all([
       prisma.salespersons.findMany({
         select: { code: true, id: true, name: true },
         where: { active: { not: false } },
@@ -319,7 +319,12 @@ export async function POST(request: Request) {
         select: { name: true, type: true },
         where: { active: true },
       }),
+      prisma.bank_names.findMany({
+        select: { id: true, name: true },
+        where: { active: true },
+      }),
     ])
+    const bankNamesByName = new Map(bankNameRows.map((row) => [row.name, row] as const))
     const salespersonLookup = new Map<string, { code: string | null; id: bigint; name: string }>()
     for (const salesperson of salespersons) {
       for (const key of [salesperson.id, salesperson.code ?? '', salesperson.name]) {
@@ -441,7 +446,7 @@ export async function POST(request: Request) {
             data: payload as Parameters<typeof tx.suppliers.create>[0]['data'],
           })
         await tx.supplier_bank_accounts.deleteMany({ where: { supplier_id: savedSupplier.id } })
-        const accountRows = supplierBankAccountRows(row, savedSupplier.id, payload.code ?? String(row.id ?? ''), paymentMethods)
+        const accountRows = supplierBankAccountRows(row, savedSupplier.id, payload.code ?? String(row.id ?? ''), paymentMethods, bankNamesByName)
         if (accountRows.length) await tx.supplier_bank_accounts.createMany({ data: accountRows })
       }
     })

@@ -258,6 +258,19 @@ Planned follow-up:
   - shared supplier-payment validation now requires purchase-bill and approval references to match `doc_no` syntax at the schema boundary instead of broad safe-id patterns
   - `/api/finance/customer-advance` and `/api/finance/supplier-advance` now resolve `bank_statement.ref_id` against `customer.code` / `supplier.code` rather than internal bigint master ids
   - `/api/finance/customer-advance` and `/api/finance/supplier-advance` no longer fall back to name-based matching from statement descriptions; if `ref_id` does not map to `customer.code` / `supplier.code`, the route now leaves the master reference empty and only preserves the free-text description-derived name
+  - hardened active master-data business-key constraints in DB/schema with migration `supabase/migrations/20260606024500_harden_master_business_keys_and_drop_legacy_auth_columns.sql`
+  - `customers.code`, `salespersons.code`, `suppliers.code`, `products.code`, `accounts.code`, `currencies.code`, `purchase_channels.code`, and `sales_channels.code` are now part of the enforced target contract as non-null business keys; `customers/salespersons/suppliers/products` also get explicit unique DB indexes
+  - removed legacy auth leftovers `public.users.password` and `public.user_profiles.branch_ids` from the target schema because app auth truth now lives in `auth.users` plus `app_users`/`app_user_branch_access`
+  - completed supplier bank source-of-truth cleanup in `20260606043000_move_supplier_banks_to_supplier_bank_accounts.sql`
+  - `supplier_bank_accounts` now references `bank_names.id` directly via `bank_name_id`
+  - dropped duplicated `suppliers.bank_name` / `bank_account` / `bank_account_name` after verifying every existing bank row already had a matching child account and `bank_names` mapping
+  - follow-up verification on 2026-06-06 found the active `apps/next/.env.local` database still had not received `20260605143000_add_doc_no_to_petty_advance_returns_and_code_to_supplier_bank_accounts.sql`; `/api/master-data/suppliers` was failing with Prisma `P2022` because `supplier_bank_accounts.code` was missing
+  - applying that existing migration to the current dev DB backfilled `supplier_bank_accounts.code` for `1754` rows and restored `/master-data/suppliers` list/form behavior without route rollback
+  - follow-up runtime hardening on 2026-06-06 fixed the remaining shared master-data contract bug in `apps/next/src/lib/server/simple-master-tables.ts`
+    - code-backed masters now expose outward `id = code` and update by `code`: `account_subtypes`, `director_employees`, `expense_types`, `production_output_categories`
+    - bigint-backed masters now stringify outward ids and coerce them back to bigint on save/status update: `production_machine_types`, `production_machines`, `production_lines`, `vat_settings`, `wht_settings`
+    - this closes the `Expected string, received bigint` validation failure seen on `/master-data/directors`, `/master-data/machine-types`, `/master-data/machines`, and `/master-data/production-lines`
+  - master-data UI config follow-up in `apps/next/src/lib/master-data-page-configs.ts` restored visible business codes on pages that already run code-first contracts but were still hiding the field in the active UI: `currencies`, `channels`, `accounts`, and `account-subtypes`
   - `/api/finance/foreign/fx-gain-loss-report` now emits `bank_statement.ref_no` when available and `-` otherwise; it no longer falls back to raw `ref_id` / `ref_type` as outward reference text
   - `cash-others-anomaly` bank-entry anomaly rows now use `bank_statement.doc_no` in outward anomaly ids instead of embedding internal `bank_statement.id`
   - validation for this slice passed:

@@ -215,6 +215,9 @@ Reporting rule:
 - [x] ปิด boundary-first slice สำหรับ `B2 salespersons + customers`
 - [x] ปิด boundary-first slice สำหรับ `B3 suppliers`
 - [x] ปิด schema target แล้วใน Group A simple masters บางส่วน (`bank_names`, `payment_methods`, `product_units`, `product_types`) โดยใช้ internal `bigint id`
+- [x] harden active master-data business-key constraints ใน DB/schema (`customers`, `salespersons`, `suppliers`, `products`, `accounts`, `currencies`, `purchase_channels`, `sales_channels`) ให้ `code` เป็น contract จริงระดับฐานข้อมูล และลบ legacy auth leftovers `public.users.password` + `user_profiles.branch_ids`
+- [x] harden shared simple-master runtime so bigint-backed masters (`machine-types`, `machines`, `production-lines`, `vat-settings`, `wht-settings`) stringify outward ids and coerce back on save/status update, while code-backed masters (`account-subtypes`, `directors`, `expense-types`, `production-output-categories`) update by outward `code`
+- [x] audit master-data UI configs so pages with existing business `code` expose it in form/list again (`currencies`, `channels`, `accounts`, `account-subtypes`)
 - [ ] audit consumer ที่ยัง leak internal ids นอก active B1/B2/B3 slices
   - [x] ตัด runtime fallback แบบ `code ?? id` ออกจาก outward UI/API/filter surfaces ของ active business-facing master refs หลัก (`branches`, `warehouses`, `customers`, `suppliers`, `salespersons`) เพื่อให้ contract fail เร็วเมื่อ data ไม่มี `code`
   - [x] ตัด fallback ที่ยังเหลือซึ่งแปลง internal `id` / FK เป็น outward display/value เช่น `supplierName/customerName/partyName = ... ?? String(id)` หรือ `stringifyBusinessValue(id, ...)` ออกจาก active B1/B2/B3 display/detail/report surfaces; ถ้ายังไม่มี business data ให้ใช้ `-` / empty แทน
@@ -267,6 +270,12 @@ Reporting rule:
   - [x] add `loans.contract_no`
   - [x] add interim `trading_deals.deal_no`
   - [x] verify post-apply inventory: `public.id text = 0`
+- [x] remove duplicated supplier-level bank truth from `suppliers`
+  - [x] add `supplier_bank_accounts.bank_name_id -> bank_names.id`
+  - [x] backfill existing supplier bank-account rows from `bank_names`
+  - [x] refactor supplier master-data / import-export / payment flows to read primary bank data from `supplier_bank_accounts`
+  - [x] drop `suppliers.bank_name`, `suppliers.bank_account`, `suppliers.bank_account_name`, and `supplier_bank_accounts.bank_name`
+  - [x] apply migration to `dev-target` and rerun runtime validation
   - [x] rerun `prisma db pull` / `prisma generate` against `dev-target`
 - [x] close Wave 2 runtime fallout after DB/schema sync
   - [x] update server/API code that still assumes converted ids are `string`

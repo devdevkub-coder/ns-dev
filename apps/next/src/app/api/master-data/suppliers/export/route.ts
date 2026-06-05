@@ -14,12 +14,11 @@ import type { Prisma } from '../../../../../../generated/prisma/client'
 export const runtime = 'nodejs'
 
 const EXPORT_LIMIT = 10000
+type SortDirection = 'asc' | 'desc'
 
 const sortColumns = {
   active: 'active',
   code: 'code',
-  accountNo: 'bank_account',
-  bankName: 'bank_name',
   name: 'name',
   phone: 'phone',
   salesName: 'sales_rep',
@@ -73,11 +72,27 @@ function parseExportParams(request: Request) {
   const marketScope = url.searchParams.get('marketScope')?.trim() ?? ''
   const salesId = url.searchParams.get('salesId')?.trim() ?? ''
   const sort = url.searchParams.get('sort') ?? 'code'
-  const direction = url.searchParams.get('direction') === 'desc' ? 'desc' : 'asc'
+  const direction: SortDirection = url.searchParams.get('direction') === 'desc' ? 'desc' : 'asc'
   const sortColumn = sortColumns[sort as keyof typeof sortColumns] ?? sortColumns.code
 
-  return { supplierType, direction, marketScope, q, salesId, sortColumn }
+  return { supplierType, direction, marketScope, q, salesId, sort, sortColumn }
 }
+
+const supplierInclude = {
+  branches: true,
+  supplier_bank_accounts: {
+    include: {
+      bank_names: {
+        select: { code: true, name: true },
+      },
+    },
+    orderBy: [{ is_primary: 'desc' }, { id: 'asc' }],
+  },
+} satisfies Prisma.suppliersInclude
+
+type SupplierExportRow = Prisma.suppliersGetPayload<{
+  include: typeof supplierInclude
+}>
 
 function supplierSearchWhere(q: string, supplierType: string, marketScope: string, salesId: bigint | null): Prisma.suppliersWhereInput {
   const where: Prisma.suppliersWhereInput = {}
@@ -108,14 +123,28 @@ function supplierSearchWhere(q: string, supplierType: string, marketScope: strin
     { address_city: { contains: q, mode: 'insensitive' } },
     { address_state_region: { contains: q, mode: 'insensitive' } },
     { country_code: { contains: q, mode: 'insensitive' } },
-    { bank_name: { contains: q, mode: 'insensitive' } },
-    { bank_account: { contains: q, mode: 'insensitive' } },
-    { bank_account_name: { contains: q, mode: 'insensitive' } },
+    { supplier_bank_accounts: { some: { bank_names: { is: { name: { contains: q, mode: 'insensitive' } } } } } },
+    { supplier_bank_accounts: { some: { account_no: { contains: q, mode: 'insensitive' } } } },
+    { supplier_bank_accounts: { some: { account_name: { contains: q, mode: 'insensitive' } } } },
     { branches: { code: { contains: q, mode: 'insensitive' } } },
     { sales_rep: { contains: q, mode: 'insensitive' } },
   ]
 
   return where
+}
+
+function supplierPrimaryBankText(
+  supplier: SupplierExportRow,
+  field: 'accountNo' | 'bankName',
+) {
+  const primaryAccount = supplier.supplier_bank_accounts.find((account) => account.is_primary) ?? supplier.supplier_bank_accounts[0] ?? null
+  if (!primaryAccount) return ''
+  if (field === 'accountNo') return primaryAccount.account_no ?? ''
+  return primaryAccount.bank_names?.name ?? ''
+}
+
+function compareText(left: string, right: string, direction: SortDirection) {
+  return left.localeCompare(right, 'th', { numeric: true }) * (direction === 'asc' ? 1 : -1)
 }
 
 function formatBankAccounts(supplier: Supplier, paymentMethods: SupplierPaymentMethodRecord[]) {
@@ -176,18 +205,14 @@ export async function GET(request: Request) {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'master.suppliers.export')
 
-    const { supplierType, direction, marketScope, q, salesId, sortColumn } = parseExportParams(request)
+    const { supplierType, direction, marketScope, q, salesId, sort, sortColumn } = parseExportParams(request)
     const resolvedSalesperson = salesId ? await findActiveSalespersonReferenceByCodeOrId(salesId) : null
     const where = supplierSearchWhere(q, supplierType, marketScope, resolvedSalesperson?.id ?? null)
+    const requiresBankSort = sort === 'bankName' || sort === 'accountNo'
     const [rows, total, paymentMethods] = await Promise.all([
       prisma.suppliers.findMany({
-        include: {
-          branches: true,
-          supplier_bank_accounts: {
-            orderBy: [{ is_primary: 'desc' }, { id: 'asc' }],
-          },
-        },
-        orderBy: [{ [sortColumn]: direction }, { id: 'asc' }],
+        include: supplierInclude,
+        orderBy: requiresBankSort ? [{ code: 'asc' }, { id: 'asc' }] : [{ [sortColumn]: direction }, { id: 'asc' }],
         take: EXPORT_LIMIT,
         where,
       }),
@@ -198,7 +223,19 @@ export async function GET(request: Request) {
         where: { active: true },
       }),
     ])
-    const visibleRows = salesId && !resolvedSalesperson ? [] : rows
+    const visibleRows = salesId && !resolvedSalesperson
+      ? []
+      : requiresBankSort
+        ? rows.slice().sort((left, right) => {
+          const byBankField = compareText(
+            supplierPrimaryBankText(left, sort === 'bankName' ? 'bankName' : 'accountNo'),
+            supplierPrimaryBankText(right, sort === 'bankName' ? 'bankName' : 'accountNo'),
+            direction,
+          )
+          if (byBankField !== 0) return byBankField
+          return compareText(left.code, right.code, 'asc')
+        })
+        : rows
     const visibleTotal = salesId && !resolvedSalesperson ? 0 : total
     const salespersonReferences = await listSalespersonReferencesByIds(visibleRows.map((row) => row.sales_id))
 

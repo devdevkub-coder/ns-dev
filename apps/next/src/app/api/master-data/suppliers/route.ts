@@ -13,11 +13,11 @@ import type { Prisma } from '../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
 
+type SortDirection = 'asc' | 'desc'
+
 const sortColumns = {
   active: 'active',
   code: 'code',
-  accountNo: 'bank_account',
-  bankName: 'bank_name',
   name: 'name',
   phone: 'phone',
   salesName: 'sales_rep',
@@ -28,9 +28,18 @@ const sortColumns = {
 const supplierInclude = {
   branches: true,
   supplier_bank_accounts: {
+    include: {
+      bank_names: {
+        select: { code: true, name: true },
+      },
+    },
     orderBy: [{ is_primary: 'desc' }, { id: 'asc' }],
   },
 } satisfies Prisma.suppliersInclude
+
+type SupplierListRow = Prisma.suppliersGetPayload<{
+  include: typeof supplierInclude
+}>
 
 function parseListParams(request: Request) {
   const url = new URL(request.url)
@@ -42,10 +51,10 @@ function parseListParams(request: Request) {
   const marketScope = url.searchParams.get('marketScope')?.trim() ?? ''
   const salesId = url.searchParams.get('salesId')?.trim() ?? ''
   const sort = url.searchParams.get('sort') ?? 'code'
-  const direction = url.searchParams.get('direction') === 'desc' ? 'desc' : 'asc'
+  const direction: SortDirection = url.searchParams.get('direction') === 'desc' ? 'desc' : 'asc'
   const sortColumn = sortColumns[sort as keyof typeof sortColumns] ?? sortColumns.code
 
-  return { all, direction, marketScope, page, pageSize, q, salesId, sortColumn, supplierType }
+  return { all, direction, marketScope, page, pageSize, q, salesId, sort, sortColumn, supplierType }
 }
 
 function supplierSearchWhere(q: string, supplierType: string, marketScope: string, salesId: bigint | null): Prisma.suppliersWhereInput {
@@ -77,14 +86,25 @@ function supplierSearchWhere(q: string, supplierType: string, marketScope: strin
     { address_city: { contains: q, mode: 'insensitive' } },
     { address_state_region: { contains: q, mode: 'insensitive' } },
     { country_code: { contains: q, mode: 'insensitive' } },
-    { bank_name: { contains: q, mode: 'insensitive' } },
-    { bank_account: { contains: q, mode: 'insensitive' } },
-    { bank_account_name: { contains: q, mode: 'insensitive' } },
+    { supplier_bank_accounts: { some: { bank_names: { is: { name: { contains: q, mode: 'insensitive' } } } } } },
+    { supplier_bank_accounts: { some: { account_no: { contains: q, mode: 'insensitive' } } } },
+    { supplier_bank_accounts: { some: { account_name: { contains: q, mode: 'insensitive' } } } },
     { branches: { is: { code: { contains: q, mode: 'insensitive' } } } },
     { sales_rep: { contains: q, mode: 'insensitive' } },
   ]
 
   return where
+}
+
+function supplierPrimaryBankText(supplier: SupplierListRow, field: 'accountNo' | 'bankName') {
+  const primaryAccount = supplier.supplier_bank_accounts.find((account) => account.is_primary) ?? supplier.supplier_bank_accounts[0] ?? null
+  if (!primaryAccount) return ''
+  if (field === 'accountNo') return primaryAccount.account_no ?? ''
+  return primaryAccount.bank_names?.name ?? ''
+}
+
+function compareText(left: string, right: string, direction: SortDirection) {
+  return left.localeCompare(right, 'th', { numeric: true }) * (direction === 'asc' ? 1 : -1)
 }
 
 async function getNextSupplierCode() {
@@ -123,7 +143,7 @@ export async function GET(request: Request) {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'master.suppliers.view')
 
-    const { all, direction, marketScope, page, pageSize, q, salesId, sortColumn, supplierType } = parseListParams(request)
+    const { all, direction, marketScope, page, pageSize, q, salesId, sort, sortColumn, supplierType } = parseListParams(request)
     const resolvedSalesperson = salesId ? await findActiveSalespersonReferenceByCodeOrId(salesId) : null
     if (salesId && !resolvedSalesperson) {
       return NextResponse.json({
@@ -135,21 +155,38 @@ export async function GET(request: Request) {
       })
     }
     const where = supplierSearchWhere(q, supplierType, marketScope, resolvedSalesperson?.id ?? null)
-    const [suppliers, total, paymentMethods] = await Promise.all([
+    const requiresBankSort = sort === 'bankName' || sort === 'accountNo'
+    const [supplierRows, total, paymentMethods] = await Promise.all([
       prisma.suppliers.findMany({
         include: supplierInclude,
-        orderBy: [{ [sortColumn]: direction }, { id: 'asc' }],
-        skip: all ? undefined : (page - 1) * pageSize,
-        take: pageSize,
+        orderBy: requiresBankSort ? [{ code: 'asc' }, { id: 'asc' }] : [{ [sortColumn]: direction }, { id: 'asc' }],
+        skip: requiresBankSort || all ? undefined : (page - 1) * pageSize,
+        take: requiresBankSort ? undefined : pageSize,
         where,
       }),
       prisma.suppliers.count({ where }),
       getActivePaymentMethods() as Promise<SupplierPaymentMethodRecord[]>,
     ])
-    const salespersonReferences = await listSalespersonReferencesByIds(suppliers.map((supplier) => supplier.sales_id))
+    const suppliers = requiresBankSort
+      ? supplierRows
+        .slice()
+        .sort((left, right) => {
+          const byBankField = compareText(
+            supplierPrimaryBankText(left, sort === 'bankName' ? 'bankName' : 'accountNo'),
+            supplierPrimaryBankText(right, sort === 'bankName' ? 'bankName' : 'accountNo'),
+            direction,
+          )
+          if (byBankField !== 0) return byBankField
+          return compareText(left.code, right.code, 'asc')
+        })
+      : supplierRows
+    const pagedSuppliers = requiresBankSort && !all
+      ? suppliers.slice((page - 1) * pageSize, page * pageSize)
+      : suppliers
+    const salespersonReferences = await listSalespersonReferencesByIds(pagedSuppliers.map((supplier) => supplier.sales_id))
 
     return NextResponse.json({
-      rows: suppliers.map((supplier) => mapPrismaSupplier(supplier as any, paymentMethods, {
+      rows: pagedSuppliers.map((supplier) => mapPrismaSupplier(supplier as any, paymentMethods, {
         salesId: salespersonReferences.get(String(supplier.sales_id ?? ''))?.code ?? null,
       })),
       page: all ? 1 : page,
@@ -182,7 +219,11 @@ export async function POST(request: Request) {
     if (values.salesId && !resolvedSalesperson) {
       throw new z.ZodError([{ code: 'custom', message: 'ผู้ดูแลที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน', path: ['salesId'] }])
     }
-    const paymentMethods = await getActivePaymentMethods() as SupplierPaymentMethodRecord[]
+    const [paymentMethods, bankNameRows] = await Promise.all([
+      getActivePaymentMethods() as Promise<SupplierPaymentMethodRecord[]>,
+      prisma.bank_names.findMany({ select: { id: true, name: true }, where: { active: true } }),
+    ])
+    const bankNamesByName = new Map(bankNameRows.map((row) => [row.name, row] as const))
     throwSupplierBankAccountValidationError(values, paymentMethods)
     const code = normalizeSupplierCode(values.code, values.id || await getNextSupplierCode())
     const branch = values.branchId ? await findActiveBranchReferenceByCodeOrId(values.branchId) : null
@@ -215,6 +256,7 @@ export async function POST(request: Request) {
         savedSupplier.id,
         code,
         paymentMethods,
+        bankNamesByName,
       )
       if (accountRows.length) {
         await tx.supplier_bank_accounts.createMany({ data: accountRows })

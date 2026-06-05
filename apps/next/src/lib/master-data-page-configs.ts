@@ -28,11 +28,13 @@ export const currenciesPageConfig: MasterDataPageConfig = {
   emptyMessage: 'ไม่พบข้อมูลสกุลเงิน',
   supportsActive: false,
   fields: [
+    { key: 'code', label: 'รหัสสกุลเงิน' },
     { key: 'name', label: 'ชื่อสกุลเงิน', required: true },
     { key: 'symbol', label: 'สัญลักษณ์', required: true },
     { key: 'rateToThb', label: 'อัตราเทียบบาท', type: 'number', inputFormat: 'money' },
   ],
   columns: [
+    { key: 'code', label: 'รหัส' },
     { key: 'name', label: 'ชื่อ' },
     { key: 'symbol', label: 'สัญลักษณ์', align: 'center' },
     { key: 'rateToThb', label: 'อัตราเทียบบาท', align: 'right', format: 'number' },
@@ -79,9 +81,11 @@ export const channelsPageConfig: MasterDataPageConfig = {
   entityName: 'ช่องทางขาย',
   emptyMessage: 'ไม่พบข้อมูลช่องทางขาย',
   fields: [
+    { key: 'code', label: 'รหัสช่องทางขาย' },
     { key: 'name', label: 'ชื่อช่องทาง', required: true },
   ],
   columns: [
+    { key: 'code', label: 'รหัส' },
     { key: 'name', label: 'ชื่อช่องทาง' },
     statusColumn,
   ],
@@ -133,6 +137,7 @@ export const accountsPageConfig: MasterDataPageConfig = {
   entityName: 'บัญชีเงินบริษัท',
   emptyMessage: 'ไม่พบข้อมูลบัญชีเงินบริษัท',
   fields: [
+    { key: 'code', label: 'รหัสบัญชีเงินบริษัท' },
     { key: 'type', label: 'วิธีจ่าย/รับเงิน', type: 'select', required: true, optionsApiPath: '/api/master-data/payment-methods' },
     { key: 'branchId', label: 'สาขา', type: 'select', required: true, optionsApiPath: '/api/master-data/branches', optionValueKey: 'code' },
     { key: 'name', label: 'ชื่อบัญชี', required: true },
@@ -145,6 +150,7 @@ export const accountsPageConfig: MasterDataPageConfig = {
     { key: 'openingBalance', label: 'ยอดเงินคงเหลือ', type: 'number', inputFormat: 'money' },
   ],
   columns: [
+    { key: 'code', label: 'รหัส' },
     { key: 'name', label: 'ชื่อบัญชีบริษัท' },
     { key: 'typeLabel', label: 'วิธีจ่าย/รับเงิน' },
     { key: 'subtypeLabel', label: 'ประเภทบัญชี' },
@@ -436,9 +442,11 @@ export const accountSubtypesPageConfig: MasterDataPageConfig = {
   entityName: 'ประเภทบัญชีธนาคาร',
   emptyMessage: 'ไม่พบข้อมูลประเภทบัญชีธนาคาร',
   fields: [
+    { key: 'code', label: 'รหัสประเภทบัญชีธนาคาร' },
     { key: 'name', label: 'ชื่อ', required: true },
   ],
   columns: [
+    { key: 'code', label: 'รหัส' },
     { key: 'name', label: 'ชื่อ' },
     statusColumn,
   ],

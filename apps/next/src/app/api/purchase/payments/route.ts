@@ -89,18 +89,16 @@ export async function GET() {
         orderBy: [{ name: 'asc' }],
         select: {
           active: true,
-          bank_account: true,
           code: true,
           id: true,
           name: true,
           supplier_bank_accounts: {
-            orderBy: [{ is_primary: 'desc' }, { created_at: 'asc' }],
-            select: {
-              account_no: true,
-              active: true,
-              bank_name: true,
-              payment_method: true,
+            include: {
+              bank_names: {
+                select: { code: true, name: true },
+              },
             },
+            orderBy: [{ is_primary: 'desc' }, { created_at: 'asc' }],
           },
         },
       }),
@@ -216,11 +214,13 @@ export async function GET() {
       settings: { whtRatePercent },
       suppliers: suppliers.map((supplier: typeof suppliers[number]) => ({
         active: supplier.active,
-        bankAccount: supplier.bank_account,
+        bankAccount: supplier.supplier_bank_accounts.find((account) => account.is_primary)?.account_no
+          ?? supplier.supplier_bank_accounts[0]?.account_no
+          ?? null,
         bankAccounts: (supplier.supplier_bank_accounts ?? []).map((account) => ({
           accountNo: account.account_no,
           active: account.active,
-          bankName: account.bank_name,
+          bankName: account.bank_names?.name ?? null,
           paymentMethod: account.payment_method,
         })),
         code: requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`),

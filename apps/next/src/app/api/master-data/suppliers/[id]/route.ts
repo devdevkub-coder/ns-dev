@@ -50,6 +50,11 @@ export async function PATCH(request: Request, { params }: SupplierRouteProps) {
         include: {
           branches: true,
           supplier_bank_accounts: {
+            include: {
+              bank_names: {
+                select: { code: true, name: true },
+              },
+            },
             orderBy: [{ is_primary: 'desc' }, { id: 'asc' }],
           },
         },

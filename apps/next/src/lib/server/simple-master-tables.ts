@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { parseInternalBigIntId } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
 import { getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
@@ -22,6 +23,7 @@ type Delegate = {
   findMany: (args?: unknown) => Promise<unknown[]>
   findFirst: (args?: unknown) => Promise<unknown | null>
   upsert: (args: unknown) => Promise<unknown>
+  create: (args: unknown) => Promise<unknown>
   update: (args: unknown) => Promise<unknown>
 }
 
@@ -31,6 +33,7 @@ type SimpleMasterConfig = {
   orderBy: unknown
   include?: unknown
   lookupKey?: 'id' | 'code'
+  coerceLookupValue?: (value: string) => unknown
   map: (row: unknown) => Record<string, unknown>
   data: (values: ReturnType<typeof parseMasterDataForm>, id: string, code: string) => Record<string, unknown>
   normalizeValues?: (values: ReturnType<typeof parseMasterDataForm>) => Promise<ReturnType<typeof parseMasterDataForm>>
@@ -83,10 +86,11 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
     delegate: () => prisma.account_subtypes as Delegate,
     prefix: 'AST-',
     orderBy: [{ sort_order: 'asc' }, { code: 'asc' }],
+    lookupKey: 'code',
     map: (row) => {
       const record = asRecord(row)
       return {
-        id: record.id,
+        id: record.code,
         code: record.code,
         name: record.name,
         sortOrder: toNumber(record.sort_order as number | null),
@@ -95,8 +99,7 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
         updatedAt: toIso(record.updated_at as Date | null),
       }
     },
-    data: (values, id, code) => ({
-      id,
+    data: (values, _id, code) => ({
       code,
       name: values.name,
       sort_order: values.sortOrder ?? 0,
@@ -132,10 +135,11 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
     delegate: () => prisma.director_employees as Delegate,
     prefix: 'D',
     orderBy: [{ code: 'asc' }, { name: 'asc' }],
+    lookupKey: 'code',
     map: (row) => {
       const record = asRecord(row)
       return {
-        id: record.id,
+        id: record.code,
         code: record.code,
         name: record.name,
         type: record.type,
@@ -147,8 +151,7 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
         updatedAt: toIso(record.updated_at as Date | null),
       }
     },
-    data: (values, id, code) => ({
-      id,
+    data: (values, _id, code) => ({
       code,
       name: values.name,
       type: values.type || null,
@@ -163,6 +166,7 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
     delegate: () => prisma.expense_types as Delegate,
     prefix: 'EXT-',
     orderBy: [{ code: 'asc' }],
+    lookupKey: 'code',
     map: (row) => {
       const record = asRecord(row)
       return {
@@ -184,10 +188,15 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
     delegate: () => prisma.production_machine_types as Delegate,
     prefix: 'MT-',
     orderBy: [{ name: 'asc' }],
+    coerceLookupValue: (value) => {
+      const parsed = parseInternalBigIntId(value)
+      if (parsed === null) throw new Error('รหัสประเภทเครื่องจักรไม่ถูกต้อง')
+      return parsed
+    },
     map: (row) => {
       const record = asRecord(row)
       return {
-        id: record.id,
+        id: String(record.id),
         code: null,
         name: record.name,
         active: record.active,
@@ -195,8 +204,7 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
         updatedAt: toIso(record.updated_at as Date | null),
       }
     },
-    data: (values, id, _code) => ({
-      id,
+    data: (values, _id, _code) => ({
       name: values.name,
       active: values.active,
     }),
@@ -206,11 +214,16 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
     prefix: 'MC',
     orderBy: [{ name: 'asc' }],
     include: { branches: true },
+    coerceLookupValue: (value) => {
+      const parsed = parseInternalBigIntId(value)
+      if (parsed === null) throw new Error('รหัสเครื่องจักรไม่ถูกต้อง')
+      return parsed
+    },
     map: (row) => {
       const record = asRecord(row)
       const branch = record.branches as Record<string, unknown> | null | undefined
       return {
-        id: record.id,
+        id: String(record.id),
         code: null,
         name: record.name,
         type: record.type,
@@ -224,8 +237,7 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
         updatedAt: toIso(record.updated_at as Date | null),
       }
     },
-    data: (values, id, _code) => ({
-      id,
+    data: (values, _id, _code) => ({
       name: values.name,
       branch_id: values.branchId ? BigInt(values.branchId) : null,
       type: values.type || null,
@@ -246,11 +258,16 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
     prefix: 'PL',
     orderBy: [{ name: 'asc' }],
     include: { branches: true },
+    coerceLookupValue: (value) => {
+      const parsed = parseInternalBigIntId(value)
+      if (parsed === null) throw new Error('รหัสสายการผลิตไม่ถูกต้อง')
+      return parsed
+    },
     map: (row) => {
       const record = asRecord(row)
       const branch = record.branches as Record<string, unknown> | null | undefined
       return {
-        id: record.id,
+        id: String(record.id),
         code: null,
         name: record.name,
         branchId: (branch?.code as string | null | undefined) ?? null,
@@ -261,8 +278,7 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
         updatedAt: toIso(record.updated_at as Date | null),
       }
     },
-    data: (values, id, _code) => ({
-      id,
+    data: (values, _id, _code) => ({
       name: values.name,
       branch_id: values.branchId ? BigInt(values.branchId) : null,
       responsible_person: values.responsiblePerson || null,
@@ -279,10 +295,11 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
     delegate: () => prisma.production_output_categories as Delegate,
     prefix: 'POC',
     orderBy: [{ sort_order: 'asc' }, { code: 'asc' }],
+    lookupKey: 'code',
     map: (row) => {
       const record = asRecord(row)
       return {
-        id: record.id,
+        id: record.code,
         code: record.code,
         name: record.name_th,
         stockEffect: record.stock_effect,
@@ -293,8 +310,7 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
         updatedAt: toIso(record.updated_at as Date | null),
       }
     },
-    data: (values, id, code) => ({
-      id,
+    data: (values, _id, code) => ({
       code,
       name_th: values.name,
       name_en: null,
@@ -379,10 +395,15 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
     delegate: () => prisma.vat_settings as Delegate,
     prefix: 'VAT-',
     orderBy: [{ active: 'desc' }, { updated_at: 'desc' }, { id: 'asc' }],
+    coerceLookupValue: (value) => {
+      const parsed = parseInternalBigIntId(value)
+      if (parsed === null) throw new Error('รหัส VAT ไม่ถูกต้อง')
+      return parsed
+    },
     map: (row) => {
       const record = asRecord(row)
       return {
-        id: record.id,
+        id: String(record.id),
         code: null,
         name: record.name,
         ratePercent: toNumber(record.rate_percent as { toNumber: () => number } | number | null),
@@ -391,8 +412,7 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
         updatedAt: toIso(record.updated_at as Date | null),
       }
     },
-    data: (values, id, _code) => ({
-      id,
+    data: (values, _id, _code) => ({
       name: values.name,
       rate_percent: values.ratePercent ?? 7,
       active: values.active,
@@ -403,10 +423,15 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
     delegate: () => prisma.wht_settings as Delegate,
     prefix: 'WHT-',
     orderBy: [{ active: 'desc' }, { updated_at: 'desc' }, { id: 'asc' }],
+    coerceLookupValue: (value) => {
+      const parsed = parseInternalBigIntId(value)
+      if (parsed === null) throw new Error('รหัส WHT ไม่ถูกต้อง')
+      return parsed
+    },
     map: (row) => {
       const record = asRecord(row)
       return {
-        id: record.id,
+        id: String(record.id),
         code: null,
         name: record.name,
         ratePercent: toNumber(record.rate_percent as { toNumber: () => number } | number | null),
@@ -415,8 +440,7 @@ const configs: Record<SimpleMasterKind, SimpleMasterConfig> = {
         updatedAt: toIso(record.updated_at as Date | null),
       }
     },
-    data: (values, id, _code) => ({
-      id,
+    data: (values, _id, _code) => ({
       name: values.name,
       rate_percent: values.ratePercent ?? 3,
       active: values.active,
@@ -477,20 +501,36 @@ export async function saveSimpleMasterData(request: Request, kind: SimpleMasterK
     const machineType = await prisma.production_machine_types.findFirst({ where: { active: true, name: values.type } })
     if (!machineType) throw new Error('ประเภทเครื่องจักรที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน')
   }
-  const nextValue = values.code || values.id || await nextId(config)
-  const id = config.lookupKey === 'code'
-    ? (values.id || values.code || nextValue)
-    : (values.id || nextValue)
-  const code = values.code || (config.lookupKey === 'code' ? nextValue : id)
-  const data = config.data(values, id, code)
   const lookupKey = config.lookupKey ?? 'id'
-  const lookupValue = lookupKey === 'code' ? code : id
-  const row = await config.delegate().upsert({
-    where: { [lookupKey]: lookupValue },
-    create: data,
-    update: data,
-    include: config.include,
-  })
+  const nextValue = lookupKey === 'code'
+    ? (values.code || values.id || await nextId(config))
+    : null
+  const id = lookupKey === 'code'
+    ? (values.id || values.code || nextValue || '')
+    : (values.id || '')
+  const code = lookupKey === 'code'
+    ? (values.code || nextValue || id)
+    : (values.code || '')
+  const data = config.data(values, id, code)
+  const coerceLookupValue = config.coerceLookupValue ?? ((value: string) => value)
+
+  const row = lookupKey === 'code'
+    ? await config.delegate().upsert({
+      where: { code },
+      create: data,
+      update: data,
+      include: config.include,
+    })
+    : values.id
+      ? await config.delegate().update({
+        where: { id: coerceLookupValue(values.id) },
+        data,
+        include: config.include,
+      })
+      : await config.delegate().create({
+        data,
+        include: config.include,
+      })
   return masterDataJson(config.map(row))
 }
 
@@ -500,8 +540,11 @@ export async function patchSimpleMasterData(request: Request, kind: SimpleMaster
   const config = configs[kind]
   const values = updateMasterDataStatusSchema.parse(await request.json())
   const lookupKey = config.lookupKey ?? 'id'
+  const lookupValue = lookupKey === 'code'
+    ? id
+    : (config.coerceLookupValue ? config.coerceLookupValue(id) : id)
   const row = await config.delegate().update({
-    where: { [lookupKey]: id },
+    where: { [lookupKey]: lookupValue },
     data: { active: values.active },
     include: config.include,
   })
