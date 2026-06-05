@@ -387,6 +387,7 @@ Reporting rule:
 - [x] Batch C1: harden `/master-data/branches`, `/master-data/warehouses`, `/master-data/accounts` ให้เข้า master pattern เดียวกันตามความเหมาะสม
 - [x] Batch C2: harden `/master-data/salespersons`, `/master-data/channels`, `/master-data/expense-categories`, `/master-data/currencies`
 - [x] Batch C3: harden `/master-data/directors`, `/master-data/machines`, `/master-data/production-lines`, `/master-data/beneficiaries`, `/master-data/payment-methods`, `/master-data/remittance-purposes`
+- [x] Recover local-app DB drift for `/purchase/bills`, `/purchase/advance-payments`, and `/daily/bill-swap-history` by applying the already-authored `bill_swap_history.event_key` and `supplier_advance_allocations.allocation_key` migrations to the database referenced by `apps/next/.env.local`
 - [ ] สร้าง import pattern
 - [ ] สร้าง audit metadata display
 

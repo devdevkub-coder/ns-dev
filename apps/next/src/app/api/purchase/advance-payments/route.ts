@@ -344,7 +344,7 @@ export async function GET(request: Request) {
       products: products.map((product) => ({
         active: product.active,
         code: product.code,
-        id: product.id,
+        id: requireBusinessCode(product.code, `สินค้า ${product.id}`),
         name: product.name,
         unit: product.unit,
       })),
