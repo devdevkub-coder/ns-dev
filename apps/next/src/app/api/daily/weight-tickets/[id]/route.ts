@@ -16,6 +16,7 @@ import {
   canMutateWeightTicket,
   defaultTicketStatus,
   getWeightTicketTimeline,
+  getWeightTicketUsageTimeline,
   getWeightTicketUsageCounts,
   mapWeightTicketRow,
   mutableTicketErrorMessage,
@@ -69,10 +70,14 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
     const usage = await getWeightTicketUsageCounts(prisma, ticket.id)
     const mapped = mapWeightTicketRow(ticket as WeightTicketRow, usage)
-    const timeline = await getWeightTicketTimeline(prisma, ticket.id)
+    const [timeline, usageTimeline] = await Promise.all([
+      getWeightTicketTimeline(prisma, ticket.id),
+      getWeightTicketUsageTimeline(prisma, ticket.id),
+    ])
     return NextResponse.json({
       ...mapped,
       timeline,
+      usageTimeline,
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

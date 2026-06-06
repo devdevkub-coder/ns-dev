@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireDocumentNo } from '@/lib/business-code'
+import { parseInternalBigIntId, requireDocumentNo } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
+import { appendSupplierAdvanceStatusLog, SUPPLIER_ADVANCE_STATUS_ACTION } from '@/lib/server/advance-payment-history'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
@@ -27,6 +28,8 @@ export async function POST(request: Request) {
         payment_approvals: {
           findFirst: (args: unknown) => Promise<{
             id: bigint
+            source_id: string
+            source_type: string
             status: string | null
           } | null>
           update: (args: unknown) => Promise<unknown>
@@ -66,6 +69,44 @@ export async function POST(request: Request) {
         },
         where: { id: approval.id },
       })
+
+      const sourceInternalId = parseInternalBigIntId(approval.source_id)
+      if (sourceInternalId != null && approval.source_type === 'advance_payment') {
+        const advance = await tx.supplier_advance_payments.findUnique({
+          select: { status: true },
+          where: { id: sourceInternalId },
+        })
+        await tx.supplier_advance_payments.update({
+          data: {
+            status: 'pending_approval',
+            updated_at: new Date(),
+            updated_by: actor,
+          },
+          where: { id: sourceInternalId },
+        })
+        await appendSupplierAdvanceStatusLog(tx, {
+          action: SUPPLIER_ADVANCE_STATUS_ACTION.APPROVAL_VOIDED,
+          actor,
+          advancePaymentId: sourceInternalId,
+          fromStatus: advance?.status ?? null,
+          meta: {
+            approvalDocNo,
+            reason: payload.reason,
+          },
+          note: payload.reason,
+          toStatus: 'pending_approval',
+        })
+      }
+      if (sourceInternalId != null && approval.source_type === 'expense') {
+        await tx.expenses.update({
+          data: {
+            status: 'pending_approval',
+            updated_at: new Date(),
+            updated_by: actor,
+          },
+          where: { id: sourceInternalId },
+        })
+      }
     })
 
     return NextResponse.json({ ok: true })

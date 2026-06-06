@@ -39,6 +39,22 @@ function timelineLabel(eventKey: string, action: string) {
   return eventKey
 }
 
+function usageActionLabel(action: string) {
+  if (action === 'allocated_to_purchase_bill') return 'นำไปออกบิลรับซื้อ'
+  if (action === 'released_from_purchase_bill') return 'คืนยอดจากบิลรับซื้อ'
+  return action || '-'
+}
+
+function usageWeightLabel(action: string, weight: number) {
+  const sign = action === 'released_from_purchase_bill' ? '+' : '-'
+  return `${sign} ${formatWeight(weight)} กก.`
+}
+
+function usageWeightClass(action: string) {
+  if (action === 'released_from_purchase_bill') return 'text-emerald-700'
+  return 'text-rose-700'
+}
+
 export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string }) {
   const router = useRouter()
   const [ticket, setTicket] = useState<WeightTicketRecord | null>(null)
@@ -371,6 +387,67 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
               </div>
             </Card>
           </div>
+
+        {ticket.type === 'WTI' ? (
+          <Card className="overflow-hidden p-0">
+            <div className="border-b border-slate-200 px-5 py-4">
+              <SectionTitle subtitle="บันทึกการนำใบรับของไปออกบิลและการคืนยอด" title="ประวัติการใช้งานใบรับของ" />
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 text-sm">
+                <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
+                  <tr>
+                    <th className="px-3 py-3 text-left">เวลา</th>
+                    <th className="px-3 py-3 text-left">เหตุการณ์</th>
+                    <th className="px-3 py-3 text-left">สินค้า</th>
+                    <th className="px-3 py-3 text-left">เอกสารปลายทาง</th>
+                    <th className="px-3 py-3 text-right">น้ำหนักสุทธิ</th>
+                    <th className="px-3 py-3 text-right">คงเหลือหลังรายการ</th>
+                    <th className="px-3 py-3 text-left">ผู้ทำรายการ/หมายเหตุ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {ticket.usageTimeline.length === 0 ? (
+                    <tr>
+                      <td className="px-3 py-8 text-center text-sm text-slate-400" colSpan={7}>
+                        ยังไม่มีประวัติการใช้งาน
+                      </td>
+                    </tr>
+                  ) : ticket.usageTimeline.map((event) => (
+                    <tr key={event.id}>
+                      <td className="whitespace-nowrap px-3 py-3 text-slate-500">{formatDateTime(event.createdAt)}</td>
+                      <td className="whitespace-nowrap px-3 py-3 font-medium text-slate-900">{usageActionLabel(event.action)}</td>
+                      <td className="px-3 py-3">
+                        <div className="font-medium text-slate-900">{event.productName}</div>
+                        {event.productCode ? <div className="mt-0.5 text-xs text-slate-500">{event.productCode}</div> : null}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 text-slate-700">
+                        {event.targetDocNo ? (
+                          <Link className="font-medium text-blue-700 hover:underline" href={`/purchase/bills/${encodeURIComponent(event.targetDocNo)}`}>
+                            {event.targetDocNo}
+                          </Link>
+                        ) : (
+                          '-'
+                        )}
+                        {event.targetLineNo ? <div className="mt-0.5 text-xs text-slate-500">รายการ {event.targetLineNo}</div> : null}
+                      </td>
+                      <td className={cn('whitespace-nowrap px-3 py-3 text-right font-semibold tabular-nums', usageWeightClass(event.action))}>
+                        {usageWeightLabel(event.action, event.allocatedNetWeight)}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">
+                        {event.toRemainingWeight == null ? '-' : `${formatWeight(event.toRemainingWeight)} กก.`}
+                      </td>
+                      <td className="min-w-48 px-3 py-3 text-slate-600">
+                        <div>{event.createdBy || '-'}</div>
+                        {event.note ? <div className="mt-1 text-xs text-slate-500">{event.note}</div> : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        ) : null}
 
         <Card className="p-5">
           <SectionTitle subtitle="เรียงจากล่าสุดลงล่าง" title="Timeline การแก้ไข" />

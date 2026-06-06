@@ -5,10 +5,12 @@ import { requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code
 import { supplierAdvancePaymentFormSchema } from '@/lib/purchase-advance'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { recordAuditLog } from '@/lib/server/app-logging'
+import { appendSupplierAdvanceStatusLog, SUPPLIER_ADVANCE_STATUS_ACTION } from '@/lib/server/advance-payment-history'
 import { advancePaymentStatusLabel, mapAdvancePaymentRow, parseBangkokDateTimeInput } from '@/lib/server/advance-payments'
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, listDailyAccounts, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { ensurePendingPaymentApproval } from '@/lib/server/payment-approval-pending'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
@@ -383,38 +385,62 @@ export async function POST(request: Request) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'บัญชีจ่ายไม่ถูกต้อง', fieldErrors: { fundingAccountId: ['เลือกบัญชีจ่าย'] } }, { status: 400 })
     }
 
-    const result = await prisma.supplier_advance_payments.create({
-      data: {
-        advance_date: normalizeDate(advanceDate),
-        allocated_amount: 0,
-        amount: values.amount,
-        branch_id: branch.id,
-        created_by: actor,
-        customer_name: values.customerName,
-        doc_no: docNo,
-        driver_name: values.driverName,
-        funding_account_id: fundingAccount?.id ?? null,
-        in_date: values.inDate ? parseBangkokDateTimeInput(values.inDate) : null,
-        large_scale_doc_no: values.largeScaleDocNo,
-        net_weight: values.netWeight,
-        out_date: values.outDate ? parseBangkokDateTimeInput(values.outDate) : null,
-        payment_method: values.paymentMethod,
-        plate_no: values.plateNo,
-        price_per_kg: values.pricePerKg,
-        product_name: values.productName,
-        remaining_amount: values.amount,
-        remark: values.remark,
-        scale_operator: values.scaleOperator,
-        sender_name: values.senderName,
-        status: 'pending_approval',
-        supplier_id: supplier.id,
-        updated_at: createdAt,
-        updated_by: actor,
-        vehicle_photo_names: values.vehiclePhotoNames,
-        weight_in: values.weightIn,
-        weight_out: values.weightOut,
-      },
-      select: { doc_no: true, id: true },
+    const result = await prisma.$transaction(async (tx) => {
+      const created = await tx.supplier_advance_payments.create({
+        data: {
+          advance_date: normalizeDate(advanceDate),
+          allocated_amount: 0,
+          amount: values.amount,
+          branch_id: branch.id,
+          created_by: actor,
+          customer_name: values.customerName,
+          doc_no: docNo,
+          driver_name: values.driverName,
+          funding_account_id: fundingAccount?.id ?? null,
+          in_date: values.inDate ? parseBangkokDateTimeInput(values.inDate) : null,
+          large_scale_doc_no: values.largeScaleDocNo,
+          net_weight: values.netWeight,
+          out_date: values.outDate ? parseBangkokDateTimeInput(values.outDate) : null,
+          payment_method: values.paymentMethod,
+          plate_no: values.plateNo,
+          price_per_kg: values.pricePerKg,
+          product_name: values.productName,
+          remaining_amount: values.amount,
+          remark: values.remark,
+          scale_operator: values.scaleOperator,
+          sender_name: values.senderName,
+          status: 'pending_approval',
+          supplier_id: supplier.id,
+          updated_at: createdAt,
+          updated_by: actor,
+          vehicle_photo_names: values.vehiclePhotoNames,
+          weight_in: values.weightIn,
+          weight_out: values.weightOut,
+        },
+        select: { doc_no: true, id: true },
+      })
+
+      await ensurePendingPaymentApproval(tx, {
+        actor,
+        branchCode: branch.code,
+        documentDate: normalizeDate(advanceDate),
+        partyCode: supplier.code,
+        partyName: supplier.name,
+        sourceDocNo: created.doc_no,
+        sourceId: created.id,
+        sourceType: 'advance_payment',
+      })
+      await appendSupplierAdvanceStatusLog(tx, {
+        action: SUPPLIER_ADVANCE_STATUS_ACTION.CREATED,
+        actor,
+        advancePaymentId: created.id,
+        createdAt,
+        fromStatus: null,
+        meta: { reason: 'create' },
+        toStatus: 'pending_approval',
+      })
+
+      return created
     })
 
     await recordAuditLog({

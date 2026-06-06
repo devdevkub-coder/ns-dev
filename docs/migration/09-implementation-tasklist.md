@@ -339,6 +339,17 @@ Reporting rule:
   - [x] ให้ create/edit/cancel ของ `/api/purchase/bills` เขียนผ่าน event-log contract เดียวกัน
   - [x] ให้ `/api/purchase/payments` และ `/api/purchase/payments/cancel` เขียน payment-recorded / payment-reversed events
   - [x] ให้ `/purchase/bills/[id]` ใช้ event log เป็น timeline หลัก และไม่ใช้ raw internal payment ids เป็น outward history keys
+- [x] ออกแบบ target document history table model แบบแยก table ตามเอกสาร/flow ไม่ใช้ generic `document_events` เป็น source of truth
+  - [x] บันทึก design ที่ `docs/notes/Document History Table Design.md`
+  - [x] ระบุว่า `WTI/WTO`, `POB`, `PB`, `ADV`, `PMA`, `PMT`, `POS`, `PSALE`, `SB`, `RCP` ต้องมี status/usage/allocation logs เฉพาะตามข้อมูลของแต่ละ flow
+  - [x] ระบุว่า active allocation/detail tables เป็น fact/current tables ไม่ใช่ timeline replacement
+  - [x] เพิ่ม `weight_ticket_usage_logs` สำหรับ `WTI -> PB` allocation/release พร้อม backfill active allocations และตาราง `ประวัติการใช้งานใบรับของ` ใน WTI detail
+  - [ ] เพิ่ม `weight_ticket_status_logs` สำหรับ create/edit/cancel/status transition ของ `WTI/WTO`
+  - [ ] ต่อ `weight_ticket_usage_logs` ฝั่ง `WTO -> SB`
+  - [x] เพิ่ม `po_buy_allocation_logs` สำหรับ `POB -> PB` allocation/release พร้อม backfill active allocations และตาราง `ประวัติการจัดสรร` ใน PO Buy detail
+  - [x] เพิ่ม `supplier_advance_status_logs` และ `supplier_advance_allocation_logs` สำหรับ lifecycle/status และ ADV -> PB allocation/release timeline
+  - [ ] เพิ่ม `payment_approval_status_logs`, `payment_status_logs`, `payment_allocations`, และ `payment_account_splits`
+  - [ ] เพิ่ม sales-side status/allocation logs สำหรับ `POS`, `PSALE`, `WTO`, `SB`, และ `RCP`
 - [ ] ปิด Batch C follow-up สำหรับ support/history tables ที่ยังไม่มี outward business/event key
   - [x] `bill_swap_history`: เพิ่ม `event_key` จริงใน schema/route/UI แทนการประกอบ `billDocNo:itemIndex:swapDate` ใน API
   - [x] `supplier_advance_allocations`: เพิ่ม `allocation_key` จริงใน schema และใช้เป็น outward allocation/timeline key แทน purchase-bill doc no surrogate
@@ -572,6 +583,20 @@ Tracker หลักสำหรับงานที่เหลือทั้
 6. อัปเดต tracker, sitemap, และ OpenAPI หลังจบ batch ย่อยทุกครั้ง
 7. รัน type-check/lint/build แล้ว commit/push ทุก checkpoint
 8. งานเก่าค้างยังต้องตามใน tracker: production write flow, purchase void/PO reconciliation, sales write/FIFO, stock transfer void/cost, payment approval persistence, branch-scope permission, automated smoke tests
+9. Payment-approval model correction 2026-06-06
+  - [x] supersede model เดิมที่สร้าง `PMA pending` ตั้งแต่ source-write time
+  - [x] บันทึก canonical decision ใหม่ใน `docs/notes/Payment Flow.md` และ `docs/notes/Purchase Flow.md`: `PB/ADV/EXP` เป็น pending source queue, `PMA` เกิดตอน approve เท่านั้น, `PMT` ต้องจ่ายเต็ม PMA ที่เลือก
+  - [x] เพิ่ม Mermaid flow และแยก status matrix ไว้ที่ `docs/notes/Purchase Flow Status Matrix.md` ตั้งแต่ PO/WTI/PB/ADV -> PMA -> PMT รวมถึง void PMA และ cancel PMT
+  - [x] แยก ownership เอกสารให้ชัด: `Purchase Flow.md` จบที่ `PB/payable handoff`, ส่วน approval/PMA/PMT/void/cancel/payment history รับช่วงใน `Payment Flow.md`; matrix เป็น acceptance bridge ข้าม flow เท่านั้น
+  - [x] normalize legacy `payment_approvals.source_id` data (`PB-...` / `ADV-...`) ให้กลับมาอ้าง internal bigint id string ตาม flow มาตรฐาน ไม่เพิ่ม compatibility code ใน runtime
+  - [ ] ถอย runtime/schema/data จาก `PMA pending` เป็น source-derived pending queue
+  - [ ] ปรับ `/daily/payment-approval` แท็บ `ยังไม่อนุมัติ` ให้อ่าน `PB/ADV/EXP` และคำนวณ remaining approval balance จาก source minus active/consumed PMA
+  - [ ] ปรับ approve action ให้สร้าง `PMA approved` ใหม่ตาม split amount ที่อนุมัติจริง
+  - [ ] ปรับ `/daily/payment-approval` แท็บ `อนุมัติแล้ว` ให้ใช้ `PMA.doc_no` เป็นเลขหลัก และแสดง `PB/ADV/EXP` เป็นเอกสารอ้างอิง
+  - [ ] ปรับ `/purchase/payments` ให้อ่านเฉพาะ `PMA approved`, รวมหลาย PMA ของ supplier เดียวกันได้, และบังคับ PMT full-pay ทุก PMA ที่เลือก
+  - [ ] เพิ่ม action void PMA ที่ approved แล้วแต่ยังไม่ออก PMT โดยให้ยอดกลับไป source pending candidate และเก็บ PMA เดิมเป็น audit/history
+  - [ ] ปรับ cancel PMT ให้ reverse bank/payment allocation, ปิด PMA cycle เดิม, และส่งยอดกลับ source pending candidate เพื่อ approve ใหม่
+  - [ ] บังคับ source financial lock หลังมี `PMA approved` หรือ `PMT active` ให้ครบทุก write path ของ `ADV`, `PB`, `EXP`
 
 ## 2026-06-05 Identifier Contract Checkpoint
 

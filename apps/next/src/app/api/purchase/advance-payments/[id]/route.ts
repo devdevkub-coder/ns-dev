@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supplierAdvancePaymentCancelSchema, supplierAdvancePaymentFormSchema } from '@/lib/purchase-advance'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { recordAuditLog } from '@/lib/server/app-logging'
+import { appendSupplierAdvanceStatusLog, SUPPLIER_ADVANCE_STATUS_ACTION } from '@/lib/server/advance-payment-history'
 import {
   advancePaymentMutationReason,
   advancePaymentStatusLabel,
@@ -13,6 +14,7 @@ import {
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor } from '@/lib/server/daily'
+import { deletePendingPaymentApproval, ensurePendingPaymentApproval, hasLockedPaymentApproval } from '@/lib/server/payment-approval-pending'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
@@ -83,6 +85,9 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     if (!existing) {
       return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบรายการ ADV ที่ต้องการแก้ไข' }, { status: 404 })
     }
+    if (await hasLockedPaymentApproval(prisma, 'advance_payment', existing.id)) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขไม่ได้ เพราะ ADV นี้มี PMA อนุมัติแล้ว' }, { status: 400 })
+    }
     if (!canMutateAdvancePayment(existing)) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: advancePaymentMutationReason(existing, 'edit') }, { status: 400 })
     }
@@ -118,34 +123,58 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
 
     const actor = currentActor(auth)
     const updatedAt = new Date()
-    const updated = await prisma.supplier_advance_payments.update({
-      data: {
-        amount: values.amount,
-        branch_id: branch.id,
-        customer_name: values.customerName,
-        driver_name: values.driverName,
-        funding_account_id: fundingAccount.id,
-        in_date: values.inDate ? parseBangkokDateTimeInput(values.inDate) : null,
-        large_scale_doc_no: values.largeScaleDocNo,
-        net_weight: values.netWeight,
-        out_date: values.outDate ? parseBangkokDateTimeInput(values.outDate) : null,
-        payment_method: values.paymentMethod,
-        plate_no: values.plateNo,
-        price_per_kg: values.pricePerKg,
-        product_name: values.productName,
-        remaining_amount: values.amount,
-        remark: values.remark,
-        scale_operator: values.scaleOperator,
-        sender_name: values.senderName,
-        supplier_id: supplier.id,
-        updated_at: updatedAt,
-        updated_by: actor,
-        vehicle_photo_names: values.vehiclePhotoNames,
-        weight_in: values.weightIn,
-        weight_out: values.weightOut,
-      },
-      include: advancePaymentInclude,
-      where: { id: existing.id },
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.supplier_advance_payments.update({
+        data: {
+          amount: values.amount,
+          branch_id: branch.id,
+          customer_name: values.customerName,
+          driver_name: values.driverName,
+          funding_account_id: fundingAccount.id,
+          in_date: values.inDate ? parseBangkokDateTimeInput(values.inDate) : null,
+          large_scale_doc_no: values.largeScaleDocNo,
+          net_weight: values.netWeight,
+          out_date: values.outDate ? parseBangkokDateTimeInput(values.outDate) : null,
+          payment_method: values.paymentMethod,
+          plate_no: values.plateNo,
+          price_per_kg: values.pricePerKg,
+          product_name: values.productName,
+          remaining_amount: values.amount,
+          remark: values.remark,
+          scale_operator: values.scaleOperator,
+          sender_name: values.senderName,
+          supplier_id: supplier.id,
+          updated_at: updatedAt,
+          updated_by: actor,
+          vehicle_photo_names: values.vehiclePhotoNames,
+          weight_in: values.weightIn,
+          weight_out: values.weightOut,
+        },
+        include: advancePaymentInclude,
+        where: { id: existing.id },
+      })
+
+      await ensurePendingPaymentApproval(tx, {
+        actor,
+        branchCode: branch.code,
+        documentDate: row.advance_date,
+        partyCode: supplier.code,
+        partyName: supplier.name,
+        sourceDocNo: row.doc_no,
+        sourceId: row.id,
+        sourceType: 'advance_payment',
+      })
+      await appendSupplierAdvanceStatusLog(tx, {
+        action: SUPPLIER_ADVANCE_STATUS_ACTION.EDITED,
+        actor,
+        advancePaymentId: row.id,
+        createdAt: updatedAt,
+        fromStatus: existing.status,
+        meta: { reason: 'edit' },
+        toStatus: row.status,
+      })
+
+      return row
     })
 
     const mapped = mapAdvancePaymentRow(updated)
@@ -185,23 +214,40 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (!existing) {
       return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบรายการ ADV ที่ต้องการยกเลิก' }, { status: 404 })
     }
+    if (await hasLockedPaymentApproval(prisma, 'advance_payment', existing.id)) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'ยกเลิกไม่ได้ เพราะ ADV นี้มี PMA อนุมัติแล้ว' }, { status: 400 })
+    }
     if (!canMutateAdvancePayment(existing)) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: advancePaymentMutationReason(existing, 'cancel') }, { status: 400 })
     }
 
     const actor = currentActor(auth)
     const cancelledAt = new Date()
-    const updated = await prisma.supplier_advance_payments.update({
-      data: {
-        cancel_reason: values.note,
-        cancelled_at: cancelledAt,
-        cancelled_by: actor,
-        status: 'cancelled',
-        updated_at: cancelledAt,
-        updated_by: actor,
-      },
-      include: advancePaymentInclude,
-      where: { id: existing.id },
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.supplier_advance_payments.update({
+        data: {
+          cancel_reason: values.note,
+          cancelled_at: cancelledAt,
+          cancelled_by: actor,
+          status: 'cancelled',
+          updated_at: cancelledAt,
+          updated_by: actor,
+        },
+        include: advancePaymentInclude,
+        where: { id: existing.id },
+      })
+      await deletePendingPaymentApproval(tx, 'advance_payment', existing.id)
+      await appendSupplierAdvanceStatusLog(tx, {
+        action: SUPPLIER_ADVANCE_STATUS_ACTION.CANCELLED,
+        actor,
+        advancePaymentId: row.id,
+        createdAt: cancelledAt,
+        fromStatus: existing.status,
+        meta: { cancelReason: values.note, reason: 'cancel_action' },
+        note: values.note,
+        toStatus: row.status,
+      })
+      return row
     })
 
     const mapped = mapAdvancePaymentRow(updated)

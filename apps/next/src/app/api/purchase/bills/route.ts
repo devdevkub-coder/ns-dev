@@ -4,15 +4,22 @@ import * as XLSX from 'xlsx'
 import { parseInternalBigIntId, requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { purchaseBillCancelSchema, purchaseBillFormSchema, type PurchaseBillFormValues } from '@/lib/purchase-bill'
 import { apiErrorResponse } from '@/lib/server/api-error'
+import {
+  appendSupplierAdvanceAllocationLogs,
+  SUPPLIER_ADVANCE_ALLOCATION_ACTION,
+  SUPPLIER_ADVANCE_STATUS_ACTION,
+} from '@/lib/server/advance-payment-history'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
-import { PO_BUY_STATUS, reconcilePoBuys } from '@/lib/server/po-buy-reconciliation'
+import { deletePendingPaymentApproval, ensurePendingPaymentApproval } from '@/lib/server/payment-approval-pending'
+import { appendPoBuyAllocationLogs, PO_BUY_ALLOCATION_ACTION, PO_BUY_STATUS, reconcilePoBuys } from '@/lib/server/po-buy-reconciliation'
 import { appendPurchaseBillStatusLog, createInitialPurchaseBillStatusLog, PURCHASE_BILL_STATUS_ACTION } from '@/lib/server/purchase-bill-history'
 import { prisma } from '@/lib/server/prisma'
 import { refreshPurchaseBillSettlement, refreshSupplierAdvancePaymentAllocation } from '@/lib/server/purchase-bill-settlement'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 import { activeVatRatePercent } from '@/lib/server/tax-settings'
+import { appendWeightTicketUsageLogs, WEIGHT_TICKET_USAGE_ACTION, type WeightTicketUsageAction } from '@/lib/server/weight-ticket-usage-history'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 import type { Prisma } from '../../../../../generated/prisma/client'
 
@@ -102,6 +109,14 @@ type PoBuyRefRow = {
   status: string | null
   supplier_id: bigint | null
   unit_price: Prisma.Decimal | null
+}
+
+type ReceiptSummarySource = {
+  deduct_weight: Prisma.Decimal | null
+  gross_weight: Prisma.Decimal | null
+  id: bigint
+  net_weight: Prisma.Decimal | null
+  weight_ticket_id: bigint
 }
 
 function branchBillCode(branchCode: string | null | undefined) {
@@ -364,16 +379,16 @@ async function createPurchaseBillItems(tx: Prisma.TransactionClient, billId: big
 function buildPurchaseBillReceiptAllocationRows(
   billId: bigint,
   itemRows: Awaited<ReturnType<typeof createPurchaseBillItems>>,
-  summaryById: Map<string, { deduct_weight: Prisma.Decimal | null; gross_weight: Prisma.Decimal | null; net_weight: Prisma.Decimal | null; weight_ticket_id: bigint }>,
+  summaryByRef: Map<string, ReceiptSummarySource>,
   actor: string,
 ) {
   return itemRows.flatMap((item) => {
     const snapshot = item.source_snapshot && typeof item.source_snapshot === 'object'
       ? item.source_snapshot as Record<string, unknown>
       : {}
-    const summaryId = typeof snapshot.receiptSummaryId === 'string' ? parseInternalBigIntId(snapshot.receiptSummaryId) : null
-    if (summaryId == null) return []
-    const summary = summaryById.get(stringifyBusinessValue(summaryId))
+    const summaryRef = typeof snapshot.receiptSummaryId === 'string' ? snapshot.receiptSummaryId : null
+    if (!summaryRef) return []
+    const summary = summaryByRef.get(summaryRef)
     if (!summary) return []
     const allocatedQty = toNumber(item.qty)
     const netWeight = toNumber(summary.net_weight)
@@ -386,7 +401,7 @@ function buildPurchaseBillReceiptAllocationRows(
       purchase_bill_id: billId,
       purchase_bill_item_id: item.id,
       weight_ticket_id: summary.weight_ticket_id,
-      weight_ticket_product_summary_id: summaryId,
+      weight_ticket_product_summary_id: summary.id,
     }]
   })
 }
@@ -408,6 +423,291 @@ function buildPurchaseBillPoAllocationRows(
       unit_price_snapshot: toNumber(item.price),
     }]
   })
+}
+
+type PoBuyAllocationLogSource = {
+  allocatedAmount: number
+  allocatedQty: number
+  productCodeSnapshot: string | null
+  productId: bigint | null
+  productNameSnapshot: string | null
+  purchaseBillDocNo: string
+  purchaseBillId: bigint
+  purchaseBillItemId: bigint
+  purchaseBillLineNo: number
+  poBuyId: bigint
+  unitPriceSnapshot: number
+}
+
+function poBuyAllocationLogSourceKey(source: PoBuyAllocationLogSource) {
+  return [
+    stringifyBusinessValue(source.poBuyId),
+    source.purchaseBillLineNo,
+    source.productCodeSnapshot ?? '',
+    source.productId ? stringifyBusinessValue(source.productId) : '',
+  ].join(':')
+}
+
+function samePoBuyAllocationLogSource(left: PoBuyAllocationLogSource, right: PoBuyAllocationLogSource) {
+  return Math.abs(left.allocatedAmount - right.allocatedAmount) <= 0.0001
+    && Math.abs(left.allocatedQty - right.allocatedQty) <= 0.0001
+    && Math.abs(left.unitPriceSnapshot - right.unitPriceSnapshot) <= 0.0001
+    && left.productCodeSnapshot === right.productCodeSnapshot
+    && left.productNameSnapshot === right.productNameSnapshot
+}
+
+function diffPoBuyAllocationLogSources(
+  beforeSources: PoBuyAllocationLogSource[],
+  afterSources: PoBuyAllocationLogSource[],
+) {
+  const beforeByKey = new Map(beforeSources.map((source) => [poBuyAllocationLogSourceKey(source), source] as const))
+  const afterByKey = new Map(afterSources.map((source) => [poBuyAllocationLogSourceKey(source), source] as const))
+  const released: PoBuyAllocationLogSource[] = []
+  const allocated: PoBuyAllocationLogSource[] = []
+
+  beforeByKey.forEach((before, key) => {
+    const after = afterByKey.get(key)
+    if (!after || !samePoBuyAllocationLogSource(before, after)) released.push(before)
+  })
+  afterByKey.forEach((after, key) => {
+    const before = beforeByKey.get(key)
+    if (!before || !samePoBuyAllocationLogSource(before, after)) allocated.push(after)
+  })
+
+  return { allocated, released }
+}
+
+function buildPoBuyAllocationLogSourcesFromRows(
+  purchaseBillDocNo: string,
+  poAllocationRows: ReturnType<typeof buildPurchaseBillPoAllocationRows>,
+  itemRows: Awaited<ReturnType<typeof createPurchaseBillItems>>,
+) {
+  const itemById = new Map(itemRows.map((item) => [item.id, item] as const))
+  return poAllocationRows.flatMap((row): PoBuyAllocationLogSource[] => {
+    const item = itemById.get(row.purchase_bill_item_id)
+    if (!item) return []
+    return [{
+      allocatedAmount: toNumber(row.allocated_amount),
+      allocatedQty: toNumber(row.allocated_qty),
+      poBuyId: row.po_buy_id,
+      productCodeSnapshot: item.product_code ?? null,
+      productId: item.product_id ?? null,
+      productNameSnapshot: item.product_name ?? null,
+      purchaseBillDocNo,
+      purchaseBillId: row.purchase_bill_id,
+      purchaseBillItemId: row.purchase_bill_item_id,
+      purchaseBillLineNo: item.line_no,
+      unitPriceSnapshot: toNumber(row.unit_price_snapshot),
+    }]
+  })
+}
+
+async function loadCurrentPoBuyAllocationLogSources(tx: Prisma.TransactionClient, purchaseBillId: bigint) {
+  const rows = await tx.purchase_bill_po_allocations.findMany({
+    include: {
+      purchase_bills: { select: { doc_no: true, id: true } },
+      purchase_bill_items: {
+        select: {
+          line_no: true,
+          product_code: true,
+          product_id: true,
+          product_name: true,
+        },
+      },
+    },
+    where: { purchase_bill_id: purchaseBillId },
+  })
+
+  return rows.map((row): PoBuyAllocationLogSource => ({
+    allocatedAmount: toNumber(row.allocated_amount),
+    allocatedQty: toNumber(row.allocated_qty),
+    poBuyId: row.po_buy_id,
+    productCodeSnapshot: row.purchase_bill_items.product_code ?? null,
+    productId: row.purchase_bill_items.product_id ?? null,
+    productNameSnapshot: row.purchase_bill_items.product_name ?? null,
+    purchaseBillDocNo: row.purchase_bills.doc_no,
+    purchaseBillId: row.purchase_bill_id,
+    purchaseBillItemId: row.purchase_bill_item_id,
+    purchaseBillLineNo: row.purchase_bill_items.line_no,
+    unitPriceSnapshot: toNumber(row.unit_price_snapshot),
+  }))
+}
+
+async function appendPoBuyAllocationLogSources(
+  tx: Prisma.TransactionClient,
+  sources: PoBuyAllocationLogSource[],
+  params: {
+    action: typeof PO_BUY_ALLOCATION_ACTION[keyof typeof PO_BUY_ALLOCATION_ACTION]
+    actor: string
+    meta: Prisma.InputJsonValue
+    note?: string | null
+  },
+) {
+  await appendPoBuyAllocationLogs(tx, sources.map((source) => ({
+    action: params.action,
+    actor: params.actor,
+    allocatedAmount: source.allocatedAmount,
+    allocatedQty: source.allocatedQty,
+    meta: params.meta,
+    note: params.note ?? null,
+    poBuyId: source.poBuyId,
+    productCodeSnapshot: source.productCodeSnapshot,
+    productId: source.productId,
+    productNameSnapshot: source.productNameSnapshot,
+    purchaseBillDocNo: source.purchaseBillDocNo,
+    purchaseBillId: source.purchaseBillId,
+    purchaseBillItemId: source.purchaseBillItemId,
+    purchaseBillLineNo: source.purchaseBillLineNo,
+    unitPriceSnapshot: source.unitPriceSnapshot,
+  })))
+}
+
+type WeightTicketUsageLogSource = {
+  allocatedDeductWeight: number
+  allocatedGrossWeight: number
+  allocatedNetWeight: number
+  allocatedQty: number
+  productCodeSnapshot: string | null
+  productId: bigint | null
+  productNameSnapshot: string | null
+  purchaseBillDocNo: string
+  purchaseBillId: bigint
+  purchaseBillItemId: bigint
+  purchaseBillLineNo: number
+  weightTicketId: bigint
+  weightTicketProductSummaryId: bigint
+}
+
+function weightTicketUsageLogSourceKey(source: WeightTicketUsageLogSource) {
+  return [
+    stringifyBusinessValue(source.weightTicketProductSummaryId),
+    source.purchaseBillLineNo,
+    source.productCodeSnapshot ?? '',
+    source.productId ? stringifyBusinessValue(source.productId) : '',
+  ].join(':')
+}
+
+function sameWeightTicketUsageLogSource(left: WeightTicketUsageLogSource, right: WeightTicketUsageLogSource) {
+  return Math.abs(left.allocatedDeductWeight - right.allocatedDeductWeight) <= 0.0001
+    && Math.abs(left.allocatedGrossWeight - right.allocatedGrossWeight) <= 0.0001
+    && Math.abs(left.allocatedNetWeight - right.allocatedNetWeight) <= 0.0001
+    && Math.abs(left.allocatedQty - right.allocatedQty) <= 0.0001
+    && left.productCodeSnapshot === right.productCodeSnapshot
+    && left.productNameSnapshot === right.productNameSnapshot
+}
+
+function diffWeightTicketUsageLogSources(
+  beforeSources: WeightTicketUsageLogSource[],
+  afterSources: WeightTicketUsageLogSource[],
+) {
+  const beforeByKey = new Map(beforeSources.map((source) => [weightTicketUsageLogSourceKey(source), source] as const))
+  const afterByKey = new Map(afterSources.map((source) => [weightTicketUsageLogSourceKey(source), source] as const))
+  const released: WeightTicketUsageLogSource[] = []
+  const allocated: WeightTicketUsageLogSource[] = []
+
+  beforeByKey.forEach((before, key) => {
+    const after = afterByKey.get(key)
+    if (!after || !sameWeightTicketUsageLogSource(before, after)) released.push(before)
+  })
+  afterByKey.forEach((after, key) => {
+    const before = beforeByKey.get(key)
+    if (!before || !sameWeightTicketUsageLogSource(before, after)) allocated.push(after)
+  })
+
+  return { allocated, released }
+}
+
+function buildWeightTicketUsageLogSourcesFromRows(
+  purchaseBillDocNo: string,
+  receiptAllocationRows: ReturnType<typeof buildPurchaseBillReceiptAllocationRows>,
+  itemRows: Awaited<ReturnType<typeof createPurchaseBillItems>>,
+) {
+  const itemById = new Map(itemRows.map((item) => [item.id, item] as const))
+  return receiptAllocationRows.flatMap((row): WeightTicketUsageLogSource[] => {
+    const item = itemById.get(row.purchase_bill_item_id)
+    if (!item) return []
+    return [{
+      allocatedDeductWeight: toNumber(row.allocated_deduct_weight),
+      allocatedGrossWeight: toNumber(row.allocated_gross_weight),
+      allocatedNetWeight: toNumber(row.allocated_qty),
+      allocatedQty: toNumber(row.allocated_qty),
+      productCodeSnapshot: item.product_code ?? null,
+      productId: item.product_id ?? null,
+      productNameSnapshot: item.product_name ?? null,
+      purchaseBillDocNo,
+      purchaseBillId: row.purchase_bill_id,
+      purchaseBillItemId: row.purchase_bill_item_id,
+      purchaseBillLineNo: item.line_no,
+      weightTicketId: row.weight_ticket_id,
+      weightTicketProductSummaryId: row.weight_ticket_product_summary_id,
+    }]
+  })
+}
+
+async function loadCurrentWeightTicketUsageLogSources(tx: Prisma.TransactionClient, purchaseBillId: bigint) {
+  const rows = await tx.purchase_bill_receipt_allocations.findMany({
+    include: {
+      purchase_bills: { select: { doc_no: true, id: true } },
+      purchase_bill_items: {
+        select: {
+          line_no: true,
+          product_code: true,
+          product_id: true,
+          product_name: true,
+        },
+      },
+    },
+    where: { purchase_bill_id: purchaseBillId },
+  })
+
+  return rows.map((row): WeightTicketUsageLogSource => ({
+    allocatedDeductWeight: toNumber(row.allocated_deduct_weight),
+    allocatedGrossWeight: toNumber(row.allocated_gross_weight),
+    allocatedNetWeight: toNumber(row.allocated_qty),
+    allocatedQty: toNumber(row.allocated_qty),
+    productCodeSnapshot: row.purchase_bill_items.product_code ?? null,
+    productId: row.purchase_bill_items.product_id ?? null,
+    productNameSnapshot: row.purchase_bill_items.product_name ?? null,
+    purchaseBillDocNo: row.purchase_bills.doc_no,
+    purchaseBillId: row.purchase_bill_id,
+    purchaseBillItemId: row.purchase_bill_item_id,
+    purchaseBillLineNo: row.purchase_bill_items.line_no,
+    weightTicketId: row.weight_ticket_id,
+    weightTicketProductSummaryId: row.weight_ticket_product_summary_id,
+  }))
+}
+
+async function appendWeightTicketUsageLogSourceChanges(
+  tx: Prisma.TransactionClient,
+  changes: Array<{
+    action: WeightTicketUsageAction
+    actor: string
+    meta: Prisma.InputJsonValue
+    note?: string | null
+    source: WeightTicketUsageLogSource
+  }>,
+) {
+  await appendWeightTicketUsageLogs(tx, changes.map(({ action, actor, meta, note, source }) => ({
+    action,
+    actor,
+    allocatedDeductWeight: source.allocatedDeductWeight,
+    allocatedGrossWeight: source.allocatedGrossWeight,
+    allocatedNetWeight: source.allocatedNetWeight,
+    allocatedQty: source.allocatedQty,
+    meta,
+    note: note ?? null,
+    productCodeSnapshot: source.productCodeSnapshot,
+    productId: source.productId,
+    productNameSnapshot: source.productNameSnapshot,
+    purchaseBillId: source.purchaseBillId,
+    purchaseBillItemId: source.purchaseBillItemId,
+    targetDocNo: source.purchaseBillDocNo,
+    targetId: source.purchaseBillId,
+    targetLineNo: source.purchaseBillLineNo,
+    targetType: 'PURCHASE_BILL',
+    weightTicketId: source.weightTicketId,
+    weightTicketProductSummaryId: source.weightTicketProductSummaryId,
+  })))
 }
 
 function billItemCreateRows(billId: string, items: ReturnType<typeof buildBillItems>) {
@@ -516,7 +816,16 @@ async function resetPurchaseBillAdvanceAllocation(
   reason: string,
 ) {
   const activeAllocations = await tx.supplier_advance_allocations.findMany({
-    select: { advance_payment_id: true, id: true },
+    select: {
+      advance_payment_id: true,
+      allocated_amount: true,
+      allocation_key: true,
+      id: true,
+      purchase_bill_id: true,
+      purchase_bills: {
+        select: { doc_no: true },
+      },
+    },
     where: {
       purchase_bill_id: billId,
       status: 'active',
@@ -538,10 +847,27 @@ async function resetPurchaseBillAdvanceAllocation(
       status: 'active',
     },
   })
+  await appendSupplierAdvanceAllocationLogs(tx, activeAllocations.map((allocation) => ({
+    action: SUPPLIER_ADVANCE_ALLOCATION_ACTION.RELEASED_FROM_PURCHASE_BILL,
+    actor,
+    allocatedAmount: toNumber(allocation.allocated_amount),
+    allocationId: allocation.id,
+    allocationKey: allocation.allocation_key,
+    advancePaymentId: allocation.advance_payment_id,
+    createdAt: now,
+    meta: { reason },
+    note: reason,
+    purchaseBillDocNo: allocation.purchase_bills.doc_no,
+    purchaseBillId: allocation.purchase_bill_id,
+  })))
 
   const advanceIds = [...new Set(activeAllocations.map((allocation) => allocation.advance_payment_id))]
   for (const advanceId of advanceIds) {
-    await refreshSupplierAdvancePaymentAllocation(tx, advanceId)
+    await refreshSupplierAdvancePaymentAllocation(tx, advanceId, actor, {
+      action: SUPPLIER_ADVANCE_STATUS_ACTION.ALLOCATION_RELEASED,
+      meta: { reason },
+      note: reason,
+    })
   }
 }
 
@@ -551,6 +877,7 @@ async function applyPurchaseBillAdvanceAllocation(
     actor: string
     billId: bigint
     branchId: bigint
+    billDocNo: string
     maxAmount: number
     supplierId: bigint
     values: Pick<PurchaseBillFormValues, 'advancePaymentId'>
@@ -565,7 +892,7 @@ async function applyPurchaseBillAdvanceAllocation(
   const allocatedAmount = Math.min(params.maxAmount, advancePayment.availableAmount)
   if (allocatedAmount <= 0.01) return 0
 
-  await tx.supplier_advance_allocations.create({
+  const allocation = await tx.supplier_advance_allocations.create({
     data: {
       advance_payment_id: advancePayment.id,
       allocated_amount: allocatedAmount,
@@ -575,14 +902,37 @@ async function applyPurchaseBillAdvanceAllocation(
       status: 'active',
       updated_at: new Date(),
     },
+    select: {
+      allocation_key: true,
+      id: true,
+    },
   })
+  await appendSupplierAdvanceAllocationLogs(tx, [{
+    action: SUPPLIER_ADVANCE_ALLOCATION_ACTION.ALLOCATED_TO_PURCHASE_BILL,
+    actor: params.actor,
+    allocatedAmount,
+    allocationId: allocation.id,
+    allocationKey: allocation.allocation_key,
+    advancePaymentId: advancePayment.id,
+    meta: { reason: 'purchase_bill_save' },
+    purchaseBillDocNo: params.billDocNo,
+    purchaseBillId: params.billId,
+  }])
 
-  await refreshSupplierAdvancePaymentAllocation(tx, advancePayment.id)
+  await refreshSupplierAdvancePaymentAllocation(tx, advancePayment.id, params.actor)
   return allocatedAmount
 }
 
 function receiptSummaryUsageKey(ticketId: bigint | string, summaryId: bigint | string) {
   return `${stringifyBusinessValue(ticketId)}::${stringifyBusinessValue(summaryId)}`
+}
+
+function receiptLineOutwardId(ticketDocNo: string, lineNo: number) {
+  return `${ticketDocNo}:${lineNo}`
+}
+
+function receiptSummaryOutwardId(ticketDocNo: string, productCode: string, lineCount: number | null | undefined) {
+  return `${ticketDocNo}:${productCode}:${lineCount ?? 0}`
 }
 
 async function buildWeightTicketUsageMap(tickets: WeightTicketOptionRow[]) {
@@ -616,63 +966,98 @@ function derivePurchaseSource(items: Array<{ poBuyId?: string | null }>, fallbac
   return fallback === 'MIXED' || poCount > 0 ? 'MIXED' as const : 'SPOT_BUY' as const
 }
 
-async function loadReceiptAvailability(ticketId: bigint, excludeBillId?: bigint) {
-  const [ticket, bills] = await Promise.all([
-    prisma.weight_tickets.findUnique({
-      include: {
-        branches: true,
-        suppliers: true,
-        weight_ticket_product_summaries: {
-          include: {
-            weight_ticket_product_summary_lines: true,
-          },
-          orderBy: { product_name: 'asc' },
+async function loadReceiptAvailability(ticketDocNo: string, excludeBillId?: bigint) {
+  const ticket = await prisma.weight_tickets.findUnique({
+    include: {
+      branches: true,
+      suppliers: true,
+      weight_ticket_product_summaries: {
+        include: {
+          weight_ticket_product_summary_lines: true,
         },
-        weight_ticket_lines: { orderBy: { line_no: 'asc' } },
+        orderBy: { product_name: 'asc' },
       },
-      where: { id: ticketId },
-    }),
-    prisma.purchase_bill_receipt_allocations.findMany({
-      select: {
-        allocated_qty: true,
-        purchase_bill_id: true,
-        weight_ticket_id: true,
-        weight_ticket_product_summary_id: true,
-      },
-      where: {
-        weight_ticket_id: ticketId,
-        purchase_bills: {
-          NOT: { status: 'cancelled' },
-        },
-      },
-    }),
-  ])
+      weight_ticket_lines: { orderBy: { line_no: 'asc' } },
+    },
+    where: { doc_no: ticketDocNo },
+  })
+  if (!ticket) return { ticket: null, usedQtyBySummaryId: new Map<string, number>() }
 
-  const usageMap = new Map<string, number>()
-  bills.forEach((row) => {
-    if (excludeBillId && row.purchase_bill_id === excludeBillId) return
-    const key = receiptSummaryUsageKey(row.weight_ticket_id, row.weight_ticket_product_summary_id)
-    usageMap.set(key, (usageMap.get(key) ?? 0) + toNumber(row.allocated_qty))
+  const bills = await prisma.purchase_bill_receipt_allocations.findMany({
+    select: {
+      allocated_qty: true,
+      purchase_bill_id: true,
+      weight_ticket_product_summary_id: true,
+    },
+    where: {
+      weight_ticket_id: ticket.id,
+      purchase_bills: {
+        NOT: { status: 'cancelled' },
+      },
+    },
   })
 
-  return { ticket }
+  const usedQtyBySummaryId = new Map<string, number>()
+  bills.forEach((row) => {
+    if (excludeBillId && row.purchase_bill_id === excludeBillId) return
+    const key = stringifyBusinessValue(row.weight_ticket_product_summary_id)
+    usedQtyBySummaryId.set(key, (usedQtyBySummaryId.get(key) ?? 0) + toNumber(row.allocated_qty))
+  })
+
+  return { ticket, usedQtyBySummaryId }
 }
 
-function receiptSummaryMap(ticket: NonNullable<Awaited<ReturnType<typeof loadReceiptAvailability>>['ticket']>) {
+function receiptSummaryMapByInternalId(ticket: WeightTicketOptionRow) {
   return new Map(ticket.weight_ticket_product_summaries.map((summary) => [stringifyBusinessValue(summary.id), summary]))
 }
 
-function extractReferencedReceiptTicketIdsFromValues(values: PurchaseBillFormValues) {
-  return [...new Set(values.items.map((item) => parseInternalBigIntId(item.receiptTicketId)).filter((value): value is bigint => value != null))]
+function receiptReferenceMaps(ticket: WeightTicketOptionRow, productByRef: Map<string, ProductRefRow>) {
+  const productCodeByInternalId = new Map([...productByRef.values()].map((product) => [product.id, product.code] as const))
+  const lineByInternalId = new Map(ticket.weight_ticket_lines.map((line) => [line.id, line] as const))
+  const lineToSummaryRef = new Map<string, string>()
+  const receiptSummarySourceMap = new Map<string, ReceiptSummarySource>()
+
+  ticket.weight_ticket_product_summaries.forEach((summary) => {
+    const productCode = productCodeByInternalId.get(summary.product_id)
+    if (!productCode) return
+    const summaryRef = receiptSummaryOutwardId(ticket.doc_no, productCode, summary.line_count)
+    receiptSummarySourceMap.set(summaryRef, {
+      deduct_weight: summary.deduct_weight,
+      gross_weight: summary.gross_weight,
+      id: summary.id,
+      net_weight: summary.net_weight,
+      weight_ticket_id: summary.weight_ticket_id,
+    })
+    summary.weight_ticket_product_summary_lines.forEach((bridge) => {
+      const line = lineByInternalId.get(bridge.weight_ticket_line_id)
+      if (!line) return
+      lineToSummaryRef.set(receiptLineOutwardId(ticket.doc_no, line.line_no), summaryRef)
+    })
+  })
+
+  return { lineToSummaryRef, receiptSummarySourceMap }
 }
 
-function extractReferencedReceiptTicketIdsFromBillItems(items: Array<{ source_snapshot: Prisma.JsonValue | null }>) {
+function extractReferencedReceiptTicketDocNosFromBillItems(items: Array<{ source_snapshot: Prisma.JsonValue | null }>) {
   return [...new Set(items.map((item) => {
     const snapshot = item.source_snapshot && typeof item.source_snapshot === 'object'
       ? item.source_snapshot as Record<string, unknown>
       : {}
-    return typeof snapshot.receiptTicketId === 'string' ? parseInternalBigIntId(snapshot.receiptTicketId) : null
-  }).filter((value): value is bigint => value != null))]
+    return typeof snapshot.receiptTicketId === 'string' ? snapshot.receiptTicketId : null
+  }).filter((value): value is string => Boolean(value)))]
+}
+
+async function resolveReferencedReceiptTicketIdsFromBillItems(tx: Prisma.TransactionClient, items: Array<{ source_snapshot: Prisma.JsonValue | null }>) {
+  const docNos = extractReferencedReceiptTicketDocNosFromBillItems(items)
+  if (docNos.length === 0) return []
+  const rows = await tx.weight_tickets.findMany({
+    select: { id: true },
+    where: {
+      doc_no: { in: docNos },
+      doc_type: 'WTI',
+    },
+  })
+  return rows.map((row) => row.id)
 }
 
 function extractReferencedPoBuyIdsFromBillItems(items: Array<{ po_buy_id?: bigint | null }>) {
@@ -688,14 +1073,15 @@ async function validateStockReceiptSelection(
   resolvedBranchId: bigint,
   resolvedSupplierId: bigint,
   poBuyById: Map<string, PoBuyRefRow>,
+  productByRef: Map<string, ProductRefRow>,
   excludeBillId?: bigint,
 ) {
-  const receiptTicketId = parseInternalBigIntId(values.receiptTicketId)
-  if (receiptTicketId == null) {
+  const receiptTicketId = values.receiptTicketId?.trim()
+  if (!receiptTicketId) {
     return { error: 'เลือกใบรับของ' as const }
   }
 
-  const { ticket } = await loadReceiptAvailability(receiptTicketId, excludeBillId)
+  const { ticket, usedQtyBySummaryId } = await loadReceiptAvailability(receiptTicketId, excludeBillId)
   if (!ticket || ticket.doc_type !== 'WTI' || ticket.cancelled_at) {
     return { error: 'ใบรับของที่เลือกไม่ถูกต้อง' as const }
   }
@@ -706,26 +1092,29 @@ async function validateStockReceiptSelection(
     return { error: 'ใบรับของต้องเป็นผู้ขายเดียวกับบิลรับซื้อ' as const }
   }
 
-  const summaryById = receiptSummaryMap(ticket)
-  const lineToSummaryId = new Map<string, string>()
-  ticket.weight_ticket_product_summaries.forEach((summary) => {
-    summary.weight_ticket_product_summary_lines.forEach((bridge) => {
-      lineToSummaryId.set(stringifyBusinessValue(bridge.weight_ticket_line_id), stringifyBusinessValue(summary.id))
-    })
-  })
+  const summaryById = receiptSummaryMapByInternalId(ticket)
+  const { lineToSummaryRef, receiptSummarySourceMap } = receiptReferenceMaps(ticket, productByRef)
 
-  const requestedQtyBySummary = new Map<string, number>()
+  const requestedQtyBySummaryId = new Map<string, number>()
   const requestedQtyByPo = new Map<string, number>()
   for (const item of values.items) {
-    const resolvedSummaryId = item.receiptSummaryId ?? (item.receiptLineId ? lineToSummaryId.get(item.receiptLineId) ?? null : null)
-    if (parseInternalBigIntId(item.receiptTicketId) !== ticket.id || !resolvedSummaryId) {
+    const resolvedSummaryRef = item.receiptSummaryId ?? (item.receiptLineId ? lineToSummaryRef.get(item.receiptLineId) ?? null : null)
+    if (item.receiptTicketId !== ticket.doc_no || !resolvedSummaryRef) {
       return { error: 'รายการ Stock ต้องอ้างอิงรายการจากใบรับของเดียวกัน' as const }
     }
-    const summary = summaryById.get(resolvedSummaryId)
+    const summarySource = receiptSummarySourceMap.get(resolvedSummaryRef)
+    if (!summarySource) {
+      return { error: 'มีรายการอ้างอิงใบรับของที่ไม่ถูกต้อง' as const }
+    }
+    const summary = summaryById.get(stringifyBusinessValue(summarySource.id))
     if (!summary) {
       return { error: 'มีรายการอ้างอิงใบรับของที่ไม่ถูกต้อง' as const }
     }
-    const itemProductId = parseInternalBigIntId(item.productId)
+    const itemProduct = productByRef.get(item.productId)
+    if (!itemProduct) {
+      return { error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' as const }
+    }
+    const itemProductId = itemProduct.id
     if (summary.product_id !== itemProductId) {
       return { error: 'สินค้าในบิลไม่ตรงกับสินค้าในใบรับของ' as const }
     }
@@ -745,15 +1134,20 @@ async function validateStockReceiptSelection(
       }
       requestedQtyByPo.set(item.poBuyId, (requestedQtyByPo.get(item.poBuyId) ?? 0) + item.qty)
     }
-    requestedQtyBySummary.set(resolvedSummaryId, (requestedQtyBySummary.get(resolvedSummaryId) ?? 0) + item.qty)
+    const summaryId = stringifyBusinessValue(summarySource.id)
+    requestedQtyBySummaryId.set(summaryId, (requestedQtyBySummaryId.get(summaryId) ?? 0) + item.qty)
   }
 
   for (const summary of ticket.weight_ticket_product_summaries) {
     const summaryId = stringifyBusinessValue(summary.id)
-    const availableQty = Math.max(0, toNumber(summary.remaining_weight))
-    const requestedQty = requestedQtyBySummary.get(summaryId) ?? 0
+    const availableQty = Math.max(0, toNumber(summary.net_weight) - (usedQtyBySummaryId.get(summaryId) ?? 0))
+    const requestedQty = requestedQtyBySummaryId.get(summaryId) ?? 0
     if (requestedQty > availableQty + 0.0001) {
       return { error: `จำนวนเกินน้ำหนักคงเหลือของ ${summary.product_name}` as const }
+    }
+    if (availableQty > 0.0001 && requestedQty < availableQty - 0.0001) {
+      const remainingQty = Math.max(0, availableQty - requestedQty).toLocaleString('th-TH', { maximumFractionDigits: 2 })
+      return { error: `ใบรับของต้องจัดสรรให้ครบก่อนบันทึก: ${summary.product_name} ยังเหลือ ${remainingQty} กก.` as const }
     }
   }
 
@@ -766,7 +1160,7 @@ async function validateStockReceiptSelection(
     }
   }
 
-  return { ticket }
+  return { receiptSummarySourceMap, ticket }
 }
 
 function weightTicketOptionJson(
@@ -1350,28 +1744,22 @@ export async function POST(request: Request) {
     const missingPoBuy = poBuyRefs.find((poBuyId) => !poBuyById.has(poBuyId))
     if (missingPoBuy) return NextResponse.json({ code: 'BAD_REQUEST', error: 'PO Buy ที่เลือกไม่ถูกต้อง' }, { status: 400 })
 
-    const productById = createProductRefMap(products as ProductRefRow[])
-    const missingProduct = values.items.find((item) => !productById.has(item.productId))
+    const productByRef = createProductRefMap(products as ProductRefRow[])
+    const missingProduct = values.items.find((item) => !productByRef.has(item.productId))
     if (missingProduct) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
 
-    let receiptSummarySourceMap = new Map<string, { deduct_weight: Prisma.Decimal | null; gross_weight: Prisma.Decimal | null; net_weight: Prisma.Decimal | null; weight_ticket_id: bigint }>()
+    let receiptSummarySourceMap = new Map<string, ReceiptSummarySource>()
+    let receiptTicketIdsToRefresh: bigint[] = []
     if (values.transactionMode === 'STOCK') {
-      const receiptValidation = await validateStockReceiptSelection(values, effectiveBranch.id, supplier.id, poBuyById)
+      const receiptValidation = await validateStockReceiptSelection(values, effectiveBranch.id, supplier.id, poBuyById, productByRef)
       if ('error' in receiptValidation) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: receiptValidation.error }, { status: 400 })
       }
-      receiptSummarySourceMap = new Map(receiptValidation.ticket.weight_ticket_product_summaries.map((summary) => [
-        stringifyBusinessValue(summary.id),
-        {
-          deduct_weight: summary.deduct_weight,
-          gross_weight: summary.gross_weight,
-          net_weight: summary.net_weight,
-          weight_ticket_id: summary.weight_ticket_id,
-        },
-      ]))
+      receiptSummarySourceMap = receiptValidation.receiptSummarySourceMap
+      receiptTicketIdsToRefresh = [receiptValidation.ticket.id]
     }
 
-    const items = buildBillItems(values, productById, poBuyById)
+    const items = buildBillItems(values, productByRef, poBuyById)
     const poBuyIds = extractReferencedPoBuyIdsFromBuiltItems(items)
     if (poBuyIds.length > 0) {
       await prisma.$transaction(async (tx) => {
@@ -1439,15 +1827,34 @@ export async function POST(request: Request) {
           const receiptAllocationRows = buildPurchaseBillReceiptAllocationRows(createdBill.id, itemRows, receiptSummarySourceMap, actor)
           if (receiptAllocationRows.length > 0) {
             await tx.purchase_bill_receipt_allocations.createMany({ data: receiptAllocationRows })
+            await appendWeightTicketUsageLogSourceChanges(
+              tx,
+              buildWeightTicketUsageLogSourcesFromRows(createdBill.doc_no, receiptAllocationRows, itemRows).map((source) => ({
+                action: WEIGHT_TICKET_USAGE_ACTION.ALLOCATED_TO_PURCHASE_BILL,
+                actor,
+                meta: { reason: 'purchase_bill_create' },
+                source,
+              })),
+            )
           }
           const poAllocationRows = buildPurchaseBillPoAllocationRows(createdBill.id, itemRows, actor)
           if (poAllocationRows.length > 0) {
             await tx.purchase_bill_po_allocations.createMany({ data: poAllocationRows })
+            await appendPoBuyAllocationLogSources(
+              tx,
+              buildPoBuyAllocationLogSourcesFromRows(createdBill.doc_no, poAllocationRows, itemRows),
+              {
+                action: PO_BUY_ALLOCATION_ACTION.ALLOCATED_TO_PURCHASE_BILL,
+                actor,
+                meta: { reason: 'purchase_bill_create' },
+              },
+            )
           }
           await reconcilePoBuys(tx, extractReferencedPoBuyIdsFromBuiltItems(items), { actor })
           await applyPurchaseBillAdvanceAllocation(tx, {
             actor,
             branchId: effectiveBranch.id,
+            billDocNo: createdBill.doc_no,
             billId: createdBill.id,
             maxAmount: totals.totalAmount,
             supplierId: supplier.id,
@@ -1466,6 +1873,18 @@ export async function POST(request: Request) {
             purchaseBillId: createdBill.id,
             toStatus: settlement.status,
           })
+          if (settlement.payableBalance > 0.01) {
+            await ensurePendingPaymentApproval(tx, {
+              actor,
+              branchCode: effectiveBranch.code,
+              documentDate: createdAt,
+              partyCode: supplier.code,
+              partyName: supplier.name,
+              sourceDocNo: createdBill.doc_no,
+              sourceId: createdBill.id,
+              sourceType: 'purchase_bill',
+            })
+          }
 
           if (values.transactionMode === 'STOCK') {
             await tx.stock_ledger.createMany({
@@ -1490,7 +1909,7 @@ export async function POST(request: Request) {
                 warehouse_id: warehouseByStatus.get(item.itemStatus)?.id ?? purchaseWarehouseId,
               })),
             })
-            await refreshWeightTicketStatuses(tx, extractReferencedReceiptTicketIdsFromValues(values))
+            await refreshWeightTicketStatuses(tx, receiptTicketIdsToRefresh)
           }
 
           return createdBill
@@ -1542,7 +1961,7 @@ export async function PATCH(request: Request) {
           where: {
             source_id: stringifyBusinessValue(existingBillRef.id),
             source_type: 'purchase_bill',
-            status: 'approved',
+            status: { in: ['approved', 'paid'] },
           },
         }),
       ])
@@ -1559,6 +1978,8 @@ export async function PATCH(request: Request) {
 
       const cancelledAt = new Date()
       const cancelledBill = await prisma.$transaction(async (tx) => {
+        const existingPoAllocationSources = await loadCurrentPoBuyAllocationLogSources(tx, existingBillRef.id)
+        const existingWeightTicketUsageSources = await loadCurrentWeightTicketUsageLogSources(tx, existingBillRef.id)
         const bill = await tx.purchase_bills.update({
           data: {
             cancel_note: values.note,
@@ -1573,11 +1994,28 @@ export async function PATCH(request: Request) {
           where: { id: existingBillRef.id },
         })
         await tx.stock_ledger.deleteMany({ where: { ref_id: existingBillRef.doc_no, ref_type: 'PB' } })
+        await appendPoBuyAllocationLogSources(tx, existingPoAllocationSources, {
+          action: PO_BUY_ALLOCATION_ACTION.RELEASED_FROM_PURCHASE_BILL,
+          actor,
+          meta: { reason: 'purchase_bill_cancel' },
+          note: values.note,
+        })
+        await appendWeightTicketUsageLogSourceChanges(
+          tx,
+          existingWeightTicketUsageSources.map((source) => ({
+            action: WEIGHT_TICKET_USAGE_ACTION.RELEASED_FROM_PURCHASE_BILL,
+            actor,
+            meta: { reason: 'purchase_bill_cancel' },
+            note: values.note,
+            source,
+          })),
+        )
         await tx.purchase_bill_receipt_allocations.deleteMany({ where: { purchase_bill_id: existingBillRef.id } })
         await tx.purchase_bill_po_allocations.deleteMany({ where: { purchase_bill_id: existingBillRef.id } })
         await resetPurchaseBillAdvanceAllocation(tx, existingBillRef.id, actor, 'ยกเลิกบิลรับซื้อ')
+        await deletePendingPaymentApproval(tx, 'purchase_bill', existingBillRef.id)
         await reconcilePoBuys(tx, extractReferencedPoBuyIdsFromBillItems(existingBillItems), { actor })
-        await refreshWeightTicketStatuses(tx, extractReferencedReceiptTicketIdsFromBillItems(existingBillItems))
+        await refreshWeightTicketStatuses(tx, await resolveReferencedReceiptTicketIdsFromBillItems(tx, existingBillItems))
         await appendPurchaseBillStatusLog(tx, {
           action: PURCHASE_BILL_STATUS_ACTION.CANCELLED,
           actor,
@@ -1620,7 +2058,7 @@ export async function PATCH(request: Request) {
         where: {
           source_id: stringifyBusinessValue(existingBillRef.id),
           source_type: 'purchase_bill',
-          status: 'approved',
+          status: { in: ['approved', 'paid'] },
         },
       }),
     ])
@@ -1650,28 +2088,22 @@ export async function PATCH(request: Request) {
     const missingPoBuy = poBuyRefs.find((poBuyId) => !poBuyById.has(poBuyId))
     if (missingPoBuy) return NextResponse.json({ code: 'BAD_REQUEST', error: 'PO Buy ที่เลือกไม่ถูกต้อง' }, { status: 400 })
 
-    const productById = createProductRefMap(products as ProductRefRow[])
-    const missingProduct = values.items.find((item) => !productById.has(item.productId))
+    const productByRef = createProductRefMap(products as ProductRefRow[])
+    const missingProduct = values.items.find((item) => !productByRef.has(item.productId))
     if (missingProduct) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
 
-    let receiptSummarySourceMap = new Map<string, { deduct_weight: Prisma.Decimal | null; gross_weight: Prisma.Decimal | null; net_weight: Prisma.Decimal | null; weight_ticket_id: bigint }>()
+    let receiptSummarySourceMap = new Map<string, ReceiptSummarySource>()
+    let receiptTicketIdsToRefresh: bigint[] = []
     if (values.transactionMode === 'STOCK') {
-      const receiptValidation = await validateStockReceiptSelection(values, effectiveBranch.id, supplier.id, poBuyById, existingBillRef.id)
+      const receiptValidation = await validateStockReceiptSelection(values, effectiveBranch.id, supplier.id, poBuyById, productByRef, existingBillRef.id)
       if ('error' in receiptValidation) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: receiptValidation.error }, { status: 400 })
       }
-      receiptSummarySourceMap = new Map(receiptValidation.ticket.weight_ticket_product_summaries.map((summary) => [
-        stringifyBusinessValue(summary.id),
-        {
-          deduct_weight: summary.deduct_weight,
-          gross_weight: summary.gross_weight,
-          net_weight: summary.net_weight,
-          weight_ticket_id: summary.weight_ticket_id,
-        },
-      ]))
+      receiptSummarySourceMap = receiptValidation.receiptSummarySourceMap
+      receiptTicketIdsToRefresh = [receiptValidation.ticket.id]
     }
 
-    const items = buildBillItems(values, productById, poBuyById)
+    const items = buildBillItems(values, productByRef, poBuyById)
     const poBuyIds = extractReferencedPoBuyIdsFromBuiltItems(items)
     if (poBuyIds.length > 0) {
       await prisma.$transaction(async (tx) => {
@@ -1692,6 +2124,8 @@ export async function PATCH(request: Request) {
     const purchaseWarehouseId = values.transactionMode === 'STOCK' ? warehouseByStatus.get(items[0]?.itemStatus ?? 'RM')?.id ?? null : null
 
     const updatedBill = await prisma.$transaction(async (tx) => {
+      const existingPoAllocationSources = await loadCurrentPoBuyAllocationLogSources(tx, existingBillRef.id)
+      const existingWeightTicketUsageSources = await loadCurrentWeightTicketUsageLogSources(tx, existingBillRef.id)
       const bill = await tx.purchase_bills.update({
         data: {
           branch_id: effectiveBranch.id,
@@ -1735,13 +2169,42 @@ export async function PATCH(request: Request) {
       if (receiptAllocationRows.length > 0) {
         await tx.purchase_bill_receipt_allocations.createMany({ data: receiptAllocationRows })
       }
+      const nextWeightTicketUsageSources = buildWeightTicketUsageLogSourcesFromRows(bill.doc_no, receiptAllocationRows, itemRows)
+      const weightTicketUsageDiff = diffWeightTicketUsageLogSources(existingWeightTicketUsageSources, nextWeightTicketUsageSources)
+      await appendWeightTicketUsageLogSourceChanges(tx, [
+        ...weightTicketUsageDiff.released.map((source) => ({
+          action: WEIGHT_TICKET_USAGE_ACTION.RELEASED_FROM_PURCHASE_BILL,
+          actor,
+          meta: { reason: 'purchase_bill_edit' },
+          source,
+        })),
+        ...weightTicketUsageDiff.allocated.map((source) => ({
+          action: WEIGHT_TICKET_USAGE_ACTION.ALLOCATED_TO_PURCHASE_BILL,
+          actor,
+          meta: { reason: 'purchase_bill_edit' },
+          source,
+        })),
+      ])
       const poAllocationRows = buildPurchaseBillPoAllocationRows(existingBillRef.id, itemRows, actor)
       if (poAllocationRows.length > 0) {
         await tx.purchase_bill_po_allocations.createMany({ data: poAllocationRows })
       }
+      const nextPoAllocationSources = buildPoBuyAllocationLogSourcesFromRows(bill.doc_no, poAllocationRows, itemRows)
+      const poAllocationDiff = diffPoBuyAllocationLogSources(existingPoAllocationSources, nextPoAllocationSources)
+      await appendPoBuyAllocationLogSources(tx, poAllocationDiff.released, {
+        action: PO_BUY_ALLOCATION_ACTION.RELEASED_FROM_PURCHASE_BILL,
+        actor,
+        meta: { reason: 'purchase_bill_edit' },
+      })
+      await appendPoBuyAllocationLogSources(tx, poAllocationDiff.allocated, {
+        action: PO_BUY_ALLOCATION_ACTION.ALLOCATED_TO_PURCHASE_BILL,
+        actor,
+        meta: { reason: 'purchase_bill_edit' },
+      })
         await applyPurchaseBillAdvanceAllocation(tx, {
           actor,
           branchId: effectiveBranch.id,
+          billDocNo: bill.doc_no,
           billId: existingBillRef.id,
           maxAmount: totals.totalAmount,
           supplierId: supplier.id,
@@ -1779,11 +2242,25 @@ export async function PATCH(request: Request) {
       }
 
       await refreshWeightTicketStatuses(tx, [
-        ...extractReferencedReceiptTicketIdsFromValues(values),
-        ...extractReferencedReceiptTicketIdsFromBillItems(existingBillItems),
+        ...receiptTicketIdsToRefresh,
+        ...await resolveReferencedReceiptTicketIdsFromBillItems(tx, existingBillItems),
       ])
 
       const settlement = await refreshPurchaseBillSettlement(tx, existingBillRef.id, actor)
+      if (settlement.payableBalance > 0.01) {
+        await ensurePendingPaymentApproval(tx, {
+          actor,
+          branchCode: effectiveBranch.code,
+          documentDate: existingBill.date ?? normalizeDate(billDate),
+          partyCode: supplier.code,
+          partyName: supplier.name,
+          sourceDocNo: bill.doc_no,
+          sourceId: bill.id,
+          sourceType: 'purchase_bill',
+        })
+      } else {
+        await deletePendingPaymentApproval(tx, 'purchase_bill', bill.id)
+      }
       await appendPurchaseBillStatusLog(tx, {
         action: PURCHASE_BILL_STATUS_ACTION.EDITED,
         actor,

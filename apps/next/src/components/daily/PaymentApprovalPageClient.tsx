@@ -41,6 +41,7 @@ type ApprovalApRow = {
 }
 
 type ApprovalExpenseRow = {
+  accountId: string
   accountName: string
   approvalDisplayDocNo: string | null
   approvalId: string | null
@@ -288,6 +289,7 @@ export function PaymentApprovalPageClient() {
 
   const splitTotal = splitDrafts.reduce((sum, split) => sum + split.amount, 0)
   const currentDetailRow = detail?.tab === 'ap' ? detail.row : null
+  const currentExpenseDetailRow = detail?.tab === 'expense' ? detail.row : null
   const splitDiff = currentDetailRow ? currentDetailRow.payableBalance - splitTotal : 0
 
   useEffect(() => {
@@ -386,24 +388,44 @@ export function PaymentApprovalPageClient() {
   }
 
   async function approveCurrentDetail() {
-    if (!currentDetailRow) return
+    if (currentDetailRow) {
     const validationError = splitValidationMessage(currentDetailRow)
     if (validationError) {
       setError(validationError)
       return
     }
+    } else if (currentExpenseDetailRow) {
+      if (!currentExpenseDetailRow.accountId) {
+        setError('ค่าใช้จ่ายรายการนี้ยังไม่ได้ผูกบัญชีจ่าย จึงอนุมัติไม่ได้')
+        return
+      }
+    } else {
+      return
+    }
+
     setIsSubmittingApproval(true)
     setError(null)
     try {
+      const payload = currentDetailRow
+        ? {
+            approvalId: currentDetailRow.approvalId ?? currentDetailRow.docNo,
+            sourceType: currentDetailRow.sourceType,
+            splits: splitDrafts.map((split) => ({
+              approvedAmount: split.amount,
+              destinationId: split.destinationId,
+            })),
+          }
+        : {
+            approvalId: currentExpenseDetailRow!.approvalId ?? currentExpenseDetailRow!.docNo,
+            sourceType: 'expense' as const,
+            splits: [{
+              approvedAmount: currentExpenseDetailRow!.totalAmount,
+              destinationId: currentExpenseDetailRow!.accountId,
+            }],
+          }
+
       await dailyFetchJson('/api/daily/payment-approval', {
-        body: JSON.stringify({
-          sourceId: currentDetailRow.id,
-          sourceType: currentDetailRow.sourceType,
-          splits: splitDrafts.map((split) => ({
-            approvedAmount: split.amount,
-            destinationId: split.destinationId,
-          })),
-        }),
+        body: JSON.stringify(payload),
         method: 'POST',
       })
       closeDetail()
@@ -485,6 +507,7 @@ export function PaymentApprovalPageClient() {
               <TableHeader>
                 <tr>
                   <SortableHead align="left" currentKey={sortKey} direction={sortDirection} label="เลขที่เอกสาร" sortKey="docNo" onSort={changeSort} />
+                  <TableHead>เอกสารอ้างอิง</TableHead>
                   <SortableHead align="left" currentKey={sortKey} direction={sortDirection} label="วันที่" sortKey="date" onSort={changeSort} />
                   <SortableHead align="left" currentKey={sortKey} direction={sortDirection} label="ผู้ขาย" sortKey="partyName" onSort={changeSort} />
                   <SortableHead align="left" currentKey={sortKey} direction={sortDirection} label="ช่องทางจ่าย / ปลายทาง" sortKey="bankAccount" onSort={changeSort} />
@@ -495,12 +518,16 @@ export function PaymentApprovalPageClient() {
                 </tr>
               </TableHeader>
               <TableBody>
-                {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={8}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+                {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={9}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
                 {!isLoading && apRows.map((row) => (
                   <TableRow key={row.id} className="cursor-pointer border-0 hover:bg-slate-50" onClick={() => openDetail({ row, tab: 'ap' })}>
                     <TableCell className="text-xs">
                       <div className="font-medium whitespace-nowrap">{row.docNo}</div>
-                      <div className="text-[11px] text-slate-500">{row.approvalStatus === 'pending' ? row.sourceLabel : `อ้างอิง ${row.sourceDocNo}`}</div>
+                      <div className="text-[11px] text-slate-500">{row.approvalStatus === 'pending' ? 'PMA pending' : 'PMA approved'}</div>
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      <div className="font-medium whitespace-nowrap">{row.sourceDocNo}</div>
+                      <div className="text-[11px] text-slate-500">{row.sourceLabel}</div>
                     </TableCell>
                     <TableCell className="text-xs">{formatDateDisplay(row.date)}</TableCell>
                     <TableCell className="font-semibold">{row.supplierName}</TableCell>
@@ -522,7 +549,7 @@ export function PaymentApprovalPageClient() {
                 ))}
                 {!isLoading && totalRows === 0 ? (
                   <TableRow>
-                    <TableCell className="p-6 text-center text-slate-500" colSpan={8}>
+                    <TableCell className="p-6 text-center text-slate-500" colSpan={9}>
                       {tab === 'advance' ? 'ไม่มีรายการจ่ายเงินล่วงหน้า / มัดจำรออนุมัติ' : 'ไม่มีรายการต้นทุน / Supplier รออนุมัติ'}
                     </TableCell>
                   </TableRow>
@@ -534,6 +561,7 @@ export function PaymentApprovalPageClient() {
               <TableHeader>
                 <tr>
                   <SortableHead align="left" currentKey={sortKey} direction={sortDirection} label="เลขที่/วันที่" sortKey="docNo" onSort={changeSort} />
+                  <TableHead>เอกสารอ้างอิง</TableHead>
                   <SortableHead align="left" currentKey={sortKey} direction={sortDirection} label="ครบกำหนด" sortKey="dueDate" onSort={changeSort} />
                   <SortableHead align="left" currentKey={sortKey} direction={sortDirection} label="ผู้รับเงิน" sortKey="partyName" onSort={changeSort} />
                   <TableHead>รายละเอียด / อ้างอิง</TableHead>
@@ -542,14 +570,18 @@ export function PaymentApprovalPageClient() {
                 </tr>
               </TableHeader>
               <TableBody>
-                {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={6}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+                {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={7}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
                 {!isLoading && expenseRows.map((row) => {
                   const overdue = row.dueDate ? row.dueDate < new Date().toISOString().slice(0, 10) : false
                   return (
                     <TableRow key={row.id} className="cursor-pointer border-0 hover:bg-slate-50" onClick={() => openDetail({ row, tab: 'expense' })}>
                       <TableCell className="text-xs">
                         <div className="font-medium whitespace-nowrap">{row.docNo}</div>
-                        <div className="text-slate-500">{row.approvalStatus === 'pending' ? formatDateDisplay(row.date) : `อ้างอิง ${row.sourceDocNo}`}</div>
+                        <div className="text-slate-500">{row.approvalStatus === 'pending' ? 'PMA pending' : 'PMA approved'}</div>
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        <div className="font-medium whitespace-nowrap">{row.sourceDocNo}</div>
+                        <div className="text-slate-500">ค่าใช้จ่าย</div>
                       </TableCell>
                       <TableCell className="text-xs">{row.dueDate ? <span className={overdue ? 'font-bold text-red-600' : 'text-slate-700'}>{formatDateDisplay(row.dueDate)}{overdue ? <span className="block text-[10px] text-red-500">เลยกำหนด</span> : null}</span> : <span className="text-slate-300">-</span>}</TableCell>
                       <TableCell className="font-semibold">{row.payee}</TableCell>
@@ -564,7 +596,7 @@ export function PaymentApprovalPageClient() {
                     </TableRow>
                   )
                 })}
-                {!isLoading && totalRows === 0 ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={6}>ไม่มีค่าใช้จ่ายค้างจ่าย</TableCell></TableRow> : null}
+                {!isLoading && totalRows === 0 ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={7}>ไม่มีค่าใช้จ่ายค้างจ่าย</TableCell></TableRow> : null}
               </TableBody>
           </Table>
         )}
@@ -580,8 +612,8 @@ export function PaymentApprovalPageClient() {
           {detail?.tab === 'ap' ? (
             <div className="space-y-4">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <DetailItem label="เลขที่เอกสารต้นทาง" value={detail.row.sourceDocNo} />
-                <DetailItem label="ประเภทเอกสาร" value={detail.row.sourceLabel} />
+                <DetailItem label="เลขที่เอกสารอ้างอิง" value={detail.row.sourceDocNo} />
+                <DetailItem label="ประเภทเอกสารอ้างอิง" value={detail.row.sourceLabel} />
                 <DetailItem label="วันที่" value={formatDateDisplay(detail.row.date)} />
                 <DetailItem label="ผู้ขาย" value={detail.row.supplierName} />
                 <DetailItem label="ยอดเต็ม" value={formatMoney(detail.row.totalAmount)} />
@@ -660,8 +692,8 @@ export function PaymentApprovalPageClient() {
             </div>
           ) : detail?.tab === 'expense' ? (
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <DetailItem label="เลขที่เอกสาร" value={detail.row.sourceDocNo} />
-              <DetailItem label="เลขที่อนุมัติ" value={detail.row.approvalDisplayDocNo ?? '-'} />
+              <DetailItem label="เลขที่อนุมัติ" value={detail.row.docNo} />
+              <DetailItem label="เลขที่เอกสารอ้างอิง" value={detail.row.sourceDocNo} />
               <DetailItem label="วันที่" value={formatDateDisplay(detail.row.date)} />
               <DetailItem label="ครบกำหนด" value={detail.row.dueDate ? formatDateDisplay(detail.row.dueDate) : '-'} />
               <DetailItem label="ผู้รับเงิน" value={detail.row.payee} />
@@ -673,8 +705,15 @@ export function PaymentApprovalPageClient() {
           ) : null}
 
           <DialogFooter>
-            {currentDetailRow && currentDetailRow.approvalStatus === 'pending' ? (
-              <Button disabled={isSubmittingApproval || Boolean(splitValidationMessage(currentDetailRow))} onClick={() => void approveCurrentDetail()}>
+            {(currentDetailRow?.approvalStatus === 'pending' || currentExpenseDetailRow?.approvalStatus === 'pending') ? (
+              <Button
+                disabled={
+                  isSubmittingApproval
+                  || (currentDetailRow != null ? Boolean(splitValidationMessage(currentDetailRow)) : false)
+                  || (currentExpenseDetailRow != null ? !currentExpenseDetailRow.accountId : false)
+                }
+                onClick={() => void approveCurrentDetail()}
+              >
                 {isSubmittingApproval ? 'กำลังอนุมัติ...' : 'ยืนยันอนุมัติรายการนี้'}
               </Button>
             ) : null}

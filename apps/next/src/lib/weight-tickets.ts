@@ -67,6 +67,7 @@ export type WeightTicketRecord = {
   timeline: WeightTicketTimelineEvent[]
   updatedAt: string | null
   updatedBy: string
+  usageTimeline: WeightTicketUsageTimelineEvent[]
   usedInPurchaseBillCount: number
   usedInPurchaseBillDocNos: string[]
   usedInSalesBillCount: number
@@ -100,6 +101,27 @@ export type WeightTicketTimelineEvent = {
   metadata: Record<string, unknown>
   occurredAt: string
   outcome: 'blocked' | 'failure' | 'success'
+}
+
+export type WeightTicketUsageTimelineEvent = {
+  action: string
+  allocatedDeductWeight: number
+  allocatedGrossWeight: number
+  allocatedNetWeight: number
+  allocatedQty: number
+  createdAt: string
+  createdBy: string
+  eventKey: string
+  fromRemainingWeight: number | null
+  id: string
+  meta: Record<string, unknown>
+  note: string
+  productCode: string
+  productName: string
+  targetDocNo: string
+  targetLineNo: number | null
+  targetType: string
+  toRemainingWeight: number | null
 }
 
 const typeEnum = z.enum(['WTI', 'WTO'])
@@ -187,6 +209,27 @@ const weightTicketTimelineSchema = z.object({
   outcome: z.enum(['blocked', 'failure', 'success']),
 })
 
+const weightTicketUsageTimelineSchema = z.object({
+  action: z.string(),
+  allocatedDeductWeight: z.number(),
+  allocatedGrossWeight: z.number(),
+  allocatedNetWeight: z.number(),
+  allocatedQty: z.number(),
+  createdAt: z.string(),
+  createdBy: z.string(),
+  eventKey: z.string(),
+  fromRemainingWeight: z.number().nullable(),
+  id: z.string(),
+  meta: z.record(z.string(), z.unknown()).default({}),
+  note: z.string(),
+  productCode: z.string(),
+  productName: z.string(),
+  targetDocNo: z.string(),
+  targetLineNo: z.number().int().nullable(),
+  targetType: z.string(),
+  toRemainingWeight: z.number().nullable(),
+})
+
 const weightTicketProductSummarySchema = z.object({
   billedWeight: z.number(),
   deductWeight: z.number(),
@@ -229,6 +272,7 @@ export const weightTicketRecordSchema = z.object({
   type: typeEnum,
   updatedAt: z.string().nullable(),
   updatedBy: z.string(),
+  usageTimeline: z.array(weightTicketUsageTimelineSchema).default([]),
   usedInPurchaseBillCount: z.number().int().nonnegative(),
   usedInPurchaseBillDocNos: z.array(z.string()).default([]),
   usedInSalesBillCount: z.number().int().nonnegative(),

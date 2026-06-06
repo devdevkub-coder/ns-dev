@@ -5,6 +5,7 @@ import { parseInternalBigIntId, requireBusinessCode, requireDocumentNo, stringif
 import { supplierPaymentFormSchema } from '@/lib/daily'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
+import { appendSupplierAdvanceStatusLog, supplierAdvanceStatusActionForStatus } from '@/lib/server/advance-payment-history'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, listDailyAccounts, nextDailyDocNos, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { getActivePaymentMethods } from '@/lib/server/payment-methods'
@@ -60,6 +61,63 @@ async function refreshPurchaseBillPaymentStatus(tx: Prisma.TransactionClient, bi
   await refreshPurchaseBillSettlement(tx, billId, actor)
 }
 
+async function refreshAdvancePaymentPaymentStatus(tx: Prisma.TransactionClient, advanceId: bigint, actor: string) {
+  const [advance, approvals] = await Promise.all([
+    tx.supplier_advance_payments.findUnique({
+      select: { id: true, status: true },
+      where: { id: advanceId },
+    }),
+    tx.payment_approvals.findMany({
+      select: { approved_amount: true, id: true, status: true },
+      where: {
+        source_id: advanceId.toString(),
+        source_type: 'advance_payment',
+        status: { in: ['approved', 'paid'] },
+      },
+    }),
+  ])
+  if (!advance) throw new Error('ไม่พบ ADV ที่ต้องการคำนวณสถานะใหม่')
+  if (advance.status === 'cancelled') return
+
+  let allSettled = approvals.length > 0
+  for (const approval of approvals) {
+    const activePayments = await tx.payments.findMany({
+      select: { amount: true, discount: true, status: true, withholding_tax: true },
+      where: {
+        payment_approval_id: approval.id,
+        NOT: { status: 'cancelled' },
+      },
+    })
+    const settledAmount = activePayments.reduce((sum, payment) => (
+      sum + toNumber(payment.amount) + toNumber(payment.withholding_tax) + toNumber(payment.discount)
+    ), 0)
+    if (Math.max(0, toNumber(approval.approved_amount) - settledAmount) > 0.01) {
+      allSettled = false
+      break
+    }
+  }
+
+  const nextStatus = allSettled ? 'paid' : 'approved'
+  await tx.supplier_advance_payments.update({
+    data: {
+      status: nextStatus,
+      updated_at: new Date(),
+      updated_by: actor,
+    },
+    where: { id: advanceId },
+  })
+  if (nextStatus !== advance.status) {
+    await appendSupplierAdvanceStatusLog(tx, {
+      action: supplierAdvanceStatusActionForStatus(nextStatus),
+      actor,
+      advancePaymentId: advanceId,
+      fromStatus: advance.status,
+      meta: { reason: 'payment_status_refresh' },
+      toStatus: nextStatus,
+    })
+  }
+}
+
 export async function GET() {
   try {
     const prismaExt = prisma as typeof prisma & {
@@ -76,6 +134,7 @@ export async function GET() {
           party_name_snapshot: string | null
           source_doc_no_snapshot: string | null
           source_id: string
+          source_type: string
           status: string | null
         }>>
       }
@@ -116,10 +175,11 @@ export async function GET() {
           party_name_snapshot: true,
           source_doc_no_snapshot: true,
           source_id: true,
+          source_type: true,
           status: true,
         },
         take: 5000,
-        where: { source_type: 'purchase_bill', status: 'approved' },
+        where: { source_type: { in: ['purchase_bill', 'advance_payment'] }, status: 'approved' },
       }),
       prisma.payments.findMany({
         include: { accounts: true, suppliers: true },
@@ -144,30 +204,46 @@ export async function GET() {
     }
 
     const purchaseBillIds = [...new Set(approvals
+      .filter((approval) => approval.source_type === 'purchase_bill')
       .map((approval) => parseInternalBigIntId(approval.source_id))
       .filter((value): value is bigint => value != null))]
-    const purchaseBills = await prisma.purchase_bills.findMany({
-      orderBy: [{ date: 'desc' }],
-      select: { date: true, doc_no: true, id: true, paid_amount: true, payable_balance: true, status: true, supplier_id: true, total_amount: true },
-      where: {
-        id: { in: purchaseBillIds },
-      },
-    })
+    const advanceIds = [...new Set(approvals
+      .filter((approval) => approval.source_type === 'advance_payment')
+      .map((approval) => parseInternalBigIntId(approval.source_id))
+      .filter((value): value is bigint => value != null))]
+    const [purchaseBills, advancePayments] = await Promise.all([
+      prisma.purchase_bills.findMany({
+        orderBy: [{ date: 'desc' }],
+        select: { date: true, doc_no: true, id: true, paid_amount: true, payable_balance: true, status: true, supplier_id: true, total_amount: true },
+        where: {
+          id: { in: purchaseBillIds },
+        },
+      }),
+      prisma.supplier_advance_payments.findMany({
+        orderBy: [{ advance_date: 'desc' }],
+        select: { advance_date: true, amount: true, doc_no: true, id: true, supplier_id: true, status: true },
+        where: {
+          id: { in: advanceIds },
+        },
+      }),
+    ])
     const billById = new Map(purchaseBills.map((bill: typeof purchaseBills[number]) => [bill.id, bill]))
+    const advanceById = new Map(advancePayments.map((advance: typeof advancePayments[number]) => [advance.id, advance]))
 
     return NextResponse.json({
       accounts,
       bills: approvals
         .map((approval: typeof approvals[number]) => {
-          const billId = parseInternalBigIntId(approval.source_id)
-          const bill = billId != null ? billById.get(billId) : undefined
-          if (!bill) return null
           const approvedAmount = toNumber(approval.approved_amount)
           const approvalInternalId = stringifyBusinessValue(approval.id)
           const paidAgainstApproval = paymentTotalsByApprovalId.get(approvalInternalId) ?? 0
           const payableBalance = Math.max(0, approvedAmount - paidAgainstApproval)
           if (payableBalance <= 0.01) return null
           const approvalDocNo = requireDocumentNo(approval.doc_no, `อนุมัติจ่าย ${approval.id}`)
+          if (approval.source_type === 'purchase_bill') {
+            const billId = parseInternalBigIntId(approval.source_id)
+            const bill = billId != null ? billById.get(billId) : undefined
+            if (!bill) return null
           return {
             approvalAccountNo: approval.destination_account_no_snapshot ?? '',
             approvalBankName: approval.destination_bank_name_snapshot ?? '',
@@ -185,6 +261,30 @@ export async function GET() {
               ? (parseInternalBigIntId(approval.party_id) != null ? (supplierCodeById.get(parseInternalBigIntId(approval.party_id) as bigint) ?? '') : '')
               : bill.supplier_id != null
                 ? (supplierCodeById.get(bill.supplier_id) ?? '')
+                : '',
+            totalAmount: approvedAmount,
+          }
+          }
+          const advanceId = parseInternalBigIntId(approval.source_id)
+          const advance = advanceId != null ? advanceById.get(advanceId) : undefined
+          if (!advance) return null
+          return {
+            approvalAccountNo: approval.destination_account_no_snapshot ?? '',
+            approvalBankName: approval.destination_bank_name_snapshot ?? '',
+            approvalId: approvalDocNo,
+            approvalPaymentMethod: approval.destination_payment_method_snapshot ?? '',
+            approvedAmount,
+            date: toDateOnly(advance.advance_date),
+            docNo: approvalDocNo,
+            id: advance.doc_no,
+            paidAmount: paidAgainstApproval,
+            payableBalance,
+            status: approval.status ?? '',
+            sourceDocNo: approval.source_doc_no_snapshot ?? advance.doc_no,
+            supplierId: approval.party_id != null
+              ? (parseInternalBigIntId(approval.party_id) != null ? (supplierCodeById.get(parseInternalBigIntId(approval.party_id) as bigint) ?? '') : approval.party_id)
+              : advance.supplier_id != null
+                ? (supplierCodeById.get(advance.supplier_id) ?? '')
                 : '',
             totalAmount: approvedAmount,
           }
@@ -259,10 +359,10 @@ export async function POST(request: Request) {
       withholdingTax: values.withholdingTax,
     }]).filter((line) => line.billId && toNumber(line.amount) > 0)
     if (paymentLines.length === 0) throw new Error('เพิ่มรายการจ่ายอย่างน้อย 1 รายการ')
-    const duplicateBillIds = paymentLines
-      .map((line) => line.billId)
-      .filter((billId, index, billIds) => billIds.indexOf(billId) !== index)
-    if (duplicateBillIds.length > 0) throw new Error('รายการจ่ายต้องไม่เลือกบิลซ้ำใน Payment Voucher เดียวกัน')
+      const duplicateApprovalIds = paymentLines
+        .map((line) => line.approvalId)
+        .filter((approvalId, index, approvalIds) => approvalId != null && approvalIds.indexOf(approvalId) !== index)
+      if (duplicateApprovalIds.length > 0) throw new Error('รายการจ่ายต้องไม่เลือก PMA ซ้ำใน Payment Voucher เดียวกัน')
     const paymentLineTotals = paymentLines.map((line) => ({
       ...line,
       amount: toNumber(line.amount),
@@ -297,13 +397,9 @@ export async function POST(request: Request) {
           update: (args: unknown) => Promise<unknown>
         }
       }
-      const lineBillDocNos = [...new Set(paymentLineTotals.map((line) => requireDocumentNo(line.billId, 'บิลซื้อ')))]
+      const lineSourceDocNos = [...new Set(paymentLineTotals.map((line) => requireDocumentNo(line.billId, 'เอกสารอ้างอิง')))]
       const lineApprovalDocNos = [...new Set(paymentLineTotals.map((line) => line.approvalId).filter(Boolean) as string[])]
-      const [lineBills, account] = await Promise.all([
-        tx.purchase_bills.findMany({
-          select: { branch_id: true, doc_no: true, id: true, status: true, supplier_id: true },
-          where: { doc_no: { in: lineBillDocNos } },
-        }),
+      const [account] = await Promise.all([
         tx.accounts.findUnique({
           select: { branch_id: true },
           where: { id: primaryAccount.id },
@@ -313,20 +409,41 @@ export async function POST(request: Request) {
         ? await txExt.payment_approvals.findMany({
           where: {
             doc_no: { in: lineApprovalDocNos },
-            source_type: 'purchase_bill',
+            source_type: { in: ['purchase_bill', 'advance_payment'] },
             status: 'approved',
           },
         })
         : []
-      const billByDocNo = new Map(lineBills.map((bill: typeof lineBills[number]) => [bill.doc_no, bill]))
       const approvalByDocNo = new Map(approvals.map((approval: typeof approvals[number]) => [requireDocumentNo(approval.doc_no, `อนุมัติจ่าย ${approval.id}`), approval]))
-      if (billByDocNo.size !== lineBillDocNos.length) throw new Error('ไม่พบบิลซื้อที่ต้องการตัดชำระ')
       if (approvalByDocNo.size !== lineApprovalDocNos.length) throw new Error('รายการอนุมัติโอนเงินบางรายการไม่ถูกต้องหรือถูกใช้งานแล้ว')
-      const firstBill = billByDocNo.get(requireDocumentNo(paymentLineTotals[0].billId, 'บิลซื้อ')) ?? null
-      const firstSupplierId = firstBill?.supplier_id ?? paymentLineTotals[0].supplierId
+      const purchaseBillSourceIds = [...new Set(approvals
+        .filter((approval) => approval.source_type === 'purchase_bill')
+        .map((approval) => parseInternalBigIntId(approval.source_id))
+        .filter((value): value is bigint => value != null))]
+      const advanceSourceIds = [...new Set(approvals
+        .filter((approval) => approval.source_type === 'advance_payment')
+        .map((approval) => parseInternalBigIntId(approval.source_id))
+        .filter((value): value is bigint => value != null))]
+      const [lineBills, lineAdvances] = await Promise.all([
+        tx.purchase_bills.findMany({
+          select: { branch_id: true, doc_no: true, id: true, status: true, supplier_id: true },
+          where: { id: { in: purchaseBillSourceIds } },
+        }),
+        tx.supplier_advance_payments.findMany({
+          select: { branch_id: true, doc_no: true, id: true, status: true, supplier_id: true },
+          where: { id: { in: advanceSourceIds } },
+        }),
+      ])
+      const billByDocNo = new Map(lineBills.map((bill: typeof lineBills[number]) => [bill.doc_no, bill]))
+      const advanceByDocNo = new Map(lineAdvances.map((advance: typeof lineAdvances[number]) => [advance.doc_no, advance]))
+      const firstBill = billByDocNo.get(requireDocumentNo(paymentLineTotals[0].billId, 'เอกสารอ้างอิง')) ?? null
+      const firstAdvance = advanceByDocNo.get(requireDocumentNo(paymentLineTotals[0].billId, 'เอกสารอ้างอิง')) ?? null
+      const firstSupplierId = firstBill?.supplier_id ?? firstAdvance?.supplier_id ?? paymentLineTotals[0].supplierId
       if (paymentLineTotals.some((line) => {
-        const lineBill = billByDocNo.get(requireDocumentNo(line.billId, 'บิลซื้อ'))
-        const lineSupplierId = lineBill?.supplier_id ?? line.supplierId
+        const lineSourceDocNo = requireDocumentNo(line.billId, 'เอกสารอ้างอิง')
+        const lineBill = billByDocNo.get(lineSourceDocNo)
+        const lineAdvance = advanceByDocNo.get(lineSourceDocNo)
+        const lineSupplierId = lineBill?.supplier_id ?? lineAdvance?.supplier_id ?? line.supplierId
         return lineSupplierId !== firstSupplierId
       })) {
         throw new Error('Payment Voucher เดียวกันต้องเป็นบิลของ Supplier เดียวกัน')
@@ -351,7 +468,7 @@ export async function POST(request: Request) {
         const settled = toNumber(payment.amount) + toNumber(payment.withholding_tax) + toNumber(payment.discount)
         settledByApprovalId.set(approvalId, (settledByApprovalId.get(approvalId) ?? 0) + settled)
       }
-      const branchId = firstBill?.branch_id ?? account?.branch_id ?? null
+      const branchId = firstBill?.branch_id ?? firstAdvance?.branch_id ?? account?.branch_id ?? null
       if (!branchId) throw new Error('ไม่พบสาขาสำหรับออกเลขเอกสารจ่ายเงิน Supplier')
       const branch = await tx.branches.findFirst({
         select: { code: true },
@@ -363,20 +480,23 @@ export async function POST(request: Request) {
       const docNo = values.docNo ?? await nextSupplierPaymentDocNo(tx, values.date, branchCode)
 
       const existingPayments = await tx.payments.findMany({
-        select: { bill_id: true },
+        select: { bill_id: true, payment_approval_id: true },
         where: { voucher_id: voucherId },
       })
       await tx.payments.deleteMany({ where: { voucher_id: voucherId } })
       const payments = []
       for (const line of paymentLineTotals) {
-        const lineBillDocNo = requireDocumentNo(line.billId, 'บิลซื้อ')
-        const lineBill = billByDocNo.get(lineBillDocNo)
-        if (!lineBill) throw new Error('บิลซื้อไม่ถูกต้อง')
+        const lineSourceDocNo = requireDocumentNo(line.billId, 'เอกสารอ้างอิง')
         const approval = line.approvalId ? approvalByDocNo.get(line.approvalId) : null
         if (!approval) throw new Error('ไม่พบรายการอนุมัติโอนเงินของบิลนี้')
-        if (approval.source_doc_no_snapshot !== lineBill.doc_no && approval.source_id !== lineBill.id.toString()) {
-          throw new Error('รายการจ่ายไม่ตรงกับบิลที่อนุมัติไว้')
-        }
+        const lineBill = approval.source_type === 'purchase_bill' ? billByDocNo.get(lineSourceDocNo) : null
+        const lineAdvance = approval.source_type === 'advance_payment' ? advanceByDocNo.get(lineSourceDocNo) : null
+        if (approval.source_type === 'purchase_bill' && !lineBill) throw new Error('บิลซื้อไม่ถูกต้อง')
+        if (approval.source_type === 'advance_payment' && !lineAdvance) throw new Error('ADV อ้างอิงไม่ถูกต้อง')
+        const matchesSource = approval.source_type === 'purchase_bill'
+          ? approval.source_doc_no_snapshot === lineBill?.doc_no && approval.source_id === lineBill?.id.toString()
+          : approval.source_doc_no_snapshot === lineAdvance?.doc_no && approval.source_id === lineAdvance?.id.toString()
+        if (!matchesSource) throw new Error('รายการจ่ายไม่ตรงกับเอกสารที่อนุมัติไว้')
         const approvalInternalId = stringifyBusinessValue(approval.id)
         const approvalRemaining = Math.max(0, toNumber(approval.approved_amount) - (settledByApprovalId.get(approvalInternalId) ?? 0))
         const lineSettlementAmount = line.amount + line.withholdingTax + line.discount
@@ -388,7 +508,7 @@ export async function POST(request: Request) {
             account_id: primaryAccount.id,
             amount: line.amount,
             bank_fee: line.fee,
-            bill_id: lineBill.id,
+            bill_id: lineBill?.id ?? null,
             branch_id: branchId,
             created_by: actor,
             date: paymentDate,
@@ -400,7 +520,7 @@ export async function POST(request: Request) {
             notes: values.notes,
             payment_approval_id: approval.id,
             status: 'active',
-            supplier_id: lineBill.supplier_id ?? line.supplierId,
+            supplier_id: lineBill?.supplier_id ?? lineAdvance?.supplier_id ?? line.supplierId,
             updated_at: new Date(),
             updated_by: actor,
             voucher_id: voucherId,
@@ -418,6 +538,9 @@ export async function POST(request: Request) {
           },
           where: { id: approval.id },
         })
+        if (approval.source_type === 'advance_payment' && lineAdvance) {
+          await refreshAdvancePaymentPaymentStatus(tx, lineAdvance.id, actor)
+        }
         payments.push(payment)
       }
 
@@ -442,15 +565,23 @@ export async function POST(request: Request) {
       const billIdsToRefresh = [...new Set([
         ...existingPayments.map((payment) => payment.bill_id).filter((value): value is bigint => value != null),
         ...paymentLineTotals
-          .map((line) => billByDocNo.get(requireDocumentNo(line.billId, 'บิลซื้อ'))?.id ?? null)
+          .map((line) => billByDocNo.get(requireDocumentNo(line.billId, 'เอกสารอ้างอิง'))?.id ?? null)
+          .filter((value): value is bigint => value != null),
+      ])]
+      const advanceIdsToRefresh = [...new Set([
+        ...paymentLineTotals
+          .map((line) => advanceByDocNo.get(requireDocumentNo(line.billId, 'เอกสารอ้างอิง'))?.id ?? null)
           .filter((value): value is bigint => value != null),
       ])]
       for (const billId of billIdsToRefresh) {
         await refreshPurchaseBillPaymentStatus(tx, billId, actor)
       }
+      for (const advanceId of advanceIdsToRefresh) {
+        await refreshAdvancePaymentPaymentStatus(tx, advanceId, actor)
+      }
 
       for (const line of paymentLineTotals) {
-        const lineBill = billByDocNo.get(requireDocumentNo(line.billId, 'บิลซื้อ'))
+        const lineBill = billByDocNo.get(requireDocumentNo(line.billId, 'เอกสารอ้างอิง'))
         if (!lineBill) continue
         const approval = line.approvalId ? approvalByDocNo.get(line.approvalId) : null
         const primaryAccountForLog = splitAccountByCode.get(paymentSplits[0]?.accountId ?? '') ?? null

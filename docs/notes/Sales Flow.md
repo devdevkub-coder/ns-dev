@@ -502,12 +502,13 @@ Target rule สำคัญ:
 | ยอดรับเงิน | `receipts` |
 | ผลต่อเงินสด/ธนาคาร | `bank_statement` |
 | ผลต่อ stock | `stock_ledger` |
-| ประวัติสถานะ | append-only status logs |
+| ประวัติสถานะ | แยก status logs ตามเอกสาร เช่น `po_sell_status_logs`, `stock_issue_status_logs`, `sales_bill_status_logs`, `receipt_status_logs` ตาม [[Document History Table Design]] |
+| ประวัติการใช้งาน/ตัดยอด | แยก usage/allocation logs และ fact tables ตาม flow เช่น `po_sell_allocation_logs`, `receipt_allocations`, `weight_ticket_usage_logs` สำหรับ WTO |
 | Summary/KPI | maintained summary current tables |
 
 ## งาน Implementation ที่ตามมา
 
-- เพิ่ม status log สำหรับ PO Sell, PSALE, SB, Receipt
+- เพิ่ม status/usage log สำหรับ PO Sell, PSALE, WTO, SB, Receipt ตาม [[Document History Table Design]]
 - เพิ่ม summary tables สำหรับ PO Sell, Pending Sale และ AR/Sales Bill
 - ปรับ `/sales/po-sell` ให้ใช้ status ไทยและแยกยอดเบิก/ยอดออกบิล
 - เพิ่ม write path ให้ `/sales/stock-issue` สร้าง/แก้/กลับรายการ PSALE แบบ transaction-safe

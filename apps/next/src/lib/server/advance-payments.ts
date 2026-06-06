@@ -11,27 +11,31 @@ export type AdvancePaymentTimelineEvent = {
   outcome: 'blocked' | 'failure' | 'success'
 }
 
-type AdvancePaymentAuditRow = {
-  action: string | null
-  actor_display_name: string | null
-  actor_username: string | null
+type StatusTimelineRow = {
+  action: string
+  allocated_amount_snapshot: number | { toNumber: () => number } | null
+  amount_snapshot: number | { toNumber: () => number } | null
+  created_at: Date
+  created_by: string | null
   event_key: string
-  id: string
-  metadata: unknown
-  occurred_at: Date
-  outcome: string | null
+  from_status: string | null
+  meta: unknown
+  note: string | null
+  remaining_amount_snapshot: number | { toNumber: () => number } | null
+  to_status: string
 }
 
-type AllocationTimelineRow = {
-  allocation_key: string
+type AllocationLogTimelineRow = {
+  action: string
   allocated_amount: number | { toNumber: () => number } | null
-  allocated_at: Date
-  allocated_by: string | null
+  created_at: Date
+  created_by: string | null
+  event_key: string
+  from_remaining_amount: number | { toNumber: () => number } | null
+  meta: unknown
+  note: string | null
   purchase_bill_doc_no: string | null
-  status: string
-  void_reason: string | null
-  voided_at: Date | null
-  voided_by: string | null
+  to_remaining_amount: number | { toNumber: () => number } | null
 }
 
 export function advancePaymentStatusLabel(status: string) {
@@ -203,82 +207,99 @@ type PrismaClientLike = {
   $queryRaw<T = unknown>(query: TemplateStringsArray | Prisma.Sql, ...values: unknown[]): Promise<T>
 }
 
-export async function getAdvancePaymentTimeline(tx: PrismaClientLike, advancePaymentId: string): Promise<AdvancePaymentTimelineEvent[]> {
-  const [auditRows, allocationRows] = await Promise.all([
-    tx.$queryRaw<AdvancePaymentAuditRow[]>`
+function statusTimelineEventKey(action: string) {
+  if (action === 'created') return 'purchase.advance-payment.created'
+  if (action === 'edited') return 'purchase.advance-payment.updated'
+  if (action === 'cancelled') return 'purchase.advance-payment.cancelled'
+  if (action === 'approved') return 'purchase.advance-payment.approved'
+  if (action === 'approval_voided') return 'purchase.advance-payment.approval-voided'
+  if (action === 'paid') return 'purchase.advance-payment.paid'
+  if (action === 'payment_reversed') return 'purchase.advance-payment.payment-reversed'
+  if (action === 'partially_allocated') return 'purchase.advance-payment.partially-allocated'
+  if (action === 'allocated') return 'purchase.advance-payment.fully-allocated'
+  if (action === 'allocation_released') return 'purchase.advance-payment.allocation-released'
+  if (action === 'refund_required') return 'purchase.advance-payment.refund-required'
+  if (action === 'refunded') return 'purchase.advance-payment.refunded'
+  return 'purchase.advance-payment.status-synced'
+}
+
+function allocationTimelineEventKey(action: string) {
+  if (action === 'released_from_purchase_bill') return 'purchase.advance-payment.allocation-voided'
+  return 'purchase.advance-payment.allocated'
+}
+
+export async function getAdvancePaymentTimeline(tx: PrismaClientLike, advancePaymentId: string | bigint): Promise<AdvancePaymentTimelineEvent[]> {
+  const internalAdvancePaymentId = typeof advancePaymentId === 'bigint' ? advancePaymentId : BigInt(advancePaymentId)
+  const [statusRows, allocationRows] = await Promise.all([
+    tx.$queryRaw<StatusTimelineRow[]>`
       select
-        a.id::text as id,
-        a.event_key,
-        a.action,
-        a.outcome,
-        a.occurred_at,
-        a.metadata,
-        a.actor_display_name,
-        a.actor_username
-      from public.app_audit_logs a
-      where a.entity_table = 'supplier_advance_payments'
-        and a.entity_id = ${advancePaymentId}
-      order by a.occurred_at desc, a.id desc
+        s.event_key,
+        s.action,
+        s.from_status,
+        s.to_status,
+        s.amount_snapshot,
+        s.allocated_amount_snapshot,
+        s.remaining_amount_snapshot,
+        s.note,
+        s.meta,
+        s.created_at,
+        s.created_by
+      from public.supplier_advance_status_logs s
+      where s.advance_payment_id = ${internalAdvancePaymentId}
+      order by s.created_at desc, s.id desc
     `,
-    tx.$queryRaw<AllocationTimelineRow[]>`
+    tx.$queryRaw<AllocationLogTimelineRow[]>`
       select
-        saa.allocation_key,
-        saa.allocated_amount,
-        saa.allocated_at,
-        saa.allocated_by,
-        saa.status,
-        saa.voided_at,
-        saa.voided_by,
-        saa.void_reason,
-        pb.doc_no as purchase_bill_doc_no
-      from public.supplier_advance_allocations saa
-      left join public.purchase_bills pb on pb.id = saa.purchase_bill_id
-      where saa.advance_payment_id = ${advancePaymentId}
-      order by coalesce(saa.voided_at, saa.allocated_at) desc, saa.id desc
+        l.event_key,
+        l.action,
+        l.allocated_amount,
+        l.from_remaining_amount,
+        l.to_remaining_amount,
+        l.note,
+        l.meta,
+        l.created_at,
+        l.created_by,
+        l.purchase_bill_doc_no
+      from public.supplier_advance_allocation_logs l
+      where l.advance_payment_id = ${internalAdvancePaymentId}
+      order by l.created_at desc, l.id desc
     `,
   ])
 
-  const auditEvents = auditRows.map((row) => ({
-    action: row.action ?? 'system',
-    actorName: row.actor_display_name ?? row.actor_username ?? '-',
-    eventKey: row.event_key,
+  const statusEvents = statusRows.map((row) => ({
+    action: row.action,
+    actorName: row.created_by ?? '-',
+    eventKey: statusTimelineEventKey(row.action),
     id: row.event_key,
-    metadata: row.metadata && typeof row.metadata === 'object' ? row.metadata as Record<string, unknown> : {},
-    occurredAt: row.occurred_at.toISOString(),
-    outcome: (row.outcome === 'blocked' || row.outcome === 'failure' ? row.outcome : 'success') as 'blocked' | 'failure' | 'success',
+    metadata: {
+      ...(row.meta && typeof row.meta === 'object' ? row.meta as Record<string, unknown> : {}),
+      allocatedAmount: toNumber(row.allocated_amount_snapshot),
+      amount: toNumber(row.amount_snapshot),
+      fromStatus: row.from_status,
+      note: row.note ?? '',
+      remainingAmount: toNumber(row.remaining_amount_snapshot),
+      toStatus: row.to_status,
+    },
+    occurredAt: row.created_at.toISOString(),
+    outcome: 'success' as const,
   }))
 
-  const allocationEvents = allocationRows.flatMap((row) => {
-    const baseMetadata = {
+  const allocationEvents = allocationRows.map((row) => ({
+    action: row.action,
+    actorName: row.created_by ?? '-',
+    eventKey: allocationTimelineEventKey(row.action),
+    id: row.event_key,
+    metadata: {
+      ...(row.meta && typeof row.meta === 'object' ? row.meta as Record<string, unknown> : {}),
       allocatedAmount: toNumber(row.allocated_amount),
+      fromRemainingAmount: toNumber(row.from_remaining_amount),
+      note: row.note ?? '',
       purchaseBillDocNo: row.purchase_bill_doc_no ?? '',
-    }
-    const allocationDocNo = row.purchase_bill_doc_no ?? row.allocated_at.toISOString()
-    const createdEvent: AdvancePaymentTimelineEvent = {
-      action: 'allocate',
-      actorName: row.allocated_by ?? '-',
-      eventKey: 'purchase.advance-payment.allocated',
-      id: `${row.allocation_key}:allocated`,
-      metadata: baseMetadata,
-      occurredAt: row.allocated_at.toISOString(),
-      outcome: 'success',
-    }
-    const voidEvent = row.voided_at
-      ? [{
-          action: 'void',
-          actorName: row.voided_by ?? '-',
-          eventKey: 'purchase.advance-payment.allocation-voided',
-          id: `${row.allocation_key}:voided`,
-          metadata: {
-            ...baseMetadata,
-            voidReason: row.void_reason ?? '',
-          },
-          occurredAt: row.voided_at.toISOString(),
-          outcome: 'success' as const,
-        }]
-      : []
-    return [createdEvent, ...voidEvent]
-  })
+      toRemainingAmount: toNumber(row.to_remaining_amount),
+    },
+    occurredAt: row.created_at.toISOString(),
+    outcome: 'success' as const,
+  }))
 
-  return [...auditEvents, ...allocationEvents].sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
+  return [...statusEvents, ...allocationEvents].sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
 }

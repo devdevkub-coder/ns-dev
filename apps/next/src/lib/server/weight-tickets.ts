@@ -69,6 +69,27 @@ type WeightTicketTimelineRow = {
   outcome: string
 }
 
+type WeightTicketUsageTimelineRow = {
+  action: string
+  allocated_deduct_weight: Prisma.Decimal
+  allocated_gross_weight: Prisma.Decimal
+  allocated_net_weight: Prisma.Decimal
+  allocated_qty: Prisma.Decimal
+  created_at: Date
+  created_by: string | null
+  event_key: string
+  from_remaining_weight: Prisma.Decimal | null
+  id: string
+  meta: Prisma.JsonValue | null
+  note: string | null
+  product_code_snapshot: string | null
+  product_name_snapshot: string | null
+  target_doc_no: string | null
+  target_line_no: number | null
+  target_type: string
+  to_remaining_weight: Prisma.Decimal | null
+}
+
 export function parseWeightTicketQuery(url: URL): WeightTicketQuery {
   const sortBy = url.searchParams.get('sortBy')
   const sortDir = url.searchParams.get('sortDir')
@@ -339,6 +360,54 @@ export async function getWeightTicketTimeline(tx: Prisma.TransactionClient | Pri
   }))
 }
 
+export async function getWeightTicketUsageTimeline(tx: Prisma.TransactionClient | PrismaClientLike, ticketId: bigint) {
+  const rows = await tx.$queryRaw<WeightTicketUsageTimelineRow[]>`
+    select
+      l.id::text as id,
+      l.event_key,
+      l.action,
+      l.target_type,
+      l.target_doc_no,
+      l.target_line_no,
+      l.product_code_snapshot,
+      l.product_name_snapshot,
+      l.allocated_qty,
+      l.allocated_gross_weight,
+      l.allocated_deduct_weight,
+      l.allocated_net_weight,
+      l.from_remaining_weight,
+      l.to_remaining_weight,
+      l.note,
+      l.meta,
+      l.created_at,
+      l.created_by
+    from public.weight_ticket_usage_logs l
+    where l.weight_ticket_id = ${ticketId}
+    order by l.created_at desc, l.id desc
+  `
+
+  return rows.map((row) => ({
+    action: row.action,
+    allocatedDeductWeight: toNumber(row.allocated_deduct_weight),
+    allocatedGrossWeight: toNumber(row.allocated_gross_weight),
+    allocatedNetWeight: toNumber(row.allocated_net_weight),
+    allocatedQty: toNumber(row.allocated_qty),
+    createdAt: row.created_at.toISOString(),
+    createdBy: row.created_by ?? '-',
+    eventKey: row.event_key,
+    fromRemainingWeight: row.from_remaining_weight == null ? null : toNumber(row.from_remaining_weight),
+    id: row.event_key,
+    meta: row.meta && typeof row.meta === 'object' ? row.meta as Record<string, unknown> : {},
+    note: row.note ?? '',
+    productCode: row.product_code_snapshot ?? '',
+    productName: row.product_name_snapshot ?? '-',
+    targetDocNo: row.target_doc_no ?? '',
+    targetLineNo: row.target_line_no,
+    targetType: row.target_type,
+    toRemainingWeight: row.to_remaining_weight == null ? null : toNumber(row.to_remaining_weight),
+  }))
+}
+
 type PrismaClientLike = {
   $queryRaw<T = unknown>(query: TemplateStringsArray | Prisma.Sql, ...values: unknown[]): Promise<T>
 }
@@ -408,6 +477,7 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
     type: row.doc_type as WeightTicketType,
     updatedAt: row.updated_at?.toISOString() ?? null,
     updatedBy: row.updated_by ?? row.created_by ?? row.entered_by ?? '-',
+    usageTimeline: [],
     usedInPurchaseBillCount: usage.purchaseCount,
     usedInPurchaseBillDocNos: usage.purchaseDocNos,
     usedInSalesBillCount: usage.salesCount,

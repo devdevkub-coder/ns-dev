@@ -315,6 +315,7 @@ export async function GET(request: Request) {
 
     const poRows = await prisma.po_buys.findMany({
       include: {
+        po_buy_allocation_logs: { orderBy: [{ created_at: 'desc' }], take: 50 },
         po_buy_status_logs: { orderBy: [{ created_at: 'desc' }], take: 20 },
         suppliers: true,
       },
@@ -362,6 +363,25 @@ export async function GET(request: Request) {
         shortClosedNote: po.short_closed_note ?? '',
         shortClosedQty: toNumber(po.short_closed_qty),
         status,
+        allocationLogs: po.po_buy_allocation_logs.map((log) => ({
+          action: log.action,
+          allocatedAmount: toNumber(log.allocated_amount),
+          allocatedQty: toNumber(log.allocated_qty),
+          createdAt: log.created_at?.toISOString() ?? '',
+          createdBy: log.created_by ?? '',
+          eventKey: log.event_key,
+          fromRemainingQty: toNumber(log.from_remaining_qty),
+          id: log.event_key,
+          meta: log.meta,
+          note: log.note ?? '',
+          poBuyDocNo: log.po_buy_doc_no,
+          productCode: log.product_code_snapshot ?? '',
+          productName: log.product_name_snapshot ?? '',
+          purchaseBillDocNo: log.purchase_bill_doc_no ?? '',
+          purchaseBillLineNo: log.purchase_bill_line_no ?? null,
+          toRemainingQty: toNumber(log.to_remaining_qty),
+          unitPrice: toNumber(log.unit_price_snapshot),
+        })),
         statusLogs: po.po_buy_status_logs.map((log) => ({
           action: log.action,
           createdAt: log.created_at?.toISOString() ?? '',

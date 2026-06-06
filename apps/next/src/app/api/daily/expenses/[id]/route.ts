@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor } from '@/lib/server/daily'
+import { deletePendingPaymentApproval, hasLockedPaymentApproval } from '@/lib/server/payment-approval-pending'
 import { prisma } from '@/lib/server/prisma'
 
 export const runtime = 'nodejs'
@@ -31,6 +32,9 @@ export async function PATCH(_request: Request, context: { params: Promise<{ id: 
     if (!expense) {
       return NextResponse.json({ error: 'ไม่พบรายการค่าใช้จ่าย' }, { status: 404 })
     }
+    if (await hasLockedPaymentApproval(prisma, 'expense', expense.id)) {
+      return NextResponse.json({ error: 'ยกเลิกไม่ได้ เพราะรายการค่าใช้จ่ายนี้มี PMA อนุมัติแล้ว' }, { status: 400 })
+    }
     if (!isPendingApprovalExpenseStatus(expense.status)) {
       return NextResponse.json({ error: 'ยกเลิกได้เฉพาะรายการค่าใช้จ่ายที่ยังไม่อนุมัติ' }, { status: 400 })
     }
@@ -53,6 +57,7 @@ export async function PATCH(_request: Request, context: { params: Promise<{ id: 
           ref_type: 'EXP',
         },
       })
+      await deletePendingPaymentApproval(tx, 'expense', expense.id)
     })
 
     return NextResponse.json({ id: expense.doc_no })

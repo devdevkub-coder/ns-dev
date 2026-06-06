@@ -1,9 +1,14 @@
 import type { Prisma } from '../../../generated/prisma/client'
+import {
+  appendSupplierAdvanceStatusLog,
+  supplierAdvanceStatusActionForStatus,
+  SUPPLIER_ADVANCE_STATUS_ACTION,
+} from '@/lib/server/advance-payment-history'
 import { toNumber } from '@/lib/server/daily'
 
 type PurchaseBillSettlementTx = Pick<
   Prisma.TransactionClient,
-  'payments' | 'purchase_bills' | 'supplier_advance_allocations' | 'supplier_advance_payments'
+  'payments' | 'purchase_bills' | 'supplier_advance_allocations' | 'supplier_advance_payments' | 'supplier_advance_status_logs'
 >
 
 function roundMoney(value: number) {
@@ -65,7 +70,16 @@ export async function refreshPurchaseBillSettlement(tx: PurchaseBillSettlementTx
   return settlement
 }
 
-export async function refreshSupplierAdvancePaymentAllocation(tx: PurchaseBillSettlementTx, advancePaymentId: bigint) {
+export async function refreshSupplierAdvancePaymentAllocation(
+  tx: PurchaseBillSettlementTx,
+  advancePaymentId: bigint,
+  actor?: string | null,
+  options?: {
+    action?: typeof SUPPLIER_ADVANCE_STATUS_ACTION[keyof typeof SUPPLIER_ADVANCE_STATUS_ACTION]
+    note?: string | null
+    meta?: Prisma.InputJsonValue
+  },
+) {
   const [advancePayment, activeAllocations] = await Promise.all([
     tx.supplier_advance_payments.findUnique({
       select: { amount: true, id: true, status: true },
@@ -111,6 +125,18 @@ export async function refreshSupplierAdvancePaymentAllocation(tx: PurchaseBillSe
     },
     where: { id: advancePaymentId },
   })
+
+  if (nextStatus !== advancePayment.status) {
+    await appendSupplierAdvanceStatusLog(tx, {
+      action: options?.action ?? supplierAdvanceStatusActionForStatus(nextStatus),
+      actor: actor ?? null,
+      advancePaymentId,
+      fromStatus: advancePayment.status,
+      meta: options?.meta,
+      note: options?.note ?? null,
+      toStatus: nextStatus,
+    })
+  }
 
   return {
     allocatedAmount,

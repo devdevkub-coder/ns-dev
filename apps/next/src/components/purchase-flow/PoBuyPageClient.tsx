@@ -89,6 +89,25 @@ type PoBuyRow = {
   shortClosedNote: string
   shortClosedQty: number
   status: string
+  allocationLogs: Array<{
+    action: string
+    allocatedAmount: number
+    allocatedQty: number
+    createdAt: string
+    createdBy: string
+    eventKey: string
+    fromRemainingQty: number
+    id: string
+    meta: unknown
+    note: string
+    poBuyDocNo: string
+    productCode: string
+    productName: string
+    purchaseBillDocNo: string
+    purchaseBillLineNo: number | null
+    toRemainingQty: number
+    unitPrice: number
+  }>
   statusLogs: Array<{
     action: string
     createdAt: string
@@ -226,6 +245,24 @@ function poBuyStatusActionLabel(action: string) {
     default:
       return 'อัปเดตสถานะ'
   }
+}
+
+function poBuyAllocationActionLabel(action: string) {
+  switch (action) {
+    case 'allocated_to_purchase_bill':
+      return 'ตัดยอดเข้า PB'
+    case 'released_from_purchase_bill':
+      return 'คืนยอดจาก PB'
+    default:
+      return action || 'ประวัติการจัดสรร'
+  }
+}
+
+function poBuyAllocationDescription(log: PoBuyRow['allocationLogs'][number]) {
+  const billText = log.purchaseBillDocNo ? `บิล ${log.purchaseBillDocNo}` : 'ไม่พบเลขบิล'
+  const lineText = log.purchaseBillLineNo ? `บรรทัด ${log.purchaseBillLineNo}` : ''
+  const productText = log.productName || log.productCode || '-'
+  return [billText, lineText, productText].filter(Boolean).join(' · ')
 }
 
 function poBuyStatusTransitionLabel(log: PoBuyRow['statusLogs'][number]) {
@@ -1277,6 +1314,30 @@ function PoBuyDetailModal({ onClose, row }: { onClose: () => void; row: PoBuyRow
                 </div>
                 <div className="mt-0.5 text-xs text-slate-500">{log.createdBy || '-'}</div>
                 {poBuyStatusMetaText(log.meta) ? <div className="mt-1 text-xs text-slate-500">{poBuyStatusMetaText(log.meta)}</div> : null}
+                {log.note ? <div className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{log.note}</div> : null}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="px-4 pb-4">
+          <div className="mb-2 text-sm font-medium text-slate-700">ประวัติการจัดสรร</div>
+          <div className="space-y-2 rounded-md border border-slate-200 bg-white p-3">
+            {row.allocationLogs.length === 0 ? <div className="text-sm text-slate-500">ยังไม่มีประวัติการจัดสรร PO</div> : row.allocationLogs.map((log) => (
+              <div key={log.id} className="border-b border-slate-200 pb-2 last:border-b-0 last:pb-0">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-medium text-slate-800">{poBuyAllocationActionLabel(log.action)}</div>
+                    <div className="text-xs text-slate-500">{poBuyAllocationDescription(log)}</div>
+                  </div>
+                  <div className="text-xs text-slate-500">{formatDateTime(log.createdAt)}</div>
+                </div>
+                <div className="mt-1 grid gap-2 text-xs text-slate-600 sm:grid-cols-4">
+                  <div>จำนวน: <span className="font-medium text-slate-800">{formatMoney(log.allocatedQty)}</span></div>
+                  <div>มูลค่า: <span className="font-medium text-slate-800">{formatMoney(log.allocatedAmount)}</span></div>
+                  <div>ก่อน: <span className="font-medium text-slate-800">{formatMoney(log.fromRemainingQty)}</span></div>
+                  <div>หลัง: <span className="font-medium text-slate-800">{formatMoney(log.toRemainingQty)}</span></div>
+                </div>
+                <div className="mt-0.5 text-xs text-slate-500">{log.createdBy || '-'}</div>
                 {log.note ? <div className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{log.note}</div> : null}
               </div>
             ))}

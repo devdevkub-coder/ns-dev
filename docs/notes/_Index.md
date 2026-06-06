@@ -25,10 +25,13 @@ created: 2026-05-16
 - [[Current Module Status]] - สถานะล่าสุดของ Vue modules ที่ย้ายเข้า `old-apps/vue/`
 - [[Architecture Map]] - map สรุป architecture, tech stack, environment, database และ auth
 - [[Migration Documents]] - MOC สำหรับเอกสาร migration ทั้งชุด
-- [[Purchase Flow]] - flow ซื้อแบบละเอียด: Stock/Trading, PO/Spot, ใบรับของ/WTI, ใบส่งของ/WTO, กรอกจำนวน/น้ำหนัก, ปิดรับไม่ครบ, เลขเอกสาร, สถานะ, และผลกระทบต่อ PO/PB/Payment/Stock/Cost Pool
-- [[Payment Flow]] - flow จ่ายเงินแบบละเอียด: อนุมัติจ่ายเงิน, split approval, รอจ่าย, ทำจ่าย, ประวัติการจ่ายเงิน, จ่ายเงินล่วงหน้า/มัดจำ, และคืนเงินมัดจำฝั่ง Supplier
+- [[Purchase Flow]] - flow ซื้อแบบละเอียด: Stock/Trading, PO/Spot, ใบรับของ/WTI, ใบส่งของ/WTO, กรอกจำนวน/น้ำหนัก, ปิดรับไม่ครบ, เลขเอกสาร, สถานะ, ผลกระทบต่อ PO/PB/Stock/Cost Pool, และ `PB/payable handoff` ไป Payment Flow
+- [[Purchase Flow Status Matrix]] - matrix สถานะเอกสารราย use case และราย step สำหรับ PO/WTI/ADV/PB/PMA/PMT ใช้เป็น acceptance criteria ข้าม Purchase Flow กับ Payment Flow
+- [[Payment Flow]] - flow จ่ายเงินแบบละเอียดและเป็นเจ้าของ approval/payment lifecycle: source payable, อนุมัติจ่ายเงิน, split approval, PMA, รอจ่าย, PMT, ประวัติการจ่ายเงิน, จ่ายเงินล่วงหน้า/มัดจำ, และคืนเงินมัดจำฝั่ง Supplier
 - [[Purchase Flow Test Matrix]] - execution checklist ของ Purchase Flow สำหรับ UAT/smoke/regression ตั้งแต่ PO, WTI, Purchase Bill, Approval, Payment ไปจนถึง stock/reversal
 - [[WTI Product Summary Design]] - design decision สำหรับการแยก `WTI` เป็น raw lot layer + per-product summary layer เพื่อให้ `บิลรับซื้อ` ใช้ยอดรวมต่อสินค้าได้โดยไม่เสีย trace ของ lot ชั่ง
+- [[Document Timeline Policy]] - กฎกลางว่าเอกสารธุรกิจที่มีเลขเอกสารต้องมี timeline/history แบบ append-only แยกจาก current-state table
+- [[Document History Table Design]] - target schema design สำหรับแยก history/status/usage table ตามเอกสารหรือ business flow แทนการรวมทุก event เข้า generic table เดียว
 - [[Sales Flow]] - flow ขายแบบละเอียด: PO Sell, Pending Sale/PSALE, ใบส่งของ/WTO, บิลขาย Trading จากหลายบิลซื้อพร้อม stock line, Sales Bill, Receipt, เลขเอกสาร, สถานะ, stock/AR effect
 
 ## Migration Entry Points

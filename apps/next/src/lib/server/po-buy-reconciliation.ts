@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { Prisma } from '../../../generated/prisma/client'
 import { parseInternalBigIntId, stringifyBusinessValue } from '@/lib/business-code'
 import { toNumber } from '@/lib/server/daily'
@@ -18,6 +19,11 @@ export const PO_BUY_STATUS_ACTION = {
   RECEIVED_PARTIAL: 'received_partial',
   SHORT_CLOSED: 'short_closed',
   STATUS_SYNCED: 'status_synced',
+} as const
+
+export const PO_BUY_ALLOCATION_ACTION = {
+  ALLOCATED_TO_PURCHASE_BILL: 'allocated_to_purchase_bill',
+  RELEASED_FROM_PURCHASE_BILL: 'released_from_purchase_bill',
 } as const
 
 type DbClient = Prisma.TransactionClient
@@ -228,6 +234,75 @@ export async function createInitialPoBuyStatusLog(tx: DbClient, params: { actor?
     poBuyId: params.poBuyId,
     toStatus: PO_BUY_STATUS.OPEN,
   }])
+}
+
+export async function appendPoBuyAllocationLogs(
+  tx: DbClient,
+  entries: Array<{
+    action: typeof PO_BUY_ALLOCATION_ACTION[keyof typeof PO_BUY_ALLOCATION_ACTION]
+    actor?: string | null
+    allocatedAmount: number
+    allocatedQty: number
+    createdAt?: Date
+    meta?: Prisma.InputJsonValue
+    note?: string | null
+    poBuyId: bigint
+    productCodeSnapshot?: string | null
+    productId?: bigint | null
+    productNameSnapshot?: string | null
+    purchaseBillDocNo?: string | null
+    purchaseBillId?: bigint | null
+    purchaseBillItemId?: bigint | null
+    purchaseBillLineNo?: number | null
+    unitPriceSnapshot?: number | null
+  }>,
+) {
+  const materialEntries = entries.filter((entry) => Math.abs(entry.allocatedQty) > EPSILON || Math.abs(entry.allocatedAmount) > EPSILON)
+  if (materialEntries.length === 0) return
+
+  const poBuyIds = [...new Set(materialEntries.map((entry) => entry.poBuyId))]
+  const poRows = await tx.po_buys.findMany({
+    select: { doc_no: true, id: true, remaining_qty: true },
+    where: { id: { in: poBuyIds } },
+  })
+  const poById = new Map(poRows.map((po) => [po.id, po]))
+  const runningRemainingQty = new Map(poRows.map((po) => [po.id, toNumber(po.remaining_qty)] as const))
+
+  const rows = materialEntries.map((entry) => {
+    const po = poById.get(entry.poBuyId)
+    if (!po) throw new Error(`ไม่พบ PO Buy สำหรับบันทึกประวัติการจัดสรร: ${String(entry.poBuyId)}`)
+
+    const fromRemainingQty = runningRemainingQty.get(entry.poBuyId) ?? 0
+    const toRemainingQty = entry.action === PO_BUY_ALLOCATION_ACTION.RELEASED_FROM_PURCHASE_BILL
+      ? fromRemainingQty + entry.allocatedQty
+      : Math.max(0, fromRemainingQty - entry.allocatedQty)
+    runningRemainingQty.set(entry.poBuyId, toRemainingQty)
+
+    return {
+      action: entry.action,
+      allocated_amount: entry.allocatedAmount,
+      allocated_qty: entry.allocatedQty,
+      created_at: entry.createdAt ?? new Date(),
+      created_by: entry.actor ?? null,
+      event_key: `POALLOC-${po.doc_no}-${randomUUID()}`,
+      from_remaining_qty: fromRemainingQty,
+      meta: entry.meta,
+      note: entry.note ?? null,
+      po_buy_doc_no: po.doc_no,
+      po_buy_id: entry.poBuyId,
+      product_code_snapshot: entry.productCodeSnapshot ?? null,
+      product_id: entry.productId ?? null,
+      product_name_snapshot: entry.productNameSnapshot ?? null,
+      purchase_bill_doc_no: entry.purchaseBillDocNo ?? null,
+      purchase_bill_id: entry.purchaseBillId ?? null,
+      purchase_bill_item_id: entry.purchaseBillItemId ?? null,
+      purchase_bill_line_no: entry.purchaseBillLineNo ?? null,
+      to_remaining_qty: toRemainingQty,
+      unit_price_snapshot: entry.unitPriceSnapshot ?? 0,
+    }
+  })
+
+  await tx.po_buy_allocation_logs.createMany({ data: rows })
 }
 
 export async function reconcilePoBuys(

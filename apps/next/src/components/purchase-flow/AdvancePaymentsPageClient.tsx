@@ -1167,7 +1167,8 @@ function timelineTone(event: AdvancePaymentTimelineEvent) {
   if (event.outcome === 'failure') return 'bg-red-500'
   if (event.outcome === 'blocked') return 'bg-amber-500'
   if (event.action === 'cancel' || event.eventKey.includes('cancel')) return 'bg-red-500'
-  if (event.action === 'allocate' || event.eventKey.includes('allocated')) return 'bg-blue-500'
+  if (event.eventKey.includes('voided') || event.eventKey.includes('reversed') || event.eventKey.includes('released')) return 'bg-amber-500'
+  if (event.action.includes('allocate') || event.eventKey.includes('allocated') || event.eventKey.includes('allocation')) return 'bg-blue-500'
   return 'bg-emerald-500'
 }
 
@@ -1175,6 +1176,16 @@ function timelineLabel(event: AdvancePaymentTimelineEvent) {
   if (event.eventKey === 'purchase.advance-payment.created') return 'สร้างรายการ ADV'
   if (event.eventKey === 'purchase.advance-payment.updated') return 'แก้ไขรายการ ADV'
   if (event.eventKey === 'purchase.advance-payment.cancelled') return 'ยกเลิกรายการ ADV'
+  if (event.eventKey === 'purchase.advance-payment.approved') return 'อนุมัติ ADV'
+  if (event.eventKey === 'purchase.advance-payment.approval-voided') return 'ยกเลิกรายการรอจ่าย ADV'
+  if (event.eventKey === 'purchase.advance-payment.paid') return 'จ่าย ADV สำเร็จ'
+  if (event.eventKey === 'purchase.advance-payment.payment-reversed') return 'ยกเลิกการจ่าย ADV'
+  if (event.eventKey === 'purchase.advance-payment.partially-allocated') return 'ใช้ ADV หักบิลบางส่วน'
+  if (event.eventKey === 'purchase.advance-payment.fully-allocated') return 'ใช้ ADV หักบิลครบ'
+  if (event.eventKey === 'purchase.advance-payment.allocation-released') return 'คืนยอดหักบิล ADV'
+  if (event.eventKey === 'purchase.advance-payment.refund-required') return 'รอคืนเงิน ADV'
+  if (event.eventKey === 'purchase.advance-payment.refunded') return 'คืนเงิน ADV แล้ว'
+  if (event.eventKey === 'purchase.advance-payment.status-synced') return 'ปรับสถานะ ADV'
   if (event.eventKey === 'purchase.advance-payment.allocated') return 'ใช้ ADV หักบิล'
   if (event.eventKey === 'purchase.advance-payment.allocation-voided') return 'ยกเลิกการหักบิล ADV'
   return event.action
@@ -1186,11 +1197,19 @@ function timelineMetadataText(event: AdvancePaymentTimelineEvent) {
     const allocatedAmount = typeof event.metadata.allocatedAmount === 'number'
       ? formatMoney(event.metadata.allocatedAmount)
       : ''
-    const voidReason = String(event.metadata.voidReason ?? '')
+    const voidReason = String(event.metadata.voidReason ?? event.metadata.note ?? event.metadata.reason ?? '')
     return [purchaseBillDocNo ? `บิล ${purchaseBillDocNo}` : '', allocatedAmount ? `จำนวน ${allocatedAmount}` : '', voidReason].filter(Boolean).join(' · ')
   }
   if (event.eventKey === 'purchase.advance-payment.cancelled') {
     return String(event.metadata.cancelReason ?? '')
   }
-  return ''
+  const fromStatus = String(event.metadata.fromStatus ?? '')
+  const toStatus = String(event.metadata.toStatus ?? '')
+  const amount = typeof event.metadata.amount === 'number' ? formatMoney(event.metadata.amount) : ''
+  const note = String(event.metadata.note ?? event.metadata.reason ?? '')
+  return [
+    fromStatus || toStatus ? `${fromStatus || '-'} -> ${toStatus || '-'}` : '',
+    amount ? `ยอด ${amount}` : '',
+    note,
+  ].filter(Boolean).join(' · ')
 }

@@ -45,7 +45,7 @@ updated: 2026-05-27
 
 1. `UC-PUR-01` Spot Buy happy path
 2. `UC-PUR-02` PO happy path
-3. `UC-PUR-07` WTI 1 ใบ -> หลาย Purchase Bills
+3. `UC-PUR-07` WTI ที่เลือกใน PB ต้องจัดสรรครบก่อนบันทึก
 4. `UC-PUR-10` approval snapshot lock
 5. `UC-PUR-13` จ่ายหลายบิลพร้อมกัน
 6. `UC-PUR-14` จ่ายหลายบัญชี
@@ -63,7 +63,7 @@ updated: 2026-05-27
 | `UC-PUR-04` | PO | PO ใช้ครบ | `/purchase/po-buy`, `/purchase/bills` | Medium | `Not Run` |
 | `UC-PUR-05` | PO | ปิดรับไม่ครบ | `/purchase/po-buy` | Medium | `Not Run` |
 | `UC-PUR-06` | WTI | WTI สินค้าเดียวหลาย lot | `/daily/weight-ticket-list/[id]`, `/purchase/bills` | Medium | `Not Run` |
-| `UC-PUR-07` | WTI | WTI 1 ใบ แตกหลายบิลซื้อ | `/purchase/bills`, `/daily/weight-ticket-list` | High | `Not Run` |
+| `UC-PUR-07` | WTI | WTI ที่เลือกใน PB ต้องจัดสรรครบก่อนบันทึก | `/purchase/bills`, `/daily/weight-ticket-list` | High | `Not Run` |
 | `UC-PUR-08` | Allocation | 1 summary แตกหลายแถวใน PB | `/purchase/bills` | High | `Not Run` |
 | `UC-PUR-09` | Approval | PB ต้องไปโผล่หน้าอนุมัติโอนเงิน | `/daily/payment-approval` | High | `Not Run` |
 | `UC-PUR-10` | Approval | approval snapshot lock | `/daily/payment-approval`, `payment_approvals` | High | `Not Run` |
@@ -161,16 +161,20 @@ updated: 2026-05-27
   - หน้า detail เห็นทั้ง raw lot และ summary ต่อสินค้า
   - Purchase Bill ใช้ยอดจาก summary ต่อสินค้า ไม่ดึง raw line 1:1
 
-### `UC-PUR-07` WTI 1 ใบ แตกหลายบิลซื้อ
+### `UC-PUR-07` WTI ที่เลือกใน PB ต้องจัดสรรครบก่อนบันทึก
 
 - Steps:
   1. สร้าง WTI
-  2. ออก PB ใบแรกใช้บางส่วน
-  3. ออก PB ใบที่สองใช้ส่วนที่เหลือ
+  2. เปิด PB แล้วเลือก WTI
+  3. เลือก PO ที่เหลือยอดน้อยกว่าน้ำหนัก WTI
+  4. พยายามบันทึกโดยยังไม่เพิ่มแถวสำหรับยอดคงเหลือ
+  5. เพิ่มแถวใต้ WTI summary เดิมแล้วเลือก `Spot Buy` หรือ PO อื่นให้ครบยอด
+  6. บันทึก PB อีกครั้ง
 - Expected:
-  - หลังใบแรก WTI = `ออกบิลแล้วบางส่วน`
-  - หลังใบสอง WTI = `เสร็จสิ้น`
-  - หน้า WTI detail/list เห็น reference หลายบิล
+  - รอบที่ยังจัดสรรไม่ครบต้องบันทึกไม่ได้
+  - ยอดที่ PO ไม่ครอบคลุมต้องถูกบันทึกเป็น `Spot Buy` หรือ PO อื่นอย่างชัดเจน
+  - หลังบันทึกสำเร็จ ผลรวม allocation ของ WTI summary ที่เลือกต้องเท่ากับยอด remaining ตอน save
+  - หน้า WTI detail/list ต้องเห็น active usage และยอดคงเหลือถูกต้อง
 
 ### `UC-PUR-08` 1 summary แตกหลายแถวใน PB
 
@@ -180,7 +184,8 @@ updated: 2026-05-27
   3. เพิ่มแถวไปตัด PO ใบอื่นหรือ Spot Buy
 - Expected:
   - หลาย row อ้าง summary เดียวกันได้
-  - ยอดรวมที่ตัดไม่เกิน summary
+  - ยอดรวมที่ตัดต้องเท่ากับ summary remaining ของ summary ที่เลือกก่อน save
+  - ถ้ายอดรวมต่ำกว่า summary remaining ต้องบันทึกไม่ได้ และต้องให้เพิ่ม PO อื่นหรือ Spot Buy
   - line ที่อ้าง PO ใช้ราคาจาก PO และล็อกแก้ราคา
   - line ที่เป็น Spot Buy กรอกราคาเองได้
 

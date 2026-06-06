@@ -8,6 +8,7 @@ const globalForPrisma = globalThis as unknown as {
 }
 
 function hasExpectedDelegates(client: PrismaClient) {
+  const clientRecord = client as unknown as Record<string, Record<string, unknown> | undefined>
   const runtimeModels = (client as PrismaClient & {
     _runtimeDataModel?: {
       models?: Record<string, { fields?: Array<{ name?: string }> }>
@@ -19,12 +20,16 @@ function hasExpectedDelegates(client: PrismaClient) {
   const paymentMethodFields = runtimeModels?.payment_methods?.fields?.map((field) => field.name) ?? []
   const hasPaymentMethodTypeField = paymentMethodFields.includes('type')
 
-  return typeof client.weight_ticket_product_summaries?.createMany === 'function'
-    && typeof client.weight_ticket_product_summary_lines?.createMany === 'function'
-    && typeof (client as PrismaClient & { payment_approvals?: { findMany?: unknown } }).payment_approvals?.findMany === 'function'
-    && typeof (client as PrismaClient & { supplier_advance_payments?: { findMany?: unknown } }).supplier_advance_payments?.findMany === 'function'
-    && typeof (client as PrismaClient & { supplier_advance_allocations?: { findMany?: unknown } }).supplier_advance_allocations?.findMany === 'function'
-    && typeof (client as PrismaClient & { account_subtypes?: { findMany?: unknown } }).account_subtypes?.findMany === 'function'
+  return typeof clientRecord.weight_ticket_product_summaries?.createMany === 'function'
+    && typeof clientRecord.weight_ticket_product_summary_lines?.createMany === 'function'
+    && typeof clientRecord.payment_approvals?.findMany === 'function'
+    && typeof clientRecord.supplier_advance_payments?.findMany === 'function'
+    && typeof clientRecord.supplier_advance_allocations?.findMany === 'function'
+    && typeof clientRecord.account_subtypes?.findMany === 'function'
+    && typeof clientRecord.po_buy_allocation_logs?.createMany === 'function'
+    && typeof clientRecord.weight_ticket_usage_logs?.createMany === 'function'
+    && typeof clientRecord.supplier_advance_allocation_logs?.createMany === 'function'
+    && typeof clientRecord.supplier_advance_status_logs?.createMany === 'function'
     && hasAccountSubtypeField
     && hasPaymentMethodTypeField
 }

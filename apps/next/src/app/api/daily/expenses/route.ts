@@ -6,6 +6,7 @@ import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, listDailyAccounts, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
+import { ensurePendingPaymentApproval, hasLockedPaymentApproval } from '@/lib/server/payment-approval-pending'
 import { prisma } from '@/lib/server/prisma'
 import { activeVatRatePercent, activeWhtRatePercent } from '@/lib/server/tax-settings'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
@@ -245,6 +246,9 @@ export async function POST(request: Request) {
       if (existingExpense && !isPendingApprovalExpenseStatus(existingExpense.status)) {
         throw new Error('แก้ไขได้เฉพาะรายการค่าใช้จ่ายที่ยังไม่อนุมัติ')
       }
+      if (existingExpense && await hasLockedPaymentApproval(tx, 'expense', existingExpense.id)) {
+        throw new Error('แก้ไขไม่ได้ เพราะรายการค่าใช้จ่ายนี้มี PMA อนุมัติแล้ว')
+      }
 
       const documentDateInput = existingExpense
         ? toDateOnly(existingExpense.date)
@@ -316,6 +320,17 @@ export async function POST(request: Request) {
           ref_id: expense.id.toString(),
           ref_type: 'EXP',
         },
+      })
+
+      await ensurePendingPaymentApproval(tx, {
+        actor,
+        branchCode: branch?.code,
+        documentDate,
+        partyCode: null,
+        partyName: values.payee,
+        sourceDocNo: expense.doc_no,
+        sourceId: expense.id,
+        sourceType: 'expense',
       })
 
       return expense

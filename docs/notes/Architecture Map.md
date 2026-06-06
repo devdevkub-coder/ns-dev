@@ -81,6 +81,8 @@ Database direction:
 - แยก transaction headers และ lines
 - ใช้ foreign keys จริงเท่าที่ practical
 - ใช้ ledger-style tables ที่ trace ได้ และควร append-only สำหรับข้อมูลสำคัญ
+- เอกสารธุรกิจที่มีเลขเอกสารต้องมี timeline/history แบบ append-only แยกจาก current-state table ตาม [[Document Timeline Policy]]
+- target design ของ history ใช้ table เฉพาะตามเอกสารหรือ business flow ตาม [[Document History Table Design]]; ไม่ใช้ generic `document_events` เป็น source of truth ของ business timeline
 - reports ควรเป็น derived layer จากข้อมูล canonical
 
 เอกสารหลัก:
