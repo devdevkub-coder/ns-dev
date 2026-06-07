@@ -4,7 +4,27 @@ import { PrismaClient } from '../../../generated/prisma/client'
 
 const globalForPrisma = globalThis as unknown as {
   pgPool?: Pool
+  pgPoolConnectionString?: string
   prisma?: PrismaClient
+}
+
+function resolveRuntimeDatabaseUrl() {
+  const connectionString = process.env.DATABASE_RUNTIME_URL
+    ?? process.env.DATABASE_PRISMA_URL
+    ?? process.env.DATABASE_URL
+
+  if (!connectionString) {
+    throw new Error('DATABASE_URL is required for Prisma.')
+  }
+
+  const url = new URL(connectionString)
+  const isSupabasePooler = url.hostname.endsWith('.pooler.supabase.com')
+    && url.username.startsWith('postgres.')
+  if (isSupabasePooler && (!url.port || url.port === '5432')) {
+    url.port = '6543'
+  }
+
+  return url.toString()
 }
 
 function hasExpectedDelegates(client: PrismaClient) {
@@ -39,24 +59,33 @@ function hasExpectedDelegates(client: PrismaClient) {
 }
 
 function createPrismaClient() {
-  const connectionString = process.env.DATABASE_URL
+  const connectionString = resolveRuntimeDatabaseUrl()
 
-  if (!connectionString) {
-    throw new Error('DATABASE_URL is required for Prisma.')
+  if (globalForPrisma.pgPoolConnectionString !== connectionString) {
+    void globalForPrisma.pgPool?.end().catch(() => {})
+    globalForPrisma.pgPool = new Pool({
+      connectionString,
+      connectionTimeoutMillis: 5_000,
+      idleTimeoutMillis: 10_000,
+      max: Number(process.env.DATABASE_POOL_MAX ?? '1'),
+    })
+    globalForPrisma.pgPoolConnectionString = connectionString
   }
 
-  globalForPrisma.pgPool ??= new Pool({
-    connectionString,
-    connectionTimeoutMillis: 5_000,
-    idleTimeoutMillis: 10_000,
-    max: Number(process.env.DATABASE_POOL_MAX ?? '1'),
-  })
+  const pool = globalForPrisma.pgPool
+  if (!pool) {
+    throw new Error('Failed to initialize database connection pool.')
+  }
 
-  return new PrismaClient({ adapter: new PrismaPg(globalForPrisma.pgPool) })
+  return new PrismaClient({ adapter: new PrismaPg(pool) })
 }
 
 function getPrismaClient() {
-  if (globalForPrisma.prisma && !hasExpectedDelegates(globalForPrisma.prisma)) {
+  const connectionString = resolveRuntimeDatabaseUrl()
+  if (globalForPrisma.prisma && (
+    globalForPrisma.pgPoolConnectionString !== connectionString
+    || !hasExpectedDelegates(globalForPrisma.prisma)
+  )) {
     void globalForPrisma.prisma.$disconnect().catch(() => {})
     globalForPrisma.prisma = undefined
   }
