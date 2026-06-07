@@ -11,6 +11,16 @@ type AppNavigationProps = {
 
 const SIDEBAR_SCROLL_KEY = 'ns-scrap-erp-sidebar-scroll-top'
 
+function normalizeNavigationPath(path: string) {
+  return path.endsWith('/') && path !== '/' ? path.slice(0, -1) : path
+}
+
+function isNavigationPathActive(pathname: string, href: string) {
+  const normalizedPath = normalizeNavigationPath(pathname)
+  const normalizedHref = normalizeNavigationPath(href)
+  return normalizedPath === normalizedHref || normalizedPath.startsWith(`${normalizedHref}/`)
+}
+
 export function AppNavigation({ onNavigate }: AppNavigationProps) {
   const pathname = usePathname()
   const navRef = useRef<HTMLElement | null>(null)
@@ -57,6 +67,20 @@ export function AppNavigation({ onNavigate }: AppNavigationProps) {
       }))
       .filter((item) => canAccessPath(item.href, authContext) || Boolean(item.children?.length))
   }, [authContext])
+
+  useEffect(() => {
+    const activeItem = visibleItems.find((item) => {
+      if (isNavigationPathActive(pathname, item.href)) return true
+      return item.children?.some((child) => isNavigationPathActive(pathname, child.href)) ?? false
+    })
+
+    if (!activeItem) return
+
+    setExpandedSection(activeItem.section)
+    if (activeItem.children?.some((child) => isNavigationPathActive(pathname, child.href))) {
+      setExpandedMenu(activeItem.href)
+    }
+  }, [pathname, visibleItems])
 
   useEffect(() => {
     const nav = navRef.current
@@ -140,8 +164,8 @@ export function AppNavigation({ onNavigate }: AppNavigationProps) {
               <span className="text-[10px]">{sectionExpanded ? '▾' : '▸'}</span>
             </button>
             {sectionExpanded ? items.map((item) => {
-              const childActive = item.children?.some((child) => child.href === pathname) ?? false
-              const active = pathname === item.href || childActive
+              const childActive = item.children?.some((child) => isNavigationPathActive(pathname, child.href)) ?? false
+              const active = isNavigationPathActive(pathname, item.href) || childActive
               const expanded = expandedMenu === item.href
 
               return (
@@ -164,7 +188,7 @@ export function AppNavigation({ onNavigate }: AppNavigationProps) {
                       </button>
                     ) : (
                       <Link
-                        aria-current={pathname === item.href ? 'page' : undefined}
+                        aria-current={active ? 'page' : undefined}
                         className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2 text-left"
                         data-active-nav={active ? 'true' : undefined}
                         href={item.href}
@@ -192,7 +216,7 @@ export function AppNavigation({ onNavigate }: AppNavigationProps) {
                   {item.children?.length && expanded ? (
                     <div className="bg-slate-950/30 py-1">
                       {item.children.map((child) => {
-                        const childIsActive = pathname === child.href
+                        const childIsActive = isNavigationPathActive(pathname, child.href)
 
                         return (
                           <Link
