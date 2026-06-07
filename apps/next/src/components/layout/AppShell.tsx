@@ -153,11 +153,11 @@ export function AppShell({ children }: AppShellProps) {
   }
 
   if (isAuthPage) {
-    return <div className="min-h-screen bg-slate-100 text-slate-900">{children}</div>
+    return <div className="h-dvh overflow-y-auto bg-slate-100 text-slate-900">{children}</div>
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-100 text-slate-900">
+    <div className="flex h-dvh overflow-hidden bg-slate-100 text-slate-900">
       <aside className={`${sidebarOpen ? 'fixed inset-y-0 left-0 z-40 flex' : 'hidden'} w-64 flex-shrink-0 flex-col bg-slate-900 text-slate-200 lg:relative lg:flex`}>
         <div className="flex items-center gap-3 border-b border-slate-700 p-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-md bg-gradient-to-br from-blue-500 to-indigo-600 font-bold text-white">NS</div>
@@ -172,7 +172,7 @@ export function AppShell({ children }: AppShellProps) {
 
       {sidebarOpen ? <button aria-label="ปิดเมนู" className="fixed inset-0 z-30 bg-black/40 lg:hidden" type="button" onClick={() => setSidebarOpen(false)} /> : null}
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <button aria-label="เปิดเมนู" className="text-xl text-slate-600 lg:hidden" type="button" onClick={() => setSidebarOpen(!sidebarOpen)}>
@@ -219,7 +219,7 @@ export function AppShell({ children }: AppShellProps) {
           </nav>
         ) : null}
 
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
+        <main className="min-h-0 flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
       </div>
     </div>
   )

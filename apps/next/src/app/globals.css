@@ -14,6 +14,12 @@
   background: #f3f6f9;
 }
 
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
 * {
   box-sizing: border-box;
 }
