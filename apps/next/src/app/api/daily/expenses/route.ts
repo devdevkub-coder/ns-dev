@@ -33,6 +33,20 @@ type ExpenseWithRelations = Prisma.expensesGetPayload<{
   }
 }>
 
+type ExpenseLineJson = {
+  amount: number
+  categoryId: string | null
+  categoryName: string
+  description: string | null
+  hasVat: boolean
+  id: string
+  lineNo: number
+  vatAmount: number
+  vatPct: number
+  whtAmount: number
+  whtPct: number
+}
+
 function isPendingApprovalExpenseStatus(status: string | null | undefined) {
   const normalized = String(status ?? '').toLowerCase()
   return normalized === 'pending_approval'
@@ -42,6 +56,72 @@ function requireExpenseStatus(status: string | null | undefined) {
   const normalized = String(status ?? '').toLowerCase()
   if (normalized === 'pending_approval' || normalized === 'approved' || normalized === 'paid' || normalized === 'cancelled') return normalized
   throw new Error(`สถานะค่าใช้จ่ายไม่ถูกต้อง: ${status ?? '-'}`)
+}
+
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function stringValue(value: unknown) {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function nullableStringValue(value: unknown) {
+  const text = stringValue(value)
+  return text || null
+}
+
+function numberValue(value: unknown) {
+  const numeric = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : 0
+  return Number.isFinite(numeric) ? numeric : 0
+}
+
+function normalizeStoredExpenseLines(row: ExpenseWithRelations): ExpenseLineJson[] {
+  const items = Array.isArray(row.items) ? row.items : []
+  const lines = items
+    .flatMap((item, index) => {
+      if (!isRecord(item)) return []
+      const amount = roundMoney(numberValue(item.amount))
+      const vatAmount = roundMoney(numberValue(item.vatAmount))
+      const whtAmount = roundMoney(numberValue(item.whtAmount))
+      return [{
+        amount,
+        categoryId: nullableStringValue(item.categoryId),
+        categoryName: stringValue(item.categoryName) || '-',
+        description: nullableStringValue(item.description),
+        hasVat: Boolean(item.hasVat) || vatAmount > 0,
+        id: stringValue(item.id) || `line-${index + 1}`,
+        lineNo: Math.max(1, Math.trunc(numberValue(item.lineNo)) || index + 1),
+        vatAmount,
+        vatPct: numberValue(item.vatPct),
+        whtAmount,
+        whtPct: numberValue(item.whtPct),
+      }]
+    })
+    .filter((line) => line.amount > 0)
+
+  if (lines.length > 0) return lines
+
+  const amount = toNumber(row.amount)
+  const vatAmount = toNumber(row.vat ?? row.vat_amount)
+  const whtAmount = toNumber(row.wht ?? row.wht_amount)
+  return [{
+    amount,
+    categoryId: row.expense_categories?.code ?? null,
+    categoryName: row.expense_categories?.name ?? '-',
+    description: row.description ?? null,
+    hasVat: vatAmount > 0,
+    id: 'line-1',
+    lineNo: 1,
+    vatAmount,
+    vatPct: vatAmount > 0 && amount > 0 ? roundMoney((vatAmount / amount) * 100) : 0,
+    whtAmount,
+    whtPct: whtAmount > 0 && amount > 0 ? roundMoney((whtAmount / amount) * 100) : toNumber(row.wht_pct),
+  }]
 }
 
 async function findExpenseByDocNo(
@@ -58,13 +138,16 @@ async function findExpenseByDocNo(
 
 function expenseJson(row: ExpenseWithRelations) {
   const status = requireExpenseStatus(row.status)
+  const lines = normalizeStoredExpenseLines(row)
+  const categoryNames = Array.from(new Set(lines.map((line) => line.categoryName).filter((name) => name && name !== '-')))
+  const categoryName = categoryNames.length > 1 ? `${categoryNames[0]} +${categoryNames.length - 1}` : categoryNames[0] ?? row.expense_categories?.name ?? '-'
   return {
     accountId: row.accounts?.code ?? '',
     accountName: row.accounts?.name ?? '-',
     amount: toNumber(row.amount),
     branchId: row.branches?.code ?? '',
-    categoryId: row.expense_categories?.code ?? '',
-    categoryName: row.expense_categories?.name ?? '-',
+    categoryId: row.expense_categories?.code ?? lines[0]?.categoryId ?? '',
+    categoryName,
     date: toDateOnly(row.date),
     description: row.description ?? '',
     docNo: row.doc_no,
@@ -72,6 +155,7 @@ function expenseJson(row: ExpenseWithRelations) {
     hasVat: toNumber(row.vat ?? row.vat_amount) > 0,
     hasWht: toNumber(row.wht ?? row.wht_amount) > 0,
     id: row.doc_no,
+    lines,
     netAmount: toNumber(row.net_amount),
     notes: row.notes ?? '',
     payee: row.payee ?? '',
@@ -98,13 +182,14 @@ function buildWorkbook(rows: ReturnType<typeof expenseJson>[]) {
     RefDocNo: row.refDocNo || '',
     Payee: row.payee,
     Category: row.categoryName,
+    LineCount: row.lines.length,
     Account: row.accountName,
     Status: expenseStatusLabel(row.status),
     Amount: row.amount,
     VAT: row.vat,
     WHT: row.wht,
     NetAmount: row.netAmount,
-    Description: row.description || '',
+    Description: row.lines.map((line) => line.description).filter(Boolean).join(' / ') || row.description || '',
   }))
 
   const workbook = XLSX.utils.book_new()
@@ -164,7 +249,6 @@ export async function GET(request: Request) {
         },
         orderBy: [{ date: 'desc' }, { created_at: 'desc' }],
         where: {
-          ...(categoryId ? { expense_categories: { is: { code: categoryId } } } : {}),
           ...(accountReference != null ? { account_id: accountReference.id } : {}),
           ...(statuses.length > 0 ? { status: { in: statuses } } : {}),
           ...(dateFrom || dateTo
@@ -182,9 +266,13 @@ export async function GET(request: Request) {
       activeWhtRatePercent(new Date()),
     ])
 
-    const mappedRows = rows.map(expenseJson).filter((row) => (
-      !search || `${row.docNo} ${row.payee} ${row.refDocNo ?? ''} ${row.description ?? ''}`.toLowerCase().includes(search)
-    ))
+    const mappedRows = rows.map(expenseJson).filter((row) => {
+      const lineSearchText = row.lines.map((line) => `${line.categoryName} ${line.description ?? ''}`).join(' ')
+      return (
+        (!categoryId || row.categoryId === categoryId || row.lines.some((line) => line.categoryId === categoryId)) &&
+        (!search || `${row.docNo} ${row.payee} ${row.refDocNo ?? ''} ${row.description ?? ''} ${lineSearchText}`.toLowerCase().includes(search))
+      )
+    })
 
     if (url.searchParams.get('format') === 'xlsx') {
       return xlsxResponse(buildWorkbook(mappedRows), `daily_expenses_${new Date().toISOString().slice(0, 10)}.xlsx`)
@@ -216,32 +304,75 @@ export async function POST(request: Request) {
 
     const values = expenseFormSchema.parse(await request.json())
     const actor = currentActor(context)
-    const [vatRatePercent, whtRatePercent, account] = await Promise.all([
+    const rawLines = values.lines && values.lines.length > 0
+      ? values.lines
+      : [{
+          amount: values.amount,
+          categoryId: values.categoryId,
+          description: values.description,
+          hasVat: values.hasVat,
+          id: null,
+          vatAmount: 0,
+          whtAmount: 0,
+          whtPct: 0,
+        }]
+    const categoryCodes = Array.from(new Set(rawLines.map((line) => line.categoryId).filter((value): value is string => Boolean(value))))
+    const [vatRatePercent, whtRatePercent, account, categoryRows, branch] = await Promise.all([
       activeVatRatePercent(new Date()),
       activeWhtRatePercent(new Date()),
       values.accountId
         ? findActiveAccountReferenceByCode(values.accountId)
         : Promise.resolve(null),
+      categoryCodes.length > 0
+        ? prisma.expense_categories.findMany({
+            select: { active: true, code: true, id: true, name: true },
+            where: { code: { in: categoryCodes } },
+          })
+        : Promise.resolve([]),
+      values.branchId ? findActiveBranchReferenceByCodeOrId(values.branchId) : Promise.resolve(null),
     ])
-    const category = values.categoryId
-      ? await prisma.expense_categories.findUnique({
-          select: { id: true },
-          where: { code: values.categoryId },
-        })
-      : null
-    const branch = values.branchId ? await findActiveBranchReferenceByCodeOrId(values.branchId) : null
-    if (values.categoryId && !category) {
-      throw new Error('หมวดค่าใช้จ่ายไม่ถูกต้องหรือถูกปิดใช้งาน')
-    }
+    const categoryByCode = new Map(categoryRows.map((category) => [category.code, category]))
+    const invalidCategoryCode = categoryCodes.find((code) => {
+      const category = categoryByCode.get(code)
+      return !category || category.active === false
+    })
+    if (invalidCategoryCode) throw new Error('หมวดค่าใช้จ่ายไม่ถูกต้องหรือถูกปิดใช้งาน')
     if (values.branchId && !branch) {
       throw new Error('สาขาไม่ถูกต้องหรือถูกปิดใช้งาน')
     }
     if (values.accountId && !account) {
       throw new Error('บัญชีจ่ายไม่ถูกต้อง')
     }
-    const vatAmount = values.hasVat ? Math.round(((values.amount * vatRatePercent / 100) + Number.EPSILON) * 100) / 100 : 0
-    const whtAmount = values.hasWht ? Math.round(((values.amount * whtRatePercent / 100) + Number.EPSILON) * 100) / 100 : 0
-    const netAmount = values.amount + vatAmount - whtAmount
+    const persistedLines = rawLines.map((line, index) => {
+      const amount = roundMoney(line.amount)
+      const vatAmount = line.hasVat ? roundMoney(amount * vatRatePercent / 100) : 0
+      const submittedWhtPct = roundMoney(line.whtPct > 0 ? line.whtPct : values.hasWht ? whtRatePercent : 0)
+      const whtAmount = submittedWhtPct > 0 ? roundMoney(amount * submittedWhtPct / 100) : 0
+      const category = line.categoryId ? categoryByCode.get(line.categoryId) : null
+      return {
+        amount,
+        categoryId: line.categoryId ?? null,
+        categoryName: category?.name ?? '',
+        description: line.description ?? null,
+        hasVat: line.hasVat,
+        id: line.id ?? `line-${index + 1}`,
+        lineNo: index + 1,
+        vatAmount,
+        vatPct: line.hasVat ? vatRatePercent : 0,
+        whtAmount,
+        whtPct: submittedWhtPct,
+      }
+    })
+    const amount = roundMoney(persistedLines.reduce((sum, line) => sum + line.amount, 0))
+    const vatAmount = roundMoney(persistedLines.reduce((sum, line) => sum + line.vatAmount, 0))
+    const whtAmount = roundMoney(persistedLines.reduce((sum, line) => sum + line.whtAmount, 0))
+    const netAmount = amount + vatAmount - whtAmount
+    const headerCategoryCode = persistedLines.find((line) => line.categoryId)?.categoryId ?? null
+    const headerCategory = headerCategoryCode ? categoryByCode.get(headerCategoryCode) : null
+    const generatedDescription = persistedLines.map((line) => line.description).filter(Boolean).join(' / ')
+    const headerDescription = (values.description ?? generatedDescription).slice(0, 500) || null
+    const whtPcts = Array.from(new Set(persistedLines.map((line) => line.whtPct).filter((pct) => pct > 0)))
+    const headerWhtPct = whtPcts.length === 1 ? whtPcts[0] : 0
 
     const result = await prisma.$transaction(async (tx) => {
       const existingExpense = values.id
@@ -274,13 +405,14 @@ export async function POST(request: Request) {
             where: { id: existingExpense.id },
             data: {
               account_id: account?.id ?? null,
-              amount: values.amount,
+              amount,
               branch_id: branch?.id ?? null,
-              category_id: category?.id ?? null,
+              category_id: headerCategory?.id ?? null,
               date: documentDate,
-              description: values.description,
+              description: headerDescription,
               doc_no: docNo,
               due_date: values.dueDate ? normalizeDate(values.dueDate) : null,
+              items: persistedLines as Prisma.InputJsonValue,
               net_amount: netAmount,
               notes: values.notes,
               paid_at: null,
@@ -296,19 +428,21 @@ export async function POST(request: Request) {
               voucher_id: docNo,
               wht: whtAmount,
               wht_amount: whtAmount,
+              wht_pct: headerWhtPct,
             },
           })
         : await tx.expenses.create({
             data: {
               account_id: account?.id ?? null,
-              amount: values.amount,
+              amount,
               branch_id: branch?.id ?? null,
-              category_id: category?.id ?? null,
+              category_id: headerCategory?.id ?? null,
               created_by: actor,
               date: documentDate,
-              description: values.description,
+              description: headerDescription,
               doc_no: docNo,
               due_date: values.dueDate ? normalizeDate(values.dueDate) : null,
+              items: persistedLines as Prisma.InputJsonValue,
               net_amount: netAmount,
               notes: values.notes,
               paid_at: null,
@@ -324,6 +458,7 @@ export async function POST(request: Request) {
               voucher_id: docNo,
               wht: whtAmount,
               wht_amount: whtAmount,
+              wht_pct: headerWhtPct,
             },
           })
 

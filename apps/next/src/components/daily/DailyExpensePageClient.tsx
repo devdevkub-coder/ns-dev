@@ -4,16 +4,18 @@ import { Download } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent } from 'react'
 import { Button } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
-import { dailyFetchJson, expenseFormSchema, formatMoney, todayDateInput, type DailyAccountOption, type ExpenseFormValues } from '@/lib/daily'
+import { dailyFetchJson, expenseFormSchema, formatMoney, todayDateInput, type DailyAccountOption, type ExpenseFormValues, type ExpenseLineFormValues } from '@/lib/daily'
 import { formatDateDisplay, formatDecimalDisplay, formatDecimalDraft, sanitizeDecimalInput } from '@/lib/format'
 
 type CategoryOption = { active: boolean | null; id: string; name: string; typeId?: string | null; typeName?: string | null }
 type ExpenseTypeOption = { active: boolean | null; id: string; name: string }
-type ExpenseRow = ExpenseFormValues & {
+type ExpenseLineDraft = Omit<ExpenseLineFormValues, 'id'> & { categoryName?: string; id: string; lineNo?: number; vatPct?: number }
+type ExpenseRow = Omit<ExpenseFormValues, 'lines'> & {
   accountName: string
   categoryName: string
   docNo: string
   id: string
+  lines: ExpenseLineDraft[]
   netAmount: number
   vat: number
   wht: number
@@ -46,6 +48,15 @@ type MultiSegmentOption = {
   values: ExpenseFormValues['status'][]
 }
 
+const whtRateOptions = [
+  { label: '1% (ขนส่ง/รับเหมา)', value: 1 },
+  { label: '2% (โฆษณา)', value: 2 },
+  { label: '3% (บริการ)', value: 3 },
+  { label: '5% (ค่าเช่า)', value: 5 },
+  { label: '10% (ต่างชาติ)', value: 10 },
+  { label: '15% (ดอกเบี้ย/เงินปันผล)', value: 15 },
+]
+
 const emptyForm: ExpenseFormValues = {
   accountId: null,
   amount: 0,
@@ -58,6 +69,7 @@ const emptyForm: ExpenseFormValues = {
   hasVat: false,
   hasWht: false,
   id: null,
+  lines: [],
   notes: null,
   payee: '',
   refDocNo: null,
@@ -107,6 +119,70 @@ function canMutateExpense(status: ExpenseFormValues['status']) {
 
 function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
+function createExpenseLine(seed: Partial<ExpenseLineDraft> = {}): ExpenseLineDraft {
+  return {
+    amount: seed.amount ?? 0,
+    categoryId: seed.categoryId ?? null,
+    categoryName: seed.categoryName ?? '',
+    description: seed.description ?? null,
+    hasVat: seed.hasVat ?? false,
+    id: seed.id ?? `line-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    lineNo: seed.lineNo,
+    vatAmount: seed.vatAmount ?? 0,
+    vatPct: seed.vatPct ?? 0,
+    whtAmount: seed.whtAmount ?? 0,
+    whtPct: seed.whtPct ?? 0,
+  }
+}
+
+function normalizeExpenseLines(lines: ExpenseFormValues['lines'] | ExpenseLineDraft[] | undefined, fallback?: Partial<ExpenseFormValues>): ExpenseLineDraft[] {
+  if (lines && lines.length > 0) {
+    return lines.map((line, index) => createExpenseLine({
+      ...line,
+      id: line.id ?? `line-${index + 1}`,
+      lineNo: 'lineNo' in line && typeof line.lineNo === 'number' ? line.lineNo : index + 1,
+    }))
+  }
+
+  if (fallback && fallback.amount && fallback.amount > 0) {
+    return [createExpenseLine({
+      amount: fallback.amount,
+      categoryId: fallback.categoryId ?? null,
+      description: fallback.description ?? null,
+      hasVat: fallback.hasVat ?? false,
+      id: 'line-1',
+      lineNo: 1,
+      vatAmount: 0,
+      whtAmount: 0,
+      whtPct: fallback.hasWht ? 3 : 0,
+    })]
+  }
+
+  return [createExpenseLine()]
+}
+
+function calculateExpenseLine(line: ExpenseLineDraft, vatRatePercent: number) {
+  const amount = roundMoney(line.amount)
+  const vatAmount = line.hasVat ? roundMoney(amount * vatRatePercent / 100) : 0
+  const whtPct = roundMoney(line.whtPct)
+  const whtAmount = whtPct > 0 ? roundMoney(amount * whtPct / 100) : 0
+  return { ...line, amount, vatAmount, vatPct: line.hasVat ? vatRatePercent : 0, whtAmount, whtPct }
+}
+
+function calculateExpenseTotals(lines: ExpenseLineDraft[], vatRatePercent: number) {
+  const calculatedLines = lines.map((line) => calculateExpenseLine(line, vatRatePercent))
+  const amount = roundMoney(calculatedLines.reduce((sum, line) => sum + line.amount, 0))
+  const vatAmount = roundMoney(calculatedLines.reduce((sum, line) => sum + line.vatAmount, 0))
+  const whtAmount = roundMoney(calculatedLines.reduce((sum, line) => sum + line.whtAmount, 0))
+  return {
+    amount,
+    lines: calculatedLines,
+    netAmount: amount + vatAmount - whtAmount,
+    vatAmount,
+    whtAmount,
+  }
 }
 
 function accountPaymentOptionLabel(account: DailyAccountOption) {
@@ -163,12 +239,15 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase()
     return rows
-      .filter((row) => !categoryId || row.categoryId === categoryId)
+      .filter((row) => !categoryId || row.categoryId === categoryId || row.lines.some((line) => line.categoryId === categoryId))
       .filter((row) => !dateFrom || row.date >= dateFrom)
       .filter((row) => !dateTo || row.date <= dateTo)
       .filter((row) => !accountId || row.accountId === accountId)
       .filter((row) => statusFilter.length === 0 || statusFilter.includes(row.status))
-      .filter((row) => !query || `${row.docNo} ${row.payee} ${row.refDocNo ?? ''} ${row.description ?? ''}`.toLowerCase().includes(query))
+      .filter((row) => {
+        const lineText = row.lines.map((line) => `${line.categoryName ?? ''} ${line.description ?? ''}`).join(' ')
+        return !query || `${row.docNo} ${row.payee} ${row.refDocNo ?? ''} ${row.description ?? ''} ${lineText}`.toLowerCase().includes(query)
+      })
       .sort((left, right) => right.date.localeCompare(left.date) || right.docNo.localeCompare(left.docNo))
   }, [accountId, categoryId, dateFrom, dateTo, rows, search, statusFilter])
 
@@ -178,7 +257,12 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
     const byCategory = new Map<string, number>()
     const byPayee = new Map<string, number>()
     for (const row of monthly) {
-      byCategory.set(row.categoryName || 'ไม่ระบุหมวด', (byCategory.get(row.categoryName || 'ไม่ระบุหมวด') ?? 0) + row.netAmount)
+      const lines = normalizeExpenseLines(row.lines, row)
+      for (const line of lines) {
+        const categoryName = line.categoryName || row.categoryName || 'ไม่ระบุหมวด'
+        const lineNet = line.amount + line.vatAmount - line.whtAmount
+        byCategory.set(categoryName, (byCategory.get(categoryName) ?? 0) + lineNet)
+      }
       byPayee.set(row.payee || 'ไม่ระบุผู้รับเงิน', (byPayee.get(row.payee || 'ไม่ระบุผู้รับเงิน') ?? 0) + row.netAmount)
     }
     const trend = getRecentMonths(6).map((trendMonth) => ({
@@ -211,6 +295,9 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
     .filter((category) => category.active !== false)
     .filter((category) => !expenseTypeId || category.typeId === expenseTypeId)
     .map((category) => ({ id: category.id, name: category.name })), [categories, expenseTypeId])
+
+  const formLines = useMemo(() => normalizeExpenseLines(form.lines, form), [form])
+  const formTotals = useMemo(() => calculateExpenseTotals(formLines, vatRatePercent), [formLines, vatRatePercent])
 
   const exportHref = useMemo(() => {
     const params = new URLSearchParams()
@@ -255,12 +342,14 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
     for (const row of rows) {
       const month = row.date.slice(0, 7)
       if (!monthList.includes(month)) continue
-      const key = row.categoryId && byCategory.has(row.categoryId) ? row.categoryId : '_uncat'
-      const target = byCategory.get(key)
-      if (!target) continue
-      const amount = row.amount + row.vat
-      target.byMonth[month] = (target.byMonth[month] ?? 0) + amount
-      target.total += amount
+      for (const line of normalizeExpenseLines(row.lines, row)) {
+        const key = line.categoryId && byCategory.has(line.categoryId) ? line.categoryId : '_uncat'
+        const target = byCategory.get(key)
+        if (!target) continue
+        const amount = line.amount + line.vatAmount
+        target.byMonth[month] = (target.byMonth[month] ?? 0) + amount
+        target.total += amount
+      }
     }
 
     const heatmapRows = Array.from(byCategory.values())
@@ -307,8 +396,27 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
     setPage(1)
   }, [accountId, categoryId, dateFrom, dateTo, pageSize, search, statusFilter])
 
+  function expenseTypeForLines(lines: ExpenseLineDraft[]) {
+    const typeIds = Array.from(new Set(lines.map((line) => line.categoryId ? categoryTypeById.get(line.categoryId) ?? '' : '').filter(Boolean)))
+    return typeIds.length === 1 ? typeIds[0] : ''
+  }
+
+  function syncFormLines(current: ExpenseFormValues, lines: ExpenseLineDraft[]) {
+    const totals = calculateExpenseTotals(lines, vatRatePercent)
+    const description = totals.lines.map((line) => line.description).filter(Boolean).join(' / ').slice(0, 500) || null
+    return {
+      ...current,
+      amount: totals.amount,
+      categoryId: totals.lines.find((line) => line.categoryId)?.categoryId ?? null,
+      description,
+      hasVat: totals.vatAmount > 0,
+      hasWht: totals.whtAmount > 0,
+      lines: totals.lines,
+    }
+  }
+
   function openCreateForm() {
-    setForm({ ...emptyForm, date: todayDateInput() })
+    setForm({ ...emptyForm, date: todayDateInput(), lines: [createExpenseLine()] })
     setExpenseTypeId('')
     setFieldErrors({})
     setFormOpen(true)
@@ -319,7 +427,8 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
       setError('แก้ไขได้เฉพาะรายการค่าใช้จ่ายที่ยังไม่อนุมัติ')
       return
     }
-    setForm({
+    const nextLines = normalizeExpenseLines(row.lines, row)
+    setForm(syncFormLines({
       accountId: row.accountId,
       amount: row.amount,
       branchId: row.branchId,
@@ -336,8 +445,8 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
       refDocNo: row.refDocNo,
       status: row.status,
       taxInvoiceNo: row.taxInvoiceNo,
-    })
-    setExpenseTypeId(row.categoryId ? categoryTypeById.get(row.categoryId) ?? '' : '')
+    }, nextLines))
+    setExpenseTypeId(expenseTypeForLines(nextLines))
     setError(null)
     setFieldErrors({})
     setFormOpen(true)
@@ -346,18 +455,35 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
   function updateExpenseTypeFilter(nextExpenseTypeId: string) {
     setExpenseTypeId(nextExpenseTypeId)
     setForm((current) => {
-      if (!current.categoryId || !nextExpenseTypeId) return current
-      return categoryTypeById.get(current.categoryId) === nextExpenseTypeId
-        ? current
-        : { ...current, categoryId: null }
+      if (!nextExpenseTypeId) return current
+      const nextLines = normalizeExpenseLines(current.lines, current).map((line) => (
+        !line.categoryId || categoryTypeById.get(line.categoryId) === nextExpenseTypeId
+          ? line
+          : { ...line, categoryId: null, categoryName: '' }
+      ))
+      return syncFormLines(current, nextLines)
     })
   }
 
-  function updateExpenseCategory(nextCategoryId: string) {
-    setForm({ ...form, categoryId: nextCategoryId || null })
-    if (!expenseTypeId && nextCategoryId) {
-      setExpenseTypeId(categoryTypeById.get(nextCategoryId) ?? '')
-    }
+  function updateExpenseLine(index: number, patch: Partial<ExpenseLineDraft>) {
+    setForm((current) => {
+      const nextLines = normalizeExpenseLines(current.lines, current).map((line, lineIndex) => (
+        lineIndex === index ? { ...line, ...patch } : line
+      ))
+      return syncFormLines(current, nextLines)
+    })
+  }
+
+  function addExpenseLine() {
+    setForm((current) => syncFormLines(current, [...normalizeExpenseLines(current.lines, current), createExpenseLine()]))
+  }
+
+  function removeExpenseLine(index: number) {
+    setForm((current) => {
+      const currentLines = normalizeExpenseLines(current.lines, current)
+      const nextLines = currentLines.filter((_, lineIndex) => lineIndex !== index)
+      return syncFormLines(current, nextLines.length > 0 ? nextLines : [createExpenseLine()])
+    })
   }
 
   async function cancelExpense(row: ExpenseRow) {
@@ -380,11 +506,13 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
 
   async function saveForm(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const parsed = expenseFormSchema.safeParse({ ...form, status: 'pending_approval' })
+    const totals = calculateExpenseTotals(normalizeExpenseLines(form.lines, form), vatRatePercent)
+    const payload = syncFormLines({ ...form, status: 'pending_approval' }, totals.lines)
+    const parsed = expenseFormSchema.safeParse(payload)
     if (!parsed.success) {
-      const nextFieldErrors = Object.fromEntries(parsed.error.issues.map((issue) => [String(issue.path[0]), issue.message]))
+      const nextFieldErrors = Object.fromEntries(parsed.error.issues.map((issue) => [issue.path.join('.'), issue.message]))
       setFieldErrors(nextFieldErrors)
-      const firstField = String(parsed.error.issues[0]?.path[0] ?? '')
+      const firstField = parsed.error.issues[0]?.path.join('.') ?? ''
       if (firstField) {
         requestAnimationFrame(() => {
           const container = formRef.current?.querySelector<HTMLElement>(`[data-field="${firstField}"]`)
@@ -590,64 +718,62 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                       <div className="grid gap-3 md:grid-cols-3">
                         <TextField error={fieldErrors.payee} fieldName="payee" label="ผู้รับเงิน" required value={form.payee} onChange={(value) => setForm({ ...form, payee: value })} />
                         <SelectField fieldName="expenseTypeId" label="ประเภทค่าใช้จ่าย" placeholder="ทุกประเภท" value={expenseTypeId} onChange={updateExpenseTypeFilter} options={activeExpenseTypes.map((type) => ({ id: type.id, name: type.name }))} />
-                        <SelectField error={fieldErrors.categoryId} fieldName="categoryId" label="หมวดค่าใช้จ่าย" placeholder={expenseTypeId ? 'เลือกหมวดค่าใช้จ่าย' : 'ไม่ระบุหมวด'} value={form.categoryId ?? ''} onChange={updateExpenseCategory} options={filteredFormCategoryOptions} />
                         <TextField error={fieldErrors.dueDate} fieldName="dueDate" label="ครบกำหนด" type="date" value={form.dueDate ?? ''} onChange={(value) => setForm({ ...form, dueDate: value })} />
                         <SelectField error={fieldErrors.accountId} fieldName="accountId" label="บัญชีที่ใช้ทำจ่าย" placeholder="ไม่ระบุบัญชี" value={form.accountId ?? ''} onChange={(value) => setForm({ ...form, accountId: value })} options={accounts.filter((account) => account.active).map((account) => ({ id: account.id, name: accountPaymentOptionLabel(account) }))} />
-                        <MoneyField error={fieldErrors.amount} fieldName="amount" label="ยอดก่อน VAT" required value={form.amount} onChange={(value) => setForm({ ...form, amount: value })} />
-                        <ToggleField
-                          checked={form.hasVat}
-                          description={`ระบบคำนวณจากอัตรา VAT ปัจจุบัน ${vatRatePercent.toFixed(2)}%`}
-                          fieldName="hasVat"
-                          label="VAT"
-                          onChange={(checked) => setForm({ ...form, hasVat: checked })}
-                        />
-                        <div data-field="status">
-                          <label className="mb-1 block text-xs font-medium text-slate-600">
-                            สถานะเอกสาร
-                          </label>
-                          <div className="flex h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700">
-                            {form.id ? expenseStatusLabel(form.status) : 'ยังไม่อนุมัติ'}
+                        {form.id ? (
+                          <div data-field="status">
+                            <label className="mb-1 block text-xs font-medium text-slate-600">
+                              สถานะเอกสาร
+                            </label>
+                            <div className="flex h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700">
+                              {expenseStatusLabel(form.status)}
+                            </div>
+                            <div className="mt-1 text-xs text-slate-500">สถานะจะเปลี่ยนผ่าน flow อนุมัติจ่ายเงินเท่านั้น</div>
                           </div>
-                          <div className="mt-1 text-xs text-slate-500">สถานะจะเปลี่ยนผ่าน flow อนุมัติจ่ายเงินเท่านั้น</div>
-                        </div>
+                        ) : null}
                       </div>
                     </div>
 
                     <div className="rounded-md bg-white p-4 shadow">
-                      <div className="mb-3 text-sm font-semibold text-slate-900">ภาษีและเอกสารอ้างอิง</div>
+                      <ExpenseLineTable
+                        categoryOptions={filteredFormCategoryOptions}
+                        errors={fieldErrors}
+                        lines={formTotals.lines}
+                        netAmount={formTotals.netAmount}
+                        totalAmount={formTotals.amount}
+                        totalVatAmount={formTotals.vatAmount}
+                        totalWhtAmount={formTotals.whtAmount}
+                        vatRatePercent={vatRatePercent}
+                        whtRatePercent={whtRatePercent}
+                        onAddLine={addExpenseLine}
+                        onLineChange={updateExpenseLine}
+                        onRemoveLine={removeExpenseLine}
+                      />
+                    </div>
+
+                    <div className="rounded-md bg-white p-4 shadow">
+                      <div className="mb-3 text-sm font-semibold text-slate-900">เอกสารอ้างอิงและหมายเหตุ</div>
                       <div className="grid gap-3 md:grid-cols-3">
-                        <ToggleField
-                          checked={form.hasWht}
-                          description={`ระบบคำนวณจากอัตรา WHT ปัจจุบัน ${whtRatePercent.toFixed(2)}%`}
-                          fieldName="hasWht"
-                          label="หัก WHT"
-                          onChange={(checked) => setForm({ ...form, hasWht: checked })}
-                        />
                         <TextField error={fieldErrors.refDocNo} fieldName="refDocNo" label="เลขอ้างอิง" value={form.refDocNo ?? ''} onChange={(value) => setForm({ ...form, refDocNo: value })} />
-                        <div className="md:col-span-2">
-                          <TextField error={fieldErrors.taxInvoiceNo} fieldName="taxInvoiceNo" label="เลขใบกำกับภาษี" value={form.taxInvoiceNo ?? ''} onChange={(value) => setForm({ ...form, taxInvoiceNo: value })} />
+                        <TextField error={fieldErrors.taxInvoiceNo} fieldName="taxInvoiceNo" label="เลขใบกำกับภาษี" value={form.taxInvoiceNo ?? ''} onChange={(value) => setForm({ ...form, taxInvoiceNo: value })} />
+                        <div className="md:col-span-3">
+                          <TextAreaField error={fieldErrors.notes} fieldName="notes" label="หมายเหตุ" rows={3} value={form.notes ?? ''} onChange={(value) => setForm({ ...form, notes: value })} />
                         </div>
-                      </div>
-                    </div>
-
-                    <div className="rounded-md bg-white p-4 shadow">
-                      <div className="mb-3 text-sm font-semibold text-slate-900">รายละเอียด</div>
-                      <div className="grid gap-3">
-                        <TextAreaField error={fieldErrors.description} fieldName="description" label="รายละเอียด" rows={3} value={form.description ?? ''} onChange={(value) => setForm({ ...form, description: value })} />
-                        <TextAreaField error={fieldErrors.notes} fieldName="notes" label="หมายเหตุ" rows={3} value={form.notes ?? ''} onChange={(value) => setForm({ ...form, notes: value })} />
                       </div>
                     </div>
                   </div>
 
                   <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
                     <div className="text-sm font-semibold text-slate-800">สรุปก่อนบันทึก</div>
-                    <SummaryLine label="ยอดก่อน VAT" value={formatMoney(form.amount)} />
-                    <SummaryLine label="+ VAT" value={formatMoney(form.hasVat ? roundMoney(form.amount * vatRatePercent / 100) : 0)} />
-                    <SummaryLine label="- WHT" value={formatMoney(form.hasWht ? roundMoney(form.amount * whtRatePercent / 100) : 0)} />
-                    <SummaryLine emphasize label="ยอดสุทธิ" value={formatMoney(form.amount + (form.hasVat ? roundMoney(form.amount * vatRatePercent / 100) : 0) - (form.hasWht ? roundMoney(form.amount * whtRatePercent / 100) : 0))} />
-                    <div className="mt-4 rounded-md border border-slate-200 bg-white p-3 text-xs text-slate-600">
-                      สถานะปัจจุบัน: <span className={`font-semibold ${expenseStatusTextClass(form.status)}`}>{expenseStatusLabel(form.status)}</span>
-                    </div>
+                    <SummaryLine label="ยอดก่อน VAT" value={formatMoney(formTotals.amount)} />
+                    <SummaryLine label="+ VAT" value={formatMoney(formTotals.vatAmount)} />
+                    <SummaryLine label="- WHT" value={formatMoney(formTotals.whtAmount)} />
+                    <SummaryLine emphasize label="ยอดสุทธิ" value={formatMoney(formTotals.netAmount)} />
+                    {form.id ? (
+                      <div className="mt-4 rounded-md border border-slate-200 bg-white p-3 text-xs text-slate-600">
+                        สถานะปัจจุบัน: <span className={`font-semibold ${expenseStatusTextClass(form.status)}`}>{expenseStatusLabel(form.status)}</span>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
                 <div className="flex justify-end gap-2 border-t px-5 py-4">
@@ -816,51 +942,176 @@ function TextField(props: { error?: string; fieldName?: string; label: string; o
   )
 }
 
-function MoneyField(props: { error?: string; fieldName?: string; label: string; onChange: (value: number) => void; required?: boolean; value: number }) {
+function MoneyInputControl(props: { className?: string; error?: string; onChange: (value: number) => void; value: number }) {
   const [draftValue, setDraftValue] = useState<string | null>(null)
 
   return (
-    <label className="block" data-field={props.fieldName}>
-      <span className="mb-1 block text-xs font-medium text-slate-600">{props.label}{renderRequiredMark(props.required)}</span>
-      <input
-        aria-invalid={Boolean(props.error)}
-        className={`h-9 w-full rounded-md border bg-white px-3 text-right text-sm tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-100 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300 text-slate-900'}`}
-        inputMode="decimal"
-        placeholder="0.00"
-        required={props.required}
-        type="text"
-        value={draftValue ?? (props.value > 0 ? formatDecimalDisplay(props.value, 2) : '')}
-        onBlur={(event) => {
-          const nextValue = sanitizeDecimalInput(event.target.value, 2)
-          if (!nextValue.trim() || nextValue.trim() === '.') {
-            setDraftValue(null)
-            props.onChange(0)
-            return
-          }
-          const parsed = Number(nextValue)
+    <input
+      aria-invalid={Boolean(props.error)}
+      className={`h-8 w-full rounded-md border bg-white px-2 py-1 text-right text-xs tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-100 ${props.error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300 text-slate-900'} ${props.className ?? ''}`}
+      inputMode="decimal"
+      placeholder="0.00"
+      type="text"
+      value={draftValue ?? (props.value > 0 ? formatDecimalDisplay(props.value, 2) : '')}
+      onBlur={(event) => {
+        const nextValue = sanitizeDecimalInput(event.target.value, 2)
+        if (!nextValue.trim() || nextValue.trim() === '.') {
           setDraftValue(null)
-          props.onChange(Number.isFinite(parsed) ? roundMoney(parsed) : 0)
-        }}
-        onChange={(event) => {
-          const nextValue = sanitizeDecimalInput(event.target.value, 2)
-          setDraftValue(nextValue)
-          if (!nextValue.trim() || nextValue.trim() === '.') {
-            props.onChange(0)
-            return
-          }
-          const parsed = Number(nextValue)
-          props.onChange(Number.isFinite(parsed) ? parsed : 0)
-        }}
-        onFocus={(event: FocusEvent<HTMLInputElement>) => {
-          setDraftValue(props.value > 0 ? formatDecimalDraft(props.value, 2) : '')
-          requestAnimationFrame(() => {
-            const end = event.target.value.length
-            event.target.setSelectionRange(end, end)
-          })
-        }}
-      />
-      {props.error ? <span className="mt-1 block text-xs text-red-700">{props.error}</span> : null}
-    </label>
+          props.onChange(0)
+          return
+        }
+        const parsed = Number(nextValue)
+        setDraftValue(null)
+        props.onChange(Number.isFinite(parsed) ? roundMoney(parsed) : 0)
+      }}
+      onChange={(event) => {
+        const nextValue = sanitizeDecimalInput(event.target.value, 2)
+        setDraftValue(nextValue)
+        if (!nextValue.trim() || nextValue.trim() === '.') {
+          props.onChange(0)
+          return
+        }
+        const parsed = Number(nextValue)
+        props.onChange(Number.isFinite(parsed) ? parsed : 0)
+      }}
+      onFocus={(event: FocusEvent<HTMLInputElement>) => {
+        setDraftValue(props.value > 0 ? formatDecimalDraft(props.value, 2) : '')
+        requestAnimationFrame(() => {
+          const end = event.target.value.length
+          event.target.setSelectionRange(end, end)
+        })
+      }}
+    />
+  )
+}
+
+function ExpenseLineTable(props: {
+  categoryOptions: Array<{ id: string; name: string }>
+  errors: Record<string, string>
+  lines: ExpenseLineDraft[]
+  netAmount: number
+  onAddLine: () => void
+  onLineChange: (index: number, patch: Partial<ExpenseLineDraft>) => void
+  onRemoveLine: (index: number) => void
+  totalAmount: number
+  totalVatAmount: number
+  totalWhtAmount: number
+  vatRatePercent: number
+  whtRatePercent: number
+}) {
+  const categoryPlaceholder = props.categoryOptions.length > 0 ? 'เลือกหมวดค่าใช้จ่าย' : 'ไม่มีหมวดในประเภทนี้'
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div>
+          <h4 className="text-sm font-semibold text-slate-900">รายการค่าใช้จ่าย ({props.lines.length})</h4>
+          {props.errors.lines ? <div className="mt-1 text-xs text-red-700">{props.errors.lines}</div> : null}
+        </div>
+        <button className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700" type="button" onClick={props.onAddLine}>
+          + เพิ่มบรรทัด
+        </button>
+      </div>
+      <div className="overflow-x-auto rounded-md border border-slate-200">
+        <table className="w-full min-w-[940px] text-xs">
+          <thead className="bg-slate-100">
+            <tr>
+              <th className="w-48 p-2 text-left">หมวด</th>
+              <th className="p-2 text-left">รายละเอียด</th>
+              <th className="w-28 p-2 text-right">จำนวน</th>
+              <th className="w-14 p-2 text-center">VAT</th>
+              <th className="w-24 p-2 text-right">VAT {props.vatRatePercent.toFixed(2)}%</th>
+              <th className="w-28 bg-amber-50 p-2 text-center text-amber-800">WHT %</th>
+              <th className="w-28 bg-amber-50 p-2 text-right text-amber-800">หัก ณ ที่จ่าย</th>
+              <th className="w-12 p-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {props.lines.map((line, index) => {
+              const categoryError = props.errors[`lines.${index}.categoryId`]
+              const descriptionError = props.errors[`lines.${index}.description`]
+              const amountError = props.errors[`lines.${index}.amount`]
+              const whtPctError = props.errors[`lines.${index}.whtPct`]
+              const hasSelectedCustomWht = line.whtPct > 0 && !whtRateOptions.some((option) => option.value === line.whtPct)
+              const showCurrentWhtRate = props.whtRatePercent > 0 && !whtRateOptions.some((option) => option.value === props.whtRatePercent)
+              return (
+                <tr key={line.id} className="border-t">
+                  <td className="p-1 align-top" data-field={`lines.${index}.categoryId`}>
+                    <select
+                      aria-invalid={Boolean(categoryError)}
+                      className={`h-8 w-full rounded-md border bg-white px-2 py-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-blue-100 ${categoryError ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300'} ${line.categoryId ? 'text-slate-900' : 'text-slate-400'}`}
+                      value={line.categoryId ?? ''}
+                      onChange={(event) => props.onLineChange(index, { categoryId: event.target.value || null })}
+                    >
+                      <option value="">{categoryPlaceholder}</option>
+                      {props.categoryOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+                    </select>
+                    {categoryError ? <span className="mt-1 block text-xs text-red-700">{categoryError}</span> : null}
+                  </td>
+                  <td className="p-1 align-top" data-field={`lines.${index}.description`}>
+                    <input
+                      aria-invalid={Boolean(descriptionError)}
+                      className={`h-8 w-full rounded-md border bg-white px-2 py-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-blue-100 ${descriptionError ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300 text-slate-900'}`}
+                      value={line.description ?? ''}
+                      onChange={(event) => props.onLineChange(index, { description: event.target.value || null })}
+                    />
+                    {descriptionError ? <span className="mt-1 block text-xs text-red-700">{descriptionError}</span> : null}
+                  </td>
+                  <td className="p-1 align-top" data-field={`lines.${index}.amount`}>
+                    <MoneyInputControl error={amountError} value={line.amount} onChange={(value) => props.onLineChange(index, { amount: value })} />
+                    {amountError ? <span className="mt-1 block text-right text-xs text-red-700">{amountError}</span> : null}
+                  </td>
+                  <td className="p-1 text-center align-middle" data-field={`lines.${index}.hasVat`}>
+                    <input className="h-4 w-4 rounded border-slate-300" checked={line.hasVat} type="checkbox" onChange={(event) => props.onLineChange(index, { hasVat: event.target.checked })} />
+                  </td>
+                  <td className={`p-2 text-right align-middle tabular-nums ${line.hasVat ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                    {line.hasVat ? formatMoney(line.vatAmount) : '-'}
+                  </td>
+                  <td className="bg-amber-50 p-1 align-top" data-field={`lines.${index}.whtPct`}>
+                    <select
+                      aria-invalid={Boolean(whtPctError)}
+                      className={`h-8 w-full rounded-md border bg-white px-2 py-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-blue-100 ${whtPctError ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300'}`}
+                      value={line.whtPct > 0 ? String(line.whtPct) : '0'}
+                      onChange={(event) => props.onLineChange(index, { whtPct: Number(event.target.value) })}
+                    >
+                      <option value="0">- ไม่หัก -</option>
+                      {showCurrentWhtRate ? <option value={props.whtRatePercent}>{props.whtRatePercent.toFixed(2)}% (อัตราปัจจุบัน)</option> : null}
+                      {whtRateOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      {hasSelectedCustomWht ? <option value={line.whtPct}>{line.whtPct.toFixed(2)}% (เดิม)</option> : null}
+                    </select>
+                    {whtPctError ? <span className="mt-1 block text-xs text-red-700">{whtPctError}</span> : null}
+                  </td>
+                  <td className="bg-amber-50 p-1 align-top">
+                    <input className={`h-8 w-full rounded-md border border-slate-300 px-2 py-1 text-right text-xs tabular-nums ${line.whtPct > 0 ? 'bg-amber-100 font-semibold text-amber-800' : 'bg-white text-slate-400'}`} readOnly value={line.whtPct > 0 ? formatMoney(line.whtAmount) : '-'} />
+                  </td>
+                  <td className="p-1 text-center align-middle">
+                    <button className="rounded-md px-2 py-1 text-lg leading-none text-red-500 hover:bg-red-50 disabled:text-slate-300 disabled:hover:bg-transparent" disabled={props.lines.length <= 1} type="button" onClick={() => props.onRemoveLine(index)}>
+                      ×
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+          <tfoot className="bg-slate-50 font-semibold">
+            <tr>
+              <td className="p-2 text-right" colSpan={2}>รวม</td>
+              <td className="p-2 text-right text-red-700 tabular-nums">{formatMoney(props.totalAmount)}</td>
+              <td />
+              <td className="p-2 text-right tabular-nums">{formatMoney(props.totalVatAmount)}</td>
+              <td />
+              <td className="p-2 text-right text-amber-800 tabular-nums">{formatMoney(props.totalWhtAmount)}</td>
+              <td />
+            </tr>
+            <tr>
+              <td className="p-2 text-right" colSpan={8}>
+                Net Pay: <span className="text-base font-bold text-red-700 tabular-nums">{formatMoney(props.netAmount)}</span>
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
   )
 }
 
@@ -882,19 +1133,6 @@ function SelectField(props: { error?: string; fieldName?: string; label: string;
       </select>
       {props.error ? <span className="mt-1 block text-xs text-red-700">{props.error}</span> : null}
     </label>
-  )
-}
-
-function ToggleField(props: { checked: boolean; description: string; fieldName: string; label: string; onChange: (checked: boolean) => void }) {
-  return (
-    <div data-field={props.fieldName}>
-      <span className="mb-1 block text-xs font-medium text-slate-600">{props.label}</span>
-      <label className={`flex h-9 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm transition-colors focus-within:ring-2 focus-within:ring-blue-100 ${props.checked ? 'border-slate-700 bg-slate-50 text-slate-900' : 'border-slate-300 bg-white text-slate-600'}`}>
-        <input className="h-4 w-4 rounded border-slate-300 text-slate-700" checked={props.checked} type="checkbox" onChange={(event) => props.onChange(event.target.checked)} />
-        <span>{props.checked ? 'มี' : 'ไม่มี'}</span>
-      </label>
-      <div className="mt-1 text-xs text-slate-500">{props.description}</div>
-    </div>
   )
 }
 

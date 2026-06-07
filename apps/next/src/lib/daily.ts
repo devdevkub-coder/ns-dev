@@ -53,6 +53,17 @@ export const transferFormSchema = z.object({
 
 export type TransferFormValues = z.infer<typeof transferFormSchema>
 
+export const expenseLineFormSchema = z.object({
+  id: optionalSafeId('รหัสบรรทัดค่าใช้จ่าย'),
+  categoryId: optionalSafeId('หมวดค่าใช้จ่าย'),
+  description: optionalGeneralText('รายละเอียด', 500),
+  amount: positiveMoney('จำนวน'),
+  hasVat: z.boolean().default(false),
+  vatAmount: money('VAT').default(0),
+  whtPct: z.coerce.number({ invalid_type_error: 'WHT % ต้องเป็นตัวเลข' }).finite('WHT % ต้องเป็นตัวเลข').min(0, 'WHT % ต้องไม่ติดลบ').max(100, 'WHT % ต้องไม่เกิน 100').default(0),
+  whtAmount: money('ภาษีหัก ณ ที่จ่าย').default(0),
+})
+
 export const expenseFormSchema = z.object({
   id: optionalSafeId('รหัสรายการ'),
   docNo: optionalDocNo,
@@ -62,7 +73,7 @@ export const expenseFormSchema = z.object({
   categoryId: optionalSafeId('หมวดค่าใช้จ่าย'),
   payee: z.string().trim().min(1, 'กรอกผู้รับเงิน').max(180, 'ผู้รับเงินยาวเกินไป').regex(businessTextPattern, 'ผู้รับเงินมีรูปแบบไม่ถูกต้อง'),
   description: optionalGeneralText('รายละเอียด', 500),
-  amount: positiveMoney('ยอดก่อน VAT'),
+  amount: money('ยอดก่อน VAT').default(0),
   hasVat: z.boolean().default(false),
   hasWht: z.boolean().default(false),
   accountId: optionalSafeId('บัญชีจ่าย'),
@@ -70,12 +81,22 @@ export const expenseFormSchema = z.object({
   taxInvoiceNo: optionalDocNo,
   status: z.enum(['pending_approval', 'approved', 'paid', 'cancelled']).default('pending_approval'),
   notes: optionalGeneralText('หมายเหตุ', 500),
+  lines: z.array(expenseLineFormSchema).min(1, 'เพิ่มรายการค่าใช้จ่ายอย่างน้อย 1 รายการ').max(50, 'รายการค่าใช้จ่ายมากเกินไป').optional(),
+}).superRefine((value, context) => {
+  if ((!value.lines || value.lines.length === 0) && value.amount <= 0) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'ยอดก่อน VAT ต้องมากกว่า 0',
+      path: ['amount'],
+    })
+  }
 }).refine((value) => value.status !== 'paid' || Boolean(value.accountId), {
   message: 'เลือกบัญชีจ่ายเมื่อสถานะเป็นจ่ายแล้ว',
   path: ['accountId'],
 })
 
 export type ExpenseFormValues = z.infer<typeof expenseFormSchema>
+export type ExpenseLineFormValues = z.infer<typeof expenseLineFormSchema>
 
 export const pettyAdvanceFormSchema = z.object({
   id: optionalSafeId('รหัสรายการ'),
