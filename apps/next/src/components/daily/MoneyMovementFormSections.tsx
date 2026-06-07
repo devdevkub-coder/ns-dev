@@ -11,6 +11,7 @@ type Bill = {
   docNo: string
   id: string
   payableBalance?: number
+  sourceDocNo?: string
   supplierId?: string | null
 }
 
@@ -237,10 +238,11 @@ export function PaymentLinesSection({
                   <datalist id={`payment-bill-options-${line.id ?? lineIndex}`}>
                     {lineBillOptions.map((bill, optionIndex) => {
                       const optionKey = `${bill.id}:${bill.approvalId ?? bill.docNo}:${optionIndex}`
+                      const sourceLabel = bill.sourceDocNo && bill.sourceDocNo !== bill.docNo ? ` / อ้างอิง ${bill.sourceDocNo}` : ''
                       return (
                         <option
                           key={optionKey}
-                          value={`${bill.docNo} | ${partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'} | ค้าง ${formatMoney(bill.payableBalance ?? 0)}`}
+                          value={`${bill.docNo}${sourceLabel} | ${partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'} | ค้าง ${formatMoney(bill.payableBalance ?? 0)}`}
                         />
                       )
                     })}

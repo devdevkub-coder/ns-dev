@@ -5,6 +5,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { appendSupplierAdvanceStatusLog, SUPPLIER_ADVANCE_STATUS_ACTION } from '@/lib/server/advance-payment-history'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, toNumber } from '@/lib/server/daily'
+import { appendPaymentApprovalStatusLog, PAYMENT_APPROVAL_STATUS_ACTION } from '@/lib/server/payment-history'
 import { prisma } from '@/lib/server/prisma'
 
 export const runtime = 'nodejs'
@@ -57,17 +58,31 @@ export async function POST(request: Request) {
         throw new Error('ยกเลิกรายการรอจ่ายไม่ได้ เพราะมีการจ่ายเงินแล้ว')
       }
 
+      const voidedAt = new Date()
       await txExt.payment_approvals.update({
         data: {
           paid_at: null,
           payment_id: null,
           status: 'voided',
-          updated_at: new Date(),
+          updated_at: voidedAt,
           void_reason: payload.reason,
-          voided_at: new Date(),
+          voided_at: voidedAt,
           voided_by: actor,
         },
         where: { id: approval.id },
+      })
+      await appendPaymentApprovalStatusLog(tx, {
+        action: PAYMENT_APPROVAL_STATUS_ACTION.VOIDED_BEFORE_PAYMENT,
+        actor,
+        createdAt: voidedAt,
+        fromStatus: approval.status,
+        meta: {
+          approvalDocNo,
+          reason: payload.reason,
+        },
+        note: payload.reason,
+        paymentApprovalId: approval.id,
+        toStatus: 'voided',
       })
 
       const sourceInternalId = parseInternalBigIntId(approval.source_id)

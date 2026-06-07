@@ -19,16 +19,23 @@ export function currentActor(context: { appUser: { username: string } | null; au
   return context.appUser?.username ?? context.authUser.email ?? '-'
 }
 
-export async function nextDailyDocNo(table: 'bank_statement' | 'expenses' | 'payments' | 'petty_advance_returns' | 'petty_advances' | 'purchase_bills' | 'receipts' | 'sales_bills' | 'transfers', prefix: string, date: string) {
+type DailyDocNoTable = 'bank_statement' | 'expenses' | 'payments' | 'petty_advance_returns' | 'petty_advances' | 'purchase_bills' | 'receipts' | 'sales_bills' | 'transfers'
+type DailyDocNoModel = {
+  findFirst: (args: {
+    orderBy: { doc_no: 'desc' }
+    select: { doc_no: true }
+    where: { doc_no: { startsWith: string } }
+  }) => Promise<{ doc_no: string } | null>
+}
+
+function dailyDocNoModel(client: unknown, table: DailyDocNoTable) {
+  return (client as Record<DailyDocNoTable, DailyDocNoModel>)[table]
+}
+
+export async function nextDailyDocNo(table: DailyDocNoTable, prefix: string, date: string, client: unknown = prisma) {
   const compactDate = date.slice(2, 4) + date.slice(5, 7)
   const startsWith = `${prefix}${compactDate}-`
-  const model = prisma[table] as unknown as {
-    findFirst: (args: {
-      orderBy: { doc_no: 'desc' }
-      select: { doc_no: true }
-      where: { doc_no: { startsWith: string } }
-    }) => Promise<{ doc_no: string } | null>
-  }
+  const model = dailyDocNoModel(client, table)
   const last = await model.findFirst({
     orderBy: { doc_no: 'desc' },
     select: { doc_no: true },
@@ -40,21 +47,16 @@ export async function nextDailyDocNo(table: 'bank_statement' | 'expenses' | 'pay
 }
 
 export async function nextDailyDocNos(
-  table: 'bank_statement' | 'expenses' | 'payments' | 'petty_advance_returns' | 'petty_advances' | 'purchase_bills' | 'receipts' | 'sales_bills' | 'transfers',
+  table: DailyDocNoTable,
   prefix: string,
   date: string,
   count: number,
+  client: unknown = prisma,
 ) {
   if (count <= 0) return []
   const compactDate = date.slice(2, 4) + date.slice(5, 7)
   const startsWith = `${prefix}${compactDate}-`
-  const model = prisma[table] as unknown as {
-    findFirst: (args: {
-      orderBy: { doc_no: 'desc' }
-      select: { doc_no: true }
-      where: { doc_no: { startsWith: string } }
-    }) => Promise<{ doc_no: string } | null>
-  }
+  const model = dailyDocNoModel(client, table)
   const last = await model.findFirst({
     orderBy: { doc_no: 'desc' },
     select: { doc_no: true },

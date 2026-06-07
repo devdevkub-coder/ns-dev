@@ -525,6 +525,8 @@ model accounts {
   bank_statement                                bank_statement[]
   expenses                                      expenses[]
   loan_payments                                 loan_payments[]
+  payment_account_splits                        payment_account_splits[]
+  payment_status_logs                           payment_status_logs[]
   payments                                      payments[]
   petty_advance_returns                         petty_advance_returns[]
   petty_advances                                petty_advances[]
@@ -590,27 +592,28 @@ model audit_logs {
 }
 
 model bank_statement {
-  date               DateTime  @db.Date
-  doc_no             String    @unique
-  ref_type           String?
-  ref_id             String?
-  ref_no             String?
-  description        String?
-  amount_in          Decimal?  @default(0) @db.Decimal
-  amount_out         Decimal?  @default(0) @db.Decimal
-  cash_flow_category String?
-  created_at         DateTime? @default(now()) @db.Timestamptz(6)
-  created_by         String?
-  desc               String?
-  type               String?
-  balance            Decimal?  @db.Decimal
-  note               String?
-  updated_at         DateTime? @db.Timestamptz(6)
-  updated_by         String?
-  version            Int?      @default(1)
-  id                 BigInt    @id @default(autoincrement())
-  account_id         BigInt?
-  accounts           accounts? @relation(fields: [account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  date                   DateTime                 @db.Date
+  doc_no                 String                   @unique
+  ref_type               String?
+  ref_id                 String?
+  ref_no                 String?
+  description            String?
+  amount_in              Decimal?                 @default(0) @db.Decimal
+  amount_out             Decimal?                 @default(0) @db.Decimal
+  cash_flow_category     String?
+  created_at             DateTime?                @default(now()) @db.Timestamptz(6)
+  created_by             String?
+  desc                   String?
+  type                   String?
+  balance                Decimal?                 @db.Decimal
+  note                   String?
+  updated_at             DateTime?                @db.Timestamptz(6)
+  updated_by             String?
+  version                Int?                     @default(1)
+  id                     BigInt                   @id @default(autoincrement())
+  account_id             BigInt?
+  accounts               accounts?                @relation(fields: [account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payment_account_splits payment_account_splits[]
 
   @@index([account_id], map: "idx_bank_account")
   @@index([doc_no], map: "idx_bank_statement_doc_no")
@@ -641,13 +644,13 @@ model company_profiles {
 }
 
 model bank_names {
-  name       String   @unique
-  active     Boolean  @default(true)
-  created_at DateTime @default(now()) @db.Timestamptz(6)
-  updated_at DateTime @default(now()) @db.Timestamptz(6)
-  symbol     String?
-  code       String   @unique
-  id         BigInt   @id @default(autoincrement())
+  name                   String                   @unique
+  active                 Boolean                  @default(true)
+  created_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  symbol                 String?
+  code                   String                   @unique
+  id                     BigInt                   @id @default(autoincrement())
   supplier_bank_accounts supplier_bank_accounts[]
 
   @@index([active])
@@ -1194,36 +1197,40 @@ model overseas_remittance_purposes {
 }
 
 model payments {
-  doc_no              String
-  date                DateTime           @db.Date
-  amount              Decimal            @db.Decimal
-  withholding_tax     Decimal?           @default(0) @db.Decimal
-  fee                 Decimal?           @default(0) @db.Decimal
-  net_amount          Decimal?           @default(0) @db.Decimal
-  vat_type            String?
-  lines               Json?
-  notes               String?
-  status              String?            @default("active")
-  created_by          String?
-  created_at          DateTime?          @default(now()) @db.Timestamptz(6)
-  voucher_id          String?
-  bank_fee            Decimal?           @default(0) @db.Decimal
-  discount            Decimal?           @default(0) @db.Decimal
-  method              String?
-  updated_at          DateTime?          @db.Timestamptz(6)
-  updated_by          String?
-  version             Int?               @default(1)
-  idempotency_key     String?
-  supplier_id         BigInt?
-  branch_id           BigInt?
-  id                  BigInt             @id @default(autoincrement())
-  account_id          BigInt?
-  bill_id             BigInt?
-  payment_approval_id BigInt?
-  accounts            accounts?          @relation(fields: [account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  branches            branches?          @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  payment_approvals   payment_approvals? @relation(fields: [payment_approval_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  suppliers           suppliers?         @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  doc_no                       String
+  date                         DateTime                       @db.Date
+  amount                       Decimal                        @db.Decimal
+  withholding_tax              Decimal?                       @default(0) @db.Decimal
+  fee                          Decimal?                       @default(0) @db.Decimal
+  net_amount                   Decimal?                       @default(0) @db.Decimal
+  vat_type                     String?
+  lines                        Json?
+  notes                        String?
+  status                       String?                        @default("active")
+  created_by                   String?
+  created_at                   DateTime?                      @default(now()) @db.Timestamptz(6)
+  voucher_id                   String?
+  bank_fee                     Decimal?                       @default(0) @db.Decimal
+  discount                     Decimal?                       @default(0) @db.Decimal
+  method                       String?
+  updated_at                   DateTime?                      @db.Timestamptz(6)
+  updated_by                   String?
+  version                      Int?                           @default(1)
+  idempotency_key              String?
+  supplier_id                  BigInt?
+  branch_id                    BigInt?
+  id                           BigInt                         @id @default(autoincrement())
+  account_id                   BigInt?
+  bill_id                      BigInt?
+  payment_approval_id          BigInt?
+  payment_account_splits       payment_account_splits[]
+  payment_allocations          payment_allocations[]
+  payment_approval_status_logs payment_approval_status_logs[]
+  payment_status_logs          payment_status_logs[]
+  accounts                     accounts?                      @relation(fields: [account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  branches                     branches?                      @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payment_approvals            payment_approvals?             @relation(fields: [payment_approval_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  suppliers                    suppliers?                     @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([doc_no], map: "idx_payments_doc_no")
   @@index([payment_approval_id], map: "idx_payments_payment_approval")
@@ -1239,33 +1246,147 @@ model payment_approvals {
   source_type                          String
   source_id                            String
   source_doc_no_snapshot               String?
-  source_date_snapshot                 DateTime?  @db.Date
+  source_date_snapshot                 DateTime?                      @db.Date
   party_id                             String?
   party_name_snapshot                  String?
-  approved_amount                      Decimal    @default(0) @db.Decimal
+  approved_amount                      Decimal                        @default(0) @db.Decimal
   destination_bank_account_id_snapshot String?
   destination_bank_name_snapshot       String?
   destination_account_no_snapshot      String?
   destination_payment_method_snapshot  String?
   note                                 String?
-  status                               String     @default("pending")
+  status                               String                         @default("pending")
   approved_by                          String?
-  approved_at                          DateTime?  @db.Timestamptz(6)
-  paid_at                              DateTime?  @db.Timestamptz(6)
-  voided_at                            DateTime?  @db.Timestamptz(6)
+  approved_at                          DateTime?                      @db.Timestamptz(6)
+  paid_at                              DateTime?                      @db.Timestamptz(6)
+  voided_at                            DateTime?                      @db.Timestamptz(6)
   voided_by                            String?
   void_reason                          String?
-  created_at                           DateTime   @default(now()) @db.Timestamptz(6)
-  updated_at                           DateTime   @default(now()) @db.Timestamptz(6)
-  doc_no                               String?    @unique(map: "uq_payment_approvals_doc_no", where: raw("(doc_no IS NOT NULL)"))
-  id                                   BigInt     @id @default(autoincrement())
+  created_at                           DateTime                       @default(now()) @db.Timestamptz(6)
+  updated_at                           DateTime                       @default(now()) @db.Timestamptz(6)
+  doc_no                               String?                        @unique(map: "uq_payment_approvals_doc_no", where: raw("(doc_no IS NOT NULL)"))
+  id                                   BigInt                         @id @default(autoincrement())
   payment_id                           BigInt?
+  payment_allocations                  payment_allocations[]
+  payment_approval_status_logs         payment_approval_status_logs[]
   payments                             payments[]
 
   @@index([source_type, source_id], map: "idx_payment_approvals_source")
   @@index([status], map: "idx_payment_approvals_status")
   @@index([approved_at(sort: Desc)], map: "idx_payment_approvals_approved_at")
   @@index([doc_no], map: "idx_payment_approvals_doc_no")
+  @@schema("public")
+}
+
+model payment_approval_status_logs {
+  event_key                String            @unique(map: "idx_payment_approval_status_logs_event_key") @default(dbgenerated("('PMALOG-'::text || gen_random_uuid()::text)"))
+  action                   String
+  payment_approval_doc_no  String
+  source_type              String
+  source_id                String
+  source_doc_no_snapshot   String?
+  approved_amount_snapshot Decimal           @default(0) @db.Decimal
+  from_status              String?
+  to_status                String
+  payment_doc_no           String?
+  note                     String?
+  meta                     Json?
+  created_at               DateTime          @default(now()) @db.Timestamptz(6)
+  created_by               String?
+  id                       BigInt            @id @default(autoincrement())
+  payment_approval_id      BigInt
+  payment_id               BigInt?
+  payment_approvals        payment_approvals @relation(fields: [payment_approval_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  payments                 payments?         @relation(fields: [payment_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([action], map: "idx_payment_approval_status_logs_action")
+  @@index([payment_approval_doc_no], map: "idx_payment_approval_status_logs_approval_doc_no")
+  @@index([payment_approval_id, created_at(sort: Desc)], map: "idx_payment_approval_status_logs_approval_created")
+  @@index([payment_doc_no], map: "idx_payment_approval_status_logs_payment_doc_no", where: raw("(payment_doc_no IS NOT NULL)"))
+  @@schema("public")
+}
+
+model payment_status_logs {
+  event_key              String     @unique(map: "idx_payment_status_logs_event_key") @default(dbgenerated("('PMTLOG-'::text || gen_random_uuid()::text)"))
+  action                 String
+  payment_doc_no         String
+  payment_voucher_id     String?
+  supplier_code_snapshot String?
+  account_code_snapshot  String?
+  amount_snapshot        Decimal    @default(0) @db.Decimal
+  net_amount_snapshot    Decimal    @default(0) @db.Decimal
+  from_status            String?
+  to_status              String
+  note                   String?
+  meta                   Json?
+  created_at             DateTime   @default(now()) @db.Timestamptz(6)
+  created_by             String?
+  id                     BigInt     @id @default(autoincrement())
+  payment_id             BigInt?
+  supplier_id            BigInt?
+  account_id             BigInt?
+  accounts               accounts?  @relation(fields: [account_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  payments               payments?  @relation(fields: [payment_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  suppliers              suppliers? @relation(fields: [supplier_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([action], map: "idx_payment_status_logs_action")
+  @@index([payment_doc_no, created_at(sort: Desc)], map: "idx_payment_status_logs_doc_created")
+  @@index([payment_id], map: "idx_payment_status_logs_payment", where: raw("(payment_id IS NOT NULL)"))
+  @@index([payment_voucher_id], map: "idx_payment_status_logs_voucher", where: raw("(payment_voucher_id IS NOT NULL)"))
+  @@schema("public")
+}
+
+model payment_allocations {
+  allocation_key          String            @unique(map: "idx_payment_allocations_allocation_key")
+  payment_doc_no          String
+  payment_voucher_id      String?
+  payment_approval_doc_no String
+  source_type             String
+  source_doc_no_snapshot  String?
+  allocated_amount        Decimal           @default(0) @db.Decimal
+  status                  String            @default("active")
+  created_at              DateTime          @default(now()) @db.Timestamptz(6)
+  created_by              String?
+  updated_at              DateTime?         @db.Timestamptz(6)
+  updated_by              String?
+  id                      BigInt            @id @default(autoincrement())
+  payment_id              BigInt?
+  payment_approval_id     BigInt
+  payment_approvals       payment_approvals @relation(fields: [payment_approval_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  payments                payments?         @relation(fields: [payment_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([payment_approval_id], map: "idx_payment_allocations_approval")
+  @@index([payment_id], map: "idx_payment_allocations_payment", where: raw("(payment_id IS NOT NULL)"))
+  @@index([status], map: "idx_payment_allocations_status")
+  @@index([payment_voucher_id], map: "idx_payment_allocations_voucher", where: raw("(payment_voucher_id IS NOT NULL)"))
+  @@schema("public")
+}
+
+model payment_account_splits {
+  split_key             String          @unique(map: "idx_payment_account_splits_split_key")
+  payment_doc_no        String
+  payment_voucher_id    String?
+  account_code_snapshot String?
+  account_name_snapshot String?
+  amount                Decimal         @default(0) @db.Decimal
+  status                String          @default("active")
+  bank_statement_doc_no String?
+  created_at            DateTime        @default(now()) @db.Timestamptz(6)
+  created_by            String?
+  updated_at            DateTime?       @db.Timestamptz(6)
+  updated_by            String?
+  id                    BigInt          @id @default(autoincrement())
+  payment_id            BigInt?
+  account_id            BigInt?
+  bank_statement_id     BigInt?
+  accounts              accounts?       @relation(fields: [account_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  bank_statement        bank_statement? @relation(fields: [bank_statement_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  payments              payments?       @relation(fields: [payment_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([account_id], map: "idx_payment_account_splits_account", where: raw("(account_id IS NOT NULL)"))
+  @@index([payment_id], map: "idx_payment_account_splits_payment", where: raw("(payment_id IS NOT NULL)"))
+  @@index([status], map: "idx_payment_account_splits_status")
+  @@index([payment_voucher_id], map: "idx_payment_account_splits_voucher", where: raw("(payment_voucher_id IS NOT NULL)"))
   @@schema("public")
 }
 
@@ -1370,31 +1491,31 @@ model po_buys {
 }
 
 model po_buy_allocation_logs {
-  event_key              String               @unique @default(dbgenerated("('POALLOC-'::text || gen_random_uuid()::text)"))
-  action                 String
-  po_buy_doc_no          String
-  purchase_bill_doc_no   String?
-  purchase_bill_line_no  Int?
-  product_code_snapshot  String?
-  product_name_snapshot  String?
-  allocated_qty          Decimal              @default(0) @db.Decimal
-  allocated_amount       Decimal              @default(0) @db.Decimal
-  unit_price_snapshot    Decimal              @default(0) @db.Decimal
-  from_remaining_qty     Decimal?             @db.Decimal
-  to_remaining_qty       Decimal?             @db.Decimal
-  note                   String?
-  meta                   Json?
-  created_at             DateTime             @default(now()) @db.Timestamptz(6)
-  created_by             String?
-  id                     BigInt               @id @default(autoincrement())
-  po_buy_id              BigInt
-  purchase_bill_id       BigInt?
-  purchase_bill_item_id  BigInt?
-  product_id             BigInt?
-  po_buys                po_buys              @relation(fields: [po_buy_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  purchase_bills         purchase_bills?      @relation(fields: [purchase_bill_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  purchase_bill_items    purchase_bill_items? @relation(fields: [purchase_bill_item_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  products               products?            @relation(fields: [product_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  event_key             String               @unique @default(dbgenerated("('POALLOC-'::text || gen_random_uuid()::text)"))
+  action                String
+  po_buy_doc_no         String
+  purchase_bill_doc_no  String?
+  purchase_bill_line_no Int?
+  product_code_snapshot String?
+  product_name_snapshot String?
+  allocated_qty         Decimal              @default(0) @db.Decimal
+  allocated_amount      Decimal              @default(0) @db.Decimal
+  unit_price_snapshot   Decimal              @default(0) @db.Decimal
+  from_remaining_qty    Decimal?             @db.Decimal
+  to_remaining_qty      Decimal?             @db.Decimal
+  note                  String?
+  meta                  Json?
+  created_at            DateTime             @default(now()) @db.Timestamptz(6)
+  created_by            String?
+  id                    BigInt               @id @default(autoincrement())
+  po_buy_id             BigInt
+  purchase_bill_id      BigInt?
+  purchase_bill_item_id BigInt?
+  product_id            BigInt?
+  po_buys               po_buys              @relation(fields: [po_buy_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  purchase_bills        purchase_bills?      @relation(fields: [purchase_bill_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  purchase_bill_items   purchase_bill_items? @relation(fields: [purchase_bill_item_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  products              products?            @relation(fields: [product_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@index([po_buy_id, created_at(sort: Desc)], map: "idx_po_buy_allocation_logs_po_created")
   @@index([product_id], map: "idx_po_buy_allocation_logs_product")
@@ -1403,18 +1524,18 @@ model po_buy_allocation_logs {
 }
 
 model po_buy_status_logs {
-  event_key    String   @unique
-  action       String
-  from_status  String?
-  to_status    String
+  event_key     String   @unique
+  action        String
+  from_status   String?
+  to_status     String
   po_buy_doc_no String
-  note         String?
-  meta         Json?
-  created_at   DateTime @default(now()) @db.Timestamptz(6)
-  created_by   String?
-  id           BigInt   @id @default(autoincrement())
-  po_buy_id    BigInt
-  po_buys      po_buys  @relation(fields: [po_buy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  note          String?
+  meta          Json?
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  created_by    String?
+  id            BigInt   @id @default(autoincrement())
+  po_buy_id     BigInt
+  po_buys       po_buys  @relation(fields: [po_buy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([po_buy_id, created_at(sort: Desc)], map: "idx_po_buy_status_logs_po_created")
   @@schema("public")
@@ -1695,7 +1816,7 @@ model purchase_bills {
   sales_id                          BigInt?
   id                                BigInt                              @id @default(autoincrement())
   po_buy_id                         BigInt?
-  po_buy_allocation_logs             po_buy_allocation_logs[]
+  po_buy_allocation_logs            po_buy_allocation_logs[]
   purchase_bill_items               purchase_bill_items[]
   purchase_bill_status_logs         purchase_bill_status_logs[]
   purchase_bill_po_allocations      purchase_bill_po_allocations[]
@@ -1718,18 +1839,18 @@ model purchase_bills {
 }
 
 model purchase_bill_status_logs {
-  event_key         String         @unique
-  action            String
-  from_status       String?
-  to_status         String
+  event_key            String         @unique
+  action               String
+  from_status          String?
+  to_status            String
   purchase_bill_doc_no String
-  note              String?
-  meta              Json?
-  created_at        DateTime       @default(now()) @db.Timestamptz(6)
-  created_by        String?
-  id                BigInt         @id @default(autoincrement())
-  purchase_bill_id  BigInt
-  purchase_bills    purchase_bills @relation(fields: [purchase_bill_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  note                 String?
+  meta                 Json?
+  created_at           DateTime       @default(now()) @db.Timestamptz(6)
+  created_by           String?
+  id                   BigInt         @id @default(autoincrement())
+  purchase_bill_id     BigInt
+  purchase_bills       purchase_bills @relation(fields: [purchase_bill_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([purchase_bill_id, created_at(sort: Desc)], map: "idx_purchase_bill_status_logs_bill_created")
   @@schema("public")
@@ -2113,22 +2234,22 @@ model weight_ticket_product_summaries {
 }
 
 model weight_ticket_status_logs {
-  event_key               String         @unique(map: "idx_weight_ticket_status_logs_event_key") @default(dbgenerated("('WTSTATUS-'::text || gen_random_uuid()::text)"))
-  action                  String
-  weight_ticket_doc_no    String
-  doc_type                String
-  from_status             String?
-  to_status               String
-  gross_weight_snapshot   Decimal        @default(0) @db.Decimal
-  deduct_weight_snapshot  Decimal        @default(0) @db.Decimal
-  net_weight_snapshot     Decimal        @default(0) @db.Decimal
-  note                    String?
-  meta                    Json?
-  created_at              DateTime       @default(now()) @db.Timestamptz(6)
-  created_by              String?
-  id                      BigInt         @id @default(autoincrement())
-  weight_ticket_id        BigInt
-  weight_tickets          weight_tickets @relation(fields: [weight_ticket_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  event_key              String         @unique(map: "idx_weight_ticket_status_logs_event_key") @default(dbgenerated("('WTSTATUS-'::text || gen_random_uuid()::text)"))
+  action                 String
+  weight_ticket_doc_no   String
+  doc_type               String
+  from_status            String?
+  to_status              String
+  gross_weight_snapshot  Decimal        @default(0) @db.Decimal
+  deduct_weight_snapshot Decimal        @default(0) @db.Decimal
+  net_weight_snapshot    Decimal        @default(0) @db.Decimal
+  note                   String?
+  meta                   Json?
+  created_at             DateTime       @default(now()) @db.Timestamptz(6)
+  created_by             String?
+  id                     BigInt         @id @default(autoincrement())
+  weight_ticket_id       BigInt
+  weight_tickets         weight_tickets @relation(fields: [weight_ticket_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
   @@index([weight_ticket_id, created_at(sort: Desc)], map: "idx_weight_ticket_status_logs_ticket_created")
   @@index([weight_ticket_doc_no], map: "idx_weight_ticket_status_logs_doc_no")
@@ -2136,37 +2257,37 @@ model weight_ticket_status_logs {
 }
 
 model weight_ticket_usage_logs {
-  event_key                        String                            @unique @default(dbgenerated("('WTUSE-'::text || gen_random_uuid()::text)"))
+  event_key                        String                           @unique @default(dbgenerated("('WTUSE-'::text || gen_random_uuid()::text)"))
   action                           String
   weight_ticket_doc_no             String
-  doc_type                         String                            @default("WTI")
+  doc_type                         String                           @default("WTI")
   target_type                      String
   target_id                        BigInt?
   target_doc_no                    String?
   target_line_no                   Int?
   product_code_snapshot            String?
   product_name_snapshot            String?
-  allocated_qty                    Decimal                           @default(0) @db.Decimal
-  allocated_gross_weight           Decimal                           @default(0) @db.Decimal
-  allocated_deduct_weight          Decimal                           @default(0) @db.Decimal
-  allocated_net_weight             Decimal                           @default(0) @db.Decimal
-  from_remaining_weight            Decimal?                          @db.Decimal
-  to_remaining_weight              Decimal?                          @db.Decimal
+  allocated_qty                    Decimal                          @default(0) @db.Decimal
+  allocated_gross_weight           Decimal                          @default(0) @db.Decimal
+  allocated_deduct_weight          Decimal                          @default(0) @db.Decimal
+  allocated_net_weight             Decimal                          @default(0) @db.Decimal
+  from_remaining_weight            Decimal?                         @db.Decimal
+  to_remaining_weight              Decimal?                         @db.Decimal
   note                             String?
   meta                             Json?
-  created_at                       DateTime                          @default(now()) @db.Timestamptz(6)
+  created_at                       DateTime                         @default(now()) @db.Timestamptz(6)
   created_by                       String?
-  id                               BigInt                            @id @default(autoincrement())
+  id                               BigInt                           @id @default(autoincrement())
   weight_ticket_id                 BigInt
   weight_ticket_product_summary_id BigInt?
   product_id                       BigInt?
   purchase_bill_id                 BigInt?
   purchase_bill_item_id            BigInt?
-  products                         products?                         @relation(fields: [product_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  purchase_bills                   purchase_bills?                   @relation(fields: [purchase_bill_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  purchase_bill_items              purchase_bill_items?              @relation(fields: [purchase_bill_item_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  weight_tickets                   weight_tickets                    @relation(fields: [weight_ticket_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  weight_ticket_product_summaries  weight_ticket_product_summaries?  @relation(fields: [weight_ticket_product_summary_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  products                         products?                        @relation(fields: [product_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  purchase_bills                   purchase_bills?                  @relation(fields: [purchase_bill_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  purchase_bill_items              purchase_bill_items?             @relation(fields: [purchase_bill_item_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  weight_tickets                   weight_tickets                   @relation(fields: [weight_ticket_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  weight_ticket_product_summaries  weight_ticket_product_summaries? @relation(fields: [weight_ticket_product_summary_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@index([weight_ticket_id, created_at(sort: Desc)], map: "idx_weight_ticket_usage_logs_ticket_created")
   @@index([weight_ticket_product_summary_id], map: "idx_weight_ticket_usage_logs_summary")
@@ -2294,23 +2415,23 @@ model stock_ledger {
 }
 
 model supplier_advance_allocations {
-  allocation_key             String                    @unique @default(dbgenerated("('SAA-'::text || gen_random_uuid()::text)"))
-  allocated_amount          Decimal                   @db.Decimal
-  status                    String                    @default("active")
-  allocated_at              DateTime                  @default(now()) @db.Timestamptz(6)
-  allocated_by              String?
-  voided_at                 DateTime?                 @db.Timestamptz(6)
-  voided_by                 String?
-  void_reason               String?
-  created_at                DateTime                  @default(now()) @db.Timestamptz(6)
-  updated_at                DateTime                  @default(now()) @db.Timestamptz(6)
-  version                   Int                       @default(1)
-  id                        BigInt                    @id @default(autoincrement())
-  advance_payment_id        BigInt
-  purchase_bill_id          BigInt
+  allocation_key                   String                             @unique @default(dbgenerated("('SAA-'::text || gen_random_uuid()::text)"))
+  allocated_amount                 Decimal                            @db.Decimal
+  status                           String                             @default("active")
+  allocated_at                     DateTime                           @default(now()) @db.Timestamptz(6)
+  allocated_by                     String?
+  voided_at                        DateTime?                          @db.Timestamptz(6)
+  voided_by                        String?
+  void_reason                      String?
+  created_at                       DateTime                           @default(now()) @db.Timestamptz(6)
+  updated_at                       DateTime                           @default(now()) @db.Timestamptz(6)
+  version                          Int                                @default(1)
+  id                               BigInt                             @id @default(autoincrement())
+  advance_payment_id               BigInt
+  purchase_bill_id                 BigInt
   supplier_advance_allocation_logs supplier_advance_allocation_logs[]
-  supplier_advance_payments supplier_advance_payments @relation(fields: [advance_payment_id], references: [id], onUpdate: NoAction)
-  purchase_bills            purchase_bills            @relation(fields: [purchase_bill_id], references: [id], onUpdate: NoAction)
+  supplier_advance_payments        supplier_advance_payments          @relation(fields: [advance_payment_id], references: [id], onUpdate: NoAction)
+  purchase_bills                   purchase_bills                     @relation(fields: [purchase_bill_id], references: [id], onUpdate: NoAction)
 
   @@index([advance_payment_id], map: "idx_supplier_advance_allocations_advance")
   @@index([purchase_bill_id], map: "idx_supplier_advance_allocations_bill")
@@ -2319,25 +2440,25 @@ model supplier_advance_allocations {
 }
 
 model supplier_advance_allocation_logs {
-  event_key                    String                         @unique @default(dbgenerated("('ADVALLOC-'::text || gen_random_uuid()::text)"))
+  event_key                    String                        @unique @default(dbgenerated("('ADVALLOC-'::text || gen_random_uuid()::text)"))
   action                       String
   advance_doc_no               String
   purchase_bill_doc_no         String?
   allocation_key               String?
-  allocated_amount             Decimal                        @default(0) @db.Decimal
-  from_remaining_amount        Decimal?                       @db.Decimal
-  to_remaining_amount          Decimal?                       @db.Decimal
+  allocated_amount             Decimal                       @default(0) @db.Decimal
+  from_remaining_amount        Decimal?                      @db.Decimal
+  to_remaining_amount          Decimal?                      @db.Decimal
   note                         String?
   meta                         Json?
-  created_at                   DateTime                       @default(now()) @db.Timestamptz(6)
+  created_at                   DateTime                      @default(now()) @db.Timestamptz(6)
   created_by                   String?
-  id                           BigInt                         @id @default(autoincrement())
+  id                           BigInt                        @id @default(autoincrement())
   advance_payment_id           BigInt
   purchase_bill_id             BigInt?
   allocation_id                BigInt?
-  supplier_advance_payments    supplier_advance_payments      @relation(fields: [advance_payment_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  purchase_bills               purchase_bills?                @relation(fields: [purchase_bill_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  supplier_advance_allocations supplier_advance_allocations?  @relation(fields: [allocation_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  supplier_advance_payments    supplier_advance_payments     @relation(fields: [advance_payment_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  purchase_bills               purchase_bills?               @relation(fields: [purchase_bill_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  supplier_advance_allocations supplier_advance_allocations? @relation(fields: [allocation_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@index([advance_payment_id, created_at(sort: Desc)], map: "idx_supplier_advance_allocation_logs_advance_created")
   @@index([allocation_id], map: "idx_supplier_advance_allocation_logs_allocation")
@@ -2347,47 +2468,47 @@ model supplier_advance_allocation_logs {
 }
 
 model supplier_advance_payments {
-  doc_no                       String                         @unique
-  advance_date                 DateTime                       @db.Date
-  amount                       Decimal                        @default(0) @db.Decimal
-  allocated_amount             Decimal                        @default(0) @db.Decimal
-  remaining_amount             Decimal                        @default(0) @db.Decimal
-  payment_method               String
-  status                       String                         @default("pending_approval")
-  large_scale_doc_no           String?
-  in_date                      DateTime?                      @db.Date
-  out_date                     DateTime?                      @db.Date
-  plate_no                     String?
-  vehicle_photo_url            String?
-  customer_name                String?
-  product_name                 String?
-  weight_in                    Decimal                        @default(0) @db.Decimal
-  weight_out                   Decimal                        @default(0) @db.Decimal
-  net_weight                   Decimal                        @default(0) @db.Decimal
-  price_per_kg                 Decimal                        @default(0) @db.Decimal
-  scale_operator               String?
-  sender_name                  String?
-  driver_name                  String?
-  remark                       String?
-  created_by                   String?
-  created_at                   DateTime                       @default(now()) @db.Timestamptz(6)
-  updated_by                   String?
-  updated_at                   DateTime                       @default(now()) @db.Timestamptz(6)
-  cancelled_at                 DateTime?                      @db.Timestamptz(6)
-  cancelled_by                 String?
-  cancel_reason                String?
-  version                      Int                            @default(1)
-  vehicle_photo_names          String[]                       @default([])
-  branch_id                    BigInt
-  supplier_id                  BigInt
-  id                           BigInt                         @id @default(autoincrement())
-  funding_account_id           BigInt?
+  doc_no                           String                             @unique
+  advance_date                     DateTime                           @db.Date
+  amount                           Decimal                            @default(0) @db.Decimal
+  allocated_amount                 Decimal                            @default(0) @db.Decimal
+  remaining_amount                 Decimal                            @default(0) @db.Decimal
+  payment_method                   String
+  status                           String                             @default("pending_approval")
+  large_scale_doc_no               String?
+  in_date                          DateTime?                          @db.Date
+  out_date                         DateTime?                          @db.Date
+  plate_no                         String?
+  vehicle_photo_url                String?
+  customer_name                    String?
+  product_name                     String?
+  weight_in                        Decimal                            @default(0) @db.Decimal
+  weight_out                       Decimal                            @default(0) @db.Decimal
+  net_weight                       Decimal                            @default(0) @db.Decimal
+  price_per_kg                     Decimal                            @default(0) @db.Decimal
+  scale_operator                   String?
+  sender_name                      String?
+  driver_name                      String?
+  remark                           String?
+  created_by                       String?
+  created_at                       DateTime                           @default(now()) @db.Timestamptz(6)
+  updated_by                       String?
+  updated_at                       DateTime                           @default(now()) @db.Timestamptz(6)
+  cancelled_at                     DateTime?                          @db.Timestamptz(6)
+  cancelled_by                     String?
+  cancel_reason                    String?
+  version                          Int                                @default(1)
+  vehicle_photo_names              String[]                           @default([])
+  branch_id                        BigInt
+  supplier_id                      BigInt
+  id                               BigInt                             @id @default(autoincrement())
+  funding_account_id               BigInt?
   supplier_advance_allocation_logs supplier_advance_allocation_logs[]
-  supplier_advance_allocations supplier_advance_allocations[]
-  supplier_advance_status_logs supplier_advance_status_logs[]
-  branches                     branches                       @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  accounts                     accounts?                      @relation(fields: [funding_account_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  suppliers                    suppliers                      @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  supplier_advance_allocations     supplier_advance_allocations[]
+  supplier_advance_status_logs     supplier_advance_status_logs[]
+  branches                         branches                           @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  accounts                         accounts?                          @relation(fields: [funding_account_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  suppliers                        suppliers                          @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([funding_account_id], map: "idx_supplier_advance_payments_account")
   @@index([branch_id], map: "idx_supplier_advance_payments_branch")
@@ -2454,6 +2575,7 @@ model suppliers {
   branch_id                 BigInt?
   sales_id                  BigInt?
   assets                    assets[]
+  payment_status_logs       payment_status_logs[]
   payments                  payments[]
   po_buys                   po_buys[]
   purchase_bills            purchase_bills[]
@@ -2473,20 +2595,20 @@ model suppliers {
 }
 
 model supplier_bank_accounts {
-  code           String     @unique(map: "uq_supplier_bank_accounts_code")
-  payment_method String?   @default("เงินโอน")
+  code           String      @unique(map: "uq_supplier_bank_accounts_code")
+  payment_method String?     @default("เงินโอน")
   account_no     String?
   account_name   String?
-  is_primary     Boolean?  @default(false)
-  active         Boolean?  @default(true)
-  created_at     DateTime? @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime? @default(now()) @db.Timestamptz(6)
+  is_primary     Boolean?    @default(false)
+  active         Boolean?    @default(true)
+  created_at     DateTime?   @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime?   @default(now()) @db.Timestamptz(6)
   branch_code    String?
   bank_name_id   BigInt?
   supplier_id    BigInt
-  id             BigInt    @id @default(autoincrement())
+  id             BigInt      @id @default(autoincrement())
   bank_names     bank_names? @relation(fields: [bank_name_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  suppliers      suppliers @relation(fields: [supplier_id], references: [id], onDelete: Cascade)
+  suppliers      suppliers   @relation(fields: [supplier_id], references: [id], onDelete: Cascade)
 
   @@unique([supplier_id, account_no], map: "uq_supplier_bank_accounts_supplier_account")
   @@index([account_no], map: "idx_supplier_bank_accounts_account")

@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { paymentMethodGroupFromValue, type PaymentMethodGroup } from '@/lib/account-payment-method'
 import { BillSelect, Field, SelectField, SummaryPill } from '@/components/daily/MoneyMovementFieldHelpers'
@@ -163,6 +164,15 @@ function approvalBankAccountLines(bill: Bill) {
   return []
 }
 
+function paymentSelectionId(bill: Bill) {
+  return bill.approvalId ?? bill.id
+}
+
+function paymentBillLabel(bill: Bill, partyName: string) {
+  const sourceLabel = bill.sourceDocNo && bill.sourceDocNo !== bill.docNo ? ` / อ้างอิง ${bill.sourceDocNo}` : ''
+  return `${bill.docNo}${sourceLabel} | ${partyName} | ค้าง ${formatMoney(bill.payableBalance ?? 0)}`
+}
+
 const paymentTheme = {
   action: 'bg-rose-600 hover:bg-rose-700',
   banner: 'from-rose-600 via-red-600 to-orange-500',
@@ -295,7 +305,7 @@ export function MoneyMovementPageClient({
     if (mode !== 'payment' || !paymentSupplierId) return outstandingBills
     return outstandingBills.filter((bill) => bill.supplierId === paymentSupplierId)
   }, [mode, outstandingBills, paymentSupplierId])
-  const selectedPaymentBillIds = useMemo(() => new Set(paymentLines.map((line) => line.billId).filter(Boolean)), [paymentLines])
+  const selectedPaymentBillIds = useMemo(() => new Set(paymentLines.map((line) => line.approvalId || line.billId).filter(Boolean)), [paymentLines])
   const supplierBills = useMemo(() => {
     if (mode !== 'payment') return []
     const query = billSearch.trim().toLowerCase()
@@ -305,7 +315,7 @@ export function MoneyMovementPageClient({
       const status = paymentBillStatus(bill)
       const supplier = supplierMap.get(bill.supplierId ?? '')
       const supplierBankAccounts = supplierBankAccountLines(supplier, paymentMethods)
-      const searchHaystack = `${bill.docNo} ${supplierName} ${bill.date ?? ''} ${supplierBankAccounts.map((account) => `${account.bankName} ${account.accountNo}`).join(' ')}`.toLowerCase()
+      const searchHaystack = `${bill.docNo} ${bill.sourceDocNo ?? ''} ${supplierName} ${bill.date ?? ''} ${supplierBankAccounts.map((account) => `${account.bankName} ${account.accountNo}`).join(' ')}`.toLowerCase()
       const matchesSearch = !query || searchHaystack.includes(query)
       const matchesStatus = balance > 0 && status !== 'cancelled'
       return matchesSearch && matchesStatus
@@ -409,20 +419,24 @@ export function MoneyMovementPageClient({
   function openFormForBill(bill: Bill) {
     const balance = bill.payableBalance ?? 0
     const settlementAmount = balance > 0 ? balance : bill.totalAmount
+    const paymentAmount = paymentCashAmountFromSettlement(settlementAmount, whtRatePercent)
+    const withholdingTax = withholdingTaxFromCashAmount(paymentAmount, whtRatePercent)
+    const netAmount = roundMoney(paymentAmount)
     setForm({
       ...initialForm(mode),
-      amount: paymentCashAmountFromSettlement(settlementAmount, whtRatePercent),
+      amount: paymentAmount,
       billId: bill.id,
       lines: [{
         ...newPaymentLine(),
-        amount: paymentCashAmountFromSettlement(settlementAmount, whtRatePercent),
+        amount: paymentAmount,
         approvalId: bill.approvalId ?? null,
-        billText: `${bill.docNo} | ${partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'} | ค้าง ${formatMoney(balance)}`,
+        billText: paymentBillLabel(bill, partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'),
         billId: bill.id,
         supplierId: bill.supplierId ?? '',
-        withholdingTax: withholdingTaxFromCashAmount(paymentCashAmountFromSettlement(settlementAmount, whtRatePercent), whtRatePercent),
+        withholdingTax,
       }],
       method: bill.approvalPaymentMethod ?? '',
+      splits: [{ ...newPaymentSplit(), amount: netAmount }],
       supplierId: bill.supplierId ?? '',
     } as unknown as MoneyForm)
     setMoneyDrafts({})
@@ -499,7 +513,7 @@ export function MoneyMovementPageClient({
       ...newPaymentLine(),
       amount,
       approvalId: bill.approvalId ?? null,
-      billText: `${bill.docNo} | ${partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'} | ค้าง ${formatMoney(bill.payableBalance ?? 0)}`,
+      billText: paymentBillLabel(bill, partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'),
       billId: bill.id,
       supplierId: bill.supplierId ?? '',
       withholdingTax: withholdingTaxFromCashAmount(amount, whtRatePercent),
@@ -541,8 +555,9 @@ export function MoneyMovementPageClient({
   }
 
   function selectPaymentLineBill(index: number, rawValue: string) {
-    const docNo = rawValue.split('|')[0]?.trim()
-    const bill = paymentSelectableBillsForLine(index).find((candidate) => candidate.id === rawValue || candidate.docNo === docNo)
+    const bill = paymentSelectableBillsForLine(index).find((candidate) => (
+      candidate.id === rawValue || rawValue.startsWith(candidate.docNo)
+    ))
     if (!bill) {
       updatePaymentLine(index, { amount: 0, approvalId: null, billId: '', billText: rawValue, supplierId: '', withholdingTax: 0 })
       return
@@ -551,15 +566,18 @@ export function MoneyMovementPageClient({
   }
 
   function paymentSelectableBillsForLine(index: number) {
-    const currentBillId = paymentLines[index]?.billId ?? ''
-    return paymentSelectableBills.filter((bill) => bill.id === currentBillId || !selectedPaymentBillIds.has(bill.id))
+    const currentSelectionId = paymentLines[index]?.approvalId || paymentLines[index]?.billId || ''
+    return paymentSelectableBills.filter((bill) => {
+      const selectionId = paymentSelectionId(bill)
+      return selectionId === currentSelectionId || !selectedPaymentBillIds.has(selectionId)
+    })
   }
 
   function paymentLineInputValue(line: PaymentLine) {
     if (line.billText !== undefined) return line.billText
     const bill = billMap.get(line.billId)
     if (!bill) return ''
-    return `${bill.docNo} | ${partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'} | ค้าง ${formatMoney(bill.payableBalance ?? 0)}`
+    return paymentBillLabel(bill, partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-')
   }
 
   function syncPaymentSplits(nextSplits: PaymentSplit[]) {
@@ -577,7 +595,14 @@ export function MoneyMovementPageClient({
   }
 
   function updatePaymentSplit(index: number, patch: Partial<PaymentSplit>) {
-    syncPaymentSplits(paymentSplits.map((split, splitIndex) => (splitIndex === index ? { ...split, ...patch } : split)))
+    syncPaymentSplits(paymentSplits.map((split, splitIndex) => {
+      if (splitIndex !== index) return split
+      const nextSplit = { ...split, ...patch }
+      if ('accountId' in patch && paymentSplits.length === 1 && (Number(nextSplit.amount) || 0) <= 0) {
+        nextSplit.amount = formNetAmount
+      }
+      return nextSplit
+    }))
   }
 
   function moneyInputValue(key: string, value: number) {
@@ -607,21 +632,25 @@ export function MoneyMovementPageClient({
     const paymentForm = form as SupplierPaymentFormValues
     const normalizedSplits = (paymentForm.splits ?? []).map((split) => ({ ...split }))
     const normalizedLines = (paymentForm.lines ?? []).filter((line) => line.billId && (Number(line.amount) || 0) > 0)
-    if (normalizedSplits.length === 1 && normalizedSplits[0]?.accountId && (Number(normalizedSplits[0].amount) || 0) <= 0) {
-      normalizedSplits[0].amount = formNetAmount
-    }
+    const payloadLines = normalizedLines.map((line) => {
+      const selectedPma = billMap.get(line.billId)
+      return {
+        ...line,
+        billId: selectedPma?.sourceDocNo ?? '',
+      }
+    })
     return {
       ...paymentForm,
-      amount: roundMoney(normalizedLines.reduce((sum, line) => sum + (Number(line.amount) || 0), 0)),
+      amount: roundMoney(payloadLines.reduce((sum, line) => sum + (Number(line.amount) || 0), 0)),
       accountId: normalizedSplits[0]?.accountId ?? paymentForm.accountId,
-      billId: normalizedLines[0]?.billId ?? paymentForm.billId,
-      discount: roundMoney(normalizedLines.reduce((sum, line) => sum + (Number(line.discount) || 0), 0)),
-      fee: roundMoney(normalizedLines.reduce((sum, line) => sum + (Number(line.fee) || 0), 0)),
-      lines: normalizedLines,
+      billId: payloadLines[0]?.billId ?? '',
+      discount: roundMoney(payloadLines.reduce((sum, line) => sum + (Number(line.discount) || 0), 0)),
+      fee: roundMoney(payloadLines.reduce((sum, line) => sum + (Number(line.fee) || 0), 0)),
+      lines: payloadLines,
       method: paymentForm.method ?? '',
       splits: normalizedSplits,
-      supplierId: normalizedLines[0]?.supplierId ?? paymentForm.supplierId,
-      withholdingTax: roundMoney(normalizedLines.reduce((sum, line) => sum + (Number(line.withholdingTax) || 0), 0)),
+      supplierId: payloadLines[0]?.supplierId ?? paymentForm.supplierId,
+      withholdingTax: roundMoney(payloadLines.reduce((sum, line) => sum + (Number(line.withholdingTax) || 0), 0)),
     }
   }
 
@@ -1120,6 +1149,18 @@ export function MoneyMovementPageClient({
                           <div className="space-y-1">
                             <div className="font-semibold text-slate-700">{billDocNos.length.toLocaleString('th-TH')} บิล</div>
                             {billDocNos.map((docNo) => <div key={`${row.id}-bill-${docNo}`} className="font-mono text-slate-700">{docNo}</div>)}
+                            {mode === 'payment' && row.approvalIds?.length ? (
+                              <div className="pt-1 text-[11px] text-slate-500">
+                                PMA: {row.approvalIds.map((approvalId, index) => (
+                                  <span key={`${row.id}-approval-${approvalId}`}>
+                                    {index > 0 ? ', ' : ''}
+                                    <Link className="font-mono text-blue-700 hover:underline" href={`/purchase/payment-approvals/${encodeURIComponent(approvalId)}`}>
+                                      {approvalId}
+                                    </Link>
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
                           </div>
                         </TableCell>
                         <TableCell className="text-xs text-slate-800">
@@ -1143,7 +1184,12 @@ export function MoneyMovementPageClient({
                         <TableCell className="max-w-56 truncate text-slate-600">{row.notes || '-'}</TableCell>
                         {mode === 'payment' ? (
                           <TableCell className="text-center">
-                            <span className="text-xs text-slate-400">ไม่มี action</span>
+                            <Link
+                              className="inline-flex h-8 items-center rounded-md border border-slate-300 px-3 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                              href={`/purchase/payments/${encodeURIComponent(row.voucherId ?? row.docNo)}`}
+                            >
+                              รายละเอียด
+                            </Link>
                           </TableCell>
                         ) : (
                           <TableCell className="text-center">

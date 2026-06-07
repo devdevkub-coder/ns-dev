@@ -9,6 +9,14 @@ import { appendSupplierAdvanceStatusLog, supplierAdvanceStatusActionForStatus } 
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, listDailyAccounts, nextDailyDocNos, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { getActivePaymentMethods } from '@/lib/server/payment-methods'
+import {
+  appendPaymentApprovalStatusLog,
+  appendPaymentStatusLog,
+  createPaymentAccountSplitFacts,
+  createPaymentAllocationFacts,
+  PAYMENT_APPROVAL_STATUS_ACTION,
+  PAYMENT_STATUS_ACTION,
+} from '@/lib/server/payment-history'
 import { appendPurchaseBillStatusLog, PURCHASE_BILL_STATUS_ACTION } from '@/lib/server/purchase-bill-history'
 import { prisma } from '@/lib/server/prisma'
 import { refreshPurchaseBillSettlement } from '@/lib/server/purchase-bill-settlement'
@@ -190,6 +198,15 @@ export async function GET() {
       activeWhtRatePercent(new Date()),
     ])
     const supplierCodeById = new Map(suppliers.map((supplier) => [supplier.id, requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`)]))
+    const supplierCodeSet = new Set(suppliers.map((supplier) => requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`)))
+    const resolveSupplierCode = (partyId: string | null, sourceSupplierId: bigint | null | undefined) => {
+      if (partyId) {
+        const internalId = parseInternalBigIntId(partyId)
+        if (internalId != null) return supplierCodeById.get(internalId) ?? ''
+        return supplierCodeSet.has(partyId) ? partyId : ''
+      }
+      return sourceSupplierId != null ? (supplierCodeById.get(sourceSupplierId) ?? '') : ''
+    }
 
     const approvalInternalIds = new Set(approvals.map((approval) => stringifyBusinessValue(approval.id)))
     const approvalDocNoByInternalId = new Map(
@@ -244,30 +261,28 @@ export async function GET() {
             const billId = parseInternalBigIntId(approval.source_id)
             const bill = billId != null ? billById.get(billId) : undefined
             if (!bill) return null
-          return {
-            approvalAccountNo: approval.destination_account_no_snapshot ?? '',
-            approvalBankName: approval.destination_bank_name_snapshot ?? '',
-            approvalId: approvalDocNo,
-            approvalPaymentMethod: approval.destination_payment_method_snapshot ?? '',
-            approvedAmount,
-            date: toDateOnly(bill.date),
-            docNo: approvalDocNo,
-            id: bill.doc_no,
-            paidAmount: paidAgainstApproval,
-            payableBalance,
-            status: approval.status ?? '',
-            sourceDocNo: approval.source_doc_no_snapshot ?? bill.doc_no,
-            supplierId: approval.party_id != null
-              ? (parseInternalBigIntId(approval.party_id) != null ? (supplierCodeById.get(parseInternalBigIntId(approval.party_id) as bigint) ?? '') : '')
-              : bill.supplier_id != null
-                ? (supplierCodeById.get(bill.supplier_id) ?? '')
-                : '',
-            totalAmount: approvedAmount,
-          }
+            const sourceDocNo = requireDocumentNo(approval.source_doc_no_snapshot, `เอกสารอ้างอิงของ ${approvalDocNo}`)
+            return {
+              approvalAccountNo: approval.destination_account_no_snapshot ?? '',
+              approvalBankName: approval.destination_bank_name_snapshot ?? '',
+              approvalId: approvalDocNo,
+              approvalPaymentMethod: approval.destination_payment_method_snapshot ?? '',
+              approvedAmount,
+              date: toDateOnly(bill.date),
+              docNo: approvalDocNo,
+              id: approvalDocNo,
+              paidAmount: paidAgainstApproval,
+              payableBalance,
+              status: approval.status ?? '',
+              sourceDocNo,
+              supplierId: resolveSupplierCode(approval.party_id, bill.supplier_id),
+              totalAmount: approvedAmount,
+            }
           }
           const advanceId = parseInternalBigIntId(approval.source_id)
           const advance = advanceId != null ? advanceById.get(advanceId) : undefined
           if (!advance) return null
+          const sourceDocNo = requireDocumentNo(approval.source_doc_no_snapshot, `เอกสารอ้างอิงของ ${approvalDocNo}`)
           return {
             approvalAccountNo: approval.destination_account_no_snapshot ?? '',
             approvalBankName: approval.destination_bank_name_snapshot ?? '',
@@ -276,16 +291,12 @@ export async function GET() {
             approvedAmount,
             date: toDateOnly(advance.advance_date),
             docNo: approvalDocNo,
-            id: advance.doc_no,
+            id: approvalDocNo,
             paidAmount: paidAgainstApproval,
             payableBalance,
             status: approval.status ?? '',
-            sourceDocNo: approval.source_doc_no_snapshot ?? advance.doc_no,
-            supplierId: approval.party_id != null
-              ? (parseInternalBigIntId(approval.party_id) != null ? (supplierCodeById.get(parseInternalBigIntId(approval.party_id) as bigint) ?? '') : approval.party_id)
-              : advance.supplier_id != null
-                ? (supplierCodeById.get(advance.supplier_id) ?? '')
-                : '',
+            sourceDocNo,
+            supplierId: resolveSupplierCode(approval.party_id, advance.supplier_id),
             totalAmount: approvedAmount,
           }
         })
@@ -389,15 +400,16 @@ export async function POST(request: Request) {
       const txExt = tx as typeof tx & {
         payment_approvals: {
           findMany: (args: unknown) => Promise<Array<{
-            approved_amount: DecimalLike
-            id: bigint
-            source_doc_no_snapshot: string | null
-            source_id: string
-          }>>
-          update: (args: unknown) => Promise<unknown>
-        }
+          approved_amount: DecimalLike
+          doc_no: string | null
+          id: bigint
+          source_doc_no_snapshot: string | null
+          source_id: string
+          source_type: string
+        }>>
+        update: (args: unknown) => Promise<unknown>
       }
-      const lineSourceDocNos = [...new Set(paymentLineTotals.map((line) => requireDocumentNo(line.billId, 'เอกสารอ้างอิง')))]
+      }
       const lineApprovalDocNos = [...new Set(paymentLineTotals.map((line) => line.approvalId).filter(Boolean) as string[])]
       const [account] = await Promise.all([
         tx.accounts.findUnique({
@@ -483,8 +495,11 @@ export async function POST(request: Request) {
         select: { bill_id: true, payment_approval_id: true },
         where: { voucher_id: voucherId },
       })
+      await tx.payment_allocations.deleteMany({ where: { payment_voucher_id: voucherId } })
+      await tx.payment_account_splits.deleteMany({ where: { payment_voucher_id: voucherId } })
       await tx.payments.deleteMany({ where: { voucher_id: voucherId } })
       const payments = []
+      const paidAt = new Date()
       for (const line of paymentLineTotals) {
         const lineSourceDocNo = requireDocumentNo(line.billId, 'เอกสารอ้างอิง')
         const approval = line.approvalId ? approvalByDocNo.get(line.approvalId) : null
@@ -493,15 +508,19 @@ export async function POST(request: Request) {
         const lineAdvance = approval.source_type === 'advance_payment' ? advanceByDocNo.get(lineSourceDocNo) : null
         if (approval.source_type === 'purchase_bill' && !lineBill) throw new Error('บิลซื้อไม่ถูกต้อง')
         if (approval.source_type === 'advance_payment' && !lineAdvance) throw new Error('ADV อ้างอิงไม่ถูกต้อง')
+        const approvalSourceDocNo = requireDocumentNo(approval.source_doc_no_snapshot, `เอกสารอ้างอิงของ ${line.approvalId}`)
         const matchesSource = approval.source_type === 'purchase_bill'
-          ? approval.source_doc_no_snapshot === lineBill?.doc_no && approval.source_id === lineBill?.id.toString()
-          : approval.source_doc_no_snapshot === lineAdvance?.doc_no && approval.source_id === lineAdvance?.id.toString()
+          ? approvalSourceDocNo === lineBill?.doc_no && approval.source_id === lineBill?.id.toString()
+          : approvalSourceDocNo === lineAdvance?.doc_no && approval.source_id === lineAdvance?.id.toString()
         if (!matchesSource) throw new Error('รายการจ่ายไม่ตรงกับเอกสารที่อนุมัติไว้')
         const approvalInternalId = stringifyBusinessValue(approval.id)
         const approvalRemaining = Math.max(0, toNumber(approval.approved_amount) - (settledByApprovalId.get(approvalInternalId) ?? 0))
         const lineSettlementAmount = line.amount + line.withholdingTax + line.discount
         if (lineSettlementAmount - approvalRemaining > 0.01) {
-          throw new Error(`ยอดจ่ายของ ${approval.source_doc_no_snapshot ?? ''} เกินยอดที่อนุมัติไว้`)
+          throw new Error(`ยอดจ่ายของ ${approvalSourceDocNo} เกินยอดที่อนุมัติไว้`)
+        }
+        if (Math.abs(lineSettlementAmount - approvalRemaining) > 0.01) {
+          throw new Error(`ยอดจ่ายของ ${line.approvalId} ต้องเท่ากับยอด PMA ที่เหลือ`)
         }
         const payment = await (tx as any).payments.create({
           data: {
@@ -531,12 +550,41 @@ export async function POST(request: Request) {
         settledByApprovalId.set(approvalInternalId, nextSettled)
         await txExt.payment_approvals.update({
           data: {
-            paid_at: Math.max(0, toNumber(approval.approved_amount) - nextSettled) <= 0.01 ? new Date() : null,
+            paid_at: Math.max(0, toNumber(approval.approved_amount) - nextSettled) <= 0.01 ? paidAt : null,
             payment_id: Math.max(0, toNumber(approval.approved_amount) - nextSettled) <= 0.01 ? payment.id : null,
             status: Math.max(0, toNumber(approval.approved_amount) - nextSettled) <= 0.01 ? 'paid' : 'approved',
-            updated_at: new Date(),
+            updated_at: paidAt,
           },
           where: { id: approval.id },
+        })
+        await createPaymentAllocationFacts(tx, [{
+          actor,
+          allocatedAmount: lineSettlementAmount,
+          allocationKey: `PMTALLOC-${docNo}-${payment.id}`,
+          createdAt: paidAt,
+          paymentApprovalDocNo: requireDocumentNo(approval.doc_no, `อนุมัติจ่าย ${approval.id}`),
+          paymentApprovalId: approval.id,
+          paymentDocNo: docNo,
+          paymentId: payment.id,
+          paymentVoucherId: voucherId,
+          sourceDocNoSnapshot: approvalSourceDocNo,
+          sourceType: approval.source_type,
+        }])
+        await appendPaymentApprovalStatusLog(tx, {
+          action: PAYMENT_APPROVAL_STATUS_ACTION.PAID,
+          actor,
+          createdAt: paidAt,
+          fromStatus: 'approved',
+          meta: {
+            allocatedAmount: lineSettlementAmount,
+            paymentDocNo: docNo,
+            sourceDocNo: approvalSourceDocNo,
+            voucherId,
+          },
+          paymentApprovalId: approval.id,
+          paymentDocNo: docNo,
+          paymentId: payment.id,
+          toStatus: 'paid',
         })
         if (approval.source_type === 'advance_payment' && lineAdvance) {
           await refreshAdvancePaymentPaymentStatus(tx, lineAdvance.id, actor)
@@ -545,7 +593,7 @@ export async function POST(request: Request) {
       }
 
       await tx.bank_statement.deleteMany({ where: { ref_id: voucherId, ref_type: 'PMT' } })
-      const statementDocNos = await nextDailyDocNos('bank_statement', 'BST', values.date, paymentSplits.length)
+      const statementDocNos = await nextDailyDocNos('bank_statement', 'BST', values.date, paymentSplits.length, tx)
       await tx.bank_statement.createMany({
         data: paymentSplits.map((split, index) => ({
           account_id: (splitAccountByCode.get(split.accountId)?.id as bigint),
@@ -560,6 +608,67 @@ export async function POST(request: Request) {
           ref_type: 'PMT',
           type: 'จ่ายเงิน Supplier',
         })),
+      })
+      const createdStatements = await tx.bank_statement.findMany({
+        include: { accounts: true },
+        where: { doc_no: { in: statementDocNos } },
+      })
+      const statementByDocNo = new Map(createdStatements.map((statement) => [statement.doc_no, statement] as const))
+      const primaryPayment = payments[0]
+      if (!primaryPayment) throw new Error('ไม่พบ PMT ที่ต้องการบันทึก timeline')
+      await createPaymentAccountSplitFacts(tx, paymentSplits.map((split, index) => {
+        const accountReference = splitAccountByCode.get(split.accountId)
+        if (!accountReference) throw new Error('บัญชีจ่ายบางรายการไม่ถูกต้องหรือไม่ active')
+        const statementDocNo = statementDocNos[index]!
+        const statement = statementByDocNo.get(statementDocNo)
+        return {
+          accountCodeSnapshot: accountReference.code,
+          accountId: accountReference.id,
+          accountNameSnapshot: accountReference.name,
+          actor,
+          amount: toNumber(split.amount),
+          bankStatementDocNo: statementDocNo,
+          bankStatementId: statement?.id ?? null,
+          createdAt: paidAt,
+          paymentDocNo: docNo,
+          paymentId: primaryPayment.id,
+          paymentVoucherId: voucherId,
+          splitKey: `PMTSPLIT-${statementDocNo}`,
+        }
+      }))
+      await appendPaymentStatusLog(tx, {
+        action: PAYMENT_STATUS_ACTION.POSTED,
+        actor,
+        amountSnapshot: totalAmount,
+        createdAt: paidAt,
+        fromStatus: null,
+        meta: {
+          approvalDocNos: lineApprovalDocNos,
+          lineCount: paymentLineTotals.length,
+          voucherId,
+        },
+        netAmountSnapshot: netAmount,
+        paymentDocNo: docNo,
+        paymentId: primaryPayment.id,
+        paymentVoucherId: voucherId,
+        toStatus: 'active',
+      })
+      await appendPaymentStatusLog(tx, {
+        action: PAYMENT_STATUS_ACTION.BANK_POSTED,
+        actor,
+        amountSnapshot: totalAmount,
+        createdAt: paidAt,
+        fromStatus: null,
+        meta: {
+          bankStatementDocNos: statementDocNos,
+          splitCount: paymentSplits.length,
+          voucherId,
+        },
+        netAmountSnapshot: netAmount,
+        paymentDocNo: docNo,
+        paymentId: primaryPayment.id,
+        paymentVoucherId: voucherId,
+        toStatus: 'active',
       })
 
       const billIdsToRefresh = [...new Set([

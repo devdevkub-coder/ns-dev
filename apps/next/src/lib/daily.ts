@@ -4,18 +4,18 @@ import { ApiError } from '@/lib/api-client'
 const blankToNull = (value: unknown) => (typeof value === 'string' && value.trim() === '' ? null : value)
 const businessTextPattern = /^[\p{L}\p{M}\p{N}\s.&,()/'"+#%:-]+$/u
 const generalTextPattern = /^[^\u0000-\u001F\u007F]+$/u
-const docNoPattern = /^[A-Za-z0-9_-]+$/
+const docNoPattern = /^[A-Za-z0-9_/-]+$/
 
 const optionalDocNo = z.preprocess(
   blankToNull,
-  z.string().trim().max(40, 'เลขที่เอกสารยาวเกินไป').regex(docNoPattern, 'เลขที่เอกสารใช้ได้เฉพาะอังกฤษ ตัวเลข ขีดกลาง และ underscore').nullable().default(null),
+  z.string().trim().max(40, 'เลขที่เอกสารยาวเกินไป').regex(docNoPattern, 'เลขที่เอกสารใช้ได้เฉพาะอังกฤษ ตัวเลข / ขีดกลาง และ underscore').nullable().default(null),
 )
 
 const requiredDocNo = (label: string) => z.string()
   .trim()
   .min(1, `เลือก${label}`)
   .max(40, `${label}ยาวเกินไป`)
-  .regex(docNoPattern, `${label}ใช้ได้เฉพาะอังกฤษ ตัวเลข ขีดกลาง และ underscore`)
+  .regex(docNoPattern, `${label}ใช้ได้เฉพาะอังกฤษ ตัวเลข / ขีดกลาง และ underscore`)
 
 const optionalBusinessText = (label: string, maxLength = 180) => z.preprocess(
   blankToNull,

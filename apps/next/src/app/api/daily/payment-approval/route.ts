@@ -8,6 +8,7 @@ import { appendSupplierAdvanceStatusLog, SUPPLIER_ADVANCE_STATUS_ACTION } from '
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { getActivePaymentMethods, type ActivePaymentMethod } from '@/lib/server/payment-methods'
+import { appendPaymentApprovalStatusLog, PAYMENT_APPROVAL_STATUS_ACTION } from '@/lib/server/payment-history'
 import { prisma } from '@/lib/server/prisma'
 
 export const runtime = 'nodejs'
@@ -503,6 +504,21 @@ export async function POST(request: Request) {
                 },
               })
           created.push(approval)
+          await appendPaymentApprovalStatusLog(tx, {
+            action: PAYMENT_APPROVAL_STATUS_ACTION.APPROVED,
+            actor,
+            createdAt: approvedAt,
+            fromStatus: 'pending',
+            meta: {
+              destinationId: split.destinationId,
+              sourceDocNo: bill.doc_no,
+              sourceType: 'purchase_bill',
+              splitCount: values.splits.length,
+              splitIndex: index + 1,
+            },
+            paymentApprovalId: approval.id,
+            toStatus: 'approved',
+          })
         }
       }
 
@@ -570,6 +586,21 @@ export async function POST(request: Request) {
                 },
               })
           created.push(approval)
+          await appendPaymentApprovalStatusLog(tx, {
+            action: PAYMENT_APPROVAL_STATUS_ACTION.APPROVED,
+            actor,
+            createdAt: approvedAt,
+            fromStatus: 'pending',
+            meta: {
+              destinationId: split.destinationId,
+              sourceDocNo: advance.doc_no,
+              sourceType: 'advance_payment',
+              splitCount: values.splits.length,
+              splitIndex: index + 1,
+            },
+            paymentApprovalId: approval.id,
+            toStatus: 'approved',
+          })
         }
         await tx.supplier_advance_payments.update({
           data: {
@@ -664,6 +695,21 @@ export async function POST(request: Request) {
                 },
               })
           created.push(approval)
+          await appendPaymentApprovalStatusLog(tx, {
+            action: PAYMENT_APPROVAL_STATUS_ACTION.APPROVED,
+            actor,
+            createdAt: approvedAt,
+            fromStatus: 'pending',
+            meta: {
+              destinationId: split.destinationId,
+              sourceDocNo: expense.doc_no,
+              sourceType: 'expense',
+              splitCount: values.splits.length,
+              splitIndex: index + 1,
+            },
+            paymentApprovalId: approval.id,
+            toStatus: 'approved',
+          })
         }
         await tx.expenses.update({
           data: {

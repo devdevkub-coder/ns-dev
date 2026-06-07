@@ -30,6 +30,10 @@ function hasExpectedDelegates(client: PrismaClient) {
     && typeof clientRecord.weight_ticket_usage_logs?.createMany === 'function'
     && typeof clientRecord.supplier_advance_allocation_logs?.createMany === 'function'
     && typeof clientRecord.supplier_advance_status_logs?.createMany === 'function'
+    && typeof clientRecord.payment_approval_status_logs?.createMany === 'function'
+    && typeof clientRecord.payment_status_logs?.createMany === 'function'
+    && typeof clientRecord.payment_allocations?.createMany === 'function'
+    && typeof clientRecord.payment_account_splits?.createMany === 'function'
     && hasAccountSubtypeField
     && hasPaymentMethodTypeField
 }

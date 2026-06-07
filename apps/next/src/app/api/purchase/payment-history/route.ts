@@ -93,19 +93,42 @@ export async function GET() {
       activeApprovals.map((approval) => [stringifyBusinessValue(approval.id), approval.source_doc_no_snapshot ?? ''] as const),
     )
     const voucherIds = [...new Set(payments.map((payment) => payment.voucher_id).filter((voucherId): voucherId is string => Boolean(voucherId)))]
-    const bankStatements = voucherIds.length > 0 ? await prisma.bank_statement.findMany({
-      include: { accounts: true },
-      orderBy: [{ created_at: 'asc' }, { date: 'asc' }],
-      where: {
-        ref_id: { in: voucherIds },
-        ref_type: 'PMT',
-      },
-    }) : []
+    const [bankStatements, paymentAllocations, paymentAccountSplits] = voucherIds.length > 0 ? await Promise.all([
+      prisma.bank_statement.findMany({
+        include: { accounts: true },
+        orderBy: [{ created_at: 'asc' }, { date: 'asc' }],
+        where: {
+          ref_id: { in: voucherIds },
+          ref_type: 'PMT',
+        },
+      }),
+      prisma.payment_allocations.findMany({
+        orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+        where: { payment_voucher_id: { in: voucherIds } },
+      }),
+      prisma.payment_account_splits.findMany({
+        include: { accounts: true },
+        orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+        where: { payment_voucher_id: { in: voucherIds } },
+      }),
+    ]) : [[], [], []]
     const bankStatementsByVoucherId = new Map<string, typeof bankStatements>()
     bankStatements.forEach((row) => {
       const voucherId = row.ref_id ?? ''
       if (!voucherId) return
       bankStatementsByVoucherId.set(voucherId, [...(bankStatementsByVoucherId.get(voucherId) ?? []), row])
+    })
+    const paymentAllocationsByVoucherId = new Map<string, typeof paymentAllocations>()
+    paymentAllocations.forEach((row) => {
+      const voucherId = row.payment_voucher_id ?? ''
+      if (!voucherId) return
+      paymentAllocationsByVoucherId.set(voucherId, [...(paymentAllocationsByVoucherId.get(voucherId) ?? []), row])
+    })
+    const paymentAccountSplitsByVoucherId = new Map<string, typeof paymentAccountSplits>()
+    paymentAccountSplits.forEach((row) => {
+      const voucherId = row.payment_voucher_id ?? ''
+      if (!voucherId) return
+      paymentAccountSplitsByVoucherId.set(voucherId, [...(paymentAccountSplitsByVoucherId.get(voucherId) ?? []), row])
     })
 
     const voucherRows = new Map<string, {
@@ -135,12 +158,22 @@ export async function GET() {
       if (!voucherKey) return
       const existing = voucherRows.get(voucherKey)
       const paymentApprovalInternalId = payment.payment_approval_id ? stringifyBusinessValue(payment.payment_approval_id) : ''
-      const billDocNo = payment.bill_id
+      const factAllocations = paymentAllocationsByVoucherId.get(voucherKey) ?? []
+      const factBillDocNos = [...new Set(factAllocations.map((allocation) => allocation.source_doc_no_snapshot).filter((value): value is string => Boolean(value)))]
+      const factApprovalIds = [...new Set(factAllocations.map((allocation) => allocation.payment_approval_doc_no).filter(Boolean))]
+      const billDocNo = factBillDocNos[0] ?? (payment.bill_id
         ? (billDocNoById.get(payment.bill_id) ?? '')
-        : (paymentApprovalInternalId ? (approvalSourceDocNoByInternalId.get(paymentApprovalInternalId) ?? '') : '')
+        : (paymentApprovalInternalId ? (approvalSourceDocNoByInternalId.get(paymentApprovalInternalId) ?? '') : ''))
       if (!existing) {
         const statementRows = bankStatementsByVoucherId.get(voucherKey) ?? []
-        const accountEntries = statementRows.length > 0
+        const splitRows = paymentAccountSplitsByVoucherId.get(voucherKey) ?? []
+        const accountEntries = splitRows.length > 0
+          ? splitRows.map((row) => ({
+              accountId: row.account_code_snapshot ?? row.accounts?.code ?? '',
+              accountName: row.account_name_snapshot ?? row.accounts?.name ?? '-',
+              amount: toNumber(row.amount),
+            }))
+          : statementRows.length > 0
           ? statementRows.map((row) => ({
               accountId: row.accounts?.code ?? '',
               accountName: row.accounts?.name ?? '-',
@@ -159,12 +192,14 @@ export async function GET() {
           accountName: uniqueAccountEntries[0]?.accountName ?? payment.accounts?.name ?? '-',
           accountNames: uniqueAccountEntries.map((entry) => entry.accountName),
           accountSummaries: uniqueAccountEntries.map((entry) => `${entry.accountName} · ${toNumber(entry.amount).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`),
-          approvalIds: payment.payment_approval_id
-            ? [approvalDocNoByInternalId.get(paymentApprovalInternalId) ?? ''].filter(Boolean)
-            : [],
+          approvalIds: factApprovalIds.length > 0
+            ? factApprovalIds
+            : payment.payment_approval_id
+              ? [approvalDocNoByInternalId.get(paymentApprovalInternalId) ?? ''].filter(Boolean)
+              : [],
           amount: 0,
           billDocNo,
-          billDocNos: billDocNo ? [billDocNo] : [],
+          billDocNos: factBillDocNos.length > 0 ? factBillDocNos : billDocNo ? [billDocNo] : [],
           date: toDateOnly(payment.date),
           docNo: payment.doc_no,
           fee: 0,
