@@ -5,6 +5,7 @@ const impurityNamePattern = /^[\p{L}\p{M}\p{N}\s.&,()/'"+#%/-]+$/u
 
 export const impuritySchema = z.object({
   id: z.string().min(1),
+  code: z.string().min(1),
   name: z.string().min(1),
   active: z.boolean().default(true),
   createdAt: z.string().nullable().default(null),

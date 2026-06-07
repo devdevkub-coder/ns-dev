@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { parseInternalBigIntId } from '@/lib/business-code'
 import { mapPrismaImpurity, type PrismaImpurityRow } from '@/lib/domain/impurity'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
@@ -25,12 +26,17 @@ export async function PATCH(request: Request, { params }: ImpurityRouteProps) {
     requirePermission(context, 'master.reference.manage')
 
     const { id } = routeParamsSchema.parse(await params)
+    const internalId = parseInternalBigIntId(id)
+    if (internalId == null) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'รหัสสิ่งเจือปนไม่ถูกต้อง' }, { status: 400 })
+    }
+
     const values = updateImpurityStatusSchema.parse(await request.json())
     const rows = await prisma.$queryRaw<PrismaImpurityRow[]>`
       update public.impurities
       set active = ${values.active}
-      where id = ${id}
-      returning id, name, active, created_at, updated_at
+      where id = ${internalId}
+      returning id, code, name, active, created_at, updated_at
     `
 
     const row = rows[0]

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { parseInternalBigIntId } from '@/lib/business-code'
 import { impurityFormSchema } from '@/lib/impurity'
 import { mapPrismaImpurity, type PrismaImpurityRow } from '@/lib/domain/impurity'
 import { apiErrorResponse } from '@/lib/server/api-error'
@@ -7,14 +8,14 @@ import { prisma } from '@/lib/server/prisma'
 
 export const runtime = 'nodejs'
 
-async function getNextImpurityId() {
-  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
-    select id
+async function getNextImpurityCode() {
+  const rows = await prisma.$queryRaw<Array<{ code: string }>>`
+    select code
     from public.impurities
-    where id like 'IMP-%'
+    where code like 'IMP-%'
   `
   const maxNumber = rows.reduce((max, row) => {
-    const matched = row.id.match(/^IMP-(\d+)$/i)
+    const matched = row.code.match(/^IMP-(\d+)$/i)
     const value = matched ? Number(matched[1]) : 0
     return Number.isFinite(value) ? Math.max(max, value) : max
   }, 0)
@@ -22,7 +23,7 @@ async function getNextImpurityId() {
 }
 
 async function findImpurityByName(name: string) {
-  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+  const rows = await prisma.$queryRaw<Array<{ id: bigint }>>`
     select id
     from public.impurities
     where lower(btrim(name)) = lower(btrim(${name}))
@@ -37,7 +38,7 @@ export async function GET() {
     requirePermission(context, 'master.reference.view')
 
     const rows = await prisma.$queryRaw<PrismaImpurityRow[]>`
-      select id, name, active, created_at, updated_at
+      select id, code, name, active, created_at, updated_at
       from public.impurities
       order by lower(name), id
     `
@@ -55,23 +56,28 @@ export async function POST(request: Request) {
     requirePermission(context, 'master.reference.manage')
 
     const values = impurityFormSchema.parse(await request.json())
+    const internalId = values.id ? parseInternalBigIntId(values.id) : null
+    if (values.id && internalId == null) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'รหัสสิ่งเจือปนไม่ถูกต้อง' }, { status: 400 })
+    }
+
     const existing = await findImpurityByName(values.name)
-    if (existing && existing.id !== values.id) {
+    if (existing && existing.id !== internalId) {
       return NextResponse.json({ code: 'CONFLICT', error: 'ชื่อสิ่งเจือปนนี้มีอยู่แล้ว' }, { status: 409 })
     }
 
-    const id = values.id || await getNextImpurityId()
-    const rows = values.id
+    const nextCode = internalId ? null : await getNextImpurityCode()
+    const rows = internalId
       ? await prisma.$queryRaw<PrismaImpurityRow[]>`
         update public.impurities
         set name = ${values.name}, active = ${values.active}
-        where id = ${id}
-        returning id, name, active, created_at, updated_at
+        where id = ${internalId}
+        returning id, code, name, active, created_at, updated_at
       `
       : await prisma.$queryRaw<PrismaImpurityRow[]>`
-        insert into public.impurities (id, name, active)
-        values (${id}, ${values.name}, ${values.active})
-        returning id, name, active, created_at, updated_at
+        insert into public.impurities (code, name, active)
+        values (${nextCode}, ${values.name}, ${values.active})
+        returning id, code, name, active, created_at, updated_at
       `
 
     const row = rows[0]

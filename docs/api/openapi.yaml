@@ -3029,11 +3029,17 @@ components:
       additionalProperties: true
     Impurity:
       type: object
-      required: [active, createdAt, id, name, updatedAt]
+      required: [active, code, createdAt, id, name, updatedAt]
       properties:
         id:
           type: string
           minLength: 1
+          description: Internal bigint id serialized as string for FK payloads such as WTI/WTO line impurity references.
+          example: "1"
+        code:
+          type: string
+          minLength: 1
+          description: Business key for the impurity master row.
           example: IMP-001
         name:
           type: string
@@ -3073,9 +3079,9 @@ components:
       properties:
         id:
           type: string
-          description: Optional when editing an existing impurity; omitted for create.
+          description: Optional internal bigint id string when editing an existing impurity; omitted for create.
           minLength: 1
-          example: IMP-001
+          example: "1"
         name:
           type: string
           minLength: 1
