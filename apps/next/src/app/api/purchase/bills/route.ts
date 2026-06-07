@@ -18,6 +18,7 @@ import { prisma } from '@/lib/server/prisma'
 import { refreshPurchaseBillSettlement, refreshSupplierAdvancePaymentAllocation } from '@/lib/server/purchase-bill-settlement'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 import { activeVatRatePercent } from '@/lib/server/tax-settings'
+import { findActiveWarehouseReferenceByCodeOrId } from '@/lib/server/warehouse-reference'
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
 import { appendWeightTicketUsageLogs, WEIGHT_TICKET_USAGE_ACTION, type WeightTicketUsageAction } from '@/lib/server/weight-ticket-usage-history'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
@@ -26,12 +27,6 @@ import type { Prisma } from '../../../../../generated/prisma/client'
 export const runtime = 'nodejs'
 
 const STOCK_STATUS_VALUES = ['RM', 'WIP', 'FG', 'SCRAP'] as const
-const PURCHASE_STOCK_WAREHOUSE_HINTS: Record<typeof STOCK_STATUS_VALUES[number], string[]> = {
-  FG: ['FG', 'FINISHED', 'พร้อมขาย'],
-  RM: ['RM', 'RAW', 'วัตถุดิบ'],
-  SCRAP: ['SCRAP', 'เศษ', 'ของเสีย'],
-  WIP: ['WIP', 'PROCESS', 'ระหว่างผลิต'],
-}
 
 type PurchaseBillRow = Prisma.purchase_billsGetPayload<{
   include: {
@@ -103,6 +98,7 @@ type ProductRefRow = {
 type PoBuyRefRow = {
   doc_no: string
   id: bigint
+  items: Prisma.JsonValue | null
   product_id: bigint | null
   remaining_amount: Prisma.Decimal | null
   remaining_qty: Prisma.Decimal | null
@@ -129,17 +125,6 @@ function normalizeStockStatus(value: string | null | undefined) {
   return STOCK_STATUS_VALUES.includes(normalized as typeof STOCK_STATUS_VALUES[number])
     ? normalized as typeof STOCK_STATUS_VALUES[number]
     : 'RM'
-}
-
-function pickPurchaseStockWarehouse(rows: Array<{ code: string | null; id: bigint; name: string; type: string | null }>, status: typeof STOCK_STATUS_VALUES[number]) {
-  const activeRows = rows.filter((row) => row.id)
-  const typedWarehouse = activeRows.find((row) => normalizeStockStatus(row.type) === status && row.type)
-  if (typedWarehouse) return typedWarehouse
-
-  return activeRows.find((row) => {
-    const text = `${row.code ?? ''} ${row.name}`.toUpperCase()
-    return PURCHASE_STOCK_WAREHOUSE_HINTS[status].some((hint) => text.includes(hint.toUpperCase()))
-  }) ?? activeRows[0] ?? null
 }
 
 function bangkokDateInput(value: Date) {
@@ -204,6 +189,72 @@ function createPoBuyRefMap(poBuys: PoBuyRefRow[]) {
     map.set(po.doc_no, po)
   })
   return map
+}
+
+function jsonNumber(value: unknown) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+  if (typeof value === 'string') {
+    const parsed = Number(value.replace(/,/g, ''))
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+  return toNumber(value as { toNumber: () => number } | null | undefined)
+}
+
+function poBuyItemRows(poBuy: PoBuyRefRow) {
+  return Array.isArray(poBuy.items)
+    ? (poBuy.items as unknown[]).filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+    : []
+}
+
+function poBuyItemProductId(poBuy: PoBuyRefRow, item: Record<string, unknown>) {
+  const rawInternalId = item.productIdInternal
+  const productId = parseInternalBigIntId(
+    typeof rawInternalId === 'number'
+      ? BigInt(rawInternalId)
+      : typeof rawInternalId === 'string' || typeof rawInternalId === 'bigint'
+        ? rawInternalId
+        : null,
+  )
+  if (!productId) {
+    throw new Error(`PO Buy ${poBuy.doc_no} มีรายการสินค้าที่ไม่มี productIdInternal สำหรับตัดบิลรับซื้อ`)
+  }
+  return productId
+}
+
+function poBuyRemainingQtyForProduct(poBuy: PoBuyRefRow, productId: bigint) {
+  const items = poBuyItemRows(poBuy)
+  if (items.length === 0) {
+    return poBuy.product_id === productId ? toNumber(poBuy.remaining_qty) : 0
+  }
+  return items.reduce((sum, item) => poBuyItemProductId(poBuy, item) === productId
+    ? sum + jsonNumber(item.remainingQty)
+    : sum, 0)
+}
+
+function poBuyUnitPriceForProduct(poBuy: PoBuyRefRow, productId: bigint) {
+  const items = poBuyItemRows(poBuy)
+  const item = items.find((row) => poBuyItemProductId(poBuy, row) === productId)
+  return item ? jsonNumber(item.unitPrice ?? poBuy.unit_price) : toNumber(poBuy.unit_price)
+}
+
+function firstRemainingPoBuyItem(poBuy: PoBuyRefRow) {
+  const items = poBuyItemRows(poBuy)
+  if (items.length === 0) {
+    return poBuy.product_id != null && toNumber(poBuy.remaining_qty) > 0.0001
+      ? { productId: poBuy.product_id, remainingQty: toNumber(poBuy.remaining_qty), unitPrice: toNumber(poBuy.unit_price) }
+      : null
+  }
+  for (const item of items) {
+    const remainingQty = jsonNumber(item.remainingQty)
+    if (remainingQty > 0.0001) {
+      return {
+        productId: poBuyItemProductId(poBuy, item),
+        remainingQty,
+        unitPrice: jsonNumber(item.unitPrice ?? poBuy.unit_price),
+      }
+    }
+  }
+  return null
 }
 
 function billItemJson(row: PurchaseBillRow['purchase_bill_items'][number]) {
@@ -305,7 +356,7 @@ function buildBillItems(
   return values.items.map((item) => {
     const product = productByRef.get(item.productId)
     const poBuy = item.poBuyId ? poBuyByRef.get(item.poBuyId) : null
-    const price = poBuy ? toNumber(poBuy.unit_price) : item.price
+    const price = poBuy && product ? poBuyUnitPriceForProduct(poBuy, product.id) : item.price
     const amount = Math.max(0, item.qty * price - item.discount)
     const receiptSummary = item.receiptSummaryId ? receiptSummarySourceMap.get(item.receiptSummaryId) : null
     const receiptSummaryNetWeight = receiptSummary ? toNumber(receiptSummary.net_weight) : 0
@@ -1102,7 +1153,7 @@ async function validateStockReceiptSelection(
   const { lineToSummaryRef, receiptSummarySourceMap } = receiptReferenceMaps(ticket, productByRef)
 
   const requestedQtyBySummaryId = new Map<string, number>()
-  const requestedQtyByPo = new Map<string, number>()
+  const requestedQtyByPoProduct = new Map<string, { poBuyId: string; productId: bigint; qty: number }>()
   for (const item of values.items) {
     const resolvedSummaryRef = item.receiptSummaryId ?? (item.receiptLineId ? lineToSummaryRef.get(item.receiptLineId) ?? null : null)
     if (item.receiptTicketId !== ticket.doc_no || !resolvedSummaryRef) {
@@ -1138,7 +1189,9 @@ async function validateStockReceiptSelection(
       if (poBuy.product_id && poBuy.product_id !== itemProductId) {
         return { error: 'PO Buy ต้องเป็นสินค้าเดียวกับรายการที่เลือก' as const }
       }
-      requestedQtyByPo.set(item.poBuyId, (requestedQtyByPo.get(item.poBuyId) ?? 0) + item.qty)
+      const poProductKey = `${item.poBuyId}:${String(itemProductId)}`
+      const current = requestedQtyByPoProduct.get(poProductKey) ?? { poBuyId: item.poBuyId, productId: itemProductId, qty: 0 }
+      requestedQtyByPoProduct.set(poProductKey, { ...current, qty: current.qty + item.qty })
     }
     const summaryId = stringifyBusinessValue(summarySource.id)
     requestedQtyBySummaryId.set(summaryId, (requestedQtyBySummaryId.get(summaryId) ?? 0) + item.qty)
@@ -1157,10 +1210,10 @@ async function validateStockReceiptSelection(
     }
   }
 
-  for (const [poBuyId, requestedQty] of requestedQtyByPo.entries()) {
+  for (const { poBuyId, productId, qty: requestedQty } of requestedQtyByPoProduct.values()) {
     const poBuy = poBuyById.get(poBuyId)
     if (!poBuy) continue
-    const remainingQty = toNumber(poBuy.remaining_qty)
+    const remainingQty = poBuyRemainingQtyForProduct(poBuy, productId)
     if (requestedQty > remainingQty + 0.0001) {
       return { error: `จำนวนเกินคงเหลือของ PO ${poBuyId}` as const }
     }
@@ -1384,7 +1437,7 @@ async function optionsPayload() {
     }),
     prisma.po_buys.findMany({
       orderBy: [{ doc_no: 'desc' }],
-      select: { doc_no: true, id: true, product_id: true, remaining_amount: true, remaining_qty: true, status: true, supplier_id: true, unit_price: true },
+      select: { doc_no: true, id: true, items: true, product_id: true, remaining_amount: true, remaining_qty: true, status: true, supplier_id: true, unit_price: true },
       take: 500,
       where: { status: { in: [PO_BUY_STATUS.OPEN, PO_BUY_STATUS.PARTIAL] } },
     }),
@@ -1440,16 +1493,26 @@ async function optionsPayload() {
       ...branch,
       id: requireBusinessCode(branch.code, `สาขา ${branch.id}`),
     })),
-    poBuys: poBuys.map((po) => ({
-      active: (po.status === PO_BUY_STATUS.OPEN || po.status === PO_BUY_STATUS.PARTIAL) && toNumber(po.remaining_qty) > 0.0001,
-      id: po.doc_no,
-      label: `${po.doc_no}${po.remaining_qty ? ` · คงเหลือ ${toNumber(po.remaining_qty).toLocaleString('th-TH')} กก.` : po.remaining_amount ? ` · คงเหลือ ${toNumber(po.remaining_amount).toLocaleString('th-TH')}` : ''}`,
-      name: po.doc_no,
-      product_id: po.product_id != null ? (productCodeById.get(po.product_id) ?? null) : null,
-      remainingQty: toNumber(po.remaining_qty),
-      supplier_id: po.supplier_id != null ? (supplierCodeById.get(po.supplier_id) ?? null) : null,
-      unitPrice: toNumber(po.unit_price),
-    })),
+    poBuys: poBuys.map((po) => {
+      const remainingItem = (() => {
+        try {
+          return firstRemainingPoBuyItem(po)
+        } catch {
+          return null
+        }
+      })()
+      const remainingQty = remainingItem?.remainingQty ?? 0
+      return {
+        active: (po.status === PO_BUY_STATUS.OPEN || po.status === PO_BUY_STATUS.PARTIAL) && remainingQty > 0.0001,
+        id: po.doc_no,
+        label: `${po.doc_no}${remainingQty > 0 ? ` · คงเหลือ ${remainingQty.toLocaleString('th-TH')} กก.` : po.remaining_amount ? ` · คงเหลือ ${toNumber(po.remaining_amount).toLocaleString('th-TH')}` : ''}`,
+        name: po.doc_no,
+        product_id: remainingItem?.productId != null ? (productCodeById.get(remainingItem.productId) ?? null) : null,
+        remainingQty,
+        supplier_id: po.supplier_id != null ? (supplierCodeById.get(po.supplier_id) ?? null) : null,
+        unitPrice: remainingItem?.unitPrice ?? toNumber(po.unit_price),
+      }
+    }),
     products: products.map((product) => ({
       active: product.active,
       code: requireBusinessCode(product.code, `สินค้า ${product.id}`),
@@ -1758,19 +1821,24 @@ export async function POST(request: Request) {
     const productRefs = [...new Set(values.items.map((item) => item.productId).filter(Boolean))]
     const poBuyRefs = [...new Set([values.poBuyId, ...values.items.map((item) => item.poBuyId)].filter(Boolean) as string[])]
     const branch = await findActiveBranchReferenceByCodeOrId(values.branchId)
-    const [supplier, poBuys, products] = await Promise.all([
+    const [supplier, poBuys, products, warehouse] = await Promise.all([
       findActiveSupplierReferenceByCodeOrId(values.supplierId),
       resolvePoBuysByDocNo(poBuyRefs),
       resolveProductsByCodeOrId(productRefs),
+      values.warehouseId ? findActiveWarehouseReferenceByCodeOrId(values.warehouseId) : Promise.resolve(null),
     ])
 
     if (!supplier) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    if (values.transactionMode === 'STOCK' && !warehouse) return NextResponse.json({ code: 'BAD_REQUEST', error: 'เลือกคลังที่เปิดใช้งานสำหรับบิลรับซื้อ' }, { status: 400 })
     const supplierSalesId = supplier.salesId ?? null
 
     const effectiveBranch = branch
     const effectiveBranchCode = branchBillCode(effectiveBranch?.code)
     if (!effectiveBranch || !effectiveBranchCode) return NextResponse.json({ code: 'BAD_REQUEST', error: 'เลือกสาขาที่มีรหัสสาขา 01 หรือ 02 ก่อนบันทึกบิล' }, { status: 400 })
+    if (values.transactionMode === 'STOCK' && warehouse?.branchCode !== effectiveBranch.code) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'คลังต้องอยู่ในสาขาเดียวกับบิลรับซื้อ' }, { status: 400 })
+    }
 
     const poBuyById = createPoBuyRefMap(poBuys)
     const missingPoBuy = poBuyRefs.find((poBuyId) => !poBuyById.has(poBuyId))
@@ -1799,17 +1867,7 @@ export async function POST(request: Request) {
       }, { timeout: 30000 })
     }
     const purchaseSource = derivePurchaseSource(items, values.purchaseSource)
-    const branchWarehouses = values.transactionMode === 'STOCK'
-      ? await prisma.warehouses.findMany({
-        orderBy: [{ code: 'asc' }, { name: 'asc' }],
-        select: { code: true, id: true, name: true, type: true },
-        where: { active: true, branch_id: effectiveBranch.id },
-      })
-      : []
-    const warehouseByStatus = new Map(STOCK_STATUS_VALUES.map((status) => [status, pickPurchaseStockWarehouse(branchWarehouses, status)]))
-    const missingWarehouseStatus = values.transactionMode === 'STOCK' ? items.find((item) => !warehouseByStatus.get(item.itemStatus))?.itemStatus : null
-    if (missingWarehouseStatus) return NextResponse.json({ code: 'BAD_REQUEST', error: `ไม่พบคลัง ${missingWarehouseStatus} ที่เปิดใช้งานสำหรับสาขานี้` }, { status: 400 })
-    const purchaseWarehouseId = values.transactionMode === 'STOCK' ? warehouseByStatus.get(items[0]?.itemStatus ?? 'RM')?.id ?? null : null
+    const purchaseWarehouseId = values.transactionMode === 'STOCK' ? warehouse?.id ?? null : null
 
     let bill: { doc_no: string; id: bigint } | null = null
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -1925,7 +1983,7 @@ export async function POST(request: Request) {
                 unit_cost: item.price,
                 value_in: item.amount,
                 value_out: 0,
-                warehouse_id: warehouseByStatus.get(item.itemStatus)?.id ?? purchaseWarehouseId,
+                warehouse_id: purchaseWarehouseId,
               })),
             })
             await refreshWeightTicketStatuses(tx, receiptTicketIdsToRefresh, {
@@ -2067,7 +2125,7 @@ export async function PATCH(request: Request) {
     const productRefs = [...new Set(values.items.map((item) => item.productId).filter(Boolean))]
     const poBuyRefs = [...new Set([values.poBuyId, ...values.items.map((item) => item.poBuyId)].filter(Boolean) as string[])]
     const branch = await findActiveBranchReferenceByCodeOrId(values.branchId)
-    const [existingBill, supplier, poBuys, products, payments, existingBillItems, activeApprovalCount] = await Promise.all([
+    const [existingBill, supplier, poBuys, products, payments, existingBillItems, activeApprovalCount, warehouse] = await Promise.all([
       prisma.purchase_bills.findUnique({ where: { id: existingBillRef.id } }),
       findActiveSupplierReferenceByCodeOrId(values.supplierId),
       resolvePoBuysByDocNo(poBuyRefs),
@@ -2087,6 +2145,7 @@ export async function PATCH(request: Request) {
           status: { in: ['approved', 'paid'] },
         },
       }),
+      values.warehouseId ? findActiveWarehouseReferenceByCodeOrId(values.warehouseId) : Promise.resolve(null),
     ])
 
     if (!existingBill) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบบิลรับซื้อ' }, { status: 404 })
@@ -2105,10 +2164,14 @@ export async function PATCH(request: Request) {
     const totals = calculateTotals(values, vatRatePercent)
     if (!supplier) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    if (values.transactionMode === 'STOCK' && !warehouse) return NextResponse.json({ code: 'BAD_REQUEST', error: 'เลือกคลังที่เปิดใช้งานสำหรับบิลรับซื้อ' }, { status: 400 })
     const supplierSalesId = supplier.salesId ?? null
 
     const effectiveBranch = branch
     if (!effectiveBranch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'เลือกสาขาก่อนบันทึกบิล' }, { status: 400 })
+    if (values.transactionMode === 'STOCK' && warehouse?.branchCode !== effectiveBranch.code) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'คลังต้องอยู่ในสาขาเดียวกับบิลรับซื้อ' }, { status: 400 })
+    }
 
     const poBuyById = createPoBuyRefMap(poBuys)
     const missingPoBuy = poBuyRefs.find((poBuyId) => !poBuyById.has(poBuyId))
@@ -2137,17 +2200,7 @@ export async function PATCH(request: Request) {
       }, { timeout: 30000 })
     }
     const purchaseSource = derivePurchaseSource(items, values.purchaseSource)
-    const branchWarehouses = values.transactionMode === 'STOCK'
-      ? await prisma.warehouses.findMany({
-        orderBy: [{ code: 'asc' }, { name: 'asc' }],
-        select: { code: true, id: true, name: true, type: true },
-        where: { active: true, branch_id: effectiveBranch.id },
-      })
-      : []
-    const warehouseByStatus = new Map(STOCK_STATUS_VALUES.map((status) => [status, pickPurchaseStockWarehouse(branchWarehouses, status)]))
-    const missingWarehouseStatus = values.transactionMode === 'STOCK' ? items.find((item) => !warehouseByStatus.get(item.itemStatus))?.itemStatus : null
-    if (missingWarehouseStatus) return NextResponse.json({ code: 'BAD_REQUEST', error: `ไม่พบคลัง ${missingWarehouseStatus} ที่เปิดใช้งานสำหรับสาขานี้` }, { status: 400 })
-    const purchaseWarehouseId = values.transactionMode === 'STOCK' ? warehouseByStatus.get(items[0]?.itemStatus ?? 'RM')?.id ?? null : null
+    const purchaseWarehouseId = values.transactionMode === 'STOCK' ? warehouse?.id ?? null : null
 
     const updatedBill = await prisma.$transaction(async (tx) => {
       const existingPoAllocationSources = await loadCurrentPoBuyAllocationLogSources(tx, existingBillRef.id)
@@ -2262,7 +2315,7 @@ export async function PATCH(request: Request) {
             unit_cost: item.price,
             value_in: item.amount,
             value_out: 0,
-            warehouse_id: warehouseByStatus.get(item.itemStatus)?.id ?? purchaseWarehouseId,
+            warehouse_id: purchaseWarehouseId,
           })),
         })
       }

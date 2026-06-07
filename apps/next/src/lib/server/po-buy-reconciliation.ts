@@ -41,10 +41,6 @@ type DraftPoItem = {
 
 const EPSILON = 0.0001
 
-function asBusinessScalar(value: unknown) {
-  return typeof value === 'string' || typeof value === 'number' || typeof value === 'bigint' ? value : null
-}
-
 function jsonNumber(value: unknown) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0
   if (typeof value === 'string') {
@@ -52,6 +48,21 @@ function jsonNumber(value: unknown) {
     return Number.isFinite(parsed) ? parsed : 0
   }
   return toNumber(value as { toNumber: () => number } | null | undefined)
+}
+
+function canonicalItemProductIdKey(item: Record<string, unknown>, row: PoBuyRow) {
+  const rawInternalId = item.productIdInternal
+  const parsed = parseInternalBigIntId(
+    typeof rawInternalId === 'number'
+      ? BigInt(rawInternalId)
+      : typeof rawInternalId === 'string' || typeof rawInternalId === 'bigint'
+        ? rawInternalId
+        : null,
+  )
+  if (!parsed) {
+    throw new Error(`PO Buy ${row.doc_no} มีรายการสินค้าที่ไม่มี productIdInternal สำหรับ reconcile`)
+  }
+  return stringifyBusinessValue(parsed)
 }
 
 function normalizePoItems(row: PoBuyRow) {
@@ -65,23 +76,7 @@ function normalizePoItems(row: PoBuyRow) {
               ? item.productId
               : null,
         ),
-        productIdKey: stringifyBusinessValue(
-          parseInternalBigIntId(
-            typeof item.productIdInternal === 'number'
-              ? BigInt(item.productIdInternal)
-              : typeof item.productIdInternal === 'string' || typeof item.productIdInternal === 'bigint'
-                ? item.productIdInternal
-                : typeof item.productId === 'number'
-                  ? BigInt(item.productId)
-                  : typeof item.productId === 'string' || typeof item.productId === 'bigint'
-                    ? item.productId
-                    : row.product_id,
-          ) ?? (
-            typeof item.productId === 'string' || typeof item.productId === 'number' || typeof item.productId === 'bigint'
-              ? item.productId
-              : row.product_id
-          ),
-        ),
+        productIdKey: canonicalItemProductIdKey(item, row),
         productName: stringifyBusinessValue(
           typeof item.productName === 'string' ? item.productName : typeof item.productCode === 'string' ? item.productCode : null,
         ),
@@ -117,6 +112,7 @@ function remainingItemsAfterAllocation(items: DraftPoItem[], allocatedQtyByProdu
     return {
       ...item.raw,
       productId: item.productId,
+      productIdInternal: item.productIdKey,
       productName: item.productName,
       qty: item.qty,
       remainingQty,

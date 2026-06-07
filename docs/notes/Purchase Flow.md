@@ -13,7 +13,7 @@ tags:
   - decision
 status: draft
 created: 2026-05-24
-updated: 2026-06-06
+updated: 2026-06-07
 ---
 
 # Purchase Flow / Flow ซื้อ
@@ -24,9 +24,11 @@ updated: 2026-06-06
 - ระบบ target ไม่ใช้เลข `WT` เดี่ยว; เอกสารชั่งน้ำหนักต้องแยกขาเข้า/ขาออกด้วย prefix ตั้งแต่เลขเอกสาร
 - `ใบรับของ / Weight Ticket In` ใช้เลขเอกสาร `WTI{branchCode}{YYMM}-NNNN` และเป็นเอกสารรับของจริงสำหรับกรณีซื้อเข้า stock
 - ฝั่งส่งของต้องแยกเป็น `ใบส่งของ / Weight Ticket Out` ใช้เลขเอกสาร `WTO{branchCode}{YYMM}-NNNN` ใน Sales/Delivery flow ไม่ปนกับใบรับของ
-- ซื้อเข้า stock ต้องมี `ใบรับของ` ก่อนออกบิลรับซื้อ ไม่ว่าจะอ้าง PO หรือเป็น Spot Buy / No PO
+- ซื้อเข้า stock ต้องมี `ใบรับของ` และเลือก `คลัง` ในสาขาเดียวกับบิลก่อนออกบิลรับซื้อ ไม่ว่าจะอ้าง PO หรือเป็น Spot Buy / No PO
+- คลังของบิลรับซื้อ Stock ต้องเป็น explicit user selection จาก dropdown ที่ filter ด้วยสาขาของบิล; ระบบห้าม auto-pick หรือ fallback จากชื่อ/code/type/hint ของคลัง
 - Trading ไม่เข้า stock และไม่ใช้ใบรับของเป็นแหล่งน้ำหนักหลัก ผู้ใช้ต้องกรอกจำนวน/น้ำหนักในหน้าบิลรับซื้อ
 - PO กับใบรับของเป็นความสัมพันธ์ many-to-many ผ่านบิลรับซื้อ Stock: ใบรับของ 1 ใบตัดได้หลาย PO และ PO 1 ใบรับของได้หลายใบ โดยต้อง allocate ระดับรายการสินค้า/น้ำหนัก
+- PO item snapshot ต้องมี canonical internal `productIdInternal` ที่ resolve จาก `products.id` เพื่อใช้ตัด allocation/reconciliation; `productId`/`productCode` เป็น outward display/search key เท่านั้น ห้ามใช้เป็น matching key สำหรับยอดคงเหลือ
 - Cost Pool ใช้เฉพาะสินค้ากลุ่มทองแดง/ทองเหลือง (`ทองแดง`, `ทองเหลือง`, `copper`, `brass`) ไม่ใช่ทุกสินค้าที่ซื้อเข้า stock
 - `WTI` ต้องแยกข้อมูลเป็น 3 ชั้น: header total ทั้งเอกสาร, raw lot ชั่งจริง, และ summary ระดับสินค้าในเอกสารเดียวกัน; รายละเอียด design อยู่ใน [[WTI Product Summary Design]]
 
@@ -126,9 +128,19 @@ flowchart TD
 | PO Buy | สั่งซื้อ / จองซื้อจาก Supplier | สาขา, Supplier, วันส่งมอบ, สินค้า, จำนวน, ราคา | `POB{branchCode}{YYMM}-NNNN` | `เปิดอยู่` |
 | ใบรับของ / WTI | รับของเข้า stock จริงและยืนยันน้ำหนัก | ประเภทรับของ, Supplier, สาขา, ทะเบียนรถ, สินค้า, Gross, หัก, Net, รูปต่อรายการสินค้า | `WTI{branchCode}{YYMM}-NNNN` | `รับของแล้ว` |
 | จ่ายเงินล่วงหน้า / มัดจำ | source เงินล่วงหน้าที่ต้องจ่ายผ่าน Payment Flow ก่อนนำมา allocate เข้าบิลรับซื้อ | Supplier, สาขา, วันที่, ยอดจ่ายล่วงหน้า, หมายเหตุ, เอกสารอ้างอิง | `ADV{branchCode}{YYMM}-NNNN` หรือเลขที่กำหนดภายหลัง | `บันทึกแล้ว` |
-| บิลรับซื้อ | ออกบิล / ตั้งเจ้าหนี้ / ลง stock เฉพาะกรณี Stock | ประเภทซื้อ, แหล่งซื้อ PO/Spot, ใบรับของถ้าเป็น Stock, PO/Spot allocation, จำนวน/น้ำหนักถ้าเป็น Trading, ราคา, VAT, หมายเหตุ | `PB{branchCode}{YYMM}-NNNN` | `เปิดอยู่` |
+| บิลรับซื้อ | ออกบิล / ตั้งเจ้าหนี้ / ลง stock เฉพาะกรณี Stock | ประเภทซื้อ, แหล่งซื้อ PO/Spot, ใบรับของและคลังถ้าเป็น Stock, PO/Spot allocation, จำนวน/น้ำหนักถ้าเป็น Trading, ราคา, VAT, หมายเหตุ | `PB{branchCode}{YYMM}-NNNN` | `เปิดอยู่` |
 
 เอกสาร `PMA` และ `PMT` อยู่ในขอบเขต [[Payment Flow]]
+
+## กติกาเลือกคลังของบิลรับซื้อ Stock
+
+- ผู้ใช้ต้องเลือก `คลัง` เองหลังเลือกสาขาในบิลรับซื้อ Stock
+- รายการคลังที่แสดงต้อง filter เฉพาะคลัง active ในสาขานั้น
+- ถ้าเปลี่ยนสาขา ต้องล้างคลังที่เลือกไว้ เพื่อไม่ให้เกิด cross-branch warehouse
+- ถ้าเป็น Trading ต้องไม่บังคับเลือกคลังและต้องไม่เขียน stock ledger
+- API ต้อง resolve outward warehouse code กลับเป็น internal `warehouses.id` เฉพาะฝั่ง server
+- API ต้อง reject เมื่อไม่พบคลัง, คลัง inactive, หรือคลังอยู่คนละสาขากับบิล
+- ห้ามใช้ fallback จาก `warehouses.name`, `warehouses.code`, `warehouses.type`, หรือ hint เช่น `RM/WIP/FG/SCRAP` เพื่อเลือกคลังแทนผู้ใช้ เพราะจะทำให้ stock movement ผิดคลังโดยไม่เห็นจากหน้า UI
 
 ## โครงข้อมูล WTI ที่ต้องใช้กับบิลรับซื้อ
 

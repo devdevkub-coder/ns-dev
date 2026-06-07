@@ -86,6 +86,13 @@ export const purchaseBillFormSchema = z.object({
       path: ['receiptTicketId'],
     })
   }
+  if (value.transactionMode === 'STOCK' && !value.warehouseId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'เลือกคลัง',
+      path: ['warehouseId'],
+    })
+  }
 
   if (value.transactionMode === 'STOCK') {
     value.items.forEach((item, index) => {

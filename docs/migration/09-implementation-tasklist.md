@@ -384,6 +384,7 @@ Reporting rule:
 - [ ] document numbering strategy
 - [ ] branch scope rules
 - [ ] warehouse scope rules
+  - [x] `/purchase/bills` Stock create/edit requires a branch-filtered active warehouse dropdown and server-side same-branch validation; no runtime warehouse fallback from name/code/type/status hint
 
 ### 4.6 Master Data Screens
 

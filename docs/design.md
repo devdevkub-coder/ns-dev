@@ -483,6 +483,19 @@ Rules:
 
 ถ้ามีการเปลี่ยน wording ที่ใช้ซ้ำหลายหน้า ให้บันทึกในไฟล์นี้ ไม่ใช่แค่ใน current work
 
+## Branch-Scoped Selectors
+
+เมื่อ form มีทั้ง `สาขา` และ field ลูกที่ขึ้นกับสาขา เช่น `คลัง`:
+
+- field ลูกต้อง disabled หรือแสดง placeholder ให้เลือกสาขาก่อน
+- option ของ field ลูกต้อง filter เฉพาะข้อมูล active ในสาขาที่เลือก
+- เมื่อเปลี่ยนสาขา ต้องล้างค่า field ลูกที่เคยเลือกไว้
+- backend ต้อง validate ซ้ำว่า field ลูกอยู่ในสาขาเดียวกับเอกสารก่อนบันทึก
+- ห้ามใช้ fallback หรือ auto-pick จากชื่อ/code/type/hint เพื่อเลือก field ลูกแทนผู้ใช้
+
+ตัวอย่างปัจจุบัน:
+- `/purchase/bills` Stock ต้องเลือก `คลัง` จาก dropdown ที่ filter ตาม `สาขา`; API ต้อง reject ถ้าไม่พบคลัง active หรือคลังอยู่คนละสาขา
+
 ## Page-Specific Overrides
 
 - `ข้อมูลบริษัท (สำหรับใบพิมพ์)` อยู่ในหมวด `ตั้งค่าระบบ` ไม่ใช่ `ข้อมูลหลัก`

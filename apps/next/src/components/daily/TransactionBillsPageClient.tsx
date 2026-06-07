@@ -480,6 +480,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   })
   const activeSalesChannels = options.salesChannels.filter((option) => option.active !== false)
   const activeSuppliers = options.suppliers.filter((option) => option.active !== false)
+  const activePurchaseWarehouses = options.warehouses.filter((option) => {
+    if (option.active === false) return false
+    if (form.branchId && option.branch_id !== form.branchId) return false
+    return true
+  })
   const selectedSupplier = form.supplierId
     ? activeSuppliers.find((supplier) => supplier.id === form.supplierId) ?? null
     : null
@@ -525,7 +530,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const stockIssueEst = stockIssueRows.reduce((sum, row) => sum + row.totalEstAmount, 0)
   const tableColSpan = mode === 'purchase' ? 11 : mode === 'sales' ? 15 : 10
   const statusOptions = mode === 'purchase' ? purchaseStatusOptions : salesStatusOptions
-  const selectedReceipt = useMemo(() => {
+  const selectedReceipt = (() => {
     if (!form.receiptTicketId) return null
     const option = options.receipts.find((receipt) => receipt.id === form.receiptTicketId)
     if (option) return option
@@ -579,16 +584,13 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       supplierId: form.supplierId,
       vehicleNo: '',
     } satisfies ReceiptOption
-  }, [activeBranches, activeProducts, activeSuppliers, form.branchId, form.items, form.receiptTicketId, form.supplierId, options.receipts])
+  })()
   const stockReceiptPrerequisiteReady = form.transactionMode !== 'STOCK' || (Boolean(form.branchId) && Boolean(form.supplierId))
   const stockReceiptLocked = form.transactionMode === 'STOCK' && Boolean(form.receiptTicketId)
   const stockReceiptSelected = form.transactionMode !== 'STOCK' || Boolean(selectedReceipt)
   const salesPriceEditable = Boolean(form.supplierId && form.salesId)
-  const receiptSummaryById = useMemo(
-    () => new Map((selectedReceipt?.productSummaries ?? []).map((summary) => [summary.id, summary])),
-    [selectedReceipt],
-  )
-  const stockSummaryDraft = useMemo(() => {
+  const receiptSummaryById = new Map((selectedReceipt?.productSummaries ?? []).map((summary) => [summary.id, summary]))
+  const stockSummaryDraft = (() => {
     const map = new Map<string, {
       allocatedQty: number
       expectedQty: number
@@ -613,7 +615,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       })
     })
     return map
-  }, [form.items, receiptSummaryById])
+  })()
 
   function summaryAvailableForRow(summaryId: string | null, index: number) {
     if (!summaryId) return 0
@@ -637,7 +639,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     return Math.max(0, (po.remainingQty ?? 0) - allocatedOtherRows)
   }
 
-  const stockAllocationIssues = useMemo(() => {
+  const stockAllocationIssues = (() => {
     if (form.transactionMode !== 'STOCK' || !selectedReceipt) return []
     return selectedReceipt.productSummaries.flatMap((summary) => {
       const state = stockSummaryDraft.get(summary.id)
@@ -651,7 +653,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         summaryId: summary.id,
       }]
     })
-  }, [form.transactionMode, selectedReceipt, stockSummaryDraft])
+  })()
 
   function receiptToBillItems(receipt: ReceiptOption): PurchaseBillFormValues['items'] {
     return receipt.productSummaries.map((summary) => ({
@@ -833,6 +835,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 
       if (key === 'transactionMode') {
         if (value === 'TRADING') {
+          next.warehouseId = null
           next.receiptTicketId = null
           next.items = current.items.length > 0 ? current.items.map((item) => ({
             ...item,
@@ -1324,8 +1327,25 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 
               <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="blue">2</StepBadge>ข้อมูลบิล</h4>
-                <div className="grid gap-3 md:grid-cols-[160px_420px] md:justify-start">
+                <div className="grid gap-3 md:grid-cols-[160px_220px_420px] md:justify-start">
                   <BranchSelectCombobox branches={activeBranches} disabled={stockReceiptLocked} error={fieldErrors.branchId} errorKey="branchId" inputId="purchase-bill-branch-search" label="สาขา *" placeholder="เลือกสาขา" value={form.branchId} widthClassName="max-w-[160px]" onChange={(branchId) => updateForm('branchId', branchId ?? '')} />
+                  {form.transactionMode === 'STOCK' ? (
+                    <label className="block text-xs font-medium text-slate-600">
+                      คลัง <span className="ml-1 text-red-600">*</span>
+                      <Select
+                        data-error-key="warehouseId"
+                        className={`mt-1 w-full ${fieldErrors.warehouseId ? 'border-red-400 bg-red-50 text-red-700' : form.warehouseId ? 'text-slate-900' : 'text-slate-400'}`}
+                        disabled={!form.branchId}
+                        required
+                        value={form.warehouseId ?? ''}
+                        onChange={(event) => updateForm('warehouseId', event.target.value || null)}
+                      >
+                        <option disabled value="">{form.branchId ? 'เลือกคลัง' : 'เลือกสาขาก่อน'}</option>
+                        {activePurchaseWarehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
+                      </Select>
+                      {fieldErrors.warehouseId ? <div className="mt-1 text-xs text-red-600">{fieldErrors.warehouseId}</div> : null}
+                    </label>
+                  ) : null}
                   <SupplierSearchCombobox className="md:max-w-[420px]" disabled={stockReceiptLocked} error={fieldErrors.supplierId} errorKey="supplierId" options={activeSuppliers} value={form.supplierId} onChange={(value) => updateForm('supplierId', value)} />
                 </div>
                 {form.transactionMode === 'STOCK' ? (
