@@ -110,6 +110,7 @@ type Option = {
   sales_name?: string | null
   status?: string | null
   supplier_id?: string | null
+  type?: string | null
   unitPrice?: number | null
   unit?: string | null
 }
@@ -488,6 +489,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     if (form.branchId && option.branch_id !== form.branchId) return false
     return true
   })
+  const defaultPurchaseWarehouseId = useCallback((branchId: string) => options.warehouses.find((warehouse) => warehouse.active !== false && warehouse.branch_id === branchId && warehouse.type === 'RM')?.id ?? null, [options.warehouses])
   const selectedSupplier = form.supplierId
     ? activeSuppliers.find((supplier) => supplier.id === form.supplierId) ?? null
     : null
@@ -619,6 +621,36 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     })
     return map
   })()
+
+  useEffect(() => {
+    if (mode !== 'purchase') return
+    if (form.transactionMode !== 'STOCK') return
+    if (!form.branchId) return
+
+    const branchWarehouseIds = new Set(
+      options.warehouses
+        .filter((warehouse) => warehouse.active !== false && warehouse.branch_id === form.branchId)
+        .map((warehouse) => warehouse.id),
+    )
+    if (form.warehouseId && branchWarehouseIds.has(form.warehouseId)) return
+
+    const nextWarehouseId = defaultPurchaseWarehouseId(form.branchId)
+    if (!nextWarehouseId || nextWarehouseId === form.warehouseId) return
+
+    setForm((current) => {
+      if (current.transactionMode !== 'STOCK' || !current.branchId) return current
+      const currentBranchWarehouseIds = new Set(
+        options.warehouses
+          .filter((warehouse) => warehouse.active !== false && warehouse.branch_id === current.branchId)
+          .map((warehouse) => warehouse.id),
+      )
+      if (current.warehouseId && currentBranchWarehouseIds.has(current.warehouseId)) return current
+
+      const nextWarehouseId = defaultPurchaseWarehouseId(current.branchId)
+      if (!nextWarehouseId || nextWarehouseId === current.warehouseId) return current
+      return { ...current, warehouseId: nextWarehouseId }
+    })
+  }, [defaultPurchaseWarehouseId, form.branchId, form.transactionMode, form.warehouseId, mode, options.warehouses])
 
   function summaryAvailableForRow(summaryId: string | null, index: number) {
     if (!summaryId) return 0
@@ -829,11 +861,12 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         return current
       }
 
+      const nextBranchId = key === 'branchId' && typeof value === 'string' ? value : current.branchId
       const next: PurchaseBillFormValues = {
         ...current,
         [key]: value,
         ...(key === 'supplierId' ? { salesId: activeSuppliers.find((supplier) => supplier.id === value)?.sales_id ?? null } : {}),
-        ...(key === 'branchId' ? { warehouseId: null } : {}),
+        ...(key === 'branchId' ? { warehouseId: current.transactionMode === 'STOCK' ? defaultPurchaseWarehouseId(nextBranchId) : null } : {}),
         ...(key === 'hasVat' ? { vatType: (value ? 'EXCLUDE' : 'NONE') as PurchaseBillFormValues['vatType'] } : {}),
         ...(key === 'vatInvoiceReceived' && value === false ? { vatInvoiceDate: null, vatInvoiceNo: null } : {}),
       }
@@ -852,6 +885,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           })) : [blankItem()]
         } else {
           resetStockDependentFields(next)
+          next.warehouseId = next.branchId ? defaultPurchaseWarehouseId(next.branchId) : null
         }
       }
 
@@ -864,6 +898,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         }
         if (next.transactionMode === 'STOCK') {
           resetStockDependentFields(next)
+          next.warehouseId = next.branchId ? defaultPurchaseWarehouseId(next.branchId) : null
         }
       }
 

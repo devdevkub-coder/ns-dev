@@ -17,8 +17,14 @@ args = [
     "--headless",
 ]
 
+[mcp_servers.playwright.tools.browser_resize]
+approval_mode = "approve"
+
 [mcp_servers.supabase]
 url = "https://mcp.supabase.com/mcp?project_ref=fhglqymcdmrgbsbadnwr"
+
+[mcp_servers.supabase.tools.apply_migration]
+approval_mode = "approve"
 
 [mcp_servers.supabase-prod-source]
 url = "https://mcp.supabase.com/mcp?project_ref=mqsgptraslgpyzbpndlg&read_only=true"

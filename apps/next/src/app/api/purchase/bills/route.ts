@@ -96,6 +96,15 @@ type ProductRefRow = {
   unit: string | null
 }
 
+type PurchaseBillWarehouseRefRow = {
+  active: boolean | null
+  branch_id: bigint | null
+  code: string
+  id: bigint
+  name: string
+  type: string | null
+}
+
 type PoBuyRefRow = {
   doc_no: string
   id: bigint
@@ -1451,7 +1460,7 @@ async function optionsPayload() {
     prisma.suppliers.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true, sales_id: true, sales_rep: true } }),
     prisma.warehouses.findMany({
       orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }],
-      select: { active: true, branch_id: true, code: true, id: true, name: true },
+      select: { active: true, branch_id: true, code: true, id: true, name: true, type: true },
     }),
     activeVatRatePercent(new Date()),
     prisma.weight_tickets.findMany({
@@ -1541,10 +1550,11 @@ async function optionsPayload() {
       sales_name: supplier.sales_rep,
     })),
     vatRatePercent,
-    warehouses: warehouses.map((warehouse) => ({
+    warehouses: (warehouses as PurchaseBillWarehouseRefRow[]).map((warehouse) => ({
       ...warehouse,
       branch_id: warehouse.branch_id ? (branchCodeById.get(warehouse.branch_id) ?? null) : null,
       id: requireBusinessCode(warehouse.code, `คลัง ${warehouse.id}`),
+      type: warehouse.type ?? null,
     })),
   }
 }
