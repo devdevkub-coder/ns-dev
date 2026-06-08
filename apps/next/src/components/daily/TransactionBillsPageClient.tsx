@@ -2189,6 +2189,238 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   )
 }
 
+function PurchaseBillDetailModal({
+  detail,
+  docNo,
+  error,
+  isLoading,
+  onClose,
+}: {
+  detail: PurchaseBillDetail | null
+  docNo: string
+  error: string | null
+  isLoading: boolean
+  onClose: () => void
+}) {
+  return (
+    <Dialog open onOpenChange={(open) => {
+      if (!open) onClose()
+    }}>
+      <DialogContent aria-labelledby="purchase-bill-detail-title" className="max-h-[90vh] max-w-6xl overflow-y-auto rounded-md p-0" hideClose>
+        <DialogHeader className="border-b p-4">
+          <div>
+            <DialogTitle id="purchase-bill-detail-title">รายละเอียดบิลรับซื้อ {detail?.docNo ?? docNo}</DialogTitle>
+            <DialogDescription>{detail?.supplierName ?? 'กำลังโหลดข้อมูล'}</DialogDescription>
+          </div>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="p-8 text-center text-sm text-slate-500">กำลังโหลดรายละเอียดบิลรับซื้อ</div>
+        ) : error ? (
+          <div className="p-4">
+            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+          </div>
+        ) : detail ? (
+          <div className="space-y-4 p-4">
+            <div className="grid gap-3 md:grid-cols-4">
+              <Detail label="ยอดรวม" value={formatMoney(detail.totalAmount)} />
+              <Detail label="ค้างชำระ" value={formatMoney(detail.payableBalance)} />
+              <Detail label="ชำระแล้ว" value={formatMoney(detail.paidAmount)} />
+              <Detail label="สถานะ" value={detail.statusLabel} />
+            </div>
+
+            <div className="rounded-md border border-slate-200 p-3">
+              <div className="grid gap-3 text-sm md:grid-cols-3">
+                <PlainDetail label="เลขที่บิล" value={detail.docNo} />
+                <PlainDetail label="วันที่สร้างรายการ" value={formatDateDisplay(detail.date)} />
+                <PlainDetail label="ผู้ขาย" value={detail.supplierName} />
+                <PlainDetail label="รหัสผู้ขาย" value={detail.supplierCode} />
+                <PlainDetail label="สาขา/คลัง" value={detail.branchName} />
+                <PlainDetail label="ประเภทบิล" value={detail.transactionMode} />
+                <PlainDetail label="ผู้ทำ" value={detail.createdBy} />
+                <PlainDetail label="ใบรับของ" value={detail.receiptDocNos.join(', ') || '-'} />
+                <PlainDetail label="ADV/มัดจำ" value={detail.advancePaymentDocNo ? `${detail.advancePaymentDocNo} (${formatMoney(detail.advanceAllocatedAmount)})` : '-'} />
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-2 text-sm font-medium text-slate-700">สรุปต่อสินค้า</div>
+              <div className="overflow-x-auto rounded-md border border-slate-200">
+                <table className="w-full min-w-[880px] text-sm">
+                  <thead className="bg-slate-50 text-slate-600">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium">สินค้า</th>
+                      <th className="px-3 py-2 text-left font-medium">ใบรับของ</th>
+                      <th className="px-3 py-2 text-left font-medium">ที่มา</th>
+                      <th className="px-3 py-2 text-right font-medium">น้ำหนัก</th>
+                      <th className="px-3 py-2 text-right font-medium">ยอดรวม</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detail.productSummaries.map((item) => (
+                      <tr key={item.productId || item.productName} className="border-t border-slate-200">
+                        <td className="px-3 py-2 align-top">
+                          <div className="font-medium text-slate-900">{item.productName}</div>
+                          <div className="text-xs text-slate-500">{[item.productCode || null, `${item.lineCount} allocation`].filter(Boolean).join(' · ')}</div>
+                        </td>
+                        <td className="px-3 py-2 align-top text-slate-700">{item.receiptDocNos.join(', ') || '-'}</td>
+                        <td className="px-3 py-2 align-top text-slate-700">
+                          <div>{item.sourceKinds.join(' + ') || '-'}</div>
+                          <div className="text-xs text-slate-500">{item.poDocNos.join(', ') || 'Spot Buy'}</div>
+                        </td>
+                        <td className="px-3 py-2 text-right font-medium tabular-nums">{formatMoney(item.qty)} {item.unit}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-blue-700 tabular-nums">{formatMoney(item.amount)}</td>
+                      </tr>
+                    ))}
+                    {detail.productSummaries.length === 0 ? <tr><td className="px-6 py-6 text-center text-slate-500" colSpan={5}>ไม่มีรายการสินค้าในบิล</td></tr> : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-2 text-sm font-medium text-slate-700">รายละเอียด allocation รายแถว</div>
+              <div className="overflow-x-auto rounded-md border border-slate-200">
+                <table className="w-full min-w-[1100px] text-sm">
+                  <thead className="bg-slate-50 text-slate-600">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium">สินค้า</th>
+                      <th className="px-3 py-2 text-left font-medium">ใบรับของ WTI</th>
+                      <th className="px-3 py-2 text-left font-medium">PO / ที่มา</th>
+                      <th className="px-3 py-2 text-right font-medium">Gross</th>
+                      <th className="px-3 py-2 text-right font-medium">หัก</th>
+                      <th className="px-3 py-2 text-right font-medium">น้ำหนัก</th>
+                      <th className="px-3 py-2 text-right font-medium">ราคา/กก.</th>
+                      <th className="px-3 py-2 text-right font-medium">ยอดรวม</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detail.allocationRows.map((item) => (
+                      <tr key={item.lineId} className="border-t border-slate-200">
+                        <td className="px-3 py-2 align-top">
+                          <div className="font-medium text-slate-900">{item.productName}</div>
+                          <div className="text-xs text-slate-500">{[item.productCode || null, `line ${item.lineNo}`].filter(Boolean).join(' · ')}</div>
+                          {item.note ? <div className="mt-1 text-xs text-slate-500">{item.note}</div> : null}
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          <div className="text-slate-900">{item.receiptTicketDocNo}</div>
+                          <div className="text-xs text-slate-500">{item.receiptSummaryLabel}</div>
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          <div className="text-slate-900">{item.sourceLabel}</div>
+                          <div className="text-xs text-slate-500">{item.poDocNo ? 'ตัดตาม PO' : 'รับแบบ Spot Buy'}</div>
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatMoney(item.grossWeight)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatMoney(item.deductWeight)}</td>
+                        <td className="px-3 py-2 text-right font-medium tabular-nums">{formatMoney(item.qty)} {item.unit}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatMoney(item.price)}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-blue-700 tabular-nums">{formatMoney(item.amount)}</td>
+                      </tr>
+                    ))}
+                    {detail.allocationRows.length === 0 ? <tr><td className="px-6 py-6 text-center text-slate-500" colSpan={8}>ไม่มีรายการ allocation ในบิล</td></tr> : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-md border border-slate-200 p-3">
+                <div className="mb-2 text-sm font-medium text-slate-700">VAT / ยอดรวม</div>
+                <div className="space-y-2 text-sm">
+                  <SummaryLine label="ยอดก่อนส่วนลด" value={formatMoney(detail.subtotal)} />
+                  <SummaryLine label="ส่วนลดท้ายบิล" tone="red" value={`-${formatMoney(detail.discount)}`} />
+                  <SummaryLine label="VAT" value={formatMoney(detail.vatAmount)} />
+                  <SummaryLine label="ยอดสุทธิ" value={formatMoney(detail.totalAmount)} />
+                </div>
+              </div>
+              <div className="rounded-md border border-slate-200 p-3">
+                <div className="mb-2 text-sm font-medium text-slate-700">ใบกำกับภาษี / หมายเหตุ</div>
+                <div className="grid gap-3 text-sm md:grid-cols-2">
+                  <PlainDetail label="ได้รับใบกำกับภาษี" value={detail.vatInvoiceReceived ? 'ได้รับแล้ว' : 'ยังไม่ได้รับ'} />
+                  <PlainDetail label="เลขที่ใบกำกับภาษี" value={detail.vatInvoiceNo} />
+                  <PlainDetail label="วันที่ใบกำกับภาษี" value={detail.vatInvoiceDate} />
+                  <PlainDetail label="หมายเหตุ" value={detail.note || '-'} />
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <div className="text-sm font-medium text-slate-700">ประวัติ PB</div>
+                <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${workflowStatusBadgeClass(detail.status)}`}>
+                  <span className="size-1.5 rounded-full bg-current" />
+                  ล่าสุด: {detail.statusLabel}
+                </span>
+              </div>
+              <PurchaseBillDetailTimeline detail={detail} />
+            </div>
+          </div>
+        ) : null}
+
+        <DialogFooter>
+          <Button className="font-normal" type="button" variant="outline" onClick={onClose}>ปิด</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function PurchaseBillDetailTimeline({ detail }: { detail: PurchaseBillDetail }) {
+  const timelineEvents = detail.timeline.length > 0
+    ? detail.timeline
+    : [{
+        action: 'current_status',
+        actor: '-',
+        createdAt: '',
+        details: [`สถานะ ${detail.statusLabel}`],
+        id: 'current-status',
+        status: detail.status,
+        statusLabel: detail.statusLabel,
+        title: 'สถานะปัจจุบัน',
+        tone: 'slate' as const,
+        transitionText: detail.statusLabel,
+      }]
+
+  return (
+    <div className="space-y-3">
+      {timelineEvents.map((event, index) => (
+        <div key={event.id} className="grid grid-cols-[88px_1fr] gap-3 sm:grid-cols-[128px_1fr]">
+          <div className="pt-1 text-right text-xs text-slate-500">
+            <div>{formatDateTime(event.createdAt)}</div>
+            <div className="mt-1 truncate text-[11px]">{event.actor}</div>
+          </div>
+          <div className="relative border-l border-slate-200 pb-4 pl-4 last:pb-0">
+            <span className={`absolute -left-1.5 top-1 h-3 w-3 rounded-full border-2 border-white ${index === 0 ? purchaseBillTimelineDotClass(event.tone) : 'bg-slate-300'}`} />
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="text-sm font-medium text-slate-800">{event.title}</div>
+              <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${workflowStatusBadgeClass(event.status)}`}>
+                <span className="size-1.5 rounded-full bg-current" />
+                {event.statusLabel}
+              </span>
+            </div>
+            <div className="mt-1 text-xs text-slate-500">{event.transitionText}</div>
+            <div className="mt-2 grid gap-1 rounded-md bg-white px-3 py-2 text-xs text-slate-600">
+              {event.details.map((detailLine) => <div key={detailLine}>{detailLine}</div>)}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function purchaseBillTimelineDotClass(tone: PurchaseBillDetailTimelineEvent['tone']) {
+  if (tone === 'blue') return 'bg-blue-500'
+  if (tone === 'emerald') return 'bg-emerald-500'
+  if (tone === 'amber') return 'bg-amber-500'
+  if (tone === 'rose') return 'bg-rose-500'
+  return 'bg-slate-500'
+}
+
+function PlainDetail({ label, value }: { label: string; value: string }) {
+  return <div><div className="text-xs text-slate-500">{label}</div><div className="mt-1 font-medium text-slate-900">{value}</div></div>
+}
+
 function Segment({ current, label, onClick, value }: { current: string; label: string; onClick: (value: string) => void; value: string }) {
   const active = current === value
   return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white hover:bg-slate-50'}`} type="button" onClick={() => onClick(value)}>{label}</button>
