@@ -1,6 +1,7 @@
 import { PURCHASE_BILL_SUPPLIER_SWAP_CANCELLED_STATUS } from '@/lib/purchase-bill-status'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import type { Prisma } from '../../../generated/prisma/client'
 
 export type PurchaseBillDetailTimelineEvent = {
   action: string
@@ -74,6 +75,61 @@ export type PurchaseBillDetail = {
   vatInvoiceReceived: boolean
 }
 
+type PurchaseBillDetailRow = Prisma.purchase_billsGetPayload<{
+  include: {
+    branches: true
+    purchase_bill_status_logs: {
+      orderBy: Array<{ created_at: 'asc' } | { id: 'asc' }>
+    }
+    purchase_bill_items: {
+      include: {
+        po_buys: {
+          select: {
+            doc_no: true
+          }
+        }
+        purchase_bill_po_allocations: {
+          include: {
+            po_buys: {
+              select: {
+                doc_no: true
+              }
+            }
+          }
+        }
+        purchase_bill_receipt_allocations: {
+          include: {
+            weight_ticket_product_summaries: {
+              select: {
+                line_count: true
+                product_name: true
+              }
+            }
+            weight_tickets: {
+              select: {
+                doc_no: true
+              }
+            }
+          }
+        }
+      }
+      orderBy: {
+        line_no: 'asc'
+      }
+    }
+    supplier_advance_allocations: {
+      include: {
+        supplier_advance_payments: {
+          select: {
+            doc_no: true
+          }
+        }
+      }
+    }
+    suppliers: true
+  }
+}>
+
 function purchaseBillStatusLabel(status: string | null | undefined) {
   const normalized = String(status ?? '').toLowerCase()
   if (normalized === 'unpaid') return 'ยังไม่ชำระเงิน'
@@ -136,7 +192,7 @@ function sourceSnapshotValue(snapshot: unknown, key: string) {
 }
 
 export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBillDetail | null> {
-  const bill = await prisma.purchase_bills.findFirst({
+  const bill: PurchaseBillDetailRow | null = await prisma.purchase_bills.findFirst({
     include: {
       branches: true,
       purchase_bill_status_logs: {
@@ -177,9 +233,13 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
         orderBy: { line_no: 'asc' },
       },
       suppliers: true,
-      supplier_advance_payments: {
-        select: {
-          doc_no: true,
+      supplier_advance_allocations: {
+        include: {
+          supplier_advance_payments: {
+            select: {
+              doc_no: true,
+            },
+          },
         },
       },
     },
@@ -275,7 +335,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     sourceKinds: Array.from(item.sourceKinds),
   }))
 
-  const timeline = bill.purchase_bill_status_logs.map((log) => {
+  const timeline = bill.purchase_bill_status_logs.map((log): PurchaseBillDetailTimelineEvent => {
     const amount = historyMetaValue(log.meta, 'amount')
     const accountCode = historyMetaValue(log.meta, 'accountCode')
     const accountName = historyMetaValue(log.meta, 'accountName')
@@ -309,7 +369,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
       createdAt: log.created_at.toISOString(),
       details,
       id: log.event_key ?? `purchase-bill-status:${log.id}`,
-      status: log.to_status,
+      status: log.to_status ?? '',
       statusLabel: purchaseBillStatusLabel(log.to_status),
       title: purchaseBillHistoryActionLabel(log.action),
       tone: purchaseBillHistoryTone(log.action),
@@ -317,11 +377,12 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     }
   }).reverse()
 
-  const receiptDocNos = Array.from(new Set(allocationRows.map((row) => row.receiptTicketDocNo).filter((value) => value && value !== '-')))
+  const receiptDocNos = Array.from(new Set(allocationRows.map((row) => row.receiptTicketDocNo).filter((value): value is string => Boolean(value && value !== '-'))))
+  const activeAdvanceAllocation = bill.supplier_advance_allocations.find((allocation) => allocation.status === 'active') ?? null
 
   return {
-    advanceAllocatedAmount: toNumber(bill.advance_allocated_amount),
-    advancePaymentDocNo: bill.supplier_advance_payments?.doc_no ?? '',
+    advanceAllocatedAmount: toNumber(activeAdvanceAllocation?.allocated_amount),
+    advancePaymentDocNo: activeAdvanceAllocation?.supplier_advance_payments.doc_no ?? '',
     allocationRows,
     branchName: bill.branches?.name ?? '-',
     createdBy: bill.created_by ?? '-',
@@ -333,7 +394,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     payableBalance: toNumber(bill.payable_balance),
     productSummaries,
     receiptDocNos,
-    status: bill.status,
+    status: bill.status ?? '',
     statusLabel: purchaseBillStatusLabel(bill.status),
     subtotal: toNumber(bill.subtotal),
     supplierCode: bill.suppliers?.code ?? '-',

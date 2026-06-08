@@ -43,6 +43,7 @@
 | Document history table design | `docs/notes/Document History Table Design.md` | target schema decision that business timeline/history tables are separated by document/flow (`*_status_logs`, `*_usage_logs`, allocation facts) instead of one generic `document_events` table |
 | Sales flow | `docs/notes/Sales Flow.md` | target sales flow: PO Sell, Pending Sale/PSALE, ใบส่งของ/WTO, Trading sales bill from multiple purchase bills plus stock lines, Sales Bill, Receipt, generated document numbers, Thai statuses, stock and AR effects |
 | Daily cash flow | `docs/notes/Daily Cash Flow.md` | target daily cash/bank flow for `/daily/transfer` and related money-moving daily documents, including system-managed transfer fields and bank statement side effects |
+| Expense dashboard flow | `docs/notes/Expense Dashboard Flow.md` | page-specific read-only dashboard contract for `/daily/expense-dashboard`: legacy category/month calculation, anomaly thresholds, UI wording, and validation checklist |
 | Legacy page inventory | `docs/migration/20-legacy-page-inventory.md` | counted legacy sidebar entries and view IDs from `https://sirimasth.github.io/ns-scrap-erp/` |
 | Environment status | `docs/migration/10-environment-status.md` | Supabase/Vercel/MCP/env |
 | Master data | `docs/migration/13-next-master-data-progress.md` | Next master-data tracker |

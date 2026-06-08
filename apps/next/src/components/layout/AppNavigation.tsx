@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { canAccessPath, navigationItems, navigationSections, sidebarNavigationPath, type NavigationSectionKey } from '@/lib/navigation'
 
 type AppNavigationProps = {
+  compact?: boolean
   onNavigate?: () => void
 }
 
@@ -21,7 +22,7 @@ function isNavigationPathActive(pathname: string, href: string) {
   return normalizedPath === normalizedHref || normalizedPath.startsWith(`${normalizedHref}/`)
 }
 
-export function AppNavigation({ onNavigate }: AppNavigationProps) {
+export function AppNavigation({ compact = false, onNavigate }: AppNavigationProps) {
   const pathname = usePathname()
   const activePathname = sidebarNavigationPath(pathname)
   const navRef = useRef<HTMLElement | null>(null)
@@ -157,12 +158,14 @@ export function AppNavigation({ onNavigate }: AppNavigationProps) {
           <div key={section.key}>
             <button
               aria-expanded={sectionExpanded}
-              className="flex w-full items-center justify-between px-4 pb-1 pt-4 text-left text-xs uppercase tracking-wider text-slate-500 transition hover:text-slate-300"
+              className={`flex w-full items-center justify-between px-4 pb-1 pt-4 text-left text-xs uppercase tracking-wider text-slate-500 transition hover:text-slate-300 ${compact ? 'lg:justify-center lg:px-2' : ''}`}
+              title={compact ? section.label : undefined}
               type="button"
               onClick={() => toggleSection(section.key)}
             >
-              <span>{section.label}</span>
-              <span className="text-[10px]">{sectionExpanded ? '▾' : '▸'}</span>
+              <span className={compact ? 'lg:hidden' : ''}>{section.label}</span>
+              <span className={compact ? 'text-[10px] lg:hidden' : 'text-[10px]'}>{sectionExpanded ? '▾' : '▸'}</span>
+              {compact ? <span className="hidden size-1.5 rounded-full bg-slate-500 lg:block" /> : null}
             </button>
             {sectionExpanded ? items.map((item) => {
               const childActive = item.children?.some((child) => isNavigationPathActive(activePathname, child.href)) ?? false
@@ -176,8 +179,9 @@ export function AppNavigation({ onNavigate }: AppNavigationProps) {
                       <button
                         aria-current={active ? 'page' : undefined}
                         aria-expanded={expanded}
-                        className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2 text-left"
+                        className={`flex min-w-0 flex-1 items-center gap-3 px-4 py-2 text-left ${compact ? 'lg:justify-center lg:px-2' : ''}`}
                         data-active-nav={active ? 'true' : undefined}
+                        title={compact ? item.label : undefined}
                         type="button"
                         onClick={() => {
                           rememberSidebarScroll()
@@ -185,28 +189,29 @@ export function AppNavigation({ onNavigate }: AppNavigationProps) {
                         }}
                       >
                         <span className="w-5 text-center">{item.icon}</span>
-                        <span className="truncate">{item.label}</span>
+                        <span className={compact ? 'truncate lg:hidden' : 'truncate'}>{item.label}</span>
                       </button>
                     ) : (
                       <Link
                         aria-current={active ? 'page' : undefined}
-                        className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2 text-left"
+                        className={`flex min-w-0 flex-1 items-center gap-3 px-4 py-2 text-left ${compact ? 'lg:justify-center lg:px-2' : ''}`}
                         data-active-nav={active ? 'true' : undefined}
                         href={item.href}
+                        title={compact ? item.label : undefined}
                         onClick={() => {
                           rememberSidebarScroll()
                           onNavigate?.()
                         }}
                       >
                         <span className="w-5 text-center">{item.icon}</span>
-                        <span className="truncate">{item.label}</span>
+                        <span className={compact ? 'truncate lg:hidden' : 'truncate'}>{item.label}</span>
                       </Link>
                     )}
                     {item.children?.length ? (
                       <button
                         aria-expanded={expanded}
                         aria-label={`${expanded ? 'ยุบ' : 'ขยาย'}เมนู ${item.label}`}
-                        className="px-3 text-xs text-slate-400 hover:text-white"
+                        className={`px-3 text-xs text-slate-400 hover:text-white ${compact ? 'lg:hidden' : ''}`}
                         type="button"
                         onClick={() => toggleMenu(item.href)}
                       >
@@ -223,18 +228,19 @@ export function AppNavigation({ onNavigate }: AppNavigationProps) {
                           <Link
                             key={child.href}
                             aria-current={childIsActive ? 'page' : undefined}
-                            className={`flex items-center gap-3 border-l-4 py-2 pl-11 pr-4 text-left transition hover:bg-slate-800 ${
+                            className={`flex items-center gap-3 border-l-4 py-2 pl-11 pr-4 text-left transition hover:bg-slate-800 ${compact ? 'lg:justify-center lg:px-2' : ''} ${
                               childIsActive ? 'border-blue-400 bg-slate-800 text-white' : 'border-transparent text-slate-400'
                             }`}
                             data-active-nav={childIsActive ? 'true' : undefined}
                             href={child.href}
+                            title={compact ? child.label : undefined}
                             onClick={() => {
                               rememberSidebarScroll()
                               onNavigate?.()
                             }}
                           >
                             <span className="w-5 text-center">{child.icon}</span>
-                            <span className="truncate">{child.label}</span>
+                            <span className={compact ? 'truncate lg:hidden' : 'truncate'}>{child.label}</span>
                           </Link>
                         )
                       })}

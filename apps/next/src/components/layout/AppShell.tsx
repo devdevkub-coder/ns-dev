@@ -1,5 +1,6 @@
 'use client'
 
+import type { FocusEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
@@ -25,6 +26,7 @@ export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname()
   const [branches, setBranches] = useState<BranchOption[]>([])
   const [selectedBranchId, setSelectedBranchId] = useState('all')
+  const [desktopSidebarExpanded, setDesktopSidebarExpanded] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [breadcrumbLabelOverride, setBreadcrumbLabelOverride] = useState<string | null>(null)
   const [subtitleOverride, setSubtitleOverride] = useState<string | null>(null)
@@ -152,22 +154,33 @@ export function AppShell({ children }: AppShellProps) {
     }).catch(() => undefined)
   }
 
+  function handleSidebarBlur(event: FocusEvent<HTMLElement>) {
+    if (event.currentTarget.contains(event.relatedTarget)) return
+    setDesktopSidebarExpanded(false)
+  }
+
   if (isAuthPage) {
     return <div className="h-dvh overflow-y-auto bg-slate-100 text-slate-900">{children}</div>
   }
 
   return (
     <div className="flex h-dvh overflow-hidden bg-slate-100 text-slate-900">
-      <aside className={`${sidebarOpen ? 'fixed inset-y-0 left-0 z-40 flex' : 'hidden'} w-64 flex-shrink-0 flex-col bg-slate-900 text-slate-200 lg:relative lg:flex`}>
-        <div className="flex items-center gap-3 border-b border-slate-700 p-4">
+      <aside
+        className={`${sidebarOpen ? 'fixed inset-y-0 left-0 z-40 flex w-64' : 'hidden'} flex-shrink-0 flex-col overflow-hidden bg-slate-900 text-slate-200 transition-[width] duration-200 ease-out lg:relative lg:flex ${desktopSidebarExpanded ? 'lg:w-64' : 'lg:w-16'}`}
+        onBlur={handleSidebarBlur}
+        onFocus={() => setDesktopSidebarExpanded(true)}
+        onMouseEnter={() => setDesktopSidebarExpanded(true)}
+        onMouseLeave={() => setDesktopSidebarExpanded(false)}
+      >
+        <div className={`flex items-center border-b border-slate-700 p-4 ${desktopSidebarExpanded ? 'gap-3' : 'lg:justify-center lg:gap-0'}`}>
           <div className="flex h-10 w-10 items-center justify-center rounded-md bg-gradient-to-br from-blue-500 to-indigo-600 font-bold text-white">NS</div>
-          <div>
+          <div className={desktopSidebarExpanded ? '' : 'lg:hidden'}>
             <div className="font-bold text-white">NS Scrap ERP</div>
             <div className="text-xs text-slate-400">ระบบบริหารจัดการ</div>
           </div>
         </div>
 
-        <AppNavigation onNavigate={() => setSidebarOpen(false)} />
+        <AppNavigation compact={!desktopSidebarExpanded} onNavigate={() => setSidebarOpen(false)} />
       </aside>
 
       {sidebarOpen ? <button aria-label="ปิดเมนู" className="fixed inset-0 z-30 bg-black/40 lg:hidden" type="button" onClick={() => setSidebarOpen(false)} /> : null}

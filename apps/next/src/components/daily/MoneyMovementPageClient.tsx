@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { Check, Copy, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { paymentMethodGroupFromValue, type PaymentMethodGroup } from '@/lib/account-payment-method'
 import { BillSelect, Field, SelectField, SummaryPill } from '@/components/daily/MoneyMovementFieldHelpers'
@@ -110,16 +111,6 @@ function sanitizeMoneyInput(value: string) {
   return `${whole}.${decimalParts.join('')}`
 }
 
-function paymentCashAmountFromSettlement(totalAmount: number, ratePercent: number) {
-  if (!Number.isFinite(ratePercent) || ratePercent <= 0 || ratePercent >= 100) return roundMoney(totalAmount)
-  return roundMoney(totalAmount * (100 - ratePercent) / 100)
-}
-
-function withholdingTaxFromCashAmount(amount: number, ratePercent: number) {
-  if (!Number.isFinite(ratePercent) || ratePercent <= 0 || ratePercent >= 100) return 0
-  return roundMoney(amount * ratePercent / (100 - ratePercent))
-}
-
 function ageInDays(dateValue: string | undefined) {
   if (!dateValue) return 0
   const start = new Date(`${dateValue.slice(0, 10)}T00:00:00.000Z`).getTime()
@@ -174,10 +165,6 @@ function paymentSelectionId(bill: Bill) {
 function paymentBillLabel(bill: Bill, partyName: string) {
   const sourceLabel = bill.sourceDocNo && bill.sourceDocNo !== bill.docNo ? ` / อ้างอิง ${bill.sourceDocNo}` : ''
   return `${bill.docNo}${sourceLabel} | ${partyName} | ค้าง ${formatMoney(bill.payableBalance ?? 0)}`
-}
-
-function isExpensePaymentBill(bill: Bill | null | undefined) {
-  return bill?.sourceType === 'expense'
 }
 
 function normalizedPaymentMethod(value: string | null | undefined) {
@@ -271,7 +258,6 @@ export function MoneyMovementPageClient({
   const accountLabel = mode === 'payment' ? 'บัญชีจ่าย' : 'บัญชีรับ'
   const partyLabel = mode === 'payment' ? 'ผู้รับเงิน' : 'ลูกค้า'
   const balanceLabel = mode === 'payment' ? 'ค้างจ่าย' : 'ค้างรับ'
-  const whtRatePercent = mode === 'payment' ? data.settings?.whtRatePercent ?? 0 : 0
   const partyValue = mode === 'payment'
     ? (form as SupplierPaymentFormValues).supplierId
     : (form as CustomerReceiptFormValues).customerId
@@ -302,12 +288,12 @@ export function MoneyMovementPageClient({
   const paymentLines = useMemo(() => (mode === 'payment' ? (form as SupplierPaymentFormValues).lines ?? [] : []), [form, mode])
   const selectedBill = form.billId ? billMap.get(form.billId) : null
   const selectedBillBalance = selectedBill ? (mode === 'payment' ? selectedBill.payableBalance ?? 0 : selectedBill.receivableBalance ?? 0) : 0
+  const paymentLineBalanceTotal = paymentLines.reduce((sum, line) => sum + (billMap.get(line.billId)?.payableBalance ?? 0), 0)
   const formNetAmount = mode === 'payment'
     ? form.amount + form.fee
     : form.amount - form.fee - form.withholdingTax - form.discount
   const paymentSplits = mode === 'payment' ? (form as SupplierPaymentFormValues).splits ?? [] : []
   const paymentSplitTotal = paymentSplits.reduce((sum, split) => sum + (Number(split.amount) || 0), 0)
-  const paymentLineBalanceTotal = paymentLines.reduce((sum, line) => sum + (billMap.get(line.billId)?.payableBalance ?? 0), 0)
 
   const outstandingBills = useMemo(() => data.bills
     .filter((bill) => (mode === 'payment' ? (bill.payableBalance ?? 0) > 0 : (bill.receivableBalance ?? 0) > 0))
@@ -376,6 +362,7 @@ export function MoneyMovementPageClient({
   const supplierBillTotalPages = Math.max(1, Math.ceil(supplierBillTotalRows / billPageSize))
   const supplierBillCurrentPage = Math.min(billPage, supplierBillTotalPages)
   const supplierBillPageRows = supplierBills.slice((supplierBillCurrentPage - 1) * billPageSize, supplierBillCurrentPage * billPageSize)
+  const hasActiveBillFilters = billSearch.trim() !== '' || billSort !== 'date_desc'
   useEffect(() => {
     setBillPage(1)
   }, [billSearch, billPageSize, billSort])
@@ -383,18 +370,6 @@ export function MoneyMovementPageClient({
   useEffect(() => {
     if (billPage > supplierBillTotalPages) setBillPage(supplierBillTotalPages)
   }, [billPage, supplierBillTotalPages])
-
-  useEffect(() => {
-    if (mode !== 'payment') return
-    setForm((current) => {
-      const currentLines = (current as SupplierPaymentFormValues).lines ?? []
-      const nextWithholdingTax = currentLines.length > 0
-        ? roundMoney(currentLines.reduce((sum, line) => sum + (Number(line.withholdingTax) || 0), 0))
-        : withholdingTaxFromCashAmount(current.amount, whtRatePercent)
-      if (Math.abs(current.withholdingTax - nextWithholdingTax) < 0.005) return current
-      return { ...current, withholdingTax: nextWithholdingTax } as MoneyForm
-    })
-  }, [form.amount, mode, paymentLines, whtRatePercent])
 
   const rows = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -454,8 +429,7 @@ export function MoneyMovementPageClient({
   function openFormForBill(bill: Bill) {
     const balance = bill.payableBalance ?? 0
     const settlementAmount = balance > 0 ? balance : bill.totalAmount
-    const paymentAmount = isExpensePaymentBill(bill) ? roundMoney(settlementAmount) : paymentCashAmountFromSettlement(settlementAmount, whtRatePercent)
-    const withholdingTax = isExpensePaymentBill(bill) ? 0 : withholdingTaxFromCashAmount(paymentAmount, whtRatePercent)
+    const paymentAmount = roundMoney(settlementAmount)
     const netAmount = roundMoney(paymentAmount)
     setForm({
       ...initialForm(mode),
@@ -468,7 +442,7 @@ export function MoneyMovementPageClient({
         billText: paymentBillLabel(bill, partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'),
         billId: bill.id,
         supplierId: bill.supplierId ?? '',
-        withholdingTax,
+        withholdingTax: 0,
       }],
       method: bill.approvalPaymentMethod ?? '',
       splits: [{ ...newPaymentSplit(), amount: netAmount }],
@@ -534,9 +508,7 @@ export function MoneyMovementPageClient({
       ...form,
       [partyKey]: nextPartyId,
       amount: mode === 'payment'
-        ? isExpensePaymentBill(bill)
-          ? roundMoney(balance > 0 ? balance : bill.totalAmount)
-          : paymentCashAmountFromSettlement(balance > 0 ? balance : bill.totalAmount, whtRatePercent)
+        ? roundMoney(balance > 0 ? balance : bill.totalAmount)
         : balance > 0 ? balance : bill.totalAmount,
       billId,
     } as MoneyForm)
@@ -545,7 +517,7 @@ export function MoneyMovementPageClient({
   function paymentLineFromBill(bill: Bill): PaymentLine {
     const balance = bill.payableBalance ?? 0
     const settlementAmount = balance > 0 ? balance : bill.totalAmount
-    const amount = isExpensePaymentBill(bill) ? roundMoney(settlementAmount) : paymentCashAmountFromSettlement(settlementAmount, whtRatePercent)
+    const amount = roundMoney(settlementAmount)
     return {
       ...newPaymentLine(),
       amount,
@@ -553,36 +525,60 @@ export function MoneyMovementPageClient({
       billText: paymentBillLabel(bill, partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'),
       billId: bill.id,
       supplierId: bill.supplierId ?? '',
-      withholdingTax: isExpensePaymentBill(bill) ? 0 : withholdingTaxFromCashAmount(amount, whtRatePercent),
+      withholdingTax: 0,
     }
-  }
-
-  function paymentLineWithholdingTax(line: PaymentLine) {
-    const bill = billMap.get(line.billId)
-    if (isExpensePaymentBill(bill)) return 0
-    return withholdingTaxFromCashAmount(Number(line.amount) || 0, whtRatePercent)
   }
 
   function syncPaymentLines(nextLines: PaymentLine[]) {
     const normalizedLines = nextLines.length > 0 ? nextLines.map((line) => ({
       ...line,
       amount: Number(line.amount) || 0,
-      discount: Number(line.discount) || 0,
-      fee: Number(line.fee) || 0,
-      withholdingTax: paymentLineWithholdingTax(line),
+      discount: 0,
+      fee: 0,
+      withholdingTax: 0,
     })) : [newPaymentLine()]
     const firstLine = normalizedLines[0]
     const firstLinePaymentMethod = normalizedPaymentMethod(billMap.get(firstLine?.billId ?? '')?.approvalPaymentMethod)
+    const nextBalanceTotal = roundMoney(normalizedLines.reduce((sum, line) => sum + (billMap.get(line.billId)?.payableBalance ?? (Number(line.amount) || 0)), 0))
+    const nextDiscount = Math.min(Number(form.discount) || 0, Math.max(0, nextBalanceTotal - 0.01))
+    const nextAmount = roundMoney(Math.max(0, nextBalanceTotal - nextDiscount))
+    const nextFee = Number(form.fee) || 0
+    const nextNetAmount = roundMoney(nextAmount + nextFee)
+    const nextSplits = ((form as SupplierPaymentFormValues).splits ?? []).map((split, splitIndex, splits) => (
+      splitIndex === 0 && splits.length === 1 ? { ...split, amount: nextNetAmount } : split
+    ))
     setForm({
       ...form,
-      amount: roundMoney(normalizedLines.reduce((sum, line) => sum + line.amount, 0)),
+      amount: nextAmount,
       billId: firstLine?.billId ?? '',
-      discount: roundMoney(normalizedLines.reduce((sum, line) => sum + line.discount, 0)),
-      fee: roundMoney(normalizedLines.reduce((sum, line) => sum + line.fee, 0)),
+      discount: nextDiscount,
+      fee: nextFee,
       lines: normalizedLines,
       method: firstLinePaymentMethod || form.method,
+      splits: nextSplits,
       supplierId: firstLine?.supplierId ?? '',
-      withholdingTax: roundMoney(normalizedLines.reduce((sum, line) => sum + line.withholdingTax, 0)),
+      withholdingTax: 0,
+    } as MoneyForm)
+  }
+
+  function updatePaymentForm(patch: Partial<SupplierPaymentFormValues>) {
+    setError(null)
+    const nextDiscount = 'discount' in patch ? Number(patch.discount) || 0 : Number(form.discount) || 0
+    const nextFee = 'fee' in patch ? Number(patch.fee) || 0 : Number(form.fee) || 0
+    const cappedDiscount = Math.min(nextDiscount, Math.max(0, paymentLineBalanceTotal - 0.01))
+    const nextAmount = roundMoney(Math.max(0, paymentLineBalanceTotal - cappedDiscount))
+    const nextNetAmount = roundMoney(nextAmount + nextFee)
+    const nextSplits = paymentSplits.map((split, splitIndex, splits) => (
+      splitIndex === 0 && splits.length === 1 ? { ...split, amount: nextNetAmount } : split
+    ))
+    setForm({
+      ...form,
+      ...patch,
+      amount: nextAmount,
+      discount: roundMoney(cappedDiscount),
+      fee: roundMoney(nextFee),
+      splits: nextSplits,
+      withholdingTax: 0,
     } as MoneyForm)
   }
 
@@ -678,12 +674,23 @@ export function MoneyMovementPageClient({
   function normalizedPaymentForm() {
     const paymentForm = form as SupplierPaymentFormValues
     const normalizedSplits = (paymentForm.splits ?? []).map((split) => ({ ...split }))
-    const normalizedLines = (paymentForm.lines ?? []).filter((line) => line.billId && (Number(line.amount) || 0) > 0)
-    const payloadLines = normalizedLines.map((line) => {
+    let remainingDiscount = Math.min(Number(paymentForm.discount) || 0, Math.max(0, paymentLineBalanceTotal - 0.01))
+    const normalizedLines = (paymentForm.lines ?? []).filter((line) => {
+      const lineBalance = billMap.get(line.billId)?.payableBalance ?? (Number(line.amount) || 0)
+      return line.billId && lineBalance > 0
+    })
+    const payloadLines = normalizedLines.map((line, lineIndex) => {
       const selectedPma = billMap.get(line.billId)
+      const lineBalance = roundMoney(selectedPma?.payableBalance ?? (Number(line.amount) || 0))
+      const allocatedDiscount = roundMoney(Math.min(lineBalance - 0.01, remainingDiscount))
+      remainingDiscount = roundMoney(remainingDiscount - allocatedDiscount)
       return {
         ...line,
+        amount: roundMoney(lineBalance - allocatedDiscount),
         billId: selectedPma?.sourceDocNo ?? '',
+        discount: allocatedDiscount,
+        fee: lineIndex === 0 ? roundMoney(Number(paymentForm.fee) || 0) : 0,
+        withholdingTax: 0,
       }
     })
     return {
@@ -697,7 +704,7 @@ export function MoneyMovementPageClient({
       method: paymentForm.method ?? '',
       splits: normalizedSplits,
       supplierId: payloadLines[0]?.supplierId ?? paymentForm.supplierId,
-      withholdingTax: roundMoney(payloadLines.reduce((sum, line) => sum + (Number(line.withholdingTax) || 0), 0)),
+      withholdingTax: 0,
     }
   }
 
@@ -775,11 +782,13 @@ export function MoneyMovementPageClient({
     <section className="space-y-5">
       {error && !formOpen ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="grid gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-4 xl:grid-cols-5">
         <KpiCard label="จำนวน Voucher" value={rows.length.toLocaleString('th-TH')} tone="slate" />
         <KpiCard label={amountLabel} value={formatMoney(metrics.rowAmount)} tone={mode === 'payment' ? 'rose' : 'emerald'} />
         <KpiCard label="ยอดสุทธิ" value={formatMoney(metrics.rowNet)} tone="blue" />
-        <KpiCard label="WHT / Fee" value={`${formatMoney(metrics.rowWht)} / ${formatMoney(metrics.rowFee)}`} tone="amber" />
+        {mode === 'payment'
+          ? <KpiCard label="Bank Fee" value={formatMoney(metrics.rowFee)} tone="amber" />
+          : <KpiCard label="WHT / Fee" value={`${formatMoney(metrics.rowWht)} / ${formatMoney(metrics.rowFee)}`} tone="amber" />}
         <KpiCard label={balanceLabel} value={formatMoney(metrics.outstanding)} tone="violet" />
       </div>
 
@@ -812,27 +821,31 @@ export function MoneyMovementPageClient({
           <div className="space-y-2 rounded-md bg-white p-3 shadow">
             <div className="flex flex-wrap items-center gap-2">
               <UiInput
-                className="min-w-[260px] flex-1 rounded-md"
+                className="h-9 min-w-[260px] flex-1 rounded-md"
                 placeholder="ค้นหา PMA / บิล / เงินมัดจำ / ค่าใช้จ่าย / ผู้รับเงิน / ธนาคาร / เลขบัญชี"
                 type="search"
                 value={billSearch}
                 onChange={(event) => setBillSearch(event.target.value)}
               />
-              <UiButton
-                size="xs"
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  setBillSearch('')
-                  setBillSort('date_desc')
-                }}
-              >
-                ✕ ล้าง
-              </UiButton>
+              {hasActiveBillFilters ? (
+                <UiButton
+                  className="h-9 font-normal"
+                  size="sm"
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setBillSearch('')
+                    setBillSort('date_desc')
+                  }}
+                >
+                  <X aria-hidden="true" className="mr-1 h-4 w-4" />
+                  ล้าง
+                </UiButton>
+              ) : null}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-slate-500">เรียง:</span>
-              <UiSelect className="w-auto min-w-[180px]" value={billSort} onChange={(event) => setBillSort(event.target.value as typeof billSort)}>
+              <UiSelect className="h-9 w-auto min-w-[180px] px-2 py-1" value={billSort} onChange={(event) => setBillSort(event.target.value as typeof billSort)}>
                 <option value="age_desc">อายุค้างมากสุด</option>
                 <option value="balance_desc">ยอดคงเหลือมากสุด</option>
                 <option value="date_desc">วันที่ล่าสุด</option>
@@ -853,9 +866,9 @@ export function MoneyMovementPageClient({
               >
                 {pageSizeOptions.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
               </UiSelect>
-              <UiButton className="font-normal" disabled={supplierBillCurrentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setBillPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</UiButton>
+              <UiButton className="h-9 font-normal" disabled={supplierBillCurrentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setBillPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</UiButton>
               <span className="px-1">หน้า {supplierBillCurrentPage} / {supplierBillTotalPages}</span>
-              <UiButton className="font-normal" disabled={supplierBillCurrentPage >= supplierBillTotalPages} size="sm" type="button" variant="outline" onClick={() => setBillPage((value) => Math.min(supplierBillTotalPages, value + 1))}>ถัดไป</UiButton>
+              <UiButton className="h-9 font-normal" disabled={supplierBillCurrentPage >= supplierBillTotalPages} size="sm" type="button" variant="outline" onClick={() => setBillPage((value) => Math.min(supplierBillTotalPages, value + 1))}>ถัดไป</UiButton>
             </div>
           </div>
           <Table className="min-w-[1220px]">
@@ -874,7 +887,7 @@ export function MoneyMovementPageClient({
               </tr>
             </TableHeader>
             <TableBody>
-              {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={10}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+              {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={10}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
                 {!isLoading && supplierBillPageRows.map((bill) => {
                   const balance = bill.payableBalance ?? 0
                   const supplier = supplierMap.get(bill.supplierId ?? '')
@@ -925,16 +938,7 @@ export function MoneyMovementPageClient({
                                     }}
                                   >
                                     <span className="sr-only">{copied ? 'คัดลอกแล้ว' : 'คัดลอก'}</span>
-                                    {copied ? (
-                                      <svg aria-hidden="true" className="h-3 w-3" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
-                                        <path d="M20 6 9 17l-5-5" />
-                                      </svg>
-                                    ) : (
-                                      <svg aria-hidden="true" className="h-3 w-3" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
-                                        <rect height="14" rx="2" width="14" x="8" y="8" />
-                                        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-                                      </svg>
-                                    )}
+                                    {copied ? <Check aria-hidden="true" className="h-3 w-3" /> : <Copy aria-hidden="true" className="h-3 w-3" />}
                                   </button>
                                 </div>
                               )
@@ -982,7 +986,7 @@ export function MoneyMovementPageClient({
                     </TableRow>
                   )
                 })}
-              {!isLoading && supplierBillPageRows.length === 0 ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={10}>ไม่พบ PMA ค้างจ่ายตามเงื่อนไข</TableCell></TableRow> : null}
+              {!isLoading && supplierBillPageRows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={10}>ไม่พบ PMA ค้างจ่ายตามเงื่อนไข</TableCell></TableRow> : null}
             </TableBody>
           </Table>
         </>
@@ -1006,6 +1010,7 @@ export function MoneyMovementPageClient({
               <div className="flex flex-col gap-4 p-5 text-sm">
                 <PaymentSplitsSection
                   activeAccounts={activeAccounts}
+                  form={form}
                   formNetAmount={formNetAmount}
                   moneyInputValue={moneyInputValue}
                   paymentSplitTotal={paymentSplitTotal}
@@ -1015,15 +1020,13 @@ export function MoneyMovementPageClient({
                   onFinishMoneyInput={finishMoneyInput}
                   onRemovePaymentSplit={removePaymentSplit}
                   onStartMoneyInput={startMoneyInput}
+                  onUpdatePaymentForm={updatePaymentForm}
                   onUpdatePaymentSplit={updatePaymentSplit}
                 />
 
                 <PaymentLinesSection
                   billMap={billMap}
-                  form={form}
-                  formNetAmount={formNetAmount}
                   isBillLocked={isBillLocked}
-                  moneyInputValue={moneyInputValue}
                   partyMap={partyMap}
                   paymentLineBalanceTotal={paymentLineBalanceTotal}
                   paymentLines={paymentLines}
@@ -1032,12 +1035,8 @@ export function MoneyMovementPageClient({
                   paymentLineInputValue={paymentLineInputValue}
                   selectedBill={selectedBill ?? null}
                   onAddPaymentLine={addPaymentLine}
-                  onChangeMoneyInput={changeMoneyInput}
-                  onFinishMoneyInput={finishMoneyInput}
                   onRemovePaymentLine={removePaymentLine}
                   onSelectPaymentLineBill={selectPaymentLineBill}
-                  onStartMoneyInput={startMoneyInput}
-                  onUpdatePaymentLine={updatePaymentLine}
                 />
 
                 <div className="order-4">
@@ -1340,12 +1339,12 @@ function paymentBillStatus(bill: Bill) {
 
 function KpiCard({ label, tone, value }: { label: string; tone: 'amber' | 'blue' | 'emerald' | 'rose' | 'slate' | 'violet'; value: string }) {
   const tones = {
-    amber: 'border-amber-200 bg-amber-50 text-amber-700',
-    blue: 'border-blue-200 bg-blue-50 text-blue-700',
-    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    rose: 'border-rose-200 bg-rose-50 text-rose-700',
-    slate: 'border-slate-200 bg-white text-slate-800',
-    violet: 'border-violet-200 bg-violet-50 text-violet-700',
+    amber: 'text-amber-700',
+    blue: 'text-blue-700',
+    emerald: 'text-emerald-700',
+    rose: 'text-rose-700',
+    slate: 'text-slate-900',
+    violet: 'text-violet-700',
   }
-  return <div className={`rounded-md border p-4 shadow-sm ${tones[tone]}`}><div className="text-xs font-semibold uppercase tracking-wide opacity-70">{label}</div><div className="mt-2 text-xl font-bold">{value}</div></div>
+  return <div className="rounded-md bg-white p-3 shadow"><div className="text-xs text-slate-500">{label}</div><div className={`mt-1 break-words text-lg font-bold ${tones[tone]}`}>{value}</div></div>
 }

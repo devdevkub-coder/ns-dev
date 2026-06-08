@@ -231,5 +231,12 @@ export function formatMoney(value: number | null | undefined) {
 }
 
 export function todayDateInput() {
-  return new Date().toISOString().slice(0, 10)
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: 'Asia/Bangkok',
+    year: 'numeric',
+  }).formatToParts(new Date())
+  const valueByType = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return `${valueByType.year}-${valueByType.month}-${valueByType.day}`
 }

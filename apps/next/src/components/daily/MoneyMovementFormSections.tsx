@@ -45,6 +45,7 @@ type PaymentSplitLike = {
 
 export function PaymentSplitsSection({
   activeAccounts,
+  form,
   formNetAmount,
   moneyInputValue,
   paymentSplits,
@@ -54,9 +55,11 @@ export function PaymentSplitsSection({
   onFinishMoneyInput,
   onRemovePaymentSplit,
   onStartMoneyInput,
+  onUpdatePaymentForm,
   onUpdatePaymentSplit,
 }: {
   activeAccounts: DailyAccountOption[]
+  form: MoneyFormLike
   formNetAmount: number
   moneyInputValue: (key: string, value: number) => string
   paymentSplits: PaymentSplitLike[]
@@ -66,8 +69,11 @@ export function PaymentSplitsSection({
   onFinishMoneyInput: (key: string) => void
   onRemovePaymentSplit: (index: number) => void
   onStartMoneyInput: (key: string, value: number) => void
+  onUpdatePaymentForm: (patch: Partial<MoneyFormLike>) => void
   onUpdatePaymentSplit: (index: number, patch: Partial<PaymentSplitLike>) => void
 }) {
+  const formDiscountKey = 'payment-form-discount'
+  const formFeeKey = 'payment-form-fee'
   return (
     <div className="order-3 rounded-md border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -138,6 +144,32 @@ export function PaymentSplitsSection({
           )
         })}
       </div>
+      <div className="mt-2 flex flex-wrap items-end justify-end gap-3 border-t pt-2">
+        <label className="block min-w-32 text-left text-xs font-medium text-slate-600">
+          <span>Discount</span>
+          <UiInput
+            className="mt-1 h-8 w-full px-2 py-1 text-right"
+            inputMode="decimal"
+            type="text"
+            value={moneyInputValue(formDiscountKey, Number(form.discount) || 0)}
+            onBlur={() => onFinishMoneyInput(formDiscountKey)}
+            onChange={(event) => onChangeMoneyInput(formDiscountKey, event.target.value, (discount) => onUpdatePaymentForm({ discount }))}
+            onFocus={() => onStartMoneyInput(formDiscountKey, Number(form.discount) || 0)}
+          />
+        </label>
+        <label className="block min-w-32 text-left text-xs font-medium text-slate-600">
+          <span>Bank Fee</span>
+          <UiInput
+            className="mt-1 h-8 w-full px-2 py-1 text-right"
+            inputMode="decimal"
+            type="text"
+            value={moneyInputValue(formFeeKey, Number(form.fee) || 0)}
+            onBlur={() => onFinishMoneyInput(formFeeKey)}
+            onChange={(event) => onChangeMoneyInput(formFeeKey, event.target.value, (fee) => onUpdatePaymentForm({ fee }))}
+            onFocus={() => onStartMoneyInput(formFeeKey, Number(form.fee) || 0)}
+          />
+        </label>
+      </div>
       <div className="mt-2 grid grid-cols-3 gap-2 border-t pt-2 text-sm">
         <div className="rounded-md bg-slate-100 p-2">
           <div className="text-xs text-slate-600">💰 รวมแยกบัญชี</div>
@@ -158,10 +190,7 @@ export function PaymentSplitsSection({
 
 export function PaymentLinesSection({
   billMap,
-  form,
-  formNetAmount,
   isBillLocked,
-  moneyInputValue,
   partyMap,
   paymentLineBalanceTotal,
   paymentLines,
@@ -170,18 +199,11 @@ export function PaymentLinesSection({
   paymentLineInputValue,
   selectedBill,
   onAddPaymentLine,
-  onChangeMoneyInput,
-  onFinishMoneyInput,
   onRemovePaymentLine,
   onSelectPaymentLineBill,
-  onStartMoneyInput,
-  onUpdatePaymentLine,
 }: {
   billMap: Map<string, Bill>
-  form: MoneyFormLike
-  formNetAmount: number
   isBillLocked: boolean
-  moneyInputValue: (key: string, value: number) => string
   partyMap: Map<string, string>
   paymentLineBalanceTotal: number
   paymentLines: PaymentLineLike[]
@@ -190,12 +212,8 @@ export function PaymentLinesSection({
   paymentLineInputValue: (line: PaymentLineLike) => string
   selectedBill: Bill | null
   onAddPaymentLine: () => void
-  onChangeMoneyInput: (key: string, rawValue: string, onValue: (value: number) => void) => void
-  onFinishMoneyInput: (key: string) => void
   onRemovePaymentLine: (index: number) => void
   onSelectPaymentLineBill: (index: number, rawValue: string) => void
-  onStartMoneyInput: (key: string, value: number) => void
-  onUpdatePaymentLine: (index: number, patch: Partial<PaymentLineLike>) => void
 }) {
   return (
     <div className="order-2">
@@ -204,19 +222,12 @@ export function PaymentLinesSection({
         <UiButton className="bg-emerald-600 font-semibold hover:bg-emerald-700" size="xs" type="button" variant="default" onClick={onAddPaymentLine}>+ เพิ่มบรรทัด</UiButton>
       </div>
       {paymentSelectableBills.length === 0 ? <div className="mb-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700">ไม่มี PMA ค้างจ่ายของผู้รับเงินนี้</div> : null}
-      <Table className="min-w-[780px] text-xs">
+      <Table className="min-w-[640px] text-xs">
         <TableHeader className="text-slate-700">
           <tr>
-            <TableHead className="p-1 text-left" colSpan={7}>PMA / เอกสารต้นทาง / ผู้รับเงิน / ช่องทางรับเงิน</TableHead>
-          </tr>
-          <tr>
-            <TableHead className="w-10 p-1" />
-            <TableHead className="p-1 text-right">ค้าง</TableHead>
-            <TableHead className="p-1 text-right">จ่าย</TableHead>
-            <TableHead className="p-1 text-right">WHT</TableHead>
-            <TableHead className="p-1 text-right">Discount</TableHead>
-            <TableHead className="p-1 text-right">Bank Fee</TableHead>
-            <TableHead className="w-10 p-1" />
+            <TableHead className="p-1 text-left align-top">PMA / เอกสารต้นทาง / ผู้รับเงิน / ช่องทางรับเงิน</TableHead>
+            <TableHead className="p-1 text-right align-top">ค้าง</TableHead>
+            <TableHead className="w-10 p-1 align-top" />
           </tr>
         </TableHeader>
         <TableBody>
@@ -230,22 +241,21 @@ export function PaymentLinesSection({
             const destinationAccount = approvalAccountNo
               ? `${approvalBankName || '-'} ${approvalAccountNo}`
               : approvalBankName || '-'
-            const lineAmountKey = `line-${line.id ?? lineIndex}-amount`
-            const lineDiscountKey = `line-${line.id ?? lineIndex}-discount`
-            const lineFeeKey = `line-${line.id ?? lineIndex}-fee`
-            return [
-              <TableRow key={`${line.id ?? lineIndex}-source`}>
-                <TableCell className="border-b-0 p-1" colSpan={7}>
+            const inputValue = paymentLineInputValue(line)
+            const displayValue = inputValue ? `#${lineIndex + 1} ${inputValue}` : ''
+            return (
+              <TableRow key={line.id ?? lineIndex}>
+                <TableCell className="p-1 align-top">
                   {isBillLocked && lineIndex === 0 && selectedBill ? (
-                    <UiInput className="h-8 w-full bg-slate-50 px-1 py-1 text-xs disabled:opacity-100" disabled value={paymentLineInputValue(line)} />
+                    <UiInput className="h-8 w-full bg-slate-50 px-1 py-1 text-xs disabled:opacity-100" disabled value={displayValue} />
                   ) : (
                     <UiInput
                       autoComplete="off"
                       className="h-8 w-full px-1 py-1 text-xs"
                       list={`payment-bill-options-${line.id ?? lineIndex}`}
                       placeholder="พิมพ์เลข PMA / เอกสารต้นทาง / ผู้รับเงิน..."
-                      value={paymentLineInputValue(line)}
-                      onChange={(event) => onSelectPaymentLineBill(lineIndex, event.target.value)}
+                      value={displayValue}
+                      onChange={(event) => onSelectPaymentLineBill(lineIndex, event.target.value.replace(/^#\d+\s+/, ''))}
                     />
                   )}
                   <datalist id={`payment-bill-options-${line.id ?? lineIndex}`}>
@@ -270,33 +280,20 @@ export function PaymentLinesSection({
                     </div>
                   ) : null}
                 </TableCell>
-              </TableRow>,
-              <TableRow key={line.id ?? lineIndex}>
-                <TableCell className="p-1 text-center text-xs font-bold text-slate-500">#{lineIndex + 1}</TableCell>
-                <TableCell className="p-1"><UiInput className="h-8 w-full bg-slate-50 px-1 py-1 text-right text-amber-700 disabled:opacity-100" disabled type="text" value={formatMoney(lineBalance)} /></TableCell>
-                <TableCell className="p-1"><UiInput className="h-8 w-full px-1 py-1 text-right" inputMode="decimal" type="text" value={moneyInputValue(lineAmountKey, Number(line.amount) || 0)} onBlur={() => onFinishMoneyInput(lineAmountKey)} onChange={(event) => onChangeMoneyInput(lineAmountKey, event.target.value, (amount) => onUpdatePaymentLine(lineIndex, { amount }))} onFocus={() => onStartMoneyInput(lineAmountKey, Number(line.amount) || 0)} /></TableCell>
-                <TableCell className="p-1"><UiInput className="h-8 w-full bg-slate-50 px-1 py-1 text-right disabled:opacity-100" disabled type="text" value={formatMoney(line.withholdingTax)} /></TableCell>
-                <TableCell className="p-1"><UiInput className="h-8 w-full px-1 py-1 text-right" inputMode="decimal" type="text" value={moneyInputValue(lineDiscountKey, Number(line.discount) || 0)} onBlur={() => onFinishMoneyInput(lineDiscountKey)} onChange={(event) => onChangeMoneyInput(lineDiscountKey, event.target.value, (discount) => onUpdatePaymentLine(lineIndex, { discount }))} onFocus={() => onStartMoneyInput(lineDiscountKey, Number(line.discount) || 0)} /></TableCell>
-                <TableCell className="p-1"><UiInput className="h-8 w-full px-1 py-1 text-right" inputMode="decimal" type="text" value={moneyInputValue(lineFeeKey, Number(line.fee) || 0)} onBlur={() => onFinishMoneyInput(lineFeeKey)} onChange={(event) => onChangeMoneyInput(lineFeeKey, event.target.value, (fee) => onUpdatePaymentLine(lineIndex, { fee }))} onFocus={() => onStartMoneyInput(lineFeeKey, Number(line.fee) || 0)} /></TableCell>
-                <TableCell className="p-1 text-center"><UiButton className="h-8 w-8 px-0 text-red-500 disabled:text-slate-300" disabled={paymentLines.length <= 1 || (isBillLocked && lineIndex === 0)} size="icon" type="button" variant="ghost" onClick={() => onRemovePaymentLine(lineIndex)}>×</UiButton></TableCell>
-              </TableRow>,
-            ]
+                <TableCell className="p-1 align-top"><UiInput className="h-8 w-full bg-slate-50 px-1 py-1 text-right text-amber-700 disabled:opacity-100" disabled type="text" value={formatMoney(lineBalance)} /></TableCell>
+                <TableCell className="p-1 text-center align-top"><UiButton className="h-8 w-8 px-0 text-red-500 disabled:text-slate-300" disabled={paymentLines.length <= 1 || (isBillLocked && lineIndex === 0)} size="icon" type="button" variant="ghost" onClick={() => onRemovePaymentLine(lineIndex)}>×</UiButton></TableCell>
+              </TableRow>
+            )
           })}
         </TableBody>
         <tfoot className="bg-slate-50 font-semibold">
           <tr>
             <td className="p-2 text-right">รวม</td>
             <td className="p-2 text-right text-amber-700">{formatMoney(paymentLineBalanceTotal)}</td>
-            <td className="p-2 text-right text-red-700">{formatMoney(form.amount)}</td>
-            <td className="p-2 text-right">{formatMoney(form.withholdingTax)}</td>
-            <td className="p-2 text-right">{formatMoney(form.discount)}</td>
-            <td className="p-2 text-right">{formatMoney(form.fee)}</td>
             <td />
           </tr>
-          <tr><td className="p-2 text-right" colSpan={7}>Net Cash Out: <span className="text-base font-bold text-red-700">{formatMoney(formNetAmount)}</span></td></tr>
         </tfoot>
       </Table>
-      <div className="mt-1 text-xs text-slate-500">* Net Cash Out = ยอดจ่ายเงินสด + Bank Fee; WHT ใช้ตัดยอด PMA แต่ไม่ใช่เงินสดที่โอนออก</div>
     </div>
   )
 }

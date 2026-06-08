@@ -51,6 +51,18 @@ type ExpenseHeatmapRow = {
   total: number
 }
 
+type ExpenseDashboardData = {
+  anomalies: ExpenseHeatmapRow[]
+  avg: number
+  grandByMonth: Record<string, number>
+  heatmapRows: ExpenseHeatmapRow[]
+  latest: number
+  monthList: string[]
+  prev: number
+  total: number
+  vsAvg: number
+}
+
 type MultiSegmentOption = {
   label: string
   values: ExpenseFormValues['status'][]
@@ -193,6 +205,88 @@ function calculateExpenseTotals(lines: ExpenseLineDraft[], vatRatePercent: numbe
   }
 }
 
+function buildLegacyExpenseDashboard(rows: ExpenseRow[], categories: CategoryOption[], periodMonths: number): ExpenseDashboardData {
+  const monthList = getRecentMonths(periodMonths)
+  const byCategory = new Map<string, ExpenseHeatmapRow>()
+
+  for (const category of categories.filter((item) => item.active !== false)) {
+    byCategory.set(category.id, {
+      anomaly: null,
+      avg: 0,
+      byMonth: Object.fromEntries(monthList.map((month) => [month, 0])),
+      deviation: 0,
+      id: category.id,
+      latest: 0,
+      name: category.name || category.id,
+      total: 0,
+    })
+  }
+
+  byCategory.set('_uncat', {
+    anomaly: null,
+    avg: 0,
+    byMonth: Object.fromEntries(monthList.map((month) => [month, 0])),
+    deviation: 0,
+    id: '_uncat',
+    latest: 0,
+    name: 'ไม่ระบุหมวด',
+    total: 0,
+  })
+
+  for (const row of rows) {
+    if (!row.date) continue
+    const month = row.date.slice(0, 7)
+    if (!monthList.includes(month)) continue
+    const key = row.categoryId && byCategory.has(row.categoryId) ? row.categoryId : '_uncat'
+    const target = byCategory.get(key)
+    if (!target) continue
+    const amount = (Number(row.amount) || 0) + (Number(row.vat) || 0)
+    target.byMonth[month] = (target.byMonth[month] ?? 0) + amount
+    target.total += amount
+  }
+
+  const heatmapRows = Array.from(byCategory.values())
+    .map((item) => {
+      const latest = item.byMonth[monthList[monthList.length - 1]] ?? 0
+      const avg = item.total / periodMonths
+      const anomaly: ExpenseHeatmapRow['anomaly'] = avg > 0 && latest > Math.max(avg * 1.5, 5000)
+        ? 'high'
+        : avg > 0 && latest > 0 && latest < avg * 0.3
+          ? 'low'
+          : null
+      const deviation = avg > 0 ? ((latest - avg) / avg) * 100 : 0
+      return { ...item, anomaly, avg, deviation, latest }
+    })
+    .filter((item) => item.total > 0)
+    .sort((left, right) => right.total - left.total)
+
+  const grandByMonth = Object.fromEntries(monthList.map((month) => [month, 0]))
+  for (const item of heatmapRows) {
+    for (const month of monthList) {
+      grandByMonth[month] = (grandByMonth[month] ?? 0) + (item.byMonth[month] ?? 0)
+    }
+  }
+
+  const monthlyTotals = monthList.map((month) => grandByMonth[month] ?? 0)
+  const total = monthlyTotals.reduce((sum, value) => sum + value, 0)
+  const avg = monthlyTotals.length > 0 ? total / monthlyTotals.length : 0
+  const latest = monthlyTotals[monthlyTotals.length - 1] ?? 0
+  const prev = monthlyTotals[monthlyTotals.length - 2] ?? 0
+  const vsAvg = avg > 0 ? ((latest - avg) / avg) * 100 : 0
+
+  return {
+    anomalies: heatmapRows.filter((item) => item.anomaly),
+    avg,
+    grandByMonth,
+    heatmapRows,
+    latest,
+    monthList,
+    prev,
+    total,
+    vsAvg,
+  }
+}
+
 export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnly?: boolean }) {
   const router = useRouter()
   const [accounts, setAccounts] = useState<DailyAccountOption[]>([])
@@ -315,82 +409,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
     return `/api/daily/expenses?${params.toString()}`
   }, [accountId, categoryId, dateFrom, dateTo, search, statusFilter])
 
-  const dashboard = useMemo(() => {
-    const monthList = getRecentMonths(periodMonths)
-    const byCategory = new Map<string, ExpenseHeatmapRow>()
-
-    for (const category of categories.filter((item) => item.active !== false)) {
-      byCategory.set(category.id, {
-        anomaly: null,
-        avg: 0,
-        byMonth: Object.fromEntries(monthList.map((month) => [month, 0])),
-        deviation: 0,
-        id: category.id,
-        latest: 0,
-        name: category.name || category.id,
-        total: 0,
-      })
-    }
-
-    byCategory.set('_uncat', {
-      anomaly: null,
-      avg: 0,
-      byMonth: Object.fromEntries(monthList.map((month) => [month, 0])),
-      deviation: 0,
-      id: '_uncat',
-      latest: 0,
-      name: 'ไม่ระบุหมวด',
-      total: 0,
-    })
-
-    for (const row of rows) {
-      const month = row.date.slice(0, 7)
-      if (!monthList.includes(month)) continue
-      for (const line of normalizeExpenseLines(row.lines, row)) {
-        const key = line.categoryId && byCategory.has(line.categoryId) ? line.categoryId : '_uncat'
-        const target = byCategory.get(key)
-        if (!target) continue
-        const amount = line.amount + line.vatAmount
-        target.byMonth[month] = (target.byMonth[month] ?? 0) + amount
-        target.total += amount
-      }
-    }
-
-    const heatmapRows = Array.from(byCategory.values())
-      .map((item) => {
-        const latest = item.byMonth[monthList[monthList.length - 1]] ?? 0
-        const avg = item.total / periodMonths
-        const deviation = avg > 0 ? ((latest - avg) / avg) * 100 : 0
-        const anomaly = avg > 0 && latest > Math.max(avg * 1.5, 5000) ? 'high' : avg > 0 && latest > 0 && latest < avg * 0.3 ? 'low' : null
-        return { ...item, anomaly, avg, deviation, latest }
-      })
-      .filter((item) => item.total > 0)
-      .sort((left, right) => right.total - left.total)
-
-    const grandByMonth = Object.fromEntries(monthList.map((month) => [month, 0]))
-    for (const item of heatmapRows) {
-      for (const month of monthList) {
-        grandByMonth[month] = (grandByMonth[month] ?? 0) + (item.byMonth[month] ?? 0)
-      }
-    }
-
-    const monthlyTotals = monthList.map((month) => grandByMonth[month] ?? 0)
-    const total = monthlyTotals.reduce((sum, value) => sum + value, 0)
-    const avg = monthlyTotals.length > 0 ? total / monthlyTotals.length : 0
-    const latest = monthlyTotals[monthlyTotals.length - 1] ?? 0
-    const vsAvg = avg > 0 ? ((latest - avg) / avg) * 100 : 0
-
-    return {
-      anomalies: heatmapRows.filter((item) => item.anomaly),
-      avg,
-      grandByMonth,
-      heatmapRows,
-      latest,
-      monthList,
-      total,
-      vsAvg,
-    }
-  }, [categories, periodMonths, rows])
+  const dashboard = useMemo(() => buildLegacyExpenseDashboard(rows, categories, periodMonths), [categories, periodMonths, rows])
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize))
   const currentPage = Math.min(page, totalPages)
@@ -532,7 +551,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
       {dashboardOnly ? (
         <>
           <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-3 text-sm shadow">
-            <span className="text-slate-600">ดูย้อนหลัง:</span>
+            <span className="text-slate-600">📅 ดูย้อนหลัง:</span>
             {[3, 6, 12].map((months) => (
               <button key={months} className={`rounded-md px-3 py-1.5 text-xs ${periodMonths === months ? 'bg-rose-600 text-white' : 'bg-slate-100 text-slate-600'}`} type="button" onClick={() => setPeriodMonths(months)}>
                 {months} เดือน
@@ -541,9 +560,9 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
           </div>
 
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <div className="rounded-md bg-white p-3 shadow"><div className="text-xs text-slate-500">รวม {periodMonths} เดือน</div><div className="text-2xl font-bold">{formatMoney(dashboard.total)}</div></div>
-            <div className="rounded-md bg-blue-50 p-3 shadow"><div className="text-xs text-blue-700">เฉลี่ย/เดือน</div><div className="text-2xl font-bold text-blue-700">{formatMoney(dashboard.avg)}</div></div>
-            <div className="rounded-md bg-amber-50 p-3 shadow"><div className="text-xs text-amber-700">เดือนนี้</div><div className="text-2xl font-bold text-amber-700">{formatMoney(dashboard.latest)}</div></div>
+            <div className="rounded-md bg-white p-3 shadow"><div className="text-xs text-slate-500">💸 รวม {periodMonths} เดือน</div><div className="text-2xl font-bold">{formatMoney(dashboard.total)}</div></div>
+            <div className="rounded-md bg-blue-50 p-3 shadow"><div className="text-xs text-blue-700">📈 เฉลี่ย/เดือน</div><div className="text-2xl font-bold text-blue-700">{formatMoney(dashboard.avg)}</div></div>
+            <div className="rounded-md bg-amber-50 p-3 shadow"><div className="text-xs text-amber-700">📅 เดือนนี้</div><div className="text-2xl font-bold text-amber-700">{formatMoney(dashboard.latest)}</div></div>
             <div className={`rounded-md p-3 shadow ${Math.abs(dashboard.vsAvg) > 20 ? dashboard.vsAvg > 0 ? 'bg-red-50' : 'bg-emerald-50' : 'bg-slate-50'}`}>
               <div className={`text-xs ${dashboard.vsAvg > 20 ? 'text-red-700' : dashboard.vsAvg < -20 ? 'text-emerald-700' : 'text-slate-700'}`}>เทียบเฉลี่ย</div>
               <div className={`text-2xl font-bold ${dashboard.vsAvg > 20 ? 'text-red-700' : dashboard.vsAvg < -20 ? 'text-emerald-700' : 'text-slate-700'}`}>{dashboard.vsAvg > 0 ? '+' : ''}{dashboard.vsAvg.toFixed(1)}%</div>
@@ -552,13 +571,13 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
 
           {dashboard.anomalies.length > 0 ? (
             <div className="rounded-md border-2 border-red-300 bg-gradient-to-r from-red-50 to-amber-50 p-4">
-              <h3 className="mb-2 font-bold text-red-700">ตรวจพบความผิดปกติ {dashboard.anomalies.length} หมวด</h3>
+              <h3 className="mb-2 font-bold text-red-700">🚨 ตรวจพบความผิดปกติ {dashboard.anomalies.length} หมวด</h3>
               <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                 {dashboard.anomalies.map((item) => (
                   <div key={item.id} className={`rounded-md border p-3 ${item.anomaly === 'high' ? 'border-red-300 bg-red-50' : 'border-amber-300 bg-amber-50'}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className={`font-bold ${item.anomaly === 'high' ? 'text-red-700' : 'text-amber-700'}`}>{item.anomaly === 'high' ? 'สูงผิดปกติ' : 'ต่ำผิดปกติ'}: {item.name}</div>
+                        <div className={`font-bold ${item.anomaly === 'high' ? 'text-red-700' : 'text-amber-700'}`}>{item.anomaly === 'high' ? '⬆ สูงผิดปกติ' : '⬇ ต่ำผิดปกติ'}: {item.name}</div>
                         <div className="mt-1 text-xs text-slate-600">เดือนนี้: <b>{formatMoney(item.latest)}</b> · เฉลี่ย: <b>{formatMoney(item.avg)}</b></div>
                       </div>
                       <div className={`text-2xl font-bold ${item.anomaly === 'high' ? 'text-red-700' : 'text-amber-700'}`}>{item.deviation > 0 ? '+' : ''}{item.deviation.toFixed(0)}%</div>
@@ -568,7 +587,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
               </div>
             </div>
           ) : (
-            <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-emerald-700">ไม่พบความผิดปกติ ค่าใช้จ่ายแต่ละหมวดอยู่ในช่วงค่าเฉลี่ย</div>
+            <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-emerald-700">✓ ไม่พบความผิดปกติ — ค่าใช้จ่ายแต่ละหมวดอยู่ในช่วงค่าเฉลี่ย</div>
           )}
 
           <div className="overflow-x-auto rounded-md bg-white shadow">
@@ -596,7 +615,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                     <td className="bg-blue-50 p-2 text-right text-blue-700">{formatMoney(item.avg)}</td>
                     <td className="bg-rose-50 p-2 text-right font-bold text-rose-700">{formatMoney(item.total)}</td>
                     <td className="p-2 text-center">
-                      {item.anomaly === 'high' ? <span className="rounded-md bg-red-100 px-2 py-0.5 text-xs text-red-700">สูง</span> : item.anomaly === 'low' ? <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs text-amber-700">ต่ำ</span> : <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">ปกติ</span>}
+                      {item.anomaly === 'high' ? <span className="rounded-md bg-red-100 px-2 py-0.5 text-xs text-red-700">⬆ สูง</span> : item.anomaly === 'low' ? <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs text-amber-700">⬇ ต่ำ</span> : <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">✓ ปกติ</span>}
                     </td>
                   </tr>
                 ))}
@@ -617,7 +636,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
           </div>
 
           <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-            <b>หมายเหตุ:</b> ความผิดปกติ = เดือนนี้มากกว่า 1.5 เท่าของค่าเฉลี่ยและเกิน 5,000 บาท หรือ น้อยกว่า 30% ของค่าเฉลี่ย
+            <b>📋 หมายเหตุ:</b> ความผิดปกติ = เดือนนี้ <b>มากกว่า 1.5×</b> ค่าเฉลี่ยและเกิน 5,000 บาท (สูง) หรือ <b>น้อยกว่า 30%</b> ของค่าเฉลี่ย (ต่ำ — อาจลืมบันทึก)
           </div>
         </>
       ) : (

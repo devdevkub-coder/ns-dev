@@ -34,11 +34,6 @@ function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100
 }
 
-function withholdingTaxFromCashAmount(amount: number, ratePercent: number) {
-  if (!Number.isFinite(ratePercent) || ratePercent <= 0 || ratePercent >= 100) return 0
-  return roundMoney(amount * ratePercent / (100 - ratePercent))
-}
-
 function branchPaymentCode(branchCode: string | null | undefined) {
   const digits = String(branchCode ?? '').replace(/\D/g, '')
   return digits ? digits.padStart(2, '0').slice(-2) : null
@@ -379,7 +374,6 @@ export async function POST(request: Request) {
     const voucherId = values.id ?? `PMT-${randomUUID()}`
     const actor = currentActor(context)
     const paymentDate = normalizeDate(values.date)
-    const whtRatePercent = await activeWhtRatePercent(paymentDate)
     const paymentLines = (values.lines?.length ? values.lines : [{
       approvalId: null,
       amount: values.amount,
@@ -388,7 +382,7 @@ export async function POST(request: Request) {
       fee: values.fee,
       id: null,
       supplierId: values.supplierId,
-      withholdingTax: values.withholdingTax,
+      withholdingTax: 0,
     }]).filter((line) => line.billId && toNumber(line.amount) > 0)
     if (paymentLines.length === 0) throw new Error('เพิ่มรายการจ่ายอย่างน้อย 1 รายการ')
       const duplicateApprovalIds = paymentLines
@@ -400,7 +394,7 @@ export async function POST(request: Request) {
       amount: toNumber(line.amount),
       discount: toNumber(line.discount),
       fee: toNumber(line.fee),
-      withholdingTax: toNumber(line.withholdingTax),
+      withholdingTax: 0,
     }))
     const totalAmount = roundMoney(paymentLineTotals.reduce((sum, line) => sum + line.amount, 0))
     const totalFee = roundMoney(paymentLineTotals.reduce((sum, line) => sum + line.fee, 0))
@@ -562,13 +556,9 @@ export async function POST(request: Request) {
             ? approvalSourceDocNo === lineAdvance?.doc_no && approval.source_id === lineAdvance?.id.toString()
             : approvalSourceDocNo === lineExpense?.doc_no && approval.source_id === lineExpense?.id.toString()
         if (!matchesSource) throw new Error('รายการจ่ายไม่ตรงกับเอกสารที่อนุมัติไว้')
-        const expectedWithholdingTax = approval.source_type === 'expense' ? 0 : withholdingTaxFromCashAmount(line.amount, whtRatePercent)
-        if (Math.abs(line.withholdingTax - expectedWithholdingTax) > 0.01) {
-          throw new Error(`ภาษีหัก ณ ที่จ่ายของ ${approvalSourceDocNo} ไม่ตรงกับอัตราที่ระบบกำหนด`)
-        }
         const approvalInternalId = stringifyBusinessValue(approval.id)
         const approvalRemaining = Math.max(0, toNumber(approval.approved_amount) - (settledByApprovalId.get(approvalInternalId) ?? 0))
-        const lineSettlementAmount = line.amount + line.withholdingTax + line.discount
+        const lineSettlementAmount = line.amount + line.discount
         if (lineSettlementAmount - approvalRemaining > 0.01) {
           throw new Error(`ยอดจ่ายของ ${approvalSourceDocNo} เกินยอดที่อนุมัติไว้`)
         }
@@ -596,7 +586,7 @@ export async function POST(request: Request) {
             updated_at: new Date(),
             updated_by: actor,
             voucher_id: voucherId,
-            withholding_tax: line.withholdingTax,
+            withholding_tax: 0,
           },
         })
         const nextSettled = (settledByApprovalId.get(approvalInternalId) ?? 0) + lineSettlementAmount

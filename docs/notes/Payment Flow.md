@@ -140,7 +140,9 @@ flowchart TD
   - PMT ต้องจ่ายเต็มทุก PMA ที่เลือก
   - PMT modal ไม่ให้ผู้ใช้เลือก `วิธีจ่าย` ซ้ำเอง; `method` ของ PMT ต้อง derive จาก `destination_payment_method_snapshot` ของ PMA ที่เลือก
   - PMA ที่เลือกใน PMT เดียวกันต้องมีผู้รับเงินเดียวกันและ `destination_payment_method_snapshot` เดียวกัน
-  - section `รายการจ่าย` ต้องแสดง PMA/source/ผู้รับเงิน พร้อม `ช่องทางรับเงิน` และ `บัญชีรับเงิน` ของ PMA ในบรรทัดข้อมูลเอกสารก่อน แล้วค่อยแสดงช่องยอดตั้งแต่ `ค้าง`, `จ่าย`, `WHT`, `Discount`, และ `Bank Fee` ในบรรทัดถัดไป
+  - section `รายการจ่าย` ต้องแสดง PMA/source/ผู้รับเงิน พร้อม `ช่องทางรับเงิน`, `บัญชีรับเงิน`, และยอด `ค้าง` ในบรรทัดเดียวกัน
+  - `Discount` และ `Bank Fee` เป็นระดับ PMT voucher และต้องอยู่ใน section `บัญชีจ่าย` ก่อนบรรทัด `รวมแยกบัญชี`; `Net Cash Out` แสดงผ่าน card สรุปยอดสุทธิด้านล่างเท่านั้น และห้ามผูกกับ PMA line รายการใดรายการหนึ่งใน UI
+  - PMT modal ไม่ต้องมี WHT; รายการ PMT ใหม่ต้องบันทึก `withholding_tax = 0` และตัดยอด PMA ด้วย `จ่าย + Discount`
 - `/purchase/payment-history`
   - read-only
   - แสดง `PMT` ที่ `เสร็จสิ้น` และ `ยกเลิกแล้ว`
