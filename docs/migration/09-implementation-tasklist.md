@@ -613,6 +613,7 @@ Tracker หลักสำหรับงานที่เหลือทั้
 - [x] `main-sales-control` open PO detail rows use `doc_no` instead of bigint-based synthetic ids
 - [x] `working-capital` negative-margin rows use `${doc_no}-{line}` instead of `${bill.id}-{line}`
 - [x] `weight-tickets` detail payload uses `doc_no`/`line_no`-based ids instead of bigint ids
+- [x] `/daily/weight-tickets` vehicle/product-line image uploads use compact profile-style multi-image tiles with preview/remove actions, and active-line product selection keeps the original searchable combobox while adding product-type category chips plus compact mobile image-card selection
 - [x] `advance-payments` allocation timeline uses purchase-bill `doc_no`-based event ids
 - [x] `dual-costing-management` ledger rows use `deal_no` instead of bigint `trading_deals.id`
 - [x] add `overseas_recipients.code` to the target DB/schema and backfill existing beneficiaries

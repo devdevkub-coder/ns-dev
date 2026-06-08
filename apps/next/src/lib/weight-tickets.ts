@@ -78,10 +78,13 @@ export type WeightTicketRecord = {
 }
 
 export type OptionItem = {
+  category?: string
   code?: string
   description?: string
   id: string
+  imageUrl?: string
   label: string
+  name?: string
 }
 
 export type WeightTicketSortBy = 'createdAt' | 'documentNo' | 'partyName' | 'netWeight'

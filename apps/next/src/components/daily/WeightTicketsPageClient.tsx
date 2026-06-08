@@ -208,12 +208,15 @@ export function WeightTicketsPageClient({ ticketId = '' }: { ticketId?: string }
         }
 
         if (productResponse.ok) {
-          const data = await productResponse.json() as { rows?: Array<{ code?: string | null; id: string; itemStatus?: string | null; name: string; unit?: string | null }> }
+          const data = await productResponse.json() as { rows?: Array<{ code?: string | null; id: string; imageNames?: string[]; name: string; type?: string | null; unit?: string | null }> }
           const nextProducts = (data.rows ?? []).map((product) => ({
+            category: product.type ?? undefined,
             code: product.code ?? undefined,
-            description: product.itemStatus || undefined,
+            description: product.type || undefined,
             id: product.id,
+            imageUrl: product.imageNames?.[0] ? decodeStoredImageAsset(product.imageNames[0]).url ?? undefined : undefined,
             label: `${product.code ? `${product.code} - ` : ''}${product.name}${product.unit ? ` - ${product.unit}` : ''}`,
+            name: product.name,
           }))
           if (!cancelled && nextProducts.length) setProducts(nextProducts)
         }
@@ -484,46 +487,14 @@ export function WeightTicketsPageClient({ ticketId = '' }: { ticketId?: string }
                 />
               </FieldBlock>
               <FieldBlock label="รูปภาพรถส่งของ">
-                <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-3">
-                  <label className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-slate-100">
-                    <ImagePlus className="size-4" />
-                    อัปโหลดรูปภาพรถ
-                    <input
-                      accept="image/*"
-                      className="hidden"
-                      multiple
-                      type="file"
-                      onChange={(event) => {
-                        void appendVehicleImages(event.target.files)
-                        event.target.value = ''
-                      }}
-                    />
-                  </label>
-                  <div className="mt-2 space-y-2">
-                    {form.vehicleImageFiles.length === 0 ? (
-                      <div className="text-xs text-slate-400">ยังไม่มีรูปภาพรถ</div>
-                    ) : null}
-                    {form.vehicleImageFiles.map((file) => (
-                      <div className="flex min-w-0 items-center justify-between gap-2 rounded-md bg-white px-2 py-1.5 text-xs ring-1 ring-slate-200" key={file.id}>
-                        {file.url ? (
-                          <button
-                            className="min-w-0 flex-1 truncate text-left text-slate-700 hover:text-blue-700 hover:underline"
-                            title={file.fileName}
-                            type="button"
-                            onClick={() => setPreviewImage(file)}
-                          >
-                            {file.fileName}
-                          </button>
-                        ) : (
-                          <span className="min-w-0 flex-1 truncate text-left text-slate-700" title={file.fileName}>{file.fileName}</span>
-                        )}
-                        <button className="shrink-0 text-slate-500 hover:text-red-600" type="button" onClick={() => removeVehicleImage(file.id)}>
-                          ลบ
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <AttachmentProfileGrid
+                  addLabel="เพิ่มรูป"
+                  emptyLabel="ยังไม่มีรูปภาพรถ"
+                  files={form.vehicleImageFiles}
+                  onAppend={(files) => void appendVehicleImages(files)}
+                  onPreview={setPreviewImage}
+                  onRemove={removeVehicleImage}
+                />
               </FieldBlock>
             </div>
           </Card>
@@ -586,8 +557,8 @@ export function WeightTicketsPageClient({ ticketId = '' }: { ticketId?: string }
                 const lineTotals = calculateLineTotals(line)
 
                 return (
-                  <div className="rounded-md border border-slate-200 bg-slate-50 p-4 xl:max-h-[calc(100vh-16rem)] xl:overflow-y-auto">
-                    <div className="mb-4 flex items-center justify-between gap-3">
+                  <div className="rounded-md border border-slate-200 bg-slate-50 p-3 sm:p-4 xl:max-h-[calc(100vh-16rem)] xl:overflow-y-auto">
+                    <div className="mb-3 flex items-center justify-between gap-3 sm:mb-4">
                       <div className="inline-flex rounded-md bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white">รายการ {index + 1}</div>
                       <Button disabled={form.lines.length === 1} size="xs" type="button" variant="outline" onClick={() => removeLine(line.id)}>
                         <Trash2 className="mr-1 size-3" />
@@ -667,63 +638,33 @@ export function WeightTicketsPageClient({ ticketId = '' }: { ticketId?: string }
                         </FieldBlock>
                       ) : null}
                     </div>
-                    <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                    <ProductImagePicker
+                      products={products}
+                      value={line.productId}
+                      onChange={(value) => {
+                        markTouched(`line-${line.id}-product`)
+                        updateLine(line.id, (current) => ({ ...current, productId: value }))
+                      }}
+                    />
+                    <div className="mt-3 grid grid-cols-3 gap-2 sm:mt-4">
                       <MiniMetric label="Gross" value={`${formatWeight(lineTotals.grossWeight)} กก.`} />
                       <MiniMetric label="Deduct" value={`${formatWeight(lineTotals.deductionWeight)} กก.`} />
                       <MiniMetric label="Net" value={`${formatWeight(lineTotals.netWeight)} กก.`} />
                     </div>
-                    <div className="mt-4 rounded-md border border-dashed border-slate-300 bg-white p-4">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <div className="text-sm font-medium text-slate-800">
-                            รูปภาพรายการสินค้า<span className="ml-1 text-red-600">*</span>
-                          </div>
-                          <div className="text-xs text-slate-500">ต้องมีอย่างน้อย 1 รูปต่อรายการสินค้า</div>
-                          {showError(`line-${line.id}-images`) ? <div className="mt-1 text-xs text-red-600">{showError(`line-${line.id}-images`)}</div> : null}
-                        </div>
-                        <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-slate-800">
-                          <ImagePlus className="size-4" />
-                          เพิ่มรูปภาพ
-                          <input
-                            accept="image/*"
-                            className="hidden"
-                            multiple
-                            type="file"
-                            onChange={(event) => {
-                              void appendLineImages(line.id, event.target.files)
-                              event.target.value = ''
-                            }}
-                          />
-                        </label>
-                      </div>
-                      <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                        {getLineImages(line).length === 0 ? <div className="rounded-md bg-slate-50 px-4 py-5 text-center text-sm text-slate-400">ยังไม่มีรูปภาพรายการนี้</div> : null}
-                        {getLineImages(line).map((file) => (
-                          <div className="rounded-md border border-slate-200 bg-slate-50 p-3" key={file.id}>
-                            <div className="truncate text-sm font-medium text-slate-800" title={file.fileName}>{file.fileName}</div>
-                            <div className="mt-3 flex items-center justify-between gap-2">
-                              {file.url ? (
-                                <button className="min-w-0 truncate text-left text-xs text-slate-500 hover:text-blue-700 hover:underline" type="button" onClick={() => setPreviewImage(file)}>
-                                  เปิดรูปภาพ
-                                </button>
-                              ) : (
-                                <span className="text-xs text-slate-400">รูปเดิม</span>
-                              )}
-                              <Button
-                                size="xs"
-                                type="button"
-                                variant="outline"
-                                onClick={() => updateLine(line.id, (current) => ({
-                                  ...current,
-                                  imageFiles: getLineImages(current).filter((entry) => entry.id !== file.id),
-                                }))}
-                              >
-                                ลบ
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                    <div className="mt-4">
+                      <FieldBlock error={showError(`line-${line.id}-images`)} label="รูปภาพรายการสินค้า*">
+                        <AttachmentProfileGrid
+                          addLabel="เพิ่มรูป"
+                          emptyLabel="ยังไม่มีรูปภาพรายการนี้"
+                          files={getLineImages(line)}
+                          onAppend={(files) => void appendLineImages(line.id, files)}
+                          onPreview={setPreviewImage}
+                          onRemove={(fileId) => updateLine(line.id, (current) => ({
+                            ...current,
+                            imageFiles: getLineImages(current).filter((entry) => entry.id !== fileId),
+                          }))}
+                        />
+                      </FieldBlock>
                     </div>
                     <div className="mt-4">
                       <FieldBlock label="หมายเหตุรายการ">
@@ -893,6 +834,162 @@ function FieldBlock({
       </label>
       {children}
       {error ? <div className="mt-1 text-xs text-red-600">{error}</div> : null}
+    </div>
+  )
+}
+
+function ProductImagePicker({
+  products,
+  value,
+  onChange,
+}: {
+  products: OptionItem[]
+  value: string
+  onChange: (value: string) => void
+}) {
+  const [category, setCategory] = useState('all')
+  const categories = useMemo(
+    () => Array.from(new Set(products.map((product) => product.category?.trim()).filter((item): item is string => Boolean(item)))).sort((a, b) => a.localeCompare(b, 'th', { numeric: true })),
+    [products],
+  )
+  const filteredProducts = useMemo(() => {
+    return products.filter((product) => {
+      return category === 'all' || product.category === category
+    })
+  }, [category, products])
+
+  return (
+    <div className="mt-4">
+      <div className="mb-1 block text-xs font-medium text-slate-600">เลือกจากรูปสินค้า</div>
+      <div className="rounded-md border border-slate-200 bg-white p-2 sm:p-3">
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          <button
+            className={cn(
+              'shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium',
+              category === 'all' ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100',
+            )}
+            type="button"
+            onClick={() => setCategory('all')}
+          >
+            ทั้งหมด
+          </button>
+          {categories.map((item) => (
+            <button
+              className={cn(
+                'shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium',
+                category === item ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100',
+              )}
+              key={item}
+              type="button"
+              onClick={() => setCategory(item)}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+        <div className="mt-2 max-h-72 overflow-y-auto pr-1 sm:mt-3 sm:max-h-80">
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5">
+            {filteredProducts.map((product) => {
+              const selected = product.id === value
+              return (
+                <button
+                  className={cn(
+                    'overflow-hidden rounded-md border bg-white text-left shadow-sm transition hover:border-emerald-500',
+                    selected ? 'border-emerald-600 ring-2 ring-emerald-200' : 'border-slate-200',
+                  )}
+                  key={product.id}
+                  type="button"
+                  onClick={() => onChange(product.id)}
+                >
+                  <div className="h-20 bg-slate-100 sm:h-24">
+                    {product.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img alt={product.name ?? product.label} className="h-full w-full object-cover" src={product.imageUrl} />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-slate-400">
+                        <ImagePlus className="h-6 w-6" />
+                      </div>
+                    )}
+                  </div>
+                  <div className={cn('px-1.5 py-1.5 text-center text-[11px] font-semibold leading-snug sm:px-2 sm:py-2 sm:text-xs', selected ? 'bg-emerald-100 text-emerald-900' : 'bg-slate-50 text-slate-800')}>
+                    <div className="line-clamp-2 min-h-7 sm:min-h-8">{product.name ?? product.label}</div>
+                  </div>
+                </button>
+              )
+            })}
+            {filteredProducts.length === 0 ? (
+              <div className="col-span-full rounded-md bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">ไม่พบสินค้า</div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AttachmentProfileGrid({
+  addLabel,
+  emptyLabel,
+  files,
+  onAppend,
+  onPreview,
+  onRemove,
+}: {
+  addLabel: string
+  emptyLabel: string
+  files: AttachmentPreview[]
+  onAppend: (files: FileList | null) => void
+  onPreview: (file: AttachmentPreview) => void
+  onRemove: (fileId: string) => void
+}) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+      <div className="flex flex-wrap gap-3">
+        {files.map((file) => (
+          <div className="w-28 min-w-0" key={file.id}>
+            <button
+              className="group relative block h-28 w-28 overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 hover:border-slate-400"
+              disabled={!file.url}
+              title={file.fileName}
+              type="button"
+              onClick={() => file.url ? onPreview(file) : undefined}
+            >
+              {file.url ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img alt={file.fileName} className="h-full w-full object-cover" src={file.url} />
+                  <span className="absolute inset-x-0 bottom-0 bg-slate-950/70 px-2 py-1.5 text-center text-xs font-medium text-white opacity-0 transition group-hover:opacity-100">
+                    เปิดรูปภาพ
+                  </span>
+                </>
+              ) : (
+                <span className="flex h-full w-full items-center justify-center px-2 text-center text-xs text-slate-400">รูปเดิม</span>
+              )}
+            </button>
+            <div className="mt-2 truncate text-xs text-slate-600" title={file.fileName}>{file.fileName}</div>
+            <button className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:underline" type="button" onClick={() => onRemove(file.id)}>
+              <Trash2 className="h-3 w-3" />
+              ลบ
+            </button>
+          </div>
+        ))}
+        <label className="flex h-28 w-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-white p-3 text-center text-xs font-medium text-slate-500 shadow-sm hover:border-slate-400 hover:bg-slate-50">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100">
+            <ImagePlus className="h-5 w-5" />
+          </span>
+          {files.length === 0 ? emptyLabel : addLabel}
+          <input
+            accept="image/*"
+            className="hidden"
+            multiple
+            type="file"
+            onChange={(event) => {
+              onAppend(event.target.files)
+              event.target.value = ''
+            }}
+          />
+        </label>
+      </div>
     </div>
   )
 }
