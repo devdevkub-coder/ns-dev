@@ -96,7 +96,7 @@ export async function POST(request: Request) {
       if (values.id && !existingTransfer) {
         throw new Error('ไม่พบรายการโอนเงิน')
       }
-      const docNo = values.docNo ?? existingTransfer?.doc_no ?? await nextDailyDocNo('transfers', 'TRF', values.date)
+      const docNo = values.docNo ?? existingTransfer?.doc_no ?? await nextDailyDocNo('transfers', 'TRF', values.date, tx)
       const transfer = existingTransfer
         ? await tx.transfers.update({
             where: { id: existingTransfer.id },
@@ -136,7 +136,7 @@ export async function POST(request: Request) {
           ref_type: 'TRF',
         },
       })
-      const statementDocNos = await nextDailyDocNos('bank_statement', 'BST', values.date, 2)
+      const statementDocNos = await nextDailyDocNos('bank_statement', 'BST', values.date, 2, tx)
       await tx.bank_statement.createMany({
         data: bankStatementTransferRows({
           amount: values.amount,

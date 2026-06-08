@@ -50,6 +50,7 @@ export function DailyTransferPageClient() {
   const [pageSize, setPageSize] = useState(10)
   const [rows, setRows] = useState<TransferRow[]>([])
   const [search, setSearch] = useState('')
+  const [selectedRow, setSelectedRow] = useState<TransferRow | null>(null)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [period, setPeriod] = useState<Period>('')
@@ -151,6 +152,19 @@ export function DailyTransferPageClient() {
     setMoneyDrafts({})
     setError(null)
     setFormOpen(true)
+  }
+
+  function openDetail(row: TransferRow) {
+    setSelectedRow(row)
+  }
+
+  function closeDetail() {
+    setSelectedRow(null)
+  }
+
+  function openEditFromDetail(row: TransferRow) {
+    closeDetail()
+    openEditForm(row)
   }
 
   function updateForm<K extends keyof TransferFormValues>(key: K, value: TransferFormValues[K]) {
@@ -306,6 +320,53 @@ export function DailyTransferPageClient() {
         </div>
       ) : null}
 
+      {selectedRow ? (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-4">
+          <div className="mx-auto my-4 w-full max-w-3xl overflow-hidden rounded-md bg-white shadow-xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-5 py-4">
+              <div>
+                <h3 className="font-bold text-slate-900">รายละเอียดรายการโอนเงิน</h3>
+                <p className="mt-1 font-mono text-xs text-slate-500">{selectedRow.docNo}</p>
+              </div>
+              <button className="text-3xl leading-none text-slate-400 hover:text-slate-700" type="button" onClick={closeDetail}>&times;</button>
+            </div>
+            <div className="space-y-4 p-5">
+              <div className="grid gap-3 md:grid-cols-3">
+                <SummaryBox label="ยอดโอน" value={formatMoney(selectedRow.amount)} />
+                <SummaryBox label="ค่าธรรมเนียม" value={formatMoney(selectedRow.fee)} />
+                <SummaryBox label="ยอดออกจากบัญชีต้นทาง" value={formatMoney(selectedRow.amount + selectedRow.fee)} />
+              </div>
+              <div className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
+                <DetailItem label="วันที่" value={formatDateDisplay(selectedRow.date)} />
+                <DetailItem label="ผู้ทำรายการ" value={selectedRow.byPerson || '-'} />
+                <DetailItem label="บัญชีต้นทาง" tone="red" value={selectedRow.fromAccountName} />
+                <DetailItem label="บัญชีปลายทาง" tone="emerald" value={selectedRow.toAccountName} />
+                <DetailItem className="md:col-span-2" label="หมายเหตุ" value={selectedRow.notes || '-'} />
+              </div>
+              <div className="rounded-md border border-slate-200">
+                <div className="border-b bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900">ผลกระทบ Bank Statement</div>
+                <div className="grid gap-0 text-sm md:grid-cols-2">
+                  <div className="border-b px-4 py-3 md:border-b-0 md:border-r">
+                    <div className="text-xs font-medium text-slate-500">เงินออกจากบัญชีต้นทาง</div>
+                    <div className="mt-1 font-semibold text-red-700">{selectedRow.fromAccountName}</div>
+                    <div className="mt-2 text-right font-mono text-base font-bold text-slate-900">-{formatMoney(selectedRow.amount + selectedRow.fee)}</div>
+                  </div>
+                  <div className="px-4 py-3">
+                    <div className="text-xs font-medium text-slate-500">เงินเข้าบัญชีปลายทาง</div>
+                    <div className="mt-1 font-semibold text-emerald-700">{selectedRow.toAccountName}</div>
+                    <div className="mt-2 text-right font-mono text-base font-bold text-slate-900">+{formatMoney(selectedRow.amount)}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 border-t bg-slate-50 px-5 py-4">
+              <Button className="font-normal" size="sm" type="button" variant="outline" onClick={closeDetail}>ปิด</Button>
+              <Button size="sm" type="button" onClick={() => openEditFromDetail(selectedRow)}>แก้ไข</Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <Table>
         <TableHeader>
           <tr>
@@ -322,7 +383,18 @@ export function DailyTransferPageClient() {
         <TableBody>
           {isLoading ? <tr><td className="p-8 text-center text-slate-500" colSpan={8}>กำลังโหลดข้อมูล</td></tr> : null}
           {!isLoading && pagedRows.map((row) => (
-            <TableRow key={row.id} className="hover:bg-slate-50">
+            <TableRow
+              key={row.id}
+              className="cursor-pointer hover:bg-slate-50"
+              tabIndex={0}
+              onClick={() => openDetail(row)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  openDetail(row)
+                }
+              }}
+            >
               <TableCell className="font-mono text-xs">{row.docNo}</TableCell>
               <TableCell className="whitespace-nowrap">{formatDateDisplay(row.date)}</TableCell>
               <TableCell className="text-red-600">{row.fromAccountName}</TableCell>
@@ -331,8 +403,8 @@ export function DailyTransferPageClient() {
               <TableCell className="whitespace-nowrap text-right text-amber-700 tabular-nums">{formatMoney(row.fee)}</TableCell>
               <TableCell>{row.byPerson || '-'}</TableCell>
               <TableCell className="space-x-2 whitespace-nowrap text-right">
-                <Button size="xs" type="button" variant="outline" onClick={() => openEditForm(row)}>จัดการ</Button>
-                <button className="text-xs text-red-300" disabled type="button">ลบ</button>
+                <Button size="xs" type="button" variant="outline" onClick={(event) => { event.stopPropagation(); openEditForm(row) }}>แก้ไข</Button>
+                <button className="text-xs text-red-300" disabled type="button" onClick={(event) => event.stopPropagation()}>ยกเลิก</button>
               </TableCell>
             </TableRow>
           ))}
@@ -370,6 +442,16 @@ function SummaryBox(props: { label: string; value: string }) {
     <div className="rounded-md border border-slate-200 bg-white p-3">
       <div className="text-xs text-slate-500">{props.label}</div>
       <div className="mt-1 text-lg font-bold text-slate-900">{props.value}</div>
+    </div>
+  )
+}
+
+function DetailItem(props: { className?: string; label: string; tone?: 'emerald' | 'red'; value: string }) {
+  const toneClass = props.tone === 'red' ? 'text-red-700' : props.tone === 'emerald' ? 'text-emerald-700' : 'text-slate-900'
+  return (
+    <div className={props.className}>
+      <div className="text-xs font-medium text-slate-500">{props.label}</div>
+      <div className={`mt-1 text-sm font-semibold ${toneClass}`}>{props.value}</div>
     </div>
   )
 }
