@@ -99,7 +99,6 @@ export default async function PaymentApprovalDetailPage({ params }: PageProps) {
         payments: {
           select: {
             doc_no: true,
-            voucher_id: true,
           },
         },
       },
@@ -127,10 +126,9 @@ export default async function PaymentApprovalDetailPage({ params }: PageProps) {
         `PMT: ${allocation.payment_doc_no}`,
         allocation.source_doc_no_snapshot ? `เอกสารต้นทาง: ${allocation.source_doc_no_snapshot}` : '',
         `ยอดจัดสรร: ${money(toNumber(allocation.allocated_amount))}`,
-        `สถานะ allocation: ${allocation.status}`,
       ].filter(Boolean),
       tone: allocation.status === 'reversed' ? 'rose' as const : 'emerald' as const,
-      title: allocation.status === 'reversed' ? 'Reverse allocation จาก PMT' : 'ผูก PMA เข้ากับ PMT',
+      title: allocation.status === 'reversed' ? 'คืน allocation จาก PMT' : 'ผูก PMA เข้ากับ PMT',
     })),
   ].sort((a, b) => a.date.localeCompare(b.date, 'th-TH'))
 
@@ -143,7 +141,7 @@ export default async function PaymentApprovalDetailPage({ params }: PageProps) {
           <h1 className="text-xl font-bold text-slate-900">รายละเอียดอนุมัติจ่าย / PMA</h1>
           <div className="mt-1 font-mono text-sm text-slate-500">{approvalDocNo}</div>
         </div>
-        <Link className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" href="/purchase/payment-history">
+        <Link className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" href="/purchase/payments?tab=history">
           กลับประวัติการจ่ายเงิน
         </Link>
       </div>
@@ -189,23 +187,17 @@ export default async function PaymentApprovalDetailPage({ params }: PageProps) {
             <thead className="bg-slate-100">
               <tr>
                 <th className="p-2 text-left">PMT</th>
-                <th className="p-2 text-left">Voucher</th>
                 <th className="p-2 text-right">ยอดจัดสรร</th>
-                <th className="p-2 text-left">สถานะ</th>
               </tr>
             </thead>
             <tbody>
               {allocations.map((allocation) => (
                 <tr key={allocation.allocation_key} className="border-t">
-                  <td className="p-2 font-mono text-blue-700">
-                    <Link href={`/purchase/payments/${encodeURIComponent(allocation.payment_voucher_id ?? allocation.payment_doc_no)}`}>{allocation.payment_doc_no}</Link>
-                  </td>
-                  <td className="p-2 font-mono">{allocation.payment_voucher_id ?? allocation.payments?.voucher_id ?? '-'}</td>
+                  <td className="p-2 font-mono text-slate-800">{allocation.payment_doc_no}</td>
                   <td className="p-2 text-right font-medium">{money(toNumber(allocation.allocated_amount))}</td>
-                  <td className="p-2">{allocation.status}</td>
                 </tr>
               ))}
-              {allocations.length === 0 ? <tr><td className="p-6 text-center text-slate-500" colSpan={4}>ยังไม่มี PMT allocation</td></tr> : null}
+              {allocations.length === 0 ? <tr><td className="p-6 text-center text-slate-500" colSpan={2}>ยังไม่มี PMT allocation</td></tr> : null}
             </tbody>
           </table>
         </div>

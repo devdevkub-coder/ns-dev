@@ -213,10 +213,10 @@ function SortableHead({
   const active = currentKey === sortKey
   const alignClass = align === 'right' ? 'justify-end text-right' : 'justify-start text-left'
   return (
-    <TableHead className={align === 'right' ? 'text-right' : undefined}>
-      <button className={`inline-flex w-full items-center gap-1 rounded-md px-1 py-0.5 hover:bg-slate-200 ${alignClass}`} type="button" onClick={() => onSort(sortKey)}>
+    <TableHead className="p-0">
+      <button className={`flex w-full items-center gap-1 p-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 ${alignClass}`} type="button" onClick={() => onSort(sortKey)}>
         <span>{label}</span>
-        <span className="text-xs text-slate-400">{active ? (direction === 'asc' ? '↑' : '↓') : '↕'}</span>
+        <span className="text-slate-400">{active ? (direction === 'asc' ? '▲' : '▼') : '↕'}</span>
       </button>
     </TableHead>
   )
@@ -605,45 +605,45 @@ export function PaymentApprovalPageClient() {
 
       <div>
         {tab === 'ap' || tab === 'advance' ? (
-          <Table>
+          <Table className="text-xs">
               <TableHeader>
                 <tr>
                   <SortableHead align="left" currentKey={sortKey} direction={sortDirection} label="เลขที่เอกสาร" sortKey="docNo" onSort={changeSort} />
-                  <TableHead>เอกสารอ้างอิง</TableHead>
+                  <TableHead className="p-2 text-left text-xs font-semibold text-slate-700">เอกสารอ้างอิง</TableHead>
                   <SortableHead align="left" currentKey={sortKey} direction={sortDirection} label="วันที่" sortKey="date" onSort={changeSort} />
                   <SortableHead align="left" currentKey={sortKey} direction={sortDirection} label="ผู้ขาย" sortKey="partyName" onSort={changeSort} />
                   <SortableHead align="left" currentKey={sortKey} direction={sortDirection} label="ช่องทางจ่าย / ปลายทาง" sortKey="bankAccount" onSort={changeSort} />
                   <SortableHead align="right" currentKey={sortKey} direction={sortDirection} label="ยอด" sortKey="totalAmount" onSort={changeSort} />
                   <SortableHead align="right" currentKey={sortKey} direction={sortDirection} label="ชำระแล้ว" sortKey="paidAmount" onSort={changeSort} />
                   <SortableHead align="right" currentKey={sortKey} direction={sortDirection} label="คงเหลือ / อนุมัติ" sortKey="payableBalance" onSort={changeSort} />
-                  <TableHead className="text-center">สถานะ</TableHead>
+                  <TableHead className="p-2 text-center text-xs font-semibold text-slate-700">สถานะ</TableHead>
                 </tr>
               </TableHeader>
-              <TableBody>
+              <TableBody className="divide-y divide-slate-100">
                 {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={9}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
                 {!isLoading && apRows.map((row) => (
-                  <TableRow key={row.id} className="cursor-pointer border-0 hover:bg-slate-50" onClick={() => openDetail({ row, tab: 'ap' })}>
-                    <TableCell className="text-xs">
-                      <div className="font-medium whitespace-nowrap">{row.docNo}</div>
+                  <TableRow key={row.id} className="cursor-pointer hover:bg-slate-50" onClick={() => openDetail({ row, tab: 'ap' })}>
+                    <TableCell className="text-xs font-semibold text-slate-700">
+                      <div className="whitespace-nowrap">{row.docNo}</div>
                       <div className="text-[11px] text-slate-500">{approvalRowKindLabel(row.approvalStatus)}</div>
                     </TableCell>
-                    <TableCell className="text-xs">
-                      <div className="font-medium whitespace-nowrap">{row.sourceDocNo}</div>
+                    <TableCell className="text-xs font-semibold text-slate-700">
+                      <div className="whitespace-nowrap">{row.sourceDocNo}</div>
                       <div className="text-[11px] text-slate-500">{row.sourceLabel}</div>
                     </TableCell>
-                    <TableCell className="text-xs">{formatDateDisplay(row.date)}</TableCell>
-                    <TableCell className="font-semibold">{row.supplierName}</TableCell>
-                    <TableCell className="text-xs">
+                    <TableCell className="text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</TableCell>
+                    <TableCell className="text-xs font-semibold text-slate-700">{row.supplierName}</TableCell>
+                    <TableCell className="text-xs font-semibold text-slate-700">
                       {row.approvalStatus === 'approved'
                         ? <div className="whitespace-normal text-slate-700">{row.destinationLabel || '-'}</div>
                         : <div className="whitespace-normal text-slate-500">{destinationSummaryLabel(row)}</div>}
                     </TableCell>
-                    <TableCell className="text-right">{formatMoney(row.totalAmount)}</TableCell>
-                    <TableCell className="text-right text-emerald-700">{formatMoney(row.paidAmount)}</TableCell>
-                    <TableCell className="text-right font-bold text-red-700">{formatMoney(row.payableBalance)}</TableCell>
+                    <TableCell className="text-right text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(row.totalAmount)}</TableCell>
+                    <TableCell className="text-right text-xs font-semibold text-emerald-700 tabular-nums">{formatMoney(row.paidAmount)}</TableCell>
+                    <TableCell className="text-right text-xs font-semibold text-red-700 tabular-nums">{formatMoney(row.payableBalance)}</TableCell>
                     <TableCell className="text-center text-xs">
-                      <span className={`inline-flex items-center gap-1 ${approvalStatusTone(row.approvalStatus)}`}>
-                        <span className={`h-2 w-2 rounded-full ${approvalStatusDot(row.approvalStatus)}`} />
+                      <span className={`inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold ${approvalStatusTone(row.approvalStatus)}`}>
+                        <span className={`size-1.5 rounded-full ${approvalStatusDot(row.approvalStatus)}`} />
                         {approvalStatusLabel(row.approvalStatus)}
                       </span>
                     </TableCell>
@@ -659,39 +659,39 @@ export function PaymentApprovalPageClient() {
               </TableBody>
             </Table>
           ) : (
-            <Table>
+            <Table className="text-xs">
               <TableHeader>
                 <tr>
                   <SortableHead align="left" currentKey={sortKey} direction={sortDirection} label="เลขที่/วันที่" sortKey="docNo" onSort={changeSort} />
-                  <TableHead>เอกสารอ้างอิง</TableHead>
+                  <TableHead className="p-2 text-left text-xs font-semibold text-slate-700">เอกสารอ้างอิง</TableHead>
                   <SortableHead align="left" currentKey={sortKey} direction={sortDirection} label="ครบกำหนด" sortKey="dueDate" onSort={changeSort} />
                   <SortableHead align="left" currentKey={sortKey} direction={sortDirection} label="ผู้รับเงิน" sortKey="partyName" onSort={changeSort} />
-                  <TableHead>รายละเอียด / อ้างอิง</TableHead>
+                  <TableHead className="p-2 text-left text-xs font-semibold text-slate-700">รายละเอียด / อ้างอิง</TableHead>
                   <SortableHead align="right" currentKey={sortKey} direction={sortDirection} label="ยอดเต็ม" sortKey="totalAmount" onSort={changeSort} />
-                  <TableHead className="text-center">สถานะ</TableHead>
+                  <TableHead className="p-2 text-center text-xs font-semibold text-slate-700">สถานะ</TableHead>
                 </tr>
               </TableHeader>
-              <TableBody>
+              <TableBody className="divide-y divide-slate-100">
                 {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={7}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
                 {!isLoading && expenseRows.map((row) => {
                   const overdue = row.dueDate ? row.dueDate < new Date().toISOString().slice(0, 10) : false
                   return (
-                    <TableRow key={row.id} className="cursor-pointer border-0 hover:bg-slate-50" onClick={() => openDetail({ row, tab: 'expense' })}>
-                      <TableCell className="text-xs">
-                        <div className="font-medium whitespace-nowrap">{row.docNo}</div>
+                    <TableRow key={row.id} className="cursor-pointer hover:bg-slate-50" onClick={() => openDetail({ row, tab: 'expense' })}>
+                      <TableCell className="text-xs font-semibold text-slate-700">
+                        <div className="whitespace-nowrap">{row.docNo}</div>
                         <div className="text-slate-500">{approvalRowKindLabel(row.approvalStatus)}</div>
                       </TableCell>
-                      <TableCell className="text-xs">
-                        <div className="font-medium whitespace-nowrap">{row.sourceDocNo}</div>
+                      <TableCell className="text-xs font-semibold text-slate-700">
+                        <div className="whitespace-nowrap">{row.sourceDocNo}</div>
                         <div className="text-slate-500">ค่าใช้จ่าย</div>
                       </TableCell>
-                      <TableCell className="text-xs">{row.dueDate ? <span className={overdue ? 'font-bold text-red-600' : 'text-slate-700'}>{formatDateDisplay(row.dueDate)}{overdue ? <span className="block text-[10px] text-red-500">เลยกำหนด</span> : null}</span> : <span className="text-slate-300">-</span>}</TableCell>
-                      <TableCell className="font-semibold">{row.payee}</TableCell>
-                      <TableCell className="text-xs">{row.refDocNo ? <div className="text-slate-700">{row.refDocNo}</div> : <span className="text-slate-300">-</span>}</TableCell>
-                      <TableCell className="text-right font-bold text-red-700">{formatMoney(row.totalAmount)}</TableCell>
+                      <TableCell className="text-xs font-semibold text-slate-700">{row.dueDate ? <span className={overdue ? 'text-red-600' : 'text-slate-700'}>{formatDateDisplay(row.dueDate)}{overdue ? <span className="block text-[10px] text-red-500">เลยกำหนด</span> : null}</span> : <span className="text-slate-300">-</span>}</TableCell>
+                      <TableCell className="text-xs font-semibold text-slate-700">{row.payee}</TableCell>
+                      <TableCell className="text-xs font-semibold text-slate-700">{row.refDocNo ? <div className="text-slate-700">{row.refDocNo}</div> : <span className="text-slate-300">-</span>}</TableCell>
+                      <TableCell className="text-right text-xs font-semibold text-red-700 tabular-nums">{formatMoney(row.totalAmount)}</TableCell>
                       <TableCell className="text-center text-xs">
-                        <span className={`inline-flex items-center gap-1 ${approvalStatusTone(row.approvalStatus)}`}>
-                          <span className={`h-2 w-2 rounded-full ${approvalStatusDot(row.approvalStatus)}`} />
+                        <span className={`inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold ${approvalStatusTone(row.approvalStatus)}`}>
+                          <span className={`size-1.5 rounded-full ${approvalStatusDot(row.approvalStatus)}`} />
                           {approvalStatusLabel(row.approvalStatus)}
                         </span>
                       </TableCell>

@@ -179,8 +179,7 @@ export const navigationItems: NavigationItem[] = [
   },
   { href: '/daily/payment-approval', icon: '✅', label: 'อนุมัติจ่ายเงิน (Payment Approval)', pageSubtitle: 'เช็ครายการที่จะจ่าย แล้วพิมพ์ใบอนุมัติส่งให้ cashier', section: 'daily' },
   { href: '/purchase/advance-payments', icon: '⏪', label: 'จ่ายเงินล่วงหน้า / มัดจำ', pageSubtitle: 'สร้าง ADV สำหรับจ่าย Supplier ก่อนออกบิลรับซื้อเต็มใบ', section: 'daily' },
-  { href: '/purchase/payments', icon: '💸', label: 'จ่ายเงิน Supplier', pageSubtitle: 'บันทึกเงินออกจากบัญชี', section: 'daily' },
-  { href: '/purchase/payment-history', icon: '📜', label: 'ประวัติการจ่ายเงิน', pageSubtitle: 'ดูประวัติ voucher จ่ายเงิน Supplier ที่ทำไปแล้ว', section: 'daily' },
+  { href: '/purchase/payments', icon: '💸', label: 'จ่ายเงิน Supplier', pageSubtitle: 'บันทึกเงินออกจากบัญชีและดูแท็บประวัติการจ่ายเงิน', section: 'daily' },
   {
     href: '/purchase/receipt-vouchers',
     icon: '🧾',

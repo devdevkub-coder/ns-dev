@@ -130,7 +130,7 @@ Reference pages:
 - `/purchase/bills`
 - `/sales/bills`
 - `/purchase/payments`
-- `/purchase/payment-history`
+- `/purchase/payments` แท็บ `ประวัติ`
 
 ## Filter Pattern
 
@@ -181,14 +181,24 @@ rules:
 ### Shared Base
 
 - container: white background, rounded corners, shadow
+- table body font: transaction list หลักใช้ scale/weight เดียวกับคอลัมน์สถานะเป็น baseline (`text-xs font-semibold`) เพื่อให้ทุกคอลัมน์ดูเป็นชุดเดียวกัน; ใช้สีเพื่อสื่อความหมายได้ เช่นยอดคงเหลือ `text-amber-700` แต่ไม่เปลี่ยน font family/weight เองทีละคอลัมน์
 - header: `bg-slate-100` เป็น default เว้นแต่หน้ามี legacy header pattern เฉพาะ
 - row height: compact, อ่านง่าย, spacing ต้องนิ่งข้ามหน้า
 - sorting: กดที่ header โดยตรง
+- sort header baseline: ใช้ปุ่มเต็มพื้นที่หัวคอลัมน์แบบ `/purchase/advance-payments` (`p-2 text-xs font-semibold text-slate-700`, hover `bg-slate-200`, ลูกศรสี `text-slate-400`) ไม่ใช้กรอบมนหรือ active สีเข้มที่ดึงสายตาเกินไป
 - empty state: ใช้ข้อความสั้นตรงไปตรงมา เช่น `ยังไม่มีรายการ`
 - loading state: ใช้ข้อความ `กำลังโหลดข้อมูล`
 - action column อยู่ขวาสุดเสมอ
 - legacy-style action text/link ในตารางให้คงโทนที่ผู้ใช้คุ้นเคย เว้นแต่มีปุ่ม page-specific ที่ชัดกว่า
-- status cell ใช้ pattern `dot + สีข้อความ` เป็น baseline กลาง; หลีกเลี่ยง badge background ถ้าไม่จำเป็นตาม legacy/page override
+- status cell ใช้ pattern `dot + สีข้อความ` เป็น baseline กลาง; ใช้ `text-xs font-semibold` และ dot เล็ก (`size-1.5`) เพื่อไม่ดึงสายตาเกิน cell อื่น; หลีกเลี่ยง badge background ถ้าไม่จำเป็นตาม legacy/page override
+
+### Table Row Actions
+
+- row action ปุ่มแก้ไข/ยกเลิกใช้ขนาดเล็ก `text-xs` และอยู่ในคอลัมน์ขวาสุด
+- ปุ่ม `แก้ไข` ใน row table ใช้ neutral outline แบบเบาเป็น baseline ตาม `/daily/expense`: `rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50`
+- ปุ่ม `ยกเลิก` ใน row table ใช้ destructive outline แบบเบาเป็น baseline ตาม `/daily/expense`: `rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50`
+- ห้ามใช้ปุ่มแดงทึบใน row table เว้นแต่เป็น confirmation dialog หรือ action หลักหลังยืนยันแล้ว
+- ปุ่ม action ใน row ต้อง `stopPropagation()` ถ้า row ทั้งแถว clickable
 
 ### Table / Plain
 
@@ -209,11 +219,17 @@ Rules:
 
 - `/purchase/bills`
 - `/sales/bills`
+- `/purchase/advance-payments`
+- `/purchase/payments`
+- `/purchase/payments` แท็บ `ประวัติ`
+- `/daily/payment-approval`
+- `/daily/transfer`
+- `/daily/expense`
 - `/purchase/po-buy`
 
 Rules:
 
-- ใช้ slate row separators ใน `tbody`
+- ใช้ slate row separators ใน `tbody` ด้วย `divide-y divide-slate-100` เป็น baseline
 - divider ต้องเบา (`divide-slate-100` หรือใกล้เคียง) ไม่หนักเกินจนรบกวนสายตา
 - คง hover state ได้ แต่ไม่ใช้เส้นเข้มซ้อนหลายชั้น
 

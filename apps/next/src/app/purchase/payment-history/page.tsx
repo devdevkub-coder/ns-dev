@@ -1,10 +1,10 @@
 import type { Metadata } from 'next'
-import { MoneyMovementPageClient } from '@/components/daily/MoneyMovementPageClient'
+import { redirect } from 'next/navigation'
 
 export const metadata: Metadata = {
   title: 'ประวัติการจ่ายเงิน | NS Scrap ERP',
 }
 
 export default function PurchasePaymentHistoryPage() {
-  return <MoneyMovementPageClient historyOnly mode="payment" />
+  redirect('/purchase/payments?tab=history')
 }

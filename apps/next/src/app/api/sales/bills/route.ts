@@ -170,6 +170,110 @@ function salesItems(
   })
 }
 
+type SalesItemSnapshot = ReturnType<typeof salesItems>[number]
+
+type PoSellSnapshotItem = {
+  discount?: unknown
+  id?: unknown
+  note?: unknown
+  productCode?: unknown
+  productId?: unknown
+  productName?: unknown
+  qty?: unknown
+  remainingQty?: unknown
+  totalAmount?: unknown
+  totalRevenue?: unknown
+  unit?: unknown
+  unitPrice?: unknown
+  [key: string]: unknown
+}
+
+type PoSellForAllocation = {
+  items: unknown
+  qty: unknown
+  remaining_amount: unknown
+  remaining_qty: unknown
+  total_amount: unknown
+  unit_price: unknown
+}
+
+function jsonNumber(value: unknown) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+  if (typeof value === 'string') {
+    const parsed = Number(value.replace(/,/g, ''))
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+  return toNumber(value as { toNumber: () => number } | null | undefined)
+}
+
+function productCodeFromItem(item: PoSellSnapshotItem) {
+  const value = item.productCode ?? item.productId
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function isInactivePoSellStatus(status: string | null | undefined) {
+  const normalized = (status ?? '').trim().toLowerCase()
+  return ['cancelled', 'canceled', 'closed', 'completed', 'fully matched', 'received', 'void'].includes(normalized)
+}
+
+function allocatePoSellForSalesBill(poSell: PoSellForAllocation, billItems: SalesItemSnapshot[]) {
+  const hasItemRows = Array.isArray(poSell.items) && poSell.items.length > 0
+  const poItems: PoSellSnapshotItem[] = hasItemRows
+    ? (poSell.items as unknown[]).filter((item): item is PoSellSnapshotItem => typeof item === 'object' && item !== null)
+    : [{
+        productCode: '',
+        productId: '',
+        qty: jsonNumber(poSell.qty),
+        remainingQty: jsonNumber(poSell.remaining_qty ?? poSell.qty),
+        totalRevenue: jsonNumber(poSell.total_amount),
+        unitPrice: jsonNumber(poSell.unit_price),
+      }]
+
+  const nextItems = poItems.map((item) => ({
+    ...item,
+    remainingQty: jsonNumber(item.remainingQty ?? item.qty),
+  }))
+
+  let usedAmount = 0
+  let usedQty = 0
+
+  for (const billItem of billItems) {
+    let needQty = jsonNumber(billItem.qty)
+    if (needQty <= 0) continue
+    const candidates = nextItems.filter((item) => {
+      const poProductCode = productCodeFromItem(item)
+      return !poProductCode || poProductCode === billItem.productCode || poProductCode === billItem.productId
+    })
+    if (!candidates.length) return { error: `สินค้า ${billItem.productCode} ไม่อยู่ใน PO Sell ที่เลือก` }
+
+    for (const candidate of candidates) {
+      if (needQty <= 0.001) break
+      const availableQty = jsonNumber(candidate.remainingQty)
+      if (availableQty <= 0) continue
+      const qtyToUse = Math.min(availableQty, needQty)
+      candidate.remainingQty = availableQty - qtyToUse
+      needQty -= qtyToUse
+      usedQty += qtyToUse
+      usedAmount += qtyToUse * jsonNumber(candidate.unitPrice)
+    }
+
+    if (needQty > 0.001) return { error: `จำนวนสินค้า ${billItem.productCode} เกินยอดคงเหลือใน PO Sell` }
+  }
+
+  const remainingQty = nextItems.reduce((sum, item) => sum + Math.max(0, jsonNumber(item.remainingQty)), 0)
+  const remainingAmount = hasItemRows
+    ? nextItems.reduce((sum, item) => sum + Math.max(0, jsonNumber(item.remainingQty)) * jsonNumber(item.unitPrice), 0)
+    : Math.max(0, jsonNumber(poSell.remaining_amount ?? poSell.total_amount) - usedAmount)
+
+  return {
+    items: hasItemRows ? nextItems : null,
+    remainingAmount,
+    remainingQty,
+    usedAmount,
+    usedQty,
+  }
+}
+
 async function salesOptionsPayload() {
   const [branches, customers, products, salesChannels, warehouses, vatRatePercent] = await Promise.all([
     prisma.branches.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
@@ -335,6 +439,28 @@ export async function POST(request: Request) {
 
     if (values.poSellId && !parsedPoSellId) return NextResponse.json({ code: 'BAD_REQUEST', error: 'PO Sell ไม่ถูกต้อง' }, { status: 400 })
 
+    const poSell = parsedPoSellId
+      ? await prisma.po_sells.findUnique({
+          select: {
+            branch_id: true,
+            customer_id: true,
+            id: true,
+            items: true,
+            qty: true,
+            remaining_amount: true,
+            remaining_qty: true,
+            status: true,
+            total_amount: true,
+            unit_price: true,
+          },
+          where: { id: parsedPoSellId },
+        })
+      : null
+    if (parsedPoSellId && !poSell) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่พบ PO Sell ที่เลือก' }, { status: 400 })
+    if (poSell && isInactivePoSellStatus(poSell.status)) return NextResponse.json({ code: 'BAD_REQUEST', error: 'PO Sell นี้ถูกปิดหรือยกเลิกแล้ว' }, { status: 400 })
+    if (poSell?.customer_id && poSell.customer_id !== customer.id) return NextResponse.json({ code: 'BAD_REQUEST', error: 'Customer ของบิลขายไม่ตรงกับ PO Sell' }, { status: 400 })
+    if (poSell?.branch_id && branch?.id && poSell.branch_id !== branch.id) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาของบิลขายไม่ตรงกับ PO Sell' }, { status: 400 })
+
     const productByCode = new Map(products.map((product) => [requireBusinessCode(product.code, `สินค้า ${product.id}`), product]))
     const parsedProductIds = requestedProductCodes.map((productCode) => productByCode.get(productCode)?.id ?? null)
     const missingProduct = requestedProductCodes.find((productCode) => !productByCode.has(productCode))
@@ -345,44 +471,67 @@ export async function POST(request: Request) {
 
     const docNo = await nextDailyDocNo('sales_bills', 'SB', billDate)
     const items = salesItems(values, parsedProductIds as bigint[], productById)
+    const poSellAllocation = poSell ? allocatePoSellForSalesBill(poSell, items) : null
+    if (poSellAllocation && 'error' in poSellAllocation) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: poSellAllocation.error }, { status: 400 })
+    }
     const totalCost = 0
 
-    const created = await prisma.sales_bills.create({
-      data: {
-        branch_id: branch?.id ?? null,
-        channel_id: channel?.id ?? null,
-        created_at: createdAt,
-        created_by: actor,
-        customer_id: customer.id,
-        date: normalizeDate(billDate),
-        discount: values.discountTotal,
-        discount_total: values.discountTotal,
-        doc_no: docNo,
-        gross_profit: totals.totalAmount - totalCost,
-        has_vat: values.hasVat,
-        items: items as Prisma.InputJsonValue,
-        license_plate: values.licensePlate,
-        note: values.note,
-        notes: values.note,
-        po_sell_id: parsedPoSellId,
-        receivable_balance: totals.totalAmount,
-        received_amount: 0,
-        ref_no: values.refNo,
-        status: 'unreceived',
-        subtotal: totals.subtotal,
-        total_amount: totals.totalAmount,
-        total_cost: totalCost,
-        transaction_mode: values.transactionMode,
-        updated_at: createdAt,
-        updated_by: actor,
-        vat_amount: totals.vatAmount,
-        vat_invoice_date: values.vatInvoiceDate ? normalizeDate(values.vatInvoiceDate) : null,
-        vat_invoice_issued: values.vatInvoiceIssued,
-        vat_invoice_no: values.vatInvoiceNo,
-        vat_type: values.vatType,
-        warehouse_id: warehouse?.id ?? null,
-      },
-      select: { doc_no: true, id: true },
+    const created = await prisma.$transaction(async (tx) => {
+      const createdBill = await tx.sales_bills.create({
+        data: {
+          branch_id: branch?.id ?? null,
+          channel_id: channel?.id ?? null,
+          created_at: createdAt,
+          created_by: actor,
+          customer_id: customer.id,
+          date: normalizeDate(billDate),
+          discount: values.discountTotal,
+          discount_total: values.discountTotal,
+          doc_no: docNo,
+          gross_profit: totals.totalAmount - totalCost,
+          has_vat: values.hasVat,
+          items: items as Prisma.InputJsonValue,
+          license_plate: values.licensePlate,
+          note: values.note,
+          notes: values.note,
+          po_sell_id: parsedPoSellId,
+          receivable_balance: totals.totalAmount,
+          received_amount: 0,
+          ref_no: values.refNo,
+          status: 'unreceived',
+          subtotal: totals.subtotal,
+          total_amount: totals.totalAmount,
+          total_cost: totalCost,
+          transaction_mode: values.transactionMode,
+          updated_at: createdAt,
+          updated_by: actor,
+          vat_amount: totals.vatAmount,
+          vat_invoice_date: values.vatInvoiceDate ? normalizeDate(values.vatInvoiceDate) : null,
+          vat_invoice_issued: values.vatInvoiceIssued,
+          vat_invoice_no: values.vatInvoiceNo,
+          vat_type: values.vatType,
+          warehouse_id: warehouse?.id ?? null,
+        },
+        select: { doc_no: true, id: true },
+      })
+
+      if (poSell && poSellAllocation && !('error' in poSellAllocation)) {
+        await tx.po_sells.update({
+          data: {
+            ...(poSellAllocation.items ? { items: poSellAllocation.items as Prisma.InputJsonValue } : {}),
+            cut_amount: { increment: poSellAllocation.usedAmount },
+            remaining_amount: poSellAllocation.remainingAmount,
+            remaining_qty: poSellAllocation.remainingQty,
+            status: poSellAllocation.remainingQty <= 0.001 ? 'Completed' : poSell.status ?? 'Open',
+            updated_at: createdAt,
+            updated_by: actor,
+          },
+          where: { id: poSell.id },
+        })
+      }
+
+      return createdBill
     })
 
     return NextResponse.json({ docNo: created.doc_no, id: created.doc_no }, { status: 201 })

@@ -790,20 +790,20 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
           ) : null}
 
           <div className="overflow-x-auto rounded-md bg-white shadow">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs">
               <thead className="bg-slate-100">
                 <tr>
-                  <th className="p-2 text-left">เลขที่</th>
-                  <th className="p-2 text-left">วันที่จ่าย</th>
-                  <th className="p-2 text-left">ครบกำหนด</th>
-                  <th className="p-2 text-left">อ้างอิง</th>
-                  <th className="p-2 text-left">ผู้รับ</th>
-                  <th className="p-2 text-left">หมวด</th>
-                  <th className="p-2 text-left">บัญชี</th>
-                  <th className="p-2 text-center">สถานะ</th>
-                  <th className="bg-red-50 p-2 text-right text-red-700">Net Pay<br /><span className="text-[10px] font-normal">ยอดจ่ายจริง</span></th>
-                  <th className="p-2 text-right text-slate-500"><span className="text-[10px]">ยอด/VAT/WHT</span></th>
-                  <th className="p-2 text-center">การกระทำ</th>
+                  <th className="p-2 text-left text-xs font-semibold text-slate-700">เลขที่</th>
+                  <th className="p-2 text-left text-xs font-semibold text-slate-700">วันที่จ่าย</th>
+                  <th className="p-2 text-left text-xs font-semibold text-slate-700">ครบกำหนด</th>
+                  <th className="p-2 text-left text-xs font-semibold text-slate-700">อ้างอิง</th>
+                  <th className="p-2 text-left text-xs font-semibold text-slate-700">ผู้รับ</th>
+                  <th className="p-2 text-left text-xs font-semibold text-slate-700">หมวด</th>
+                  <th className="p-2 text-left text-xs font-semibold text-slate-700">บัญชี</th>
+                  <th className="p-2 text-center text-xs font-semibold text-slate-700">สถานะ</th>
+                  <th className="bg-red-50 p-2 text-right text-xs font-semibold text-red-700">Net Pay<br /><span className="text-[10px] font-normal">ยอดจ่ายจริง</span></th>
+                  <th className="p-2 text-right text-xs font-semibold text-slate-700">ยอด/VAT/WHT</th>
+                  <th className="p-2 text-center text-xs font-semibold text-slate-700">การกระทำ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -816,16 +816,16 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                       className={`cursor-pointer hover:bg-slate-50 ${expenseRowTone(row.status)}`}
                       onClick={() => router.push(`/daily/expense/${encodeURIComponent(row.docNo)}`)}
                     >
-                      <td className="p-2 font-mono text-xs">{row.docNo}</td>
-                      <td className="p-2">{formatDateDisplay(row.date)}</td>
-                      <td className="p-2 text-xs">{row.dueDate ? <span className={overdue ? 'font-bold text-red-600' : 'text-slate-700'}>{formatDateDisplay(row.dueDate)}{overdue ? <span className="block text-[10px] text-red-500">เลยกำหนด</span> : null}</span> : <span className="text-slate-300">-</span>}</td>
-                      <td className="p-2 font-mono text-xs text-slate-600">{row.refDocNo || '-'}</td>
-                      <td className="p-2 font-medium">{row.payee}</td>
-                      <td className="p-2 text-sm text-slate-600">{row.categoryName}</td>
-                      <td className="p-2">{row.accountName}</td>
-                      <td className="p-2 text-center text-xs"><span className={`inline-flex items-center gap-1 ${expenseStatusTextClass(row.status)}`}><span className={`h-2 w-2 rounded-full ${expenseStatusDotClass(row.status)}`} />{expenseStatusLabel(row.status)}</span></td>
-                      <td className={`bg-red-50/60 p-2 text-right text-base font-bold ${row.status === 'paid' ? 'text-emerald-700' : row.status === 'approved' ? 'text-blue-700' : row.status === 'cancelled' ? 'text-slate-500' : 'text-amber-700'}`}>{formatMoney(row.netAmount)}</td>
-                      <td className="whitespace-nowrap p-2 text-right text-xs text-slate-600">
+                      <td className="p-2 text-xs font-semibold text-slate-700">{row.docNo}</td>
+                      <td className="p-2 text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</td>
+                      <td className="p-2 text-xs font-semibold">{row.dueDate ? <span className={overdue ? 'text-red-600' : 'text-slate-700'}>{formatDateDisplay(row.dueDate)}{overdue ? <span className="block text-[10px] font-normal text-red-500">เลยกำหนด</span> : null}</span> : <span className="text-slate-300">-</span>}</td>
+                      <td className="p-2 text-xs font-semibold text-slate-700">{row.refDocNo || '-'}</td>
+                      <td className="p-2 text-xs font-semibold text-slate-700">{row.payee}</td>
+                      <td className="p-2 text-xs font-semibold text-slate-700">{row.categoryName}</td>
+                      <td className="p-2 text-xs font-semibold text-slate-700">{row.accountName}</td>
+                      <td className="p-2 text-center text-xs"><span className={`inline-flex items-center gap-1.5 font-semibold ${expenseStatusTextClass(row.status)}`}><span className={`size-1.5 rounded-full ${expenseStatusDotClass(row.status)}`} />{expenseStatusLabel(row.status)}</span></td>
+                      <td className={`bg-red-50/60 p-2 text-right text-xs font-semibold ${row.status === 'paid' ? 'text-emerald-700' : row.status === 'approved' ? 'text-blue-700' : row.status === 'cancelled' ? 'text-slate-500' : 'text-amber-700'}`}>{formatMoney(row.netAmount)}</td>
+                      <td className="whitespace-nowrap p-2 text-right text-xs font-semibold text-slate-700">
                         <div>ยอด: <b>{formatMoney(row.amount)}</b></div>
                         {row.vat > 0 ? <div className="text-emerald-700">+VAT: {formatMoney(row.vat)}</div> : null}
                         {row.wht > 0 ? <div className="text-amber-700">-WHT: {formatMoney(row.wht)}</div> : null}

@@ -26,6 +26,8 @@ type PoSellRow = {
   itemCount: number
   margin: number
   marginPct: number
+  documentStatus: string
+  documentStatusLabel: string
   matchStatus: string
   matchedCost: number
   matchedPct: number
@@ -40,8 +42,13 @@ type PoSellRow = {
   unitPrice: number
 }
 
+type StatusFilterOption = {
+  label: string
+  value: string
+}
+
 type PoSellPayload = {
-  filters: { matchStatuses: string[]; statuses: string[] }
+  filters: { matchStatuses: string[]; statuses: StatusFilterOption[] }
   options: {
     branches: Option[]
     customers: Option[]
@@ -95,7 +102,7 @@ export function PoSellPageClient() {
   const [pageSize, setPageSize] = useState(25)
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
-  const [status, setStatus] = useState('all')
+  const [documentStatus, setDocumentStatus] = useState('all')
   const [toDate, setToDate] = useState('')
 
   const dateQuery = useMemo(() => {
@@ -131,15 +138,15 @@ export function PoSellPageClient() {
     const query = search.trim().toLowerCase()
     return (data?.rows ?? []).filter((row) => {
       if (matchStatus !== 'all' && row.matchStatus !== matchStatus) return false
-      if (status !== 'all' && row.status !== status) return false
+      if (documentStatus !== 'all' && row.documentStatus !== documentStatus) return false
       if (!query) return true
-      return `${row.docNo} ${row.customerName} ${row.channelName} ${row.branchName} ${row.productName} ${row.status} ${row.matchStatus}`.toLowerCase().includes(query)
+      return `${row.docNo} ${row.customerName} ${row.channelName} ${row.branchName} ${row.productName} ${row.documentStatusLabel} ${row.status} ${row.matchStatus}`.toLowerCase().includes(query)
     })
-  }, [data?.rows, matchStatus, search, status])
+  }, [data?.rows, documentStatus, matchStatus, search])
 
   useEffect(() => {
     setPage(1)
-  }, [fromDate, matchStatus, pageSize, search, status, toDate])
+  }, [documentStatus, fromDate, matchStatus, pageSize, search, toDate])
 
   const totalRows = rows.length
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
@@ -157,18 +164,18 @@ export function PoSellPageClient() {
     if (search.trim()) params.set('q', search.trim())
     if (fromDate) params.set('from', fromDate)
     if (toDate) params.set('to', toDate)
-    if (status !== 'all') params.set('status', status)
+    if (documentStatus !== 'all') params.set('status', documentStatus)
     if (matchStatus !== 'all') params.set('matchStatus', matchStatus)
     return `/api/sales/po-sell?${params.toString()}`
-  }, [fromDate, matchStatus, search, status, toDate])
+  }, [documentStatus, fromDate, matchStatus, search, toDate])
 
-  const hasFilters = Boolean(search.trim() || fromDate || toDate || matchStatus !== 'all' || status !== 'all')
+  const hasFilters = Boolean(search.trim() || fromDate || toDate || matchStatus !== 'all' || documentStatus !== 'all')
   const resetFilters = () => {
     setSearch('')
     setFromDate('')
     setToDate('')
     setMatchStatus('all')
-    setStatus('all')
+    setDocumentStatus('all')
   }
 
   function openCreateForm() {
@@ -246,10 +253,10 @@ export function PoSellPageClient() {
           <button className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-60" disabled={isSaving} type="button" onClick={openCreateForm}>+ PO Sell ใหม่</button>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-slate-500">สถานะ:</span>
-          <MatchButton active={status === 'all'} label="ทั้งหมด" onClick={() => setStatus('all')} />
+          <span className="text-xs text-slate-500">สถานะเอกสาร:</span>
+          <MatchButton active={documentStatus === 'all'} label="ทั้งหมด" onClick={() => setDocumentStatus('all')} />
           {(data?.filters.statuses ?? []).map((item) => (
-            <MatchButton key={item} active={status === item} label={item} tone={item.toLowerCase().includes('cancel') ? 'slate' : 'emerald'} onClick={() => setStatus(item)} />
+            <MatchButton key={item.value} active={documentStatus === item.value} label={item.label} tone={documentStatusTone(item.value)} onClick={() => setDocumentStatus(item.value)} />
           ))}
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -259,6 +266,7 @@ export function PoSellPageClient() {
           <MatchButton active={matchStatus === 'Partially Matched'} label="Partial" tone="amber" onClick={() => setMatchStatus('Partially Matched')} />
           <MatchButton active={matchStatus === 'Fully Matched'} label="Full" tone="emerald" onClick={() => setMatchStatus('Fully Matched')} />
           <MatchButton active={matchStatus === 'Over Matched'} label="Over" tone="red" onClick={() => setMatchStatus('Over Matched')} />
+          <MatchButton active={matchStatus === 'Cancelled'} label="Cancelled" tone="slate" onClick={() => setMatchStatus('Cancelled')} />
         </div>
       </div>
 
@@ -283,7 +291,7 @@ export function PoSellPageClient() {
       </div>
 
       <div className="overflow-x-auto rounded-md bg-white shadow">
-        <table className="w-full min-w-[1120px] text-sm">
+        <table className="w-full min-w-[1220px] text-sm">
           <thead className="bg-slate-100">
             <tr>
               <th className="p-2 text-left">เลขที่</th>
@@ -296,13 +304,14 @@ export function PoSellPageClient() {
               <th className="p-2 text-right">เหลือ</th>
               <th className="p-2 text-right">Deal Margin</th>
               <th className="p-2 text-right">%</th>
+              <th className="p-2 text-center">สถานะเอกสาร</th>
               <th className="p-2 text-center">สถานะ Match</th>
               <th className="p-2 text-right">จัดการ</th>
             </tr>
           </thead>
           <tbody>
-            {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={12}>กำลังโหลดข้อมูล</td></tr> : null}
-            {!isLoading && !error && rows.length === 0 ? <tr><td className="py-10 text-center text-slate-400" colSpan={12}>ยังไม่มี PO Sell</td></tr> : null}
+            {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={13}>กำลังโหลดข้อมูล</td></tr> : null}
+            {!isLoading && !error && rows.length === 0 ? <tr><td className="py-10 text-center text-slate-400" colSpan={13}>ยังไม่มี PO Sell</td></tr> : null}
             {!isLoading && pageRows.map((row) => (
               <tr key={row.id} className="border-t hover:bg-slate-50">
                 <td className="p-2 font-mono">{row.docNo}</td>
@@ -315,6 +324,7 @@ export function PoSellPageClient() {
                 <td className="p-2 text-right text-amber-700">{formatMoney(row.remainingQty)}</td>
                 <td className={`p-2 text-right font-bold ${row.margin < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatMoney(row.margin)}</td>
                 <td className={`p-2 text-right ${row.marginPct < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatPercent(row.marginPct)}</td>
+                <td className="p-2 text-center"><StatusPill label={row.documentStatusLabel} tone={documentStatusPillTone(row.documentStatus)} /></td>
                 <td className="p-2 text-center"><StatusPill label={row.matchStatus} tone="match" /></td>
                 <td className="whitespace-nowrap p-2 text-right"><div className="flex justify-end gap-1"><button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:opacity-50" disabled title="รอออกแบบ write permission/audit ก่อนเปิดใช้งาน" type="button">แก้ไข</button><button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:opacity-50" disabled title="รอออกแบบ cancel/reconciliation ก่อนเปิดใช้งาน" type="button">ยกเลิก</button></div></td>
               </tr>
@@ -387,6 +397,18 @@ function formatPercent(value: number | null | undefined) {
   return `${formatMoney(value ?? 0)}%`
 }
 
+function documentStatusTone(value: string): 'amber' | 'dark' | 'emerald' | 'red' | 'slate' {
+  if (value === 'cancelled') return 'slate'
+  if (value === 'closed') return 'emerald'
+  return 'dark'
+}
+
+function documentStatusPillTone(value: string): 'cancelled' | 'closed' | 'match' | 'open' | 'status' {
+  if (value === 'cancelled') return 'cancelled'
+  if (value === 'closed') return 'closed'
+  return 'open'
+}
+
 function Metric({ className, label, subLabel, value, valueClassName }: { className: string; label: string; subLabel?: string; value: string; valueClassName: string }) {
   return <div className={className}><div className="text-xs opacity-80">{label}</div><div className={valueClassName}>{value}</div>{subLabel ? <div className="mt-1 text-xs opacity-80">{subLabel}</div> : null}</div>
 }
@@ -403,9 +425,15 @@ function MatchButton({ active, label, onClick, tone = 'dark' }: { active: boolea
   return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
 }
 
-function StatusPill({ label, tone = 'status' }: { label: string; tone?: 'match' | 'status' }) {
-  const color = tone === 'match' ? 'bg-cyan-50 text-cyan-700' : 'bg-slate-100 text-slate-700'
-  return <span className={`inline-flex rounded-md-full px-2 py-0.5 text-xs ${color}`}>{label || '-'}</span>
+function StatusPill({ label, tone = 'status' }: { label: string; tone?: 'cancelled' | 'closed' | 'match' | 'open' | 'status' }) {
+  const color = {
+    cancelled: 'bg-slate-100 text-slate-700',
+    closed: 'bg-emerald-50 text-emerald-700',
+    match: 'bg-cyan-50 text-cyan-700',
+    open: 'bg-amber-50 text-amber-700',
+    status: 'bg-slate-100 text-slate-700',
+  }[tone]
+  return <span className={`inline-flex rounded-full px-2 py-0.5 text-xs ${color}`}>{label || '-'}</span>
 }
 
 function renderFieldLabel(label: string) {

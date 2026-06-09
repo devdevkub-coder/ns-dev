@@ -121,7 +121,7 @@ function itemRows(row: PoSellSourceRow, fallbackProduct: ProductRef | null, prod
 }
 
 function isCancelled(status: string | null | undefined) {
-  return status === 'cancelled' || status === 'Cancelled'
+  return ['cancelled', 'canceled'].includes((status ?? '').trim().toLowerCase())
 }
 
 function sortPool(rows: CostPoolRow[], mode: string) {
@@ -161,7 +161,7 @@ export async function GET(request: Request) {
         include: { customers: true },
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         take: 5000,
-        where: { NOT: { status: { in: ['cancelled', 'Cancelled'] } } },
+        where: { NOT: { status: { in: ['Cancelled', 'cancelled', 'Canceled', 'canceled', 'Closed', 'closed', 'Completed', 'completed', 'Fully Matched', 'fully matched', 'Received', 'received'] } } },
       }),
       prisma.sales_bills.findMany({
         select: { id: true, po_sell_id: true },

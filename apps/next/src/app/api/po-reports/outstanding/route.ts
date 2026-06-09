@@ -69,7 +69,7 @@ export async function GET() {
         orderBy: [{ expected_delivery: 'asc' }, { date: 'asc' }],
         take: 5000,
         where: {
-          NOT: { status: { in: ['Cancelled', 'cancelled', 'Received', 'received'] } },
+          NOT: { status: { in: ['Cancelled', 'cancelled', 'Canceled', 'canceled', 'Closed', 'closed', 'Completed', 'completed', 'Fully Matched', 'fully matched', 'Received', 'received'] } },
           require_delivery: { not: false },
         },
       }),

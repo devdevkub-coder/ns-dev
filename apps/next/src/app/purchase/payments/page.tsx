@@ -5,6 +5,12 @@ export const metadata: Metadata = {
   title: 'จ่ายเงิน Supplier | NS Scrap ERP',
 }
 
-export default function PurchasePaymentsPage() {
-  return <MoneyMovementPageClient entryOnly mode="payment" />
+type PurchasePaymentsPageProps = {
+  searchParams?: Promise<{ tab?: string }>
+}
+
+export default async function PurchasePaymentsPage({ searchParams }: PurchasePaymentsPageProps) {
+  const params = await searchParams
+  const initialTab = params?.tab === 'history' ? 'history' : 'entry'
+  return <MoneyMovementPageClient initialTab={initialTab} mode="payment" />
 }

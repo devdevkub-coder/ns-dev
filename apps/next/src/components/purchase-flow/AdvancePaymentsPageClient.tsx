@@ -689,7 +689,7 @@ export function AdvancePaymentsPageClient() {
           </div>
 
           <div className="overflow-x-auto rounded-md bg-white shadow">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs">
               <thead className="bg-slate-100">
                 <tr>
                   <AdvancePaymentSortHeader activeKey={sortKey} direction={sortDirection} label="เลขที่" sortKey="docNo" onSort={changeSort} />
@@ -711,47 +711,43 @@ export function AdvancePaymentsPageClient() {
                 {!isLoading && (data?.rows ?? []).length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={12}>ยังไม่มีรายการจ่ายเงินล่วงหน้า</td></tr> : null}
                 {!isLoading && (data?.rows ?? []).map((row) => (
                   <tr key={row.id} className="cursor-pointer hover:bg-slate-50" onClick={() => void loadDetail(row.id)}>
-                    <td className="p-2 font-mono text-xs whitespace-nowrap">{row.docNo}</td>
-                    <td className="p-2 whitespace-nowrap">{row.advanceDate}</td>
-                    <td className="p-2">{row.supplierName}</td>
-                    <td className="p-2 font-mono text-xs">{row.largeScaleDocNo || '-'}</td>
-                    <td className="p-2 whitespace-nowrap">{row.plateNo || '-'}</td>
-                    <td className="p-2">{row.productName || '-'}</td>
-                    <td className="p-2 text-right tabular-nums">{formatMoney(row.netWeight)}</td>
-                    <td className="p-2 text-right font-medium tabular-nums">{formatMoney(row.amount)}</td>
-                    <td className="p-2 text-right tabular-nums">{formatMoney(row.allocatedAmount)}</td>
-                    <td className="p-2 text-right font-semibold text-amber-700 tabular-nums">{formatMoney(row.remainingAmount)}</td>
+                    <td className="p-2 whitespace-nowrap text-xs font-semibold text-slate-700">{row.docNo}</td>
+                    <td className="p-2 whitespace-nowrap text-xs font-semibold text-slate-700">{row.advanceDate}</td>
+                    <td className="p-2 text-xs font-semibold text-slate-700">{row.supplierName}</td>
+                    <td className="p-2 text-xs font-semibold text-slate-700">{row.largeScaleDocNo || '-'}</td>
+                    <td className="p-2 whitespace-nowrap text-xs font-semibold text-slate-700">{row.plateNo || '-'}</td>
+                    <td className="p-2 text-xs font-semibold text-slate-700">{row.productName || '-'}</td>
+                    <td className="p-2 text-right text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(row.netWeight)}</td>
+                    <td className="p-2 text-right text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(row.amount)}</td>
+                    <td className="p-2 text-right text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(row.allocatedAmount)}</td>
+                    <td className="p-2 text-right text-xs font-semibold text-amber-700 tabular-nums">{formatMoney(row.remainingAmount)}</td>
                     <td className="p-2"><StatusDot status={row.status} label={row.statusLabel} /></td>
                     <td className="p-2 text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          className="px-2 py-1 text-xs"
+                      <div className="flex justify-end gap-2">
+                        <button
+                          className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                           disabled={!row.canEdit}
-                          size="xs"
                           title={!row.canEdit ? row.lockedReason ?? 'รายการนี้ยังแก้ไขไม่ได้' : undefined}
                           type="button"
-                          variant="outline"
                           onClick={(event) => {
                             event.stopPropagation()
                             openEditForm(row)
                           }}
                         >
                           แก้ไข
-                        </Button>
-                        <Button
-                          className="px-2 py-1 text-xs"
+                        </button>
+                        <button
+                          className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                           disabled={!row.canCancel}
-                          size="xs"
                           title={!row.canCancel ? row.lockedReason ?? 'รายการนี้ยังยกเลิกไม่ได้' : undefined}
                           type="button"
-                          variant="outline"
                           onClick={(event) => {
                             event.stopPropagation()
                             void openCancelFromRow(row.id)
                           }}
                         >
                           ยกเลิก
-                        </Button>
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -1085,7 +1081,7 @@ function StatusDot({ label, status }: { label: string; status: string }) {
       : status === 'cancelled'
         ? 'bg-red-500 text-red-700'
         : 'bg-blue-500 text-blue-700'
-  return <span className={`inline-flex items-center gap-2 whitespace-nowrap text-xs ${color.split(' ')[1]}`}><span className={`h-2 w-2 rounded-full ${color.split(' ')[0]}`} />{label}</span>
+  return <span className={`inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold ${color.split(' ')[1]}`}><span className={`size-1.5 rounded-full ${color.split(' ')[0]}`} />{label}</span>
 }
 
 function SummaryLine({ label, value }: { label: string; value: string }) {

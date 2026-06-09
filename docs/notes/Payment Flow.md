@@ -13,7 +13,7 @@ tags:
   - business-flow
 status: draft
 created: 2026-05-28
-updated: 2026-06-08
+updated: 2026-06-09
 ---
 
 # Payment Flow / Flow จ่ายเงิน
@@ -91,10 +91,10 @@ flowchart TD
   Remaining["source pending balance<br/>ยอดที่ยังไม่อนุมัติ"]
   Payments["/purchase/payments<br/>รอจ่าย"]
   VoidPma["void PMA ก่อนออก PMT<br/>PMA เป็น audit เท่านั้น"]
-  Pmt["PMT เสร็จสิ้น<br/>ต้องจ่ายเต็ม PMA ที่เลือก"]
-  HistorySuccess["/purchase/payment-history<br/>PMT เสร็จสิ้น"]
+  Pmt["PMT จ่ายแล้ว<br/>ต้องจ่ายเต็ม PMA ที่เลือก"]
+  HistorySuccess["/purchase/payments?tab=history<br/>PMT จ่ายแล้ว"]
   CancelPmt["cancel PMT<br/>reverse bank/payment allocation"]
-  HistoryCancel["/purchase/payment-history<br/>PMT ยกเลิกแล้ว"]
+  HistoryCancel["/purchase/payments?tab=history<br/>PMT ยกเลิก"]
   NewApproval["ต้อง approve ใหม่<br/>สร้าง PMA ใหม่ ห้าม reuse PMA เดิม"]
 
   Source --> Pending
@@ -114,16 +114,16 @@ flowchart TD
 | `ยังไม่อนุมัติ` | `PB / ADV / EXP` | `/daily/payment-approval` | source ยังมียอดค้างที่ยังไม่ถูกอนุมัติ |
 | `อนุมัติแล้ว` | `PMA` | `/daily/payment-approval` | snapshot ของยอดที่อนุมัติแล้ว |
 | `รอจ่าย` | `PMA` | `/purchase/payments` | PMA approved ที่ยังไม่ได้ออก PMT |
-| `เสร็จสิ้น` | `PMT` | `/purchase/payment-history` | จ่ายจริงแล้ว |
-| `ยกเลิกแล้ว` | `PMT` | `/purchase/payment-history` | payment voucher ถูกยกเลิกและต้องเริ่ม approval ใหม่สำหรับยอดที่ reverse |
+| `จ่ายแล้ว` | `PMT` | `/purchase/payments` แท็บ `ประวัติ` | จ่ายจริงแล้ว |
+| `ยกเลิก` | `PMT` | `/purchase/payments` แท็บ `ประวัติ` | PMT ถูกยกเลิกและต้องเริ่ม approval ใหม่สำหรับยอดที่ reverse |
 
 ## Queue และหน้าจอ
 
 | หน้า | หน้าที่ | ลักษณะข้อมูล |
 |---|---|---|
 | `/daily/payment-approval` | queue `อนุมัติจ่ายเงิน` | pending source candidates + approved PMA snapshots |
-| `/purchase/payments` | queue `รอจ่าย` | approved PMA items ที่ต้องออก PMT |
-| `/purchase/payment-history` | ประวัติการจ่ายเงิน | PMT success/cancelled snapshots |
+| `/purchase/payments` | queue `รอจ่าย` + แท็บ `ประวัติ` | approved PMA items ที่ต้องออก PMT และ PMT success/cancelled snapshots |
+| `/purchase/payment-history` | legacy redirect | redirect ไป `/purchase/payments?tab=history` เท่านั้น |
 
 กติกา:
 
@@ -135,6 +135,8 @@ flowchart TD
   - pending rows ต้องคำนวณยอดจาก source ปัจจุบัน โดยหักยอดที่ถูกอนุมัติหรือจ่ายไปแล้ว และไม่หัก `PMA voided`
   - source ที่ถูก cancel ก่อนอนุมัติต้องหายจาก pending queue
 - `/purchase/payments`
+  - มีแท็บ `จ่ายเงิน Supplier` สำหรับ queue `รอจ่าย` และแท็บ `ประวัติ` สำหรับประวัติการจ่ายเงิน
+  - แท็บ `ประวัติ` ใช้ read-model เดิมจาก `/api/purchase/payment-history` ไม่ใช้ queue API ของหน้ารอจ่าย
   - อ่านเฉพาะ `PMA approved` ที่ยังไม่ถูกออก `PMT`
   - เลือกหลาย `PMA` ของผู้รับเงินเดียวกันมาจ่ายใน `PMT` เดียวได้
   - PMT ต้องจ่ายเต็มทุก PMA ที่เลือก
@@ -143,10 +145,17 @@ flowchart TD
   - section `รายการจ่าย` ต้องแสดง PMA/source/ผู้รับเงิน พร้อม `ช่องทางรับเงิน`, `บัญชีรับเงิน`, และยอด `ค้าง` ในบรรทัดเดียวกัน
   - `Discount` และ `Bank Fee` เป็นระดับ PMT voucher และต้องอยู่ใน section `บัญชีจ่าย` ก่อนบรรทัด `รวมแยกบัญชี`; `Net Cash Out` แสดงผ่าน card สรุปยอดสุทธิด้านล่างเท่านั้น และห้ามผูกกับ PMA line รายการใดรายการหนึ่งใน UI
   - PMT modal ไม่ต้องมี WHT; รายการ PMT ใหม่ต้องบันทึก `withholding_tax = 0` และตัดยอด PMA ด้วย `จ่าย + Discount`
-- `/purchase/payment-history`
+- แท็บ `ประวัติ` ใน `/purchase/payments`
   - read-only
-  - แสดง `PMT` ที่ `เสร็จสิ้น` และ `ยกเลิกแล้ว`
-  - downstream accounting/report/bank posting ใช้เฉพาะ `เสร็จสิ้น`
+  - แสดงรายการจ่ายที่ user-facing status เป็น `จ่ายแล้ว` และ `ยกเลิก` เท่านั้น (`จ่ายแล้ว` คือ PMT เสร็จสิ้นแล้ว)
+  - downstream accounting/report/bank posting ใช้เฉพาะ `จ่ายแล้ว`
+  - filter/table ต้องตาม shared list-page design: search มาก่อน, date range เป็น `from -> to`, `สถานะ:` เป็น segmented filter โทน slate, count/page-size/pagination อยู่เหนือ table, และ table เป็นศูนย์กลางของหน้า
+  - ตารางไม่มีปุ่ม `รายละเอียด` ในคอลัมน์ action; ผู้ใช้กดทั้งแถวเพื่อเปิด detail modal บนแท็บ `ประวัติ`
+  - ไม่มี user-facing detail page/route สำหรับ `/purchase/payments/{id}`; table row ต้องเปิด modal ผ่าน `/api/purchase/payment-history/{PMT/PMA doc no}` เท่านั้น
+  - ห้ามแสดงหรือใช้ `voucher_id` เป็น outward UI/URL จากตารางหรือ modal; `voucher_id` เป็น internal grouping key สำหรับ server resolve/audit compatibility เท่านั้น
+  - กรณี history row เป็น `PMA voided` ที่ยังไม่มี PMT ให้ modal แสดง PMA snapshot/timeline แทน 404
+  - PMT/PMA detail timeline ต้องใช้ pattern เดียวกับ `ประวัติ POB`: stream เดียวเรียงล่าสุดขึ้นก่อน, time/actor column ซ้าย, event column มีเส้น timeline, dot latest ตาม tone, และแสดง latest status pill ด้านหัว section
+  - route เก่า `/purchase/payment-history` ต้อง redirect ไป `/purchase/payments?tab=history` เพื่อรองรับ bookmark/link เก่า แต่ไม่เป็นเมนูแยก
 
 ## Split Approval Model
 
@@ -211,7 +220,7 @@ approval ต้องไม่ยึด `1 source = 1 PMA` อย่างเด
 4. `PMT` ต้อง settle เต็มยอดของทุก PMA ที่เลือก
 5. `payments` / payment allocation ต้องชี้กลับ PMA ที่ถูกจ่าย
 6. PMA ที่ถูกจ่ายต้องเปลี่ยนเป็น consumed/paid ตาม implementation status
-7. history ต้องเห็น `PMT` เป็น `เสร็จสิ้น`
+7. history ต้องเห็น `PMT` เป็น `จ่ายแล้ว`
 8. source document ต้อง recalc `paid_amount`, `payable_balance`, และ payment status ใน transaction เดียวกัน
 
 กติกายอด:
@@ -247,7 +256,7 @@ Implementation contract ขั้นต่ำ:
 
 เมื่อ `PMT` ที่จ่ายเงินจริงแล้วถูกยกเลิก:
 
-1. `PMT` เดิมต้องอยู่ใน history เป็น `ยกเลิกแล้ว`
+1. `PMT` เดิมต้องอยู่ใน history เป็น `ยกเลิก`
 2. ต้อง reverse ผลกระทบเงินออก เช่น bank statement และ payment allocation
 3. PMA ที่ถูกใช้ใน PMT นั้นถือว่าจบ cycle เดิมแล้ว ห้ามนำกลับมาใช้จ่ายใหม่
 4. ยอดที่ถูก reverse ต้องกลับไปคำนวณเป็น pending candidate ของ source document เดิม
@@ -401,8 +410,8 @@ Payment Flow ใช้แนวทางใน [[Document History Table Design]]
 | `ยังไม่อนุมัติ` | `PB / ADV / EXP` | `/daily/payment-approval` | ได้ ถ้ายังไม่มี PMA approved ของ source นั้น | ไม่อยู่ใน history |
 | `อนุมัติแล้ว` | `PMA` | `/daily/payment-approval` | lock financial fields | approval snapshot |
 | `รอจ่าย` | `PMA` | `/purchase/payments` | lock financial fields | ไม่อยู่ใน payment history |
-| `เสร็จสิ้น` | `PMT` | `/purchase/payment-history` | lock | อยู่ |
-| `ยกเลิกแล้ว` | `PMT` | `/purchase/payment-history` | ยอด reverse กลับไป source pending candidate | อยู่ |
+| `จ่ายแล้ว` | `PMT` | `/purchase/payments` แท็บ `ประวัติ` | lock | อยู่ |
+| `ยกเลิก` | `PMT` | `/purchase/payments` แท็บ `ประวัติ` | ยอด reverse กลับไป source pending candidate | อยู่ |
 
 ## Use Case Status Examples
 
@@ -410,9 +419,9 @@ Payment Flow ใช้แนวทางใน [[Document History Table Design]]
 |---|---|---|---|---|---|
 | approve partial | `PB001 = 1,000` ถูกสร้าง | `ยังไม่อนุมัติ 1,000` | ไม่มี | ไม่มี | `/daily/payment-approval` เห็น `PB001` |
 | approve partial | อนุมัติ `300 + 300` | `ยังไม่อนุมัติ 400`, financial fields locked | `PMA001 approved 300`, `PMA002 approved 300` | ไม่มี | approved tab เห็น PMA, pending tab เห็น PB balance |
-| full PMT | เลือก `PMA001 + PMA002` ทำจ่าย | source ยังเหลือ pending 400 | `PMA001/PMA002 consumed` | `PMT001 เสร็จสิ้น 600` | `/purchase/payment-history` เห็น PMT |
+| full PMT | เลือก `PMA001 + PMA002` ทำจ่าย | source ยังเหลือ pending 400 | `PMA001/PMA002 consumed` | `PMT001 จ่ายแล้ว 600` | `/purchase/payments` แท็บ `ประวัติ` เห็น PMT |
 | combine same-payee PMAs | เลือก PMA จากหลาย source ของผู้รับเงินเดียวกัน | source แต่ละใบคำนวณ balance ตามจริง | หลาย PMA approved | PMT เดียวจ่ายรวมเต็ม | `/purchase/payments` รวมหลาย PMA ใน PMT เดียวได้ |
-| cancel PMT | ยกเลิก `PMT001` | ยอด 600 กลับเป็น pending candidate ของ source | PMA เดิมจบ cycle ใช้เป็น audit | `PMT001 ยกเลิกแล้ว` | ต้องอนุมัติใหม่ก่อนจ่ายใหม่ |
+| cancel PMT | ยกเลิก `PMT001` | ยอด 600 กลับเป็น pending candidate ของ source | PMA เดิมจบ cycle ใช้เป็น audit | `PMT001 ยกเลิก` | ต้องอนุมัติใหม่ก่อนจ่ายใหม่ |
 
 ## Implementation Baseline Evidence
 

@@ -138,6 +138,10 @@ function activeStatus(status?: string | null) {
   return !['cancelled', 'void', 'reversed'].includes((status ?? '').toLowerCase())
 }
 
+function activePoSellStatus(status?: string | null) {
+  return activeStatus(status) && !['canceled', 'closed', 'completed', 'fully matched', 'received'].includes((status ?? '').toLowerCase())
+}
+
 async function productsContext() {
   const products = await prisma.products.findMany({
     orderBy: [{ code: 'asc' }],
@@ -229,7 +233,7 @@ export async function buildPendingSales() {
     return productAgg.get(key)!
   }
 
-  poSells.filter((po) => activeStatus(po.status)).forEach((po) => {
+  poSells.filter((po) => activePoSellStatus(po.status)).forEach((po) => {
     poSellItems(po, byKey).forEach((item) => {
       const qty = item.qty
       const remaining = Math.max(0, item.remainingQty)
@@ -315,7 +319,7 @@ export async function buildPendingSales() {
   })
 
   const poSellOpenByProduct = new Map<string, number>()
-  poSells.filter((po) => activeStatus(po.status) && !['fully matched', 'closed'].includes((po.status ?? '').toLowerCase())).forEach((po) => {
+  poSells.filter((po) => activePoSellStatus(po.status)).forEach((po) => {
     poSellItems(po, byKey).forEach((item) => {
       if (!item.product?.id && !item.productId) return
       const key = item.product ? String(item.product.id) : item.productId

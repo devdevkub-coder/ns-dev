@@ -367,20 +367,20 @@ export function DailyTransferPageClient() {
         </div>
       ) : null}
 
-      <Table>
+      <Table className="text-xs">
         <TableHeader>
           <tr>
-            <TableHead>เลขที่</TableHead>
-            <TableHead>วันที่</TableHead>
-            <TableHead>จาก</TableHead>
-            <TableHead>เข้า</TableHead>
-            <TableHead className="text-right">จำนวน</TableHead>
-            <TableHead className="text-right">ค่าธรรมเนียม</TableHead>
-            <TableHead>ผู้ทำรายการ</TableHead>
-            <TableHead className="text-right">Action</TableHead>
+            <TableHead className="p-2 text-left text-xs font-semibold text-slate-700">เลขที่</TableHead>
+            <TableHead className="p-2 text-left text-xs font-semibold text-slate-700">วันที่</TableHead>
+            <TableHead className="p-2 text-left text-xs font-semibold text-slate-700">จาก</TableHead>
+            <TableHead className="p-2 text-left text-xs font-semibold text-slate-700">เข้า</TableHead>
+            <TableHead className="p-2 text-right text-xs font-semibold text-slate-700">จำนวน</TableHead>
+            <TableHead className="p-2 text-right text-xs font-semibold text-slate-700">ค่าธรรมเนียม</TableHead>
+            <TableHead className="p-2 text-left text-xs font-semibold text-slate-700">ผู้ทำรายการ</TableHead>
+            <TableHead className="p-2 text-right text-xs font-semibold text-slate-700">Action</TableHead>
           </tr>
         </TableHeader>
-        <TableBody>
+        <TableBody className="divide-y divide-slate-100">
           {isLoading ? <tr><td className="p-8 text-center text-slate-500" colSpan={8}>กำลังโหลดข้อมูล</td></tr> : null}
           {!isLoading && pagedRows.map((row) => (
             <TableRow
@@ -395,16 +395,16 @@ export function DailyTransferPageClient() {
                 }
               }}
             >
-              <TableCell className="font-mono text-xs">{row.docNo}</TableCell>
-              <TableCell className="whitespace-nowrap">{formatDateDisplay(row.date)}</TableCell>
-              <TableCell className="text-red-600">{row.fromAccountName}</TableCell>
-              <TableCell className="text-emerald-700">{row.toAccountName}</TableCell>
-              <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">{formatMoney(row.amount)}</TableCell>
-              <TableCell className="whitespace-nowrap text-right text-amber-700 tabular-nums">{formatMoney(row.fee)}</TableCell>
-              <TableCell>{row.byPerson || '-'}</TableCell>
+              <TableCell className="whitespace-nowrap text-xs font-semibold text-slate-700">{row.docNo}</TableCell>
+              <TableCell className="whitespace-nowrap text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</TableCell>
+              <TableCell className="text-xs font-semibold text-red-600">{row.fromAccountName}</TableCell>
+              <TableCell className="text-xs font-semibold text-emerald-700">{row.toAccountName}</TableCell>
+              <TableCell className="whitespace-nowrap text-right text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(row.amount)}</TableCell>
+              <TableCell className="whitespace-nowrap text-right text-xs font-semibold text-amber-700 tabular-nums">{formatMoney(row.fee)}</TableCell>
+              <TableCell className="text-xs font-semibold text-slate-700">{row.byPerson || '-'}</TableCell>
               <TableCell className="space-x-2 whitespace-nowrap text-right">
-                <Button size="xs" type="button" variant="outline" onClick={(event) => { event.stopPropagation(); openEditForm(row) }}>แก้ไข</Button>
-                <button className="text-xs text-red-300" disabled type="button" onClick={(event) => event.stopPropagation()}>ยกเลิก</button>
+                <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" type="button" onClick={(event) => { event.stopPropagation(); openEditForm(row) }}>แก้ไข</button>
+                <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" disabled type="button" onClick={(event) => event.stopPropagation()}>ยกเลิก</button>
               </TableCell>
             </TableRow>
           ))}

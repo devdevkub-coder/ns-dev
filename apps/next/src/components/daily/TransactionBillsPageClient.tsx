@@ -1505,47 +1505,47 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           <Button disabled={currentPage >= totalPages} size="sm" type="button" variant="outline" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>
         </div>
       </div>
-      <Table className="[&_tbody_tr]:border-0">
+      <Table className="text-xs">
           <TableHeader>
             <tr>
               <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label={mode === 'purchase' ? 'เลขที่บิลซื้อ' : 'เลขที่'} sortKey="docNo" onSort={changeSort} />
-              {mode === 'purchase' ? <th className="p-2 text-left">เลขที่ใบรับของ</th> : null}
+              {mode === 'purchase' ? <th className="p-2 text-left text-xs font-semibold text-slate-700">เลขที่ใบรับของ</th> : null}
               {mode === 'sales' ? <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label="เลขที่อ้างอิง" sortKey="refNo" onSort={changeSort} /> : null}
               <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label={mode === 'purchase' ? 'วันที่สร้างรายการ' : 'วันที่'} sortKey="date" onSort={changeSort} />
               <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label={mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า'} sortKey="name" onSort={changeSort} />
               {mode !== 'purchase' ? <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label="สาขา / คลัง" sortKey="warehouse" onSort={changeSort} /> : null}
               {mode !== 'stock-issue' ? <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="ประเภท" sortKey="transactionMode" onSort={changeSort} /> : null}
               <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label={mode === 'purchase' ? 'สถานะเอกสาร' : 'สถานะรับเงิน'} sortKey="status" onSort={changeSort} />
-              {mode === 'purchase' ? <th className="p-2 text-left">PMA / PMT</th> : null}
+              {mode === 'purchase' ? <th className="p-2 text-left text-xs font-semibold text-slate-700">PMA / PMT</th> : null}
               {mode !== 'purchase' ? <SortHeader activeKey={sortKey} align="right" direction={sortDirection} label="รายการ" sortKey="itemCount" onSort={changeSort} /> : null}
-              {mode === 'stock-issue' ? <th className="p-2 text-right">น้ำหนัก</th> : null}
-              {mode === 'stock-issue' ? <th className="p-2 text-right">ต้นทุน</th> : null}
+              {mode === 'stock-issue' ? <th className="p-2 text-right text-xs font-semibold text-slate-700">น้ำหนัก</th> : null}
+              {mode === 'stock-issue' ? <th className="p-2 text-right text-xs font-semibold text-slate-700">ต้นทุน</th> : null}
               <SortHeader activeKey={sortKey} align="right" direction={sortDirection} label={mode === 'stock-issue' ? 'ยอดคาด' : 'ยอดรวม'} sortKey="totalAmount" onSort={changeSort} />
-              {mode === 'sales' ? <th className="p-2 text-right">GP / Margin</th> : null}
-              {mode === 'sales' ? <th className="p-2 text-right">รับแล้ว</th> : null}
+              {mode === 'sales' ? <th className="p-2 text-right text-xs font-semibold text-slate-700">GP / Margin</th> : null}
+              {mode === 'sales' ? <th className="p-2 text-right text-xs font-semibold text-slate-700">รับแล้ว</th> : null}
               {mode !== 'stock-issue' ? <SortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ค้างชำระ" sortKey="outstanding" onSort={changeSort} /> : null}
-              {mode === 'sales' ? <th className="p-2 text-center">VAT</th> : null}
+              {mode === 'sales' ? <th className="p-2 text-center text-xs font-semibold text-slate-700">VAT</th> : null}
               {mode !== 'stock-issue' ? <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label="อัพเดตล่าสุด" sortKey="updatedBy" onSort={changeSort} /> : null}
-              {mode === 'purchase' ? <th className="p-2 text-right">จัดการ</th> : null}
-              {mode === 'sales' ? <th className="p-2 text-right">จัดการ</th> : null}
+              {mode === 'purchase' ? <th className="p-2 text-right text-xs font-semibold text-slate-700">จัดการ</th> : null}
+              {mode === 'sales' ? <th className="p-2 text-right text-xs font-semibold text-slate-700">จัดการ</th> : null}
             </tr>
           </TableHeader>
-          <TableBody>
+          <TableBody className="divide-y divide-slate-100">
             {isLoading ? <TableRow><td className="p-6 text-center text-slate-500" colSpan={tableColSpan}>กำลังโหลดข้อมูล</td></TableRow> : null}
             {!isLoading && pageRows.map((row) => (
               <TableRow key={row.id} className={`hover:bg-slate-50 ${mode === 'purchase' && !isStockIssueRow(row) ? 'cursor-pointer' : ''}`} onClick={() => openRow(row)}>
-                <td className="whitespace-nowrap p-2 text-xs">{row.docNo}</td>
+                <td className="whitespace-nowrap p-2 text-xs font-semibold text-slate-700">{row.docNo}</td>
                 {mode === 'purchase' && !isStockIssueRow(row) ? (
-                  <td className="p-2 text-xs">
+                  <td className="p-2 text-xs font-semibold text-slate-700">
                     {row.receiptDocNos?.length
                       ? <div className="space-y-0.5">{row.receiptDocNos.map((docNo) => <div className="whitespace-nowrap text-slate-700" key={`${row.id}-${docNo}`}>{docNo}</div>)}</div>
                       : <span className="text-slate-400">-</span>}
                   </td>
                 ) : null}
-                {mode === 'sales' && !isStockIssueRow(row) ? <td className="whitespace-nowrap p-2 text-xs text-slate-600">{row.refNo || '-'}</td> : null}
-                <td className="p-2">{formatDateDisplay(row.date)}</td>
-                <td className="p-2">{'supplierName' in row ? row.supplierName : row.customerName}</td>
-                {mode !== 'purchase' ? <td className="p-2">{formatBranchWarehouse(row)}</td> : null}
+                {mode === 'sales' && !isStockIssueRow(row) ? <td className="whitespace-nowrap p-2 text-xs font-semibold text-slate-700">{row.refNo || '-'}</td> : null}
+                <td className="p-2 text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</td>
+                <td className="p-2 text-xs font-semibold text-slate-700">{'supplierName' in row ? row.supplierName : row.customerName}</td>
+                {mode !== 'purchase' ? <td className="p-2 text-xs font-semibold text-slate-700">{formatBranchWarehouse(row)}</td> : null}
                 {mode !== 'stock-issue' && !isStockIssueRow(row) ? <td className="p-2 text-center"><span className={`rounded-md-full px-2 py-0.5 text-xs font-semibold ${row.transactionMode === 'TRADING' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>{row.transactionMode ?? '-'}</span></td> : null}
                 <td className="p-2 text-center">
                   <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${mode === 'purchase' && !isStockIssueRow(row) ? workflowStatusBadgeClass(row.paymentWorkflowStatus ?? 'pending_approval') : statusBadgeClass(row.status)}`}>
@@ -1553,8 +1553,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     {mode === 'purchase' && !isStockIssueRow(row) ? workflowStatusText(row.paymentWorkflowStatus ?? 'pending_approval') : statusText(row.status)}
                   </span>
                 </td>
-                {mode === 'purchase' && !isStockIssueRow(row) ? <td className="p-2 text-xs">{row.paymentDocNos?.length ? <div className="space-y-0.5">{row.paymentDocNos.map((docNo: string) => <div key={`${row.id}-${docNo}`} className="text-slate-700">{docNo}</div>)}</div> : <span className="text-slate-400">-</span>}</td> : null}
-                {mode !== 'purchase' ? <td className="p-2 text-right">{row.itemCount}</td> : null}
+                {mode === 'purchase' && !isStockIssueRow(row) ? <td className="p-2 text-xs font-semibold text-slate-700">{row.paymentDocNos?.length ? <div className="space-y-0.5">{row.paymentDocNos.map((docNo: string) => <div key={`${row.id}-${docNo}`} className="text-slate-700">{docNo}</div>)}</div> : <span className="text-slate-400">-</span>}</td> : null}
+                {mode !== 'purchase' ? <td className="p-2 text-right text-xs font-semibold text-slate-700">{row.itemCount}</td> : null}
                 {mode === 'stock-issue' && isStockIssueRow(row) ? <TableNumberCell value={formatMoney(row.totalQty ?? 0)} /> : null}
                 {mode === 'stock-issue' && isStockIssueRow(row) ? <TableNumberCell tone="amber" value={formatMoney(row.totalCost)} /> : null}
                 <TableNumberCell strong value={formatMoney(isStockIssueRow(row) ? row.totalEstAmount : row.totalAmount ?? 0)} />
@@ -1562,10 +1562,48 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 {mode === 'sales' && !isStockIssueRow(row) ? <TableNumberCell value={formatMoney(row.receivedAmount ?? 0)} /> : null}
                 {mode !== 'stock-issue' && !isStockIssueRow(row) ? <TableNumberCell tone="amber" value={formatMoney(mode === 'purchase' ? row.payableBalance ?? 0 : row.receivableBalance ?? 0)} /> : null}
                 {mode === 'sales' && !isStockIssueRow(row) ? <td className="p-2 text-center"><span className={`rounded-md-full px-2 py-0.5 text-xs font-semibold ${row.vatInvoiceIssued ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{row.vatInvoiceIssued ? 'ออกแล้ว' : 'ยังไม่ออก'}</span>{row.vatInvoiceNo ? <div className="mt-1 text-[10px] text-slate-500">{row.vatInvoiceNo}</div> : null}</td> : null}
-                {mode !== 'stock-issue' && !isStockIssueRow(row) ? <td className="p-2 text-xs text-slate-600"><div>{row.updatedBy || row.createdBy || '-'}</div><div className="text-[10px] text-slate-400">{formatDateTime(row.updatedAt || row.createdAt)}</div></td> : null}
-                {mode === 'purchase' && !isStockIssueRow(row) ? <td className="p-2 text-right"><div className="flex justify-end gap-1"><Button className="px-2 py-1 text-xs" disabled={row.canEdit === false} size="xs" title={row.canEdit === false ? (row.lockedReason ?? 'บิลนี้ยังแก้ไขไม่ได้') : undefined} type="button" variant="outline" onClick={(event) => { event.stopPropagation(); openEditPurchaseForm(row) }}>แก้ไข</Button><Button className="px-2 py-1 text-xs" disabled={row.canEdit === false} size="xs" title={row.canEdit === false ? (row.lockedReason ?? 'บิลนี้ยังยกเลิกไม่ได้') : undefined} type="button" variant="outline" onClick={(event) => { event.stopPropagation(); openCancelPurchaseBill(row) }}>ยกเลิก</Button></div></td> : null}
-                {mode === 'sales' && !isStockIssueRow(row) ? <td className="p-2 text-right"><div className="flex justify-end gap-1"><Button className="px-2 py-1 text-xs" disabled size="xs" title="รอเปิด flow แก้ไขบิลขาย" type="button" variant="outline">แก้ไข</Button><Button className="px-2 py-1 text-xs" disabled size="xs" title="รอเปิด flow ยกเลิกบิลขาย" type="button" variant="outline">ยกเลิก</Button></div></td> : null}
-                {mode === 'stock-issue' && isStockIssueRow(row) ? <td className="p-2 text-right"><div className="flex justify-end gap-1 whitespace-nowrap"><Button className="bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100" disabled={row.status !== 'pending'} size="xs" type="button" variant="ghost">→ เปิดบิลขาย</Button><Button className="px-2 py-1 text-xs text-slate-400 hover:bg-slate-100" disabled size="xs" type="button" variant="ghost">แก้</Button><Button className="px-2 py-1 text-xs text-slate-400 hover:bg-slate-100" disabled size="xs" type="button" variant="ghost">ยกเลิก</Button></div></td> : null}
+                {mode !== 'stock-issue' && !isStockIssueRow(row) ? <td className="p-2 text-xs font-semibold text-slate-700"><div>{row.updatedBy || row.createdBy || '-'}</div><div className="text-[10px] font-normal text-slate-400">{formatDateTime(row.updatedAt || row.createdAt)}</div></td> : null}
+                {mode === 'purchase' && !isStockIssueRow(row) ? (
+                  <td className="p-2 text-right">
+                    <div className="flex justify-end gap-2">
+                      <button
+                        className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={row.canEdit === false}
+                        title={row.canEdit === false ? (row.lockedReason ?? 'บิลนี้ยังแก้ไขไม่ได้') : undefined}
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); openEditPurchaseForm(row) }}
+                      >
+                        แก้ไข
+                      </button>
+                      <button
+                        className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={row.canEdit === false}
+                        title={row.canEdit === false ? (row.lockedReason ?? 'บิลนี้ยังยกเลิกไม่ได้') : undefined}
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); openCancelPurchaseBill(row) }}
+                      >
+                        ยกเลิก
+                      </button>
+                    </div>
+                  </td>
+                ) : null}
+                {mode === 'sales' && !isStockIssueRow(row) ? (
+                  <td className="p-2 text-right">
+                    <div className="flex justify-end gap-2">
+                      <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50" disabled title="รอเปิด flow แก้ไขบิลขาย" type="button">แก้ไข</button>
+                      <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" disabled title="รอเปิด flow ยกเลิกบิลขาย" type="button">ยกเลิก</button>
+                    </div>
+                  </td>
+                ) : null}
+                {mode === 'stock-issue' && isStockIssueRow(row) ? (
+                  <td className="p-2 text-right">
+                    <div className="flex justify-end gap-2 whitespace-nowrap">
+                      <button className="rounded-md border border-emerald-200 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50" disabled={row.status !== 'pending'} type="button">เปิดบิลขาย</button>
+                      <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50" disabled type="button">แก้ไข</button>
+                      <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" disabled type="button">ยกเลิก</button>
+                    </div>
+                  </td>
+                ) : null}
               </TableRow>
             ))}
             {!isLoading && totalRows === 0 ? <TableRow><td className="p-6 text-center text-slate-500" colSpan={tableColSpan}>ยังไม่มีรายการ</td></TableRow> : null}
@@ -2531,10 +2569,10 @@ function SortHeader({ activeKey, align, direction, label, onSort, sortKey }: { a
   const active = activeKey === sortKey
   const alignClass = align === 'right' ? 'justify-end text-right' : align === 'center' ? 'justify-center text-center' : 'justify-start text-left'
   return (
-    <th className={`p-2 ${align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'}`}>
-      <button className={`inline-flex w-full items-center gap-1 ${alignClass} rounded-md px-1 py-0.5 hover:bg-slate-200`} type="button" onClick={() => onSort(sortKey)}>
+    <th className="p-0">
+      <button className={`flex w-full items-center gap-1 p-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 ${alignClass}`} type="button" onClick={() => onSort(sortKey)}>
         <span>{label}</span>
-        <span className={`text-[10px] ${active ? 'text-slate-900' : 'text-slate-400'}`}>{active ? direction === 'asc' ? '▲' : '▼' : '↕'}</span>
+        <span className="text-slate-400">{active ? direction === 'asc' ? '▲' : '▼' : '↕'}</span>
       </button>
     </th>
   )

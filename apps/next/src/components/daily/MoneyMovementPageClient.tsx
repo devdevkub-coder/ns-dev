@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { Check, Copy, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { paymentMethodGroupFromValue, type PaymentMethodGroup } from '@/lib/account-payment-method'
@@ -64,7 +63,6 @@ type MoneyRow = {
   partyName: string
   status?: string
   supplierId?: string
-  voucherId?: string
   withholdingTax?: number
 }
 type Payload = {
@@ -76,10 +74,42 @@ type Payload = {
   settings?: { whtRatePercent?: number }
   suppliers?: Party[]
 }
+type PaymentHistoryTone = 'amber' | 'blue' | 'emerald' | 'rose' | 'slate'
+type PaymentHistoryDetail = {
+  accountRows: Array<{ accountName: string; amount: number; bankStatementDocNo: string }>
+  approvalRows: Array<{ amount: number; docNo: string; sourceDocNo: string }>
+  detailCards: Array<{ label: string; value: string }>
+  docNo: string
+  heading: string
+  latestStatusLabel: string
+  latestTone: PaymentHistoryTone
+  summary: {
+    amount: number
+    approvedAt?: string | null
+    closedAt?: string | null
+    fee: number
+    netAmount: number
+    statusLabel: string
+    withholdingTax: number
+  }
+  timeline: Array<{
+    actor?: string
+    at: string
+    details: string[]
+    pillLabel: string
+    tone: PaymentHistoryTone
+    title: string
+    transition: string
+  }>
+  timelineTitle: string
+  type: 'approval' | 'payment'
+}
 
 type MoneyForm = SupplierPaymentFormValues | CustomerReceiptFormValues
 type PaymentLine = NonNullable<SupplierPaymentFormValues['lines']>[number] & { billText?: string }
 type PaymentSplit = SupplierPaymentFormValues['splits'][number]
+type PaymentBillSort = 'age_asc' | 'age_desc' | 'balance_asc' | 'balance_desc' | 'date_asc' | 'date_desc' | 'doc_asc' | 'doc_desc' | 'paid_asc' | 'paid_desc' | 'supplier_asc' | 'supplier_desc' | 'total_asc' | 'total_desc'
+type PaymentBillSortField = 'age' | 'balance' | 'date' | 'docNo' | 'paidAmount' | 'supplier' | 'totalAmount'
 type HistorySortField = 'accountName' | 'amount' | 'date' | 'docNo' | 'netAmount' | 'partyName'
 type PaymentHistoryStatusFilter = 'active' | 'all' | 'cancelled'
 type ReceiptTab = 'entry' | 'history'
@@ -206,13 +236,81 @@ function initialForm(mode: 'payment' | 'receipt'): MoneyForm {
   } as MoneyForm
 }
 
+function paymentHistoryStatusLabel(status: string | undefined) {
+  return status === 'cancelled' ? 'ยกเลิก' : 'จ่ายแล้ว'
+}
+
+function paymentHistoryStatusTone(status: string | undefined) {
+  return status === 'cancelled'
+    ? 'text-slate-500'
+    : 'text-emerald-700'
+}
+
+function paymentHistoryStatusDot(status: string | undefined) {
+  return status === 'cancelled'
+    ? 'bg-slate-400'
+    : 'bg-emerald-500'
+}
+
+function detailToneTextClass(tone: PaymentHistoryTone) {
+  if (tone === 'blue') return 'text-blue-700'
+  if (tone === 'emerald') return 'text-emerald-700'
+  if (tone === 'amber') return 'text-amber-700'
+  if (tone === 'rose') return 'text-rose-700'
+  return 'text-slate-600'
+}
+
+function detailDotClass(tone: PaymentHistoryTone) {
+  if (tone === 'blue') return 'bg-blue-500'
+  if (tone === 'emerald') return 'bg-emerald-500'
+  if (tone === 'amber') return 'bg-amber-500'
+  if (tone === 'rose') return 'bg-rose-500'
+  return 'bg-slate-500'
+}
+
+function formatTimelineDate(value: string) {
+  if (!value) return '-'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return '-'
+  return parsed.toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+function TableSortHeader<TSortKey extends string>({
+  activeKey,
+  align,
+  direction,
+  label,
+  onSort,
+  sortKey,
+}: {
+  activeKey: TSortKey
+  align: 'center' | 'left' | 'right'
+  direction: 'asc' | 'desc'
+  label: string
+  onSort: (key: TSortKey) => void
+  sortKey: TSortKey
+}) {
+  const active = activeKey === sortKey
+  const alignClass = align === 'right' ? 'justify-end text-right' : align === 'center' ? 'justify-center text-center' : 'justify-start text-left'
+  return (
+    <TableHead className="p-0">
+      <button className={`flex w-full items-center gap-1 p-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 ${alignClass}`} type="button" onClick={() => onSort(sortKey)}>
+        <span>{label}</span>
+        <span className="text-slate-400">{active ? direction === 'asc' ? '▲' : '▼' : '↕'}</span>
+      </button>
+    </TableHead>
+  )
+}
+
 export function MoneyMovementPageClient({
   entryOnly = false,
   historyOnly = false,
+  initialTab = 'entry',
   mode,
 }: {
   entryOnly?: boolean
   historyOnly?: boolean
+  initialTab?: ReceiptTab
   mode: 'payment' | 'receipt'
 }) {
   const [data, setData] = useState<Payload>({ accounts: [], bills: [], rows: [] })
@@ -228,13 +326,13 @@ export function MoneyMovementPageClient({
   const [billSearch, setBillSearch] = useState('')
   const [billPage, setBillPage] = useState(1)
   const [billPageSize, setBillPageSize] = useState(25)
-  const [billSort, setBillSort] = useState<'age_desc' | 'balance_desc' | 'date_desc' | 'date_asc' | 'doc_desc' | 'supplier_asc'>('date_desc')
+  const [billSort, setBillSort] = useState<PaymentBillSort>('date_desc')
   const [historyPage, setHistoryPage] = useState(1)
   const [historyPageSize, setHistoryPageSize] = useState(10)
   const [historySortField, setHistorySortField] = useState<HistorySortField>(mode === 'payment' ? 'date' : 'docNo')
   const [historySortDirection, setHistorySortDirection] = useState<'asc' | 'desc'>('desc')
   const [paymentHistoryStatusFilter, setPaymentHistoryStatusFilter] = useState<PaymentHistoryStatusFilter>('all')
-  const [receiptTab, setReceiptTab] = useState<ReceiptTab>('entry')
+  const [moneyTab, setMoneyTab] = useState<ReceiptTab>(initialTab)
   const [form, setForm] = useState<MoneyForm>(() => initialForm(mode))
   const [isBillLocked, setIsBillLocked] = useState(false)
   const [moneyDrafts, setMoneyDrafts] = useState<Record<string, string>>({})
@@ -242,12 +340,18 @@ export function MoneyMovementPageClient({
   const [cancelApprovalReason, setCancelApprovalReason] = useState('')
   const [cancelApprovalTarget, setCancelApprovalTarget] = useState<Bill | null>(null)
   const [isCancellingApproval, setIsCancellingApproval] = useState(false)
+  const [paymentDetailOpen, setPaymentDetailOpen] = useState(false)
+  const [paymentDetailRow, setPaymentDetailRow] = useState<MoneyRow | null>(null)
+  const [paymentDetail, setPaymentDetail] = useState<PaymentHistoryDetail | null>(null)
+  const [isPaymentDetailLoading, setIsPaymentDetailLoading] = useState(false)
+  const [paymentDetailError, setPaymentDetailError] = useState<string | null>(null)
 
-  const apiPath = historyOnly && mode === 'payment'
-    ? '/api/purchase/payment-history'
-    : mode === 'payment'
-      ? '/api/purchase/payments'
-      : '/api/sales/receipts'
+  const showReceiptTabs = mode === 'receipt' && !entryOnly && !historyOnly
+  const showPaymentTabs = mode === 'payment' && !entryOnly && !historyOnly
+  const showMoneyTabs = showReceiptTabs || showPaymentTabs
+  const apiPath = mode === 'payment'
+    ? (historyOnly || (showPaymentTabs && moneyTab === 'history') ? '/api/purchase/payment-history' : '/api/purchase/payments')
+    : '/api/sales/receipts'
   const partyKey = mode === 'payment' ? 'supplierId' : 'customerId'
   const parties = useMemo(() => (mode === 'payment' ? data.suppliers ?? [] : data.customers ?? []), [data.customers, data.suppliers, mode])
   const paymentMethods = useMemo(() => data.paymentMethods ?? [], [data.paymentMethods])
@@ -261,9 +365,8 @@ export function MoneyMovementPageClient({
   const partyValue = mode === 'payment'
     ? (form as SupplierPaymentFormValues).supplierId
     : (form as CustomerReceiptFormValues).customerId
-  const showReceiptTabs = mode === 'receipt' && !entryOnly && !historyOnly
-  const showEntrySection = !historyOnly && (!showReceiptTabs || receiptTab === 'entry')
-  const showHistorySection = !entryOnly && (!showReceiptTabs || receiptTab === 'history')
+  const showEntrySection = !historyOnly && (!showMoneyTabs || moneyTab === 'entry')
+  const showHistorySection = !entryOnly && (!showMoneyTabs || moneyTab === 'history')
 
   const loadData = useCallback(async () => {
     setIsLoading(true)
@@ -341,19 +444,36 @@ export function MoneyMovementPageClient({
       const leftSupplierName = partyMap.get(left.supplierId ?? '') ?? left.supplierId ?? ''
       const rightSupplierName = partyMap.get(right.supplierId ?? '') ?? right.supplierId ?? ''
       switch (billSort) {
+        case 'age_asc':
+          return ageInDays(left.date) - ageInDays(right.date)
+        case 'age_desc':
+          return ageInDays(right.date) - ageInDays(left.date)
+        case 'balance_asc':
+          return (left.payableBalance ?? 0) - (right.payableBalance ?? 0)
+        case 'balance_desc':
+          return (right.payableBalance ?? 0) - (left.payableBalance ?? 0)
         case 'date_asc':
           return String(left.date ?? '').localeCompare(String(right.date ?? ''))
         case 'date_desc':
           return String(right.date ?? '').localeCompare(String(left.date ?? ''))
-        case 'balance_desc':
-          return (right.payableBalance ?? 0) - (left.payableBalance ?? 0)
+        case 'doc_asc':
+          return left.docNo.localeCompare(right.docNo)
         case 'doc_desc':
           return right.docNo.localeCompare(left.docNo)
+        case 'paid_asc':
+          return (left.paidAmount ?? 0) - (right.paidAmount ?? 0)
+        case 'paid_desc':
+          return (right.paidAmount ?? 0) - (left.paidAmount ?? 0)
         case 'supplier_asc':
           return leftSupplierName.localeCompare(rightSupplierName, 'th')
-        case 'age_desc':
+        case 'supplier_desc':
+          return rightSupplierName.localeCompare(leftSupplierName, 'th')
+        case 'total_asc':
+          return (left.totalAmount ?? 0) - (right.totalAmount ?? 0)
+        case 'total_desc':
+          return (right.totalAmount ?? 0) - (left.totalAmount ?? 0)
         default:
-          return ageInDays(right.date) - ageInDays(left.date)
+          return String(right.date ?? '').localeCompare(String(left.date ?? ''))
       }
     })
   }, [billSearch, billSort, data.bills, mode, partyMap, paymentMethods, supplierMap])
@@ -374,7 +494,19 @@ export function MoneyMovementPageClient({
   const rows = useMemo(() => {
     const query = search.trim().toLowerCase()
     return data.rows.filter((row) => {
-      const matchesSearch = !query || `${row.docNo} ${row.partyName} ${row.accountName} ${(row.accountNames ?? []).join(' ')} ${(row.billDocNos ?? []).join(' ')} ${row.notes}`.toLowerCase().includes(query)
+      const searchHaystack = [
+        row.id,
+        row.docNo,
+        row.partyName,
+        row.accountName,
+        ...(row.accountNames ?? []),
+        row.billDocNo ?? '',
+        ...(row.billDocNos ?? []),
+        row.approvalId ?? '',
+        ...(row.approvalIds ?? []),
+        row.notes,
+      ].join(' ').toLowerCase()
+      const matchesSearch = !query || searchHaystack.includes(query)
       const matchesAccount = !accountFilter || row.accountId === accountFilter || row.accountName === accountFilter
       const matchesFrom = !dateFrom || row.date >= dateFrom
       const matchesTo = !dateTo || row.date <= dateTo
@@ -400,6 +532,11 @@ export function MoneyMovementPageClient({
   const historyTotalPages = Math.max(1, Math.ceil(historyTotalRows / historyPageSize))
   const historyCurrentPage = Math.min(historyPage, historyTotalPages)
   const historyPageRows = historyRows.slice((historyCurrentPage - 1) * historyPageSize, historyCurrentPage * historyPageSize)
+  const hasActiveHistoryFilters = search.trim() !== ''
+    || dateFrom !== ''
+    || dateTo !== ''
+    || accountFilter !== ''
+    || (mode === 'payment' && paymentHistoryStatusFilter !== 'all')
 
   const metrics = useMemo(() => {
     const rowAmount = rows.reduce((sum, row) => sum + row.amount, 0)
@@ -459,6 +596,81 @@ export function MoneyMovementPageClient({
     setDateFrom('')
     setDateTo('')
     setAccountFilter('')
+    setPaymentHistoryStatusFilter('all')
+  }
+
+  function switchMoneyTab(value: ReceiptTab) {
+    setMoneyTab(value)
+    setError(null)
+    setFormOpen(false)
+    setCancelApprovalTarget(null)
+    setPaymentDetailOpen(false)
+    setPaymentDetail(null)
+    setPaymentDetailRow(null)
+    setSearch('')
+    setDateFrom('')
+    setDateTo('')
+    setAccountFilter('')
+    setPaymentHistoryStatusFilter('all')
+    setBillSearch('')
+    setBillSort('date_desc')
+    setBillPage(1)
+    setHistoryPage(1)
+    if (mode === 'payment' && typeof window !== 'undefined') {
+      window.history.replaceState(null, '', value === 'history' ? '/purchase/payments?tab=history' : '/purchase/payments')
+    }
+  }
+
+  function billSortParts(): { direction: 'asc' | 'desc'; field: PaymentBillSortField } {
+    const [rawField, rawDirection] = billSort.split('_') as [string, 'asc' | 'desc']
+    const fieldMap: Record<string, PaymentBillSortField> = {
+      age: 'age',
+      balance: 'balance',
+      date: 'date',
+      doc: 'docNo',
+      paid: 'paidAmount',
+      supplier: 'supplier',
+      total: 'totalAmount',
+    }
+    return { direction: rawDirection, field: fieldMap[rawField] ?? 'date' }
+  }
+
+  function billSortValue(field: PaymentBillSortField, direction: 'asc' | 'desc'): PaymentBillSort {
+    const fieldMap: Record<PaymentBillSortField, string> = {
+      age: 'age',
+      balance: 'balance',
+      date: 'date',
+      docNo: 'doc',
+      paidAmount: 'paid',
+      supplier: 'supplier',
+      totalAmount: 'total',
+    }
+    return `${fieldMap[field]}_${direction}` as PaymentBillSort
+  }
+
+  function toggleBillSort(field: PaymentBillSortField) {
+    const current = billSortParts()
+    if (current.field === field) {
+      setBillSort(billSortValue(field, current.direction === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+    setBillSort(billSortValue(field, field === 'supplier' ? 'asc' : 'desc'))
+  }
+
+  async function openPaymentHistoryRow(row: MoneyRow) {
+    if (mode !== 'payment') return
+    setPaymentDetailOpen(true)
+    setPaymentDetailRow(row)
+    setPaymentDetail(null)
+    setPaymentDetailError(null)
+    setIsPaymentDetailLoading(true)
+    try {
+      setPaymentDetail(await dailyFetchJson<PaymentHistoryDetail>(`/api/purchase/payment-history/${encodeURIComponent(row.docNo)}`))
+    } catch (caught) {
+      setPaymentDetailError(caught instanceof Error ? caught.message : 'โหลดรายละเอียดการจ่ายเงินไม่ได้')
+    } finally {
+      setIsPaymentDetailLoading(false)
+    }
   }
 
   async function copyAccountNo(accountKey: string, accountNo: string) {
@@ -489,11 +701,6 @@ export function MoneyMovementPageClient({
     }
     setHistorySortField(field)
     setHistorySortDirection(field === 'date' ? 'desc' : 'asc')
-  }
-
-  function historySortLabel(field: HistorySortField) {
-    if (historySortField !== field) return ' ↕'
-    return historySortDirection === 'asc' ? ' ↑' : ' ↓'
   }
 
   function selectBill(billId: string) {
@@ -736,22 +943,6 @@ export function MoneyMovementPageClient({
     }
   }
 
-  function paymentStatusLabel(status: string | undefined) {
-    return status === 'cancelled' ? 'ยกเลิกแล้ว' : 'เสร็จสิ้น'
-  }
-
-  function paymentStatusTone(status: string | undefined) {
-    return status === 'cancelled'
-      ? 'text-slate-500'
-      : 'text-emerald-700'
-  }
-
-  function paymentStatusDot(status: string | undefined) {
-    return status === 'cancelled'
-      ? 'bg-slate-400'
-      : 'bg-emerald-500'
-  }
-
   async function cancelApprovedPaymentQueue() {
     if (!cancelApprovalTarget?.approvalId) return
     if (!cancelApprovalReason.trim()) {
@@ -778,12 +969,14 @@ export function MoneyMovementPageClient({
     }
   }
 
+  const billSortState = billSortParts()
+
   return (
     <section className="space-y-5">
       {error && !formOpen ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4 xl:grid-cols-5">
-        <KpiCard label="จำนวน Voucher" value={rows.length.toLocaleString('th-TH')} tone="slate" />
+        <KpiCard label={mode === 'payment' ? 'จำนวนรายการ' : 'จำนวน Voucher'} value={rows.length.toLocaleString('th-TH')} tone="slate" />
         <KpiCard label={amountLabel} value={formatMoney(metrics.rowAmount)} tone={mode === 'payment' ? 'rose' : 'emerald'} />
         <KpiCard label="ยอดสุทธิ" value={formatMoney(metrics.rowNet)} tone="blue" />
         {mode === 'payment'
@@ -792,18 +985,15 @@ export function MoneyMovementPageClient({
         <KpiCard label={balanceLabel} value={formatMoney(metrics.outstanding)} tone="violet" />
       </div>
 
-      {showReceiptTabs ? (
+      {showMoneyTabs ? (
         <Tabs
           className="gap-0"
-          value={receiptTab}
-          onValueChange={(value) => {
-            setReceiptTab(value as ReceiptTab)
-            setError(null)
-          }}
+          value={moneyTab}
+          onValueChange={(value) => switchMoneyTab(value as ReceiptTab)}
         >
           <TabsList className="w-full" variant="line">
-            <TabsTrigger value="entry" variant="line">รับเงิน Customer</TabsTrigger>
-            <TabsTrigger value="history" variant="line">ประวัติการรับเงิน</TabsTrigger>
+            <TabsTrigger value="entry" variant="line">{mode === 'payment' ? 'จ่ายเงิน Supplier' : 'รับเงิน Customer'}</TabsTrigger>
+            <TabsTrigger value="history" variant="line">{mode === 'payment' ? 'ประวัติ' : 'ประวัติการรับเงิน'}</TabsTrigger>
           </TabsList>
         </Tabs>
       ) : null}
@@ -843,17 +1033,6 @@ export function MoneyMovementPageClient({
                 </UiButton>
               ) : null}
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-500">เรียง:</span>
-              <UiSelect className="h-9 w-auto min-w-[180px] px-2 py-1" value={billSort} onChange={(event) => setBillSort(event.target.value as typeof billSort)}>
-                <option value="age_desc">อายุค้างมากสุด</option>
-                <option value="balance_desc">ยอดคงเหลือมากสุด</option>
-                <option value="date_desc">วันที่ล่าสุด</option>
-                <option value="date_asc">วันที่เก่าสุด</option>
-                <option value="doc_desc">เลขบิลล่าสุด</option>
-                <option value="supplier_asc">ผู้รับเงิน A-Z</option>
-              </UiSelect>
-            </div>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
             <div>พบทั้งหมด <span className="font-semibold text-slate-900">{supplierBillTotalRows}</span> รายการ</div>
@@ -871,22 +1050,22 @@ export function MoneyMovementPageClient({
               <UiButton className="h-9 font-normal" disabled={supplierBillCurrentPage >= supplierBillTotalPages} size="sm" type="button" variant="outline" onClick={() => setBillPage((value) => Math.min(supplierBillTotalPages, value + 1))}>ถัดไป</UiButton>
             </div>
           </div>
-          <Table className="min-w-[1220px]">
+          <Table className="min-w-[1220px] text-xs">
             <TableHeader className="text-slate-700">
               <tr>
-                <TableHead>เลขที่รายการ</TableHead>
-                <TableHead>วันที่</TableHead>
-                <TableHead>ผู้รับเงิน</TableHead>
-                <TableHead className="w-36">ธนาคาร</TableHead>
-                <TableHead>เลขบัญชี</TableHead>
-                <TableHead className="w-40 text-right">ยอดรวม</TableHead>
-                <TableHead className="w-40 text-right">จ่ายแล้ว</TableHead>
-                <TableHead className="w-40 text-right">คงเหลือรอออก PMT</TableHead>
-                <TableHead className="w-20 text-right">อายุ(วัน)</TableHead>
-                <TableHead className="w-28 text-center" />
+                <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="เลขที่รายการ" sortKey="docNo" onSort={toggleBillSort} />
+                <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="วันที่" sortKey="date" onSort={toggleBillSort} />
+                <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="ผู้รับเงิน" sortKey="supplier" onSort={toggleBillSort} />
+                <TableHead className="w-36 p-2 text-left text-xs font-semibold text-slate-700">ธนาคาร</TableHead>
+                <TableHead className="p-2 text-left text-xs font-semibold text-slate-700">เลขบัญชี</TableHead>
+                <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="ยอดรวม" sortKey="totalAmount" onSort={toggleBillSort} />
+                <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="จ่ายแล้ว" sortKey="paidAmount" onSort={toggleBillSort} />
+                <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="คงเหลือรอออก PMT" sortKey="balance" onSort={toggleBillSort} />
+                <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="อายุ(วัน)" sortKey="age" onSort={toggleBillSort} />
+                <TableHead className="w-28 p-2 text-center text-xs font-semibold text-slate-700" />
               </tr>
             </TableHeader>
-            <TableBody>
+            <TableBody className="divide-y divide-slate-100">
               {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={10}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
                 {!isLoading && supplierBillPageRows.map((bill) => {
                   const balance = bill.payableBalance ?? 0
@@ -894,13 +1073,13 @@ export function MoneyMovementPageClient({
                   const supplierBankAccounts = approvalBankAccountLines(bill).length > 0 ? approvalBankAccountLines(bill) : supplierBankAccountLines(supplier, paymentMethods)
                   return (
                     <TableRow key={`${bill.id}:${bill.approvalId ?? 'no-approval'}`} className="cursor-pointer hover:bg-slate-50" onClick={() => openFormForBill(bill)}>
-                      <TableCell className="font-mono text-xs font-semibold text-slate-700">
+                      <TableCell className="text-xs font-semibold text-slate-700">
                         <div>{bill.docNo}</div>
                         {bill.sourceDocNo && bill.sourceDocNo !== bill.docNo ? <div className="mt-1 font-sans text-[11px] font-normal text-slate-500">อ้างอิง {bill.sourceDocNo}</div> : null}
                       </TableCell>
-                      <TableCell>{formatDateDisplay(bill.date)}</TableCell>
-                      <TableCell className="max-w-72 truncate font-medium text-slate-800">{partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'}</TableCell>
-                      <TableCell className="w-36 text-xs text-slate-600">
+                      <TableCell className="text-xs font-semibold text-slate-700">{formatDateDisplay(bill.date)}</TableCell>
+                      <TableCell className="max-w-72 truncate text-xs font-semibold text-slate-700">{partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'}</TableCell>
+                      <TableCell className="w-36 text-xs font-semibold text-slate-700">
                         {supplierBankAccounts.length > 0 ? (
                           <div className="space-y-1">
                             {supplierBankAccounts.map((account, index) => {
@@ -917,7 +1096,7 @@ export function MoneyMovementPageClient({
                           <span>-</span>
                         )}
                       </TableCell>
-                      <TableCell className="w-52 text-xs text-slate-600">
+                      <TableCell className="w-52 text-xs font-semibold text-slate-700">
                         {supplierBankAccounts.length > 0 ? (
                           <div className="space-y-1">
                             {supplierBankAccounts.map((account, index) => {
@@ -926,7 +1105,7 @@ export function MoneyMovementPageClient({
                               const label = formatAccountNoDisplay(account.accountNo) || account.accountNo
                               return (
                                 <div key={accountKey} className="flex items-center gap-1">
-                                  <span className="whitespace-nowrap font-mono">{label}</span>
+                                  <span className="whitespace-nowrap">{label}</span>
                                   <button
                                     aria-label={`คัดลอกเลขบัญชี ${label}`}
                                     className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition ${copied ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-100'}`}
@@ -948,30 +1127,26 @@ export function MoneyMovementPageClient({
                           <span>-</span>
                         )}
                       </TableCell>
-                      <TableCell className="w-40 whitespace-nowrap text-right font-semibold tabular-nums">{formatMoney(bill.totalAmount)}</TableCell>
-                      <TableCell className="w-40 whitespace-nowrap text-right text-blue-700 tabular-nums">{formatMoney(bill.paidAmount)}</TableCell>
-                      <TableCell className={`w-40 whitespace-nowrap text-right font-bold tabular-nums ${balance > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{formatMoney(balance)}</TableCell>
-                      <TableCell className="w-20 whitespace-nowrap text-right tabular-nums">{ageInDays(bill.date)}</TableCell>
+                      <TableCell className="w-40 whitespace-nowrap text-right text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(bill.totalAmount)}</TableCell>
+                      <TableCell className="w-40 whitespace-nowrap text-right text-xs font-semibold text-blue-700 tabular-nums">{formatMoney(bill.paidAmount)}</TableCell>
+                      <TableCell className={`w-40 whitespace-nowrap text-right text-xs font-semibold tabular-nums ${balance > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{formatMoney(balance)}</TableCell>
+                      <TableCell className="w-20 whitespace-nowrap text-right text-xs font-semibold text-slate-700 tabular-nums">{ageInDays(bill.date)}</TableCell>
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-2">
-                          <UiButton
-                            className="font-normal"
-                            size="xs"
+                          <button
+                            className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50"
                             type="button"
-                            variant="outline"
                             onClick={(event) => {
                               event.stopPropagation()
                               openFormForBill(bill)
                             }}
                           >
                             ทำจ่าย
-                          </UiButton>
-                          <UiButton
-                            className="font-normal text-rose-700"
+                          </button>
+                          <button
+                            className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                             disabled={(bill.paidAmount ?? 0) > 0.01 || !bill.approvalId}
-                            size="xs"
                             type="button"
-                            variant="outline"
                             onClick={(event) => {
                               event.stopPropagation()
                               setCancelApprovalTarget(bill)
@@ -980,7 +1155,7 @@ export function MoneyMovementPageClient({
                             }}
                           >
                             ยกเลิก
-                          </UiButton>
+                          </button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -1093,75 +1268,59 @@ export function MoneyMovementPageClient({
         <>
           <div className="space-y-2 rounded-md bg-white p-3 shadow">
             <div className="flex flex-wrap items-center gap-2">
-              <UiInput className="h-9 min-w-[260px] flex-1 rounded-md" placeholder="ค้นหาเลขที่ / ชื่อ / บัญชี / หมายเหตุ" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+              <UiInput
+                className="h-9 min-w-[260px] flex-1 rounded-md"
+                placeholder={mode === 'payment' ? 'ค้นหาเลข PMT / PMA / บิล / ผู้รับเงิน / บัญชี / หมายเหตุ' : 'ค้นหาเลขที่ / ชื่อ / บัญชี / หมายเหตุ'}
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
               {mode === 'receipt' && !showReceiptTabs ? (
-                <UiButton className="font-bold shadow" type="button" variant="default" onClick={openForm}>
+                <UiButton className="h-9 font-bold shadow" size="sm" type="button" variant="default" onClick={openForm}>
                   + รับเงิน Customer
                 </UiButton>
               ) : null}
               <label className="text-xs text-slate-500">วันที่:</label>
-              <DatePickerInput id={`${mode}-history-date-from`} value={dateFrom} onChange={setDateFrom} />
+              <DatePickerInput className="h-9 w-[130px]" id={`${mode}-history-date-from`} value={dateFrom} onChange={setDateFrom} />
               <span className="text-slate-400">→</span>
-              <DatePickerInput id={`${mode}-history-date-to`} value={dateTo} onChange={setDateTo} />
-              <UiButton size="xs" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</UiButton>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-500">เรียง:</span>
-              <UiSelect
-                className="h-9 w-auto min-w-[220px]"
-                value={`${historySortField}:${historySortDirection}`}
-                onChange={(event) => {
-                  const [field, direction] = event.target.value.split(':') as [HistorySortField, 'asc' | 'desc']
-                  setHistorySortField(field)
-                  setHistorySortDirection(direction)
-                }}
-              >
-                <option value="docNo:desc">เลขที่รายการ ล่าสุด</option>
-                <option value="docNo:asc">เลขที่รายการ เก่าสุด</option>
-                <option value="date:desc">วันที่ ล่าสุด</option>
-                <option value="date:asc">วันที่ เก่าสุด</option>
-                <option value="partyName:asc">{partyLabel} A-Z</option>
-                <option value="partyName:desc">{partyLabel} Z-A</option>
-                <option value="accountName:asc">บัญชี A-Z</option>
-                <option value="accountName:desc">บัญชี Z-A</option>
-                <option value="amount:desc">{amountLabel} มากสุด</option>
-                <option value="amount:asc">{amountLabel} น้อยสุด</option>
-                <option value="netAmount:desc">สุทธิ มากสุด</option>
-                <option value="netAmount:asc">สุทธิ น้อยสุด</option>
-              </UiSelect>
+              <DatePickerInput className="h-9 w-[130px]" id={`${mode}-history-date-to`} value={dateTo} onChange={setDateTo} />
               <span className="text-xs text-slate-500">บัญชี:</span>
-              <UiSelect className="h-9 w-auto min-w-[180px]" value={accountFilter} onChange={(event) => setAccountFilter(event.target.value)}>
+              <UiSelect className="h-9 w-auto min-w-[180px] px-2 py-1" value={accountFilter} onChange={(event) => setAccountFilter(event.target.value)}>
                 <option value="">ทุกบัญชี</option>
                 {activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
               </UiSelect>
+              {hasActiveHistoryFilters ? (
+                <UiButton className="h-9 font-normal" size="sm" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</UiButton>
+              ) : null}
             </div>
-            {mode === 'payment' ? (
-              <div className="flex flex-wrap items-center gap-2">
-                {([
-                  { label: 'ทั้งหมด', value: 'all' },
-                  { label: 'เสร็จสิ้น', value: 'active' },
-                  { label: 'ยกเลิกแล้ว', value: 'cancelled' },
-                ] as Array<{ label: string; value: PaymentHistoryStatusFilter }>).map((option) => {
-                  const active = paymentHistoryStatusFilter === option.value
-                  return (
-                    <UiButton
-                      key={option.value}
-                      className={active ? 'border-blue-600 bg-blue-600 text-white hover:bg-blue-700' : 'font-normal'}
-                      size="sm"
-                      type="button"
-                      variant={active ? 'default' : 'outline'}
-                      onClick={() => setPaymentHistoryStatusFilter(option.value)}
-                    >
-                      {option.label}
-                    </UiButton>
-                  )
-                })}
-              </div>
-            ) : null}
+            <div className="flex flex-wrap items-center gap-2">
+              {mode === 'payment' ? (
+                <>
+                  <span className="text-xs text-slate-500">สถานะ:</span>
+                  {([
+                    { label: 'ทั้งหมด', value: 'all' },
+                    { label: 'จ่ายแล้ว', value: 'active' },
+                    { label: 'ยกเลิก', value: 'cancelled' },
+                  ] as Array<{ label: string; value: PaymentHistoryStatusFilter }>).map((option) => {
+                    const active = paymentHistoryStatusFilter === option.value
+                    return (
+                      <button
+                        key={option.value}
+                        className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
+                        type="button"
+                        onClick={() => setPaymentHistoryStatusFilter(option.value)}
+                      >
+                        {option.label}
+                      </button>
+                    )
+                  })}
+                </>
+              ) : null}
+            </div>
           </div>
 
-          <div className={mode === 'receipt' ? 'overflow-hidden rounded-md bg-white shadow' : ''}>
-            <div className={`flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600 ${mode === 'receipt' ? 'border-b border-slate-200 px-3 py-3' : ''}`}>
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
               <div>พบทั้งหมด <span className="font-semibold text-slate-900">{historyTotalRows}</span> รายการ</div>
               <div className="flex flex-wrap items-center gap-2">
                 <UiSelect
@@ -1178,92 +1337,104 @@ export function MoneyMovementPageClient({
               </div>
             </div>
 
-            <Table className="min-w-[1260px]">
+            <Table className={mode === 'payment' ? 'min-w-[1180px] text-xs' : 'min-w-[1260px] text-xs'}>
               <TableHeader className="text-slate-700">
                 <tr>
-                  <TableHead><button className="font-semibold" type="button" onClick={() => toggleHistorySort('docNo')}>เลขที่รายการ{historySortLabel('docNo')}</button></TableHead>
-                  <TableHead><button className="font-semibold" type="button" onClick={() => toggleHistorySort('date')}>วันที่สร้างรายการ{historySortLabel('date')}</button></TableHead>
-                  <TableHead><button className="font-semibold" type="button" onClick={() => toggleHistorySort('partyName')}>{partyLabel}{historySortLabel('partyName')}</button></TableHead>
-                  <TableHead>บิลอ้างอิง</TableHead>
-                  <TableHead><button className="font-semibold" type="button" onClick={() => toggleHistorySort('accountName')}>บัญชีที่ใช้ทำจ่าย{historySortLabel('accountName')}</button></TableHead>
-                  <TableHead className="w-44 text-right"><button className="font-semibold" type="button" onClick={() => toggleHistorySort('amount')}>{amountLabel}{historySortLabel('amount')}</button></TableHead>
-                  <TableHead className="w-40 text-right">WHT</TableHead>
-                  <TableHead className="w-40 text-right">Bank Fee</TableHead>
-                  <TableHead className="w-44 text-right"><button className="font-semibold" type="button" onClick={() => toggleHistorySort('netAmount')}>สุทธิ{historySortLabel('netAmount')}</button></TableHead>
-                  {mode === 'payment' ? <TableHead>สถานะ</TableHead> : null}
-                  <TableHead>หมายเหตุ</TableHead>
-                  <TableHead className="text-center">Action</TableHead>
+                  <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label="เลขที่รายการ" sortKey="docNo" onSort={toggleHistorySort} />
+                  <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label="วันที่สร้างรายการ" sortKey="date" onSort={toggleHistorySort} />
+                  <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label={partyLabel} sortKey="partyName" onSort={toggleHistorySort} />
+                  <TableHead className="p-2 text-left text-xs font-semibold text-slate-700">บิลอ้างอิง</TableHead>
+                  <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label="บัญชีที่ใช้ทำจ่าย" sortKey="accountName" onSort={toggleHistorySort} />
+                  <TableSortHeader activeKey={historySortField} align="right" direction={historySortDirection} label={amountLabel} sortKey="amount" onSort={toggleHistorySort} />
+                  <TableHead className="w-40 p-2 text-right text-xs font-semibold text-slate-700">WHT</TableHead>
+                  <TableHead className="w-40 p-2 text-right text-xs font-semibold text-slate-700">Bank Fee</TableHead>
+                  <TableSortHeader activeKey={historySortField} align="right" direction={historySortDirection} label="สุทธิ" sortKey="netAmount" onSort={toggleHistorySort} />
+                  {mode === 'payment' ? <TableHead className="p-2 text-left text-xs font-semibold text-slate-700">สถานะ</TableHead> : null}
+                  <TableHead className="p-2 text-left text-xs font-semibold text-slate-700">หมายเหตุ</TableHead>
+                  {mode === 'receipt' ? <TableHead className="p-2 text-center text-xs font-semibold text-slate-700">Action</TableHead> : null}
                 </tr>
               </TableHeader>
-              <TableBody>
-                {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={mode === 'payment' ? 12 : 11}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+              <TableBody className="divide-y divide-slate-100">
+                {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={11}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
                   {!isLoading && historyPageRows.map((row) => {
                     const billDocNos = row.billDocNos?.length ? row.billDocNos : [row.billId ? (billMap.get(row.billId)?.docNo ?? row.billDocNo ?? row.billId) : (row.billDocNo ?? '-')]
                     const accountSummaries = row.accountSummaries?.length ? row.accountSummaries : [row.accountName]
+                    const clickable = mode === 'payment'
                     return (
-                      <TableRow key={row.id} className="hover:bg-slate-50">
-                        <TableCell className="font-mono text-xs font-semibold text-slate-700">{row.docNo}</TableCell>
-                        <TableCell>{formatDateDisplay(row.date)}</TableCell>
-                        <TableCell className="font-medium text-slate-800">{row.partyName}</TableCell>
-                        <TableCell className="text-xs">
+                      <TableRow
+                        key={row.id}
+                        className={`hover:bg-slate-50 ${clickable ? 'cursor-pointer' : ''}`}
+                        onClick={clickable ? () => void openPaymentHistoryRow(row) : undefined}
+                      >
+                        <TableCell className="text-xs font-semibold text-slate-700">{row.docNo}</TableCell>
+                        <TableCell className="text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</TableCell>
+                        <TableCell className="text-xs font-semibold text-slate-700">{row.partyName}</TableCell>
+                        <TableCell className="text-xs font-semibold text-slate-700">
                           <div className="space-y-1">
                             <div className="font-semibold text-slate-700">{billDocNos.length.toLocaleString('th-TH')} บิล</div>
-                            {billDocNos.map((docNo) => <div key={`${row.id}-bill-${docNo}`} className="font-mono text-slate-700">{docNo}</div>)}
+                            {billDocNos.map((docNo) => <div key={`${row.id}-bill-${docNo}`} className="text-slate-700">{docNo}</div>)}
                             {mode === 'payment' && row.approvalIds?.length ? (
                               <div className="pt-1 text-[11px] text-slate-500">
                                 PMA: {row.approvalIds.map((approvalId, index) => (
                                   <span key={`${row.id}-approval-${approvalId}`}>
                                     {index > 0 ? ', ' : ''}
-                                    <Link className="font-mono text-blue-700 hover:underline" href={`/purchase/payment-approvals/${encodeURIComponent(approvalId)}`}>
-                                      {approvalId}
-                                    </Link>
+                                    <span className="text-slate-700">{approvalId}</span>
                                   </span>
                                 ))}
                               </div>
                             ) : null}
                           </div>
                         </TableCell>
-                        <TableCell className="text-xs text-slate-800">
+                        <TableCell className="text-xs font-semibold text-slate-700">
                           <div className="space-y-1">
                             <div className="font-semibold text-slate-700">{accountSummaries.length.toLocaleString('th-TH')} บัญชี</div>
                             {accountSummaries.map((summary) => <div key={`${row.id}-account-${summary}`} className="whitespace-nowrap">{summary}</div>)}
                           </div>
                         </TableCell>
-                        <TableCell className="w-44 whitespace-nowrap text-right font-semibold tabular-nums">{formatMoney(row.amount)}</TableCell>
-                        <TableCell className="w-40 whitespace-nowrap text-right text-amber-700 tabular-nums">{formatMoney(row.withholdingTax)}</TableCell>
-                        <TableCell className="w-40 whitespace-nowrap text-right text-slate-600 tabular-nums">{formatMoney(row.fee)}</TableCell>
-                        <TableCell className={`w-44 whitespace-nowrap text-right font-bold tabular-nums ${theme.strong}`}>{formatMoney(row.netAmount)}</TableCell>
+                        <TableCell className="w-44 whitespace-nowrap text-right text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(row.amount)}</TableCell>
+                        <TableCell className="w-40 whitespace-nowrap text-right text-xs font-semibold text-amber-700 tabular-nums">{formatMoney(row.withholdingTax)}</TableCell>
+                        <TableCell className="w-40 whitespace-nowrap text-right text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(row.fee)}</TableCell>
+                        <TableCell className={`w-44 whitespace-nowrap text-right text-xs font-semibold tabular-nums ${theme.strong}`}>{formatMoney(row.netAmount)}</TableCell>
                         {mode === 'payment' ? (
                           <TableCell>
-                            <div className={`inline-flex items-center gap-2 text-sm font-medium ${paymentStatusTone(row.status)}`}>
-                              <span className={`h-2 w-2 rounded-full ${paymentStatusDot(row.status)}`} />
-                              <span>{paymentStatusLabel(row.status)}</span>
+                            <div className={`inline-flex items-center gap-1.5 text-xs font-semibold ${paymentHistoryStatusTone(row.status)}`}>
+                              <span className={`size-1.5 rounded-full ${paymentHistoryStatusDot(row.status)}`} />
+                              <span>{paymentHistoryStatusLabel(row.status)}</span>
                             </div>
                           </TableCell>
                         ) : null}
-                        <TableCell className="max-w-56 truncate text-slate-600">{row.notes || '-'}</TableCell>
-                        {mode === 'payment' ? (
-                          <TableCell className="text-center">
-                            <Link
-                              className="inline-flex h-8 items-center rounded-md border border-slate-300 px-3 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                              href={`/purchase/payments/${encodeURIComponent(row.voucherId ?? row.docNo)}`}
-                            >
-                              รายละเอียด
-                            </Link>
-                          </TableCell>
-                        ) : (
+                        <TableCell className="max-w-56 truncate text-xs font-semibold text-slate-700">{row.notes || '-'}</TableCell>
+                        {mode === 'receipt' ? (
                           <TableCell className="text-center">
                             <UiButton className="font-normal text-slate-400" disabled size="xs" type="button" variant="outline">ดู/พิมพ์</UiButton>
                           </TableCell>
-                        )}
+                        ) : null}
                       </TableRow>
                     )
                   })}
-                {!isLoading && historyPageRows.length === 0 ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={mode === 'payment' ? 12 : 11}>ยังไม่มีรายการ</TableCell></TableRow> : null}
+                {!isLoading && historyPageRows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={11}>ยังไม่มีรายการ</TableCell></TableRow> : null}
               </TableBody>
             </Table>
           </div>
         </>
+      ) : null}
+
+      {mode === 'payment' ? (
+        <PaymentHistoryDetailDialog
+          detail={paymentDetail}
+          error={paymentDetailError}
+          isLoading={isPaymentDetailLoading}
+          open={paymentDetailOpen}
+          row={paymentDetailRow}
+          onOpenChange={(open) => {
+            setPaymentDetailOpen(open)
+            if (!open) {
+              setPaymentDetailRow(null)
+              setPaymentDetail(null)
+              setPaymentDetailError(null)
+            }
+          }}
+        />
       ) : null}
 
       {mode === 'payment' && !historyOnly && cancelApprovalTarget ? (
@@ -1324,6 +1495,198 @@ export function MoneyMovementPageClient({
       ) : null}
 
     </section>
+  )
+}
+
+function PaymentHistoryDetailDialog({
+  detail,
+  error,
+  isLoading,
+  onOpenChange,
+  open,
+  row,
+}: {
+  detail: PaymentHistoryDetail | null
+  error: string | null
+  isLoading: boolean
+  onOpenChange: (open: boolean) => void
+  open: boolean
+  row: MoneyRow | null
+}) {
+  const summary = detail?.summary
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto bg-slate-50 p-0" fallbackTitle="รายละเอียดการจ่ายเงิน" hideClose>
+        <DialogHeader className="flex-row items-center justify-between gap-3 border-b bg-white px-5 py-4">
+          <div className="min-w-0">
+            <DialogTitle className="truncate text-base font-bold text-slate-900">{detail?.heading ?? 'รายละเอียดการจ่ายเงิน'}</DialogTitle>
+            <div className="mt-1 truncate font-mono text-xs text-slate-500">{detail?.docNo ?? row?.docNo ?? '-'}</div>
+          </div>
+          <UiButton
+            aria-label="ปิดรายละเอียด"
+            className="h-9 w-9 shrink-0 px-0 text-slate-600"
+            size="icon"
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
+            <X aria-hidden="true" className="h-4 w-4" />
+          </UiButton>
+        </DialogHeader>
+
+        <div className="space-y-4 p-5 text-sm">
+          {isLoading ? <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow">กำลังโหลดรายละเอียด</div> : null}
+          {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-red-800">{error}</div> : null}
+          {!isLoading && !error && detail && summary ? (
+            <>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                <div className="rounded-md bg-white p-3 shadow">
+                  <div className="text-xs text-slate-500">{detail.type === 'approval' ? 'ยอดอนุมัติ' : 'ยอดจ่าย'}</div>
+                  <div className="text-lg font-bold text-slate-900">{formatMoney(summary.amount)}</div>
+                </div>
+                <div className="rounded-md bg-white p-3 shadow">
+                  <div className="text-xs text-slate-500">สถานะ</div>
+                  <div className={`text-lg font-bold ${detailToneTextClass(detail.latestTone)}`}>{detail.latestStatusLabel}</div>
+                </div>
+                {detail.type === 'approval' ? (
+                  <>
+                    <div className="rounded-md bg-white p-3 shadow">
+                      <div className="text-xs text-slate-500">วันที่อนุมัติ</div>
+                      <div className="text-lg font-bold text-slate-900">{summary.approvedAt ?? '-'}</div>
+                    </div>
+                    <div className="rounded-md bg-white p-3 shadow">
+                      <div className="text-xs text-slate-500">วันที่ปิดรายการ</div>
+                      <div className={`text-lg font-bold ${detailToneTextClass(detail.latestTone)}`}>{summary.closedAt ?? '-'}</div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="rounded-md bg-white p-3 shadow">
+                      <div className="text-xs text-slate-500">WHT / Bank Fee</div>
+                      <div className="text-lg font-bold text-slate-900">{formatMoney(summary.withholdingTax)} / {formatMoney(summary.fee)}</div>
+                    </div>
+                    <div className="rounded-md bg-white p-3 shadow">
+                      <div className="text-xs text-slate-500">สุทธิ</div>
+                      <div className={`text-lg font-bold ${detailToneTextClass(detail.latestTone)}`}>{formatMoney(summary.netAmount)}</div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {detail.detailCards.map((card) => (
+                  <div key={`${card.label}-${card.value}`} className="rounded-md border border-slate-200 bg-white p-3">
+                    <div className="text-xs text-slate-500">{card.label}</div>
+                    <div className="mt-1 text-sm font-medium text-slate-900">{card.value}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="overflow-hidden rounded-md bg-white shadow">
+                <div className="border-b px-4 py-3">
+                  <h2 className="font-semibold text-slate-900">{detail.type === 'approval' ? 'PMT ที่ใช้รายการนี้' : 'รายการที่ทำจ่าย'}</h2>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-100">
+                      <tr>
+                        <th className="p-2 text-left">{detail.type === 'approval' ? 'PMT' : 'PMA'}</th>
+                        <th className="p-2 text-left">เอกสารต้นทาง</th>
+                        <th className="p-2 text-right">ยอดจัดสรร</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detail.approvalRows.map((approval) => (
+                        <tr key={`${approval.docNo}-${approval.sourceDocNo}`} className="border-t">
+                          <td className="p-2 font-mono text-slate-800">{approval.docNo}</td>
+                          <td className="p-2 font-mono">{approval.sourceDocNo}</td>
+                          <td className="p-2 text-right font-medium tabular-nums">{formatMoney(approval.amount)}</td>
+                        </tr>
+                      ))}
+                      {detail.approvalRows.length === 0 ? <tr><td className="p-8 text-center text-slate-500" colSpan={3}>ยังไม่มีรายการทำจ่าย</td></tr> : null}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {detail.type === 'payment' ? (
+                <div className="overflow-hidden rounded-md bg-white shadow">
+                  <div className="border-b px-4 py-3">
+                    <h2 className="font-semibold text-slate-900">บัญชีที่ใช้ทำจ่าย</h2>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-100">
+                        <tr>
+                          <th className="p-2 text-left">บัญชี</th>
+                          <th className="p-2 text-left">รายการธนาคาร</th>
+                          <th className="p-2 text-right">ยอด</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detail.accountRows.map((account) => (
+                          <tr key={`${account.accountName}-${account.bankStatementDocNo}-${account.amount}`} className="border-t">
+                            <td className="p-2">{account.accountName}</td>
+                            <td className="p-2 font-mono">{account.bankStatementDocNo}</td>
+                            <td className="p-2 text-right font-medium tabular-nums">{formatMoney(account.amount)}</td>
+                          </tr>
+                        ))}
+                        {detail.accountRows.length === 0 ? <tr><td className="p-8 text-center text-slate-500" colSpan={3}>ยังไม่มีข้อมูลบัญชีจ่าย</td></tr> : null}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : null}
+
+              <section className="rounded-md bg-white p-4 shadow">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="text-sm font-medium text-slate-700">{detail.timelineTitle}</h2>
+                  <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${detailToneTextClass(detail.latestTone)}`}>
+                    <span className="size-1.5 rounded-full bg-current" />
+                    ล่าสุด: {detail.latestStatusLabel}
+                  </span>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                  {detail.timeline.length === 0 ? (
+                    <div className="text-sm text-slate-500">ยังไม่มีประวัติ</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {[...detail.timeline].reverse().map((event, index) => {
+                        const isLatest = index === 0
+                        return (
+                          <div key={`${event.title}-${event.at}-${index}`} className="grid grid-cols-[88px_1fr] gap-3 sm:grid-cols-[128px_1fr]">
+                            <div className="pt-1 text-right text-xs text-slate-500">
+                              <div>{formatTimelineDate(event.at)}</div>
+                              <div className="mt-1 truncate text-[11px]">{event.actor || '-'}</div>
+                            </div>
+                            <div className="relative border-l border-slate-200 pb-4 pl-4 last:pb-0">
+                              <span className={`absolute -left-1.5 top-1 h-3 w-3 rounded-full border-2 border-white ${isLatest ? detailDotClass(event.tone) : 'bg-slate-300'}`} />
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className="text-sm font-medium text-slate-800">{event.title}</div>
+                                <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${detailToneTextClass(event.tone)}`}>
+                                  <span className="size-1.5 rounded-full bg-current" />
+                                  {event.pillLabel}
+                                </span>
+                              </div>
+                              {event.transition ? <div className="mt-1 text-xs text-slate-500">{event.transition}</div> : null}
+                              {event.details.length > 0 ? (
+                                <div className="mt-2 grid gap-1 rounded-md bg-white px-3 py-2 text-xs text-slate-600">
+                                  {event.details.map((line) => <div key={line}>{line}</div>)}
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </section>
+            </>
+          ) : null}
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 

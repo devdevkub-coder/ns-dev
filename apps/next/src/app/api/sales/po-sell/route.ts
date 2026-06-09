@@ -25,6 +25,16 @@ type PoSellItem = {
   unitPrice?: number | string
 }
 
+const DOCUMENT_STATUS_OPTIONS = [
+  { label: 'เปิดอยู่', value: 'open' },
+  { label: 'ยกเลิก', value: 'cancelled' },
+  { label: 'ปิดแล้ว', value: 'closed' },
+] as const
+
+const MATCH_STATUS_OPTIONS = ['Not Matched', 'Partially Matched', 'Fully Matched', 'Over Matched', 'Cancelled'] as const
+
+type PoSellDocumentStatus = typeof DOCUMENT_STATUS_OPTIONS[number]['value']
+
 function jsonNumber(value: unknown) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0
   if (typeof value === 'string') {
@@ -69,7 +79,19 @@ function itemRows(
   }]
 }
 
-function matchStatus(matchedQty: number, qty: number) {
+function documentStatus(status: string | null | undefined, remainingQty: number): PoSellDocumentStatus {
+  const normalized = (status ?? '').trim().toLowerCase()
+  if (['cancelled', 'canceled', 'void'].includes(normalized)) return 'cancelled'
+  if (['closed', 'completed', 'fully matched', 'received'].includes(normalized) || remainingQty <= 0.001) return 'closed'
+  return 'open'
+}
+
+function documentStatusLabel(status: PoSellDocumentStatus) {
+  return DOCUMENT_STATUS_OPTIONS.find((option) => option.value === status)?.label ?? status
+}
+
+function matchStatus(matchedQty: number, qty: number, currentDocumentStatus: PoSellDocumentStatus) {
+  if (currentDocumentStatus === 'cancelled') return 'Cancelled'
   if (matchedQty <= 0) return 'Not Matched'
   if (qty > 0 && matchedQty > qty + 0.001) return 'Over Matched'
   if (qty > 0 && matchedQty >= qty - 0.001) return 'Fully Matched'
@@ -191,12 +213,12 @@ export async function GET(request: Request) {
       prisma.sales_bills.findMany({
         orderBy: [{ date: 'desc' }],
         take: 10000,
-        where: { NOT: { status: 'cancelled' }, po_sell_id: { not: null } },
+        where: { NOT: { status: { in: ['cancelled', 'Cancelled', 'canceled', 'Canceled'] } }, po_sell_id: { not: null } },
       }),
       prisma.trading_deals.findMany({
         orderBy: [{ date: 'desc' }],
         take: 10000,
-        where: { NOT: { status: { in: ['Cancelled', 'cancelled'] } } },
+        where: { NOT: { status: { in: ['Cancelled', 'cancelled', 'Canceled', 'canceled'] } } },
       }),
     ])
 
@@ -249,7 +271,8 @@ export async function GET(request: Request) {
       const matched = matchedByPoSellId.get(po.id) ?? { cost: 0, qty: 0, salesAmount: 0 }
       const margin = matched.salesAmount > 0 ? matched.salesAmount - matched.cost : totalAmount - matched.cost
       const status = po.status ?? 'Open'
-      const currentMatchStatus = matchStatus(matched.qty, qty)
+      const currentDocumentStatus = documentStatus(status, remainingQty)
+      const currentMatchStatus = matchStatus(matched.qty, qty, currentDocumentStatus)
 
       return {
         branchName: po.branch_id ? branchById.get(po.branch_id)?.name ?? '-' : '-',
@@ -262,6 +285,8 @@ export async function GET(request: Request) {
         itemCount: items.length,
         margin,
         marginPct: totalAmount > 0 ? (margin / totalAmount) * 100 : 0,
+        documentStatus: currentDocumentStatus,
+        documentStatusLabel: documentStatusLabel(currentDocumentStatus),
         matchStatus: currentMatchStatus,
         matchedCost: matched.cost,
         matchedPct: qty > 0 ? (matched.qty / qty) * 100 : 0,
@@ -276,9 +301,9 @@ export async function GET(request: Request) {
         unitPrice: qty > 0 ? totalAmount / qty : toNumber(po.unit_price),
       }
     })
-      .filter((row) => !activeStatusFilter || row.status === activeStatusFilter)
+      .filter((row) => !activeStatusFilter || row.documentStatus === activeStatusFilter)
       .filter((row) => !activeMatchStatusFilter || row.matchStatus === activeMatchStatusFilter)
-      .filter((row) => !q || `${row.docNo} ${row.customerName} ${row.channelName} ${row.branchName} ${row.productName} ${row.status} ${row.matchStatus}`.toLowerCase().includes(q))
+      .filter((row) => !q || `${row.docNo} ${row.customerName} ${row.channelName} ${row.branchName} ${row.productName} ${row.documentStatusLabel} ${row.status} ${row.matchStatus}`.toLowerCase().includes(q))
 
     if (url.searchParams.get('format') === 'xlsx') {
       return xlsxResponse(buildWorkbook(rows.map((row) => ({
@@ -290,6 +315,7 @@ export async function GET(request: Request) {
         ExpectedDelivery: row.expectedDelivery,
         Margin: row.margin,
         MarginPct: row.marginPct,
+        DocumentStatus: row.documentStatusLabel,
         MatchStatus: row.matchStatus,
         MatchedCost: row.matchedCost,
         MatchedPct: row.matchedPct,
@@ -305,15 +331,15 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       filters: {
-        matchStatuses: Array.from(new Set(rows.map((row) => row.matchStatus))).sort(),
-        statuses: Array.from(new Set(poSells.map((row) => row.status ?? 'Open'))).sort(),
+        matchStatuses: MATCH_STATUS_OPTIONS,
+        statuses: DOCUMENT_STATUS_OPTIONS,
       },
       options: await optionsPayload(),
       rows,
       summary: {
         fullyMatched: rows.filter((row) => row.matchStatus === 'Fully Matched').length,
         margin: rows.reduce((sum, row) => sum + row.margin, 0),
-        open: rows.filter((row) => !['Cancelled', 'cancelled', 'Received', 'received'].includes(row.status)).length,
+        open: rows.filter((row) => row.documentStatus === 'open').length,
         overMatched: rows.filter((row) => row.matchStatus === 'Over Matched').length,
         partiallyMatched: rows.filter((row) => row.matchStatus === 'Partially Matched').length,
         qty: rows.reduce((sum, row) => sum + row.qty, 0),
