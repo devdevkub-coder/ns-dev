@@ -121,7 +121,10 @@ export function useResizableColumns<TKey extends string>(
     () => columns.some((column) => (widths[column.key] ?? column.defaultWidth) !== column.defaultWidth),
     [columns, widths],
   )
-  const tableMinWidth = useMemo(() => columns.reduce((sum, column) => sum + (widths[column.key] ?? column.defaultWidth), 0), [columns, widths])
+  const tableMinWidth = useMemo(() => {
+    const contentWidth = columns.reduce((sum, column) => sum + (widths[column.key] ?? column.defaultWidth), 0)
+    return `max(${contentWidth}px, 100%)`
+  }, [columns, widths])
 
   return {
     getColumnStyle,
