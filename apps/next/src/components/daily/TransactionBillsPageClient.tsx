@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
-import { Download } from 'lucide-react'
+import { Download, Printer } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Field, InputField, MoneyInputField, ProductSearchCombobox, SelectField, SupplierSearchCombobox, SummaryLine } from '@/components/daily/TransactionBillsFieldHelpers'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
@@ -21,6 +21,7 @@ import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { firstErrorKeyFromZodIssues, focusFieldError, issueMapFromZodIssues } from '@/lib/form-errors'
 import { formatDateDisplay } from '@/lib/format'
 import { purchaseBillCancelSchema, purchaseBillFormSchema, type PurchaseBillCancelValues, type PurchaseBillFormValues } from '@/lib/purchase-bill'
+import { openPurchaseBillPrint, openPurchaseBillPrintWindow } from '@/lib/purchase-bill-print'
 import { salesBillFormSchema, type SalesBillFormValues } from '@/lib/sales'
 
 type BillRow = {
@@ -111,6 +112,7 @@ type PurchaseBillDetail = {
     qty: number
     receiptSummaryLabel: string
     receiptTicketDocNo: string
+    receiptVehicleNo: string
     sourceLabel: string
     sourceType: string
     unit: string
@@ -120,6 +122,7 @@ type PurchaseBillDetail = {
   date: string
   discount: number
   docNo: string
+  licensePlate: string
   note: string
   paidAmount: number
   payableBalance: number
@@ -141,7 +144,9 @@ type PurchaseBillDetail = {
   status: string
   statusLabel: string
   subtotal: number
+  supplierAddress: string
   supplierCode: string
+  supplierTaxId: string
   supplierName: string
   timeline: PurchaseBillDetailTimelineEvent[]
   totalAmount: number
@@ -150,6 +155,9 @@ type PurchaseBillDetail = {
   vatInvoiceDate: string
   vatInvoiceNo: string
   vatInvoiceReceived: boolean
+  warehouseName: string
+  refNo: string
+  salesName: string
 }
 
 type StockIssueRow = {
@@ -303,7 +311,7 @@ const purchaseBillColumns: Array<ResizableColumnDefinition<TransactionBillColumn
   { key: 'totalAmount', defaultWidth: 140, minWidth: 120 },
   { key: 'outstanding', defaultWidth: 140, minWidth: 120 },
   { key: 'updatedBy', defaultWidth: 170, minWidth: 130 },
-  { key: 'action', defaultWidth: 150, minWidth: 140 },
+  { key: 'action', defaultWidth: 210, minWidth: 190 },
 ]
 
 const salesBillColumns: Array<ResizableColumnDefinition<TransactionBillColumnKey>> = [
@@ -476,6 +484,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [preferredBranchId, setPreferredBranchId] = useState<string | null>(null)
+  const [printingBillDocNo, setPrintingBillDocNo] = useState<string | null>(null)
   const [rows, setRows] = useState<Array<BillRow | StockIssueRow>>([])
   const [search, setSearch] = useState('')
   const [salesFieldErrors, setSalesFieldErrors] = useState<Record<string, string>>({})
@@ -877,6 +886,25 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     } finally {
       if (latestDetailRequestRef.current !== requestId) return
       setIsDetailLoading(false)
+    }
+  }
+
+  async function printPurchaseBill(rowOrDetail: BillRow | PurchaseBillDetail) {
+    const docNo = rowOrDetail.docNo
+    setPrintingBillDocNo(docNo)
+    setError(null)
+    let printWindow: Window | null = null
+    try {
+      printWindow = openPurchaseBillPrintWindow()
+      const detail = 'allocationRows' in rowOrDetail
+        ? rowOrDetail
+        : await dailyFetchJson<PurchaseBillDetail>(`/api/purchase/bills/${encodeURIComponent(docNo)}`)
+      await openPurchaseBillPrint(detail, printWindow)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'เปิดใบพิมพ์บิลรับซื้อไม่ได้')
+      printWindow?.close()
+    } finally {
+      setPrintingBillDocNo(null)
     }
   }
 
@@ -1625,6 +1653,15 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                   <td className="p-2 text-right">
                     <div className="flex justify-end gap-2">
                       <button
+                        className="inline-flex items-center gap-1 rounded-md border border-emerald-200 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60"
+                        disabled={printingBillDocNo === row.docNo}
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); void printPurchaseBill(row) }}
+                      >
+                        <Printer className="size-3" />
+                        {printingBillDocNo === row.docNo ? 'เตรียม...' : 'พิมพ์'}
+                      </button>
+                      <button
                         className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={row.canEdit === false}
                         title={row.canEdit === false ? (row.lockedReason ?? 'บิลนี้ยังแก้ไขไม่ได้') : undefined}
@@ -2233,6 +2270,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           docNo={detailBillDocNo}
           error={detailError}
           isLoading={isDetailLoading}
+          isPrinting={printingBillDocNo === detailBillDocNo}
           onClose={() => {
             latestDetailRequestRef.current += 1
             setDetailBillDocNo(null)
@@ -2240,6 +2278,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
             setDetailError(null)
             setIsDetailLoading(false)
           }}
+          onPrint={(detail) => void printPurchaseBill(detail)}
         />
       ) : null}
       {cancelingBill ? (
@@ -2290,13 +2329,17 @@ function PurchaseBillDetailModal({
   docNo,
   error,
   isLoading,
+  isPrinting,
   onClose,
+  onPrint,
 }: {
   detail: PurchaseBillDetail | null
   docNo: string
   error: string | null
   isLoading: boolean
+  isPrinting: boolean
   onClose: () => void
+  onPrint: (detail: PurchaseBillDetail) => void
 }) {
   return (
     <Dialog open onOpenChange={(open) => {
@@ -2304,9 +2347,17 @@ function PurchaseBillDetailModal({
     }}>
       <DialogContent aria-labelledby="purchase-bill-detail-title" className="max-h-[90vh] max-w-6xl overflow-y-auto rounded-md p-0" hideClose>
         <DialogHeader className="border-b p-4">
-          <div>
-            <DialogTitle id="purchase-bill-detail-title">รายละเอียดบิลรับซื้อ {detail?.docNo ?? docNo}</DialogTitle>
-            <DialogDescription>{detail?.supplierName ?? 'กำลังโหลดข้อมูล'}</DialogDescription>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <DialogTitle id="purchase-bill-detail-title">รายละเอียดบิลรับซื้อ {detail?.docNo ?? docNo}</DialogTitle>
+              <DialogDescription>{detail?.supplierName ?? 'กำลังโหลดข้อมูล'}</DialogDescription>
+            </div>
+            {detail ? (
+              <Button className="gap-2 font-normal" disabled={isPrinting} type="button" variant="outline" onClick={() => onPrint(detail)}>
+                <Printer className="size-4" />
+                {isPrinting ? 'กำลังเตรียม...' : 'พิมพ์บิลรับซื้อ'}
+              </Button>
+            ) : null}
           </div>
         </DialogHeader>
 
@@ -2454,6 +2505,12 @@ function PurchaseBillDetailModal({
         ) : null}
 
         <DialogFooter>
+          {detail ? (
+            <Button className="gap-2 font-normal" disabled={isPrinting} type="button" variant="outline" onClick={() => onPrint(detail)}>
+              <Printer className="size-4" />
+              {isPrinting ? 'กำลังเตรียม...' : 'พิมพ์'}
+            </Button>
+          ) : null}
           <Button className="font-normal" type="button" variant="outline" onClick={onClose}>ปิด</Button>
         </DialogFooter>
       </DialogContent>

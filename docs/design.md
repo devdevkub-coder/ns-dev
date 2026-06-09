@@ -20,11 +20,30 @@
 - Dense but readable: ข้อมูลแน่นได้ แต่ spacing, alignment, และ hierarchy ต้องนิ่ง
 - One source of wording: คำเรียกเอกสาร, สถานะ, สาขา/คลัง, payment terms ต้องไม่สลับไปมา
 
+## Quantity And Unit Display
+
+- สินค้ารองรับหน่วย `กก.` และ `ลัง` จาก master data สินค้า/product unit
+- ค่า quantity ของสินค้าต่างหน่วยต้องไม่ถูกรวมเป็นเลขเดียวใน UI/เอกสาร ถ้าไม่มี conversion rule ที่ตั้งใจใช้และอนุมัติไว้ชัดเจน
+- Default ใหม่คือแยกหน่วยให้ชัดเจนทุกที่ที่ทำได้ โดยเฉพาะรายการสินค้า, detail modal, print preview, export, บิลซื้อ, บิลขาย, ใบเสร็จ, ใบสำคัญรับเงิน, และเอกสารที่คนนอกเห็น
+- รายการสินค้าแต่ละบรรทัดต้องแสดง `จำนวน + หน่วยจริง` จาก snapshot ของเอกสารหรือ master data สินค้า เช่น `100 กก.` หรือ `8 ลัง`
+- Summary/KPI ที่มีสินค้าหลายหน่วยควรแสดงแยกตามหน่วย เช่น `รวม 1,250 กก. / 32 ลัง` แทนการรวมเป็น `1,282`
+- ฟอร์มกรอกข้อมูลที่รับได้ทั้งสองหน่วยใช้ label กลางได้ เช่น `จำนวน (กก./ลัง)` หรือ `ราคา/หน่วย`; ห้ามใช้ `กก.` อย่างเดียวถ้า field นั้นอาจใช้กับสินค้า unit `ลัง`
+- Field/column ที่เป็นราคา unit-price ให้ใช้คำกลาง `ราคา/หน่วย` เว้นแต่ flow นั้นยืนยันว่าเป็นน้ำหนักกิโลกรัมเท่านั้น
+
 ## Typography
 
 - user-facing baseline font ของ active Next app คือ `Noto Sans Thai`
 - form controls (`button`, `input`, `select`, `textarea`) ต้องใช้ baseline เดียวกับ body
 - print/preview templates ของ active app ต้องใช้ `Noto Sans Thai` เช่นกัน เว้นแต่มีเอกสาร legacy override ที่อนุมัติไว้ชัดเจน
+
+## Print Document Baseline
+
+- เอกสารพิมพ์ที่เป็นเอกสารบริษัท เช่น ใบรับของ, ใบส่งของ, บิลรับซื้อ, ใบเสร็จ, ใบสำคัญรับ/จ่าย ต้องใช้ `ข้อมูลบริษัท (สำหรับใบพิมพ์)` จากเมนูระบบเป็น source ของหัวกระดาษ
+- ห้าม hardcode ชื่อบริษัท, ที่อยู่, เลขผู้เสียภาษี, หรือ footer note ใน template ของเอกสารธุรกิจ
+- โลโก้บริษัทต้องมีในหัวเอกสารเสมอ; ใช้ logo จาก Company Profile ก่อน และอนุญาตให้มี default company logo ที่มากับ template เป็น fallback ได้เมื่อ profile ยังไม่มี logo
+- print preview ควรเป็น A4/browser-print friendly และรองรับ Save as PDF จาก browser print
+- template ต้องแยกข้อมูลที่เป็น snapshot ของเอกสาร เช่น คู่ค้า, รายการสินค้า, ราคา, VAT, และเลขอ้างอิง ออกจาก master data ปัจจุบัน เพื่อไม่ให้เอกสารเก่าเปลี่ยนความหมายเมื่อ master data ถูกแก้
+- ถ้ามีรูปตัวอย่างจากลูกค้า ให้ใช้รูปนั้นยืนยันข้อมูลที่ต้องแสดงและข้อจำกัดธุรกิจก่อน ส่วนการลอก layout หรือ redesign ให้เป็น corporate template ต้องระบุใน flow document ของเอกสารนั้น
 
 ## Sizing Tokens
 

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { PageTitleOverride } from '@/components/layout/PageTitleOverride'
+import { PurchaseBillPrintButton } from '@/components/purchase-flow/PurchaseBillPrintButton'
 import { AuthContextError, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { getPurchaseBillDetail, type PurchaseBillDetailTimelineEvent } from '@/lib/server/purchase-bill-detail'
 
@@ -66,7 +67,10 @@ export default async function PurchaseBillDetailPage({ params }: PageProps) {
             <h1 className="text-base font-bold text-slate-900">รายละเอียดบิลรับซื้อ {bill.docNo}</h1>
             <p className="mt-1 text-sm text-slate-500">{bill.supplierName}</p>
           </div>
-          <Link className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50" href="/purchase/bills">กลับรายการ</Link>
+          <div className="flex flex-wrap items-start gap-2">
+            <PurchaseBillPrintButton bill={bill} />
+            <Link className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50" href="/purchase/bills">กลับรายการ</Link>
+          </div>
         </div>
 
         <div className="space-y-4 p-4">

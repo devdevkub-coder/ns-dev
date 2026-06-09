@@ -34,6 +34,7 @@ export type PurchaseBillDetail = {
     qty: number
     receiptSummaryLabel: string
     receiptTicketDocNo: string
+    receiptVehicleNo: string
     sourceLabel: string
     sourceType: string
     unit: string
@@ -43,6 +44,7 @@ export type PurchaseBillDetail = {
   date: string
   discount: number
   docNo: string
+  licensePlate: string
   note: string
   paidAmount: number
   payableBalance: number
@@ -64,7 +66,9 @@ export type PurchaseBillDetail = {
   status: string
   statusLabel: string
   subtotal: number
+  supplierAddress: string
   supplierCode: string
+  supplierTaxId: string
   supplierName: string
   timeline: PurchaseBillDetailTimelineEvent[]
   totalAmount: number
@@ -73,6 +77,9 @@ export type PurchaseBillDetail = {
   vatInvoiceDate: string
   vatInvoiceNo: string
   vatInvoiceReceived: boolean
+  warehouseName: string
+  refNo: string
+  salesName: string
 }
 
 type PurchaseBillDetailRow = Prisma.purchase_billsGetPayload<{
@@ -108,6 +115,8 @@ type PurchaseBillDetailRow = Prisma.purchase_billsGetPayload<{
             weight_tickets: {
               select: {
                 doc_no: true
+                document_date: true
+                vehicle_no: true
               }
             }
           }
@@ -127,6 +136,7 @@ type PurchaseBillDetailRow = Prisma.purchase_billsGetPayload<{
       }
     }
     suppliers: true
+    warehouses: true
   }
 }>
 
@@ -191,6 +201,21 @@ function sourceSnapshotValue(snapshot: unknown, key: string) {
   return typeof value === 'string' ? value : null
 }
 
+function supplierAddress(supplier: PurchaseBillDetailRow['suppliers']) {
+  if (!supplier) return ''
+  const structured = [
+    supplier.address_no,
+    supplier.address_moo ? `หมู่ ${supplier.address_moo}` : null,
+    supplier.address_village,
+    supplier.address_road,
+    supplier.address_subdistrict ? `ต.${supplier.address_subdistrict}` : null,
+    supplier.address_district ? `อ.${supplier.address_district}` : null,
+    supplier.address_province ? `จ.${supplier.address_province}` : null,
+    supplier.address_postal_code,
+  ].filter(Boolean).join(' ')
+  return supplier.address || supplier.address_line1 || structured
+}
+
 export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBillDetail | null> {
   const bill: PurchaseBillDetailRow | null = await prisma.purchase_bills.findFirst({
     include: {
@@ -233,6 +258,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
         orderBy: { line_no: 'asc' },
       },
       suppliers: true,
+      warehouses: true,
       supplier_advance_allocations: {
         include: {
           supplier_advance_payments: {
@@ -250,6 +276,13 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
 
   if (!bill) return null
 
+  const salesperson = bill.sales_id
+    ? await prisma.salespersons.findUnique({
+        select: { name: true },
+        where: { id: bill.sales_id },
+      })
+    : null
+
   const allocationRows = bill.purchase_bill_items.map((item, index) => {
     const receiptAllocation = item.purchase_bill_receipt_allocations
     const poAllocation = item.purchase_bill_po_allocations
@@ -259,6 +292,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     const receiptTicketDocNo = receiptAllocation?.weight_tickets.doc_no
       ?? sourceSnapshotValue(item.source_snapshot, 'receiptTicketDocNo')
       ?? '-'
+    const receiptVehicleNo = receiptAllocation?.weight_tickets.vehicle_no ?? ''
     const lineNo = item.line_no ?? index + 1
     const receiptSummaryLabel = receiptAllocation?.weight_ticket_product_summaries
       ? `รวมจาก ${receiptAllocation.weight_ticket_product_summaries.line_count ?? 0} lot · ${receiptAllocation.weight_ticket_product_summaries.product_name ?? '-'}`
@@ -283,6 +317,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
       qty: allocatedQty,
       receiptSummaryLabel,
       receiptTicketDocNo,
+      receiptVehicleNo,
       sourceLabel: poDocNo ?? 'Spot Buy',
       sourceType: poDocNo ? 'PO Buy' : 'Spot Buy',
       unit: item.unit ?? 'กก.',
@@ -379,6 +414,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
 
   const receiptDocNos = Array.from(new Set(allocationRows.map((row) => row.receiptTicketDocNo).filter((value): value is string => Boolean(value && value !== '-'))))
   const activeAdvanceAllocation = bill.supplier_advance_allocations.find((allocation) => allocation.status === 'active') ?? null
+  const receiptVehicleNo = allocationRows.map((row) => row.receiptVehicleNo).find(Boolean) ?? ''
 
   return {
     advanceAllocatedAmount: toNumber(activeAdvanceAllocation?.allocated_amount),
@@ -389,6 +425,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     date: bill.date ? toDateOnly(bill.date) : '-',
     discount: toNumber(bill.discount_total ?? bill.discount),
     docNo: bill.doc_no,
+    licensePlate: bill.license_plate ?? receiptVehicleNo,
     note: bill.note ?? bill.notes ?? '',
     paidAmount: toNumber(bill.paid_amount),
     payableBalance: toNumber(bill.payable_balance),
@@ -397,7 +434,9 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     status: bill.status ?? '',
     statusLabel: purchaseBillStatusLabel(bill.status),
     subtotal: toNumber(bill.subtotal),
+    supplierAddress: supplierAddress(bill.suppliers),
     supplierCode: bill.suppliers?.code ?? '-',
+    supplierTaxId: bill.suppliers?.tax_id ?? '-',
     supplierName: bill.suppliers?.name ?? '-',
     timeline,
     totalAmount: toNumber(bill.total_amount),
@@ -406,5 +445,8 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     vatInvoiceDate: bill.vat_invoice_date ? toDateOnly(bill.vat_invoice_date) : '-',
     vatInvoiceNo: bill.vat_invoice_no ?? '-',
     vatInvoiceReceived: Boolean(bill.vat_invoice_received),
+    warehouseName: bill.warehouses?.name ?? '-',
+    refNo: bill.ref_no ?? '-',
+    salesName: salesperson?.name ?? '-',
   }
 }

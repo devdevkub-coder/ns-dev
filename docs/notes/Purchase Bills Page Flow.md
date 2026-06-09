@@ -12,7 +12,7 @@ tags:
   - supplier-swap
 status: draft
 created: 2026-06-08
-updated: 2026-06-08
+updated: 2026-06-09
 ---
 
 # Purchase Bills Page Flow / Flow หน้า `/purchase/bills`
@@ -28,8 +28,76 @@ updated: 2026-06-08
 - ยกเลิก `PB` ที่ยังไม่มี active `PMA` หรือ `PMT`
 - เปลี่ยน Supplier ของ `PB` โดย void บิลเดิมและสร้างบิลใหม่ที่ใช้ใบรับของเดิมได้
 - แสดงสถานะจ่ายจาก [[Payment Flow]] เพื่อ lock ปุ่มและ filter list
+- พิมพ์บิลรับซื้อรายใบจากรายการหรือหน้ารายละเอียด
 
 หน้า `/purchase/bills` ไม่รับผิดชอบการสร้าง `PMA` หรือ `PMT`; เมื่อ `PB.payable_balance > 0` ให้ handoff ไป [[Payment Flow]]
+
+## Print Purchase Bill
+
+Legacy มี action พิมพ์บิลรับซื้อรายใบอยู่แล้ว โดยใช้ `erp.printDocument('receipt', row.raw.id)` จากปุ่มพิมพ์ในตาราง (`old-apps/legacy/index.html:15119`) และ render เอกสารผ่าน helper `erp.printDocument(kind, billId)` (`old-apps/legacy/index.html:6449`). Active Next app ต้องมีฟังก์ชันนี้เช่นกัน เพราะบิลรับซื้อเป็นเอกสารที่ต้องออกให้ตรวจ/ลงนาม/เก็บรายใบ ไม่ใช่แค่ข้อมูลใน detail modal
+
+### UI Contract
+
+- หน้า list `/purchase/bills` ต้องมี action `พิมพ์` รายแถว โดยปุ่มย่อยต้อง `stopPropagation()` เพื่อไม่ชนกับ row click ที่เปิด detail
+- หน้า detail/modal และ direct URL `/purchase/bills/{docNo}` ต้องมี action `พิมพ์บิลรับซื้อ` ใช้ read-model เดียวกับ list
+- action พิมพ์ใช้ได้กับ PB ที่บันทึกแล้วทุกสถานะ เพื่อเก็บสำเนาประวัติ; ถ้า PB ถูกยกเลิกหรือถูก void จาก supplier swap เอกสารพิมพ์ต้องแสดงสถานะ/ลายน้ำ `ยกเลิก` หรือ `ยกเลิก/เปลี่ยน Supplier`
+- เอกสารพิมพ์เป็น print preview/popup แบบ A4 มี toolbar เฉพาะบนจอ เช่น `พิมพ์` และ `ปิด`; browser print ต้องสามารถ Save as PDF ได้
+- ปุ่มพิมพ์ต้องไม่สร้าง `PMA`, `PMT`, stock movement, allocation, หรือ transaction side effect ใด ๆ
+
+### Header / Company Profile Source
+
+- หัวกระดาษต้องดึงข้อมูลจาก `ข้อมูลบริษัท (สำหรับใบพิมพ์)` ในเมนูระบบ (`/admin/company-profile`) ผ่าน API/source เดียวกับเอกสารพิมพ์อื่นของ active app
+- ข้อมูลที่ต้องรองรับ: โลโก้, ชื่อบริษัทไทย/อังกฤษ, เลขประจำตัวผู้เสียภาษี, สาขา, ที่อยู่, โทรศัพท์, แฟกซ์, อีเมล, เว็บไซต์, bank/footer note เท่าที่ใช้กับ template
+- ชื่อบริษัท, ที่อยู่, เลขผู้เสียภาษี, และ footer note ต้องใช้ Company Profile เป็นหลัก; โลโก้ต้องแสดงเสมอ โดยใช้ Company Profile logo ก่อน และอนุญาตให้มี default company logo ใน template เป็น fallback ได้ถ้า profile ยังไม่มี logo
+- Layout หัวกระดาษต้องออกแบบใหม่ให้ดู corporate และอ่านง่าย โดยใช้รูปตัวอย่างลูกค้าที่ได้รับวันที่ 2026-06-09 เป็น data reference ไม่ใช่ pixel/layout ที่ต้องลอกตาม จุดสำคัญคือข้อมูลต้องครบ: โลโก้, ชื่อเอกสาร, ชื่อบริษัท, วันที่/เวลา, ผู้ขาย, ทะเบียนรถ, ผู้จัดทำ, Sale/ผู้ประสานงาน, เลขเอกสาร, summary ยอด และตารางน้ำหนัก/ราคา
+
+### Corporate Layout Direction
+
+ออกแบบ active print template ให้เป็นเอกสารบริษัทแบบสะอาดและเป็นทางการ:
+
+- ใช้ A4 landscape เป็น default สำหรับ PB ที่มี weight columns หลายช่อง; ถ้ารายการน้อยมากยังใช้ layout เดียวกันเพื่อไม่ให้เอกสารเปลี่ยนหน้าตาตามข้อมูล
+- header เป็น white/corporate header ไม่จำเป็นต้องเป็นแถบเขียวเต็มเหมือนรูปตัวอย่าง: โลโก้ซ้าย, ชื่อบริษัทและที่อยู่จาก Company Profile, ชื่อเอกสารใหญ่ด้านขวาหรือกลาง, เลขเอกสาร/วันที่เป็น document meta block
+- ใช้สีแบรนด์/สีเขียวจากตัวอย่างเป็น accent เฉพาะเส้นหัวเอกสาร, badge, หรือหัวตาราง ไม่ใช้พื้นสีเข้มขนาดใหญ่ที่กินพื้นที่เอกสาร
+- ข้อมูลเอกสารส่วนบนแบ่งเป็น 2 columns: ฝั่งซ้าย `Supplier/ผู้ขาย`, ที่อยู่/เลขผู้เสียภาษี/ทะเบียนรถ; ฝั่งขวา `Document Info` เช่น `PB no`, วันที่ส่ง, เวลา, สาขา, คลัง, ผู้จัดทำ, Sale
+- summary ยอดเงินวางเป็น compact total card ด้านขวาล่างของตาราง หรือใต้ตาราง ไม่แทรกกลางเอกสารแบบพื้นที่สีใหญ่ เพื่อให้รายการสินค้าเป็นพระเอกและอ่านต่อเนื่อง
+- หมายเหตุวางเป็นกล่อง `หมายเหตุ` ใต้ตารางฝั่งซ้าย พร้อมเลขอ้างอิง Supplier/VAT invoice/ref no เท่าที่มี
+- signature block วางท้ายเอกสาร 3 ช่องเท่ากัน: ผู้ส่งสินค้า, ผู้ตรวจรับ/ตรวจนับ, ผู้รับสินค้า/บริษัท
+- typography ใช้ `Noto Sans Thai`, ตัวเลขชิดขวา, table header ชัด, เส้นตารางบางสี slate, spacing แน่นแต่ไม่อึดอัด
+- เอกสารต้องดูเหมือนออกจากระบบ ERP บริษัท ไม่เหมือน screenshot จาก Excel/legacy ถึงแม้ field จะอิงจากตัวอย่างลูกค้า
+
+### Document Content
+
+เอกสารพิมพ์บิลรับซื้อควรปรับปรุงจาก legacy โดยคง field สำคัญและทำให้อ่านง่ายขึ้น:
+
+- ชื่อเอกสาร: default ตามตัวอย่างลูกค้าคือ `ใบรับสินค้า`; ต้องยืนยัน wording สุดท้ายว่าจะใช้ `ใบรับสินค้า`, `บิลรับซื้อ`, หรือแสดงคู่กันก่อน implement
+- ข้อมูลหัวบิล: เลขที่บิลรับซื้อ (`PB...`), วันที่ส่ง/วันที่เอกสาร, เวลา, สาขา, คลัง, ประเภท `Stock/Trading`, แหล่งซื้อจากรายการ `PO/Spot/Mixed`, สถานะเอกสาร, ผู้จัดทำ, Sale/ผู้ประสานงานถ้ามีใน read-model
+- คู่ค้า: Supplier, เลขผู้เสียภาษี/สาขา/ที่อยู่ถ้ามี, contact หรือช่องทางรับเงินถ้าเป็นข้อมูลที่มีใน snapshot/read-model
+- แหล่งอ้างอิง: `WTI`, `POB`, Supplier reference/invoice no, vat invoice no, ทะเบียนรถ/ข้อมูลชั่งถ้าเป็น Stock จากใบรับของ
+- ตารางรายการ: ลำดับ, รหัสสินค้า, ชื่อสินค้า, หมายเหตุ, แหล่งซื้อรายบรรทัด (`POB...` หรือ `Spot Buy`), น้ำหนักก่อนหัก, น้ำหนักหัก, น้ำหนักสุทธิ, จำนวนพร้อมหน่วยจริง (`กก.`/`ลัง`), ราคา/หน่วย, จำนวนเงิน
+- ตารางรายการต้องใช้หน่วยจาก document snapshot หรือ master data ต่อบรรทัด และ summary ต้องแยกยอดตามหน่วยเมื่อมีหลายหน่วย เช่น `รวม 1,250 กก. / 32 ลัง`
+- ยอดรวมท้ายบิล: subtotal, ส่วนลดท้ายบิล, VAT base/rate/amount, ยอดสุทธิ, ยอดหัก ADV ถ้ามี, ยอดคงเหลือเจ้าหนี้/payable balance, สถานะการจ่ายจาก Payment Flow
+- หมายเหตุและเลขอ้างอิงต้องแสดงจาก PB snapshot/read-model ไม่คำนวณจากข้อมูล master ปัจจุบันถ้าเป็นข้อมูลประวัติ
+- ช่องลงนามขั้นต่ำ: ผู้ส่งสินค้า/Supplier, ผู้ตรวจรับ/ตรวจนับ, ผู้รับสินค้า/บริษัท, พร้อมเส้นวันที่
+
+### Customer Sample Reference 2026-06-09
+
+รูปตัวอย่างที่ลูกค้าส่งมาเป็นเอกสารแนวนอนลักษณะ receipt note ใช้เป็น data completeness checklist ไม่ใช่ layout ที่ต้องลอก:
+
+- header เป็นแถบสีเขียวเต็มความกว้าง มีโลโก้ซ้าย และชื่อเอกสาร `ใบรับสินค้า` พร้อมชื่อบริษัทไทย/อังกฤษตรงกลาง
+- ช่วงข้อมูลบนเป็น grid แถวเตี้ย แสดง `วันที่ส่ง/DELIVERY`, `เวลา/TIME`, `ชื่อผู้ขาย/NAME`, `ทะเบียนรถ/TRUCK`, `จัดทำโดย`, และ `Sale`
+- ช่วงกลางมีแถบ summary ขนาดใหญ่: ฝั่งซ้ายเป็นพื้นที่หมายเหตุ/พื้นที่ว่างสีชมพู, กลางเป็นกล่องสีเข้มคำว่า `ยอดรวมทั้งสิ้น`, ฝั่งขวาเป็นสรุปยอด `ยอดเงินรวม`, `หักส่วนลด`, `หักเงินมัดจำ`, `รวมทั้งสิ้น/TOTAL`, `VAT`, `ยอดรวมทั้งสิ้น`
+- ก่อนตารางรายการมีแถว metadata ซ้ำสำหรับ `ชื่อผู้ขาย`, `วันที่ส่ง`, และ `เลขที่เอกสาร`
+- ตารางรายการใช้หัวสีเทา/น้ำเงินและมี columns หลัก `สินค้า`, `REMARK`, `นน.ก่อนหัก`, `นน.หัก`, `นน.สุทธิ`, `ราคา`, `รวม`
+- แถวผลรวมท้ายตารางต้องรวม weight และ amount เหมือนตัวอย่าง ไม่รวมเฉพาะยอดเงิน
+- ลูกค้ายืนยันภายหลังว่าแก้แบบได้ ขอให้ข้อมูลครบถ้วนและดู corporate; ดังนั้น active design ให้ยึด `Corporate Layout Direction` ด้านบน และใช้รายการ field จากรูปนี้เป็น checklist
+
+### Implementation Notes
+
+- Implemented 2026-06-09: active Next exposes PB print from `/purchase/bills` list row action, detail modal, and direct detail page. Template is corporate A4 landscape, opens a print window immediately, loads Company Profile for header data, uses template default logo fallback when profile logo is missing, and includes cancelled/supplier-swap watermark.
+- ใช้ style print เดียวกับ active print helper เช่น WTI/WTO print และ Company Profile preview โดยใช้ `Noto Sans Thai`
+- `purchase_bill_items` เป็น print snapshot หลักของรายการ; allocation tables ใช้แสดง trace `WTI/POB/Spot` เพิ่มเติม แต่ห้ามทำให้ PB ที่ถูก cancel/supplier swap เสีย historical source เดิม
+- ถ้า active allocation ถูก release แล้ว detail/print ต้องยังอ่าน historical source จาก `purchase_bill_items.po_buy_id` หรือ `purchase_bill_items.source_snapshot.poBuyId` ได้
+- เอกสารนี้เป็น print ของ `PB` ไม่ใช่ `PMA`, `PMT`, ใบสำคัญจ่าย, หรือใบรับของ `WTI`
 
 ## Create PB
 
