@@ -6,6 +6,7 @@ import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requ
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { buildStockWorkbook, normalizeStockReferenceInput, stockReferenceData, stockWhere, xlsxResponse } from '@/lib/server/stock'
+import { stockMovementTypeLabel } from '@/lib/stock-movement-types'
 import { stockQuerySchema } from '@/lib/stock'
 
 export const runtime = 'nodejs'
@@ -26,6 +27,28 @@ const ledgerQuerySchema = stockQuerySchema.extend({
   negativeOnly: z.coerce.boolean().default(false),
 })
 
+function stockLedgerOrderBy(sort: string, direction: 'asc' | 'desc') {
+  switch (sort) {
+    case 'movementType':
+      return [{ movement_type: direction }, { date: direction }, { created_at: direction }, { id: direction }]
+    case 'qtyIn':
+      return [{ qty_in: direction }, { date: direction }, { created_at: direction }, { id: direction }]
+    case 'qtyOut':
+      return [{ qty_out: direction }, { date: direction }, { created_at: direction }, { id: direction }]
+    case 'refNo':
+      return [{ ref_no: direction }, { date: direction }, { created_at: direction }, { id: direction }]
+    case 'unitCost':
+      return [{ unit_cost: direction }, { date: direction }, { created_at: direction }, { id: direction }]
+    case 'valueIn':
+      return [{ value_in: direction }, { date: direction }, { created_at: direction }, { id: direction }]
+    case 'valueOut':
+      return [{ value_out: direction }, { date: direction }, { created_at: direction }, { id: direction }]
+    case 'date':
+    default:
+      return [{ date: direction }, { created_at: direction }, { id: direction }]
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
@@ -36,7 +59,7 @@ export async function GET(request: Request) {
     const skip = (query.page - 1) * query.pageSize
     const normalizedQuery = await normalizeStockReferenceInput(query)
     const where = stockWhere(normalizedQuery)
-    const orderBy = [{ date: query.direction }, { created_at: query.direction }, { id: query.direction }]
+    const orderBy = stockLedgerOrderBy(query.sort, query.direction)
 
     const [allRowsRaw, pageRowsRaw, reference, total] = await Promise.all([
       prisma.stock_ledger.findMany({
@@ -61,24 +84,40 @@ export async function GET(request: Request) {
       warehouses?: { name: string } | null
     }>
 
+    const purchaseRefTypes = new Set(['PB', 'PB-CANCEL'])
+    const salesRefTypes = new Set(['SB', 'SB-CANCEL'])
     const purchaseBillIds = [...new Set(pageRows
-      .filter((row) => row.ref_type === 'PB' && row.ref_id)
+      .filter((row) => row.ref_type && purchaseRefTypes.has(row.ref_type) && row.ref_id)
       .map((row) => parseInternalBigIntId(row.ref_id))
       .filter((id): id is bigint => id !== null))]
+    const purchaseBillDocNos = [...new Set(pageRows
+      .filter((row) => row.ref_type && purchaseRefTypes.has(row.ref_type))
+      .flatMap((row) => [row.ref_id, row.ref_no].filter((value): value is string => typeof value === 'string' && value.trim().length > 0)))]
     const salesBillIds = [...new Set(pageRows
-      .filter((row) => row.ref_type === 'SB' && row.ref_id)
+      .filter((row) => row.ref_type && salesRefTypes.has(row.ref_type) && row.ref_id)
       .map((row) => parseInternalBigIntId(row.ref_id))
       .filter((id): id is bigint => id !== null))]
+    const salesBillDocNos = [...new Set(pageRows
+      .filter((row) => row.ref_type && salesRefTypes.has(row.ref_type))
+      .flatMap((row) => [row.ref_id, row.ref_no].filter((value): value is string => typeof value === 'string' && value.trim().length > 0)))]
     const [purchaseBills, salesBills] = await Promise.all([
-      purchaseBillIds.length
-        ? prisma.purchase_bills.findMany({ include: { suppliers: true }, where: { id: { in: purchaseBillIds } } })
+      purchaseBillIds.length || purchaseBillDocNos.length
+        ? prisma.purchase_bills.findMany({
+          include: { suppliers: true },
+          where: { OR: [...(purchaseBillIds.length ? [{ id: { in: purchaseBillIds } }] : []), ...(purchaseBillDocNos.length ? [{ doc_no: { in: purchaseBillDocNos } }] : [])] },
+        })
         : Promise.resolve([]),
-      salesBillIds.length
-        ? prisma.sales_bills.findMany({ include: { customers: true }, where: { id: { in: salesBillIds } } })
+      salesBillIds.length || salesBillDocNos.length
+        ? prisma.sales_bills.findMany({
+          include: { customers: true },
+          where: { OR: [...(salesBillIds.length ? [{ id: { in: salesBillIds } }] : []), ...(salesBillDocNos.length ? [{ doc_no: { in: salesBillDocNos } }] : [])] },
+        })
         : Promise.resolve([]),
     ])
     const purchaseById = new Map(purchaseBills.map((bill) => [bill.id, bill]))
+    const purchaseByDocNo = new Map(purchaseBills.map((bill) => [bill.doc_no, bill]))
     const salesById = new Map(salesBills.map((bill) => [bill.id, bill]))
+    const salesByDocNo = new Map(salesBills.map((bill) => [bill.doc_no, bill]))
 
     const balanceByKey = new Map<string, number>()
     const runningByRowId = new Map<string, number>()
@@ -93,10 +132,18 @@ export async function GET(request: Request) {
     }
 
     let payloadRows = pageRows.map((row) => {
-      const purchaseBillId = row.ref_type === 'PB' && row.ref_id ? parseInternalBigIntId(row.ref_id) : null
-      const salesBillId = row.ref_type === 'SB' && row.ref_id ? parseInternalBigIntId(row.ref_id) : null
-      const purchaseBill = purchaseBillId != null ? purchaseById.get(purchaseBillId) : null
-      const salesBill = salesBillId != null ? salesById.get(salesBillId) : null
+      const purchaseBillId = row.ref_type && purchaseRefTypes.has(row.ref_type) && row.ref_id ? parseInternalBigIntId(row.ref_id) : null
+      const salesBillId = row.ref_type && salesRefTypes.has(row.ref_type) && row.ref_id ? parseInternalBigIntId(row.ref_id) : null
+      const purchaseBill = purchaseBillId != null
+        ? purchaseById.get(purchaseBillId)
+        : row.ref_type && purchaseRefTypes.has(row.ref_type)
+          ? purchaseByDocNo.get(row.ref_id ?? '') ?? purchaseByDocNo.get(row.ref_no ?? '')
+          : null
+      const salesBill = salesBillId != null
+        ? salesById.get(salesBillId)
+        : row.ref_type && salesRefTypes.has(row.ref_type)
+          ? salesByDocNo.get(row.ref_id ?? '') ?? salesByDocNo.get(row.ref_no ?? '')
+          : null
       const outwardRefNo = row.ref_no ?? purchaseBill?.doc_no ?? salesBill?.doc_no ?? ''
       return {
         branchName: row.branches?.name ?? '-',
@@ -130,9 +177,9 @@ export async function GET(request: Request) {
       const body = buildStockWorkbook('Stock Ledger', payloadRows.map((row) => ({
         วันที่: row.date,
         Ref: `${row.refType}:${row.refNo}`,
-        Movement: row.movementType,
+        Movement: stockMovementTypeLabel(row.movementType),
         สินค้า: `${row.productCode} ${row.productName}`.trim(),
-        คู่ค้า: row.counterpartyName,
+        'ผู้ขาย/ผู้ซื้อ': row.counterpartyName,
         สาขา: row.branchName,
         คลัง: row.warehouseName,
         Lot: row.lotNo,

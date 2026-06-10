@@ -351,6 +351,11 @@ Priority: สูง เพราะเป็นฐานของ purchase, sale
 
 #### S2 Follow-up Execution Log
 
+- Task on 2026-06-09: Stock Ledger party column and read-only table action cleanup.
+- Files changed: `apps/next/src/app/api/stock/ledger/route.ts`, `apps/next/src/components/purchase-flow/StockLedgerPageClient.tsx`, this tracker, current work handoff, and daily transaction progress.
+- DB/API changes: no schema migration. `GET /api/stock/ledger` now resolves PB/SB source party names from both internal ids and doc numbers in `stock_ledger.ref_id/ref_no`; export column wording is `ผู้ขาย/ผู้ซื้อ`.
+- UI changes: duplicate/orphan cleanup buttons and the negative-only action button were removed, row detail opens by clicking the table row, the separate row action/จัดการ column was removed, and the table follows the shared compact font/sort/resizable-column/page-size pagination baseline.
+
 - Task: Stock Ledger row detail modal follow-up after UI parity pass.
 - Legacy refs: `old-apps/legacy/index.html:11483`, `old-apps/vue/src/views/stock/StockLedgerView.vue`.
 - Files changed: `apps/next/src/components/purchase-flow/StockLedgerPageClient.tsx`, this tracker, and current work handoff.

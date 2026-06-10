@@ -165,6 +165,14 @@ flowchart TD
   - กรณี history row เป็น direct EXP PMT ที่ไม่มี PMA ให้ table/detail ใช้ `payments.lines.sourceDocNo` แสดงเอกสารต้นทาง
   - PMT/PMA detail timeline ต้องใช้ pattern เดียวกับ `ประวัติ POB`: stream เดียวเรียงล่าสุดขึ้นก่อน, time/actor column ซ้าย, event column มีเส้น timeline, dot latest ตาม tone, และแสดง latest status pill ด้านหัว section
   - route เก่า `/purchase/payment-history` ต้อง redirect ไป `/purchase/payments?tab=history` เพื่อรองรับ bookmark/link เก่า แต่ไม่เป็นเมนูแยก
+  - ปุ่ม `ดู/พิมพ์` ของ payment history ต้องอยู่ในแท็บ `ประวัติ` เท่านั้นและใช้กติกาใน [[Printable Documents]]
+  - `PMT` status `จ่ายแล้ว` พิมพ์เป็น Payment Voucher / ใบสำคัญจ่ายได้
+  - `PMT` status `ยกเลิก` พิมพ์เป็นสำเนา Payment Voucher ฉบับยกเลิกได้ โดยต้องมีสถานะ/ลายน้ำ `ยกเลิก`
+  - `PMA voided` ที่ยังไม่มี PMT พิมพ์ได้เฉพาะเป็นใบยกเลิกรายการอนุมัติจ่ายหรือ PMA void snapshot ไม่ใช่ Payment Voucher
+  - `PMA` ใน queue `รอจ่าย` ยังไม่ใช่ PMT; ถ้าต้องพิมพ์ก่อนจ่ายให้ใช้ PMA approval sheet ไม่ใช่ payment history print
+  - Implemented 2026-06-09: แท็บ `ประวัติ` ต้อง default filter วันที่เป็นวันนี้ตอนเปิดหน้า/เข้าแท็บ, ปุ่มล้าง filter ต้องกลับไปดูทุกวัน, และ print ประจำวันต้องใช้ filter วันที่/บัญชี/ค้นหา/สถานะชุดเดียวกับที่ตารางกำลังแสดง
+  - Per user clarification, daily print ข้าม `PMA` ไปก่อนและรวมเฉพาะ `PMT จ่ายแล้ว` กับ `PMT ยกเลิก`
+  - daily print summary ต้องรวมจำนวน PMT ทั้งหมดของวันนั้น และรวมยอดเงินออกสุทธิเฉพาะ `PMT จ่ายแล้ว`; รายการ `ยกเลิก` แสดงเพื่อ audit แต่ไม่รวมเป็นยอดเงินออก
 
 ## Split Approval Model
 

@@ -2,6 +2,7 @@
 
 import { Check, Copy, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes } from 'react'
+import { z } from 'zod'
 import { paymentMethodGroupFromValue, type PaymentMethodGroup } from '@/lib/account-payment-method'
 import { BillSelect, Field, SelectField, SummaryPill } from '@/components/daily/MoneyMovementFieldHelpers'
 import { PaymentLinesSection, PaymentSplitsSection } from '@/components/daily/MoneyMovementFormSections'
@@ -14,6 +15,8 @@ import { Select as UiSelect } from '@/components/ui/Select'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
+import { readJsonResponse } from '@/lib/api-client'
+import { companyProfileSchema, emptyCompanyProfile, type CompanyProfileFormValues } from '@/lib/company-profile'
 import { customerReceiptFormSchema, dailyFetchJson, formatMoney, supplierPaymentFormSchema, todayDateInput, type CustomerReceiptFormValues, type DailyAccountOption, type SupplierPaymentFormValues } from '@/lib/daily'
 import { formatAccountNoDisplay, formatDateDisplay } from '@/lib/format'
 
@@ -118,6 +121,9 @@ type ReceiptTab = 'entry' | 'history'
 type PaymentQueueColumnKey = 'accountNo' | 'action' | 'age' | 'balance' | 'bankName' | 'date' | 'docNo' | 'paidAmount' | 'partyName' | 'totalAmount'
 type MoneyHistoryColumnKey = 'accountName' | 'action' | 'amount' | 'bankFee' | 'billRefs' | 'date' | 'docNo' | 'netAmount' | 'notes' | 'partyName' | 'status' | 'wht'
 const pageSizeOptions = [10, 25, 50, 100]
+const companyProfilePayloadSchema = z.object({
+  profile: companyProfileSchema,
+})
 const paymentQueueColumns: Array<ResizableColumnDefinition<PaymentQueueColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'date', defaultWidth: 120, minWidth: 100 },
@@ -294,6 +300,147 @@ function paymentHistoryStatusDot(status: string | undefined) {
     : 'bg-emerald-500'
 }
 
+function escapeHtml(value: unknown) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function companyInfoForPrint(profile: CompanyProfileFormValues) {
+  return [
+    profile.address,
+    profile.phone ? `โทร ${profile.phone}` : '',
+    profile.fax ? `แฟกซ์ ${profile.fax}` : '',
+    profile.taxId ? `เลขประจำตัวผู้เสียภาษี ${profile.taxId}${profile.branchCode ? ` สาขา ${profile.branchCode}` : ''}` : '',
+    profile.email ? `Email: ${profile.email}` : '',
+    profile.website ? `Website: ${profile.website}` : '',
+  ].filter(Boolean).map(escapeHtml).join('<br>')
+}
+
+function paymentDailyReportDateRangeLabel(dateFrom: string, dateTo: string) {
+  const today = todayDateInput()
+  const from = dateFrom || today
+  const to = dateTo || dateFrom || today
+  return from === to ? formatDateDisplay(from) : `${formatDateDisplay(from)} - ${formatDateDisplay(to)}`
+}
+
+function buildPaymentDailyReportHtml(rows: MoneyRow[], profile: CompanyProfileFormValues, params: { dateFrom: string; dateTo: string; printedAt: Date }) {
+  const paidRows = rows.filter((row) => row.status !== 'cancelled')
+  const cancelledRows = rows.filter((row) => row.status === 'cancelled')
+  const paidAmount = paidRows.reduce((sum, row) => sum + row.amount, 0)
+  const paidFee = paidRows.reduce((sum, row) => sum + (row.fee ?? 0), 0)
+  const paidNet = paidRows.reduce((sum, row) => sum + row.netAmount, 0)
+  const cancelledAmount = cancelledRows.reduce((sum, row) => sum + row.amount, 0)
+  const rowHtml = rows.map((row, index) => {
+    const billRefs = row.billDocNos?.length ? row.billDocNos.join(', ') : row.billDocNo || '-'
+    const accounts = (row.accountSummaries?.length ? row.accountSummaries : [row.accountName || '-'])
+      .map(escapeHtml)
+      .join('<br>')
+    return `<tr>
+      <td class="c">${index + 1}</td>
+      <td class="mono">${escapeHtml(row.docNo)}</td>
+      <td>${escapeHtml(formatDateDisplay(row.date))}</td>
+      <td>${escapeHtml(row.partyName || '-')}</td>
+      <td class="mono small">${escapeHtml(billRefs)}</td>
+      <td class="small">${accounts}</td>
+      <td class="r">${escapeHtml(formatMoney(row.amount))}</td>
+      <td class="r">${escapeHtml(formatMoney(row.fee ?? 0))}</td>
+      <td class="r strong">${escapeHtml(formatMoney(row.status === 'cancelled' ? 0 : row.netAmount))}</td>
+      <td>${escapeHtml(paymentHistoryStatusLabel(row.status))}</td>
+      <td>${escapeHtml(row.notes || '-')}</td>
+    </tr>`
+  }).join('')
+  const emptyRow = '<tr><td class="empty" colspan="11">ไม่พบรายการจ่าย PMT ในวันที่เลือก</td></tr>'
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>รายงานประวัติการจ่ายเงินประจำวัน</title>
+    <style>
+      @page { size: A4 landscape; margin: 10mm; }
+      body { font-family: 'Noto Sans Thai', Arial, sans-serif; color: #0f172a; font-size: 11px; margin: 0; }
+      .toolbar { background: #f1f5f9; border-bottom: 1px solid #cbd5e1; padding: 8px; text-align: center; }
+      .toolbar button { background: #0f172a; border: 0; border-radius: 6px; color: white; cursor: pointer; font-size: 13px; margin: 0 4px; padding: 7px 14px; }
+      .page { padding: 10px; }
+      .header { display: grid; grid-template-columns: 1fr 280px; gap: 16px; border-bottom: 2px solid #0f172a; padding-bottom: 10px; }
+      .logo { max-height: 52px; max-width: 180px; object-fit: contain; margin-bottom: 4px; }
+      .co-name { font-size: 18px; font-weight: 800; }
+      .co-info { color: #475569; line-height: 1.45; margin-top: 3px; }
+      .doc-title { text-align: right; }
+      .doc-title h1 { font-size: 20px; margin: 0 0 4px; }
+      .doc-title .range { color: #be123c; font-size: 15px; font-weight: 800; }
+      .summary { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 12px 0; }
+      .card { border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; background: #fff; }
+      .card .label { color: #64748b; font-size: 10px; }
+      .card .value { font-size: 16px; font-weight: 800; margin-top: 2px; }
+      .green { color: #047857; }
+      .rose { color: #be123c; }
+      table { width: 100%; border-collapse: collapse; }
+      th { background: #334155; color: #fff; font-size: 10px; padding: 6px; text-align: left; }
+      td { border-bottom: 1px solid #e2e8f0; padding: 6px; vertical-align: top; }
+      tr.cancelled td { color: #64748b; }
+      .r { text-align: right; }
+      .c { text-align: center; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .small { font-size: 10px; }
+      .strong { font-weight: 800; }
+      .empty { color: #64748b; padding: 24px; text-align: center; }
+      .footer { border-top: 1px dashed #cbd5e1; color: #64748b; font-size: 10px; margin-top: 12px; padding-top: 8px; }
+      @media print { .toolbar { display: none; } .page { padding: 0; } }
+    </style>
+  </head><body>
+    <div class="toolbar">
+      <button onclick="window.print()">พิมพ์ / Save as PDF</button>
+      <button onclick="window.close()" style="background:#64748b">ปิด</button>
+    </div>
+    <div class="page">
+      <div class="header">
+        <div>
+          ${profile.logoUrl ? `<img class="logo" src="${escapeHtml(profile.logoUrl)}" alt="Company logo">` : ''}
+          <div class="co-name">${escapeHtml(profile.name || '-')}</div>
+          ${profile.nameEn ? `<div>${escapeHtml(profile.nameEn)}</div>` : ''}
+          <div class="co-info">${companyInfoForPrint(profile)}</div>
+        </div>
+        <div class="doc-title">
+          <h1>รายงานประวัติการจ่ายเงินประจำวัน</h1>
+          <div class="range">${escapeHtml(paymentDailyReportDateRangeLabel(params.dateFrom, params.dateTo))}</div>
+          <div>พิมพ์เมื่อ ${escapeHtml(params.printedAt.toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }))}</div>
+        </div>
+      </div>
+      <div class="summary">
+        <div class="card"><div class="label">รายการ PMT ทั้งหมด</div><div class="value">${rows.length.toLocaleString('th-TH')}</div></div>
+        <div class="card"><div class="label">จ่ายแล้ว</div><div class="value green">${paidRows.length.toLocaleString('th-TH')}</div></div>
+        <div class="card"><div class="label">ยกเลิก</div><div class="value rose">${cancelledRows.length.toLocaleString('th-TH')}</div></div>
+        <div class="card"><div class="label">ยอดจ่ายแล้วก่อน fee</div><div class="value">${escapeHtml(formatMoney(paidAmount))}</div></div>
+        <div class="card"><div class="label">เงินออกสุทธิ</div><div class="value green">${escapeHtml(formatMoney(paidNet))}</div></div>
+      </div>
+      <div class="summary" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="card"><div class="label">Bank Fee ของรายการจ่ายแล้ว</div><div class="value">${escapeHtml(formatMoney(paidFee))}</div></div>
+        <div class="card"><div class="label">ยอดรายการยกเลิก ไม่รวมเงินออก</div><div class="value rose">${escapeHtml(formatMoney(cancelledAmount))}</div></div>
+        <div class="card"><div class="label">หมายเหตุการนับยอด</div><div class="value" style="font-size:12px">เงินออกสุทธินับเฉพาะ PMT จ่ายแล้ว</div></div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th class="c">#</th>
+            <th>PMT</th>
+            <th>วันที่</th>
+            <th>ผู้รับเงิน</th>
+            <th>เอกสารอ้างอิง</th>
+            <th>บัญชีที่จ่าย</th>
+            <th class="r">ยอดจ่าย</th>
+            <th class="r">Bank Fee</th>
+            <th class="r">เงินออกสุทธิ</th>
+            <th>สถานะ</th>
+            <th>หมายเหตุ</th>
+          </tr>
+        </thead>
+        <tbody>${rowHtml || emptyRow}</tbody>
+      </table>
+      <div class="footer">รายงานนี้เป็นเอกสารตรวจรายการจ่ายประจำวันจาก PMT history เท่านั้น ไม่รวม PMA ที่ยังไม่เกิด PMT</div>
+    </div>
+  </body></html>`
+}
+
 function detailToneTextClass(tone: PaymentHistoryTone) {
   if (tone === 'blue') return 'text-blue-700'
   if (tone === 'emerald') return 'text-emerald-700'
@@ -362,11 +509,12 @@ export function MoneyMovementPageClient({
   const [error, setError] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [isPrintingDailyReport, setIsPrintingDailyReport] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const isSavingRef = useRef(false)
   const [search, setSearch] = useState('')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  const [dateFrom, setDateFrom] = useState(() => mode === 'payment' ? todayDateInput() : '')
+  const [dateTo, setDateTo] = useState(() => mode === 'payment' ? todayDateInput() : '')
   const [accountFilter, setAccountFilter] = useState('')
   const [billSearch, setBillSearch] = useState('')
   const [billPage, setBillPage] = useState(1)
@@ -581,8 +729,7 @@ export function MoneyMovementPageClient({
   const historyCurrentPage = Math.min(historyPage, historyTotalPages)
   const historyPageRows = historyRows.slice((historyCurrentPage - 1) * historyPageSize, historyCurrentPage * historyPageSize)
   const hasActiveHistoryFilters = search.trim() !== ''
-    || dateFrom !== ''
-    || dateTo !== ''
+    || (mode === 'payment' ? dateFrom !== todayDateInput() || dateTo !== todayDateInput() : dateFrom !== '' || dateTo !== '')
     || accountFilter !== ''
     || (mode === 'payment' && paymentHistoryStatusFilter !== 'all')
 
@@ -656,8 +803,8 @@ export function MoneyMovementPageClient({
     setPaymentDetail(null)
     setPaymentDetailRow(null)
     setSearch('')
-    setDateFrom('')
-    setDateTo('')
+    setDateFrom(mode === 'payment' && value === 'history' ? todayDateInput() : '')
+    setDateTo(mode === 'payment' && value === 'history' ? todayDateInput() : '')
     setAccountFilter('')
     setPaymentHistoryStatusFilter('all')
     setBillSearch('')
@@ -718,6 +865,70 @@ export function MoneyMovementPageClient({
       setPaymentDetailError(caught instanceof Error ? caught.message : 'โหลดรายละเอียดการจ่ายเงินไม่ได้')
     } finally {
       setIsPaymentDetailLoading(false)
+    }
+  }
+
+  function getDailyPaymentPrintRows() {
+    const query = search.trim().toLowerCase()
+    const printDateFrom = dateFrom || todayDateInput()
+    const printDateTo = dateTo || dateFrom || todayDateInput()
+    return data.rows
+      .filter((row) => row.docNo.startsWith('PMT'))
+      .filter((row) => {
+        const searchHaystack = [
+          row.id,
+          row.docNo,
+          row.partyName,
+          row.accountName,
+          ...(row.accountNames ?? []),
+          row.billDocNo ?? '',
+          ...(row.billDocNos ?? []),
+          row.approvalId ?? '',
+          ...(row.approvalIds ?? []),
+          row.notes,
+        ].join(' ').toLowerCase()
+        const matchesSearch = !query || searchHaystack.includes(query)
+        const matchesAccount = !accountFilter || row.accountId === accountFilter || row.accountName === accountFilter
+        const matchesFrom = row.date >= printDateFrom
+        const matchesTo = row.date <= printDateTo
+        const matchesPaymentStatus = paymentHistoryStatusFilter === 'all'
+          || (paymentHistoryStatusFilter === 'active' ? row.status !== 'cancelled' : row.status === 'cancelled')
+        return matchesSearch && matchesAccount && matchesFrom && matchesTo && matchesPaymentStatus
+      })
+      .sort((left, right) => `${left.date}-${left.docNo}`.localeCompare(`${right.date}-${right.docNo}`, 'th'))
+  }
+
+  async function printDailyPaymentReport() {
+    if (mode !== 'payment') return
+    const printWindow = window.open('', '_blank', 'width=1200,height=900,scrollbars=yes')
+    if (!printWindow) {
+      setError('Browser block popup — กรุณาอนุญาต popup สำหรับเว็บนี้')
+      return
+    }
+    printWindow.document.open()
+    printWindow.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>กำลังเตรียมรายงาน</title></head><body style="font-family:'Noto Sans Thai',Arial,sans-serif;margin:32px;color:#0f172a">กำลังเตรียมรายงานประวัติการจ่ายเงินประจำวัน...</body></html>`)
+    printWindow.document.close()
+    printWindow.focus()
+    setIsPrintingDailyReport(true)
+    setError(null)
+    try {
+      const response = await fetch('/api/admin/company-profile', { cache: 'no-store' })
+      const payload = await readJsonResponse(response, companyProfilePayloadSchema, 'โหลดข้อมูลบริษัทไม่สำเร็จ')
+      const profile = payload.profile ?? emptyCompanyProfile
+      const printRows = getDailyPaymentPrintRows()
+      printWindow.document.open()
+      printWindow.document.write(buildPaymentDailyReportHtml(printRows, profile, {
+        dateFrom: dateFrom || todayDateInput(),
+        dateTo: dateTo || dateFrom || todayDateInput(),
+        printedAt: new Date(),
+      }))
+      printWindow.document.close()
+      printWindow.focus()
+    } catch (caught) {
+      printWindow.close()
+      setError(caught instanceof Error ? caught.message : 'พิมพ์รายงานประจำวันไม่ได้')
+    } finally {
+      setIsPrintingDailyReport(false)
     }
   }
 
@@ -1341,6 +1552,18 @@ export function MoneyMovementPageClient({
                 <option value="">ทุกบัญชี</option>
                 {activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
               </UiSelect>
+              {mode === 'payment' ? (
+                <UiButton
+                  className="h-9 font-semibold"
+                  disabled={isPrintingDailyReport}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                  onClick={() => void printDailyPaymentReport()}
+                >
+                  {isPrintingDailyReport ? 'กำลังเตรียมรายงาน...' : 'พิมพ์รายงานประจำวัน'}
+                </UiButton>
+              ) : null}
               {hasActiveHistoryFilters ? (
                 <UiButton className="h-9 font-normal" size="sm" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</UiButton>
               ) : null}

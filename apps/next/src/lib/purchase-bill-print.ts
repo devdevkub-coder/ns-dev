@@ -49,7 +49,7 @@ function companyInfo(profile: CompanyProfileFormValues) {
 
 function itemRows(bill: PurchaseBillDetail) {
   return bill.allocationRows.map((item) => `
-    <tr>
+    <tr class="item-row">
       <td class="center">${item.lineNo}</td>
       <td>
         <div class="item-name">${escapeHtml(item.productName)}</div>
@@ -107,6 +107,7 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
       .toolbar button { border: 0; border-radius: 6px; padding: 7px 14px; background: #15803d; color: white; font: inherit; cursor: pointer; }
       .toolbar button.secondary { background: #475569; }
       .page { width: 277mm; min-height: 190mm; margin: 0 auto; padding: 7mm; background: white; position: relative; }
+      .print-only { display: none; }
       .accent { height: 4px; background: linear-gradient(90deg, #166534, #65a30d, #cbd5e1); border-radius: 99px; margin-bottom: 12px; }
       .header { display: grid; grid-template-columns: 1fr 1.1fr; gap: 16px; align-items: start; border-bottom: 1px solid #cbd5e1; padding-bottom: 12px; }
       .company { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: start; min-width: 0; }
@@ -124,32 +125,34 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
       .status { display: inline-flex; border-radius: 999px; padding: 3px 9px; background: #ecfdf5; color: #166534; font-weight: 800; }
       .status.cancelled { background: #f1f5f9; color: #475569; }
       .section-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 12px; margin-top: 12px; }
-      .panel { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; break-inside: avoid; }
+      .panel { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
       .panel-title { padding: 6px 9px; background: #f1f5f9; color: #334155; font-weight: 900; }
       .panel-body { padding: 8px 9px; }
       .two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 12px; }
       .field-label { color: #64748b; font-size: 9px; }
       .field-value { font-weight: 750; color: #0f172a; margin-top: 1px; overflow-wrap: anywhere; }
       table { width: 100%; border-collapse: collapse; }
-      .items { margin-top: 12px; font-size: 10px; }
+      .items { margin-top: 12px; font-size: 10px; break-inside: auto; page-break-inside: auto; }
       .items thead { display: table-header-group; }
+      .items tbody { break-inside: auto; page-break-inside: auto; }
       .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 6px 5px; text-align: left; font-weight: 900; }
       .items td { border: 1px solid #dbe3ea; padding: 6px 5px; vertical-align: top; }
       .items tr { break-inside: avoid; page-break-inside: avoid; }
+      .items .repeat-head th { background: #f8fafc; color: #334155; font-size: 9px; font-weight: 800; padding: 4px 6px; }
       .items .empty td { height: 24px; color: transparent; }
       .item-name { font-weight: 850; color: #0f172a; }
       .muted { color: #64748b; font-size: 9px; margin-top: 1px; }
       .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
       .center { text-align: center; }
       .strong { font-weight: 900; }
-      .bottom-grid { display: grid; grid-template-columns: minmax(0, 1fr) 85mm; gap: 12px; margin-top: 12px; align-items: start; }
+      .bottom-grid { display: grid; grid-template-columns: minmax(0, 1fr) 85mm; gap: 12px; margin-top: 12px; align-items: start; break-inside: avoid; page-break-inside: avoid; }
       .note { min-height: 42px; color: #334155; white-space: pre-wrap; }
       .totals { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
       .total-row { display: grid; grid-template-columns: 1fr 34mm; gap: 8px; padding: 5px 8px; border-bottom: 1px solid #e2e8f0; }
       .total-row:last-child { border-bottom: 0; }
       .total-row.final { background: #14532d; color: white; font-size: 13px; font-weight: 900; }
       .total-row.advance { color: #b45309; }
-      .weight-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+      .weight-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; break-inside: avoid; page-break-inside: avoid; }
       .weight-card { border: 1px solid #dbe3ea; border-radius: 8px; padding: 7px; background: #f8fafc; }
       .weight-card .label { color: #64748b; font-size: 9px; }
       .weight-card .value { font-size: 12px; font-weight: 900; color: #0f172a; margin-top: 2px; }
@@ -162,6 +165,12 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
         body { background: white; }
         .toolbar { display: none; }
         .page { width: auto; min-height: auto; padding: 0; }
+        .print-only { display: initial; }
+        .header, .section-grid { break-inside: avoid; page-break-inside: avoid; }
+        .items { page-break-before: auto; }
+        .items .repeat-head { display: table-row; }
+        .items .empty { display: none; }
+        .bottom-grid { break-before: auto; page-break-before: auto; }
       }
     </style>
   </head><body>
@@ -222,6 +231,12 @@ export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: Co
 
       <table class="items">
         <thead>
+          <tr class="repeat-head">
+            <th colspan="8">
+              ${escapeHtml(title)} · ${escapeHtml(bill.docNo)} · ${escapeHtml(bill.supplierName)} · ${escapeHtml(plain(bill.date))}
+              <span class="print-only"> · รายการสินค้าอาจต่อหลายหน้า</span>
+            </th>
+          </tr>
           <tr>
             <th class="center" style="width:9mm">#</th>
             <th style="width:50mm">สินค้า</th>

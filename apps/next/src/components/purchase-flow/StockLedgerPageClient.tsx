@@ -1,11 +1,37 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { AlertTriangle, Download, RotateCcw, Search, X } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
+import { stockMovementTypeLabel } from '@/lib/stock-movement-types'
 import type { StockOption } from '@/lib/stock'
+
+type StockLedgerSortDirection = 'asc' | 'desc'
+type StockLedgerSortKey = 'counterpartyName' | 'date' | 'movementType' | 'productName' | 'qtyIn' | 'qtyOut' | 'refNo' | 'runningBalanceByProduct' | 'unitCost' | 'valueIn' | 'valueOut'
+
+const stockLedgerPageSizes = [25, 50, 80, 100]
+
+const stockLedgerColumns: Array<ResizableColumnDefinition<StockLedgerColumnKey>> = [
+  { defaultWidth: 92, key: 'date', minWidth: 82 },
+  { defaultWidth: 132, key: 'refNo', minWidth: 110 },
+  { defaultWidth: 210, key: 'counterpartyName', minWidth: 150 },
+  { defaultWidth: 132, key: 'movementType', minWidth: 110 },
+  { defaultWidth: 220, key: 'productName', minWidth: 160 },
+  { defaultWidth: 92, key: 'qtyIn', minWidth: 80 },
+  { defaultWidth: 92, key: 'qtyOut', minWidth: 80 },
+  { defaultWidth: 112, key: 'runningBalanceByProduct', minWidth: 96 },
+  { defaultWidth: 104, key: 'unitCost', minWidth: 90 },
+  { defaultWidth: 112, key: 'valueIn', minWidth: 96 },
+  { defaultWidth: 112, key: 'valueOut', minWidth: 96 },
+]
+
+type StockLedgerColumnKey = StockLedgerSortKey
 
 type StockLedgerPayload = {
   movementTypes: string[]
@@ -51,12 +77,15 @@ export function StockLedgerPageClient() {
   const [fromDate, setFromDate] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [movementType, setMovementType] = useState('')
-  const [negativeOnly, setNegativeOnly] = useState(false)
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(80)
   const [productId, setProductId] = useState('')
   const [search, setSearch] = useState('')
   const [selectedRow, setSelectedRow] = useState<StockLedgerRow | null>(null)
+  const [sortDirection, setSortDirection] = useState<StockLedgerSortDirection>('desc')
+  const [sortKey, setSortKey] = useState<StockLedgerSortKey>('date')
   const [toDate, setToDate] = useState('')
+  const columnResize = useResizableColumns('stock.ledger', stockLedgerColumns)
 
   const loadData = useCallback(async () => {
     const requestId = latestLoadRequestRef.current + 1
@@ -64,13 +93,12 @@ export function StockLedgerPageClient() {
     setError(null)
     setIsLoading(true)
     try {
-      const params = new URLSearchParams({ balanceMode, page: String(page), pageSize: '80' })
+      const params = new URLSearchParams({ balanceMode, direction: sortDirection, page: String(page), pageSize: String(pageSize), sort: sortKey })
       if (branchId) params.set('branchId', branchId)
       if (fromDate) params.set('from', fromDate)
       if (movementType) params.set('movementType', movementType)
       if (productId) params.set('productId', productId)
       if (toDate) params.set('to', toDate)
-      if (negativeOnly) params.set('negativeOnly', 'true')
       const payload = await dailyFetchJson<StockLedgerPayload>(`/api/stock/ledger?${params.toString()}`)
       if (latestLoadRequestRef.current !== requestId) return
       setData(payload)
@@ -81,7 +109,7 @@ export function StockLedgerPageClient() {
       if (latestLoadRequestRef.current !== requestId) return
       setIsLoading(false)
     }
-  }, [balanceMode, branchId, fromDate, movementType, negativeOnly, page, productId, toDate])
+  }, [balanceMode, branchId, fromDate, movementType, page, pageSize, productId, sortDirection, sortKey, toDate])
 
   useEffect(() => {
     void loadData()
@@ -98,11 +126,32 @@ export function StockLedgerPageClient() {
 
   const rows = useMemo(() => {
     const query = search.trim().toLowerCase()
-    return (data?.rows ?? []).filter((row) => !query || `${row.refNo} ${row.productCode} ${row.productName} ${row.counterpartyName} ${row.branchName} ${row.warehouseName}`.toLowerCase().includes(query))
-  }, [data?.rows, search])
+    return (data?.rows ?? [])
+      .filter((row) => !query || `${row.refNo} ${row.productCode} ${row.productName} ${row.counterpartyName} ${row.branchName} ${row.warehouseName}`.toLowerCase().includes(query))
+      .sort((left, right) => compareStockLedgerRows(left, right, sortKey, sortDirection))
+  }, [data?.rows, search, sortDirection, sortKey])
+
+  const productOptions = useMemo<SearchComboboxOption[]>(() => (data?.reference.products ?? [])
+    .filter((item) => item.active !== false)
+    .map((item) => ({
+      description: item.code ? `รหัส ${item.code}` : undefined,
+      id: item.id,
+      label: item.code ? `${item.code} - ${item.name}` : item.name,
+      searchText: `${item.code ?? ''} ${item.name} ${item.metalGroup ?? ''}`,
+    })), [data?.reference.products])
+
+  function changeSort(nextKey: StockLedgerSortKey) {
+    setPage(1)
+    if (sortKey === nextKey) {
+      setSortDirection((current) => current === 'asc' ? 'desc' : 'asc')
+      return
+    }
+    setSortKey(nextKey)
+    setSortDirection(nextKey === 'date' ? 'desc' : 'asc')
+  }
 
   function exportXlsx() {
-    const params = new URLSearchParams({ balanceMode, format: 'xlsx', page: '1', pageSize: '500' })
+    const params = new URLSearchParams({ balanceMode, direction: sortDirection, format: 'xlsx', page: '1', pageSize: '500', sort: sortKey })
     if (branchId) params.set('branchId', branchId)
     if (fromDate) params.set('from', fromDate)
     if (movementType) params.set('movementType', movementType)
@@ -111,100 +160,125 @@ export function StockLedgerPageClient() {
     window.location.href = `/api/stock/ledger?${params.toString()}`
   }
 
-  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / (data?.pageSize ?? 80)))
+  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / (data?.pageSize ?? pageSize)))
+  const filtersActive = Boolean(productId || branchId || movementType || fromDate || toDate || search)
 
   return (
     <section>
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <select className="min-w-[260px] max-w-md flex-1 rounded-md border px-3 py-2 text-sm" value={productId} onChange={(event) => { setPage(1); setProductId(event.target.value) }}>
-          <option value="">พิมพ์รหัส/ชื่อสินค้า — เลือกดูสต๊อก...</option>
-          {(data?.reference.products ?? []).filter((item) => item.active !== false).map((item) => <option key={item.id} value={item.id}>{item.code ? `${item.code} - ${item.name}` : item.name}</option>)}
-        </select>
-        <select className="rounded-md border px-3 py-2 text-sm" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>
-          <option value="">🏢 ทุกสาขา</option>
-          {(data?.reference.branches ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select>
-        <select className="rounded-md border px-3 py-2 text-sm" value={movementType} onChange={(event) => { setPage(1); setMovementType(event.target.value) }}>
-          <option value="">⚙ ทุกประเภท</option>
-          {(data?.movementTypes ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
-        </select>
-        <DatePickerInput className="w-[130px]" title="จากวันที่" value={fromDate} onChange={(value) => { setPage(1); setFromDate(value) }} />
-        <span className="text-slate-400">→</span>
-        <DatePickerInput className="w-[130px]" title="ถึงวันที่" value={toDate} onChange={(value) => { setPage(1); setToDate(value) }} />
-        {productId || branchId || movementType || fromDate || toDate || negativeOnly ? <button className="rounded-md bg-slate-100 px-3 py-2 text-xs hover:bg-slate-200" type="button" onClick={() => { setBranchId(''); setFromDate(''); setMovementType(''); setNegativeOnly(false); setPage(1); setProductId(''); setSearch(''); setToDate('') }}>✕ ล้าง</button> : null}
-        <div className="inline-flex overflow-hidden rounded-md border border-slate-300 text-xs" title="โหมดคำนวณ Running Balance">
-          <button className={`px-3 py-2 font-bold ${balanceMode === 'product' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-100'}`} title="คำนวณยอดต่อสินค้าเท่านั้น (ตรงกับหน้า Stock Balance + Drilldown)" type="button" onClick={() => { setPage(1); setBalanceMode('product') }}>📦 ต่อสินค้า</button>
-          <button className={`border-l border-slate-300 px-3 py-2 font-bold ${balanceMode === 'warehouse' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-100'}`} title="คำนวณยอดต่อสินค้า × สาขา × คลัง" type="button" onClick={() => { setPage(1); setBalanceMode('warehouse') }}>🏢 ต่อคลัง</button>
+      <div className="mb-3 rounded-md bg-white p-3 shadow">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="min-w-[260px] max-w-md flex-1">
+            <SearchCombobox
+              hideLabel
+              inputClassName="h-9 text-sm"
+              inputId="stock-ledger-product-filter"
+              label="สินค้า"
+              options={productOptions}
+              placeholder="ทุกสินค้า"
+              value={productId}
+              onChange={(value) => {
+                setPage(1)
+                setProductId(value)
+              }}
+            />
+          </div>
+          <select className="h-9 rounded-md border px-3 text-sm" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>
+            <option value="">ทุกสาขา</option>
+            {(data?.reference.branches ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+          <select className="h-9 rounded-md border px-3 text-sm" value={movementType} onChange={(event) => { setPage(1); setMovementType(event.target.value) }}>
+            <option value="">ทุกประเภท</option>
+            {(data?.movementTypes ?? []).map((item) => <option key={item} value={item}>{stockMovementTypeLabel(item)}</option>)}
+          </select>
+          <DatePickerInput className="w-[130px]" title="จากวันที่" value={fromDate} onChange={(value) => { setPage(1); setFromDate(value) }} />
+          <span className="text-slate-400">→</span>
+          <DatePickerInput className="w-[130px]" title="ถึงวันที่" value={toDate} onChange={(value) => { setPage(1); setToDate(value) }} />
+          {filtersActive ? <button className="inline-flex h-9 items-center gap-1.5 rounded-md bg-slate-100 px-3 text-xs hover:bg-slate-200" type="button" onClick={() => { setBranchId(''); setFromDate(''); setMovementType(''); setPage(1); setProductId(''); setSearch(''); setToDate('') }}><RotateCcw className="h-3.5 w-3.5" />ล้าง</button> : null}
+          <div className="inline-flex h-9 overflow-hidden rounded-md border border-slate-300 text-xs" title="โหมดคำนวณ Running Balance">
+            <button className={`px-3 font-bold ${balanceMode === 'product' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-100'}`} title="คำนวณยอดต่อสินค้าเท่านั้น (ตรงกับหน้า Stock Balance + Drilldown)" type="button" onClick={() => { setPage(1); setBalanceMode('product') }}>ต่อสินค้า</button>
+            <button className={`border-l border-slate-300 px-3 font-bold ${balanceMode === 'warehouse' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-100'}`} title="คำนวณยอดต่อสินค้า × สาขา × คลัง" type="button" onClick={() => { setPage(1); setBalanceMode('warehouse') }}>ต่อคลัง</button>
+          </div>
+          <button className="inline-flex h-9 items-center gap-1.5 rounded-md bg-emerald-600 px-3 text-xs font-bold text-white" type="button" onClick={exportXlsx}><Download className="h-3.5 w-3.5" />.xlsx</button>
         </div>
-        <button className={negativeOnly ? 'flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-2 text-xs font-bold text-white shadow-md' : 'flex items-center gap-1.5 rounded-md bg-red-100 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-200'} type="button" onClick={() => { setPage(1); setNegativeOnly(!negativeOnly) }}>
-          <span>⚠ ติดลบ</span><span className={negativeOnly ? 'rounded-md bg-white px-1.5 py-0.5 text-[10px] text-red-700' : 'rounded-md bg-red-600 px-1.5 py-0.5 text-[10px] text-white'}>{data?.summary.negativeCount ?? 0}</span>
-        </button>
-        <button className="rounded-md bg-purple-100 px-3 py-2 text-xs font-bold text-purple-700 opacity-60" disabled title="ต้องออกแบบ audit/backup/rollback ก่อนเปิดใช้งาน" type="button">🧹 ล้าง Dup</button>
-        <button className="rounded-md bg-orange-100 px-3 py-2 text-xs font-bold text-orange-700 opacity-60" disabled title="ต้องออกแบบ audit/backup/rollback ก่อนเปิดใช้งาน" type="button">🗑 ล้าง Orphan</button>
-        <button className="rounded-md bg-emerald-600 px-3 py-2 text-xs font-bold text-white" type="button" onClick={exportXlsx}>📥 .xlsx</button>
-        <span className="ml-auto rounded-md bg-slate-100 px-3 py-1.5 text-xs text-slate-500">📊 พบ <b>{rows.length}</b> รายการ</span>
       </div>
       {movementType ? (
         <div className="mb-3 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          <span className="text-base">⚠</span>
-          <div><b>คุณกำลังกรองประเภท {movementType}</b> — ⚖️ <b>คงเหลือ</b> เป็นยอดสะสมจากทุกประเภท เพื่อให้ตรง ledger running balance</div>
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <div><b>คุณกำลังกรองประเภท {stockMovementTypeLabel(movementType)}</b> — <b>คงเหลือ</b> เป็นยอดสะสมจากทุกประเภท เพื่อให้ตรง ledger running balance</div>
         </div>
       ) : null}
       <div className="mb-3 rounded-md bg-white p-3 shadow">
         <div className="flex flex-wrap items-center gap-2">
-          <input className="min-w-64 flex-1 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหาเลขเอกสาร / สินค้า / คู่ค้า / สาขา" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <button className="rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700" type="button" onClick={() => void loadData()}>Refresh</button>
-          <span className="text-xs text-slate-500">เข้า {formatMoney(data?.summary.qtyIn ?? 0)} / ออก {formatMoney(data?.summary.qtyOut ?? 0)}</span>
+          <div className="relative min-w-64 flex-1">
+            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <input className="h-9 w-full rounded-md border py-2 pl-9 pr-3 text-sm" placeholder="ค้นหาเลขเอกสาร / สินค้า / ผู้ขาย/ผู้ซื้อ / สาขา" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          </div>
+        </div>
+      </div>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
+        <span>พบทั้งหมด <span className="font-semibold text-slate-900">{data?.total ?? 0}</span> รายการ</span>
+        <div className="flex flex-wrap items-center gap-2">
+          {columnResize.hasCustomWidths ? <button className="h-9 rounded-md border px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>Set col to default</button> : null}
+          <select aria-label="จำนวนรายการต่อหน้า" className="h-9 rounded-md border px-2 text-sm" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>
+            {stockLedgerPageSizes.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
+          </select>
+          <button className="h-9 rounded-md border px-3 text-sm disabled:opacity-40" disabled={page <= 1} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</button>
+          <span className="px-1 text-sm">หน้า {page} / {totalPages}</span>
+          <button className="h-9 rounded-md border px-3 text-sm disabled:opacity-40" disabled={page >= totalPages} type="button" onClick={() => setPage((value) => value + 1)}>ถัดไป</button>
         </div>
       </div>
       <div className="overflow-x-auto rounded-md bg-white shadow">
-        <table className="w-full min-w-[1200px] text-sm">
+        <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <colgroup>
+            {stockLedgerColumns.map((column) => <col key={column.key} style={columnResize.getColumnStyle(column.key)} />)}
+          </colgroup>
           <thead className="bg-slate-100">
             <tr>
-              <th className="w-[90px] whitespace-nowrap p-2 text-left">วันที่</th>
-              <th className="w-[120px] whitespace-nowrap p-2 text-left">เลขบิล</th>
-              <th className="min-w-[200px] p-2 text-left">ผู้ขาย / ผู้ซื้อ</th>
-              <th className="w-[130px] whitespace-nowrap p-2 text-left">ประเภท</th>
-              <th className="min-w-[180px] p-2 text-left">สินค้า</th>
-              <th className="w-[85px] p-2 text-right">เข้า</th>
-              <th className="w-[85px] p-2 text-right">ออก</th>
-              <th className="w-[110px] whitespace-nowrap bg-blue-100 p-2 text-right">⚖️ คงเหลือ</th>
-              <th className="w-[100px] p-2 text-right">ต้นทุน/น.</th>
-              <th className="w-[100px] p-2 text-right">มูลค่าเข้า</th>
-              <th className="w-[100px] p-2 text-right">มูลค่าออก</th>
-              <th className="w-[110px] whitespace-nowrap p-2 text-center">การจัดการ</th>
+              <StockLedgerSortHeader activeKey={sortKey} direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={changeSort} />
+              <StockLedgerSortHeader activeKey={sortKey} direction={sortDirection} label="เลขบิล" resizeProps={columnResize.getResizeHandleProps('refNo', 'เลขบิล')} sortKey="refNo" onSort={changeSort} />
+              <StockLedgerSortHeader activeKey={sortKey} direction={sortDirection} label="ผู้ขาย/ผู้ซื้อ" resizeProps={columnResize.getResizeHandleProps('counterpartyName', 'ผู้ขาย/ผู้ซื้อ')} sortKey="counterpartyName" onSort={changeSort} />
+              <StockLedgerSortHeader activeKey={sortKey} direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('movementType', 'ประเภท')} sortKey="movementType" onSort={changeSort} />
+              <StockLedgerSortHeader activeKey={sortKey} direction={sortDirection} label="สินค้า" resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} sortKey="productName" onSort={changeSort} />
+              <StockLedgerSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="เข้า" resizeProps={columnResize.getResizeHandleProps('qtyIn', 'เข้า')} sortKey="qtyIn" onSort={changeSort} />
+              <StockLedgerSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ออก" resizeProps={columnResize.getResizeHandleProps('qtyOut', 'ออก')} sortKey="qtyOut" onSort={changeSort} />
+              <StockLedgerSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="คงเหลือ" resizeProps={columnResize.getResizeHandleProps('runningBalanceByProduct', 'คงเหลือ')} sortKey="runningBalanceByProduct" onSort={changeSort} />
+              <StockLedgerSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ต้นทุน/น." resizeProps={columnResize.getResizeHandleProps('unitCost', 'ต้นทุน/น.')} sortKey="unitCost" onSort={changeSort} />
+              <StockLedgerSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="มูลค่าเข้า" resizeProps={columnResize.getResizeHandleProps('valueIn', 'มูลค่าเข้า')} sortKey="valueIn" onSort={changeSort} />
+              <StockLedgerSortHeader activeKey={sortKey} align="right" direction={sortDirection} label="มูลค่าออก" resizeProps={columnResize.getResizeHandleProps('valueOut', 'มูลค่าออก')} sortKey="valueOut" onSort={changeSort} />
             </tr>
           </thead>
-          <tbody>
-            {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={12}>กำลังโหลดข้อมูล</td></tr> : null}
+          <tbody className="divide-y divide-slate-100">
+            {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={11}>กำลังโหลดข้อมูล</td></tr> : null}
             {!isLoading && rows.map((row) => (
-              <tr key={row.id} className={row.runningBalanceByProduct < 0 ? 'border-t border-red-200 bg-red-50/60' : 'border-t hover:bg-slate-50'}>
-                <td className="whitespace-nowrap p-2">{formatDateDisplay(row.date)}</td>
-                <td className="whitespace-nowrap p-2"><span className="font-mono text-xs text-slate-500">{row.refNo || '-'}</span></td>
+              <tr
+                key={row.id}
+                className={row.runningBalanceByProduct < 0 ? 'cursor-pointer border-t border-red-200 bg-red-50/60 font-sans hover:bg-red-100/70 focus:bg-red-100/70 focus:outline-none' : 'cursor-pointer border-t font-sans hover:bg-slate-50 focus:bg-slate-50 focus:outline-none'}
+                tabIndex={0}
+                onClick={() => setSelectedRow(row)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    setSelectedRow(row)
+                  }
+                }}
+              >
+                <td className="whitespace-nowrap p-2 text-xs font-semibold text-slate-700 tabular-nums">{formatDateDisplay(row.date)}</td>
+                <td className="truncate whitespace-nowrap p-2 text-xs font-semibold text-slate-700 tabular-nums">{row.refNo || '-'}</td>
                 <td className="p-2"><Counterparty name={row.counterpartyName} refType={row.refType} /></td>
-                <td className="whitespace-nowrap p-2"><span className={`rounded-md px-2 py-0.5 text-xs font-medium ${row.qtyIn > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{row.movementType}</span></td>
-                <td className="p-2"><span className="font-medium">{row.productCode ? `${row.productCode} · ` : ''}{row.productName}</span>{row.lotNo && row.lotNo !== 'OPENING' ? <span className="ml-1 text-xs text-slate-400">[{row.lotNo}]</span> : null}</td>
-                <td className="p-2 text-right font-mono text-emerald-600">{row.qtyIn ? formatMoney(row.qtyIn) : '-'}</td>
-                <td className="p-2 text-right font-mono text-red-600">{row.qtyOut ? formatMoney(row.qtyOut) : '-'}</td>
-                <td className={`cursor-pointer p-2 text-right font-mono font-bold ${row.runningBalanceByProduct < 0 ? 'bg-red-100 text-red-700' : 'bg-blue-50/40 text-blue-700'}`} title="ยอดสะสม IN-OUT ทุกประเภท">{formatMoney(row.runningBalanceByProduct)}</td>
-                <td className="p-2 text-right font-mono text-slate-500">{formatMoney(row.unitCost)}</td>
-                <td className="p-2 text-right font-mono text-emerald-700">{row.valueIn ? formatMoney(row.valueIn) : '-'}</td>
-                <td className="p-2 text-right font-mono text-red-700">{row.valueOut ? formatMoney(row.valueOut) : '-'}</td>
-                <td className="p-2 text-center"><button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" type="button" onClick={() => setSelectedRow(row)}>จัดการ</button></td>
+                <td className="whitespace-nowrap p-2"><span className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${row.qtyIn > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{stockMovementTypeLabel(row.movementType)}</span></td>
+                <td className="truncate p-2 text-xs font-semibold text-slate-700"><span>{row.productCode ? `${row.productCode} · ` : ''}{row.productName}</span>{row.lotNo && row.lotNo !== 'OPENING' ? <span className="ml-1 text-[11px] font-medium text-slate-400">[{row.lotNo}]</span> : null}</td>
+                <td className="p-2 text-right text-xs font-semibold text-emerald-600 tabular-nums">{row.qtyIn ? formatMoney(row.qtyIn) : '-'}</td>
+                <td className="p-2 text-right text-xs font-semibold text-red-600 tabular-nums">{row.qtyOut ? formatMoney(row.qtyOut) : '-'}</td>
+                <td className={`p-2 text-right text-xs font-semibold tabular-nums ${row.runningBalanceByProduct < 0 ? 'bg-red-100 text-red-700' : 'bg-blue-50/40 text-blue-700'}`} title="ยอดสะสม IN-OUT ทุกประเภท">{formatMoney(row.runningBalanceByProduct)}</td>
+                <td className="p-2 text-right text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(row.unitCost)}</td>
+                <td className="p-2 text-right text-xs font-semibold text-emerald-700 tabular-nums">{row.valueIn ? formatMoney(row.valueIn) : '-'}</td>
+                <td className="p-2 text-right text-xs font-semibold text-red-700 tabular-nums">{row.valueOut ? formatMoney(row.valueOut) : '-'}</td>
               </tr>
             ))}
-            {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={12}>ยังไม่มี Stock Movement</td></tr> : null}
+            {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={11}>ยังไม่มี Stock Movement</td></tr> : null}
           </tbody>
         </table>
-      </div>
-      <div className="mt-3 flex items-center justify-between text-sm text-slate-600">
-        <span>พบทั้งหมด <span className="font-semibold text-slate-900">{data?.total ?? 0}</span> รายการ</span>
-        <div className="flex items-center gap-2">
-          <button className="rounded-md border px-3 py-1 disabled:opacity-40" disabled={page <= 1} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</button>
-          <span className="px-1">หน้า {page} / {totalPages}</span>
-          <button className="rounded-md border px-3 py-1 disabled:opacity-40" disabled={page >= totalPages} type="button" onClick={() => setPage((value) => value + 1)}>ถัดไป</button>
-        </div>
       </div>
       {selectedRow ? <StockLedgerDetailModal row={selectedRow} onClose={() => setSelectedRow(null)} /> : null}
     </section>
@@ -216,13 +290,79 @@ function Counterparty({ name, refType }: { name: string; refType: string }) {
     const isSupplier = refType === 'PB' || refType === 'PB-CANCEL'
     return (
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className={`whitespace-nowrap rounded-md px-1.5 py-0.5 text-[10px] font-bold ${isSupplier ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>{isSupplier ? 'ผู้ขาย' : 'ผู้ซื้อ'}</span>
-        <span className={`text-sm font-semibold ${isSupplier ? 'text-emerald-800' : 'text-blue-800'}`}>{name}</span>
+        <span className={`whitespace-nowrap rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${isSupplier ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>{isSupplier ? 'ผู้ขาย' : 'ผู้ซื้อ'}</span>
+        <span className={`truncate text-xs font-medium ${isSupplier ? 'text-emerald-800' : 'text-blue-800'}`}>{name}</span>
       </div>
     )
   }
   const labelMap: Record<string, string> = { ADJ: 'นับสต๊อก', CR: 'รับคืนสินค้า', GA: 'ปรับเกรด', OB: 'ยอดยกมา', SC: 'แปลง Status', ST: 'โอนระหว่างสาขา' }
   return <span className="text-xs italic text-slate-500">{labelMap[refType] ?? refType ?? '-'}</span>
+}
+
+function stockLedgerSortValue(row: StockLedgerRow, sortKey: StockLedgerSortKey) {
+  switch (sortKey) {
+    case 'counterpartyName':
+      return row.counterpartyName
+    case 'date':
+      return row.date
+    case 'movementType':
+      return row.movementType
+    case 'productName':
+      return `${row.productCode} ${row.productName}`
+    case 'qtyIn':
+      return row.qtyIn
+    case 'qtyOut':
+      return row.qtyOut
+    case 'refNo':
+      return row.refNo
+    case 'runningBalanceByProduct':
+      return row.runningBalanceByProduct
+    case 'unitCost':
+      return row.unitCost
+    case 'valueIn':
+      return row.valueIn
+    case 'valueOut':
+      return row.valueOut
+  }
+}
+
+function compareStockLedgerRows(left: StockLedgerRow, right: StockLedgerRow, sortKey: StockLedgerSortKey, direction: StockLedgerSortDirection) {
+  const leftValue = stockLedgerSortValue(left, sortKey)
+  const rightValue = stockLedgerSortValue(right, sortKey)
+  const base = typeof leftValue === 'number' && typeof rightValue === 'number'
+    ? leftValue - rightValue
+    : String(leftValue ?? '').localeCompare(String(rightValue ?? ''), 'th', { numeric: true, sensitivity: 'base' })
+  return direction === 'asc' ? base : -base
+}
+
+function StockLedgerSortHeader({
+  activeKey,
+  align = 'left',
+  direction,
+  label,
+  onSort,
+  resizeProps,
+  sortKey,
+}: {
+  activeKey: StockLedgerSortKey
+  align?: 'left' | 'right'
+  direction: StockLedgerSortDirection
+  label: string
+  onSort: (key: StockLedgerSortKey) => void
+  resizeProps?: ButtonHTMLAttributes<HTMLButtonElement>
+  sortKey: StockLedgerSortKey
+}) {
+  return (
+    <ResizableTableHead
+      activeSortKey={activeKey}
+      align={align}
+      direction={direction}
+      label={label}
+      resizeProps={resizeProps}
+      sortKey={sortKey}
+      onSort={onSort}
+    />
+  )
 }
 
 function StockLedgerDetailModal({ onClose, row }: { onClose: () => void; row: StockLedgerRow }) {
@@ -234,19 +374,20 @@ function StockLedgerDetailModal({ onClose, row }: { onClose: () => void; row: St
       <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-md bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-3 border-b px-5 py-4">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">📋 รายละเอียด Stock Ledger</h2>
+            <h2 className="text-lg font-bold text-slate-900">รายละเอียด Stock Ledger</h2>
             <p className="mt-1 text-xs text-slate-500">อ่านอย่างเดียวจากรายการ ledger ที่แสดงในตาราง</p>
           </div>
-          <button className="rounded-md bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-200" type="button" onClick={onClose}>ปิด</button>
+          <button className="inline-flex h-8 items-center gap-1.5 rounded-md bg-slate-100 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-200" type="button" onClick={onClose}><X className="h-4 w-4" />ปิด</button>
         </div>
 
         <div className="grid gap-4 p-5 md:grid-cols-2">
           <DetailPanel title="เอกสารอ้างอิง">
             <DetailRow label="วันที่" value={row.date || '-'} />
             <DetailRow label="เลขบิล" value={row.refNo || '-'} mono />
+            <DetailRow label="ผู้ขาย/ผู้ซื้อ" value={row.counterpartyName || '-'} />
             <DetailRow label="Ref Type" value={row.refType || '-'} />
             <DetailRow label="Ref No" value={row.refId || '-'} mono />
-            <DetailRow label="Movement" value={row.movementType || '-'} />
+            <DetailRow label="Movement" value={stockMovementTypeLabel(row.movementType)} />
           </DetailPanel>
 
           <DetailPanel title="สินค้า / ที่เก็บ">
