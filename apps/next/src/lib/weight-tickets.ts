@@ -85,6 +85,7 @@ export type OptionItem = {
   imageUrl?: string
   label: string
   name?: string
+  searchText?: string
 }
 
 export type WeightTicketSortBy = 'createdAt' | 'documentNo' | 'partyName' | 'netWeight'

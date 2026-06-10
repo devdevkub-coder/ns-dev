@@ -187,23 +187,31 @@ export function WeightTicketsPageClient({ ticketId = '' }: { ticketId?: string }
 
         if (supplierResponse.ok) {
           const data = await supplierResponse.json() as { rows?: Array<{ code?: string | null; id: string; name: string }> }
-          const nextSuppliers = (data.rows ?? []).map((supplier) => ({
-            code: supplier.code ?? undefined,
-            description: supplier.code ? `Supplier · ${supplier.code}` : 'Supplier',
-            id: supplier.id,
-            label: supplier.name,
-          }))
+          const nextSuppliers = (data.rows ?? []).map((supplier) => {
+            const code = supplier.code?.trim() ?? ''
+            return {
+              code: code || undefined,
+              description: code ? `Supplier · ${code}` : 'Supplier',
+              id: supplier.id,
+              label: supplier.name,
+              searchText: [code, supplier.name].filter(Boolean).join(' '),
+            }
+          })
           if (!cancelled && nextSuppliers.length) setSuppliers(nextSuppliers)
         }
 
         if (customerResponse.ok) {
           const data = await customerResponse.json() as { rows?: Array<{ code?: string | null; id: string; name: string }> }
-          const nextCustomers = (data.rows ?? []).map((customer) => ({
-            code: customer.code ?? undefined,
-            description: customer.code ? `Customer · ${customer.code}` : 'Customer',
-            id: customer.id,
-            label: customer.name,
-          }))
+          const nextCustomers = (data.rows ?? []).map((customer) => {
+            const code = customer.code?.trim() ?? ''
+            return {
+              code: code || undefined,
+              description: code ? `Customer · ${code}` : 'Customer',
+              id: customer.id,
+              label: customer.name,
+              searchText: [code, customer.name].filter(Boolean).join(' '),
+            }
+          })
           if (!cancelled && nextCustomers.length) setCustomers(nextCustomers)
         }
 
@@ -471,7 +479,7 @@ export function WeightTicketsPageClient({ ticketId = '' }: { ticketId?: string }
                 inputId="weight-ticket-party"
                 label={form.type === 'WTI' ? 'ผู้ขาย*' : 'ลูกค้า*'}
                 options={partyOptions}
-                placeholder={form.type === 'WTI' ? 'ค้นหาผู้ขาย' : 'ค้นหาลูกค้า'}
+                placeholder={form.type === 'WTI' ? 'ค้นหาชื่อหรือรหัสผู้ขาย' : 'ค้นหารหัสหรือชื่อลูกค้า'}
                 value={form.partyId}
                 onChange={(value) => {
                   markTouched('partyId')
