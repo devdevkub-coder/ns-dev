@@ -801,13 +801,28 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     return Math.max(0, summary.remainingWeight - allocatedOtherRows)
   }
 
+  function poOptionForProduct(poBuyId: string | null | undefined, productId: string | null | undefined) {
+    if (!poBuyId) return null
+    const productMatched = productId
+      ? activePoBuys.find((option) => option.id === poBuyId && option.product_id === productId)
+      : null
+    return productMatched
+      ?? activePoBuys.find((option) => option.id === poBuyId && !option.product_id)
+      ?? activePoBuys.find((option) => option.id === poBuyId)
+      ?? null
+  }
+
   function poAvailableForRow(poBuyId: string | null, index: number) {
     if (!poBuyId) return 0
-    const po = activePoBuys.find((option) => option.id === poBuyId)
+    const currentItem = form.items[index]
+    const currentProductId = currentItem?.productId ?? null
+    const po = poOptionForProduct(poBuyId, currentProductId)
     if (!po) return 0
     const allocatedOtherRows = form.items.reduce((sum, item, itemIndex) => {
       if (itemIndex === index) return sum
-      return item.poBuyId === poBuyId ? sum + item.qty : sum
+      if (item.poBuyId !== poBuyId) return sum
+      if (currentProductId && item.productId !== currentProductId) return sum
+      return sum + item.qty
     }, 0)
     return Math.max(0, (po.remainingQty ?? 0) - allocatedOtherRows)
   }
@@ -1205,7 +1220,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     setForm((current) => {
       const items = current.items.map((item, itemIndex) => {
         if (itemIndex !== index) return item
-        const po = activePoBuys.find((option) => option.id === poBuyId)
+        const po = poOptionForProduct(poBuyId, item.productId)
         if (current.transactionMode === 'STOCK') {
           const summaryId = item.receiptSummaryId ?? item.receiptLineId ?? null
           const summary = summaryId ? receiptSummaryById.get(summaryId) : null
@@ -1217,7 +1232,9 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           const allocatedOtherPoRows = poBuyId
             ? current.items.reduce((sum, row, rowIndex) => {
               if (rowIndex === index) return sum
-              return row.poBuyId === poBuyId ? sum + row.qty : sum
+              if (row.poBuyId !== poBuyId) return sum
+              if (item.productId && row.productId !== item.productId) return sum
+              return sum + row.qty
             }, 0)
             : 0
           const poCapacity = poBuyId ? Math.max(0, (po?.remainingQty ?? 0) - allocatedOtherPoRows) : summaryCapacity
@@ -1876,7 +1893,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                               if (item.poBuyId === po.id) return true
                               return poAvailableForRow(po.id, index) > 0.0001
                             })
-                            const selectedPo = item.poBuyId ? activePoBuys.find((po) => po.id === item.poBuyId) : null
+                            const selectedPo = poOptionForProduct(item.poBuyId, item.productId)
                             const rowSummaryCapacity = summaryAvailableForRow(summaryId, index)
                             const rowPoCapacity = item.poBuyId ? poAvailableForRow(item.poBuyId, index) : null
                             return (
@@ -1909,7 +1926,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                   ) : (
                                     <select className="w-full rounded-md border bg-blue-50 px-2 py-2 text-xs" value={item.poBuyId ?? ''} onChange={(event) => updateItemPoBuy(index, event.target.value || null)}>
                                       <option value="">Spot Buy</option>
-                                      {itemPoOptions.map((po) => <option key={po.id} value={po.id}>{po.label ?? po.name}</option>)}
+                                      {itemPoOptions.map((po) => <option key={`${po.id}-${po.product_id ?? 'all'}`} value={po.id}>{po.label ?? po.name}</option>)}
                                     </select>
                                   )}
                                   {(() => {
@@ -1986,12 +2003,14 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                               </td>
                               <td className="p-2" colSpan={3}>
                                 <div className="mb-1 text-[11px] font-semibold text-indigo-700">อ้างอิง PO</div>
-                                <select className="w-full rounded-md border bg-blue-50 px-2 py-2 text-xs" value={item.poBuyId ?? ''} onChange={(event) => updateItem(index, 'poBuyId', event.target.value || null)}>
+                                <select className="w-full rounded-md border bg-blue-50 px-2 py-2 text-xs" value={item.poBuyId ?? ''} onChange={(event) => updateItemPoBuy(index, event.target.value || null)}>
                                   <option value="">Spot Buy</option>
-                                  {activePoBuys.map((po) => <option key={po.id} value={po.id}>{po.label ?? po.name}</option>)}
+                                  {activePoBuys
+                                    .filter((po) => item.productId && (!po.product_id || po.product_id === item.productId))
+                                    .map((po) => <option key={`${po.id}-${po.product_id ?? 'all'}`} value={po.id}>{po.label ?? po.name}</option>)}
                                 </select>
                                 {(() => {
-                                  const remainingQty = activePoBuys.find((po) => po.id === item.poBuyId)?.remainingQty
+                                  const remainingQty = poOptionForProduct(item.poBuyId, item.productId)?.remainingQty
                                   if (remainingQty === null || remainingQty === undefined) return null
                                   const variance = poQtyVariance(remainingQty, item.qty)
                                   return <div className={`mt-1 text-[11px] font-semibold ${variance.className}`}>{variance.text}</div>

@@ -247,24 +247,31 @@ function poBuyUnitPriceForProduct(poBuy: PoBuyRefRow, productId: bigint) {
   return item ? jsonNumber(item.unitPrice ?? poBuy.unit_price) : toNumber(poBuy.unit_price)
 }
 
-function firstRemainingPoBuyItem(poBuy: PoBuyRefRow) {
+function remainingPoBuyProductItems(poBuy: PoBuyRefRow) {
   const items = poBuyItemRows(poBuy)
   if (items.length === 0) {
     return poBuy.product_id != null && toNumber(poBuy.remaining_qty) > 0.0001
-      ? { productId: poBuy.product_id, remainingQty: toNumber(poBuy.remaining_qty), unitPrice: toNumber(poBuy.unit_price) }
-      : null
+      ? [{ productId: poBuy.product_id, remainingQty: toNumber(poBuy.remaining_qty), unitPrice: toNumber(poBuy.unit_price) }]
+      : []
   }
+  const byProduct = new Map<string, { productId: bigint; remainingQty: number; unitPrice: number }>()
   for (const item of items) {
     const remainingQty = jsonNumber(item.remainingQty)
-    if (remainingQty > 0.0001) {
-      return {
-        productId: poBuyItemProductId(poBuy, item),
+    if (remainingQty <= 0.0001) continue
+    const productId = poBuyItemProductId(poBuy, item)
+    const key = productId.toString()
+    const existing = byProduct.get(key)
+    if (existing) {
+      existing.remainingQty += remainingQty
+    } else {
+      byProduct.set(key, {
+        productId,
         remainingQty,
         unitPrice: jsonNumber(item.unitPrice ?? poBuy.unit_price),
-      }
+      })
     }
   }
-  return null
+  return [...byProduct.values()]
 }
 
 function billItemJson(row: PurchaseBillRow['purchase_bill_items'][number]) {
@@ -1503,6 +1510,7 @@ async function optionsPayload() {
   const usageMap = await buildWeightTicketUsageMap(weightTickets)
   const branchCodeById = new Map(branches.map((branch) => [branch.id, branch.code]))
   const productCodeById = new Map(products.map((product) => [product.id, requireBusinessCode(product.code, `สินค้า ${product.id}`)]))
+  const productNameById = new Map(products.map((product) => [product.id, product.name]))
   const salespersonCodeById = new Map(salespersons.map((salesperson) => [salesperson.id, requireBusinessCode(salesperson.code, `พนักงานขาย ${salesperson.id}`)]))
   const supplierCodeById = new Map(suppliers.map((supplier) => [supplier.id, requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`)]))
 
@@ -1523,25 +1531,29 @@ async function optionsPayload() {
       ...branch,
       id: requireBusinessCode(branch.code, `สาขา ${branch.id}`),
     })),
-    poBuys: poBuys.map((po) => {
-      const remainingItem = (() => {
+    poBuys: poBuys.flatMap((po) => {
+      const remainingItems = (() => {
         try {
-          return firstRemainingPoBuyItem(po)
+          return remainingPoBuyProductItems(po)
         } catch {
-          return null
+          return []
         }
       })()
-      const remainingQty = remainingItem?.remainingQty ?? 0
-      return {
-        active: (po.status === PO_BUY_STATUS.OPEN || po.status === PO_BUY_STATUS.PARTIAL) && remainingQty > 0.0001,
-        id: po.doc_no,
-        label: `${po.doc_no}${remainingQty > 0 ? ` · คงเหลือ ${remainingQty.toLocaleString('th-TH')} กก.` : po.remaining_amount ? ` · คงเหลือ ${toNumber(po.remaining_amount).toLocaleString('th-TH')}` : ''}`,
-        name: po.doc_no,
-        product_id: remainingItem?.productId != null ? (productCodeById.get(remainingItem.productId) ?? null) : null,
-        remainingQty,
-        supplier_id: po.supplier_id != null ? (supplierCodeById.get(po.supplier_id) ?? null) : null,
-        unitPrice: remainingItem?.unitPrice ?? toNumber(po.unit_price),
-      }
+      return remainingItems.map((remainingItem) => {
+        const productCode = productCodeById.get(remainingItem.productId) ?? null
+        const productName = productNameById.get(remainingItem.productId) ?? productCode ?? 'สินค้า'
+        const remainingQty = remainingItem.remainingQty
+        return {
+          active: (po.status === PO_BUY_STATUS.OPEN || po.status === PO_BUY_STATUS.PARTIAL) && remainingQty > 0.0001,
+          id: po.doc_no,
+          label: `${po.doc_no} · ${productName} · คงเหลือ ${remainingQty.toLocaleString('th-TH')} กก.`,
+          name: po.doc_no,
+          product_id: productCode,
+          remainingQty,
+          supplier_id: po.supplier_id != null ? (supplierCodeById.get(po.supplier_id) ?? null) : null,
+          unitPrice: remainingItem.unitPrice,
+        }
+      })
     }),
     products: products.map((product) => ({
       active: product.active,
