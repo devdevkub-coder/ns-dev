@@ -19,6 +19,10 @@ const positiveNumber = (label: string) => z.coerce.number({ invalid_type_error: 
 const money = (label: string) => z.coerce.number({ invalid_type_error: `${label}ต้องเป็นตัวเลข` }).finite(`${label}ต้องเป็นตัวเลข`).min(0, `${label}ต้องไม่ติดลบ`)
 
 export const salesLineItemSchema = z.object({
+  deliveryLineId: optionalSafeId('รายการใบส่งของ'),
+  deliverySummaryId: optionalSafeId('สรุปใบส่งของ'),
+  deliveryTicketDocNo: optionalGeneralText('เลขใบส่งของ', 80),
+  deliveryTicketId: optionalSafeId('ใบส่งของ'),
   discount: money('ส่วนลด').default(0),
   note: optionalGeneralText('หมายเหตุรายการ', 200),
   price: positiveNumber('ราคา/หน่วย'),
@@ -29,7 +33,9 @@ export const salesLineItemSchema = z.object({
 export const salesBillFormSchema = z.object({
   branchId: optionalSafeId('สาขา'),
   channelId: optionalSafeId('ช่องทางขาย'),
+  customerAdvanceId: optionalSafeId('รับเงินล่วงหน้า Customer'),
   customerId: z.string().trim().min(1, 'เลือกลูกค้า').max(80, 'รหัสลูกค้ายาวเกินไป').regex(safeIdPattern, 'รหัสลูกค้ามีรูปแบบไม่ถูกต้อง'),
+  deliveryTicketId: optionalSafeId('ใบส่งของ'),
   discountTotal: money('ส่วนลดท้ายบิล').default(0),
   hasVat: z.boolean().default(false),
   items: z.array(salesLineItemSchema).min(1, 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ').max(50, 'รายการสินค้ามากเกินไป'),
@@ -58,6 +64,9 @@ export const salesBillFormSchema = z.object({
 }).refine((value) => !value.vatInvoiceIssued || Boolean(value.vatInvoiceDate), {
   message: 'กรอกวันที่ใบกำกับภาษีเมื่อระบุว่าออกแล้ว',
   path: ['vatInvoiceDate'],
+}).refine((value) => value.transactionMode !== 'STOCK' || Boolean(value.deliveryTicketId), {
+  message: 'เลือกใบส่งของ WTO',
+  path: ['deliveryTicketId'],
 })
 
 export const poSellFormSchema = z.object({

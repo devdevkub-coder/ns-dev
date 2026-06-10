@@ -32,7 +32,7 @@ Legacy behavior to preserve unless a later requirement explicitly changes it:
 | Cost Allocator | `/dual-costing/cost-allocator` | Open PO Sell as a target that can be matched against Cost Pool |
 | Match Log / Deal Margin | `/dual-costing/match-log`, `/dual-costing/deal-margin` | PO Sell match status and cost allocation history after matching |
 | PO Outstanding | `/po-reports/outstanding` | Open PO Sell remaining delivery quantity and value |
-| Sales Bill | `/sales/bills` / `POST /api/sales/bills` | Current implementation supports bill-level `poSellId`; saving a linked bill validates customer/branch/product/remaining quantity, reduces PO Sell remaining quantity/value, and sets the PO Sell raw status to `Completed` when fully consumed |
+| Sales Bill | `/sales/bills` / `POST /api/sales/bills` | Target create flow should select `WTO`, show WTO product lines, allocate each line to PO Sell where possible, and split any quantity over PO Sell remaining into Spot Sale |
 | Stock Issue / Pending Sale | `/sales/stock-issue` | Target flow says stock issue from PO Sell should create `PSALE...` and reduce delivery commitment; implementation parity must be verified separately |
 
 ## Create Flow
@@ -128,16 +128,16 @@ PO Outstanding should show remaining sell commitment while `remainingQty > 0`, e
 
 ### Sales Bill / Stock Issue
 
-Target Sales Flow says operational fulfillment should proceed through:
+Target Sales Flow now says the primary operational fulfillment should proceed through:
 
 ```text
 PO Sell
--> Pending Sale / stock issue when goods leave stock before billing
+-> WTO / delivery note when goods are delivered
 -> Sales Bill
 -> Receipt
 ```
 
-Sales Bill posting or stock issue should update remaining delivery/billing facts. The PO Sell list should display those facts from source data rather than manually changing status without a linked transaction.
+Sales Bill posting should update PO Sell billed facts from `WTO -> SB` line allocation. If a WTO line exceeds PO Sell remaining quantity, only the remaining PO quantity is consumed and the excess is recorded as Spot Sale. The PO Sell list should display those facts from source data rather than manually changing status without a linked transaction.
 
 Current implemented behavior:
 
@@ -153,6 +153,7 @@ Current implemented behavior:
 - Current `POST /api/sales/po-sell` generates `POS{YYMM}-NNNN`; Sales Flow target says branch-aware `POS{branchCode}{YYMM}-NNNN`.
 - Current Next PO Sell page displays normalized document status plus derived `matchStatus`; Thai business status lifecycle is not fully implemented.
 - Current `/sales/bills` has bill-level PO Sell consumption; Sales Flow target still requires line-level PO Sell allocation for mixed-source sales bills.
+- Current `/sales/bills` must be reworked to make `WTO` the create source before PO Sell allocation, per `docs/notes/Sales Bills Page Flow.md`.
 - Current `/sales/stock-issue` / Pending Sale write integration with PO Sell needs a separate click-path audit before changing status behavior.
 - `remaining_qty` / item-level `remainingQty` must be updated by actual billing/issue/matching facts, not by table-only UI state.
 

@@ -505,7 +505,9 @@ Reporting rule:
 
 - [ ] map `sales_bills.items jsonb`
 - [ ] design `sales_bill_lines`
-- [ ] Design Trading sales bill flow: choose multiple purchase bills first, auto-fill sale lines, allow manual stock lines, and allocate each line to PO Sell
+- [x] Document canonical `/sales/bills` create flow before coding: `PO Sell -> WTO -> SB`, select WTO first, show WTO product lines, allocate to PO Sell, split excess as Spot Sale, remove free-text reference/truck fields, reuse PB VAT/totals design, and add Customer advance/deposit section (`docs/notes/Sales Bills Page Flow.md`)
+- [ ] Design and implement `WTO -> Sales Bill` allocation tables/rules, including `sales bill -> WTO`, `sales bill -> PO Sell`, `sales bill -> Spot Sale`, and Customer advance allocation/release
+- [ ] Design Trading sales bill flow as follow-up: choose multiple purchase bills first, auto-fill sale lines, allow manual stock lines, and allocate each line to PO Sell
 - [ ] Define sales bill allocation tables/rules for `sales bill -> purchase bill`, `sales bill -> stock`, and `sales bill -> PO Sell`
 - [ ] define COGS/FIFO rule
 - [ ] define receipt relation
@@ -649,5 +651,6 @@ Tracker หลักสำหรับงานที่เหลือทั้
 - [x] `/purchase/po-buy` short-close action is now only enabled for partially received PO rows with remaining quantity; unreceived open rows show the action disabled and the PATCH route rejects direct short-close requests unless the PO is partially received
 - [x] `/purchase/po-buy` Excel export now follows the active purchase export convention: Thai headers, Thai worksheet name, dated filename, branch code included, and search/status/date/selected-row filters preserved
 - [x] Add per-document purchase-bill print for `/purchase/bills` list/detail/direct detail. Use Company Profile as the header source, show a company logo in the header with template default logo fallback if profile logo is missing, support A4 browser print/Save as PDF, show PB status/watermark for cancelled/supplier-swap documents, preserve historical PO/Spot source from PB snapshots, show actual item units, and design a clean corporate A4 landscape template. Use the customer sample image received 2026-06-09 as a data checklist only: delivery grid fields, total summary, document metadata, and item table with gross/deduct/net weight columns must be present.
+- [x] Add per-document sales-bill print for `/sales/bills` list rows. Use branch-specific Company Profile, A4 portrait, multi-page table header repeat, fixed print footer, Customer/document panels, WTO trace, VAT/totals, Customer advance deduction, and final receivable balance from the `SB` snapshot/detail API.
 - [ ] Audit and update quantity/unit display across PO/WTI/PB/SB/receipt/detail/print/export surfaces so `กก.` and `ลัง` are shown from item unit snapshots/master data and mixed-unit summaries are grouped by unit instead of combined into one number.
 - [ ] decide next schema wave for `public` models still lacking explicit business keys, especially support/admin and document-detail tables

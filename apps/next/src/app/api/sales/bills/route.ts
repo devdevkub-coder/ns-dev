@@ -37,6 +37,26 @@ type SalesBillRow = Prisma.sales_billsGetPayload<{
   }
 }>
 
+type DeliveryTicketOptionRow = Prisma.weight_ticketsGetPayload<{
+  include: {
+    branches: true
+    customers: true
+    weight_ticket_product_summaries: {
+      include: {
+        weight_ticket_product_summary_lines: true
+      }
+      orderBy: {
+        product_name: 'asc'
+      }
+    }
+    weight_ticket_lines: {
+      orderBy: {
+        line_no: 'asc'
+      }
+    }
+  }
+}>
+
 function parseBillQuery(url: URL, includePaging = true): BillQuery {
   return {
     dateFrom: url.searchParams.get('dateFrom') || undefined,
@@ -146,6 +166,16 @@ function calculateSalesTotals(values: SalesBillFormValues, vatRatePercent: numbe
   return { subtotal, totalAmount, vatAmount }
 }
 
+function customerAdvanceIdFromBillItems(items: Prisma.JsonValue | null | undefined) {
+  if (!Array.isArray(items)) return null
+  for (const item of items) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue
+    const record = item as Record<string, unknown>
+    if (typeof record.customerAdvanceId === 'string' && record.customerAdvanceId) return record.customerAdvanceId
+  }
+  return null
+}
+
 function salesItems(
   values: SalesBillFormValues,
   parsedProductIds: bigint[],
@@ -157,6 +187,11 @@ function salesItems(
     const amount = Math.max(0, item.qty * item.price - item.discount)
     return {
       amount,
+      customerAdvanceId: values.customerAdvanceId,
+      deliveryLineId: item.deliveryLineId,
+      deliverySummaryId: item.deliverySummaryId,
+      deliveryTicketDocNo: item.deliveryTicketDocNo,
+      deliveryTicketId: item.deliveryTicketId,
       discount: item.discount,
       id: `${String(index + 1).padStart(2, '0')}`,
       note: item.note,
@@ -171,6 +206,101 @@ function salesItems(
 }
 
 type SalesItemSnapshot = ReturnType<typeof salesItems>[number]
+
+function deliverySummaryUsageKey(ticketId: bigint, summaryId: bigint) {
+  return `${ticketId.toString()}:${summaryId.toString()}`
+}
+
+async function buildDeliveryTicketUsageMap(tickets: DeliveryTicketOptionRow[]) {
+  if (tickets.length === 0) return new Map<string, number>()
+  const ticketDocNos = new Set(tickets.map((ticket) => ticket.doc_no))
+  const rows = await prisma.sales_bills.findMany({
+    select: {
+      items: true,
+      status: true,
+    },
+    where: {
+      status: { notIn: ['cancelled', 'Cancelled', 'void', 'voided'] },
+    },
+  })
+  const usageMap = new Map<string, number>()
+  rows.forEach((row) => {
+    if (!Array.isArray(row.items)) return
+    row.items.forEach((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return
+      const record = item as Record<string, unknown>
+      const ticketDocNo = typeof record.deliveryTicketId === 'string' ? record.deliveryTicketId : null
+      const summaryId = typeof record.deliverySummaryId === 'string' ? record.deliverySummaryId : null
+      const qty = Number(record.qty ?? 0)
+      if (!ticketDocNo || !summaryId || !ticketDocNos.has(ticketDocNo) || !Number.isFinite(qty) || qty <= 0) return
+      usageMap.set(summaryId, (usageMap.get(summaryId) ?? 0) + qty)
+    })
+  })
+  return usageMap
+}
+
+function deliveryTicketOptionJson(
+  row: DeliveryTicketOptionRow,
+  usageMap: Map<string, number>,
+  productCodeById: Map<bigint, string>,
+) {
+  const outwardLineIdByInternalLineId = new Map(
+    row.weight_ticket_lines.map((line) => [line.id, `${row.doc_no}:${line.line_no}`] as const),
+  )
+  const lines = row.weight_ticket_lines.map((line) => {
+    const sourceNetWeight = toNumber(line.net_weight)
+    return {
+      deductWeight: toNumber(line.deduct_weight),
+      grossWeight: toNumber(line.gross_weight),
+      id: `${row.doc_no}:${line.line_no}`,
+      lineNo: line.line_no,
+      netWeight: sourceNetWeight,
+      note: line.note ?? '',
+      productId: line.product_id != null ? (productCodeById.get(line.product_id) ?? '') : '',
+      productName: line.product_name,
+      remainingQty: sourceNetWeight,
+      usedQty: 0,
+    }
+  })
+
+  const productSummaries = row.weight_ticket_product_summaries.map((summary) => {
+    const productCode = summary.product_id != null ? (productCodeById.get(summary.product_id) ?? '') : ''
+    const outwardSummaryId = `${row.doc_no}:${productCode}:${summary.line_count ?? 0}`
+    const usedQty = usageMap.get(outwardSummaryId) ?? usageMap.get(deliverySummaryUsageKey(row.id, summary.id)) ?? 0
+    const netWeight = toNumber(summary.net_weight)
+    const remainingWeight = Math.max(0, netWeight - usedQty)
+    return {
+      billedWeight: toNumber(summary.billed_weight),
+      deductWeight: toNumber(summary.deduct_weight),
+      grossWeight: toNumber(summary.gross_weight),
+      hasMixedDeductionProfiles: summary.has_mixed_deduction_profiles ?? false,
+      id: outwardSummaryId,
+      lineCount: summary.line_count ?? 0,
+      netWeight,
+      productId: productCode,
+      productName: summary.product_name,
+      remainingWeight,
+      sourceLineIds: summary.weight_ticket_product_summary_lines.flatMap((bridge) => {
+        const outwardLineId = outwardLineIdByInternalLineId.get(bridge.weight_ticket_line_id)
+        return outwardLineId ? [outwardLineId] : []
+      }),
+    }
+  }).filter((summary) => summary.remainingWeight > 0.0001)
+
+  return {
+    branchId: row.branches?.code ?? '',
+    branchName: row.branches?.name ?? '-',
+    customerId: row.customers?.code ?? '',
+    documentDate: toDateOnly(row.document_date),
+    documentNo: row.doc_no,
+    id: row.doc_no,
+    lines,
+    partyName: row.party_name,
+    productSummaries,
+    status: row.status,
+    vehicleNo: row.vehicle_no,
+  }
+}
 
 type PoSellSnapshotItem = {
   discount?: unknown
@@ -275,7 +405,7 @@ function allocatePoSellForSalesBill(poSell: PoSellForAllocation, billItems: Sale
 }
 
 async function salesOptionsPayload() {
-  const [branches, customers, products, salesChannels, warehouses, vatRatePercent] = await Promise.all([
+  const [branches, customers, products, salesChannels, warehouses, vatRatePercent, deliveryTickets, customerAdvanceRows, salesBillsWithAdvance] = await Promise.all([
     prisma.branches.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
     prisma.customers.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
     prisma.products.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true, unit: true } }),
@@ -292,7 +422,56 @@ async function salesOptionsPayload() {
       },
     }),
     activeVatRatePercent(new Date()),
+    prisma.weight_tickets.findMany({
+      include: {
+        branches: true,
+        customers: true,
+        weight_ticket_product_summaries: {
+          include: {
+            weight_ticket_product_summary_lines: true,
+          },
+          orderBy: { product_name: 'asc' },
+        },
+        weight_ticket_lines: { orderBy: { line_no: 'asc' } },
+      },
+      orderBy: [{ document_date: 'desc' }, { doc_no: 'desc' }],
+      take: 300,
+      where: {
+        cancelled_at: null,
+        doc_type: 'WTO',
+        status: { in: ['delivered', 'partially_billed'] },
+      },
+    }),
+    prisma.bank_statement.findMany({
+      include: {
+        accounts: { select: { name: true } },
+      },
+      orderBy: [{ date: 'desc' }, { created_at: 'desc' }, { id: 'desc' }],
+      take: 500,
+      where: {
+        ref_type: 'CADV',
+      },
+    }),
+    prisma.sales_bills.findMany({
+      select: {
+        items: true,
+        paid_amount: true,
+        status: true,
+      },
+      where: {
+        status: { notIn: ['cancelled', 'Cancelled', 'void', 'voided'] },
+      },
+    }),
   ])
+  const deliveryUsageMap = await buildDeliveryTicketUsageMap(deliveryTickets)
+  const productCodeById = new Map(products.map((product) => [product.id, requireBusinessCode(product.code, `สินค้า ${product.id}`)]))
+  const customerByCode = new Map(customers.map((customer) => [requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`), customer] as const))
+  const customerAdvanceUsedById = new Map<string, number>()
+  salesBillsWithAdvance.forEach((bill) => {
+    const advanceId = customerAdvanceIdFromBillItems(bill.items)
+    if (!advanceId) return
+    customerAdvanceUsedById.set(advanceId, (customerAdvanceUsedById.get(advanceId) ?? 0) + toNumber(bill.paid_amount))
+  })
 
   return {
     branches: branches.map((branch) => ({
@@ -303,6 +482,31 @@ async function salesOptionsPayload() {
       ...customer,
       id: requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`),
     })),
+    deliveries: deliveryTickets
+      .map((ticket) => deliveryTicketOptionJson(ticket, deliveryUsageMap, productCodeById))
+      .filter((ticket) => ticket.productSummaries.length > 0),
+    customerAdvancePayments: customerAdvanceRows.flatMap((advance) => {
+      const customerCode = String(advance.ref_id ?? '').trim()
+      const customer = customerByCode.get(customerCode)
+      if (!customer) return []
+      const amount = toNumber(advance.amount_in)
+      const usedAmount = customerAdvanceUsedById.get(advance.doc_no) ?? 0
+      const remainingAmount = Math.max(0, amount - usedAmount)
+      if (remainingAmount <= 0.01) return []
+      const docNo = advance.ref_no ?? advance.doc_no
+      return [{
+        active: true,
+        advanceDate: toDateOnly(advance.date),
+        amount,
+        branch_id: null,
+        customer_id: customerCode,
+        id: advance.doc_no,
+        label: `${docNo} · คงเหลือ ${remainingAmount.toLocaleString('th-TH')} บาท`,
+        name: docNo,
+        remainingAmount,
+        status: usedAmount > 0.01 ? 'Partially Used' : 'Open',
+      }]
+    }),
     products: products.map((product) => ({
       ...product,
       id: requireBusinessCode(product.code, `สินค้า ${product.id}`),
@@ -461,6 +665,38 @@ export async function POST(request: Request) {
     if (poSell?.customer_id && poSell.customer_id !== customer.id) return NextResponse.json({ code: 'BAD_REQUEST', error: 'Customer ของบิลขายไม่ตรงกับ PO Sell' }, { status: 400 })
     if (poSell?.branch_id && branch?.id && poSell.branch_id !== branch.id) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาของบิลขายไม่ตรงกับ PO Sell' }, { status: 400 })
 
+    const selectedCustomerAdvance = values.customerAdvanceId
+      ? await prisma.bank_statement.findUnique({
+          select: {
+            amount_in: true,
+            doc_no: true,
+            ref_id: true,
+            ref_no: true,
+            ref_type: true,
+          },
+          where: { doc_no: values.customerAdvanceId },
+        })
+      : null
+    if (values.customerAdvanceId && !selectedCustomerAdvance) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่พบเอกสารรับเงินล่วงหน้าที่เลือก' }, { status: 400 })
+    if (selectedCustomerAdvance?.ref_type !== 'CADV') return NextResponse.json({ code: 'BAD_REQUEST', error: 'เอกสารรับเงินล่วงหน้าไม่ถูกต้อง' }, { status: 400 })
+    if (selectedCustomerAdvance && String(selectedCustomerAdvance.ref_id ?? '').trim() !== customer.code) return NextResponse.json({ code: 'BAD_REQUEST', error: 'เอกสารรับเงินล่วงหน้าต้องเป็นลูกค้าเดียวกับบิลขาย' }, { status: 400 })
+    const customerAdvanceUsedAmount = selectedCustomerAdvance
+      ? (await prisma.sales_bills.findMany({
+          select: {
+            items: true,
+            paid_amount: true,
+          },
+          where: {
+            status: { notIn: ['cancelled', 'Cancelled', 'void', 'voided'] },
+          },
+        })).reduce((sum, bill) => customerAdvanceIdFromBillItems(bill.items) === selectedCustomerAdvance.doc_no ? sum + toNumber(bill.paid_amount) : sum, 0)
+      : 0
+    const customerAdvanceAvailable = selectedCustomerAdvance
+      ? Math.max(0, toNumber(selectedCustomerAdvance.amount_in) - customerAdvanceUsedAmount)
+      : 0
+    if (selectedCustomerAdvance && customerAdvanceAvailable <= 0.01) return NextResponse.json({ code: 'BAD_REQUEST', error: 'เอกสารรับเงินล่วงหน้านี้ไม่มียอดคงเหลือสำหรับใช้หักบิลแล้ว' }, { status: 400 })
+    const customerAdvanceApplied = selectedCustomerAdvance ? Math.min(totals.totalAmount, customerAdvanceAvailable) : 0
+
     const productByCode = new Map(products.map((product) => [requireBusinessCode(product.code, `สินค้า ${product.id}`), product]))
     const parsedProductIds = requestedProductCodes.map((productCode) => productByCode.get(productCode)?.id ?? null)
     const missingProduct = requestedProductCodes.find((productCode) => !productByCode.has(productCode))
@@ -496,8 +732,9 @@ export async function POST(request: Request) {
           note: values.note,
           notes: values.note,
           po_sell_id: parsedPoSellId,
-          receivable_balance: totals.totalAmount,
-          received_amount: 0,
+          paid_amount: customerAdvanceApplied,
+          receivable_balance: Math.max(0, totals.totalAmount - customerAdvanceApplied),
+          received_amount: customerAdvanceApplied,
           ref_no: values.refNo,
           status: 'unreceived',
           subtotal: totals.subtotal,

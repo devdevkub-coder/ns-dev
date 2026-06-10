@@ -72,6 +72,10 @@ type PoSellPayload = {
 }
 
 const blankPoSellItem = (): PoSellFormValues['items'][number] => ({
+  deliveryLineId: null,
+  deliverySummaryId: null,
+  deliveryTicketDocNo: null,
+  deliveryTicketId: null,
   discount: 0,
   note: null,
   price: 0,

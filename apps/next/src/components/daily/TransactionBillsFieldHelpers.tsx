@@ -190,7 +190,7 @@ export function SelectField({
 
   return (
     <Field className={className} error={error} label={label}>
-      <Select data-error-key={errorKey} className={cn('w-full', error ? 'border-red-400 bg-red-50 text-red-700' : '')} value={value} onChange={(event) => onChange(event.target.value)}>
+      <Select data-error-key={errorKey} className={cn('w-full', value ? 'text-slate-900' : 'text-slate-400', error ? 'border-red-400 bg-red-50 text-red-700' : '')} value={value} onChange={(event) => onChange(event.target.value)}>
         <option value="">{placeholder}</option>
         {options.map((option) => <option key={option.id} value={option.id}>{!hideCode && option.code ? `${option.code} — ` : ''}{option.name}</option>)}
       </Select>
@@ -229,6 +229,41 @@ export function SupplierSearchCombobox({
           searchText: searchableOptionText(supplier),
         }))}
         placeholder="ค้นหาชื่อหรือรหัสผู้ขาย"
+        value={value}
+        onChange={onChange}
+      />
+    </div>
+  )
+}
+
+export function CustomerSearchCombobox({
+  className = '',
+  error,
+  errorKey,
+  options,
+  value,
+  onChange,
+}: {
+  className?: string
+  error?: string
+  errorKey?: string
+  options: Option[]
+  value: string
+  onChange: (customerId: string) => void
+}) {
+  return (
+    <div className={`relative ${className}`}>
+      <SearchCombobox
+        error={error}
+        errorKey={errorKey}
+        inputId="sales-bill-customer-search"
+        label="ลูกค้า *"
+        options={options.map((customer) => ({
+          id: customer.id,
+          label: optionLabel(customer),
+          searchText: searchableOptionText(customer),
+        }))}
+        placeholder="ค้นหารหัสหรือชื่อลูกค้า"
         value={value}
         onChange={onChange}
       />
