@@ -4,7 +4,7 @@ import { parseInternalBigIntId, requireDocumentNo } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { SUPPLIER_ADVANCE_STATUS_ACTION } from '@/lib/server/advance-payment-history'
 import { refreshAdvancePaymentWorkflowStatus } from '@/lib/server/advance-payments'
-import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission, getBranchCodeIntersection } from '@/lib/server/auth-context'
 import { currentActor, toNumber } from '@/lib/server/daily'
 import { appendPaymentApprovalStatusLog, PAYMENT_APPROVAL_STATUS_ACTION } from '@/lib/server/payment-history'
 import { prisma } from '@/lib/server/prisma'
@@ -43,6 +43,41 @@ export async function POST(request: Request) {
       })
       if (!approval || approval.status !== 'approved') {
         throw new Error('ไม่พบรายการรอจ่ายที่ต้องการยกเลิก หรือรายการนี้ไม่อยู่ในสถานะรอจ่ายแล้ว')
+      }
+
+      const allowedBranchCodes = getBranchCodeIntersection(context)
+      if (allowedBranchCodes) {
+        const matchingBranches = await tx.branches.findMany({
+          where: { code: { in: allowedBranchCodes } },
+          select: { id: true },
+        })
+        const allowedBranchIds = matchingBranches.map((b) => b.id)
+        let sourceBranchId: bigint | null = null
+        const sourceInternalId = parseInternalBigIntId(approval.source_id)
+        if (sourceInternalId != null) {
+          if (approval.source_type === 'purchase_bill') {
+            const pb = await tx.purchase_bills.findUnique({
+              select: { branch_id: true },
+              where: { id: sourceInternalId }
+            })
+            sourceBranchId = pb?.branch_id ?? null
+          } else if (approval.source_type === 'advance_payment') {
+            const adv = await tx.supplier_advance_payments.findUnique({
+              select: { branch_id: true },
+              where: { id: sourceInternalId }
+            })
+            sourceBranchId = adv?.branch_id ?? null
+          } else if (approval.source_type === 'expense') {
+            const exp = await tx.expenses.findUnique({
+              select: { branch_id: true },
+              where: { id: sourceInternalId }
+            })
+            sourceBranchId = exp?.branch_id ?? null
+          }
+        }
+        if (sourceBranchId != null && !allowedBranchIds.includes(sourceBranchId)) {
+          throw new Error('ไม่มีสิทธิ์ยกเลิกรายการอนุมัตินี้')
+        }
       }
 
       const activePayments = await tx.payments.findMany({

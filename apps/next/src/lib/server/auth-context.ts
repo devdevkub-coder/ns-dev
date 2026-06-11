@@ -220,6 +220,29 @@ export function requirePermission(context: AppAuthContext, permissionCode: strin
   }
 }
 
+export function getBranchCodeIntersection(
+  context: AppAuthContext,
+  requestedBranchCode?: string | null
+): string[] | null {
+  if (context.isAdmin) {
+    if (requestedBranchCode && requestedBranchCode !== 'all') {
+      return [requestedBranchCode]
+    }
+    return null
+  }
+
+  const allowedCodes = context.appUser?.branchIds ?? []
+  if (requestedBranchCode && requestedBranchCode !== 'all') {
+    if (allowedCodes.includes(requestedBranchCode)) {
+      return [requestedBranchCode]
+    }
+    return []
+  }
+
+  return allowedCodes
+}
+
+
 export function authContextErrorResponse(caught: unknown) {
   if (caught instanceof AuthContextError) {
     return apiErrorResponse(caught, caught.message, caught.status)
