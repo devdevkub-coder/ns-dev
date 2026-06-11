@@ -629,7 +629,7 @@ export function PaymentApprovalPageClient() {
       </div>
 
       <div className="overflow-hidden rounded-md bg-white shadow">
-        <div className="flex border-b">
+        <div className="flex border-b border-slate-100">
           <button className={`border-b-2 px-5 py-3 text-sm font-medium ${tab === 'ap' ? 'border-red-600 text-red-700' : 'border-transparent text-slate-500'}`} type="button" onClick={() => setTab('ap')}>
             ต้นทุน / Supplier <span className="ml-2 rounded-md-full bg-red-100 px-2 py-0.5 text-xs text-red-700">{purchaseApprovalRows.length}</span>
           </button>
@@ -642,7 +642,7 @@ export function PaymentApprovalPageClient() {
         </div>
 
         {/* Desktop Filters (Hidden on Mobile) */}
-        <div className="hidden md:block space-y-3 border-b p-3">
+        <div className="hidden md:block space-y-3 border-b border-slate-100 p-3">
           <div className="flex flex-wrap items-center gap-2">
             <Input className="min-w-[260px] flex-1 rounded-md" placeholder="ค้นหาเลขที่ / ชื่อ / ช่องทางจ่าย..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
             <label className="text-xs text-slate-500">วันที่:</label>
@@ -672,7 +672,7 @@ export function PaymentApprovalPageClient() {
         </div>
 
         {/* Mobile Toolbar (Hidden on Desktop) */}
-        <div className="space-y-2 border-b p-3 md:hidden">
+        <div className="space-y-2 border-b border-slate-100 p-3 md:hidden">
           <div className="flex gap-2 items-center">
             <Input className="min-w-[200px] flex-1 rounded-md h-9" placeholder="ค้นหาเลขที่ / ชื่อ / ช่องทาง..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
             <button
