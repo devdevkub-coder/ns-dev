@@ -164,7 +164,6 @@ export function DailyPettyAdvancePageClient() {
     return Array.from(byRecipient.values()).sort((left, right) => right.remaining - left.remaining).slice(0, 10)
   }, [rows])
 
-  const selectedRecipient = useMemo(() => recipientOptions.find((option) => option.id === form.recipientId) ?? null, [form.recipientId, recipientOptions])
 
   const activeAccounts = useMemo(() => accounts.filter((account) => account.active), [accounts])
   const hasActiveFilters = Boolean(search.trim() || type || status !== 'active')
@@ -358,24 +357,19 @@ export function DailyPettyAdvancePageClient() {
               </section>
 
               <section className="space-y-3 border-t border-slate-100 pt-4">
-                <h4 className="text-sm font-semibold text-slate-900">ผู้รับเงินและบัญชีรับเงิน</h4>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="md:col-span-2" data-field="recipientId">
-                    <SearchCombobox
-                      error={fieldErrors.recipientId ?? fieldErrors.recipientName}
-                      errorKey="recipientId"
-                      inputClassName="h-9 text-sm"
-                      inputId="petty-advance-recipient"
-                      label="ผู้รับเงิน *"
-                      options={recipientOptions}
-                      optionsPanelClassName="max-h-72"
-                      placeholder="ค้นหากรรมการ/พนักงาน"
-                      value={form.recipientId}
-                      onChange={updateRecipient}
-                    />
-                  </div>
-                  <ReadOnlyField label="ประเภทบุคคล" value={selectedRecipient?.type || '-'} />
-                  <ReadOnlyField label="บัญชีรับเงิน" value={selectedRecipient?.bankAccountLabel || 'เลือกผู้รับเงินก่อน'} />
+                <div data-field="recipientId">
+                  <SearchCombobox
+                    error={fieldErrors.recipientId ?? fieldErrors.recipientName}
+                    errorKey="recipientId"
+                    inputClassName="h-9 text-sm"
+                    inputId="petty-advance-recipient"
+                    label="ผู้จ่าย *"
+                    options={recipientOptions}
+                    optionsPanelClassName="max-h-72"
+                    placeholder="ค้นหากรรมการ/พนักงาน"
+                    value={form.recipientId}
+                    onChange={updateRecipient}
+                  />
                 </div>
               </section>
 
@@ -452,8 +446,8 @@ export function DailyPettyAdvancePageClient() {
                 <td className="space-x-1 whitespace-nowrap p-2 text-right">
                   <button className="text-xs text-blue-600 hover:underline" title="ดูรายละเอียด" type="button" onClick={(event) => { event.stopPropagation(); setDetailRow(row) }}>ดู</button>
                   {row.status === 'active' && row.remaining > 0 ? <button className="rounded-md bg-emerald-600 px-2 py-1 text-xs text-white" type="button" onClick={(event) => { event.stopPropagation(); openReturnForm(row) }}>คืนเงิน</button> : null}
-                  {row.status === 'active' ? <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" type="button" onClick={(event) => { event.stopPropagation(); openEditForm(row) }}>จัดการ</button> : null}
-                  <button className="text-xs text-red-300" disabled type="button" onClick={(event) => event.stopPropagation()}>ยกเลิก</button>
+                  {row.status === 'active' ? <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" type="button" onClick={(event) => { event.stopPropagation(); openEditForm(row) }}>แก้ไข</button> : null}
+                  <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" disabled type="button" onClick={(event) => event.stopPropagation()}>ยกเลิก</button>
                 </td>
               </tr>
             ))}

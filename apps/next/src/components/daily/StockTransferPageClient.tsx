@@ -460,7 +460,7 @@ export function StockTransferPageClient() {
               <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">{formatMoney(row.totalQty)} กก.</TableCell>
               <TableCell className="max-w-[280px] truncate text-slate-600">{row.notes || '-'}</TableCell>
               <TableCell className="text-right">
-                <button className="text-xs text-slate-400" disabled title="รอออกแบบ cancel/tombstone flow" type="button">ยกเลิก</button>
+                <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" disabled title="รอออกแบบ cancel/tombstone flow" type="button">ยกเลิก</button>
               </TableCell>
             </TableRow>
           ))}

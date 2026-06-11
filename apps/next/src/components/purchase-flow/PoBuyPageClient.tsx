@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
-import { Download } from 'lucide-react'
+import { Download, Printer } from 'lucide-react'
 import { Button as UiButton } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
@@ -260,9 +260,9 @@ function poBuyStatusActionLabel(action: string) {
   }
 }
 
-const rowActionButtonClass = 'rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-normal text-slate-700 shadow-none hover:bg-slate-50 hover:text-slate-900'
-const rowDangerActionButtonClass = 'rounded-md border border-red-200 bg-white px-2 py-1 text-xs font-normal text-red-700 shadow-none hover:bg-red-50 hover:text-red-800'
-const rowWarningActionButtonClass = 'rounded-md border border-amber-200 bg-white px-2 py-1 text-xs font-normal text-amber-700 shadow-none hover:bg-amber-50 hover:text-amber-800'
+const rowActionButtonClass = 'rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50'
+const rowDangerActionButtonClass = 'rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50'
+const rowWarningActionButtonClass = 'rounded-md border border-amber-200 px-2 py-1 text-xs text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50'
 
 function poBuyAllocationActionLabel(action: string) {
   switch (action) {
@@ -846,11 +846,12 @@ export function PoBuyPageClient() {
                     </>
                   ) : null}
                   <button
-                    className={`${rowActionButtonClass} ${row.status === 'Open' && row.qty === row.remainingQty ? '' : 'mr-1.5'}`}
+                    className={`inline-flex items-center gap-1 rounded-md border border-emerald-200 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60 ${row.status === 'Open' && row.qty === row.remainingQty ? '' : 'mr-1.5'}`}
                     disabled={printingPoDocNo === row.docNo}
                     type="button"
                     onClick={(event) => { event.stopPropagation(); void printPoBuy(row) }}
                   >
+                    <Printer className="size-3" />
                     {printingPoDocNo === row.docNo ? 'เตรียม...' : 'พิมพ์'}
                   </button>
                   {shouldShowShortCloseButton(row) ? (

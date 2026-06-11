@@ -118,12 +118,6 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
           </div>
           <div class="doc-head">
             <div class="doc-title">${escapeHtml(docTitle)}</div>
-            <div class="doc-grid">
-              <div class="kv"><div class="label">เลขที่เอกสาร</div><div class="value">${escapeHtml(ticket.documentNo)}</div></div>
-              <div class="kv"><div class="label">วันที่เอกสาร</div><div class="value">${escapeHtml(ticket.documentDate || '-')}</div></div>
-              <div class="kv"><div class="label">เวลาสร้าง</div><div class="value">${escapeHtml(formatDateTime(ticket.createdAt))}</div></div>
-              <div class="kv"><div class="label">สถานะ</div><div class="value">${escapeHtml(displayWeightTicketStatus(ticket.type, ticket.status))}</div></div>
-            </div>
           </div>
         </section>
 
@@ -138,12 +132,12 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
             </div>
           </div>
           <div class="panel">
-            <div class="panel-title">ข้อมูลน้ำหนัก / Weight Info</div>
+            <div class="panel-title">ข้อมูลเอกสาร / Document Info</div>
             <div class="panel-body two-col">
-              <div><div class="field-label">จำนวนรายการ</div><div class="field-value">${ticket.lines.length.toLocaleString('th-TH')} รายการ</div></div>
-              <div><div class="field-label">น้ำหนักรวม</div><div class="field-value">${formatPrintableNumber(ticket.totals.grossWeight)} kg</div></div>
-              <div><div class="field-label">หักสิ่งเจือปน</div><div class="field-value">${formatPrintableNumber(ticket.totals.deductionWeight)} kg</div></div>
-              <div><div class="field-label">น้ำหนักสุทธิ</div><div class="field-value strong">${formatPrintableNumber(ticket.totals.netWeight)} kg</div></div>
+              <div><div class="field-label">เลขที่เอกสาร</div><div class="field-value">${escapeHtml(ticket.documentNo)}</div></div>
+              <div><div class="field-label">วันที่เอกสาร</div><div class="field-value">${escapeHtml(ticket.documentDate || '-')}</div></div>
+              <div><div class="field-label">เวลาสร้าง</div><div class="field-value">${escapeHtml(formatDateTime(ticket.createdAt))}</div></div>
+              <div><div class="field-label">สถานะ</div><div class="field-value">${escapeHtml(displayWeightTicketStatus(ticket.type, ticket.status))}</div></div>
             </div>
           </div>
         </section>
@@ -180,9 +174,14 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
               <div class="panel-title">หมายเหตุ</div>
               <div class="panel-body"><div class="note">${escapeHtml(ticket.remark || '-')}</div></div>
             </div>
-            <div class="summary-cards">
-              <div class="summary-card"><div class="label">รายการสินค้า</div><div class="value">${ticket.lines.length.toLocaleString('th-TH')}</div></div>
-              <div class="summary-card"><div class="label">น้ำหนักสุทธิ</div><div class="value">${formatPrintableNumber(ticket.totals.netWeight)} kg</div></div>
+            <div class="panel">
+              <div class="panel-title">ข้อมูลน้ำหนัก / Weight Info</div>
+              <div class="panel-body two-col">
+                <div><div class="field-label">จำนวนรายการ</div><div class="field-value">${ticket.lines.length.toLocaleString('th-TH')} รายการ</div></div>
+                <div><div class="field-label">น้ำหนักรวม</div><div class="field-value">${formatPrintableNumber(ticket.totals.grossWeight)} kg</div></div>
+                <div><div class="field-label">หักสิ่งเจือปน</div><div class="field-value">${formatPrintableNumber(ticket.totals.deductionWeight)} kg</div></div>
+                <div><div class="field-label">น้ำหนักสุทธิ</div><div class="field-value strong">${formatPrintableNumber(ticket.totals.netWeight)} kg</div></div>
+              </div>
             </div>
           </section>
 
@@ -224,7 +223,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .company-info { margin-top: 4px; color: #475569; font-size: 10px; }
       .doc-head { text-align: right; }
       .doc-title { font-size: 22px; font-weight: 900; color: #14532d; letter-spacing: 0; }
-      .doc-grid { margin-top: 8px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 8px; text-align: left; }
+      .doc-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; text-align: left; }
       .kv { border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 7px; background: #f8fafc; }
       .kv .label, .field-label, .summary-card .label { color: #64748b; font-size: 9px; }
       .kv .value, .field-value { font-weight: 800; color: #0f172a; margin-top: 1px; overflow-wrap: anywhere; }
@@ -245,7 +244,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .r { text-align: right; }
       .c { text-align: center; }
       .strong { font-weight: 900; }
-      .bottom-grid { display: grid; grid-template-columns: 1fr 40mm; gap: 10px; margin-top: 12px; align-items: start; break-inside: avoid; page-break-inside: avoid; }
+      .bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; align-items: start; break-inside: avoid; page-break-inside: avoid; }
       .note { min-height: 42px; color: #334155; white-space: pre-wrap; }
       .summary-cards { display: grid; gap: 8px; }
       .summary-card { border: 1px solid #dbe3ea; border-radius: 8px; padding: 7px; background: #f8fafc; }
@@ -270,7 +269,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
         .company-name { font-size: 14px; }
         .company-info { font-size: 9px; line-height: 1.25; margin-top: 2px; }
         .doc-title { font-size: 19px; }
-        .doc-grid { gap: 3px 6px; margin-top: 5px; }
+        .doc-grid { gap: 6px 8px; }
         .kv { padding: 3px 5px; }
         .section-grid { gap: 8px; margin-top: 7px; }
         .panel-title { padding: 4px 7px; }

@@ -602,7 +602,7 @@ export function WeightTicketsPageClient({ ticketId = '' }: { ticketId?: string }
                           }}
                         />
                       </div>
-                      <FieldBlock error={showError(`line-${line.id}-gross`)} label="น้ำหนักรวม กก.*">
+                      <FieldBlock error={showError(`line-${line.id}-gross`)} label="น้ำหนักรวม (กก. / ลัง) *">
                         <Input
                           inputMode="decimal"
                           placeholder="0.00"

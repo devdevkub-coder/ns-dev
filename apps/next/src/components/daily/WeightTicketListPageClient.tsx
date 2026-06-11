@@ -64,8 +64,8 @@ const statusOptionsByType: Record<WeightTicketType, Array<{ label: string; value
   ],
 }
 
-const rowActionButtonClass = 'inline-flex items-center rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2'
-const rowDestructiveActionButtonClass = 'inline-flex items-center rounded-md border border-red-200 bg-white px-2 py-1 text-xs text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2'
+const rowActionButtonClass = 'inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50'
+const rowDestructiveActionButtonClass = 'inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50'
 
 function formatDateTime(value?: string | null) {
   if (!value) return '-'
@@ -455,15 +455,15 @@ export function WeightTicketListPageClient() {
                   <td className="whitespace-nowrap px-3 py-3 text-right">
                     <div className="flex items-center justify-end gap-1.5">
                       <button
-                        className={rowActionButtonClass}
+                        className="inline-flex items-center gap-1 rounded-md border border-emerald-200 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60"
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation()
                           void handlePrintTicket(ticket)
                         }}
                       >
-                        <Printer className="mr-1 size-3" />
-                        {printingTicketId === ticket.id ? 'กำลังเตรียม...' : 'พิมพ์'}
+                        <Printer className="size-3" />
+                        {printingTicketId === ticket.id ? 'เตรียม...' : 'พิมพ์'}
                       </button>
                       <button
                         className={rowActionButtonClass}
@@ -473,7 +473,7 @@ export function WeightTicketListPageClient() {
                           openWeightTicketLineShare(ticket)
                         }}
                       >
-                        <Share2 className="mr-1 size-3" />
+                        <Share2 className="size-3" />
                         แชร์
                       </button>
                       {ticket.canEdit ? (
@@ -482,7 +482,7 @@ export function WeightTicketListPageClient() {
                           href={`/daily/weight-tickets?id=${encodeURIComponent(ticket.id)}`}
                           onClick={(event) => event.stopPropagation()}
                         >
-                          <SquarePen className="mr-1 size-3" />
+                          <SquarePen className="size-3" />
                           แก้ไข
                         </Link>
                       ) : null}
@@ -497,7 +497,7 @@ export function WeightTicketListPageClient() {
                             setCancelNote(ticket.cancelNote ?? '')
                           }}
                         >
-                          <XCircle className="mr-1 size-3" />
+                          <XCircle className="size-3" />
                           ยกเลิก
                         </button>
                       ) : null}

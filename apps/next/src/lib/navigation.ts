@@ -195,6 +195,7 @@ export const navigationItems: NavigationItem[] = [
   { href: '/daily/petty-advance', icon: '🏦', label: 'เงินสำรองจ่าย / กู้กรรมการ', pageSubtitle: 'ติดตามยอดยืมของกรรมการ/พนักงาน รายละเอียดบิลที่ใช้เงินแต่ละก้อน และการคืนเงิน', section: 'finance-debt' },
   { href: '/daily/expense-dashboard', icon: '📊', label: 'Dashboard ค่าใช้จ่าย', section: 'daily' },
   { href: '/stock/transfer', icon: '🚚', label: 'โอนสินค้าระหว่างสาขา', section: 'stock' },
+  { href: '/daily/design-mockup', icon: '🎨', label: 'Design Mockup', pageSubtitle: 'พื้นที่สำหรับทดสอบและออกแบบ UI (Playground)', section: 'daily' },
   { href: '/production/orders', icon: '🏭', label: 'ใบสั่งผลิต', section: 'production' },
   { href: '/production/output-categories', icon: '🏷️', label: 'หมวดหมู่ผลผลิต', section: 'production' },
   { href: '/production/dashboard', icon: '📊', label: 'Production Dashboard', section: 'production' },

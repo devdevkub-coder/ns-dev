@@ -132,7 +132,7 @@ export function SupplierAdvancePageClient() {
                 <td className="p-2 text-right text-slate-600">{formatMoney(row.usedAmount)}</td>
                 <td className="p-2 text-right font-bold text-amber-700">{formatMoney(row.remainingAmount)}</td>
                 <td className="p-2 text-center"><StatusBadge status={row.status} /></td>
-                <td className="p-2 text-right"><button className="text-xs text-red-600 opacity-50" disabled type="button">ยกเลิก</button></td>
+                <td className="p-2 text-right"><button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" disabled type="button">ยกเลิก</button></td>
               </tr>
             ))}
           </tbody>

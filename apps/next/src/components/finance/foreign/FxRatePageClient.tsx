@@ -249,7 +249,7 @@ export function FxRatePageClient() {
                 <td className="p-2 text-right font-bold">{formatRate(row.rate)}</td>
                 <td className="p-2 text-xs">{row.source || '-'}</td>
                 <td className="p-2 text-center text-xs text-slate-500">{row.active ? 'Yes' : 'No'}</td>
-                <td className="p-2 text-right"><button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" type="button" onClick={() => openEdit(row)}>จัดการ</button></td>
+                <td className="p-2 text-right"><button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50" type="button" onClick={() => openEdit(row)}>จัดการ</button></td>
               </tr>
             ))}
           </tbody>
