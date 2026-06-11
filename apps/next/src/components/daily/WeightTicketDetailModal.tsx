@@ -162,7 +162,7 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
       if (!open) onClose()
     }}>
       <DialogContent aria-labelledby="weight-ticket-detail-title" className="max-h-[90vh] max-w-6xl overflow-y-auto rounded-md p-0" hideClose>
-        <DialogHeader className="border-b p-4">
+        <DialogHeader className="border-b border-slate-200 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <DialogTitle id="weight-ticket-detail-title">
@@ -279,7 +279,7 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
                     </div>
                     <div className="overflow-x-auto">
                       <table className="min-w-full divide-y divide-slate-200 text-sm">
-                        <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
+                        <thead className="bg-slate-200/80 border-b border-slate-300/80 text-xs font-semibold text-slate-600">
                           <tr>
                             <th className="px-3 py-3 text-left">ลำดับ</th>
                             <th className="px-3 py-3 text-left">สินค้า</th>
@@ -348,7 +348,7 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
                     </div>
                     <div className="overflow-x-auto">
                       <table className="min-w-full divide-y divide-slate-200 text-sm">
-                        <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
+                        <thead className="bg-slate-200/80 border-b border-slate-300/80 text-xs font-semibold text-slate-600">
                           <tr>
                             <th className="px-3 py-3 text-left">ลำดับ</th>
                             <th className="px-3 py-3 text-left">สินค้า</th>
@@ -423,7 +423,7 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
                 </div>
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
+                    <thead className="bg-slate-200/80 border-b border-slate-300/80 text-xs font-semibold text-slate-600">
                       <tr>
                         <th className="px-3 py-3 text-left">เวลา</th>
                         <th className="px-3 py-3 text-left">เหตุการณ์</th>
@@ -574,7 +574,7 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
           </div>
         )}
 
-        <DialogFooter className="p-4 border-t bg-slate-50 rounded-b-md">
+        <DialogFooter className="p-4 border-t border-slate-200 bg-slate-50 rounded-b-md">
           {ticket ? (
             <Button className="gap-2 font-normal" disabled={isPrinting} type="button" variant="outline" onClick={() => void handlePrintReceipt()}>
               <Printer className="size-4" />

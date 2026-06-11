@@ -285,7 +285,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                 </div>
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
+                    <thead className="bg-slate-200/80 border-b border-slate-300/80 text-xs font-semibold text-slate-600">
                       <tr>
                         <th className="px-3 py-3 text-left">ลำดับ</th>
                         <th className="px-3 py-3 text-left">สินค้า</th>
@@ -353,7 +353,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                 </div>
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
+                    <thead className="bg-slate-200/80 border-b border-slate-300/80 text-xs font-semibold text-slate-600">
                       <tr>
                         <th className="px-3 py-3 text-left">ลำดับ</th>
                         <th className="px-3 py-3 text-left">สินค้า</th>
@@ -428,7 +428,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-slate-200 text-sm">
-                <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
+                <thead className="bg-slate-200/80 border-b border-slate-300/80 text-xs font-semibold text-slate-600">
                   <tr>
                     <th className="px-3 py-3 text-left">เวลา</th>
                     <th className="px-3 py-3 text-left">เหตุการณ์</th>

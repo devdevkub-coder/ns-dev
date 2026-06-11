@@ -87,11 +87,11 @@ export function PaymentSplitsSection({
           const splitAmount = Number(split.amount) || 0
           const splitAmountKey = `split-${split.id ?? splitIndex}-amount`
           return (
-            <div key={split.id ?? splitIndex} className="grid grid-cols-12 items-center gap-2 rounded-md border bg-white p-2">
+            <div key={split.id ?? splitIndex} className="grid grid-cols-12 items-center gap-2 rounded-md border border-slate-200 bg-white p-2">
               <div className="col-span-1 text-center text-xs font-bold text-slate-500">#{splitIndex + 1}</div>
               <div className="col-span-6">
                 <UiSelect
-                  className="h-9 w-full rounded-md border px-2 py-1.5 text-sm"
+                  className="h-9 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
                   required
                   value={split.accountId}
                   onChange={(event) => onUpdatePaymentSplit(splitIndex, { accountId: event.target.value })}
@@ -102,7 +102,7 @@ export function PaymentSplitsSection({
               </div>
               <div className="col-span-4">
                 <UiInput
-                  className="h-9 w-full rounded-md border px-2 py-1.5 text-right text-sm"
+                  className="h-9 w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"
                   inputMode="decimal"
                   placeholder={paymentSplits.length === 1 ? formatMoney(formNetAmount) : 'จำนวนเงิน'}
                   type="text"
@@ -144,7 +144,7 @@ export function PaymentSplitsSection({
           )
         })}
       </div>
-      <div className="mt-2 flex flex-wrap items-end justify-end gap-3 border-t pt-2">
+      <div className="mt-2 flex flex-wrap items-end justify-end gap-3 border-t border-slate-200 pt-2">
         <label className="block min-w-32 text-left text-xs font-medium text-slate-600">
           <span>Discount</span>
           <UiInput
@@ -170,7 +170,7 @@ export function PaymentSplitsSection({
           />
         </label>
       </div>
-      <div className="mt-2 grid grid-cols-3 gap-2 border-t pt-2 text-sm">
+      <div className="mt-2 grid grid-cols-3 gap-2 border-t border-slate-200 pt-2 text-sm">
         <div className="rounded-md bg-slate-100 p-2">
           <div className="text-xs text-slate-600">💰 รวมแยกบัญชี</div>
           <div className="font-bold">{formatMoney(paymentSplitTotal)}</div>

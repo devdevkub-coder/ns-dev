@@ -23,8 +23,11 @@ export function PhoneInput({
       <input
         {...props}
         className={cn(
-          'w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-700',
-          error ? 'border-red-400 bg-red-50' : undefined,
+          'w-full h-10 rounded-md border px-3 py-2 text-sm outline-none transition-all duration-150 focus:border-slate-900 focus:ring-1 focus:ring-slate-900',
+          props.disabled || props.readOnly
+            ? 'bg-slate-50 text-slate-500 border-slate-200'
+            : 'bg-white text-slate-800 border-slate-300 hover:border-slate-400',
+          error ? 'border-red-400 bg-red-50/50' : undefined,
         )}
         inputMode="tel"
         placeholder={placeholder ?? 'เช่น 0812345678'}

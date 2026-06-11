@@ -32,6 +32,7 @@ import {
   weightTicketStatusBadgeClass,
 } from '@/lib/weight-tickets'
 import { WeightTicketDetailModal } from '@/components/daily/WeightTicketDetailModal'
+import { WeightTicketsPageClient } from '@/components/daily/WeightTicketsPageClient'
 
 type TypeFilter = WeightTicketType
 type StatusFilter = WeightTicketStatus
@@ -166,6 +167,10 @@ export function WeightTicketListPageClient() {
   const [isCanceling, setIsCanceling] = useState(false)
   const [printingTicketId, setPrintingTicketId] = useState<string | null>(null)
   const [detailTicketDocNo, setDetailTicketDocNo] = useState<string | null>(null)
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [formTicketId, setFormTicketId] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
 
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
   const safePage = Math.min(page, totalPages)
@@ -250,7 +255,7 @@ export function WeightTicketListPageClient() {
     return () => {
       cancelled = true
     }
-  }, [branchFilter, dateFrom, dateTo, page, query, sortBy, sortDir, statusFilter, typeFilter])
+  }, [branchFilter, dateFrom, dateTo, page, query, sortBy, sortDir, statusFilter, typeFilter, refreshKey])
 
   function clearFilters() {
     setQuery('')
@@ -308,12 +313,32 @@ export function WeightTicketListPageClient() {
   return (
     <div className="space-y-5">
       <div className="flex justify-end">
-        <Button asChild>
-          <Link href="/daily/weight-tickets">
-            <Plus className="mr-2 size-4" />
-            สร้างใบรับ-ส่งของ
-          </Link>
+        <Button
+          className="hidden md:inline-flex"
+          type="button"
+          onClick={() => {
+            setFormTicketId(null)
+            setIsFormOpen(true)
+          }}
+        >
+          <Plus className="mr-2 size-4" />
+          สร้างใบรับ-ส่งของ
         </Button>
+      </div>
+
+      {/* Floating Action Button (FAB) for Mobile */}
+      <div className="fixed bottom-6 right-6 z-40 md:hidden">
+        <button
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg active:scale-95 transition-transform"
+          onClick={() => {
+            setFormTicketId(null)
+            setIsFormOpen(true)
+          }}
+          type="button"
+          aria-label="สร้างใบรับ-ส่งของ"
+        >
+          <Plus className="h-6 w-6" />
+        </button>
       </div>
 
       <Tabs
@@ -334,19 +359,30 @@ export function WeightTicketListPageClient() {
 
       <Card className="p-4">
         <div className="space-y-3">
-          <label className="relative block">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-            <Input
-              className="pl-9"
-              placeholder="ค้นหาเลขที่, ผู้ขาย/ลูกค้า, ทะเบียนรถ, สินค้า, สิ่งเจือปน"
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value)
-                setPage(1)
-              }}
-            />
-          </label>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex gap-2">
+            <label className="relative block flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                className="pl-9 h-9"
+                placeholder="ค้นหาเลขที่, คู่ค้า, ทะเบียนรถ, สินค้า"
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value)
+                  setPage(1)
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 md:hidden"
+              onClick={() => setShowMobileFilters(true)}
+            >
+              ตัวกรอง {activeFilters ? '(มี)' : ''}
+            </button>
+          </div>
+
+          {/* Desktop Filters */}
+          <div className="hidden md:flex flex-wrap items-center gap-3">
             <label className="text-xs text-slate-500">วันที่:</label>
             <DatePickerInput value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
             <span className="text-slate-400">→</span>
@@ -367,7 +403,7 @@ export function WeightTicketListPageClient() {
             />
             <Button disabled={!activeFilters} type="button" variant="secondary" onClick={clearFilters}>ล้างตัวกรอง</Button>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="hidden md:flex flex-wrap items-center gap-2">
             <span className="text-xs text-slate-500">สถานะเอกสาร:</span>
             {statusOptions.map((option) => (
               <SegmentMulti
@@ -385,6 +421,91 @@ export function WeightTicketListPageClient() {
         </div>
       </Card>
 
+      {/* Bottom Sheet Filter for Mobile */}
+      {showMobileFilters ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 md:hidden">
+          <div className="w-full rounded-t-2xl bg-white p-4 shadow-xl border-t border-slate-200 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <h4 className="font-bold text-slate-800">ตัวกรองเพิ่มเติม</h4>
+              <button
+                className="p-1 text-slate-400 hover:text-slate-600 text-xl font-bold"
+                onClick={() => setShowMobileFilters(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
+                <div className="flex items-center gap-2">
+                  <DatePickerInput className="flex-1" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
+                  <span className="text-slate-400">→</span>
+                  <DatePickerInput className="flex-1" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
+                </div>
+              </div>
+
+              <div>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
+                <BranchSelectCombobox
+                  allOptionLabel="ทุกสาขา"
+                  branches={branches.map((branch) => ({ id: branch.id, name: branch.label }))}
+                  className="w-full"
+                  includeAllOption
+                  inputId="weight-ticket-branch-filter-mobile"
+                  label=""
+                  placeholder="เลือกสาขา"
+                  value={branchFilter === 'all' ? null : branchFilter}
+                  onChange={(branchId) => {
+                    setBranchFilter(branchId ?? 'all')
+                    setPage(1)
+                  }}
+                />
+              </div>
+
+              <div>
+                <span className="mb-2 block text-xs font-semibold text-slate-600">สถานะเอกสาร</span>
+                <div className="flex flex-wrap gap-2">
+                  {statusOptions.map((option) => (
+                    <SegmentMulti
+                      current={statusFilter}
+                      key={`mobile-${typeFilter}-${option.label}`}
+                      label={option.label}
+                      onClick={(values) => {
+                        setStatusFilter(values as WeightTicketStatus[])
+                        setPage(1)
+                      }}
+                      values={option.values}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-6 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => {
+                  clearFilters()
+                  setShowMobileFilters(false)
+                }}
+              >
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                className="h-11 rounded-md bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700"
+                onClick={() => setShowMobileFilters(false)}
+              >
+                ใช้ตัวกรอง
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
         <div>{summaryText}</div>
         <div className="flex items-center gap-2">
@@ -395,13 +516,62 @@ export function WeightTicketListPageClient() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+      {/* Mobile Card List */}
+      <div className="block md:hidden space-y-3">
+        {isLoading ? (
+          <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">กำลังโหลดข้อมูล</div>
+        ) : null}
+        {!isLoading && tickets.map((ticket) => (
+          <div
+            key={ticket.id}
+            className="rounded-md border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 cursor-pointer transition-colors"
+            onClick={() => setDetailTicketDocNo(ticket.documentNo)}
+          >
+            <div className="flex justify-between items-start mb-2">
+              <span className="font-bold text-slate-800 text-sm">{ticket.documentNo}</span>
+              <span className="text-xs text-slate-500">{formatDateTime(ticket.createdAt)}</span>
+            </div>
+            <div className="text-xs text-slate-600 mb-3 space-y-1">
+              <div>
+                <span className="font-semibold text-slate-500">{typeFilter === 'WTI' ? 'ผู้ขาย: ' : 'ลูกค้า: '}</span>
+                <span className="text-slate-800">{ticket.partyName}</span>
+              </div>
+              <div className="flex justify-between items-center text-[11px] text-slate-500 pt-1">
+                <span>สาขา: {ticket.branchName}</span>
+                <span>ทะเบียนรถ: {ticket.vehicleNo}</span>
+              </div>
+            </div>
+            <div className="flex justify-between items-end pt-2 border-t border-slate-100">
+              <div>
+                <span className={cn(
+                  'inline-flex items-center gap-1.5 text-[11px] font-medium',
+                  weightTicketStatusBadgeClass(ticket.type, ticket.status),
+                )}
+                >
+                  <span className="size-1.5 rounded-full bg-current" />
+                  {displayWeightTicketStatus(ticket.type, ticket.status)}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-slate-400 block">น้ำหนักสุทธิ</span>
+                <span className="font-bold text-slate-900 text-sm tabular-nums">{formatWeight(ticket.totals.netWeight)} กก.</span>
+              </div>
+            </div>
+          </div>
+        ))}
+        {!isLoading && tickets.length === 0 ? (
+          <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">ยังไม่มีรายการ</div>
+        ) : null}
+      </div>
+
+      {/* Desktop Table */}
+      <div className="hidden md:block overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200 text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
             <colgroup>
               {weightTicketColumns.map((column) => <col key={column.key} style={columnResize.getColumnStyle(column.key)} />)}
             </colgroup>
-            <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
+            <thead className="bg-slate-200/80 border-b border-slate-300/80 text-xs font-semibold text-slate-600">
               <tr>
                 <SortHeader activeKey={sortBy} align="left" direction={sortDir} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('documentNo', 'เลขที่')} onSort={toggleSort} sortKey="documentNo" />
                 <SortHeader activeKey={sortBy} align="left" direction={sortDir} label="วันที่/เวลา" resizeProps={columnResize.getResizeHandleProps('createdAt', 'วันที่/เวลา')} onSort={toggleSort} sortKey="createdAt" />
@@ -478,13 +648,17 @@ export function WeightTicketListPageClient() {
                         แชร์
                       </button>
                       {ticket.canEdit ? (
-                        <Link
+                        <button
                           className={rowActionButtonClass}
-                          href={`/daily/weight-tickets?id=${encodeURIComponent(ticket.id)}`}
-                          onClick={(event) => event.stopPropagation()}
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            setFormTicketId(ticket.id)
+                            setIsFormOpen(true)
+                          }}
                         >
                           แก้ไข
-                        </Link>
+                        </button>
                       ) : null}
                       {ticket.canCancel ? (
                         <button
@@ -562,6 +736,25 @@ export function WeightTicketListPageClient() {
           onClose={() => setDetailTicketDocNo(null)}
         />
       ) : null}
+
+      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <DialogContent className="max-h-[92vh] max-w-7xl overflow-y-auto p-0 border-0 bg-slate-50" fallbackTitle="ฟอร์มใบรับ-ส่งของ">
+          <WeightTicketsPageClient
+            ticketId={formTicketId ?? ''}
+            onSuccess={async (type) => {
+              setIsFormOpen(false)
+              setFormTicketId(null)
+              setTypeFilter(type)
+              setPage(1)
+              setRefreshKey((prev) => prev + 1)
+            }}
+            onCancel={() => {
+              setIsFormOpen(false)
+              setFormTicketId(null)
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

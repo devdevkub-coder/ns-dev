@@ -12,7 +12,7 @@ const Table = React.forwardRef<HTMLTableElement, React.TableHTMLAttributes<HTMLT
 Table.displayName = 'Table'
 
 const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
-  ({ className, ...props }, ref) => <thead ref={ref} className={cn('bg-slate-100', className)} {...props} />,
+  ({ className, ...props }, ref) => <thead ref={ref} className={cn('bg-slate-200/80 border-b border-slate-300/80', className)} {...props} />,
 )
 TableHeader.displayName = 'TableHeader'
 
@@ -22,12 +22,12 @@ const TableBody = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes
 TableBody.displayName = 'TableBody'
 
 const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTMLTableRowElement>>(
-  ({ className, ...props }, ref) => <tr ref={ref} className={cn('border-t', className)} {...props} />,
+  ({ className, ...props }, ref) => <tr ref={ref} className={cn('border-t border-slate-200', className)} {...props} />,
 )
 TableRow.displayName = 'TableRow'
 
 const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<HTMLTableCellElement>>(
-  ({ className, ...props }, ref) => <th ref={ref} className={cn('p-2 text-left', className)} {...props} />,
+  ({ className, ...props }, ref) => <th ref={ref} className={cn('p-2 text-left bg-inherit', className)} {...props} />,
 )
 TableHead.displayName = 'TableHead'
 

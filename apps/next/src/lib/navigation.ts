@@ -293,7 +293,6 @@ export const navigationItems: NavigationItem[] = [
     ],
   },
   { href: '/master-data/bank-names', icon: '🏦', label: 'ชื่อธนาคาร', section: 'master-data' },
-  { href: '/master-data/channels', icon: '🔀', label: 'ช่องทางขาย', section: 'master-data' },
   {
     href: '/master-data/expense-categories',
     icon: '💸',

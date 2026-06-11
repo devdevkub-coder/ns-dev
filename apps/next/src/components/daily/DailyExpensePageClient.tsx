@@ -1,6 +1,6 @@
 'use client'
 
-import { Download } from 'lucide-react'
+import { Download, Plus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent } from 'react'
 import { Button } from '@/components/ui/Button'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -396,6 +396,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
   const [sortKey, setSortKey] = useState<ExpenseSortKey>('date')
   const [vatRatePercent, setVatRatePercent] = useState(7)
   const [whtRatePercent, setWhtRatePercent] = useState(3)
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
   const formRef = useRef<HTMLFormElement | null>(null)
   const columnResize = useResizableColumns('daily.expense', expenseColumns)
 
@@ -758,7 +759,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
               <tbody>
                 {isLoading ? <tr><td className="py-8 text-center text-slate-400" colSpan={dashboard.monthList.length + 4}>กำลังโหลดข้อมูล</td></tr> : null}
                 {!isLoading && dashboard.heatmapRows.map((item) => (
-                  <tr key={item.id} className="border-t hover:bg-slate-50">
+                <tr key={item.id} className="border-t border-slate-200 hover:bg-slate-50">
                     <td className="sticky left-0 bg-white p-2 font-medium">{item.name}</td>
                     {dashboard.monthList.map((month) => {
                       const value = item.byMonth[month] ?? 0
@@ -795,7 +796,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
         </>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <div className="rounded-md bg-white p-3 shadow">
               <div className="text-xs text-slate-500">ค่าใช้จ่ายเดือนนี้</div>
               <div className="text-lg font-bold text-slate-900">{formatMoney(summary.monthlyTotal)}</div>
@@ -821,34 +822,160 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
           <div className="rounded-md bg-white p-3 shadow">
             <div className="flex flex-wrap items-center gap-2">
               <input className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="ค้นหาเลข Voucher / ผู้รับ / อ้างอิง..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-              <label className="text-xs text-slate-500">วันที่:</label>
-              <DatePickerInput className="h-9 w-[130px]" title="จากวันที่" value={dateFrom} onChange={setDateFrom} />
-              <span className="text-slate-400">→</span>
-              <DatePickerInput className="h-9 w-[130px]" title="ถึงวันที่" value={dateTo} onChange={setDateTo} />
-              <select className="h-9 rounded-md border border-slate-300 px-3 py-2 text-sm" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
-                <option value="">ทุกหมวด</option>
-                {categories.filter((category) => category.active !== false).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-              </select>
-              <select className="h-9 rounded-md border border-slate-300 px-3 py-2 text-sm" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
-                <option value="">ทุกบัญชี</option>
-                {accounts.filter((account) => account.active).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-              </select>
+              
+              {/* Mobile Filter Button */}
+              <button
+                type="button"
+                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 md:hidden"
+                onClick={() => setShowMobileFilters(true)}
+              >
+                <span>🔍</span> ตัวกรอง {(dateFrom || dateTo || categoryId || accountId || statusFilter.length > 0) ? '(1)' : ''}
+              </button>
+
+              <div className="hidden md:flex flex-wrap items-center gap-2">
+                <label className="text-xs text-slate-500">วันที่:</label>
+                <DatePickerInput className="h-9 w-[130px]" title="จากวันที่" value={dateFrom} onChange={setDateFrom} />
+                <span className="text-slate-400">→</span>
+                <DatePickerInput className="h-9 w-[130px]" title="ถึงวันที่" value={dateTo} onChange={setDateTo} />
+                <select className="h-9 rounded-md border border-slate-300 px-3 py-2 text-sm bg-white" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
+                  <option value="">ทุกหมวด</option>
+                  {categories.filter((category) => category.active !== false).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                </select>
+                <select className="h-9 rounded-md border border-slate-300 px-3 py-2 text-sm bg-white" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
+                  <option value="">ทุกบัญชี</option>
+                  {accounts.filter((account) => account.active).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                </select>
+              </div>
+
               {search || dateFrom || dateTo || categoryId || accountId || statusFilter.length > 0 ? (
                 <Button className="h-9" size="sm" type="button" variant="outline" onClick={() => { setSearch(''); setDateFrom(''); setDateTo(''); setCategoryId(''); setAccountId(''); setStatusFilter([]) }}>ล้าง</Button>
               ) : null}
-              <Button className="ml-auto h-9" size="sm" type="button" onClick={openCreateForm}>+ เพิ่มค่าใช้จ่าย</Button>
-              <a className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700" href={exportHref}>
+              <Button className="hidden md:inline-flex ml-auto h-9" size="sm" type="button" onClick={openCreateForm}>+ เพิ่มค่าใช้จ่าย</Button>
+              <a className="hidden md:inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700" href={exportHref}>
                 <Download className="h-4 w-4" aria-hidden="true" />
                 ส่งออก Excel
               </a>
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+            
+            {/* Desktop Status Filters */}
+            <div className="mt-1 flex-wrap items-center gap-2 border-t border-slate-100 pt-3 hidden md:flex">
               <span className="text-xs text-slate-500">สถานะ:</span>
               {expenseStatusOptions.map((option) => (
                 <SegmentMulti key={option.label} current={statusFilter} label={option.label} onClick={setStatusFilter} values={option.values} />
               ))}
             </div>
           </div>
+
+          {/* Floating Action Button (FAB) for Mobile */}
+          <div className="fixed bottom-6 right-6 z-40 md:hidden">
+            <button
+              className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-600 text-white shadow-lg active:scale-95 transition-transform"
+              onClick={openCreateForm}
+              type="button"
+              aria-label="เพิ่มค่าใช้จ่าย"
+            >
+              <Plus className="h-6 w-6" />
+            </button>
+          </div>
+
+          {/* Bottom Sheet Filter for Mobile */}
+          {showMobileFilters ? (
+            <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 md:hidden">
+              <div className="w-full rounded-t-2xl bg-white p-4 shadow-xl border-t border-slate-200 animate-slide-up max-h-[80vh] overflow-y-auto">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                  <h4 className="font-bold text-slate-800">ตัวกรองเพิ่มเติม</h4>
+                  <button
+                    className="p-1 text-slate-400 hover:text-slate-600 text-xl font-bold"
+                    onClick={() => setShowMobileFilters(false)}
+                    type="button"
+                  >
+                    &times;
+                  </button>
+                </div>
+                
+                <div className="space-y-4">
+                  <div>
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
+                    <div className="flex items-center gap-2">
+                      <DatePickerInput className="flex-1" value={dateFrom} onChange={setDateFrom} />
+                      <span className="text-slate-400">→</span>
+                      <DatePickerInput className="flex-1" value={dateTo} onChange={setDateTo} />
+                    </div>
+                  </div>
+
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">หมวดหมู่</span>
+                    <select className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm bg-white" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
+                      <option value="">ทุกหมวด</option>
+                      {categories.filter((category) => category.active !== false).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">บัญชี</span>
+                    <select className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm bg-white" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
+                      <option value="">ทุกบัญชี</option>
+                      {accounts.filter((account) => account.active).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                    </select>
+                  </label>
+
+                  <div>
+                    <span className="mb-2 block text-xs font-semibold text-slate-600">สถานะ</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      {expenseStatusOptions.map((option) => {
+                        const active = option.values.length === 0
+                          ? statusFilter.length === 0
+                          : option.values.every((value) => statusFilter.includes(value))
+                        return (
+                          <button
+                            key={option.label}
+                            type="button"
+                            className={`rounded-md border px-3 py-1.5 text-xs font-medium h-11 ${
+                              active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700'
+                            }`}
+                            onClick={() => {
+                              if (option.values.length === 0) {
+                                setStatusFilter([])
+                              } else {
+                                setStatusFilter(active ? statusFilter.filter((item) => !option.values.includes(item)) : Array.from(new Set([...statusFilter, ...option.values])))
+                              }
+                            }}
+                          >
+                            {option.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mt-6 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    onClick={() => {
+                      setSearch('')
+                      setDateFrom('')
+                      setDateTo('')
+                      setCategoryId('')
+                      setAccountId('')
+                      setStatusFilter([])
+                      setShowMobileFilters(false)
+                    }}
+                  >
+                    ล้างตัวกรอง
+                  </button>
+                  <button
+                    type="button"
+                    className="h-11 rounded-md bg-slate-800 text-sm font-semibold text-white hover:bg-slate-700"
+                    onClick={() => setShowMobileFilters(false)}
+                  >
+                    ใช้ตัวกรอง
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
             <div>พบทั้งหมด {filteredSummary.count} รายการ</div>
@@ -866,7 +993,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
           {formOpen ? (
             <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8">
               <form ref={formRef} noValidate className="w-full max-w-6xl overflow-hidden rounded-md bg-white shadow-xl" onSubmit={saveForm}>
-                <div className="flex items-center justify-between border-b bg-slate-50 px-5 py-4">
+                <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
                   <h3 className="font-bold">{form.id ? 'แก้ไขค่าใช้จ่าย' : 'เพิ่มค่าใช้จ่าย'}</h3>
                   <button className="text-2xl text-slate-400" type="button" onClick={() => setFormOpen(false)}>&times;</button>
                 </div>
@@ -1094,7 +1221,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                     ) : null}
                   </div>
                 </div>
-                <div className="flex justify-end gap-2 border-t px-5 py-4">
+                <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
                   <Button className="h-9" type="button" variant="outline" onClick={() => setFormOpen(false)}>ยกเลิก</Button>
                   <Button className="h-9" disabled={isSaving} type="submit">{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</Button>
                 </div>
@@ -1113,7 +1240,64 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
             />
           ) : null}
 
-          <div className="overflow-x-auto rounded-md bg-white shadow">
+          {/* Mobile Card List */}
+          <div className="block md:hidden space-y-3">
+            {isLoading ? (
+              <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow border border-slate-200">กำลังโหลดข้อมูล</div>
+            ) : null}
+            {!isLoading && pagedRows.map((row) => {
+              const overdue = row.status !== 'paid' && row.status !== 'cancelled' && row.dueDate ? row.dueDate < todayDateInput() : false
+              return (
+                <div
+                  key={row.id}
+                  className={`rounded-md border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 cursor-pointer transition-colors ${expenseRowTone(row.status)}`}
+                  onClick={() => setDetailRow(row)}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
+                    <span className={`inline-flex items-center gap-1.5 font-semibold text-xs ${expenseStatusTextClass(row.status)}`}>
+                      <span className={`size-1.5 rounded-full ${expenseStatusDotClass(row.status)}`} />
+                      {expenseStatusLabel(row.status)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs text-slate-500 mb-3">
+                    <span className="font-semibold text-slate-700">{row.categoryName}</span>
+                    <span>วันที่จ่าย: {formatDateDisplay(row.date)}</span>
+                  </div>
+                  {row.dueDate ? (
+                    <div className="text-xs mb-2">
+                      <span className="text-slate-500">ครบกำหนด: </span>
+                      <span className={overdue ? 'text-red-600 font-semibold' : 'text-slate-700 font-semibold'}>
+                        {formatDateDisplay(row.dueDate)}
+                        {overdue ? ' (เลยกำหนด)' : ''}
+                      </span>
+                    </div>
+                  ) : null}
+                  <div className="text-sm font-semibold text-slate-700 mb-3">
+                    ผู้รับ: {row.payee}
+                  </div>
+                  <div className="flex justify-between items-end border-t border-slate-100 pt-2.5">
+                    <div className="text-xs text-slate-500">
+                      <span>ยอดก่อน VAT: {formatMoney(row.amount)}</span>
+                      {row.vat > 0 ? <span className="block text-emerald-700">+VAT: {formatMoney(row.vat)}</span> : null}
+                      {row.wht > 0 ? <span className="block text-amber-700">-WHT: {formatMoney(row.wht)}</span> : null}
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs text-slate-500 block">ยอดจ่ายจริง</span>
+                      <span className={`font-bold text-sm tabular-nums ${row.status === 'paid' ? 'text-emerald-700' : row.status === 'approved' ? 'text-blue-700' : row.status === 'cancelled' ? 'text-slate-500' : 'text-amber-700'}`}>
+                        {formatMoney(row.netAmount)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+            {!isLoading && pagedRows.length === 0 ? (
+              <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow border border-slate-200">ยังไม่มีรายการ</div>
+            ) : null}
+          </div>
+
+          <div className="hidden md:block overflow-x-auto rounded-md bg-white shadow">
             <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
               <colgroup>
                 {expenseColumns.map((column) => <col key={column.key} style={columnResize.getColumnStyle(column.key)} />)}
@@ -1130,7 +1314,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                   <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
                   <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label={<span className="text-red-700">Net Pay<br /><span className="text-[10px] font-normal">ยอดจ่ายจริง</span></span>} resizeProps={columnResize.getResizeHandleProps('netAmount', 'Net Pay')} sortKey="netAmount" onSort={changeSort} />
                   <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ยอด/VAT/WHT" resizeProps={columnResize.getResizeHandleProps('amountSummary', 'ยอด/VAT/WHT')} sortKey="amountSummary" onSort={changeSort} />
-                  <ResizableTableHead align="center" label="การกระทำ" resizeProps={columnResize.getResizeHandleProps('action', 'การกระทำ')} />
+                  <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'การกระทำ')} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1194,7 +1378,7 @@ function ExpenseDetailModal({ onClose, onEdit, row }: { onClose: () => void; onE
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-4" role="dialog" aria-modal="true" aria-labelledby="expense-detail-title">
       <div className="mx-auto my-4 w-full max-w-5xl overflow-hidden rounded-md bg-white shadow-xl">
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b bg-white px-5 py-4">
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4">
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h3 id="expense-detail-title" className="text-lg font-bold text-slate-900">รายละเอียดค่าใช้จ่าย {row.docNo}</h3>
@@ -1245,7 +1429,7 @@ function ExpenseDetailModal({ onClose, onEdit, row }: { onClose: () => void; onE
           </div>
 
           <div className="rounded-md border border-slate-200">
-            <div className="border-b bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900">รายการค่าใช้จ่าย</div>
+            <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900">รายการค่าใช้จ่าย</div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[820px] text-xs">
                 <thead className="bg-slate-100 text-slate-700">
@@ -1283,7 +1467,7 @@ function ExpenseDetailModal({ onClose, onEdit, row }: { onClose: () => void; onE
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 border-t bg-slate-50 px-5 py-4">
+        <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
           <Button className="h-9 font-normal" type="button" variant="outline" onClick={onClose}>ปิด</Button>
           {canEdit ? <Button className="h-9" type="button" onClick={() => onEdit(row)}>แก้ไข</Button> : null}
         </div>
@@ -1541,7 +1725,7 @@ function ExpenseLineTable(props: {
               const hasSelectedCustomWht = line.whtPct > 0 && !whtRateOptions.some((option) => option.value === line.whtPct)
               const showCurrentWhtRate = props.whtRatePercent > 0 && !whtRateOptions.some((option) => option.value === props.whtRatePercent)
               return (
-                <tr key={line.id} className="border-t">
+                <tr key={line.id} className="border-t border-slate-200">
                   <td className="p-1 align-top" data-field={`lines.${index}.categoryId`}>
                     <SearchCombobox
                       error={categoryError}

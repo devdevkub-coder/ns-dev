@@ -147,7 +147,15 @@ function ticketToFormState(ticket: WeightTicketRecord): FormState {
   }
 }
 
-export function WeightTicketsPageClient({ ticketId = '' }: { ticketId?: string }) {
+export function WeightTicketsPageClient({
+  ticketId = '',
+  onSuccess,
+  onCancel,
+}: {
+  ticketId?: string
+  onSuccess?: (type: WeightTicketType) => void
+  onCancel?: () => void
+}) {
   const router = useRouter()
   const editingTicketId = ticketId.trim()
   const [form, setForm] = useState<FormState>(initialForm)
@@ -428,7 +436,11 @@ export function WeightTicketsPageClient({ ticketId = '' }: { ticketId?: string }
       setLoadedTicket(ticket)
       setSavedTicket(ticket)
       setForm(ticketToFormState(ticket))
-      router.push(`/daily/weight-ticket-list?type=${ticket.type}`)
+      if (onSuccess) {
+        onSuccess(ticket.type)
+      } else {
+        router.push(`/daily/weight-ticket-list?type=${ticket.type}`)
+      }
     } catch (caught) {
       setLoadError(getErrorMessage(caught, editingTicketId ? 'แก้ไขใบรับ-ส่งของไม่ได้' : 'บันทึกใบรับ-ส่งของไม่ได้'))
     } finally {
@@ -437,74 +449,96 @@ export function WeightTicketsPageClient({ ticketId = '' }: { ticketId?: string }
   }
 
   return (
-    <div className="min-w-0 space-y-5 overflow-x-hidden pb-32">
-      <div>
-        <div>
-          <Tabs value={form.type} onValueChange={(value) => setForm((current) => ({ ...current, partyId: '', type: value as WeightTicketType }))}>
-            <TabsList className="w-full justify-start" variant="line">
-              <TabsTrigger value="WTI" variant="line">ใบรับของ WTI</TabsTrigger>
-              <TabsTrigger value="WTO" variant="line">ใบส่งของ WTO</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
+    <div className={cn("min-w-0 overflow-x-hidden", onCancel ? "pb-0 bg-slate-50" : "pb-32 space-y-5")}>
+      <div className={cn(
+        "border-b",
+        onCancel
+          ? "bg-slate-900 border-slate-800 px-6 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+          : "border-slate-100 pb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+      )}>
+        <Tabs value={form.type} onValueChange={(value) => setForm((current) => ({ ...current, partyId: '', type: value as WeightTicketType }))}>
+          <TabsList className={cn("w-full justify-start", onCancel && "border-slate-800")} variant="line">
+            <TabsTrigger
+              value="WTI"
+              variant="line"
+              className={cn(onCancel && "text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-100 data-[state=active]:border-blue-500")}
+            >
+              ใบรับของ WTI
+            </TabsTrigger>
+            <TabsTrigger
+              value="WTO"
+              variant="line"
+              className={cn(onCancel && "text-slate-400 hover:text-slate-200 data-[state=active]:text-slate-100 data-[state=active]:border-blue-500")}
+            >
+              ใบส่งของ WTO
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+        {onCancel ? (
+          <h2 className="text-base font-bold text-slate-100 px-1">
+            {editingTicketId ? 'แก้ไขใบรับ-ส่งของ' : 'สร้างใบรับ-ส่งของ'}
+          </h2>
+        ) : null}
       </div>
 
-      {loadError ? (
-        <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {loadError}
-        </div>
-      ) : null}
-
-      <div>
-        <div className="space-y-5">
+      <div className={cn("space-y-5", onCancel ? "p-6" : "mt-5")}>
+        {loadError ? (
+          <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {loadError}
+          </div>
+        ) : null}
           <Card className="p-5">
             <SectionHeader title="ข้อมูลหัวเอกสาร" subtitle="ผู้ใช้เลือกเฉพาะข้อมูลหน้างาน ส่วนวันที่ เวลา และผู้กรอกเป็นข้อมูลระบบ" />
-            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <BranchSelectCombobox
-                branches={branches.map((branch) => ({
-                  id: branch.id,
-                  name: branch.label,
-                }))}
-                error={showError('branchId')}
-                inputId="weight-ticket-branch"
-                label="สาขา*"
-                placeholder="เลือกสาขา"
-                value={form.branchId}
-                onChange={(value) => {
-                  markTouched('branchId')
-                  updateForm('branchId', value ?? '')
-                }}
-              />
-              <SearchCombobox
-                error={showError('partyId')}
-                inputId="weight-ticket-party"
-                label={form.type === 'WTI' ? 'ผู้ขาย*' : 'ลูกค้า*'}
-                options={partyOptions}
-                placeholder={form.type === 'WTI' ? 'ค้นหาชื่อหรือรหัสผู้ขาย' : 'ค้นหารหัสหรือชื่อลูกค้า'}
-                value={form.partyId}
-                onChange={(value) => {
-                  markTouched('partyId')
-                  updateForm('partyId', value)
-                }}
-              />
-              <FieldBlock error={showError('vehicleNo')} label="ทะเบียนรถ*">
-                <Input
-                  placeholder="เช่น 83-5476"
-                  value={form.vehicleNo}
-                  onBlur={() => markTouched('vehicleNo')}
-                  onChange={(event) => updateForm('vehicleNo', normalizeVehicleNo(event.target.value))}
+            <div className="mt-4 grid gap-5 lg:grid-cols-[1fr_280px]">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 items-start">
+                <BranchSelectCombobox
+                  branches={branches.map((branch) => ({
+                    id: branch.id,
+                    name: branch.label,
+                  }))}
+                  error={showError('branchId')}
+                  inputId="weight-ticket-branch"
+                  label="สาขา*"
+                  placeholder="เลือกสาขา"
+                  value={form.branchId}
+                  onChange={(value) => {
+                    markTouched('branchId')
+                    updateForm('branchId', value ?? '')
+                  }}
                 />
-              </FieldBlock>
-              <FieldBlock label="รูปภาพรถส่งของ">
-                <AttachmentProfileGrid
-                  addLabel="เพิ่มรูป"
-                  emptyLabel="ยังไม่มีรูปภาพรถ"
-                  files={form.vehicleImageFiles}
-                  onAppend={(files) => void appendVehicleImages(files)}
-                  onPreview={setPreviewImage}
-                  onRemove={removeVehicleImage}
+                <SearchCombobox
+                  error={showError('partyId')}
+                  inputId="weight-ticket-party"
+                  label={form.type === 'WTI' ? 'ผู้ขาย*' : 'ลูกค้า*'}
+                  options={partyOptions}
+                  placeholder={form.type === 'WTI' ? 'ค้นหาชื่อหรือรหัสผู้ขาย' : 'ค้นหารหัสหรือชื่อลูกค้า'}
+                  value={form.partyId}
+                  onChange={(value) => {
+                    markTouched('partyId')
+                    updateForm('partyId', value)
+                  }}
                 />
-              </FieldBlock>
+                <FieldBlock error={showError('vehicleNo')} label="ทะเบียนรถ*">
+                  <Input
+                    placeholder="เช่น 83-5476"
+                    value={form.vehicleNo}
+                    onBlur={() => markTouched('vehicleNo')}
+                    onChange={(event) => updateForm('vehicleNo', normalizeVehicleNo(event.target.value))}
+                  />
+                </FieldBlock>
+              </div>
+              <div className="border-t border-slate-200/60 pt-4 lg:border-t-0 lg:border-l lg:pl-5 lg:pt-0">
+                <FieldBlock label="รูปภาพรถส่งของ">
+                  <AttachmentProfileGrid
+                    addLabel="เพิ่มรูป"
+                    emptyLabel="ยังไม่มีรูปภาพรถ"
+                    files={form.vehicleImageFiles}
+                    onAppend={(files) => void appendVehicleImages(files)}
+                    onPreview={setPreviewImage}
+                    onRemove={removeVehicleImage}
+                  />
+                </FieldBlock>
+              </div>
             </div>
           </Card>
 
@@ -519,7 +553,7 @@ export function WeightTicketsPageClient({ ticketId = '' }: { ticketId?: string }
                     เพิ่ม
                   </Button>
                 </div>
-                <div className="space-y-2 xl:max-h-[calc(100vh-19rem)] xl:overflow-y-auto xl:pr-1">
+                <div className="flex gap-2 overflow-x-auto pb-2 xl:block xl:space-y-2 xl:max-h-[calc(100vh-19rem)] xl:overflow-y-auto xl:pr-1 scrollbar-thin">
                   {form.lines.map((line, index) => {
                     const lineTotals = calculateLineTotals(line)
                     const hasError = Boolean(
@@ -534,7 +568,7 @@ export function WeightTicketsPageClient({ ticketId = '' }: { ticketId?: string }
                     return (
                       <button
                         className={cn(
-                          'block w-full rounded-md border px-3 py-3 text-left transition',
+                          'block rounded-md border px-3 py-3 text-left transition shrink-0 w-[180px] xl:w-full',
                           active ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-200' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50',
                         )}
                         key={line.id}
@@ -589,16 +623,6 @@ export function WeightTicketsPageClient({ ticketId = '' }: { ticketId?: string }
                           label="สินค้า*"
                           options={products}
                           placeholder={isLoadingProducts ? 'กำลังโหลดสินค้า...' : 'เลือกสินค้า'}
-                          value={line.productId}
-                          onChange={(value) => {
-                            markTouched(`line-${line.id}-product`)
-                            updateLine(line.id, (current) => ({ ...current, productId: value }))
-                          }}
-                        />
-                        <ProductImagePicker
-                          key={`${form.branchId}:${form.partyId}:${form.type}`}
-                          disabled={isLoadingProducts}
-                          products={products}
                           value={line.productId}
                           onChange={(value) => {
                             markTouched(`line-${line.id}-product`)
@@ -660,6 +684,18 @@ export function WeightTicketsPageClient({ ticketId = '' }: { ticketId?: string }
                         </FieldBlock>
                       ) : null}
                     </div>
+
+                    <ProductImagePicker
+                      key={`${form.branchId}:${form.partyId}:${form.type}`}
+                      disabled={isLoadingProducts}
+                      products={products}
+                      value={line.productId}
+                      onChange={(value) => {
+                        markTouched(`line-${line.id}-product`)
+                        updateLine(line.id, (current) => ({ ...current, productId: value }))
+                      }}
+                    />
+
                     <div className="mt-3 grid grid-cols-3 gap-2 sm:mt-4">
                       <MiniMetric label="Gross" value={`${formatWeight(lineTotals.grossWeight)} กก.`} />
                       <MiniMetric label="Deduct" value={`${formatWeight(lineTotals.deductionWeight)} กก.`} />
@@ -706,11 +742,18 @@ export function WeightTicketsPageClient({ ticketId = '' }: { ticketId?: string }
               onChange={(event) => updateForm('remark', event.target.value.slice(0, 500))}
             />
           </Card>
-        </div>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-sm lg:left-64">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className={cn(
+        "border-t border-slate-200 bg-white px-6 py-4",
+        onCancel
+          ? "mt-0 rounded-b-lg"
+          : "fixed inset-x-0 bottom-0 z-20 backdrop-blur-sm lg:left-64 px-4 py-3"
+      )}>
+        <div className={cn(
+          "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between",
+          !onCancel && "mx-auto max-w-7xl"
+        )}>
           <div className="min-w-0">
             {savedTicket ? (
               <div className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-medium text-emerald-700 ring-1 ring-emerald-200">
@@ -726,13 +769,18 @@ export function WeightTicketsPageClient({ ticketId = '' }: { ticketId?: string }
               </div>
             )}
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button className={ticketTheme.button} disabled={isLoadingTicket || isSaving} type="button" onClick={saveTicket}>
-              {isSaving
-                ? 'กำลังบันทึก...'
-                : editingTicketId
-                  ? `บันทึกการแก้ไข${form.type === 'WTI' ? 'ใบรับของ' : 'ใบส่งของ'}`
-                  : `บันทึก${form.type === 'WTI' ? 'ใบรับของ' : 'ใบส่งของ'}`}
+          <div className="flex flex-wrap items-center gap-4">
+            {onCancel ? (
+              <button
+                className="text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors"
+                type="button"
+                onClick={onCancel}
+              >
+                ยกเลิก
+              </button>
+            ) : null}
+            <Button className="bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-60 shadow-xs" disabled={isLoadingTicket || isSaving} type="button" onClick={saveTicket}>
+              {isSaving ? 'กำลังบันทึก...' : 'บันทึก'}
             </Button>
           </div>
         </div>
@@ -875,7 +923,7 @@ function ProductImagePicker({
   }, [category, products])
 
   return (
-    <div className="mt-2">
+    <div className="mt-4">
       <div className="mb-1 block text-xs font-medium text-slate-600">เลือกจากรูปสินค้า</div>
       <div className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white p-1.5 sm:p-2">
         {!disabled ? (
@@ -905,8 +953,8 @@ function ProductImagePicker({
                 </button>
               ))}
             </div>
-            <div className="mt-1.5 max-h-72 min-w-0 overflow-y-auto pr-1 sm:mt-2 sm:max-h-80">
-              <div className="grid min-w-0 grid-cols-4 gap-1.5 sm:grid-cols-5 lg:grid-cols-6">
+            <div className="mt-1.5 max-h-80 min-w-0 overflow-y-auto pr-1 sm:mt-2 sm:max-h-96">
+              <div className="grid min-w-0 grid-cols-4 gap-1.5 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8">
                 {filteredProducts.map((product) => {
                   const selected = product.id === value
                   return (
@@ -919,7 +967,7 @@ function ProductImagePicker({
                       type="button"
                       onClick={() => onChange(product.id)}
                     >
-                      <div className="h-10 bg-slate-100 sm:h-12">
+                      <div className="h-16 bg-slate-100 sm:h-20">
                         {product.imageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img alt={product.name ?? product.label} className="h-full w-full object-cover" src={product.imageUrl} />
@@ -963,12 +1011,12 @@ function AttachmentProfileGrid({
   onRemove: (fileId: string) => void
 }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
       <div className="flex flex-wrap gap-3">
         {files.map((file) => (
           <div className="w-28 min-w-0" key={file.id}>
             <button
-              className="group relative block h-28 w-28 overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 hover:border-slate-400"
+              className="group relative block h-28 w-28 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 hover:border-slate-400 transition"
               disabled={!file.url}
               title={file.fileName}
               type="button"
@@ -977,26 +1025,24 @@ function AttachmentProfileGrid({
               {file.url ? (
                 <>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img alt={file.fileName} className="h-full w-full object-cover" src={file.url} />
-                  <span className="absolute inset-x-0 bottom-0 bg-slate-950/70 px-2 py-1.5 text-center text-xs font-medium text-white opacity-0 transition group-hover:opacity-100">
+                  <img alt={file.fileName} className="h-full w-full object-cover rounded-xl" src={file.url} />
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-center text-xs font-semibold text-white opacity-0 hover:opacity-100 transition rounded-xl">
                     เปิดรูปภาพ
                   </span>
                 </>
               ) : (
-                <span className="flex h-full w-full items-center justify-center px-2 text-center text-xs text-slate-400">รูปเดิม</span>
+                <span className="flex h-full w-full items-center justify-center px-2 text-center text-xs text-slate-400 font-medium">รูปเดิม</span>
               )}
             </button>
-            <div className="mt-2 truncate text-xs text-slate-600" title={file.fileName}>{file.fileName}</div>
-            <button className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:underline" type="button" onClick={() => onRemove(file.id)}>
+            <div className="mt-2 truncate text-[11px] font-medium text-slate-600" title={file.fileName}>{file.fileName}</div>
+            <button className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-red-600 hover:underline" type="button" onClick={() => onRemove(file.id)}>
               <Trash2 className="h-3 w-3" />
               ลบ
             </button>
           </div>
         ))}
-        <label className="flex h-28 w-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-white p-3 text-center text-xs font-medium text-slate-500 shadow-sm hover:border-slate-400 hover:bg-slate-50">
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100">
-            <ImagePlus className="h-5 w-5" />
-          </span>
+        <label className="flex h-28 w-28 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-slate-300 bg-white p-3 text-center text-[11px] font-semibold text-slate-700 shadow-sm hover:border-emerald-400 hover:bg-slate-50 transition-colors">
+          <div className="text-xl mb-0.5">📁</div>
           {files.length === 0 ? emptyLabel : addLabel}
           <input
             accept="image/*"

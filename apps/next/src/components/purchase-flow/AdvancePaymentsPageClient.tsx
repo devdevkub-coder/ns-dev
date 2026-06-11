@@ -206,6 +206,7 @@ export function AdvancePaymentsPageClient() {
   const [sortKey, setSortKey] = useState<AdvancePaymentSortKey>('advanceDate')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
   const columnResize = useResizableColumns('daily.advance-payments', advancePaymentColumns)
   const queryString = useMemo(() => {
     const params = new URLSearchParams({
@@ -583,10 +584,11 @@ export function AdvancePaymentsPageClient() {
                   <InputField error={fieldErrors.plateNo} label="ทะเบียนรถ" value={form.plateNo} onChange={(value) => updateForm('plateNo', value)} />
                   <div className="md:col-span-2 xl:col-span-3">
                     <Field error={fieldErrors.vehiclePhotoNames} label="รูปภาพรถ">
-                      <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-3">
-                        <label className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-slate-100">
-                          <ImagePlus className="h-4 w-4" />
-                          อัปโหลดรูปภาพรถ
+                      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <label className="block bg-white p-6 border-2 border-dashed border-slate-300 rounded-xl text-center hover:border-emerald-400 hover:bg-slate-50 cursor-pointer transition-colors">
+                          <div className="text-2xl mb-2">📁</div>
+                          <div className="text-sm font-medium text-slate-700">คลิกเพื่ออัปโหลดรูปภาพรถ</div>
+                          <div className="text-xs text-slate-500 mt-1">รองรับรูปภาพ (สูงสุด 10 รูป)</div>
                           <input
                             accept="image/*"
                             className="hidden"
@@ -598,13 +600,15 @@ export function AdvancePaymentsPageClient() {
                             }}
                           />
                         </label>
-                        <div className="mt-2 space-y-2">
-                          {vehiclePhotoFiles.length === 0 ? <div className="text-xs text-slate-400">ยังไม่มีรูปภาพรถ</div> : null}
+                        <div className="mt-4 space-y-2">
+                          {vehiclePhotoFiles.length === 0 ? (
+                            <div className="text-center text-xs text-slate-400 py-2">ยังไม่มีรูปภาพรถที่แนบมา</div>
+                          ) : null}
                           {vehiclePhotoFiles.map((file) => (
-                            <div key={file.id} className="flex min-w-0 items-center justify-between gap-2 rounded-md bg-white px-2 py-1.5 text-xs ring-1 ring-slate-200">
+                            <div key={file.id} className="flex min-w-0 items-center justify-between gap-2 rounded-lg bg-slate-50 border border-slate-100 px-3 py-2 text-xs">
                               {file.url ? (
                                 <button
-                                  className="min-w-0 flex-1 truncate text-left text-slate-700 hover:text-blue-700 hover:underline"
+                                  className="min-w-0 flex-1 truncate text-left font-medium text-slate-700 hover:text-emerald-700 hover:underline"
                                   title={file.fileName}
                                   type="button"
                                   onClick={() => window.open(file.url ?? '', '_blank', 'noopener,noreferrer')}
@@ -612,9 +616,9 @@ export function AdvancePaymentsPageClient() {
                                   {file.fileName}
                                 </button>
                               ) : (
-                                <span className="min-w-0 flex-1 truncate text-slate-700" title={file.fileName}>{file.fileName}</span>
+                                <span className="min-w-0 flex-1 truncate font-medium text-slate-500" title={file.fileName}>{file.fileName}</span>
                               )}
-                              <button className="shrink-0 text-slate-500 hover:text-red-600" type="button" onClick={() => removeVehiclePhoto(file.id)}>
+                              <button className="shrink-0 text-xs font-semibold text-slate-500 hover:text-red-600" type="button" onClick={() => removeVehiclePhoto(file.id)}>
                                 ลบ
                               </button>
                             </div>
@@ -652,26 +656,42 @@ export function AdvancePaymentsPageClient() {
         </>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <Metric label="ยอดมัดจำในหน้านี้" value={formatMoney(data?.summary.totalAdvance ?? 0)} />
             <Metric label="ยังไม่อนุมัติ" value={`${data?.summary.pendingCount ?? 0}`} />
             <Metric label="ใช้หักบิลแล้ว" value={formatMoney(data?.summary.totalAllocated ?? 0)} />
             <Metric label="คงเหลือ" tone="amber" value={formatMoney(data?.summary.totalRemaining ?? 0)} />
           </div>
 
-            <div className="space-y-2 rounded-md bg-white p-3 shadow">
-              <div className="flex flex-wrap items-center gap-2">
+          <div className="space-y-2 rounded-md bg-white p-3 shadow">
+            <div className="flex flex-wrap items-center gap-2">
               <Input className="min-w-[260px] flex-1 rounded-md" placeholder="ค้นหา ADV / ใบชั่งใหญ่ / ผู้ขาย / ทะเบียน..." type="search" value={q} onChange={(event) => { setQ(event.target.value); setPage(1) }} />
-              <label className="text-xs text-slate-500">วันที่:</label>
-              <DatePickerInput ariaLabel="จากวันที่" id="advance-payments-date-from" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
-              <span className="text-slate-400">→</span>
-              <DatePickerInput ariaLabel="ถึงวันที่" id="advance-payments-date-to" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
+              
+              {/* Mobile Filter Button */}
+              <button
+                type="button"
+                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 md:hidden"
+                onClick={() => setShowMobileFilters(true)}
+              >
+                <span>🔍</span> ตัวกรอง {(dateFrom || dateTo || statuses.length > 0) ? '(1)' : ''}
+              </button>
+
+              <div className="hidden md:flex flex-wrap items-center gap-2">
+                <label className="text-xs text-slate-500">วันที่:</label>
+                <DatePickerInput ariaLabel="จากวันที่" id="advance-payments-date-from" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
+                <span className="text-slate-400">→</span>
+                <DatePickerInput ariaLabel="ถึงวันที่" id="advance-payments-date-to" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
+              </div>
+
               {hasActiveFilters ? <Button size="xs" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</Button> : null}
-              <ExportButton href={exportHref} />
-              <Button className="ml-auto h-9" size="sm" type="button" onClick={openForm}><Plus className="mr-1 h-4 w-4" />สร้าง</Button>
+              <div className="hidden md:block">
+                <ExportButton href={exportHref} />
+              </div>
+              <Button className="hidden md:inline-flex ml-auto h-9" size="sm" type="button" onClick={openForm}><Plus className="mr-1 h-4 w-4" />สร้าง</Button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            {/* Desktop Status Filters */}
+            <div className="hidden md:flex flex-wrap items-center gap-2">
               <span className="text-xs text-slate-500">สถานะ:</span>
               <Segment
                 active={statuses.length === 0}
@@ -695,6 +715,103 @@ export function AdvancePaymentsPageClient() {
             </div>
           </div>
 
+          {/* Floating Action Button (FAB) for Mobile */}
+          <div className="fixed bottom-6 right-6 z-40 md:hidden">
+            <button
+              className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-800 text-white shadow-lg active:scale-95 transition-transform"
+              onClick={openForm}
+              type="button"
+              aria-label="สร้าง ADV"
+            >
+              <Plus className="h-6 w-6" />
+            </button>
+          </div>
+
+          {/* Bottom Sheet Filter for Mobile */}
+          {showMobileFilters ? (
+            <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 md:hidden">
+              <div className="w-full rounded-t-2xl bg-white p-4 shadow-xl border-t border-slate-200 animate-slide-up max-h-[80vh] overflow-y-auto">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                  <h4 className="font-bold text-slate-800">ตัวกรองเพิ่มเติม</h4>
+                  <button
+                    className="p-1 text-slate-400 hover:text-slate-600 text-xl font-bold"
+                    onClick={() => setShowMobileFilters(false)}
+                    type="button"
+                  >
+                    &times;
+                  </button>
+                </div>
+                
+                <div className="space-y-4">
+                  <div>
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
+                    <div className="flex items-center gap-2">
+                      <DatePickerInput className="flex-1" ariaLabel="จากวันที่มือถือ" id="advance-payments-mobile-date-from" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
+                      <span className="text-slate-400">→</span>
+                      <DatePickerInput className="flex-1" ariaLabel="ถึงวันที่มือถือ" id="advance-payments-mobile-date-to" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="mb-2 block text-xs font-semibold text-slate-600">สถานะ</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        className={`rounded-md border px-3 py-1.5 text-xs font-medium h-11 ${
+                          statuses.length === 0 ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700'
+                        }`}
+                        onClick={() => {
+                          setStatuses([])
+                          setPage(1)
+                        }}
+                      >
+                        ทั้งหมด
+                      </button>
+                      {(data?.filters.statuses ?? []).filter((option) => option.value !== 'all').map((option) => {
+                        const active = statuses.includes(option.value)
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            className={`rounded-md border px-3 py-1.5 text-xs font-medium h-11 ${
+                              active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700'
+                            }`}
+                            onClick={() => {
+                              toggleStatusFilter(option.value, setStatuses)
+                              setPage(1)
+                            }}
+                          >
+                            {option.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mt-6 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    onClick={() => {
+                      clearFilters()
+                      setShowMobileFilters(false)
+                    }}
+                  >
+                    ล้างตัวกรอง
+                  </button>
+                  <button
+                    type="button"
+                    className="h-11 rounded-md bg-slate-800 text-sm font-semibold text-white hover:bg-slate-700"
+                    onClick={() => setShowMobileFilters(false)}
+                  >
+                    ใช้ตัวกรอง
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
             <span>พบทั้งหมด {data?.pagination.totalRows ?? 0} รายการ</span>
             <div className="flex flex-wrap items-center gap-2">
@@ -708,7 +825,49 @@ export function AdvancePaymentsPageClient() {
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-md bg-white shadow">
+          {/* Mobile Card List */}
+          <div className="block md:hidden space-y-3">
+            {isLoading ? (
+              <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow border border-slate-200">กำลังโหลดข้อมูล</div>
+            ) : null}
+            {!isLoading && (data?.rows ?? []).length === 0 ? (
+              <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow border border-slate-200">ยังไม่มีรายการจ่ายเงินล่วงหน้า</div>
+            ) : null}
+            {!isLoading && (data?.rows ?? []).map((row) => (
+              <div
+                key={row.id}
+                className="rounded-md border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 cursor-pointer transition-colors"
+                onClick={() => void loadDetail(row.id)}
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
+                  <StatusDot status={row.status} label={row.statusLabel} />
+                </div>
+                <div className="flex justify-between items-center text-xs text-slate-500 mb-3">
+                  <span className="font-semibold text-slate-700">{row.supplierName}</span>
+                  <span>วันที่: {row.advanceDate}</span>
+                </div>
+                <div className="text-xs text-slate-500 space-y-1 mb-3">
+                  {row.productName ? <div>สินค้า: <span className="font-semibold text-slate-700">{row.productName}</span></div> : null}
+                  {row.largeScaleDocNo ? <div>ใบชั่งใหญ่: <span className="font-semibold text-slate-700">{row.largeScaleDocNo}</span></div> : null}
+                  {row.plateNo ? <div>ทะเบียนรถ: <span className="font-semibold text-slate-700">{row.plateNo}</span></div> : null}
+                </div>
+                <div className="flex justify-between items-end border-t border-slate-100 pt-2.5">
+                  <div className="text-xs text-slate-500 space-y-0.5">
+                    <span>น้ำหนักสุทธิ: <span className="font-semibold text-slate-700">{formatMoney(row.netWeight)}</span> กก.</span>
+                    <div className="block">ยอดมัดจำ: <span className="font-semibold text-slate-700">{formatMoney(row.amount)}</span></div>
+                    {row.allocatedAmount > 0 ? <div className="block text-emerald-700">หักแล้ว: <span className="font-semibold">{formatMoney(row.allocatedAmount)}</span></div> : null}
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs text-slate-500 block">คงเหลือมัดจำ</span>
+                    <span className="font-bold text-amber-700 text-sm tabular-nums">{formatMoney(row.remainingAmount)}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden md:block overflow-x-auto rounded-md bg-white shadow">
             <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
               <colgroup>
                 {advancePaymentColumns.map((column) => <col key={column.key} style={columnResize.getColumnStyle(column.key)} />)}

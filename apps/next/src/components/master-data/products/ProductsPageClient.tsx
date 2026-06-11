@@ -1,8 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ImagePlus, Trash2 } from 'lucide-react'
+import { Download, ImagePlus, Plus, Trash2, Upload } from 'lucide-react'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
+import { Button } from '@/components/ui/Button'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { getErrorMessage } from '@/lib/api-client'
 import { listMasterDataRecords, type MasterDataRecord } from '@/lib/master-data'
 import {
@@ -24,6 +28,17 @@ import {
 import { getSupabaseClient } from '@/lib/supabase'
 
 type SortKey = 'active' | 'code' | 'name' | 'type' | 'unit'
+type ProductColumnKey = SortKey | 'action'
+
+const productColumns: Array<ResizableColumnDefinition<ProductColumnKey>> = [
+  { key: 'code', defaultWidth: 100, minWidth: 80 },
+  { key: 'name', defaultWidth: 320, minWidth: 180 },
+  { key: 'type', defaultWidth: 140, minWidth: 100 },
+  { key: 'unit', defaultWidth: 90, minWidth: 70 },
+  { key: 'active', defaultWidth: 110, minWidth: 90 },
+  { key: 'action', defaultWidth: 80, minWidth: 70 },
+]
+
 
 const emptyProductForm: ProductFormValues = {
   id: undefined,
@@ -107,6 +122,9 @@ export function ProductsPageClient() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [sortKey, setSortKey] = useState<SortKey>('code')
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const columnResize = useResizableColumns('master-data.products', productColumns)
+
 
   const loadData = useCallback(async () => {
     setError(null)
@@ -361,20 +379,29 @@ export function ProductsPageClient() {
 
       <div className="rounded-md bg-white p-3 shadow">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="grid w-full gap-2 md:grid-cols-2 xl:max-w-3xl xl:grid-cols-[minmax(0,1fr)_190px_130px]">
-            <input
-              className="w-full rounded-md border px-3 py-2 text-sm"
-              onChange={(event) => {
-                setPage(1)
-                setSearch(event.target.value)
-              }}
-              placeholder="ค้นหา..."
-              type="search"
-              value={search}
-            />
+          <div className="flex flex-col gap-2 w-full xl:max-w-3xl xl:grid xl:grid-cols-[minmax(0,1fr)_190px_130px]">
+            <div className="flex gap-2 w-full">
+              <input
+                className="h-9 w-full flex-1 rounded-md border border-slate-300 px-3 text-sm"
+                onChange={(event) => {
+                  setPage(1)
+                  setSearch(event.target.value)
+                }}
+                placeholder="ค้นหา..."
+                type="search"
+                value={search}
+              />
+              <button
+                type="button"
+                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 xl:hidden"
+                onClick={() => setShowMobileFilters(true)}
+              >
+                <span className="text-slate-500">🔍</span> ตัวกรอง {(productTypeFilter || activeFilter) ? '(1)' : ''}
+              </button>
+            </div>
             <select
               aria-label="กรองประเภทสินค้า"
-              className="rounded-md border px-3 py-2 text-sm"
+              className="h-9 rounded-md border border-slate-300 px-3 text-sm hidden xl:block"
               value={productTypeFilter}
               onChange={(event) => {
                 setPage(1)
@@ -386,7 +413,7 @@ export function ProductsPageClient() {
             </select>
             <select
               aria-label="กรองสถานะใช้งาน"
-              className="rounded-md border px-3 py-2 text-sm"
+              className="h-9 rounded-md border border-slate-300 px-3 text-sm hidden xl:block"
               value={activeFilter}
               onChange={(event) => {
                 setPage(1)
@@ -398,18 +425,16 @@ export function ProductsPageClient() {
               <option value="inactive">ปิด</option>
             </select>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <button className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700" type="button" onClick={resetFilters}>
+          <div className="flex flex-wrap items-center justify-end gap-2 w-full xl:w-auto">
+            <button className="h-9 flex-1 xl:flex-none justify-center rounded-md border border-slate-300 px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 hidden xl:inline-flex" type="button" onClick={resetFilters}>
               ล้างตัวกรอง
             </button>
-            <button className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-60" disabled={isExporting || isLoading} type="button" onClick={() => void handleExport()}>
-              {isExporting ? 'กำลัง Export...' : '📊 Export Excel'}
-            </button>
-            <label className={`cursor-pointer rounded-md bg-blue-600 px-3 py-2 text-sm font-bold text-white ${isImporting || isLoading ? 'pointer-events-none opacity-60' : ''}`}>
-              {isImporting ? 'กำลัง Import...' : 'Import Excel'}
+            <label className={`inline-flex h-9 flex-1 xl:flex-none justify-center cursor-pointer items-center gap-1 rounded-md bg-blue-600 px-3 text-sm font-medium text-white ${isImporting || isLoading ? 'pointer-events-none opacity-60' : ''}`}>
+              <Upload aria-hidden="true" className="h-4 w-4" />
+              <span className="text-xs sm:text-sm">{isImporting ? 'กำลัง Import...' : 'Import Excel'}</span>
               <input
                 accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                className="sr-only"
+                className="hidden"
                 disabled={isImporting || isLoading}
                 type="file"
                 onChange={(event) => {
@@ -418,12 +443,105 @@ export function ProductsPageClient() {
                 }}
               />
             </label>
-            <button className="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white" type="button" onClick={openCreateForm}>
-              + เพิ่มสินค้า
+            <button className="inline-flex h-9 flex-1 xl:flex-none justify-center items-center gap-1 rounded-md bg-emerald-600 px-3 text-sm font-medium text-white disabled:opacity-60" disabled={isExporting || isLoading} type="button" onClick={() => void handleExport()}>
+              <Download aria-hidden="true" className="h-4 w-4" />
+              <span className="text-xs sm:text-sm">{isExporting ? 'กำลัง Export...' : 'Export Excel'}</span>
+            </button>
+            <button className="inline-flex h-9 w-full xl:w-auto justify-center items-center gap-1 rounded-md bg-slate-900 px-4 text-sm font-medium text-white hidden xl:inline-flex" type="button" onClick={openCreateForm}>
+              <Plus aria-hidden="true" className="h-4 w-4" />
+              เพิ่มสินค้า
             </button>
           </div>
         </div>
       </div>
+
+      {/* Floating Action Button (FAB) for Mobile */}
+      <div className="fixed bottom-6 right-6 z-40 xl:hidden">
+        <button
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg active:scale-95 transition-transform"
+          onClick={openCreateForm}
+          type="button"
+          aria-label="เพิ่มสินค้า"
+        >
+          <Plus className="h-6 w-6" />
+        </button>
+      </div>
+
+      {/* Bottom Sheet Filter for Mobile */}
+      {showMobileFilters ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 xl:hidden">
+          <div className="w-full rounded-t-2xl bg-white p-4 shadow-xl border-t border-slate-200 animate-slide-up max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <h4 className="font-bold text-slate-800">ตัวกรองเพิ่มเติม</h4>
+              <button
+                className="p-1 text-slate-400 hover:text-slate-600 text-xl font-bold"
+                onClick={() => setShowMobileFilters(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">ประเภทสินค้า</span>
+                <select
+                  aria-label="กรองประเภทสินค้ามือถือ"
+                  className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm bg-white"
+                  value={productTypeFilter}
+                  onChange={(event) => {
+                    setPage(1)
+                    setProductTypeFilter(event.target.value)
+                  }}
+                >
+                  <option value="">ทุกประเภท</option>
+                  {productTypeOptions.map((type) => <option key={type} value={type}>{type}</option>)}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะใช้งาน</span>
+                <select
+                  aria-label="กรองสถานะใช้งานมือถือ"
+                  className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm bg-white"
+                  value={activeFilter}
+                  onChange={(event) => {
+                    setPage(1)
+                    setActiveFilter(event.target.value)
+                  }}
+                >
+                  <option value="">ทั้งหมด</option>
+                  <option value="active">ใช้งาน</option>
+                  <option value="inactive">ปิด</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-6 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => {
+                  setProductTypeFilter('')
+                  setActiveFilter('')
+                  setPage(1)
+                  setShowMobileFilters(false)
+                }}
+              >
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                className="h-11 rounded-md bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700"
+                onClick={() => setShowMobileFilters(false)}
+              >
+                ใช้ตัวกรอง
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
 
       {!isLoading ? (
         <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm text-slate-600">
@@ -431,9 +549,14 @@ export function ProductsPageClient() {
             พบทั้งหมด <span className="font-semibold text-slate-900">{total.toLocaleString('th-TH')}</span> รายการ
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {columnResize.hasCustomWidths ? (
+              <Button size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>
+                Set col to default
+              </Button>
+            ) : null}
             <select
               aria-label="จำนวนรายการต่อหน้า"
-              className="rounded-md border border-slate-300 px-2 py-1"
+              className="h-9 rounded-md border border-slate-300 px-2 py-1 text-sm bg-white"
               value={pageSize}
               onChange={(event) => {
                 setPage(1)
@@ -445,15 +568,27 @@ export function ProductsPageClient() {
               <option value={50}>50 / หน้า</option>
               <option value={100}>100 / หน้า</option>
             </select>
-            <button className="rounded-md border border-slate-300 px-3 py-1 disabled:opacity-50" disabled={page <= 1 || isLoading} type="button" onClick={() => setPage(Math.max(1, page - 1))}>
+            <Button
+              disabled={page <= 1 || isLoading}
+              size="sm"
+              type="button"
+              variant="outline"
+              onClick={() => setPage(Math.max(1, page - 1))}
+            >
               ก่อนหน้า
-            </button>
-            <span className="px-1">
+            </Button>
+            <span className="px-1 text-xs">
               หน้า {currentPage.toLocaleString('th-TH')} / {totalPages.toLocaleString('th-TH')}
             </span>
-            <button className="rounded-md border border-slate-300 px-3 py-1 disabled:opacity-50" disabled={page >= totalPages || isLoading} type="button" onClick={() => setPage(Math.min(totalPages, currentPage + 1))}>
+            <Button
+              disabled={page >= totalPages || isLoading}
+              size="sm"
+              type="button"
+              variant="outline"
+              onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
+            >
               ถัดไป
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}
@@ -479,68 +614,140 @@ export function ProductsPageClient() {
       {isLoading ? <div className="rounded-md bg-white p-6 text-center text-sm text-slate-500 shadow">กำลังโหลดข้อมูลสินค้า</div> : null}
 
       {!isLoading ? (
-        <div className="overflow-x-auto rounded-md bg-white shadow">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-100">
-              <tr>
-                <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('code')}>รหัส{sortLabel('code')}</button></th>
-                <th className="min-w-[220px] p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('name')}>ชื่อสินค้า{sortLabel('name')}</button></th>
-                <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('type')}>ประเภท{sortLabel('type')}</button></th>
-                <th className="p-2 text-center"><button className="font-semibold" type="button" onClick={() => setSort('unit')}>หน่วย{sortLabel('unit')}</button></th>
-                <th className="p-2 text-center"><button className="font-semibold" type="button" onClick={() => setSort('active')}>สถานะ{sortLabel('active')}</button></th>
-                <th className="p-2 text-center">แก้ไข</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedProducts.map((product) => (
-                <tr
-                  key={product.id}
-                  className="cursor-pointer border-t hover:bg-slate-50"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => openEditForm(product)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault()
-                      openEditForm(product)
-                    }
-                  }}
-                >
-                  <td className="p-2 font-mono text-xs">{product.code}</td>
-                  <td className="p-2 font-medium">{product.name}</td>
-                  <td className="p-2">{displayValue(product.type)}</td>
-                  <td className="p-2 text-center">{displayValue(product.unit)}</td>
-                  <td className="p-2 text-center">
-                    <ActiveToggle
-                      checked={product.active}
-                      disabled={pendingToggleIds.has(product.id)}
-                      label={product.active ? 'ใช้งาน' : 'ปิด'}
-                      onChange={(active) => void handleToggleActive(product, active)}
-                    />
-                  </td>
-                  <td className="p-2 text-center">
-                    <button
-                      className="text-blue-600"
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        openEditForm(product)
+        <>
+          {/* Desktop Table View */}
+          <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm hidden md:block">
+            <div className="overflow-x-auto">
+              <Table className="[&_tbody_tr]:border-slate-100" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+                <colgroup>
+                  {productColumns.map((column) => (
+                    <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+                  ))}
+                </colgroup>
+                <TableHeader>
+                  <tr>
+                    <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="รหัส" resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} sortKey="code" onSort={setSort} />
+                    <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ชื่อสินค้า" resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อสินค้า')} sortKey="name" onSort={setSort} />
+                    <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} sortKey="type" onSort={setSort} />
+                    <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="หน่วย" resizeProps={columnResize.getResizeHandleProps('unit', 'หน่วย')} sortKey="unit" onSort={setSort} />
+                    <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('active', 'สถานะ')} sortKey="active" onSort={setSort} />
+                    <ResizableTableHead align="center" label="แก้ไข" resizeProps={columnResize.getResizeHandleProps('action', 'แก้ไข')} />
+                  </tr>
+                </TableHeader>
+                <TableBody>
+                  {paginatedProducts.map((product) => (
+                    <TableRow
+                      key={product.id}
+                      className="cursor-pointer border-slate-100 hover:bg-slate-50"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openEditForm(product)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          openEditForm(product)
+                        }
                       }}
                     >
-                      แก้ไข
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {paginatedProducts.length === 0 ? (
-                <tr>
-                  <td className="p-4 text-center text-sm text-slate-500" colSpan={6}>ไม่พบข้อมูลที่ค้นหา</td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
+                      <TableCell className="whitespace-nowrap font-mono text-xs font-semibold text-slate-700">{product.code}</TableCell>
+                      <TableCell className="truncate text-xs font-semibold text-slate-800" title={product.name}>{product.name}</TableCell>
+                      <TableCell className="text-xs font-semibold text-slate-700">{displayValue(product.type)}</TableCell>
+                      <TableCell className="text-center text-xs font-semibold text-slate-700">{displayValue(product.unit)}</TableCell>
+                      <TableCell className="text-center text-xs font-semibold text-slate-700">
+                        <ActiveToggle
+                          checked={product.active}
+                          disabled={pendingToggleIds.has(product.id)}
+                          label={product.active ? 'ใช้งาน' : 'ปิด'}
+                          onChange={(checked) => void handleToggleActive(product, checked)}
+                        />
+                      </TableCell>
+                      <TableCell className="text-center text-xs font-semibold text-slate-700">
+                        <button
+                          className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            openEditForm(product)
+                          }}
+                        >
+                          แก้ไข
+                        </button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {paginatedProducts.length === 0 ? (
+                    <TableRow>
+                      <TableCell className="p-4 text-center text-sm text-slate-500" colSpan={6}>ไม่พบข้อมูลที่ค้นหา</TableCell>
+                    </TableRow>
+                  ) : null}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          {/* Mobile Card List View */}
+          <div className="block md:hidden space-y-3">
+            {paginatedProducts.map((product) => (
+              <div
+                key={product.id}
+                className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 transition-colors"
+                onClick={() => openEditForm(product)}
+              >
+                <div className="flex gap-3 items-start">
+                  {/* Product Thumbnail on the Left */}
+                  <div className="h-14 w-14 shrink-0 rounded-lg overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center">
+                    {product.thumbnailUrl ? (
+                      <img src={product.thumbnailUrl} alt={product.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="text-slate-400 text-lg">📦</span>
+                    )}
+                  </div>
+
+                  {/* Product Info on the Right */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="truncate">
+                        <span className="font-mono text-xs font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                          {product.code}
+                        </span>
+                        <h4 className="font-bold text-slate-900 mt-1.5 text-[15px] truncate">
+                          {product.name}
+                        </h4>
+                      </div>
+                      <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <ActiveToggle
+                          checked={product.active}
+                          disabled={pendingToggleIds.has(product.id)}
+                          label={product.active ? 'ใช้งาน' : 'ปิด'}
+                          onChange={(checked) => void handleToggleActive(product, checked)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 border-t border-slate-100 pt-2.5 mt-2.5 text-xs text-slate-600">
+                      <div>
+                        <span className="block text-slate-400 font-medium">ประเภท</span>
+                        <span className="font-semibold text-slate-700 truncate block">{displayValue(product.type)}</span>
+                      </div>
+                      <div>
+                        <span className="block text-slate-400 font-medium">หน่วยนับ</span>
+                        <span className="font-semibold text-slate-700">{displayValue(product.unit)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            ))}
+            {paginatedProducts.length === 0 ? (
+              <div className="rounded-md bg-white p-8 text-center text-sm text-slate-500 shadow-sm border border-slate-200">
+                ไม่พบข้อมูลที่ค้นหา
+              </div>
+            ) : null}
+          </div>
+        </>
       ) : null}
+
     </section>
   )
 }
@@ -615,18 +822,18 @@ function ProductForm({ isSaving, product, productTypes, productUnits, onCancel, 
   }
 
   return (
-    <form className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-xl" onSubmit={handleSubmit}>
-      <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <h3 className="text-lg font-bold text-slate-900">{form.id ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'}</h3>
-        <ActiveToggle checked={form.active} onChange={(checked) => update('active', checked)} />
+    <form className="overflow-hidden rounded-md bg-white shadow-xl" onSubmit={handleSubmit}>
+      <div className="flex flex-col gap-3 bg-slate-900 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <h3 className="text-lg font-bold text-slate-100">{form.id ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'}</h3>
+        <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-slate-200" onChange={(checked) => update('active', checked)} />
       </div>
 
-      <div className="max-h-[76vh] space-y-5 overflow-y-auto px-5 py-5">
-        <section>
-          <h4 className="mb-3 text-sm font-bold text-slate-700">ข้อมูลสินค้า</h4>
+      <div className="max-h-[76vh] space-y-5 overflow-y-auto bg-slate-50 px-5 py-5">
+        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <h4 className="mb-4 text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">ข้อมูลสินค้า</h4>
           <div className="grid gap-3 md:grid-cols-4">
             {form.id ? <TextField error={errors.code} label="รหัสสินค้า" readOnly value={form.code ?? ''} onChange={(value) => update('code', value)} /> : null}
-            <TextField error={errors.name} label="ชื่อสินค้า *" value={form.name} onChange={(value) => update('name', value)} />
+            <TextField className={form.id ? 'md:col-span-1' : 'md:col-span-2'} error={errors.name} label="ชื่อสินค้า *" value={form.name} onChange={(value) => update('name', value)} />
             <SelectField error={errors.type} label="ประเภทสินค้า" value={form.type ?? ''} onChange={(value) => update('type', value || null)}>
               <option value="">เลือกประเภทสินค้า</option>
               {productTypes.map((type) => <option key={type} value={type}>{type}</option>)}
@@ -645,21 +852,19 @@ function ProductForm({ isSaving, product, productTypes, productUnits, onCancel, 
                 <div className={`mt-1 rounded-md border bg-slate-50 p-3 ${errors.imageStorageKey ? 'border-red-300' : 'border-slate-200'}`}>
                   <div className="flex flex-col gap-2">
                     <div>
-                      <label className="group relative block h-36 w-36 cursor-pointer overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100 hover:border-slate-400">
+                      <label className="relative flex h-36 w-36 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white hover:border-emerald-400 hover:bg-slate-50 transition-colors">
                         {previewImageUrl ? (
                           <>
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img alt={previewImageName || 'รูปสินค้า'} className="h-full w-full object-cover" src={previewImageUrl} />
-                            <span className="absolute inset-x-0 bottom-0 bg-slate-950/70 px-2 py-1.5 text-center text-xs font-medium text-white opacity-0 transition group-hover:opacity-100">
+                            <img alt={form.name || 'ตัวอย่าง'} className="h-full w-full object-cover rounded-xl" src={previewImageUrl} />
+                            <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-center text-xs font-semibold text-white opacity-0 hover:opacity-100 transition rounded-xl">
                               คลิกเพื่อเปลี่ยนรูป
                             </span>
                           </>
                         ) : (
-                          <span className="flex h-full w-full flex-col items-center justify-center gap-2 text-slate-400">
-                            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
-                              <ImagePlus className="h-6 w-6" />
-                            </span>
-                            <span className="px-3 text-center text-xs font-medium text-slate-500">เพิ่มรูปสินค้า</span>
+                          <span className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-slate-700">
+                            <span className="text-2xl mb-1">📁</span>
+                            <span className="px-2 text-center text-xs font-semibold text-slate-700">เพิ่มรูปสินค้า</span>
                           </span>
                         )}
                         <input
@@ -688,11 +893,11 @@ function ProductForm({ isSaving, product, productTypes, productUnits, onCancel, 
         </section>
       </div>
 
-      <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-white px-5 py-4">
-        <button className="rounded-md px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100" type="button" onClick={onCancel}>
+      <div className="flex flex-wrap justify-end gap-3.5 border-t border-slate-100 bg-white px-5 py-4">
+        <button className="text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors" type="button" onClick={onCancel}>
           ยกเลิก
         </button>
-        <button className="rounded-md bg-slate-900 px-5 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-60" disabled={isSaving} type="submit">
+        <button className="rounded-md bg-slate-900 px-5 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-60 shadow-sm" disabled={isSaving} type="submit">
           {isSaving ? 'กำลังบันทึก...' : 'บันทึก'}
         </button>
       </div>
@@ -709,11 +914,16 @@ type SelectFieldProps = {
 }
 
 function SelectField({ children, error, label, value, onChange }: SelectFieldProps) {
+  const hasInlineRequired = label.trim().endsWith('*')
+  const labelText = hasInlineRequired ? label.trim().slice(0, -1).trimEnd() : label
+
   return (
-    <label className="block text-xs font-medium text-slate-600">
-      {label}
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+        {labelText}{hasInlineRequired ? <span className="ml-0.5 text-red-500">*</span> : null}
+      </span>
       <select
-        className={`mt-1 h-9 w-full rounded-md border px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-700 ${error ? 'border-red-300 bg-red-50' : 'border-slate-300 bg-white'}`}
+        className={`w-full h-10 rounded-md border px-3 py-2 text-sm text-slate-900 outline-none transition-all duration-150 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 bg-white border-slate-300 hover:border-slate-400 ${error ? 'border-red-400 bg-red-50/50' : ''}`}
         value={value}
         onChange={(event) => onChange(event.target.value)}
       >
@@ -736,11 +946,17 @@ type TextFieldProps = {
 }
 
 function TextField({ className = '', error, label, list, readOnly = false, type = 'text', value, onChange }: TextFieldProps) {
+  const hasInlineRequired = label.trim().endsWith('*')
+  const labelText = hasInlineRequired ? label.trim().slice(0, -1).trimEnd() : label
+  const isNumberField = type === 'number'
+
   return (
-    <label className={`block text-xs font-medium text-slate-600 ${className}`}>
-      {label}
+    <label className={`block ${className}`}>
+      <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+        {labelText}{hasInlineRequired ? <span className="ml-0.5 text-red-500">*</span> : null}
+      </span>
       <input
-        className={`mt-1 h-9 w-full rounded-md border px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-700 ${error ? 'border-red-300 bg-red-50' : readOnly ? 'border-slate-300 bg-slate-50' : 'border-slate-300 bg-white'}`}
+        className={`w-full h-10 rounded-md border px-3 py-2 text-sm outline-none transition-all duration-150 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 ${isNumberField ? '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none' : ''} ${readOnly ? 'bg-slate-50 text-slate-500 border-slate-200' : 'bg-white text-slate-800 border-slate-300 hover:border-slate-400'} ${error ? 'border-red-400 bg-red-50/50' : ''}`}
         list={list}
         min={type === 'number' ? 0 : undefined}
         readOnly={readOnly}

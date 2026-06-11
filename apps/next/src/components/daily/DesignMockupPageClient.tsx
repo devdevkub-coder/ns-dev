@@ -668,15 +668,15 @@ export function DesignMockupPageClient() {
 
         {/* 14. Before vs After Comparison (Real Component) */}
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 border-b border-slate-100 pb-2 text-lg font-semibold text-slate-800">14. เปรียบเทียบ UI (ปัจจุบัน VS สไตล์ AcexPOS)</h2>
-          <p className="mb-6 text-sm text-slate-500">เปรียบเทียบฟอร์ม &quot;บันทึกเบิกเงินสำรองจ่าย&quot; ระหว่าง <strong>สไตล์ปัจจุบันของเว็บเรา</strong> กับ <strong>สไตล์ของ AcexPOS</strong> ที่ดัดแปลงให้ดูน่าใช้งานมากขึ้น</p>
+          <h2 className="mb-4 border-b border-slate-100 pb-2 text-lg font-semibold text-slate-800">14. เปรียบเทียบ UI บันทึกเบิกเงินสำรองจ่าย</h2>
+          <p className="mb-6 text-sm text-slate-500">เปรียบเทียบฟอร์ม &quot;บันทึกเบิกเงินสำรองจ่าย&quot; ระหว่างสไตล์เดิม, แบบปรับปรุงใหม่ที่ทำวันนี้ (AcexPOS - Dark Header), และสไตล์ AcexPOS แท้ (Modern SaaS)</p>
           
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-8 xl:grid-cols-3">
             
             {/* ---------------- BEFORE: Current NS Scrap ERP Style ---------------- */}
             <div className="border-2 border-dashed border-slate-300 p-4 rounded-lg bg-slate-50">
               <div className="mb-4 inline-block bg-slate-200 px-3 py-1 text-sm font-semibold text-slate-700 rounded-full">
-                1️⃣ สไตล์ปัจจุบัน (NS Scrap ERP)
+                1️⃣ สไตล์เดิม (NS Scrap ERP)
               </div>
               
               <div className="border border-slate-200 bg-white rounded-lg shadow-lg overflow-hidden">
@@ -690,31 +690,31 @@ export function DesignMockupPageClient() {
                   
                   <label className="block">
                     <span className="mb-1 block text-xs font-medium text-slate-600">ประเภท<span className="ml-1 text-red-600">*</span></span>
-                    <select className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none text-slate-900">
+                    <select className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none text-slate-900" disabled>
                       <option>เบิกเงินสำรองจ่าย</option>
                     </select>
                   </label>
 
                   <label className="block">
                     <span className="mb-1 block text-xs font-medium text-slate-600">วันที่<span className="ml-1 text-red-600">*</span></span>
-                    <input type="date" className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none text-slate-900" defaultValue="2026-06-10" />
+                    <input type="date" className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none text-slate-900" defaultValue="2026-06-10" disabled />
                   </label>
 
                   <div className="md:col-span-2">
                     <label className="block text-xs font-medium text-slate-600 mb-1">ผู้รับเงิน<span className="ml-1 text-red-600">*</span></label>
                     <div className="relative">
-                      <input className="h-9 w-full rounded-md border border-slate-300 px-3 pr-8 text-sm outline-none text-slate-900 bg-white" placeholder="ค้นหา..." />
+                      <input className="h-9 w-full rounded-md border border-slate-300 px-3 pr-8 text-sm outline-none text-slate-900 bg-white" placeholder="ค้นหา..." disabled />
                     </div>
                   </div>
 
                   <label className="block">
                     <span className="mb-1 block text-xs font-medium text-slate-600">ยอดเงิน<span className="ml-1 text-red-600">*</span></span>
-                    <input type="text" className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-right text-sm outline-none text-slate-900" defaultValue="5,000.00" />
+                    <input type="text" className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-right text-sm outline-none text-slate-900" defaultValue="5,000.00" disabled />
                   </label>
 
                   <label className="block">
                     <span className="mb-1 block text-xs font-medium text-slate-600">บัญชีที่จ่าย (ถ้ามี)</span>
-                    <select className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none text-slate-400">
+                    <select className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none text-slate-400" disabled>
                       <option>ไม่ระบุ</option>
                     </select>
                   </label>
@@ -722,57 +722,63 @@ export function DesignMockupPageClient() {
                   <div className="md:col-span-2">
                     <label className="block">
                       <span className="mb-1 block text-xs font-medium text-slate-600">หมายเหตุ</span>
-                      <textarea className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none text-slate-900" rows={3}></textarea>
+                      <textarea className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none text-slate-900" rows={3} disabled></textarea>
                     </label>
                   </div>
                 </div>
 
                 {/* Footer (DialogFooter) */}
                 <div className="px-6 py-4 flex justify-end gap-2">
-                  <button className="h-9 px-4 py-2 inline-flex items-center justify-center rounded-md bg-slate-900 text-sm font-medium text-slate-50 shadow hover:bg-slate-900/90 transition-colors">
+                  <button className="h-9 px-4 py-2 inline-flex items-center justify-center rounded-md bg-slate-900 text-sm font-medium text-slate-50 shadow hover:bg-slate-900/90 transition-colors" disabled>
                     บันทึก
                   </button>
                 </div>
               </div>
               
               <p className="mt-4 text-xs text-slate-600 font-medium leading-relaxed">
-                ข้อสังเกต (ของปัจจุบัน): ดูสะอาดตาใช้งานได้ดีระดับหนึ่ง แต่พื้นที่กรอกข้อมูลอยู่ติดกันหมดในกล่องเดียว (ไม่แบ่งโซน) ทำให้เวลาแบบฟอร์มยาวๆ จะดูลายตา และปุ่มบันทึกเป็นสีดำปกติ ไม่ดึงดูดสายตาเท่าที่ควร
+                ข้อสังเกต: พื้นที่กรอกข้อมูลอยู่รวมกันในกล่องเดียว ไม่มีส่วนหัวหรือส่วนแยกชัดเจน สีปุ่มบันทึกเป็นสีดำปกติ และไม่มีการแยกโครงสร้างฟิลด์ประเภทข้อมูลที่เข้าใจง่าย
               </p>
             </div>
 
-            {/* ---------------- AFTER: Modern SaaS Style (AcexPOS Style) ---------------- */}
-            <div className="border-2 border-dashed border-blue-200 p-4 rounded-lg bg-blue-50/50">
-              <div className="mb-4 inline-block bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-800 rounded-full shadow-sm">
-                ✨ สไตล์ AcexPOS (Modern SaaS)
+            {/* ---------------- NEW: AcexPOS Style with Dark Header (ที่เราเพิ่งทำไป) ---------------- */}
+            <div className="border-2 border-dashed border-emerald-200 p-4 rounded-lg bg-slate-100">
+              <div className="mb-4 inline-block bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-800 rounded-full shadow-sm">
+                ⚡ แบบที่ทำวันนี้ (AcexPOS - Dark Header)
               </div>
               
-              <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden shadow-lg">
-                
-                {/* Header Style (แยกส่วนชัดเจน) */}
-                <div className="border-b border-slate-200 bg-white px-6 py-5">
-                  <h3 className="text-xl font-bold tracking-tight text-slate-900">บันทึกเบิกเงินสำรองจ่าย</h3>
-                  <p className="mt-1 text-sm text-slate-500">กรอกข้อมูลให้ครบถ้วนเพื่อสร้างรายการเบิกจ่าย</p>
+              <div className="rounded-xl bg-slate-50 overflow-hidden shadow-lg">
+                {/* Header (Dark Header, ไร้ขอบขาว) */}
+                <div className="bg-slate-900 px-6 py-5 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-bold tracking-tight text-white">บันทึกเบิกเงินสำรองจ่าย</h3>
+                    <p className="mt-1 text-xs text-slate-400">กรอกรายละเอียดเพื่อสร้างรายการเบิกเงินสำรองจ่าย</p>
+                  </div>
+                  <div className="inline-flex items-center gap-2">
+                    <span className="relative inline-flex h-[18.4px] w-8 shrink-0 items-center rounded-full bg-emerald-600 cursor-pointer">
+                      <span className="block size-4 translate-x-[14px] rounded-full bg-white"></span>
+                    </span>
+                    <span className="text-xs font-semibold text-slate-200">ใช้งาน</span>
+                  </div>
                 </div>
                 
                 <div className="p-6 space-y-6">
-                  
                   {/* Card 1: ข้อมูลหลัก */}
                   <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="mb-4 text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">ข้อมูลหลัก</div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       <label className="block">
                         <span className="mb-1.5 block text-xs font-semibold text-slate-600">ประเภท <span className="text-red-500">*</span></span>
-                        <select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                        <select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500" disabled>
                           <option>เบิกเงินสำรองจ่าย</option>
                         </select>
                       </label>
                       <label className="block">
                         <span className="mb-1.5 block text-xs font-semibold text-slate-600">วันที่ <span className="text-red-500">*</span></span>
-                        <input type="date" className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" defaultValue="2026-06-10" />
+                        <input type="date" className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500" defaultValue="2026-06-10" disabled />
                       </label>
                       <div className="md:col-span-2">
                         <label className="block mb-1.5 text-xs font-semibold text-slate-600">ผู้รับเงิน <span className="text-red-500">*</span></label>
-                        <input className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="พิมพ์เพื่อค้นหาพนักงาน..." />
+                        <input className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500" placeholder="พิมพ์เพื่อค้นหาพนักงาน..." disabled />
                       </div>
                     </div>
                   </div>
@@ -783,36 +789,104 @@ export function DesignMockupPageClient() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       <label className="block">
                         <span className="mb-1.5 block text-xs font-semibold text-slate-600">ยอดเงิน (บาท) <span className="text-red-500">*</span></span>
-                        <input type="text" className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-right text-base font-medium text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" defaultValue="5,000.00" />
+                        <input type="text" className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-right text-base font-semibold text-slate-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500" defaultValue="5,000.00" disabled />
                       </label>
                       <label className="block">
                         <span className="mb-1.5 block text-xs font-semibold text-slate-600">บัญชีที่จ่าย (ถ้ามี)</span>
-                        <select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none text-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                        <select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none text-slate-500 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500" disabled>
+                          <option>ไม่ระบุ</option>
+                        </select>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer Style (AcexPOS - Dark Header) */}
+                <div className="bg-white px-6 py-4 flex items-center justify-end gap-3.5 border-t border-slate-100">
+                  <button className="text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors" disabled>
+                    ยกเลิก
+                  </button>
+                  <button className="h-10 px-6 inline-flex items-center justify-center rounded-md bg-[#0F172A] text-sm font-semibold text-white shadow-sm hover:bg-[#1E293B] transition-colors" disabled>
+                    บันทึก
+                  </button>
+                </div>
+              </div>
+              
+              <p className="mt-4 text-xs text-emerald-700 font-medium leading-relaxed">
+                ข้อสังเกต: การดีไซน์สไตล์ Dark Header สีเดียวกับ Sidebar ไร้ขอบขาว ทำให้หน้าตาของ Popup ดูกลืนเป็นอันหนึ่งอันเดียวกับระบบหลัก และปรับ Footer ปุ่มยกเลิก/บันทึกให้อยู่ชิดขวาร่วมกันอย่างสะอาดตาโดยปุ่มยกเลิกเป็นแบบข้อความไร้กรอบ
+              </p>
+            </div>
+
+            {/* ---------------- ORIGINAL: AcexPOS Style (Clean White Header) ---------------- */}
+            <div className="border-2 border-dashed border-blue-200 p-4 rounded-lg bg-blue-50/50">
+              <div className="mb-4 inline-block bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-800 rounded-full shadow-sm">
+                ✨ สไตล์ AcexPOS แท้ (Modern SaaS)
+              </div>
+              
+              <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden shadow-lg">
+                {/* Header Style (แยกส่วนชัดเจน หัวขาว) */}
+                <div className="border-b border-slate-200 bg-white px-6 py-5">
+                  <h3 className="text-xl font-bold tracking-tight text-slate-900">บันทึกเบิกเงินสำรองจ่าย</h3>
+                  <p className="mt-1 text-sm text-slate-500">กรอกข้อมูลให้ครบถ้วนเพื่อสร้างรายการเบิกจ่าย</p>
+                </div>
+                
+                <div className="p-6 space-y-6">
+                  {/* Card 1: ข้อมูลหลัก */}
+                  <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="mb-4 text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">ข้อมูลหลัก</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <label className="block">
+                        <span className="mb-1.5 block text-xs font-semibold text-slate-600">ประเภท <span className="text-red-500">*</span></span>
+                        <select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" disabled>
+                          <option>เบิกเงินสำรองจ่าย</option>
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="mb-1.5 block text-xs font-semibold text-slate-600">วันที่ <span className="text-red-500">*</span></span>
+                        <input type="date" className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" defaultValue="2026-06-10" disabled />
+                      </label>
+                      <div className="md:col-span-2">
+                        <label className="block mb-1.5 text-xs font-semibold text-slate-600">ผู้รับเงิน <span className="text-red-500">*</span></label>
+                        <input className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="พิมพ์เพื่อค้นหาพนักงาน..." disabled />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 2: ข้อมูลการเงิน */}
+                  <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="mb-4 text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">รายละเอียดการเงิน</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <label className="block">
+                        <span className="mb-1.5 block text-xs font-semibold text-slate-600">ยอดเงิน (บาท) <span className="text-red-500">*</span></span>
+                        <input type="text" className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-right text-base font-medium text-slate-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" defaultValue="5,000.00" disabled />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1.5 block text-xs font-semibold text-slate-600">บัญชีที่จ่าย (ถ้ามี)</span>
+                        <select className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none text-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500" disabled>
                           <option>ไม่ระบุ</option>
                         </select>
                       </label>
                       <div className="md:col-span-2">
                         <label className="block mb-1.5 text-xs font-semibold text-slate-600">หมายเหตุ</label>
-                        <textarea className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" rows={2} placeholder="ระบุเหตุผล..."></textarea>
+                        <textarea className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" rows={2} placeholder="ระบุเหตุผล..." disabled></textarea>
                       </div>
                     </div>
                   </div>
-
                 </div>
 
                 {/* Footer Style (AcexPOS) */}
                 <div className="border-t border-slate-200 bg-white px-6 py-4 flex items-center justify-between">
-                  <button className="h-10 px-6 inline-flex items-center justify-center rounded-md bg-red-600 text-sm font-bold text-white shadow-sm hover:bg-red-700 transition-colors">
-                    ยกเลิก (Cancel)
+                  <button className="h-10 px-6 inline-flex items-center justify-center rounded-md bg-red-600 text-sm font-bold text-white shadow-sm hover:bg-red-700 transition-colors" disabled>
+                    ยกเลิก
                   </button>
-                  <button className="h-10 px-8 inline-flex items-center justify-center rounded-md bg-emerald-600 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 transition-colors">
-                    ✔️ บันทึกรายการ
+                  <button className="h-10 px-8 inline-flex items-center justify-center rounded-md bg-emerald-600 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 transition-colors" disabled>
+                    บันทึก
                   </button>
                 </div>
               </div>
               
               <p className="mt-4 text-xs text-blue-700 font-medium leading-relaxed">
-                ข้อสังเกต (สไตล์ AcexPOS): แบ่งกลุ่มข้อมูล (ข้อมูลหลัก / การเงิน) ลงในกล่อง (Card) ขาวบนพื้นเทา ทำให้กวาดสายตาง่ายขึ้นมาก, ความสูงของ Input ใหญ่ขึ้น (h-10) พิมพ์ง่ายขึ้น, และปุ่มบันทึกเปลี่ยนเป็นสีเขียวขนาดใหญ่เพื่อให้กระตุ้นการตัดสินใจ (Call to Action)
+                ข้อสังเกต: สไตล์ AcexPOS แท้ (Clean White Header) จะใช้การจัดวางแบบ Card แยกส่วนชัดเจน และมี Header สีขาวดูสะอาดตา เหมาะสำหรับแอปพลิเคชัน SaaS สมัยใหม่ที่ต้องการความคลีนและความเป็นมิตรกับผู้ใช้งาน
               </p>
             </div>
 
@@ -2081,6 +2155,87 @@ export function DesignMockupPageClient() {
                   <span>รายงานสรุปยอดรายวัน</span>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 31. Form Modal Header Comparison */}
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="mb-4 border-b border-slate-100 pb-2 text-lg font-semibold text-slate-800">31. เปรียบเทียบส่วนหัวของฟอร์ม (Form Modal Header)</h2>
+          <p className="mb-6 text-sm text-slate-500">เปรียบเทียบรูปแบบการดีไซน์ส่วนหัวของหน้ากากฟอร์ม (Modal Header) และระบบสวิตช์ Toggle สถานะ</p>
+          
+          <div className="grid grid-cols-1 gap-8 xl:grid-cols-3">
+            {/* Left: Basic (แบบเดิม) */}
+            <div className="border-2 border-dashed border-red-200 p-4 rounded-lg bg-slate-50">
+              <div className="mb-4 inline-block bg-red-100 px-3 py-1 text-sm font-semibold text-red-800 rounded-full shadow-sm">
+                ❌ แบบเดิม (Flat & Grey)
+              </div>
+              
+              <div className="bg-white border border-slate-300 rounded-lg overflow-hidden shadow-md">
+                <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <h3 className="text-lg font-bold text-slate-900">แก้ไขลูกค้า</h3>
+                  <div className="inline-flex items-center gap-2">
+                    <span className="relative inline-flex h-[18.4px] w-8 shrink-0 items-center rounded-full bg-emerald-600">
+                      <span className="block size-4 translate-x-[14px] rounded-full bg-white"></span>
+                    </span>
+                    <span className="text-sm font-medium text-slate-600">ใช้งาน</span>
+                  </div>
+                </div>
+                <div className="p-8 text-center text-xs text-slate-400 bg-white">เนื้อหาข้อมูลฟอร์มด้านล่าง...</div>
+              </div>
+              <p className="mt-4 text-xs text-red-700 font-medium leading-relaxed">
+                ข้อสังเกต: พื้นหลังส่วนหัวกลมกลืนกับสีฟอร์มมากเกินไป, ป้ายกำกับคำว่า &quot;ใช้งาน&quot; ค้างไว้ไม่เปลี่ยนตามการคลิกปิด Toggle, มีเส้นขอบขาวรอบนอกตัดกับกรอบฟอร์ม
+              </p>
+            </div>
+
+            {/* Middle: AcexPOS (แบบที่เราเพิ่งทำ) */}
+            <div className="border-2 border-dashed border-emerald-200 p-4 rounded-lg bg-slate-100">
+              <div className="mb-4 inline-block bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-800 rounded-full shadow-sm">
+                ⚡ สไตล์ AcexPOS / แบบปรับปรุงใหม่
+              </div>
+              
+              <div className="bg-white rounded-lg overflow-hidden shadow-xl">
+                <div className="flex flex-col gap-3 bg-slate-900 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <h3 className="text-lg font-bold text-slate-100">แก้ไขลูกค้า</h3>
+                  <div className="inline-flex items-center gap-2">
+                    <span className="relative inline-flex h-[18.4px] w-8 shrink-0 items-center rounded-full bg-emerald-600 cursor-pointer">
+                      <span className="block size-4 translate-x-[14px] rounded-full bg-white"></span>
+                    </span>
+                    <span className="text-sm font-medium text-slate-200">ใช้งาน</span>
+                  </div>
+                </div>
+                <div className="p-8 text-center text-xs text-slate-400 bg-white">เนื้อหาข้อมูลฟอร์มด้านล่าง...</div>
+              </div>
+              <p className="mt-4 text-xs text-emerald-700 font-medium leading-relaxed">
+                ข้อสังเกต: ส่วนหัวเปลี่ยนเป็นสีน้ำเงินเข้มเหมือน Sidebar ปิดขอบขาวด้านบนเพื่อความกลมกลืน และป้ายกำกับ Toggle สามารถเปลี่ยนเป็นคำว่า &quot;ปิด&quot; หรือ &quot;ใช้งาน&quot; ตามการกดจริงได้โดยอัตโนมัติ
+              </p>
+            </div>
+
+            {/* Right: Ultimate SaaS */}
+            <div className="border-2 border-dashed border-indigo-200 p-4 rounded-lg bg-slate-50">
+              <div className="mb-4 inline-block bg-gradient-to-r from-indigo-500 to-purple-500 px-3 py-1 text-sm font-semibold text-white rounded-full shadow-md">
+                💎 Ultimate SaaS (Premium Glass)
+              </div>
+              
+              <div className="bg-white rounded-xl overflow-hidden shadow-2xl border border-slate-100">
+                <div className="flex flex-col gap-3 border-b border-indigo-950/20 bg-gradient-to-r from-[#0F172A] via-[#1E1B4B] to-[#0F172A] px-5 py-4 sm:flex-row sm:items-center sm:justify-between relative">
+                  <h3 className="text-lg font-extrabold text-white tracking-tight flex items-center gap-2">
+                    แก้ไขลูกค้า
+                    <span className="bg-indigo-500/20 text-indigo-300 text-[10px] px-2 py-0.5 rounded-full font-bold">MASTER</span>
+                  </h3>
+                  <div className="flex items-center gap-4">
+                    <div className="inline-flex items-center gap-2 bg-white/5 px-2.5 py-1 rounded-full border border-white/10">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]"></span>
+                      <span className="text-xs font-bold text-slate-300">ACTIVE</span>
+                    </div>
+                    <button className="text-slate-400 hover:text-white transition-colors text-xs" type="button">✕</button>
+                  </div>
+                </div>
+                <div className="p-8 text-center text-xs text-slate-400 bg-white">เนื้อหาข้อมูลฟอร์มด้านล่าง...</div>
+              </div>
+              <p className="mt-4 text-xs text-indigo-700 font-medium leading-relaxed">
+                ข้อสังเกต: ไล่เฉดสีเข้มพรีเมียม, มี Dot Status ส่องสว่างระบุสถานะแทนสวิตช์ Toggle ขนาดใหญ่, แสดง Badges หมวดหมู่ข้อมูล และเพิ่มปุ่มปิด (X) เพื่ออำนวยความสะดวกในการกดปิดหน้าต่าง
+              </p>
             </div>
           </div>
         </div>

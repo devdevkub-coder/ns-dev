@@ -1,95 +1,104 @@
-# Work Summary - 2026-06-11
+# Work Summary - สรุปงานประจำวันที่ 2026-06-11
 
-## Weight Ticket Detail Modal UI Update
-- **Refactored Detail View:**
-  - The detail page for weight tickets (`/daily/weight-ticket-list/[id]`) logic was extracted and adapted into a new `WeightTicketDetailModal` component.
-  - Clicking a row in `/daily/weight-ticket-list` now opens the details in a popup modal without changing the page route, keeping the user in the context of the list view.
-  - The popup modal design mirrors the Purchase Bill detail modal layout.
+สรุปผลการปรับปรุงระบบ NS Scrap ERP ในวันนี้ จัดลำดับเป็นข้อเพื่อนำไปรายงานต่อได้อย่างชัดเจน:
 
-- **Timeline UI Overhaul:**
-  - The document timeline (ประวัติเอกสาร) inside the weight ticket details was redesigned.
-  - Replaced the simple list design with a structured, card-based layout featuring a left-aligned vertical timeline and white detail boxes.
-  - The aesthetic matches the timeline from the Purchase Bill detail page, providing a consistent user experience.
+1. **การปรับปรุงหน้าแสดงรายละเอียดบัตรชั่งน้ำหนัก (Weight Ticket Detail Modal & Timeline UI)**
+   * **รายละเอียด:** ดึงตรรกะหน้าแสดงรายละเอียดบัตรชั่งน้ำหนัก (`/daily/weight-ticket-list/[id]`) มาทำเป็น Popup Modal ช่วยให้ผู้ใช้สามารถคลิกดูรายละเอียดจากตารางรายการได้ทันทีโดยไม่ต้องเปลี่ยนหน้าเว็บ (รักษาบริบทเดิม)
+   * **ปรับปรุง Timeline:** ปรับปรุงหน้าตาของประวัติเอกสาร (Timeline) ด้านใน ให้แสดงในลักษณะการ์ดสีขาวแยกตามเหตุการณ์พร้อมมีเส้นเชื่อมแนวตั้งสวยงาม ตามสไตล์ของใบรับซื้อ (Purchase Bill)
 
-- **Verification:**
-  - The Next.js app passes strict type-checking (`tsc --noEmit`).
-  - Linter warnings and errors were cleared (`eslint .`).
+2. **การปรับปุ่มดำเนินการในตารางหลักให้แสดงเฉพาะข้อความ (Action Button Standardization)**
+   * **รายละเอียด:** นำไอคอนออกจากปุ่มดำเนินการต่าง ๆ ในตารางหมวดรายการประจำวัน (เช่น ปุ่มพิมพ์ ปุ่มยกเลิก) และปรับปรุงให้แสดงผลเฉพาะข้อความ (Text-only) ขนาดกะทัดรัด ช่วยให้ตารางดูสะอาดและมีพื้นที่การแสดงผลกว้างขวางมากขึ้น
+   * **ผลกระทบ:** ครอบคลุมหน้าบัตรชั่งน้ำหนัก, ใบรับซื้อ/ใบส่งของ, จองซื้อ (PO Buy), และใบเสร็จรับเงิน (Receipt Vouchers)
 
-## CRUD Action Button Standardization
-- **UI Update:**
-  - Standardized the action buttons (CRUD) in all `daily` list tables to use a text-only design without icons (e.g., removed the `Printer` icon from print buttons).
-  - Ensured consistency across `WeightTicketListPageClient`, `TransactionBillsPageClient` (Purchase/Sales bills), `PoBuyPageClient`, and `ReceiptVouchersPageClient`.
-- **Workflow Synthesis:**
-  - Created a comprehensive `daily-transactions-workflow.md` artifact with Mermaid diagrams to outline all Daily Transactions workflows.
+3. **การปรับปรุงความสวยงามและการจัดระเบียบตารางจองซื้อ/จองขาย (PO Buy & PO Sell Table UI Polish)**
+   * **รายละเอียด:** ติดตั้งระบบจัดความกว้างคอลัมน์แบบลากปรับขนาดได้ (Resizable Columns) และบังคับใช้สไตล์ `tableLayout: 'fixed'` ป้องกันตารางบิดเบี้ยว
+   * **ลดช่องว่างแนวนอน:** บีบความกว้างคอลัมน์ข้อมูลตัวเลขให้กระชับ และนำพื้นที่ว่างที่เหลือไปเฉลี่ยขยายคอลัมน์ชื่อคู่ค้า/ชื่อสินค้า เพื่อป้องกันปัญหาตารางยืดแหว่งในหน้าจอขนาดใหญ่
+   * **ความสมมาตร:** ปรับระยะเยื้องขวา (`pr-4`) ของคอลัมน์จำนวนเงินให้ชิดขอบในระยะที่เท่ากันพอดีเป๊ะกับหัวคอลัมน์ (Discrepancy 0px) และเปิดใช้ตารางยืดขยายเต็ม 100% ของพื้นที่
+   * **การลบขอบขาวรอยแถว:** ปรับขอบของแถวตารางฝั่ง PO Sell ให้ใช้เส้นขอบเทาอ่อนและสไตล์ hover สีเทาจาง เช่นเดียวกับฝั่ง PO Buy
 
-## PO Buy & PO Sell UI Enhancements
-- **Resizable Columns & Fixed Layout:**
-  - Implemented `useResizableColumns` and `ResizableTableHead` in the PO Buy (`/purchase-flow/po-buy`) and PO Sell (`/sales/po-sell`) page list tables.
-  - Added strict `tableLayout: 'fixed'` to `PoSellPageClient` to prevent auto-layout stretching gaps between columns.
-  - Adjusted `defaultWidth` and `minWidth` settings for numeric columns (qty, margin, totalAmount) across both pages to tighten gaps and give a more professional layout.
-  - Replaced hard-coded width classes in table cells with `<colgroup>` base styles for fluid layout behavior.
+4. **การพัฒนาคอมโพเนนต์ย่อรายการสินค้า/เอกสารส่วนกลาง (Collapsed List shared UI Component)**
+   * **รายละเอียด:** สร้างแชร์คอมโพเนนต์ `CollapsedList` เพื่อนำมาใช้ตัดทอนข้อมูลรายการสินค้าที่ยาวเกินไปในช่องตาราง โดยตั้งค่าให้แสดงผลเพียง 2 บรรทัดแรกพร้อมข้อความกำกับ "และอีก X รายการ" และแสดงรายละเอียดฉบับเต็มในรูปของ Tooltip เมื่อผู้ใช้เลื่อนเมาส์มาวาง (Hover)
+   * **ผลลัพธ์:** ทำให้ความสูงของแถวตารางคงที่กะทัดรัด (40px - 46px) ไม่ปูดออกในแนวตั้ง โดยนำมาใช้แทนตรรกะเดิมในหน้าประวัติการเงิน (Money Movement), ใบรับซื้อ/ใบส่งของ, PO Buy และ PO Sell
 
-## Transaction Bills & Money Movement UI Enhancements
-- **Truncated List with Tooltip (Shared UI Component):**
-  - Extracted the list truncation logic into a generic shared UI component `CollapsedList` (`src/components/ui/CollapsedList.tsx`).
-  - Implemented `CollapsedList` in `TransactionBillsPageClient` for `PMA / PMT` (Payment Docs) and Receipt Docs columns.
-  - Replaced the hardcoded inline maps in `MoneyMovementPageClient` for "เอกสารอ้างอิง" (Referenced Bills) and "บัญชีที่จ่าย" (Accounts) columns, ensuring rows don't stretch excessively when multiple bills are settled at once.
-  - Refactored `PoBuyPageClient` and `PoSellPageClient` to use the same generic `CollapsedList` for the "รายการสินค้า / รายการ" (Items) column, dropping the bespoke custom string rendering for consistency.
-  - Limits the display to 2 items by default, showing "และอีก X รายการ" with a hover tooltip to reveal the full content.
+5. **การปรับเปลี่ยนฟิลเตอร์เริ่มต้นในหน้าอนุมัติการจ่ายเงิน (Payment Approval Default Status)**
+   * **รายละเอียด:** ปรับปรุงหน้าอนุมัติการจ่ายเงิน (`/daily/payment-approval`) จากเดิมที่กำหนดค่าเริ่มต้นให้โหลดเฉพาะรายการสถานะ "ยังไม่อนุมัติ" เปลี่ยนเป็นค่าเริ่มต้นให้โหลดข้อมูลรายการ "ทั้งหมด" ทันที เพื่อป้องกันไม่ให้ผู้ใช้งานสับสนว่าทำไมรายการอื่น ๆ ถึงไม่ขึ้นโชว์ตอนเปิดหน้าเว็บครั้งแรก
 
-## Right Alignment DOM Verification on PO Sell
-- **Alignment Discrepancy Identified:**
-  - Resizable column headers use `pr-4` (16px right padding) to accommodate the resize handle button.
-  - Numeric cells originally only had `p-2` (8px right padding), resulting in an 8-10px alignment mismatch on the right side of the columns.
-- **Applied Fix:**
-  - Added `pr-4` to `TableNumberCell` and all custom right-aligned `TableCell` components inside `PoSellPageClient.tsx` (such as totalAmount, matchedQty, margin, and marginPct) so their right padding matches the headers.
-- **Verification via Live DOM Test:**
-  - Logged into the local server using a Playwright subagent and fetched bounding box coordinates (`getBoundingClientRect()`) from the live page:
-    - **จำนวนรวม Column**: Header right edge = **792px**, Cell right edge = **792px** (Aligned!).
-    - **รายได้รวม Column**: Header right edge = **892px**, Cell right edge = **892px** (Aligned!).
-  - The live DOM check confirms perfect 0px discrepancy.
+6. **การลบเส้นขอบสีขาวรอบส่วนหัวฟอร์มสีเข้ม (Form Header Border & Design Cleanup)**
+   * **รายละเอียด:** ทำการลบ `border border-slate-200` ออกจากแท็ก `<form>` ครอบการ์ดชั้นนอกสุดในหน้าจอ Master Data ทั้ง 6 ไฟล์หลัก ได้แก่ หน้าดีไซน์จำลอง, ฟอร์มลูกค้า, ฟอร์มผู้ขาย, ฟอร์มสินค้า, ฟอร์มสิ่งเจือปน, และคอมโพเนนต์แชร์ของ Master Data อื่น ๆ
+   * **ผลลัพธ์:** แถบหัวเรื่องของฟอร์มที่มีสีเข้มเข้มงวด (`bg-slate-900`) วิ่งแนบโค้งมนไปกับขอบฟอร์มส่วนบนสุดได้อย่างสวยงามเป็นระดับพรีเมียม ปราศจากเส้นสีขาวอ่อนวิ่งตัดสายตาอยู่รอบส่วนหัว
 
-## Table Full-Width Stretch Fix on PO Sell & PO Buy
-- **Table Width Issue:**
-  - The table elements inside `PoSellPageClient.tsx` and `PoBuyPageClient.tsx` used `width: columnResize.tableContentWidth` which set a fixed width in pixels (sum of default/custom column widths).
-  - On widescreen displays, this caused the table to render as a narrow block on the left, leaving a massive blank gap on the right.
-- **Applied Fix:**
-  - Modified both page components to use `minWidth: columnResize.tableMinWidth` (resolving to `max(<column-sum>px, 100%)`) on the `<Table>` style, matching all other tables in the project.
-- **Verification via Live DOM Test:**
-  - Logged into the local server and verified the layout widths:
-    - **Table Width**: **1,808px**
-    - **Parent Container Width**: **1,808px**
-    - **Discrepancy**: **0px** (Perfect stretch to fill 100% width, no blank gaps on the right).
+7. **การปรับความกว้างกริดและสไตล์ของฟิลด์รับข้อมูล (Form Inputs & Grid Layout Optimization)**
+   * **รายละเอียด:** ปรับความสูงกล่องข้อความ, กล่องเลือกแบบ Dropdown และกล่องกรอกโทรศัพท์ (`PhoneInput`) ให้คงส่วนสูงที่ `h-10` เท่ากันทั้งหมด พร้อมมี transition เอฟเฟกต์การโฟกัสขอบเข้ม
+   * **ปรับปรุง Label โทรศัพท์:** เปลี่ยนสไตล์ Label ข้างกล่องโทรศัพท์ให้เป็นระเบียบขนาดตัวเล็กหนา (`text-xs font-semibold text-slate-600`) สอดคล้องกับกล่องอื่น
+   * **การจัดสัดส่วนกริด:**
+     * **ฟอร์มผู้ขาย:** ปรับปรุงช่อง `ถนน` ให้มีความกว้าง `md:col-span-2` เพื่อนำไปเข้าคู่กับช่อง `หมู่บ้าน/อาคาร` (2) รวมกันเป็น 4 คอลัมน์สมบูรณ์ในแถวที่ 3
+     * **ฟอร์มสินค้า:** สั่งการให้ฟิลด์ `ชื่อสินค้า *` ยืดหดคอลัมน์อัตโนมัติ (เป็น 2 คอลัมน์เมื่อสร้างสินค้าใหม่เพื่อแทนช่องรหัสสินค้าที่ซ่อนอยู่ และหดเหลือ 1 คอลัมน์ตอนแก้ไขสินค้า) ทำให้การจัดกริดมีสมมาตรเต็มพื้นที่ ไม่เกิดการแหว่งว่างเปล่าของช่องกรอกข้อมูล
 
-## Table Row Border Styling Standardization on PO Sell
-- **Border Issue:**
-  - The PO Sell table rows (`TableRow`) lacked explicit border styling, resulting in a dark/black top border (from default browser/fallback styles) separating the header and rows, which looked inconsistent compared to the light gray styling on PO Buy.
-- **Applied Fix:**
-  - Added `className="border-slate-100 hover:bg-slate-50"` to `TableRow` elements in `PoSellPageClient.tsx`. This aligns the row borders and hover effects perfectly with `PoBuyPageClient.tsx` and standardizes the UX/UI theme.
+8. **การปรับปรุงสไตล์แถบเลื่อนด้านซ้ายมือ (Sidebar Scrollbar Design Polish)**
+   * **รายละเอียด:** นำดีไซน์แถบเลื่อนแบบกำหนดเอง (`custom-scrollbar-dark`) ไปใช้งานกับเมนูด้านซ้ายและประกาศสไตล์ใน `globals.css`
+   * **ผลลัพธ์:** ปิดการใช้งานรางเลื่อนแถบขาวแบบเริ่มต้นของเบราว์เซอร์ให้กลายเป็นพื้นหลังโปร่งแสงกลมกลืนกับ Sidebar และแสดงตัวเลื่อนเป็นทรงมนกึ่งโปร่งแสงสีเทาสบายตาที่มองเห็นได้เด่นชัดขึ้นเล็กน้อยตอนเอาเมาส์ไปชี้
 
-## Column Width Adjustments and Gap Reduction on PO Buy and PO Sell
-- **Column Spacing Issue:**
-  - When tables stretch to 100% width on widescreen monitors, the browser scales all columns proportionally. This caused numeric columns (which are right-aligned) to stretch excessively, leaving a massive blank horizontal gap between the text columns and adjacent numbers.
-  - Additionally, rendering multiple items on separate vertical lines in the "รายการ" column increased the row height to `81px`, leaving blank space underneath short item names.
-- **Applied Fix:**
-  - **Inline Mode for Lists:** Updated `CollapsedList` to support rendering items inline on a single line (joined by commas). Enabled this on PO Sell and PO Buy, restoring row heights to a compact single-line height of `40px` to `46px`.
-  - **Strategic Column Stretch Widths:** Adjusted default column widths so text columns absorb the extra stretch space instead of numeric columns:
-    - Increased text columns `customerName`/`supplierName` to `420px` and `productName` to `280px`.
-    - Tightened numeric columns (`qty` to `75px`, `totalAmount` to `80px`, `remainingQty` to `75px`, etc.).
-  - **Reset Controls:** Added the "Set col to default" button in the toolbar of both pages to allow clearing custom browser `localStorage` overrides.
-- **Verification via Live DOM Test:**
-  - Instructed the browser subagent to open both pages and click "Set col to default" to reset to our new definitions:
-    - **PO Sell "รายการ" column**: `314.4px` wide cell, visual gap between text and `300.00` quantity is exactly **`16px`**!
-    - **PO Buy "รายการสินค้า" column**: `307.0px` wide cell, visual gap between text and quantity is exactly **`16px`**!
-  - Both tables are now perfectly compact, spacing matches professional standards, and lints/builds compile successfully.
+9. **การแก้ไขสัญลักษณ์จัดเรียงตารางที่แสดงผลผิดพลาดเป็นกล่องสี่เหลี่ยม/ปีกกาเสีย (Broken Sorting Icons Fix)**
+   * **รายละเอียด:** แก้ไขปัญหาตัวอักษรของปุ่มจัดเรียง (Sort Icons) ในหัวตารางของ Windows/บราวเซอร์บางเครื่องที่แสดงผลเป็นกล่องสี่เหลี่ยมหรือตัวอักษรปีกกาเสีย `[` (ซึ่งเกิดจากฟอนต์ระบบไม่รองรับอักขระลูกศรคู่ `↕`)
+   * **การแก้ไข:** ปรับเปลี่ยนคอมโพเนนต์ `ResizableTableHead.tsx` ให้หันมาใช้ไอคอน SVG มาตรฐานของ **Lucide Icons** (`ChevronUp`, `ChevronDown`, `ChevronsUpDown`) แทนการใช้ตัวอักษร Unicode ทำให้แสดงผลได้คมชัดและรองรับทุกอุปกรณ์อย่างถูกต้อง 100%
 
-## Table Compact Layout and Right-Alignment Polish (Receipt Vouchers, Suppliers & Master Data)
-- **UI & Layout Standardization:**
-  - **Receipt Vouchers (`ReceiptVouchersPageClient.tsx`):** Compressed default column widths (e.g. set quantities/amounts from `140px` -> `85px`, action buttons from `150px` -> `140px`, and expanded payee `sellerName` to `320px` to prevent text-wrap bloating table rows).
-  - **Suppliers (`SuppliersPageClient.tsx`):** Standardized column widths to match core transaction flows, expanding the primary vendor name to `320px` and shortening phone, type, and active status toggles to clear out empty gaps on wide displays.
-  - **Master Data shared components (`MasterDataPageClient.tsx`):** Added `pr-4 tabular-nums whitespace-nowrap` classes to right-aligned cells (`column.align === 'right'`). This ensures numeric columns (standard cost, process cost, limit) line up perfectly with the resizable header and keep correct spacing relative to the column resize handles.
+10. **การปรับปรุงสไตล์และล้างสีขีดแบ่งสีดำเข้มในหน้าหมวดรายการประจำวันและข้อมูลหลัก (Raw Border Cleanup)**
+    * **รายละเอียด:** ตรวจสอบและแก้ไขการใช้คลาสขอบ (`border`, `border-t`, `border-b`, `border-r`, `border-l`) ที่ไม่มีการกำหนดสีขอบระบุชัดเจนใน Tailwind CSS v4 ซึ่งบางบราวเซอร์จะวาดเป็นเส้นสีดำทึบขัดสายตา
+    * **การแก้ไข:** ปรับปรุงและระบุสีเส้นขอบให้เป็นแบบอ่อนโยนพรีเมียม (`border-slate-200`, `border-slate-100`, หรือ `border-white/10` สำหรับหัวตารางแบบไล่เฉดสี) ในทุกหน้าจอของหมวด **รายการประจำวัน (Daily Transactions)** และหมวด **ข้อมูลหลัก (Master Data)** ทั้งหมดรวม 60 จุดสำเร็จ เรียบร้อยหมดจด
 
-## Payment Approval Default Status Change
-- **Behavior Modification:**
-  - **Payment Approval (`PaymentApprovalPageClient.tsx`):** Modified the initial state filter `approvalStatusFilter` to default to an empty array `[]` ("ทั้งหมด") instead of `['pending']` ("ยังไม่อนุมัติ"). When the user navigates to the page, it will now load and display all records across all statuses by default.
-  - **TypeScript & Schema Alignment:** Ran `npm run prisma:generate` to synchronize database object models after pulling conflict merges from remote. Passed all typescript checks, lints, and production builds successfully.
+11. **การปรับปรุงความชัดเจนและดีไซน์หน้าอนุมัติการจ่ายเงิน (Payment Approval UI Polish)**
+    * **รายละเอียด:** ปรับปรุงการแสดงผลกล่องสรุปตัวเลข (KPI Cards) และแถบหัวตาราง (Table Header) เพื่อให้อ่านง่ายและโดดเด่นขึ้นชัดเจนโดยไม่ใช้เส้นกรอบล้อมรอบกล่องการ์ด
+    * **การแก้ไข:**
+      * **การ์ด KPI:** เพิ่มแถบสีเน้นที่ขอบซ้าย (`border-l-4`), เพิ่มเงาแบบนุ่มนวล (`shadow-sm hover:shadow-md transition-all`), ใส่ไอคอนสัญลักษณ์ประกอบการ์ด (เช่น `Inbox`, `Wallet`, `CheckCircle2`, `AlertCircle`, `Clock`) และขยายขนาด Contrast ของตัวเลขยอดเงิน
+      * **หัวตาราง:** ปรับพื้นหลังหัวตารางเป็นสีเทา Slate ที่เด่นชัดขึ้น (`bg-slate-200/80`) และเพิ่มเส้นแบ่งขอบล่างบาง ๆ (`border-b border-slate-300/80`) ช่วยนำสายตาและเพิ่ม Contrast
+
+12. **การคงสวิตช์ Toggle สถานะในตารางข้อมูลหลักเพื่อการทำงานที่รวดเร็ว (Active Toggle Switch Restoration)**
+    * **รายละเอียด:** คืนค่าการทำงานของคอลัมน์สถานะ (Status) ในตารางข้อมูลหลักทั้งหมด ได้แก่ ลูกค้า, ผู้ขาย, สินค้า, สิ่งเจือปน และคอมโพเนนต์แชร์ข้อมูลหลักอื่น ๆ ให้กลับมาใช้ปุ่มสวิตช์ Toggle **`ActiveToggle`** (สวิตช์เปิด-ปิด) เช่นเดิมแทนการแสดงผลด้วย Premium Status Badge เพื่อตอบสนองความเร็วในการเปิด/ปิดและใช้งานระบบจริงของผู้ใช้
+    * **ผลลัพธ์:** ผู้ใช้สามารถคลิกเปิดหรือปิดการใช้งานของแต่ละรายการได้ทันทีจากตารางหลักโดยตรงอย่างสะดวกและรวดเร็ว โดยระบบจะส่ง API อัปเดตข้อมูลและรีโหลดข้อมูลแถวนั้นแบบเรียลไทม์ทันที
+
+13. **การปรับปรุงกล่องอัปโหลดไฟล์ (File Upload / Dropzone) ในหมวดข้อมูลหลักและรายการประจำวันเป็นสไตล์ AcexPOS**
+    * **รายละเอียด:** นำสไตล์การอัปโหลดของ AcexPOS จากหน้า Design Mockup มาประยุกต์ใช้งานในระบบจริง ทั้งในหน้าสินค้า (Products) ของหมวดข้อมูลหลัก, หน้าใบจ่ายเงินล่วงหน้า (Advance Payments) และหน้าใบรับ-ส่งของ (Weight Tickets) ของหมวดรายการประจำวัน โดยปรับสไตล์ปุ่ม/กล่องอัปโหลดเป็นแบบขอบประโค้งมนพรีเมียม (`border-2 border-dashed border-slate-300 rounded-xl bg-white hover:border-emerald-400 hover:bg-slate-50 transition-colors`) และเปลี่ยนไอคอนภายในเป็นสัญลักษณ์โฟลเดอร์ `📁`
+    * **ผลลัพธ์:** ฟอร์มอัปโหลดไฟล์สวยงาม สอดคล้องเป็นระบบเดียวกัน และใช้งานง่ายพรีเมียมขึ้นอย่างเห็นได้ชัด
+
+14. **การเปลี่ยนฟอร์มสร้าง/แก้ไขใบรับ-ส่งของ (Weight Tickets) เป็น Pop-up Modal พร้อมจัด Layout มืออาชีพ**
+    * **รายละเอียด:** ย้ายพฤติกรรมการกรอกแบบฟอร์มสร้างและแก้ไขใบรับ-ส่งของ จากเดิมที่เป็นการสลับหน้าใหม่ให้แสดงผลเป็น Pop-up Modal (Dialog) ครอบหน้ารายการเดิมแทน และจัด Layout องค์ประกอบใหม่ให้สวยงามเป็นระเบียบ:
+      * **จัดกริดข้อมูลหัวเอกสาร:** แยกข้อมูลตัวหนังสือ (สาขา, คู่ค้า, ทะเบียนรถ) เป็นกริด 3 คอลัมน์ด้านซ้าย และแยกช่องอัปโหลดรูปภาพรถส่งของไปไว้ฝั่งขวา เพื่อป้องกันปัญหากล่องข้อความยืดโย้เย้ตามความสูงของพื้นที่อัปโหลดรูป
+      * **ระยะห่างไดนามิก:** ปรับระยะ Padding bottom ที่ฐานแบบไดนามิกให้ลดลงเมื่ออยู่ในโหมด Modal เพื่อขจัดพื้นที่สีขาวส่วนเกิน และเพิ่ม Modal Title ระบุเจตจำนงชัดเจนด้านบนสุด
+      * **แถบปุ่มควบคุม:** จัดเรียงตำแหน่งปุ่มควบคุมท้ายฟอร์มใหม่ โดยสลับให้ปุ่ม "บันทึก" (ใช้ข้อความ "บันทึก" สั้นกระชับ) อยู่ทางขวาสุดของกลุ่ม และปรับสีปุ่มบันทึกเป็นสีเทาเข้ม (`bg-slate-900`) ที่เป็นมาตรฐานของระบบ และปุ่ม "ยกเลิก" แสดงผลแบบข้อความล้วนไม่มีกรอบทางด้านซ้ายของปุ่มบันทึก เพื่อสอดคล้องตามมาตรฐานเดียวกับหน้าข้อมูลหลักอื่น ๆ และดูสะอาดตาพรีเมียมขึ้น
+    * **ผลลัพธ์:** ฟอร์มในหน้า Modal แสดงผลได้อย่างพรีเมียม สวยงาม สมมาตร และได้สัดส่วนแบบมืออาชีพอย่างเห็นได้ชัดตามความต้องการของผู้ใช้งาน
+
+15. **การขยายพื้นที่เลือกสินค้าจากรูปภาพในฟอร์มใบชั่ง/รับส่งสินค้า (Product Image Picker Layout & Size Optimization)**
+    * **รายละเอียด:** ดึงคอมโพเนนต์ส่วน "เลือกจากรูปสินค้า" (`ProductImagePicker`) ออกจากคอลัมน์ Grid ข้อมูลตัวเลขดั้งเดิม เพื่อให้ขยายความกว้างเต็มพื้นที่การ์ดฝั่งขวา (100% Full-Width)
+    * **ปรับแต่งรูปภาพสินค้า:** ขยายขนาดความสูงรูปภาพให้มีขนาด `h-16 bg-slate-100 sm:h-20` (64px/80px) ทำให้รูปมีขนาดใหญ่ขึ้น มองเห็นรายละเอียดได้ชัดเจนและกดเลือกได้ง่ายขึ้นมาก
+    * **ปรับโครงสร้าง Grid:** จัดเรียง Grid เป็น `grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8` เพื่อรักษาสัดส่วน Aspect Ratio ของภาพสินค้าให้ได้ทรงจัตุรัส/แนวนอนที่สวยงามเป็นธรรมชาติ ไม่โดนบีบยืดสูงในแนวตั้ง
+
+16. **การปรับสไตล์และสีหัวข้อฟอร์มใบรับ-ส่งของใน Modal ให้เป็นสีเข้มโทนเดียวกับ Sidebar (Modal Header Style Update)**
+    * **รายละเอียด:** ปรับปรุงส่วนหัว (Header) ของฟอร์มใบชั่ง/รับส่งสินค้า (`WeightTicketsPageClient` ในโหมด Modal) จากเดิมที่เป็นสีขาว ให้เปลี่ยนเป็นสีเข้ม **`bg-slate-900`** และเส้นแบ่งบอร์เดอร์เป็นสีเข้ม **`border-slate-800`** เพื่อความสวยงามพรีเมียม สอดคล้องกับโทนสี Sidebar เหมือนกับฟอร์ม Master Data ตัวอื่นๆ
+    * **การจัดสไตล์แท็บและตัวหนังสือ:**
+      - ปรับปรุงข้อความหัวข้อเรื่องให้เป็นสีสว่าง **`text-slate-100`** เมื่ออยู่ในโหมด Modal
+      - ปรับปรุงการแสดงผลของ Tabs (ใบรับของ WTI, ใบส่งของ WTO) ให้แสดงเด่นชัดขึ้นบนพื้นหลังเข้ม โดยสำหรับแท็บที่ทำงาน (Active) จะเป็น **`text-slate-100 data-[state=active]:border-blue-500`** และแท็บที่ไม่ได้เลือก (Inactive) เป็น **`text-slate-400 hover:text-slate-200`**
+      - นำช่องว่างขอบขาวล้อมรอบ Header และ Footer ออกในโหมด Modal เพื่อให้องค์ประกอบทั้งสองแนบชิดกับขอบมนของ DialogContent อย่างไร้รอยต่อ
+
+17. **การปรับสไตล์และโครงสร้างรายละเอียดในหน้าต่างอนุมัติจ่ายเงินเป็นแบบ Section Layout (Section Layout for Details Modal)**
+    * **รายละเอียด:** ปรับเปลี่ยนหน้าตาของ Modal รายละเอียดรายการคิวอนุมัติจ่ายเงิน (Payment Approval Details) จากเดิมที่เป็นกล่องขอบสี่เหลี่ยมเดี่ยวๆ ล้อมรอบทุกช่องข้อมูล (Field Cards) ให้กลายมาเป็น **แบบ Section (ใช้เส้นคั่น)** เพื่อให้ง่ายต่อการอ่านตามดีไซน์ Mockup หัวข้อที่ 15
+    * **การจัดระเบียบสไตล์ใหม่:**
+      - นำกรอบบ็อกซ์พื้นขาวและบอร์เดอร์ขอบออกจากทุกช่องข้อมูลเดี่ยว ทำให้ข้อความแสดงผลลงบนพื้นผิวเรียบสีขาวของป๊อปอัปโดยตรงอย่างสะอาดตา
+      - แบ่งกลุ่มเนื้อหาเป็นสัดส่วนอย่างชัดเจน: "ข้อมูลเอกสารอ้างอิง", "รายละเอียดการเงิน" และ "รายละเอียดการอนุมัติ" พร้อมเพิ่มเส้นแบ่งที่คมชัด **`<hr className="my-5 border-t border-slate-400" />`** เพื่อสร้าง Visual Hierarchy
+      - ปรับปรุงแถบควบคุมท้ายหน้าต่าง (DialogFooter) เป็นขอบสีเทากลางเด่นชัด **`border-slate-400`** และพื้นหลังสีเทาอ่อน **`bg-slate-100`** เพื่อแยกการทำงานได้อย่างสมบูรณ์แบบโดยไม่ต้องใช้ขีดดำดิบ ๆ หน้าฟอร์ม
+
+18. **การแก้ไขแถบหัวตาราง (Table Header) แสดงผลไม่เต็มความกว้างเมื่อเลื่อนตาราง (Horizontal Scroll Table Header Fix)**
+    * **รายละเอียด:** แก้ไขปัญหาในตารางหลักที่มีการเลื่อนจอแนวนอน (Horizontal Scroll) เช่น หน้าเปิดออเดอร์ (Pending Sale) และหน้าจ่ายเงิน Supplier ที่แถบสีเทาของหัวตารางแสดงผลเป็นรอยแหว่งหรือสีตัดขาวทางด้านขวาสุดเมื่อเลื่อนจอ
+    * **การแก้ไข:** เพิ่มคลาส CSS `bg-inherit` เข้าไปยังคอมโพเนนต์ `<TableHead>` (ใน `Table.tsx`) และ `<ResizableTableHead>` (ใน `ResizableTableHead.tsx`) ทำให้เซลล์หัวตาราง (`<th>` ทุกเซลล์) สืบทอดสีพื้นหลังเทาจาก `<thead>` หรือ `<tr>` ของตารางและขยายพื้นที่ครอบคลุมเต็มความกว้างของแถวตารางแต่ละคอลัมน์อย่างถูกต้องและสวยงามตามรูปแบบ Premium Design โดยไม่ต้องใช้ขอบหนาสีดำ
+
+19. **การกำหนดมาตรฐานคำหัวข้อคอลัมน์ปุ่มดำเนินการเป็นคำว่า "จัดการ" (Action Column Header Standardization)**
+    * **รายละเอียด:** แก้ไขปัญหาบางตารางหลักในหน้ารายการประจำวันที่มีการใช้คำหัวข้อคอลัมน์สำหรับปุ่มควบคุม (เช่น แก้ไข/ยกเลิก/ทำจ่าย) ไม่เป็นแบบเดียวกัน โดยเฉพาะในหน้าจ่ายเงิน Supplier (`/purchase/payments`) ที่ไม่มีคำแสดงหัวข้อ (เว้นว่าง), ในหน้าโอนเงินระหว่างบัญชี/เงินสำรองจ่าย ที่ใช้ภาษาอังกฤษคำว่า "Action", และในหน้าค่าใช้จ่าย (`/daily/expense`) ที่ใช้คำว่า "การกระทำ"
+    * **การแก้ไข:** ปรับปรุงไฟล์โค้ด `MoneyMovementPageClient.tsx`, `DailyTransferPageClient.tsx`, `DailyPettyAdvancePageClient.tsx`, และ `DailyExpensePageClient.tsx` โดยแทนที่ป้ายกำกับของหัวตาราง Action Column เป็นคำภาษาไทยมาตรฐาน **"จัดการ"** เพื่อให้เกิดความสอดคล้องของคำศัพท์และการแสดงผลที่เป็นแบบเดียวกันทั้งระบบอย่างพรีเมียม
+
+---
+
+### รายงานการตรวจสอบความถูกต้อง (System Verification)
+* **TypeScript compilation check (`type-check`):** ตรวจสอบประเภทข้อมูลสำเร็จเสร็จสมบูรณ์ 100% (ผ่าน `npm run type-check`)
+* **Linter check (`eslint`):** ตรวจเช็กมาตรฐานการเขียนโค้ด ผ่านฉลุย 100% (ผ่าน `npm run lint`)
+* **Production Build check (`build`):** บิวด์โปรเจกต์ระดับโปรดักชันเรียบร้อยสมบูรณ์ 100% ไร้ข้อผิดพลาด (ผ่าน `npm run build`)
+
+

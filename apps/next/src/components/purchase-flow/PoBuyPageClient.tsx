@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ButtonHTMLAttributes, Dispatch, SetStateAction } from 'react'
-import { Download } from 'lucide-react'
+import { Download, Plus } from 'lucide-react'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { Button as UiButton } from '@/components/ui/Button'
@@ -468,6 +468,7 @@ export function PoBuyPageClient() {
   const [shortCloseNoteError, setShortCloseNoteError] = useState('')
   const [shortClosingRow, setShortClosingRow] = useState<PoBuyRow | null>(null)
   const [showForm, setShowForm] = useState(false)
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [sortDirection, setSortDirection] = useState<PoBuySortDirection>('desc')
   const [sortKey, setSortKey] = useState<PoBuySortKey>('docNo')
   const [statuses, setStatuses] = useState<string[]>([])
@@ -764,7 +765,8 @@ export function PoBuyPageClient() {
         />
       </div>
 
-      <div className="space-y-2 rounded-md bg-white p-3 shadow">
+      {/* Desktop Toolbar (Hidden on Mobile) */}
+      <div className="hidden md:block space-y-2 rounded-md bg-white p-3 shadow">
         <div className="flex flex-wrap items-center gap-2">
           <UiInput className="min-w-[260px] flex-1 rounded-md" placeholder="ค้นหาเลข PO / ชื่อผู้ขาย / ชื่อสินค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <label className="text-xs text-slate-500">วันที่:</label>
@@ -815,6 +817,20 @@ export function PoBuyPageClient() {
         </div>
       </div>
 
+      {/* Mobile Toolbar (Hidden on Desktop) */}
+      <div className="space-y-2 rounded-md bg-white p-3 shadow md:hidden">
+        <div className="flex gap-2 items-center">
+          <UiInput className="min-w-[200px] flex-1 rounded-md h-9" placeholder="ค้นหาเลข PO / คู่ค้า / สินค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <button
+            type="button"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            onClick={() => setShowMobileFilters(true)}
+          >
+            ตัวกรอง {hasFilters ? '(มี)' : ''}
+          </button>
+        </div>
+      </div>
+
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
         <div>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
         <div className="flex flex-wrap items-center gap-2">
@@ -846,7 +862,156 @@ export function PoBuyPageClient() {
         </div>
       </div>
 
-      <Table className="text-xs font-semibold" style={{ fontFamily: "'Noto Sans Thai', Arial, sans-serif", tableLayout: 'fixed', minWidth: columnResize.tableMinWidth }}>
+      {/* Bottom Sheet Filter for Mobile */}
+      {showMobileFilters ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 md:hidden">
+          <div className="w-full rounded-t-2xl bg-white p-4 shadow-xl border-t border-slate-200 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <h4 className="font-bold text-slate-800">ตัวกรองรายการจองซื้อ</h4>
+              <button
+                className="p-1 text-slate-400 hover:text-slate-600 text-xl font-bold"
+                onClick={() => setShowMobileFilters(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
+                <div className="flex items-center gap-2">
+                  <DatePickerInput className="flex-1" value={fromDate} onChange={setFromDate} />
+                  <span className="text-slate-400">→</span>
+                  <DatePickerInput className="flex-1" value={toDate} onChange={setToDate} />
+                </div>
+              </div>
+
+              <div>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะ</span>
+                <div className="flex flex-wrap gap-2">
+                  <PoBuySegment
+                    active={statuses.length === 0}
+                    label="ทุกสถานะ"
+                    onClick={() => setStatuses([])}
+                  />
+                  <PoBuySegment
+                    active={statuses.includes('Open')}
+                    label="ยังไม่รับ"
+                    onClick={() => toggleStatusFilter('Open', setStatuses)}
+                    tone="open"
+                  />
+                  <PoBuySegment
+                    active={statuses.includes('Partially Received')}
+                    label="บางส่วน"
+                    onClick={() => toggleStatusFilter('Partially Received', setStatuses)}
+                    tone="partial"
+                  />
+                  <PoBuySegment
+                    active={statuses.includes('Received')}
+                    label="รับครบ"
+                    onClick={() => toggleStatusFilter('Received', setStatuses)}
+                    tone="received"
+                  />
+                  <PoBuySegment
+                    active={statuses.includes('Short Closed')}
+                    label="ปิดรับไม่ครบ"
+                    onClick={() => toggleStatusFilter('Short Closed', setStatuses)}
+                    tone="shortClosed"
+                  />
+                  <PoBuySegment
+                    active={statuses.includes('Cancelled')}
+                    label="ยกเลิก"
+                    onClick={() => toggleStatusFilter('Cancelled', setStatuses)}
+                    tone="cancelled"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-6 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => {
+                  resetFilters()
+                  setShowMobileFilters(false)
+                }}
+              >
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                className="h-11 rounded-md bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700"
+                onClick={() => setShowMobileFilters(false)}
+              >
+                ใช้ตัวกรอง
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Mobile Card List (Hidden on Desktop) */}
+      <div className="block md:hidden space-y-3">
+        {isLoading ? (
+          <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">กำลังโหลดข้อมูล</div>
+        ) : null}
+        
+        {!isLoading && pageRows.map((row) => (
+          <div
+            key={row.id}
+            className="rounded-md border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 cursor-pointer transition-colors"
+            onClick={() => setSelectedRow(row)}
+          >
+            <div className="flex justify-between items-start mb-2">
+              <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
+              <span className="text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
+            </div>
+            
+            <div className="text-xs text-slate-600 mb-3 space-y-1">
+              <div>
+                <span className="font-semibold text-slate-500">ผู้ขาย: </span>
+                <span className="text-slate-800">{row.supplierName}</span>
+              </div>
+              <div>
+                <span className="font-semibold text-slate-500">สินค้า: </span>
+                <span className="text-slate-800">{row.productName}</span>
+              </div>
+              {row.notes.trim() ? (
+                <div className="text-[11px] text-slate-400 truncate">
+                  หมายเหตุ: {row.notes}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="flex justify-between items-end pt-2 border-t border-slate-100">
+              <div>
+                <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${statusBadge(row.status)}`}>
+                  <span className="size-1.5 rounded-full bg-current" />
+                  {poBuyStatusLabel(row.status)}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-slate-400 block">จำนวนรวม / ยอดคงเหลือ</span>
+                <span className="font-bold text-slate-900 text-sm tabular-nums">
+                  {formatMoney(row.qty)} / <span className="text-amber-600">{formatMoney(row.remainingQty)}</span> กก.
+                </span>
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {!isLoading && totalRows === 0 ? (
+          <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">
+            ยังไม่มี PO Buy
+          </div>
+        ) : null}
+      </div>
+
+      {/* Desktop Table (Hidden on Mobile) */}
+      <div className="hidden md:block overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+        <Table className="text-xs font-semibold" style={{ fontFamily: "'Noto Sans Thai', Arial, sans-serif", tableLayout: 'fixed', minWidth: columnResize.tableMinWidth }}>
         <colgroup>
           {poBuyColumns.map((column) => <col key={column.key} style={columnResize.getColumnStyle(column.key)} />)}
         </colgroup>
@@ -924,6 +1089,20 @@ export function PoBuyPageClient() {
           ))}
         </TableBody>
       </Table>
+      </div>
+
+      {/* Floating Action Button (FAB) for Mobile */}
+      <div className="fixed bottom-6 right-6 z-40 md:hidden">
+        <button
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg active:scale-95 transition-transform"
+          onClick={openCreateForm}
+          type="button"
+          aria-label="สร้าง PO Buy ใหม่"
+        >
+          <Plus className="h-6 w-6" />
+        </button>
+      </div>
+
       {showForm ? (
         <PoBuyFormModal
           branches={data?.options.branches ?? []}
@@ -987,6 +1166,9 @@ export function PoBuyPageClient() {
           row={selectedRow}
           onClose={() => setSelectedRow(null)}
           onPrint={(rowToPrint) => void printPoBuy(rowToPrint)}
+          onEdit={openEditForm}
+          onCancel={openCancelDialog}
+          onShortClose={openShortCloseDialog}
         />
       ) : null}
     </section>
@@ -1495,11 +1677,17 @@ function PoBuyDetailModal({
   onClose,
   onPrint,
   row,
+  onEdit,
+  onCancel,
+  onShortClose,
 }: {
   isPrinting: boolean
   onClose: () => void
   onPrint: (row: PoBuyRow) => void
   row: PoBuyRow
+  onEdit?: (row: PoBuyRow) => void
+  onCancel?: (row: PoBuyRow) => void
+  onShortClose?: (row: PoBuyRow) => void
 }) {
   return (
     <Dialog open onOpenChange={(open) => {
@@ -1563,7 +1751,29 @@ function PoBuyDetailModal({
             <PoBuyStatusTimeline row={row} />
           </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="flex flex-wrap gap-2 justify-end">
+          {row.status === 'Open' && row.qty === row.remainingQty && onEdit ? (
+            <UiButton className="font-normal" type="button" variant="outline" onClick={() => { onClose(); onEdit(row); }}>
+              แก้ไข
+            </UiButton>
+          ) : null}
+          {row.status === 'Open' && row.qty === row.remainingQty && onCancel ? (
+            <UiButton className="font-normal text-red-600 border-red-200 hover:bg-red-50" type="button" variant="outline" onClick={() => { onClose(); onCancel(row); }}>
+              ยกเลิก
+            </UiButton>
+          ) : null}
+          {shouldShowShortCloseButton(row) && onShortClose ? (
+            <UiButton
+              className="font-normal text-amber-700 border-amber-200 hover:bg-amber-50"
+              disabled={!canShortClosePoBuy(row)}
+              title={canShortClosePoBuy(row) ? undefined : 'เปิดใช้ได้เมื่อรับสินค้าบางส่วนแล้ว'}
+              type="button"
+              variant="outline"
+              onClick={() => { onClose(); onShortClose(row); }}
+            >
+              ปิดรับไม่ครบ
+            </UiButton>
+          ) : null}
           <UiButton className="font-normal" disabled={isPrinting} type="button" variant="outline" onClick={() => onPrint(row)}>
             {isPrinting ? 'กำลังเตรียม...' : 'พิมพ์ PO Buy'}
           </UiButton>

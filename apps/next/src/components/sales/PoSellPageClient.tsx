@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import { Plus } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
@@ -127,6 +128,8 @@ export function PoSellPageClient() {
   const [pageSize, setPageSize] = useState(25)
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const [selectedRow, setSelectedRow] = useState<PoSellRow | null>(null)
   const [documentStatus, setDocumentStatus] = useState('all')
   const [toDate, setToDate] = useState('')
   const columnResize = useResizableColumns('sales.po-sell', poSellColumns)
@@ -267,7 +270,8 @@ export function PoSellPageClient() {
         <Metric className="rounded-md border-2 border-emerald-300 bg-emerald-50 p-4 shadow" label="💰 มูลค่ารอส่ง" subLabel="รายได้รอรับ" value={formatMoney(data?.summary.remainingAmount ?? 0)} valueClassName="text-xl font-bold text-emerald-700" />
       </div>
 
-      <div className="mb-4 space-y-2 rounded-md bg-white p-3 shadow">
+      {/* Desktop Toolbar (Hidden on Mobile) */}
+      <div className="hidden md:block mb-4 space-y-2 rounded-md bg-white p-3 shadow">
         <div className="flex flex-wrap items-center gap-2">
           <input className="min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหาเลข PO / ชื่อ Customer / ชื่อสินค้า / หมายเหตุ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <label className="text-xs text-slate-500">วันที่:</label>
@@ -293,6 +297,20 @@ export function PoSellPageClient() {
           <MatchButton active={matchStatus === 'Fully Matched'} label="Full" tone="emerald" onClick={() => setMatchStatus('Fully Matched')} />
           <MatchButton active={matchStatus === 'Over Matched'} label="Over" tone="red" onClick={() => setMatchStatus('Over Matched')} />
           <MatchButton active={matchStatus === 'Cancelled'} label="Cancelled" tone="slate" onClick={() => setMatchStatus('Cancelled')} />
+        </div>
+      </div>
+
+      {/* Mobile Toolbar (Hidden on Desktop) */}
+      <div className="mb-4 space-y-2 rounded-md bg-white p-3 shadow md:hidden">
+        <div className="flex gap-2 items-center">
+          <input className="min-w-[200px] flex-1 rounded-md border px-3 py-2 text-sm h-9" placeholder="ค้นหาเลข PO / Customer / สินค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <button
+            type="button"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            onClick={() => setShowMobileFilters(true)}
+          >
+            ตัวกรอง {hasFilters ? '(มี)' : ''}
+          </button>
         </div>
       </div>
 
@@ -325,7 +343,130 @@ export function PoSellPageClient() {
         </div>
       </div>
 
-      <Table style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth }}>
+      {/* Bottom Sheet Filter for Mobile */}
+      {showMobileFilters ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 md:hidden">
+          <div className="w-full rounded-t-2xl bg-white p-4 shadow-xl border-t border-slate-200 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <h4 className="font-bold text-slate-800">ตัวกรองรายการจองขาย</h4>
+              <button
+                className="p-1 text-slate-400 hover:text-slate-600 text-xl font-bold"
+                onClick={() => setShowMobileFilters(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
+                <div className="flex items-center gap-2">
+                  <DatePickerInput className="flex-1" value={fromDate} onChange={setFromDate} />
+                  <span className="text-slate-400">→</span>
+                  <DatePickerInput className="flex-1" value={toDate} onChange={setToDate} />
+                </div>
+              </div>
+
+              <div>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะเอกสาร</span>
+                <div className="flex flex-wrap gap-2">
+                  <MatchButton active={documentStatus === 'all'} label="ทั้งหมด" onClick={() => setDocumentStatus('all')} />
+                  {(data?.filters.statuses ?? []).map((item) => (
+                    <MatchButton key={item.value} active={documentStatus === item.value} label={item.label} tone={documentStatusTone(item.value)} onClick={() => setDocumentStatus(item.value)} />
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะ Match Cost</span>
+                <div className="flex flex-wrap gap-2">
+                  <MatchButton active={matchStatus === 'all'} label="ทั้งหมด" onClick={() => setMatchStatus('all')} />
+                  <MatchButton active={matchStatus === 'Not Matched'} label="ยังไม่ Match" tone="slate" onClick={() => setMatchStatus('Not Matched')} />
+                  <MatchButton active={matchStatus === 'Partially Matched'} label="Partial" tone="amber" onClick={() => setMatchStatus('Partially Matched')} />
+                  <MatchButton active={matchStatus === 'Fully Matched'} label="Full" tone="emerald" onClick={() => setMatchStatus('Fully Matched')} />
+                  <MatchButton active={matchStatus === 'Over Matched'} label="Over" tone="red" onClick={() => setMatchStatus('Over Matched')} />
+                  <MatchButton active={matchStatus === 'Cancelled'} label="Cancelled" tone="slate" onClick={() => setMatchStatus('Cancelled')} />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-6 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => {
+                  resetFilters()
+                  setShowMobileFilters(false)
+                }}
+              >
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                className="h-11 rounded-md bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700"
+                onClick={() => setShowMobileFilters(false)}
+              >
+                ใช้ตัวกรอง
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Mobile Card List (Hidden on Desktop) */}
+      <div className="block md:hidden space-y-3">
+        {isLoading ? (
+          <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">กำลังโหลดข้อมูล</div>
+        ) : null}
+        
+        {!isLoading && pageRows.map((row) => (
+          <div
+            key={row.id}
+            className="rounded-md border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 cursor-pointer transition-colors"
+            onClick={() => setSelectedRow(row)}
+          >
+            <div className="flex justify-between items-start mb-2">
+              <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
+              <span className="text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
+            </div>
+            
+            <div className="text-xs text-slate-600 mb-3 space-y-1">
+              <div>
+                <span className="font-semibold text-slate-500">Customer: </span>
+                <span className="text-slate-800">{row.customerName}</span>
+              </div>
+              <div>
+                <span className="font-semibold text-slate-500">สินค้า: </span>
+                <span className="text-slate-800">{row.productName || '-'}</span>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-end pt-2 border-t border-slate-100">
+              <div className="flex flex-wrap gap-1">
+                <StatusPill label={row.documentStatusLabel} tone={documentStatusPillTone(row.documentStatus)} />
+                <StatusPill label={row.matchStatus} tone="match" />
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-slate-400 block">จำนวนรวม / รายได้รวม</span>
+                <span className="font-bold text-slate-900 text-sm tabular-nums">
+                  {formatMoney(row.qty)} กก. / <span className="text-emerald-700">{formatMoney(row.totalAmount)}</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {!isLoading && totalRows === 0 ? (
+          <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">
+            ยังไม่มี PO Sell
+          </div>
+        ) : null}
+      </div>
+
+      {/* Desktop Table (Hidden on Mobile) */}
+      <div className="hidden md:block overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+        <Table style={{ tableLayout: 'fixed', minWidth: columnResize.tableMinWidth }}>
         <colgroup>
           {poSellColumns.map((column) => <col key={column.key} style={columnResize.getColumnStyle(column.key)} />)}
         </colgroup>
@@ -350,7 +491,7 @@ export function PoSellPageClient() {
           {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={13}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
           {!isLoading && !error && rows.length === 0 ? <TableRow><TableCell className="py-10 text-center text-slate-400" colSpan={13}>ยังไม่มี PO Sell</TableCell></TableRow> : null}
           {!isLoading && pageRows.map((row) => (
-            <TableRow key={row.id} className="border-slate-100 hover:bg-slate-50">
+            <TableRow key={row.id} className="border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedRow(row)}>
               <TableCell className="whitespace-nowrap font-mono">{row.docNo}</TableCell>
               <TableCell className="whitespace-nowrap">{formatDateDisplay(row.date)}</TableCell>
               <TableCell className="truncate">{row.customerName}</TableCell>
@@ -374,6 +515,24 @@ export function PoSellPageClient() {
           ))}
         </TableBody>
       </Table>
+      </div>
+
+      {/* Floating Action Button (FAB) for Mobile */}
+      <div className="fixed bottom-6 right-6 z-40 md:hidden">
+        <button
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg active:scale-95 transition-transform"
+          onClick={openCreateForm}
+          type="button"
+          aria-label="สร้าง PO Sell ใหม่"
+        >
+          <Plus className="h-6 w-6" />
+        </button>
+      </div>
+
+      {selectedRow ? (
+        <PoSellDetailModal row={selectedRow} onClose={() => setSelectedRow(null)} />
+      ) : null}
+
       {showForm ? (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="po-sell-form-title">
           <div className="mx-auto my-4 max-w-2xl rounded-md bg-white shadow-2xl">
@@ -510,4 +669,97 @@ function ProductSelect({ inputId, onChange, options, value }: { inputId: string;
       {options.map((option) => <option key={option.id} value={option.id}>{optionLabel(option)}</option>)}
     </select>
   )
+}
+
+function PoSellDetailModal({
+  onClose,
+  row,
+}: {
+  onClose: () => void
+  row: PoSellRow
+}) {
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="po-sell-detail-title">
+      <div className="mx-auto my-4 max-w-lg rounded-md bg-white shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between border-b px-5 py-3 bg-slate-50">
+          <div>
+            <h3 id="po-sell-detail-title" className="font-bold text-slate-900">รายละเอียด PO Sell</h3>
+            <div className="text-xs text-slate-500 font-mono mt-0.5">{row.docNo}</div>
+          </div>
+          <button className="text-2xl text-slate-400 hover:text-slate-600" type="button" onClick={onClose}>×</button>
+        </div>
+        <div className="space-y-4 p-5 text-sm">
+          <div className="grid grid-cols-2 gap-3">
+            <DetailItem label="วันที่สร้างเอกสาร" value={formatDateDisplay(row.date)} />
+            <DetailItem label="วันที่กำหนดส่ง" value={formatDateDisplay(row.expectedDelivery)} />
+            <DetailItem className="col-span-2" label="Customer" value={row.customerName} />
+            <DetailItem label="สาขา/คลัง" value={row.branchName || '-'} />
+            <DetailItem label="ช่องทางขาย" value={row.channelName || '-'} />
+          </div>
+
+          <div className="rounded-md border border-slate-100 bg-slate-50 p-3 space-y-2">
+            <div className="text-xs font-semibold text-slate-500">สถานะรายการ</div>
+            <div className="flex flex-wrap gap-2">
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="text-slate-500">เอกสาร:</span>
+                <StatusPill label={row.documentStatusLabel} tone={documentStatusPillTone(row.documentStatus)} />
+              </div>
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="text-slate-500">Match Cost:</span>
+                <StatusPill label={row.matchStatus} tone="match" />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-md border border-slate-100 p-3 space-y-2">
+            <div className="text-xs font-semibold text-slate-500">จำนวนและรายได้</div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <span className="text-xs text-slate-500">จำนวนจองรวม</span>
+                <div className="font-semibold text-slate-800">{formatMoney(row.qty)} กก.</div>
+              </div>
+              <div>
+                <span className="text-xs text-slate-500">รายได้รวม</span>
+                <div className="font-semibold text-emerald-700">{formatMoney(row.totalAmount)} บาท</div>
+              </div>
+              <div>
+                <span className="text-xs text-slate-500">จำนวน Matched</span>
+                <div className="font-semibold text-blue-700">{formatMoney(row.matchedQty)} กก.</div>
+              </div>
+              <div>
+                <span className="text-xs text-slate-500">จำนวนรอส่ง</span>
+                <div className="font-semibold text-amber-700">{formatMoney(row.remainingQty)} กก.</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-md border border-slate-100 p-3 space-y-2 bg-emerald-50/30">
+            <div className="text-xs font-semibold text-emerald-800">Deal Margin</div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <span className="text-xs text-emerald-600/80"> Deal Margin </span>
+                <div className={`font-bold ${row.margin < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatMoney(row.margin)} บาท</div>
+              </div>
+              <div>
+                <span className="text-xs text-emerald-600/80"> Margin % </span>
+                <div className={`font-bold ${row.marginPct < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatPercent(row.marginPct)}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-md border border-slate-100 p-3">
+            <div className="text-xs font-semibold text-slate-500 mb-1">รายการสินค้า</div>
+            <div className="text-slate-800 font-medium">{row.productName || '-'}</div>
+          </div>
+        </div>
+        <div className="flex justify-end border-t bg-slate-50 px-5 py-3">
+          <button className="rounded-md border border-slate-300 bg-white px-5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" type="button" onClick={onClose}>ปิด</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DetailItem({ className = '', label, value }: { className?: string; label: string; value: string }) {
+  return <div className={`rounded-md bg-slate-50 p-2.5 ${className}`}><div className="text-xs text-slate-500">{label}</div><div className="mt-0.5 font-semibold text-slate-800">{value}</div></div>
 }

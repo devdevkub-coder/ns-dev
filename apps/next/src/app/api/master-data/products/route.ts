@@ -190,3 +190,4 @@ export async function POST(request: Request) {
     return apiErrorResponse(caught, 'บันทึกข้อมูลสินค้าไม่ได้', 400)
   }
 }
+// touched for client reload

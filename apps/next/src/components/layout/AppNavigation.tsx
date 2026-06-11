@@ -147,7 +147,7 @@ export function AppNavigation({ compact = false, onNavigate }: AppNavigationProp
   }
 
   return (
-    <nav ref={navRef} className="flex-1 overflow-y-auto py-3 text-sm" aria-label="Main navigation" onScroll={rememberSidebarScroll}>
+    <nav ref={navRef} className="flex-1 overflow-y-auto py-3 text-sm custom-scrollbar-dark" aria-label="Main navigation" onScroll={rememberSidebarScroll}>
       {navigationSections.map((section) => {
         const items = visibleItems.filter((item) => item.section === section.key)
         if (!items.length) return null

@@ -1,5 +1,6 @@
 'use client'
 
+import { Download, Plus, Upload } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   customerFormSchema,
@@ -12,13 +13,33 @@ import {
   type CustomerFormValues,
 } from '@/lib/customer'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
+import { Button } from '@/components/ui/Button'
 import { FormSelectField } from '@/components/ui/FormSelectField'
 import { PhoneInput } from '@/components/ui/PhoneInput'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { getErrorMessage } from '@/lib/api-client'
 import { formatPhoneDisplay, sanitizePhoneInput } from '@/lib/format'
 import { listThaiDistricts, listThaiProvinces, listThaiSubdistricts, type ThaiDistrict, type ThaiProvince, type ThaiSubdistrict } from '@/lib/thai-address'
 
 type SortKey = 'code' | 'name' | 'taxId' | 'type' | 'phone' | 'email' | 'creditTerm' | 'creditLimit' | 'active'
+type CustomerColumnKey = SortKey | 'action' | 'address'
+
+const customerColumns: Array<ResizableColumnDefinition<CustomerColumnKey>> = [
+  { key: 'code', defaultWidth: 100, minWidth: 80 },
+  { key: 'name', defaultWidth: 320, minWidth: 180 },
+  { key: 'taxId', defaultWidth: 130, minWidth: 110 },
+  { key: 'type', defaultWidth: 95, minWidth: 80 },
+  { key: 'phone', defaultWidth: 110, minWidth: 90 },
+  { key: 'email', defaultWidth: 140, minWidth: 100 },
+  { key: 'address', defaultWidth: 260, minWidth: 180 },
+  { key: 'creditTerm', defaultWidth: 95, minWidth: 70 },
+  { key: 'creditLimit', defaultWidth: 110, minWidth: 85 },
+  { key: 'active', defaultWidth: 110, minWidth: 90 },
+  { key: 'action', defaultWidth: 80, minWidth: 70 },
+]
+
 
 const emptyCustomerForm: CustomerFormValues = {
   id: undefined,
@@ -145,6 +166,9 @@ export function CustomersPageClient() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [sortKey, setSortKey] = useState<SortKey>('code')
   const [subdistricts, setSubdistricts] = useState<ThaiSubdistrict[]>([])
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const columnResize = useResizableColumns('master-data.customers', customerColumns)
+
 
   const loadData = useCallback(async () => {
     setError(null)
@@ -334,20 +358,29 @@ export function CustomersPageClient() {
 
       <div className="rounded-md bg-white p-3 shadow">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="grid w-full gap-2 md:max-w-3xl md:grid-cols-[minmax(0,1fr)_180px_180px]">
-            <input
-              className="w-full rounded-md border px-3 py-2 text-sm"
-              onChange={(event) => {
-                setPage(1)
-                setSearch(event.target.value)
-              }}
-              placeholder="ค้นหา..."
-              type="search"
-              value={search}
-            />
+          <div className="flex flex-col gap-2 w-full md:max-w-3xl md:grid md:grid-cols-[minmax(0,1fr)_180px_180px]">
+            <div className="flex gap-2 w-full">
+              <input
+                className="h-9 w-full flex-1 rounded-md border border-slate-300 px-3 text-sm"
+                onChange={(event) => {
+                  setPage(1)
+                  setSearch(event.target.value)
+                }}
+                placeholder="ค้นหา..."
+                type="search"
+                value={search}
+              />
+              <button
+                type="button"
+                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 md:hidden"
+                onClick={() => setShowMobileFilters(true)}
+              >
+                <span className="text-slate-500">🔍</span> ตัวกรอง {(customerTypeFilter || marketScopeFilter) ? '(1)' : ''}
+              </button>
+            </div>
             <select
               aria-label="กรองประเภทลูกค้า"
-              className="rounded-md border px-3 py-2 text-sm"
+              className="h-9 rounded-md border border-slate-300 px-3 text-sm hidden md:block"
               value={customerTypeFilter}
               onChange={(event) => {
                 setPage(1)
@@ -360,7 +393,7 @@ export function CustomersPageClient() {
             </select>
             <select
               aria-label="กรองในประเทศหรือต่างประเทศ"
-              className="rounded-md border px-3 py-2 text-sm"
+              className="h-9 rounded-md border border-slate-300 px-3 text-sm hidden md:block"
               value={marketScopeFilter}
               onChange={(event) => {
                 setPage(1)
@@ -372,9 +405,10 @@ export function CustomersPageClient() {
               <option value="ต่างประเทศ">ต่างประเทศ</option>
             </select>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <label className={`cursor-pointer rounded-md bg-blue-600 px-3 py-2 text-sm font-bold text-white ${isImporting || isLoading ? 'pointer-events-none opacity-60' : ''}`}>
-              {isImporting ? 'กำลัง Import...' : 'Import Excel'}
+          <div className="flex flex-wrap items-center justify-end gap-2 w-full md:w-auto">
+            <label className={`inline-flex h-9 flex-1 md:flex-none justify-center cursor-pointer items-center gap-1 rounded-md bg-blue-600 px-3 text-sm font-medium text-white ${isImporting || isLoading ? 'pointer-events-none opacity-60' : ''}`}>
+              <Upload aria-hidden="true" className="h-4 w-4" />
+              <span className="text-xs sm:text-sm">{isImporting ? 'กำลัง Import...' : 'Import Excel'}</span>
               <input
                 accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 className="hidden"
@@ -386,15 +420,106 @@ export function CustomersPageClient() {
                 }}
               />
             </label>
-            <button className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-60" disabled={isExporting || isLoading} type="button" onClick={() => void handleExport()}>
-              {isExporting ? 'กำลัง Export...' : '📊 Export Excel'}
+            <button className="inline-flex h-9 flex-1 md:flex-none justify-center items-center gap-1 rounded-md bg-emerald-600 px-3 text-sm font-medium text-white disabled:opacity-60" disabled={isExporting || isLoading} type="button" onClick={() => void handleExport()}>
+              <Download aria-hidden="true" className="h-4 w-4" />
+              <span className="text-xs sm:text-sm">{isExporting ? 'กำลัง Export...' : 'Export Excel'}</span>
             </button>
-            <button className="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white" type="button" onClick={() => void openCreateForm()}>
-              + เพิ่มรายการ
+            <button className="inline-flex h-9 w-full md:w-auto justify-center items-center gap-1 rounded-md bg-slate-900 px-4 text-sm font-medium text-white hidden md:inline-flex" type="button" onClick={() => void openCreateForm()}>
+              <Plus aria-hidden="true" className="h-4 w-4" />
+              เพิ่มรายการ
             </button>
           </div>
         </div>
       </div>
+
+      {/* Floating Action Button (FAB) for Mobile */}
+      <div className="fixed bottom-6 right-6 z-40 md:hidden">
+        <button
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg active:scale-95 transition-transform"
+          onClick={() => void openCreateForm()}
+          type="button"
+          aria-label="เพิ่มรายการลูกค้า"
+        >
+          <Plus className="h-6 w-6" />
+        </button>
+      </div>
+
+      {/* Bottom Sheet Filter for Mobile */}
+      {showMobileFilters ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 md:hidden">
+          <div className="w-full rounded-t-2xl bg-white p-4 shadow-xl border-t border-slate-200 animate-slide-up max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <h4 className="font-bold text-slate-800">ตัวกรองเพิ่มเติม</h4>
+              <button
+                className="p-1 text-slate-400 hover:text-slate-600 text-xl font-bold"
+                onClick={() => setShowMobileFilters(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">ประเภทลูกค้า</span>
+                <select
+                  aria-label="กรองประเภทลูกค้ามือถือ"
+                  className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm bg-white"
+                  value={customerTypeFilter}
+                  onChange={(event) => {
+                    setPage(1)
+                    setCustomerTypeFilter(event.target.value)
+                  }}
+                >
+                  <option value="">ทุกประเภท</option>
+                  <option value="บุคคล">บุคคล</option>
+                  <option value="นิติบุคคล">นิติบุคคล</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">ประเทศ/ตลาด</span>
+                <select
+                  aria-label="กรองในประเทศหรือต่างประเทศมือถือ"
+                  className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm bg-white"
+                  value={marketScopeFilter}
+                  onChange={(event) => {
+                    setPage(1)
+                    setMarketScopeFilter(event.target.value)
+                  }}
+                >
+                  <option value="">ทุกตลาด</option>
+                  <option value="ในประเทศ">ในประเทศ</option>
+                  <option value="ต่างประเทศ">ต่างประเทศ</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-6 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => {
+                  setCustomerTypeFilter('')
+                  setMarketScopeFilter('')
+                  setPage(1)
+                  setShowMobileFilters(false)
+                }}
+              >
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                className="h-11 rounded-md bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700"
+                onClick={() => setShowMobileFilters(false)}
+              >
+                ใช้ตัวกรอง
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
 
       {!isLoading ? (
         <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm text-slate-600">
@@ -402,9 +527,14 @@ export function CustomersPageClient() {
             พบทั้งหมด <span className="font-semibold text-slate-900">{total.toLocaleString('th-TH')}</span> รายการ
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {columnResize.hasCustomWidths ? (
+              <Button size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>
+                Set col to default
+              </Button>
+            ) : null}
             <select
               aria-label="จำนวนรายการต่อหน้า"
-              className="rounded-md border border-slate-300 px-2 py-1"
+              className="h-9 rounded-md border border-slate-300 px-2 py-1 text-sm bg-white"
               value={pageSize}
               onChange={(event) => {
                 setPage(1)
@@ -416,29 +546,31 @@ export function CustomersPageClient() {
               <option value={50}>50 / หน้า</option>
               <option value={100}>100 / หน้า</option>
             </select>
-            <button
-              className="rounded-md border border-slate-300 px-3 py-1 disabled:opacity-50"
+            <Button
               disabled={page <= 1 || isLoading}
+              size="sm"
               type="button"
+              variant="outline"
               onClick={() => {
                 setPage(Math.max(1, page - 1))
               }}
             >
               ก่อนหน้า
-            </button>
-            <span className="px-1">
+            </Button>
+            <span className="px-1 text-xs">
               หน้า {currentPage.toLocaleString('th-TH')} / {totalPages.toLocaleString('th-TH')}
             </span>
-            <button
-              className="rounded-md border border-slate-300 px-3 py-1 disabled:opacity-50"
+            <Button
               disabled={page >= totalPages || isLoading}
+              size="sm"
               type="button"
+              variant="outline"
               onClick={() => {
                 setPage(Math.min(totalPages, currentPage + 1))
               }}
             >
               ถัดไป
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}
@@ -465,78 +597,146 @@ export function CustomersPageClient() {
       {isLoading ? <div className="rounded-md bg-white p-6 text-center text-sm text-slate-500 shadow">กำลังโหลดข้อมูลลูกค้า</div> : null}
 
       {!isLoading ? (
-        <div className="overflow-x-auto rounded-md bg-white shadow">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-100">
-              <tr>
-                <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('code')}>รหัส{sortLabel('code')}</button></th>
-                <th className="min-w-[220px] p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('name')}>ชื่อบริษัท{sortLabel('name')}</button></th>
-                <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('taxId')}>เลขผู้เสียภาษี{sortLabel('taxId')}</button></th>
-                <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('type')}>ประเภท{sortLabel('type')}</button></th>
-                <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('phone')}>โทร{sortLabel('phone')}</button></th>
-                <th className="p-2 text-left"><button className="font-semibold" type="button" onClick={() => setSort('email')}>อีเมล{sortLabel('email')}</button></th>
-                <th className="min-w-[220px] p-2 text-left">ที่อยู่</th>
-                <th className="p-2 text-right"><button className="font-semibold" type="button" onClick={() => setSort('creditTerm')}>Term (วัน){sortLabel('creditTerm')}</button></th>
-                <th className="p-2 text-right"><button className="font-semibold" type="button" onClick={() => setSort('creditLimit')}>วงเงินเครดิต{sortLabel('creditLimit')}</button></th>
-                <th className="p-2 text-center"><button className="font-semibold" type="button" onClick={() => setSort('active')}>สถานะ{sortLabel('active')}</button></th>
-                <th className="p-2 text-center">แก้ไข</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedCustomers.map((customer) => (
-                <tr
-                  key={customer.id}
-                  className="cursor-pointer border-t hover:bg-slate-50"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => void openEditForm(customer)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault()
-                      void openEditForm(customer)
-                    }
-                  }}
-                >
-                  <td className="p-2 font-mono text-xs">{customer.code}</td>
-                  <td className="p-2 font-medium">{customer.name}</td>
-                  <td className="p-2 font-mono text-xs">{displayValue(customer.taxId)}</td>
-                  <td className="p-2">{displayValue(customer.type)}</td>
-                  <td className="p-2">{displayValue(formatPhoneDisplay(customer.phone))}</td>
-                  <td className="p-2">{displayValue(customer.email)}</td>
-                  <td className="p-2">{displayValue(customer.address)}</td>
-                  <td className="p-2 text-right">{customer.creditTerm ?? '-'}</td>
-                  <td className="p-2 text-right">{formatMoney(customer.creditLimit)}</td>
-                  <td className="p-2 text-center">
+        <>
+          {/* Desktop Table View */}
+          <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm hidden md:block">
+            <div className="overflow-x-auto">
+              <Table className="[&_tbody_tr]:border-slate-100" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+                <colgroup>
+                  {customerColumns.map((column) => (
+                    <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+                  ))}
+                </colgroup>
+                <TableHeader>
+                  <tr>
+                    <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="รหัส" resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} sortKey="code" onSort={setSort} />
+                    <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ชื่อบริษัท" resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อบริษัท')} sortKey="name" onSort={setSort} />
+                    <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขผู้เสียภาษี" resizeProps={columnResize.getResizeHandleProps('taxId', 'เลขผู้เสียภาษี')} sortKey="taxId" onSort={setSort} />
+                    <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} sortKey="type" onSort={setSort} />
+                    <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="โทร" resizeProps={columnResize.getResizeHandleProps('phone', 'โทร')} sortKey="phone" onSort={setSort} />
+                    <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="อีเมล" resizeProps={columnResize.getResizeHandleProps('email', 'อีเมล')} sortKey="email" onSort={setSort} />
+                    <ResizableTableHead direction={sortDirection} label="ที่อยู่" resizeProps={columnResize.getResizeHandleProps('address', 'ที่อยู่')} />
+                    <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="Term (วัน)" resizeProps={columnResize.getResizeHandleProps('creditTerm', 'Term (วัน)')} sortKey="creditTerm" onSort={setSort} />
+                    <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="วงเงินเครดิต" resizeProps={columnResize.getResizeHandleProps('creditLimit', 'วงเงินเครดิต')} sortKey="creditLimit" onSort={setSort} />
+                    <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('active', 'สถานะ')} sortKey="active" onSort={setSort} />
+                    <ResizableTableHead align="center" label="แก้ไข" resizeProps={columnResize.getResizeHandleProps('action', 'แก้ไข')} />
+                  </tr>
+                </TableHeader>
+                <TableBody>
+                  {paginatedCustomers.map((customer) => (
+                    <TableRow
+                      key={customer.id}
+                      className="cursor-pointer border-slate-100 hover:bg-slate-50"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => void openEditForm(customer)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          void openEditForm(customer)
+                        }
+                      }}
+                    >
+                      <TableCell className="whitespace-nowrap font-mono text-xs font-semibold text-slate-700">{customer.code}</TableCell>
+                      <TableCell className="truncate text-xs font-semibold text-slate-800" title={customer.name}>{customer.name}</TableCell>
+                      <TableCell className="whitespace-nowrap font-mono text-xs font-semibold text-slate-700">{displayValue(customer.taxId)}</TableCell>
+                      <TableCell className="text-xs font-semibold text-slate-700">{displayValue(customer.type)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-xs font-semibold text-slate-700">{displayValue(formatPhoneDisplay(customer.phone))}</TableCell>
+                      <TableCell className="truncate text-xs font-semibold text-slate-700" title={customer.email ?? undefined}>{displayValue(customer.email)}</TableCell>
+                      <TableCell className="truncate text-xs font-semibold text-slate-700" title={customer.address ?? undefined}>{displayValue(customer.address)}</TableCell>
+                      <TableCell className="text-right pr-4 font-mono tabular-nums whitespace-nowrap text-xs font-semibold text-slate-700">{customer.creditTerm ?? '-'}</TableCell>
+                      <TableCell className="text-right pr-4 font-mono tabular-nums whitespace-nowrap text-xs font-semibold text-slate-700">{formatMoney(customer.creditLimit)}</TableCell>
+                      <TableCell className="text-center text-xs font-semibold text-slate-700">
+                        <ActiveToggle
+                          checked={customer.active}
+                          disabled={pendingToggleIds.has(customer.id)}
+                          label={customer.active ? 'ใช้งาน' : 'ปิด'}
+                          onChange={(checked) => void handleToggleActive(customer, checked)}
+                        />
+                      </TableCell>
+                      <TableCell className="text-center text-xs font-semibold text-slate-700">
+                        <button
+                          className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            void openEditForm(customer)
+                          }}
+                        >
+                          แก้ไข
+                        </button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {paginatedCustomers.length === 0 ? (
+                    <TableRow>
+                      <TableCell className="p-4 text-center text-sm text-slate-500" colSpan={11}>ไม่พบข้อมูลที่ค้นหา</TableCell>
+                    </TableRow>
+                  ) : null}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          {/* Mobile Card List View */}
+          <div className="block md:hidden space-y-3">
+            {paginatedCustomers.map((customer) => (
+              <div
+                key={customer.id}
+                className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 transition-colors"
+                onClick={() => void openEditForm(customer)}
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <span className="font-mono text-xs font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                      {customer.code}
+                    </span>
+                    <h4 className="font-bold text-slate-900 mt-1.5 text-[15px]">
+                      {customer.name}
+                    </h4>
+                  </div>
+                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                     <ActiveToggle
                       checked={customer.active}
                       disabled={pendingToggleIds.has(customer.id)}
                       label={customer.active ? 'ใช้งาน' : 'ปิด'}
-                      onChange={(active) => void handleToggleActive(customer, active)}
+                      onChange={(checked) => void handleToggleActive(customer, checked)}
                     />
-                  </td>
-                  <td className="p-2 text-center">
-                    <button
-                      className="text-blue-600"
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        void openEditForm(customer)
-                      }}
-                    >
-                      แก้ไข
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {paginatedCustomers.length === 0 ? (
-                <tr>
-                  <td className="p-4 text-center text-sm text-slate-500" colSpan={11}>ไม่พบข้อมูลที่ค้นหา</td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-y-2 gap-x-4 border-t border-slate-100 pt-2.5 mt-2.5 text-xs text-slate-600">
+                  <div>
+                    <span className="block text-slate-400 font-medium">ประเภท</span>
+                    <span className="font-semibold text-slate-700">{displayValue(customer.type)}</span>
+                  </div>
+                  <div>
+                    <span className="block text-slate-400 font-medium">โทรศัพท์</span>
+                    <span className="font-semibold text-slate-700">{displayValue(formatPhoneDisplay(customer.phone))}</span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="block text-slate-400 font-medium">วงเงินเครดิต</span>
+                    <span className="font-semibold text-slate-700">{formatMoney(customer.creditLimit)} (เทอม {customer.creditTerm ?? '-'} วัน)</span>
+                  </div>
+                  {customer.address ? (
+                    <div className="col-span-2 border-t border-slate-50 pt-2 mt-1">
+                      <span className="block text-slate-400 font-medium">ที่อยู่</span>
+                      <span className="font-medium text-slate-700 line-clamp-2">{customer.address}</span>
+                    </div>
+                  ) : null}
+                </div>
+
+              </div>
+            ))}
+            {paginatedCustomers.length === 0 ? (
+              <div className="rounded-md bg-white p-8 text-center text-sm text-slate-500 shadow-sm border border-slate-200">
+                ไม่พบข้อมูลที่ค้นหา
+              </div>
+            ) : null}
+          </div>
+        </>
       ) : null}
+
     </section>
   )
 }
@@ -642,15 +842,15 @@ function CustomerForm({ customer, districts, isSaving, provinces, subdistricts, 
   }
 
   return (
-    <form className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-xl" onSubmit={handleSubmit}>
-      <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <h3 className="text-lg font-bold text-slate-900">{form.id ? 'แก้ไขลูกค้า' : 'เพิ่มลูกค้า'}</h3>
-        <ActiveToggle checked={form.active} onChange={(checked) => update('active', checked)} />
+    <form className="overflow-hidden rounded-md bg-white shadow-xl" onSubmit={handleSubmit}>
+      <div className="flex flex-col gap-3 bg-slate-900 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <h3 className="text-lg font-bold text-slate-100">{form.id ? 'แก้ไขลูกค้า' : 'เพิ่มลูกค้า'}</h3>
+        <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-slate-200" onChange={(checked) => update('active', checked)} />
       </div>
 
-      <div className="max-h-[76vh] space-y-5 overflow-y-auto px-5 py-5">
-        <section>
-          <h4 className="mb-3 text-sm font-bold text-slate-700">ข้อมูลลูกค้า</h4>
+      <div className="max-h-[76vh] space-y-5 overflow-y-auto bg-slate-50 px-5 py-5">
+        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <h4 className="mb-4 text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">ข้อมูลลูกค้า</h4>
           <div className="grid gap-4 md:grid-cols-4">
             <SelectField required error={errors.type} label="ประเภทลูกค้า" value={form.type} onChange={(value) => updateCustomerType(value as CustomerFormValues['type'])}>
               <option value="บุคคล">บุคคล</option>
@@ -668,9 +868,11 @@ function CustomerForm({ customer, districts, isSaving, provinces, subdistricts, 
               <TextField required className="md:col-span-2" error={errors.name} label="ชื่อบริษัท" value={form.name ?? ''} onChange={(value) => update('name', value || null)} />
             )}
             <TextField error={errors.taxId} label="เลขผู้เสียภาษี" value={form.taxId ?? ''} onChange={(value) => update('taxId', value || null)} />
-            <label className="block text-sm font-medium">
-              โทรศัพท์
-              <PhoneInput className="mt-1.5 w-full" error={Boolean(errors.phone)} value={form.phone ?? ''} onChange={(value) => update('phone', value || null)} />
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+                โทรศัพท์
+              </span>
+              <PhoneInput className="w-full" error={Boolean(errors.phone)} value={form.phone ?? ''} onChange={(value) => update('phone', value || null)} />
               {errors.phone ? <span className="mt-1 block text-xs text-red-700">{errors.phone}</span> : null}
             </label>
             <TextField error={errors.email} label="อีเมล" type="email" value={form.email ?? ''} onChange={(value) => update('email', value || null)} />
@@ -679,8 +881,8 @@ function CustomerForm({ customer, districts, isSaving, provinces, subdistricts, 
           </div>
         </section>
 
-        <section>
-          <h4 className="mb-3 text-sm font-bold text-slate-700">ที่อยู่</h4>
+        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <h4 className="mb-4 text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">ที่อยู่</h4>
           <div className="grid gap-4 md:grid-cols-4">
             <FormSelectField required className="md:col-span-2" error={errors.marketScope} label="ประเทศ/ตลาด" placeholder="เลือกประเทศ/ตลาด" value={form.marketScope} onChange={(value) => updateMarketScope(value as CustomerFormValues['marketScope'] | '')}>
               <option value="ในประเทศ">ในประเทศ</option>
@@ -718,7 +920,7 @@ function CustomerForm({ customer, districts, isSaving, provinces, subdistricts, 
                 <TextField error={errors.addressNo} label="บ้านเลขที่" value={form.addressNo ?? ''} onChange={(value) => update('addressNo', value || null)} />
                 <TextField error={errors.addressMoo} label="หมู่" value={form.addressMoo ?? ''} onChange={(value) => update('addressMoo', value || null)} />
                 <TextField className="md:col-span-2" error={errors.addressVillage} label="หมู่บ้าน/อาคาร" value={form.addressVillage ?? ''} onChange={(value) => update('addressVillage', value || null)} />
-                <TextField error={errors.addressRoad} label="ถนน" value={form.addressRoad ?? ''} onChange={(value) => update('addressRoad', value || null)} />
+                <TextField className="md:col-span-2" error={errors.addressRoad} label="ถนน" value={form.addressRoad ?? ''} onChange={(value) => update('addressRoad', value || null)} />
               </>
             ) : (
               <>
@@ -730,16 +932,16 @@ function CustomerForm({ customer, districts, isSaving, provinces, subdistricts, 
                 <TextField error={errors.addressPostalCodeIntl} label="รหัสไปรษณีย์สากล" value={form.addressPostalCodeIntl ?? ''} onChange={(value) => update('addressPostalCodeIntl', value || null)} />
               </>
             )}
-            <TextField className="md:col-span-2" error={errors.address} label="ที่อยู่เต็ม/หมายเหตุที่อยู่" value={form.address ?? ''} onChange={(value) => update('address', value || null)} />
+            <TextField className="md:col-span-4" error={errors.address} label="ที่อยู่เต็ม/หมายเหตุที่อยู่" value={form.address ?? ''} onChange={(value) => update('address', value || null)} />
           </div>
         </section>
       </div>
 
-      <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-white px-5 py-4">
-        <button className="rounded-md px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100" type="button" onClick={onCancel}>
+      <div className="flex flex-wrap justify-end gap-3.5 border-t border-slate-100 bg-white px-5 py-4">
+        <button className="text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors" type="button" onClick={onCancel}>
           ยกเลิก
         </button>
-        <button className="rounded-md bg-slate-900 px-5 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-60" disabled={isSaving} type="submit">
+        <button className="rounded-md bg-slate-900 px-5 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-60 shadow-sm" disabled={isSaving} type="submit">
           {isSaving ? 'กำลังบันทึก...' : 'บันทึก'}
         </button>
       </div>
@@ -767,10 +969,12 @@ function TextField({ className = '', error, label, readOnly = false, required = 
   const placeholder = isEmailField ? 'example@company.com' : `กรอก${label}`
 
   return (
-    <label className={`block text-sm font-medium ${className}`}>
-      {label}{required ? <span className="ml-1 text-red-600">*</span> : null}
+    <label className={`block ${className}`}>
+      <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+        {label}{required ? <span className="ml-0.5 text-red-500">*</span> : null}
+      </span>
       <input
-        className={`mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-slate-700 ${isNumberField ? '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none' : ''} ${readOnly ? 'bg-slate-50' : ''}`}
+        className={`w-full h-10 rounded-md border px-3 py-2 text-sm outline-none transition-all duration-150 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 ${isNumberField ? '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none' : ''} ${readOnly ? 'bg-slate-50 text-slate-500 border-slate-200' : 'bg-white text-slate-800 border-slate-300 hover:border-slate-400'} ${error ? 'border-red-400 bg-red-50/50' : ''}`}
         inputMode={isEmailField ? 'email' : isPhoneField ? 'tel' : isTaxIdField || isThaiPostalCodeField ? 'numeric' : undefined}
         placeholder={readOnly ? undefined : placeholder}
         readOnly={readOnly}

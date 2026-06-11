@@ -221,6 +221,9 @@ export function requirePermission(context: AppAuthContext, permissionCode: strin
 }
 
 export function authContextErrorResponse(caught: unknown) {
+  if (caught instanceof AuthContextError) {
+    return apiErrorResponse(caught, caught.message, caught.status)
+  }
   return apiErrorResponse(caught, 'ตรวจสอบสิทธิ์ไม่สำเร็จ', 500)
 }
 
