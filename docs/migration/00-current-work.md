@@ -5,7 +5,8 @@
 Date: 2026-05-22
 Active app: `apps/next`
 Primary remote: `new-origin`
-Last pushed checkpoint: Standardize Detail Modals Layout (`3ac2ae8`)
+Last pushed checkpoint: Eliminate dark borders in Payment Approval tabs and filters (4c332af)
+Eliminate Dark Borders in Payment Approval on 2026-06-12: Replaced native uncolored 'border-b' classes (which render as solid dark black borders in browser default styles) with explicit 'border-b border-slate-100' under tabs, desktop filter panels, and mobile search toolbars in the Payment Approval page (/daily/payment-approval) to ensure a premium, slate-based styling. Verification passed for eslint, typescript, and next build.
 Standardize Detail Modals Layout on 2026-06-12: Refactored detail modal UI layouts in Payment Approval (/daily/payment-approval) and PO Sell (/sales/po-sell) pages. Removed individual field card borders/boxes to avoid nested box-in-box structures, aligning with professional design standards (no dark borders). Replaced them with standardized group sections wrapped in Slate 50 background and light border-slate-100, displaying in a 2-column grid layout across both desktop and mobile views for enhanced vertical space utilization and readability. Verification passed for eslint, typescript, and next build.
 Branch-Scope Enforcement on Purchase APIs on 2026-06-12: Enforced branch-scope access control (based on app_user_branch_access) for non-admin/non-owner users. Impacted API endpoints include: /api/branches (filtered branch options), /api/purchase/po-buy, /api/purchase/bills, /api/purchase/payments, and /api/purchase/payment-history (including cancellation routes and detailed dynamic GET routes). Ensured that unauthorized documents yield a 404 response for detail retrieval and updates, while unauthorized branch targeting on creation is rejected with a 403 or validation error. Verification passed for eslint, typescript, and next build.
 Runtime expense modal width follow-up (`9d02e80`)
