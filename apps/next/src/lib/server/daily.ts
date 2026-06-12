@@ -19,7 +19,7 @@ export function currentActor(context: { appUser: { username: string } | null; au
   return context.appUser?.username ?? context.authUser.email ?? '-'
 }
 
-type DailyDocNoTable = 'bank_statement' | 'expenses' | 'payments' | 'petty_advance_returns' | 'petty_advances' | 'purchase_bills' | 'receipts' | 'sales_bills' | 'transfers'
+type DailyDocNoTable = 'bank_statement' | 'expenses' | 'payments' | 'petty_advance_returns' | 'petty_advances' | 'purchase_bills' | 'receipts' | 'sales_bills' | 'transfers' | 'stock_issues'
 type DailyDocNoModel = {
   findFirst: (args: {
     orderBy: { doc_no: 'desc' }

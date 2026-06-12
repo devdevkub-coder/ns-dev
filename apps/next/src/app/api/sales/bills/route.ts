@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import * as XLSX from 'xlsx'
 import { salesBillFormSchema, type SalesBillFormValues } from '@/lib/sales'
 import { apiErrorResponse } from '@/lib/server/api-error'
@@ -915,27 +916,41 @@ export async function POST(request: Request) {
     if (selectedCustomerAdvance && customerAdvanceAvailable <= 0.01) return NextResponse.json({ code: 'BAD_REQUEST', error: 'เอกสารรับเงินล่วงหน้านี้ไม่มียอดคงเหลือสำหรับใช้หักบิลแล้ว' }, { status: 400 })
     const customerAdvanceApplied = selectedCustomerAdvance ? Math.min(totals.totalAmount, customerAdvanceAvailable) : 0
 
-	    const productByCode = new Map(products.map((product) => [requireBusinessCode(product.code, `สินค้า ${product.id}`), product]))
-	    const parsedProductIds = requestedProductCodes.map((productCode) => productByCode.get(productCode)?.id ?? null)
-	    const missingProduct = requestedProductCodes.find((productCode) => !productByCode.has(productCode))
-	    if (missingProduct || parsedProductIds.some((productId) => productId == null)) {
-	      return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
-	    }
-		    const productById = new Map(products.map((product) => [product.id, product]))
-		    const productCodeById = new Map(products.map((product) => [product.id, requireBusinessCode(product.code, `สินค้า ${product.id}`)]))
-		    let deliverySummarySourceMap = new Map<string, DeliverySummarySource>()
-		    let stockDeliveryTicket: DeliveryTicketOptionRow | null = null
-		    if (values.transactionMode === 'STOCK') {
-		      const deliveryValidation = await validateStockDeliverySelection(values, branch?.id ?? null, customer.id, productByCode, productCodeById)
-		      if ('error' in deliveryValidation) {
-		        return NextResponse.json({ code: 'BAD_REQUEST', error: deliveryValidation.error }, { status: 400 })
-		      }
-		      deliverySummarySourceMap = deliveryValidation.deliverySummarySourceMap
-		      stockDeliveryTicket = deliveryValidation.ticket
-		    }
+    const productByCode = new Map(products.map((product) => [requireBusinessCode(product.code, `สินค้า ${product.id}`), product]))
+    const parsedProductIds = requestedProductCodes.map((productCode) => productByCode.get(productCode)?.id ?? null)
+    const missingProduct = requestedProductCodes.find((productCode) => !productByCode.has(productCode))
+    if (missingProduct || parsedProductIds.some((productId) => productId == null)) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    }
+    const productById = new Map(products.map((product) => [product.id, product]))
+    const productCodeById = new Map(products.map((product) => [product.id, requireBusinessCode(product.code, `สินค้า ${product.id}`)]))
+    let deliverySummarySourceMap = new Map<string, DeliverySummarySource>()
+    let stockDeliveryTicket: DeliveryTicketOptionRow | null = null
+    const fromPsaleNo = values.fromPsaleNo?.trim()
+    let stockIssue = null
+    if (fromPsaleNo) {
+      stockIssue = await prisma.stock_issues.findFirst({
+        where: { doc_no: fromPsaleNo }
+      })
+      if (!stockIssue) {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: `ไม่พบใบเบิกออก ${fromPsaleNo}` }, { status: 400 })
+      }
+      if (stockIssue.status !== 'pending') {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: `ใบเบิกออก ${fromPsaleNo} ไม่ได้อยู่ในสถานะรอเปิดบิล` }, { status: 400 })
+      }
+    }
 
-	    const docNo = await nextDailyDocNo('sales_bills', 'SB', billDate)
-	    const items = salesItems(values, parsedProductIds as bigint[], productById, deliverySummarySourceMap)
+    if (values.transactionMode === 'STOCK' && !fromPsaleNo) {
+      const deliveryValidation = await validateStockDeliverySelection(values, branch?.id ?? null, customer.id, productByCode, productCodeById)
+      if ('error' in deliveryValidation) {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: deliveryValidation.error }, { status: 400 })
+      }
+      deliverySummarySourceMap = deliveryValidation.deliverySummarySourceMap
+      stockDeliveryTicket = deliveryValidation.ticket
+    }
+
+    const docNo = await nextDailyDocNo('sales_bills', 'SB', billDate)
+    const items = salesItems(values, parsedProductIds as bigint[], productById, deliverySummarySourceMap)
     const poSellAllocations = new Map<string, ReturnType<typeof allocatePoSellForSalesBill>>()
     for (const poSellDocNo of requestedPoSellDocNos) {
       const poSell = poSellByDocNo.get(poSellDocNo)
@@ -987,11 +1002,13 @@ export async function POST(request: Request) {
           vat_invoice_no: values.vatInvoiceNo,
           vat_type: values.vatType,
           warehouse_id: warehouse?.id ?? null,
+          from_p_sale_no: values.fromPsaleNo || null,
+          from_p_sale_id: stockIssue ? stockIssue.id : null,
         },
         select: { doc_no: true, id: true },
       })
 
-	      for (const [poSellDocNo, allocation] of poSellAllocations.entries()) {
+      for (const [poSellDocNo, allocation] of poSellAllocations.entries()) {
         const poSell = poSellByDocNo.get(poSellDocNo)
         if (!poSell || 'error' in allocation) continue
         await tx.po_sells.update({
@@ -1006,87 +1023,361 @@ export async function POST(request: Request) {
           },
           where: { id: poSell.id },
         })
-	      }
+      }
 
-	      if (values.transactionMode === 'STOCK' && stockDeliveryTicket) {
-	        await consumeActiveWtoStockHolds(tx, {
-	          actor,
-	          billDate: normalizeDate(billDate),
-	          branchId: branch.id,
-	          salesBillDocNo: createdBill.doc_no,
-	          salesChannelId: channel.id,
-	          weightTicketId: stockDeliveryTicket.id,
-	        })
+      if (values.transactionMode === 'STOCK' && stockDeliveryTicket) {
+        await consumeActiveWtoStockHolds(tx, {
+          actor,
+          billDate: normalizeDate(billDate),
+          branchId: branch.id,
+          salesBillDocNo: createdBill.doc_no,
+          salesChannelId: channel.id,
+          weightTicketId: stockDeliveryTicket.id,
+        })
 
-	        const usageEntries = items.flatMap((item, index) => {
-	          const summary = item.deliverySummaryId ? deliverySummarySourceMap.get(item.deliverySummaryId) : null
-	          if (!summary) return []
-	          return [{
-	            action: WEIGHT_TICKET_USAGE_ACTION.ALLOCATED_TO_SALES_BILL,
-	            actor,
-	            allocatedDeductWeight: item.deductWeight,
-	            allocatedGrossWeight: item.grossWeight,
-	            allocatedNetWeight: item.qty,
-	            allocatedQty: item.qty,
-	            meta: { reason: 'sales_bill_create' },
-	            productCodeSnapshot: item.productCode,
-	            productId: item.productId ? productByCode.get(item.productId)?.id ?? null : null,
-	            productNameSnapshot: item.productName,
-	            targetDocNo: createdBill.doc_no,
-	            targetId: createdBill.id,
-	            targetLineNo: index + 1,
-	            targetType: 'SALES_BILL' as const,
-	            weightTicketId: stockDeliveryTicket.id,
-	            weightTicketProductSummaryId: summary.id,
-	          }]
-	        })
-	        await appendWeightTicketUsageLogs(tx, usageEntries)
+        const usageEntries = items.flatMap((item, index) => {
+          const summary = item.deliverySummaryId ? deliverySummarySourceMap.get(item.deliverySummaryId) : null
+          if (!summary) return []
+          return [{
+            action: WEIGHT_TICKET_USAGE_ACTION.ALLOCATED_TO_SALES_BILL,
+            actor,
+            allocatedDeductWeight: item.deductWeight,
+            allocatedGrossWeight: item.grossWeight,
+            allocatedNetWeight: item.qty,
+            allocatedQty: item.qty,
+            meta: { reason: 'sales_bill_create' },
+            productCodeSnapshot: item.productCode,
+            productId: item.productId ? productByCode.get(item.productId)?.id ?? null : null,
+            productNameSnapshot: item.productName,
+            targetDocNo: createdBill.doc_no,
+            targetId: createdBill.id,
+            targetLineNo: index + 1,
+            targetType: 'SALES_BILL' as const,
+            weightTicketId: stockDeliveryTicket.id,
+            weightTicketProductSummaryId: summary.id,
+          }]
+        })
+        await appendWeightTicketUsageLogs(tx, usageEntries)
 
-	        const summaryUsage = new Map<bigint, number>()
-	        items.forEach((item) => {
-	          const summary = item.deliverySummaryId ? deliverySummarySourceMap.get(item.deliverySummaryId) : null
-	          if (!summary) return
-	          summaryUsage.set(summary.id, (summaryUsage.get(summary.id) ?? 0) + item.qty)
-	        })
-	        await Promise.all([...summaryUsage.entries()].map(([summaryId, qty]) => tx.weight_ticket_product_summaries.update({
-	          data: {
-	            billed_weight: { increment: qty },
-	            remaining_weight: { decrement: qty },
-	            updated_at: createdAt,
-	          },
-	          where: { id: summaryId },
-	        })))
-	        await tx.weight_tickets.update({
-	          data: {
-	            status: 'billed',
-	            updated_at: createdAt,
-	            updated_by: actor,
-	          },
-	          where: { id: stockDeliveryTicket.id },
-	        })
-	        await appendWeightTicketStatusLog(tx, {
-	          action: WEIGHT_TICKET_STATUS_ACTION.USAGE_STATUS_CHANGED,
-	          actor,
-	          createdAt,
-	          fromStatus: stockDeliveryTicket.status,
-	          meta: {
-	            reason: 'sales_bill_create',
-	            salesBillDocNo: createdBill.doc_no,
-	          },
-	          toStatus: 'billed',
-	          weightTicketId: stockDeliveryTicket.id,
-	        })
-	      }
+        const summaryUsage = new Map<bigint, number>()
+        items.forEach((item) => {
+          const summary = item.deliverySummaryId ? deliverySummarySourceMap.get(item.deliverySummaryId) : null
+          if (!summary) return
+          summaryUsage.set(summary.id, (summaryUsage.get(summary.id) ?? 0) + item.qty)
+        })
+        await Promise.all([...summaryUsage.entries()].map(([summaryId, qty]) => tx.weight_ticket_product_summaries.update({
+          data: {
+            billed_weight: { increment: qty },
+            remaining_weight: { decrement: qty },
+            updated_at: createdAt,
+          },
+          where: { id: summaryId },
+        })))
+        await tx.weight_tickets.update({
+          data: {
+            status: 'billed',
+            updated_at: createdAt,
+            updated_by: actor,
+          },
+          where: { id: stockDeliveryTicket.id },
+        })
+        await appendWeightTicketStatusLog(tx, {
+          action: WEIGHT_TICKET_STATUS_ACTION.USAGE_STATUS_CHANGED,
+          actor,
+          createdAt,
+          fromStatus: stockDeliveryTicket.status,
+          meta: {
+            reason: 'sales_bill_create',
+            salesBillDocNo: createdBill.doc_no,
+          },
+          toStatus: 'billed',
+          weightTicketId: stockDeliveryTicket.id,
+        })
+      }
 
-	      return createdBill
-	    })
+      if (stockIssue) {
+        await tx.stock_issues.update({
+          data: {
+            status: 'billed',
+            converted_to_bill_id: createdBill.id,
+          },
+          where: { id: stockIssue.id },
+        })
+      }
+
+      return createdBill
+    })
 
     return NextResponse.json({ docNo: created.doc_no, id: created.doc_no }, { status: 201 })
-	  } catch (caught) {
-	    if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
-	    if (caught instanceof WtoStockHoldError) {
-	      return NextResponse.json({ code: 'BAD_REQUEST', error: caught.message, fieldErrors: caught.fieldErrors }, { status: 400 })
-	    }
-	    return apiErrorResponse(caught, 'บันทึกบิลขายไม่ได้', 500)
-	  }
+  } catch (caught) {
+    if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
+    if (caught instanceof WtoStockHoldError) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: caught.message, fieldErrors: caught.fieldErrors }, { status: 400 })
+    }
+    return apiErrorResponse(caught, 'บันทึกบิลขายไม่ได้', 500)
+  }
+}
+
+function deallocatePoSellForSalesBill(poSell: PoSellForAllocation, billItems: SalesItemSnapshot[]) {
+  const hasItemRows = Array.isArray(poSell.items) && poSell.items.length > 0
+  const poItems: PoSellSnapshotItem[] = hasItemRows
+    ? (poSell.items as unknown[]).filter((item): item is PoSellSnapshotItem => typeof item === 'object' && item !== null)
+    : []
+
+  const nextItems = poItems.map((item) => ({
+    ...item,
+    remainingQty: jsonNumber(item.remainingQty ?? item.qty),
+  }))
+
+  let restoredAmount = 0
+  let restoredQty = 0
+
+  for (const billItem of billItems) {
+    const refundQty = jsonNumber(billItem.qty)
+    if (refundQty <= 0) continue
+
+    const candidates = nextItems.filter((item) => {
+      const poProductCode = productCodeFromItem(item)
+      return !poProductCode || poProductCode === billItem.productCode || poProductCode === billItem.productId
+    })
+
+    if (candidates.length > 0) {
+      const candidate = candidates.find(item => jsonNumber(item.remainingQty) < jsonNumber(item.qty)) || candidates[0]
+      const currentRemaining = jsonNumber(candidate.remainingQty)
+      candidate.remainingQty = currentRemaining + refundQty
+      restoredQty += refundQty
+      restoredAmount += refundQty * jsonNumber(candidate.unitPrice)
+    } else {
+      restoredQty += refundQty
+      restoredAmount += refundQty * jsonNumber(billItem.unitPrice)
+    }
+  }
+
+  const remainingQty = nextItems.length > 0
+    ? nextItems.reduce((sum, item) => sum + Math.max(0, jsonNumber(item.remainingQty)), 0)
+    : jsonNumber(poSell.remaining_qty ?? poSell.qty) + restoredQty
+
+  const remainingAmount = hasItemRows
+    ? nextItems.reduce((sum, item) => sum + Math.max(0, jsonNumber(item.remainingQty)) * jsonNumber(item.unitPrice), 0)
+    : Math.max(0, jsonNumber(poSell.remaining_amount ?? poSell.total_amount) + restoredAmount)
+
+  return {
+    items: hasItemRows ? nextItems : null,
+    remainingAmount,
+    remainingQty,
+    restoredAmount,
+    restoredQty,
+  }
+}
+
+const cancelSalesBillSchema = z.object({
+  id: z.string().trim().min(1, 'ระบุรหัสบิลขาย'),
+  action: z.enum(['cancel']),
+  reason: z.string().trim().min(1, 'ระบุเหตุผลการยกเลิก').max(500, 'เหตุผลยาวเกินไป'),
+})
+
+export async function PATCH(request: Request) {
+  try {
+    const context = await getCurrentAuthContext()
+    requirePermission(context, 'finance.cash.view')
+
+    const raw = await request.json()
+    const { id, action, reason } = cancelSalesBillSchema.parse(raw)
+    const actor = currentActor(context)
+
+    const bill = await prisma.sales_bills.findFirst({
+      where: { doc_no: id }
+    })
+    if (!bill) {
+      return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบบิลขาย' }, { status: 404 })
+    }
+    if (bill.status === 'cancelled') {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'บิลนี้ถูกยกเลิกแล้ว' }, { status: 400 })
+    }
+
+    const activeReceiptsCount = await prisma.receipts.count({
+      where: {
+        bill_id: bill.id,
+        NOT: { status: { in: ['cancelled', 'void', 'ยกเลิก', 'Void', 'Cancelled'] } }
+      }
+    })
+    if (activeReceiptsCount > 0) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'ยกเลิกบิลไม่ได้ เนื่องจากมีการชำระเงินแล้ว' }, { status: 400 })
+    }
+
+    const createdAt = new Date()
+    const billItems = Array.isArray(bill.items) ? (bill.items as unknown[] as SalesItemSnapshot[]) : []
+    const poSellDocNos = [...new Set(billItems.map(item => item.poSellId).filter(Boolean) as string[])]
+
+    const poSells = poSellDocNos.length
+      ? await prisma.po_sells.findMany({
+          select: {
+            branch_id: true,
+            customer_id: true,
+            doc_no: true,
+            id: true,
+            items: true,
+            qty: true,
+            remaining_amount: true,
+            remaining_qty: true,
+            status: true,
+            total_amount: true,
+            unit_price: true,
+          },
+          where: { doc_no: { in: poSellDocNos } },
+        })
+      : []
+    const poSellByDocNo = new Map(poSells.map((poSell) => [poSell.doc_no, poSell] as const))
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Mark status to cancelled and clear balances
+      await tx.sales_bills.update({
+        data: {
+          status: 'cancelled',
+          receivable_balance: 0,
+          received_amount: 0,
+          paid_amount: 0,
+          updated_at: createdAt,
+          updated_by: actor,
+          note: [bill.note, `ยกเลิกโดย ${actor} เมื่อ ${createdAt.toLocaleString('th-TH')} - เหตุผล: ${reason}`].filter(Boolean).join('\n'),
+          notes: [bill.notes, `ยกเลิกโดย ${actor} เมื่อ ${createdAt.toLocaleString('th-TH')} - เหตุผล: ${reason}`].filter(Boolean).join('\n'),
+        },
+        where: { id: bill.id },
+      })
+
+      // 2. Revert PO Sell allocation
+      for (const poSellDocNo of poSellDocNos) {
+        const poSell = poSellByDocNo.get(poSellDocNo)
+        if (!poSell) continue
+        const poSellItems = billItems.filter((item) => item.poSellId === poSellDocNo)
+        if (!poSellItems.length) continue
+        const revertResult = deallocatePoSellForSalesBill(poSell, poSellItems)
+        await tx.po_sells.update({
+          data: {
+            ...(revertResult.items ? { items: revertResult.items as Prisma.InputJsonValue } : {}),
+            cut_amount: { decrement: revertResult.restoredAmount },
+            remaining_amount: revertResult.remainingAmount,
+            remaining_qty: revertResult.remainingQty,
+            status: 'Open',
+            updated_at: createdAt,
+            updated_by: actor,
+          },
+          where: { id: poSell.id },
+        })
+      }
+
+      // 3. Revert stock changes / stock issues depending on origin
+      if (bill.from_p_sale_id != null) {
+        await tx.stock_issues.update({
+          data: {
+            status: 'pending',
+            converted_to_bill_id: null,
+          },
+          where: { id: bill.from_p_sale_id },
+        })
+      } else {
+        // Delete stock_ledger entries
+        await tx.stock_ledger.deleteMany({
+          where: {
+            ref_type: 'SB',
+            ref_id: bill.doc_no,
+          },
+        })
+
+        // Restore consumed WTO holds
+        await tx.stock_holds.updateMany({
+          data: {
+            consumed_at: null,
+            consumed_by: null,
+            consumed_by_ref_no: null,
+            consumed_by_ref_type: null,
+            status: 'active',
+            updated_at: createdAt,
+            updated_by: actor,
+          },
+          where: {
+            consumed_by_ref_no: bill.doc_no,
+            consumed_by_ref_type: 'SB',
+            status: 'consumed',
+          },
+        })
+
+        // Revert Weight Tickets status & release usage logs
+        const usageLogs = await tx.weight_ticket_usage_logs.findMany({
+          where: {
+            target_id: bill.id,
+            target_type: 'SALES_BILL',
+            action: WEIGHT_TICKET_USAGE_ACTION.ALLOCATED_TO_SALES_BILL,
+          },
+        })
+
+        if (usageLogs.length > 0) {
+          const revertUsageLogs = usageLogs.map((log) => ({
+            action: WEIGHT_TICKET_USAGE_ACTION.RELEASED_FROM_SALES_BILL,
+            actor,
+            allocatedDeductWeight: toNumber(log.allocated_deduct_weight),
+            allocatedGrossWeight: toNumber(log.allocated_gross_weight),
+            allocatedNetWeight: toNumber(log.allocated_net_weight),
+            allocatedQty: toNumber(log.allocated_qty),
+            meta: { reason: 'sales_bill_cancel' },
+            productCodeSnapshot: log.product_code_snapshot,
+            productId: log.product_id,
+            productNameSnapshot: log.product_name_snapshot,
+            targetDocNo: bill.doc_no,
+            targetId: bill.id,
+            targetType: 'SALES_BILL' as const,
+            weightTicketId: log.weight_ticket_id,
+            weightTicketProductSummaryId: log.weight_ticket_product_summary_id!,
+          }))
+          await appendWeightTicketUsageLogs(tx, revertUsageLogs)
+
+          for (const log of usageLogs) {
+            await tx.weight_ticket_product_summaries.update({
+              data: {
+                billed_weight: { decrement: toNumber(log.allocated_qty) },
+                remaining_weight: { increment: toNumber(log.allocated_qty) },
+                updated_at: createdAt,
+              },
+              where: { id: log.weight_ticket_product_summary_id! },
+            })
+          }
+
+          const uniqueTicketIds = [...new Set(usageLogs.map((log) => log.weight_ticket_id))]
+          for (const ticketId of uniqueTicketIds) {
+            const ticket = await tx.weight_tickets.findUnique({
+              select: { status: true },
+              where: { id: ticketId },
+            })
+            if (ticket) {
+              await tx.weight_tickets.update({
+                data: {
+                  status: 'delivered',
+                  updated_at: createdAt,
+                  updated_by: actor,
+                },
+                where: { id: ticketId },
+              })
+              await appendWeightTicketStatusLog(tx, {
+                action: WEIGHT_TICKET_STATUS_ACTION.USAGE_STATUS_CHANGED,
+                actor,
+                createdAt,
+                fromStatus: ticket.status,
+                meta: {
+                  reason: 'sales_bill_cancel',
+                  salesBillDocNo: bill.doc_no,
+                },
+                toStatus: 'delivered',
+                weightTicketId: ticketId,
+              })
+            }
+          }
+        }
+      }
+    })
+
+    return NextResponse.json({ ok: true })
+  } catch (caught) {
+    if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
+    return apiErrorResponse(caught, 'ยกเลิกบิลขายไม่ได้', 400)
+  }
 }

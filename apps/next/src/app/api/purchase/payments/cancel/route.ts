@@ -30,6 +30,10 @@ function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100
 }
 
+function receiptVoucherDocNoFromPaymentDocNo(docNo: string) {
+  return docNo.startsWith('PMT') ? `RV${docNo.slice(3)}` : `RV-${docNo}`
+}
+
 async function refreshPurchaseBillPaymentStatus(tx: Parameters<typeof prisma.$transaction>[0] extends (arg: infer T) => Promise<unknown> ? T : never, billId: bigint, actor: string) {
   const bill = await tx.purchase_bills.findUnique({
     select: { id: true },
@@ -69,6 +73,17 @@ export async function POST(request: Request) {
         }
       }
 
+      const allPayments = await tx.payments.findMany({
+        select: { status: true },
+        where: { voucher_id: payload.voucherId },
+      })
+      if (allPayments.length === 0) {
+        throw new Error('ไม่พบรายการจ่ายเงินที่ต้องการยกเลิก')
+      }
+      if (allPayments.every((p) => p.status === 'cancelled')) {
+        throw new Error('รายการจ่ายเงินนี้ถูกยกเลิกไปแล้ว')
+      }
+
       const payments = await tx.payments.findMany({
         select: {
           amount: true,
@@ -88,9 +103,6 @@ export async function POST(request: Request) {
           NOT: { status: 'cancelled' },
         },
       })
-      if (payments.length === 0) {
-        throw new Error('ไม่พบรายการจ่ายเงินที่ต้องการยกเลิก หรือรายการนี้ถูกยกเลิกไปแล้ว')
-      }
 
       const allowedBranchCodes = getBranchCodeIntersection(context)
       if (allowedBranchCodes) {
@@ -100,7 +112,7 @@ export async function POST(request: Request) {
         })
         const allowedBranchIds = matchingBranches.map((b) => b.id)
         if (payments.some((p) => p.branch_id != null && !allowedBranchIds.includes(p.branch_id))) {
-          throw new Error('ไม่มีสิทธิ์ยกเลิกการจ่ายเงินในรายการนี้')
+          throw new Error('ไม่มีสิทธิ์ยกเลิกการจ่ายเงิน in รายการนี้')
         }
       }
 
@@ -222,6 +234,15 @@ export async function POST(request: Request) {
           ref_type: 'PMT',
         },
       })
+
+      const receiptVoucherDocNos = payments.map((p) => receiptVoucherDocNoFromPaymentDocNo(p.doc_no)).filter(Boolean)
+      if (receiptVoucherDocNos.length > 0) {
+        await tx.receipt_vouchers.deleteMany({
+          where: {
+            doc_no: { in: receiptVoucherDocNos },
+          },
+        })
+      }
 
       if (approvalIds.length > 0) {
         const approvals = await txExt.payment_approvals.findMany({

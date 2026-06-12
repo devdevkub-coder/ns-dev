@@ -282,6 +282,7 @@ export async function GET() {
       })),
     })
   } catch (caught) {
+    console.error('API Error in GET /api/purchase/receipt-vouchers:', caught)
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลดใบสำคัญรับเงินไม่ได้', 500)
   }
