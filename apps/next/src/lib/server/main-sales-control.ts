@@ -199,7 +199,7 @@ export async function buildPendingSales() {
     prisma.stock_ledger.findMany({ orderBy: [{ date: 'desc' }], take: 50000 }),
     prisma.customers.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
     prisma.trading_deals.findMany({ orderBy: [{ date: 'desc' }], take: 10000, where: { NOT: { status: { in: ['Cancelled', 'cancelled'] } } } }),
-    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' } } }, orderBy: [{ date: 'desc' }], take: 10000, where: { status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] } } }),
+    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } } }, orderBy: [{ date: 'desc' }], take: 10000, where: { status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] } } }),
   ])
 
   const productAgg = new Map<string, PendingProductRow>()
@@ -506,7 +506,7 @@ export async function buildSalesCommission() {
     prisma.salespersons.findMany({ orderBy: [{ name: 'asc' }], where: { active: { not: false } } }),
     prisma.suppliers.findMany({ orderBy: [{ name: 'asc' }], where: { active: { not: false } } }),
     prisma.purchase_bills.findMany({
-      include: { purchase_bill_items: { orderBy: { line_no: 'asc' } }, suppliers: true },
+      include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } }, suppliers: true },
       orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
       take: 10000,
       where: { date: { gte: periodFrom, lte: periodTo }, status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] } },

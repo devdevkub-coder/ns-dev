@@ -160,7 +160,7 @@ export async function buildProfitCostAnalysis(filter: ProfitCostFilter) {
       },
     }),
     prisma.purchase_bills.findMany({
-      include: { branches: true, purchase_bill_items: { orderBy: { line_no: 'asc' } }, suppliers: true },
+      include: { branches: true, purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } }, suppliers: true },
       orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
       take: 15000,
       where: {

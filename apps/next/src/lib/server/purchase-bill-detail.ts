@@ -141,6 +141,9 @@ type PurchaseBillDetailRow = Prisma.purchase_billsGetPayload<{
       orderBy: {
         line_no: 'asc'
       }
+      where: {
+        item_status: 'active'
+      }
     }
     supplier_advance_allocations: {
       include: {
@@ -281,6 +284,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
           },
         },
         orderBy: { line_no: 'asc' },
+        where: { item_status: 'active' },
       },
       suppliers: true,
       warehouses: true,

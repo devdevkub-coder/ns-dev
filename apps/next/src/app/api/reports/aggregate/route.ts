@@ -163,7 +163,7 @@ export async function GET(request: NextRequest) {
 
     const [purchases, sales] = await Promise.all([
       prisma.purchase_bills.findMany({
-        include: { purchase_bill_items: { orderBy: { line_no: 'asc' } }, suppliers: true },
+        include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } }, suppliers: true },
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         take: 10000,
         where: range ? { date: range } : undefined,

@@ -268,7 +268,7 @@ async function profitInputs(filter: ProfitLeakFilter) {
   const date = { gte: filter.from, lte: endOfDay(filter.to) }
   return Promise.all([
     prisma.sales_bills.findMany({ include: { customers: { select: { code: true, name: true } } }, orderBy: [{ date: 'asc' }, { doc_no: 'asc' }], take: 20000, where: { ...notCancelledWhere(), ...branch, date } }),
-    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' } }, suppliers: { select: { code: true, name: true } } }, orderBy: [{ date: 'asc' }, { doc_no: 'asc' }], take: 20000, where: { ...notCancelledWhere(), ...branch, date } }),
+    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } }, suppliers: { select: { code: true, name: true } } }, orderBy: [{ date: 'asc' }, { doc_no: 'asc' }], take: 20000, where: { ...notCancelledWhere(), ...branch, date } }),
     prisma.expenses.findMany({ include: { expense_categories: { select: { name: true } } }, orderBy: [{ date: 'asc' }, { doc_no: 'asc' }], take: 20000, where: { ...notCancelledWhere(), ...branch, date } }),
     prisma.loan_payments.findMany({ take: 10000, where: { ...notCancelledWhere(), date } }),
     prisma.stock_ledger.findMany({ take: 30000, where: { ...branch, date, movement_type: { contains: 'LOSS', mode: 'insensitive' } } }),

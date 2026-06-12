@@ -339,15 +339,18 @@ const compactDate = (branchCode: string, date: string) => branchCode + date.slic
 
 async function nextPoBuyDocNo(tx: Prisma.TransactionClient, date: string, branchCode: string) {
   const startsWith = `POB${compactDate(branchCode, date)}-`
+  await tx.$executeRaw`
+    select pg_advisory_xact_lock(hashtext(${`po_buys:${startsWith}`}))
+  `
   const rows = await tx.$queryRaw<Array<{ doc_no: string }>>`
     select doc_no
     from public.po_buys
     where doc_no like ${`${startsWith}%`}
+    order by doc_no desc
+    limit 1
   `
-  const lastNumber = rows.reduce((max, row) => {
-    const running = Number(row.doc_no.split('-').at(-1))
-    return Number.isFinite(running) && running > max ? running : max
-  }, 0)
+  const parsedLastNumber = Number(rows[0]?.doc_no.split('-').at(-1) ?? 0)
+  const lastNumber = Number.isFinite(parsedLastNumber) ? parsedLastNumber : 0
 
   return `${startsWith}${String(lastNumber + 1).padStart(4, '0')}`
 }
@@ -402,10 +405,93 @@ export async function GET(request: Request) {
 
     const [poRows, vatRatePercent] = await Promise.all([
       prisma.po_buys.findMany({
-        include: {
-          po_buy_allocation_logs: { orderBy: [{ created_at: 'desc' }], take: 50 },
-          po_buy_status_logs: { orderBy: [{ created_at: 'desc' }], take: 20 },
-          suppliers: true,
+        select: {
+          branch_id: true,
+          cancelled_at: true,
+          cancelled_by: true,
+          cancel_note: true,
+          created_at: true,
+          created_by: true,
+          date: true,
+          delivery_date: true,
+          doc_no: true,
+          expected_delivery: true,
+          has_vat: true,
+          id: true,
+          items: true,
+          note: true,
+          notes: true,
+          po_buy_allocation_logs: {
+            orderBy: [{ created_at: 'desc' }],
+            select: {
+              action: true,
+              allocated_amount: true,
+              allocated_qty: true,
+              created_at: true,
+              created_by: true,
+              event_key: true,
+              from_remaining_qty: true,
+              meta: true,
+              note: true,
+              po_buy_doc_no: true,
+              product_code_snapshot: true,
+              product_name_snapshot: true,
+              purchase_bill_doc_no: true,
+              purchase_bill_line_no: true,
+              to_remaining_qty: true,
+              unit_price_snapshot: true,
+            },
+            take: 50,
+          },
+          po_buy_status_logs: {
+            orderBy: [{ created_at: 'desc' }],
+            select: {
+              action: true,
+              created_at: true,
+              created_by: true,
+              event_key: true,
+              from_status: true,
+              meta: true,
+              note: true,
+              po_buy_doc_no: true,
+              to_status: true,
+            },
+            take: 20,
+          },
+          product_id: true,
+          qty: true,
+          remaining_amount: true,
+          remaining_qty: true,
+          short_closed_at: true,
+          short_closed_by: true,
+          short_closed_note: true,
+          short_closed_qty: true,
+          status: true,
+          subtotal: true,
+          suppliers: {
+            select: {
+              address: true,
+              address_district: true,
+              address_line1: true,
+              address_moo: true,
+              address_no: true,
+              address_postal_code: true,
+              address_province: true,
+              address_road: true,
+              address_subdistrict: true,
+              address_village: true,
+              code: true,
+              name: true,
+            },
+          },
+          supplier_id: true,
+          total_amount: true,
+          unit_price: true,
+          updated_at: true,
+          updated_by: true,
+          vat_amount: true,
+          vat_rate_percent: true,
+          vat_type: true,
         },
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         take: 5000,
@@ -417,15 +503,12 @@ export async function GET(request: Request) {
     ])
     const productIds = [...new Set(poRows.map((row) => row.product_id).filter((value): value is bigint => value != null))]
     const branchIds = [...new Set(poRows.map((row) => row.branch_id).filter((id): id is bigint => id !== null))]
-    const supplierIds = [...new Set(poRows.map((row) => row.supplier_id).filter((id): id is bigint => id != null))]
-    const [branches, products, suppliers] = await Promise.all([
+    const [branches, products] = await Promise.all([
       branchIds.length ? prisma.branches.findMany({ where: { id: { in: branchIds } }, select: { code: true, id: true, name: true } }) : Promise.resolve([]),
-      productIds.length ? prisma.products.findMany({ where: { id: { in: productIds } } }) : Promise.resolve([]),
-      supplierIds.length ? prisma.suppliers.findMany({ where: { id: { in: supplierIds } }, select: { code: true, id: true, name: true } }) : Promise.resolve([]),
+      productIds.length ? prisma.products.findMany({ where: { id: { in: productIds } }, select: { code: true, id: true, name: true, unit: true } }) : Promise.resolve([]),
     ])
     const branchById = new Map(branches.map((branch) => [branch.id, branch]))
     const productById = new Map(products.map((product) => [product.id, product]))
-    const supplierById = new Map(suppliers.map((supplier) => [supplier.id, supplier]))
 
     const rows = poRows.map((po) => {
       const productName = po.product_id ? productById.get(po.product_id)?.name ?? '-' : '-'
@@ -492,7 +575,7 @@ export async function GET(request: Request) {
           poBuyDocNo: log.po_buy_doc_no,
           toStatus: log.to_status,
         })),
-        supplierId: po.supplier_id ? (supplierById.get(po.supplier_id)?.code ?? '') : '',
+        supplierId: po.suppliers?.code ?? '',
         supplierAddress: supplierAddress(po.suppliers),
         supplierName: po.suppliers?.name ?? '-',
         hasVat,
@@ -603,7 +686,6 @@ export async function POST(request: Request) {
     }
 
     const created = await prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('po_buys.doc_no'))`
       const docNo = await nextPoBuyDocNo(tx, issuedDate, branch.code)
       const items = poItems(values, resolvedProducts.rows, docNo)
       const qty = items.reduce((sum, item) => sum + item.qty, 0)

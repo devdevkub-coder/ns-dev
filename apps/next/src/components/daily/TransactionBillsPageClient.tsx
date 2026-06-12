@@ -33,6 +33,7 @@ type BillRow = {
   advancePaymentId?: string
   branchId?: string
   branchName?: string
+  canCancel?: boolean
   canEdit?: boolean
   createdAt?: string
   createdBy?: string
@@ -645,6 +646,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const [filterMode, setFilterMode] = useState(mode === 'stock-issue' ? 'pending' : '')
   const [form, setForm] = useState<PurchaseBillFormValues>(initialPurchaseForm())
   const [editingBillId, setEditingBillId] = useState<string | null>(null)
+  const [editingStockIssueDocNo, setEditingStockIssueDocNo] = useState<string | null>(null)
   const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -1297,6 +1299,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   }
 
   function openStockIssueForm() {
+    setEditingStockIssueDocNo(null)
     setStockIssueForm({ date: new Date().toISOString().slice(0, 10), deliveryTicketId: '', note: '', prices: {} })
     setError(null)
     setShowStockIssueForm(true)
@@ -1373,6 +1376,34 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     setSalesFieldErrors({})
     setError(null)
     setShowSalesForm(true)
+  }
+
+  function openEditStockIssue(row: StockIssueRow) {
+    if (row.status !== 'pending' || row.convertedToBillId) {
+      setError('แก้ไขได้เฉพาะรายการที่ยังไม่ถูกดึงไปเปิดบิลขาย')
+      return
+    }
+    const delivery = stockIssueToDelivery(row)
+    const prices = (row.items ?? []).reduce<Record<string, number>>((nextPrices, item) => {
+      const productId = item.productCode ?? item.productId ?? ''
+      if (productId) nextPrices[productId] = Number(item.price ?? 0)
+      return nextPrices
+    }, {})
+    setOptions((current) => ({
+      ...current,
+      deliveries: current.deliveries.some((item) => item.id === delivery.id)
+        ? current.deliveries.map((item) => item.id === delivery.id ? delivery : item)
+        : [delivery, ...current.deliveries],
+    }))
+    setEditingStockIssueDocNo(row.docNo)
+    setStockIssueForm({
+      date: row.date,
+      deliveryTicketId: delivery.id,
+      note: row.note ?? '',
+      prices,
+    })
+    setError(null)
+    setShowStockIssueForm(true)
   }
 
   function purchaseFormFromRow(row: BillRow): PurchaseBillFormValues {
@@ -1520,6 +1551,10 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   }
 
   function openCancelSalesBill(row: BillRow) {
+    if (row.canCancel === false) {
+      setError(row.lockedReason ?? 'บิลนี้ยังยกเลิกไม่ได้')
+      return
+    }
     setCancelingBill(row)
     setCancelNote('')
     setCancelNoteError('')
@@ -2047,13 +2082,15 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     try {
       const created = await dailyFetchJson<{ docNo: string }>('/api/sales/stock-issue', {
         body: JSON.stringify({
+          ...(editingStockIssueDocNo ? { action: 'edit', docNo: editingStockIssueDocNo } : {}),
           date: stockIssueForm.date,
           deliveryTicketId: stockIssueForm.deliveryTicketId,
           note: stockIssueForm.note || null,
           prices: stockIssueForm.prices,
         }),
-        method: 'POST',
+        method: editingStockIssueDocNo ? 'PATCH' : 'POST',
       })
+      setEditingStockIssueDocNo(null)
       setShowStockIssueForm(false)
       setSearch(created.docNo)
       await loadData()
@@ -2346,8 +2383,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                       <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50" disabled title="รอเปิด flow แก้ไขบิลขาย" type="button">แก้ไข</button>
                       <button
                         className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={String(row.status ?? '').toLowerCase().includes('cancel')}
-                        title={String(row.status ?? '').toLowerCase().includes('cancel') ? 'บิลนี้ถูกยกเลิกแล้ว' : undefined}
+                        disabled={row.canCancel === false}
+                        title={row.canCancel === false ? (row.lockedReason ?? 'บิลนี้ยังยกเลิกไม่ได้') : undefined}
                         type="button"
                         onClick={(event) => { event.stopPropagation(); openCancelSalesBill(row) }}
                       >
@@ -2374,7 +2411,15 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                      >
 	                        ประวัติ
 	                      </button>
-	                      <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50" disabled title="PSALE ยังไม่รองรับการแก้ไข ให้ยกเลิกก่อนเปิดบิลแล้วสร้างใหม่" type="button">แก้ไข</button>
+	                      <button
+	                        className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+	                        disabled={row.status !== 'pending' || Boolean(row.convertedToBillId)}
+	                        title={row.status !== 'pending' || row.convertedToBillId ? 'แก้ไขได้เฉพาะรายการที่ยังไม่ถูกดึงไปเปิดบิลขาย' : undefined}
+	                        type="button"
+	                        onClick={(event) => { event.stopPropagation(); openEditStockIssue(row) }}
+	                      >
+	                        แก้ไข
+	                      </button>
                       <button
                         className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={row.status !== 'pending'}
@@ -2827,10 +2872,10 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           <div className="mx-auto my-4 flex max-h-[94vh] max-w-4xl flex-col rounded-md bg-white shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between rounded-md-t-md border-b bg-gradient-to-r from-amber-600 to-orange-600 px-6 py-4 text-white">
               <div>
-                <h3 className="text-xl font-bold">เบิกออกรอบิล</h3>
+                <h3 className="text-xl font-bold">{editingStockIssueDocNo ? `แก้ไขเบิกออกรอบิล ${editingStockIssueDocNo}` : 'เบิกออกรอบิล'}</h3>
                 <p className="mt-1 text-xs opacity-80">เลือกใบส่งของ WTO เพื่อบันทึก PSALE และตัด stock ทันที</p>
               </div>
-              <button className="text-3xl leading-none text-white/80 hover:text-white" type="button" onClick={() => setShowStockIssueForm(false)}>&times;</button>
+              <button className="text-3xl leading-none text-white/80 hover:text-white" type="button" onClick={() => { setEditingStockIssueDocNo(null); setShowStockIssueForm(false) }}>&times;</button>
             </div>
             <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-6 text-sm">
               <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
@@ -2849,6 +2894,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     }))}
                     placeholder="ค้นหาเลขที่ใบส่งของ"
                     value={stockIssueForm.deliveryTicketId}
+                    disabled={Boolean(editingStockIssueDocNo)}
                     onChange={(value) => setStockIssueForm((current) => ({ ...current, deliveryTicketId: value, prices: {} }))}
                   />
                 </div>
@@ -2908,8 +2954,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               </Field>
             </div>
             <div className="sticky bottom-0 flex justify-end gap-3 border-t bg-white px-6 py-4">
-              <Button disabled={isSaving} type="button" variant="secondary" onClick={() => setShowStockIssueForm(false)}>ยกเลิก</Button>
-              <Button className="bg-amber-600 hover:bg-amber-700" disabled={isSaving || !selectedStockIssueDelivery} type="button" onClick={() => void saveStockIssue()}>{isSaving ? 'กำลังบันทึก...' : 'บันทึก + ตัด Stock'}</Button>
+              <Button disabled={isSaving} type="button" variant="secondary" onClick={() => { setEditingStockIssueDocNo(null); setShowStockIssueForm(false) }}>ยกเลิก</Button>
+              <Button className="bg-amber-600 hover:bg-amber-700" disabled={isSaving || !selectedStockIssueDelivery} type="button" onClick={() => void saveStockIssue()}>{isSaving ? 'กำลังบันทึก...' : editingStockIssueDocNo ? 'บันทึกการแก้ไข' : 'บันทึก + ตัด Stock'}</Button>
             </div>
           </div>
         </div>

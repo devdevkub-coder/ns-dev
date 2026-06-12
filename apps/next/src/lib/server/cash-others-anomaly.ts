@@ -90,7 +90,7 @@ export async function buildCashOthersSummary(asOfValue?: string | null) {
   const [cashAccounts, salesBills, purchaseBills, stockRows, stockIssues, expenses, tradingDeals] = await Promise.all([
     accountBalances(asOf),
     prisma.sales_bills.findMany({ include: { customers: true, sales_channels: true }, orderBy: [{ date: 'desc' }], take: 15000, where: { date: { lte: endOfDay(asOf) } } }),
-    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' } }, suppliers: true }, orderBy: [{ date: 'desc' }], take: 15000, where: { date: { lte: endOfDay(asOf) } } }),
+    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } }, suppliers: true }, orderBy: [{ date: 'desc' }], take: 15000, where: { date: { lte: endOfDay(asOf) } } }),
     prisma.stock_ledger.findMany({ include: { products: true }, orderBy: [{ date: 'desc' }], take: 80000, where: { date: { lte: endOfDay(asOf) } } }),
     prisma.stock_issues.findMany({ orderBy: [{ date: 'desc' }], take: 5000 }),
     prisma.expenses.findMany({ orderBy: [{ date: 'desc' }], take: 5000, where: { date: new Date(`${today}T00:00:00.000Z`) } }),
@@ -206,7 +206,7 @@ export async function buildAnomalyDetector(asOfValue?: string | null) {
     accountBalances(asOf),
     prisma.stock_ledger.findMany({ include: { products: true }, orderBy: [{ date: 'desc' }], take: 80000, where: { date: { lte: endOfDay(asOf) } } }),
     prisma.sales_bills.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }], take: 10000, where: { date: { lte: endOfDay(asOf) } } }),
-    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' } }, suppliers: true }, orderBy: [{ date: 'desc' }], take: 10000, where: { date: { lte: endOfDay(asOf) } } }),
+    prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } }, suppliers: true }, orderBy: [{ date: 'desc' }], take: 10000, where: { date: { lte: endOfDay(asOf) } } }),
     prisma.customers.findMany({ orderBy: [{ name: 'asc' }], take: 10000, where: { active: { not: false } } }),
     prisma.suppliers.findMany({ orderBy: [{ name: 'asc' }], take: 10000, where: { active: { not: false } } }),
     prisma.bank_statement.findMany({ orderBy: [{ date: 'desc' }], take: 5000, where: { date: { lte: endOfDay(asOf) } } }),
