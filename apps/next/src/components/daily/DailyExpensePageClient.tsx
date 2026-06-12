@@ -703,8 +703,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <div className="group relative overflow-hidden rounded-xl border border-slate-100 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500">💸 ยอดรวม {periodMonths} เดือน</span>
-                <span className="text-lg">📊</span>
+                <span className="text-xs font-semibold text-slate-500">ยอดรวม {periodMonths} เดือน</span>
               </div>
               <div className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900 tabular-nums">
                 {formatMoney(dashboard.total)}
@@ -713,8 +712,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
 
             <div className="group relative overflow-hidden rounded-xl border border-slate-100 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500">📈 เฉลี่ยรายเดือน</span>
-                <span className="text-lg">📉</span>
+                <span className="text-xs font-semibold text-slate-500">เฉลี่ยรายเดือน</span>
               </div>
               <div className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900 tabular-nums">
                 {formatMoney(dashboard.avg)}
@@ -723,8 +721,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
 
             <div className="group relative overflow-hidden rounded-xl border border-slate-100 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500">📅 ยอดใช้จ่ายเดือนนี้</span>
-                <span className="text-lg">🗓️</span>
+                <span className="text-xs font-semibold text-slate-500">ยอดใช้จ่ายเดือนนี้</span>
               </div>
               <div className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900 tabular-nums">
                 {formatMoney(dashboard.latest)}
@@ -738,8 +735,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
               return (
                 <div className="group relative overflow-hidden rounded-xl border border-slate-100 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-500">⚖️ เทียบค่าเฉลี่ย</span>
-                    <span className="text-lg">{isHigh ? '⚠️' : isLow ? '✅' : 'ℹ️'}</span>
+                    <span className="text-xs font-semibold text-slate-500">เทียบค่าเฉลี่ย</span>
                   </div>
                   <div className={`mt-3 text-2xl font-extrabold tracking-tight ${accentColor} tabular-nums`}>
                     {dashboard.vsAvg > 0 ? '+' : ''}{dashboard.vsAvg.toFixed(1)}%
