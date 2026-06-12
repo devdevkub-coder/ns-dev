@@ -34,41 +34,6 @@ function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100
 }
 
-function receiptVoucherDocNoFromPaymentDocNo(docNo: string) {
-  return docNo.startsWith('PMT') ? `RV${docNo.slice(3)}` : `RV-${docNo}`
-}
-
-function thaiBahtText(value: number) {
-  if (!Number.isFinite(value)) return ''
-  if (value === 0) return 'ศูนย์บาทถ้วน'
-  const digitText = ['ศูนย์', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า']
-  const unitText = ['', 'สิบ', 'ร้อย', 'พัน', 'หมื่น', 'แสน', 'ล้าน']
-  const convert = (input: string) => {
-    let text = ''
-    for (let index = 0; index < input.length; index += 1) {
-      const digit = Number(input[index])
-      const position = input.length - index - 1
-      if (digit !== 0) {
-        if (position % 6 === 1) {
-          text += digit === 1 ? 'สิบ' : digit === 2 ? 'ยี่สิบ' : `${digitText[digit]}สิบ`
-        } else if (position % 6 === 0 && digit === 1 && input.length > 1 && index > 0 && input[index - 1] !== '0') {
-          text += 'เอ็ด'
-        } else {
-          text += `${digitText[digit]}${unitText[position % 6]}`
-        }
-      }
-      if (position > 0 && position % 6 === 0) text += 'ล้าน'
-    }
-    return text
-  }
-  const [baht, satang] = value.toFixed(2).split('.')
-  const bahtText = baht ? convert(baht) : ''
-  const satangText = satang && satang !== '00' ? `${convert(satang)}สตางค์` : ''
-  if (bahtText && !satangText) return `${bahtText}บาทถ้วน`
-  if (!bahtText && satangText) return satangText
-  return `${bahtText}บาท${satangText}`
-}
-
 function branchPaymentCode(branchCode: string | null | undefined) {
   const digits = String(branchCode ?? '').replace(/\D/g, '')
   return digits ? digits.padStart(2, '0').slice(-2) : null
@@ -464,7 +429,6 @@ export async function POST(request: Request) {
     const activePaymentMethods = await getActivePaymentMethods()
     const activePaymentMethod = activePaymentMethods.find((method) => normalizedPaymentMethod(method.name) === normalizedPaymentMethod(values.method))
     if (!activePaymentMethod) throw new Error('วิธีจ่ายไม่ถูกต้องหรือไม่ active')
-    const isCashPaymentMethod = activePaymentMethod.type === 'cash'
 
     const result = await prisma.$transaction(async (tx) => {
       const txExt = tx as typeof tx & {
@@ -796,82 +760,6 @@ export async function POST(request: Request) {
         paymentVoucherId: voucherId,
         toStatus: 'active',
       })
-
-      const receiptVoucherDocNo = receiptVoucherDocNoFromPaymentDocNo(docNo)
-      if (isCashPaymentMethod) {
-        const purchaseBillLines = paymentLineTotals
-          .map((line) => billByDocNo.get(requireDocumentNo(line.billId, 'เอกสารอ้างอิง')) ?? null)
-          .filter((bill): bill is NonNullable<typeof bill> => Boolean(bill))
-        const purchaseBillDocNos = [...new Set(purchaseBillLines.map((bill) => bill.doc_no))]
-        const purchaseBillIds = [...new Set(purchaseBillLines.map((bill) => bill.id))]
-        const seller = firstBill?.suppliers ?? firstAdvance?.suppliers ?? null
-        const sellerName = seller?.name ?? firstExpense?.payee ?? ''
-        if (!sellerName) throw new Error('ไม่พบชื่อผู้รับเงินสำหรับสร้าง RV เงินสด')
-        const salesIds = [...new Set(purchaseBillLines
-          .map((bill) => bill.sales_id)
-          .filter((value): value is bigint => value != null))]
-        const salesPersons = salesIds.length > 0
-          ? await tx.salespersons.findMany({
-            orderBy: [{ name: 'asc' }],
-            select: { name: true },
-            where: { id: { in: salesIds } },
-          })
-          : []
-        const rvItems = paymentLineTotals.map((line, index) => {
-          const sourceDocNo = requireDocumentNo(line.billId, 'เอกสารอ้างอิง')
-          const approval = line.approvalId ? approvalByDocNo.get(line.approvalId) : null
-          const sourceType = approval?.source_type ?? 'purchase_bill'
-          const sourceLabel = sourceType === 'purchase_bill' ? 'บิลซื้อ' : sourceType === 'advance_payment' ? 'เงินทดรอง Supplier' : 'ค่าใช้จ่าย'
-          return {
-            amount: line.amount,
-            description: `จ่ายเงินสด ${sourceLabel} ${sourceDocNo}`,
-            lineNo: index + 1,
-            paymentApprovalDocNo: line.approvalId ?? null,
-            price: line.amount,
-            qty: 1,
-            sourceDocNo,
-            sourceType,
-            unit: 'รายการ',
-          }
-        })
-        const sourceDocNos = rvItems.map((item) => item.sourceDocNo)
-        const rvNote = [
-          `สร้างอัตโนมัติจาก PMT ${docNo} (${sourceDocNos.join(', ')})`,
-          values.notes?.trim() || null,
-        ].filter(Boolean).join('\n')
-        const receiptVoucherData = {
-          amount_in_words: thaiBahtText(totalAmount),
-          date: new Date(paymentDate),
-          items: rvItems as Prisma.InputJsonValue,
-          license_plate: [...new Set(purchaseBillLines.map((bill) => bill.license_plate).filter(Boolean) as string[])].join(', ') || null,
-          note: rvNote,
-          payer_signer_name: actor,
-          payment_method: values.method,
-          purchase_bill_doc_no: purchaseBillDocNos.join(', ') || null,
-          purchase_bill_id: purchaseBillIds.length === 1 ? purchaseBillIds[0] : null,
-          receiver_signer_name: sellerName,
-          sales_person: salesPersons.map((person) => person.name).join(', ') || null,
-          seller_address: seller?.address ?? null,
-          seller_name: sellerName,
-          seller_phone: seller?.phone ?? null,
-          seller_tax_id: seller?.tax_id ?? null,
-          total_amount: totalAmount,
-          total_qty: rvItems.length,
-          updated_at: new Date(),
-          updated_by: actor,
-        }
-        await tx.receipt_vouchers.upsert({
-          create: {
-            doc_no: receiptVoucherDocNo,
-            ...receiptVoucherData,
-            created_by: actor,
-          },
-          update: receiptVoucherData,
-          where: { doc_no: receiptVoucherDocNo },
-        })
-      } else {
-        await tx.receipt_vouchers.deleteMany({ where: { doc_no: receiptVoucherDocNo } })
-      }
 
       const billIdsToRefresh = [...new Set([
         ...existingPayments.map((payment) => payment.bill_id).filter((value): value is bigint => value != null),

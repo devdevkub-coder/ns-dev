@@ -1838,6 +1838,11 @@ model purchase_bills {
   cancel_note                       String?
   cancelled_at                      DateTime?                           @db.Timestamptz(6)
   cancelled_by                      String?
+  supplier_name_snapshot            String?
+  supplier_tax_id_snapshot          String?
+  supplier_address_snapshot         String?
+  supplier_phone_snapshot           String?
+  supplier_sales_rep_snapshot       String?
   supplier_id                       BigInt?
   branch_id                         BigInt?
   warehouse_id                      BigInt?

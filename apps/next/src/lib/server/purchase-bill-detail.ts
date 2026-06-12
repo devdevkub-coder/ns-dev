@@ -217,21 +217,6 @@ function sourceSnapshotValue(snapshot: unknown, key: string) {
   return typeof value === 'string' ? value : null
 }
 
-function supplierAddress(supplier: PurchaseBillDetailRow['suppliers']) {
-  if (!supplier) return ''
-  const structured = [
-    supplier.address_no,
-    supplier.address_moo ? `หมู่ ${supplier.address_moo}` : null,
-    supplier.address_village,
-    supplier.address_road,
-    supplier.address_subdistrict ? `ต.${supplier.address_subdistrict}` : null,
-    supplier.address_district ? `อ.${supplier.address_district}` : null,
-    supplier.address_province ? `จ.${supplier.address_province}` : null,
-    supplier.address_postal_code,
-  ].filter(Boolean).join(' ')
-  return supplier.address || supplier.address_line1 || structured
-}
-
 function receiptLineRemark(receiptAllocation: PurchaseBillDetailRow['purchase_bill_items'][number]['purchase_bill_receipt_allocations']) {
   if (!receiptAllocation) return null
   const notes = receiptAllocation.weight_ticket_product_summaries.weight_ticket_product_summary_lines
@@ -315,13 +300,6 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
   })
 
   if (!bill) return null
-
-  const salesperson = bill.sales_id
-    ? await prisma.salespersons.findUnique({
-        select: { name: true },
-        where: { id: bill.sales_id },
-      })
-    : null
 
   const allocationRows = bill.purchase_bill_items.map((item, index) => {
     const receiptAllocation = item.purchase_bill_receipt_allocations
@@ -476,10 +454,10 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     status: bill.status ?? '',
     statusLabel: purchaseBillStatusLabel(bill.status),
     subtotal: toNumber(bill.subtotal),
-    supplierAddress: supplierAddress(bill.suppliers),
+    supplierAddress: bill.supplier_address_snapshot ?? '-',
     supplierCode: bill.suppliers?.code ?? '-',
-    supplierTaxId: bill.suppliers?.tax_id ?? '-',
-    supplierName: bill.suppliers?.name ?? '-',
+    supplierTaxId: bill.supplier_tax_id_snapshot ?? '-',
+    supplierName: bill.supplier_name_snapshot ?? '-',
     timeline,
     totalAmount: toNumber(bill.total_amount),
     transactionMode: bill.transaction_mode ?? 'STOCK',
@@ -489,6 +467,6 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     vatInvoiceReceived: Boolean(bill.vat_invoice_received),
     warehouseName: bill.warehouses?.name ?? '-',
     refNo: bill.ref_no ?? '-',
-    salesName: salesperson?.name ?? '-',
+    salesName: bill.supplier_sales_rep_snapshot ?? '-',
   }
 }

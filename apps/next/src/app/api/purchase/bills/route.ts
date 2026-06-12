@@ -348,7 +348,7 @@ function billJson(row: PurchaseBillRow, paymentDocNos: string[] = []) {
     salesId: stringifyBusinessValue(row.sales_id),
     status: row.status ?? 'unpaid',
     supplierId: row.suppliers?.code ?? '',
-    supplierName: row.suppliers?.name ?? '-',
+    supplierName: row.supplier_name_snapshot ?? '-',
     totalAmount: toNumber(row.total_amount),
     transactionMode: row.transaction_mode ?? 'STOCK',
     updatedAt: row.updated_at?.toISOString() ?? '',
@@ -1457,6 +1457,22 @@ async function nextPurchaseBillDocNo(tx: Prisma.TransactionClient, date: string,
   return `${startsWith}${String(nextNumber).padStart(4, '0')}`
 }
 
+function supplierSnapshotFields(supplier: {
+  address: string | null
+  name: string
+  phone: string | null
+  salesRep: string | null
+  taxId: string | null
+}) {
+  return {
+    supplier_address_snapshot: supplier.address,
+    supplier_name_snapshot: supplier.name,
+    supplier_phone_snapshot: supplier.phone,
+    supplier_sales_rep_snapshot: supplier.salesRep,
+    supplier_tax_id_snapshot: supplier.taxId,
+  }
+}
+
 async function optionsPayload(allowedBranchCodes?: string[] | null) {
   let allowedBranchIds: bigint[] | undefined = undefined
   if (allowedBranchCodes) {
@@ -2055,6 +2071,7 @@ export async function POST(request: Request) {
               status: 'unpaid',
               subtotal: totals.subtotal,
               supplier_id: supplier.id,
+              ...supplierSnapshotFields(supplier),
               total_amount: totals.totalAmount,
               transaction_mode: values.transactionMode,
               updated_at: createdAt,
@@ -2473,6 +2490,7 @@ export async function PATCH(request: Request) {
                 status: 'unpaid',
                 subtotal: totals.subtotal,
                 supplier_id: supplier.id,
+                ...supplierSnapshotFields(supplier),
                 total_amount: totals.totalAmount,
                 transaction_mode: values.transactionMode,
                 updated_at: createdAt,
@@ -2732,6 +2750,7 @@ export async function PATCH(request: Request) {
           status: existingBill.status,
           subtotal: totals.subtotal,
           supplier_id: supplier.id,
+          ...(existingBill.supplier_id === supplier.id ? {} : supplierSnapshotFields(supplier)),
           total_amount: totals.totalAmount,
           transaction_mode: values.transactionMode,
           updated_at: new Date(),

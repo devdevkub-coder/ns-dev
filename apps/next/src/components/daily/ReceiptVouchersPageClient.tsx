@@ -1,11 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 
 import { Button } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Input } from '@/components/ui/Input'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { Select } from '@/components/ui/Select'
 import { TableNumberCell } from '@/components/ui/TableNumberCell'
 import { Table, TableBody, TableHeader, TableRow } from '@/components/ui/Table'
@@ -19,6 +21,7 @@ type VoucherItem = {
   id?: string | null
   price?: number | string | null
   qty?: number | string | null
+  unit?: string | null
 }
 
 type ReceiptVoucherRow = {
@@ -35,7 +38,6 @@ type ReceiptVoucherRow = {
   paymentMethod?: string
   purchaseBillDocNo: string
   purchaseBillId?: string
-  receiverSignerName?: string
   salesPerson?: string
   sellerAddress?: string
   sellerName: string
@@ -46,10 +48,57 @@ type ReceiptVoucherRow = {
   updatedAt?: string
   updatedBy?: string
 }
+type ReceiptVoucherFormItem = {
+  description: string
+  price: string
+  qty: string
+  unit: string
+}
+type ReceiptVoucherFormState = {
+  amountInWords: string
+  date: string
+  docNo: string
+  items: ReceiptVoucherFormItem[]
+  licensePlate: string
+  note: string
+  payerSignerName: string
+  paymentMethod: string
+  purchaseBillDocNo: string
+  salesPerson: string
+  sellerAddress: string
+  sellerName: string
+  sellerPhone: string
+  sellerTaxId: string
+  supplierCode: string
+}
+type SupplierOption = {
+  address: string
+  code: string
+  id: string
+  name: string
+  phone: string
+  taxId: string
+}
+type PurchaseBillOption = {
+  date: string
+  docNo: string
+  id: string
+  items: ReceiptVoucherFormItem[]
+  licensePlate: string
+  note: string
+  salesPerson: string
+  sellerAddress: string
+  sellerCode: string
+  sellerName: string
+  sellerPhone: string
+  sellerTaxId: string
+  totalAmount: number
+}
 type ReceiptVoucherColumnKey = 'action' | 'date' | 'docNo' | 'licensePlate' | 'purchaseBillDocNo' | 'sellerName' | 'sellerTaxId' | 'totalAmount' | 'totalQty'
 
 type ReceiptVoucherCompanyProfile = {
   address: string
+  logoUrl?: string
   name: string
   nameEn: string
   phone: string
@@ -68,27 +117,134 @@ const receiptVoucherColumns: Array<ResizableColumnDefinition<ReceiptVoucherColum
   { key: 'action', defaultWidth: 140, minWidth: 100 },
 ]
 
+function dateInputToday() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function blankForm(): ReceiptVoucherFormState {
+  return {
+    amountInWords: '',
+    date: dateInputToday(),
+    docNo: '',
+    items: [],
+    licensePlate: '',
+    note: '',
+    payerSignerName: '',
+    paymentMethod: 'รับเงินสด',
+    purchaseBillDocNo: '',
+    salesPerson: '',
+    sellerAddress: '',
+    sellerName: '',
+    sellerPhone: '',
+    sellerTaxId: '',
+    supplierCode: '',
+  }
+}
+
+function itemAmount(item: ReceiptVoucherFormItem) {
+  return toNumber(item.qty) * toNumber(item.price)
+}
+
+function formTotals(form: ReceiptVoucherFormState) {
+  return {
+    amount: form.items.reduce((sum, item) => sum + itemAmount(item), 0),
+    qty: form.items.reduce((sum, item) => sum + toNumber(item.qty), 0),
+  }
+}
+
+function thaiBahtText(value: number) {
+  if (!Number.isFinite(value)) return ''
+  if (value === 0) return 'ศูนย์บาทถ้วน'
+  const digitText = ['ศูนย์', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า']
+  const unitText = ['', 'สิบ', 'ร้อย', 'พัน', 'หมื่น', 'แสน', 'ล้าน']
+  const convert = (input: string) => {
+    let text = ''
+    for (let index = 0; index < input.length; index += 1) {
+      const digit = Number(input[index])
+      const position = input.length - index - 1
+      if (digit !== 0) {
+        if (position % 6 === 1) {
+          text += digit === 1 ? 'สิบ' : digit === 2 ? 'ยี่สิบ' : `${digitText[digit]}สิบ`
+        } else if (position % 6 === 0 && digit === 1 && input.length > 1 && index > 0 && input[index - 1] !== '0') {
+          text += 'เอ็ด'
+        } else {
+          text += `${digitText[digit]}${unitText[position % 6]}`
+        }
+      }
+      if (position > 0 && position % 6 === 0) text += 'ล้าน'
+    }
+    return text
+  }
+  const [baht, satang] = value.toFixed(2).split('.')
+  const bahtText = baht ? convert(baht) : ''
+  const satangText = satang && satang !== '00' ? `${convert(satang)}สตางค์` : ''
+  if (bahtText && !satangText) return `${bahtText}บาทถ้วน`
+  if (!bahtText && satangText) return satangText
+  return `${bahtText}บาท${satangText}`
+}
+
+function normalizeFormFromRow(row: ReceiptVoucherRow): ReceiptVoucherFormState {
+  const items = normalizeItems(row).map((item) => ({
+    description: item.description ?? '',
+    price: String(toNumber(item.price)),
+    qty: String(toNumber(item.qty)),
+    unit: item.unit || 'กก.',
+  }))
+  const form = {
+    amountInWords: row.amountInWords || '',
+    date: row.date || dateInputToday(),
+    docNo: row.docNo,
+    items: items.length > 0 ? items : [{ description: '', price: '0', qty: '0', unit: 'กก.' }],
+    licensePlate: row.licensePlate || '',
+    note: row.note || '',
+    payerSignerName: row.payerSignerName || row.createdBy || '',
+    paymentMethod: row.paymentMethod || 'รับเงินสด',
+    purchaseBillDocNo: row.purchaseBillDocNo || '',
+    salesPerson: row.salesPerson || '',
+    sellerAddress: row.sellerAddress || '',
+    sellerName: row.sellerName || '',
+    sellerPhone: row.sellerPhone || '',
+    sellerTaxId: row.sellerTaxId || '',
+    supplierCode: '',
+  }
+  return { ...form, amountInWords: form.amountInWords || thaiBahtText(formTotals(form).amount) }
+}
+
 export function ReceiptVouchersPageClient() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [printingRow, setPrintingRow] = useState<ReceiptVoucherRow | null>(null)
   const [companyProfile, setCompanyProfile] = useState<ReceiptVoucherCompanyProfile>(null)
+  const [form, setForm] = useState<ReceiptVoucherFormState>(() => blankForm())
+  const [formError, setFormError] = useState<string | null>(null)
+  const [formMode, setFormMode] = useState<'create' | 'edit' | null>(null)
+  const [purchaseBillOptions, setPurchaseBillOptions] = useState<PurchaseBillOption[]>([])
   const [rows, setRows] = useState<ReceiptVoucherRow[]>([])
   const [search, setSearch] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const [supplierOptions, setSupplierOptions] = useState<SupplierOption[]>([])
+  const [currentActorName, setCurrentActorName] = useState('')
   const columnResize = useResizableColumns('daily.receipt-vouchers', receiptVoucherColumns)
 
   const loadData = useCallback(async () => {
     setIsLoading(true)
     setError(null)
     try {
-      const payload = await dailyFetchJson<{ companyProfile: ReceiptVoucherCompanyProfile; rows: ReceiptVoucherRow[] }>('/api/purchase/receipt-vouchers')
+      const payload = await dailyFetchJson<{ companyProfile: ReceiptVoucherCompanyProfile; currentActor: string; purchaseBills: PurchaseBillOption[]; rows: ReceiptVoucherRow[]; suppliers: SupplierOption[] }>('/api/purchase/receipt-vouchers')
       setCompanyProfile(payload.companyProfile)
+      setCurrentActorName(payload.currentActor ?? '')
+      setPurchaseBillOptions(payload.purchaseBills ?? [])
       setRows(payload.rows)
+      setSupplierOptions(payload.suppliers ?? [])
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'โหลดใบสำคัญรับเงินไม่ได้')
     } finally {
@@ -120,10 +276,26 @@ export function ReceiptVouchersPageClient() {
     })
   }, [dateFrom, dateTo, rows, search])
 
+  const supplierSearchOptions = useMemo<SearchComboboxOption[]>(() => supplierOptions.map((supplier) => ({
+    description: supplier.taxId ? `เลขประจำตัวผู้เสียภาษี ${supplier.taxId}` : supplier.address,
+    id: supplier.code,
+    label: `${supplier.code} | ${supplier.name}`,
+    searchText: `${supplier.code} ${supplier.name} ${supplier.taxId} ${supplier.address} ${supplier.phone}`.toLowerCase(),
+  })), [supplierOptions])
+  const filteredPurchaseBillOptions = useMemo(() => {
+    if (!form.supplierCode) return purchaseBillOptions
+    return purchaseBillOptions.filter((bill) => bill.sellerCode === form.supplierCode)
+  }, [form.supplierCode, purchaseBillOptions])
+  const purchaseBillSearchOptions = useMemo<SearchComboboxOption[]>(() => filteredPurchaseBillOptions.map((bill) => ({
+    description: `${bill.date} · ${bill.sellerName || '-'} · ${formatMoney(bill.totalAmount)}`,
+    id: bill.docNo,
+    label: bill.docNo,
+    searchText: `${bill.docNo} ${bill.sellerCode} ${bill.sellerName} ${bill.date} ${bill.licensePlate}`.toLowerCase(),
+  })), [filteredPurchaseBillOptions])
+
   const totals = useMemo(() => ({
     amount: filteredRows.reduce((sum, row) => sum + row.totalAmount, 0),
     qty: filteredRows.reduce((sum, row) => sum + row.totalQty, 0),
-    withPurchaseBill: filteredRows.filter((row) => row.purchaseBillDocNo).length,
   }), [filteredRows])
 
   const totalRows = filteredRows.length
@@ -138,6 +310,122 @@ export function ReceiptVouchersPageClient() {
     setDateTo('')
   }
 
+  function openCreateForm() {
+    setForm({ ...blankForm(), payerSignerName: currentActorName })
+    setFormError(null)
+    setFormMode('create')
+  }
+
+  function openEditForm(row: ReceiptVoucherRow) {
+    setForm(normalizeFormFromRow(row))
+    setFormError(null)
+    setFormMode('edit')
+  }
+
+  function closeForm() {
+    if (isSaving) return
+    setFormMode(null)
+    setFormError(null)
+  }
+
+  function updateForm(patch: Partial<ReceiptVoucherFormState>) {
+    setForm((current) => ({ ...current, ...patch }))
+  }
+
+  function pickSupplier(code: string) {
+    const supplier = supplierOptions.find((item) => item.code === code)
+    if (!supplier) {
+      updateForm({ supplierCode: '' })
+      return
+    }
+    updateForm({
+      purchaseBillDocNo: '',
+      sellerAddress: supplier.address,
+      sellerName: supplier.name,
+      sellerPhone: supplier.phone,
+      sellerTaxId: supplier.taxId,
+      supplierCode: supplier.code,
+    })
+  }
+
+  function pickPurchaseBill(docNo: string) {
+    const bill = purchaseBillOptions.find((item) => item.docNo === docNo)
+    if (!bill) {
+      updateForm({ purchaseBillDocNo: '' })
+      return
+    }
+    const billItems = bill.items.length > 0 ? bill.items.map((item) => ({
+      description: item.description,
+      price: String(toNumber(item.price)),
+      qty: String(toNumber(item.qty)),
+      unit: item.unit || 'กก.',
+    })) : form.items
+    updateForm({
+      amountInWords: thaiBahtText(billItems.reduce((sum, item) => sum + itemAmount(item), 0)),
+      date: bill.date || form.date,
+      items: billItems,
+      licensePlate: bill.licensePlate,
+      note: bill.note,
+      purchaseBillDocNo: bill.docNo,
+      salesPerson: bill.salesPerson,
+      sellerAddress: bill.sellerAddress,
+      sellerName: bill.sellerName,
+      sellerPhone: bill.sellerPhone,
+      sellerTaxId: bill.sellerTaxId,
+      supplierCode: bill.sellerCode,
+    })
+  }
+
+  async function saveForm() {
+    setFormError(null)
+    const totals = formTotals(form)
+    if (!form.sellerName.trim()) {
+      setFormError('กรุณากรอกชื่อผู้รับเงิน')
+      return
+    }
+    if (form.items.length === 0) {
+      setFormError('กรุณาเลือกบิลซื้อเพื่อเติมรายการสินค้า')
+      return
+    }
+    if (form.items.some((item) => !item.description.trim())) {
+      setFormError('รายการสินค้าจากบิลซื้อไม่ครบถ้วน')
+      return
+    }
+    setIsSaving(true)
+    try {
+      await dailyFetchJson('/api/purchase/receipt-vouchers', {
+        body: JSON.stringify({
+          amountInWords: form.amountInWords || thaiBahtText(totals.amount),
+          date: form.date,
+          docNo: form.docNo,
+          items: form.items.map((item) => ({
+            description: item.description,
+            price: toNumber(item.price),
+            qty: toNumber(item.qty),
+            unit: item.unit || 'กก.',
+          })),
+          licensePlate: form.licensePlate,
+          note: form.note,
+          paymentMethod: form.paymentMethod,
+          purchaseBillDocNo: form.purchaseBillDocNo,
+          salesPerson: form.salesPerson,
+          sellerAddress: form.sellerAddress,
+          sellerName: form.sellerName,
+          sellerPhone: form.sellerPhone,
+          sellerTaxId: form.sellerTaxId,
+          supplierCode: form.supplierCode,
+        }),
+        method: formMode === 'edit' ? 'PATCH' : 'POST',
+      })
+      setFormMode(null)
+      await loadData()
+    } catch (caught) {
+      setFormError(caught instanceof Error ? caught.message : 'บันทึกใบสำคัญรับเงินไม่ได้')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   return (
     <>
       <section className="space-y-4 print:hidden">
@@ -147,7 +435,7 @@ export function ReceiptVouchersPageClient() {
           <KpiCard label="จำนวนเอกสาร" tone="slate" value={totalRows.toLocaleString('th-TH')} />
           <KpiCard label="น้ำหนักรวม (กก.)" tone="blue" value={formatMoney(totals.qty)} />
           <KpiCard label="จำนวนเงินรวม" tone="emerald" value={formatMoney(totals.amount)} />
-          <KpiCard label="มีบิลอ้างอิง" tone="violet" value={totals.withPurchaseBill.toLocaleString('th-TH')} />
+          <KpiCard label="ผู้รับเงินไม่ซ้ำ" tone="violet" value={new Set(filteredRows.map((row) => row.sellerName).filter(Boolean)).size.toLocaleString('th-TH')} />
         </div>
 
         <div className="rounded-md bg-white p-3 shadow">
@@ -177,7 +465,8 @@ export function ReceiptVouchersPageClient() {
             </div>
 
             {hasActiveFilter ? <Button size="xs" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</Button> : null}
-            <Button className="hidden md:inline-flex" disabled type="button">+ สร้างใบสำคัญรับเงิน</Button>
+            <Button className="hidden md:inline-flex" type="button" onClick={openCreateForm}>+ สร้างใบสำคัญรับเงิน</Button>
+            <Button className="inline-flex md:hidden" size="sm" type="button" onClick={openCreateForm}>+ สร้าง</Button>
           </div>
         </div>
 
@@ -325,7 +614,7 @@ export function ReceiptVouchersPageClient() {
                       <button className="inline-flex items-center gap-1 rounded-md border border-emerald-200 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60" type="button" onClick={() => setPrintingRow(row)}>
                         พิมพ์
                       </button>
-                      <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50" disabled type="button">แก้ไข</button>
+                      <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" type="button" onClick={() => openEditForm(row)}>แก้ไข</button>
                       <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" disabled type="button">ยกเลิก</button>
                     </div>
                   </td>
@@ -337,8 +626,200 @@ export function ReceiptVouchersPageClient() {
         </div>
       </section>
 
+      {formMode ? (
+        <ReceiptVoucherFormModal
+          form={form}
+          formError={formError}
+          isSaving={isSaving}
+          mode={formMode}
+          onClose={closeForm}
+          onPickSupplier={pickSupplier}
+          onPickPurchaseBill={pickPurchaseBill}
+          onSave={saveForm}
+          onUpdateForm={updateForm}
+          supplierSearchOptions={supplierSearchOptions}
+          purchaseBillSearchOptions={purchaseBillSearchOptions}
+        />
+      ) : null}
+
       {printingRow ? <PrintPreview companyProfile={companyProfile} row={printingRow} onClose={() => setPrintingRow(null)} /> : null}
     </>
+  )
+}
+
+function ReceiptVoucherFormModal({
+  form,
+  formError,
+  isSaving,
+  mode,
+  onClose,
+  onPickSupplier,
+  onPickPurchaseBill,
+  onSave,
+  onUpdateForm,
+  supplierSearchOptions,
+  purchaseBillSearchOptions,
+}: {
+  form: ReceiptVoucherFormState
+  formError: string | null
+  isSaving: boolean
+  mode: 'create' | 'edit'
+  onClose: () => void
+  onPickSupplier: (code: string) => void
+  onPickPurchaseBill: (docNo: string) => void
+  onSave: () => void
+  onUpdateForm: (patch: Partial<ReceiptVoucherFormState>) => void
+  supplierSearchOptions: SearchComboboxOption[]
+  purchaseBillSearchOptions: SearchComboboxOption[]
+}) {
+  const totals = formTotals(form)
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/40 p-3 print:hidden">
+      <div className="mx-auto my-4 max-w-6xl rounded-md bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+          <div>
+            <h3 className="text-base font-bold text-slate-900">{mode === 'edit' ? 'แก้ไข' : 'สร้าง'}ใบสำคัญรับเงิน</h3>
+            <p className="text-xs text-slate-500">ใช้สำหรับ Supplier รับเงินสดจากบริษัท กรณีไม่มีใบเสร็จจาก Supplier</p>
+          </div>
+          <button className="text-2xl leading-none text-slate-400 hover:text-slate-600" type="button" onClick={onClose}>&times;</button>
+        </div>
+
+        <div className="max-h-[calc(100vh-150px)] space-y-4 overflow-y-auto p-5">
+          {formError ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{formError}</div> : null}
+
+          <section className="rounded-md border border-amber-200 bg-amber-50 p-3">
+            <div className="mb-3 text-sm font-semibold text-amber-950">ข้อมูลหลัก</div>
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.2fr_1fr_180px]">
+              <SearchCombobox
+                inputClassName="h-9 bg-white"
+                inputId="rv-supplier"
+                label="Supplier"
+                options={supplierSearchOptions}
+                optionsPanelClassName="max-h-80"
+                placeholder="ค้นรหัส / ชื่อ Supplier / เลขภาษี"
+                value={form.supplierCode}
+                onChange={onPickSupplier}
+              />
+              <SearchCombobox
+                inputClassName="h-9 bg-white"
+                inputId="rv-purchase-bill"
+                label="อ้างอิงบิลซื้อ"
+                options={purchaseBillSearchOptions}
+                optionsPanelClassName="max-h-80"
+                placeholder={form.supplierCode ? 'ค้นเลขบิลซื้อ' : 'เลือก Supplier ก่อน'}
+                value={form.purchaseBillDocNo}
+                onChange={onPickPurchaseBill}
+              />
+              <FormField label="วันที่ออกเอกสาร">
+                <DatePickerInput id="rv-date" value={form.date} onChange={(value) => onUpdateForm({ date: value })} />
+              </FormField>
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-2 rounded-md border border-amber-200 bg-white/70 p-3 text-xs text-slate-700 md:grid-cols-2">
+              <ReadOnlyInfo label="ผู้รับเงิน" value={form.sellerName} />
+              <ReadOnlyInfo label="เลขประจำตัวผู้เสียภาษี" value={form.sellerTaxId} />
+              <ReadOnlyInfo label="ที่อยู่" value={form.sellerAddress} wide />
+              <ReadOnlyInfo label="เบอร์โทร" value={form.sellerPhone} />
+              <ReadOnlyInfo label="ช่องทางติดต่อ Sale" value={form.salesPerson} />
+            </div>
+          </section>
+
+          <section className="rounded-md border border-slate-200 p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold text-slate-800">รายการค่าใช้จ่าย/สินค้า ({form.items.length})</div>
+            </div>
+            <div className="overflow-x-auto rounded-md border border-slate-200">
+              <table className="w-full min-w-[820px] text-xs">
+                <thead className="bg-slate-100 text-slate-700">
+                  <tr>
+                    <th className="w-10 p-2 text-center">#</th>
+                    <th className="p-2 text-left">รายการ</th>
+                    <th className="w-24 p-2 text-left">หน่วย</th>
+                    <th className="w-32 p-2 text-right">จำนวน</th>
+                    <th className="w-32 p-2 text-right">ราคา/หน่วย</th>
+                    <th className="w-36 p-2 text-right">จำนวนเงิน</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {form.items.length === 0 ? (
+                    <tr>
+                      <td className="p-6 text-center text-slate-400" colSpan={6}>เลือกบิลซื้อเพื่อเติมรายการสินค้าอัตโนมัติ</td>
+                    </tr>
+                  ) : form.items.map((item, index) => (
+                    <tr key={index} className="border-t border-slate-100">
+                      <td className="p-2 text-center text-slate-400">{index + 1}</td>
+                      <td className="p-2 font-medium text-slate-800">{item.description || '-'}</td>
+                      <td className="p-2 text-slate-600">{item.unit || 'กก.'}</td>
+                      <td className="p-2 text-right tabular-nums">{formatMoney(toNumber(item.qty))}</td>
+                      <td className="p-2 text-right tabular-nums">{formatMoney(toNumber(item.price))}</td>
+                      <td className="p-2 text-right font-semibold text-emerald-700">{formatMoney(itemAmount(item))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-slate-50 font-semibold">
+                  <tr>
+                    <td className="p-2 text-right" colSpan={3}>รวม</td>
+                    <td className="p-2 text-right">{formatMoney(totals.qty)}</td>
+                    <td />
+                    <td className="p-2 text-right text-emerald-700">{formatMoney(totals.amount)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto]">
+              <div className="flex min-h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800">
+                {form.amountInWords || thaiBahtText(totals.amount) || '-'}
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-md border border-slate-200 p-3">
+            <div className="mb-3 text-sm font-semibold text-slate-800">หมายเหตุและผู้ลงนาม</div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <FormField className="md:col-span-2" label="หมายเหตุ">
+                <textarea
+                  className="min-h-20 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100"
+                  value={form.note}
+                  onChange={(event) => onUpdateForm({ note: event.target.value })}
+                />
+              </FormField>
+              <FormField label="วิธีรับเงิน">
+                <div className="flex h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800">
+                  รับเงินสด
+                </div>
+              </FormField>
+              <FormField label="ผู้จ่ายเงิน (ลายเซ็น)">
+                <div className="flex h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800">
+                  {form.payerSignerName || '-'}
+                </div>
+              </FormField>
+            </div>
+          </section>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
+          <Button disabled={isSaving} type="button" variant="secondary" onClick={onClose}>ยกเลิก</Button>
+          <Button disabled={isSaving} type="button" onClick={onSave}>{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function FormField({ children, className = '', label }: { children: ReactNode; className?: string; label: string }) {
+  return (
+    <label className={className}>
+      <span className="mb-1 block text-xs font-medium text-slate-600">{label}</span>
+      {children}
+    </label>
+  )
+}
+
+function ReadOnlyInfo({ label, value, wide = false }: { label: string; value?: string | null; wide?: boolean }) {
+  return (
+    <div className={wide ? 'md:col-span-2' : ''}>
+      <div className="text-[11px] font-medium text-slate-500">{label}</div>
+      <div className="mt-0.5 min-h-5 font-semibold text-slate-800">{value || '-'}</div>
+    </div>
   )
 }
 
@@ -359,80 +840,185 @@ function KpiCard({ label, tone, value }: { label: string; tone: 'blue' | 'emeral
 
 function PrintPreview({ companyProfile, onClose, row }: { companyProfile: ReceiptVoucherCompanyProfile; onClose: () => void; row: ReceiptVoucherRow }) {
   const items = normalizeItems(row)
+  const printItems = items.length
+    ? items
+    : [{ amount: row.totalAmount, description: row.purchaseBillDocNo || row.docNo, id: 'summary', price: row.totalQty ? row.totalAmount / row.totalQty : row.totalAmount, qty: row.totalQty, unit: 'กก.' }]
+  const quantitySummary = summarizeQuantityByUnit(printItems)
+  const companyName = companyProfile?.name || 'ไม่มีข้อมูล'
+  const companyAddress = companyProfile?.address || 'ไม่มีข้อมูล'
+  const companyPhone = companyProfile?.phone || 'ไม่มีข้อมูล'
+  const companyTaxId = companyProfile?.taxId || 'ไม่มีข้อมูล'
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-white print:static print:overflow-visible">
-      <div className="flex items-center justify-between bg-slate-800 p-2 text-white print:hidden">
-        <span className="text-sm">พรีวิวพิมพ์ — ใบสำคัญรับเงิน {row.docNo}</span>
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-100 print:static print:overflow-visible print:bg-white">
+      <div className="flex items-center justify-between bg-slate-900 p-2 text-white print:hidden">
+        <span className="text-sm">พรีวิวพิมพ์ - ใบสำคัญรับเงิน {row.docNo}</span>
         <div className="flex gap-2">
-          <button className="rounded-md bg-blue-500 px-3 py-1 text-xs" type="button" onClick={() => window.print()}>🖨 พิมพ์</button>
+          <button className="rounded-md bg-blue-500 px-3 py-1 text-xs" type="button" onClick={() => window.print()}>พิมพ์</button>
           <button className="rounded-md bg-red-500 px-3 py-1 text-xs" type="button" onClick={onClose}>ปิด</button>
         </div>
       </div>
-      <div className="mx-auto max-w-[210mm] bg-white p-8 text-black" style={{ fontFamily: "'Noto Sans Thai', Arial, sans-serif", fontSize: '14px' }}>
-        <div className="mb-4 border-b-2 border-gray-300 pb-3">
-          <div className="text-lg font-bold">{companyProfile?.name || '-'}</div>
-          {companyProfile?.nameEn ? <div className="text-xs text-gray-600">{companyProfile.nameEn}</div> : null}
-          <div className="mt-1 text-xs">{companyProfile?.address || '-'}</div>
-          <div className="text-xs">Tel: {companyProfile?.phone || '-'} · เลขประจำตัวผู้เสียภาษี: {companyProfile?.taxId || '-'}</div>
-        </div>
-        <div className="mb-3 text-center text-2xl font-bold underline">ใบสำคัญรับเงิน</div>
-        <div className="mb-3 text-right text-sm"><b>วันที่</b> {formatDateDisplay(row.date)}</div>
-        <div className="mb-4 space-y-1 text-sm">
-          <div><b>ข้าพเจ้า</b> {row.sellerName || '-'} <span className="ml-4"><b>เลขประจำตัวผู้เสียภาษี</b> {row.sellerTaxId || '-'}</span></div>
-          <div><b>ที่อยู่</b> {row.sellerAddress || '-'}</div>
-          <div><b>เบอร์โทร:</b> {row.sellerPhone || '-'} <span className="ml-3"><b>ทะเบียน</b> {row.licensePlate || '-'}</span> <span className="ml-3"><b>ช่องทางติดต่อ Sale:</b> {row.salesPerson || '-'}</span></div>
-          <div className="mt-2"><b>ได้รับเงินจาก</b> {companyProfile?.name || '-'}</div>
-          <div><b>ที่อยู่</b> {companyProfile?.address || '-'}</div>
-          <div><b>เลขประจำตัวผู้เสียภาษี</b> {companyProfile?.taxId || '-'}</div>
-          <div className="mt-2"><b>อ้างอิงบิลซื้อ</b> {row.purchaseBillDocNo || '-'}</div>
-        </div>
-        <div className="mb-1 font-semibold">รายการมีดังต่อไปนี้</div>
-        <table className="mb-3 w-full border-collapse text-sm" style={{ border: '1px solid #000' }}>
+
+      <div
+        className="mx-auto my-6 min-h-[297mm] max-w-[210mm] bg-white p-[9mm] text-slate-900 shadow print:my-0 print:min-h-0 print:max-w-none print:p-0 print:shadow-none"
+        style={{ fontFamily: "'Noto Sans Thai', Arial, sans-serif", fontSize: '11px', lineHeight: 1.35 }}
+      >
+        <div className="mb-3 h-1 rounded-full bg-gradient-to-r from-emerald-800 via-lime-600 to-slate-300 print:mb-2" />
+
+        <header className="grid grid-cols-[1fr_0.82fr] gap-4 border-b border-slate-300 pb-3 print:gap-3 print:pb-2">
+          <div className="grid grid-cols-[64px_1fr] gap-3 print:grid-cols-[48px_1fr] print:gap-2">
+            {companyProfile?.logoUrl ? (
+              <div
+                aria-label="Company logo"
+                className="size-16 bg-contain bg-center bg-no-repeat print:size-12"
+                role="img"
+                style={{ backgroundImage: `url("${companyProfile.logoUrl.replaceAll('"', '%22')}")` }}
+              />
+            ) : (
+              <div className="flex size-16 items-center justify-center rounded-md border border-dashed border-slate-300 text-center text-[9px] font-bold text-slate-500 print:size-12 print:text-[8px]">ไม่มีข้อมูล</div>
+            )}
+            <div className="min-w-0">
+              <div className="text-base font-black leading-tight text-slate-950 print:text-sm">{companyName}</div>
+              {companyProfile?.nameEn ? <div className="mt-0.5 text-[10px] font-bold text-slate-600">{companyProfile.nameEn}</div> : null}
+              <div className="mt-1 text-[10px] leading-relaxed text-slate-600 print:text-[9px]">
+                <div>{companyAddress}</div>
+                <div>โทร {companyPhone}</div>
+                <div>เลขประจำตัวผู้เสียภาษี {companyTaxId}</div>
+              </div>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-[22px] font-black text-emerald-900 print:text-[19px]">ใบสำคัญรับเงิน</div>
+            <div className="mt-1 text-[10px] font-bold uppercase tracking-normal text-slate-500">Receipt Voucher</div>
+            <div className="mt-3 grid grid-cols-2 gap-1.5 text-left print:mt-2">
+              <PrintMeta label="เลขที่เอกสาร" value={row.docNo} />
+              <PrintMeta label="วันที่ออกเอกสาร" value={formatDateDisplay(row.date)} />
+              <PrintMeta label="อ้างอิงบิลซื้อ" value={row.purchaseBillDocNo || '-'} />
+              <PrintMeta label="วิธีรับเงิน" value={row.paymentMethod || 'รับเงินสด'} />
+            </div>
+          </div>
+        </header>
+
+        <section className="mt-3 grid grid-cols-2 gap-3 print:mt-2 print:gap-2">
+          <PrintPanel title="ผู้รับเงิน / Supplier Receiver">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+              <PrintField label="ผู้รับเงิน" value={row.sellerName} />
+              <PrintField label="เลขประจำตัวผู้เสียภาษี" value={row.sellerTaxId} />
+              <PrintField label="ที่อยู่" value={row.sellerAddress} wide />
+              <PrintField label="เบอร์โทร" value={row.sellerPhone} />
+              <PrintField label="Sale contact" value={row.salesPerson} />
+            </div>
+          </PrintPanel>
+          <PrintPanel title="ผู้จ่ายเงิน / Company Payer">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+              <PrintField label="บริษัท" value={companyName} />
+              <PrintField label="เลขประจำตัวผู้เสียภาษี" value={companyTaxId} />
+              <PrintField label="ที่อยู่" value={companyAddress} wide />
+              <PrintField label="โทร" value={companyPhone} />
+              <PrintField label="ผู้จ่ายเงิน" value={row.payerSignerName || row.createdBy} />
+            </div>
+          </PrintPanel>
+        </section>
+
+        <table className="mt-3 w-full table-fixed border-collapse text-[9px] print:mt-2 print:text-[8px]">
           <thead>
-            <tr className="bg-gray-100" style={{ borderBottom: '1px solid #000' }}>
-              <th className="border-r border-black p-1 text-center">ลำดับ</th>
-              <th className="border-r border-black p-1 text-left">รายการ</th>
-              <th className="border-r border-black p-1 text-right">จำนวน/กก.</th>
-              <th className="border-r border-black p-1 text-right">ราคา/บาท</th>
-              <th className="p-1 text-right">จำนวนเงิน</th>
+            <tr className="bg-slate-200 text-slate-900">
+              <th className="w-[8mm] border border-slate-300 p-1.5 text-center font-black print:p-1">#</th>
+              <th className="border border-slate-300 p-1.5 text-left font-black print:p-1">รายการ</th>
+              <th className="w-[28mm] border border-slate-300 p-1.5 text-right font-black print:p-1">จำนวน/หน่วย</th>
+              <th className="w-[25mm] border border-slate-300 p-1.5 text-right font-black print:p-1">ราคา/หน่วย</th>
+              <th className="w-[29mm] border border-slate-300 p-1.5 text-right font-black print:p-1">จำนวนเงิน</th>
             </tr>
           </thead>
           <tbody>
-            {(items.length ? items : [{ amount: row.totalAmount, description: row.purchaseBillDocNo || row.docNo, id: 'summary', price: row.totalQty ? row.totalAmount / row.totalQty : row.totalAmount, qty: row.totalQty }]).map((item, index) => (
-              <tr key={item.id ?? index} style={{ borderBottom: '1px solid #ccc' }}>
-                <td className="border-r border-gray-300 p-1 text-center">{index + 1}</td>
-                <td className="border-r border-gray-300 p-1">{item.description || '-'}</td>
-                <td className="border-r border-gray-300 p-1 text-right">{formatMoney(toNumber(item.qty))}</td>
-                <td className="border-r border-gray-300 p-1 text-right">{formatMoney(toNumber(item.price))}</td>
-                <td className="p-1 text-right">{formatMoney(toNumber(item.amount))}</td>
+            {printItems.map((item, index) => (
+              <tr key={item.id ?? index} className="break-inside-avoid">
+                <td className="border border-slate-300 p-1.5 text-center print:p-1">{index + 1}</td>
+                <td className="border border-slate-300 p-1.5 font-bold text-slate-900 print:p-1">{item.description || '-'}</td>
+                <td className="border border-slate-300 p-1.5 text-right tabular-nums print:p-1">{formatMoney(toNumber(item.qty))} {item.unit || 'หน่วย'}</td>
+                <td className="border border-slate-300 p-1.5 text-right tabular-nums print:p-1">{formatMoney(toNumber(item.price))}</td>
+                <td className="border border-slate-300 p-1.5 text-right font-black tabular-nums print:p-1">{formatMoney(toNumber(item.amount))}</td>
               </tr>
             ))}
-            <tr style={{ borderTop: '1px solid #000' }}>
-              <td className="p-1 text-xs italic text-gray-700" colSpan={2}>{row.note ? <><b>หมายเหตุ**</b> {row.note}</> : null}</td>
-              <td className="p-1 text-right font-bold">{formatMoney(row.totalQty)}</td>
-              <td />
-              <td className="p-1 text-right font-bold">{formatMoney(row.totalAmount)}</td>
-            </tr>
           </tbody>
         </table>
-        <div className="mb-6 text-sm"><b>จำนวนเงิน (ตัวอักษร)</b> {row.amountInWords || '-'}</div>
-        <div className="mb-4 mt-12 grid grid-cols-2 gap-8 text-sm">
-          <div className="text-center">
-            <div className="mx-auto border-b border-gray-500" style={{ width: '70%' }}>&nbsp;</div>
-            <div className="mt-1">ชื่อ......................................(ผู้จ่ายเงิน)</div>
-            <div className="text-xs">( {row.payerSignerName || '-'} )</div>
+
+        <section className="mt-3 grid grid-cols-[1fr_70mm] gap-3 print:mt-2 print:gap-2">
+          <div className="space-y-2">
+            <div className="rounded-md border border-slate-300">
+              <div className="bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-700 print:text-[9px]">จำนวนเงิน (ตัวอักษร)</div>
+              <div className="min-h-8 px-2 py-2 text-xs font-bold text-slate-900 print:min-h-6 print:py-1.5 print:text-[10px]">{row.amountInWords || '-'}</div>
+            </div>
+            <div className="rounded-md border border-slate-300">
+              <div className="bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-700 print:text-[9px]">หมายเหตุ</div>
+              <div className="min-h-10 whitespace-pre-wrap px-2 py-2 text-[10px] text-slate-700 print:min-h-7 print:py-1.5 print:text-[9px]">{row.note || 'แนบสำเนาบัตรประชาชนผู้รับเงิน (กรณีบุคคลธรรมดา)'}</div>
+            </div>
           </div>
-          <div className="text-center">
-            <div className="mx-auto border-b border-gray-500" style={{ width: '70%' }}>&nbsp;</div>
-            <div className="mt-1">ชื่อ......................................(ผู้รับเงิน)</div>
-            <div className="text-xs">( {row.receiverSignerName || row.sellerName || '-'} )</div>
+          <div className="overflow-hidden rounded-md border border-slate-300">
+            <TotalLine label="จำนวนรวม" value={quantitySummary || '-'} />
+            <TotalLine label="ยอดเงินรวม" value={formatMoney(row.totalAmount)} />
+            <div className="grid grid-cols-[1fr_32mm] gap-2 bg-emerald-900 px-2 py-1.5 text-white">
+              <div className="font-black">ยอดรับเงินสด</div>
+              <div className="text-right font-black tabular-nums">{formatMoney(row.totalAmount)}</div>
+            </div>
           </div>
+        </section>
+
+        <div className="mt-12 grid grid-cols-2 gap-16 text-[10px] print:mt-9 print:gap-12 print:text-[9px]">
+          <SignatureBlock label="ผู้จ่ายเงิน" name={row.payerSignerName} />
+          <SignatureBlock label="ผู้รับเงิน" name={row.sellerName} />
         </div>
-        <div className="mt-4 text-xs">
-          <div><b>{row.paymentMethod || 'รับเงินสด'}</b></div>
-          <div className="mt-1">หมายเหตุ : แนบสำเนาบัตรประชาชนผู้รับเงิน (เราเป็นผู้ประกอบอาชีพขายสินค้า/ให้บริการอย่างแท้จริง)</div>
+
+        <div className="mt-4 border-t border-slate-200 pt-2 text-center text-[9px] font-semibold text-slate-500 print:mt-3">
+          เอกสารนี้เป็นหลักฐานรับเงินสดจาก Supplier เท่านั้น ไม่ใช่เอกสารโอนเงินหรือรายการธนาคาร
         </div>
       </div>
+    </div>
+  )
+}
+
+function PrintMeta({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 print:px-1.5 print:py-0.5">
+      <div className="text-[9px] text-slate-500 print:text-[8px]">{label}</div>
+      <div className="mt-0.5 font-black text-slate-900">{value || '-'}</div>
+    </div>
+  )
+}
+
+function PrintPanel({ children, title }: { children: ReactNode; title: string }) {
+  return (
+    <div className="overflow-hidden rounded-md border border-slate-300 break-inside-avoid">
+      <div className="bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-700 print:text-[9px]">{title}</div>
+      <div className="p-2 print:p-1.5">{children}</div>
+    </div>
+  )
+}
+
+function PrintField({ label, value, wide = false }: { label: string; value?: string | null; wide?: boolean }) {
+  return (
+    <div className={wide ? 'col-span-2' : ''}>
+      <div className="text-[9px] text-slate-500 print:text-[8px]">{label}</div>
+      <div className="mt-0.5 font-bold text-slate-900 [overflow-wrap:anywhere]">{value || '-'}</div>
+    </div>
+  )
+}
+
+function TotalLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid grid-cols-[1fr_32mm] gap-2 border-b border-slate-200 px-2 py-1.5 last:border-b-0 print:py-1">
+      <div className="font-bold text-slate-700">{label}</div>
+      <div className="text-right font-black tabular-nums text-slate-900">{value}</div>
+    </div>
+  )
+}
+
+function SignatureBlock({ label, name }: { label: string; name?: string | null }) {
+  return (
+    <div className="text-center text-slate-600">
+      <div className="mx-auto h-9 w-[78%] border-b border-slate-500 print:h-7" />
+      <div className="mt-1 font-black text-slate-800">{label}</div>
+      <div className="mt-0.5">( {name || '-'} )</div>
+      <div className="mt-1 text-[9px] text-slate-500">วันที่ ____ / ____ / ______</div>
     </div>
   )
 }
@@ -440,6 +1026,15 @@ function PrintPreview({ companyProfile, onClose, row }: { companyProfile: Receip
 function normalizeItems(row: ReceiptVoucherRow): VoucherItem[] {
   if (!Array.isArray(row.items)) return []
   return row.items.filter((item): item is VoucherItem => Boolean(item) && typeof item === 'object')
+}
+
+function summarizeQuantityByUnit(items: VoucherItem[]) {
+  const byUnit = new Map<string, number>()
+  for (const item of items) {
+    const unit = item.unit || 'หน่วย'
+    byUnit.set(unit, (byUnit.get(unit) ?? 0) + toNumber(item.qty))
+  }
+  return [...byUnit.entries()].map(([unit, qty]) => `${formatMoney(qty)} ${unit}`).join(' / ')
 }
 
 function toNumber(value: number | string | null | undefined) {

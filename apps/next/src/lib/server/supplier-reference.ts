@@ -3,10 +3,14 @@ import { prisma } from '@/lib/server/prisma'
 import type { Prisma } from '../../../generated/prisma/client'
 
 type SupplierReference = {
+  address: string | null
   code: string
   id: bigint
   name: string
+  phone: string | null
   salesId: bigint | null
+  salesRep: string | null
+  taxId: string | null
 }
 
 export async function findActiveSupplierReferenceByCodeOrId(
@@ -17,7 +21,7 @@ export async function findActiveSupplierReferenceByCodeOrId(
   const internalId = parseInternalBigIntId(normalized)
 
   const supplier = await prisma.suppliers.findFirst({
-    select: { code: true, id: true, name: true, sales_id: true },
+    select: { address: true, code: true, id: true, name: true, phone: true, sales_id: true, sales_rep: true, tax_id: true },
     where: {
       active: true,
       OR: [
@@ -30,10 +34,14 @@ export async function findActiveSupplierReferenceByCodeOrId(
   if (!supplier) return null
 
   return {
+    address: supplier.address,
     code: requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`),
     id: supplier.id as bigint,
     name: supplier.name,
+    phone: supplier.phone,
     salesId: supplier.sales_id as bigint | null,
+    salesRep: supplier.sales_rep,
+    taxId: supplier.tax_id,
   }
 }
 
