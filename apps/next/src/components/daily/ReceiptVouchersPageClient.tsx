@@ -256,11 +256,7 @@ export function ReceiptVouchersPageClient() {
     void loadData()
   }, [loadData])
 
-  useEffect(() => {
-    if (!printingRow) return
-    const timer = window.setTimeout(() => window.print(), 200)
-    return () => window.clearTimeout(timer)
-  }, [printingRow])
+
 
   useEffect(() => {
     setPage(1)
