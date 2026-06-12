@@ -703,55 +703,57 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
       {dashboardOnly ? (
         <>
           {/* 💸 KPI Summary Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="group relative overflow-hidden rounded-xl border border-slate-100 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500">ยอดรวม {periodMonths} เดือน</span>
-              </div>
-              <div className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900 tabular-nums">
-                {formatMoney(dashboard.total)}
-              </div>
-              <span className="text-[10px] text-slate-400 mt-1 block">บาท</span>
-            </div>
-
-            <div className="group relative overflow-hidden rounded-xl border border-slate-100 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500">เฉลี่ยรายเดือน</span>
-              </div>
-              <div className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900 tabular-nums">
-                {formatMoney(dashboard.avg)}
-              </div>
-              <span className="text-[10px] text-slate-400 mt-1 block">บาท</span>
-            </div>
-
-            <div className="group relative overflow-hidden rounded-xl border border-slate-100 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500">ยอดใช้จ่ายเดือนนี้</span>
-              </div>
-              <div className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900 tabular-nums">
-                {formatMoney(dashboard.latest)}
-              </div>
-              <span className="text-[10px] text-slate-400 mt-1 block">บาท</span>
-            </div>
-
-            {(() => {
-              const isHigh = dashboard.vsAvg > 20;
-              const isLow = dashboard.vsAvg < -20;
-              const accentColor = isHigh ? 'text-red-600' : isLow ? 'text-emerald-600' : 'text-slate-700';
-              return (
-                <div className="group relative overflow-hidden rounded-xl border border-slate-100 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-500">เทียบค่าเฉลี่ย</span>
-                  </div>
-                  <div className={`mt-3 text-2xl font-extrabold tracking-tight ${accentColor} tabular-nums`}>
-                    {dashboard.vsAvg > 0 ? '+' : ''}{dashboard.vsAvg.toFixed(1)}%
-                  </div>
-                  <span className={`text-[10px] font-semibold mt-1 block ${accentColor}`}>
-                    {isHigh ? 'สูงกว่าปกติ' : isLow ? 'ต่ำกว่าปกติ' : 'ใกล้เคียงปกติ'}
-                  </span>
+          <div className="rounded-xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+            <div className="grid grid-cols-2 lg:grid-cols-4">
+              <div className="border-r border-b border-slate-100 lg:border-b-0 p-5 transition-all duration-300 hover:bg-slate-50/50">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-500">ยอดรวม {periodMonths} เดือน</span>
                 </div>
-              );
-            })()}
+                <div className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900 tabular-nums">
+                  {formatMoney(dashboard.total)}
+                </div>
+                <span className="text-[10px] text-slate-400 mt-1 block">บาท</span>
+              </div>
+
+              <div className="border-b border-slate-100 lg:border-r lg:border-b-0 lg:border-slate-100 p-5 transition-all duration-300 hover:bg-slate-50/50">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-500">เฉลี่ยรายเดือน</span>
+                </div>
+                <div className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900 tabular-nums">
+                  {formatMoney(dashboard.avg)}
+                </div>
+                <span className="text-[10px] text-slate-400 mt-1 block">บาท</span>
+              </div>
+
+              <div className="border-r border-slate-100 lg:border-b-0 p-5 transition-all duration-300 hover:bg-slate-50/50">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-500">ยอดใช้จ่ายเดือนนี้</span>
+                </div>
+                <div className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900 tabular-nums">
+                  {formatMoney(dashboard.latest)}
+                </div>
+                <span className="text-[10px] text-slate-400 mt-1 block">บาท</span>
+              </div>
+
+              {(() => {
+                const isHigh = dashboard.vsAvg > 20;
+                const isLow = dashboard.vsAvg < -20;
+                const accentColor = isHigh ? 'text-red-600' : isLow ? 'text-emerald-600' : 'text-slate-700';
+                return (
+                  <div className="p-5 transition-all duration-300 hover:bg-slate-50/50">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-500">เทียบค่าเฉลี่ย</span>
+                    </div>
+                    <div className={`mt-3 text-2xl font-extrabold tracking-tight ${accentColor} tabular-nums`}>
+                      {dashboard.vsAvg > 0 ? '+' : ''}{dashboard.vsAvg.toFixed(1)}%
+                    </div>
+                    <span className={`text-[10px] font-semibold mt-1 block ${accentColor}`}>
+                      {isHigh ? 'สูงกว่าปกติ' : isLow ? 'ต่ำกว่าปกติ' : 'ใกล้เคียงปกติ'}
+                    </span>
+                  </div>
+                );
+              })()}
+            </div>
           </div>
 
           {/* 🚨 Anomaly Panel */}
