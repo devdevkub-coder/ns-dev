@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Input } from '@/components/ui/Input'
@@ -30,10 +31,10 @@ const pageSizeOptions = [10, 25, 50, 100]
 const transferColumns: Array<ResizableColumnDefinition<TransferColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'date', defaultWidth: 120, minWidth: 100 },
-  { key: 'from', defaultWidth: 220, minWidth: 150 },
-  { key: 'to', defaultWidth: 220, minWidth: 150 },
-  { key: 'amount', defaultWidth: 140, minWidth: 120 },
-  { key: 'fee', defaultWidth: 130, minWidth: 110 },
+  { key: 'from', defaultWidth: 280, minWidth: 150 },
+  { key: 'to', defaultWidth: 280, minWidth: 150 },
+  { key: 'amount', defaultWidth: 85, minWidth: 80 },
+  { key: 'fee', defaultWidth: 80, minWidth: 70 },
   { key: 'byPerson', defaultWidth: 160, minWidth: 120 },
   { key: 'action', defaultWidth: 150, minWidth: 140 },
 ]
@@ -69,6 +70,7 @@ export function DailyTransferPageClient() {
   const [period, setPeriod] = useState<Period>('')
   const [fromAccountId, setFromAccountId] = useState('')
   const [toAccountId, setToAccountId] = useState('')
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
   const columnResize = useResizableColumns('daily.transfer', transferColumns)
 
   const loadData = useCallback(async () => {
@@ -240,23 +242,40 @@ export function DailyTransferPageClient() {
       {error && !formOpen ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       <div className="space-y-2 rounded-md bg-white p-3 shadow">
-        <div className="flex flex-wrap items-center gap-2">
-          <Input className="h-9 min-w-[260px] flex-1" placeholder="ค้นหาเลขที่ / หมายเหตุ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <DatePickerInput className="w-[130px]" value={dateFrom} onChange={(value) => { setDateFrom(value); setPeriod('') }} />
-          <span className="text-slate-400">→</span>
-          <DatePickerInput className="w-[130px]" value={dateTo} onChange={(value) => { setDateTo(value); setPeriod('') }} />
-          <select className="h-9 rounded-md border border-slate-300 px-2 py-2 text-sm" value={fromAccountId} onChange={(event) => setFromAccountId(event.target.value)}>
-            <option value="">ทุกบัญชีต้นทาง</option>
-            {activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-          </select>
-          <select className="h-9 rounded-md border border-slate-300 px-2 py-2 text-sm" value={toAccountId} onChange={(event) => setToAccountId(event.target.value)}>
-            <option value="">ทุกบัญชีปลายทาง</option>
-            {activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-          </select>
-          {search || dateFrom || dateTo || fromAccountId || toAccountId ? <Button size="sm" type="button" variant="secondary" onClick={clearFilters}>ล้าง</Button> : null}
-          <Button className="ml-auto" size="sm" type="button" onClick={openCreateForm}>+ โอนใหม่</Button>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-1 flex-wrap items-center gap-2">
+            <Input className="h-9 min-w-[260px] flex-1" placeholder="ค้นหาเลขที่ / หมายเหตุ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+
+            {/* Mobile Filter Button */}
+            <button
+              type="button"
+              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 md:hidden"
+              onClick={() => setShowMobileFilters(true)}
+            >
+              <span className="text-slate-500">🔍</span> ตัวกรอง {(dateFrom || dateTo || fromAccountId || toAccountId) ? '(1)' : ''}
+            </button>
+
+            {/* Desktop Filters */}
+            <div className="hidden md:flex flex-wrap items-center gap-2">
+              <DatePickerInput className="w-[130px]" value={dateFrom} onChange={(value) => { setDateFrom(value); setPeriod('') }} />
+              <span className="text-slate-400">→</span>
+              <DatePickerInput className="w-[130px]" value={dateTo} onChange={(value) => { setDateTo(value); setPeriod('') }} />
+              <select className="h-9 rounded-md border border-slate-300 px-2 py-2 text-sm bg-white" value={fromAccountId} onChange={(event) => setFromAccountId(event.target.value)}>
+                <option value="">ทุกบัญชีต้นทาง</option>
+                {activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+              </select>
+              <select className="h-9 rounded-md border border-slate-300 px-2 py-2 text-sm bg-white" value={toAccountId} onChange={(event) => setToAccountId(event.target.value)}>
+                <option value="">ทุกบัญชีปลายทาง</option>
+                {activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+              </select>
+              {search || dateFrom || dateTo || fromAccountId || toAccountId ? <Button size="sm" type="button" variant="secondary" onClick={clearFilters}>ล้าง</Button> : null}
+            </div>
+          </div>
+          <Button className="hidden md:inline-flex ml-auto" size="sm" type="button" onClick={openCreateForm}>+ โอนใหม่</Button>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+
+        {/* Desktop Period Buttons */}
+        <div className="hidden md:flex flex-wrap items-center gap-2">
           <span className="text-xs text-slate-500">ช่วง:</span>
           <PeriodButton active={period === ''} label="ทั้งหมด" tone="slate" onClick={() => applyPeriod('')} />
           <PeriodButton active={period === 'today'} label="วันนี้" tone="blue" onClick={() => applyPeriod('today')} />
@@ -264,6 +283,135 @@ export function DailyTransferPageClient() {
           <PeriodButton active={period === 'month'} label="เดือนนี้" tone="amber" onClick={() => applyPeriod('month')} />
         </div>
       </div>
+
+      {/* Floating Action Button (FAB) for Mobile */}
+      <div className="fixed bottom-6 right-6 z-40 md:hidden">
+        <button
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg active:scale-95 transition-transform"
+          onClick={openCreateForm}
+          type="button"
+          aria-label="โอนเงินใหม่"
+        >
+          <Plus className="h-6 w-6" />
+        </button>
+      </div>
+
+      {/* Bottom Sheet Filter for Mobile */}
+      {showMobileFilters ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 md:hidden">
+          <div className="w-full rounded-t-2xl bg-white p-4 shadow-xl border-t border-slate-200 animate-slide-up max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <h4 className="font-bold text-slate-800">ตัวกรองเพิ่มเติม</h4>
+              <button
+                className="p-1 text-slate-400 hover:text-slate-600 text-xl font-bold"
+                onClick={() => setShowMobileFilters(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">ช่วงเวลา</span>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className={`rounded-md border px-3 py-1.5 text-xs font-medium flex-1 h-11 ${
+                      period === '' ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700'
+                    }`}
+                    type="button"
+                    onClick={() => applyPeriod('')}
+                  >
+                    ทั้งหมด
+                  </button>
+                  <button
+                    className={`rounded-md border px-3 py-1.5 text-xs font-medium flex-1 h-11 ${
+                      period === 'today' ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700'
+                    }`}
+                    type="button"
+                    onClick={() => applyPeriod('today')}
+                  >
+                    วันนี้
+                  </button>
+                  <button
+                    className={`rounded-md border px-3 py-1.5 text-xs font-medium flex-1 h-11 ${
+                      period === 'week' ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700'
+                    }`}
+                    type="button"
+                    onClick={() => applyPeriod('week')}
+                  >
+                    7 วัน
+                  </button>
+                  <button
+                    className={`rounded-md border px-3 py-1.5 text-xs font-medium flex-1 h-11 ${
+                      period === 'month' ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700'
+                    }`}
+                    type="button"
+                    onClick={() => applyPeriod('month')}
+                  >
+                    เดือนนี้
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
+                <div className="flex items-center gap-2">
+                  <DatePickerInput className="flex-1" value={dateFrom} onChange={(value) => { setDateFrom(value); setPeriod('') }} />
+                  <span className="text-slate-400">→</span>
+                  <DatePickerInput className="flex-1" value={dateTo} onChange={(value) => { setDateTo(value); setPeriod('') }} />
+                </div>
+              </div>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">บัญชีต้นทาง</span>
+                <select
+                  aria-label="บัญชีต้นทางมือถือ"
+                  className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm bg-white"
+                  value={fromAccountId}
+                  onChange={(event) => setFromAccountId(event.target.value)}
+                >
+                  <option value="">ทุกบัญชีต้นทาง</option>
+                  {activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">บัญชีปลายทาง</span>
+                <select
+                  aria-label="บัญชีปลายทางมือถือ"
+                  className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm bg-white"
+                  value={toAccountId}
+                  onChange={(event) => setToAccountId(event.target.value)}
+                >
+                  <option value="">ทุกบัญชีปลายทาง</option>
+                  {activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                </select>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-6 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => {
+                  clearFilters()
+                  setShowMobileFilters(false)
+                }}
+              >
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                className="h-11 rounded-md bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700"
+                onClick={() => setShowMobileFilters(false)}
+              >
+                ใช้ตัวกรอง
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
         <div>
@@ -289,7 +437,7 @@ export function DailyTransferPageClient() {
       {formOpen ? (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-4">
           <form noValidate className="mx-auto my-4 w-full max-w-3xl overflow-hidden rounded-md bg-white shadow-xl" onSubmit={saveForm}>
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-5 py-4">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
               <h3 className="font-bold text-slate-900">{form.id ? 'แก้ไขรายการโอนเงิน' : 'โอนเงินระหว่างบัญชี'}</h3>
               <button className="text-3xl leading-none text-slate-400 hover:text-slate-700" type="button" onClick={() => setFormOpen(false)}>&times;</button>
             </div>
@@ -327,7 +475,7 @@ export function DailyTransferPageClient() {
               <SummaryBox label="ค่าธรรมเนียม" value={formatMoney(form.fee)} />
               <SummaryBox label="ยอดออกจากบัญชีต้นทาง" value={formatMoney(form.amount + form.fee)} />
             </div>
-            <div className="flex justify-end gap-2 border-t bg-slate-50 px-5 py-4">
+            <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
               <Button className="font-normal" size="sm" type="button" variant="outline" onClick={() => setFormOpen(false)}>ยกเลิก</Button>
               <Button disabled={isSaving} size="sm" type="submit">{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</Button>
             </div>
@@ -338,7 +486,7 @@ export function DailyTransferPageClient() {
       {selectedRow ? (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-4">
           <div className="mx-auto my-4 w-full max-w-3xl overflow-hidden rounded-md bg-white shadow-xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-5 py-4">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
               <div>
                 <h3 className="font-bold text-slate-900">รายละเอียดรายการโอนเงิน</h3>
                 <p className="mt-1 font-mono text-xs text-slate-500">{selectedRow.docNo}</p>
@@ -359,9 +507,9 @@ export function DailyTransferPageClient() {
                 <DetailItem className="md:col-span-2" label="หมายเหตุ" value={selectedRow.notes || '-'} />
               </div>
               <div className="rounded-md border border-slate-200">
-                <div className="border-b bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900">ผลกระทบ Bank Statement</div>
+                <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900">ผลกระทบ Bank Statement</div>
                 <div className="grid gap-0 text-sm md:grid-cols-2">
-                  <div className="border-b px-4 py-3 md:border-b-0 md:border-r">
+                  <div className="border-b border-slate-200 px-4 py-3 md:border-b-0 md:border-r">
                     <div className="text-xs font-medium text-slate-500">เงินออกจากบัญชีต้นทาง</div>
                     <div className="mt-1 font-semibold text-red-700">{selectedRow.fromAccountName}</div>
                     <div className="mt-2 text-right font-mono text-base font-bold text-slate-900">-{formatMoney(selectedRow.amount + selectedRow.fee)}</div>
@@ -374,7 +522,7 @@ export function DailyTransferPageClient() {
                 </div>
               </div>
             </div>
-            <div className="flex justify-end gap-2 border-t bg-slate-50 px-5 py-4">
+            <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
               <Button className="font-normal" size="sm" type="button" variant="outline" onClick={closeDetail}>ปิด</Button>
               <Button size="sm" type="button" onClick={() => openEditFromDetail(selectedRow)}>แก้ไข</Button>
             </div>
@@ -382,53 +530,93 @@ export function DailyTransferPageClient() {
         </div>
       ) : null}
 
-      <Table className="text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
-        <colgroup>
-          {transferColumns.map((column) => <col key={column.key} style={columnResize.getColumnStyle(column.key)} />)}
-        </colgroup>
-        <TableHeader>
-          <tr>
-            <ResizableTableHead label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
-            <ResizableTableHead label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
-            <ResizableTableHead label="จาก" resizeProps={columnResize.getResizeHandleProps('from', 'จาก')} />
-            <ResizableTableHead label="เข้า" resizeProps={columnResize.getResizeHandleProps('to', 'เข้า')} />
-            <ResizableTableHead align="right" label="จำนวน" resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวน')} />
-            <ResizableTableHead align="right" label="ค่าธรรมเนียม" resizeProps={columnResize.getResizeHandleProps('fee', 'ค่าธรรมเนียม')} />
-            <ResizableTableHead label="ผู้ทำรายการ" resizeProps={columnResize.getResizeHandleProps('byPerson', 'ผู้ทำรายการ')} />
-            <ResizableTableHead align="right" label="Action" resizeProps={columnResize.getResizeHandleProps('action', 'Action')} />
-          </tr>
-        </TableHeader>
-        <TableBody className="divide-y divide-slate-100">
-          {isLoading ? <tr><td className="p-8 text-center text-slate-500" colSpan={8}>กำลังโหลดข้อมูล</td></tr> : null}
-          {!isLoading && pagedRows.map((row) => (
-            <TableRow
-              key={row.id}
-              className="cursor-pointer hover:bg-slate-50"
-              tabIndex={0}
-              onClick={() => openDetail(row)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault()
-                  openDetail(row)
-                }
-              }}
-            >
-              <TableCell className="whitespace-nowrap text-xs font-semibold text-slate-700">{row.docNo}</TableCell>
-              <TableCell className="whitespace-nowrap text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</TableCell>
-              <TableCell className="text-xs font-semibold text-red-600">{row.fromAccountName}</TableCell>
-              <TableCell className="text-xs font-semibold text-emerald-700">{row.toAccountName}</TableCell>
-              <TableCell className="whitespace-nowrap text-right text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(row.amount)}</TableCell>
-              <TableCell className="whitespace-nowrap text-right text-xs font-semibold text-amber-700 tabular-nums">{formatMoney(row.fee)}</TableCell>
-              <TableCell className="text-xs font-semibold text-slate-700">{row.byPerson || '-'}</TableCell>
-              <TableCell className="space-x-2 whitespace-nowrap text-right">
-                <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" type="button" onClick={(event) => { event.stopPropagation(); openEditForm(row) }}>แก้ไข</button>
-                <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" disabled type="button" onClick={(event) => event.stopPropagation()}>ยกเลิก</button>
-              </TableCell>
-            </TableRow>
-          ))}
-          {!isLoading && pagedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={8}>ยังไม่มีรายการ</td></tr> : null}
-        </TableBody>
-      </Table>
+      {/* Mobile Card List */}
+      <div className="block md:hidden space-y-3">
+        {isLoading ? (
+          <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">กำลังโหลดข้อมูล</div>
+        ) : null}
+        {!isLoading && pagedRows.map((row) => (
+          <div
+            key={row.id}
+            className="rounded-md border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 cursor-pointer transition-colors"
+            onClick={() => openDetail(row)}
+          >
+            <div className="flex justify-between items-start mb-2">
+              <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
+              <span className="text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
+            </div>
+            <div className="text-xs text-slate-600 mb-3 flex items-center gap-1.5 flex-wrap">
+              <span className="font-semibold text-red-600">{row.fromAccountName}</span>
+              <span className="text-slate-400">➡️</span>
+              <span className="font-semibold text-emerald-700">{row.toAccountName}</span>
+            </div>
+            <div className="flex justify-between items-end">
+              <div className="text-xs text-slate-500">
+                {row.fee > 0 ? (
+                  <span>ค่าธรรมเนียม: <span className="font-semibold text-amber-700">{formatMoney(row.fee)}</span></span>
+                ) : null}
+              </div>
+              <div className="text-right">
+                <span className="text-xs text-slate-500 block">ยอดโอน</span>
+                <span className="font-bold text-slate-900 text-sm tabular-nums">{formatMoney(row.amount)}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+        {!isLoading && pagedRows.length === 0 ? (
+          <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">ยังไม่มีรายการ</div>
+        ) : null}
+      </div>
+
+      <div className="hidden md:block overflow-x-auto">
+        <Table className="text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <colgroup>
+            {transferColumns.map((column) => <col key={column.key} style={columnResize.getColumnStyle(column.key)} />)}
+          </colgroup>
+          <TableHeader>
+            <tr>
+              <ResizableTableHead label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
+              <ResizableTableHead label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
+              <ResizableTableHead label="จาก" resizeProps={columnResize.getResizeHandleProps('from', 'จาก')} />
+              <ResizableTableHead label="เข้า" resizeProps={columnResize.getResizeHandleProps('to', 'เข้า')} />
+              <ResizableTableHead align="right" label="จำนวน" resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวน')} />
+              <ResizableTableHead align="right" label="ค่าธรรมเนียม" resizeProps={columnResize.getResizeHandleProps('fee', 'ค่าธรรมเนียม')} />
+              <ResizableTableHead label="ผู้ทำรายการ" resizeProps={columnResize.getResizeHandleProps('byPerson', 'ผู้ทำรายการ')} />
+              <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'Action')} />
+            </tr>
+          </TableHeader>
+          <TableBody className="divide-y divide-slate-100">
+            {isLoading ? <tr><td className="p-8 text-center text-slate-500" colSpan={8}>กำลังโหลดข้อมูล</td></tr> : null}
+            {!isLoading && pagedRows.map((row) => (
+              <TableRow
+                key={row.id}
+                className="cursor-pointer hover:bg-slate-50"
+                tabIndex={0}
+                onClick={() => openDetail(row)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    openDetail(row)
+                  }
+                }}
+              >
+                <TableCell className="whitespace-nowrap text-xs font-semibold text-slate-700">{row.docNo}</TableCell>
+                <TableCell className="whitespace-nowrap text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</TableCell>
+                <TableCell className="text-xs font-semibold text-red-600">{row.fromAccountName}</TableCell>
+                <TableCell className="text-xs font-semibold text-emerald-700">{row.toAccountName}</TableCell>
+                <TableCell className="whitespace-nowrap text-right pr-4 text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(row.amount)}</TableCell>
+                <TableCell className="whitespace-nowrap text-right pr-4 text-xs font-semibold text-amber-700 tabular-nums">{formatMoney(row.fee)}</TableCell>
+                <TableCell className="text-xs font-semibold text-slate-700">{row.byPerson || '-'}</TableCell>
+                <TableCell className="space-x-2 whitespace-nowrap text-right">
+                  <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" type="button" onClick={(event) => { event.stopPropagation(); openEditForm(row) }}>แก้ไข</button>
+                  <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" disabled type="button" onClick={(event) => event.stopPropagation()}>ยกเลิก</button>
+                </TableCell>
+              </TableRow>
+            ))}
+            {!isLoading && pagedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={8}>ยังไม่มีรายการ</td></tr> : null}
+          </TableBody>
+        </Table>
+      </div>
     </section>
   )
 }

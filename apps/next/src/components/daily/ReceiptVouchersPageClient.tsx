@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Printer } from 'lucide-react'
+
 import { Button } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Input } from '@/components/ui/Input'
@@ -57,15 +57,15 @@ type ReceiptVoucherCompanyProfile = {
 } | null
 
 const receiptVoucherColumns: Array<ResizableColumnDefinition<ReceiptVoucherColumnKey>> = [
-  { key: 'docNo', defaultWidth: 150, minWidth: 120 },
-  { key: 'date', defaultWidth: 120, minWidth: 100 },
-  { key: 'sellerName', defaultWidth: 190, minWidth: 140 },
-  { key: 'sellerTaxId', defaultWidth: 170, minWidth: 130 },
-  { key: 'purchaseBillDocNo', defaultWidth: 150, minWidth: 120 },
-  { key: 'licensePlate', defaultWidth: 130, minWidth: 110 },
-  { key: 'totalQty', defaultWidth: 140, minWidth: 120 },
-  { key: 'totalAmount', defaultWidth: 140, minWidth: 120 },
-  { key: 'action', defaultWidth: 150, minWidth: 140 },
+  { key: 'docNo', defaultWidth: 110, minWidth: 90 },
+  { key: 'date', defaultWidth: 90, minWidth: 80 },
+  { key: 'sellerName', defaultWidth: 320, minWidth: 140 },
+  { key: 'sellerTaxId', defaultWidth: 130, minWidth: 110 },
+  { key: 'purchaseBillDocNo', defaultWidth: 110, minWidth: 90 },
+  { key: 'licensePlate', defaultWidth: 100, minWidth: 80 },
+  { key: 'totalQty', defaultWidth: 85, minWidth: 70 },
+  { key: 'totalAmount', defaultWidth: 85, minWidth: 70 },
+  { key: 'action', defaultWidth: 140, minWidth: 100 },
 ]
 
 export function ReceiptVouchersPageClient() {
@@ -79,6 +79,7 @@ export function ReceiptVouchersPageClient() {
   const [companyProfile, setCompanyProfile] = useState<ReceiptVoucherCompanyProfile>(null)
   const [rows, setRows] = useState<ReceiptVoucherRow[]>([])
   const [search, setSearch] = useState('')
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
   const columnResize = useResizableColumns('daily.receipt-vouchers', receiptVoucherColumns)
 
   const loadData = useCallback(async () => {
@@ -142,7 +143,7 @@ export function ReceiptVouchersPageClient() {
       <section className="space-y-4 print:hidden">
         {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <KpiCard label="จำนวนเอกสาร" tone="slate" value={totalRows.toLocaleString('th-TH')} />
           <KpiCard label="น้ำหนักรวม (กก.)" tone="blue" value={formatMoney(totals.qty)} />
           <KpiCard label="จำนวนเงินรวม" tone="emerald" value={formatMoney(totals.amount)} />
@@ -158,14 +159,76 @@ export function ReceiptVouchersPageClient() {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
-            <span className="text-xs text-slate-500">วันที่:</span>
-            <DatePickerInput id="receipt-vouchers-date-from" value={dateFrom} onChange={setDateFrom} />
-            <span className="text-slate-400">→</span>
-            <DatePickerInput id="receipt-vouchers-date-to" value={dateTo} onChange={setDateTo} />
+
+            {/* Mobile Filter Button */}
+            <button
+              type="button"
+              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 md:hidden"
+              onClick={() => setShowMobileFilters(true)}
+            >
+              <span>🔍</span> ตัวกรอง {(dateFrom || dateTo) ? '(1)' : ''}
+            </button>
+
+            <div className="hidden md:flex flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-500">วันที่:</span>
+              <DatePickerInput id="receipt-vouchers-date-from" value={dateFrom} onChange={setDateFrom} />
+              <span className="text-slate-400">→</span>
+              <DatePickerInput id="receipt-vouchers-date-to" value={dateTo} onChange={setDateTo} />
+            </div>
+
             {hasActiveFilter ? <Button size="xs" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</Button> : null}
-            <Button disabled type="button">+ สร้างใบสำคัญรับเงิน</Button>
+            <Button className="hidden md:inline-flex" disabled type="button">+ สร้างใบสำคัญรับเงิน</Button>
           </div>
         </div>
+
+        {/* Bottom Sheet Filter for Mobile */}
+        {showMobileFilters ? (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 md:hidden">
+            <div className="w-full rounded-t-2xl bg-white p-4 shadow-xl border-t border-slate-200 animate-slide-up max-h-[80vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                <h4 className="font-bold text-slate-800">ตัวกรองเพิ่มเติม</h4>
+                <button
+                  className="p-1 text-slate-400 hover:text-slate-600 text-xl font-bold"
+                  onClick={() => setShowMobileFilters(false)}
+                  type="button"
+                >
+                  &times;
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
+                  <div className="flex items-center gap-2">
+                    <DatePickerInput className="flex-1" id="receipt-vouchers-mobile-date-from" value={dateFrom} onChange={setDateFrom} />
+                    <span className="text-slate-400">→</span>
+                    <DatePickerInput className="flex-1" id="receipt-vouchers-mobile-date-to" value={dateTo} onChange={setDateTo} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mt-6 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  onClick={() => {
+                    clearFilters()
+                    setShowMobileFilters(false)
+                  }}
+                >
+                  ล้างตัวกรอง
+                </button>
+                <button
+                  type="button"
+                  className="h-11 rounded-md bg-slate-800 text-sm font-semibold text-white hover:bg-slate-700"
+                  onClick={() => setShowMobileFilters(false)}
+                >
+                  ใช้ตัวกรอง
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
           <div>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
@@ -188,50 +251,90 @@ export function ReceiptVouchersPageClient() {
           </div>
         </div>
 
-        <Table className="[&_tbody_tr]:border-slate-100" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
-          <colgroup>
-            {receiptVoucherColumns.map((column) => <col key={column.key} style={columnResize.getColumnStyle(column.key)} />)}
-          </colgroup>
-          <TableHeader>
-            <tr>
-              <ResizableTableHead label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
-              <ResizableTableHead label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
-              <ResizableTableHead label="ผู้รับเงิน" resizeProps={columnResize.getResizeHandleProps('sellerName', 'ผู้รับเงิน')} />
-              <ResizableTableHead label="เลขประจำตัวผู้เสียภาษี" resizeProps={columnResize.getResizeHandleProps('sellerTaxId', 'เลขประจำตัวผู้เสียภาษี')} />
-              <ResizableTableHead label="บิลซื้อ" resizeProps={columnResize.getResizeHandleProps('purchaseBillDocNo', 'บิลซื้อ')} />
-              <ResizableTableHead label="ทะเบียน" resizeProps={columnResize.getResizeHandleProps('licensePlate', 'ทะเบียน')} />
-              <ResizableTableHead align="right" label="น้ำหนัก (กก.)" resizeProps={columnResize.getResizeHandleProps('totalQty', 'น้ำหนัก (กก.)')} />
-              <ResizableTableHead align="right" label="จำนวนเงิน" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'จำนวนเงิน')} />
-              <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
-            </tr>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? <TableRow><td className="p-8 text-center text-slate-500" colSpan={9}>กำลังโหลดข้อมูล</td></TableRow> : null}
-            {!isLoading && pagedRows.map((row) => (
-              <TableRow key={row.id} className="hover:bg-slate-50">
-                <td className="whitespace-nowrap p-2 text-xs font-semibold text-slate-700">{row.docNo}</td>
-                <td className="whitespace-nowrap p-2">{formatDateDisplay(row.date)}</td>
-                <td className="p-2 font-medium text-slate-800">{row.sellerName || '-'}</td>
-                <td className="p-2 text-xs text-slate-500">{row.sellerTaxId || '-'}</td>
-                <td className="p-2 text-xs text-slate-700">{row.purchaseBillDocNo || '-'}</td>
-                <td className="p-2 text-xs text-slate-600">{row.licensePlate || '-'}</td>
-                <TableNumberCell value={formatMoney(row.totalQty)} />
-                <TableNumberCell strong value={formatMoney(row.totalAmount)} />
-                <td className="whitespace-nowrap p-2 text-right">
-                  <div className="flex justify-end gap-2">
-                    <button className="inline-flex items-center gap-1 rounded-md border border-emerald-200 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60" type="button" onClick={() => setPrintingRow(row)}>
-                      <Printer className="size-3" />
-                      พิมพ์
-                    </button>
-                    <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50" disabled type="button">แก้ไข</button>
-                    <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" disabled type="button">ยกเลิก</button>
-                  </div>
-                </td>
-              </TableRow>
-            ))}
-            {!isLoading && totalRows === 0 ? <TableRow><td className="p-8 text-center text-slate-400" colSpan={9}>ยังไม่มีใบสำคัญรับเงิน</td></TableRow> : null}
-          </TableBody>
-        </Table>
+        {/* Mobile Card List */}
+        <div className="block md:hidden space-y-3">
+          {isLoading ? (
+            <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow border border-slate-200">กำลังโหลดข้อมูล</div>
+          ) : null}
+          {!isLoading && pagedRows.map((row) => (
+            <div
+              key={row.id}
+              className="rounded-md border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 cursor-pointer transition-colors"
+              onClick={() => setPrintingRow(row)}
+            >
+              <div className="flex justify-between items-start mb-2">
+                <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
+                <span className="text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
+              </div>
+              <div className="text-sm font-semibold text-slate-700 mb-2">
+                {row.sellerName || '-'}
+              </div>
+              <div className="text-xs text-slate-500 space-y-1 mb-3">
+                {row.sellerTaxId ? <div>เลขประจำตัวผู้เสียภาษี: {row.sellerTaxId}</div> : null}
+                {row.purchaseBillDocNo ? <div>บิลซื้อ: <span className="font-semibold text-slate-700">{row.purchaseBillDocNo}</span></div> : null}
+                {row.licensePlate ? <div>ทะเบียน: <span className="font-semibold text-slate-700">{row.licensePlate}</span></div> : null}
+              </div>
+              <div className="flex justify-between items-end border-t border-slate-100 pt-2.5">
+                <div className="text-xs text-slate-500">
+                  <span>น้ำหนัก: <span className="font-semibold text-slate-700">{formatMoney(row.totalQty)}</span> กก.</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs text-slate-500 block">จำนวนเงิน</span>
+                  <span className="font-bold text-slate-900 text-sm tabular-nums">{formatMoney(row.totalAmount)}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+          {!isLoading && totalRows === 0 ? (
+            <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow border border-slate-200">ยังไม่มีใบสำคัญรับเงิน</div>
+          ) : null}
+        </div>
+
+        <div className="hidden md:block overflow-x-auto">
+          <Table className="[&_tbody_tr]:border-slate-100" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+            <colgroup>
+              {receiptVoucherColumns.map((column) => <col key={column.key} style={columnResize.getColumnStyle(column.key)} />)}
+            </colgroup>
+            <TableHeader>
+              <tr>
+                <ResizableTableHead label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
+                <ResizableTableHead label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
+                <ResizableTableHead label="ผู้รับเงิน" resizeProps={columnResize.getResizeHandleProps('sellerName', 'ผู้รับเงิน')} />
+                <ResizableTableHead label="เลขประจำตัวผู้เสียภาษี" resizeProps={columnResize.getResizeHandleProps('sellerTaxId', 'เลขประจำตัวผู้เสียภาษี')} />
+                <ResizableTableHead label="บิลซื้อ" resizeProps={columnResize.getResizeHandleProps('purchaseBillDocNo', 'บิลซื้อ')} />
+                <ResizableTableHead label="ทะเบียน" resizeProps={columnResize.getResizeHandleProps('licensePlate', 'ทะเบียน')} />
+                <ResizableTableHead align="right" label="น้ำหนัก (กก.)" resizeProps={columnResize.getResizeHandleProps('totalQty', 'น้ำหนัก (กก.)')} />
+                <ResizableTableHead align="right" label="จำนวนเงิน" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'จำนวนเงิน')} />
+                <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
+              </tr>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? <TableRow><td className="p-8 text-center text-slate-500" colSpan={9}>กำลังโหลดข้อมูล</td></TableRow> : null}
+              {!isLoading && pagedRows.map((row) => (
+                <TableRow key={row.id} className="hover:bg-slate-50">
+                  <td className="whitespace-nowrap p-2 text-xs font-semibold text-slate-700">{row.docNo}</td>
+                  <td className="whitespace-nowrap p-2">{formatDateDisplay(row.date)}</td>
+                  <td className="p-2 font-medium text-slate-800">{row.sellerName || '-'}</td>
+                  <td className="p-2 text-xs text-slate-500">{row.sellerTaxId || '-'}</td>
+                  <td className="p-2 text-xs text-slate-700">{row.purchaseBillDocNo || '-'}</td>
+                  <td className="p-2 text-xs text-slate-600">{row.licensePlate || '-'}</td>
+                  <TableNumberCell value={formatMoney(row.totalQty)} />
+                  <TableNumberCell strong value={formatMoney(row.totalAmount)} />
+                  <td className="whitespace-nowrap p-2 text-right">
+                    <div className="flex justify-end gap-2">
+                      <button className="inline-flex items-center gap-1 rounded-md border border-emerald-200 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60" type="button" onClick={() => setPrintingRow(row)}>
+                        พิมพ์
+                      </button>
+                      <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50" disabled type="button">แก้ไข</button>
+                      <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" disabled type="button">ยกเลิก</button>
+                    </div>
+                  </td>
+                </TableRow>
+              ))}
+              {!isLoading && totalRows === 0 ? <TableRow><td className="p-8 text-center text-slate-400" colSpan={9}>ยังไม่มีใบสำคัญรับเงิน</td></TableRow> : null}
+            </TableBody>
+          </Table>
+        </div>
       </section>
 
       {printingRow ? <PrintPreview companyProfile={companyProfile} row={printingRow} onClose={() => setPrintingRow(null)} /> : null}

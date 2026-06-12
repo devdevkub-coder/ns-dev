@@ -126,11 +126,17 @@ export function useResizableColumns<TKey extends string>(
     return `max(${contentWidth}px, 100%)`
   }, [columns, widths])
 
+  /** Exact pixel sum of all column widths — use this with `tableLayout: 'fixed'` to avoid stretching gaps. */
+  const tableContentWidth = useMemo(() => {
+    return columns.reduce((sum, column) => sum + (widths[column.key] ?? column.defaultWidth), 0)
+  }, [columns, widths])
+
   return {
     getColumnStyle,
     getResizeHandleProps,
     hasCustomWidths,
     resetColumnWidths,
+    tableContentWidth,
     tableMinWidth,
   }
 }

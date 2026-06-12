@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx'
 import { parseInternalBigIntId, requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
 import { poBuyCancelSchema, poBuyFormSchema, poBuyShortCloseSchema, poBuyUpdateSchema, type PoBuyFormValues } from '@/lib/po-buy'
 import { apiErrorResponse } from '@/lib/server/api-error'
-import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission, getBranchCodeIntersection } from '@/lib/server/auth-context'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { appendPoBuyStatusLog, createInitialPoBuyStatusLog, PO_BUY_STATUS, reconcilePoBuys } from '@/lib/server/po-buy-reconciliation'
 import { prisma } from '@/lib/server/prisma'
@@ -309,9 +309,12 @@ async function resolvePoBuyByDocNoOrId(idOrDocNo: string, client: Pick<typeof pr
   })
 }
 
-async function optionsPayload() {
+async function optionsPayload(allowedBranchCodes?: string[] | null) {
   const [branches, products, suppliers] = await Promise.all([
     prisma.branches.findMany({
+      where: {
+        ...(allowedBranchCodes ? { code: { in: allowedBranchCodes } } : {}),
+      },
       orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }],
       select: { active: true, code: true, id: true, name: true },
     }),
@@ -332,9 +335,10 @@ async function optionsPayload() {
   }
 }
 
+const compactDate = (branchCode: string, date: string) => branchCode + date.slice(2, 4) + date.slice(5, 7)
+
 async function nextPoBuyDocNo(tx: Prisma.TransactionClient, date: string, branchCode: string) {
-  const compactDate = branchCode + date.slice(2, 4) + date.slice(5, 7)
-  const startsWith = `POB${compactDate}-`
+  const startsWith = `POB${compactDate(branchCode, date)}-`
   const rows = await tx.$queryRaw<Array<{ doc_no: string }>>`
     select doc_no
     from public.po_buys
@@ -374,6 +378,17 @@ export async function GET(request: Request) {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'finance.cash.view')
 
+    const allowedBranchCodes = getBranchCodeIntersection(context)
+    let allowedBranchIds: bigint[] | undefined = undefined
+
+    if (allowedBranchCodes) {
+      const matchingBranches = await prisma.branches.findMany({
+        where: { code: { in: allowedBranchCodes } },
+        select: { id: true },
+      })
+      allowedBranchIds = matchingBranches.map((b) => b.id)
+    }
+
     const url = new URL(request.url)
     const q = url.searchParams.get('q')?.trim().toLowerCase()
     const statusFilter = url.searchParams.get('status')
@@ -387,13 +402,16 @@ export async function GET(request: Request) {
 
     const [poRows, vatRatePercent] = await Promise.all([
       prisma.po_buys.findMany({
-      include: {
-        po_buy_allocation_logs: { orderBy: [{ created_at: 'desc' }], take: 50 },
-        po_buy_status_logs: { orderBy: [{ created_at: 'desc' }], take: 20 },
-        suppliers: true,
-      },
-      orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
-      take: 5000,
+        include: {
+          po_buy_allocation_logs: { orderBy: [{ created_at: 'desc' }], take: 50 },
+          po_buy_status_logs: { orderBy: [{ created_at: 'desc' }], take: 20 },
+          suppliers: true,
+        },
+        orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
+        take: 5000,
+        where: {
+          ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
+        },
       }),
       activeVatRatePercent(new Date()),
     ])
@@ -523,7 +541,7 @@ export async function GET(request: Request) {
       filters: {
         statuses: Array.from(new Set(poRows.map((row) => row.status ?? 'Open'))).sort(),
       },
-      options: await optionsPayload(),
+      options: await optionsPayload(allowedBranchCodes),
       rows,
       summary: {
         open: rows.filter((row) => row.status === PO_BUY_STATUS.OPEN).length,
@@ -561,6 +579,10 @@ export async function POST(request: Request) {
     ])
 
     if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน', fieldErrors: { branchId: ['เลือกสาขา'] } }, { status: 400 })
+    const allowedBranchCodes = getBranchCodeIntersection(context)
+    if (allowedBranchCodes && !allowedBranchCodes.includes(branch.code)) {
+      return NextResponse.json({ code: 'FORBIDDEN', error: 'ไม่มีสิทธิ์ทำรายการในสาขานี้' }, { status: 403 })
+    }
     if (!/^\d{2}$/.test(branch.code)) return NextResponse.json({ code: 'BAD_REQUEST', error: 'รหัสสาขาต้องเป็นตัวเลข 2 หลักเพื่อออกเลข PO', fieldErrors: { branchId: ['รหัสสาขาต้องเป็นตัวเลข 2 หลัก'] } }, { status: 400 })
     if (!supplier) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายไม่ถูกต้องหรือถูกปิดใช้งาน', fieldErrors: { supplierId: ['เลือกผู้ขาย'] } }, { status: 400 })
     if (values.expectedDelivery < issuedDate) {
@@ -651,6 +673,17 @@ export async function PUT(request: Request) {
     ])
 
     if (!existing) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบ PO Buy ที่ต้องการแก้ไข' }, { status: 404 })
+    const allowedBranchCodes = getBranchCodeIntersection(context)
+
+    if (existing.branch_id != null) {
+      const existingBranch = await prisma.branches.findUnique({
+        where: { id: existing.branch_id }
+      })
+      if (allowedBranchCodes && (!existingBranch || !allowedBranchCodes.includes(existingBranch.code))) {
+        return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบ PO Buy ที่ต้องการแก้ไข' }, { status: 404 })
+      }
+    }
+
     const existingQty = toNumber(existing.qty)
     const existingRemainingQty = toNumber(existing.remaining_qty)
     const existingTotalAmount = toNumber(existing.total_amount)
@@ -660,6 +693,9 @@ export async function PUT(request: Request) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขได้เฉพาะ PO Buy ที่ยังไม่ถูกตัดรับสินค้า' }, { status: 400 })
     }
     if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน', fieldErrors: { branchId: ['เลือกสาขา'] } }, { status: 400 })
+    if (allowedBranchCodes && !allowedBranchCodes.includes(branch.code)) {
+      return NextResponse.json({ code: 'FORBIDDEN', error: 'ไม่มีสิทธิ์ทำรายการในสาขาปลายทางที่เลือก' }, { status: 403 })
+    }
     if (!supplier) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายไม่ถูกต้องหรือถูกปิดใช้งาน', fieldErrors: { supplierId: ['เลือกผู้ขาย'] } }, { status: 400 })
     const [previousBranch, previousSupplier] = await Promise.all([
       existing.branch_id != null ? findActiveBranchReferenceByCodeOrId(stringifyBusinessValue(existing.branch_id)) : Promise.resolve(null),
@@ -764,6 +800,16 @@ export async function PATCH(request: Request) {
       const values = poBuyShortCloseSchema.parse(raw)
       const existing = await resolvePoBuyByDocNoOrId(values.id)
       if (!existing) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบ PO Buy ที่ต้องการปิดรับไม่ครบ' }, { status: 404 })
+
+      const allowedBranchCodes = getBranchCodeIntersection(context)
+      if (existing.branch_id != null) {
+        const existingBranch = await prisma.branches.findUnique({
+          where: { id: existing.branch_id }
+        })
+        if (allowedBranchCodes && (!existingBranch || !allowedBranchCodes.includes(existingBranch.code))) {
+          return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบ PO Buy ที่ต้องการปิดรับไม่ครบ' }, { status: 404 })
+        }
+      }
       if (existing.status === PO_BUY_STATUS.CANCELLED) return NextResponse.json({ code: 'BAD_REQUEST', error: 'PO Buy นี้ถูกยกเลิกแล้ว' }, { status: 400 })
       if (existing.status === PO_BUY_STATUS.SHORT_CLOSED) return NextResponse.json({ code: 'BAD_REQUEST', error: 'PO Buy นี้ถูกปิดรับไม่ครบแล้ว' }, { status: 400 })
       if (existing.status === PO_BUY_STATUS.RECEIVED || toNumber(existing.remaining_qty) <= 0.0001) {
@@ -805,6 +851,16 @@ export async function PATCH(request: Request) {
     const values = poBuyCancelSchema.parse(raw)
     const existing = await resolvePoBuyByDocNoOrId(values.id)
     if (!existing) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบ PO Buy ที่ต้องการยกเลิก' }, { status: 404 })
+
+    const allowedBranchCodes = getBranchCodeIntersection(context)
+    if (existing.branch_id != null) {
+      const existingBranch = await prisma.branches.findUnique({
+        where: { id: existing.branch_id }
+      })
+      if (allowedBranchCodes && (!existingBranch || !allowedBranchCodes.includes(existingBranch.code))) {
+        return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบ PO Buy ที่ต้องการยกเลิก' }, { status: 404 })
+      }
+    }
     if (String(existing.status ?? '').toLowerCase().includes('cancel')) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'PO Buy นี้ถูกยกเลิกแล้ว' }, { status: 400 })
     }

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { parseInternalBigIntId, requireBusinessCode, requireDocumentNo, stringifyBusinessValue } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
-import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission, getBranchCodeIntersection } from '@/lib/server/auth-context'
 import { listDailyAccounts, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 
@@ -35,14 +35,30 @@ export async function GET() {
       }
     }
 
+    const allowedBranchCodes = getBranchCodeIntersection(context)
+    let allowedBranchIds: bigint[] | undefined = undefined
+    if (allowedBranchCodes) {
+      const matchingBranches = await prisma.branches.findMany({
+        where: { code: { in: allowedBranchCodes } },
+        select: { id: true }
+      })
+      allowedBranchIds = matchingBranches.map((b) => b.id)
+    }
+
     const [accounts, bills, payments, suppliers, voidedApprovals] = await Promise.all([
       listDailyAccounts(),
       prisma.purchase_bills.findMany({
         orderBy: [{ date: 'desc' }],
         select: { doc_no: true, id: true },
         take: 5000,
+        where: {
+          ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
+        },
       }),
       prisma.payments.findMany({
+        where: {
+          ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
+        },
         include: { accounts: true, suppliers: true },
         orderBy: [{ date: 'desc' }, { created_at: 'desc' }],
         take: 5000,
@@ -75,6 +91,37 @@ export async function GET() {
         where: { source_type: { in: ['purchase_bill', 'advance_payment', 'expense'] }, status: 'voided' },
       }),
     ])
+
+    const voidedPBIds = [...new Set(voidedApprovals.filter(a => a.source_type === 'purchase_bill').map(a => parseInternalBigIntId(a.source_id)).filter((id): id is bigint => id != null))]
+    const voidedADVIds = [...new Set(voidedApprovals.filter(a => a.source_type === 'advance_payment').map(a => parseInternalBigIntId(a.source_id)).filter((id): id is bigint => id != null))]
+    const voidedEXPIds = [...new Set(voidedApprovals.filter(a => a.source_type === 'expense').map(a => parseInternalBigIntId(a.source_id)).filter((id): id is bigint => id != null))]
+
+    const [voidedPBs, voidedADVs, voidedEXPs] = await Promise.all([
+      voidedPBIds.length > 0 ? prisma.purchase_bills.findMany({
+        select: { id: true },
+        where: { id: { in: voidedPBIds }, ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}) }
+      }) : Promise.resolve([]),
+      voidedADVIds.length > 0 ? prisma.supplier_advance_payments.findMany({
+        select: { id: true },
+        where: { id: { in: voidedADVIds }, ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}) }
+      }) : Promise.resolve([]),
+      voidedEXPIds.length > 0 ? prisma.expenses.findMany({
+        select: { id: true },
+        where: { id: { in: voidedEXPIds }, ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}) }
+      }) : Promise.resolve([])
+    ])
+
+    const allowedPBIdsSet = new Set(voidedPBs.map(b => b.id.toString()))
+    const allowedADVIdsSet = new Set(voidedADVs.map(a => a.id.toString()))
+    const allowedEXPIdsSet = new Set(voidedEXPs.map(e => e.id.toString()))
+
+    const allowedVoidedApprovals = voidedApprovals.filter(approval => {
+      if (approval.source_type === 'purchase_bill') return allowedPBIdsSet.has(approval.source_id)
+      if (approval.source_type === 'advance_payment') return allowedADVIdsSet.has(approval.source_id)
+      if (approval.source_type === 'expense') return allowedEXPIdsSet.has(approval.source_id)
+      return false
+    })
+
     const paymentApprovalIds = [...new Set(payments.map((payment) => payment.payment_approval_id).filter((approvalId): approvalId is bigint => approvalId != null))]
     const activeApprovals = paymentApprovalIds.length > 0 ? await prismaExt.payment_approvals.findMany({
       select: {
@@ -243,7 +290,7 @@ export async function GET() {
       if (payment.status === 'cancelled') row.status = 'cancelled'
     })
 
-    voidedApprovals
+    allowedVoidedApprovals
       .filter((approval) => approval.payments.length === 0)
       .forEach((approval) => {
         const approvalDocNo = requireDocumentNo(approval.doc_no, `อนุมัติจ่าย ${approval.id}`)

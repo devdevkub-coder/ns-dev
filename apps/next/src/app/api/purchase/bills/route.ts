@@ -15,7 +15,7 @@ import {
   SUPPLIER_ADVANCE_STATUS_ACTION,
 } from '@/lib/server/advance-payment-history'
 import { summarizeAdvancePaymentApprovalStatus } from '@/lib/server/advance-payments'
-import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission, getBranchCodeIntersection } from '@/lib/server/auth-context'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { appendPoBuyAllocationLogs, PO_BUY_ALLOCATION_ACTION, PO_BUY_STATUS, reconcilePoBuys } from '@/lib/server/po-buy-reconciliation'
@@ -1457,7 +1457,16 @@ async function nextPurchaseBillDocNo(tx: Prisma.TransactionClient, date: string,
   return `${startsWith}${String(nextNumber).padStart(4, '0')}`
 }
 
-async function optionsPayload() {
+async function optionsPayload(allowedBranchCodes?: string[] | null) {
+  let allowedBranchIds: bigint[] | undefined = undefined
+  if (allowedBranchCodes) {
+    const matchingBranches = await prisma.branches.findMany({
+      where: { code: { in: allowedBranchCodes } },
+      select: { id: true },
+    })
+    allowedBranchIds = matchingBranches.map((b) => b.id)
+  }
+
   const [advancePayments, branches, poBuys, products, salespersons, suppliers, warehouses, vatRatePercent, weightTickets] = await Promise.all([
     prisma.supplier_advance_payments.findMany({
       orderBy: [{ advance_date: 'desc' }, { doc_no: 'desc' }],
@@ -1474,9 +1483,13 @@ async function optionsPayload() {
       take: 500,
       where: {
         cancelled_at: null,
+        ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
       },
     }),
     prisma.branches.findMany({
+      where: {
+        ...(allowedBranchCodes ? { code: { in: allowedBranchCodes } } : {}),
+      },
       orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }],
       select: { active: true, code: true, id: true, name: true },
     }),
@@ -1484,7 +1497,10 @@ async function optionsPayload() {
       orderBy: [{ doc_no: 'desc' }],
       select: { doc_no: true, id: true, items: true, product_id: true, remaining_amount: true, remaining_qty: true, status: true, supplier_id: true, unit_price: true },
       take: 500,
-      where: { status: { in: [PO_BUY_STATUS.OPEN, PO_BUY_STATUS.PARTIAL] } },
+      where: {
+        status: { in: [PO_BUY_STATUS.OPEN, PO_BUY_STATUS.PARTIAL] },
+        ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
+      },
     }),
     prisma.products.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true, unit: true } }),
     prisma.salespersons.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
@@ -1619,13 +1635,22 @@ function parseBillQuery(url: URL, includePaging = true): BillQuery {
   }
 }
 
-function billWhere(query: BillQuery): Prisma.purchase_billsWhereInput {
+function billWhere(query: BillQuery, allowedBranchCodes?: string[] | null): Prisma.purchase_billsWhereInput {
   const where: Prisma.purchase_billsWhereInput = {}
 
   if (query.branchId) {
+    const codeIntersection = allowedBranchCodes
+      ? (allowedBranchCodes.includes(query.branchId) ? [query.branchId] : [])
+      : [query.branchId]
     where.branches = {
       is: {
-        code: query.branchId,
+        code: { in: codeIntersection },
+      },
+    }
+  } else if (allowedBranchCodes) {
+    where.branches = {
+      is: {
+        code: { in: allowedBranchCodes },
       },
     }
   }
@@ -1748,9 +1773,10 @@ function billOrderBy(query: BillQuery): Prisma.purchase_billsOrderByWithRelation
 
 async function rowsPayload(
   query: BillQuery,
+  allowedBranchCodes?: string[] | null,
   includePaging = true,
 ) {
-  const where = billWhere(query)
+  const where = billWhere(query, allowedBranchCodes)
   const rows = await prisma.purchase_bills.findMany({
     include: {
       branches: true,
@@ -1902,9 +1928,10 @@ export async function GET(request: Request) {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'finance.cash.view')
 
+    const allowedBranchCodes = getBranchCodeIntersection(context)
     const url = new URL(request.url)
     const query = parseBillQuery(url, url.searchParams.get('format') !== 'xlsx')
-    const payload = await rowsPayload(query, url.searchParams.get('format') !== 'xlsx')
+    const payload = await rowsPayload(query, allowedBranchCodes, url.searchParams.get('format') !== 'xlsx')
 
     if (url.searchParams.get('format') === 'xlsx') {
       const body = buildWorkbook(payload.rows)
@@ -1922,7 +1949,7 @@ export async function GET(request: Request) {
       rows: payload.rows,
       totalAmount: payload.totalAmount,
       totalRows: payload.totalRows,
-      ...await optionsPayload(),
+      ...await optionsPayload(allowedBranchCodes),
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
@@ -1954,6 +1981,10 @@ export async function POST(request: Request) {
 
     if (!supplier) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    const allowedBranchCodes = getBranchCodeIntersection(context)
+    if (allowedBranchCodes && !allowedBranchCodes.includes(branch.code)) {
+      return NextResponse.json({ code: 'FORBIDDEN', error: 'ไม่มีสิทธิ์ทำรายการในสาขานี้' }, { status: 403 })
+    }
     if (values.transactionMode === 'STOCK' && !warehouse) return NextResponse.json({ code: 'BAD_REQUEST', error: 'เลือกคลังที่เปิดใช้งานสำหรับบิลรับซื้อ' }, { status: 400 })
     const supplierSalesId = supplier.salesId ?? null
 
@@ -2151,6 +2182,16 @@ export async function PATCH(request: Request) {
     if (!id) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่พบบิลที่ต้องการแก้ไข' }, { status: 400 })
     const existingBillRef = await resolvePurchaseBillByDocNoOrId(id)
     if (!existingBillRef) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบบิลรับซื้อ' }, { status: 404 })
+
+    const allowedBranchCodes = getBranchCodeIntersection(context)
+    if (existingBillRef.branch_id != null) {
+      const existingBranch = await prisma.branches.findUnique({
+        where: { id: existingBillRef.branch_id }
+      })
+      if (allowedBranchCodes && (!existingBranch || !allowedBranchCodes.includes(existingBranch.code))) {
+        return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบบิลรับซื้อ' }, { status: 404 })
+      }
+    }
     if (raw?.action === 'cancel') {
       const values = purchaseBillCancelSchema.parse(raw)
       const actor = currentActor(context)
@@ -2291,6 +2332,9 @@ export async function PATCH(request: Request) {
       }
       if (!supplier) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายใหม่ไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
       if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+      if (allowedBranchCodes && !allowedBranchCodes.includes(branch.code)) {
+        return NextResponse.json({ code: 'FORBIDDEN', error: 'ไม่มีสิทธิ์ทำรายการในสาขานี้' }, { status: 403 })
+      }
       if (values.poBuyId || values.items.some((item) => Boolean(item.poBuyId))) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: 'เปลี่ยน Supplier ต้องบังคับรายการใหม่เป็น Spot Buy ทั้งหมด ห้ามตัด PO ข้าม Supplier' }, { status: 400 })
       }
@@ -2623,6 +2667,9 @@ export async function PATCH(request: Request) {
     const totals = calculateTotals(values, vatRatePercent)
     if (!supplier) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    if (allowedBranchCodes && !allowedBranchCodes.includes(branch.code)) {
+      return NextResponse.json({ code: 'FORBIDDEN', error: 'ไม่มีสิทธิ์ทำรายการในสาขาปลายทางที่เลือก' }, { status: 403 })
+    }
     if (values.transactionMode === 'STOCK' && !warehouse) return NextResponse.json({ code: 'BAD_REQUEST', error: 'เลือกคลังที่เปิดใช้งานสำหรับบิลรับซื้อ' }, { status: 400 })
     const supplierSalesId = supplier.salesId ?? null
 

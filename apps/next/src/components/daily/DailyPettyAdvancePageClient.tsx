@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Plus } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
@@ -52,11 +53,11 @@ const pettyAdvanceColumns: Array<ResizableColumnDefinition<PettyAdvanceColumnKey
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'date', defaultWidth: 120, minWidth: 100 },
   { key: 'type', defaultWidth: 150, minWidth: 120 },
-  { key: 'recipientName', defaultWidth: 180, minWidth: 130 },
-  { key: 'amount', defaultWidth: 130, minWidth: 110 },
-  { key: 'spent', defaultWidth: 130, minWidth: 110 },
-  { key: 'returned', defaultWidth: 130, minWidth: 110 },
-  { key: 'remaining', defaultWidth: 130, minWidth: 110 },
+  { key: 'recipientName', defaultWidth: 320, minWidth: 130 },
+  { key: 'amount', defaultWidth: 85, minWidth: 80 },
+  { key: 'spent', defaultWidth: 85, minWidth: 80 },
+  { key: 'returned', defaultWidth: 85, minWidth: 80 },
+  { key: 'remaining', defaultWidth: 85, minWidth: 80 },
   { key: 'status', defaultWidth: 120, minWidth: 100 },
   { key: 'action', defaultWidth: 180, minWidth: 160 },
 ]
@@ -109,6 +110,7 @@ export function DailyPettyAdvancePageClient() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('active')
   const [type, setType] = useState('')
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
   const columnResize = useResizableColumns('daily.petty-advance', pettyAdvanceColumns)
 
@@ -309,14 +311,26 @@ export function DailyPettyAdvancePageClient() {
       <div className="rounded-md bg-white p-3 shadow">
         <div className="flex flex-wrap items-center gap-2">
           <input className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-100" placeholder="ค้นหาเลขที่ / ผู้รับเงิน / หมายเหตุ" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+
+          {/* Mobile Filter Button */}
+          <button
+            type="button"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 md:hidden"
+            onClick={() => setShowMobileFilters(true)}
+          >
+            <span>🔍</span> ตัวกรอง {(type || status !== 'active') ? '(1)' : ''}
+          </button>
+
           {hasActiveFilters ? (
             <button className="h-9 rounded-md border border-slate-300 px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={() => { setSearch(''); setType(''); setStatus('active') }}>
               ล้าง filter
             </button>
           ) : null}
-          <button className="ml-auto h-9 rounded-md bg-slate-800 px-4 text-sm font-semibold text-white hover:bg-slate-700" type="button" onClick={openCreateForm}>+ ยืมเงินใหม่</button>
+          <button className="hidden md:inline-flex ml-auto h-9 rounded-md bg-slate-800 px-4 text-sm font-semibold text-white hover:bg-slate-700" type="button" onClick={openCreateForm}>+ ยืมเงินใหม่</button>
         </div>
-        <div className="mt-3 space-y-2">
+
+        {/* Desktop Filters */}
+        <div className="mt-3 space-y-2 hidden md:block">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-slate-500">ประเภท:</span>
             <SegmentFilterButton active={!type} label="ทุกประเภท" onClick={() => setType('')} />
@@ -333,10 +347,139 @@ export function DailyPettyAdvancePageClient() {
         </div>
       </div>
 
+      {/* Floating Action Button (FAB) for Mobile */}
+      <div className="fixed bottom-6 right-6 z-40 md:hidden">
+        <button
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-800 text-white shadow-lg active:scale-95 transition-transform"
+          onClick={openCreateForm}
+          type="button"
+          aria-label="ยืมเงินใหม่"
+        >
+          <Plus className="h-6 w-6" />
+        </button>
+      </div>
+
+      {/* Bottom Sheet Filter for Mobile */}
+      {showMobileFilters ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 md:hidden">
+          <div className="w-full rounded-t-2xl bg-white p-4 shadow-xl border-t border-slate-200 animate-slide-up max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <h4 className="font-bold text-slate-800">ตัวกรองเพิ่มเติม</h4>
+              <button
+                className="p-1 text-slate-400 hover:text-slate-600 text-xl font-bold"
+                onClick={() => setShowMobileFilters(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <span className="mb-2 block text-xs font-semibold text-slate-600">ประเภท</span>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className={`rounded-md border px-3 py-1.5 text-xs font-medium flex-1 h-11 ${
+                      !type ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700'
+                    }`}
+                    type="button"
+                    onClick={() => setType('')}
+                  >
+                    ทุกประเภท
+                  </button>
+                  <button
+                    className={`rounded-md border px-3 py-1.5 text-xs font-medium flex-1 h-11 ${
+                      type === 'DIRECTOR_LOAN' ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700'
+                    }`}
+                    type="button"
+                    onClick={() => setType('DIRECTOR_LOAN')}
+                  >
+                    กู้กรรมการ
+                  </button>
+                  <button
+                    className={`rounded-md border px-3 py-1.5 text-xs font-medium flex-1 h-11 ${
+                      type === 'PETTY_CASH' ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700'
+                    }`}
+                    type="button"
+                    onClick={() => setType('PETTY_CASH')}
+                  >
+                    เงินสำรองจ่าย
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <span className="mb-2 block text-xs font-semibold text-slate-600">สถานะ</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    className={`rounded-md border px-3 py-1.5 text-xs font-medium h-11 ${
+                      !status ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700'
+                    }`}
+                    type="button"
+                    onClick={() => setStatus('')}
+                  >
+                    ทั้งหมด
+                  </button>
+                  <button
+                    className={`rounded-md border px-3 py-1.5 text-xs font-medium h-11 ${
+                      status === 'active' ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700'
+                    }`}
+                    type="button"
+                    onClick={() => setStatus('active')}
+                  >
+                    ค้างคืน
+                  </button>
+                  <button
+                    className={`rounded-md border px-3 py-1.5 text-xs font-medium h-11 ${
+                      status === 'closed' ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700'
+                    }`}
+                    type="button"
+                    onClick={() => setStatus('closed')}
+                  >
+                    ปิดแล้ว
+                  </button>
+                  <button
+                    className={`rounded-md border px-3 py-1.5 text-xs font-medium h-11 ${
+                      status === 'cancelled' ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700'
+                    }`}
+                    type="button"
+                    onClick={() => setStatus('cancelled')}
+                  >
+                    ยกเลิก
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-6 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => {
+                  setSearch('')
+                  setType('')
+                  setStatus('active')
+                  setShowMobileFilters(false)
+                }}
+              >
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                className="h-11 rounded-md bg-slate-800 text-sm font-semibold text-white hover:bg-slate-700"
+                onClick={() => setShowMobileFilters(false)}
+              >
+                ใช้ตัวกรอง
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {formOpen ? (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8">
           <form ref={formRef} noValidate className="w-full max-w-3xl overflow-hidden rounded-md bg-white shadow-xl" onSubmit={saveForm}>
-            <div className="flex items-center justify-between border-b bg-slate-50 px-5 py-4">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
               <h3 className="font-bold text-slate-900">{form.id ? 'แก้ไขรายการยืมเงิน' : 'บันทึกรายการยืมเงิน'}</h3>
               <button className="text-2xl text-slate-400" type="button" onClick={() => setFormOpen(false)}>&times;</button>
             </div>
@@ -359,16 +502,16 @@ export function DailyPettyAdvancePageClient() {
               <section className="space-y-3 border-t border-slate-100 pt-4">
                 <div data-field="recipientId">
                   <SearchCombobox
-                    error={fieldErrors.recipientId ?? fieldErrors.recipientName}
-                    errorKey="recipientId"
-                    inputClassName="h-9 text-sm"
-                    inputId="petty-advance-recipient"
-                    label="ผู้จ่าย *"
-                    options={recipientOptions}
-                    optionsPanelClassName="max-h-72"
-                    placeholder="ค้นหากรรมการ/พนักงาน"
-                    value={form.recipientId}
-                    onChange={updateRecipient}
+                     error={fieldErrors.recipientId ?? fieldErrors.recipientName}
+                     errorKey="recipientId"
+                     inputClassName="h-9 text-sm"
+                     inputId="petty-advance-recipient"
+                     label="ผู้จ่าย *"
+                     options={recipientOptions}
+                     optionsPanelClassName="max-h-72"
+                     placeholder="ค้นหากรรมการ/พนักงาน"
+                     value={form.recipientId}
+                     onChange={updateRecipient}
                   />
                 </div>
               </section>
@@ -377,7 +520,7 @@ export function DailyPettyAdvancePageClient() {
                 <TextAreaField error={fieldErrors.notes} fieldName="notes" label="หมายเหตุ" value={form.notes ?? ''} onChange={(value) => setForm({ ...form, notes: value })} />
               </div>
             </div>
-            <div className="flex justify-end gap-2 border-t px-5 py-4">
+            <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
               <button className="rounded-md px-4 py-2 text-sm text-slate-600 hover:bg-slate-100" type="button" onClick={() => setFormOpen(false)}>ยกเลิก</button>
               <button className="rounded-md bg-slate-800 px-5 py-2 text-sm font-semibold text-white disabled:opacity-60" disabled={isSaving} type="submit">{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</button>
             </div>
@@ -388,7 +531,7 @@ export function DailyPettyAdvancePageClient() {
       {returningRow ? (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8">
           <form noValidate className="w-full max-w-md overflow-hidden rounded-md bg-white shadow-xl" onSubmit={saveReturn}>
-            <div className="border-b bg-slate-50 px-5 py-4 font-bold text-slate-900">คืนเงิน — {returningRow.docNo} / {returningRow.recipientName}</div>
+            <div className="border-b border-slate-200 bg-slate-50 px-5 py-4 font-bold text-slate-900">คืนเงิน — {returningRow.docNo} / {returningRow.recipientName}</div>
             <div className="space-y-3 p-5 text-sm">
               <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">ยอดยืม: <b>{formatMoney(returningRow.amount)}</b> · ใช้ไปแล้ว: <b>{formatMoney(returningRow.spent)}</b> · คืนแล้ว: <b>{formatMoney(returningRow.returned)}</b> · <span className="font-bold text-red-700">คงค้าง: {formatMoney(returningRow.remaining)}</span></div>
               <TextField label="วันที่คืน" required type="date" value={returnForm.date} onChange={(value) => setReturnForm({ ...returnForm, date: value })} />
@@ -396,7 +539,7 @@ export function DailyPettyAdvancePageClient() {
               <SelectField label="บัญชีรับคืนของบริษัท" required value={returnForm.accountId} onChange={(value) => setReturnForm({ ...returnForm, accountId: value })} options={activeAccounts} />
               <TextAreaField label="หมายเหตุ" value={returnForm.notes} onChange={(value) => setReturnForm({ ...returnForm, notes: value })} />
             </div>
-            <div className="flex justify-end gap-2 border-t px-5 py-4">
+            <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
               <button className="rounded-md px-4 py-2 text-sm text-slate-600 hover:bg-slate-100" type="button" onClick={() => setReturningRow(null)}>ยกเลิก</button>
               <button className="rounded-md bg-emerald-700 px-5 py-2 text-sm font-semibold text-white disabled:opacity-60" disabled={isSaving} type="submit">บันทึกคืนเงิน</button>
             </div>
@@ -411,7 +554,59 @@ export function DailyPettyAdvancePageClient() {
 
       {detailRow ? <DetailModal row={detailRow} onClose={() => setDetailRow(null)} onReturn={openReturnForm} /> : null}
 
-      <div className="overflow-x-auto rounded-md bg-white shadow">
+      {/* Mobile Card List */}
+      <div className="block md:hidden space-y-3">
+        {isLoading ? (
+          <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow border border-slate-200">กำลังโหลดข้อมูล</div>
+        ) : null}
+        {!isLoading && filteredRows.map((row) => (
+          <div
+            key={row.id}
+            className="rounded-md border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 cursor-pointer transition-colors"
+            onClick={() => setDetailRow(row)}
+          >
+            <div className="flex justify-between items-start mb-2">
+              <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
+              <StatusBadge status={row.status} />
+            </div>
+            <div className="flex justify-between items-center text-xs text-slate-500 mb-3">
+              <span className={row.type === 'DIRECTOR_LOAN' ? 'text-purple-700 font-semibold' : 'text-amber-700 font-semibold'}>
+                {typeLabel(row.type)}
+              </span>
+              <span>วันที่จ่าย: {formatDateDisplay(row.date)}</span>
+            </div>
+            <div className="text-sm font-semibold text-slate-700 mb-3">
+              {row.recipientName}
+            </div>
+            <div className="flex justify-between items-end border-t border-slate-100 pt-2.5">
+              <div className="text-xs text-slate-500">
+                {row.spent > 0 ? (
+                  <span className="block">ใช้ไปแล้ว: <span className="font-semibold text-blue-700">{formatMoney(row.spent)}</span></span>
+                ) : null}
+                {row.returned > 0 ? (
+                  <span className="block">คืนแล้ว: <span className="font-semibold text-emerald-700">{formatMoney(row.returned)}</span></span>
+                ) : null}
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-slate-500">
+                  ยอดยืม: <span className="font-semibold text-slate-700">{formatMoney(row.amount)}</span>
+                </div>
+                <div className="mt-0.5">
+                  <span className="text-xs text-slate-500">คงค้าง: </span>
+                  <span className={`font-bold text-sm tabular-nums ${row.remaining > 1 ? 'text-red-700' : 'text-emerald-700'}`}>
+                    {formatMoney(row.remaining)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+        {!isLoading && filteredRows.length === 0 ? (
+          <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow border border-slate-200">ยังไม่มีรายการ</div>
+        ) : null}
+      </div>
+
+      <div className="hidden md:block overflow-x-auto rounded-md bg-white shadow">
         <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
             {pettyAdvanceColumns.map((column) => <col key={column.key} style={columnResize.getColumnStyle(column.key)} />)}
@@ -427,7 +622,7 @@ export function DailyPettyAdvancePageClient() {
               <ResizableTableHead align="right" label="คืนแล้ว" resizeProps={columnResize.getResizeHandleProps('returned', 'คืนแล้ว')} />
               <ResizableTableHead align="right" label="คงค้าง" resizeProps={columnResize.getResizeHandleProps('remaining', 'คงค้าง')} />
               <ResizableTableHead align="center" label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
-              <ResizableTableHead align="right" label="Action" resizeProps={columnResize.getResizeHandleProps('action', 'Action')} />
+              <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'Action')} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-xs font-semibold">
@@ -438,10 +633,10 @@ export function DailyPettyAdvancePageClient() {
                 <td className="p-2">{formatDateDisplay(row.date)}</td>
                 <td className="p-2"><span className={row.type === 'DIRECTOR_LOAN' ? 'text-purple-700' : 'text-amber-700'}>{typeLabel(row.type)}</span></td>
                 <td className="p-2 font-medium">{row.recipientName}</td>
-                <td className="p-2 text-right">{formatMoney(row.amount)}</td>
-                <td className="p-2 text-right text-blue-700">{row.spent > 0 ? <button className="hover:underline" type="button" onClick={(event) => { event.stopPropagation(); setDetailRow(row) }}>{formatMoney(row.spent)}</button> : '-'}</td>
-                <td className="p-2 text-right text-emerald-700">{formatMoney(row.returned)}</td>
-                <td className={`p-2 text-right font-bold ${row.remaining > 1 ? 'text-red-700' : 'text-emerald-700'}`}>{formatMoney(row.remaining)}</td>
+                <td className="p-2 pr-4 text-right tabular-nums">{formatMoney(row.amount)}</td>
+                <td className="p-2 pr-4 text-right text-blue-700 tabular-nums">{row.spent > 0 ? <button className="hover:underline" type="button" onClick={(event) => { event.stopPropagation(); setDetailRow(row) }}>{formatMoney(row.spent)}</button> : '-'}</td>
+                <td className="p-2 pr-4 text-right text-emerald-700 tabular-nums">{formatMoney(row.returned)}</td>
+                <td className={`p-2 pr-4 text-right font-bold tabular-nums ${row.remaining > 1 ? 'text-red-700' : 'text-emerald-700'}`}>{formatMoney(row.remaining)}</td>
                 <td className="p-2 text-center"><StatusBadge status={row.status} /></td>
                 <td className="space-x-1 whitespace-nowrap p-2 text-right">
                   <button className="text-xs text-blue-600 hover:underline" title="ดูรายละเอียด" type="button" onClick={(event) => { event.stopPropagation(); setDetailRow(row) }}>ดู</button>
@@ -465,7 +660,7 @@ function DetailModal({ onClose, onReturn, row }: { onClose: () => void; onReturn
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-4" onClick={onClose}>
       <div className="mx-auto my-4 max-w-4xl overflow-hidden rounded-md bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
-        <div className="flex items-start justify-between border-b bg-slate-50 px-5 py-3">
+        <div className="flex items-start justify-between border-b border-slate-100 bg-slate-50 px-5 py-3">
           <div>
             <h3 className="text-lg font-bold">รายละเอียด {row.docNo} — {row.recipientName}</h3>
             <div className="mt-0.5 text-xs text-slate-600">{typeLabel(row.type)} · วันที่จ่าย {formatDateDisplay(row.date)} · จำนวน {formatMoney(row.amount)} บาท</div>
@@ -480,55 +675,84 @@ function DetailModal({ onClose, onReturn, row }: { onClose: () => void; onReturn
           </div>
         </div>
         <div className="space-y-4 p-5 text-sm">
-          <div className="grid gap-2 md:grid-cols-4">
-            <div className="rounded-md bg-blue-50 p-2 text-center"><div className="text-xs text-blue-700">ยอดยืม</div><div className="font-bold">{formatMoney(row.amount)}</div></div>
-            <div className="rounded-md bg-amber-50 p-2 text-center"><div className="text-xs text-amber-700">ใช้ไปแล้ว</div><div className="font-bold">{formatMoney(row.spent)}</div></div>
-            <div className="rounded-md bg-emerald-50 p-2 text-center"><div className="text-xs text-emerald-700">คืนแล้ว</div><div className="font-bold">{formatMoney(row.returned)}</div></div>
-            <div className="rounded-md bg-red-50 p-2 text-center"><div className="text-xs text-red-700">คงค้าง</div><div className="font-bold">{formatMoney(row.remaining)}</div></div>
+          {/* สรุปยอดเงิน */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3 text-center">
+              <div className="text-xs text-blue-700 font-semibold">ยอดยืม</div>
+              <div className="text-lg font-bold mt-1 text-blue-900">{formatMoney(row.amount)}</div>
+            </div>
+            <div className="rounded-lg border border-amber-100 bg-amber-50/50 p-3 text-center">
+              <div className="text-xs text-amber-700 font-semibold">ใช้ไปแล้ว</div>
+              <div className="text-lg font-bold mt-1 text-amber-900">{formatMoney(row.spent)}</div>
+            </div>
+            <div className="rounded-lg border border-emerald-100 bg-emerald-50/50 p-3 text-center">
+              <div className="text-xs text-emerald-700 font-semibold">คืนแล้ว</div>
+              <div className="text-lg font-bold mt-1 text-emerald-900">{formatMoney(row.returned)}</div>
+            </div>
+            <div className="rounded-lg border border-red-100 bg-red-50/50 p-3 text-center">
+              <div className="text-xs text-red-700 font-semibold">คงค้าง</div>
+              <div className="text-lg font-bold mt-1 text-red-900">{formatMoney(row.remaining)}</div>
+            </div>
           </div>
 
-          <div className="grid gap-2">
-            <DetailLine label="บัญชีรับเงิน" value={row.recipientAccountLabel || '-'} />
+          {/* ข้อมูลบัญชีและผู้รับ */}
+          <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลการยืมและผู้รับ</div>
+            <div className="grid grid-cols-1 gap-y-3">
+              <DetailItem label="บัญชีรับเงินของกรรมการ/พนักงาน" value={row.recipientAccountLabel || '-'} />
+              <DetailItem label="หมายเหตุการยืม" value={row.notes || '-'} />
+            </div>
           </div>
 
           <div>
             <div className="mb-2 font-bold text-slate-800">บิลค่าใช้จ่ายที่จ่ายจากเงินก้อนนี้</div>
-            <div className="rounded-md border border-slate-200 py-4 text-center text-slate-400">ยังไม่มีบิลที่ link อยู่ใน payload ปัจจุบัน</div>
+            <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4 text-center text-slate-400">ยังไม่มีบิลที่ link อยู่ใน payload ปัจจุบัน</div>
           </div>
 
           <div>
             <div className="mb-2 font-bold text-emerald-700">ประวัติการคืนเงิน ({returns.length} ครั้ง)</div>
             {returns.length ? (
-              <table className="w-full border text-xs">
-                <thead className="bg-slate-100"><tr><th className="p-2 text-left">วันที่</th><th className="p-2 text-right">จำนวน</th><th className="p-2 text-left">บัญชีรับ</th><th className="p-2 text-left">หมายเหตุ</th></tr></thead>
-                <tbody>
-                  {returns.map((entry) => (
-                    <tr key={entry.id} className="border-t">
-                      <td className="p-2">{entry.date}</td>
-                      <td className="p-2 text-right font-bold text-emerald-700">{formatMoney(entry.amount)}</td>
-                      <td className="p-2">{entry.accountName}</td>
-                      <td className="p-2">{entry.notes || '-'}</td>
+              <div className="overflow-x-auto rounded-lg border border-slate-100 bg-white">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50 text-slate-600">
+                    <tr>
+                      <th className="p-2 text-left">วันที่</th>
+                      <th className="p-2 text-right">จำนวน</th>
+                      <th className="p-2 text-left">บัญชีรับ</th>
+                      <th className="p-2 text-left">หมายเหตุ</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : <div className="rounded-md border border-slate-200 py-4 text-center text-slate-400">ยังไม่มีประวัติคืนเงิน</div>}
+                  </thead>
+                  <tbody>
+                    {returns.map((entry) => (
+                      <tr key={entry.id} className="border-t border-slate-100">
+                        <td className="p-2 font-mono">{entry.date}</td>
+                        <td className="p-2 text-right font-bold text-emerald-700 tabular-nums">{formatMoney(entry.amount)}</td>
+                        <td className="p-2 text-slate-700">{entry.accountName}</td>
+                        <td className="p-2 text-slate-600">{entry.notes || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-slate-100 bg-slate-50/50 py-4 text-center text-slate-400">ยังไม่มีประวัติคืนเงิน</div>
+            )}
           </div>
         </div>
-        <div className="flex justify-end gap-2 border-t bg-slate-50 px-5 py-3">
+        <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-3 rounded-b-md">
           {canReturn ? <button className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700" type="button" onClick={() => onReturn(row)}>คืนเงิน</button> : null}
-          <button className="rounded-md bg-slate-300 px-4 py-2 text-sm" type="button" onClick={onClose}>ปิด</button>
+          <button className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" type="button" onClick={onClose}>ปิด</button>
         </div>
       </div>
     </div>
   )
 }
 
-function DetailLine({ label, value }: { label: string; value: string }) {
+function DetailItem({ className = '', label, value }: { className?: string; label: string; value: string }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className="mt-1 font-medium text-slate-900">{value || '-'}</div>
+    <div className={`flex flex-col py-1 ${className}`}>
+      <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{label}</div>
+      <div className="mt-0.5 text-xs sm:text-sm font-semibold text-slate-800">{value}</div>
     </div>
   )
 }

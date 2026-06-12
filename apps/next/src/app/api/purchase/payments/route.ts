@@ -6,7 +6,7 @@ import { supplierPaymentFormSchema } from '@/lib/daily'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { refreshAdvancePaymentWorkflowStatus } from '@/lib/server/advance-payments'
-import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission, getBranchCodeIntersection } from '@/lib/server/auth-context'
 import { currentActor, listDailyAccounts, nextBankStatementDocNos, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { refreshExpensePaymentStatus } from '@/lib/server/expense-payment-status'
 import { getActivePaymentMethods } from '@/lib/server/payment-methods'
@@ -141,6 +141,16 @@ export async function GET() {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'finance.cash.view')
 
+    const allowedBranchCodes = getBranchCodeIntersection(context)
+    let allowedBranchIds: bigint[] | undefined = undefined
+    if (allowedBranchCodes) {
+      const matchingBranches = await prisma.branches.findMany({
+        where: { code: { in: allowedBranchCodes } },
+        select: { id: true }
+      })
+      allowedBranchIds = matchingBranches.map((b) => b.id)
+    }
+
     const [accounts, suppliers, approvals, payments, paymentMethods, whtRatePercent] = await Promise.all([
       listDailyAccounts(),
       prisma.suppliers.findMany({
@@ -181,6 +191,9 @@ export async function GET() {
         where: { source_type: { in: PAYABLE_SOURCE_TYPES }, status: 'approved' },
       }),
       prisma.payments.findMany({
+        where: {
+          ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
+        },
         include: { accounts: true, suppliers: true },
         orderBy: [{ date: 'desc' }, { created_at: 'desc' }],
         take: 5000,
@@ -229,6 +242,7 @@ export async function GET() {
         select: { date: true, doc_no: true, id: true, paid_amount: true, payable_balance: true, status: true, supplier_id: true, total_amount: true },
         where: {
           id: { in: purchaseBillIds },
+          ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
         },
       }),
       prisma.supplier_advance_payments.findMany({
@@ -236,6 +250,7 @@ export async function GET() {
         select: { advance_date: true, amount: true, doc_no: true, id: true, supplier_id: true, status: true },
         where: {
           id: { in: advanceIds },
+          ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
         },
       }),
       prisma.expenses.findMany({
@@ -243,6 +258,7 @@ export async function GET() {
         select: { date: true, doc_no: true, id: true, net_amount: true, amount: true, vat: true, wht: true, payee: true, payee_account_no: true, payee_bank: true, status: true },
         where: {
           id: { in: expenseIds },
+          ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
         },
       }),
     ])
@@ -586,6 +602,10 @@ export async function POST(request: Request) {
       })
       const branchCode = branchPaymentCode(branch?.code)
       if (!branchCode) throw new Error('รหัสสาขาต้องเป็นตัวเลขเพื่อออกเลขเอกสารจ่ายเงินผู้รับเงิน')
+      const allowedBranchCodes = getBranchCodeIntersection(context)
+      if (allowedBranchCodes && branch && !allowedBranchCodes.includes(branch.code)) {
+        throw new Error('ไม่มีสิทธิ์ทำรายการจ่ายเงินในสาขานี้')
+      }
       await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('payments.doc_no'))`
       const docNo = values.docNo ?? await nextSupplierPaymentDocNo(tx, values.date, branchCode)
 

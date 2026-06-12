@@ -316,32 +316,57 @@ function DetailModal({ onClose, row }: { onClose: () => void; row: BankRow }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
       <div className="w-full max-w-2xl rounded-md bg-white p-5 shadow-xl">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-3 mb-4">
           <div>
             <h2 className="text-lg font-bold text-slate-900">{row.refNo || row.id}</h2>
             <p className="text-sm text-slate-500">{row.accountName}</p>
           </div>
           <button className="rounded-md bg-slate-100 px-3 py-1 text-sm" type="button" onClick={onClose}>ปิด</button>
         </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <Info label="วันที่" value={formatDateDisplay(row.date)} />
-          <Info label="บัญชี" value={row.accountName} />
-          <Info label="ธนาคาร" value={row.bankName || '-'} />
-          <Info label="เลขบัญชี" value={row.accountNo || '-'} />
-          <Info label="Ref type" value={row.refType || '-'} />
-          <Info label="Type" value={row.type || '-'} />
-          <Info label="เงินเข้า" value={formatMoney(row.amountIn)} />
-          <Info label="เงินออก" value={formatMoney(row.amountOut)} />
-          <Info label="คงเหลือ" value={formatMoney(row.runningBalance)} />
-          <Info label="Cash flow" value={row.cashFlowCategory || '-'} />
-          <Info label="คำอธิบาย" value={row.description || '-'} />
-          <Info label="หมายเหตุ" value={row.note || '-'} />
+        <div className="space-y-4">
+          {/* ข้อมูลบัญชีและอ้างอิง */}
+          <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลบัญชีและอ้างอิง</div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+              <DetailItem label="วันที่" value={formatDateDisplay(row.date)} />
+              <DetailItem label="บัญชี" value={row.accountName || '-'} />
+              <DetailItem label="ธนาคาร" value={row.bankName || '-'} />
+              <DetailItem label="เลขบัญชี" value={row.accountNo || '-'} />
+              <DetailItem label="Ref type" value={row.refType || '-'} />
+              <DetailItem label="Type" value={row.type || '-'} />
+              <DetailItem label="Cash flow" value={row.cashFlowCategory || '-'} />
+            </div>
+          </div>
+
+          {/* ข้อมูลการเงิน */}
+          <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลการเงิน</div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+              <DetailItem label="เงินเข้า" value={`${formatMoney(row.amountIn)} บาท`} />
+              <DetailItem label="เงินออก" value={`${formatMoney(row.amountOut)} บาท`} />
+              <DetailItem label="คงเหลือ" value={`${formatMoney(row.runningBalance)} บาท`} />
+            </div>
+          </div>
+
+          {/* รายละเอียดและหมายเหตุ */}
+          <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">รายละเอียดและหมายเหตุ</div>
+            <div className="grid grid-cols-1 gap-y-3">
+              <DetailItem label="คำอธิบาย" value={row.description || '-'} />
+              <DetailItem label="หมายเหตุ" value={row.note || '-'} />
+            </div>
+          </div>
         </div>
       </div>
     </div>
   )
 }
 
-function Info({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-md border border-slate-200 p-3"><div className="text-xs text-slate-500">{label}</div><div className="mt-1 font-semibold text-slate-900">{value}</div></div>
+function DetailItem({ className = '', label, value }: { className?: string; label: string; value: string }) {
+  return (
+    <div className={`flex flex-col py-1 ${className}`}>
+      <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{label}</div>
+      <div className="mt-0.5 text-xs sm:text-sm font-semibold text-slate-800">{value}</div>
+    </div>
+  )
 }

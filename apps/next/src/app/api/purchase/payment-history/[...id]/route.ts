@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
+import { parseInternalBigIntId } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
-import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission, getBranchCodeIntersection } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 
@@ -110,6 +111,16 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const authContext = await getCurrentAuthContext()
     requirePermission(authContext, 'finance.cash.view')
 
+    const allowedBranchCodes = getBranchCodeIntersection(authContext)
+    let allowedBranchIds: bigint[] | undefined = undefined
+    if (allowedBranchCodes) {
+      const matchingBranches = await prisma.branches.findMany({
+        where: { code: { in: allowedBranchCodes } },
+        select: { id: true },
+      })
+      allowedBranchIds = matchingBranches.map((b) => b.id)
+    }
+
     const { id } = await context.params
     const documentId = decodeURIComponent(id.join('/'))
     const payments = await prisma.payments.findMany({
@@ -132,11 +143,46 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       },
     })
 
+    if (payments.length > 0) {
+      if (allowedBranchIds && payments.some((p) => p.branch_id != null && !allowedBranchIds.includes(p.branch_id))) {
+        return NextResponse.json({ error: 'ไม่พบรายการจ่ายเงิน' }, { status: 404 })
+      }
+    }
+
     if (payments.length === 0) {
       const approval = await prisma.payment_approvals.findFirst({
         where: { doc_no: documentId },
       })
       if (!approval) return NextResponse.json({ error: 'ไม่พบรายการจ่ายเงิน' }, { status: 404 })
+
+      if (allowedBranchIds) {
+        let sourceBranchId: bigint | null = null
+        const sourceInternalId = parseInternalBigIntId(approval.source_id)
+        if (sourceInternalId != null) {
+          if (approval.source_type === 'purchase_bill') {
+            const pb = await prisma.purchase_bills.findUnique({
+              select: { branch_id: true },
+              where: { id: sourceInternalId }
+            })
+            sourceBranchId = pb?.branch_id ?? null
+          } else if (approval.source_type === 'advance_payment') {
+            const adv = await prisma.supplier_advance_payments.findUnique({
+              select: { branch_id: true },
+              where: { id: sourceInternalId }
+            })
+            sourceBranchId = adv?.branch_id ?? null
+          } else if (approval.source_type === 'expense') {
+            const exp = await prisma.expenses.findUnique({
+              select: { branch_id: true },
+              where: { id: sourceInternalId }
+            })
+            sourceBranchId = exp?.branch_id ?? null
+          }
+        }
+        if (sourceBranchId != null && !allowedBranchIds.includes(sourceBranchId)) {
+          return NextResponse.json({ error: 'ไม่พบรายการจ่ายเงิน' }, { status: 404 })
+        }
+      }
 
       const [approvalStatusLogs, approvalAllocations] = await Promise.all([
         prisma.payment_approval_status_logs.findMany({

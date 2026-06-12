@@ -4,7 +4,7 @@ import { parseInternalBigIntId, stringifyBusinessValue } from '@/lib/business-co
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { SUPPLIER_ADVANCE_STATUS_ACTION } from '@/lib/server/advance-payment-history'
 import { refreshAdvancePaymentWorkflowStatus } from '@/lib/server/advance-payments'
-import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission, getBranchCodeIntersection } from '@/lib/server/auth-context'
 import { currentActor, toNumber } from '@/lib/server/daily'
 import { refreshExpensePaymentStatus } from '@/lib/server/expense-payment-status'
 import {
@@ -73,6 +73,7 @@ export async function POST(request: Request) {
         select: {
           amount: true,
           bill_id: true,
+          branch_id: true,
           discount: true,
           doc_no: true,
           id: true,
@@ -89,6 +90,18 @@ export async function POST(request: Request) {
       })
       if (payments.length === 0) {
         throw new Error('ไม่พบรายการจ่ายเงินที่ต้องการยกเลิก หรือรายการนี้ถูกยกเลิกไปแล้ว')
+      }
+
+      const allowedBranchCodes = getBranchCodeIntersection(context)
+      if (allowedBranchCodes) {
+        const matchingBranches = await tx.branches.findMany({
+          where: { code: { in: allowedBranchCodes } },
+          select: { id: true }
+        })
+        const allowedBranchIds = matchingBranches.map((b) => b.id)
+        if (payments.some((p) => p.branch_id != null && !allowedBranchIds.includes(p.branch_id))) {
+          throw new Error('ไม่มีสิทธิ์ยกเลิกการจ่ายเงินในรายการนี้')
+        }
       }
 
       const approvalIds = [...new Set(payments.map((payment) => payment.payment_approval_id).filter((value): value is bigint => value != null))]

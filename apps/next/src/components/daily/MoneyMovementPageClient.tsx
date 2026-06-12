@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, Copy, X } from 'lucide-react'
+import { Check, Copy, X, Plus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes } from 'react'
 import { z } from 'zod'
 import { paymentMethodGroupFromValue, type PaymentMethodGroup } from '@/lib/account-payment-method'
@@ -10,6 +10,7 @@ import { Button as UiButton } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Input as UiInput } from '@/components/ui/Input'
+import { CollapsedList } from '@/components/ui/CollapsedList'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Select as UiSelect } from '@/components/ui/Select'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
@@ -128,38 +129,38 @@ const companyProfilePayloadSchema = z.object({
 const paymentQueueColumns: Array<ResizableColumnDefinition<PaymentQueueColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'date', defaultWidth: 120, minWidth: 100 },
-  { key: 'partyName', defaultWidth: 220, minWidth: 150 },
+  { key: 'partyName', defaultWidth: 320, minWidth: 150 },
   { key: 'bankName', defaultWidth: 150, minWidth: 120 },
   { key: 'accountNo', defaultWidth: 220, minWidth: 160 },
-  { key: 'totalAmount', defaultWidth: 140, minWidth: 120 },
-  { key: 'paidAmount', defaultWidth: 140, minWidth: 120 },
-  { key: 'balance', defaultWidth: 170, minWidth: 140 },
-  { key: 'age', defaultWidth: 100, minWidth: 90 },
+  { key: 'totalAmount', defaultWidth: 85, minWidth: 80 },
+  { key: 'paidAmount', defaultWidth: 85, minWidth: 80 },
+  { key: 'balance', defaultWidth: 90, minWidth: 80 },
+  { key: 'age', defaultWidth: 75, minWidth: 60 },
   { key: 'action', defaultWidth: 150, minWidth: 140 },
 ]
 const paymentHistoryColumns: Array<ResizableColumnDefinition<MoneyHistoryColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'date', defaultWidth: 150, minWidth: 120 },
-  { key: 'partyName', defaultWidth: 190, minWidth: 140 },
+  { key: 'partyName', defaultWidth: 320, minWidth: 140 },
   { key: 'billRefs', defaultWidth: 220, minWidth: 160 },
   { key: 'accountName', defaultWidth: 220, minWidth: 160 },
-  { key: 'amount', defaultWidth: 150, minWidth: 120 },
-  { key: 'wht', defaultWidth: 130, minWidth: 110 },
-  { key: 'bankFee', defaultWidth: 130, minWidth: 110 },
-  { key: 'netAmount', defaultWidth: 150, minWidth: 120 },
+  { key: 'amount', defaultWidth: 85, minWidth: 80 },
+  { key: 'wht', defaultWidth: 80, minWidth: 70 },
+  { key: 'bankFee', defaultWidth: 80, minWidth: 70 },
+  { key: 'netAmount', defaultWidth: 85, minWidth: 80 },
   { key: 'status', defaultWidth: 130, minWidth: 110 },
   { key: 'notes', defaultWidth: 180, minWidth: 130 },
 ]
 const receiptHistoryColumns: Array<ResizableColumnDefinition<MoneyHistoryColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'date', defaultWidth: 150, minWidth: 120 },
-  { key: 'partyName', defaultWidth: 190, minWidth: 140 },
+  { key: 'partyName', defaultWidth: 320, minWidth: 140 },
   { key: 'billRefs', defaultWidth: 220, minWidth: 160 },
   { key: 'accountName', defaultWidth: 220, minWidth: 160 },
-  { key: 'amount', defaultWidth: 150, minWidth: 120 },
-  { key: 'wht', defaultWidth: 130, minWidth: 110 },
-  { key: 'bankFee', defaultWidth: 130, minWidth: 110 },
-  { key: 'netAmount', defaultWidth: 150, minWidth: 120 },
+  { key: 'amount', defaultWidth: 85, minWidth: 80 },
+  { key: 'wht', defaultWidth: 80, minWidth: 70 },
+  { key: 'bankFee', defaultWidth: 80, minWidth: 70 },
+  { key: 'netAmount', defaultWidth: 85, minWidth: 80 },
   { key: 'notes', defaultWidth: 180, minWidth: 130 },
   { key: 'action', defaultWidth: 130, minWidth: 110 },
 ]
@@ -514,6 +515,7 @@ export function MoneyMovementPageClient({
   const [data, setData] = useState<Payload>({ accounts: [], bills: [], rows: [] })
   const [error, setError] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isPrintingDailyReport, setIsPrintingDailyReport] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -1264,7 +1266,7 @@ export function MoneyMovementPageClient({
       ) : null}
 
       {mode === 'receipt' && showEntrySection ? (
-        <div className="flex flex-wrap items-center justify-end gap-2 rounded-md bg-white p-3 shadow">
+        <div className="hidden md:flex flex-wrap items-center justify-end gap-2 rounded-md bg-white p-3 shadow">
           <UiButton className="font-bold shadow" type="button" variant="default" onClick={openForm}>
             + รับเงิน Customer
           </UiButton>
@@ -1316,123 +1318,197 @@ export function MoneyMovementPageClient({
               <UiButton className="h-9 font-normal" disabled={supplierBillCurrentPage >= supplierBillTotalPages} size="sm" type="button" variant="outline" onClick={() => setBillPage((value) => Math.min(supplierBillTotalPages, value + 1))}>ถัดไป</UiButton>
             </div>
           </div>
-          <Table className="text-xs" style={{ minWidth: paymentQueueColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
-            <colgroup>
-              {paymentQueueColumns.map((column) => <col key={column.key} style={paymentQueueColumnResize.getColumnStyle(column.key)} />)}
-            </colgroup>
-            <TableHeader className="text-slate-700">
-              <tr>
-                <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="เลขที่รายการ" resizeProps={paymentQueueColumnResize.getResizeHandleProps('docNo', 'เลขที่รายการ')} sortKey="docNo" onSort={toggleBillSort} />
-                <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="วันที่" resizeProps={paymentQueueColumnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={toggleBillSort} />
-                <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="ผู้รับเงิน" resizeProps={paymentQueueColumnResize.getResizeHandleProps('partyName', 'ผู้รับเงิน')} sortKey="supplier" onSort={toggleBillSort} />
-                <ResizableTableHead label="ธนาคาร" resizeProps={paymentQueueColumnResize.getResizeHandleProps('bankName', 'ธนาคาร')} />
-                <ResizableTableHead label="เลขบัญชี" resizeProps={paymentQueueColumnResize.getResizeHandleProps('accountNo', 'เลขบัญชี')} />
-                <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="ยอดรวม" resizeProps={paymentQueueColumnResize.getResizeHandleProps('totalAmount', 'ยอดรวม')} sortKey="totalAmount" onSort={toggleBillSort} />
-                <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="จ่ายแล้ว" resizeProps={paymentQueueColumnResize.getResizeHandleProps('paidAmount', 'จ่ายแล้ว')} sortKey="paidAmount" onSort={toggleBillSort} />
-                <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="คงเหลือรอออก PMT" resizeProps={paymentQueueColumnResize.getResizeHandleProps('balance', 'คงเหลือรอออก PMT')} sortKey="balance" onSort={toggleBillSort} />
-                <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="อายุ(วัน)" resizeProps={paymentQueueColumnResize.getResizeHandleProps('age', 'อายุ(วัน)')} sortKey="age" onSort={toggleBillSort} />
-                <ResizableTableHead align="center" label="" resizeProps={paymentQueueColumnResize.getResizeHandleProps('action', 'Action')} />
-              </tr>
-            </TableHeader>
-            <TableBody className="divide-y divide-slate-100">
-              {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={10}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
-                {!isLoading && supplierBillPageRows.map((bill) => {
-                  const balance = bill.payableBalance ?? 0
-                  const supplier = supplierMap.get(bill.supplierId ?? '')
-                  const supplierBankAccounts = approvalBankAccountLines(bill).length > 0 ? approvalBankAccountLines(bill) : supplierBankAccountLines(supplier, paymentMethods)
-                  return (
-                    <TableRow key={`${bill.id}:${bill.approvalId ?? 'no-approval'}`} className="cursor-pointer hover:bg-slate-50" onClick={() => openFormForBill(bill)}>
-                      <TableCell className="text-xs font-semibold text-slate-700">
-                        <div>{bill.docNo}</div>
-                        {bill.sourceDocNo && bill.sourceDocNo !== bill.docNo ? <div className="mt-1 font-sans text-[11px] font-normal text-slate-500">อ้างอิง {bill.sourceDocNo}</div> : null}
-                      </TableCell>
-                      <TableCell className="text-xs font-semibold text-slate-700">{formatDateDisplay(bill.date)}</TableCell>
-                      <TableCell className="max-w-72 truncate text-xs font-semibold text-slate-700">{partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'}</TableCell>
-                      <TableCell className="w-36 text-xs font-semibold text-slate-700">
-                        {supplierBankAccounts.length > 0 ? (
-                          <div className="space-y-1">
-                            {supplierBankAccounts.map((account, index) => {
-                              const accountKey = `${bill.id}-${account.accountNo}-${index}`
-                              const bankLabel = account.bankName || '-'
-                              return (
-                                <div key={accountKey} className="whitespace-nowrap">
-                                  {bankLabel}
-                                </div>
-                              )
-                            })}
+
+          {/* Mobile Card List for Payment Entry Queue */}
+          <div className="block md:hidden space-y-3">
+            {isLoading ? (
+              <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">กำลังโหลดข้อมูล</div>
+            ) : null}
+            {!isLoading && supplierBillPageRows.map((bill) => {
+              const balance = bill.payableBalance ?? 0
+              const supplier = supplierMap.get(bill.supplierId ?? '')
+              const supplierBankAccounts = approvalBankAccountLines(bill).length > 0 ? approvalBankAccountLines(bill) : supplierBankAccountLines(supplier, paymentMethods)
+              const bankAccount = supplierBankAccounts[0]
+              return (
+                <div
+                  key={`${bill.id}:${bill.approvalId ?? 'no-approval'}`}
+                  className="rounded-md border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 cursor-pointer transition-colors"
+                  onClick={() => openFormForBill(bill)}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="font-bold text-slate-800 text-sm">
+                      {bill.docNo}
+                      {bill.sourceDocNo && bill.sourceDocNo !== bill.docNo ? (
+                        <span className="ml-2 text-xs font-normal text-slate-500">(อ้างอิง {bill.sourceDocNo})</span>
+                      ) : null}
+                    </div>
+                    <span className="text-xs text-slate-500">{formatDateDisplay(bill.date)}</span>
+                  </div>
+                  <div className="text-xs text-slate-600 mb-3 space-y-1">
+                    <div>
+                      <span className="font-semibold text-slate-500">ผู้รับเงิน: </span>
+                      <span className="text-slate-800">{partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'}</span>
+                    </div>
+                    {bankAccount ? (
+                      <div className="text-[11px] text-slate-500 flex items-center gap-1.5 flex-wrap">
+                        <span>ธนาคาร: {bankAccount.bankName || '-'}</span>
+                        <span className="text-slate-300">|</span>
+                        <span>บัญชี: {formatAccountNoDisplay(bankAccount.accountNo) || bankAccount.accountNo}</span>
+                        <button
+                          aria-label={`คัดลอกเลขบัญชี ${bankAccount.accountNo}`}
+                          className="inline-flex h-5 w-5 items-center justify-center rounded border border-slate-200 bg-slate-50 text-slate-500 active:bg-slate-100"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            void copyAccountNo(`${bill.id}-${bankAccount.accountNo}-0`, bankAccount.accountNo)
+                          }}
+                          type="button"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : null}
+                    <div className="text-[11px] text-slate-500">
+                      อายุเอกสาร: {ageInDays(bill.date)} วัน
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-end pt-2 border-t border-slate-100">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block">ค้างชำระ</span>
+                      <span className={`font-bold text-sm tabular-nums ${balance > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{formatMoney(balance)}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] text-slate-400 block">ยอดรวม</span>
+                      <span className="font-bold text-slate-900 text-sm tabular-nums">{formatMoney(bill.totalAmount)}</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+            {!isLoading && supplierBillPageRows.length === 0 ? (
+              <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">ไม่พบ PMA ค้างจ่ายตามเงื่อนไข</div>
+            ) : null}
+          </div>
+
+          {/* Desktop Table */}
+          <div className="hidden md:block overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+            <Table className="text-xs" style={{ minWidth: paymentQueueColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
+              <colgroup>
+                {paymentQueueColumns.map((column) => <col key={column.key} style={paymentQueueColumnResize.getColumnStyle(column.key)} />)}
+              </colgroup>
+              <TableHeader className="text-slate-700">
+                <tr>
+                  <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="เลขที่รายการ" resizeProps={paymentQueueColumnResize.getResizeHandleProps('docNo', 'เลขที่รายการ')} sortKey="docNo" onSort={toggleBillSort} />
+                  <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="วันที่" resizeProps={paymentQueueColumnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={toggleBillSort} />
+                  <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="ผู้รับเงิน" resizeProps={paymentQueueColumnResize.getResizeHandleProps('partyName', 'ผู้รับเงิน')} sortKey="supplier" onSort={toggleBillSort} />
+                  <ResizableTableHead label="ธนาคาร" resizeProps={paymentQueueColumnResize.getResizeHandleProps('bankName', 'ธนาคาร')} />
+                  <ResizableTableHead label="เลขบัญชี" resizeProps={paymentQueueColumnResize.getResizeHandleProps('accountNo', 'เลขบัญชี')} />
+                  <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="ยอดรวม" resizeProps={paymentQueueColumnResize.getResizeHandleProps('totalAmount', 'ยอดรวม')} sortKey="totalAmount" onSort={toggleBillSort} />
+                  <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="จ่ายแล้ว" resizeProps={paymentQueueColumnResize.getResizeHandleProps('paidAmount', 'จ่ายแล้ว')} sortKey="paidAmount" onSort={toggleBillSort} />
+                  <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="คงเหลือรอออก PMT" resizeProps={paymentQueueColumnResize.getResizeHandleProps('balance', 'คงเหลือรอออก PMT')} sortKey="balance" onSort={toggleBillSort} />
+                  <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="อายุ(วัน)" resizeProps={paymentQueueColumnResize.getResizeHandleProps('age', 'อายุ(วัน)')} sortKey="age" onSort={toggleBillSort} />
+                  <ResizableTableHead align="center" label="จัดการ" resizeProps={paymentQueueColumnResize.getResizeHandleProps('action', 'Action')} />
+                </tr>
+              </TableHeader>
+              <TableBody className="divide-y divide-slate-100">
+                {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={10}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+                  {!isLoading && supplierBillPageRows.map((bill) => {
+                    const balance = bill.payableBalance ?? 0
+                    const supplier = supplierMap.get(bill.supplierId ?? '')
+                    const supplierBankAccounts = approvalBankAccountLines(bill).length > 0 ? approvalBankAccountLines(bill) : supplierBankAccountLines(supplier, paymentMethods)
+                    return (
+                      <TableRow key={`${bill.id}:${bill.approvalId ?? 'no-approval'}`} className="cursor-pointer hover:bg-slate-50" onClick={() => openFormForBill(bill)}>
+                        <TableCell className="text-xs font-semibold text-slate-700">
+                          <div>{bill.docNo}</div>
+                          {bill.sourceDocNo && bill.sourceDocNo !== bill.docNo ? <div className="mt-1 font-sans text-[11px] font-normal text-slate-500">อ้างอิง {bill.sourceDocNo}</div> : null}
+                        </TableCell>
+                        <TableCell className="text-xs font-semibold text-slate-700">{formatDateDisplay(bill.date)}</TableCell>
+                        <TableCell className="max-w-72 truncate text-xs font-semibold text-slate-700">{partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'}</TableCell>
+                        <TableCell className="w-36 text-xs font-semibold text-slate-700">
+                          {supplierBankAccounts.length > 0 ? (
+                            <div className="space-y-1">
+                              {supplierBankAccounts.map((account, index) => {
+                                const accountKey = `${bill.id}-${account.accountNo}-${index}`
+                                const bankLabel = account.bankName || '-'
+                                return (
+                                  <div key={accountKey} className="whitespace-nowrap">
+                                    {bankLabel}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          ) : (
+                            <span>-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="w-52 text-xs font-semibold text-slate-700">
+                          {supplierBankAccounts.length > 0 ? (
+                            <div className="space-y-1">
+                              {supplierBankAccounts.map((account, index) => {
+                                const accountKey = `${bill.id}-${account.accountNo}-${index}`
+                                const copied = copiedAccountKey === accountKey
+                                const label = formatAccountNoDisplay(account.accountNo) || account.accountNo
+                                return (
+                                  <div key={accountKey} className="flex items-center gap-1">
+                                    <span className="whitespace-nowrap">{label}</span>
+                                    <button
+                                      aria-label={`คัดลอกเลขบัญชี ${label}`}
+                                      className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition ${copied ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-100'}`}
+                                      title={copied ? 'คัดลอกแล้ว' : 'คัดลอกเลขบัญชี'}
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.stopPropagation()
+                                        void copyAccountNo(accountKey, account.accountNo)
+                                      }}
+                                    >
+                                      <span className="sr-only">{copied ? 'คัดลอกแล้ว' : 'คัดลอก'}</span>
+                                      {copied ? <Check aria-hidden="true" className="h-3 w-3" /> : <Copy aria-hidden="true" className="h-3 w-3" />}
+                                    </button>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          ) : (
+                            <span>-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-right pr-4 text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(bill.totalAmount)}</TableCell>
+                        <TableCell className="whitespace-nowrap text-right pr-4 text-xs font-semibold text-blue-700 tabular-nums">{formatMoney(bill.paidAmount)}</TableCell>
+                        <TableCell className={`whitespace-nowrap text-right pr-4 text-xs font-semibold tabular-nums ${balance > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{formatMoney(balance)}</TableCell>
+                        <TableCell className="whitespace-nowrap text-right pr-4 text-xs font-semibold text-slate-700 tabular-nums">{ageInDays(bill.date)}</TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50"
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                openFormForBill(bill)
+                              }}
+                            >
+                              ทำจ่าย
+                            </button>
+                            <button
+                              className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                              disabled={(bill.paidAmount ?? 0) > 0.01 || !bill.approvalId}
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                setCancelApprovalTarget(bill)
+                                setCancelApprovalReason('')
+                                setError(null)
+                              }}
+                            >
+                              ยกเลิก
+                            </button>
                           </div>
-                        ) : (
-                          <span>-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="w-52 text-xs font-semibold text-slate-700">
-                        {supplierBankAccounts.length > 0 ? (
-                          <div className="space-y-1">
-                            {supplierBankAccounts.map((account, index) => {
-                              const accountKey = `${bill.id}-${account.accountNo}-${index}`
-                              const copied = copiedAccountKey === accountKey
-                              const label = formatAccountNoDisplay(account.accountNo) || account.accountNo
-                              return (
-                                <div key={accountKey} className="flex items-center gap-1">
-                                  <span className="whitespace-nowrap">{label}</span>
-                                  <button
-                                    aria-label={`คัดลอกเลขบัญชี ${label}`}
-                                    className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition ${copied ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-100'}`}
-                                    title={copied ? 'คัดลอกแล้ว' : 'คัดลอกเลขบัญชี'}
-                                    type="button"
-                                    onClick={(event) => {
-                                      event.stopPropagation()
-                                      void copyAccountNo(accountKey, account.accountNo)
-                                    }}
-                                  >
-                                    <span className="sr-only">{copied ? 'คัดลอกแล้ว' : 'คัดลอก'}</span>
-                                    {copied ? <Check aria-hidden="true" className="h-3 w-3" /> : <Copy aria-hidden="true" className="h-3 w-3" />}
-                                  </button>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        ) : (
-                          <span>-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="w-40 whitespace-nowrap text-right text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(bill.totalAmount)}</TableCell>
-                      <TableCell className="w-40 whitespace-nowrap text-right text-xs font-semibold text-blue-700 tabular-nums">{formatMoney(bill.paidAmount)}</TableCell>
-                      <TableCell className={`w-40 whitespace-nowrap text-right text-xs font-semibold tabular-nums ${balance > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{formatMoney(balance)}</TableCell>
-                      <TableCell className="w-20 whitespace-nowrap text-right text-xs font-semibold text-slate-700 tabular-nums">{ageInDays(bill.date)}</TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <button
-                            className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50"
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              openFormForBill(bill)
-                            }}
-                          >
-                            ทำจ่าย
-                          </button>
-                          <button
-                            className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                            disabled={(bill.paidAmount ?? 0) > 0.01 || !bill.approvalId}
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              setCancelApprovalTarget(bill)
-                              setCancelApprovalReason('')
-                              setError(null)
-                            }}
-                          >
-                            ยกเลิก
-                          </button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              {!isLoading && supplierBillPageRows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={10}>ไม่พบ PMA ค้างจ่ายตามเงื่อนไข</TableCell></TableRow> : null}
-            </TableBody>
-          </Table>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                {!isLoading && supplierBillPageRows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={10}>ไม่พบ PMA ค้างจ่ายตามเงื่อนไข</TableCell></TableRow> : null}
+              </TableBody>
+            </Table>
+          </div>
         </>
       ) : null}
 
@@ -1507,7 +1583,7 @@ export function MoneyMovementPageClient({
                   <Field label="ค่าธรรมเนียม" type="number" value={String(form.fee)} onChange={(value) => setForm({ ...form, fee: Number(value) })} />
                   <label className="block">
                     <span className="mb-1 block text-xs text-slate-600">วิธีจ่าย/รับเงิน</span>
-                    <UiSelect className="h-9 rounded-md border px-2 py-1.5 text-sm" value={form.method ?? ''} onChange={(event) => setForm({ ...form, method: event.target.value })}>
+                    <UiSelect className="h-9 rounded-md border border-slate-300 px-2 py-1.5 text-sm" value={form.method ?? ''} onChange={(event) => setForm({ ...form, method: event.target.value })}>
                       <option value="">ไม่ระบุ</option>
                       {paymentMethods.map((method) => (
                         <option key={method.name} value={method.name}>{method.name}</option>
@@ -1524,7 +1600,7 @@ export function MoneyMovementPageClient({
                 </div>
               </>
             )}
-            <DialogFooter className="border-t px-5 py-4">
+            <DialogFooter className="border-t border-slate-200 px-5 py-4">
               <UiButton className="font-normal text-slate-600" type="button" variant="ghost" onClick={() => setFormOpen(false)}>ยกเลิก</UiButton>
               <UiButton className={`px-5 font-semibold text-white disabled:opacity-60 ${theme.action}`} disabled={isSaving} type="submit" variant="default">บันทึก</UiButton>
             </DialogFooter>
@@ -1535,7 +1611,8 @@ export function MoneyMovementPageClient({
 
       {showHistorySection ? (
         <>
-          <div className="space-y-2 rounded-md bg-white p-3 shadow">
+          {/* Desktop Toolbar (Hidden on Mobile) */}
+          <div className="hidden md:block space-y-2 rounded-md bg-white p-3 shadow">
             <div className="flex flex-wrap items-center gap-2">
               <UiInput
                 className="h-9 min-w-[260px] flex-1 rounded-md"
@@ -1600,6 +1677,125 @@ export function MoneyMovementPageClient({
             </div>
           </div>
 
+          {/* Mobile Toolbar */}
+          <div className="space-y-2 rounded-md bg-white p-3 shadow md:hidden">
+            <div className="flex gap-2 items-center">
+              <UiInput
+                className="h-9 min-w-[200px] flex-1 rounded-md"
+                placeholder={mode === 'payment' ? 'ค้นหาเลข PMT / PMA / บิล...' : 'ค้นหาเลขที่ / ชื่อ / บัญชี...'}
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <button
+                type="button"
+                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                onClick={() => setShowMobileFilters(true)}
+              >
+                ตัวกรอง {hasActiveHistoryFilters ? '(มี)' : ''}
+              </button>
+            </div>
+          </div>
+
+          {/* Bottom Sheet Filter for History (Mobile) */}
+          {showMobileFilters ? (
+            <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 md:hidden">
+              <div className="w-full rounded-t-2xl bg-white p-4 shadow-xl border-t border-slate-200 max-h-[80vh] overflow-y-auto">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                  <h4 className="font-bold text-slate-800">ตัวกรองประวัติ</h4>
+                  <button
+                    className="p-1 text-slate-400 hover:text-slate-600 text-xl font-bold"
+                    onClick={() => setShowMobileFilters(false)}
+                    type="button"
+                  >
+                    &times;
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
+                    <div className="flex items-center gap-2">
+                      <DatePickerInput className="flex-1" value={dateFrom} onChange={setDateFrom} />
+                      <span className="text-slate-400">→</span>
+                      <DatePickerInput className="flex-1" value={dateTo} onChange={setDateTo} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">บัญชี</span>
+                    <UiSelect className="h-9 w-full px-2" value={accountFilter} onChange={(event) => setAccountFilter(event.target.value)}>
+                      <option value="">ทุกบัญชี</option>
+                      {activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                    </UiSelect>
+                  </div>
+
+                  {mode === 'payment' ? (
+                    <div>
+                      <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะ</span>
+                      <div className="flex flex-wrap gap-2">
+                        {([
+                          { label: 'ทั้งหมด', value: 'all' },
+                          { label: 'จ่ายแล้ว', value: 'active' },
+                          { label: 'ยกเลิก', value: 'cancelled' },
+                        ] as Array<{ label: string; value: PaymentHistoryStatusFilter }>).map((option) => {
+                          const active = paymentHistoryStatusFilter === option.value
+                          return (
+                            <button
+                              key={option.value}
+                              className={`rounded-md border px-3 py-1.5 text-xs font-medium ${active ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
+                              type="button"
+                              onClick={() => setPaymentHistoryStatusFilter(option.value)}
+                            >
+                              {option.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {mode === 'payment' ? (
+                    <div className="pt-2">
+                      <UiButton
+                        className="w-full h-11 font-semibold"
+                        disabled={isPrintingDailyReport}
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setShowMobileFilters(false)
+                          void printDailyPaymentReport()
+                        }}
+                      >
+                        {isPrintingDailyReport ? 'กำลังเตรียมรายงาน...' : 'พิมพ์รายงานประจำวัน'}
+                      </UiButton>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mt-6 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    onClick={() => {
+                      clearFilters()
+                      setShowMobileFilters(false)
+                    }}
+                  >
+                    ล้างตัวกรอง
+                  </button>
+                  <button
+                    type="button"
+                    className="h-11 rounded-md bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700"
+                    onClick={() => setShowMobileFilters(false)}
+                  >
+                    ใช้ตัวกรอง
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <div>
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
               <div>พบทั้งหมด <span className="font-semibold text-slate-900">{historyTotalRows}</span> รายการ</div>
@@ -1619,87 +1815,150 @@ export function MoneyMovementPageClient({
               </div>
             </div>
 
-            <Table className="text-xs" style={{ minWidth: historyColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
-              <colgroup>
-                {historyColumns.map((column) => <col key={column.key} style={historyColumnResize.getColumnStyle(column.key)} />)}
-              </colgroup>
-              <TableHeader className="text-slate-700">
-                <tr>
-                  <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label="เลขที่รายการ" resizeProps={historyColumnResize.getResizeHandleProps('docNo', 'เลขที่รายการ')} sortKey="docNo" onSort={toggleHistorySort} />
-                  <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label="วันที่สร้างรายการ" resizeProps={historyColumnResize.getResizeHandleProps('date', 'วันที่สร้างรายการ')} sortKey="date" onSort={toggleHistorySort} />
-                  <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label={partyLabel} resizeProps={historyColumnResize.getResizeHandleProps('partyName', partyLabel)} sortKey="partyName" onSort={toggleHistorySort} />
-                  <ResizableTableHead label="บิลอ้างอิง" resizeProps={historyColumnResize.getResizeHandleProps('billRefs', 'บิลอ้างอิง')} />
-                  <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label="บัญชีที่ใช้ทำจ่าย" resizeProps={historyColumnResize.getResizeHandleProps('accountName', 'บัญชีที่ใช้ทำจ่าย')} sortKey="accountName" onSort={toggleHistorySort} />
-                  <TableSortHeader activeKey={historySortField} align="right" direction={historySortDirection} label={amountLabel} resizeProps={historyColumnResize.getResizeHandleProps('amount', amountLabel)} sortKey="amount" onSort={toggleHistorySort} />
-                  <ResizableTableHead align="right" label="WHT" resizeProps={historyColumnResize.getResizeHandleProps('wht', 'WHT')} />
-                  <ResizableTableHead align="right" label="Bank Fee" resizeProps={historyColumnResize.getResizeHandleProps('bankFee', 'Bank Fee')} />
-                  <TableSortHeader activeKey={historySortField} align="right" direction={historySortDirection} label="สุทธิ" resizeProps={historyColumnResize.getResizeHandleProps('netAmount', 'สุทธิ')} sortKey="netAmount" onSort={toggleHistorySort} />
-                  {mode === 'payment' ? <ResizableTableHead label="สถานะ" resizeProps={historyColumnResize.getResizeHandleProps('status', 'สถานะ')} /> : null}
-                  <ResizableTableHead label="หมายเหตุ" resizeProps={historyColumnResize.getResizeHandleProps('notes', 'หมายเหตุ')} />
-                  {mode === 'receipt' ? <ResizableTableHead align="center" label="Action" resizeProps={historyColumnResize.getResizeHandleProps('action', 'Action')} /> : null}
-                </tr>
-              </TableHeader>
-              <TableBody className="divide-y divide-slate-100">
-                {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={11}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
-                  {!isLoading && historyPageRows.map((row) => {
-                    const billDocNos = row.billDocNos?.length ? row.billDocNos : [row.billId ? (billMap.get(row.billId)?.docNo ?? row.billDocNo ?? row.billId) : (row.billDocNo ?? '-')]
-                    const accountSummaries = row.accountSummaries?.length ? row.accountSummaries : [row.accountName]
-                    const clickable = mode === 'payment'
-                    return (
-                      <TableRow
-                        key={row.id}
-                        className={`hover:bg-slate-50 ${clickable ? 'cursor-pointer' : ''}`}
-                        onClick={clickable ? () => void openPaymentHistoryRow(row) : undefined}
-                      >
-                        <TableCell className="text-xs font-semibold text-slate-700">{row.docNo}</TableCell>
-                        <TableCell className="text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</TableCell>
-                        <TableCell className="text-xs font-semibold text-slate-700">{row.partyName}</TableCell>
-                        <TableCell className="text-xs font-semibold text-slate-700">
-                          <div className="space-y-1">
-                            <div className="font-semibold text-slate-700">{billDocNos.length.toLocaleString('th-TH')} บิล</div>
-                            {billDocNos.map((docNo) => <div key={`${row.id}-bill-${docNo}`} className="text-slate-700">{docNo}</div>)}
-                            {mode === 'payment' && row.approvalIds?.length ? (
-                              <div className="pt-1 text-[11px] text-slate-500">
-                                PMA: {row.approvalIds.map((approvalId, index) => (
-                                  <span key={`${row.id}-approval-${approvalId}`}>
-                                    {index > 0 ? ', ' : ''}
-                                    <span className="text-slate-700">{approvalId}</span>
-                                  </span>
-                                ))}
-                              </div>
-                            ) : null}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-xs font-semibold text-slate-700">
-                          <div className="space-y-1">
-                            <div className="font-semibold text-slate-700">{accountSummaries.length.toLocaleString('th-TH')} บัญชี</div>
-                            {accountSummaries.map((summary) => <div key={`${row.id}-account-${summary}`} className="whitespace-nowrap">{summary}</div>)}
-                          </div>
-                        </TableCell>
-                        <TableCell className="w-44 whitespace-nowrap text-right text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(row.amount)}</TableCell>
-                        <TableCell className="w-40 whitespace-nowrap text-right text-xs font-semibold text-amber-700 tabular-nums">{formatMoney(row.withholdingTax)}</TableCell>
-                        <TableCell className="w-40 whitespace-nowrap text-right text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(row.fee)}</TableCell>
-                        <TableCell className={`w-44 whitespace-nowrap text-right text-xs font-semibold tabular-nums ${theme.strong}`}>{formatMoney(row.netAmount)}</TableCell>
+            {/* Mobile Card List for History */}
+            <div className="block md:hidden space-y-3 mt-3">
+              {isLoading ? (
+                <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">กำลังโหลดข้อมูล</div>
+              ) : null}
+              {!isLoading && historyPageRows.map((row) => {
+                const billDocNos = row.billDocNos?.length ? row.billDocNos : [row.billId ? (billMap.get(row.billId)?.docNo ?? row.billDocNo ?? row.billId) : (row.billDocNo ?? '-')]
+                const accountSummaries = row.accountSummaries?.length ? row.accountSummaries : [row.accountName]
+                const clickable = mode === 'payment'
+                return (
+                  <div
+                    key={row.id}
+                    className={`rounded-md border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 transition-colors ${clickable ? 'cursor-pointer' : ''}`}
+                    onClick={clickable ? () => void openPaymentHistoryRow(row) : undefined}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
+                      <span className="text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
+                    </div>
+                    <div className="text-xs text-slate-600 mb-3 space-y-1">
+                      <div>
+                        <span className="font-semibold text-slate-500">{partyLabel}: </span>
+                        <span className="text-slate-800">{row.partyName}</span>
+                      </div>
+                      <div className="text-[11px] text-slate-500">
+                        อ้างอิง: {billDocNos.join(', ')}
+                      </div>
+                      <div className="text-[11px] text-slate-500">
+                        บัญชี: {accountSummaries.join(', ')}
+                      </div>
+                      {row.notes ? (
+                        <div className="text-[11px] text-slate-400 italic truncate">
+                          หมายเหตุ: {row.notes}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="flex justify-between items-end pt-2 border-t border-slate-100">
+                      <div>
                         {mode === 'payment' ? (
-                          <TableCell>
-                            <div className={`inline-flex items-center gap-1.5 text-xs font-semibold ${paymentHistoryStatusTone(row.status)}`}>
-                              <span className={`size-1.5 rounded-full ${paymentHistoryStatusDot(row.status)}`} />
-                              <span>{paymentHistoryStatusLabel(row.status)}</span>
+                          <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${paymentHistoryStatusTone(row.status)}`}>
+                            <span className={`size-1.5 rounded-full ${paymentHistoryStatusDot(row.status)}`} />
+                            {paymentHistoryStatusLabel(row.status)}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-400">เสร็จสิ้น</span>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-400 block">ยอดสุทธิ</span>
+                        <span className={`font-bold text-sm tabular-nums ${theme.strong}`}>{formatMoney(row.netAmount)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+              {!isLoading && historyPageRows.length === 0 ? (
+                <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">ยังไม่มีรายการ</div>
+              ) : null}
+            </div>
+
+            {/* Desktop Table */}
+            <div className="hidden md:block overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm mt-3">
+              <Table className="text-xs" style={{ minWidth: historyColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
+                <colgroup>
+                  {historyColumns.map((column) => <col key={column.key} style={historyColumnResize.getColumnStyle(column.key)} />)}
+                </colgroup>
+                <TableHeader className="text-slate-700">
+                  <tr>
+                    <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label="เลขที่รายการ" resizeProps={historyColumnResize.getResizeHandleProps('docNo', 'เลขที่รายการ')} sortKey="docNo" onSort={toggleHistorySort} />
+                    <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label="วันที่สร้างรายการ" resizeProps={historyColumnResize.getResizeHandleProps('date', 'วันที่สร้างรายการ')} sortKey="date" onSort={toggleHistorySort} />
+                    <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label={partyLabel} resizeProps={historyColumnResize.getResizeHandleProps('partyName', partyLabel)} sortKey="partyName" onSort={toggleHistorySort} />
+                    <ResizableTableHead label="บิลอ้างอิง" resizeProps={historyColumnResize.getResizeHandleProps('billRefs', 'บิลอ้างอิง')} />
+                    <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label="บัญชีที่ใช้ทำจ่าย" resizeProps={historyColumnResize.getResizeHandleProps('accountName', 'บัญชีที่ใช้ทำจ่าย')} sortKey="accountName" onSort={toggleHistorySort} />
+                    <TableSortHeader activeKey={historySortField} align="right" direction={historySortDirection} label={amountLabel} resizeProps={historyColumnResize.getResizeHandleProps('amount', amountLabel)} sortKey="amount" onSort={toggleHistorySort} />
+                    <ResizableTableHead align="right" label="WHT" resizeProps={historyColumnResize.getResizeHandleProps('wht', 'WHT')} />
+                    <ResizableTableHead align="right" label="Bank Fee" resizeProps={historyColumnResize.getResizeHandleProps('bankFee', 'Bank Fee')} />
+                    <TableSortHeader activeKey={historySortField} align="right" direction={historySortDirection} label="สุทธิ" resizeProps={historyColumnResize.getResizeHandleProps('netAmount', 'สุทธิ')} sortKey="netAmount" onSort={toggleHistorySort} />
+                    {mode === 'payment' ? <ResizableTableHead label="สถานะ" resizeProps={historyColumnResize.getResizeHandleProps('status', 'สถานะ')} /> : null}
+                    <ResizableTableHead label="หมายเหตุ" resizeProps={historyColumnResize.getResizeHandleProps('notes', 'หมายเหตุ')} />
+                    {mode === 'receipt' ? <ResizableTableHead align="center" label="จัดการ" resizeProps={historyColumnResize.getResizeHandleProps('action', 'Action')} /> : null}
+                  </tr>
+                </TableHeader>
+                <TableBody className="divide-y divide-slate-100">
+                  {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={11}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+                    {!isLoading && historyPageRows.map((row) => {
+                      const billDocNos = row.billDocNos?.length ? row.billDocNos : [row.billId ? (billMap.get(row.billId)?.docNo ?? row.billDocNo ?? row.billId) : (row.billDocNo ?? '-')]
+                      const accountSummaries = row.accountSummaries?.length ? row.accountSummaries : [row.accountName]
+                      const clickable = mode === 'payment'
+                      return (
+                        <TableRow
+                          key={row.id}
+                          className={`hover:bg-slate-50 ${clickable ? 'cursor-pointer' : ''}`}
+                          onClick={clickable ? () => void openPaymentHistoryRow(row) : undefined}
+                        >
+                          <TableCell className="text-xs font-semibold text-slate-700">{row.docNo}</TableCell>
+                          <TableCell className="text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</TableCell>
+                          <TableCell className="text-xs font-semibold text-slate-700">{row.partyName}</TableCell>
+                          <TableCell className="text-xs font-semibold text-slate-700">
+                            <div className="space-y-1">
+                              <div className="font-semibold text-slate-700">{billDocNos.length.toLocaleString('th-TH')} บิล</div>
+                              <CollapsedList items={billDocNos} />
+                              {mode === 'payment' && row.approvalIds?.length ? (
+                                <div className="pt-1 text-[11px] text-slate-500">
+                                  PMA: {row.approvalIds.map((approvalId, index) => (
+                                    <span key={`${row.id}-approval-${approvalId}`}>
+                                      {index > 0 ? ', ' : ''}
+                                      <span className="text-slate-700">{approvalId}</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : null}
                             </div>
                           </TableCell>
-                        ) : null}
-                        <TableCell className="max-w-56 truncate text-xs font-semibold text-slate-700">{row.notes || '-'}</TableCell>
-                        {mode === 'receipt' ? (
-                          <TableCell className="text-center">
-                            <UiButton className="font-normal text-slate-400" disabled size="xs" type="button" variant="outline">ดู/พิมพ์</UiButton>
+                          <TableCell className="text-xs font-semibold text-slate-700">
+                            <div className="space-y-1">
+                              <div className="font-semibold text-slate-700">{accountSummaries.length.toLocaleString('th-TH')} บัญชี</div>
+                              <CollapsedList items={accountSummaries} />
+                            </div>
                           </TableCell>
-                        ) : null}
-                      </TableRow>
-                    )
-                  })}
-                {!isLoading && historyPageRows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={11}>ยังไม่มีรายการ</TableCell></TableRow> : null}
-              </TableBody>
-            </Table>
+                          <TableCell className="whitespace-nowrap text-right pr-4 text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(row.amount)}</TableCell>
+                          <TableCell className="whitespace-nowrap text-right pr-4 text-xs font-semibold text-amber-700 tabular-nums">{formatMoney(row.withholdingTax)}</TableCell>
+                          <TableCell className="whitespace-nowrap text-right pr-4 text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(row.fee)}</TableCell>
+                          <TableCell className={`whitespace-nowrap text-right pr-4 text-xs font-semibold tabular-nums ${theme.strong}`}>{formatMoney(row.netAmount)}</TableCell>
+                          {mode === 'payment' ? (
+                            <TableCell>
+                              <div className={`inline-flex items-center gap-1.5 text-xs font-semibold ${paymentHistoryStatusTone(row.status)}`}>
+                                <span className={`size-1.5 rounded-full ${paymentHistoryStatusDot(row.status)}`} />
+                                <span>{paymentHistoryStatusLabel(row.status)}</span>
+                              </div>
+                            </TableCell>
+                          ) : null}
+                          <TableCell className="max-w-56 truncate text-xs font-semibold text-slate-700">{row.notes || '-'}</TableCell>
+                          {mode === 'receipt' ? (
+                            <TableCell className="text-center">
+                              <UiButton className="font-normal text-slate-400" disabled size="xs" type="button" variant="outline">ดู/พิมพ์</UiButton>
+                            </TableCell>
+                          ) : null}
+                        </TableRow>
+                      )
+                    })}
+                  {!isLoading && historyPageRows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={11}>ยังไม่มีรายการ</TableCell></TableRow> : null}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         </>
       ) : null}
@@ -1730,7 +1989,7 @@ export function MoneyMovementPageClient({
           }
         }}>
           <DialogContent className="max-w-lg p-0" hideClose>
-            <DialogHeader className="border-b px-5 py-4">
+            <DialogHeader className="border-b border-slate-200 px-5 py-4">
               <DialogTitle className="font-bold text-slate-900">ยกเลิกรายการรอจ่าย</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 px-5 py-4 text-sm">
@@ -1752,7 +2011,7 @@ export function MoneyMovementPageClient({
                 />
               </label>
             </div>
-            <DialogFooter className="border-t px-5 py-4">
+            <DialogFooter className="border-t border-slate-200 px-5 py-4">
               <UiButton
                 className="font-normal text-slate-600"
                 disabled={isCancellingApproval}
@@ -1779,6 +2038,20 @@ export function MoneyMovementPageClient({
         </Dialog>
       ) : null}
 
+      {/* Floating Action Button (FAB) for Mobile (Receipt Mode) */}
+      {mode === 'receipt' && showEntrySection ? (
+        <div className="fixed bottom-6 right-6 z-40 md:hidden">
+          <button
+            className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-600 text-white shadow-lg active:scale-95 transition-transform"
+            onClick={openForm}
+            type="button"
+            aria-label="รับเงิน Customer ใหม่"
+          >
+            <Plus className="h-6 w-6" />
+          </button>
+        </div>
+      ) : null}
+
     </section>
   )
 }
@@ -1802,7 +2075,7 @@ function PaymentHistoryDetailDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto bg-slate-50 p-0" fallbackTitle="รายละเอียดการจ่ายเงิน" hideClose>
-        <DialogHeader className="flex-row items-center justify-between gap-3 border-b bg-white px-5 py-4">
+        <DialogHeader className="flex-row items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4">
           <div className="min-w-0">
             <DialogTitle className="truncate text-base font-bold text-slate-900">{detail?.heading ?? 'รายละเอียดการจ่ายเงิน'}</DialogTitle>
             <div className="mt-1 truncate font-mono text-xs text-slate-500">{detail?.docNo ?? row?.docNo ?? '-'}</div>
@@ -1868,7 +2141,7 @@ function PaymentHistoryDetailDialog({
               </div>
 
               <div className="overflow-hidden rounded-md bg-white shadow">
-                <div className="border-b px-4 py-3">
+                <div className="border-b border-slate-200 px-4 py-3">
                   <h2 className="font-semibold text-slate-900">{detail.type === 'approval' ? 'PMT ที่ใช้รายการนี้' : 'รายการที่ทำจ่าย'}</h2>
                 </div>
                 <div className="overflow-x-auto">
@@ -1882,7 +2155,7 @@ function PaymentHistoryDetailDialog({
                     </thead>
                     <tbody>
                       {detail.approvalRows.map((approval) => (
-                        <tr key={`${approval.docNo}-${approval.sourceDocNo}`} className="border-t">
+                        <tr key={`${approval.docNo}-${approval.sourceDocNo}`} className="border-t border-slate-200">
                           <td className="p-2 font-mono text-slate-800">{approval.docNo}</td>
                           <td className="p-2 font-mono">{approval.sourceDocNo}</td>
                           <td className="p-2 text-right font-medium tabular-nums">{formatMoney(approval.amount)}</td>
@@ -1896,7 +2169,7 @@ function PaymentHistoryDetailDialog({
 
               {detail.type === 'payment' ? (
                 <div className="overflow-hidden rounded-md bg-white shadow">
-                  <div className="border-b px-4 py-3">
+                  <div className="border-b border-slate-200 px-4 py-3">
                     <h2 className="font-semibold text-slate-900">บัญชีที่ใช้ทำจ่าย</h2>
                   </div>
                   <div className="overflow-x-auto">
@@ -1910,7 +2183,7 @@ function PaymentHistoryDetailDialog({
                       </thead>
                       <tbody>
                         {detail.accountRows.map((account) => (
-                          <tr key={`${account.accountName}-${account.bankStatementDocNo}-${account.amount}`} className="border-t">
+                          <tr key={`${account.accountName}-${account.bankStatementDocNo}-${account.amount}`} className="border-t border-slate-200">
                             <td className="p-2">{account.accountName}</td>
                             <td className="p-2 font-mono">{account.bankStatementDocNo}</td>
                             <td className="p-2 text-right font-medium tabular-nums">{formatMoney(account.amount)}</td>

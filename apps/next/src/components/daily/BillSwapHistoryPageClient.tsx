@@ -46,15 +46,15 @@ type BillSwapSortKey = BillSwapColumnKey
 const billSwapColumns: Array<ResizableColumnDefinition<BillSwapColumnKey>> = [
   { defaultWidth: 120, key: 'swapDate', minWidth: 100 },
   { defaultWidth: 140, key: 'billDocNo', minWidth: 120 },
-  { defaultWidth: 180, key: 'beforeSupplier', minWidth: 140 },
-  { defaultWidth: 180, key: 'afterSupplier', minWidth: 140 },
-  { defaultWidth: 150, key: 'product', minWidth: 120 },
-  { defaultWidth: 120, key: 'weight', minWidth: 100 },
-  { defaultWidth: 120, key: 'beforePrice', minWidth: 100 },
-  { defaultWidth: 120, key: 'afterPrice', minWidth: 100 },
-  { defaultWidth: 150, key: 'beforeAmount', minWidth: 130 },
-  { defaultWidth: 150, key: 'afterAmount', minWidth: 130 },
-  { defaultWidth: 150, key: 'diff', minWidth: 130 },
+  { defaultWidth: 220, key: 'beforeSupplier', minWidth: 140 },
+  { defaultWidth: 220, key: 'afterSupplier', minWidth: 140 },
+  { defaultWidth: 180, key: 'product', minWidth: 120 },
+  { defaultWidth: 85, key: 'weight', minWidth: 80 },
+  { defaultWidth: 80, key: 'beforePrice', minWidth: 70 },
+  { defaultWidth: 80, key: 'afterPrice', minWidth: 70 },
+  { defaultWidth: 90, key: 'beforeAmount', minWidth: 80 },
+  { defaultWidth: 90, key: 'afterAmount', minWidth: 80 },
+  { defaultWidth: 90, key: 'diff', minWidth: 80 },
   { defaultWidth: 220, key: 'reason', minWidth: 160 },
 ]
 
@@ -225,12 +225,12 @@ export function BillSwapHistoryPageClient({ tableKey = 'daily.bill-swap-history'
                 <td className="p-2 text-xs font-semibold text-rose-600">{row.beforeSupplierName}</td>
                 <td className="p-2 text-xs font-semibold text-emerald-700">{row.afterSupplierName}</td>
                 <td className="p-2 text-xs font-semibold text-slate-700">{row.productName}</td>
-                <td className="p-2 text-right text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(row.weight)}</td>
-                <td className="p-2 text-right text-xs font-semibold text-rose-600 tabular-nums">{formatMoney(row.beforePrice)}</td>
-                <td className="p-2 text-right text-xs font-semibold text-emerald-700 tabular-nums">{formatMoney(row.afterPrice)}</td>
-                <td className="p-2 text-right text-xs font-semibold text-rose-600 tabular-nums">{formatMoney(row.beforeAmount)}</td>
-                <td className="p-2 text-right text-xs font-semibold text-emerald-700 tabular-nums">{formatMoney(row.afterAmount)}</td>
-                <td className={`p-2 text-right text-xs font-semibold tabular-nums ${row.diffExVat >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatMoney(row.diffExVat)}</td>
+                <td className="p-2 pr-4 text-right text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(row.weight)}</td>
+                <td className="p-2 pr-4 text-right text-xs font-semibold text-rose-600 tabular-nums">{formatMoney(row.beforePrice)}</td>
+                <td className="p-2 pr-4 text-right text-xs font-semibold text-emerald-700 tabular-nums">{formatMoney(row.afterPrice)}</td>
+                <td className="p-2 pr-4 text-right text-xs font-semibold text-rose-600 tabular-nums">{formatMoney(row.beforeAmount)}</td>
+                <td className="p-2 pr-4 text-right text-xs font-semibold text-emerald-700 tabular-nums">{formatMoney(row.afterAmount)}</td>
+                <td className={`p-2 pr-4 text-right text-xs font-semibold tabular-nums ${row.diffExVat >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatMoney(row.diffExVat)}</td>
                 <td className="max-w-60 truncate p-2 text-xs font-semibold text-slate-700">{row.reason || '-'}</td>
               </tr>
             ))}
@@ -240,11 +240,11 @@ export function BillSwapHistoryPageClient({ tableKey = 'daily.bill-swap-history'
             <tfoot>
               <tr className="bg-slate-100 text-xs font-semibold">
                 <td className="p-2 text-right text-slate-700" colSpan={5}>รวม</td>
-                <td className="p-2 text-right text-slate-700 tabular-nums">{formatMoney(totals.weight)}</td>
+                <td className="p-2 pr-4 text-right text-slate-700 tabular-nums">{formatMoney(totals.weight)}</td>
                 <td className="p-2" colSpan={2} />
-                <td className="p-2 text-right text-rose-600 tabular-nums">{formatMoney(totals.before)}</td>
-                <td className="p-2 text-right text-emerald-700 tabular-nums">{formatMoney(totals.after)}</td>
-                <td className={`p-2 text-right tabular-nums ${totals.diff >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatMoney(totals.diff)}</td>
+                <td className="p-2 pr-4 text-right text-rose-600 tabular-nums">{formatMoney(totals.before)}</td>
+                <td className="p-2 pr-4 text-right text-emerald-700 tabular-nums">{formatMoney(totals.after)}</td>
+                <td className={`p-2 pr-4 text-right tabular-nums ${totals.diff >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatMoney(totals.diff)}</td>
                 <td />
               </tr>
             </tfoot>

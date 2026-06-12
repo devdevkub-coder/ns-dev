@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Input } from '@/components/ui/Input'
@@ -21,11 +22,11 @@ const numberInputClass = '[appearance:textfield] [&::-webkit-inner-spin-button]:
 const stockTransferColumns: Array<ResizableColumnDefinition<StockTransferColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'date', defaultWidth: 120, minWidth: 100 },
-  { key: 'from', defaultWidth: 190, minWidth: 140 },
-  { key: 'to', defaultWidth: 190, minWidth: 140 },
-  { key: 'itemCount', defaultWidth: 110, minWidth: 90 },
-  { key: 'totalQty', defaultWidth: 140, minWidth: 120 },
-  { key: 'notes', defaultWidth: 240, minWidth: 160 },
+  { key: 'from', defaultWidth: 280, minWidth: 140 },
+  { key: 'to', defaultWidth: 280, minWidth: 140 },
+  { key: 'itemCount', defaultWidth: 75, minWidth: 60 },
+  { key: 'totalQty', defaultWidth: 85, minWidth: 80 },
+  { key: 'notes', defaultWidth: 180, minWidth: 160 },
   { key: 'action', defaultWidth: 120, minWidth: 100 },
 ]
 
@@ -58,6 +59,7 @@ export function StockTransferPageClient() {
   const [period, setPeriod] = useState<Period>('')
   const [search, setSearch] = useState('')
   const [toBranchId, setToBranchId] = useState('')
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
   const columnResize = useResizableColumns('daily.stock-transfer', stockTransferColumns)
 
   const loadData = useCallback(async () => {
@@ -195,23 +197,38 @@ export function StockTransferPageClient() {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
-          <DatePickerInput className="w-[130px]" value={dateFrom} onChange={(value) => { setDateFrom(value); setPeriod('') }} />
-          <span className="text-slate-400">→</span>
-          <DatePickerInput className="w-[130px]" value={dateTo} onChange={(value) => { setDateTo(value); setPeriod('') }} />
-          <select className="h-9 rounded-md border border-slate-300 px-2 py-2 text-sm" value={fromBranchId} onChange={(event) => setFromBranchId(event.target.value)}>
-            <option value="">ทุกสาขาต้นทาง</option>
-            {branchOptions.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-          </select>
-          <select className="h-9 rounded-md border border-slate-300 px-2 py-2 text-sm" value={toBranchId} onChange={(event) => setToBranchId(event.target.value)}>
-            <option value="">ทุกสาขาปลายทาง</option>
-            {branchOptions.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-          </select>
+
+          {/* Mobile Filter Button */}
+          <button
+            type="button"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 md:hidden"
+            onClick={() => setShowMobileFilters(true)}
+          >
+            <span>🔍</span> ตัวกรอง {(dateFrom || dateTo || fromBranchId || toBranchId) ? '(1)' : ''}
+          </button>
+
+          <div className="hidden md:flex flex-wrap items-center gap-2">
+            <DatePickerInput className="w-[130px]" value={dateFrom} onChange={(value) => { setDateFrom(value); setPeriod('') }} />
+            <span className="text-slate-400">→</span>
+            <DatePickerInput className="w-[130px]" value={dateTo} onChange={(value) => { setDateTo(value); setPeriod('') }} />
+            <select className="h-9 rounded-md border border-slate-300 px-2 py-2 text-sm bg-white" value={fromBranchId} onChange={(event) => setFromBranchId(event.target.value)}>
+              <option value="">ทุกสาขาต้นทาง</option>
+              {branchOptions.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+            </select>
+            <select className="h-9 rounded-md border border-slate-300 px-2 py-2 text-sm bg-white" value={toBranchId} onChange={(event) => setToBranchId(event.target.value)}>
+              <option value="">ทุกสาขาปลายทาง</option>
+              {branchOptions.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+            </select>
+          </div>
+
           {(search || dateFrom || dateTo || fromBranchId || toBranchId) ? (
             <Button size="sm" type="button" variant="secondary" onClick={clearFilters}>ล้าง</Button>
           ) : null}
-          <Button className="ml-auto" size="sm" type="button" onClick={openCreateForm}>+ โอนใหม่</Button>
+          <Button className="hidden md:inline-flex ml-auto" size="sm" type="button" onClick={openCreateForm}>+ โอนใหม่</Button>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+
+        {/* Desktop Period Filters */}
+        <div className="hidden md:flex flex-wrap items-center gap-2">
           <span className="text-xs text-slate-500">ช่วง:</span>
           <PeriodButton active={period === ''} label="ทั้งหมด" onClick={() => applyPeriod('')} />
           <PeriodButton active={period === 'today'} label="วันนี้" onClick={() => applyPeriod('today')} />
@@ -219,6 +236,104 @@ export function StockTransferPageClient() {
           <PeriodButton active={period === 'month'} label="เดือนนี้" onClick={() => applyPeriod('month')} />
         </div>
       </div>
+
+      {/* Floating Action Button (FAB) for Mobile */}
+      <div className="fixed bottom-6 right-6 z-40 md:hidden">
+        <button
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-800 text-white shadow-lg active:scale-95 transition-transform"
+          onClick={openCreateForm}
+          type="button"
+          aria-label="โอนใหม่"
+        >
+          <Plus className="h-6 w-6" />
+        </button>
+      </div>
+
+      {/* Bottom Sheet Filter for Mobile */}
+      {showMobileFilters ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 md:hidden">
+          <div className="w-full rounded-t-2xl bg-white p-4 shadow-xl border-t border-slate-200 animate-slide-up max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <h4 className="font-bold text-slate-800">ตัวกรองเพิ่มเติม</h4>
+              <button
+                className="p-1 text-slate-400 hover:text-slate-600 text-xl font-bold"
+                onClick={() => setShowMobileFilters(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">ช่วงเวลา</span>
+                <div className="flex flex-wrap gap-2">
+                  {['', 'today', 'week', 'month'].map((p) => {
+                    const labels: Record<string, string> = { '': 'ทั้งหมด', today: 'วันนี้', week: '7 วัน', month: 'เดือนนี้' }
+                    return (
+                      <button
+                        key={p}
+                        className={`rounded-md border px-3 py-1.5 text-xs font-medium flex-1 h-11 ${
+                          period === p ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700'
+                        }`}
+                        type="button"
+                        onClick={() => applyPeriod(p as Period)}
+                      >
+                        {labels[p]}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
+                <div className="flex items-center gap-2">
+                  <DatePickerInput className="flex-1" value={dateFrom} onChange={(value) => { setDateFrom(value); setPeriod('') }} />
+                  <span className="text-slate-400">→</span>
+                  <DatePickerInput className="flex-1" value={dateTo} onChange={(value) => { setDateTo(value); setPeriod('') }} />
+                </div>
+              </div>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">สาขาต้นทาง</span>
+                <select className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm bg-white" value={fromBranchId} onChange={(event) => setFromBranchId(event.target.value)}>
+                  <option value="">ทุกสาขาต้นทาง</option>
+                  {branchOptions.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">สาขาปลายทาง</span>
+                <select className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm bg-white" value={toBranchId} onChange={(event) => setToBranchId(event.target.value)}>
+                  <option value="">ทุกสาขาปลายทาง</option>
+                  {branchOptions.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+                </select>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-6 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => {
+                  clearFilters()
+                  setShowMobileFilters(false)
+                }}
+              >
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                className="h-11 rounded-md bg-slate-800 text-sm font-semibold text-white hover:bg-slate-700"
+                onClick={() => setShowMobileFilters(false)}
+              >
+                ใช้ตัวกรอง
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
         <div>
@@ -247,7 +362,7 @@ export function StockTransferPageClient() {
       {formOpen ? (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-4">
           <form noValidate className="mx-auto my-4 w-full max-w-5xl overflow-hidden rounded-md bg-white shadow-xl" onSubmit={save}>
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
               <div>
                 <h3 className="text-xl font-bold text-slate-800">โอนสินค้าระหว่างสาขา</h3>
                 <p className="mt-1 text-xs text-slate-500">บันทึกการย้ายสินค้าระหว่างต้นทางและปลายทางโดยเก็บรายการน้ำหนักรายสินค้า</p>
@@ -324,9 +439,9 @@ export function StockTransferPageClient() {
                   <Button size="sm" type="button" onClick={() => setForm((current) => ({ ...current, items: [...current.items, { lotNo: null, productId: '', qty: 0 }] }))}>+ เพิ่มรายการ</Button>
                 </div>
                 {fieldErrors.items ? <div className="mb-2 text-xs text-red-600">{fieldErrors.items}</div> : null}
-                <div className="overflow-x-auto rounded-md border bg-white">
+                <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
                   <table className="w-full min-w-[860px] text-sm">
-                    <thead className="bg-slate-100">
+                    <thead className="bg-slate-200/80 border-b border-slate-300/80">
                       <tr>
                         <th className="p-2 text-left">สินค้า</th>
                         <th className="p-2 text-left">Lot</th>
@@ -424,7 +539,7 @@ export function StockTransferPageClient() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 border-t bg-white px-6 py-4">
+            <div className="flex justify-end gap-2 border-t border-slate-200 bg-white px-6 py-4">
               <Button size="sm" type="button" variant="ghost" onClick={() => setFormOpen(false)}>ยกเลิก</Button>
               <Button disabled={isSaving} size="sm" type="submit">{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</Button>
             </div>
@@ -432,41 +547,81 @@ export function StockTransferPageClient() {
         </div>
       ) : null}
 
-      <Table style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
-        <colgroup>
-          {stockTransferColumns.map((column) => <col key={column.key} style={columnResize.getColumnStyle(column.key)} />)}
-        </colgroup>
-        <TableHeader>
-          <tr>
-            <ResizableTableHead label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
-            <ResizableTableHead label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
-            <ResizableTableHead label="จาก" resizeProps={columnResize.getResizeHandleProps('from', 'จาก')} />
-            <ResizableTableHead label="ไป" resizeProps={columnResize.getResizeHandleProps('to', 'ไป')} />
-            <ResizableTableHead align="right" label="รายการ" resizeProps={columnResize.getResizeHandleProps('itemCount', 'รายการ')} />
-            <ResizableTableHead align="right" label="น้ำหนักรวม" resizeProps={columnResize.getResizeHandleProps('totalQty', 'น้ำหนักรวม')} />
-            <ResizableTableHead label="หมายเหตุ" resizeProps={columnResize.getResizeHandleProps('notes', 'หมายเหตุ')} />
-            <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
-          </tr>
-        </TableHeader>
-        <TableBody>
-          {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={8}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
-          {!isLoading && pagedRows.map((row) => (
-            <TableRow key={row.id} className="hover:bg-slate-50">
-              <TableCell className="font-mono text-xs">{row.docNo}</TableCell>
-              <TableCell className="whitespace-nowrap">{formatDateDisplay(row.date)}</TableCell>
-              <TableCell className="text-red-600">{row.from}</TableCell>
-              <TableCell className="text-emerald-700">{row.to}</TableCell>
-              <TableCell className="whitespace-nowrap text-right tabular-nums">{row.itemCount.toLocaleString('th-TH')}</TableCell>
-              <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">{formatMoney(row.totalQty)} กก.</TableCell>
-              <TableCell className="max-w-[280px] truncate text-slate-600">{row.notes || '-'}</TableCell>
-              <TableCell className="text-right">
-                <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" disabled title="รอออกแบบ cancel/tombstone flow" type="button">ยกเลิก</button>
-              </TableCell>
-            </TableRow>
-          ))}
-          {!isLoading && pagedRows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-400" colSpan={8}>ยังไม่มีรายการ</TableCell></TableRow> : null}
-        </TableBody>
-      </Table>
+      {/* Mobile Card List */}
+      <div className="block md:hidden space-y-3">
+        {isLoading ? (
+          <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow border border-slate-200">กำลังโหลดข้อมูล</div>
+        ) : null}
+        {!isLoading && pagedRows.map((row) => (
+          <div
+            key={row.id}
+            className="rounded-md border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 cursor-default transition-colors"
+          >
+            <div className="flex justify-between items-start mb-2">
+              <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
+              <span className="text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
+            </div>
+            <div className="text-xs text-slate-600 mb-3 flex items-center gap-1.5 flex-wrap">
+              <span className="font-semibold text-red-600">{row.from}</span>
+              <span className="text-slate-400">➡️</span>
+              <span className="font-semibold text-emerald-700">{row.to}</span>
+            </div>
+            {row.notes ? (
+              <p className="text-xs text-slate-500 italic mb-3">หมายเหตุ: {row.notes}</p>
+            ) : null}
+            <div className="flex justify-between items-end border-t border-slate-100 pt-2.5">
+              <div className="text-xs text-slate-500">
+                <span>รายการสินค้า: <span className="font-semibold text-slate-700">{row.itemCount}</span> รายการ</span>
+              </div>
+              <div className="text-right">
+                <span className="text-xs text-slate-500 block">น้ำหนักรวม</span>
+                <span className="font-bold text-slate-900 text-sm tabular-nums">{formatMoney(row.totalQty)} กก.</span>
+              </div>
+            </div>
+          </div>
+        ))}
+        {!isLoading && pagedRows.length === 0 ? (
+          <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow border border-slate-200">ยังไม่มีรายการ</div>
+        ) : null}
+      </div>
+
+      <div className="hidden md:block overflow-x-auto rounded-md bg-white shadow">
+        <Table style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <colgroup>
+            {stockTransferColumns.map((column) => <col key={column.key} style={columnResize.getColumnStyle(column.key)} />)}
+          </colgroup>
+          <TableHeader>
+            <tr>
+              <ResizableTableHead label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
+              <ResizableTableHead label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
+              <ResizableTableHead label="จาก" resizeProps={columnResize.getResizeHandleProps('from', 'จาก')} />
+              <ResizableTableHead label="ไป" resizeProps={columnResize.getResizeHandleProps('to', 'ไป')} />
+              <ResizableTableHead align="right" label="รายการ" resizeProps={columnResize.getResizeHandleProps('itemCount', 'รายการ')} />
+              <ResizableTableHead align="right" label="น้ำหนักรวม" resizeProps={columnResize.getResizeHandleProps('totalQty', 'น้ำหนักรวม')} />
+              <ResizableTableHead label="หมายเหตุ" resizeProps={columnResize.getResizeHandleProps('notes', 'หมายเหตุ')} />
+              <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
+            </tr>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={8}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+            {!isLoading && pagedRows.map((row) => (
+              <TableRow key={row.id} className="hover:bg-slate-50">
+                <TableCell className="font-mono text-xs">{row.docNo}</TableCell>
+                <TableCell className="whitespace-nowrap">{formatDateDisplay(row.date)}</TableCell>
+                <TableCell className="text-red-600">{row.from}</TableCell>
+                <TableCell className="text-emerald-700">{row.to}</TableCell>
+                <TableCell className="whitespace-nowrap text-right pr-4 tabular-nums">{row.itemCount.toLocaleString('th-TH')}</TableCell>
+                <TableCell className="whitespace-nowrap text-right pr-4 font-medium tabular-nums">{formatMoney(row.totalQty)} กก.</TableCell>
+                <TableCell className="max-w-[280px] truncate text-slate-600">{row.notes || '-'}</TableCell>
+                <TableCell className="text-right">
+                  <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" disabled title="รอออกแบบ cancel/tombstone flow" type="button">ยกเลิก</button>
+                </TableCell>
+              </TableRow>
+            ))}
+            {!isLoading && pagedRows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-400" colSpan={8}>ยังไม่มีรายการ</TableCell></TableRow> : null}
+          </TableBody>
+        </Table>
+      </div>
     </section>
   )
 }

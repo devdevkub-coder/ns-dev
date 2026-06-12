@@ -346,31 +346,49 @@ function DetailModal({ onClose, row }: { onClose: () => void; row: ArRow }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
       <div className="w-full max-w-2xl rounded-md bg-white p-5 shadow-xl">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-3 mb-4">
           <div>
             <h2 className="text-lg font-bold text-slate-900">{row.docNo}</h2>
             <p className="text-sm text-slate-500">{row.customerName}</p>
           </div>
           <button className="rounded-md bg-slate-100 px-3 py-1 text-sm" type="button" onClick={onClose}>ปิด</button>
         </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <Info label="วันที่บิล" value={formatDateDisplay(row.date)} />
-          <Info label="ครบกำหนด" value={row.dueDate} />
-          <Info label="Credit term" value={`${row.creditTerm} วัน`} />
-          <Info label="อายุหนี้" value={`${row.aging} วัน (${row.bucket})`} />
-          <Info label="ช่องทางขาย" value={row.channelName} />
-          <Info label="สาขา" value={row.branchName} />
-          <Info label="สถานะ" value={row.status} />
-          <Info label="ประเภท" value={row.transactionMode} />
-          <Info label="ยอดบิล" value={formatMoney(row.totalAmount)} />
-          <Info label="รับแล้ว" value={formatMoney(row.receivedAmount)} />
-          <Info label="ค้างรับ" value={formatMoney(row.receivableBalance)} />
+        <div className="space-y-4">
+          {/* ข้อมูลเอกสาร */}
+          <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลเอกสาร</div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+              <DetailItem label="วันที่บิล" value={formatDateDisplay(row.date)} />
+              <DetailItem label="ครบกำหนด" value={row.dueDate ? formatDateDisplay(row.dueDate) : '-'} />
+              <DetailItem label="Credit term" value={`${row.creditTerm} วัน`} />
+              <DetailItem label="อายุหนี้" value={`${row.aging} วัน (${row.bucket})`} />
+              <DetailItem label="ช่องทางขาย" value={row.channelName || '-'} />
+              <DetailItem label="สาขา" value={row.branchName || '-'} />
+              <DetailItem label="ประเภท" value={row.transactionMode || '-'} />
+            </div>
+          </div>
+
+          {/* ข้อมูลการเงิน */}
+          <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลการเงิน</div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+              <DetailItem label="ยอดบิล" value={`${formatMoney(row.totalAmount)} บาท`} />
+              <DetailItem label="รับแล้ว" value={`${formatMoney(row.receivedAmount)} บาท`} />
+              <DetailItem label="ค้างรับ" value={`${formatMoney(row.receivableBalance)} บาท`} />
+              <DetailItem label="สถานะ" value={row.status || '-'} />
+            </div>
+          </div>
         </div>
       </div>
     </div>
   )
 }
 
-function Info({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-md border border-slate-200 p-3"><div className="text-xs text-slate-500">{label}</div><div className="mt-1 font-semibold text-slate-900">{value}</div></div>
+function DetailItem({ className = '', label, value }: { className?: string; label: string; value: string }) {
+  return (
+    <div className={`flex flex-col py-1 ${className}`}>
+      <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{label}</div>
+      <div className="mt-0.5 text-xs sm:text-sm font-semibold text-slate-800">{value}</div>
+    </div>
+  )
 }

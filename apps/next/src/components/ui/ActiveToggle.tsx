@@ -8,7 +8,9 @@ type ActiveToggleProps = {
   onChange: (checked: boolean) => void
 }
 
-export function ActiveToggle({ checked, disabled = false, label = 'ใช้งาน', labelClassName = 'text-sm font-medium text-slate-600', onChange }: ActiveToggleProps) {
+export function ActiveToggle({ checked, disabled = false, label, labelClassName = 'text-sm font-medium text-slate-600', onChange }: ActiveToggleProps) {
+  const displayLabel = label !== undefined ? label : (checked ? 'ใช้งาน' : 'ปิด')
+
   return (
     <div className="inline-flex items-center gap-2">
       <button
@@ -30,7 +32,7 @@ export function ActiveToggle({ checked, disabled = false, label = 'ใช้ง�
           }`}
         />
       </button>
-      {label ? <span className={labelClassName}>{label}</span> : null}
+      {displayLabel ? <span className={labelClassName}>{displayLabel}</span> : null}
     </div>
   )
 }

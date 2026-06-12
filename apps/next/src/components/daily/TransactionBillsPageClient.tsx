@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
-import { Download, Printer } from 'lucide-react'
+import { Download, Plus, Printer } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { CustomerSearchCombobox, Field, InputField, MoneyInputField, ProductSearchCombobox, SupplierSearchCombobox, SummaryLine } from '@/components/daily/TransactionBillsFieldHelpers'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
@@ -13,6 +13,7 @@ import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Select } from '@/components/ui/Select'
 import { TableNumberCell } from '@/components/ui/TableNumberCell'
+import { CollapsedList } from '@/components/ui/CollapsedList'
 import { Table, TableBody, TableHeader, TableRow } from '@/components/ui/Table'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/Tooltip'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -360,12 +361,12 @@ const purchaseBillColumns: Array<ResizableColumnDefinition<TransactionBillColumn
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'receiptDocs', defaultWidth: 150, minWidth: 120 },
   { key: 'date', defaultWidth: 140, minWidth: 110 },
-  { key: 'partyName', defaultWidth: 190, minWidth: 140 },
+  { key: 'partyName', defaultWidth: 320, minWidth: 140 },
   { key: 'transactionMode', defaultWidth: 120, minWidth: 100 },
   { key: 'status', defaultWidth: 140, minWidth: 120 },
   { key: 'paymentDocs', defaultWidth: 150, minWidth: 120 },
-  { key: 'totalAmount', defaultWidth: 140, minWidth: 120 },
-  { key: 'outstanding', defaultWidth: 140, minWidth: 120 },
+  { key: 'totalAmount', defaultWidth: 85, minWidth: 80 },
+  { key: 'outstanding', defaultWidth: 85, minWidth: 80 },
   { key: 'updatedBy', defaultWidth: 170, minWidth: 130 },
   { key: 'action', defaultWidth: 210, minWidth: 190 },
 ]
@@ -374,16 +375,16 @@ const salesBillColumns: Array<ResizableColumnDefinition<TransactionBillColumnKey
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'refNo', defaultWidth: 150, minWidth: 120 },
   { key: 'date', defaultWidth: 120, minWidth: 100 },
-  { key: 'partyName', defaultWidth: 190, minWidth: 140 },
+  { key: 'partyName', defaultWidth: 320, minWidth: 140 },
   { key: 'warehouse', defaultWidth: 160, minWidth: 120 },
   { key: 'transactionMode', defaultWidth: 120, minWidth: 100 },
   { key: 'status', defaultWidth: 140, minWidth: 120 },
-  { key: 'itemCount', defaultWidth: 100, minWidth: 90 },
-  { key: 'totalAmount', defaultWidth: 140, minWidth: 120 },
-  { key: 'gp', defaultWidth: 140, minWidth: 120 },
-  { key: 'paidAmount', defaultWidth: 140, minWidth: 120 },
-  { key: 'outstanding', defaultWidth: 140, minWidth: 120 },
-  { key: 'vat', defaultWidth: 120, minWidth: 100 },
+  { key: 'itemCount', defaultWidth: 75, minWidth: 60 },
+  { key: 'totalAmount', defaultWidth: 85, minWidth: 80 },
+  { key: 'gp', defaultWidth: 85, minWidth: 80 },
+  { key: 'paidAmount', defaultWidth: 85, minWidth: 80 },
+  { key: 'outstanding', defaultWidth: 85, minWidth: 80 },
+  { key: 'vat', defaultWidth: 85, minWidth: 80 },
   { key: 'updatedBy', defaultWidth: 170, minWidth: 130 },
   { key: 'action', defaultWidth: 150, minWidth: 140 },
 ]
@@ -391,13 +392,13 @@ const salesBillColumns: Array<ResizableColumnDefinition<TransactionBillColumnKey
 const stockIssueColumns: Array<ResizableColumnDefinition<TransactionBillColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'date', defaultWidth: 120, minWidth: 100 },
-  { key: 'partyName', defaultWidth: 190, minWidth: 140 },
+  { key: 'partyName', defaultWidth: 320, minWidth: 140 },
   { key: 'warehouse', defaultWidth: 160, minWidth: 120 },
   { key: 'status', defaultWidth: 140, minWidth: 120 },
-  { key: 'itemCount', defaultWidth: 100, minWidth: 90 },
-  { key: 'stockQty', defaultWidth: 130, minWidth: 110 },
-  { key: 'stockCost', defaultWidth: 130, minWidth: 110 },
-  { key: 'totalAmount', defaultWidth: 140, minWidth: 120 },
+  { key: 'itemCount', defaultWidth: 75, minWidth: 60 },
+  { key: 'stockQty', defaultWidth: 85, minWidth: 80 },
+  { key: 'stockCost', defaultWidth: 85, minWidth: 80 },
+  { key: 'totalAmount', defaultWidth: 85, minWidth: 80 },
   { key: 'action', defaultWidth: 230, minWidth: 200 },
 ]
 
@@ -651,6 +652,15 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     if (mode === 'stock-issue' && filterMode) params.set('status', filterMode)
     return `${apiPath}?${params.toString()}`
   }, [apiPath, branchFilter, dateFrom, dateTo, filterMode, mode, page, pageSize, search, sortDirection, sortKey, statusFilter])
+
+  const activeFilters = Boolean(
+    search.trim() !== '' ||
+    branchFilter !== '' ||
+    dateFrom !== '' ||
+    dateTo !== '' ||
+    filterMode !== (mode === 'stock-issue' ? 'pending' : '') ||
+    statusFilter.length > 0
+  )
 
   const loadData = useCallback(async () => {
     const requestId = latestLoadRequestRef.current + 1
@@ -2059,9 +2069,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 <td className="whitespace-nowrap p-2 text-xs font-semibold text-slate-700">{row.docNo}</td>
                 {mode === 'purchase' && !isStockIssueRow(row) ? (
                   <td className="p-2 text-xs font-semibold text-slate-700">
-                    {row.receiptDocNos?.length
-                      ? <div className="space-y-0.5">{row.receiptDocNos.map((docNo) => <div className="whitespace-nowrap text-slate-700" key={`${row.id}-${docNo}`}>{docNo}</div>)}</div>
-                      : <span className="text-slate-400">-</span>}
+                    <CollapsedList items={row.receiptDocNos} splitItems={true} />
                   </td>
                 ) : null}
                 {mode === 'sales' && !isStockIssueRow(row) ? <td className="whitespace-nowrap p-2 text-xs font-semibold text-slate-700">{row.refNo || '-'}</td> : null}
@@ -2075,12 +2083,12 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     {mode === 'purchase' && !isStockIssueRow(row) ? workflowStatusText(row.paymentWorkflowStatus ?? 'pending_approval') : statusText(row.status)}
                   </span>
                 </td>
-                {mode === 'purchase' && !isStockIssueRow(row) ? <td className="p-2 text-xs font-semibold text-slate-700">{row.paymentDocNos?.length ? <div className="space-y-0.5">{row.paymentDocNos.map((docNo: string) => <div key={`${row.id}-${docNo}`} className="text-slate-700">{docNo}</div>)}</div> : <span className="text-slate-400">-</span>}</td> : null}
-                {mode !== 'purchase' ? <td className="p-2 text-right text-xs font-semibold text-slate-700">{row.itemCount}</td> : null}
+                {mode === 'purchase' && !isStockIssueRow(row) ? <td className="p-2 text-xs font-semibold text-slate-700"><CollapsedList items={row.paymentDocNos} splitItems={true} /></td> : null}
+                {mode !== 'purchase' ? <td className="p-2 pr-4 text-right text-xs font-semibold text-slate-700 tabular-nums">{row.itemCount}</td> : null}
                 {mode === 'stock-issue' && isStockIssueRow(row) ? <TableNumberCell value={formatMoney(row.totalQty ?? 0)} /> : null}
                 {mode === 'stock-issue' && isStockIssueRow(row) ? <TableNumberCell tone="amber" value={formatMoney(row.totalCost)} /> : null}
                 <TableNumberCell strong value={formatMoney(isStockIssueRow(row) ? row.totalEstAmount : row.totalAmount ?? 0)} />
-                {mode === 'sales' && !isStockIssueRow(row) ? <td className={`p-2 text-right font-semibold ${(row.grossProfit ?? 0) >= 0 ? 'text-emerald-700' : 'text-red-700'}`}><div>{formatMoney(row.grossProfit ?? 0)}</div><div className="text-xs text-slate-500">{formatMoney((row.totalAmount ?? 0) > 0 ? (row.grossProfit ?? 0) / (row.totalAmount ?? 1) * 100 : 0)}%</div></td> : null}
+                {mode === 'sales' && !isStockIssueRow(row) ? <td className={`p-2 pr-4 text-right font-semibold tabular-nums ${(row.grossProfit ?? 0) >= 0 ? 'text-emerald-700' : 'text-red-700'}`}><div>{formatMoney(row.grossProfit ?? 0)}</div><div className="text-xs text-slate-500">{formatMoney((row.totalAmount ?? 0) > 0 ? (row.grossProfit ?? 0) / (row.totalAmount ?? 1) * 100 : 0)}%</div></td> : null}
                 {mode === 'sales' && !isStockIssueRow(row) ? <TableNumberCell value={formatMoney(row.receivedAmount ?? 0)} /> : null}
                 {mode !== 'stock-issue' && !isStockIssueRow(row) ? <TableNumberCell tone="amber" value={formatMoney(mode === 'purchase' ? row.payableBalance ?? 0 : row.receivableBalance ?? 0)} /> : null}
                 {mode === 'sales' && !isStockIssueRow(row) ? <td className="p-2 text-center"><span className={`rounded-md-full px-2 py-0.5 text-xs font-semibold ${row.vatInvoiceIssued ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{row.vatInvoiceIssued ? 'ออกแล้ว' : 'ยังไม่ออก'}</span>{row.vatInvoiceNo ? <div className="mt-1 text-[10px] text-slate-500">{row.vatInvoiceNo}</div> : null}</td> : null}
@@ -2094,7 +2102,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                         type="button"
                         onClick={(event) => { event.stopPropagation(); void printPurchaseBill(row) }}
                       >
-                        <Printer className="size-3" />
                         {printingBillDocNo === row.docNo ? 'เตรียม...' : 'พิมพ์'}
                       </button>
                       <button
@@ -2127,7 +2134,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                         type="button"
                         onClick={(event) => { event.stopPropagation(); void printSalesBill(row) }}
                       >
-                        <Printer className="size-3" />
                         {printingBillDocNo === row.docNo ? 'เตรียม...' : 'พิมพ์'}
                       </button>
                       <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50" disabled title="รอเปิด flow แก้ไขบิลขาย" type="button">แก้ไข</button>
@@ -3008,8 +3014,8 @@ function PurchaseBillDetailModal({
         <DialogHeader className="border-b p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <DialogTitle id="purchase-bill-detail-title">รายละเอียดบิลรับซื้อ {detail?.docNo ?? docNo}</DialogTitle>
-              <DialogDescription>{detail?.supplierName ?? 'กำลังโหลดข้อมูล'}</DialogDescription>
+              <DialogTitle id="purchase-bill-detail-title">รายละเอียดบิลรับซื้อ</DialogTitle>
+              <DialogDescription className="font-mono text-xs">{detail?.docNo ?? docNo}</DialogDescription>
             </div>
             {detail ? (
               <Button className="gap-2 font-normal" disabled={isPrinting} type="button" variant="outline" onClick={() => onPrint(detail)}>
@@ -3027,31 +3033,47 @@ function PurchaseBillDetailModal({
             <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
           </div>
         ) : detail ? (
-          <div className="space-y-4 p-4">
-            <div className="grid gap-3 md:grid-cols-4">
-              <Detail label="ยอดรวม" value={formatMoney(detail.totalAmount)} />
-              <Detail label="ค้างชำระ" value={formatMoney(detail.payableBalance)} />
-              <Detail label="ชำระแล้ว" value={formatMoney(detail.paidAmount)} />
-              <Detail label="สถานะ" value={detail.statusLabel} />
-            </div>
-
-            <div className="rounded-md border border-slate-200 p-3">
-              <div className="grid gap-3 text-sm md:grid-cols-3">
-                <PlainDetail label="เลขที่บิล" value={detail.docNo} />
-                <PlainDetail label="วันที่สร้างรายการ" value={formatDateDisplay(detail.date)} />
-                <PlainDetail label="ผู้ขาย" value={detail.supplierName} />
-                <PlainDetail label="รหัสผู้ขาย" value={detail.supplierCode} />
-                <PlainDetail label="สาขา/คลัง" value={detail.branchName} />
-                <PlainDetail label="ประเภทบิล" value={detail.transactionMode} />
-                <PlainDetail label="ผู้ทำ" value={detail.createdBy} />
-                <PlainDetail label="ใบรับของ" value={detail.receiptDocNos.join(', ') || '-'} />
-                <PlainDetail label="ADV/มัดจำ" value={detail.advancePaymentDocNo ? `${detail.advancePaymentDocNo} (${formatMoney(detail.advanceAllocatedAmount)})` : '-'} />
+          <div className="space-y-4 p-4 text-sm">
+            {/* ข้อมูลทั่วไป */}
+            <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลเอกสาร</div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+                <DetailItem label="เลขที่บิล" value={detail.docNo} />
+                <DetailItem label="วันที่สร้างรายการ" value={formatDateDisplay(detail.date)} />
+                <DetailItem className="col-span-2 sm:col-span-3" label="ผู้ขาย" value={`${detail.supplierCode ? `[${detail.supplierCode}] ` : ''}${detail.supplierName}`} />
+                <DetailItem label="สาขา/คลัง" value={detail.branchName || '-'} />
+                <DetailItem label="ประเภทบิล" value={detail.transactionMode || '-'} />
+                <DetailItem label="ผู้ทำรายการ" value={detail.createdBy || '-'} />
+                <DetailItem className="col-span-2 sm:col-span-3" label="อ้างอิงใบรับของ WTI" value={detail.receiptDocNos.join(', ') || '-'} />
               </div>
             </div>
 
-            <div>
-              <div className="mb-2 text-sm font-medium text-slate-700">สรุปต่อสินค้า</div>
-              <div className="overflow-x-auto rounded-md border border-slate-200">
+            {/* สถานะและการชำระเงิน */}
+            <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">สถานะและการชำระเงิน</div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+                <div className="flex flex-col py-1">
+                  <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">สถานะบิล</div>
+                  <div className="mt-1">
+                    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${workflowStatusBadgeClass(detail.status)}`}>
+                      <span className="size-1.5 rounded-full bg-current" />
+                      {detail.statusLabel}
+                    </span>
+                  </div>
+                </div>
+                <DetailItem label="ยอดเงินสุทธิ" value={`${formatMoney(detail.totalAmount)} บาท`} />
+                <DetailItem label="ชำระแล้ว" value={`${formatMoney(detail.paidAmount)} บาท`} />
+                <DetailItem label="ยอดคงเหลือค้างจ่าย" value={`${formatMoney(detail.payableBalance)} บาท`} />
+                {detail.advancePaymentDocNo ? (
+                  <DetailItem className="col-span-2 sm:col-span-4" label="หักเงินล่วงหน้า / มัดจำ" value={`${detail.advancePaymentDocNo} (หักไป ${formatMoney(detail.advanceAllocatedAmount)} บาท)`} />
+                ) : null}
+              </div>
+            </div>
+
+            {/* สรุปต่อสินค้า */}
+            <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">สรุปต่อสินค้า</div>
+              <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
                 <table className="w-full min-w-[880px] text-sm">
                   <thead className="bg-slate-50 text-slate-600">
                     <tr>
@@ -3084,9 +3106,10 @@ function PurchaseBillDetailModal({
               </div>
             </div>
 
-            <div>
-              <div className="mb-2 text-sm font-medium text-slate-700">รายละเอียด allocation รายแถว</div>
-              <div className="overflow-x-auto rounded-md border border-slate-200">
+            {/* รายละเอียด allocation */}
+            <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">รายละเอียด allocation รายแถว</div>
+              <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
                 <table className="w-full min-w-[1100px] text-sm">
                   <thead className="bg-slate-50 text-slate-600">
                     <tr>
@@ -3353,6 +3376,8 @@ function SortHeader({ activeKey, align, direction, label, onSort, resizeProps, s
   )
 }
 
+
+
 function formatBranchWarehouse(row: BillRow | StockIssueRow) {
   const branch = row.branchName?.trim()
   const warehouse = row.warehouseName?.trim()
@@ -3394,4 +3419,13 @@ function RadioCard({ active, disabled = false, label, note, onClick }: { active:
 
 function isStockIssueRow(row: BillRow | StockIssueRow): row is StockIssueRow {
   return 'totalEstAmount' in row
+}
+
+function DetailItem({ className = '', label, value }: { className?: string; label: string; value: string }) {
+  return (
+    <div className={`flex flex-col py-1 ${className}`}>
+      <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{label}</div>
+      <div className="mt-0.5 text-xs sm:text-sm font-semibold text-slate-800">{value}</div>
+    </div>
+  )
 }
