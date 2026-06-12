@@ -699,90 +699,254 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
 
       {dashboardOnly ? (
         <>
-          <div className="flex flex-wrap items-center gap-2 rounded-md bg-white p-3 text-sm shadow">
-            <span className="text-slate-600">📅 ดูย้อนหลัง:</span>
-            {[3, 6, 12].map((months) => (
-              <button key={months} className={`rounded-md px-3 py-1.5 text-xs ${periodMonths === months ? 'bg-rose-600 text-white' : 'bg-slate-100 text-slate-600'}`} type="button" onClick={() => setPeriodMonths(months)}>
-                {months} เดือน
-              </button>
-            ))}
-            {dashboardColumnResize.hasCustomWidths ? <Button className="h-9" size="sm" type="button" variant="outline" onClick={dashboardColumnResize.resetColumnWidths}>Set col to default</Button> : null}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <div className="rounded-md bg-white p-3 shadow"><div className="text-xs text-slate-500">💸 รวม {periodMonths} เดือน</div><div className="text-2xl font-bold">{formatMoney(dashboard.total)}</div></div>
-            <div className="rounded-md bg-blue-50 p-3 shadow"><div className="text-xs text-blue-700">📈 เฉลี่ย/เดือน</div><div className="text-2xl font-bold text-blue-700">{formatMoney(dashboard.avg)}</div></div>
-            <div className="rounded-md bg-amber-50 p-3 shadow"><div className="text-xs text-amber-700">📅 เดือนนี้</div><div className="text-2xl font-bold text-amber-700">{formatMoney(dashboard.latest)}</div></div>
-            <div className={`rounded-md p-3 shadow ${Math.abs(dashboard.vsAvg) > 20 ? dashboard.vsAvg > 0 ? 'bg-red-50' : 'bg-emerald-50' : 'bg-slate-50'}`}>
-              <div className={`text-xs ${dashboard.vsAvg > 20 ? 'text-red-700' : dashboard.vsAvg < -20 ? 'text-emerald-700' : 'text-slate-700'}`}>เทียบเฉลี่ย</div>
-              <div className={`text-2xl font-bold ${dashboard.vsAvg > 20 ? 'text-red-700' : dashboard.vsAvg < -20 ? 'text-emerald-700' : 'text-slate-700'}`}>{dashboard.vsAvg > 0 ? '+' : ''}{dashboard.vsAvg.toFixed(1)}%</div>
+          {/* 📅 Filter Row */}
+          <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-100 bg-white/80 p-4 shadow-sm backdrop-blur-md">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+                <span>📅</span> ช่วงเวลาดูย้อนหลัง:
+              </span>
+              <div className="inline-flex rounded-lg bg-slate-100 p-0.5">
+                {[3, 6, 12].map((months) => {
+                  const active = periodMonths === months;
+                  return (
+                    <button
+                      key={months}
+                      className={`rounded-md px-3.5 py-1.5 text-xs font-semibold transition-all duration-200 ${
+                        active
+                          ? 'bg-white text-slate-900 shadow-sm'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      type="button"
+                      onClick={() => setPeriodMonths(months)}
+                    >
+                      {months} เดือน
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+            {dashboardColumnResize.hasCustomWidths ? (
+              <Button
+                className="h-8 rounded-lg text-xs"
+                size="sm"
+                type="button"
+                variant="outline"
+                onClick={dashboardColumnResize.resetColumnWidths}
+              >
+                รีเซ็ตขนาดคอลัมน์
+              </Button>
+            ) : null}
           </div>
 
-          {dashboard.anomalies.length > 0 ? (
-            <div className="rounded-md border-2 border-red-300 bg-gradient-to-r from-red-50 to-amber-50 p-4">
-              <h3 className="mb-2 font-bold text-red-700">🚨 ตรวจพบความผิดปกติ {dashboard.anomalies.length} หมวด</h3>
-              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                {dashboard.anomalies.map((item) => (
-                  <div key={item.id} className={`rounded-md border p-3 ${item.anomaly === 'high' ? 'border-red-300 bg-red-50' : 'border-amber-300 bg-amber-50'}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className={`font-bold ${item.anomaly === 'high' ? 'text-red-700' : 'text-amber-700'}`}>{item.anomaly === 'high' ? '⬆ สูงผิดปกติ' : '⬇ ต่ำผิดปกติ'}: {item.name}</div>
-                        <div className="mt-1 text-xs text-slate-600">เดือนนี้: <b>{formatMoney(item.latest)}</b> · เฉลี่ย: <b>{formatMoney(item.avg)}</b></div>
-                      </div>
-                      <div className={`text-2xl font-bold ${item.anomaly === 'high' ? 'text-red-700' : 'text-amber-700'}`}>{item.deviation > 0 ? '+' : ''}{item.deviation.toFixed(0)}%</div>
-                    </div>
+          {/* 💸 KPI Summary Cards */}
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            <div className="group relative overflow-hidden rounded-xl border border-slate-100 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
+              <div className="absolute top-0 left-0 h-1 w-full bg-gradient-to-r from-slate-400 to-indigo-500" />
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500">💸 ยอดรวม {periodMonths} เดือน</span>
+                <span className="text-lg">📊</span>
+              </div>
+              <div className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900 tabular-nums">
+                {formatMoney(dashboard.total)}
+              </div>
+            </div>
+
+            <div className="group relative overflow-hidden rounded-xl border border-blue-50 bg-blue-50/20 p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
+              <div className="absolute top-0 left-0 h-1 w-full bg-gradient-to-r from-blue-400 to-cyan-500" />
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-blue-700">📈 เฉลี่ยรายเดือน</span>
+                <span className="text-lg">📉</span>
+              </div>
+              <div className="mt-3 text-2xl font-extrabold tracking-tight text-blue-900 tabular-nums">
+                {formatMoney(dashboard.avg)}
+              </div>
+            </div>
+
+            <div className="group relative overflow-hidden rounded-xl border border-violet-50 bg-violet-50/20 p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
+              <div className="absolute top-0 left-0 h-1 w-full bg-gradient-to-r from-violet-400 to-fuchsia-500" />
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-violet-700">📅 ยอดใช้จ่ายเดือนนี้</span>
+                <span className="text-lg">🗓️</span>
+              </div>
+              <div className="mt-3 text-2xl font-extrabold tracking-tight text-violet-900 tabular-nums">
+                {formatMoney(dashboard.latest)}
+              </div>
+            </div>
+
+            {(() => {
+              const isHigh = dashboard.vsAvg > 20;
+              const isLow = dashboard.vsAvg < -20;
+              const cardBorder = isHigh ? 'border-red-100' : isLow ? 'border-emerald-100' : 'border-slate-100';
+              const cardBg = isHigh ? 'bg-red-50/20' : isLow ? 'bg-emerald-50/20' : 'bg-slate-50/20';
+              const accentColor = isHigh ? 'text-red-700' : isLow ? 'text-emerald-700' : 'text-slate-700';
+              const barColor = isHigh ? 'bg-gradient-to-r from-red-400 to-rose-500' : isLow ? 'bg-gradient-to-r from-emerald-400 to-teal-500' : 'bg-gradient-to-r from-slate-400 to-slate-500';
+              return (
+                <div className={`group relative overflow-hidden rounded-xl border ${cardBorder} ${cardBg} p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md`}>
+                  <div className={`absolute top-0 left-0 h-1 w-full ${barColor}`} />
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs font-semibold ${accentColor}`}>⚖️ เทียบค่าเฉลี่ย</span>
+                    <span className="text-lg">{isHigh ? '⚠️' : isLow ? '✅' : 'ℹ️'}</span>
                   </div>
-                ))}
+                  <div className={`mt-3 text-2xl font-extrabold tracking-tight ${accentColor} tabular-nums`}>
+                    {dashboard.vsAvg > 0 ? '+' : ''}{dashboard.vsAvg.toFixed(1)}%
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* 🚨 Anomaly Panel */}
+          {dashboard.anomalies.length > 0 ? (
+            <div className="overflow-hidden rounded-xl border border-red-100 bg-red-50/10 p-5 shadow-sm space-y-4">
+              <div className="flex items-center gap-2 text-red-800">
+                <span className="text-xl">🚨</span>
+                <h3 className="font-bold text-base">ระบบตรวจพบความผิดปกติจำนวน {dashboard.anomalies.length} หมวด</h3>
+              </div>
+              <p className="text-xs text-slate-500">ข้อมูลค่าใช้จ่ายเดือนล่าสุดมีความเบี่ยงเบนจากค่าเฉลี่ยอย่างมีนัยสำคัญ</p>
+              
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {dashboard.anomalies.map((item) => {
+                  const isHigh = item.anomaly === 'high';
+                  const border = isHigh ? 'border-red-100/60 bg-red-50/30' : 'border-amber-100/60 bg-amber-50/30';
+                  const text = isHigh ? 'text-red-700' : 'text-amber-700';
+                  const icon = isHigh ? '📈 สูงกว่าปกติ' : '📉 ต่ำกว่าปกติ';
+                  return (
+                    <div key={item.id} className={`rounded-xl border p-4 transition-all duration-200 hover:shadow-sm ${border}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wider ${isHigh ? 'bg-red-100/80 text-red-800' : 'bg-amber-100/80 text-amber-800'}`}>
+                            {icon}
+                          </span>
+                          <div className="text-sm font-bold text-slate-900 mt-1">{item.name}</div>
+                          <div className="text-xs text-slate-500">
+                            เดือนนี้: <span className="font-semibold text-slate-900 tabular-nums">{formatMoney(item.latest)}</span> · 
+                            เฉลี่ย: <span className="font-semibold text-slate-900 tabular-nums">{formatMoney(item.avg)}</span>
+                          </div>
+                        </div>
+                        <div className={`text-xl font-extrabold ${text} tabular-nums`}>
+                          {item.deviation > 0 ? '+' : ''}{item.deviation.toFixed(0)}%
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : (
-            <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-emerald-700">✓ ไม่พบความผิดปกติ — ค่าใช้จ่ายแต่ละหมวดอยู่ในช่วงค่าเฉลี่ย</div>
+            <div className="flex items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50/20 p-4 text-sm text-emerald-800 shadow-sm">
+              <span className="text-lg">🌿</span>
+              <span className="font-medium">ไม่พบความผิดปกติ — ยอดการใช้จ่ายในแต่ละหมวดอยู่ในเกณฑ์ปกติอย่างสม่ำเสมอ</span>
+            </div>
           )}
 
-          <div className="overflow-x-auto rounded-md bg-white shadow">
+          {/* 📊 Heatmap Table */}
+          <div className="overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm">
             <table className="w-full text-xs" style={{ minWidth: dashboardColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
               <colgroup>
                 {dashboardColumns.map((column) => <col key={column.key} style={dashboardColumnResize.getColumnStyle(column.key)} />)}
               </colgroup>
-              <thead className="bg-slate-100">
+              <thead className="bg-slate-50/75 border-b border-slate-100">
                 <tr>
-                  <ResizableTableHead label="หมวด" resizeProps={dashboardColumnResize.getResizeHandleProps('category', 'หมวด')} />
+                  <ResizableTableHead label="หมวดค่าใช้จ่าย" resizeProps={dashboardColumnResize.getResizeHandleProps('category', 'หมวดค่าใช้จ่าย')} />
                   {dashboard.monthList.map((month) => (
                     <ResizableTableHead key={month} align="right" label={formatMonthLabel(month)} resizeProps={dashboardColumnResize.getResizeHandleProps(`month:${month}`, formatMonthLabel(month))} />
                   ))}
-                  <ResizableTableHead align="right" label="เฉลี่ย" resizeProps={dashboardColumnResize.getResizeHandleProps('avg', 'เฉลี่ย')} />
-                  <ResizableTableHead align="right" label="รวม" resizeProps={dashboardColumnResize.getResizeHandleProps('total', 'รวม')} />
+                  <ResizableTableHead align="right" label="เฉลี่ยรายเดือน" resizeProps={dashboardColumnResize.getResizeHandleProps('avg', 'เฉลี่ยรายเดือน')} />
+                  <ResizableTableHead align="right" label="ยอดรวม" resizeProps={dashboardColumnResize.getResizeHandleProps('total', 'ยอดรวม')} />
                   <ResizableTableHead align="center" label="สถานะ" resizeProps={dashboardColumnResize.getResizeHandleProps('status', 'สถานะ')} />
                 </tr>
               </thead>
-              <tbody>
-                {isLoading ? <tr><td className="py-8 text-center text-slate-400" colSpan={dashboard.monthList.length + 4}>กำลังโหลดข้อมูล</td></tr> : null}
+              <tbody className="divide-y divide-slate-100">
+                {isLoading ? (
+                  <tr>
+                    <td className="py-12 text-center text-slate-400" colSpan={dashboard.monthList.length + 4}>
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-200 border-t-slate-600" />
+                        <span>กำลังโหลดข้อมูลวิเคราะห์...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : null}
                 {!isLoading && dashboard.heatmapRows.map((item) => (
-                <tr key={item.id} className="border-t border-slate-200 hover:bg-slate-50">
-                    <td className="sticky left-0 bg-white p-2 font-medium">{item.name}</td>
+                  <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="sticky left-0 bg-white/95 backdrop-blur-sm px-4 py-3 font-semibold text-slate-900 border-r border-slate-100 shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
+                      {item.name}
+                    </td>
                     {dashboard.monthList.map((month) => {
-                      const value = item.byMonth[month] ?? 0
-                      const hot = item.avg > 0 && value > item.avg * 1.5
-                      const low = item.avg > 0 && value > 0 && value < item.avg * 0.5
-                      return <td key={month} className={`p-2 text-right ${hot ? 'bg-red-100 font-bold text-red-700' : low ? 'bg-emerald-50 text-emerald-700' : ''}`}>{value > 0 ? formatMoney(value) : '-'}</td>
+                      const value = item.byMonth[month] ?? 0;
+                      const hot = item.avg > 0 && value > item.avg * 1.5;
+                      const low = item.avg > 0 && value > 0 && value < item.avg * 0.5;
+                      
+                      return (
+                        <td key={month} className="px-3 py-3 text-right tabular-nums">
+                          {value > 0 ? (
+                            <span className={`inline-block px-1.5 py-0.5 rounded transition-colors ${
+                              hot 
+                                ? 'bg-rose-50 text-rose-700 font-bold' 
+                                : low 
+                                  ? 'bg-emerald-50 text-emerald-700 font-medium' 
+                                  : 'text-slate-700 font-medium'
+                            }`}>
+                              {formatMoney(value)}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300 font-light">-</span>
+                          )}
+                        </td>
+                      );
                     })}
-                    <td className="bg-blue-50 p-2 text-right text-blue-700">{formatMoney(item.avg)}</td>
-                    <td className="bg-rose-50 p-2 text-right font-bold text-rose-700">{formatMoney(item.total)}</td>
-                    <td className="p-2 text-center">
-                      {item.anomaly === 'high' ? <span className="rounded-md bg-red-100 px-2 py-0.5 text-xs text-red-700">⬆ สูง</span> : item.anomaly === 'low' ? <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs text-amber-700">⬇ ต่ำ</span> : <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">✓ ปกติ</span>}
+                    <td className="bg-blue-50/30 px-3 py-3 text-right text-blue-700 font-semibold tabular-nums">
+                      {formatMoney(item.avg)}
+                    </td>
+                    <td className="bg-violet-50/20 px-3 py-3 text-right font-bold text-violet-700 tabular-nums">
+                      {formatMoney(item.total)}
+                    </td>
+                    <td className="px-3 py-3 text-center">
+                      {(() => {
+                        if (item.anomaly === 'high') {
+                          return (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-600/10">
+                              <span className="h-1.5 w-1.5 rounded-full bg-rose-600" /> สูง
+                            </span>
+                          );
+                        }
+                        if (item.anomaly === 'low') {
+                          return (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/10">
+                              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> ต่ำ
+                            </span>
+                          );
+                        }
+                        return (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/10">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> ปกติ
+                          </span>
+                        );
+                      })()}
                     </td>
                   </tr>
                 ))}
-                {!isLoading && dashboard.heatmapRows.length === 0 ? <tr><td className="py-8 text-center text-slate-400" colSpan={dashboard.monthList.length + 4}>ยังไม่มีข้อมูลค่าใช้จ่าย</td></tr> : null}
+                {!isLoading && dashboard.heatmapRows.length === 0 ? (
+                  <tr>
+                    <td className="py-12 text-center text-slate-400" colSpan={dashboard.monthList.length + 4}>
+                      ยังไม่มีข้อมูลบันทึกค่าใช้จ่ายในช่วงเวลานี้
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
               {dashboard.heatmapRows.length > 0 ? (
-                <tfoot className="bg-slate-100 font-bold">
-                  <tr>
-                    <td className="sticky left-0 bg-slate-100 p-2">รวมทุกหมวด</td>
-                    {dashboard.monthList.map((month) => <td key={month} className="p-2 text-right">{formatMoney(dashboard.grandByMonth[month] ?? 0)}</td>)}
-                    <td className="p-2 text-right text-blue-700">{formatMoney(dashboard.avg)}</td>
-                    <td className="p-2 text-right text-rose-700">{formatMoney(dashboard.total)}</td>
+                <tfoot className="bg-slate-50/50 font-bold border-t border-slate-200">
+                  <tr className="divide-y divide-slate-100">
+                    <td className="sticky left-0 bg-slate-50/90 backdrop-blur-sm px-4 py-3.5 text-slate-900 border-r border-slate-100 shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
+                      รวมทุกหมวด
+                    </td>
+                    {dashboard.monthList.map((month) => (
+                      <td key={month} className="px-3 py-3.5 text-right text-slate-900 tabular-nums">
+                        {formatMoney(dashboard.grandByMonth[month] ?? 0)}
+                      </td>
+                    ))}
+                    <td className="px-3 py-3.5 text-right text-blue-700 tabular-nums">{formatMoney(dashboard.avg)}</td>
+                    <td className="px-3 py-3.5 text-right text-violet-700 tabular-nums">{formatMoney(dashboard.total)}</td>
                     <td />
                   </tr>
                 </tfoot>
@@ -790,8 +954,15 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
             </table>
           </div>
 
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-            <b>📋 หมายเหตุ:</b> ความผิดปกติ = เดือนนี้ <b>มากกว่า 1.5×</b> ค่าเฉลี่ยและเกิน 5,000 บาท (สูง) หรือ <b>น้อยกว่า 30%</b> ของค่าเฉลี่ย (ต่ำ — อาจลืมบันทึก)
+          {/* 📋 Footer Notes */}
+          <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 text-xs leading-relaxed text-slate-500">
+            <div className="font-semibold text-slate-700 flex items-center gap-1 mb-1">
+              <span>📋</span> วิธีประเมินความผิดปกติ (Anomaly Thresholds):
+            </div>
+            <ul className="list-disc list-inside space-y-1 ml-1">
+              <li><b>สูงผิดปกติ</b>: ยอดใช้จ่ายเดือนล่าสุด <b>มากกว่า 1.5 เท่า (1.5x)</b> ของค่าเฉลี่ยรายเดือน และมียอดรวมในเดือนนั้นเกิน 5,000 บาท</li>
+              <li><b>ต่ำผิดปกติ</b>: ยอดใช้จ่ายเดือนล่าสุด <b>น้อยกว่า 30% (0.3x)</b> ของค่าเฉลี่ยรายเดือน (ซึ่งอาจระบุถึงการหลงลืมหรือบันทึกช้า)</li>
+            </ul>
           </div>
         </>
       ) : (
