@@ -844,9 +844,25 @@ function PrintPreview({ companyProfile, onClose, row }: { companyProfile: Receip
   const companyAddress = companyProfile?.address || 'ไม่มีข้อมูล'
   const companyPhone = companyProfile?.phone || 'ไม่มีข้อมูล'
   const companyTaxId = companyProfile?.taxId || 'ไม่มีข้อมูล'
+
+  const [scale, setScale] = useState(1)
+
+  useEffect(() => {
+    const handleResize = () => {
+      // Calculate available height: window height minus modal header (68px), modal footer (60px), and spacing
+      const availableHeight = window.innerHeight - 170
+      const targetHeight = 1123
+      const s = Math.min(1, availableHeight / targetHeight)
+      setScale(s)
+    }
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/40 p-3 flex justify-center items-start print:static print:p-0 print:bg-transparent">
-      <div className="relative w-full max-w-4xl rounded-xl bg-white shadow-xl border border-slate-200 overflow-hidden my-6 print:my-0 print:border-none print:shadow-none print:w-full">
+    <div className="fixed inset-0 z-50 bg-slate-950/40 p-3 flex justify-center items-center print:static print:p-0 print:bg-transparent overflow-hidden">
+      <div className="relative w-full max-w-4xl rounded-xl bg-white shadow-xl border border-slate-200 overflow-hidden print:border-none print:shadow-none print:w-full">
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5 bg-slate-50 print:hidden">
           <div>
@@ -857,119 +873,135 @@ function PrintPreview({ companyProfile, onClose, row }: { companyProfile: Receip
         </div>
 
         {/* Modal Content Preview Sheet */}
-        <div className="max-h-[calc(100vh-220px)] overflow-y-auto p-3 md:p-6 bg-slate-100 flex justify-center print:max-h-none print:overflow-visible print:bg-white print:p-0">
+        <div className="h-[calc(100vh-170px)] overflow-hidden p-3 md:p-6 bg-slate-100 flex justify-center items-center print:h-auto print:max-h-none print:overflow-visible print:bg-white print:p-0">
+          {/* Scaled Wrapper */}
           <div
-            className="my-0 min-h-[297mm] max-w-[210mm] w-full bg-white p-[6mm] md:p-[9mm] text-slate-900 shadow-md print:my-0 print:min-h-0 print:max-w-none print:p-0 print:shadow-none"
-            style={{ fontFamily: "'Noto Sans Thai', Arial, sans-serif", fontSize: '11px', lineHeight: 1.35 }}
+            className="relative flex justify-center items-start print:block print:w-full print:h-auto"
+            style={{
+              width: typeof window !== 'undefined' ? `${794 * scale}px` : '100%',
+              height: typeof window !== 'undefined' ? `${1123 * scale}px` : 'auto',
+            }}
           >
-            <div className="mb-3 h-1 rounded-full bg-gradient-to-r from-emerald-800 via-lime-600 to-slate-300 print:mb-2" />
+            <div
+              className="absolute top-0 left-1/2 -translate-x-1/2 origin-top bg-white p-[6mm] md:p-[9mm] text-slate-900 shadow-md print:static print:transform-none print:translate-x-0 print:p-0 print:shadow-none print:w-full print:h-auto print:min-h-0"
+              style={{
+                fontFamily: "'Noto Sans Thai', Arial, sans-serif",
+                fontSize: '11px',
+                lineHeight: 1.35,
+                width: typeof window !== 'undefined' ? '794px' : '100%',
+                height: typeof window !== 'undefined' ? '1123px' : 'auto',
+                transform: typeof window !== 'undefined' ? `scale(${scale})` : 'none',
+              }}
+            >
+              <div className="mb-3 h-1 rounded-full bg-gradient-to-r from-emerald-800 via-lime-600 to-slate-300 print:mb-2" />
 
-            <header className="grid grid-cols-[1fr_0.82fr] gap-4 border-b border-slate-300 pb-3 print:gap-3 print:pb-2">
-              <div className="grid grid-cols-[64px_1fr] gap-3 print:grid-cols-[48px_1fr] print:gap-2">
-                {companyProfile?.logoUrl ? (
-                  <div
-                    aria-label="Company logo"
-                    className="size-16 bg-contain bg-center bg-no-repeat print:size-12"
-                    role="img"
-                    style={{ backgroundImage: `url("${companyProfile.logoUrl.replaceAll('"', '%22')}")` }}
-                  />
-                ) : (
-                  <div className="flex size-16 items-center justify-center rounded-md border border-dashed border-slate-300 text-center text-[9px] font-bold text-slate-500 print:size-12 print:text-[8px]">ไม่มีข้อมูล</div>
-                )}
-                <div className="min-w-0">
-                  <div className="text-base font-black leading-tight text-slate-950 print:text-sm">{companyName}</div>
-                  {companyProfile?.nameEn ? <div className="mt-0.5 text-[10px] font-bold text-slate-600">{companyProfile.nameEn}</div> : null}
-                  <div className="mt-1 text-[10px] leading-relaxed text-slate-600 print:text-[9px]">
-                    <div>{companyAddress}</div>
-                    <div>โทร {companyPhone}</div>
-                    <div>เลขประจำตัวผู้เสียภาษี {companyTaxId}</div>
+              <header className="grid grid-cols-[1fr_0.82fr] gap-4 border-b border-slate-300 pb-3 print:gap-3 print:pb-2">
+                <div className="grid grid-cols-[64px_1fr] gap-3 print:grid-cols-[48px_1fr] print:gap-2">
+                  {companyProfile?.logoUrl ? (
+                    <div
+                      aria-label="Company logo"
+                      className="size-16 bg-contain bg-center bg-no-repeat print:size-12"
+                      role="img"
+                      style={{ backgroundImage: `url("${companyProfile.logoUrl.replaceAll('"', '%22')}")` }}
+                    />
+                  ) : (
+                    <div className="flex size-16 items-center justify-center rounded-md border border-dashed border-slate-300 text-center text-[9px] font-bold text-slate-500 print:size-12 print:text-[8px]">ไม่มีข้อมูล</div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="text-base font-black leading-tight text-slate-950 print:text-sm">{companyName}</div>
+                    {companyProfile?.nameEn ? <div className="mt-0.5 text-[10px] font-bold text-slate-600">{companyProfile.nameEn}</div> : null}
+                    <div className="mt-1 text-[10px] leading-relaxed text-slate-600 print:text-[9px]">
+                      <div>{companyAddress}</div>
+                      <div>โทร {companyPhone}</div>
+                      <div>เลขประจำตัวผู้เสียภาษี {companyTaxId}</div>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="text-right">
-                <div className="text-[22px] font-black text-emerald-900 print:text-[19px]">ใบสำคัญรับเงิน</div>
-                <div className="mt-1 text-[10px] font-bold uppercase tracking-normal text-slate-500">Receipt Voucher</div>
-                <div className="mt-3 grid grid-cols-2 gap-1.5 text-left print:mt-2">
-                  <PrintMeta label="เลขที่เอกสาร" value={row.docNo} />
-                  <PrintMeta label="วันที่ออกเอกสาร" value={formatDateDisplay(row.date)} />
-                  <PrintMeta label="อ้างอิงบิลซื้อ" value={row.purchaseBillDocNo || '-'} />
-                  <PrintMeta label="วิธีรับเงิน" value={row.paymentMethod || 'รับเงินสด'} />
+                <div className="text-right">
+                  <div className="text-[22px] font-black text-emerald-900 print:text-[19px]">ใบสำคัญรับเงิน</div>
+                  <div className="mt-1 text-[10px] font-bold uppercase tracking-normal text-slate-500">Receipt Voucher</div>
+                  <div className="mt-3 grid grid-cols-2 gap-1.5 text-left print:mt-2">
+                    <PrintMeta label="เลขที่เอกสาร" value={row.docNo} />
+                    <PrintMeta label="วันที่ออกเอกสาร" value={formatDateDisplay(row.date)} />
+                    <PrintMeta label="อ้างอิงบิลซื้อ" value={row.purchaseBillDocNo || '-'} />
+                    <PrintMeta label="วิธีรับเงิน" value={row.paymentMethod || 'รับเงินสด'} />
+                  </div>
                 </div>
-              </div>
-            </header>
+              </header>
 
-            <section className="mt-3 grid grid-cols-2 gap-3 print:mt-2 print:gap-2">
-              <PrintPanel title="ผู้รับเงิน / Supplier Receiver">
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                  <PrintField label="ผู้รับเงิน" value={row.sellerName} />
-                  <PrintField label="เลขประจำตัวผู้เสียภาษี" value={row.sellerTaxId} />
-                  <PrintField label="ที่อยู่" value={row.sellerAddress} wide />
-                  <PrintField label="เบอร์โทร" value={row.sellerPhone} />
-                  <PrintField label="Sale contact" value={row.salesPerson} />
-                </div>
-              </PrintPanel>
-              <PrintPanel title="ผู้จ่ายเงิน / Company Payer">
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                  <PrintField label="บริษัท" value={companyName} />
-                  <PrintField label="เลขประจำตัวผู้เสียภาษี" value={companyTaxId} />
-                  <PrintField label="ที่อยู่" value={companyAddress} wide />
-                  <PrintField label="โทร" value={companyPhone} />
-                  <PrintField label="ผู้จ่ายเงิน" value={row.payerSignerName || row.createdBy} />
-                </div>
-              </PrintPanel>
-            </section>
+              <section className="mt-3 grid grid-cols-2 gap-3 print:mt-2 print:gap-2">
+                <PrintPanel title="ผู้รับเงิน / Supplier Receiver">
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                    <PrintField label="ผู้รับเงิน" value={row.sellerName} />
+                    <PrintField label="เลขประจำตัวผู้เสียภาษี" value={row.sellerTaxId} />
+                    <PrintField label="ที่อยู่" value={row.sellerAddress} wide />
+                    <PrintField label="เบอร์โทร" value={row.sellerPhone} />
+                    <PrintField label="Sale contact" value={row.salesPerson} />
+                  </div>
+                </PrintPanel>
+                <PrintPanel title="ผู้จ่ายเงิน / Company Payer">
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                    <PrintField label="บริษัท" value={companyName} />
+                    <PrintField label="เลขประจำตัวผู้เสียภาษี" value={companyTaxId} />
+                    <PrintField label="ที่อยู่" value={companyAddress} wide />
+                    <PrintField label="โทร" value={companyPhone} />
+                    <PrintField label="ผู้จ่ายเงิน" value={row.payerSignerName || row.createdBy} />
+                  </div>
+                </PrintPanel>
+              </section>
 
-            <table className="mt-3 w-full table-fixed border-collapse text-[9px] print:mt-2 print:text-[8px]">
-              <thead>
-                <tr className="bg-slate-200 text-slate-900">
-                  <th className="w-[8mm] border border-slate-300 p-1.5 text-center font-black print:p-1">#</th>
-                  <th className="border border-slate-300 p-1.5 text-left font-black print:p-1">รายการ</th>
-                  <th className="w-[28mm] border border-slate-300 p-1.5 text-right font-black print:p-1">จำนวน/หน่วย</th>
-                  <th className="w-[25mm] border border-slate-300 p-1.5 text-right font-black print:p-1">ราคา/หน่วย</th>
-                  <th className="w-[29mm] border border-slate-300 p-1.5 text-right font-black print:p-1">จำนวนเงิน</th>
-                </tr>
-              </thead>
-              <tbody>
-                {printItems.map((item, index) => (
-                  <tr key={item.id ?? index} className="break-inside-avoid">
-                    <td className="border border-slate-300 p-1.5 text-center print:p-1">{index + 1}</td>
-                    <td className="border border-slate-300 p-1.5 font-bold text-slate-900 print:p-1">{item.description || '-'}</td>
-                    <td className="border border-slate-300 p-1.5 text-right tabular-nums print:p-1">{formatMoney(toNumber(item.qty))} {item.unit || 'หน่วย'}</td>
-                    <td className="border border-slate-300 p-1.5 text-right tabular-nums print:p-1">{formatMoney(toNumber(item.price))}</td>
-                    <td className="border border-slate-300 p-1.5 text-right font-black tabular-nums print:p-1">{formatMoney(toNumber(item.amount))}</td>
+              <table className="mt-3 w-full table-fixed border-collapse text-[9px] print:mt-2 print:text-[8px]">
+                <thead>
+                  <tr className="bg-slate-200 text-slate-900">
+                    <th className="w-[8mm] border border-slate-300 p-1.5 text-center font-black print:p-1">#</th>
+                    <th className="border border-slate-300 p-1.5 text-left font-black print:p-1">รายการ</th>
+                    <th className="w-[28mm] border border-slate-300 p-1.5 text-right font-black print:p-1">จำนวน/หน่วย</th>
+                    <th className="w-[25mm] border border-slate-300 p-1.5 text-right font-black print:p-1">ราคา/หน่วย</th>
+                    <th className="w-[29mm] border border-slate-300 p-1.5 text-right font-black print:p-1">จำนวนเงิน</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {printItems.map((item, index) => (
+                    <tr key={item.id ?? index} className="break-inside-avoid">
+                      <td className="border border-slate-300 p-1.5 text-center print:p-1">{index + 1}</td>
+                      <td className="border border-slate-300 p-1.5 font-bold text-slate-900 print:p-1">{item.description || '-'}</td>
+                      <td className="border border-slate-300 p-1.5 text-right tabular-nums print:p-1">{formatMoney(toNumber(item.qty))} {item.unit || 'หน่วย'}</td>
+                      <td className="border border-slate-300 p-1.5 text-right tabular-nums print:p-1">{formatMoney(toNumber(item.price))}</td>
+                      <td className="border border-slate-300 p-1.5 text-right font-black tabular-nums print:p-1">{formatMoney(toNumber(item.amount))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
 
-            <section className="mt-3 grid grid-cols-[1fr_70mm] gap-3 print:mt-2 print:gap-2">
-              <div className="space-y-2">
-                <div className="rounded-md border border-slate-300">
-                  <div className="bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-700 print:text-[9px]">จำนวนเงิน (ตัวอักษร)</div>
-                  <div className="min-h-8 px-2 py-2 text-xs font-bold text-slate-900 print:min-h-6 print:py-1.5 print:text-[10px]">{row.amountInWords || '-'}</div>
+              <section className="mt-3 grid grid-cols-[1fr_70mm] gap-3 print:mt-2 print:gap-2">
+                <div className="space-y-2">
+                  <div className="rounded-md border border-slate-300">
+                    <div className="bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-700 print:text-[9px]">จำนวนเงิน (ตัวอักษร)</div>
+                    <div className="min-h-8 px-2 py-2 text-xs font-bold text-slate-900 print:min-h-6 print:py-1.5 print:text-[10px]">{row.amountInWords || '-'}</div>
+                  </div>
+                  <div className="rounded-md border border-slate-300">
+                    <div className="bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-700 print:text-[9px]">หมายเหตุ</div>
+                    <div className="min-h-10 whitespace-pre-wrap px-2 py-2 text-[10px] text-slate-700 print:min-h-7 print:py-1.5 print:text-[9px]">{row.note || 'แนบสำเนาบัตรประชาชนผู้รับเงิน (กรณีบุคคลธรรมดา)'}</div>
+                  </div>
                 </div>
-                <div className="rounded-md border border-slate-300">
-                  <div className="bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-700 print:text-[9px]">หมายเหตุ</div>
-                  <div className="min-h-10 whitespace-pre-wrap px-2 py-2 text-[10px] text-slate-700 print:min-h-7 print:py-1.5 print:text-[9px]">{row.note || 'แนบสำเนาบัตรประชาชนผู้รับเงิน (กรณีบุคคลธรรมดา)'}</div>
+                <div className="overflow-hidden rounded-md border border-slate-300">
+                  <TotalLine label="จำนวนรวม" value={quantitySummary || '-'} />
+                  <TotalLine label="ยอดเงินรวม" value={formatMoney(row.totalAmount)} />
+                  <div className="grid grid-cols-[1fr_32mm] gap-2 bg-emerald-900 px-2 py-1.5 text-white">
+                    <div className="font-black">ยอดรับเงินสด</div>
+                    <div className="text-right font-black tabular-nums">{formatMoney(row.totalAmount)}</div>
+                  </div>
                 </div>
+              </section>
+
+              <div className="mt-12 grid grid-cols-2 gap-16 text-[10px] print:mt-9 print:gap-12 print:text-[9px]">
+                <SignatureBlock label="ผู้จ่ายเงิน" name={row.payerSignerName} />
+                <SignatureBlock label="ผู้รับเงิน" name={row.sellerName} />
               </div>
-              <div className="overflow-hidden rounded-md border border-slate-300">
-                <TotalLine label="จำนวนรวม" value={quantitySummary || '-'} />
-                <TotalLine label="ยอดเงินรวม" value={formatMoney(row.totalAmount)} />
-                <div className="grid grid-cols-[1fr_32mm] gap-2 bg-emerald-900 px-2 py-1.5 text-white">
-                  <div className="font-black">ยอดรับเงินสด</div>
-                  <div className="text-right font-black tabular-nums">{formatMoney(row.totalAmount)}</div>
-                </div>
+
+              <div className="mt-4 border-t border-slate-200 pt-2 text-center text-[9px] font-semibold text-slate-500 print:mt-3">
+                เอกสารนี้เป็นหลักฐานรับเงินสดจาก Supplier เท่านั้น ไม่ใช่เอกสารโอนเงินหรือรายการธนาคาร
               </div>
-            </section>
-
-            <div className="mt-12 grid grid-cols-2 gap-16 text-[10px] print:mt-9 print:gap-12 print:text-[9px]">
-              <SignatureBlock label="ผู้จ่ายเงิน" name={row.payerSignerName} />
-              <SignatureBlock label="ผู้รับเงิน" name={row.sellerName} />
-            </div>
-
-            <div className="mt-4 border-t border-slate-200 pt-2 text-center text-[9px] font-semibold text-slate-500 print:mt-3">
-              เอกสารนี้เป็นหลักฐานรับเงินสดจาก Supplier เท่านั้น ไม่ใช่เอกสารโอนเงินหรือรายการธนาคาร
             </div>
           </div>
         </div>
