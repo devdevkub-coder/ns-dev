@@ -84,8 +84,10 @@ export async function GET(request: Request) {
     const year = url.searchParams.get('year') || String(new Date().getFullYear())
     const month = url.searchParams.get('month')
     const supplierId = url.searchParams.get('supplierId')
+    const detailId = url.searchParams.get('detailId')
     const search = url.searchParams.get('q')?.trim().toLowerCase()
     const supplier = supplierId ? await findActiveSupplierReferenceByCodeOrId(supplierId) : null
+    const detailSupplier = detailId ? await findActiveSupplierReferenceByCodeOrId(detailId) : null
 
     const [suppliers, bills, payments] = await Promise.all([
       prisma.suppliers.findMany({ orderBy: [{ name: 'asc' }], where: { active: { not: false } } }),
@@ -173,6 +175,57 @@ export async function GET(request: Request) {
       }, { amount: 0, month: monthKey, qty: 0 })
     })
 
+    const detail = detailSupplier ? (() => {
+      const detailBills = bills.filter((bill) => bill.supplier_id === detailSupplier.id && inYearMonth(bill.date, year, month))
+      const detailPayments = payments.filter((payment) => payment.supplier_id === detailSupplier.id && inYearMonth(payment.date, year, month))
+      const detailProductMap = new Map<string, { amount: number; bills: Set<string>; productName: string; qty: number }>()
+
+      detailBills.forEach((bill) => {
+        purchaseBillItemRows(bill).forEach((item) => {
+          const productName = itemProductName(item)
+          const current = detailProductMap.get(productName) ?? { amount: 0, bills: new Set<string>(), productName, qty: 0 }
+          current.amount += jsonNumber(item.netAmount ?? item.amount ?? item.totalAmount ?? item.total)
+          current.qty += jsonNumber(item.netWeight ?? item.qty)
+          current.bills.add(bill.doc_no)
+          detailProductMap.set(productName, current)
+        })
+      })
+
+      return {
+        bills: detailBills.slice(0, 50).map((bill) => {
+          const item = itemTotals(purchaseBillItemRows(bill))
+          const amount = item.amount || toNumber(bill.subtotal) || toNumber(bill.total_amount)
+          return {
+            amount,
+            avgBuy: item.qty > 0 ? amount / item.qty : 0,
+            date: toDateOnly(bill.date),
+            docNo: bill.doc_no,
+            href: `/purchase/bills/${encodeURIComponent(bill.doc_no)}`,
+            paidAmount: toNumber(bill.paid_amount),
+            payable: toNumber(bill.payable_balance),
+            qty: item.qty,
+            status: bill.status ?? '-',
+          }
+        }),
+        payments: detailPayments.slice(0, 50).map((payment) => ({
+          amount: toNumber(payment.amount),
+          date: toDateOnly(payment.date),
+          docNo: payment.doc_no,
+          method: payment.method ?? '-',
+          netAmount: toNumber(payment.net_amount),
+          status: payment.status ?? '-',
+        })),
+        products: Array.from(detailProductMap.values()).map((row) => ({
+          amount: row.amount,
+          avgBuy: row.qty > 0 ? row.amount / row.qty : 0,
+          billCount: row.bills.size,
+          productName: row.productName,
+          qty: row.qty,
+        })).sort((left, right) => right.amount - left.amount).slice(0, 30),
+        supplier: { code: detailSupplier.code, id: detailSupplier.code, name: detailSupplier.name },
+      }
+    })() : null
+
     if (url.searchParams.get('format') === 'xlsx') {
       return xlsxResponse(buildWorkbook(supplierRows.map((row) => ({
         AvgBuy: row.avgBuy,
@@ -189,6 +242,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       byProduct,
+      detail,
       filters: {
         suppliers: suppliers.map((row) => ({ active: row.active, code: row.code, id: requireBusinessCode(row.code, `ผู้ขาย ${row.id}`), name: row.name })),
       },

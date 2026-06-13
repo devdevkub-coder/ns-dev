@@ -49,7 +49,7 @@ Latest user screenshot changes the target from purchase/payable summary into a s
 - Required data groups: Purchase Bill, WT/WTI, Grade Adjust, Payment, Return
 - Decision questions: supplier ไหนต้นทุนดี, ส่งครบไหม, quality ดีไหม, จ่ายดีไหม
 - Business importance: ธุรกิจ scrap ต้องเห็น supplier quality เพราะ supplier แต่ละรายไม่เท่ากัน
-- Local vs legacy finding: legacy row click opens supplier detail with PB list, payment list, product breakdown, and monthly breakdown. Current Next local page has client-side supplier/search filtering only after aggregate load; API has no `supplierId`/`q` filter and no supplier detail payload.
+- Local vs legacy finding: legacy row click opens supplier detail with PB list, payment list, product breakdown, and monthly breakdown. Current Next now has server-backed `supplierId`/`q` filters and row-click detail for PB/payment/product mix via `detailId`; monthly detail and quality/reliability signals are still pending.
 - Target UI direction: each supplier row/card should open a detail view/modal with PB/PMT/source links, WTI/grade-adjust/return signals when source ownership is finalized, product mix, monthly purchase/payment trend, and reliability/quality signals.
 
 ## Page Responsibilities
@@ -156,8 +156,8 @@ Target detail payload fields:
 ## Current Gap
 
 - Supplier/search server-side filter is now implemented for aggregate rows, product mix, monthly, summary, and export.
-- API does not yet return supplier detail rows for PB/payment drilldown.
-- Product mix follows the active supplier/filter, but no supplier detail payload exists yet.
+- API now returns supplier detail rows for PB/payment drilldown through `detailId`.
+- Product mix follows the active supplier/filter and is also available inside supplier detail.
 - WTI/WT delivery completeness, Grade Adjust quality, Return frequency, and reliability signals are not wired into the API yet.
 - AP aging/payment-cycle locks remain outside this page.
 
@@ -167,9 +167,9 @@ Target detail payload fields:
 
 - [x] Add `supplierId` and `q` server-side filters to `GET /api/tracking/supplier`.
 - [x] Keep aggregate JSON rows, product mix, monthly trend, and `format=xlsx` export on the same filter contract.
-- [ ] Return PB source rows with doc no, date, product summary, qty, purchase amount, avg buy, paid, payable, status, and source link.
-- [ ] Return PMT/PMA payment rows with doc no, date, account/method, amount, status, and source link.
-- [ ] Return product mix scoped by selected supplier when supplier filter/detail is active.
+- [x] Return PB source rows with doc no, date, qty, purchase amount, avg buy, paid, payable, status, and source link.
+- [x] Return PMT/Payment rows with doc no, date, method, amount, status, and source facts.
+- [x] Return product mix scoped by selected supplier when supplier filter/detail is active.
 - [ ] Add quality/reliability signal fields from confirmed source facts: WTI/WT delivery completeness, Grade Adjust, Return, and payment reliability.
 - [ ] Keep AP aging out until [[Finance AP Page Flow]] due-date rules are reconciled.
 
@@ -177,8 +177,9 @@ Target detail payload fields:
 
 - [ ] Use `docs/design.md` list pattern: KPI cards, compact filter shell, tabs, desktop table, dense mobile cards.
 - [x] Make supplier filter and search server-backed, not only client-side after aggregate load.
-- [ ] Make desktop rows and mobile cards clickable to open supplier detail.
-- [ ] Add detail modal/view sections: reliability signals, PB list, payment list, product mix, monthly trend.
+- [x] Make desktop rows and mobile cards clickable to open supplier detail.
+- [x] Add detail modal/view sections: PB list, payment list, product mix.
+- [ ] Add detail sections for reliability signals and monthly trend.
 - [ ] Keep product breakdown visible but scoped to the active supplier/filter.
 - [ ] Keep all interactions read-only; source document links navigate to owner pages only.
 
@@ -188,7 +189,7 @@ Target detail payload fields:
 - [x] Record legacy supplier tracking/detail baseline
 - [x] Mark read-only/export side-effect boundary
 - [x] Add supplier/search filter if UI needs server-side filter
-- [ ] Add supplier detail/read endpoint or drilldown payload
-- [ ] Add source links to PB/PMT/PMA/ADV documents
+- [x] Add supplier detail/read endpoint or drilldown payload
+- [x] Add source references to PB/PMT documents
 - [ ] Add WTI/WT delivery completeness, Grade Adjust quality, Return frequency, and supplier reliability signals
 - [ ] Reconcile paid/payable formulas with final payment allocation facts

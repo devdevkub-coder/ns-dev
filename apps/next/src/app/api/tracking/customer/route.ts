@@ -12,10 +12,20 @@ export const runtime = 'nodejs'
 
 type SalesItem = {
   amount?: number | string
+  cogs?: number | string
+  code?: string
+  displayName?: string
+  grossProfit?: number | string
   netAmount?: number | string
   netWeight?: number | string
+  productCode?: string
+  productName?: string
+  profit?: number | string
   qty?: number | string
   total?: number | string
+  totalCost?: number | string
+  total_cost?: number | string
+  unitCost?: number | string
   weight?: number | string
 }
 
@@ -39,6 +49,16 @@ function itemTotals(items: unknown): { amount: number; qty: number } {
       qty += jsonNumber(item.netWeight ?? item.weight ?? item.qty)
     })
   return { amount, qty }
+}
+
+function itemCost(item: SalesItem) {
+  const cost = jsonNumber(item.totalCost ?? item.total_cost ?? item.cogs)
+  if (cost) return cost
+  return jsonNumber(item.netWeight ?? item.weight ?? item.qty) * jsonNumber(item.unitCost)
+}
+
+function itemProductName(item: SalesItem) {
+  return item.productName ?? item.displayName ?? item.productCode ?? item.code ?? 'ไม่ระบุสินค้า'
 }
 
 function inYearMonth(date: Date, year: string | null, month: string | null) {
@@ -76,7 +96,9 @@ export async function GET(request: Request) {
     const year = url.searchParams.get('year') || String(new Date().getFullYear())
     const month = url.searchParams.get('month')
     const customerId = url.searchParams.get('customerId')
+    const detailId = url.searchParams.get('detailId')
     const customer = customerId ? await findActiveCustomerReferenceByCodeOrId(customerId) : null
+    const detailCustomer = detailId ? await findActiveCustomerReferenceByCodeOrId(detailId) : null
     const search = url.searchParams.get('q')?.trim().toLowerCase()
 
     const [customers, bills, receipts] = await Promise.all([
@@ -158,6 +180,67 @@ export async function GET(request: Request) {
       }, { gp: 0, month: monthKey, qty: 0, revenue: 0 })
     })
 
+    const detail = detailCustomer ? (() => {
+      const detailBills = bills.filter((bill) => bill.customer_id === detailCustomer.id && inYearMonth(bill.date, year, month))
+      const detailReceipts = receipts.filter((receipt) => receipt.customer_id === detailCustomer.id && inYearMonth(receipt.date, year, month))
+      const productMap = new Map<string, { cogs: number; gp: number; productName: string; qty: number; revenue: number }>()
+
+      detailBills.forEach((bill) => {
+        if (!Array.isArray(bill.items)) return
+        bill.items
+          .filter((item): item is SalesItem => typeof item === 'object' && item !== null)
+          .forEach((item) => {
+            const productName = itemProductName(item)
+            const revenue = jsonNumber(item.netAmount ?? item.amount ?? item.total)
+            const qty = jsonNumber(item.netWeight ?? item.weight ?? item.qty)
+            const cogs = itemCost(item)
+            const gp = jsonNumber(item.profit ?? item.grossProfit) || revenue - cogs
+            const current = productMap.get(productName) ?? { cogs: 0, gp: 0, productName, qty: 0, revenue: 0 }
+            current.cogs += cogs
+            current.gp += gp
+            current.qty += qty
+            current.revenue += revenue
+            productMap.set(productName, current)
+          })
+      })
+
+      return {
+        bills: detailBills.slice(0, 50).map((bill) => {
+          const item = itemTotals(bill.items)
+          const revenue = item.amount || toNumber(bill.subtotal) || toNumber(bill.total_amount)
+          const received = receivedByBill.get(bill.id) ?? toNumber(bill.received_amount)
+          const cogs = toNumber(bill.cogs_amount ?? bill.total_cost)
+          const gp = toNumber(bill.gross_profit) || revenue - cogs
+          return {
+            cogs,
+            date: toDateOnly(bill.date),
+            docNo: bill.doc_no,
+            gp,
+            href: `/sales/bills/${encodeURIComponent(bill.doc_no)}`,
+            qty: item.qty,
+            receivable: Math.max(0, toNumber(bill.total_amount) - received),
+            received,
+            revenue,
+            status: bill.status ?? '-',
+          }
+        }),
+        customer: { code: detailCustomer.code, id: detailCustomer.code, name: detailCustomer.name },
+        products: Array.from(productMap.values()).map((row) => ({
+          ...row,
+          avgSell: row.qty > 0 ? row.revenue / row.qty : 0,
+          gpPct: row.revenue > 0 ? (row.gp / row.revenue) * 100 : 0,
+        })).sort((left, right) => right.revenue - left.revenue).slice(0, 30),
+        receipts: detailReceipts.slice(0, 50).map((receipt) => ({
+          amount: toNumber(receipt.amount) + toNumber(receipt.withholding_tax) + toNumber(receipt.discount),
+          date: toDateOnly(receipt.date),
+          docNo: receipt.doc_no,
+          method: receipt.method ?? '-',
+          netAmount: toNumber(receipt.net_amount),
+          status: receipt.status ?? '-',
+        })),
+      }
+    })() : null
+
     if (url.searchParams.get('format') === 'xlsx') {
       return xlsxResponse(buildWorkbook(rows.map((row) => ({
         AvgSell: row.avgSell,
@@ -181,6 +264,7 @@ export async function GET(request: Request) {
           return { active: customer.active, code, id: code, name: customer.name }
         }),
       },
+      detail,
       monthly,
       rows,
       summary: {

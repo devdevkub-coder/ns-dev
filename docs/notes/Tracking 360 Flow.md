@@ -35,7 +35,7 @@ User-provided screenshots clarify that Tracking 360 is a business decision surfa
 - Required source groups: Sales Bill, Receipt, margin, Return, Pending AR
 - Decision questions: ลูกค้าคนไหนซื้อเยอะ, margin ดีไหม, จ่ายช้าไหม, มี return บ่อยไหม
 - Business decisions supported: เพิ่มเครดิต, ลดเครดิต, ต้นยอดขาย, blacklist
-- Target gap from local/legacy comparison: legacy has customer row drilldown with SB/RCP/product/monthly detail; current Next local UI/API is aggregate-only and does not yet expose source-document drilldown or product/channel breakdown.
+- Target gap from local/legacy comparison: legacy has customer row drilldown with SB/RCP/product/monthly detail; current Next now exposes SB/RCP/product drilldown through `detailId`, while monthly detail, channel breakdown, and decision signals are still pending.
 
 ### Supplier Tracking
 
@@ -43,7 +43,7 @@ User-provided screenshots clarify that Tracking 360 is a business decision surfa
 - Required source groups: Purchase Bill, WT/WTI, Grade Adjust, Payment, Return
 - Decision questions: supplier ไหนต้นทุนดี, ส่งครบไหม, quality ดีไหม, จ่ายดีไหม
 - Business importance: ธุรกิจ scrap ต้องเห็น supplier quality เพราะ supplier แต่ละรายไม่เท่ากัน
-- Target gap from local/legacy comparison: legacy has supplier row drilldown with PB/PMT/product/monthly detail; current Next local UI/API does not yet provide server-side supplier/search filters or supplier detail payloads.
+- Target gap from local/legacy comparison: legacy has supplier row drilldown with PB/PMT/product/monthly detail; current Next now provides server-side supplier/search filters and PB/payment/product drilldown through `detailId`, while monthly detail and reliability/quality signals are still pending.
 
 ### Product Tracking
 
@@ -53,7 +53,7 @@ User-provided screenshots clarify that Tracking 360 is a business decision surfa
 - Business importance: ใช้ optimize product mix ของโรงงาน
 - Target visible table from latest screenshot should focus on `Code`, `สินค้า`, `หมวด`, `ซื้อ`, `มูลค่าซื้อ`, `ซื้อเฉลี่ย`, `ขาย`, `ยอดขาย`, `ขายเฉลี่ย`, `COGS`, `GP`, and `GP%`. Columns/sections marked with red cross in the screenshot, specifically `Stock` and `WAC` on the far right, must be removed from the main visible table and primary export.
 - Target filters should include buyer/seller context where useful: Supplier ฝั่งซื้อ and Customer ฝั่งขาย in addition to year/month/category/product.
-- Target gap from local/legacy comparison: legacy has product drilldown with purchase lines, sales lines, stock movement, and monthly detail; current Next local UI/API has aggregate rows and still shows Stock/WAC as main table columns.
+- Target gap from local/legacy comparison: legacy has product drilldown with purchase lines, sales lines, stock movement, and monthly detail; current Next now exposes purchase/sales drilldown through `detailId` and removes crossed-out Stock/WAC from the main surface, while stock support detail, allocation, production/yield/loss, and monthly detail are still pending.
 
 ## Active Pages
 
@@ -93,9 +93,9 @@ User-provided screenshots clarify that Tracking 360 is a business decision surfa
 
 ## Current Gaps
 
-- Customer/Supplier/Product row drilldown is still a target behavior; current APIs mainly return aggregate rows, not full source-document timelines.
-- Customer Tracking does not currently return product/channel breakdown from API even though legacy detail view had breakdowns.
-- Supplier Tracking server-backed `supplierId`/`q` filtering is implemented for aggregate rows, product mix, monthly, summary, and export, but per-supplier PB/payment detail payload is not done yet.
+- Customer/Supplier/Product row drilldown is partially implemented through `detailId`: Customer has SB/RCP/product detail, Supplier has PB/payment/product detail, and Product has PB/SB source lines.
+- Customer Tracking still lacks channel breakdown, monthly detail, and decision signals from the legacy-style detail view.
+- Supplier Tracking server-backed `supplierId`/`q` filtering is implemented for aggregate rows, product mix, monthly, summary, and export; reliability/quality and monthly detail signals are still pending.
 - Product Tracking now removes crossed-out `Stock` and `WAC` from the main list/export and supports Supplier ฝั่งซื้อ / Customer ฝั่งขาย filters in aggregate rows/monthly/top/export.
 - Product Tracking availability/hold-aware `พร้อมใช้` remains owned by stock balance docs and is not represented in the main profitability table.
 - Aging buckets for receivable/payable/slow stock should be added only after [[Document Aging Policy]] and stock hold policy are finalized.
@@ -127,30 +127,34 @@ Local route smoke:
 
 ### Batch T360-2: Customer Tracking API
 
-- [ ] Extend `GET /api/tracking/customer` to support row detail for selected customer without changing write-side flows.
-- [ ] Add customer detail payload: SB lines, RCP lines, product breakdown, monthly movement, receivable/pending AR signal, return signal placeholder only after source ownership is confirmed.
+- [x] Extend `GET /api/tracking/customer` to support row detail for selected customer without changing write-side flows.
+- [x] Add customer detail payload: SB lines, RCP lines, and product breakdown.
+- [ ] Add monthly movement, receivable/pending AR signal, and return signal after source ownership is confirmed.
 - [ ] Keep `year`, `month`, `customerId`, and `q` filters consistent for summary, rows, detail, and export.
 - [ ] Add source-link fields using business doc numbers for SB/RCP.
 
 ### Batch T360-3: Customer Tracking UI
 
 - [ ] Update `CustomerTrackingPageClient.tsx` to follow `docs/design.md` list pattern: KPI cards first, filter shell, tabs, desktop table, dense mobile cards.
-- [ ] Make desktop rows and mobile cards clickable to open a detail modal/view.
-- [ ] Add detail sections for summary signals, SB list, RCP list, product breakdown, monthly movement, and decision signals.
+- [x] Make desktop rows clickable to open a detail modal/view.
+- [x] Add detail sections for SB list, RCP list, and product breakdown.
+- [ ] Add mobile cards, keyboard-open controls, summary signals, monthly movement, and decision signals.
 - [ ] Keep actions read-only; source document links navigate to owner pages when available.
 
 ### Batch T360-4: Supplier Tracking API
 
 - [x] Add server-side `supplierId` and `q` filters to `GET /api/tracking/supplier`.
-- [ ] Add supplier detail payload: PB lines, PMT/PMA lines, product mix, monthly purchase/payment trend.
+- [x] Add supplier detail payload: PB lines, payment lines, and product mix.
+- [ ] Add monthly purchase/payment trend.
 - [ ] Add reliability/quality signal fields only from owned source facts: WTI/WT completeness, Grade Adjust, Return, Payment, once source ownership is confirmed.
 - [x] Ensure product mix can be scoped to the selected supplier, not only global period.
 
 ### Batch T360-5: Supplier Tracking UI
 
 - [x] Move Supplier filter/search to server-backed filter behavior and export href.
-- [ ] Make supplier table rows/mobile cards clickable to open detail.
-- [ ] Add detail sections for PB list, payment list, product mix, monthly trend, and quality/reliability signals.
+- [x] Make supplier table rows/mobile cards clickable to open detail.
+- [x] Add detail sections for PB list, payment list, and product mix.
+- [ ] Add monthly trend and quality/reliability signals.
 - [ ] Apply `docs/design.md` dense card/mobile table behavior and avoid nested card surfaces.
 
 ### Batch T360-6: Product Tracking API
@@ -158,7 +162,8 @@ Local route smoke:
 - [x] Add target filters to `GET /api/tracking/product`: `supplierId` for buy-side lines and `customerId` for sell-side lines.
 - [x] Remove crossed-out `Stock` and `WAC` from primary export columns.
 - [x] Keep stock/WAC calculations out of the primary row contract unless added later as separated support-only detail.
-- [ ] Add product detail payload: purchase lines, sales lines, allocation/cost-source refs, production/yield/loss signals when source contracts are ready.
+- [x] Add product detail payload: purchase lines and sales lines.
+- [ ] Add allocation/cost-source refs and production/yield/loss signals when source contracts are ready.
 - [ ] Keep COGS/GP source formulas traceable to sales bill item facts and documented fallbacks.
 
 ### Batch T360-7: Product Tracking UI
@@ -166,8 +171,9 @@ Local route smoke:
 - [x] Update main Product table columns to match screenshot: `Code`, `สินค้า`, `หมวด`, `ซื้อ`, `มูลค่าซื้อ`, `ซื้อเฉลี่ย`, `ขาย`, `ยอดขาย`, `ขายเฉลี่ย`, `COGS`, `GP`, `GP%`.
 - [x] Remove crossed-out `Stock` and `WAC` from the main visible table and primary export.
 - [x] Add Supplier ฝั่งซื้อ and Customer ฝั่งขาย filters in the filter shell.
-- [ ] Make product rows/mobile cards clickable to open detail.
-- [ ] Add detail sections for purchase lines, sales lines, allocation, production/yield/loss, and source links.
+- [x] Make product desktop rows clickable to open detail.
+- [x] Add detail sections for purchase lines and sales lines.
+- [ ] Add product mobile cards, allocation, production/yield/loss, and source links.
 
 ### Batch T360-8: Design And QA
 
