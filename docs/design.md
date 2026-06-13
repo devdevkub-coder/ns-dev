@@ -611,7 +611,7 @@ Override ต้อง:
 
 - **Dialog Content Layout**: ใช้โครงสร้าง **Sticky Header & Scrollable Body Layout** เพื่อไม่ให้หัวข้อและปุ่มด้านล่างเลื่อนหายไปตอน scroll
 - **Header**: ใช้สไตล์ **Dark Header** ด้วย `bg-slate-900 text-white shrink-0`
-- **Body Wrapper**: ใช้ `flex-1 overflow-y-auto bg-slate-50 p-4 space-y-4 text-sm`
+- **Body Wrapper**: ใช้ `flex-1 overflow-y-auto bg-slate-50 p-4 sm:p-5 space-y-4 text-sm` โดยกำหนดให้มี Padding รอบข้าง (`p-4` หรือ `p-4 sm:p-5`) ครอบคลุมส่วนการ์ดฟิลด์กรอกข้อมูลและรายละเอียดเสมอเมื่อเป็น Modal/Dialog เพื่อไม่ให้ขอบการ์ดชิดสนิทติดขอบหน้าต่างของ Modal
 - **Footer**: ใช้ `DialogFooter` หรือ Sticky container ติดอยู่ด้านล่างสุดโดยตรึงไว้เพื่อไม่ให้เลื่อนหลุดสายตา โดยมีกฎเกณฑ์ดังนี้:
   - **ปุ่มหลัก (Save Button)**: ต้องใช้สไตล์สีน้ำเงินเข้ม/เดียวกับ Sidebar ของระบบเสมอ (`bg-slate-900 hover:bg-slate-800 text-white font-normal`) เพื่อความเป็นอันหนึ่งอันเดียวกัน ไม่ว่าจะบันทึกเอกสารประเภทใด และให้ใช้ข้อความสั้นๆ ว่า **"บันทึก"** เท่านั้น
   - **ปุ่มยกเลิก/ปิด (Cancel Button)**: ให้ใช้สไตล์ `variant="outline"` และข้อความ "ยกเลิก" หรือ "ปิด"
