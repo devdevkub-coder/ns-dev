@@ -17,6 +17,8 @@ import { useResizableColumns, type ResizableColumnDefinition } from '@/component
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import { openWeightTicketLineShare } from '@/lib/weight-ticket-share'
 import { cn } from '@/lib/utils'
+import { WeightTicketDetailModal } from './WeightTicketDetailModal'
+import { WeightTicketsPageClient } from './WeightTicketsPageClient'
 import {
   cancelWeightTicket,
   displayWeightTicketStatus,
@@ -143,6 +145,9 @@ function SegmentMulti({
 export function WeightTicketListPageClient() {
   const router = useRouter()
   const [tickets, setTickets] = useState<WeightTicketRecord[]>([])
+  const [activeDetailId, setActiveDetailId] = useState<string | null>(null)
+  const [activeForm, setActiveForm] = useState<{ id?: string; type: WeightTicketType } | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
   const [totalRows, setTotalRows] = useState(0)
   const [branches, setBranches] = useState<OptionItem[]>([])
   const [query, setQuery] = useState('')
@@ -247,7 +252,7 @@ export function WeightTicketListPageClient() {
     return () => {
       cancelled = true
     }
-  }, [branchFilter, dateFrom, dateTo, page, query, sortBy, sortDir, statusFilter, typeFilter])
+  }, [branchFilter, dateFrom, dateTo, page, query, sortBy, sortDir, statusFilter, typeFilter, refreshKey])
 
   function clearFilters() {
     setQuery('')
@@ -306,21 +311,20 @@ export function WeightTicketListPageClient() {
     <div className="space-y-5">
       {/* Floating Action Button (Mobile Only) */}
       <div className="fixed bottom-6 right-6 z-40 md:hidden">
-        <Link
+        <button
           className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg active:scale-95 transition-transform"
-          href={`/daily/weight-tickets?type=${typeFilter}`}
+          onClick={() => setActiveForm({ type: typeFilter })}
+          type="button"
           aria-label="สร้างใบรับ-ส่งของ"
         >
           <Plus className="size-6 text-white" />
-        </Link>
+        </button>
       </div>
 
       <div className="hidden md:flex justify-end">
-        <Button asChild>
-          <Link href={`/daily/weight-tickets?type=${typeFilter}`}>
+        <Button onClick={() => setActiveForm({ type: typeFilter })}>
             <Plus className="mr-2 size-4" />
             สร้างใบรับ-ส่งของ
-          </Link>
         </Button>
       </div>
 
@@ -527,7 +531,7 @@ export function WeightTicketListPageClient() {
             <div
               key={ticket.id}
               className="rounded-md border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 cursor-pointer transition-colors"
-              onClick={() => router.push(`/daily/weight-ticket-list/${encodeURIComponent(ticket.documentNo)}`)}
+              onClick={() => setActiveDetailId(ticket.id)}
             >
               <div className="flex justify-between items-start mb-2">
                 <span className="font-bold text-slate-800 text-sm">{ticket.documentNo}</span>
@@ -584,13 +588,14 @@ export function WeightTicketListPageClient() {
                   แชร์
                 </button>
                 {ticket.canEdit ? (
-                  <Link
+                  <button
                     className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50"
-                    href={`/daily/weight-tickets?id=${encodeURIComponent(ticket.id)}&type=${ticket.type}`}
+                    onClick={() => setActiveForm({ id: ticket.id, type: ticket.type })}
+                    type="button"
                   >
                     <SquarePen className="size-3" />
                     แก้ไข
-                  </Link>
+                  </button>
                 ) : null}
                 {ticket.canCancel ? (
                   <button
@@ -655,7 +660,7 @@ export function WeightTicketListPageClient() {
                 <tr
                   className="cursor-pointer hover:bg-slate-50"
                   key={ticket.id}
-                  onClick={() => router.push(`/daily/weight-ticket-list/${encodeURIComponent(ticket.documentNo)}`)}
+                  onClick={() => setActiveDetailId(ticket.id)}
                 >
                   <td className="whitespace-nowrap px-3 py-3 text-slate-900">{ticket.documentNo}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-slate-600">{formatDateTime(ticket.createdAt)}</td>
@@ -704,14 +709,17 @@ export function WeightTicketListPageClient() {
                         แชร์
                       </button>
                       {ticket.canEdit ? (
-                        <Link
+                        <button
                           className={rowActionButtonClass}
-                          href={`/daily/weight-tickets?id=${encodeURIComponent(ticket.id)}&type=${ticket.type}`}
-                          onClick={(event) => event.stopPropagation()}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            setActiveForm({ id: ticket.id, type: ticket.type })
+                          }}
+                          type="button"
                         >
                           <SquarePen className="size-3" />
                           แก้ไข
-                        </Link>
+                        </button>
                       ) : null}
                       {ticket.canCancel ? (
                         <button
@@ -784,6 +792,46 @@ export function WeightTicketListPageClient() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {activeDetailId && (
+        <WeightTicketDetailModal
+          ticketId={activeDetailId}
+          onClose={() => {
+            setActiveDetailId(null)
+            setRefreshKey((prev) => prev + 1)
+          }}
+          onEdit={(id, type) => {
+            setActiveDetailId(null)
+            setActiveForm({ id, type })
+          }}
+        />
+      )}
+
+      {activeForm && (
+        <Dialog open onOpenChange={(open) => {
+          if (!open) setActiveForm(null)
+        }}>
+          <DialogContent aria-labelledby="weight-ticket-form-title" className="max-h-[95vh] max-w-7xl overflow-y-auto rounded-md p-0" data-combobox-portal-root="true" hideClose>
+            <DialogHeader className="px-5 py-3 shrink-0">
+              <DialogTitle id="weight-ticket-form-title">
+                {activeForm.id ? 'แก้ไขใบรับ-ส่งของ' : activeForm.type === 'WTI' ? 'สร้างใบรับของ WTI' : 'สร้างใบส่งของ WTO'}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="p-0">
+              <WeightTicketsPageClient
+                initialType={activeForm.type}
+                lockType={Boolean(activeForm.id)}
+                ticketId={activeForm.id}
+                onClose={() => setActiveForm(null)}
+                onSaveSuccess={() => {
+                  setActiveForm(null)
+                  setRefreshKey((prev) => prev + 1)
+                }}
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }

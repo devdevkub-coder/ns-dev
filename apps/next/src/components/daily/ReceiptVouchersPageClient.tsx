@@ -472,13 +472,9 @@ export function ReceiptVouchersPageClient() {
       <section className="space-y-4 print:hidden">
         {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <div className="hidden md:block">
-            <KpiCard label="จำนวนเอกสาร" tone="slate" value={totalRows.toLocaleString('th-TH')} />
-          </div>
-          <div className="hidden md:block">
-            <KpiCard label="น้ำหนัก active (กก.)" tone="blue" value={formatMoney(totals.qty)} />
-          </div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
+          <KpiCard label="จำนวนเอกสาร" tone="slate" value={totalRows.toLocaleString('th-TH')} />
+          <KpiCard label="น้ำหนัก active (กก.)" tone="blue" value={formatMoney(totals.qty)} />
           <KpiCard label="ยอด active" tone="emerald" value={formatMoney(totals.amount)} />
           <KpiCard label="ยกเลิก" tone="violet" value={filteredRows.filter((row) => row.status === 'cancelled').length.toLocaleString('th-TH')} />
         </div>
@@ -944,16 +940,44 @@ function ReadOnlyInfo({ label, value, wide = false }: { label: string; value?: s
 }
 
 function KpiCard({ label, tone, value }: { label: string; tone: 'blue' | 'emerald' | 'slate' | 'violet'; value: string }) {
-  const tones = {
-    blue: 'text-blue-700',
-    emerald: 'text-emerald-700',
-    slate: 'text-slate-800',
-    violet: 'text-violet-700',
+  const configs = {
+    slate: {
+      bg: 'bg-slate-100 text-slate-600',
+      emoji: '📋',
+      labelColor: 'text-slate-500',
+      valueColor: 'text-slate-900',
+    },
+    blue: {
+      bg: 'bg-blue-100 text-blue-600',
+      emoji: '⚖️',
+      labelColor: 'text-blue-600',
+      valueColor: 'text-blue-700',
+    },
+    emerald: {
+      bg: 'bg-emerald-100 text-emerald-600',
+      emoji: '✅',
+      labelColor: 'text-emerald-600',
+      valueColor: 'text-emerald-700',
+    },
+    violet: {
+      bg: 'bg-violet-100 text-violet-600',
+      emoji: '🚨',
+      labelColor: 'text-violet-600',
+      valueColor: 'text-violet-700',
+    },
   }
+
+  const config = configs[tone]
+
   return (
-    <div className="rounded-md bg-white p-3 shadow">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className={`mt-1 text-lg font-bold ${tones[tone]}`}>{value}</div>
+    <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4 flex-1">
+      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${config.bg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
+        {config.emoji}
+      </div>
+      <div>
+        <div className={`text-xs ${config.labelColor}`}>{label}</div>
+        <div className={`font-bold ${config.valueColor}`}>{value}</div>
+      </div>
     </div>
   )
 }
@@ -1050,9 +1074,9 @@ function ReceiptVoucherDetailModal({ onClose, onPrint, row }: { onClose: () => v
 
 function DetailField({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
   return (
-    <div className={`rounded-md border border-slate-200 bg-white p-3 ${wide ? 'md:col-span-2' : ''}`}>
-      <div className="text-xs font-medium text-slate-500">{label}</div>
-      <div className="mt-1 text-sm font-semibold text-slate-800 [overflow-wrap:anywhere]">{value}</div>
+    <div className={`flex flex-col py-1 ${wide ? 'md:col-span-2' : ''}`}>
+      <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{label}</div>
+      <div className="mt-0.5 text-xs sm:text-sm font-semibold text-slate-800 [overflow-wrap:anywhere]">{value}</div>
     </div>
   )
 }

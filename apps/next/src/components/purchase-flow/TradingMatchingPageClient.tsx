@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Button } from '@/components/ui/Button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
@@ -159,11 +161,11 @@ export function TradingMatchingPageClient() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Metric label="Deals ทั้งหมด" value={`${totalDeals}`} />
-        <Metric tone="emerald" label="Completed" value={`${completedDeals.length}`} />
-        <Metric tone="amber" label="Partially Matched" value={`${partialDeals.length}`} />
-        <Metric tone={totalGP >= 0 ? 'purple' : 'red'} label="Total Trading GP" value={formatMoney(totalGP)} />
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
+        <Metric label="Deals ทั้งหมด" tone="slate" value={`${totalDeals}`} />
+        <Metric label="Completed" tone="emerald" value={`${completedDeals.length}`} />
+        <Metric label="Partially Matched" tone="amber" value={`${partialDeals.length}`} />
+        <Metric label="Total Trading GP" tone={totalGP >= 0 ? 'purple' : 'red'} value={formatMoney(totalGP)} />
       </div>
 
       <div className="rounded-md bg-white p-3 shadow">
@@ -335,9 +337,53 @@ function TradingBillTable({ rows, title, type }: { rows: TradingBillRow[]; title
   return <div><div className={`mb-2 font-bold ${type === 'purchases' ? 'text-emerald-700' : 'text-blue-700'}`}>{title}</div><table className="w-full text-xs"><thead className="bg-slate-100"><tr><th className="p-2 text-left">บิล</th><th className="p-2 text-left">{type === 'purchases' ? 'Supplier' : 'Customer'}</th><th className="p-2 text-right">มูลค่า</th><th className="p-2 text-right">{type === 'purchases' ? 'เหลือจับ' : 'รอ match cost'}</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id} className={`border-t ${type === 'sales' ? 'bg-amber-50/30' : ''}`}><td className="p-2 font-mono">{row.docNo}</td><td className="p-2">{type === 'purchases' ? 'supplierName' in row ? row.supplierName : '' : 'customerName' in row ? row.customerName : ''}</td><td className="p-2 text-right">{formatMoney(row.totalAmount)}</td><td className="p-2 text-right font-bold text-amber-700">{formatMoney(row.remainingAmount)}</td></tr>)}{rows.length === 0 ? <tr><td className="py-4 text-center text-slate-400" colSpan={4}>ทั้งหมด matched ✓</td></tr> : null}</tbody></table></div>
 }
 
-function Metric({ label, tone, value }: { label: string; tone?: 'amber' | 'emerald' | 'purple' | 'red'; value: string }) {
-  const toneClass = tone === 'emerald' ? 'bg-emerald-50 text-emerald-700' : tone === 'amber' ? 'bg-amber-50 text-amber-700' : tone === 'purple' ? 'bg-purple-50 text-purple-700' : tone === 'red' ? 'bg-red-50 text-red-700' : 'bg-white text-slate-900'
-  return <div className={`rounded-md p-3 shadow ${toneClass}`}><div className="text-xs opacity-80">{label}</div><div className="mt-1 text-xl font-bold">{value}</div></div>
+function Metric({ label, tone = 'slate', value }: { label: string; tone?: 'amber' | 'emerald' | 'purple' | 'red' | 'slate'; value: string }) {
+  const configs = {
+    slate: {
+      bg: 'bg-slate-100 text-slate-600',
+      emoji: '📋',
+      labelColor: 'text-slate-500',
+      valueColor: 'text-slate-900',
+    },
+    emerald: {
+      bg: 'bg-emerald-100 text-emerald-600',
+      emoji: '✅',
+      labelColor: 'text-emerald-600',
+      valueColor: 'text-emerald-700',
+    },
+    amber: {
+      bg: 'bg-amber-100 text-amber-600',
+      emoji: '⚠️',
+      labelColor: 'text-amber-600',
+      valueColor: 'text-amber-700',
+    },
+    purple: {
+      bg: 'bg-purple-100 text-purple-600',
+      emoji: '📈',
+      labelColor: 'text-purple-600',
+      valueColor: 'text-purple-700',
+    },
+    red: {
+      bg: 'bg-red-100 text-red-600',
+      emoji: '📉',
+      labelColor: 'text-red-600',
+      valueColor: 'text-red-700',
+    },
+  }
+
+  const config = configs[tone]
+
+  return (
+    <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4 flex-1">
+      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${config.bg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
+        {config.emoji}
+      </div>
+      <div>
+        <div className={`text-xs ${config.labelColor}`}>{label}</div>
+        <div className={`font-bold ${config.valueColor}`}>{value}</div>
+      </div>
+    </div>
+  )
 }
 
 function Gauge({ color, label, remaining, total, value }: { color: 'blue' | 'emerald'; label: string; remaining: number; total: number; value: number }) {
@@ -379,31 +425,52 @@ function buildMonthlyGP(rows: TradingDealRow[]) {
 
 function DealDetailModal({ deal, onClose }: { deal: TradingDealRow; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end bg-black/40 p-0 md:items-center md:justify-center md:p-4" role="dialog" aria-modal="true" aria-labelledby="deal-detail-title">
-      <div className="max-h-[90vh] w-full overflow-y-auto rounded-md-t-md bg-white shadow-xl md:max-w-2xl md:rounded-md">
-        <div className="flex items-center justify-between border-b p-4">
+    <Dialog open={true} onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="max-h-[90vh] max-w-2xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-none">
+        <DialogHeader className="p-4 bg-slate-900 text-white shrink-0 flex flex-row items-start justify-between gap-3">
           <div>
-            <h2 id="deal-detail-title" className="font-semibold">รายละเอียด {deal.dealNo}</h2>
-            <p className="text-sm text-slate-500">{deal.productName}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <DialogTitle className="text-lg font-bold text-white">รายละเอียด {deal.dealNo}</DialogTitle>
+            </div>
+            <DialogDescription className="mt-1 text-xs text-slate-400">
+              {deal.productName}
+            </DialogDescription>
           </div>
-          <button className="rounded-md border px-3 py-1.5 text-sm" type="button" onClick={onClose}>ปิด</button>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto bg-slate-50 p-5 space-y-4 text-sm">
+          <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-3">
+            <Detail label="วันที่" value={deal.date || '-'} />
+            <Detail label="สถานะ" value={deal.status || '-'} />
+            <Detail label="Qty" value={formatMoney(deal.matchedQty)} />
+            <div className="md:col-span-3">
+              <Detail label="PB / Supplier" value={`${deal.purchaseBillNo || '-'} · ${deal.supplierName}`} />
+            </div>
+            <div className="md:col-span-3">
+              <Detail label="SB / Customer" value={`${deal.salesBillNo || '-'} · ${deal.customerName}`} />
+            </div>
+            <Detail label="GP %" value={`${formatMoney(deal.grossProfitPct)}%`} />
+            <Detail label="Cost" value={formatMoney(deal.matchedPurchaseAmount)} />
+            <Detail label="Sales" value={formatMoney(deal.matchedSalesAmount)} />
+            <div className="md:col-span-3">
+              <Detail label="GP" value={formatMoney(deal.grossProfit)} />
+            </div>
+          </div>
         </div>
-        <div className="grid gap-3 p-4 md:grid-cols-3">
-          <Detail label="วันที่" value={deal.date || '-'} />
-          <Detail label="สถานะ" value={deal.status || '-'} />
-          <Detail label="Qty" value={formatMoney(deal.matchedQty)} />
-          <Detail label="PB / Supplier" value={`${deal.purchaseBillNo || '-'} · ${deal.supplierName}`} />
-          <Detail label="SB / Customer" value={`${deal.salesBillNo || '-'} · ${deal.customerName}`} />
-          <Detail label="GP %" value={`${formatMoney(deal.grossProfitPct)}%`} />
-          <Detail label="Cost" value={formatMoney(deal.matchedPurchaseAmount)} />
-          <Detail label="Sales" value={formatMoney(deal.matchedSalesAmount)} />
-          <Detail label="GP" value={formatMoney(deal.grossProfit)} />
-        </div>
-      </div>
-    </div>
+
+        <DialogFooter className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 shrink-0">
+          <Button className="font-normal" size="sm" type="button" variant="outline" onClick={onClose}>ปิด</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
 function Detail({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-md bg-slate-50 p-3"><div className="text-xs text-slate-500">{label}</div><div className="mt-1 font-medium">{value}</div></div>
+  return (
+    <div className="flex flex-col py-1">
+      <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{label}</div>
+      <div className="mt-0.5 text-xs sm:text-sm font-semibold text-slate-800">{value}</div>
+    </div>
+  )
 }

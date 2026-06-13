@@ -3,6 +3,7 @@
 import { Download, Plus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent } from 'react'
 import { Button } from '@/components/ui/Button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
@@ -1434,26 +1435,46 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
         </>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <div className="rounded-md bg-white p-3 shadow">
-              <div className="text-xs text-slate-500">ค่าใช้จ่ายเดือนนี้</div>
-              <div className="text-lg font-bold text-slate-900">{formatMoney(summary.monthlyTotal)}</div>
-              <div className="text-xs text-slate-500">{summary.monthlyCount} รายการ</div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
+            <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 text-lg sm:text-xl shrink-0">
+                📅
+              </div>
+              <div>
+                <div className="text-xs text-slate-500">ค่าใช้จ่ายเดือนนี้</div>
+                <div className="font-bold text-slate-900">{formatMoney(summary.monthlyTotal)}</div>
+                <div className="text-[10px] text-slate-400 font-medium mt-0.5">{summary.monthlyCount} รายการ</div>
+              </div>
             </div>
-            <div className="rounded-md bg-white p-3 shadow">
-              <div className="text-xs text-slate-500">รอจ่าย</div>
-              <div className="text-lg font-bold text-amber-700">{formatMoney(summary.pendingTotal)}</div>
-              <div className="text-xs text-slate-500">ตามสถานะเอกสาร</div>
+            <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 text-lg sm:text-xl shrink-0">
+                ⏱️
+              </div>
+              <div>
+                <div className="text-xs text-amber-600">รอจ่าย</div>
+                <div className="font-bold text-amber-700">{formatMoney(summary.pendingTotal)}</div>
+                <div className="text-[10px] text-slate-400 font-medium mt-0.5">ตามสถานะเอกสาร</div>
+              </div>
             </div>
-            <div className="rounded-md bg-white p-3 shadow">
-              <div className="text-xs text-slate-500">เสร็จสิ้น</div>
-              <div className="text-lg font-bold text-emerald-700">{formatMoney(summary.paidTotal)}</div>
-              <div className="text-xs text-slate-500">รวมทั้งระบบ</div>
+            <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 text-lg sm:text-xl shrink-0">
+                ✅
+              </div>
+              <div>
+                <div className="text-xs text-emerald-600">เสร็จสิ้น</div>
+                <div className="font-bold text-emerald-700">{formatMoney(summary.paidTotal)}</div>
+                <div className="text-[10px] text-slate-400 font-medium mt-0.5">รวมทั้งระบบ</div>
+              </div>
             </div>
-            <div className="rounded-md bg-white p-3 shadow">
-              <div className="text-xs text-slate-500">ตามเงื่อนไขที่กรอง</div>
-              <div className="text-lg font-bold text-slate-900">{formatMoney(filteredSummary.netAmount)}</div>
-              <div className="text-xs text-slate-500">{filteredSummary.count} รายการ</div>
+            <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-lg sm:text-xl shrink-0">
+                📋
+              </div>
+              <div>
+                <div className="text-xs text-blue-600">ตามเงื่อนไขที่กรอง</div>
+                <div className="font-bold text-blue-700">{formatMoney(filteredSummary.netAmount)}</div>
+                <div className="text-[10px] text-slate-400 font-medium mt-0.5">{filteredSummary.count} รายการ</div>
+              </div>
             </div>
           </div>
 
@@ -2020,25 +2041,24 @@ function ExpenseDetailModal({ onClose, onEdit, row }: { onClose: () => void; onE
   const canEdit = canMutateExpense(row.status)
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-4" role="dialog" aria-modal="true" aria-labelledby="expense-detail-title">
-      <div className="mx-auto my-4 w-full max-w-5xl overflow-hidden rounded-md bg-white shadow-xl">
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4">
+    <Dialog open={true} onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="max-h-[90vh] max-w-4xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-none">
+        <DialogHeader className="p-4 bg-slate-900 text-white shrink-0 flex flex-row items-start justify-between gap-3">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h3 id="expense-detail-title" className="text-lg font-bold text-slate-900">รายละเอียดค่าใช้จ่าย {row.docNo}</h3>
-              <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${expenseStatusTextClass(row.status)}`}>
+              <DialogTitle id="expense-detail-title" className="text-lg font-bold text-white">รายละเอียดค่าใช้จ่าย {row.docNo}</DialogTitle>
+              <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${expenseStatusTextClass(row.status)} bg-white/10 px-2 py-0.5 rounded`}>
                 <span className={`size-1.5 rounded-full ${expenseStatusDotClass(row.status)}`} />
                 {expenseStatusLabel(row.status)}
               </span>
             </div>
-            <p className="mt-1 text-xs text-slate-500">อ่านอย่างเดียวจากรายการค่าใช้จ่ายที่แสดงในตาราง</p>
+            <DialogDescription className="mt-1 text-xs text-slate-400">อ่านอย่างเดียวจากรายการค่าใช้จ่ายที่แสดงในตาราง</DialogDescription>
           </div>
-          <button className="text-3xl leading-none text-slate-400 hover:text-slate-700" type="button" onClick={onClose}>&times;</button>
-        </div>
+        </DialogHeader>
 
-        <div className="space-y-4 p-5">
+        <div className="flex-1 overflow-y-auto bg-slate-50 p-5 space-y-4 text-sm">
           {/* Summary Band */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 bg-white rounded-lg border border-slate-200 shadow-sm p-5">
             <SummaryTile emphasize label="Net Pay" value={formatMoney(row.netAmount)} />
             <SummaryTile label="ยอดก่อน VAT" value={formatMoney(row.amount)} />
             <SummaryTile label="VAT" value={formatMoney(row.vat)} />
@@ -2047,8 +2067,8 @@ function ExpenseDetailModal({ onClose, onEdit, row }: { onClose: () => void; onE
 
           <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
             {/* ข้อมูลเอกสาร */}
-            <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลเอกสาร</div>
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูลเอกสาร</div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
                 <DetailLine label="เลขที่เอกสาร" value={row.docNo} mono />
                 <DetailLine label="วันที่จ่าย" value={formatDateDisplay(row.date)} />
@@ -2062,13 +2082,13 @@ function ExpenseDetailModal({ onClose, onEdit, row }: { onClose: () => void; onE
             </div>
 
             {/* สรุปยอด */}
-            <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">สรุปยอด</div>
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">สรุปยอด</div>
               <div className="space-y-3 pt-1">
                 <SummaryRow label="ยอดก่อน VAT" value={formatMoney(row.amount)} />
                 <SummaryRow label="+ VAT" value={formatMoney(row.vat)} />
                 <SummaryRow label="- WHT" value={formatMoney(row.wht)} />
-                <div className="border-t border-slate-100/80 pt-3">
+                <div className="border-t border-slate-100 pt-3">
                   <SummaryRow strong label="ยอดสุทธิ" value={formatMoney(row.netAmount)} />
                 </div>
               </div>
@@ -2076,8 +2096,8 @@ function ExpenseDetailModal({ onClose, onEdit, row }: { onClose: () => void; onE
           </div>
 
           {/* รายการค่าใช้จ่าย */}
-          <div className="rounded-lg border border-slate-100 bg-slate-50/50 overflow-hidden">
-            <div className="border-b border-slate-100 px-4 py-3 bg-slate-50/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">รายการค่าใช้จ่าย</div>
+          <div className="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div className="border-b border-slate-100 px-4 py-3 bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">รายการค่าใช้จ่าย</div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[820px] text-xs">
                 <thead className="bg-slate-50 text-slate-500 border-b border-slate-100">
@@ -2090,7 +2110,7 @@ function ExpenseDetailModal({ onClose, onEdit, row }: { onClose: () => void; onE
                     <th className="p-2.5 text-right font-semibold">ยอดสุทธิ</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100/80">
+                <tbody className="divide-y divide-slate-100">
                   {lines.map((line) => {
                     const lineNet = line.amount + line.vatAmount - line.whtAmount
                     return (
@@ -2110,27 +2130,27 @@ function ExpenseDetailModal({ onClose, onEdit, row }: { onClose: () => void; onE
           </div>
 
           {/* รายละเอียดรวมและหมายเหตุ */}
-          <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">รายละเอียดเพิ่มเติมและหมายเหตุ</div>
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">รายละเอียดเพิ่มเติมและหมายเหตุ</div>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1">รายละเอียดรวม</div>
-                <div className="whitespace-pre-wrap text-xs sm:text-sm text-slate-700 bg-white/60 rounded-md border border-slate-100/50 p-3 min-h-[60px]">{row.description || '-'}</div>
+                <div className="whitespace-pre-wrap text-xs sm:text-sm text-slate-700 bg-slate-50 rounded-md border border-slate-100 p-3 min-h-[60px]">{row.description || '-'}</div>
               </div>
               <div>
                 <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1">หมายเหตุ</div>
-                <div className="whitespace-pre-wrap text-xs sm:text-sm text-slate-700 bg-white/60 rounded-md border border-slate-100/50 p-3 min-h-[60px]">{row.notes || '-'}</div>
+                <div className="whitespace-pre-wrap text-xs sm:text-sm text-slate-700 bg-slate-50 rounded-md border border-slate-100 p-3 min-h-[60px]">{row.notes || '-'}</div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
+        <DialogFooter className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 shrink-0">
           <Button className="h-9 font-normal" type="button" variant="outline" onClick={onClose}>ปิด</Button>
           {canEdit ? <Button className="h-9" type="button" onClick={() => onEdit(row)}>แก้ไข</Button> : null}
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

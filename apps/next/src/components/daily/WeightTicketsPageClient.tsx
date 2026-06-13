@@ -172,10 +172,14 @@ export function WeightTicketsPageClient({
   initialType = 'WTI',
   lockType = false,
   ticketId = '',
+  onClose,
+  onSaveSuccess,
 }: {
   initialType?: WeightTicketType
   lockType?: boolean
   ticketId?: string
+  onClose?: () => void
+  onSaveSuccess?: (ticket: WeightTicketRecord) => void
 }) {
   const router = useRouter()
   const editingTicketId = ticketId.trim()
@@ -467,7 +471,11 @@ export function WeightTicketsPageClient({
   }
 
   function backToList() {
-    router.push(`/daily/weight-ticket-list?type=${form.type}`)
+    if (onClose) {
+      onClose()
+    } else {
+      router.push(`/daily/weight-ticket-list?type=${form.type}`)
+    }
   }
 
   async function saveTicket() {
@@ -513,7 +521,11 @@ export function WeightTicketsPageClient({
       setLoadedTicket(ticket)
       setSavedTicket(ticket)
       setForm(ticketToFormState(ticket))
-      router.push(`/daily/weight-ticket-list?type=${ticket.type}`)
+      if (onSaveSuccess) {
+        onSaveSuccess(ticket)
+      } else {
+        router.push(`/daily/weight-ticket-list?type=${ticket.type}`)
+      }
     } catch (caught) {
       setLoadError(getErrorMessage(caught, editingTicketId ? 'แก้ไขใบรับ-ส่งของไม่ได้' : 'บันทึกใบรับ-ส่งของไม่ได้'))
     } finally {
@@ -522,13 +534,15 @@ export function WeightTicketsPageClient({
   }
 
   return (
-    <div className="min-w-0 space-y-5 overflow-x-hidden pb-32">
-      <div>
-        <Button type="button" variant="outline" onClick={backToList}>
-          <ArrowLeft className="mr-1 h-4 w-4" />
-          กลับไปหน้ารายการ
-        </Button>
-      </div>
+    <div className={cn("min-w-0 space-y-5 overflow-x-hidden", onClose ? "pb-6" : "pb-32")}>
+      {!onClose && (
+        <div>
+          <Button type="button" variant="outline" onClick={backToList}>
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            กลับไปหน้ารายการ
+          </Button>
+        </div>
+      )}
       <div>
         {typeSelectionLocked ? (
           <div className={cn('inline-flex rounded-md px-3 py-1.5 text-sm font-semibold', ticketTheme.badge)}>
@@ -847,7 +861,11 @@ export function WeightTicketsPageClient({
         </div>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-sm lg:left-64">
+      <div className={cn(
+        onClose
+          ? "sticky bottom-0 z-20 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-sm"
+          : "fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-sm lg:left-64"
+      )}>
         <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             {savedTicket ? (
@@ -866,8 +884,8 @@ export function WeightTicketsPageClient({
           </div>
           <div className="flex flex-wrap gap-2">
             <Button disabled={isLoadingTicket || isSaving} type="button" variant="outline" onClick={backToList}>
-              <ArrowLeft className="mr-1 h-4 w-4" />
-              กลับไปหน้ารายการ
+              {!onClose && <ArrowLeft className="mr-1 h-4 w-4" />}
+              {onClose ? 'ปิด' : 'กลับไปหน้ารายการ'}
             </Button>
             <Button className={ticketTheme.button} disabled={isLoadingTicket || isSaving} type="button" onClick={saveTicket}>
               {isSaving
@@ -881,7 +899,7 @@ export function WeightTicketsPageClient({
       </div>
 
       <Dialog open={Boolean(previewImage)} onOpenChange={(open) => setPreviewImage(open ? previewImage : null)}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-4xl !p-0 overflow-hidden bg-slate-900 border-none flex flex-col">
           {previewImage ? (
             <>
               <DialogHeader>

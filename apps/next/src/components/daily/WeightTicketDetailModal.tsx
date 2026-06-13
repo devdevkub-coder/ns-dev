@@ -10,7 +10,7 @@ import { Card } from '@/components/ui/Card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import { cn } from '@/lib/utils'
-import { cancelWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, type WeightTicketRecord, type WeightTicketStatus, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
+import { cancelWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, type WeightTicketRecord, type WeightTicketStatus, type WeightTicketType, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
 import { getErrorMessage } from '@/lib/api-client'
 
 function formatDateTime(value?: string | null) {
@@ -82,7 +82,15 @@ function usageWeightClass(action: string) {
   return 'text-rose-700'
 }
 
-export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: string; onClose: () => void }) {
+export function WeightTicketDetailModal({
+  ticketId,
+  onClose,
+  onEdit,
+}: {
+  ticketId: string
+  onClose: () => void
+  onEdit?: (id: string, type: WeightTicketType) => void
+}) {
   const [ticket, setTicket] = useState<WeightTicketRecord | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -172,12 +180,24 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
             </div>
             {ticket && ticket.canEdit ? (
               <div className="flex gap-2">
-                <Button asChild type="button" variant="outline" className="font-normal border-slate-700 bg-slate-800 text-white hover:bg-slate-700 hover:text-white">
-                  <Link href={`/daily/weight-tickets?id=${encodeURIComponent(ticket.id)}`}>
+                {onEdit ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="font-normal border-slate-700 bg-slate-800 text-white hover:bg-slate-700 hover:text-white"
+                    onClick={() => onEdit(ticket.id, ticket.type)}
+                  >
                     <SquarePen className="mr-2 size-4" />
                     แก้ไข
-                  </Link>
-                </Button>
+                  </Button>
+                ) : (
+                  <Button asChild type="button" variant="outline" className="font-normal border-slate-700 bg-slate-800 text-white hover:bg-slate-700 hover:text-white">
+                    <Link href={`/daily/weight-tickets?id=${encodeURIComponent(ticket.id)}`}>
+                      <SquarePen className="mr-2 size-4" />
+                      แก้ไข
+                    </Link>
+                  </Button>
+                )}
               </div>
             ) : null}
           </div>

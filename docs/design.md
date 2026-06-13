@@ -103,10 +103,16 @@
 
 ### KPI / Summary Cards Above Table
 
-- grid baseline: `grid-cols-1 gap-3 md:grid-cols-4`
-- card baseline: `rounded-md bg-white p-3 shadow`
-- label: `text-xs`
-- main value: `text-lg font-bold`
+- **AcexPOS Style (Card-based with Icons)**:
+  - **Outer wrapper (กรอบภายนอก)**: พื้นหลังสีเทาอ่อน `rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-5 text-sm`
+  - **Inner item card (การ์ดสถิติย่อยสีขาว)**: พื้นหลังสีขาวลอยตัว `bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4`
+  - **Circular Icon (วงกลมสัญลักษณ์ฝั่งซ้าย)**: `w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[color] flex items-center justify-center text-xl shrink-0` ใช้สัญลักษณ์ Emoji ด้านในเพื่อความพรีเมียม
+  - **Typography (ขนาดฟอนต์ของข้อความ)**:
+    - **ป้ายกำกับ (Label)**: ใช้ขนาด `text-xs` และใช้สีสัญลักษณ์ตามประเภทข้อมูล เช่น `text-blue-600`, `text-emerald-600`
+    - **ตัวเลขข้อมูล (Value)**: ใช้ขนาดตัวหนังสือปกติร่วมกับคลาสตัวหนา `font-bold` (ไม่เพิ่มขนาดเป็น `text-2xl` หรือใช้ระยะห่างเพิ่มเติม เพื่อความสะอาดตาและประหยัดพื้นที่หน้าจอ)
+  - **Responsive Mobile Grid (การจัดวางหน้าจอมือถือ)**:
+    - บนหน้าจอมือถือ/แท็บเล็ตขนาดเล็ก ต้องจัดวางเป็น **2 คอลัมน์ เสมอ** (`grid-cols-2 lg:grid-cols-5`) เพื่อประหยัดพื้นที่แนวตั้ง ไม่ให้การ์ดเรียงซ้อนกันเป็นแถวเดี่ยวแนวตั้งยาวเกินไป
+    - หากการ์ดสถิติมี 5 ใบ การ์ดที่ 5 จะต้องกำหนดให้ยืดเต็มความกว้าง (`col-span-2 lg:col-span-1`) เพื่อความสมมาตรและสมดุลของสายตา
 
 ### Form Surface
 

@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Button } from '@/components/ui/Button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { AlertTriangle, Download, RotateCcw, Search, X } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
@@ -435,73 +437,82 @@ function StockLedgerDetailModal({ onClose, row }: { onClose: () => void; row: St
   const netValue = row.valueIn - row.valueOut
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-label="รายละเอียด Stock Ledger">
-      <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-md bg-white shadow-2xl">
-        <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 bg-slate-50">
+    <Dialog open={true} onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="max-h-[90vh] max-w-3xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-none">
+        <DialogHeader className="p-4 bg-slate-900 text-white shrink-0 flex flex-row items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">รายละเอียด Stock Ledger</h2>
-            <p className="mt-1 text-xs text-slate-500">อ่านอย่างเดียวจากรายการ ledger ที่แสดงในตาราง</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <DialogTitle className="text-lg font-bold text-white">รายละเอียด Stock Ledger</DialogTitle>
+            </div>
+            <DialogDescription className="mt-1 text-xs text-slate-400">
+              อ่านอย่างเดียวจากรายการ ledger ที่แสดงในตาราง
+            </DialogDescription>
           </div>
-          <button className="inline-flex h-8 items-center gap-1.5 rounded-md bg-slate-100 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-200" type="button" onClick={onClose}><X className="h-4 w-4" />ปิด</button>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto bg-slate-50 p-5 space-y-4 text-sm">
+          <div className="grid gap-4 md:grid-cols-2">
+            <DetailPanel title="เอกสารอ้างอิง">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                <DetailRow label="วันที่" value={row.date || '-'} />
+                <DetailRow label="เลขบิล" value={row.refNo || '-'} mono />
+                <DetailRow className="col-span-2" label="ผู้ขาย/ผู้ซื้อ" value={row.counterpartyName || '-'} />
+                <DetailRow label="Ref Type" value={row.refType || '-'} />
+                <DetailRow label="Ref No" value={row.refId || '-'} mono />
+                <DetailRow className="col-span-2" label="Movement" value={stockMovementTypeLabel(row.movementType)} />
+              </div>
+            </DetailPanel>
+
+            <DetailPanel title="สินค้า / ที่เก็บ">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                <DetailRow className="col-span-2" label="สินค้า" value={`${row.productCode ? `${row.productCode} · ` : ''}${row.productName}`} />
+                <DetailRow className="col-span-2" label="Product ID" value={row.productId || '-'} mono />
+                <DetailRow label="Lot" value={row.lotNo || '-'} />
+                <DetailRow label="สาขา" value={row.branchName || '-'} />
+                <DetailRow className="col-span-2" label="คลัง" value={row.warehouseName || '-'} />
+              </div>
+            </DetailPanel>
+
+            <DetailPanel title="จำนวน / ต้นทุน">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                <DetailRow label="เข้า" value={row.qtyIn ? `${formatMoney(row.qtyIn)} กก.` : '-'} tone="emerald" />
+                <DetailRow label="ออก" value={row.qtyOut ? `${formatMoney(row.qtyOut)} กก.` : '-'} tone="red" />
+                <DetailRow label="สุทธิ" value={`${formatMoney(netQty)} กก.`} tone={netQty >= 0 ? 'emerald' : 'red'} />
+                <DetailRow label="ต้นทุน/หน่วย" value={`${formatMoney(row.unitCost)} บาท`} />
+                <DetailRow className="col-span-2" label="คงเหลือสะสม" value={`${formatMoney(row.runningBalanceByProduct)} กก.`} tone={row.runningBalanceByProduct < 0 ? 'red' : 'blue'} />
+              </div>
+            </DetailPanel>
+
+            <DetailPanel title="มูลค่า / สถานะ">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                <DetailRow label="มูลค่าเข้า" value={row.valueIn ? `${formatMoney(row.valueIn)} บาท` : '-'} tone="emerald" />
+                <DetailRow label="มูลค่าออก" value={row.valueOut ? `${formatMoney(row.valueOut)} บาท` : '-'} tone="red" />
+                <DetailRow label="มูลค่าสุทธิ" value={`${formatMoney(netValue)} บาท`} tone={netValue >= 0 ? 'emerald' : 'red'} />
+                <DetailRow label="พร้อมขาย" value={row.notAvailableForSale ? 'No' : 'Yes'} tone={row.notAvailableForSale ? 'red' : 'emerald'} />
+                <DetailRow className="col-span-2" label="สถานะสินค้า" value={row.outputCategory || '-'} />
+              </div>
+            </DetailPanel>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="font-semibold text-slate-700">หมายเหตุ</div>
+            <div className="mt-1 whitespace-pre-wrap text-slate-600">{row.note || '-'}</div>
+            <div className="mt-3 text-xs text-slate-500">คู่ค้า/ที่มา: {row.counterpartyName || '-'}</div>
+          </div>
         </div>
 
-        <div className="grid gap-4 p-5 md:grid-cols-2">
-          <DetailPanel title="เอกสารอ้างอิง">
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-              <DetailRow label="วันที่" value={row.date || '-'} />
-              <DetailRow label="เลขบิล" value={row.refNo || '-'} mono />
-              <DetailRow className="col-span-2" label="ผู้ขาย/ผู้ซื้อ" value={row.counterpartyName || '-'} />
-              <DetailRow label="Ref Type" value={row.refType || '-'} />
-              <DetailRow label="Ref No" value={row.refId || '-'} mono />
-              <DetailRow className="col-span-2" label="Movement" value={stockMovementTypeLabel(row.movementType)} />
-            </div>
-          </DetailPanel>
-
-          <DetailPanel title="สินค้า / ที่เก็บ">
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-              <DetailRow className="col-span-2" label="สินค้า" value={`${row.productCode ? `${row.productCode} · ` : ''}${row.productName}`} />
-              <DetailRow className="col-span-2" label="Product ID" value={row.productId || '-'} mono />
-              <DetailRow label="Lot" value={row.lotNo || '-'} />
-              <DetailRow label="สาขา" value={row.branchName || '-'} />
-              <DetailRow className="col-span-2" label="คลัง" value={row.warehouseName || '-'} />
-            </div>
-          </DetailPanel>
-
-          <DetailPanel title="จำนวน / ต้นทุน">
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-              <DetailRow label="เข้า" value={row.qtyIn ? `${formatMoney(row.qtyIn)} กก.` : '-'} tone="emerald" />
-              <DetailRow label="ออก" value={row.qtyOut ? `${formatMoney(row.qtyOut)} กก.` : '-'} tone="red" />
-              <DetailRow label="สุทธิ" value={`${formatMoney(netQty)} กก.`} tone={netQty >= 0 ? 'emerald' : 'red'} />
-              <DetailRow label="ต้นทุน/หน่วย" value={`${formatMoney(row.unitCost)} บาท`} />
-              <DetailRow className="col-span-2" label="คงเหลือสะสม" value={`${formatMoney(row.runningBalanceByProduct)} กก.`} tone={row.runningBalanceByProduct < 0 ? 'red' : 'blue'} />
-            </div>
-          </DetailPanel>
-
-          <DetailPanel title="มูลค่า / สถานะ">
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-              <DetailRow label="มูลค่าเข้า" value={row.valueIn ? `${formatMoney(row.valueIn)} บาท` : '-'} tone="emerald" />
-              <DetailRow label="มูลค่าออก" value={row.valueOut ? `${formatMoney(row.valueOut)} บาท` : '-'} tone="red" />
-              <DetailRow label="มูลค่าสุทธิ" value={`${formatMoney(netValue)} บาท`} tone={netValue >= 0 ? 'emerald' : 'red'} />
-              <DetailRow label="พร้อมขาย" value={row.notAvailableForSale ? 'No' : 'Yes'} tone={row.notAvailableForSale ? 'red' : 'emerald'} />
-              <DetailRow className="col-span-2" label="สถานะสินค้า" value={row.outputCategory || '-'} />
-            </div>
-          </DetailPanel>
-        </div>
-
-        <div className="border-t border-slate-100 bg-slate-50 px-5 py-4 text-sm rounded-b-md">
-          <div className="font-semibold text-slate-700">หมายเหตุ</div>
-          <div className="mt-1 whitespace-pre-wrap text-slate-600">{row.note || '-'}</div>
-          <div className="mt-3 text-xs text-slate-500">คู่ค้า/ที่มา: {row.counterpartyName || '-'}</div>
-        </div>
-      </div>
-    </div>
-  )
+        <DialogFooter className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 shrink-0">
+          <Button className="font-normal" size="sm" type="button" variant="outline" onClick={onClose}>ปิด</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+)
 }
 
 function DetailPanel({ children, title }: { children: ReactNode; title: string }) {
   return (
-    <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-      <div className="mb-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider pb-1 border-b border-slate-100/80">{title}</div>
+    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mb-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider pb-1 border-b border-slate-100">{title}</div>
       <div className="space-y-2">{children}</div>
     </div>
   )

@@ -286,12 +286,12 @@ export function DailyPettyAdvancePageClient() {
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-5 text-sm">
         <SummaryCard label="รายการทั้งหมด" value={String(summary.count)} />
         <SummaryCard label="ค้างคืน" tone="amber" value={String(summary.active)} />
         <SummaryCard label="ยอดยืมทั้งหมด" tone="blue" value={formatMoney(summary.total)} />
         <SummaryCard label="ใช้จ่าย/คืนแล้ว" tone="emerald" value={formatMoney(summary.spent + summary.returned)} />
-        <SummaryCard label="ยอดคงค้าง" tone="red" value={formatMoney(summary.remaining)} />
+        <SummaryCard className="col-span-2 lg:col-span-1" label="ยอดคงค้าง" tone="red" value={formatMoney(summary.remaining)} />
       </div>
 
       {topRecipients.length ? (
@@ -781,17 +781,53 @@ function StatusBadge({ status }: { status: string }) {
   return <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500"><span className="size-1.5 rounded-full bg-slate-400" />ยกเลิก</span>
 }
 
-function SummaryCard({ label, tone, value }: { label: string; tone?: 'amber' | 'blue' | 'emerald' | 'red'; value: string }) {
-  const valueClassName = tone === 'amber'
-    ? 'text-amber-700'
-    : tone === 'blue'
-      ? 'text-blue-700'
-      : tone === 'emerald'
-        ? 'text-emerald-700'
-        : tone === 'red'
-          ? 'text-red-700'
-          : 'text-slate-900'
-  return <div className="rounded-md bg-white p-3 shadow"><div className="text-xs text-slate-500">{label}</div><div className={`text-lg font-bold ${valueClassName}`}>{value}</div></div>
+function SummaryCard({ label, tone, value, className = '' }: { label: string; tone?: 'amber' | 'blue' | 'emerald' | 'red'; value: string; className?: string }) {
+  const configs = {
+    slate: {
+      bg: 'bg-slate-100 text-slate-600',
+      emoji: '📋',
+      labelColor: 'text-slate-500',
+      valueColor: 'text-slate-900',
+    },
+    amber: {
+      bg: 'bg-amber-100 text-amber-600',
+      emoji: '⏱️',
+      labelColor: 'text-amber-600',
+      valueColor: 'text-amber-700',
+    },
+    blue: {
+      bg: 'bg-blue-100 text-blue-600',
+      emoji: '💰',
+      labelColor: 'text-blue-600',
+      valueColor: 'text-blue-700',
+    },
+    emerald: {
+      bg: 'bg-emerald-100 text-emerald-600',
+      emoji: '✅',
+      labelColor: 'text-emerald-600',
+      valueColor: 'text-emerald-700',
+    },
+    red: {
+      bg: 'bg-red-100 text-red-600',
+      emoji: '🚨',
+      labelColor: 'text-red-600',
+      valueColor: 'text-red-700',
+    },
+  }
+
+  const config = configs[tone || 'slate']
+
+  return (
+    <div className={`bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4 ${className}`}>
+      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${config.bg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
+        {config.emoji}
+      </div>
+      <div>
+        <div className={`text-xs ${config.labelColor}`}>{label}</div>
+        <div className={`font-bold ${config.valueColor}`}>{value}</div>
+      </div>
+    </div>
+  )
 }
 
 function ReadOnlyField(props: { label: string; value: string }) {

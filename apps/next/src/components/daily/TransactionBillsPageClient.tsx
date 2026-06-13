@@ -3740,7 +3740,7 @@ function PurchaseBillDetailModal({
         ) : detail ? (
           <div className="space-y-4 p-4 text-sm">
             {/* ข้อมูลทั่วไป */}
-            <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
               <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลเอกสาร</div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
                 <DetailItem label="เลขที่บิล" value={detail.docNo} />
@@ -3754,7 +3754,7 @@ function PurchaseBillDetailModal({
             </div>
 
             {/* สถานะและการชำระเงิน */}
-            <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
               <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">สถานะและการชำระเงิน</div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
                 <div className="flex flex-col py-1">
@@ -3776,7 +3776,7 @@ function PurchaseBillDetailModal({
             </div>
 
             {/* สรุปต่อสินค้า */}
-            <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
               <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">สรุปต่อสินค้า</div>
               <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
                 <table className="w-full min-w-[880px] text-sm">
@@ -4028,16 +4028,20 @@ function StockIssueDetailModal({ onClose, row }: { onClose: () => void; row: Sto
             <TransactionKpi label="ต้นทุน" tone="amber" value={formatMoney(row.totalCost)} />
             <TransactionKpi label="ยอดคาด" tone="emerald" value={formatMoney(row.totalEstAmount)} />
           </div>
-          <div className="grid gap-3 text-xs text-slate-700 md:grid-cols-2">
-            <div><span className="font-semibold">วันที่เอกสาร:</span> {formatDateDisplay(row.date)}</div>
-            <div><span className="font-semibold">ลูกค้า:</span> {row.customerName || '-'}</div>
-            <div><span className="font-semibold">สาขา:</span> {row.branchName || '-'}</div>
-            <div><span className="font-semibold">คลัง:</span> {row.warehouseName || '-'}</div>
-            <div className="md:col-span-2"><span className="font-semibold">หมายเหตุ:</span> {row.note || '-'}</div>
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลเอกสาร</div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+              <DetailItem label="วันที่เอกสาร" value={formatDateDisplay(row.date)} />
+              <DetailItem label="ลูกค้า" value={row.customerName || '-'} />
+              <DetailItem label="สาขา" value={row.branchName || '-'} />
+              <DetailItem label="คลัง" value={row.warehouseName || '-'} />
+              <DetailItem className="col-span-2 sm:col-span-3" label="หมายเหตุ" value={row.note || '-'} />
+            </div>
           </div>
-          <div>
-            <h4 className="mb-2 text-xs font-semibold text-slate-600">รายการสินค้า</h4>
-            <div className="overflow-x-auto rounded-md border border-slate-200">
+
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">รายการสินค้า</div>
+            <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
               <table className="min-w-full text-xs">
                 <thead className="bg-slate-100 text-slate-600">
                   <tr>
@@ -4070,11 +4074,12 @@ function StockIssueDetailModal({ onClose, row }: { onClose: () => void; row: Sto
               </table>
             </div>
           </div>
-          <div>
-            <h4 className="mb-2 text-xs font-semibold text-slate-600">ประวัติสถานะ</h4>
+
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">ประวัติสถานะ</div>
             <div className="space-y-2">
               {timeline.map((event) => (
-                <div key={event.eventKey} className="rounded-md border border-slate-200 p-3">
+                <div key={event.eventKey} className="rounded-md border border-slate-200 p-3 bg-slate-50/50">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="text-xs font-semibold text-slate-800">{stockIssueActionText(event.action)}</div>
                     <div className="text-[11px] text-slate-500">{formatDateTime(event.createdAt)}</div>
@@ -4086,7 +4091,7 @@ function StockIssueDetailModal({ onClose, row }: { onClose: () => void; row: Sto
                   {event.note ? <div className="mt-1 text-xs text-slate-500">{event.note}</div> : null}
                 </div>
               ))}
-              {timeline.length === 0 ? <div className="rounded-md border border-slate-200 p-4 text-center text-xs text-slate-500">ยังไม่มีประวัติสถานะ</div> : null}
+              {timeline.length === 0 ? <div className="p-4 text-center text-xs text-slate-500">ยังไม่มีประวัติสถานะ</div> : null}
             </div>
           </div>
         </div>
