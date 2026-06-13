@@ -609,7 +609,13 @@ export function DailyPettyAdvancePageClient() {
       <div className="hidden md:block overflow-x-auto rounded-md bg-white shadow">
         <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
-            {pettyAdvanceColumns.map((column) => <col key={column.key} style={columnResize.getColumnStyle(column.key)} />)}
+            {pettyAdvanceColumns.map((column, index) => {
+              const style = columnResize.getColumnStyle(column.key);
+              if (index === pettyAdvanceColumns.length - 1) {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />;
+              }
+              return <col key={column.key} style={style} />;
+            })}
           </colgroup>
           <thead className="bg-slate-100">
             <tr>

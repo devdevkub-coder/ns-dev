@@ -262,7 +262,13 @@ export function BillSwapHistoryPageClient({ tableKey = 'daily.bill-swap-history'
       <div className="hidden md:block overflow-x-auto rounded-md bg-white shadow">
         <table className="w-full text-xs" style={{ minWidth: tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
-            {billSwapColumns.map((column) => <col key={column.key} style={getColumnStyle(column.key)} />)}
+            {billSwapColumns.map((column, index) => {
+              const style = getColumnStyle(column.key);
+              if (index === billSwapColumns.length - 1) {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />;
+              }
+              return <col key={column.key} style={style} />;
+            })}
           </colgroup>
           <thead className="bg-slate-100">
             <tr>

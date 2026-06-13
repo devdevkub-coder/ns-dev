@@ -571,7 +571,13 @@ export function DailyTransferPageClient() {
       <div className="hidden md:block overflow-x-auto">
         <Table className="text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
-            {transferColumns.map((column) => <col key={column.key} style={columnResize.getColumnStyle(column.key)} />)}
+            {transferColumns.map((column, index) => {
+              const style = columnResize.getColumnStyle(column.key);
+              if (index === transferColumns.length - 1) {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />;
+              }
+              return <col key={column.key} style={style} />;
+            })}
           </colgroup>
           <TableHeader>
             <tr>

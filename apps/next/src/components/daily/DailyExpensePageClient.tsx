@@ -966,7 +966,13 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
             <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm">
               <table className="w-full text-xs" style={{ minWidth: dashboardColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
                 <colgroup>
-                  {dashboardColumns.map((column) => <col key={column.key} style={dashboardColumnResize.getColumnStyle(column.key)} />)}
+                  {dashboardColumns.map((column, index) => {
+              const style = dashboardColumnResize.getColumnStyle(column.key);
+              if (index === dashboardColumns.length - 1) {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />;
+              }
+              return <col key={column.key} style={style} />;
+            })}
                 </colgroup>
                 <thead className="bg-slate-50/75 border-b border-slate-100">
                   <tr>
@@ -1932,7 +1938,13 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
           <div className="hidden md:block overflow-x-auto rounded-md bg-white shadow">
             <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
               <colgroup>
-                {expenseColumns.map((column) => <col key={column.key} style={columnResize.getColumnStyle(column.key)} />)}
+                {expenseColumns.map((column, index) => {
+              const style = columnResize.getColumnStyle(column.key);
+              if (index === expenseColumns.length - 1) {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />;
+              }
+              return <col key={column.key} style={style} />;
+            })}
               </colgroup>
               <thead className="bg-slate-100">
                 <tr>

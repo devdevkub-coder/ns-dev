@@ -588,7 +588,13 @@ export function StockTransferPageClient() {
       <div className="hidden md:block overflow-x-auto rounded-md bg-white shadow">
         <Table style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
-            {stockTransferColumns.map((column) => <col key={column.key} style={columnResize.getColumnStyle(column.key)} />)}
+            {stockTransferColumns.map((column, index) => {
+              const style = columnResize.getColumnStyle(column.key);
+              if (index === stockTransferColumns.length - 1) {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />;
+              }
+              return <col key={column.key} style={style} />;
+            })}
           </colgroup>
           <TableHeader>
             <tr>

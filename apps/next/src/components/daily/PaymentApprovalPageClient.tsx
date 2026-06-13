@@ -913,7 +913,13 @@ export function PaymentApprovalPageClient() {
             <Table className="text-xs" style={{ minWidth: apColumnResize.tableMinWidth + 40, tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: '40px' }} />
-                {paymentApprovalApColumns.map((column) => <col key={column.key} style={apColumnResize.getColumnStyle(column.key)} />)}
+                {paymentApprovalApColumns.map((column, index) => {
+              const style = apColumnResize.getColumnStyle(column.key);
+              if (index === paymentApprovalApColumns.length - 1) {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />;
+              }
+              return <col key={column.key} style={style} />;
+            })}
               </colgroup>
               <TableHeader>
                 <tr>
@@ -997,7 +1003,13 @@ export function PaymentApprovalPageClient() {
               <Table className="text-xs" style={{ minWidth: expenseColumnResize.tableMinWidth + 40, tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: '40px' }} />
-                {paymentApprovalExpenseColumns.map((column) => <col key={column.key} style={expenseColumnResize.getColumnStyle(column.key)} />)}
+                {paymentApprovalExpenseColumns.map((column, index) => {
+              const style = expenseColumnResize.getColumnStyle(column.key);
+              if (index === paymentApprovalExpenseColumns.length - 1) {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />;
+              }
+              return <col key={column.key} style={style} />;
+            })}
               </colgroup>
               <TableHeader>
                 <tr>
