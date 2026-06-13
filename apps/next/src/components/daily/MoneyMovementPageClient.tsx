@@ -2414,7 +2414,7 @@ function PaymentHistoryDetailDialog({
   const summary = detail?.summary
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto bg-slate-50 p-0" fallbackTitle="รายละเอียดการจ่ายเงิน" hideClose>
+      <DialogContent className="max-h-[90vh] max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-50" fallbackTitle="รายละเอียดการจ่ายเงิน" hideClose>
         <DialogHeader className="flex-row items-center justify-between gap-3 px-5 py-4 bg-slate-900 text-white">
           <div className="min-w-0">
             <DialogTitle className="truncate text-base font-bold text-white">{detail?.heading ?? 'รายละเอียดการจ่ายเงิน'}</DialogTitle>
@@ -2432,7 +2432,7 @@ function PaymentHistoryDetailDialog({
           </UiButton>
         </DialogHeader>
 
-        <div className="space-y-4 p-5 text-sm">
+        <div className="flex-1 overflow-y-auto space-y-4 p-5 text-sm">
           {isLoading ? <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow">กำลังโหลดรายละเอียด</div> : null}
           {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-red-800">{error}</div> : null}
           {!isLoading && !error && detail && summary ? (

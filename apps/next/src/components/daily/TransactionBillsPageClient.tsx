@@ -3719,8 +3719,8 @@ function PurchaseBillDetailModal({
     <Dialog open onOpenChange={(open) => {
       if (!open) onClose()
     }}>
-      <DialogContent aria-labelledby="purchase-bill-detail-title" className="max-h-[90vh] max-w-6xl overflow-y-auto rounded-md p-0" hideClose>
-        <DialogHeader className="p-4">
+      <DialogContent aria-labelledby="purchase-bill-detail-title" className="max-h-[90vh] max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col" hideClose>
+        <DialogHeader className="p-4 bg-slate-900 text-white shrink-0">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <DialogTitle id="purchase-bill-detail-title">รายละเอียดบิลรับซื้อ</DialogTitle>
@@ -3728,6 +3728,8 @@ function PurchaseBillDetailModal({
             </div>
           </div>
         </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto">
 
         {isLoading ? (
           <div className="p-8 text-center text-sm text-slate-500">กำลังโหลดรายละเอียดบิลรับซื้อ</div>
@@ -3889,7 +3891,9 @@ function PurchaseBillDetailModal({
           </div>
         ) : null}
 
-        <DialogFooter>
+        </div>
+
+        <DialogFooter className="flex flex-wrap gap-2 justify-end p-4 border-t bg-slate-50 shrink-0">
           {detail ? (
             <Button className="gap-2 font-normal" disabled={isPrinting} type="button" variant="outline" onClick={() => onPrint(detail)}>
               <Printer className="size-4" />
@@ -4005,16 +4009,18 @@ function StockIssueDetailModal({ onClose, row }: { onClose: () => void; row: Sto
     <Dialog open onOpenChange={(open) => {
       if (!open) onClose()
     }}>
-      <DialogContent aria-labelledby="stock-issue-detail-title" className="max-h-[90vh] max-w-5xl overflow-y-auto rounded-md p-0" hideClose>
-        <DialogHeader className="p-4">
+      <DialogContent aria-labelledby="stock-issue-detail-title" className="max-h-[90vh] max-w-5xl rounded-md !p-0 overflow-hidden flex flex-col" hideClose>
+        <DialogHeader className="p-4 bg-slate-900 text-white shrink-0">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <DialogTitle id="stock-issue-detail-title">รายละเอียดเบิกออกรอบิล</DialogTitle>
               <DialogDescription className="font-mono text-xs">{row.docNo}</DialogDescription>
             </div>
-            <button className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50" type="button" onClick={onClose}>ปิด</button>
+            <button className="rounded-md border border-slate-700 bg-slate-800 text-white hover:bg-slate-700 px-3 py-1.5 text-xs font-semibold" type="button" onClick={onClose}>ปิด</button>
           </div>
         </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto">
         <div className="space-y-4 p-4 text-sm">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
             <TransactionKpi label="สถานะ" tone={row.status === 'cancelled' ? 'slate' : row.status === 'converted' ? 'emerald' : 'amber'} value={statusText(row.status)} />
@@ -4084,6 +4090,7 @@ function StockIssueDetailModal({ onClose, row }: { onClose: () => void; row: Sto
             </div>
           </div>
         </div>
+      </div>
       </DialogContent>
     </Dialog>
   )

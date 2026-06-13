@@ -1765,70 +1765,74 @@ function PoBuyDetailModal({
     <Dialog open onOpenChange={(open) => {
       if (!open) onClose()
     }}>
-      <DialogContent aria-labelledby="po-buy-detail-title" className="max-h-[90vh] max-w-3xl overflow-y-auto rounded-md p-0" hideClose>
-        <DialogHeader className="p-4">
+      <DialogContent aria-labelledby="po-buy-detail-title" className="max-h-[90vh] max-w-3xl rounded-md !p-0 overflow-hidden flex flex-col" hideClose>
+        <DialogHeader className="p-4 bg-slate-900 text-white shrink-0">
           <div>
-            <DialogTitle id="po-buy-detail-title">รายละเอียด {row.docNo}</DialogTitle>
-            <DialogDescription>{row.supplierName}</DialogDescription>
+            <DialogTitle id="po-buy-detail-title" className="text-white">รายละเอียด {row.docNo}</DialogTitle>
+            <DialogDescription className="text-slate-300">{row.supplierName}</DialogDescription>
           </div>
         </DialogHeader>
-        <div className="grid grid-cols-2 gap-3 p-4 md:grid-cols-5">
-          <Detail label="วันที่สร้างเอกสาร" value={formatDateDisplay(row.date)} />
-          <Detail label="วันที่กำหนดส่ง" value={formatDateDisplay(row.expectedDelivery)} />
-          <Detail label="Qty" value={formatMoney(row.qty)} />
-          <Detail label="คงเหลือ" value={formatMoney(row.remainingQty)} />
-          <Detail label="ปิดรับไม่ครบ" value={row.shortClosedQty > 0 ? formatMoney(row.shortClosedQty) : '-'} />
-        </div>
-        <div className="grid grid-cols-2 gap-3 px-4 pb-4 md:grid-cols-3">
-          <Detail label="ยอดก่อน VAT" value={formatMoney(row.subtotal)} />
-          <Detail label={`VAT ${formatMoney(row.vatRatePercent)}%`} value={formatMoney(row.vatAmount)} />
-          <Detail label="ยอดรวม" value={formatMoney(row.totalAmount)} />
-        </div>
-        {row.notes.trim() ? (
+
+        <div className="flex-1 overflow-y-auto">
+          <div className="grid grid-cols-2 gap-3 p-4 md:grid-cols-5">
+            <Detail label="วันที่สร้างเอกสาร" value={formatDateDisplay(row.date)} />
+            <Detail label="วันที่กำหนดส่ง" value={formatDateDisplay(row.expectedDelivery)} />
+            <Detail label="Qty" value={formatMoney(row.qty)} />
+            <Detail label="คงเหลือ" value={formatMoney(row.remainingQty)} />
+            <Detail label="ปิดรับไม่ครบ" value={row.shortClosedQty > 0 ? formatMoney(row.shortClosedQty) : '-'} />
+          </div>
+          <div className="grid grid-cols-2 gap-3 px-4 pb-4 md:grid-cols-3">
+            <Detail label="ยอดก่อน VAT" value={formatMoney(row.subtotal)} />
+            <Detail label={`VAT ${formatMoney(row.vatRatePercent)}%`} value={formatMoney(row.vatAmount)} />
+            <Detail label="ยอดรวม" value={formatMoney(row.totalAmount)} />
+          </div>
+          {row.notes.trim() ? (
+            <div className="px-4 pb-4">
+              <div className="rounded-md bg-slate-50 p-3 text-sm">
+                <div className="text-xs text-slate-500">หมายเหตุ</div>
+                <div className="mt-1 whitespace-pre-wrap text-slate-700">{row.notes}</div>
+              </div>
+            </div>
+          ) : null}
+          {row.shortClosedNote.trim() ? (
+            <div className="px-4 pb-4">
+              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm">
+                <div className="text-xs text-red-600">เหตุผลการปิดรับไม่ครบ</div>
+                <div className="mt-1 whitespace-pre-wrap text-red-800">{row.shortClosedNote}</div>
+                <div className="mt-1 text-xs text-red-600">{row.shortClosedBy || '-'} · {formatDateTime(row.shortClosedAt)}</div>
+              </div>
+            </div>
+          ) : null}
           <div className="px-4 pb-4">
-            <div className="rounded-md bg-slate-50 p-3 text-sm">
-              <div className="text-xs text-slate-500">หมายเหตุ</div>
-              <div className="mt-1 whitespace-pre-wrap text-slate-700">{row.notes}</div>
+            <Table>
+              <TableHeader><tr><TableHead>สินค้า</TableHead><TableHead className="text-right">Qty</TableHead><TableHead className="text-right">คงเหลือ</TableHead><TableHead className="text-right">ราคา</TableHead></tr></TableHeader>
+              <TableBody>
+                  {row.items.map((item, index) => (
+                    <TableRow key={`${item.productId}-${index}`}>
+                      <TableCell>{item.productName || '-'}</TableCell>
+                      <TableCell className="text-right">{formatMoney(item.qty)}</TableCell>
+                      <TableCell className="text-right">{formatMoney(item.remainingQty)}</TableCell>
+                      <TableCell className="text-right">{formatMoney(item.unitPrice)}</TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="px-4 pb-4">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="text-sm font-medium text-slate-700">ประวัติ POB</div>
+              <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${statusBadge(row.status)}`}>
+                <span className="size-1.5 rounded-full bg-current" />
+                ล่าสุด: {poBuyStatusLabel(row.status)}
+              </span>
+            </div>
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+              <PoBuyStatusTimeline row={row} />
             </div>
           </div>
-        ) : null}
-        {row.shortClosedNote.trim() ? (
-          <div className="px-4 pb-4">
-            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm">
-              <div className="text-xs text-red-600">เหตุผลการปิดรับไม่ครบ</div>
-              <div className="mt-1 whitespace-pre-wrap text-red-800">{row.shortClosedNote}</div>
-              <div className="mt-1 text-xs text-red-600">{row.shortClosedBy || '-'} · {formatDateTime(row.shortClosedAt)}</div>
-            </div>
-          </div>
-        ) : null}
-        <div className="px-4 pb-4">
-          <Table>
-            <TableHeader><tr><TableHead>สินค้า</TableHead><TableHead className="text-right">Qty</TableHead><TableHead className="text-right">คงเหลือ</TableHead><TableHead className="text-right">ราคา</TableHead></tr></TableHeader>
-            <TableBody>
-                {row.items.map((item, index) => (
-                  <TableRow key={`${item.productId}-${index}`}>
-                    <TableCell>{item.productName || '-'}</TableCell>
-                    <TableCell className="text-right">{formatMoney(item.qty)}</TableCell>
-                    <TableCell className="text-right">{formatMoney(item.remainingQty)}</TableCell>
-                    <TableCell className="text-right">{formatMoney(item.unitPrice)}</TableCell>
-                  </TableRow>
-                ))}
-            </TableBody>
-          </Table>
         </div>
-        <div className="px-4 pb-4">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <div className="text-sm font-medium text-slate-700">ประวัติ POB</div>
-            <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${statusBadge(row.status)}`}>
-              <span className="size-1.5 rounded-full bg-current" />
-              ล่าสุด: {poBuyStatusLabel(row.status)}
-            </span>
-          </div>
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-            <PoBuyStatusTimeline row={row} />
-          </div>
-        </div>
-        <DialogFooter className="flex flex-wrap gap-2 justify-end">
+
+        <DialogFooter className="flex flex-wrap gap-2 justify-end p-4 border-t bg-slate-50 shrink-0">
           {onEdit && onCancel && row.status === 'Open' && row.qty === row.remainingQty ? (
             <>
               <UiButton
