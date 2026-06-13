@@ -1026,7 +1026,13 @@ export function PoBuyPageClient() {
       <div className="hidden md:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
         <Table className="text-xs font-semibold" style={{ fontFamily: "'Noto Sans Thai', Arial, sans-serif", tableLayout: 'fixed', minWidth: columnResize.tableMinWidth }}>
           <colgroup>
-            {poBuyColumns.map((column) => <col key={column.key} style={columnResize.getColumnStyle(column.key)} />)}
+            {poBuyColumns.map((column) => {
+              const style = columnResize.getColumnStyle(column.key)
+              if (column.key === 'action') {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />
+              }
+              return <col key={column.key} style={style} />
+            })}
           </colgroup>
           <TableHeader>
             <tr>
@@ -1058,7 +1064,7 @@ export function PoBuyPageClient() {
                   <PoBuyItemSummary fallbackText={row.productName} items={row.items} />
                 </TableCell>
                 <TableNumberCell value={formatMoney(row.qty)} />
-                <TableNumberCell strong value={formatMoney(row.totalAmount)} widthClass="w-32 max-w-32" />
+                <TableNumberCell strong value={formatMoney(row.totalAmount)} />
                 <TableNumberCell tone="amber" value={formatMoney(row.remainingQty)} />
                 <TableCell className="w-28 whitespace-nowrap">{formatDateDisplay(row.expectedDelivery)}</TableCell>
                 <TableCell className="text-center"><PoBuyNoteIndicator note={row.notes} poNo={row.docNo} /></TableCell>
