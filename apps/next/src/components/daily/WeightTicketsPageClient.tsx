@@ -198,7 +198,7 @@ export function WeightTicketsPageClient({
   const [loadError, setLoadError] = useState('')
   const [previewImage, setPreviewImage] = useState<AttachmentPreview | null>(null)
   const [touched, setTouched] = useState<Record<string, boolean>>({})
-  const [activeLineId, setActiveLineId] = useState(form.lines[0]?.id ?? '')
+  const [activeLineId, setActiveLineId] = useState('')
 
   const partyOptions = form.type === 'WTI' ? suppliers : customers
   const totals = useMemo(() => calculateTicketTotals(form.lines), [form.lines])
@@ -207,7 +207,7 @@ export function WeightTicketsPageClient({
     return [...new Set(form.lines.map((line) => line.productId).filter(Boolean))]
   }, [form.branchId, form.lines, form.type])
   const activeLine = useMemo(
-    () => form.lines.find((line) => line.id === activeLineId) ?? form.lines[0] ?? null,
+    () => form.lines.find((line) => line.id === activeLineId) ?? null,
     [activeLineId, form.lines],
   )
   const loadProducts = useCallback(async (signal?: AbortSignal) => {
@@ -347,7 +347,7 @@ export function WeightTicketsPageClient({
         setLoadedTicket(ticket)
         setForm(ticketToFormState(ticket))
         setSavedTicket(null)
-        setActiveLineId(ticket.lines[0]?.id ?? '')
+        setActiveLineId('')
         setTouched({})
       } catch (caught) {
         if (!cancelled) setLoadError(getErrorMessage(caught, 'โหลดใบรับ-ส่งของที่ต้องการแก้ไขไม่ได้'))
@@ -367,8 +367,8 @@ export function WeightTicketsPageClient({
       setActiveLineId('')
       return
     }
-    if (!form.lines.some((line) => line.id === activeLineId)) {
-      setActiveLineId(form.lines[0]?.id ?? '')
+    if (activeLineId && !form.lines.some((line) => line.id === activeLineId)) {
+      setActiveLineId('')
     }
   }, [activeLineId, form.lines])
 
@@ -849,7 +849,13 @@ export function WeightTicketsPageClient({
                     </div>
                   </div>
                 )
-              })() : null}
+              })() : (
+                <div className="flex flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50/50 p-12 text-center text-slate-500 min-h-[18rem] xl:min-h-[24rem]">
+                  <span className="text-3xl">👈</span>
+                  <div className="mt-2 text-sm font-medium text-slate-700">กรุณาเลือกรายการสินค้าด้านซ้าย</div>
+                  <div className="mt-1 text-xs text-slate-500">เพื่อเพิ่มรูปภาพ กรอกน้ำหนัก และรายละเอียดรายการ</div>
+                </div>
+              )}
             </div>
           </Card>
 
