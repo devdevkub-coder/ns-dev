@@ -240,7 +240,29 @@ export function ProductTrackingPageClient() {
       {view === 'yearCompare' ? <YearCompare monthly={data?.monthly ?? []} /> : null}
 
       {view === 'list' ? (
-        <div className="overflow-x-auto rounded-md bg-white shadow">
+        <>
+        <div className="space-y-3 md:hidden">
+          {isLoading ? <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm">กำลังโหลดข้อมูล</div> : null}
+          {!isLoading && rows.length === 0 ? <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-slate-400 shadow-sm">ไม่มีข้อมูล Product Tracking</div> : null}
+          {!isLoading && rows.map((row) => (
+            <div key={row.id} className="space-y-2 rounded-md border border-slate-100 bg-white p-4 shadow-sm" role="button" tabIndex={0} onClick={() => void openDetail(row)} onKeyDown={(event) => { if (event.key === 'Enter') void openDetail(row) }}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-bold text-slate-800">{row.name ?? row.productName}</div>
+                  <div className="font-mono text-xs text-slate-500">{row.code || '-'} · {row.metalGroup || '-'}</div>
+                </div>
+                <span className={`rounded-md px-2 py-1 text-xs font-semibold ${(row.gp ?? 0) >= 0 ? 'bg-orange-50 text-orange-700' : 'bg-red-50 text-red-700'}`}>GP {formatMoney(row.gp ?? 0)}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-2 text-xs">
+                <MiniLine label="ยอดขาย" tone="orange" value={formatMoney(row.revenue ?? row.salesAmount ?? 0)} />
+                <MiniLine label="ยอดซื้อ" value={formatMoney(row.buyAmount ?? row.purchaseAmount ?? 0)} />
+                <MiniLine label="ขาย" value={`${formatMoney(row.sellQty ?? row.salesQty ?? 0)} กก.`} />
+                <MiniLine label="GP%" tone={(row.gp ?? 0) >= 0 ? 'orange' : 'red'} value={`${(row.gpPct ?? 0).toFixed(2)}%`} />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="hidden overflow-x-auto rounded-md bg-white shadow md:block">
           <table className="w-full min-w-[1240px] text-sm">
             <thead className="bg-slate-100">
               <tr>
@@ -280,6 +302,7 @@ export function ProductTrackingPageClient() {
             </tbody>
           </table>
         </div>
+        </>
       ) : null}
       <ProductDetailDialog detail={detail} isLoading={isDetailLoading} onOpenChange={(open) => { if (!open) setDetail(null) }} />
     </section>
@@ -338,6 +361,11 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: string[][] })
 
 function SummaryCard({ label, value }: { label: string; value: string }) {
   return <div className="rounded-md bg-white p-4 shadow"><div className="text-xs font-semibold text-slate-500">{label}</div><div className="mt-1 truncate font-mono text-xl font-bold text-orange-700">{value}</div></div>
+}
+
+function MiniLine({ label, tone = 'slate', value }: { label: string; tone?: 'orange' | 'red' | 'slate'; value: string }) {
+  const text = tone === 'orange' ? 'text-orange-700' : tone === 'red' ? 'text-red-700' : 'text-slate-800'
+  return <div><div className="text-slate-500">{label}</div><div className={`font-mono font-bold ${text}`}>{value}</div></div>
 }
 
 function Tab({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {

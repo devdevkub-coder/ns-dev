@@ -136,9 +136,10 @@ Local route smoke:
 ### Batch T360-3: Customer Tracking UI
 
 - [ ] Update `CustomerTrackingPageClient.tsx` to follow `docs/design.md` list pattern: KPI cards first, filter shell, tabs, desktop table, dense mobile cards.
-- [x] Make desktop rows clickable to open a detail modal/view.
+- [x] Make desktop rows and dense mobile cards clickable to open a detail modal/view.
 - [x] Add detail sections for SB list, RCP list, and product breakdown.
-- [ ] Add mobile cards, keyboard-open controls, summary signals, monthly movement, and decision signals.
+- [x] Add mobile cards and keyboard-open mobile card controls.
+- [ ] Add summary signals, monthly movement, and decision signals.
 - [ ] Keep actions read-only; source document links navigate to owner pages when available.
 
 ### Batch T360-4: Supplier Tracking API
@@ -171,16 +172,16 @@ Local route smoke:
 - [x] Update main Product table columns to match screenshot: `Code`, `สินค้า`, `หมวด`, `ซื้อ`, `มูลค่าซื้อ`, `ซื้อเฉลี่ย`, `ขาย`, `ยอดขาย`, `ขายเฉลี่ย`, `COGS`, `GP`, `GP%`.
 - [x] Remove crossed-out `Stock` and `WAC` from the main visible table and primary export.
 - [x] Add Supplier ฝั่งซื้อ and Customer ฝั่งขาย filters in the filter shell.
-- [x] Make product desktop rows clickable to open detail.
+- [x] Make product desktop rows and dense mobile cards clickable to open detail.
 - [x] Add detail sections for purchase lines and sales lines.
-- [ ] Add product mobile cards, allocation, production/yield/loss, and source links.
+- [ ] Add allocation, production/yield/loss, and source links.
 
 ### Batch T360-8: Design And QA
 
 - [ ] Use `docs/design.md` filter shell: `rounded-md bg-white p-3 shadow`, compact `h-9` controls, export button on the right.
 - [ ] Use AcexPOS-style KPI grid without extra outer card wrappers.
 - [ ] Use desktop table with `overflow-x-auto rounded-md bg-white shadow`, `text-sm`, `bg-slate-100` header, `p-2` cells.
-- [ ] Add dense mobile card lists; cards must open the same detail as desktop rows.
+- [x] Add dense mobile card lists for Customer, Supplier, and Product; cards open the same detail as desktop rows.
 - [ ] Verify no text overflow/overlap on mobile and desktop.
 - [ ] Run validation: targeted lint for changed Tracking files, full type-check, build if API/data contracts change, and authenticated browser QA for all three routes.
 

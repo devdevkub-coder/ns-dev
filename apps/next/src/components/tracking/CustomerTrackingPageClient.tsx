@@ -173,7 +173,29 @@ export function CustomerTrackingPageClient() {
       ) : null}
 
       {view === 'list' ? (
-        <div className="overflow-x-auto rounded-md bg-white shadow">
+        <>
+        <div className="space-y-3 md:hidden">
+          {isLoading ? <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm">กำลังโหลดข้อมูล</div> : null}
+          {!isLoading && rows.length === 0 ? <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-slate-400 shadow-sm">ไม่มีข้อมูล Customer Tracking</div> : null}
+          {!isLoading && rows.map((row) => (
+            <div key={row.id} className="space-y-2 rounded-md border border-slate-100 bg-white p-4 shadow-sm" role="button" tabIndex={0} onClick={() => void openDetail(row)} onKeyDown={(event) => { if (event.key === 'Enter') void openDetail(row) }}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-bold text-slate-800">{row.customerName}</div>
+                  <div className="font-mono text-xs text-slate-500">{row.code || '-'}</div>
+                </div>
+                <span className="rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">{row.billCount} บิล</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-2 text-xs">
+                <MiniLine label="ยอดขาย" tone="emerald" value={formatMoney(row.revenue)} />
+                <MiniLine label="GP" tone={row.gp >= 0 ? 'emerald' : 'red'} value={formatMoney(row.gp)} />
+                <MiniLine label="น้ำหนัก" value={`${formatMoney(row.qty)} กก.`} />
+                <MiniLine label="ลูกหนี้" tone="amber" value={formatMoney(row.receivable)} />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="hidden overflow-x-auto rounded-md bg-white shadow md:block">
           <table className="w-full min-w-[1180px] text-sm">
             <thead className="bg-slate-100">
               <tr>
@@ -213,6 +235,7 @@ export function CustomerTrackingPageClient() {
             </tbody>
           </table>
         </div>
+        </>
       ) : null}
 
       <CustomerDetailDialog detail={detail} isLoading={isDetailLoading} onOpenChange={(open) => { if (!open) setDetail(null) }} />
@@ -288,6 +311,11 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: string[][] })
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return <div className="rounded-md bg-white/15 p-3"><div className="text-xs opacity-80">{label}</div><div className="font-mono text-lg font-bold">{value}</div></div>
+}
+
+function MiniLine({ label, tone = 'slate', value }: { label: string; tone?: 'amber' | 'emerald' | 'red' | 'slate'; value: string }) {
+  const text = tone === 'amber' ? 'text-amber-700' : tone === 'emerald' ? 'text-emerald-700' : tone === 'red' ? 'text-red-700' : 'text-slate-800'
+  return <div><div className="text-slate-500">{label}</div><div className={`font-mono font-bold ${text}`}>{value}</div></div>
 }
 
 function Tab({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {

@@ -207,9 +207,9 @@ Target detail payload fields:
 - [x] Remove crossed-out `Stock` and `WAC` from the main visible table.
 - [x] Add Supplier ฝั่งซื้อ and Customer ฝั่งขาย controls to the `docs/design.md` filter shell.
 - [x] Keep export button aligned with the same filters.
-- [x] Make desktop rows clickable to open product detail.
+- [x] Make desktop rows and dense mobile cards clickable to open product detail.
 - [x] Add detail modal/view sections: purchase lines and sales lines.
-- [ ] Add dense mobile cards that open product detail.
+- [x] Add dense mobile cards that open product detail.
 - [ ] Add detail modal/view sections: allocation/cost-source, production/yield/loss, source links.
 - [ ] If stock/balance access is needed, use a separate link to `/stock/balance`; do not add `Stock/WAC` back to the main Product Tracking table.
 - [ ] Follow `docs/design.md`: KPI cards before filters, compact controls, desktop table, dense mobile cards, no nested cards, no text overflow.

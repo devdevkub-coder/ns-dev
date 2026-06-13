@@ -175,9 +175,9 @@ Target detail payload fields:
 
 - [ ] Keep `docs/design.md` ordering: KPI cards, filter shell, tabs, pagination/summary if row count grows, data area.
 - [ ] Use compact filter shell with year, month, customer, search, and XLSX export button.
-- [x] Make desktop rows clickable to open customer detail.
+- [x] Make desktop rows and dense mobile cards clickable to open customer detail.
 - [x] Add detail modal/view sections: SB list, RCP list, product breakdown.
-- [ ] Add dense mobile cards and keyboard-openable row controls for the same customer detail.
+- [x] Add dense mobile cards and keyboard-openable mobile card controls for the same customer detail.
 - [ ] Add monthly movement and decision signals.
 - [ ] Add source document links as read-only navigation; no mutation actions.
 - [ ] Preserve table density with `text-sm`, `p-2`, `bg-slate-100` header, and no nested cards.
