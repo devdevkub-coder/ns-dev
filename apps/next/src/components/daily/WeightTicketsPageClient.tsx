@@ -5,12 +5,12 @@ import type { ReactNode } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, ChevronDown, ImagePlus, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, ChevronDown, ImagePlus, Plus, Search, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { Card } from '@/components/ui/Card'
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxList } from '@/components/ui/combobox'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -1025,103 +1025,56 @@ function ProductImagePicker({
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const [category, setCategory] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [tempSelectedId, setTempSelectedId] = useState('')
+
   const categories = useMemo(
     () => Array.from(new Set(products.map((product) => product.category?.trim()).filter((item): item is string => Boolean(item)))).sort((a, b) => a.localeCompare(b, 'th', { numeric: true })),
     [products],
   )
+
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
-      return category === 'all' || product.category === category
+      const matchesCategory = category === 'all' || product.category === category
+      const matchesQuery = !searchQuery.trim() ||
+        (product.name ?? product.label ?? '').toLowerCase().includes(searchQuery.trim().toLowerCase()) ||
+        (product.code ?? '').toLowerCase().includes(searchQuery.trim().toLowerCase())
+      return matchesCategory && matchesQuery
     })
-  }, [category, products])
+  }, [category, searchQuery, products])
 
   const selectedProduct = useMemo(() => products.find((p) => p.id === value), [products, value])
 
   if (disabled) return null
 
+  const handleConfirmSelection = () => {
+    onChange(tempSelectedId)
+    setIsOpen(false)
+    setSearchQuery('')
+    setCategory('all')
+  }
+
+  const handleCancel = () => {
+    setIsOpen(false)
+    setSearchQuery('')
+    setCategory('all')
+  }
+
   return (
     <div className="mt-2">
-      <button
+      <Button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className={cn(
-          "flex w-full items-center justify-between rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 shadow-sm transition hover:bg-slate-100 hover:border-slate-400 hover:text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-400",
-          isOpen && "rounded-b-none border-b-0 border-solid"
-        )}
+        onClick={() => {
+          setTempSelectedId(value)
+          setIsOpen(true)
+        }}
+        className="w-full bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center gap-1.5 h-10 rounded-md text-xs font-semibold"
       >
-        <span className="flex items-center gap-1.5">
-          <ImagePlus className="h-4 w-4 text-slate-500" />
-          <span>เลือกสินค้าจากรูปภาพ</span>
-        </span>
-        <ChevronDown className={cn("h-4 w-4 text-slate-400 transition-transform duration-200", isOpen && "rotate-180")} />
-      </button>
+        <Plus className="h-4 w-4" />
+        เพิ่มสินค้า
+      </Button>
 
-      {isOpen ? (
-        <div className="min-w-0 overflow-hidden rounded-b-md border border-slate-200 bg-white p-1.5 sm:p-2">
-          <div className="flex min-w-0 gap-1.5 overflow-x-auto pb-1">
-            <button
-              className={cn(
-                'shrink-0 rounded-md border px-2 py-1 text-xs font-medium',
-                category === 'all' ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100',
-              )}
-              type="button"
-              onClick={() => setCategory('all')}
-            >
-              ทั้งหมด
-            </button>
-            {categories.map((item) => (
-              <button
-                className={cn(
-                  'shrink-0 rounded-md border px-2 py-1 text-xs font-medium',
-                  category === item ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100',
-                )}
-                key={item}
-                type="button"
-                onClick={() => setCategory(item)}
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-          <div className="mt-1.5 max-h-72 min-w-0 overflow-y-auto pr-1 sm:mt-2 sm:max-h-80">
-            <div className="grid min-w-0 grid-cols-4 gap-1.5 sm:grid-cols-5 lg:grid-cols-6">
-              {filteredProducts.map((product) => {
-                const selected = product.id === value
-                return (
-                  <button
-                    className={cn(
-                      'min-w-0 overflow-hidden rounded-md border bg-white text-left shadow-sm transition hover:border-emerald-500',
-                      selected ? 'border-emerald-600 ring-2 ring-emerald-200' : 'border-slate-200',
-                    )}
-                    key={product.id}
-                    type="button"
-                    onClick={() => onChange(product.id)}
-                  >
-                    <div className="aspect-[4/3] w-full bg-slate-100">
-                      {product.imageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img alt={product.name ?? product.label} className="h-full w-full object-cover" src={product.imageUrl} />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-slate-400">
-                          <ImagePlus className="h-4 w-4" />
-                        </div>
-                      )}
-                    </div>
-                    <div className={cn('min-w-0 px-1 py-1 text-center text-[10px] font-semibold leading-tight sm:text-[11px]', selected ? 'bg-emerald-100 text-emerald-900' : 'bg-slate-50 text-slate-800')}>
-                      <div className="line-clamp-2 min-h-6 min-w-0 break-words">{product.name ?? product.label}</div>
-                    </div>
-                  </button>
-                )
-              })}
-              {filteredProducts.length === 0 ? (
-                <div className="col-span-full rounded-md bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">ไม่พบสินค้า</div>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {!isOpen && selectedProduct ? (
+      {selectedProduct ? (
         <div className="mt-2 flex items-center gap-3 rounded-md border border-slate-200 bg-white p-2 shadow-sm">
           <div className="h-12 w-12 shrink-0 overflow-hidden rounded bg-slate-100 border border-slate-100">
             {selectedProduct.imageUrl ? (
@@ -1146,6 +1099,121 @@ function ProductImagePicker({
           </button>
         </div>
       ) : null}
+
+      <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleCancel() }}>
+        <DialogContent className="max-w-2xl bg-white p-0 overflow-hidden rounded-xl border border-slate-200 shadow-2xl flex flex-col max-h-[90vh]">
+          <DialogHeader className="px-5 pt-5 pb-3 border-b border-slate-100 flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">📦</span>
+              <DialogTitle className="text-base font-bold text-slate-900">เพิ่มสินค้า</DialogTitle>
+            </div>
+          </DialogHeader>
+
+          <div className="p-4 sm:p-5 flex-1 overflow-y-auto space-y-4 min-h-0">
+            {/* Search input */}
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                className="pl-9 h-10 w-full text-slate-800 border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                placeholder="ค้นหาสินค้า..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            {/* Category pills */}
+            <div className="flex min-w-0 gap-1.5 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-slate-200">
+              <button
+                className={cn(
+                  'shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition',
+                  category === 'all' ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100',
+                )}
+                type="button"
+                onClick={() => setCategory('all')}
+              >
+                ทั้งหมด
+              </button>
+              {categories.map((item) => (
+                <button
+                  className={cn(
+                    'shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition',
+                    category === item ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100',
+                  )}
+                  key={item}
+                  type="button"
+                  onClick={() => setCategory(item)}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+
+            {/* Grid of products */}
+            <div className="max-h-[50vh] overflow-y-auto pr-1">
+              <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 lg:grid-cols-5">
+                {filteredProducts.map((product) => {
+                  const selected = product.id === tempSelectedId
+                  return (
+                    <button
+                      className={cn(
+                        'overflow-hidden rounded-xl border bg-white text-left transition duration-150 flex flex-col group relative',
+                        selected
+                          ? 'border-blue-600 ring-2 ring-blue-100 bg-blue-50/20'
+                          : 'border-slate-200 hover:border-slate-300 hover:shadow-md',
+                      )}
+                      key={product.id}
+                      type="button"
+                      onClick={() => setTempSelectedId(product.id)}
+                    >
+                      <div className="aspect-[4/3] w-full bg-slate-50 overflow-hidden border-b border-slate-100 relative">
+                        {product.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img alt={product.name ?? product.label} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" src={product.imageUrl} />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-slate-300 bg-slate-50">
+                            <ImagePlus className="h-5 w-5" />
+                          </div>
+                        )}
+                      </div>
+                      <div className={cn(
+                        'w-full px-2 py-2 text-center text-[10px] sm:text-xs font-bold leading-snug flex-1 flex items-center justify-center min-h-[2.5rem]',
+                        selected ? 'bg-blue-50 text-blue-900' : 'bg-slate-50 text-slate-700 group-hover:bg-slate-100'
+                      )}>
+                        <span className="line-clamp-2 break-words">{product.name ?? product.label}</span>
+                      </div>
+                    </button>
+                  )
+                })}
+                {filteredProducts.length === 0 ? (
+                  <div className="col-span-full rounded-xl bg-slate-50 px-4 py-10 text-center text-sm text-slate-400">ไม่พบสินค้า</div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 flex flex-row justify-end gap-2.5">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCancel}
+              className="h-10 px-4 font-semibold text-slate-700 border-slate-300 bg-white hover:bg-slate-50"
+            >
+              ยกเลิก
+            </Button>
+            <Button
+              disabled={!tempSelectedId}
+              type="button"
+              onClick={handleConfirmSelection}
+              className={cn(
+                "h-10 px-5 font-semibold text-white transition",
+                tempSelectedId ? "bg-blue-600 hover:bg-blue-700" : "bg-slate-300 cursor-not-allowed"
+              )}
+            >
+              + เพิ่ม
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
