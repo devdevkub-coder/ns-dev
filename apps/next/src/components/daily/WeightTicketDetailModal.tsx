@@ -161,7 +161,7 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
     <Dialog open onOpenChange={(open) => {
       if (!open) onClose()
     }}>
-      <DialogContent aria-labelledby="weight-ticket-detail-title" className="max-h-[90vh] max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col" hideClose>
+      <DialogContent aria-labelledby="weight-ticket-detail-title" className="max-h-[90vh] max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-slate-900" hideClose>
         <DialogHeader className="p-4 bg-slate-900 text-white shrink-0">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -183,7 +183,7 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto bg-slate-50">
 
         {isLoading ? (
           <div className="p-8 text-center text-sm text-slate-500">กำลังโหลดข้อมูล...</div>
@@ -586,12 +586,12 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
           <Dialog open onOpenChange={(open) => {
             if (!open) setPreviewImage(null)
           }}>
-            <DialogContent className="max-w-4xl">
+            <DialogContent className="max-w-4xl !p-0 overflow-hidden bg-slate-900 border-slate-900 flex flex-col">
               <DialogHeader>
                 <DialogTitle>รูปภาพแนบ</DialogTitle>
                 <DialogDescription>{previewImage.fileName}</DialogDescription>
               </DialogHeader>
-              <div className="overflow-hidden rounded-md bg-slate-950">
+              <div className="overflow-hidden bg-slate-950 p-4">
                 <Image
                   alt={previewImage.fileName}
                   className="max-h-[70vh] w-full object-contain"
@@ -609,14 +609,14 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
           <Dialog open onOpenChange={(open) => {
             if (!open) setLineGallery(null)
           }}>
-            <DialogContent className="max-w-5xl">
+            <DialogContent className="max-w-5xl !p-0 overflow-hidden bg-slate-900 border-slate-900 flex flex-col">
               <DialogHeader>
                 <DialogTitle>{lineGallery.title}</DialogTitle>
                 <DialogDescription>
                   {activeGalleryImage.fileName} · รูป {lineGallery.activeIndex + 1} / {lineGallery.images.length}
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4">
+              <div className="space-y-4 p-4 bg-slate-950">
                 <div className="relative overflow-hidden rounded-md bg-slate-950">
                   <Image
                     alt={activeGalleryImage.fileName}

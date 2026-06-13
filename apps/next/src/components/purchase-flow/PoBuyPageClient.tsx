@@ -1765,7 +1765,7 @@ function PoBuyDetailModal({
     <Dialog open onOpenChange={(open) => {
       if (!open) onClose()
     }}>
-      <DialogContent aria-labelledby="po-buy-detail-title" className="max-h-[90vh] max-w-3xl rounded-md !p-0 overflow-hidden flex flex-col" hideClose>
+      <DialogContent aria-labelledby="po-buy-detail-title" className="max-h-[90vh] max-w-3xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-slate-900" hideClose>
         <DialogHeader className="p-4 bg-slate-900 text-white shrink-0">
           <div>
             <DialogTitle id="po-buy-detail-title" className="text-white">รายละเอียด {row.docNo}</DialogTitle>
@@ -1773,7 +1773,7 @@ function PoBuyDetailModal({
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto bg-white">
           <div className="grid grid-cols-2 gap-3 p-4 md:grid-cols-5">
             <Detail label="วันที่สร้างเอกสาร" value={formatDateDisplay(row.date)} />
             <Detail label="วันที่กำหนดส่ง" value={formatDateDisplay(row.expectedDelivery)} />
