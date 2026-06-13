@@ -321,13 +321,6 @@ export function WeightTicketListPageClient() {
         </button>
       </div>
 
-      <div className="hidden md:flex justify-end">
-        <Button onClick={() => setActiveForm({ type: typeFilter })}>
-            <Plus className="mr-2 size-4" />
-            สร้างใบรับ-ส่งของ
-        </Button>
-      </div>
-
       <Tabs
         className="gap-0"
         value={typeFilter}
@@ -379,6 +372,12 @@ export function WeightTicketListPageClient() {
               }}
             />
             <Button disabled={!activeFilters} type="button" variant="secondary" onClick={clearFilters}>ล้างตัวกรอง</Button>
+            <div className="ml-auto">
+              <Button onClick={() => setActiveForm({ type: typeFilter })}>
+                <Plus className="mr-2 size-4" />
+                สร้างใบรับ-ส่งของ
+              </Button>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-slate-500">สถานะเอกสาร:</span>
@@ -811,13 +810,13 @@ export function WeightTicketListPageClient() {
         <Dialog open onOpenChange={(open) => {
           if (!open) setActiveForm(null)
         }}>
-          <DialogContent aria-labelledby="weight-ticket-form-title" className="max-h-[95vh] max-w-7xl overflow-y-auto rounded-md p-0" data-combobox-portal-root="true" hideClose>
-            <DialogHeader className="px-5 py-3 shrink-0">
+          <DialogContent aria-labelledby="weight-ticket-form-title" className="max-h-[95vh] max-w-7xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-none" data-combobox-portal-root="true" hideClose>
+            <DialogHeader className="px-5 py-3 bg-slate-900 text-white shrink-0">
               <DialogTitle id="weight-ticket-form-title">
                 {activeForm.id ? 'แก้ไขใบรับ-ส่งของ' : activeForm.type === 'WTI' ? 'สร้างใบรับของ WTI' : 'สร้างใบส่งของ WTO'}
               </DialogTitle>
             </DialogHeader>
-            <div className="p-0">
+            <div className="flex-1 overflow-y-auto bg-slate-50 p-0">
               <WeightTicketsPageClient
                 initialType={activeForm.type}
                 lockType={Boolean(activeForm.id)}
