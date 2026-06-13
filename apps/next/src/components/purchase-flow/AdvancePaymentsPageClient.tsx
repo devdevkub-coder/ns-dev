@@ -870,7 +870,13 @@ export function AdvancePaymentsPageClient() {
           <div className="hidden md:block overflow-x-auto rounded-md bg-white shadow">
             <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
               <colgroup>
-                {advancePaymentColumns.map((column) => <col key={column.key} style={columnResize.getColumnStyle(column.key)} />)}
+                {advancePaymentColumns.map((column, index) => {
+              const style = columnResize.getColumnStyle(column.key);
+              if (index === advancePaymentColumns.length - 1) {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />;
+              }
+              return <col key={column.key} style={style} />;
+            })}
               </colgroup>
               <thead className="bg-slate-100">
                 <tr>
@@ -943,14 +949,14 @@ export function AdvancePaymentsPageClient() {
         setIsDetailOpen(open)
         if (!open) setDetail(null)
       }}>
-        <DialogContent className="max-h-[85vh] max-w-5xl overflow-y-auto" fallbackTitle="รายละเอียด ADV">
-          <DialogHeader>
-            <DialogTitle>{detail?.docNo ? `รายละเอียด ${detail.docNo}` : 'รายละเอียด ADV'}</DialogTitle>
-            <DialogDescription>กดที่รายการเพื่อดูข้อมูลเอกสาร การหักบิลย้อนหลัง และ timeline ของรายการ ADV</DialogDescription>
+        <DialogContent className="max-h-[90vh] max-w-5xl rounded-md !p-0 overflow-hidden flex flex-col" fallbackTitle="รายละเอียด ADV" hideClose>
+          <DialogHeader className="p-4 bg-slate-900 text-white shrink-0">
+            <DialogTitle className="text-white">{detail?.docNo ? `รายละเอียด ${detail.docNo}` : 'รายละเอียด ADV'}</DialogTitle>
+            <DialogDescription className="text-slate-300">กดที่รายการเพื่อดูข้อมูลเอกสาร การหักบิลย้อนหลัง และ timeline ของรายการ ADV</DialogDescription>
           </DialogHeader>
-          {isDetailLoading ? <div className="px-4 pb-6 text-sm text-slate-500">กำลังโหลดรายละเอียด...</div> : null}
+          {isDetailLoading ? <div className="flex-1 p-8 text-center text-sm text-slate-500 bg-white">กำลังโหลดรายละเอียด...</div> : null}
           {!isDetailLoading && detail ? (
-            <div className="space-y-4 px-4 pb-4">
+            <div className="flex-1 overflow-y-auto space-y-4 p-4">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                 <Metric label="ยอดมัดจำ" value={formatMoney(detail.amount)} />
                 <Metric label="ใช้หักบิลแล้ว" value={formatMoney(detail.allocatedAmount)} />
@@ -1051,7 +1057,7 @@ export function AdvancePaymentsPageClient() {
               </div>
             </div>
           ) : null}
-          <DialogFooter>
+          <DialogFooter className="flex flex-wrap gap-2 justify-end p-4 border-t bg-slate-50 shrink-0">
             <Button
               disabled={!detail?.canEdit}
               title={!detail?.canEdit ? detail?.lockedReason ?? 'รายการนี้ยังแก้ไขไม่ได้' : undefined}

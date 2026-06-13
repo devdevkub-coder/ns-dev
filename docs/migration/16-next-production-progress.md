@@ -283,7 +283,7 @@ Tasks:
 - [x] Add read API for production reconciliation issues.
 - [x] Add QA checklist and run browser verification.
 - [x] Confirm legacy parity: legacy supports multi-round input/output by repeated modal saves; an in-modal editable multi-line grid is not required for MVP parity.
-- [x] Surface production reconciliation as read-only `/production/reconciliation` UI and navigation item.
+- [x] Surface production reconciliation as read-only `/production/reconciliation` UI. It was initially added to navigation during the reconciliation batch, then removed from the Production menu on 2026-06-13 after the user narrowed the Production navigation scope.
 
 #### 2026-06-12 Logged-in Browser QA Result
 
@@ -297,7 +297,7 @@ Tasks:
 #### 2026-06-12 Production Reconciliation UI Result
 
 - Added page: `/production/reconciliation`.
-- Added navigation: Production section -> `Production Reconciliation`.
+- Initially added navigation: Production section -> `Production Reconciliation`; superseded on 2026-06-13 because the target Production menu must expose only orders, output categories, dashboard, and production report.
 - UI reads `GET /api/production/reconciliation` and displays total issue count, ref-type counts, issue filter, search, refresh, and issue table.
 - Authenticated browser QA on local Next dev server passed: API returned 200 with `issueCount=0`, page rendered empty state, desktop overflow check passed, and browser console errors were none.
 
@@ -316,17 +316,139 @@ Tasks:
 - Removed the Next page/API route files for `/production/wip-report` and `/api/production/wip-report`.
 - WIP remains an internal production-order/reconciliation metric for completion guards, detail cards, dashboard/report summaries, and ledger checks.
 
+#### 2026-06-13 Production Report Requirement Sync
+
+- Reviewed legacy `view-productionReport` as the baseline for `/production/report`: date/branch/machine/status filters, KPI cards, product output summary, order detail table, and CSV export.
+- Recorded customer screenshot requirement in `docs/notes/page-flows/production-production-report.md` and `docs/notes/Production Flow.md`.
+- Target `/production/report` formulas are now explicit:
+  - `Yield % = Output Qty / Input Qty * 100`
+  - `RM บาท/กก. = RM Cost / Input Qty`
+  - `ต้นทุนผลิต บาท/กก. = Total Production Cost / Output Qty`
+  - `Loss Value (บาท) = Loss Qty * RM บาท/กก.`
+- Target KPI removes ambiguous average `บาท/กก.` and adds `Loss Value (บาท)`.
+- WIP remains visible as a section inside Production Report, but standalone `/production/wip-report` stays retired.
+- Implementation gaps to address next: expose `lossValue`, `rmCostPerKg`, and `productionCostPerKg` from the API, group product summary from actual output stock-in products instead of target product, restore branch/machine/status filters in the shared report UI, and export the visible detail table.
+
+#### 2026-06-13 Production Dashboard Requirement Sync
+
+- Reviewed legacy `view-productionDashboard`, `view-productionReport`, `view-wipReport`, `view-machineUtil`, and `view-yieldLossReport` against the latest customer dashboard screenshot.
+- Recorded the dashboard-specific target in `docs/notes/page-flows/production-production-dashboard.md` and `docs/notes/Production Flow.md`.
+- Target `/production/dashboard` remains read-only and must monitor output, WIP, yield, loss, abnormal signal, and machine efficiency from production facts reconciled to PI/PO2 stock ledger.
+- Target dashboard formulas/meanings:
+  - `ผลิตได้ = sum active non-loss output receipt qty`
+  - `WIP คงเหลือ = WIP_IN - PRODUCTION_OUTPUT_WIP_OUT - PRODUCTION_LOSS`
+  - `Yield % = Output Qty / Input Qty * 100`
+  - `Loss % = Loss Qty / Input Qty * 100`
+  - `Top 10 สินค้าที่ผลิตมากสุด` groups actual output stock-in products, excluding loss.
+  - Dashboard `Machine Utilization - รอบที่ใช้` means count active non-loss output receipt rows, not count production orders.
+  - Dashboard `Machine Utilization - น้ำหนักผลิต` means sum active non-loss output qty by machine.
+- Legacy distinction is now documented: `view-productionDashboard` counts output receipt rows for `batches`, while standalone `view-machineUtil` counts production orders as `orderCount`.
+- Implementation gaps to address next: make `/api/production/dashboard` group `topProducts` from `row.outputProducts`, compute machine dashboard `batches` from active non-loss output receipts, and add abnormal/yield-loss signals only with explicit labels.
+
+#### Production Report Implementation Tasks
+
+Scope: `/production/report` and `GET /api/production/report` only. Do not include `/production/production-cost-report` in this batch unless explicitly pulled in later.
+
+- [ ] API/read model:
+  - [x] Add row fields `rmCostPerKg`, `productionCostPerKg`, and `lossValue`.
+  - [x] Add summary `lossValue`.
+  - [x] Stop using ambiguous report summary `costPerKg` for the production report KPI.
+  - [x] Keep PI/PO2 ledger facts as the source; no fallback to stale `production_orders` totals.
+- [ ] Product output summary:
+  - [x] Group by actual active output products received into stock.
+  - [x] Exclude loss rows/categories.
+  - [x] Include product code/name, round count, qty, value/cost, and unit cost.
+- [ ] Filters:
+  - [x] Restore date from/to, branch, machine, and status filters in the UI.
+  - [x] Keep cancelled orders excluded by default.
+  - [x] Do not reintroduce legacy `Closed` until accounting/cost-lock policy is approved.
+- [ ] UI:
+  - [x] Remove KPI `บาท/กก. เฉลี่ย`.
+  - [x] Add KPI `Loss Value (บาท)`.
+  - [x] Keep KPI set: ใบสั่งผลิต, วัตถุดิบรวม, ผลผลิตรวม, Loss รวม, Yield %, ต้นทุนผลิตรวม, Loss Value (บาท).
+  - [x] Keep in-page WIP section while standalone `/production/wip-report` remains retired.
+  - [x] Rename unit-cost columns to explicit formula labels: `RM บาท/กก.` and `ต้นทุนผลิต บาท/กก.`.
+- [ ] Detail/export:
+  - [x] Add detail columns for `Loss Value (บาท)`, `RM บาท/กก.`, and `ต้นทุนผลิต บาท/กก.`.
+  - [x] Export CSV from the visible detail table and active filters.
+- [ ] Validation:
+  - [x] Add `npm run verify:production-report --workspace @ns-scrap-erp/next` for formula invariants.
+  - [x] Targeted ESLint for touched production report API/client files.
+  - [x] `npm run type-check --workspace @ns-scrap-erp/next -- --pretty false`.
+  - [x] `npm run build --workspace @ns-scrap-erp/next`.
+  - [ ] Browser QA `/production/report` for filters, KPI, WIP, product summary, detail columns, CSV export, and no `/production/wip-report` navigation regression.
+
+#### 2026-06-13 Production Report Implementation Result
+
+- `GET /api/production/report` now returns explicit formula fields:
+  - `rmCostPerKg`
+  - `productionCostPerKg`
+  - `lossValue`
+- Summary now includes `lossValue`, `rmCostPerKg`, and `productionCostPerKg`.
+- Product output summary now groups destination stock-in facts from `PO2` stock ledger rows (`PRODUCTION_OUTPUT_IN`, `PRODUCTION_OUTPUT_RM_IN`) instead of grouping by target product.
+- Machine filter now resolves the outward machine option used by the existing production options API.
+- `/production/report` UI now has date, branch, machine, and status filters; removes ambiguous KPI `บาท/กก. เฉลี่ย`; adds `Loss Value (บาท)`; keeps in-page WIP section; and uses explicit unit-cost columns `RM บาท/กก.` and `ต้นทุนผลิต บาท/กก.`.
+- CSV export uses the visible detail columns with explicit unit-cost labels.
+- Added `apps/next/scripts/verify-production-report-formulas.ts` and package script `verify:production-report`. The verifier loads the active Next env, checks formula invariants against fixture rows, then checks the current dev-target dataset for row, summary, and product-summary consistency.
+- Validation passed: `verify:production-report`, targeted ESLint for production report API/client files, `type-check`, `build`, and `git diff --check`.
+- Latest `verify:production-report` run found `checkedRows = 0` in the current dev-target dataset, so the fixture coverage is the current formula evidence until dev-target has live production report rows again.
+- Browser smoke reached `/production/report` and correctly redirected unauthenticated users to `/login?redirect=%2Fproduction%2Freport` with no console warning/error. Logged-in browser QA for report filters/KPI/export remains open because this run did not have an authenticated browser session.
+
+#### 2026-06-13 Production Report/Dashboard API DB Optimization
+
+- `loadProductionMetrics()` now selects only the order/relation fields used by the production report/dashboard response instead of loading broad relation payloads.
+- Added migration `20260613124402_optimize_production_report_ledger_lookup.sql`.
+- Added Prisma schema index `idx_stock_ledger_production_source_movement`:
+  - table: `stock_ledger`
+  - keys: `(ref_type, ref_id, movement_type)`
+  - partial predicate: `ref_id is not null and ref_type in ('PI', 'PO2')`
+- Reason: report/dashboard read model maps active `production_inputs.id` and `production_outputs.id` to `stock_ledger.ref_id`, while older production ledger indexes primarily optimize `ref_no` reconciliation/reversal paths.
+- Dev-target apply succeeded and was marked in Supabase migration history.
+- EXPLAIN verification showed the ledger lookup uses `Bitmap Index Scan on idx_stock_ledger_production_source_movement`.
+
+#### 2026-06-13 Production Menu Scope Update
+
+- User confirmed the Production navigation must expose only:
+  - `/production/orders` - ใบสั่งผลิต
+  - `/production/output-categories` - หมวดหมู่ผลผลิต
+  - `/production/dashboard` - Production Dashboard
+  - `/production/report` - รายงานการผลิต / Yield
+- Removed `Production Cost Report` and `Production Reconciliation` from the active Production menu.
+- Legacy/supporting pages such as production cost report, yield/loss report, machine utilization, reconciliation, and retired WIP report must not be exposed in the Production navigation. Their logic may remain as source material/internal support where needed.
+
+#### 2026-06-13 Production Dashboard Implementation Result
+
+- `GET /api/production/dashboard` now uses actual output product facts for `topProducts` via `row.outputProducts` instead of grouping by the production order target product.
+- Dashboard machine utilization now follows the latest requirement and legacy `view-productionDashboard`: `batches` counts active non-loss output receipt rows, and `qty` sums those output receipt quantities by machine.
+- Dashboard summary now includes abnormal loss signal fields: `abnormalOrderCount`, `abnormalLossQty`, and `abnormalLossValue`, using the Yield/Loss policy of actual loss over normal loss.
+- `/production/dashboard` UI now shows an `Abnormal Loss` summary panel in place of the old production status panel, while keeping the core KPI, daily/monthly charts, Top 10 actual output products, and machine output table.
+
+#### 2026-06-13 Production Dashboard API/DB Optimization
+
+- API review found `/api/production/dashboard` called `loadProductionMetrics()` twice: once for the requested date range and once unfiltered only to calculate total WIP. The unfiltered call loaded branches, products, machines, process costs, active inputs/outputs, and ledger rows for every production order.
+- Added `loadProductionTotalWipQty()` as a lean WIP read model. It selects only active production input/output ids for non-closed orders, reads only matching `stock_ledger` PI/PO2 qty fields, and keeps the same WIP formula: `WIP_IN - PRODUCTION_OUTPUT_WIP_OUT - PRODUCTION_LOSS`.
+- `GET /api/production/dashboard` now uses the lean helper for `summary.totalWipQty`, reducing the dashboard from two broad production metric loads to one broad range load plus one narrow WIP lookup.
+- DB review confirmed the current dev-target production tables are empty, so `EXPLAIN ANALYZE` is not useful as production-size evidence. Index decisions were based on query shape and current `pg_indexes` inventory.
+- Added migration `supabase/migrations/20260613093000_optimize_production_dashboard_queries.sql` and applied it to dev-target:
+  - `idx_production_orders_active_date_doc`
+  - `idx_production_orders_active_branch_date_doc`
+  - `idx_production_orders_active_machine_date_doc`
+  - `idx_production_orders_status_date_doc`
+  - `idx_production_inputs_order_status`
+  - `idx_production_outputs_order_status`
+  - `idx_process_costs_order_status_include`
+- Also verified the already-applied production ledger lookup index `idx_stock_ledger_production_source_movement` from `supabase/migrations/20260613124402_optimize_production_report_ledger_lookup.sql`, which supports PI/PO2 `stock_ledger(ref_type, ref_id, movement_type)` lookups used by the shared report/dashboard read model.
+- Prisma schema was updated with the same indexes so future schema pulls/generation remain aligned.
+- Dev-target verification returned all 7 new indexes, and the migration was marked in `supabase_migrations.schema_migrations`.
+
 ### Batch P4: Production Reports Baseline
 
 Scope:
 
 - `/production/dashboard`
 - `/production/report`
-- `/production/production-cost-report`
-- `/production/yield-loss-report`
-- `/production/machine-utilization`
 
-Status: Done read baseline on 2026-05-18.
+Status: Done read baseline on 2026-05-18; menu scope narrowed on 2026-06-13 to dashboard and report only.
 
 Tasks:
 
@@ -338,10 +460,6 @@ Tasks:
 - [x] Add pages and APIs:
   - `/production/dashboard` + `/api/production/dashboard`
   - `/production/report` + `/api/production/report`
-  - `/production/production-cost-report` + `/api/production/production-cost-report`
-  - `/production/yield-loss-report` + `/api/production/yield-loss-report`
-  - `/production/machine-utilization` + `/api/production/machine-utilization`
-  - `/production/reconciliation` + `/api/production/reconciliation`
 - [x] Add date filters on report pages.
 - [x] Add CSV export buttons on report pages where legacy had export: production report, cost report, yield/loss report.
 - [x] Keep report/dashboard pages read-only; no stock/cost mutation is performed in this batch.
@@ -361,7 +479,7 @@ Tasks:
 - Batch P4 report/dashboard read baseline implemented locally.
 - Dev-target DB has `production_output_categories` with 4 legacy values.
 - Next has `/production/output-categories`, `/api/production/output-categories`, `/production/orders`, and `/api/production/orders`.
-- Next now has every production menu page from legacy as a DB-connected read baseline:
+- Next had ported the legacy production report surfaces as DB-connected read baselines, but the target Production navigation was narrowed on 2026-06-13 and must expose only `/production/orders`, `/production/output-categories`, `/production/dashboard`, and `/production/report`. Legacy/supporting read surfaces must not be shown in the Production menu:
   - `/production/dashboard`
   - `/production/report`
   - `/production/production-cost-report`

@@ -1637,6 +1637,7 @@ model production_inputs {
   products          products?          @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([order_id], map: "idx_pi_order")
+  @@index([order_id, status], map: "idx_production_inputs_order_status")
   @@index([doc_no], map: "idx_production_inputs_doc_no")
   @@index([reversal_doc_no], map: "idx_production_inputs_reversal_doc_no")
   @@index([status], map: "idx_production_inputs_status")
@@ -1691,6 +1692,10 @@ model production_orders {
   @@index([machine_id])
   @@index([production_line_id])
   @@index([status, date])
+  @@index([date(sort: Desc), doc_no(sort: Desc)], map: "idx_production_orders_active_date_doc", where: raw("(status <> 'Cancelled'::text)"))
+  @@index([branch_id, date(sort: Desc), doc_no(sort: Desc)], map: "idx_production_orders_active_branch_date_doc", where: raw("((branch_id IS NOT NULL) AND (status <> 'Cancelled'::text))"))
+  @@index([machine_id, date(sort: Desc), doc_no(sort: Desc)], map: "idx_production_orders_active_machine_date_doc", where: raw("((machine_id IS NOT NULL) AND (status <> 'Cancelled'::text))"))
+  @@index([status, date(sort: Desc), doc_no(sort: Desc)], map: "idx_production_orders_status_date_doc", where: raw("(status IS NOT NULL)"))
   @@schema("public")
 }
 
@@ -1733,6 +1738,7 @@ model process_costs {
   @@index([date])
   @@index([status])
   @@index([production_order_id], map: "process_costs_order_idx")
+  @@index([production_order_id, status, include_in_production], map: "idx_process_costs_order_status_include")
   @@schema("public")
 }
 
@@ -1767,6 +1773,7 @@ model production_outputs {
   products                     products?                     @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([order_id], map: "idx_po_order")
+  @@index([order_id, status], map: "idx_production_outputs_order_status")
   @@index([doc_no], map: "idx_production_outputs_doc_no")
   @@index([output_category])
   @@index([reversal_doc_no], map: "idx_production_outputs_reversal_doc_no")
@@ -2772,6 +2779,7 @@ model stock_ledger {
   @@index([ref_type, ref_no, ref_id], map: "idx_stock_ledger_pending_sale_reversal_ref", where: raw("(ref_type = ANY (ARRAY['PSALE'::text, 'PSALE-CANCEL'::text]))"))
   @@index([ref_type, ref_no], map: "idx_stock_ledger_production_ref", where: raw("(ref_type = ANY (ARRAY['PI'::text, 'PI-REV'::text, 'PO2'::text, 'PO2-REV'::text]))"))
   @@index([ref_type, ref_no, movement_type], map: "idx_stock_ledger_production_ref_movement", where: raw("(ref_type = ANY (ARRAY['PI'::text, 'PI-REV'::text, 'PO2'::text, 'PO2-REV'::text]))"))
+  @@index([ref_type, ref_id, movement_type], map: "idx_stock_ledger_production_source_movement", where: raw("((ref_id IS NOT NULL) AND (ref_type = ANY (ARRAY['PI'::text, 'PO2'::text])))"))
   @@index([ref_type, ref_id], map: "idx_stock_ledger_source", where: raw("((ref_type IS NOT NULL) AND (ref_id IS NOT NULL))"))
   @@index([branch_id, warehouse_id, product_id, date], map: "idx_stock_ledger_stock_dimension")
   @@index([product_id], map: "idx_stock_product")

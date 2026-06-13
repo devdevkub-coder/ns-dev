@@ -10,11 +10,13 @@ type Payload = {
   breakdown?: Record<string, number>
   byStatus?: Array<{ count: number; status: string }>
   daily?: Array<{ date: string; inputQty: number; lossQty: number; outputQty: number }>
-  machineUtil?: Array<{ batches: number; name: string; qty: number }>
+  machineUtil?: Array<{ batches: number; cost?: number; name: string; qty: number }>
   monthly?: Array<{ inputQty: number; month: string; outputQty: number }>
+  productSummary?: ProductSummary[]
   rows: Row[]
   summary: Record<string, number>
   topProducts?: Array<{ avgCost?: number; batches: number; code?: string; cost: number; name: string; qty: number }>
+  wipRows?: Row[]
 }
 
 type Column = {
@@ -23,6 +25,10 @@ type Column = {
   tone?: 'good' | 'bad'
   type?: 'date' | 'money' | 'number' | 'percent' | 'text'
 }
+
+type Option = { code: string; id: string; name: string }
+type ReportOptions = { branches: Option[]; machines: Option[] }
+type ProductSummary = { batches: number; code: string; cost: number; name: string; qty: number; unitCost: number }
 
 const configs: Record<string, { apiPath: string; columns: Column[]; metrics: Array<{ key: string; label: string; type?: 'money' | 'number' | 'percent' }>; title: string; exportable?: boolean }> = {
   dashboard: {
@@ -35,8 +41,8 @@ const configs: Record<string, { apiPath: string; columns: Column[]; metrics: Arr
     apiPath: '/api/production/report',
     title: 'รายงานการผลิต / Yield',
     exportable: true,
-    metrics: [{ key: 'count', label: 'ใบสั่งผลิต' }, { key: 'inputQty', label: 'วัตถุดิบรวม', type: 'number' }, { key: 'outputQty', label: 'ผลผลิตรวม', type: 'number' }, { key: 'lossQty', label: 'Loss รวม', type: 'number' }, { key: 'yieldPct', label: 'Yield', type: 'percent' }, { key: 'costPerKg', label: 'ต้นทุน/กก.', type: 'money' }],
-    columns: [{ key: 'docNo', label: 'เลขที่' }, { key: 'date', label: 'วันที่', type: 'date' }, { key: 'productionType', label: 'ประเภท' }, { key: 'machineName', label: 'เครื่อง' }, { key: 'inputQty', label: 'Input', type: 'number' }, { key: 'outputQty', label: 'Output', type: 'number' }, { key: 'wipQty', label: 'WIP', type: 'number' }, { key: 'lossQty', label: 'Loss', type: 'number' }, { key: 'yieldPct', label: 'Yield', type: 'percent' }, { key: 'totalCost', label: 'Total Cost', type: 'money' }, { key: 'costPerKg', label: '฿/กก.', type: 'money' }],
+    metrics: [{ key: 'count', label: 'ใบสั่งผลิต' }, { key: 'inputQty', label: 'วัตถุดิบรวม', type: 'number' }, { key: 'outputQty', label: 'ผลผลิตรวม', type: 'number' }, { key: 'lossQty', label: 'Loss รวม', type: 'number' }, { key: 'yieldPct', label: 'Yield', type: 'percent' }, { key: 'totalCost', label: 'ต้นทุนผลิตรวม', type: 'money' }, { key: 'lossValue', label: 'Loss Value (บาท)', type: 'money' }],
+    columns: [{ key: 'docNo', label: 'เลขที่' }, { key: 'date', label: 'วันที่', type: 'date' }, { key: 'productionType', label: 'ประเภท' }, { key: 'machineName', label: 'เครื่อง' }, { key: 'status', label: 'สถานะ' }, { key: 'inputQty', label: 'Input', type: 'number' }, { key: 'outputQty', label: 'Output', type: 'number' }, { key: 'wipQty', label: 'WIP', type: 'number' }, { key: 'lossQty', label: 'Loss', type: 'number' }, { key: 'yieldPct', label: 'Yield %', type: 'percent' }, { key: 'inputCost', label: 'RM', type: 'money' }, { key: 'processCost', label: 'Process', type: 'money' }, { key: 'totalCost', label: 'Total', type: 'money' }, { key: 'lossValue', label: 'Loss Value (บาท)', type: 'money' }, { key: 'rmCostPerKg', label: 'RM บาท/กก.', type: 'money' }, { key: 'productionCostPerKg', label: 'ต้นทุนผลิต บาท/กก.', type: 'money' }],
   },
   cost: {
     apiPath: '/api/production/production-cost-report',
@@ -62,11 +68,15 @@ const configs: Record<string, { apiPath: string; columns: Column[]; metrics: Arr
 
 export function ProductionReportPageClient({ mode }: { mode: keyof typeof configs }) {
   const config = configs[mode]
+  const [branchId, setBranchId] = useState('')
   const [data, setData] = useState<Payload | null>(null)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [machineId, setMachineId] = useState('')
+  const [options, setOptions] = useState<ReportOptions>({ branches: [], machines: [] })
+  const [status, setStatus] = useState('')
   const latestLoadRequestRef = useRef(0)
 
   const loadData = useCallback(async () => {
@@ -78,6 +88,11 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
       const params = new URLSearchParams()
       if (dateFrom) params.set('dateFrom', dateFrom)
       if (dateTo) params.set('dateTo', dateTo)
+      if (mode === 'report') {
+        if (branchId) params.set('branchId', branchId)
+        if (machineId) params.set('machineId', machineId)
+        if (status) params.set('status', status)
+      }
       const suffix = params.toString() ? `?${params.toString()}` : ''
       const payload = await dailyFetchJson<Payload>(`${config.apiPath}${suffix}`)
       if (requestId !== latestLoadRequestRef.current) return
@@ -89,26 +104,32 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
       if (requestId !== latestLoadRequestRef.current) return
       setIsLoading(false)
     }
-  }, [config.apiPath, config.title, dateFrom, dateTo])
+  }, [branchId, config.apiPath, config.title, dateFrom, dateTo, machineId, mode, status])
 
   useEffect(() => {
     void loadData()
   }, [loadData])
 
+  useEffect(() => {
+    if (mode !== 'report') return
+    let cancelled = false
+    async function loadOptions() {
+      try {
+        const payload = await dailyFetchJson<ReportOptions>('/api/production/orders/options')
+        if (!cancelled) setOptions({ branches: payload.branches ?? [], machines: payload.machines ?? [] })
+      } catch (caught) {
+        if (!cancelled) setOptions({ branches: [], machines: [] })
+        if (!cancelled) setError(caught instanceof Error ? caught.message : 'โหลดตัวกรองรายงานการผลิตไม่ได้')
+      }
+    }
+    void loadOptions()
+    return () => { cancelled = true }
+  }, [mode])
+
   const rows = useMemo(() => data?.rows ?? [], [data?.rows])
   const metricItems = useMemo(() => config.metrics.map((metric) => ({ ...metric, value: data?.summary?.[metric.key] ?? 0 })), [config.metrics, data?.summary])
-  const productSummary = useMemo(() => {
-    const byProduct = new Map<string, { cost: number; count: number; name: string; qty: number }>()
-    rows.forEach((row) => {
-      const name = String(row.productName ?? '-')
-      const current = byProduct.get(name) ?? { cost: 0, count: 0, name, qty: 0 }
-      current.count += 1
-      current.qty += Number(row.outputQty ?? 0)
-      current.cost += Number(row.totalCost ?? 0)
-      byProduct.set(name, current)
-    })
-    return Array.from(byProduct.values()).map((item) => ({ ...item, unitCost: item.qty > 0 ? item.cost / item.qty : 0 })).sort((left, right) => right.qty - left.qty)
-  }, [rows])
+  const productSummary = useMemo(() => data?.productSummary ?? [], [data?.productSummary])
+  const wipRows = useMemo(() => data?.wipRows ?? rows.filter((row) => Number(row.wipQty ?? 0) > 0.000001), [data?.wipRows, rows])
 
   function applyDashboardRange(range: 'last30' | 'last7' | 'last90' | 'month' | 'today' | 'year') {
     const end = new Date()
@@ -228,10 +249,12 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
   if (mode === 'dashboard') {
     const summary = data?.summary ?? {}
     const topProducts = data?.topProducts ?? []
-    const byStatus = data?.byStatus ?? []
     const daily = data?.daily ?? []
     const monthly = data?.monthly ?? []
     const machineUtil = data?.machineUtil ?? []
+    const abnormalOrderCount = Number(summary.abnormalOrderCount ?? 0)
+    const abnormalLossQty = Number(summary.abnormalLossQty ?? 0)
+    const abnormalLossValue = Number(summary.abnormalLossValue ?? 0)
     return (
       <section className="space-y-4">
         {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
@@ -272,10 +295,23 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="rounded-md bg-white p-4 shadow-lg">
-            <h3 className="mb-3 font-bold text-slate-700">สถานะใบสั่งผลิต</h3>
-            <div className="space-y-2">
-              {byStatus.map((item) => <StatusBar key={item.status} count={item.count} max={Math.max(1, ...byStatus.map((row) => row.count))} status={item.status} />)}
-              {!byStatus.length ? <div className="py-6 text-center text-sm text-slate-400">ยังไม่มีข้อมูล</div> : null}
+            <h3 className="mb-3 font-bold text-slate-700">Abnormal Loss</h3>
+            <div className="space-y-3">
+              <div className="rounded-md border border-red-100 bg-red-50 p-3">
+                <div className="text-xs font-medium text-red-700">Order ผิดปกติ</div>
+                <div className="mt-1 text-2xl font-bold text-red-700">{formatMoney(abnormalOrderCount)}</div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="rounded-md bg-slate-50 p-3">
+                  <div className="text-xs text-slate-500">Abnormal Loss</div>
+                  <div className="mt-1 font-semibold text-red-700">{formatMoney(abnormalLossQty)}</div>
+                </div>
+                <div className="rounded-md bg-slate-50 p-3">
+                  <div className="text-xs text-slate-500">Loss Value</div>
+                  <div className="mt-1 font-semibold text-red-700">{formatMoney(abnormalLossValue)}</div>
+                </div>
+              </div>
+              {!abnormalOrderCount ? <div className="text-xs text-emerald-700">ไม่มี order ที่ loss เกิน normal ในช่วงนี้</div> : null}
             </div>
           </div>
           <div className="overflow-hidden rounded-md bg-white shadow-lg lg:col-span-2">
@@ -313,7 +349,23 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
         <div className="flex flex-wrap items-center gap-2">
           <DatePickerInput className="w-[130px]" value={dateFrom} onChange={setDateFrom} />
           <DatePickerInput className="w-[130px]" value={dateTo} onChange={setDateTo} />
-          <button className="rounded-md border px-3 py-2 text-sm" type="button" onClick={() => { setDateFrom(''); setDateTo('') }}>ล้างวันที่</button>
+          {mode === 'report' ? (
+            <>
+              <select className="h-9 rounded-md border px-3 text-sm" value={branchId} onChange={(event) => setBranchId(event.target.value)}>
+                <option value="">ทุกสาขา</option>
+                {options.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+              </select>
+              <select className="h-9 rounded-md border px-3 text-sm" value={machineId} onChange={(event) => setMachineId(event.target.value)}>
+                <option value="">ทุกเครื่อง</option>
+                {options.machines.map((machine) => <option key={machine.id} value={machine.id}>{machine.name}</option>)}
+              </select>
+              <select className="h-9 rounded-md border px-3 text-sm" value={status} onChange={(event) => setStatus(event.target.value)}>
+                <option value="">ทุกสถานะ</option>
+                {['Open', 'In Production', 'Partially Completed', 'Completed'].map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </>
+          ) : null}
+          <button className="rounded-md border px-3 py-2 text-sm" type="button" onClick={() => { setDateFrom(''); setDateTo(''); setBranchId(''); setMachineId(''); setStatus('') }}>ล้างตัวกรอง</button>
           {config.exportable ? <button className="ml-auto rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white" type="button" onClick={exportCsv}>Export CSV</button> : null}
         </div>
       </div>
@@ -327,7 +379,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
           <b>Machine Utilization</b> = ชั่วโมงประมาณการ / (8 ชม./วัน x จำนวนวัน) | <b>Yield Diff</b> = Actual Yield - Normal Yield
         </div>
       ) : null}
-      <div className="grid gap-3 md:grid-cols-6">
+      <div className={`grid gap-3 ${mode === 'report' ? 'md:grid-cols-7' : 'md:grid-cols-6'}`}>
         {metricItems.map((metric) => <Metric key={metric.key} label={metric.label} type={metric.type} value={metric.value} />)}
       </div>
       {mode === 'yieldLoss' ? (
@@ -339,12 +391,29 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
       ) : null}
       {mode === 'report' ? (
         <div className="overflow-hidden rounded-md bg-white shadow">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-amber-50 px-4 py-3">
+            <h3 className="font-semibold text-amber-800">WIP คงเหลือ (Work-in-Progress)</h3>
+            <div className="text-xs text-amber-700">{wipRows.length} ใบ · รวม {formatMoney(wipRows.reduce((sum, row) => sum + Number(row.wipQty ?? 0), 0))}</div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-100"><tr><th className="p-2 text-left">ใบสั่งผลิต</th><th className="p-2 text-left">วันที่</th><th className="p-2 text-left">สาขา</th><th className="p-2 text-left">เครื่องจักร</th><th className="p-2 text-right">Input</th><th className="p-2 text-right">Output</th><th className="p-2 text-right">WIP Qty</th><th className="p-2 text-right">WIP Value</th><th className="p-2 text-center">สถานะ</th></tr></thead>
+              <tbody>
+                {wipRows.map((row, index) => <tr key={String(row.id ?? index)} className="border-t"><td className="p-2 font-mono text-xs">{String(row.docNo ?? '')}</td><td className="p-2">{formatDateDisplay(String(row.date ?? ''))}</td><td className="p-2">{String(row.branchName ?? '-')}</td><td className="p-2">{String(row.machineName ?? '-')}</td><td className="p-2 text-right">{formatMoney(Number(row.inputQty ?? 0))}</td><td className="p-2 text-right text-emerald-700">{formatMoney(Number(row.outputQty ?? 0))}</td><td className="p-2 text-right font-semibold text-amber-700">{formatMoney(Number(row.wipQty ?? 0))}</td><td className="p-2 text-right">{formatMoney(Number(row.wipValue ?? 0))}</td><td className="p-2 text-center text-xs">{String(row.status ?? '')}</td></tr>)}
+                {!wipRows.length ? <tr><td className="py-6 text-center text-slate-400" colSpan={9}>ไม่มี WIP คงเหลือในเงื่อนไขนี้</td></tr> : null}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+      {mode === 'report' ? (
+        <div className="overflow-hidden rounded-md bg-white shadow">
           <h3 className="border-b px-4 py-3 font-semibold">📦 ผลผลิตแยกตามสินค้า</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-100"><tr><th className="p-2 text-left">สินค้า</th><th className="p-2 text-right">รอบ</th><th className="p-2 text-right">น้ำหนักรวม</th><th className="p-2 text-right">ต้นทุนรวม</th><th className="p-2 text-right">ต้นทุน/กก.</th></tr></thead>
               <tbody>
-                {productSummary.map((item) => <tr key={item.name} className="border-t"><td className="p-2">{item.name}</td><td className="p-2 text-right">{item.count}</td><td className="p-2 text-right font-medium text-emerald-700">{formatMoney(item.qty)}</td><td className="p-2 text-right">{formatMoney(item.cost)}</td><td className="p-2 text-right">{formatMoney(item.unitCost)}</td></tr>)}
+                {productSummary.map((item) => <tr key={item.code || item.name} className="border-t"><td className="p-2"><div className="font-medium">{item.name}</div>{item.code ? <div className="font-mono text-xs text-slate-500">{item.code}</div> : null}</td><td className="p-2 text-right">{item.batches}</td><td className="p-2 text-right font-medium text-emerald-700">{formatMoney(item.qty)}</td><td className="p-2 text-right">{formatMoney(item.cost)}</td><td className="p-2 text-right">{formatMoney(item.unitCost)}</td></tr>)}
                 {!productSummary.length ? <tr><td className="py-6 text-center text-slate-400" colSpan={5}>ไม่มีข้อมูล</td></tr> : null}
               </tbody>
             </table>
@@ -413,15 +482,6 @@ function ChartPanel({ rows, title, type }: { rows: Array<{ input: number; label:
         {!rows.length ? <div className="w-full self-center text-center text-sm text-slate-400">ยังไม่มีข้อมูล</div> : null}
       </div>
       <div className="mt-2 flex gap-4 text-xs text-slate-500"><span className="text-blue-600">Input</span><span className="text-emerald-600">Output</span>{type === 'line' ? <span className="text-red-600">Loss</span> : null}</div>
-    </div>
-  )
-}
-
-function StatusBar({ count, max, status }: { count: number; max: number; status: string }) {
-  return (
-    <div className="text-sm">
-      <div className="mb-1 flex justify-between"><span>{status}</span><b>{count}</b></div>
-      <div className="h-2 overflow-hidden rounded-md-full bg-slate-100"><div className="h-full rounded-md-full bg-purple-500" style={{ width: `${Math.max(4, (count / max) * 100)}%` }} /></div>
     </div>
   )
 }

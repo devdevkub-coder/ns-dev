@@ -161,18 +161,18 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
     <Dialog open onOpenChange={(open) => {
       if (!open) onClose()
     }}>
-      <DialogContent aria-labelledby="weight-ticket-detail-title" className="max-h-[90vh] max-w-6xl overflow-y-auto rounded-md p-0" hideClose>
-        <DialogHeader className="p-4">
+      <DialogContent aria-labelledby="weight-ticket-detail-title" className="max-h-[90vh] max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col" hideClose>
+        <DialogHeader className="p-4 bg-slate-900 text-white shrink-0">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <DialogTitle id="weight-ticket-detail-title">
+              <DialogTitle id="weight-ticket-detail-title" className="text-white">
                 {ticket?.type === 'WTI' ? 'ใบรับของ' : ticket?.type === 'WTO' ? 'ใบส่งของ' : 'รายละเอียดเอกสาร'} {ticket?.documentNo ?? ticketId}
               </DialogTitle>
-              <DialogDescription>{ticket?.partyName ?? (isLoading ? 'กำลังโหลดข้อมูล' : '-')}</DialogDescription>
+              <DialogDescription className="text-slate-300">{ticket?.partyName ?? (isLoading ? 'กำลังโหลดข้อมูล' : '-')}</DialogDescription>
             </div>
             {ticket && ticket.canEdit ? (
               <div className="flex gap-2">
-                <Button asChild type="button" variant="outline" className="font-normal">
+                <Button asChild type="button" variant="outline" className="font-normal border-slate-700 bg-slate-800 text-white hover:bg-slate-700 hover:text-white">
                   <Link href={`/daily/weight-tickets?id=${encodeURIComponent(ticket.id)}`}>
                     <SquarePen className="mr-2 size-4" />
                     แก้ไข
@@ -182,6 +182,8 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
             ) : null}
           </div>
         </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto">
 
         {isLoading ? (
           <div className="p-8 text-center text-sm text-slate-500">กำลังโหลดข้อมูล...</div>
@@ -568,7 +570,9 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
           </div>
         )}
 
-        <DialogFooter className="p-4 border-t border-slate-200 bg-slate-50 rounded-b-md">
+        </div>
+
+        <DialogFooter className="flex flex-wrap gap-2 justify-end p-4 border-t bg-slate-50 shrink-0">
           {ticket ? (
             <Button className="gap-2 font-normal" disabled={isPrinting} type="button" variant="outline" onClick={() => void handlePrintReceipt()}>
               <Printer className="size-4" />

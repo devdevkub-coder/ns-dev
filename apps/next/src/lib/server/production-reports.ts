@@ -26,15 +26,19 @@ export type ProductionOrderMetric = {
   ledgerMismatchQty: number
   lossPct: number
   lossQty: number
+  lossValue: number
   machineName: string
   normalLossPercent: number
+  outputProducts: ProductionOutputProductMetric[]
   outputQty: number
   outputValue: number
   processCost: number
+  productionCostPerKg: number
   productCode: string
   productName: string
   productionLineName: string
   productionType: string
+  rmCostPerKg: number
   status: string
   totalCost: number
   variance: number
@@ -42,6 +46,14 @@ export type ProductionOrderMetric = {
   wipQty: number
   wipValue: number
   yieldPct: number
+}
+
+export type ProductionOutputProductMetric = {
+  cost: number
+  productCode: string
+  productName: string
+  qty: number
+  unitCost: number
 }
 
 type ProductionLedgerMetric = {
@@ -54,6 +66,8 @@ type ProductionLedgerMetric = {
   wipConsumedValue: number
 }
 
+type ProductionLedgerOutputProductMetric = ProductionOutputProductMetric
+
 const emptyLedgerMetric = (): ProductionLedgerMetric => ({
   inputQty: 0,
   inputValue: 0,
@@ -64,8 +78,7 @@ const emptyLedgerMetric = (): ProductionLedgerMetric => ({
   wipConsumedValue: 0,
 })
 
-export function productionWhere(filters: ProductionReportFilters, branchId?: bigint | null): Prisma.production_ordersWhereInput {
-  const machineId = parseInternalBigIntId(filters.machineId)
+export function productionWhere(filters: ProductionReportFilters, branchId?: bigint | null, machineId?: bigint | null): Prisma.production_ordersWhereInput {
   return {
     ...(branchId != null ? { branch_id: branchId } : {}),
     ...(machineId != null ? { machine_id: machineId } : {}),
@@ -80,24 +93,77 @@ export function productionWhere(filters: ProductionReportFilters, branchId?: big
   }
 }
 
+async function resolveMachineId(machineId?: string) {
+  const normalized = machineId?.trim()
+  if (!normalized) return null
+  const internalId = parseInternalBigIntId(normalized)
+  const machine = await prisma.production_machines.findFirst({
+    select: { id: true },
+    where: internalId != null ? { active: true, id: internalId } : { active: true, name: normalized },
+  })
+  return machine?.id ?? BigInt(-1)
+}
+
 export async function loadProductionMetrics(filters: ProductionReportFilters = {}) {
-  const branch = filters.branchId ? await findActiveBranchReferenceByCodeOrId(filters.branchId) : null
+  const [branch, machineId] = await Promise.all([
+    filters.branchId ? findActiveBranchReferenceByCodeOrId(filters.branchId) : Promise.resolve(null),
+    resolveMachineId(filters.machineId),
+  ])
   const [orders, categories] = await Promise.all([
     prisma.production_orders.findMany({
-      include: {
-        branches: true,
-        process_costs: true,
-        production_inputs: { where: { status: 'active' } },
-        production_lines: true,
-        production_machines: true,
-        production_outputs: { include: { products: true }, where: { status: 'active' } },
-        products: true,
-        warehouses: true,
+      select: {
+        branches: { select: { name: true } },
+        cost_allocation_method: true,
+        date: true,
+        doc_no: true,
+        id: true,
+        normal_loss_percent: true,
+        process_costs: {
+          select: {
+            amount: true,
+            cost_type: true,
+            include_in_production: true,
+            status: true,
+          },
+        },
+        production_inputs: {
+          select: {
+            id: true,
+            qty: true,
+            total_cost: true,
+          },
+          where: { status: 'active' },
+        },
+        production_lines: { select: { name: true } },
+        production_machines: { select: { name: true } },
+        production_outputs: {
+          select: {
+            category_code: true,
+            id: true,
+            output_category: true,
+            output_status: true,
+            output_type: true,
+            qty: true,
+            source_wip_qty: true,
+            total_cost: true,
+          },
+          where: { status: 'active' },
+        },
+        production_type: true,
+        products: { select: { code: true, name: true } },
+        status: true,
+        variance: true,
+        warehouses: { select: { name: true } },
       },
       orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
-      where: productionWhere(filters, branch?.id ?? null),
+      where: productionWhere(filters, branch?.id ?? null, machineId),
     }),
-    prisma.production_output_categories.findMany(),
+    prisma.production_output_categories.findMany({
+      select: {
+        id: true,
+        stock_effect: true,
+      },
+    }),
   ])
   const categoryById = new Map(categories.map((category) => [category.id, category]))
   const inputOwnerById = new Map<string, string>()
@@ -115,9 +181,10 @@ export async function loadProductionMetrics(filters: ProductionReportFilters = {
       outputOwnerById.set(output.id.toString(), orderKey)
       const sourceWipQty = toNumber(output.source_wip_qty) || toNumber(output.qty)
       const totalCost = toNumber(output.total_cost)
+      const category = output.output_category != null ? categoryById.get(output.output_category) : null
       factMetric.wipConsumedQty += sourceWipQty
       factMetric.wipConsumedValue += totalCost
-      if (output.category_code === 'LOSS' || output.output_status === 'LOSS' || output.output_type === 'Loss') {
+      if (output.category_code === 'LOSS' || output.output_status === 'LOSS' || output.output_type === 'Loss' || category?.stock_effect === 'loss') {
         factMetric.lossQty += sourceWipQty
       } else {
         factMetric.outputQty += toNumber(output.qty)
@@ -127,9 +194,19 @@ export async function loadProductionMetrics(filters: ProductionReportFilters = {
     factMetricByOrder.set(orderKey, factMetric)
   })
   const ledgerMetricByOrder = new Map<string, ProductionLedgerMetric>()
+  const outputProductsByOrder = new Map<string, ProductionLedgerOutputProductMetric[]>()
   const ledgerRows = inputOwnerById.size || outputOwnerById.size
     ? await prisma.stock_ledger.findMany({
-        select: { movement_type: true, qty_in: true, qty_out: true, ref_id: true, ref_type: true, value_in: true, value_out: true },
+        select: {
+          movement_type: true,
+          products: { select: { code: true, name: true } },
+          qty_in: true,
+          qty_out: true,
+          ref_id: true,
+          ref_type: true,
+          value_in: true,
+          value_out: true,
+        },
         where: {
           OR: [
             ...(inputOwnerById.size ? [{ ref_id: { in: [...inputOwnerById.keys()] }, ref_type: 'PI' }] : []),
@@ -154,8 +231,19 @@ export async function loadProductionMetrics(filters: ProductionReportFilters = {
       metric.wipConsumedQty += toNumber(row.qty_out)
       metric.wipConsumedValue += toNumber(row.value_out)
     } else if (row.ref_type === 'PO2' && ['PRODUCTION_OUTPUT_IN', 'PRODUCTION_OUTPUT_RM_IN'].includes(row.movement_type ?? '')) {
-      metric.outputQty += toNumber(row.qty_in)
-      metric.outputValue += toNumber(row.value_in)
+      const qty = toNumber(row.qty_in)
+      const cost = toNumber(row.value_in)
+      metric.outputQty += qty
+      metric.outputValue += cost
+      const products = outputProductsByOrder.get(orderKey) ?? []
+      products.push({
+        cost,
+        productCode: row.products?.code ?? '',
+        productName: row.products?.name ?? '-',
+        qty,
+        unitCost: qty > 0 ? cost / qty : 0,
+      })
+      outputProductsByOrder.set(orderKey, products)
     }
     ledgerMetricByOrder.set(orderKey, metric)
   })
@@ -166,10 +254,6 @@ export async function loadProductionMetrics(filters: ProductionReportFilters = {
     const ledgers = ledgerMetricByOrder.get(orderKey) ?? emptyLedgerMetric()
     const inputQty = ledgers.inputQty
     const inputCost = ledgers.inputValue
-    const outputs = order.production_outputs.filter((output) => {
-      const category = output.output_category != null ? categoryById.get(output.output_category) : null
-      return output.output_status !== 'LOSS' && output.output_type !== 'Loss' && category?.stock_effect !== 'loss'
-    })
     const outputQty = ledgers.outputQty
     const lossQty = ledgers.lossQty
     const outputValue = ledgers.outputValue
@@ -177,6 +261,9 @@ export async function loadProductionMetrics(filters: ProductionReportFilters = {
       .filter((cost) => cost.status !== 'reversed' && cost.include_in_production)
       .reduce((sum, cost) => sum + toNumber(cost.amount), 0)
     const totalCost = inputCost + processCost
+    const rmCostPerKg = inputQty > 0 ? inputCost / inputQty : 0
+    const productionCostPerKg = outputQty > 0 ? totalCost / outputQty : 0
+    const lossValue = lossQty * rmCostPerKg
     const rawWipQty = inputQty - ledgers.wipConsumedQty
     const rawWipValue = inputCost - ledgers.wipConsumedValue
     const wipQty = Math.max(0, rawWipQty)
@@ -187,7 +274,7 @@ export async function loadProductionMetrics(filters: ProductionReportFilters = {
     return {
       branchName: order.branches?.name ?? '-',
       costAllocationMethod: order.cost_allocation_method ?? order.production_type ?? '-',
-      costPerKg: outputQty > 0 ? totalCost / outputQty : 0,
+      costPerKg: productionCostPerKg,
       costBreakdown: Object.fromEntries(order.process_costs
         .filter((cost) => cost.status !== 'reversed' && cost.include_in_production)
         .reduce((map, cost) => map.set(cost.cost_type, (map.get(cost.cost_type) ?? 0) + toNumber(cost.amount)), new Map<string, number>())),
@@ -200,15 +287,19 @@ export async function loadProductionMetrics(filters: ProductionReportFilters = {
       ledgerMismatchQty,
       lossPct: inputQty > 0 ? lossQty / inputQty * 100 : 0,
       lossQty,
+      lossValue,
       machineName: order.production_machines?.name ?? '-',
       normalLossPercent: toNumber(order.normal_loss_percent),
+      outputProducts: outputProductsByOrder.get(orderKey) ?? [],
       outputQty,
       outputValue,
       processCost,
+      productionCostPerKg,
       productCode: order.products?.code ?? '',
       productName: order.products?.name ?? '-',
       productionLineName: order.production_lines?.name ?? '-',
       productionType: order.production_type ?? '-',
+      rmCostPerKg,
       status: order.status ?? 'Open',
       totalCost,
       variance: outputValue - totalCost || toNumber(order.variance),
@@ -220,11 +311,76 @@ export async function loadProductionMetrics(filters: ProductionReportFilters = {
   })
 }
 
+export async function loadProductionTotalWipQty() {
+  const orders = await prisma.production_orders.findMany({
+    select: {
+      id: true,
+      production_inputs: {
+        select: { id: true },
+        where: { status: 'active' },
+      },
+      production_outputs: {
+        select: { id: true },
+        where: { status: 'active' },
+      },
+    },
+    where: {
+      OR: [
+        { status: null },
+        { status: { notIn: ['Closed', 'Completed', 'Cancelled'] } },
+      ],
+    },
+  })
+
+  const inputOwnerById = new Map<string, string>()
+  const outputOwnerById = new Map<string, string>()
+  orders.forEach((order) => {
+    const orderKey = order.id.toString()
+    order.production_inputs.forEach((input) => inputOwnerById.set(input.id.toString(), orderKey))
+    order.production_outputs.forEach((output) => outputOwnerById.set(output.id.toString(), orderKey))
+  })
+
+  if (!inputOwnerById.size && !outputOwnerById.size) return 0
+
+  const wipByOrder = new Map<string, { inputQty: number; consumedQty: number }>()
+  const ledgerRows = await prisma.stock_ledger.findMany({
+    select: {
+      movement_type: true,
+      qty_in: true,
+      qty_out: true,
+      ref_id: true,
+      ref_type: true,
+    },
+    where: {
+      OR: [
+        ...(inputOwnerById.size ? [{ ref_id: { in: [...inputOwnerById.keys()] }, ref_type: 'PI' }] : []),
+        ...(outputOwnerById.size ? [{ ref_id: { in: [...outputOwnerById.keys()] }, ref_type: 'PO2' }] : []),
+      ],
+    },
+  })
+
+  ledgerRows.forEach((row) => {
+    const refId = String(row.ref_id ?? '')
+    const orderKey = row.ref_type === 'PI' ? inputOwnerById.get(refId) : outputOwnerById.get(refId)
+    if (!orderKey) return
+    const metric = wipByOrder.get(orderKey) ?? { consumedQty: 0, inputQty: 0 }
+    if (row.ref_type === 'PI' && row.movement_type === 'WIP_IN') {
+      metric.inputQty += toNumber(row.qty_in)
+    } else if (row.ref_type === 'PO2' && ['PRODUCTION_OUTPUT_WIP_OUT', 'PRODUCTION_LOSS'].includes(row.movement_type ?? '')) {
+      metric.consumedQty += toNumber(row.qty_out)
+    }
+    wipByOrder.set(orderKey, metric)
+  })
+
+  return Array.from(wipByOrder.values()).reduce((sum, row) => sum + Math.max(0, row.inputQty - row.consumedQty), 0)
+}
+
 export function summarizeProductionMetrics(rows: ProductionOrderMetric[]) {
   const inputQty = rows.reduce((sum, row) => sum + row.inputQty, 0)
   const outputQty = rows.reduce((sum, row) => sum + row.outputQty, 0)
   const lossQty = rows.reduce((sum, row) => sum + row.lossQty, 0)
   const inputCost = rows.reduce((sum, row) => sum + row.inputCost, 0)
+  const lossValue = rows.reduce((sum, row) => sum + row.lossValue, 0)
   const processCost = rows.reduce((sum, row) => sum + row.processCost, 0)
   const totalCost = inputCost + processCost
 
@@ -235,11 +391,31 @@ export function summarizeProductionMetrics(rows: ProductionOrderMetric[]) {
     inputQty,
     lossPct: inputQty > 0 ? lossQty / inputQty * 100 : 0,
     lossQty,
+    lossValue,
     outputQty,
     processCost,
+    productionCostPerKg: outputQty > 0 ? totalCost / outputQty : 0,
+    rmCostPerKg: inputQty > 0 ? inputCost / inputQty : 0,
     totalCost,
     wipQty: rows.reduce((sum, row) => sum + row.wipQty, 0),
     wipValue: rows.reduce((sum, row) => sum + row.wipValue, 0),
     yieldPct: inputQty > 0 ? outputQty / inputQty * 100 : 0,
   }
+}
+
+export function summarizeProductionOutputProducts(rows: ProductionOrderMetric[]) {
+  const grouped = new Map<string, { batches: number; code: string; cost: number; name: string; qty: number }>()
+  rows.forEach((row) => {
+    row.outputProducts.forEach((output) => {
+      const key = output.productCode || output.productName
+      const current = grouped.get(key) ?? { batches: 0, code: output.productCode, cost: 0, name: output.productName, qty: 0 }
+      current.batches += 1
+      current.qty += output.qty
+      current.cost += output.cost
+      grouped.set(key, current)
+    })
+  })
+  return Array.from(grouped.values())
+    .map((item) => ({ ...item, unitCost: item.qty > 0 ? item.cost / item.qty : 0 }))
+    .sort((left, right) => right.qty - left.qty)
 }

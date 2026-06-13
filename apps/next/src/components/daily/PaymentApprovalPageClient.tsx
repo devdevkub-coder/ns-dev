@@ -913,7 +913,13 @@ export function PaymentApprovalPageClient() {
             <Table className="text-xs" style={{ minWidth: apColumnResize.tableMinWidth + 40, tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: '40px' }} />
-                {paymentApprovalApColumns.map((column) => <col key={column.key} style={apColumnResize.getColumnStyle(column.key)} />)}
+                {paymentApprovalApColumns.map((column, index) => {
+              const style = apColumnResize.getColumnStyle(column.key);
+              if (index === paymentApprovalApColumns.length - 1) {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />;
+              }
+              return <col key={column.key} style={style} />;
+            })}
               </colgroup>
               <TableHeader>
                 <tr>
@@ -997,7 +1003,13 @@ export function PaymentApprovalPageClient() {
               <Table className="text-xs" style={{ minWidth: expenseColumnResize.tableMinWidth + 40, tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: '40px' }} />
-                {paymentApprovalExpenseColumns.map((column) => <col key={column.key} style={expenseColumnResize.getColumnStyle(column.key)} />)}
+                {paymentApprovalExpenseColumns.map((column, index) => {
+              const style = expenseColumnResize.getColumnStyle(column.key);
+              if (index === paymentApprovalExpenseColumns.length - 1) {
+                return <col key={column.key} style={{ minWidth: column.minWidth }} />;
+              }
+              return <col key={column.key} style={style} />;
+            })}
               </colgroup>
               <TableHeader>
                 <tr>
@@ -1069,11 +1081,13 @@ export function PaymentApprovalPageClient() {
       </div>
 
       <Dialog open={Boolean(detail)} onOpenChange={(open) => { if (!open) closeDetail() }}>
-        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto rounded-md p-0" fallbackTitle="รายละเอียดการอนุมัติ">
-          <DialogHeader className="px-6 pt-6 pb-4">
+        <DialogContent className="max-h-[90vh] max-w-3xl rounded-md !p-0 overflow-hidden flex flex-col" fallbackTitle="รายละเอียดการอนุมัติ" hideClose>
+          <DialogHeader className="p-4 bg-slate-900 text-white shrink-0">
             <DialogTitle>{detail ? detail.row.docNo : 'รายละเอียดการอนุมัติ'}</DialogTitle>
             <DialogDescription>รายละเอียดรายการในคิวอนุมัติจ่ายเงิน</DialogDescription>
           </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto">
 
           {detail?.tab === 'ap' ? (
             <div className="space-y-4 px-6 pb-6 pt-2">
@@ -1152,7 +1166,9 @@ export function PaymentApprovalPageClient() {
             </div>
           ) : null}
 
-          <DialogFooter className="px-6 py-4 border-t border-slate-100 bg-slate-50 rounded-b-md">
+          </div>
+
+          <DialogFooter className="flex flex-wrap gap-2 justify-end p-4 border-t bg-slate-50 shrink-0">
             {detail && (detail.row.approvalStatus === 'approved' || detail.row.approvalStatus === 'voided') ? (
               <Button
                 className="bg-amber-600 hover:bg-amber-700 text-white flex items-center gap-1"
