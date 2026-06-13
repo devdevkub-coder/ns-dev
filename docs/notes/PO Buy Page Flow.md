@@ -63,6 +63,23 @@ updated: 2026-06-12
 - มี logic reconciliation/status log ผ่าน `po-buy-reconciliation`
 - ยังต้อง harden allocation logs, close-short policy, aging, detail/timeline และ print parity
 
+## API / DB Optimization Snapshot
+
+อัปเดตล่าสุด 2026-06-12 สำหรับ dev-target:
+
+- Migration `20260612225000_optimize_po_buy_queries.sql` เพิ่ม index สำหรับ list/sort, branch filter, status filter, doc no prefix lookup, product option lookup และ supplier option lookup
+- `GET /api/purchase/po-buy` ลด payload โดย `select` เฉพาะ field ที่ response ใช้จริงจาก `po_buys`, `suppliers`, `po_buy_allocation_logs`, และ `po_buy_status_logs`
+- `GET /api/purchase/po-buy` เลิก query supplier ซ้ำจาก `supplier_id`; ใช้ supplier relation ที่ select มากับ PO row แทน
+- product lookup หลังโหลด PO เลือกเฉพาะ `id`, `code`, `name`, `unit`
+- `POST /api/purchase/po-buy` ออกเลขเอกสารด้วย prefix-scoped advisory lock ตาม `POB{branchCode}{YYMM}-` และ query latest doc no เพียง 1 row แทนการ lock/global-scan ทั้งตาราง
+- ไม่มีการเปลี่ยน response contract หรือ business behavior ของหน้า PO Buy
+
+หลักฐาน query plan จาก dev-target หลังปรับ:
+
+- supplier option query ใช้ `idx_suppliers_active_name_cover` แบบ index-only scan; จาก baseline seq scan + sort ประมาณ `183ms` เหลือประมาณ `7.6ms` บนข้อมูล supplier 1,888 rows
+- product option query ใช้ `idx_products_active_code_name` แบบ index-only scan
+- `po_buys` ปัจจุบันมีเพียง 19 rows planner จึงยังเลือก seq scan สำหรับ list บางกรณีได้ตามปกติ แต่ index `date/doc_no`, `branch/date/doc_no`, `status/date/doc_no`, และ `doc_no text_pattern_ops` พร้อมสำหรับข้อมูลโตขึ้น
+
 ## Legacy Baseline
 
 Legacy `view-poBuy` ใช้ `poBuys` เป็น PO ซื้อ/จองต้นทุนล่วงหน้า:

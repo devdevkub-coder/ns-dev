@@ -348,8 +348,14 @@ Reporting rule:
   - [ ] ต่อ `weight_ticket_usage_logs` ฝั่ง `WTO -> SB`
   - [x] เพิ่ม `po_buy_allocation_logs` สำหรับ `POB -> PB` allocation/release พร้อม backfill active allocations และตาราง `ประวัติการจัดสรร` ใน PO Buy detail
   - [x] เพิ่ม `supplier_advance_status_logs` และ `supplier_advance_allocation_logs` สำหรับ lifecycle/status และ ADV -> PB allocation/release timeline
+  - [x] เพิ่ม `customer_receipts`, `customer_receipt_allocations`, และ `customer_receipt_status_logs` สำหรับ `RCP` lifecycle/allocation พร้อม cancel-and-reissue edit policy
   - [ ] เพิ่ม `payment_approval_status_logs`, `payment_status_logs`, `payment_allocations`, และ `payment_account_splits`
-  - [ ] เพิ่ม sales-side status/allocation logs สำหรับ `POS`, `PSALE`, `WTO`, `SB`, และ `RCP`
+  - [ ] เพิ่ม sales-side status/allocation logs สำหรับ `POS`, `PSALE`, `WTO`, และ `SB` ส่วน `RCP` done ผ่าน Customer Receipt contract แล้ว
+- [x] Optimize Customer Receipt API/DB contract
+  - [x] แยก `/api/sales/receipts` queue query เป็น outstanding SB และ active-allocation SB เพื่อลด OR-heavy query
+  - [x] ลด broad ORM relation payload ด้วย `select` เฉพาะ field ที่ response ใช้จริง
+  - [x] เพิ่ม index `idx_sales_bills_customer_receipt_outstanding_queue`, `idx_customer_receipt_allocations_active_sales_bill`, และ `idx_customer_receipts_history_order`
+  - [x] apply migration `20260612131350_optimize_customer_receipt_queries.sql` ไป dev-target และ verify ด้วย EXPLAIN
 - [ ] เพิ่ม Document Aging read model/report สำหรับ `PB/SB/WTI/WTO/POB/POS`
   - [x] บันทึก target contract ที่ `docs/notes/Document Aging Policy.md`
   - [ ] ใช้ bucket เดียวกับ AP/AR สำหรับ `PB/SB` financial due aging
@@ -588,11 +594,14 @@ Reporting rule:
   - [ ] QA long A4 multi-page print with mixed `PO Sell`/`Spot Sale`
 - [ ] Design Trading sales bill flow as follow-up: choose multiple purchase bills first, auto-fill sale lines, allow manual stock lines, and allocate each line to PO Sell
 - [ ] Define sales bill allocation tables/rules for `sales bill -> purchase bill`, `sales bill -> stock`, and `sales bill -> PO Sell`
-- [ ] Implement `/sales/stock-issue` pending sale write flow from `docs/notes/Pending Sale Page Flow.md`
-  - [ ] create/edit pending sale validates available stock and writes `PSALE` stock-out ledger because goods physically leave before billing
-  - [ ] cancel pending sale writes reversal/rebuild ledger and unlocks stock only if not converted to Sales Bill
-  - [ ] convert `PSALE -> Sales Bill` links the source pending-sale lines and creates AR only; it must not write duplicate SB stock-out ledger rows
-  - [ ] preserve `PSALE` ledger audit during conversion instead of deleting/replacing it with `SB`
+- [x] Implement `/sales/stock-issue` pending sale write flow from `docs/notes/Pending Sale Page Flow.md`
+  - [x] create pending sale validates active WTO hold availability and writes `PSALE` stock-out ledger because goods physically leave before billing
+  - [x] direct edit is intentionally disabled; pending PSALE corrections use cancel-and-recreate
+  - [x] cancel pending sale appends `PSALE-CANCEL` reversal ledger and reopens the WTO hold only if not converted to Sales Bill
+  - [x] convert `PSALE -> Sales Bill` links the source pending-sale lines and creates AR only; it does not write duplicate SB stock-out ledger rows
+  - [x] preserve `PSALE` ledger audit during conversion instead of deleting/replacing it with `SB`
+  - [x] optimize API/DB lookups with `20260612123936_optimize_pending_sale_api_indexes.sql` and narrow list/reversal query payloads
+  - [ ] logged-in browser QA for create/cancel/convert and SB-from-PSALE cancel
 - [ ] define COGS/FIFO rule
 - [ ] define receipt relation
 
@@ -631,14 +640,19 @@ Tracker: [16-next-production-progress.md](/Users/watcharathatsrithanesiganon/Doc
 - [x] ระบุ legacy output category codes: `FG`, `RM`, `CUSTOMER_RETURN`, `LOSS`
 - [x] Batch P1: เพิ่ม target DB/API สำหรับ `production_output_categories` แบบ additive และ seed จาก legacy
 - [x] Batch P2: port `/production/orders` read baseline พร้อม API และ server-side pagination/filter/sort
-- [ ] Batch P3: port production output write flow ให้ใช้ category จาก DB และเขียน `production_outputs`/`stock_ledger`
+- [ ] Batch P3: implement simplified production order write flow per `docs/notes/Production Order DB API Design.md` (backend/API/UI done; report reconciliation and logged-in QA pending)
 - [x] Batch P4: port production dashboard/report/cost/yield/machine utilization read baseline
 - [x] Document production stock flow in `docs/notes/Production Flow.md`, including `PI` input to WIP, `PO2` output from WIP, output category behavior, and current read-baseline gaps
-- [ ] Implement production write ledger contract
-  - [ ] production input writes source warehouse stock-out plus WIP-in in one transaction
-  - [ ] production output writes WIP-out plus destination in/loss movement by `production_output_categories`
-  - [ ] edit/cancel writes explicit reversal/rebuild rows and keeps source document audit
-  - [ ] reports read ledger facts for WIP/FG/RM/return/loss reconciliation
+- [x] Document simplified production MVP/no-fallback/API/DB task contract in `docs/notes/Production Order DB API Design.md`
+- [x] Implement production write ledger contract backend/API
+  - [x] create production order as `Open` with no stock ledger side effect
+  - [x] production input writes source warehouse stock-out plus WIP-in in one transaction
+  - [x] production output writes WIP-out plus destination FG/RM in or loss movement
+  - [x] completed is allowed only when WIP balance is zero
+  - [x] edit/cancel writes explicit append-only `PI-REV`/`PO2-REV` rows and keeps source document audit
+  - [ ] reports read ledger facts for WIP/FG/RM/loss reconciliation
+  - [x] do not implement approval/process cost/cost allocation/customer return/auto Grade Adjustment in MVP
+  - [x] do not add runtime fallback for missing doc no, code, category, warehouse, WAC, or stock balance
 
 ## Phase 7: Testing and Reconciliation
 

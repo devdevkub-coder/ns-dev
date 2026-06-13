@@ -84,7 +84,7 @@ export async function GET(request: Request) {
       warehouses?: { name: string } | null
     }>
 
-    const purchaseRefTypes = new Set(['PB', 'PB-CANCEL'])
+    const purchaseRefTypes = new Set(['PB', 'PB-CANCEL', 'PB-EDIT-REV'])
     const salesRefTypes = new Set(['SB', 'SB-CANCEL'])
     const purchaseBillIds = [...new Set(pageRows
       .filter((row) => row.ref_type && purchaseRefTypes.has(row.ref_type) && row.ref_id)

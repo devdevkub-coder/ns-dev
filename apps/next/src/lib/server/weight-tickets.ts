@@ -372,6 +372,7 @@ export async function getWeightTicketUsageCounts(tx: Prisma.TransactionClient | 
       from public.purchase_bill_receipt_allocations pbra
       join public.purchase_bills pb on pb.id = pbra.purchase_bill_id
       where lower(coalesce(pb.status, '')) not in ('cancelled', 'cancelled_supplier_swap')
+        and pbra.allocation_status = 'active'
         and pbra.weight_ticket_id = ${ticketId}
     `,
     tx.$queryRaw<Array<{ bill_count: number; doc_nos: string[] | null }>>`
@@ -425,6 +426,8 @@ export async function getWeightTicketDownstreamAllocations(tx: Prisma.Transactio
       left join public.products products on products.id = pbi.product_id
       left join public.products summary_products on summary_products.id = wts.product_id
       where lower(coalesce(pb.status, '')) not in ('cancelled', 'cancelled_supplier_swap')
+        and pbra.allocation_status = 'active'
+        and pbi.item_status = 'active'
         and pbra.weight_ticket_id = ${ticketId}
       order by pbra.created_at desc, pb.doc_no desc, pbi.line_no asc
     `,

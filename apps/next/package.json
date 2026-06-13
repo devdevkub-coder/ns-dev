@@ -11,6 +11,8 @@
     "prisma:generate": "prisma generate",
     "start": "next start --hostname 0.0.0.0 --port 3000",
     "lint": "eslint .",
+    "qa:stock-ledger-write-paths": "npx tsx scripts/qa-stock-ledger-write-paths.ts",
+    "verify:stock-ledger": "npx tsx scripts/verify-stock-ledger-contract.ts",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {

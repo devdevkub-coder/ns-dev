@@ -357,16 +357,18 @@ Validation:
 Scope:
 - `/sales/stock-issue`
 
-Status: Read baseline done on 2026-05-18. Flow/stock contract clarified on 2026-06-11 in `docs/notes/Pending Sale Page Flow.md`.
+Status: Runtime write flow and API/DB lookup optimization done on 2026-06-12. Flow/stock contract clarified in `docs/notes/Pending Sale Page Flow.md`; logged-in browser QA remains.
 
 Tasks:
 - Done: added read-only Next page/API for `stock_issues`.
 - Done: legacy inspection confirmed `PSALE` writes stock-out when goods physically leave before billing.
 - Done: target decision documented that `PSALE` is different from `WTO` hold. `WTO` reserves stock only, while `PSALE` writes a real stock-out ledger row.
 - Done: target conversion rule documented: Sales Bill created from `PSALE` must link to the original pending-sale source and must not cut stock a second time.
-- To do: add `POST/PATCH/cancel/convert` APIs for pending sale with server-side stock validation.
-- To do: add `PSALE` stock ledger write/reversal policy and keep ledger audit instead of deleting/replacing it during Sales Bill conversion.
-- To do: wire list actions `เปิดบิลขาย`, `แก้ไข`, and `ยกเลิก` to durable APIs and lock converted/cancelled rows.
+- Done: added `POST /api/sales/stock-issue`, `PATCH /api/sales/stock-issue` cancel, and Sales Bill create with `pendingStockIssueId`.
+- Done: added `PSALE` stock ledger write/reversal policy and kept ledger audit instead of deleting/replacing it during Sales Bill conversion.
+- Done: wired list actions `เปิดบิลขาย`, `ยกเลิก`, and `ประวัติ`; direct `แก้ไข` remains disabled by cancel-and-recreate policy.
+- Done: optimized Pending Sale API/DB lookups with targeted indexes and narrow API selects.
+- To do: logged-in browser QA for PSALE create/cancel/convert and SB-from-PSALE cancel.
 
 ### Batch F: Purchase Bill Linked Flow Surfaces
 

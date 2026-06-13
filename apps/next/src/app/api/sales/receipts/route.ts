@@ -1,37 +1,87 @@
 import { NextResponse } from 'next/server'
 import { customerReceiptFormSchema } from '@/lib/daily'
-import { requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code'
+import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
-import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
-import { currentActor, listDailyAccounts, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { cancelCustomerReceipt, createCustomerReceipt, replaceCustomerReceipt } from '@/lib/server/customer-receipts'
+import { listDailyAccounts, toDateOnly, toNumber } from '@/lib/server/daily'
 import { getActivePaymentMethods } from '@/lib/server/payment-methods'
 import { prisma } from '@/lib/server/prisma'
 
 export const runtime = 'nodejs'
+
+const CUSTOMER_RECEIPT_LIST_LIMIT = 5000
 
 export async function GET() {
   try {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'finance.cash.view')
 
-    const [accounts, customers, bills, receipts, paymentMethods] = await Promise.all([
+    const salesBillSelect = {
+      customers: { select: { code: true } },
+      date: true,
+      doc_no: true,
+      id: true,
+      receivable_balance: true,
+      total_amount: true,
+    } as const
+
+    const [accounts, customers, outstandingBills, allocatedBills, receipts, paymentMethods] = await Promise.all([
       listDailyAccounts(),
       prisma.customers.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
       prisma.sales_bills.findMany({
-        include: { customers: { select: { code: true } } },
+        select: salesBillSelect,
         orderBy: [{ date: 'desc' }],
-        take: 5000,
+        take: CUSTOMER_RECEIPT_LIST_LIMIT,
+        where: {
+          receivable_balance: { gt: 0 },
+          status: { notIn: ['cancelled', 'canceled'] },
+        },
       }),
-      prisma.receipts.findMany({
-        include: { accounts: true, customers: true },
+      prisma.sales_bills.findMany({
+        select: salesBillSelect,
+        orderBy: [{ date: 'desc' }],
+        take: CUSTOMER_RECEIPT_LIST_LIMIT,
+        where: {
+          customer_receipt_allocations: {
+            some: { status: 'active' },
+          },
+        },
+      }),
+      prisma.customer_receipts.findMany({
+        select: {
+          account_code_snapshot: true,
+          account_name_snapshot: true,
+          bank_fee_total: true,
+          customer_receipt_allocations: {
+            orderBy: [{ line_no: 'asc' }],
+            select: {
+              discount_amount: true,
+              line_no: true,
+              receipt_amount: true,
+              sales_bill_doc_no_snapshot: true,
+              withholding_tax_amount: true,
+            },
+          },
+          customer_code_snapshot: true,
+          customer_name_snapshot: true,
+          date: true,
+          doc_no: true,
+          gross_amount: true,
+          net_cash_in: true,
+          notes: true,
+          payment_method_name_snapshot: true,
+          status: true,
+          withholding_tax_total: true,
+        },
         orderBy: [{ date: 'desc' }, { created_at: 'desc' }],
-        take: 5000,
+        take: CUSTOMER_RECEIPT_LIST_LIMIT,
       }),
       getActivePaymentMethods(),
     ])
-    const billDocNoById = new Map(bills.map((bill) => [bill.id, bill.doc_no]))
+    const bills = [...new Map([...outstandingBills, ...allocatedBills].map((bill) => [bill.doc_no, bill])).values()]
+      .sort((left, right) => right.date.getTime() - left.date.getTime())
+      .slice(0, CUSTOMER_RECEIPT_LIST_LIMIT)
 
     return NextResponse.json({
       accounts,
@@ -48,21 +98,30 @@ export async function GET() {
       })),
       paymentMethods,
       rows: receipts.map((receipt) => ({
-        accountId: receipt.accounts?.code ?? '',
-        accountName: receipt.accounts?.name ?? '-',
-        amount: toNumber(receipt.amount),
-        billId: receipt.bill_id ? (billDocNoById.get(receipt.bill_id) ?? '') : '',
-        customerId: receipt.customers?.code ?? '',
-        customerName: receipt.customers?.name ?? '-',
+        accountId: receipt.account_code_snapshot,
+        accountName: receipt.account_name_snapshot,
+        amount: toNumber(receipt.gross_amount),
+        billDocNos: receipt.customer_receipt_allocations.map((allocation) => allocation.sales_bill_doc_no_snapshot),
+        billId: receipt.customer_receipt_allocations[0]?.sales_bill_doc_no_snapshot ?? '',
+        customerId: receipt.customer_code_snapshot,
+        customerName: receipt.customer_name_snapshot,
         date: toDateOnly(receipt.date),
         docNo: receipt.doc_no,
-        fee: toNumber(receipt.fee ?? receipt.bank_fee),
+        fee: toNumber(receipt.bank_fee_total),
         id: receipt.doc_no,
-        method: receipt.method ?? '',
-        netAmount: toNumber(receipt.net_amount),
+        method: receipt.payment_method_name_snapshot,
+        netAmount: toNumber(receipt.net_cash_in),
         notes: receipt.notes ?? '',
-        partyName: receipt.customers?.name ?? '-',
-        withholdingTax: toNumber(receipt.withholding_tax),
+        partyName: receipt.customer_name_snapshot,
+        receiptLines: receipt.customer_receipt_allocations.map((allocation) => ({
+          discountAmount: toNumber(allocation.discount_amount),
+          lineNo: allocation.line_no,
+          receiptAmount: toNumber(allocation.receipt_amount),
+          salesBillDocNo: allocation.sales_bill_doc_no_snapshot,
+          withholdingTaxAmount: toNumber(allocation.withholding_tax_amount),
+        })),
+        status: receipt.status,
+        withholdingTax: toNumber(receipt.withholding_tax_total),
       })),
     })
   } catch (caught) {
@@ -77,101 +136,33 @@ export async function POST(request: Request) {
     requirePermission(context, 'finance.cash.view')
 
     const values = customerReceiptFormSchema.parse(await request.json())
-    const docNo = values.docNo ?? await nextDailyDocNo('receipts', 'RCP', values.date)
-    const actor = currentActor(context)
-    const netAmount = values.amount - values.fee - values.withholdingTax - values.discount
-    const billDocNo = values.billId?.trim() ?? ''
-    const account = await findActiveAccountReferenceByCode(values.accountId)
-    const customer = await findActiveCustomerReferenceByCodeOrId(values.customerId)
+    const result = await createCustomerReceipt(values, context)
 
-    if (!customer) {
-      return NextResponse.json({ code: 'BAD_REQUEST', error: 'ลูกค้าไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
-    }
-    if (!account) {
-      return NextResponse.json({ code: 'BAD_REQUEST', error: 'บัญชีรับเงินไม่ถูกต้อง' }, { status: 400 })
-    }
-
-    const bill = billDocNo
-      ? await prisma.sales_bills.findFirst({
-        select: { customer_id: true, id: true },
-        where: { doc_no: billDocNo },
-      })
-      : null
-
-    if (values.billId && !bill) {
-      return NextResponse.json({ code: 'BAD_REQUEST', error: 'บิลขายไม่ถูกต้อง' }, { status: 400 })
-    }
-
-    if (bill?.customer_id && bill.customer_id !== customer.id) {
-      return NextResponse.json({ code: 'BAD_REQUEST', error: 'ลูกค้าและบิลขายไม่ตรงกัน' }, { status: 400 })
-    }
-
-    const result = await prisma.$transaction(async (tx) => {
-      const existingReceipt = values.id
-        ? await tx.receipts.findFirst({ where: { doc_no: values.id }, select: { id: true } })
-        : null
-
-      if (values.id && !existingReceipt) {
-        throw new Error('ไม่พบรายการรับเงินที่ต้องการแก้ไข')
-      }
-
-      const receiptData = {
-        account_id: account.id,
-        amount: values.amount,
-        bank_fee: values.fee,
-        bill_id: bill?.id ?? null,
-        customer_id: customer.id,
-        date: normalizeDate(values.date),
-        discount: values.discount,
-        doc_no: docNo,
-        fee: values.fee,
-        method: values.method,
-        net_amount: netAmount,
-        notes: values.notes,
-        updated_at: new Date(),
-        updated_by: actor,
-        voucher_id: docNo,
-        withholding_tax: values.withholdingTax,
-      }
-
-      const receipt = existingReceipt
-        ? await tx.receipts.update({
-          data: receiptData,
-          where: { id: existingReceipt.id },
-        })
-        : await tx.receipts.create({
-          data: {
-            ...receiptData,
-            created_by: actor,
-            status: 'active',
-          },
-        })
-
-      const receiptRefId = stringifyBusinessValue(receipt.id)
-      const statementDocNo = await nextDailyDocNo('bank_statement', 'BST', values.date)
-      await tx.bank_statement.deleteMany({ where: { ref_id: receiptRefId, ref_type: 'RCP' } })
-      await tx.bank_statement.create({
-        data: {
-          account_id: account.id,
-          amount_in: netAmount,
-          amount_out: 0,
-          created_by: actor,
-          date: normalizeDate(values.date),
-          description: `${docNo} - รับเงิน Customer`,
-          doc_no: statementDocNo,
-          ref_id: receiptRefId,
-          ref_no: docNo,
-          ref_type: 'RCP',
-          type: 'รับเงิน Customer',
-        },
-      })
-
-      return receipt
-    })
-
-    return NextResponse.json({ id: result.doc_no })
+    return NextResponse.json(result)
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'บันทึกรับเงิน Customer ไม่ได้', 400)
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const context = await getCurrentAuthContext()
+    requirePermission(context, 'finance.cash.view')
+
+    const payload = await request.json() as { action?: string; docNo?: string; reason?: string; values?: unknown }
+    if (payload.action === 'cancel') {
+      const result = await cancelCustomerReceipt(payload.docNo ?? '', payload.reason ?? '', context)
+      return NextResponse.json(result)
+    }
+    if (payload.action === 'replace') {
+      const values = customerReceiptFormSchema.parse(payload.values)
+      const result = await replaceCustomerReceipt(payload.docNo ?? values.id ?? '', values, payload.reason ?? 'แก้ไข Receipt Voucher โดยยกเลิกใบเดิมและออกใบใหม่', context)
+      return NextResponse.json(result)
+    }
+    return NextResponse.json({ code: 'BAD_REQUEST', error: 'action ไม่ถูกต้อง' }, { status: 400 })
+  } catch (caught) {
+    if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
+    return apiErrorResponse(caught, 'ยกเลิกรับเงิน Customer ไม่ได้', 400)
   }
 }

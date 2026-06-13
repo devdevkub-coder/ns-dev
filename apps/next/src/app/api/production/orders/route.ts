@@ -3,8 +3,9 @@ import type { Prisma } from '../../../../../generated/prisma/client'
 import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { toDateOnly, toNumber } from '@/lib/server/daily'
+import { currentActor, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { createProductionOrder, createProductionOrderSchema, ProductionOrderError } from '@/lib/server/production-orders'
 
 export const runtime = 'nodejs'
 
@@ -52,7 +53,7 @@ export async function GET(request: Request) {
       } : {}),
     }
 
-    const [total, rows, aggregate, categories] = await Promise.all([
+    const [total, rows, aggregate, categories, warehouses] = await Promise.all([
       prisma.production_orders.count({ where }),
       prisma.production_orders.findMany({
         include: {
@@ -80,9 +81,13 @@ export async function GET(request: Request) {
         orderBy: [{ sort_order: 'asc' }, { code: 'asc' }],
         where: { active: true },
       }),
+      prisma.warehouses.findMany({
+        select: { code: true, id: true, name: true },
+      }),
     ])
 
     const categoryByCode = new Map(categories.map((category) => [category.code, category]))
+    const warehouseById = new Map(warehouses.map((warehouse) => [warehouse.id.toString(), warehouse]))
     const payloadRows = rows.map((row) => {
       const inputQty = row.production_inputs.reduce((sum, input) => sum + toNumber(input.qty), 0)
       const outputQty = row.production_outputs.reduce((sum, output) => sum + toNumber(output.qty), 0)
@@ -96,6 +101,20 @@ export async function GET(request: Request) {
         id: row.doc_no,
         inputCost: toNumber(row.total_input_cost),
         inputCount: row.production_inputs.length,
+        inputs: row.production_inputs.map((input) => ({
+          date: toDateOnly(input.date),
+          docNo: input.doc_no,
+          lotNo: input.lot_no ?? '',
+          productCode: input.products?.code ? requireBusinessCode(input.products.code, `สินค้า ${input.product_id}`) : '',
+          productName: input.products?.name ?? '-',
+          qty: toNumber(input.qty),
+          status: input.status,
+          stockStatus: input.source ?? '',
+          totalCost: toNumber(input.total_cost),
+          unitCost: toNumber(input.unit_cost),
+          warehouseCode: input.source_warehouse_id ? warehouseById.get(input.source_warehouse_id.toString())?.code ?? '' : '',
+          warehouseName: input.source_warehouse_id ? warehouseById.get(input.source_warehouse_id.toString())?.name ?? '-' : '-',
+        })),
         inputQty,
         notes: row.notes ?? '',
         outputCategories: outputCategories.map((code) => ({
@@ -103,6 +122,21 @@ export async function GET(request: Request) {
           name: categoryByCode.get(String(code))?.name_th ?? String(code),
         })),
         outputCount: row.production_outputs.length,
+        outputs: row.production_outputs.map((output) => ({
+          categoryCode: output.category_code ?? output.output_category ?? '',
+          date: toDateOnly(output.date),
+          docNo: output.doc_no,
+          lotNo: output.lot_no ?? '',
+          outputType: output.output_type ?? '',
+          productCode: output.products?.code ? requireBusinessCode(output.products.code, `สินค้า ${output.product_id}`) : '',
+          productName: output.products?.name ?? '-',
+          qty: toNumber(output.qty),
+          status: output.status,
+          totalCost: toNumber(output.total_cost),
+          unitCost: toNumber(output.unit_cost),
+          warehouseCode: output.destination_warehouse_id ? warehouseById.get(output.destination_warehouse_id.toString())?.code ?? '' : '',
+          warehouseName: output.destination_warehouse_id ? warehouseById.get(output.destination_warehouse_id.toString())?.name ?? '-' : '-',
+        })),
         outputQty,
         outputValue: toNumber(row.total_output_value),
         productCode: row.products?.code ?? '',
@@ -137,5 +171,19 @@ export async function GET(request: Request) {
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลดใบสั่งผลิตไม่ได้', 500)
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const context = await getCurrentAuthContext()
+    requirePermission(context, 'production.operations.view')
+    const values = createProductionOrderSchema.parse(await request.json())
+    const created = await createProductionOrder(values, currentActor(context))
+    return NextResponse.json(created, { status: 201 })
+  } catch (caught) {
+    if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
+    if (caught instanceof ProductionOrderError) return apiErrorResponse(caught, caught.message, caught.status)
+    return apiErrorResponse(caught, 'สร้างใบสั่งผลิตไม่ได้', 500)
   }
 }

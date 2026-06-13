@@ -10,6 +10,8 @@ import { currentActor, nextDailyDocNo, normalizeDate, toDateOnly, toNumber } fro
 import { requireBusinessCode } from '@/lib/business-code'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveSalesChannelReferenceByCode } from '@/lib/server/sales-channel-reference'
+import { activeSalesReceiptCountByBillId, salesBillCancelState } from '@/lib/server/sales-bill-cancel-policy'
+import { appendStockIssueStatusLog, STOCK_ISSUE_STATUS_ACTION } from '@/lib/server/stock-issue-history'
 import { consumeActiveWtoStockHolds, WtoStockHoldError } from '@/lib/server/stock-holds'
 import { activeVatRatePercent } from '@/lib/server/tax-settings'
 import { findActiveWarehouseReferenceByCodeOrId } from '@/lib/server/warehouse-reference'
@@ -80,10 +82,12 @@ function parseBillQuery(url: URL, includePaging = true): BillQuery {
   }
 }
 
-function billJson(row: SalesBillRow) {
+function billJson(row: SalesBillRow, activeReceiptCount = 0) {
+  const cancelState = salesBillCancelState(row.status, activeReceiptCount)
   return {
     branchId: row.branches?.code ?? '',
     branchName: row.branches?.name ?? '-',
+    canCancel: cancelState.canCancel,
     channelId: row.sales_channels?.code ?? '',
     channelName: row.sales_channels?.name ?? '-',
     createdAt: row.created_at?.toISOString(),
@@ -94,6 +98,7 @@ function billJson(row: SalesBillRow) {
     grossProfit: toNumber(row.gross_profit),
     id: row.doc_no,
     itemCount: Array.isArray(row.items) ? row.items.length : 0,
+    lockedReason: cancelState.lockedReason,
     receivableBalance: toNumber(row.receivable_balance),
     receivedAmount: toNumber(row.received_amount),
     refNo: row.ref_no ?? '',
@@ -793,7 +798,8 @@ export async function GET(request: Request) {
       prisma.sales_bills.count({ where }),
       prisma.sales_bills.aggregate({ _sum: { total_amount: true }, where }),
     ])
-    const jsonRows = rows.map(billJson)
+    const activeReceiptCountByBillId = await activeSalesReceiptCountByBillId(prisma, rows.map((row) => row.id))
+    const jsonRows = rows.map((row) => billJson(row, activeReceiptCountByBillId.get(row.id) ?? 0))
 
     if (url.searchParams.get('format') === 'xlsx') {
       const body = buildWorkbook(jsonRows)
@@ -897,7 +903,7 @@ export async function POST(request: Request) {
         })
       : null
     if (values.customerAdvanceId && !selectedCustomerAdvance) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่พบเอกสารรับเงินล่วงหน้าที่เลือก' }, { status: 400 })
-    if (selectedCustomerAdvance?.ref_type !== 'CADV') return NextResponse.json({ code: 'BAD_REQUEST', error: 'เอกสารรับเงินล่วงหน้าไม่ถูกต้อง' }, { status: 400 })
+    if (selectedCustomerAdvance && selectedCustomerAdvance.ref_type !== 'CADV') return NextResponse.json({ code: 'BAD_REQUEST', error: 'เอกสารรับเงินล่วงหน้าไม่ถูกต้อง' }, { status: 400 })
     if (selectedCustomerAdvance && String(selectedCustomerAdvance.ref_id ?? '').trim() !== customer.code) return NextResponse.json({ code: 'BAD_REQUEST', error: 'เอกสารรับเงินล่วงหน้าต้องเป็นลูกค้าเดียวกับบิลขาย' }, { status: 400 })
     const customerAdvanceUsedAmount = selectedCustomerAdvance
       ? (await prisma.sales_bills.findMany({
@@ -927,10 +933,61 @@ export async function POST(request: Request) {
     let deliverySummarySourceMap = new Map<string, DeliverySummarySource>()
     let stockDeliveryTicket: DeliveryTicketOptionRow | null = null
     const fromPsaleNo = values.fromPsaleNo?.trim()
-    let stockIssue = null
+    if (values.pendingStockIssueId && fromPsaleNo) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'เลือกต้นทางเบิกออกได้ทีละรายการเท่านั้น' }, { status: 400 })
+    }
+    const pendingStockIssue = values.pendingStockIssueId
+      ? await prisma.stock_issues.findFirst({
+          select: {
+            branch_id: true,
+            customer_id: true,
+            doc_no: true,
+            id: true,
+            items: true,
+            status: true,
+          },
+          where: { doc_no: values.pendingStockIssueId },
+        })
+      : null
+    if (values.pendingStockIssueId && !pendingStockIssue) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่พบรายการเบิกออกรอบิลที่เลือก' }, { status: 400 })
+    }
+    if (pendingStockIssue) {
+      if ((pendingStockIssue.status ?? 'pending') !== 'pending') {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: 'รายการเบิกออกรอบิลนี้ถูกเปิดบิลหรือยกเลิกแล้ว' }, { status: 400 })
+      }
+      if (pendingStockIssue.branch_id && pendingStockIssue.branch_id !== branch.id) {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาของบิลขายไม่ตรงกับรายการเบิกออกรอบิล' }, { status: 400 })
+      }
+      if (pendingStockIssue.customer_id && pendingStockIssue.customer_id !== customer.id) {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: 'ลูกค้าของบิลขายไม่ตรงกับรายการเบิกออกรอบิล' }, { status: 400 })
+      }
+      const pendingItems = Array.isArray(pendingStockIssue.items) ? pendingStockIssue.items : []
+      const pendingQtyByProduct = new Map<string, number>()
+      pendingItems.forEach((item) => {
+        if (!item || typeof item !== 'object') return
+        const record = item as Record<string, unknown>
+        const productCode = String(record.productCode ?? record.productId ?? '').trim()
+        const qty = typeof record.qty === 'number' ? record.qty : Number(record.qty ?? 0)
+        if (!productCode || !Number.isFinite(qty)) return
+        pendingQtyByProduct.set(productCode, (pendingQtyByProduct.get(productCode) ?? 0) + qty)
+      })
+      const requestedQtyByProduct = new Map<string, number>()
+      values.items.forEach((item) => {
+        requestedQtyByProduct.set(item.productId, (requestedQtyByProduct.get(item.productId) ?? 0) + item.qty)
+      })
+      for (const [productCode, requestedQty] of requestedQtyByProduct) {
+        const pendingQty = pendingQtyByProduct.get(productCode) ?? 0
+        if (requestedQty > pendingQty + 0.0001) {
+          return NextResponse.json({ code: 'BAD_REQUEST', error: `สินค้า ${productCode} มากกว่าจำนวนที่เบิกออกรอบิลไว้` }, { status: 400 })
+        }
+      }
+    }
+    let stockIssue: { doc_no: string; id: bigint; status: string | null } | null = null
     if (fromPsaleNo) {
       stockIssue = await prisma.stock_issues.findFirst({
-        where: { doc_no: fromPsaleNo }
+        select: { doc_no: true, id: true, status: true },
+        where: { doc_no: fromPsaleNo },
       })
       if (!stockIssue) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: `ไม่พบใบเบิกออก ${fromPsaleNo}` }, { status: 400 })
@@ -940,7 +997,7 @@ export async function POST(request: Request) {
       }
     }
 
-    if (values.transactionMode === 'STOCK' && !fromPsaleNo) {
+    if (values.transactionMode === 'STOCK' && !pendingStockIssue && !stockIssue) {
       const deliveryValidation = await validateStockDeliverySelection(values, branch?.id ?? null, customer.id, productByCode, productCodeById)
       if ('error' in deliveryValidation) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: deliveryValidation.error }, { status: 400 })
@@ -948,6 +1005,7 @@ export async function POST(request: Request) {
       deliverySummarySourceMap = deliveryValidation.deliverySummarySourceMap
       stockDeliveryTicket = deliveryValidation.ticket
     }
+    const sourceStockIssue = pendingStockIssue ?? stockIssue
 
     const docNo = await nextDailyDocNo('sales_bills', 'SB', billDate)
     const items = salesItems(values, parsedProductIds as bigint[], productById, deliverySummarySourceMap)
@@ -1002,8 +1060,8 @@ export async function POST(request: Request) {
           vat_invoice_no: values.vatInvoiceNo,
           vat_type: values.vatType,
           warehouse_id: warehouse?.id ?? null,
-          from_p_sale_no: values.fromPsaleNo || null,
-          from_p_sale_id: stockIssue ? stockIssue.id : null,
+          from_p_sale_no: sourceStockIssue?.doc_no ?? null,
+          from_p_sale_id: sourceStockIssue?.id ?? null,
         },
         select: { doc_no: true, id: true },
       })
@@ -1025,7 +1083,29 @@ export async function POST(request: Request) {
         })
       }
 
-      if (values.transactionMode === 'STOCK' && stockDeliveryTicket) {
+      if (values.transactionMode === 'STOCK' && pendingStockIssue) {
+        await tx.stock_issues.update({
+          data: {
+            converted_to_bill_id: createdBill.id,
+            status: 'converted',
+          },
+          where: { id: pendingStockIssue.id },
+        })
+        await appendStockIssueStatusLog(tx, {
+          action: STOCK_ISSUE_STATUS_ACTION.CONVERTED,
+          actor,
+          fromStatus: pendingStockIssue.status ?? 'pending',
+          meta: {
+            reason: 'sales_bill_create_from_pending_sale',
+            salesBillDocNo: createdBill.doc_no,
+          },
+          note: values.note || null,
+          stockIssueId: pendingStockIssue.id,
+          toStatus: 'converted',
+        })
+      }
+
+      if (values.transactionMode === 'STOCK' && stockDeliveryTicket && !sourceStockIssue) {
         await consumeActiveWtoStockHolds(tx, {
           actor,
           billDate: normalizeDate(billDate),

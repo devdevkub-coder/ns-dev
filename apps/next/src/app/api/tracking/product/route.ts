@@ -201,7 +201,7 @@ export async function GET(request: Request) {
         },
       }),
       prisma.purchase_bills.findMany({
-        include: { purchase_bill_items: { orderBy: { line_no: 'asc' } } },
+        include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } } },
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         take: 10000,
         where: { status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] }, ...(branch?.id != null ? { branch_id: branch.id } : {}) },

@@ -23,6 +23,7 @@ import { appendPurchaseBillStatusLog, createInitialPurchaseBillStatusLog, PURCHA
 import { prisma } from '@/lib/server/prisma'
 import { refreshPurchaseBillSettlement, refreshSupplierAdvancePaymentAllocation } from '@/lib/server/purchase-bill-settlement'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
+import { appendPurchaseBillStockReversal } from '@/lib/server/stock-ledger-reversal'
 import { activeVatRatePercent } from '@/lib/server/tax-settings'
 import { findActiveWarehouseReferenceByCodeOrId } from '@/lib/server/warehouse-reference'
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
@@ -94,6 +95,10 @@ type PurchasePaymentWorkflowStatus =
   | typeof PURCHASE_BILL_SUPPLIER_SWAP_CANCELLED_STATUS
 
 const LOCKED_PURCHASE_PAYMENT_APPROVAL_STATUSES = ['approved', 'paid'] as const
+const PURCHASE_BILL_ACTIVE_ITEM_STATUS = 'active'
+const PURCHASE_BILL_SUPERSEDED_ITEM_STATUS = 'superseded'
+const PURCHASE_BILL_ACTIVE_ALLOCATION_STATUS = 'active'
+const PURCHASE_BILL_RELEASED_ALLOCATION_STATUS = 'released'
 
 type ProductRefRow = {
   code: string
@@ -424,7 +429,12 @@ function buildBillItems(
   })
 }
 
-async function createPurchaseBillItems(tx: Prisma.TransactionClient, billId: bigint, items: ReturnType<typeof buildBillItems>) {
+async function createPurchaseBillItems(
+  tx: Prisma.TransactionClient,
+  billId: bigint,
+  items: ReturnType<typeof buildBillItems>,
+  itemVersion = 1,
+) {
   const itemRows = []
   for (const [index, item] of items.entries()) {
     const created = await tx.purchase_bill_items.create({
@@ -434,6 +444,8 @@ async function createPurchaseBillItems(tx: Prisma.TransactionClient, billId: big
         discount: item.discount,
         display_name: item.displayName,
         gross_weight: item.grossWeight,
+        item_status: PURCHASE_BILL_ACTIVE_ITEM_STATUS,
+        item_version: itemVersion,
         line_no: index + 1,
         lot_no: item.lotNo,
         note: item.note,
@@ -448,6 +460,7 @@ async function createPurchaseBillItems(tx: Prisma.TransactionClient, billId: big
         source_snapshot: {
           grossWeight: item.grossWeight,
           itemStatus: item.itemStatus,
+          itemVersion,
           poBuyId: item.poBuyId,
           productId: item.productId,
           productName: item.productName,
@@ -464,6 +477,75 @@ async function createPurchaseBillItems(tx: Prisma.TransactionClient, billId: big
     itemRows.push(created)
   }
   return itemRows
+}
+
+async function nextPurchaseBillItemVersion(tx: Prisma.TransactionClient, billId: bigint) {
+  const current = await tx.purchase_bill_items.aggregate({
+    _max: { item_version: true },
+    where: { purchase_bill_id: billId },
+  })
+  return (current._max.item_version ?? 0) + 1
+}
+
+async function releasePurchaseBillAllocations(
+  tx: Prisma.TransactionClient,
+  billId: bigint,
+  params: {
+    actor: string
+    releasedAt: Date
+    reason: string
+  },
+) {
+  await Promise.all([
+    tx.purchase_bill_receipt_allocations.updateMany({
+      data: {
+        allocation_status: PURCHASE_BILL_RELEASED_ALLOCATION_STATUS,
+        released_at: params.releasedAt,
+        released_by: params.actor,
+        release_reason: params.reason,
+      },
+      where: {
+        allocation_status: PURCHASE_BILL_ACTIVE_ALLOCATION_STATUS,
+        purchase_bill_id: billId,
+      },
+    }),
+    tx.purchase_bill_po_allocations.updateMany({
+      data: {
+        allocation_status: PURCHASE_BILL_RELEASED_ALLOCATION_STATUS,
+        released_at: params.releasedAt,
+        released_by: params.actor,
+        release_reason: params.reason,
+      },
+      where: {
+        allocation_status: PURCHASE_BILL_ACTIVE_ALLOCATION_STATUS,
+        purchase_bill_id: billId,
+      },
+    }),
+  ])
+}
+
+async function supersedePurchaseBillItems(
+  tx: Prisma.TransactionClient,
+  billId: bigint,
+  params: {
+    actor: string
+    supersededAt: Date
+    reason: string
+  },
+) {
+  await tx.purchase_bill_items.updateMany({
+    data: {
+      item_status: PURCHASE_BILL_SUPERSEDED_ITEM_STATUS,
+      superseded_at: params.supersededAt,
+      superseded_by: params.actor,
+      superseded_reason: params.reason,
+      updated_at: params.supersededAt,
+    },
+    where: {
+      item_status: PURCHASE_BILL_ACTIVE_ITEM_STATUS,
+      purchase_bill_id: billId,
+    },
+  })
 }
 
 function buildPurchaseBillReceiptAllocationRows(
@@ -605,7 +687,10 @@ async function loadCurrentPoBuyAllocationLogSources(tx: Prisma.TransactionClient
         },
       },
     },
-    where: { purchase_bill_id: purchaseBillId },
+    where: {
+      allocation_status: PURCHASE_BILL_ACTIVE_ALLOCATION_STATUS,
+      purchase_bill_id: purchaseBillId,
+    },
   })
 
   return rows.map((row): PoBuyAllocationLogSource => ({
@@ -747,7 +832,10 @@ async function loadCurrentWeightTicketUsageLogSources(tx: Prisma.TransactionClie
         },
       },
     },
-    where: { purchase_bill_id: purchaseBillId },
+    where: {
+      allocation_status: PURCHASE_BILL_ACTIVE_ALLOCATION_STATUS,
+      purchase_bill_id: purchaseBillId,
+    },
   })
 
   return rows.map((row): WeightTicketUsageLogSource => ({
@@ -1033,6 +1121,7 @@ async function buildWeightTicketUsageMap(tickets: WeightTicketOptionRow[]) {
       weight_ticket_product_summary_id: true,
     },
     where: {
+      allocation_status: PURCHASE_BILL_ACTIVE_ALLOCATION_STATUS,
       weight_ticket_id: { in: ticketIds },
       purchase_bills: {
         status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] },
@@ -1078,6 +1167,7 @@ async function loadReceiptAvailability(ticketDocNo: string, excludeBillId?: bigi
       weight_ticket_product_summary_id: true,
     },
     where: {
+      allocation_status: PURCHASE_BILL_ACTIVE_ALLOCATION_STATUS,
       weight_ticket_id: ticket.id,
       purchase_bills: {
         status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] },
@@ -1370,6 +1460,7 @@ async function refreshWeightTicketStatuses(
       weight_ticket_product_summary_id: true,
     },
     where: {
+      allocation_status: PURCHASE_BILL_ACTIVE_ALLOCATION_STATUS,
       weight_ticket_id: { in: uniqueTicketIds },
       purchase_bills: {
         status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] },
@@ -1443,16 +1534,20 @@ function isDocNoConflict(caught: unknown) {
 async function nextPurchaseBillDocNo(tx: Prisma.TransactionClient, date: string, branchCode: string) {
   const compactDate = date.slice(2, 4) + date.slice(5, 7)
   const startsWith = `PB${branchCode}${compactDate}-`
-  const rows = await tx.$queryRaw<Array<{ doc_no: string }>>`
-    select doc_no
-    from public.purchase_bills
-    where doc_no like ${`PB${compactDate}-%`}
-       or doc_no like ${`PB__${compactDate}-%`}
+  await tx.$executeRaw`
+    select pg_advisory_xact_lock(hashtext(${`purchase_bills:PB${compactDate}`}))
   `
-  const lastNumber = rows.reduce((max, row) => {
-    const running = Number(row.doc_no.split('-').at(-1))
-    return Number.isFinite(running) && running > max ? running : max
-  }, 0)
+  const rows = await tx.$queryRaw<Array<{ last_number: number | bigint | null }>>`
+    select coalesce(max(substring(doc_no from '-([0-9]+)$')::int), 0) as last_number
+    from public.purchase_bills
+    where (
+      doc_no like ${`PB${compactDate}-%`}
+      or doc_no like ${`PB__${compactDate}-%`}
+    )
+      and substring(doc_no from '-([0-9]+)$') is not null
+  `
+  const parsedLastNumber = Number(rows[0]?.last_number ?? 0)
+  const lastNumber = Number.isFinite(parsedLastNumber) ? parsedLastNumber : 0
   const nextNumber = lastNumber + 1
   return `${startsWith}${String(nextNumber).padStart(4, '0')}`
 }
@@ -1541,6 +1636,7 @@ async function optionsPayload(allowedBranchCodes?: string[] | null) {
       orderBy: [{ document_date: 'desc' }, { doc_no: 'desc' }],
       take: 300,
       where: {
+        ...(allowedBranchIds ? { branch_id: { in: allowedBranchIds } } : {}),
         cancelled_at: null,
         doc_type: 'WTI',
         status: { in: ['received', 'partially_billed'] },
@@ -1793,24 +1889,37 @@ async function rowsPayload(
   includePaging = true,
 ) {
   const where = billWhere(query, allowedBranchCodes)
-  const rows = await prisma.purchase_bills.findMany({
-    include: {
-      branches: true,
-      purchase_bill_items: { orderBy: { line_no: 'asc' } },
-      supplier_advance_allocations: {
-        include: {
-          supplier_advance_payments: {
-            select: { doc_no: true, id: true },
-          },
+  const needsWorkflowInMemory = query.sortKey === 'status' || Boolean(query.statuses?.length)
+  const dbPaging = includePaging && !needsWorkflowInMemory
+  const [rows, totalRowsFromDb, totalAmountFromDb] = await Promise.all([
+    prisma.purchase_bills.findMany({
+      include: {
+        branches: true,
+        purchase_bill_items: {
+          orderBy: { line_no: 'asc' },
+          where: { item_status: PURCHASE_BILL_ACTIVE_ITEM_STATUS },
         },
-        orderBy: [{ allocated_at: 'desc' }],
+        supplier_advance_allocations: {
+          include: {
+            supplier_advance_payments: {
+              select: { doc_no: true, id: true },
+            },
+          },
+          orderBy: [{ allocated_at: 'desc' }],
+        },
+        suppliers: true,
+        warehouses: true,
       },
-      suppliers: true,
-      warehouses: true,
-    },
-    orderBy: billOrderBy(query),
-    where,
-  })
+      orderBy: billOrderBy(query),
+      ...(dbPaging ? {
+        skip: (query.page - 1) * query.pageSize,
+        take: query.pageSize,
+      } : {}),
+      where,
+    }),
+    dbPaging ? prisma.purchase_bills.count({ where }) : Promise.resolve(null),
+    dbPaging ? prisma.purchase_bills.aggregate({ _sum: { total_amount: true }, where }) : Promise.resolve(null),
+  ])
   const billIds = rows.map((row) => row.id)
   const [payments, activeApprovals] = billIds.length > 0 ? await Promise.all([
     prisma.payments.findMany({
@@ -1888,14 +1997,16 @@ async function rowsPayload(
   const sortedRows = query.sortKey === 'status'
     ? sortPurchaseBillRowsByWorkflow(filteredRows, query.sortDirection)
     : filteredRows
-  const pagedRows = includePaging
+  const pagedRows = includePaging && needsWorkflowInMemory
     ? sortedRows.slice((query.page - 1) * query.pageSize, query.page * query.pageSize)
     : sortedRows
 
   return {
     rows: pagedRows,
-    totalAmount: sortedRows.reduce((sum, row) => sum + (row.totalAmount ?? 0), 0),
-    totalRows: sortedRows.length,
+    totalAmount: totalAmountFromDb?._sum.total_amount != null
+      ? toNumber(totalAmountFromDb._sum.total_amount)
+      : sortedRows.reduce((sum, row) => sum + (row.totalAmount ?? 0), 0),
+    totalRows: totalRowsFromDb ?? sortedRows.length,
   }
 }
 
@@ -2047,7 +2158,6 @@ export async function POST(request: Request) {
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
         bill = await prisma.$transaction(async (tx) => {
-          await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('purchase_bills.doc_no'))`
           const docNo = await nextPurchaseBillDocNo(tx, billDate, effectiveBranchCode)
 
           const createdBill = await tx.purchase_bills.create({
@@ -2220,7 +2330,10 @@ export async function PATCH(request: Request) {
         }),
         prisma.purchase_bill_items.findMany({
           select: { po_buy_id: true, source_snapshot: true },
-          where: { purchase_bill_id: existingBillRef.id },
+          where: {
+            item_status: PURCHASE_BILL_ACTIVE_ITEM_STATUS,
+            purchase_bill_id: existingBillRef.id,
+          },
         }),
         prismaExt.payment_approvals.count({
           where: {
@@ -2259,7 +2372,18 @@ export async function PATCH(request: Request) {
           select: { doc_no: true, id: true },
           where: { id: existingBillRef.id },
         })
-        await tx.stock_ledger.deleteMany({ where: { ref_id: existingBillRef.doc_no, ref_type: 'PB' } })
+        if (String(existingBill.transaction_mode ?? 'STOCK') === 'STOCK') {
+          await appendPurchaseBillStockReversal(tx, {
+            actor,
+            billDocNo: existingBillRef.doc_no,
+            date: normalizeDate(toDateOnly(existingBill.date) || bangkokDateInput(cancelledAt)),
+            movementType: 'รับซื้อเข้า-ยกเลิก',
+            note: values.note,
+            notes: values.note,
+            reason: 'purchase_bill_cancel',
+            reversalRefType: 'PB-CANCEL',
+          })
+        }
         await appendPoBuyAllocationLogSources(tx, existingPoAllocationSources, {
           action: PO_BUY_ALLOCATION_ACTION.RELEASED_FROM_PURCHASE_BILL,
           actor,
@@ -2276,8 +2400,11 @@ export async function PATCH(request: Request) {
             source,
           })),
         )
-        await tx.purchase_bill_receipt_allocations.deleteMany({ where: { purchase_bill_id: existingBillRef.id } })
-        await tx.purchase_bill_po_allocations.deleteMany({ where: { purchase_bill_id: existingBillRef.id } })
+        await releasePurchaseBillAllocations(tx, existingBillRef.id, {
+          actor,
+          reason: 'purchase_bill_cancel',
+          releasedAt: cancelledAt,
+        })
         await resetPurchaseBillAdvanceAllocation(tx, existingBillRef.id, actor, 'ยกเลิกบิลรับซื้อ')
         await reconcilePoBuys(tx, extractReferencedPoBuyIdsFromBillItems(existingBillItems), { actor })
         await refreshWeightTicketStatuses(tx, await resolveReferencedReceiptTicketIdsFromBillItems(tx, existingBillItems), {
@@ -2324,7 +2451,10 @@ export async function PATCH(request: Request) {
         prisma.purchase_bill_items.findMany({
           orderBy: { line_no: 'asc' },
           select: { amount: true, line_no: true, po_buy_id: true, price: true, qty: true, source_snapshot: true },
-          where: { purchase_bill_id: existingBillRef.id },
+          where: {
+            item_status: PURCHASE_BILL_ACTIVE_ITEM_STATUS,
+            purchase_bill_id: existingBillRef.id,
+          },
         }),
         prismaExt.payment_approvals.count({
           where: {
@@ -2446,7 +2576,16 @@ export async function PATCH(request: Request) {
               },
               where: { id: existingBillRef.id },
             })
-            await tx.stock_ledger.deleteMany({ where: { ref_id: existingBill.doc_no, ref_type: 'PB' } })
+            await appendPurchaseBillStockReversal(tx, {
+              actor,
+              billDocNo: existingBill.doc_no,
+              date: normalizeDate(billDate),
+              movementType: 'รับซื้อเข้า-ยกเลิก',
+              note: reason,
+              notes: reason,
+              reason: 'purchase_bill_supplier_swap',
+              reversalRefType: 'PB-CANCEL',
+            })
             await appendPoBuyAllocationLogSources(tx, existingPoAllocationSources, {
               action: PO_BUY_ALLOCATION_ACTION.RELEASED_FROM_PURCHASE_BILL,
               actor,
@@ -2463,11 +2602,13 @@ export async function PATCH(request: Request) {
                 source,
               })),
             )
-            await tx.purchase_bill_receipt_allocations.deleteMany({ where: { purchase_bill_id: existingBillRef.id } })
-            await tx.purchase_bill_po_allocations.deleteMany({ where: { purchase_bill_id: existingBillRef.id } })
+            await releasePurchaseBillAllocations(tx, existingBillRef.id, {
+              actor,
+              reason: 'purchase_bill_supplier_swap',
+              releasedAt: createdAt,
+            })
             await resetPurchaseBillAdvanceAllocation(tx, existingBillRef.id, actor, reason)
 
-            await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('purchase_bills.doc_no'))`
             const docNo = await nextPurchaseBillDocNo(tx, billDate, effectiveBranchCode)
             const createdBill = await tx.purchase_bills.create({
               data: {
@@ -2654,7 +2795,10 @@ export async function PATCH(request: Request) {
       }),
       prisma.purchase_bill_items.findMany({
         select: { po_buy_id: true, source_snapshot: true },
-        where: { purchase_bill_id: existingBillRef.id },
+        where: {
+          item_status: PURCHASE_BILL_ACTIVE_ITEM_STATUS,
+          purchase_bill_id: existingBillRef.id,
+        },
       }),
       prismaExt.payment_approvals.count({
         where: {
@@ -2679,6 +2823,9 @@ export async function PATCH(request: Request) {
     }
     if (activePaidAmount > 0) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขไม่ได้ เพราะบิลนี้มีการชำระเงินแล้ว' }, { status: 400 })
+    }
+    if (values.transactionMode !== String(existingBill.transaction_mode ?? 'STOCK')) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขไม่ได้ เพราะต้องคงประเภทบิลเดิมเพื่อให้ stock ledger audit ต่อเนื่อง' }, { status: 400 })
     }
     const billDate = existingBill.date ? toDateOnly(existingBill.date) : bangkokDateInput(new Date())
     const vatRatePercent = toNumber(existingBill.vat_rate_percent) ?? (await activeVatRatePercent(normalizeDate(billDate)))
@@ -2768,10 +2915,17 @@ export async function PATCH(request: Request) {
         where: { id: existingBillRef.id },
       })
 
-      await tx.purchase_bill_receipt_allocations.deleteMany({ where: { purchase_bill_id: existingBillRef.id } })
-      await tx.purchase_bill_po_allocations.deleteMany({ where: { purchase_bill_id: existingBillRef.id } })
-      await tx.purchase_bill_items.deleteMany({ where: { purchase_bill_id: existingBillRef.id } })
-      const itemRows = await createPurchaseBillItems(tx, existingBillRef.id, items)
+      await releasePurchaseBillAllocations(tx, existingBillRef.id, {
+        actor,
+        reason: 'purchase_bill_edit',
+        releasedAt: new Date(),
+      })
+      await supersedePurchaseBillItems(tx, existingBillRef.id, {
+        actor,
+        reason: 'purchase_bill_edit',
+        supersededAt: new Date(),
+      })
+      const itemRows = await createPurchaseBillItems(tx, existingBillRef.id, items, await nextPurchaseBillItemVersion(tx, existingBillRef.id))
       const receiptAllocationRows = buildPurchaseBillReceiptAllocationRows(existingBillRef.id, itemRows, receiptSummarySourceMap, actor)
       if (receiptAllocationRows.length > 0) {
         await tx.purchase_bill_receipt_allocations.createMany({ data: receiptAllocationRows })
@@ -2822,7 +2976,18 @@ export async function PATCH(request: Request) {
         ...extractReferencedPoBuyIdsFromBillItems(existingBillItems),
       ], { actor })
 
-      await tx.stock_ledger.deleteMany({ where: { ref_id: existingBill.doc_no, ref_type: 'PB' } })
+      if (String(existingBill.transaction_mode ?? 'STOCK') === 'STOCK') {
+        await appendPurchaseBillStockReversal(tx, {
+          actor,
+          billDocNo: existingBill.doc_no,
+          date: normalizeDate(billDate),
+          movementType: 'รับซื้อเข้า-แก้ไข',
+          note: values.note ?? values.notes,
+          notes: values.note ?? values.notes,
+          reason: 'purchase_bill_edit',
+          reversalRefType: 'PB-EDIT-REV',
+        })
+      }
       if (values.transactionMode === 'STOCK') {
         await tx.stock_ledger.createMany({
           data: items.map((item) => ({

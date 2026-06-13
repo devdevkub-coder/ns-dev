@@ -178,6 +178,14 @@ export const supplierPaymentFormSchema = z.object({
 
 export type SupplierPaymentFormValues = z.infer<typeof supplierPaymentFormSchema>
 
+export const customerReceiptLineFormSchema = z.object({
+  id: optionalSafeId('รหัสบรรทัดรับเงิน'),
+  salesBillDocNo: requiredDocNo('บิลขาย'),
+  receiptAmount: positiveMoney('ยอดรับ'),
+  withholdingTaxAmount: money('ภาษีหัก ณ ที่จ่าย').default(0),
+  discountAmount: money('ส่วนลด').default(0),
+})
+
 export const customerReceiptFormSchema = z.object({
   id: optionalSafeId('รหัสรายการ'),
   docNo: optionalDocNo,
@@ -189,8 +197,18 @@ export const customerReceiptFormSchema = z.object({
   withholdingTax: money('ภาษีหัก ณ ที่จ่าย').default(0),
   discount: money('ส่วนลด').default(0),
   fee: money('ค่าธรรมเนียม').default(0),
-  method: optionalBusinessText('วิธีรับเงิน', 80),
+  method: z.string().trim().min(1, 'เลือกวิธีรับเงิน').max(80, 'วิธีรับเงินยาวเกินไป').regex(businessTextPattern, 'วิธีรับเงินมีรูปแบบไม่ถูกต้อง'),
   notes: optionalGeneralText('หมายเหตุ', 500),
+  lines: z.array(customerReceiptLineFormSchema).optional(),
+}).superRefine((value, context) => {
+  if (value.lines && value.lines.length > 0) return
+  if (!value.billId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'เลือกบิลขายอย่างน้อย 1 รายการ',
+      path: ['billId'],
+    })
+  }
 })
 
 export type CustomerReceiptFormValues = z.infer<typeof customerReceiptFormSchema>

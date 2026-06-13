@@ -51,6 +51,7 @@ export const salesBillFormSchema = z.object({
   items: z.array(salesLineItemSchema).min(1, 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ').max(50, 'รายการสินค้ามากเกินไป'),
   licensePlate: optionalGeneralText('ทะเบียนรถ', 40),
   note: optionalGeneralText('หมายเหตุ', 500),
+  pendingStockIssueId: optionalSafeId('เบิกออกรอบิล'),
   poSellId: optionalSafeId('PO Sell'),
   refNo: z.preprocess(
     blankToNull,
@@ -76,9 +77,17 @@ export const salesBillFormSchema = z.object({
 }).refine((value) => !value.vatInvoiceIssued || Boolean(value.vatInvoiceDate), {
   message: 'กรอกวันที่ใบกำกับภาษีเมื่อระบุว่าออกแล้ว',
   path: ['vatInvoiceDate'],
-}).refine((value) => value.transactionMode !== 'STOCK' || Boolean(value.deliveryTicketId) || Boolean(value.fromPsaleNo), {
+}).refine((value) => value.transactionMode !== 'STOCK' || Boolean(value.deliveryTicketId) || Boolean(value.pendingStockIssueId) || Boolean(value.fromPsaleNo), {
   message: 'เลือกใบส่งของ WTO หรือระบุใบเบิกออก PSALE',
   path: ['deliveryTicketId'],
+})
+
+export const salesBillCancelSchema = z.object({
+  note: z.string()
+    .trim()
+    .min(1, 'กรอกเหตุผลการยกเลิก')
+    .max(500, 'เหตุผลการยกเลิกยาวเกินไป')
+    .regex(generalTextPattern, 'เหตุผลการยกเลิกมีรูปแบบไม่ถูกต้อง'),
 })
 
 export const poSellFormSchema = z.object({
@@ -107,5 +116,6 @@ export const stockIssueFormSchema = z.object({
 })
 
 export type SalesBillFormValues = z.infer<typeof salesBillFormSchema>
+export type SalesBillCancelValues = z.infer<typeof salesBillCancelSchema>
 export type PoSellFormValues = z.infer<typeof poSellFormSchema>
 export type StockIssueFormValues = z.infer<typeof stockIssueFormSchema>

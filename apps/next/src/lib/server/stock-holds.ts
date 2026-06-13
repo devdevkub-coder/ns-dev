@@ -61,6 +61,17 @@ type WtoCreatedLine = {
 
 type TxClient = Prisma.TransactionClient
 
+export type ConsumedWtoStockHoldLine = {
+  productId: bigint
+  qty: number
+  sourceDocNo: string
+  sourceLineNo: number | null
+  unitCost: number
+  valueOut: number
+  warehouseId: bigint
+  weightTicketLineId: bigint | null
+}
+
 function normalizeCode(value: string | null | undefined) {
   return String(value ?? '').trim().toUpperCase()
 }
@@ -413,4 +424,324 @@ export async function consumeActiveWtoStockHolds(tx: TxClient, input: {
   if (consumed.count !== holds.length) {
     throw new WtoStockHoldError('stock hold ของใบส่งของนี้ถูกใช้งานไปแล้ว กรุณาโหลดข้อมูลใหม่')
   }
+}
+
+export async function consumeActiveWtoStockHoldsForPendingSale(tx: TxClient, input: {
+  actor: string
+  branchId: bigint
+  issueDate: Date
+  stockIssueDocNo: string
+  weightTicketId: bigint
+}) {
+  const holds = await tx.stock_holds.findMany({
+    orderBy: [{ source_line_no: 'asc' }, { id: 'asc' }],
+    where: {
+      status: 'active',
+      weight_ticket_id: input.weightTicketId,
+    },
+  })
+  if (!holds.length) {
+    throw new WtoStockHoldError('ไม่พบ stock hold ที่พร้อมใช้สำหรับใบส่งของนี้')
+  }
+
+  const productIds = [...new Set(holds.map((hold) => hold.product_id))]
+  const warehouseIds = [...new Set(holds.map((hold) => hold.warehouse_id))]
+  const ledgerSums = await tx.stock_ledger.groupBy({
+    _sum: { qty_in: true, qty_out: true, value_in: true, value_out: true },
+    by: ['product_id', 'warehouse_id'],
+    where: {
+      branch_id: input.branchId,
+      product_id: { in: productIds },
+      warehouse_id: { in: warehouseIds },
+    },
+  })
+  const unitCostByKey = new Map(
+    ledgerSums.map((row) => {
+      const qty = toNumber(row._sum.qty_in) - toNumber(row._sum.qty_out)
+      const value = toNumber(row._sum.value_in) - toNumber(row._sum.value_out)
+      return [`${row.product_id}:${row.warehouse_id}`, qty > 0 ? value / qty : 0] as const
+    }),
+  )
+  const consumedLines: ConsumedWtoStockHoldLine[] = holds.map((hold) => {
+    const unitCost = unitCostByKey.get(`${hold.product_id}:${hold.warehouse_id}`) ?? 0
+    const qty = toNumber(hold.qty)
+    return {
+      productId: hold.product_id,
+      qty,
+      sourceDocNo: hold.source_doc_no,
+      sourceLineNo: hold.source_line_no,
+      unitCost,
+      valueOut: qty * unitCost,
+      warehouseId: hold.warehouse_id,
+      weightTicketLineId: hold.weight_ticket_line_id,
+    }
+  })
+  await tx.stock_ledger.createMany({
+    data: consumedLines.map((line) => ({
+      branch_id: input.branchId,
+      created_by: input.actor,
+      date: input.issueDate,
+      movement_type: 'เบิกออกรอบิล',
+      note: `WTO ${line.sourceDocNo}${line.sourceLineNo ? ` / รายการ ${line.sourceLineNo}` : ''}`,
+      notes: `ตัด stock เข้า Pending Sale ${input.stockIssueDocNo}`,
+      product_id: line.productId,
+      qty_in: 0,
+      qty_out: line.qty,
+      ref_id: input.stockIssueDocNo,
+      ref_no: input.stockIssueDocNo,
+      ref_type: 'PSALE',
+      unit_cost: line.unitCost,
+      value_in: 0,
+      value_out: line.valueOut,
+      warehouse_id: line.warehouseId,
+    })),
+  })
+  const now = new Date()
+  const consumed = await tx.stock_holds.updateMany({
+    data: {
+      consumed_at: now,
+      consumed_by: input.actor,
+      consumed_by_ref_no: input.stockIssueDocNo,
+      consumed_by_ref_type: 'PSALE',
+      status: 'consumed',
+      updated_at: now,
+      updated_by: input.actor,
+    },
+    where: {
+      id: { in: holds.map((hold) => hold.id) },
+      status: 'active',
+    },
+  })
+  if (consumed.count !== holds.length) {
+    throw new WtoStockHoldError('stock hold ของใบส่งของนี้ถูกใช้งานไปแล้ว กรุณาโหลดข้อมูลใหม่')
+  }
+
+  return consumedLines
+}
+
+export async function reopenConsumedWtoStockHoldsForSalesBill(tx: TxClient, input: {
+  actor: string
+  cancelDate: Date
+  note?: string | null
+  salesBillDocNo: string
+}) {
+  const existingReverseRow = await tx.stock_ledger.findFirst({
+    select: { id: true },
+    where: {
+      ref_type: 'SB-CANCEL',
+      OR: [
+        { ref_id: input.salesBillDocNo },
+        { ref_no: input.salesBillDocNo },
+      ],
+    },
+  })
+  if (existingReverseRow) {
+    throw new WtoStockHoldError('บิลขายนี้ถูก reverse stock ledger แล้ว')
+  }
+
+  const ledgerRows = await tx.stock_ledger.findMany({
+    orderBy: [{ date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
+    where: {
+      ref_type: 'SB',
+      OR: [
+        { ref_id: input.salesBillDocNo },
+        { ref_no: input.salesBillDocNo },
+      ],
+    },
+  })
+  if (!ledgerRows.length) {
+    throw new WtoStockHoldError('ไม่พบ stock ledger ของบิลขายนี้สำหรับทำ reversal')
+  }
+
+  await tx.stock_ledger.createMany({
+    data: ledgerRows.map((row) => ({
+      branch_id: row.branch_id,
+      created_by: input.actor,
+      date: input.cancelDate,
+      lot_no: row.lot_no,
+      movement_type: 'ยกเลิกขายคืนสต๊อก',
+      note: input.note ?? `ยกเลิกบิลขาย ${input.salesBillDocNo}`,
+      notes: `Reverse ${row.ledger_key}`,
+      not_available_for_sale: row.not_available_for_sale,
+      output_category: row.output_category,
+      product_id: row.product_id,
+      qty_in: toNumber(row.qty_out),
+      qty_out: 0,
+      ref_id: input.salesBillDocNo,
+      ref_no: input.salesBillDocNo,
+      ref_type: 'SB-CANCEL',
+      sales_channel_id: row.sales_channel_id,
+      unit_cost: row.unit_cost,
+      value_in: toNumber(row.value_out),
+      value_out: 0,
+      warehouse_id: row.warehouse_id,
+    })),
+  })
+
+  const holds = await tx.stock_holds.findMany({
+    select: {
+      id: true,
+      weight_ticket_id: true,
+    },
+    where: {
+      consumed_by_ref_no: input.salesBillDocNo,
+      consumed_by_ref_type: 'SB',
+      status: 'consumed',
+    },
+  })
+  if (!holds.length) {
+    throw new WtoStockHoldError('ไม่พบ stock hold ที่ถูกใช้โดยบิลขายนี้')
+  }
+
+  const activeHold = await tx.stock_holds.findFirst({
+    select: { id: true },
+    where: {
+      status: 'active',
+      weight_ticket_id: { in: [...new Set(holds.map((hold) => hold.weight_ticket_id))] },
+    },
+  })
+  if (activeHold) {
+    throw new WtoStockHoldError('ใบส่งของนี้มี stock hold active อยู่แล้ว กรุณาตรวจสอบก่อนยกเลิกซ้ำ')
+  }
+
+  const reopened = await tx.stock_holds.updateMany({
+    data: {
+      consumed_at: null,
+      consumed_by: null,
+      consumed_by_ref_no: null,
+      consumed_by_ref_type: null,
+      note: input.note ?? null,
+      status: 'active',
+      updated_at: new Date(),
+      updated_by: input.actor,
+    },
+    where: {
+      id: { in: holds.map((hold) => hold.id) },
+      status: 'consumed',
+    },
+  })
+  if (reopened.count !== holds.length) {
+    throw new WtoStockHoldError('stock hold ของบิลขายนี้ถูกเปลี่ยนสถานะไปแล้ว กรุณาโหลดข้อมูลใหม่')
+  }
+
+  return holds
+}
+
+export async function reversePendingSaleStockIssue(tx: TxClient, input: {
+  actor: string
+  cancelDate: Date
+  note?: string | null
+  stockIssueDocNo: string
+}) {
+  const [ledgerRows, reversalRows] = await Promise.all([
+    tx.stock_ledger.findMany({
+      orderBy: [{ date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
+      where: {
+        ref_type: 'PSALE',
+        OR: [
+          { ref_id: input.stockIssueDocNo },
+          { ref_no: input.stockIssueDocNo },
+        ],
+      },
+    }),
+    tx.stock_ledger.findMany({
+      select: { notes: true },
+      where: {
+        ref_type: 'PSALE-CANCEL',
+        OR: [
+          { ref_id: input.stockIssueDocNo },
+          { ref_no: input.stockIssueDocNo },
+        ],
+      },
+    }),
+  ])
+  const reversedLedgerKeys = new Set(
+    reversalRows
+      .map((row) => row.notes?.match(/^Reverse (.+)$/)?.[1])
+      .filter((ledgerKey): ledgerKey is string => Boolean(ledgerKey)),
+  )
+  if (!ledgerRows.length) {
+    throw new WtoStockHoldError('ไม่พบ stock ledger ของรายการเบิกออกรอบิลนี้สำหรับทำ reversal')
+  }
+
+  const unreversedLedgerRows = ledgerRows.filter((row) => !reversedLedgerKeys.has(row.ledger_key))
+  if (!unreversedLedgerRows.length) {
+    throw new WtoStockHoldError('รายการเบิกออกรอบิลนี้ถูก reverse stock ledger แล้ว')
+  }
+
+  await tx.stock_ledger.createMany({
+    data: unreversedLedgerRows.map((row) => ({
+      branch_id: row.branch_id,
+      created_by: input.actor,
+      date: input.cancelDate,
+      lot_no: row.lot_no,
+      movement_type: 'ยกเลิกเบิกออกรอบิล',
+      note: input.note ?? `ยกเลิกเบิกออกรอบิล ${input.stockIssueDocNo}`,
+      notes: `Reverse ${row.ledger_key}`,
+      not_available_for_sale: row.not_available_for_sale,
+      output_category: row.output_category,
+      product_id: row.product_id,
+      qty_in: toNumber(row.qty_out),
+      qty_out: 0,
+      ref_id: input.stockIssueDocNo,
+      ref_no: input.stockIssueDocNo,
+      ref_type: 'PSALE-CANCEL',
+      sales_channel_id: row.sales_channel_id,
+      unit_cost: row.unit_cost,
+      value_in: toNumber(row.value_out),
+      value_out: 0,
+      warehouse_id: row.warehouse_id,
+    })),
+  })
+
+  const holds = await tx.stock_holds.findMany({
+    select: {
+      id: true,
+      weight_ticket_id: true,
+    },
+    where: {
+      consumed_by_ref_no: input.stockIssueDocNo,
+      consumed_by_ref_type: 'PSALE',
+      status: 'consumed',
+    },
+  })
+  if (!holds.length) {
+    throw new WtoStockHoldError('ไม่พบ stock hold ที่ถูกใช้โดยรายการเบิกออกรอบิลนี้')
+  }
+
+  const activeHold = await tx.stock_holds.findFirst({
+    select: { id: true },
+    where: {
+      status: 'active',
+      weight_ticket_id: { in: [...new Set(holds.map((hold) => hold.weight_ticket_id))] },
+    },
+  })
+  if (activeHold) {
+    throw new WtoStockHoldError('ใบส่งของนี้มี stock hold active อยู่แล้ว กรุณาตรวจสอบก่อนยกเลิกซ้ำ')
+  }
+
+  const reopened = await tx.stock_holds.updateMany({
+    data: {
+      consumed_at: null,
+      consumed_by: null,
+      consumed_by_ref_no: null,
+      consumed_by_ref_type: null,
+      note: input.note ?? null,
+      release_reason: null,
+      released_at: null,
+      released_by: null,
+      status: 'active',
+      updated_at: new Date(),
+      updated_by: input.actor,
+    },
+    where: {
+      id: { in: holds.map((hold) => hold.id) },
+      status: 'consumed',
+    },
+  })
+  if (reopened.count !== holds.length) {
+    throw new WtoStockHoldError('stock hold ของรายการเบิกออกรอบิลนี้ถูกเปลี่ยนสถานะไปแล้ว กรุณาโหลดข้อมูลใหม่')
+  }
+
+  return holds
 }

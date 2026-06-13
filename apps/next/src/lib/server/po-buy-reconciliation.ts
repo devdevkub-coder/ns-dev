@@ -329,11 +329,15 @@ export async function reconcilePoBuys(
         purchase_bill_items: { select: { product_id: true } },
         purchase_bills: { select: { status: true } },
       },
-      where: { po_buy_id: { in: uniquePoIds } },
+      where: {
+        allocation_status: 'active',
+        po_buy_id: { in: uniquePoIds },
+        purchase_bill_items: { item_status: 'active' },
+      },
     }),
   ])
 
-  const activeAllocations = allocations.filter((allocation) => String(allocation.purchase_bills.status ?? '').toLowerCase() !== 'cancelled')
+  const activeAllocations = allocations.filter((allocation) => !String(allocation.purchase_bills.status ?? '').toLowerCase().includes('cancel'))
   const allocationsByPo = new Map<bigint, { amount: number; qtyByProduct: Map<string, number> }>()
   activeAllocations.forEach((allocation) => {
     const current = allocationsByPo.get(allocation.po_buy_id) ?? { amount: 0, qtyByProduct: new Map<string, number>() }

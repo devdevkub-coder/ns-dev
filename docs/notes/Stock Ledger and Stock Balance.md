@@ -13,7 +13,7 @@ tags:
   - decision
 status: draft
 created: 2026-06-11
-updated: 2026-06-11
+updated: 2026-06-12
 ---
 
 # Stock Ledger and Stock Balance
@@ -35,6 +35,8 @@ updated: 2026-06-11
 - `Status Convert`
 - `Grade Convert`
 - `Production`
+
+รายละเอียด DB/API/reversal contract สำหรับ runtime hardening อยู่ที่ [[Stock Ledger DB API Design]]
 
 ## Core Principle
 
@@ -161,8 +163,10 @@ API read contract ปัจจุบัน:
 | `POST /api/daily/weight-tickets` | ตรง target สำหรับ hold | สร้าง WTI/WTO header/line/summary ได้, WTI/WTO ไม่เขียน stock ledger เอง, WTO validate warehouse/available และสร้าง active hold |
 | `PUT /api/daily/weight-tickets/{id}` | ตรง target สำหรับ hold | edit เอกสารได้เมื่อยังไม่ถูกใช้; WTO release hold เดิมและ rebuild hold ใหม่ใน transaction |
 | `PATCH /api/daily/weight-tickets/{id}` | ตรง target สำหรับ hold | cancel/status action; WTO mark active hold เป็น `cancelled` |
-| `POST/PATCH /api/purchase/bills` | ตรงบางส่วน | validate ให้ WTI ที่เลือก allocate ครบใน PB เดียวแล้ว และ target ให้ `PB Stock` เขียน `stock_ledger.ref_type = PB`; ยังมี legacy `partially_billed` status logic ที่ต้องปิดใน target |
-| `POST /api/sales/bills` | ตรง target create flow | validate ให้ WTO ที่เลือก allocate ครบใน SB เดียว, consume active hold, เขียน `stock_ledger.ref_type = SB`, update WTO usage/status log และ status เป็น `billed`; edit/cancel SB ยังต้องทำ reversal/reopen hold |
+| `POST/PATCH /api/purchase/bills` | ตรง target หลักสำหรับ PB Stock ledger | create เขียน `PB`; cancel/supplier swap append `PB-CANCEL`; edit append `PB-EDIT-REV` แล้ว append `PB` state ใหม่ โดยไม่ delete/rebuild ledger เดิม |
+| `POST /api/sales/bills` | ตรง target create flow | validate ให้ WTO ที่เลือก allocate ครบใน SB เดียว, consume active hold, เขียน `stock_ledger.ref_type = SB`, update WTO usage/status log และ status เป็น `billed` |
+| `PATCH /api/sales/bills/{docNo}` | เพิ่มแล้วและ browser QA แล้วสำหรับ cancel | action `cancel` block เมื่อมี active RCP, เขียน `stock_ledger.ref_type = SB-CANCEL`, reopen consumed WTO hold, append `released_from_sales_bill`, คืน WTO เป็น `delivered`, reverse PO Sell header + item outstanding, และ append `sales_bill_status_logs` |
+| `GET /api/stock/reconciliation` | เพิ่มแล้ว | ตรวจ orphan ledger, source docs ที่ไม่มี ledger, cancelled PB/SB net ไม่กลับศูนย์, cancelled SB hold ที่ยัง consumed, และ aggregate stock balance ติดลบ |
 
 สรุป: read API ของ stock ตรง target แล้ว และ target write model กลับมาเป็น bill-driven ตาม legacy:
 
@@ -170,7 +174,7 @@ API read contract ปัจจุบัน:
 - `SB Stock` เป็น owner ของ stock-out
 - `WTI/WTO` เป็น source evidence และ usage control ไม่ใช่ movement owner
 - `WTO` ต้องสร้าง stock hold/reservation เพื่อกันยอดสินค้าก่อนออก `SB`
-- implementation gap หลักที่เหลือคือฝั่ง `WTO` ต้องมี hold layer, ฝั่ง `SB Stock` ต้อง consume hold แล้วเขียน stock-out ledger ให้ครบ, และ usage/status ของ `WTO -> SB` ต้องเป็น fact ที่ trace ได้
+- implementation gap หลักที่เหลือหลัง PB/SB/PSALE hardening รอบ 2026-06-12 คือ durable allocation tables บางชนิด, PB edit/cancel browser QA, PSALE/SB-from-PSALE browser QA, และ browser QA ของ reconciliation report UI
 
 ## Business Keys For Balance
 
@@ -339,6 +343,8 @@ user-facing label:
 - `PSALE pending` = on hand ลดแล้ว แต่ยังไม่เกิด AR
 - `SB from PSALE` = สร้างลูกหนี้/AR แต่ไม่เขียน stock-out ซ้ำ
 - `PSALE converted` = เก็บ link ไป `SB` และห้ามใช้ซ้ำ
+- `PSALE cancel before SB` = append `PSALE-CANCEL`, reopen WTO hold เป็น `active`, คืน WTO เป็น `delivered`
+- `SB cancel from PSALE` = cancel `SB` แต่ reverse stock ที่เจ้าของ movement เดิม (`PSALE`) ด้วย `PSALE-CANCEL`; ห้ามเขียน `SB-CANCEL` stock row ซ้ำ
 - ห้ามลบ `PSALE` ledger ตอน convert เป็น `SB`; legacy ทำแบบนั้นและถือเป็นจุดที่ต้องปรับ
 
 ดูรายละเอียดที่ [[Pending Sale Page Flow]]
@@ -366,7 +372,7 @@ user-facing label:
 - ถ้า `PB/SB` ถูกแก้หรือยกเลิก ต้อง reverse/rebuild movement ของ `PB/SB` และ release/recalc usage ของ `WTI/WTO`
 - การแก้หรือยกเลิก `WTI/WTO` ที่ยังไม่ถูกใช้ ไม่ต้อง reverse stock เพราะยังไม่มี stock movement ที่เอกสารนั้นสร้าง
 - ถ้า `PSALE` ยังไม่ converted แล้วถูกแก้/ยกเลิก ต้อง reverse/rebuild `PSALE` movement ใน transaction
-- ถ้า `PSALE` converted เป็น `SB` แล้ว ต้อง lock edit/cancel ของ `PSALE`; การยกเลิก `SB` ต้องกำหนดว่าจะ reopen `PSALE` หรือ reverse ตาม policy แยก
+- ถ้า `PSALE` converted เป็น `SB` แล้ว ต้อง lock edit/cancel ของ `PSALE`; การยกเลิก `SB` ต้อง reverse `PSALE` ด้วย `PSALE-CANCEL`, reopen WTO hold, และไม่สร้าง `SB-CANCEL` stock row
 
 ## Ref Type / Movement Type Principle
 
@@ -451,12 +457,10 @@ user-facing label:
 
 ## Open Decisions To Track
 
-- `SB Stock` ต้องเขียน stock-out ledger ใน transaction เดียวกับการบันทึกบิลขายอย่างไร
-- `WTO` line-level warehouse ควรถูก enforce เป็น source warehouse ของ `SB` แบบใดเมื่อผู้ใช้เปิดบิลขายจาก WTO
-- edit/cancel ของ `PB/SB` ต้อง reverse/rebuild ledger และ release/recalc usage facts ของ `WTI/WTO` ให้ครบทุก edge case
-- ต้องมี dedicated reconciliation doc/report ระหว่าง:
-  - WTI/WTO
-  - PB/SB
+- dedicated allocation tables ของ SB/PO Sell/Spot Sale/Customer advance ต้องแยกจาก JSON snapshot อย่างไร
+- reconciliation UI/report ที่เพิ่มแล้วต้องมี browser QA และ test dataset สำหรับ:
+  - WTI/WTO holds
+  - PB/SB/PSALE/PI/PO2 source docs
   - stock_ledger
   - stock balance
 

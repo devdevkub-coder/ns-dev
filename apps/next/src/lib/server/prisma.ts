@@ -56,7 +56,12 @@ function hasExpectedDelegates(client: PrismaClient) {
     && typeof clientRecord.payment_status_logs?.createMany === 'function'
     && typeof clientRecord.payment_allocations?.createMany === 'function'
     && typeof clientRecord.payment_account_splits?.createMany === 'function'
+    && typeof clientRecord.customer_receipts?.findMany === 'function'
+    && typeof clientRecord.customer_receipt_allocations?.createMany === 'function'
+    && typeof clientRecord.customer_receipt_status_logs?.createMany === 'function'
+    && typeof clientRecord.receipt_voucher_status_logs?.createMany === 'function'
     && typeof clientRecord.stock_holds?.findMany === 'function'
+    && typeof clientRecord.stock_issue_status_logs?.createMany === 'function'
     && hasAccountSubtypeField
     && hasCompanyProfileBranchIdField
     && hasPaymentMethodTypeField

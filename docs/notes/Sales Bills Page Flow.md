@@ -43,7 +43,8 @@ updated: 2026-06-12
 - `GET /api/sales/bills` โหลด list/source options และส่ง `WTO` source เฉพาะสถานะ `delivered` สำหรับบิลขาย STOCK ใหม่
 - `POST /api/sales/bills` create path ทำงานครบสำหรับ `STOCK` baseline: สร้าง `SB`, consume active `WTO` hold, เขียน `stock_ledger.ref_type = SB`, append `weight_ticket_usage_logs`, update `WTO` เป็น `billed`, และ update `PO Sell` remaining/status
 - `GET /api/sales/bills/[id]` เป็น detail/read model เท่านั้น
-- ยังไม่มี write path สำหรับ edit/cancel `SB`; UI ปุ่มแก้ไข/ยกเลิกของบิลขายยัง disabled เพื่อรอ reversal design
+- `PATCH /api/sales/bills/[id]` action `cancel` เพิ่มแล้วสำหรับ `STOCK` SB ที่ยังไม่มี active receipt: block active `RCP`, reopen consumed `WTO` hold, เขียน `stock_ledger.ref_type = SB-CANCEL`, append `released_from_sales_bill`, คืน `WTO` เป็น `delivered`, reverse `PO Sell` usage, mark `SB` เป็น `cancelled`, และ append `sales_bill_status_logs`
+- UI ปุ่มยกเลิกของบิลขายยัง disabled จนกว่าจะทำ browser QA และ receipt-lock UX
 - current allocation ยังพึ่ง sales-bill item JSON + weight-ticket usage logs เป็นหลัก ยังไม่มี dedicated current allocation tables สำหรับ `WTO -> SB`, `SB -> PO Sell`, `SB -> Spot Sale`, และ `Customer advance -> SB`
 
 ## Canonical Create SB Flow
@@ -189,6 +190,24 @@ Implemented 2026-06-10: `SB` print ยึด baseline เดียวกับ `
 - แหล่งสินค้าในรายการแสดงเฉพาะ `PO Sell` หรือ `Spot Sale`; เลข `WTO` แสดงในข้อมูลเอกสารด้านบนเท่านั้น
 - ไม่แสดงทะเบียนรถในเอกสาร `SB`
 
+## Cancel / Reversal Contract
+
+Cancel `SB` ต้องเป็น reversal ไม่ใช่ลบ movement:
+
+| Step | Rule |
+|---|---|
+| 1 | รับ `PATCH /api/sales/bills/{docNo}` พร้อม `action = cancel` และ `note` |
+| 2 | reject ถ้า `SB` ไม่พบ, ถูกยกเลิกแล้ว, หรือมี active `RCP` ผูกกับ `receipts.bill_id` |
+| 3 | สำหรับ `STOCK` SB ต้องพบ consumed `stock_holds` และ `stock_ledger.ref_type = SB` เดิม |
+| 4 | สร้าง `stock_ledger.ref_type = SB-CANCEL` เป็น stock-in reversal โดยไม่ลบ `SB` stock-out row เดิม |
+| 5 | เปลี่ยน consumed `stock_holds` ของ `WTO` กลับเป็น `active` เพื่อให้ stock กลับไปอยู่สถานะจองรอออกบิล |
+| 6 | append `weight_ticket_usage_logs.action = released_from_sales_bill` และคืน `weight_ticket_product_summaries.remaining_weight` |
+| 7 | เปลี่ยน `WTO.status` จาก `billed` กลับเป็น `delivered` และ append `weight_ticket_status_logs` |
+| 8 | reverse `PO Sell` usage จาก sales-bill item snapshot โดยลด `cut_amount` และเพิ่ม `remaining_qty/remaining_amount` |
+| 9 | mark `sales_bills.status = cancelled`, set `cancel_note/cancelled_at/cancelled_by`, zero `receivable_balance`, และ append `sales_bill_status_logs` |
+
+Design/API รายละเอียดอยู่ที่ [[Stock Ledger DB API Design]]
+
 ## Implementation Follow-up
 
 ### Task Breakdown
@@ -217,6 +236,19 @@ Implemented 2026-06-10: `SB` print ยึด baseline เดียวกับ `
 - [x] block/cap จำนวนที่ตัดเข้า `PO Sell` ไม่ให้เกิน remaining
 - [x] แถวที่เลือก `PO Sell` ใช้ราคา PO และล็อก `ราคา/หน่วย`
 - [x] แถว `Spot Sale` ยังแก้ราคาเองได้
+
+#### Batch SB-3: Stock Ledger And Cancel Reversal
+
+- [x] เพิ่ม `sales_bill_status_logs` และ cancel metadata ใน `sales_bills`
+- [x] สร้าง `SB` จาก `WTO` แล้ว consume active hold และเขียน `stock_ledger.ref_type = SB`
+- [x] เพิ่ม `PATCH /api/sales/bills/[id]` action `cancel`
+- [x] cancel block เมื่อมี active `RCP`
+- [x] cancel เขียน `stock_ledger.ref_type = SB-CANCEL` แทนการลบ `SB` ledger row
+- [x] cancel reopen consumed `WTO` hold กลับเป็น `active`
+- [x] cancel append `released_from_sales_bill` และ status log คืน `WTO` เป็น `delivered`
+- [x] cancel reverse PO Sell usage จาก item snapshot
+- [ ] เพิ่ม UI enablement/confirmation dialog สำหรับยกเลิก SB
+- [ ] เพิ่ม browser QA สำหรับ cancel SB แล้ว `/stock/balance`, `/stock/ledger`, WTO detail และ PO outstanding ถูกต้อง
 
 #### Batch SB-3: Totals, VAT, And Deposit
 

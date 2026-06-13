@@ -1633,6 +1633,187 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/ListOk"
+    post:
+      tags: [Production]
+      operationId: createProductionOrder
+      summary: Create production order as Open without stock ledger side effect
+      description: >
+        MVP write endpoint. Creates only the production order header. Approval,
+        process cost, cost allocation, customer return output, and stock ledger
+        movement are outside this action. See docs/notes/Production Order DB API Design.md.
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/Ok"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/production/orders/options:
+    get:
+      tags: [Production]
+      operationId: readProductionOrderOptions
+      summary: Read page-scoped production order options by business code
+      responses:
+        "200":
+          $ref: "#/components/responses/Ok"
+
+  /api/production/orders/product-stock:
+    get:
+      tags: [Production]
+      operationId: readProductionProductStock
+      summary: Read selected product stock for production order/input validation
+      parameters:
+        - name: branchCode
+          in: query
+          schema:
+            type: string
+        - name: warehouseCode
+          in: query
+          schema:
+            type: string
+        - name: productCode
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Ok"
+
+  /api/production/orders/{docNo}:
+    patch:
+      tags: [Production]
+      operationId: updateProductionOrderAction
+      summary: Update production order header, cancel, or complete
+      description: >
+        Complete must reject while WIP remains. Cancel is allowed only before
+        active movement or after all related PI/PO2 documents are reversed.
+      parameters:
+        - name: docNo
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/Ok"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/production/orders/{docNo}/wip:
+    get:
+      tags: [Production]
+      operationId: readProductionOrderWip
+      summary: Read current WIP balance and input/output breakdown for one production order
+      parameters:
+        - name: docNo
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/Ok"
+
+  /api/production/orders/{docNo}/inputs:
+    post:
+      tags: [Production]
+      operationId: createProductionInput
+      summary: Create PI input and paired stock ledger rows
+      description: >
+        Writes PRODUCTION_INPUT_OUT and WIP_IN in one transaction. Must reject
+        insufficient stock or missing WAC; no zero-cost or warehouse fallback.
+      parameters:
+        - name: docNo
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/Ok"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/production/orders/{docNo}/inputs/{inputDocNo}/reverse:
+    post:
+      tags: [Production]
+      operationId: reverseProductionInput
+      summary: Reverse PI with append-only PI-REV ledger rows
+      parameters:
+        - name: docNo
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: inputDocNo
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/Ok"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/production/orders/{docNo}/outputs:
+    post:
+      tags: [Production]
+      operationId: createProductionOutput
+      summary: Create PO2 output with FG/RM stock-in or loss
+      description: >
+        Writes WIP-out plus destination stock-in for FG/RM or loss-only movement.
+        Output product must be selected explicitly and must not default from the
+        order target product.
+      parameters:
+        - name: docNo
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/Ok"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/production/orders/{docNo}/outputs/{outputDocNo}/reverse:
+    post:
+      tags: [Production]
+      operationId: reverseProductionOutput
+      summary: Reverse PO2 with append-only PO2-REV ledger rows
+      description: Must block if output stock has already been consumed downstream.
+      parameters:
+        - name: docNo
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: outputDocNo
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/Ok"
+        "400":
+          $ref: "#/components/responses/BadRequest"
 
   /api/production/output-categories:
     get:
@@ -1919,18 +2100,69 @@ paths:
   /api/sales/receipts:
     get:
       tags: [Sales]
-      summary: List customer receipts
+      operationId: listCustomerReceipts
+      summary: List customer receipt queue/history
+      description: >
+        Returns active receiving accounts, active customers, outstanding Sales Bills
+        with positive receivable balance, active payment methods, and RCP history
+        from the `customer_receipts` header/allocation contract. The queue is
+        served through separate indexed outstanding-SB and active-allocation-SB
+        query paths, then merged by Sales Bill `doc_no` while preserving the
+        response shape.
       responses:
         "200":
           $ref: "#/components/responses/ListOk"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
     post:
       tags: [Sales]
-      summary: Create customer receipt
+      operationId: createCustomerReceipt
+      summary: Create customer receipt and allocate AR
+      description: >
+        Creates one `customer_receipts` header, one or more
+        `customer_receipt_allocations`, compatibility `receipts` line facts,
+        a `bank_statement` money-in row, and Sales Bill balance/status updates
+        in one database transaction. Business references are outward codes/doc
+        numbers only: customer code, account code, payment method code/name,
+        and Sales Bill doc no.
       requestBody:
         $ref: "#/components/requestBodies/JsonBody"
       responses:
         "200":
           $ref: "#/components/responses/Ok"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    patch:
+      tags: [Sales]
+      operationId: mutateCustomerReceipt
+      summary: Cancel or replace customer receipt and reverse AR/cash effects
+      description: >
+        Supports `action = cancel` and `action = replace`. Cancel marks
+        receipt/allocation facts cancelled, appends a reversing bank statement
+        row with `ref_type = RCP-CANCEL`, restores Sales Bill received/balance/
+        status values, and appends receipt/SB status logs. Replace uses the
+        same reversal path and then creates a new RCP from the supplied
+        replacement values in the same transaction; the original receipt facts
+        are not deleted and no in-place silent mutation is used.
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/Ok"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   /api/sales/po-sell:
     get:

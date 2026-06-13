@@ -1,0 +1,25 @@
+import { NextResponse } from 'next/server'
+import { apiErrorResponse } from '@/lib/server/api-error'
+import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
+import { currentActor } from '@/lib/server/daily'
+import { createProductionInput, createProductionInputSchema, ProductionOrderError } from '@/lib/server/production-orders'
+
+export const runtime = 'nodejs'
+
+type ProductionOrderRouteContext = {
+  params: Promise<{ docNo: string }>
+}
+
+export async function POST(request: Request, context: ProductionOrderRouteContext) {
+  try {
+    const auth = await getCurrentAuthContext()
+    requirePermission(auth, 'production.operations.view')
+    const { docNo } = await context.params
+    const values = createProductionInputSchema.parse(await request.json())
+    return NextResponse.json(await createProductionInput(docNo, values, currentActor(auth)), { status: 201 })
+  } catch (caught) {
+    if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
+    if (caught instanceof ProductionOrderError) return apiErrorResponse(caught, caught.message, caught.status)
+    return apiErrorResponse(caught, 'เบิกวัตถุดิบเข้า Production ไม่ได้', 500)
+  }
+}

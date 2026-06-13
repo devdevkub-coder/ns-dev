@@ -39,6 +39,7 @@ Legacy baseline confirmed from `old-apps/legacy/index.html` component `view-stoc
 - แสดง status pending/converted/cancelled
 - target must support pre-fill from WTO/ใบชั่ง OUT and still require warehouse + stock validation before save
 - show line-level stock on hand, reserved, available, issue qty, and stock after action
+- current edit policy is cancel-and-recreate before billing; direct PSALE edit remains disabled because stock is already posted
 
 ## Non-Responsibilities
 
@@ -61,20 +62,26 @@ Legacy baseline confirmed from `old-apps/legacy/index.html` component `view-stoc
 
 ### Current API
 
-- `GET /api/sales/stock-issue - current read/list baseline`
+- `GET /api/sales/stock-issue` reads PSALE list and returns WTO options with active stock holds
+- `GET /api/sales/stock-issue` keeps relation payload narrow and fetches list/count/aggregate/options concurrently
+- `POST /api/sales/stock-issue` creates PSALE from WTO, consumes the active WTO hold, and writes `stock_ledger.ref_type = PSALE`
+- `PATCH /api/sales/stock-issue` action `cancel` cancels pending PSALE with `PSALE-CANCEL` reversal ledger rows
+- `POST /api/sales/bills` accepts `pendingStockIssueId` when opening SB from PSALE and must not write duplicate stock-out
+- `stock_issue_status_logs` records PSALE create, convert, and cancel events
+- list row action `ประวัติ` shows PSALE item snapshot and status timeline
+- DB index contract is covered by `20260612123936_optimize_pending_sale_api_indexes.sql` for PSALE list/doc lookup, consumed hold reversal lookup, PSALE/PSALE-CANCEL stock ledger lookup, and Sales Bill usage-log lookup
 
 ### Target API
 
-- `POST /api/sales/stock-issue` สร้าง PSALE จาก WTO/ใบชั่ง OUT และตัด stock ทันที
-- `PATCH /api/sales/stock-issue/{docNo}` แก้ไขเฉพาะรายการที่ยังไม่ converted ตาม policy
-- `PATCH /api/sales/stock-issue/{docNo}` action `cancel` สำหรับยกเลิกก่อนเปิดบิลด้วย reversal
-- `POST /api/sales/stock-issue/{docNo}/convert-to-sales-bill` แปลงเป็น SB
+- Direct `PATCH /api/sales/stock-issue/{docNo}` edit is intentionally not exposed in the current target policy; pending PSALE correction uses cancel-and-recreate
+- dedicated `POST /api/sales/stock-issue/{docNo}/convert-to-sales-bill` ยังไม่จำเป็นตอนนี้ เพราะ conversion ใช้ Sales Bill create flow พร้อม `pendingStockIssueId`
 
 ### Data Contract
 
 - UI ใช้ outward business document/code เป็นหลัก และให้ server resolve internal id
 - list/detail/print/export ต้องอ่าน source contract เดียวกันเพื่อลด drift
 - transaction write ต้องทำใน server transaction และ append timeline/status/audit ตาม document policy
+- PSALE status changes are written to append-only `stock_issue_status_logs`; list UI detail timeline is still a follow-up
 - ถ้า field เป็น money/qty/date/business code ให้ validate ตาม `docs/design.md` และ server-side ซ้ำ
 
 ## Validation / Status Rules
@@ -96,21 +103,25 @@ Legacy baseline confirmed from `old-apps/legacy/index.html` component `view-stoc
 ## Current Code Baseline
 
 - Current `apps/next` page/API code is accepted as the P0 implementation baseline as of 2026-06-11.
+- Runtime API/DB optimization for Pending Sale was applied on 2026-06-12; remaining gap is logged-in browser QA, not query/index wiring.
 - This page belongs to the transaction/stock/payment risk group; accepted baseline means proofed against current code, not target-complete.
 - Runtime changes must preserve documented status, allocation, ledger, payment, lock, and reversal boundaries, or update this page-flow and the canonical flow first.
 - See [[P0 Transaction Stock Payment Current Code Baseline]] for API/permission/side-effect proof notes and open critical gaps.
 
 ## Current Gap
 
-create/edit/cancel/convert และ ledger/hold reversal ยังไม่ได้ implement ครบ
+direct edit ยังไม่เปิดตาม cancel-and-recreate policy; cancel หลังมี SB ต้อง follow SB cancel/reversal policy
 
-Legacy proof details now live in [[Pending Sale Page Flow]]. Current Next remains `GET /api/sales/stock-issue` only; no POST/PATCH/cancel/convert route exists yet.
+Legacy proof details now live in [[Pending Sale Page Flow]]. Current Next supports `GET/POST/PATCH cancel /api/sales/stock-issue` and Sales Bill create from PSALE.
 
 ## Implementation Checklist
 
 - [x] Verify current Next page/component against this page-flow
 - [x] Verify API route handlers match Current API and status rules above
 - [ ] Verify legacy behavior for any gap before implementing runtime change
-- [ ] Implement WTO-to-PSALE issue target contract
+- [x] Implement WTO-to-PSALE issue target contract
+- [x] Add server-side PSALE status logs and reconciliation checks
+- [x] Add PSALE detail/timeline UI
+- [x] Add PSALE API/DB lookup indexes and reduce list/reversal query payload
 - [ ] Add/adjust tests or browser QA checklist before changing runtime
-- [ ] Update this file and canonical reference if contract changes
+- [x] Update this file and canonical reference if contract changes

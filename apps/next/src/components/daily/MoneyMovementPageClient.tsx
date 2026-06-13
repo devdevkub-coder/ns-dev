@@ -4,7 +4,7 @@ import { Check, Copy, X, Plus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes } from 'react'
 import { z } from 'zod'
 import { paymentMethodGroupFromValue, type PaymentMethodGroup } from '@/lib/account-payment-method'
-import { BillSelect, Field, SelectField, SummaryPill } from '@/components/daily/MoneyMovementFieldHelpers'
+import { Field, SelectField, SummaryPill } from '@/components/daily/MoneyMovementFieldHelpers'
 import { PaymentLinesSection, PaymentSplitsSection } from '@/components/daily/MoneyMovementFormSections'
 import { Button as UiButton } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
@@ -61,12 +61,20 @@ type MoneyRow = {
   customerId?: string
   date: string
   docNo: string
+  discount?: number
   fee?: number
   id: string
   method?: string
   netAmount: number
   notes: string
   partyName: string
+  receiptLines?: Array<{
+    discountAmount: number
+    lineNo: number
+    receiptAmount: number
+    salesBillDocNo: string
+    withholdingTaxAmount: number
+  }>
   status?: string
   supplierId?: string
   withholdingTax?: number
@@ -114,6 +122,7 @@ type PaymentHistoryDetail = {
 type MoneyForm = SupplierPaymentFormValues | CustomerReceiptFormValues
 type PaymentLine = NonNullable<SupplierPaymentFormValues['lines']>[number] & { billText?: string }
 type PaymentSplit = SupplierPaymentFormValues['splits'][number]
+type ReceiptLine = NonNullable<CustomerReceiptFormValues['lines']>[number]
 type PaymentBillSort = 'age_asc' | 'age_desc' | 'balance_asc' | 'balance_desc' | 'date_asc' | 'date_desc' | 'doc_asc' | 'doc_desc' | 'paid_asc' | 'paid_desc' | 'supplier_asc' | 'supplier_desc' | 'total_asc' | 'total_desc'
 type PaymentBillSortField = 'age' | 'balance' | 'date' | 'docNo' | 'paidAmount' | 'supplier' | 'totalAmount'
 type HistorySortField = 'accountName' | 'amount' | 'date' | 'docNo' | 'netAmount' | 'partyName'
@@ -171,6 +180,10 @@ function newPaymentLine(): PaymentLine {
 
 function newPaymentSplit(): PaymentSplit {
   return { accountId: '', amount: 0, id: `SP-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` }
+}
+
+function newReceiptLine(): ReceiptLine {
+  return { discountAmount: 0, id: `RL-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, receiptAmount: 0, salesBillDocNo: '', withholdingTaxAmount: 0 }
 }
 
 function roundMoney(value: number) {
@@ -279,9 +292,9 @@ function initialForm(mode: 'payment' | 'receipt'): MoneyForm {
     docNo: null,
     fee: 0,
     id: null,
-    method: mode === 'payment' ? '' : null,
+    method: '',
     notes: null,
-    ...(mode === 'payment' ? { lines: [newPaymentLine()], splits: [newPaymentSplit()], supplierId: '' } : { customerId: '' }),
+    ...(mode === 'payment' ? { lines: [newPaymentLine()], splits: [newPaymentSplit()], supplierId: '' } : { customerId: '', lines: [newReceiptLine()] }),
     withholdingTax: 0,
   } as MoneyForm
 }
@@ -541,6 +554,9 @@ export function MoneyMovementPageClient({
   const [cancelApprovalReason, setCancelApprovalReason] = useState('')
   const [cancelApprovalTarget, setCancelApprovalTarget] = useState<Bill | null>(null)
   const [isCancellingApproval, setIsCancellingApproval] = useState(false)
+  const [cancelReceiptReason, setCancelReceiptReason] = useState('')
+  const [cancelReceiptTarget, setCancelReceiptTarget] = useState<MoneyRow | null>(null)
+  const [isCancellingReceipt, setIsCancellingReceipt] = useState(false)
   const [paymentDetailOpen, setPaymentDetailOpen] = useState(false)
   const [paymentDetailRow, setPaymentDetailRow] = useState<MoneyRow | null>(null)
   const [paymentDetail, setPaymentDetail] = useState<PaymentHistoryDetail | null>(null)
@@ -593,12 +609,13 @@ export function MoneyMovementPageClient({
   const supplierMap = useMemo(() => new Map((data.suppliers ?? []).map((supplier) => [supplier.id, supplier])), [data.suppliers])
   const billMap = useMemo(() => new Map(data.bills.map((bill) => [bill.id, bill])), [data.bills])
   const paymentLines = useMemo(() => (mode === 'payment' ? (form as SupplierPaymentFormValues).lines ?? [] : []), [form, mode])
+  const receiptLines = useMemo(() => (mode === 'receipt' ? (form as CustomerReceiptFormValues).lines ?? [] : []), [form, mode])
   const selectedBill = form.billId ? billMap.get(form.billId) : null
   const selectedBillBalance = selectedBill ? (mode === 'payment' ? selectedBill.payableBalance ?? 0 : selectedBill.receivableBalance ?? 0) : 0
   const paymentLineBalanceTotal = paymentLines.reduce((sum, line) => sum + (billMap.get(line.billId)?.payableBalance ?? 0), 0)
   const formNetAmount = mode === 'payment'
     ? form.amount + form.fee
-    : form.amount - form.fee - form.withholdingTax - form.discount
+    : form.amount - form.fee - form.withholdingTax
   const paymentSplits = mode === 'payment' ? (form as SupplierPaymentFormValues).splits ?? [] : []
   const paymentSplitTotal = paymentSplits.reduce((sum, split) => sum + (Number(split.amount) || 0), 0)
 
@@ -623,6 +640,12 @@ export function MoneyMovementPageClient({
     })
   }, [mode, outstandingBills, paymentMethodFilter, paymentSupplierId])
   const selectedPaymentBillIds = useMemo(() => new Set(paymentLines.map((line) => line.approvalId || line.billId).filter(Boolean)), [paymentLines])
+  const selectedReceiptBillDocNos = useMemo(() => new Set(receiptLines.map((line) => line.salesBillDocNo).filter(Boolean)), [receiptLines])
+  const receiptSelectableBills = useMemo(() => {
+    if (mode !== 'receipt') return []
+    const customerId = (form as CustomerReceiptFormValues).customerId
+    return data.bills.filter((bill) => !customerId || bill.customerId === customerId)
+  }, [data.bills, form, mode])
   const supplierBills = useMemo(() => {
     if (mode !== 'payment') return []
     const query = billSearch.trim().toLowerCase()
@@ -767,6 +790,26 @@ export function MoneyMovementPageClient({
   }
 
   function openFormForBill(bill: Bill) {
+    if (mode === 'receipt') {
+      const amount = roundMoney(bill.receivableBalance && bill.receivableBalance > 0 ? bill.receivableBalance : bill.totalAmount)
+      setForm({
+        ...initialForm(mode),
+        amount,
+        billId: bill.id,
+        customerId: bill.customerId ?? '',
+        lines: [{
+          ...newReceiptLine(),
+          receiptAmount: amount,
+          salesBillDocNo: bill.docNo,
+        }],
+      } as MoneyForm)
+      setMoneyDrafts({})
+      setIsBillLocked(true)
+      setError(null)
+      setFormOpen(true)
+      return
+    }
+
     const balance = bill.payableBalance ?? 0
     const settlementAmount = balance > 0 ? balance : bill.totalAmount
     const paymentAmount = roundMoney(settlementAmount)
@@ -794,6 +837,41 @@ export function MoneyMovementPageClient({
     setFormOpen(true)
   }
 
+  function openFormForReceipt(row: MoneyRow) {
+    if (mode !== 'receipt' || row.status === 'cancelled') return
+    const lines = (row.receiptLines?.length ? row.receiptLines : [{
+      discountAmount: row.discount ?? 0,
+      receiptAmount: row.amount,
+      salesBillDocNo: row.billId,
+      withholdingTaxAmount: row.withholdingTax ?? 0,
+    }]).map((line) => ({
+      ...newReceiptLine(),
+      discountAmount: line.discountAmount,
+      receiptAmount: line.receiptAmount,
+      salesBillDocNo: line.salesBillDocNo,
+      withholdingTaxAmount: line.withholdingTaxAmount,
+    }))
+    setForm({
+      ...initialForm(mode),
+      accountId: row.accountId,
+      amount: row.amount,
+      billId: lines[0]?.salesBillDocNo ?? null,
+      customerId: row.customerId ?? '',
+      date: row.date,
+      discount: roundMoney(lines.reduce((sum, line) => sum + line.discountAmount, 0)),
+      fee: row.fee ?? 0,
+      id: row.docNo,
+      lines,
+      method: row.method ?? '',
+      notes: row.notes ?? null,
+      withholdingTax: roundMoney(lines.reduce((sum, line) => sum + line.withholdingTaxAmount, 0)),
+    } as MoneyForm)
+    setMoneyDrafts({})
+    setIsBillLocked(false)
+    setError(null)
+    setFormOpen(true)
+  }
+
   function clearFilters() {
     setSearch('')
     setDateFrom('')
@@ -807,6 +885,7 @@ export function MoneyMovementPageClient({
     setError(null)
     setFormOpen(false)
     setCancelApprovalTarget(null)
+    setCancelReceiptTarget(null)
     setPaymentDetailOpen(false)
     setPaymentDetail(null)
     setPaymentDetailRow(null)
@@ -986,6 +1065,75 @@ export function MoneyMovementPageClient({
         : balance > 0 ? balance : bill.totalAmount,
       billId,
     } as MoneyForm)
+  }
+
+  function syncReceiptLines(nextLines: ReceiptLine[], patch: Partial<CustomerReceiptFormValues> = {}) {
+    const normalizedLines = nextLines.length > 0 ? nextLines.map((line) => ({
+      ...line,
+      discountAmount: roundMoney(Number(line.discountAmount) || 0),
+      receiptAmount: roundMoney(Number(line.receiptAmount) || 0),
+      salesBillDocNo: line.salesBillDocNo,
+      withholdingTaxAmount: roundMoney(Number(line.withholdingTaxAmount) || 0),
+    })) : [newReceiptLine()]
+    const firstBill = billMap.get(normalizedLines.find((line) => line.salesBillDocNo)?.salesBillDocNo ?? '')
+    const nextAmount = roundMoney(normalizedLines.reduce((sum, line) => sum + line.receiptAmount, 0))
+    const nextDiscount = roundMoney(normalizedLines.reduce((sum, line) => sum + line.discountAmount, 0))
+    const nextWithholdingTax = roundMoney(normalizedLines.reduce((sum, line) => sum + line.withholdingTaxAmount, 0))
+    const nextCustomerId = patch.customerId ?? ((form as CustomerReceiptFormValues).customerId || firstBill?.customerId || '')
+    setForm({
+      ...form,
+      ...patch,
+      amount: nextAmount,
+      billId: normalizedLines.find((line) => line.salesBillDocNo)?.salesBillDocNo ?? null,
+      customerId: nextCustomerId,
+      discount: nextDiscount,
+      lines: normalizedLines,
+      withholdingTax: nextWithholdingTax,
+    } as MoneyForm)
+  }
+
+  function receiptSelectableBillsForLine(index: number) {
+    const currentDocNo = receiptLines[index]?.salesBillDocNo ?? ''
+    return receiptSelectableBills.filter((bill) => (
+      bill.docNo === currentDocNo
+      || ((bill.receivableBalance ?? 0) > 0 && !selectedReceiptBillDocNos.has(bill.docNo))
+    ))
+  }
+
+  function selectReceiptLineBill(index: number, docNo: string) {
+    const bill = billMap.get(docNo)
+    if (!bill) {
+      syncReceiptLines(receiptLines.map((line, lineIndex) => lineIndex === index ? { ...line, receiptAmount: 0, salesBillDocNo: docNo } : line))
+      return
+    }
+    const amount = roundMoney(bill.receivableBalance && bill.receivableBalance > 0 ? bill.receivableBalance : bill.totalAmount)
+    syncReceiptLines(receiptLines.map((line, lineIndex) => (
+      lineIndex === index
+        ? { ...line, discountAmount: 0, receiptAmount: amount, salesBillDocNo: bill.docNo, withholdingTaxAmount: 0 }
+        : line
+    )), { customerId: bill.customerId ?? (form as CustomerReceiptFormValues).customerId })
+  }
+
+  function updateReceiptLine(index: number, patch: Partial<ReceiptLine>) {
+    setError(null)
+    syncReceiptLines(receiptLines.map((line, lineIndex) => (lineIndex === index ? { ...line, ...patch } : line)))
+  }
+
+  function addReceiptLine() {
+    syncReceiptLines([...receiptLines, newReceiptLine()])
+  }
+
+  function removeReceiptLine(index: number) {
+    if (receiptLines.length <= 1) return
+    syncReceiptLines(receiptLines.filter((_, lineIndex) => lineIndex !== index))
+  }
+
+  function changeReceiptCustomer(customerId: string) {
+    const nextLines = receiptLines.map((line) => {
+      const bill = billMap.get(line.salesBillDocNo)
+      return bill && bill.customerId !== customerId ? newReceiptLine() : line
+    })
+    syncReceiptLines(nextLines, { customerId })
   }
 
   function paymentLineFromBill(bill: Bill): PaymentLine {
@@ -1182,10 +1330,30 @@ export function MoneyMovementPageClient({
     }
   }
 
+  function normalizedReceiptForm() {
+    const receiptForm = form as CustomerReceiptFormValues
+    const payloadLines = (receiptForm.lines ?? [])
+      .filter((line) => line.salesBillDocNo && Number(line.receiptAmount) > 0)
+      .map((line) => ({
+        ...line,
+        discountAmount: roundMoney(Number(line.discountAmount) || 0),
+        receiptAmount: roundMoney(Number(line.receiptAmount) || 0),
+        withholdingTaxAmount: roundMoney(Number(line.withholdingTaxAmount) || 0),
+      }))
+    return {
+      ...receiptForm,
+      amount: roundMoney(payloadLines.reduce((sum, line) => sum + line.receiptAmount, 0)),
+      billId: payloadLines[0]?.salesBillDocNo ?? null,
+      discount: roundMoney(payloadLines.reduce((sum, line) => sum + line.discountAmount, 0)),
+      lines: payloadLines,
+      withholdingTax: roundMoney(payloadLines.reduce((sum, line) => sum + line.withholdingTaxAmount, 0)),
+    }
+  }
+
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (isSavingRef.current) return
-    const payload = mode === 'payment' ? normalizedPaymentForm() : form
+    const payload = mode === 'payment' ? normalizedPaymentForm() : normalizedReceiptForm()
     const parsed = (mode === 'payment' ? supplierPaymentFormSchema : customerReceiptFormSchema).safeParse(payload)
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? 'ข้อมูลไม่ถูกต้อง')
@@ -1233,6 +1401,33 @@ export function MoneyMovementPageClient({
       setError(caught instanceof Error ? caught.message : 'ยกเลิกรายการรอจ่ายไม่ได้')
     } finally {
       setIsCancellingApproval(false)
+    }
+  }
+
+  async function cancelCustomerReceiptRow() {
+    if (!cancelReceiptTarget) return
+    if (!cancelReceiptReason.trim()) {
+      setError('กรุณาระบุเหตุผลการยกเลิก')
+      return
+    }
+    setIsCancellingReceipt(true)
+    setError(null)
+    try {
+      await dailyFetchJson('/api/sales/receipts', {
+        body: JSON.stringify({
+          action: 'cancel',
+          docNo: cancelReceiptTarget.docNo,
+          reason: cancelReceiptReason.trim(),
+        }),
+        method: 'PATCH',
+      })
+      setCancelReceiptTarget(null)
+      setCancelReceiptReason('')
+      await loadData()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'ยกเลิกรับเงิน Customer ไม่ได้')
+    } finally {
+      setIsCancellingReceipt(false)
     }
   }
 
@@ -1520,7 +1715,9 @@ export function MoneyMovementPageClient({
             <form noValidate onSubmit={save}>
             <DialogHeader className={`${mode === 'payment' ? 'bg-white text-slate-900' : theme.muted} flex-row items-center justify-between border-b px-5 py-4`}>
               <div>
-                <DialogTitle className="font-bold">{mode === 'payment' ? 'สร้าง Payment Voucher' : title}</DialogTitle>
+                <DialogTitle className="font-bold">
+                  {mode === 'payment' ? 'สร้าง Payment Voucher' : (form.id ? 'แก้ไข Receipt Voucher' : title)}
+                </DialogTitle>
                 {mode === 'payment' ? null : <p className="text-xs opacity-80">{subtitle}</p>}
               </div>
               <UiButton className="h-8 w-8 px-0 text-2xl text-slate-500" size="icon" type="button" variant="ghost" onClick={() => setFormOpen(false)}>&times;</UiButton>
@@ -1567,19 +1764,8 @@ export function MoneyMovementPageClient({
               <>
                 <div className="grid gap-4 p-5 md:grid-cols-2">
                   <Field label="วันที่" type="date" value={form.date} onChange={(value) => setForm({ ...form, date: value })} />
-                  <BillSelect
-                    bills={outstandingBills}
-                    label="บิลขาย"
-                    mode={mode}
-                    partyMap={partyMap}
-                    value={form.billId ?? ''}
-                    onChange={selectBill}
-                  />
-                  <SelectField label={partyLabel} value={partyValue} onChange={(value) => setForm({ ...form, [partyKey]: value } as MoneyForm)} options={parties.filter((party) => party.active !== false)} />
+                  <SelectField label={partyLabel} value={partyValue} onChange={changeReceiptCustomer} options={parties.filter((party) => party.active !== false)} />
                   <SelectField label={accountLabel} value={form.accountId} onChange={(value) => setForm({ ...form, accountId: value })} options={activeAccounts} />
-                  <Field label={amountLabel} type="number" value={String(form.amount)} onChange={(value) => setForm({ ...form, amount: Number(value) })} />
-                  <Field label="WHT" type="number" value={String(form.withholdingTax)} onChange={(value) => setForm({ ...form, withholdingTax: Number(value) })} />
-                  <Field label="ส่วนลด" type="number" value={String(form.discount)} onChange={(value) => setForm({ ...form, discount: Number(value) })} />
                   <Field label="ค่าธรรมเนียม" type="number" value={String(form.fee)} onChange={(value) => setForm({ ...form, fee: Number(value) })} />
                   <label className="block">
                     <span className="mb-1 block text-xs text-slate-600">วิธีจ่าย/รับเงิน</span>
@@ -1592,9 +1778,92 @@ export function MoneyMovementPageClient({
                   </label>
                   <Field label="หมายเหตุ" value={form.notes ?? ''} onChange={(value) => setForm({ ...form, notes: value })} />
                 </div>
-                <div className="grid gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 md:grid-cols-4">
+                <div className="px-5 pb-5">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <div className="text-sm font-semibold text-slate-800">บิลขายที่รับชำระ</div>
+                    <UiButton className="h-8 font-normal" size="sm" type="button" variant="outline" onClick={addReceiptLine}>
+                      <Plus aria-hidden="true" className="mr-1 h-4 w-4" />
+                      เพิ่มบิล
+                    </UiButton>
+                  </div>
+                  <div className="overflow-x-auto rounded-md border border-slate-200">
+                    <table className="w-full min-w-[760px] table-fixed text-xs">
+                      <thead className="bg-slate-50 text-slate-600">
+                        <tr>
+                          <th className="w-[260px] p-2 text-left">Sales Bill</th>
+                          <th className="w-[110px] p-2 text-right">ค้างรับ</th>
+                          <th className="w-[120px] p-2 text-right">ยอดรับ</th>
+                          <th className="w-[110px] p-2 text-right">WHT</th>
+                          <th className="w-[110px] p-2 text-right">ส่วนลด</th>
+                          <th className="w-[80px] p-2 text-center">ลบ</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {receiptLines.map((line, index) => {
+                          const selectedLineBill = billMap.get(line.salesBillDocNo)
+                          return (
+                            <tr key={line.id ?? `${index}-${line.salesBillDocNo}`} className="border-t border-slate-100">
+                              <td className="p-2">
+                                <UiSelect
+                                  className="h-9 w-full rounded-md border border-slate-300 px-2 text-xs"
+                                  value={line.salesBillDocNo}
+                                  onChange={(event) => selectReceiptLineBill(index, event.target.value)}
+                                >
+                                  <option value="">เลือกบิลขาย</option>
+                                  {receiptSelectableBillsForLine(index).map((bill) => (
+                                    <option key={bill.docNo} value={bill.docNo}>
+                                      {bill.docNo} - {partyMap.get(bill.customerId ?? '') ?? bill.customerId ?? '-'} - ค้าง {formatMoney(bill.receivableBalance ?? 0)}
+                                    </option>
+                                  ))}
+                                </UiSelect>
+                              </td>
+                              <td className="p-2 text-right font-semibold tabular-nums text-amber-700">{formatMoney(selectedLineBill?.receivableBalance ?? 0)}</td>
+                              <td className="p-2">
+                                <UiInput
+                                  className="h-9 text-right tabular-nums"
+                                  min="0"
+                                  step="0.01"
+                                  type="number"
+                                  value={String(line.receiptAmount)}
+                                  onChange={(event) => updateReceiptLine(index, { receiptAmount: Number(event.target.value) })}
+                                />
+                              </td>
+                              <td className="p-2">
+                                <UiInput
+                                  className="h-9 text-right tabular-nums"
+                                  min="0"
+                                  step="0.01"
+                                  type="number"
+                                  value={String(line.withholdingTaxAmount)}
+                                  onChange={(event) => updateReceiptLine(index, { withholdingTaxAmount: Number(event.target.value) })}
+                                />
+                              </td>
+                              <td className="p-2">
+                                <UiInput
+                                  className="h-9 text-right tabular-nums"
+                                  min="0"
+                                  step="0.01"
+                                  type="number"
+                                  value={String(line.discountAmount)}
+                                  onChange={(event) => updateReceiptLine(index, { discountAmount: Number(event.target.value) })}
+                                />
+                              </td>
+                              <td className="p-2 text-center">
+                                <UiButton className="h-8 w-8 px-0" disabled={receiptLines.length <= 1} size="icon" type="button" variant="ghost" onClick={() => removeReceiptLine(index)}>
+                                  <X aria-hidden="true" className="h-4 w-4" />
+                                </UiButton>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div className="grid gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 md:grid-cols-5">
                   <SummaryPill label={amountLabel} value={formatMoney(form.amount)} />
                   <SummaryPill label="WHT" value={formatMoney(form.withholdingTax)} />
+                  <SummaryPill label="ตัดหนี้ AR" value={formatMoney(form.amount + form.withholdingTax + form.discount)} />
                   <SummaryPill label="Fee / Discount" value={`${formatMoney(form.fee)} / ${formatMoney(form.discount)}`} />
                   <SummaryPill label="Net" value={formatMoney(formNetAmount)} />
                 </div>
@@ -1949,7 +2218,36 @@ export function MoneyMovementPageClient({
                           <TableCell className="max-w-56 truncate text-xs font-semibold text-slate-700">{row.notes || '-'}</TableCell>
                           {mode === 'receipt' ? (
                             <TableCell className="text-center">
-                              <UiButton className="font-normal text-slate-400" disabled size="xs" type="button" variant="outline">ดู/พิมพ์</UiButton>
+                              <div className="flex items-center justify-center gap-1">
+                                <UiButton className="font-normal text-slate-400" disabled size="xs" type="button" variant="outline">พิมพ์</UiButton>
+                                <UiButton
+                                  className="font-normal"
+                                  disabled={row.status === 'cancelled'}
+                                  size="xs"
+                                  type="button"
+                                  variant="outline"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    openFormForReceipt(row)
+                                  }}
+                                >
+                                  แก้ไข
+                                </UiButton>
+                                <UiButton
+                                  className="font-normal"
+                                  disabled={row.status === 'cancelled'}
+                                  size="xs"
+                                  type="button"
+                                  variant="outline"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    setCancelReceiptTarget(row)
+                                    setCancelReceiptReason('')
+                                  }}
+                                >
+                                  ยกเลิก
+                                </UiButton>
+                              </div>
                             </TableCell>
                           ) : null}
                         </TableRow>
@@ -1979,6 +2277,36 @@ export function MoneyMovementPageClient({
             }
           }}
         />
+      ) : null}
+
+      {cancelReceiptTarget ? (
+        <Dialog open onOpenChange={(open) => {
+          if (!open && !isCancellingReceipt) setCancelReceiptTarget(null)
+        }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>ยกเลิก Receipt Voucher</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 text-sm">
+              <div className="rounded-md bg-slate-50 p-3">
+                <div className="font-semibold text-slate-900">{cancelReceiptTarget.docNo}</div>
+                <div className="text-slate-600">{cancelReceiptTarget.partyName} · {formatMoney(cancelReceiptTarget.amount)}</div>
+              </div>
+              <label className="block">
+                <span className="mb-1 block text-xs text-slate-600">เหตุผลการยกเลิก</span>
+                <textarea
+                  className="min-h-24 w-full rounded-md border border-slate-300 px-3 py-2"
+                  value={cancelReceiptReason}
+                  onChange={(event) => setCancelReceiptReason(event.target.value)}
+                />
+              </label>
+            </div>
+            <DialogFooter>
+              <UiButton disabled={isCancellingReceipt} type="button" variant="ghost" onClick={() => setCancelReceiptTarget(null)}>ปิด</UiButton>
+              <UiButton className="bg-red-600 text-white hover:bg-red-700" disabled={isCancellingReceipt} type="button" variant="default" onClick={cancelCustomerReceiptRow}>ยืนยันยกเลิก</UiButton>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       ) : null}
 
       {mode === 'payment' && !historyOnly && cancelApprovalTarget ? (

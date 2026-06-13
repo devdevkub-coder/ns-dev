@@ -21,9 +21,9 @@ updated: 2026-06-12
 ## Scope
 
 - Route: `/sales/stock-issue`
-- API ปัจจุบัน: `GET /api/sales/stock-issue`
+- API ปัจจุบัน: `GET/POST /api/sales/stock-issue`
 - Owner: Sales + Stock
-- Page type: list/read baseline now; target write flow for physical stock issue before Sales Bill
+- Page type: list + create PSALE from WTO; target edit policy is cancel-and-recreate before billing
 - Related flow: [[Sales Flow]], [[Sales Bills Page Flow]], [[Stock Ledger and Stock Balance]]
 
 หน้านี้ใช้เมื่อมีใบชั่งขาออกแล้วและต้องเบิกสินค้าจาก Stock ให้ลูกค้าก่อนสร้างบิลขายจริง เช่น ของถูกเบิกขึ้นรถ/ส่งให้ลูกค้าแล้ว แต่ฝ่ายเอกสารยังไม่เปิด `SB`
@@ -145,32 +145,46 @@ usedPending = sum(PSALE qty_out where stock_issues.status = pending)
 | `converted` | เปิดบิลขายแล้ว | ไม่ได้ | ไม่ได้ | ไม่ได้ |
 | `cancelled` | ยกเลิกแล้ว | ไม่ได้ | ไม่ได้ | ไม่ได้ |
 
+Current target edit policy: PSALE ไม่รองรับแก้รายการโดยตรง เพราะ stock ถูกตัดจริงแล้วตั้งแต่สร้างเอกสาร หากยังไม่เปิดบิลให้ยกเลิกด้วย `PSALE-CANCEL` แล้วสร้าง PSALE ใหม่จาก WTO/source ที่ถูกต้อง
+
 ## Current Next Implementation Snapshot
 
-ตรวจ ณ 2026-06-11:
+ตรวจ ณ 2026-06-12:
 
 - `stock_issues` table มีใน Prisma schema
 - `/sales/stock-issue` แสดงด้วย `TransactionBillsPageClient mode="stock-issue"`
 - `GET /api/sales/stock-issue` อ่าน list จาก `stock_issues`
-- หน้า list มีปุ่ม `เปิดบิลขาย`, `แก้ไข`, `ยกเลิก`
-- API ยังไม่มี `POST`, `PATCH`, `cancel`, หรือ `convert-to-sales-bill`
-- ปุ่ม `เปิดบิลขาย` ยังไม่มี action handler ที่เชื่อม write flow
-- ยังไม่มี runtime write `stock_ledger.ref_type = PSALE`
+- `GET /api/sales/stock-issue` ส่ง WTO options ที่ยังมี active `stock_holds` สำหรับสร้าง PSALE
+- `GET /api/sales/stock-issue` ใช้ narrow relation selects และ fetch list/count/aggregate/options พร้อมกันเพื่อลด payload และ latency
+- `POST /api/sales/stock-issue` สร้าง `PSALE...` จาก WTO, consume active WTO hold, เขียน `stock_ledger.ref_type = PSALE`, และบันทึก `stock_issues.status = pending`
+- `PATCH /api/sales/stock-issue` action `cancel` ยกเลิก PSALE ที่ยัง `pending`, เขียน reversal `stock_ledger.ref_type = PSALE-CANCEL`, และเปลี่ยน consumed hold เป็น `released`
+- `stock_issue_status_logs` เป็น append-only history สำหรับ PSALE create/convert/cancel
+- หน้า list มีปุ่ม `+ เบิกออกใหม่` เพื่อเลือก WTO, ระบุราคาขายคาด, และบันทึกตัด stock
+- ปุ่ม `เปิดบิลขาย` prefill Sales Bill จาก PSALE และส่ง `pendingStockIssueId`
+- ปุ่ม `ยกเลิก` เปิดใช้เฉพาะ PSALE status `pending`
+- ปุ่ม `ประวัติ` แสดงรายการสินค้าและ `stock_issue_status_logs` ของ PSALE
+- `POST /api/sales/bills` เมื่อมี `pendingStockIssueId` จะสร้าง SB และอัปเดต PSALE เป็น `converted` โดยไม่ consume WTO hold หรือเขียน stock-out ซ้ำ
+- Migration `20260612123936_optimize_pending_sale_api_indexes.sql` เพิ่ม index สำหรับ PSALE list/sort/doc lookup, converted bill lookup, consumed hold reversal lookup, PSALE/PSALE-CANCEL stock ledger reversal lookup, และ Sales Bill usage-log lookup
+- ปุ่ม `แก้ไข` ยังไม่เปิดใช้งาน
+- API ยังไม่มี edit/PATCH detail สำหรับแก้ PSALE ตาม cancel-and-recreate policy
 - `/api/pending-sales` เป็น dashboard/read model คนละความหมาย ไม่ใช่ write flow ของ `PSALE`
 
 ## Implementation Gaps
 
-- [ ] เพิ่ม `POST /api/sales/stock-issue` สำหรับสร้าง PSALE จาก WTO/ใบชั่ง OUT
-- [ ] เพิ่ม stock availability validation จาก `onHand - activeReserved`
-- [ ] เขียน `stock_ledger.ref_type = PSALE` ใน transaction เดียวกับ stock issue
-- [ ] ปิด/consume/release WTO hold ที่ถูกนำมาออก PSALE เพื่อไม่ให้นับ reserved ซ้ำ
-- [ ] เพิ่ม cancel policy ด้วย append reversal
-- [ ] เพิ่ม convert-to-SB API และ UI action
-- [ ] SB ที่สร้างจาก PSALE ต้องไม่ตัด stock ซ้ำ
-- [ ] เพิ่ม source snapshot ระดับ line ระหว่าง `PSALE -> SB`
-- [ ] เพิ่ม timeline/status log สำหรับ PSALE
-- [ ] เพิ่ม reconciliation: PSALE pending, PSALE converted, SB linked, orphan ledger, double stock-out
-- [ ] เพิ่ม reconciliation: WTO hold consumed/released by PSALE, over-sell blocked
+- [x] เพิ่ม `POST /api/sales/stock-issue` สำหรับสร้าง PSALE จาก WTO/ใบชั่ง OUT
+- [x] เพิ่ม stock availability validation ผ่าน WTO active hold contract (`WTO` create เป็นจุด validate `onHand - activeReserved`; PSALE consume ได้เฉพาะ hold ที่ยัง active)
+- [x] เขียน `stock_ledger.ref_type = PSALE` ใน transaction เดียวกับ stock issue
+- [x] consume WTO hold ที่ถูกนำมาออก PSALE เพื่อไม่ให้นับ reserved ซ้ำ
+- [x] เพิ่ม cancel policy ด้วย append reversal
+- [x] เพิ่ม convert-to-SB ผ่าน Sales Bill create flow (`pendingStockIssueId`) และ UI action `เปิดบิลขาย`
+- [x] SB ที่สร้างจาก PSALE ต้องไม่ตัด stock ซ้ำ
+- [x] เพิ่ม source snapshot ระดับ line ระหว่าง `PSALE -> SB` ผ่าน sales-bill item delivery/source snapshot + `refNo = PSALE`
+- [x] เพิ่ม timeline/status log สำหรับ PSALE
+- [x] เพิ่ม reconciliation: PSALE pending, PSALE converted, SB linked, orphan ledger, double stock-out
+- [x] เพิ่ม reconciliation: WTO hold consumed/released by PSALE
+- [x] เพิ่ม UI detail/timeline สำหรับ PSALE
+- [x] เพิ่ม API/DB optimization สำหรับ list/options/reversal lookup และ Prisma index mapping
+- [ ] เพิ่ม authenticated browser QA สำหรับ create/cancel/convert/reconciliation
 - [ ] เพิ่ม UI/API support สำหรับ prefill จาก WTO/ใบชั่ง OUT โดยยังคงให้เลือก warehouse และ validate stock ก่อน save
 - [ ] เพิ่ม line-level stock preview `onHand / reserved / available / issueQty / afterQty`
 - [ ] ตัด legacy override ที่ให้ confirm เบิกเกิน stock ออก หรือทำเป็น permission-gated exception พร้อม audit reason

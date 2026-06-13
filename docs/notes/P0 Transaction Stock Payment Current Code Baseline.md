@@ -40,7 +40,7 @@ current Next code/API ของ P0 เป็น accepted implementation baseline
 | Petty Advance | `/daily/petty-advance` | `GET/POST /api/daily/petty-advances`, `POST /api/daily/petty-advances/returns` | `finance.cash.view` |
 | WTI/WTO | `/daily/weight-ticket-list` | `GET/POST /api/daily/weight-tickets`, `GET/PATCH /api/daily/weight-tickets/[id]`, page-scoped options/products APIs | `finance.cash.view` |
 | Sales PO | `/sales/po-sell` | `GET/POST /api/sales/po-sell` | `finance.cash.view` |
-| Sales Bill | `/sales/bills` | `GET/POST /api/sales/bills`, `GET /api/sales/bills/[id]` | `finance.cash.view` |
+| Sales Bill | `/sales/bills` | `GET/POST /api/sales/bills`, `GET/PATCH /api/sales/bills/[id]` | `finance.cash.view` |
 | Sales Receipt | `/sales/receipts` | `GET/POST /api/sales/receipts` | `finance.cash.view` |
 | Pending Sale / Stock Issue | `/sales/stock-issue` | `GET /api/sales/stock-issue` current read baseline | `stock.ledger.view` |
 | Stock Balance | `/stock/balance` | `GET /api/stock/balance`, supports `format=xlsx` | `stock.ledger.view` |
@@ -58,14 +58,14 @@ current Next code/API ของ P0 เป็น accepted implementation baseline
 | Purchase Bill | creates PB, purchase items, WTI receipt allocations, PO buy allocations, supplier advance allocation, PB status logs, and `stock_ledger.ref_type = PB` for stock-mode PB. Edit/cancel paths rebuild/delete current PB ledger/allocation rows in transaction and append related logs. |
 | Supplier Advance | creates/updates/cancels `supplier_advance_payments` with status logs. Current create sets `pending_approval`; payment settlement flows through PMA/PMT. |
 | Payment Approval | reads pending PB/ADV/EXP sources and creates `payment_approvals`; split approval is represented by multiple PMA rows. Void approved PMA is handled by payment cancel-approved route when no active payment exists. |
-| Supplier Payment | creates `payments`, writes `bank_statement`, links to approved PMA, refreshes source settlement status for PB/ADV/EXP, and auto-generates `receipt_vouchers` when payment method is cash. |
-| Receipt Voucher | printable/payment source list from `receipt_vouchers`; legacy proof confirms target create/edit/print pre-fills from PB but target RV is cash-only, must stay non-posting, and must not write bank statement/payment/stock facts. Current print preview uses Company Profile and legacy RV template blocks. |
+| Supplier Payment | creates `payments`, writes `bank_statement`, links to approved PMA, and refreshes source settlement status for PB/ADV/EXP. It does not auto-generate RV. |
+| Receipt Voucher | manual printable source list from `receipt_vouchers`; active create/edit uses Supplier selector to pre-fill receiver snapshot and optional PB selector to pre-fill item/amount snapshot, while legacy proof confirms RV is cash-only Supplier evidence, must stay non-posting, and must not write bank statement/payment/stock facts. Current print preview uses Company Profile and legacy RV template blocks. |
 | Expense | creates EXP either `pending_approval` or direct `paid`; direct pay writes `payments` and `bank_statement`. Cancel is blocked when locked by approved PMA and deletes related direct-pay bank statement rows for cancellable expenses. |
 | Daily Transfer | creates paired `bank_statement` rows for account transfer. |
 | Petty Advance | creates/updates PADV without BST on advance create; return creates PRET and writes `bank_statement`. |
 | WTI/WTO | creates/updates weight ticket header, lines, product summaries, status logs, and timeline/usage data; downstream usage is updated by PB/SB flow. |
 | PO Sell | creates POS commitment and computes current usage from sales bills/trading deals. |
-| Sales Bill | creates SB and updates POS allocation/remaining. Current route validates WTO source for stock mode and applies customer advance, but no `stock_ledger` write was observed in `POST /api/sales/bills`; stock-out remains a target gap. |
+| Sales Bill | creates SB, updates POS allocation/remaining, validates WTO source for stock mode, consumes active WTO stock hold, writes `stock_ledger.ref_type = SB`, appends `WTO -> SB` usage/status logs, and applies customer advance. `PATCH /api/sales/bills/[id]` action `cancel` blocks active RCP, reopens consumed WTO hold, writes `stock_ledger.ref_type = SB-CANCEL`, appends release/status logs, reverses PO Sell usage, marks SB cancelled, and writes `sales_bill_status_logs`. |
 | Sales Receipt | creates/updates RCP and writes `bank_statement.ref_type = RCP`. |
 | Sales Stock Issue | current API is GET/read baseline from `stock_issues`; create/convert/reversal write path is still target gap. |
 | Stock Balance | read-only derived snapshot from stock helpers and stock ledger, with XLSX export. |
@@ -79,9 +79,9 @@ current Next code/API ของ P0 เป็น accepted implementation baseline
 
 These gaps are not blockers for baseline acceptance, but they are blockers before claiming target flow complete:
 
-- `/sales/bills`: target says SB owns stock-out for stock sale, but current `POST /api/sales/bills` did not show `stock_ledger` write. Need runtime fix before stock outbound can be considered complete.
+- `/sales/bills`: create-path stock-out and cancel-path stock reversal are implemented for WTO-backed Stock SB. Remaining gaps are UI enablement/browser QA, edit flow, customer-advance durable allocation release, and end-to-end receipt-lock proof.
 - `/sales/stock-issue`: current code is read-only/list baseline. PSALE create/convert/reversal target remains unimplemented or not wired to this API.
-- `/purchase/receipt-vouchers`: current page still has create/edit/cancel disabled, but cash PMT now auto-generates RV into `receipt_vouchers` and print preview uses Company Profile + legacy RV template blocks. Remaining target gaps are manual source-aware create/edit/cancel, RV status/timeline, cancelled watermark, and strict separation from customer receipt `RCP`.
+- `/purchase/receipt-vouchers`: current page now supports manual create/edit with Supplier pre-fill, optional PB item pre-fill, and print preview using Company Profile + legacy RV template blocks. PMT no longer auto-generates RV. Remaining target gaps are cancel/status/timeline, cancelled watermark, and strict separation from customer receipt `RCP`.
 - `/daily/weight-ticket-list`: WTI/WTO target hold and all-or-nothing downstream billing rules must be reconciled with actual PB/SB usage behavior before changing stock/billing logic.
 - `/stock/balance`: target hold-aware `on_hand / hold / available` model still depends on a durable hold/reservation source.
 - `/purchase/bills`: current code uses delete/recreate for PB stock ledger/allocation rebuild in some paths; target append/reversal policy should be reviewed before production hardening.
@@ -92,10 +92,10 @@ These gaps are not blockers for baseline acceptance, but they are blockers befor
 
 Start P0 runtime hardening in this order:
 
-1. `/sales/bills` stock-out + WTO usage/lock reconciliation
+1. `/sales/bills` UI enablement + browser QA for cancel/reversal and receipt-lock behavior
 2. `/sales/stock-issue` PSALE write/convert/reversal contract
-3. `/stock/balance` hold-aware availability source
-4. `/purchase/bills` append/reversal hardening review
+3. `/purchase/bills` append/reversal hardening review
+4. Production `PI/PO2` ledger write/reversal contract
 5. `/daily/payment-approval` + `/purchase/payments` cancellation/payment-cycle lock review
 
 ## Related Page Flow Files

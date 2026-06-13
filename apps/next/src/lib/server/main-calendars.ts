@@ -169,7 +169,7 @@ export async function buildBusinessCalendar(monthValue?: string | null) {
   const [purchaseBills, salesBills, expenses, receipts, payments] = await Promise.all([
     prisma.purchase_bills.findMany({
       orderBy: [{ date: 'asc' }, { doc_no: 'asc' }],
-      include: { purchase_bill_items: { orderBy: { line_no: 'asc' } } },
+      include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } } },
       where: { date: { gte: start, lt: next } },
     }),
     prisma.sales_bills.findMany({
