@@ -874,7 +874,7 @@ export function WeightTicketsPageClient({
                 บันทึก {savedTicket.documentNo} แล้ว
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-sm justify-items-center sm:flex sm:flex-wrap sm:items-center sm:gap-x-5">
+              <div className="grid grid-cols-2 gap-x-10 gap-y-4 text-sm justify-items-center sm:flex sm:flex-wrap sm:items-center sm:gap-x-8">
                 <MetricInline label="รายการ" value={`${form.lines.length} รายการ`} />
                 <MetricInline label="น้ำหนักรวม" value={`${formatWeight(totals.grossWeight)} กก.`} />
                 <MetricInline label="หัก" value={`${formatWeight(totals.deductionWeight)} กก.`} />
@@ -887,7 +887,7 @@ export function WeightTicketsPageClient({
               {!onClose && <ArrowLeft className="mr-1 h-4 w-4" />}
               {onClose ? 'ปิด' : 'กลับไปหน้ารายการ'}
             </Button>
-            <Button className="bg-blue-600 font-normal hover:bg-blue-700 text-white" disabled={isLoadingTicket || isSaving} type="button" onClick={saveTicket}>
+            <Button className="bg-slate-900 font-normal hover:bg-slate-800 text-white" disabled={isLoadingTicket || isSaving} type="button" onClick={saveTicket}>
               {isSaving ? 'กำลังบันทึก...' : 'บันทึก'}
             </Button>
           </div>
