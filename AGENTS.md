@@ -32,6 +32,44 @@ This project is an existing NS Scrap ERP system that must be rehabilitated and r
 - Do not change application code outside the intended business flow just to tolerate bad, legacy, or malformed data. If data violates the target contract, fix the data, migration, seed, or source-of-truth process instead of adding compatibility branches, fallback logic, skip-row handling, or silent coercion in runtime code.
 - After a batch is validated, committed, and pushed, immediately start the next batch from `docs/migration/00-current-work.md` and the relevant tracker unless the user pauses, redirects, or the next step requires explicit approval for high-risk work.
 
+## Team Git Workflow
+
+Use `new-origin` branches with this promotion path:
+
+```text
+codex/* or feature/*
+  -> dev
+  -> staging
+  -> main
+```
+
+- `main` is production-ready only. Do not work directly on `main`, and do not push directly to `main` unless the user explicitly asks for a coordinated release or hotfix.
+- `staging` is for UAT/pre-production verification. Merge or promote from `dev` only after the integrated batch is ready for broader QA.
+- `dev` is the shared integration branch. Start normal feature, bugfix, migration, and refactor work from `dev`.
+- `codex/*` or `feature/*` branches are for scoped work. Keep each branch focused on one feature, bugfix, migration batch, or behavior change.
+- After completing and validating a feature branch, merge or PR it into `dev` first, then promote `dev` to `staging`, then promote `staging` to `main`.
+- Agents should finish work on `dev` or a scoped feature branch, not on `main`.
+- Before creating a branch, pushing, merging, or opening a PR, verify the current branch, worktree, and destination remote:
+
+```bash
+git remote -v
+git branch --show-current
+git status --short --branch
+```
+
+- Start normal work with:
+
+```bash
+git fetch new-origin
+git switch dev
+git pull --ff-only new-origin dev
+git switch -c codex/<task-name>
+```
+
+- Do not push, force-push, tag, delete branches, or open PRs against `origin`.
+- Do not mix unrelated changes into the same branch. Leave generated local files, dev-server artifacts, and unrelated user changes out of commits.
+- Merge into `dev` after local validation. Promote to `staging` after integration validation and browser QA where relevant. Promote to `main` only after staging/UAT is accepted.
+
 ## Required Reading
 
 Before substantial work, read:
@@ -75,6 +113,7 @@ Do not treat this as a greenfield rewrite unless explicitly instructed.
 - Git remotes:
   - `new-origin` = active target repo `https://github.com/terner/new-ns-scrap-erp.git`
   - `origin` = old/legacy repo `https://github.com/sirimasth/ns-scrap-erp.git`
+- Active branches on `new-origin`: `main`, `staging`, `dev`
 - Dev/target Supabase: `fhglqymcdmrgbsbadnwr`
 - Legacy production/source Supabase: `mqsgptraslgpyzbpndlg` read-only
 - Staging/UAT: not created yet

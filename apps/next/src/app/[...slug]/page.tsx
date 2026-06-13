@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { notFound } from 'next/navigation'
 import { navigationItems } from '@/lib/navigation'
 
 type PlaceholderPageProps = {
@@ -7,9 +8,12 @@ type PlaceholderPageProps = {
   }>
 }
 
+const retiredRoutes = new Set(['/production/wip-report'])
+
 export default async function PlaceholderPage({ params }: PlaceholderPageProps) {
   const { slug } = await params
   const pathname = `/${slug.join('/')}`
+  if (retiredRoutes.has(pathname)) notFound()
   const item = navigationItems.find((entry) => entry.href === pathname)
   const title = item?.label ?? 'ยังไม่ได้ย้ายหน้า'
 
