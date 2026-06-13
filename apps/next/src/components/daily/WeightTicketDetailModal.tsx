@@ -216,7 +216,7 @@ export function WeightTicketDetailModal({
             <div className="space-y-4">
               <Card className="p-5">
                 <SectionTitle subtitle="ข้อมูลเอกสารและผู้ใช้งาน" title="ข้อมูลเอกสาร" />
-                <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 md:grid-cols-4">
                   <DetailItem
                     label={ticket.type === 'WTI' ? 'ใบรับของ' : 'ใบส่งของ'}
                     value={ticket.documentNo}
@@ -276,7 +276,7 @@ export function WeightTicketDetailModal({
               <Card className="p-5">
                 <SectionTitle subtitle="ข้อมูลคู่ค้าและรถที่ใช้ส่งสินค้า" title={ticket.type === 'WTI' ? 'ข้อมูลผู้ขาย' : 'ข้อมูลลูกค้า'} />
                 <div className="mt-4 grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start">
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid grid-cols-2 gap-4">
                     <DetailItem label={ticket.type === 'WTI' ? 'ผู้ขาย' : 'ลูกค้า'} value={ticket.partyName} />
                     <DetailItem label="ทะเบียนรถ" value={ticket.vehicleNo} />
                   </div>
