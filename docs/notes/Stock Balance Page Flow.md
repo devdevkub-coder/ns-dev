@@ -158,11 +158,11 @@ Export `.xlsx` ต้องใช้ filter เดียวกับหน้า
 
 ## Current Implementation / Gap
 
-- มี read baseline จาก `stock_ledger` แล้ว
-- ต้องเพิ่ม hold aggregation (`จองไว้`) และ `พร้อมใช้`
-- ต้องเพิ่ม hold drilldown จาก `WTO`
-- ต้องยืนยัน export ว่ามี hold-aware columns
-- ต้องยืนยัน row detail แสดง `วันที่สร้างรายการ` ของ source movement/hold
+- มี read baseline จาก `stock_ledger` แล้ว และ active hold overlay ใช้ bucket เต็ม `product + branch + warehouse + status/output_category + lot + not_available_for_sale`
+- `/stock/balance` แสดง `จองไว้` และ `พร้อมใช้` แบบ hold-aware แล้ว โดย hold ไม่ถูกแสดงเป็น ledger row
+- row detail เรียก `GET /api/stock/balance?detail=1` เพื่อแสดง movement ล่าสุดและ active `WTO` hold ของ bucket นั้น พร้อม link ไป `/stock/ledger` ด้วย filter เดียวกัน
+- export มี hold-aware columns แล้ว
+- follow-up ที่เหลือ: browser QA แบบ logged-in สำหรับ drilldown/source link กับข้อมูลจริงหลาย bucket
 
 ## Related Notes
 

@@ -472,7 +472,7 @@ export function ReceiptVouchersPageClient() {
       <section className="space-y-4 print:hidden">
         {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
           <KpiCard label="จำนวนเอกสาร" tone="slate" value={totalRows.toLocaleString('th-TH')} />
           <KpiCard label="น้ำหนัก active (กก.)" tone="blue" value={formatMoney(totals.qty)} />
           <KpiCard label="ยอด active" tone="emerald" value={formatMoney(totals.amount)} />

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { randomUUID } from 'node:crypto'
+import { z } from 'zod'
 import type { Prisma } from '../../../../../generated/prisma/client'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
@@ -27,6 +28,12 @@ async function nextDocNo() {
   const lastNumber = Number(String(last?.ref_no ?? '').slice(prefix.length))
   return `${prefix}${String(Number.isFinite(lastNumber) ? lastNumber + 1 : 1).padStart(6, '0')}`
 }
+
+const statusConvertReverseSchema = z.object({
+  action: z.literal('reverse'),
+  note: z.string().trim().min(3, 'กรอกเหตุผล reverse อย่างน้อย 3 ตัวอักษร').max(240, 'เหตุผลยาวเกินไป').optional(),
+  refNo: z.string().trim().min(1, 'ระบุเลขที่เอกสาร'),
+})
 
 export async function GET(request: NextRequest) {
   try {
@@ -73,7 +80,7 @@ export async function GET(request: NextRequest) {
           }
         : {}),
     }
-    const [reference, rows, total] = await Promise.all([
+    const [reference, rows, total, reversedRefs] = await Promise.all([
       stockReferenceData({ includeCustomers: false }),
       prisma.stock_ledger.findMany({
         include: stockLedgerInclude,
@@ -83,7 +90,13 @@ export async function GET(request: NextRequest) {
         where: ledgerWhere,
       }),
       prisma.stock_ledger.count({ where: ledgerWhere }),
+      prisma.stock_ledger.findMany({
+        distinct: ['ref_id'],
+        select: { ref_id: true },
+        where: { ref_id: { not: null }, ref_type: 'SC-REV' },
+      }),
     ])
+    const reversedRefSet = new Set(reversedRefs.map((row) => row.ref_id).filter(Boolean))
 
     return NextResponse.json({
       pagination: { page, pageSize, total },
@@ -99,6 +112,7 @@ export async function GET(request: NextRequest) {
         productName: row.products?.name ?? '-',
         qty: toNumber(row.qty_out),
         refNo: row.ref_no ?? '',
+        status: reversedRefSet.has(row.ref_no ?? '') ? 'reversed' : 'posted',
         statusFrom: row.output_category ?? '',
         statusTo: row.note ?? '',
         unitCost: toNumber(row.unit_cost),
@@ -110,6 +124,100 @@ export async function GET(request: NextRequest) {
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลดรายการปรับสถานะไม่ได้', 500)
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const context = await getCurrentAuthContext()
+    requirePermission(context, 'stock.ledger.view')
+    const values = statusConvertReverseSchema.parse(await request.json())
+    const actor = currentActor(context)
+
+    const originalRows = await prisma.stock_ledger.findMany({
+      orderBy: [{ qty_out: 'desc' }, { id: 'asc' }],
+      where: { ref_no: values.refNo, ref_type: 'SC' },
+    })
+    if (!originalRows.length) {
+      return NextResponse.json({ error: 'ไม่พบเอกสารปรับสถานะต้นทาง' }, { status: 404 })
+    }
+    const alreadyReversed = await prisma.stock_ledger.findFirst({
+      select: { id: true },
+      where: { ref_id: values.refNo, ref_type: 'SC-REV' },
+    })
+    if (alreadyReversed) {
+      return NextResponse.json({ error: 'เอกสารนี้ถูก reverse แล้ว' }, { status: 400 })
+    }
+    const sourceOut = originalRows.find((row) => toNumber(row.qty_out) > 0)
+    const targetIn = originalRows.find((row) => toNumber(row.qty_in) > 0)
+    if (!sourceOut || !targetIn || !sourceOut.product_id || !sourceOut.branch_id || !sourceOut.warehouse_id || !targetIn.product_id || !targetIn.branch_id || !targetIn.warehouse_id) {
+      return NextResponse.json({ error: 'เอกสาร SC ไม่ครบคู่ ไม่สามารถ reverse ได้' }, { status: 400 })
+    }
+    const qty = toNumber(sourceOut.qty_out)
+    const targetAvailableQty = await quantityForStock({
+      branchId: targetIn.branch_id,
+      lotNo: targetIn.lot_no,
+      productId: targetIn.product_id as bigint,
+      quantityType: 'ready',
+      status: targetIn.output_category,
+      warehouseId: targetIn.warehouse_id,
+    })
+    if (qty > targetAvailableQty + 0.000001) {
+      return NextResponse.json({ error: `Reverse ไม่ได้: stock ฝั่ง ${targetIn.output_category ?? '-'} ถูกใช้ต่อแล้ว เหลือพร้อมใช้ ${targetAvailableQty.toLocaleString('th-TH')}` }, { status: 400 })
+    }
+
+    const reverseRefNo = `${values.refNo}-REV`
+    await prisma.stock_ledger.createMany({
+      data: [
+        {
+          branch_id: targetIn.branch_id,
+          created_by: actor,
+          date: new Date(),
+          lot_no: targetIn.lot_no,
+          movement_type: 'STATUS_CONVERT_REVERSAL_OUT',
+          note: sourceOut.output_category,
+          notes: values.note ?? `Reverse ${values.refNo}`,
+          not_available_for_sale: targetIn.not_available_for_sale,
+          output_category: targetIn.output_category,
+          product_id: targetIn.product_id,
+          qty_in: 0,
+          qty_out: qty,
+          ref_id: values.refNo,
+          ref_no: reverseRefNo,
+          ref_type: 'SC-REV',
+          unit_cost: targetIn.unit_cost,
+          value_in: 0,
+          value_out: toNumber(targetIn.value_in),
+          warehouse_id: targetIn.warehouse_id,
+        },
+        {
+          branch_id: sourceOut.branch_id,
+          created_by: actor,
+          date: new Date(),
+          lot_no: sourceOut.lot_no,
+          movement_type: 'STATUS_CONVERT_REVERSAL_IN',
+          note: targetIn.output_category,
+          notes: values.note ?? `Reverse ${values.refNo}`,
+          not_available_for_sale: sourceOut.not_available_for_sale,
+          output_category: sourceOut.output_category,
+          product_id: sourceOut.product_id,
+          qty_in: qty,
+          qty_out: 0,
+          ref_id: values.refNo,
+          ref_no: reverseRefNo,
+          ref_type: 'SC-REV',
+          unit_cost: sourceOut.unit_cost,
+          value_in: toNumber(sourceOut.value_out),
+          value_out: 0,
+          warehouse_id: sourceOut.warehouse_id,
+        },
+      ],
+    })
+
+    return NextResponse.json({ id: reverseRefNo, refNo: reverseRefNo })
+  } catch (caught) {
+    if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
+    return apiErrorResponse(caught, 'Reverse ปรับสถานะไม่ได้', 400)
   }
 }
 

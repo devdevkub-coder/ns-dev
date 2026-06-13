@@ -656,7 +656,7 @@ export function AdvancePaymentsPageClient() {
         </>
       ) : (
         <>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
             <KpiCard label="ยอดมัดจำในหน้านี้" tone="slate" value={formatMoney(data?.summary.totalAdvance ?? 0)} />
             <KpiCard label="ยังไม่อนุมัติ" tone="pending" value={`${data?.summary.pendingCount ?? 0}`} />
             <KpiCard label="ใช้หักบิลแล้ว" tone="allocated" value={formatMoney(data?.summary.totalAllocated ?? 0)} />

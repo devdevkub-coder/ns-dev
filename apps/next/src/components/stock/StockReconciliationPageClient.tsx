@@ -24,6 +24,8 @@ type ReconciliationGroupKey =
   | 'negativeStockBalance'
   | 'orphanLedger'
   | 'pendingSaleIntegrity'
+  | 'statusConvertIntegrity'
+  | 'stockAdjustmentIntegrity'
 
 type ReconciliationPayload = {
   generatedAt: string
@@ -56,6 +58,14 @@ const groupLabels: Record<ReconciliationGroupKey, { label: string; note: string 
     label: 'ตรวจ PSALE',
     note: 'เบิกออกรอบิลต้องมี reversal/hold/converted state ถูกต้อง',
   },
+  statusConvertIntegrity: {
+    label: 'ตรวจ SC',
+    note: 'Status Convert และ reversal ต้องเป็น paired ledger และ net เป็นศูนย์',
+  },
+  stockAdjustmentIntegrity: {
+    label: 'ตรวจ ADJ',
+    note: 'Stock Adjust ต้องมี header/ledger ตรงกัน และ value ใน ledger เป็นศูนย์ตาม note-only policy',
+  },
 }
 
 const groupOrder: ReconciliationGroupKey[] = [
@@ -64,6 +74,8 @@ const groupOrder: ReconciliationGroupKey[] = [
   'cancelledDocumentNet',
   'cancelledSalesHolds',
   'pendingSaleIntegrity',
+  'statusConvertIntegrity',
+  'stockAdjustmentIntegrity',
   'negativeStockBalance',
 ]
 
@@ -120,7 +132,7 @@ export function StockReconciliationPageClient() {
   return (
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 lg:grid-cols-7 text-sm">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 lg:grid-cols-7 text-sm">
         <Metric
           emoji={totalIssues > 0 ? '⚠️' : '✅'}
           iconBg={totalIssues > 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}

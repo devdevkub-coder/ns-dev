@@ -104,7 +104,7 @@
 ### KPI / Summary Cards Above Table
 
 - **AcexPOS Style (Card-based with Icons)**:
-  - **Outer wrapper (กรอบภายนอก)**: พื้นหลังสีเทาอ่อน `rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-5 text-sm`
+  - **Outer wrapper (กรอบภายนอก)**: [ยกเลิกการใช้งาน / นำออก] ในดีไซน์ล่าสุดให้นำกรอบพื้นหลังสีเทาอ่อน, เส้นขอบ, และเงาด้านหลังออกทั้งหมดเพื่อลดการทับซ้อนของขอบ โดยใช้เพียง Grid Layout เปล่าๆ ในการจัดวางการ์ดโดยตรง เช่น `grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-5 text-sm`
   - **Inner item card (การ์ดสถิติย่อยสีขาว)**: พื้นหลังสีขาวลอยตัว `bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4`
   - **Circular Icon (วงกลมสัญลักษณ์ฝั่งซ้าย)**: `w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[color] flex items-center justify-center text-xl shrink-0` ใช้สัญลักษณ์ Emoji ด้านในเพื่อความพรีเมียม
   - **Typography (ขนาดฟอนต์ของข้อความ)**:

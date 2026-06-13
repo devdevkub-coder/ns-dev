@@ -76,6 +76,7 @@ type StockLedgerRow = {
   refNo: string
   refType: string
   runningBalanceByProduct: number
+  sourcePath: string
   unitCost: number
   valueIn: number
   valueOut: number
@@ -113,6 +114,7 @@ export function StockLedgerPageClient() {
       if (fromDate) params.set('from', fromDate)
       if (movementType) params.set('movementType', movementType)
       if (productId) params.set('productId', productId)
+      if (search.trim()) params.set('q', search.trim())
       if (toDate) params.set('to', toDate)
       const payload = await dailyFetchJson<StockLedgerPayload>(`/api/stock/ledger?${params.toString()}`)
       if (latestLoadRequestRef.current !== requestId) return
@@ -124,7 +126,7 @@ export function StockLedgerPageClient() {
       if (latestLoadRequestRef.current !== requestId) return
       setIsLoading(false)
     }
-  }, [balanceMode, branchId, fromDate, movementType, page, pageSize, productId, sortDirection, sortKey, toDate])
+  }, [balanceMode, branchId, fromDate, movementType, page, pageSize, productId, search, sortDirection, sortKey, toDate])
 
   useEffect(() => {
     void loadData()
@@ -140,11 +142,9 @@ export function StockLedgerPageClient() {
   }, [balanceMode])
 
   const rows = useMemo(() => {
-    const query = search.trim().toLowerCase()
     return (data?.rows ?? [])
-      .filter((row) => !query || `${row.refNo} ${row.productCode} ${row.productName} ${row.counterpartyName} ${row.branchName} ${row.warehouseName}`.toLowerCase().includes(query))
       .sort((left, right) => compareStockLedgerRows(left, right, sortKey, sortDirection))
-  }, [data?.rows, search, sortDirection, sortKey])
+  }, [data?.rows, sortDirection, sortKey])
 
   const productOptions = useMemo<SearchComboboxOption[]>(() => (data?.reference.products ?? [])
     .filter((item) => item.active !== false)
@@ -171,6 +171,7 @@ export function StockLedgerPageClient() {
     if (fromDate) params.set('from', fromDate)
     if (movementType) params.set('movementType', movementType)
     if (productId) params.set('productId', productId)
+    if (search.trim()) params.set('q', search.trim())
     if (toDate) params.set('to', toDate)
     window.location.href = `/api/stock/ledger?${params.toString()}`
   }
@@ -192,7 +193,7 @@ export function StockLedgerPageClient() {
               placeholder="ค้นหาเลขเอกสาร / ผู้ขาย/ผู้ซื้อ / สาขา / คลัง..." 
               type="search" 
               value={search} 
-              onChange={(event) => setSearch(event.target.value)} 
+              onChange={(event) => { setPage(1); setSearch(event.target.value); }}
             />
           </div>
 
@@ -273,7 +274,7 @@ export function StockLedgerPageClient() {
               placeholder="ค้นหา..." 
               type="search" 
               value={search} 
-              onChange={(event) => setSearch(event.target.value)} 
+              onChange={(event) => { setPage(1); setSearch(event.target.value); }}
             />
           </div>
           <button className="h-9 rounded-md bg-slate-100 px-2.5 text-xs text-slate-700" type="button" onClick={() => void loadData()}>
@@ -646,6 +647,15 @@ function StockLedgerDetailModal({ onClose, row }: { onClose: () => void; row: St
                 <DetailRow label="Ref Type" value={row.refType || '-'} />
                 <DetailRow label="Ref No" value={row.refId || '-'} mono />
                 <DetailRow className="col-span-2" label="Movement" value={stockMovementTypeLabel(row.movementType)} />
+                <div className="col-span-2">
+                  {row.sourcePath ? (
+                    <a className="inline-flex rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800" href={row.sourcePath}>
+                      เปิดเอกสารต้นทาง
+                    </a>
+                  ) : (
+                    <DetailRow label="เอกสารต้นทาง" value="ยังไม่มี route สำหรับ ref type นี้" />
+                  )}
+                </div>
               </div>
             </DetailPanel>
 
@@ -724,4 +734,3 @@ function DetailRow({ className = '', label, mono = false, tone = 'normal', value
     </div>
   )
 }
-

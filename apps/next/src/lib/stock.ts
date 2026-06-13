@@ -110,6 +110,7 @@ export const stockAdjustFormSchema = z.object({
   productId: z.string().trim().min(1, 'เลือกสินค้า'),
   reason: z.string().trim().min(3, 'กรอกเหตุผลอย่างน้อย 3 ตัวอักษร').max(240, 'เหตุผลยาวเกินไป').regex(generalTextPattern, 'เหตุผลมีรูปแบบไม่ถูกต้อง'),
   remark: optionalGeneralText('หมายเหตุ', 500),
+  status: stockStatusSchema,
   systemQty: nonNegativeQty('ยอดในระบบ'),
   warehouseId: z.string().trim().min(1, 'เลือกคลัง'),
 })

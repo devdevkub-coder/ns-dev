@@ -279,7 +279,7 @@ export function TransactionLedgerPageClient() {
           {!isLoading && accountBalances.length === 0 ? <div className="rounded-md border border-dashed p-5 text-sm text-slate-500">ยังไม่มีบัญชีเงินในระบบ</div> : null}
         </div>
         {/* AcexPOS Style Grand Totals KPI Cards */}
-        <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-3 sm:p-4 shadow-inner grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 text-sm">
+        <div className="mt-4 grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 text-sm">
           {/* 1. ยอดคงเหลือรวม */}
           <div className="bg-white p-3 sm:p-4 border border-slate-200 rounded-xl shadow-sm flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xl shrink-0">

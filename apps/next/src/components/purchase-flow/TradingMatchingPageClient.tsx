@@ -161,7 +161,7 @@ export function TradingMatchingPageClient() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
         <Metric label="Deals ทั้งหมด" tone="slate" value={`${totalDeals}`} />
         <Metric label="Completed" tone="emerald" value={`${completedDeals.length}`} />
         <Metric label="Partially Matched" tone="amber" value={`${partialDeals.length}`} />

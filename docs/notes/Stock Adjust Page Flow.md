@@ -138,19 +138,23 @@ Target ที่ควรใช้:
 - `warehouseId`
 - `productId`
 - `lotNo`
+- `status` / `outputCategory`
 - `systemQty`
 - `countedQty`
 - `reason`
 - `remark`
 
 Server ต้องคำนวณ/ยืนยัน `systemQty` จาก source of truth อีกครั้ง ไม่เชื่อ payload ฝั่ง client เพียงอย่างเดียว
+Server ต้อง snapshot `onHoldQty`, `readyQty`, และ `accountingImpactPolicy = NOTE_ONLY` ตอน post
 
 ## Current Implementation / Gap
 
 - มี write baseline ที่สร้าง `stock_adjustments` และ `ADJ` ledger row แล้ว
-- current policy เป็น note-only value impact
-- ต้องเพิ่ม display/validation สำหรับ active hold ก่อนปรับ
-- ต้องเพิ่ม reconciliation query และ reverse policy
+- current policy เป็น note-only value impact: `stock_ledger.value_in/value_out = 0`, ส่วน `value_note` อยู่ที่ header เพื่อ analysis เท่านั้น
+- Runtime ปัจจุบันบันทึก `output_category`, `on_hold_qty`, `ready_qty_snapshot`, และ `accounting_impact_policy`
+- Runtime ปัจจุบัน block direct posted adjustment เมื่อ `countedQty < active hold` เพื่อไม่ให้ available stock ติดลบ; เคสนี้ต้องปลด hold หรือใช้ reconciliation/approval policy แยกก่อน
+- Stock reconciliation ตรวจ header/ledger mismatch และ ADJ ledger value ที่ไม่เป็นศูนย์แล้ว
+- Reverse policy ปัจจุบันยังไม่เปิดปุ่มแก้ ledger เดิม; หากผิดให้ทำ adjustment กลับพร้อมเหตุผลจนกว่าจะมี approval/reversal document แยก
 - ต้องยืนยัน list/detail/export แสดง `วันที่สร้างรายการ`
 
 ## Related Notes

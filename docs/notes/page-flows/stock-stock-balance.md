@@ -89,8 +89,9 @@ derived balance จาก stock_ledger + stock hold/reservation
 
 ## Current Gap
 
-- hold-aware drilldown ยังเป็น target gap: หน้า balance เห็นยอด On Hold แล้ว แต่ยังต้อง drilldown ว่า hold มาจาก WTO ใบไหน
+- hold-aware drilldown ทำแล้ว: detail modal แสดง active WTO hold และ movement ล่าสุดของ bucket ที่เลือก
 - export รองรับ filter `On Hold` ผ่าน `onHold=1`
+- remaining: logged-in browser QA กับข้อมูลจริงหลาย bucket/source link
 
 ## Implementation Checklist
 

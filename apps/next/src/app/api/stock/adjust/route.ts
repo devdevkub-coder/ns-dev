@@ -51,8 +51,12 @@ export async function GET() {
           docNo: row.doc_no ?? '',
           id: row.doc_no ?? '',
           lotNo: row.lot_no ?? '',
+          onHoldQty: toNumber(row.on_hold_qty),
+          outputCategory: row.output_category ?? '',
+          policy: row.accounting_impact_policy ?? 'NOTE_ONLY',
           productCode: product?.code ?? '',
           productName: product?.name ?? '-',
+          readyQty: toNumber(row.ready_qty_snapshot),
           reason: row.reason ?? '',
           status: row.status ?? '',
           systemQty: toNumber(row.system_qty),
@@ -82,13 +86,20 @@ export async function POST(request: Request) {
     if (!references.productId) {
       return NextResponse.json({ error: 'สินค้าไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     }
-    const systemQty = await quantityForStock({ branchId: references.branchId, lotNo: values.lotNo, productId: references.productId, warehouseId: references.warehouseId })
+    const [systemQty, readyQty] = await Promise.all([
+      quantityForStock({ branchId: references.branchId, lotNo: values.lotNo, productId: references.productId, status: values.status, warehouseId: references.warehouseId }),
+      quantityForStock({ branchId: references.branchId, lotNo: values.lotNo, productId: references.productId, quantityType: 'ready', status: values.status, warehouseId: references.warehouseId }),
+    ])
+    const onHoldQty = Math.max(0, systemQty - readyQty)
+    if (values.countedQty < onHoldQty - 0.000001) {
+      return NextResponse.json({ error: `บันทึกไม่ได้: นับจริงต่ำกว่า stock ที่ถูกจองไว้ (${onHoldQty.toLocaleString('th-TH')}) ต้องปลด/ยกเลิก hold หรือทำ reconciliation approval ก่อน` }, { status: 400 })
+    }
     const diffQty = values.countedQty - systemQty
     if (Math.abs(diffQty) < 0.000001) {
       return NextResponse.json({ error: 'นับจริงเท่ากับยอดในระบบ ไม่ต้องสร้างรายการปรับ' }, { status: 400 })
     }
 
-    const unitCost = await averageCostForStock({ branchId: references.branchId, lotNo: values.lotNo, productId: references.productId, warehouseId: references.warehouseId })
+    const unitCost = await averageCostForStock({ branchId: references.branchId, lotNo: values.lotNo, productId: references.productId, status: values.status, warehouseId: references.warehouseId })
     const docNo = values.docNo ?? await nextDocNo()
     const actor = currentActor(context)
     const adjustType = diffQty < 0 ? 'LOSS' : 'GAIN'
@@ -104,7 +115,11 @@ export async function POST(request: Request) {
           diff_qty: diffQty,
           doc_no: docNo,
           lot_no: values.lotNo,
+          accounting_impact_policy: 'NOTE_ONLY',
+          on_hold_qty: onHoldQty,
+          output_category: values.status,
           product_id: references.productId,
+          ready_qty_snapshot: readyQty,
           reason: values.reason,
           remark: values.remark,
           status: 'posted',
@@ -123,6 +138,7 @@ export async function POST(request: Request) {
           lot_no: values.lotNo,
           movement_type: diffQty < 0 ? 'STOCK_COUNT_LOSS' : 'STOCK_COUNT_GAIN',
           notes: values.reason,
+          output_category: values.status,
           product_id: references.productId,
           qty_in: diffQty > 0 ? diffQty : 0,
           qty_out: diffQty < 0 ? Math.abs(diffQty) : 0,

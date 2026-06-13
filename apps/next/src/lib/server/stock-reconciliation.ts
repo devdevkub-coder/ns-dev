@@ -51,6 +51,8 @@ export async function buildStockReconciliationReport() {
     cancelledSalesHoldRows,
     negativeBalanceRows,
     pendingSaleIntegrityRows,
+    statusConvertIntegrityRows,
+    stockAdjustmentIntegrityRows,
   ] = await Promise.all([
     prisma.$queryRaw<RawIssueRow[]>`
       select *
@@ -110,6 +112,18 @@ export async function buildStockReconciliationReport() {
           and not exists (
             select 1 from public.production_outputs po2
             where po2.doc_no in (sl.ref_no, sl.ref_id) or po2.reversal_doc_no in (sl.ref_no, sl.ref_id)
+          )
+        group by sl.ref_type, coalesce(sl.ref_no, sl.ref_id)
+
+        union all
+
+        select 'orphan_ledger_row'::text as issue, sl.ref_type, coalesce(sl.ref_no, sl.ref_id) as ref_no
+        from public.stock_ledger sl
+        where sl.ref_type = 'ADJ'
+          and coalesce(sl.ref_no, sl.ref_id) is not null
+          and not exists (
+            select 1 from public.stock_adjustments sa
+            where sa.doc_no in (sl.ref_no, sl.ref_id)
           )
         group by sl.ref_type, coalesce(sl.ref_no, sl.ref_id)
       ) issues
@@ -246,31 +260,42 @@ export async function buildStockReconciliationReport() {
           sl.branch_id,
           sl.warehouse_id,
           sl.product_id,
+          sl.output_category,
+          sl.lot_no,
+          coalesce(sl.not_available_for_sale, false) as not_available_for_sale,
           sum(coalesce(sl.qty_in, 0) - coalesce(sl.qty_out, 0)) as ledger_qty
         from public.stock_ledger sl
-        group by sl.branch_id, sl.warehouse_id, sl.product_id
+        group by sl.branch_id, sl.warehouse_id, sl.product_id, sl.output_category, sl.lot_no, coalesce(sl.not_available_for_sale, false)
       ),
       active_holds as (
         select
           sh.branch_id,
           sh.warehouse_id,
           sh.product_id,
+          sh.output_category,
+          sh.lot_no,
+          coalesce(sh.not_available_for_sale, false) as not_available_for_sale,
           sum(sh.qty) as hold_qty
         from public.stock_holds sh
         where sh.status = 'active'
-        group by sh.branch_id, sh.warehouse_id, sh.product_id
+        group by sh.branch_id, sh.warehouse_id, sh.product_id, sh.output_category, sh.lot_no, coalesce(sh.not_available_for_sale, false)
       ),
       combined as (
         select
           coalesce(lb.branch_id, ah.branch_id) as branch_id,
           coalesce(lb.warehouse_id, ah.warehouse_id) as warehouse_id,
           coalesce(lb.product_id, ah.product_id) as product_id,
-          coalesce(lb.ledger_qty, 0) + coalesce(ah.hold_qty, 0) as net_qty
+          coalesce(lb.output_category, ah.output_category) as output_category,
+          coalesce(lb.ledger_qty, 0) - coalesce(ah.hold_qty, 0) as net_qty,
+          coalesce(lb.ledger_qty, 0) as expected
         from ledger_balance lb
         full outer join active_holds ah
           on ah.branch_id = lb.branch_id
          and ah.warehouse_id = lb.warehouse_id
          and ah.product_id = lb.product_id
+         and coalesce(ah.output_category, '') = coalesce(lb.output_category, '')
+         and coalesce(ah.lot_no, '') = coalesce(lb.lot_no, '')
+         and ah.not_available_for_sale = lb.not_available_for_sale
       )
       select
         'negative_stock_balance'::text as issue,
@@ -281,6 +306,7 @@ export async function buildStockReconciliationReport() {
       left join public.products p on p.id = combined.product_id
       left join public.warehouses w on w.id = combined.warehouse_id
       where combined.net_qty < -0.000001
+        and coalesce(combined.output_category, '') <> 'LOSS'
       order by combined.net_qty asc
       limit 500
     `,
@@ -368,6 +394,82 @@ export async function buildStockReconciliationReport() {
       order by issue, doc_no
       limit 500
     `,
+    prisma.$queryRaw<RawIssueRow[]>`
+      with sc_docs as (
+        select
+          sl.ref_no,
+          count(*) filter (where coalesce(sl.qty_out, 0) > 0) as out_rows,
+          count(*) filter (where coalesce(sl.qty_in, 0) > 0) as in_rows,
+          sum(coalesce(sl.qty_in, 0) - coalesce(sl.qty_out, 0)) as net_qty
+        from public.stock_ledger sl
+        where sl.ref_type = 'SC'
+        group by sl.ref_no
+      ),
+      sc_rev_docs as (
+        select
+          sl.ref_id as ref_no,
+          count(*) filter (where coalesce(sl.qty_out, 0) > 0) as out_rows,
+          count(*) filter (where coalesce(sl.qty_in, 0) > 0) as in_rows,
+          sum(coalesce(sl.qty_in, 0) - coalesce(sl.qty_out, 0)) as net_qty
+        from public.stock_ledger sl
+        where sl.ref_type = 'SC-REV'
+        group by sl.ref_id
+      )
+      select 'status_convert_pair_invalid'::text as issue, 'SC'::text as ref_type, ref_no, net_qty, 2::numeric as expected
+      from sc_docs
+      where coalesce(ref_no, '') = '' or out_rows <> 1 or in_rows <> 1 or abs(coalesce(net_qty, 0)) > 0.000001
+
+      union all
+
+      select 'status_convert_reverse_pair_invalid'::text as issue, 'SC-REV'::text as ref_type, ref_no, net_qty, 2::numeric as expected
+      from sc_rev_docs
+      where coalesce(ref_no, '') = '' or out_rows <> 1 or in_rows <> 1 or abs(coalesce(net_qty, 0)) > 0.000001
+
+      union all
+
+      select 'status_convert_reverse_missing_source'::text as issue, 'SC-REV'::text as ref_type, rev.ref_no, rev.net_qty, null::numeric as expected
+      from sc_rev_docs rev
+      where not exists (
+        select 1 from public.stock_ledger sl
+        where sl.ref_type = 'SC'
+          and sl.ref_no = rev.ref_no
+      )
+      order by ref_type, ref_no
+      limit 500
+    `,
+    prisma.$queryRaw<RawIssueRow[]>`
+      with adj_ledger as (
+        select
+          coalesce(sl.ref_no, sl.ref_id) as doc_no,
+          sum(coalesce(sl.qty_in, 0) - coalesce(sl.qty_out, 0)) as net_qty,
+          sum(abs(coalesce(sl.value_in, 0)) + abs(coalesce(sl.value_out, 0))) as ledger_value
+        from public.stock_ledger sl
+        where sl.ref_type = 'ADJ'
+        group by coalesce(sl.ref_no, sl.ref_id)
+      )
+      select 'stock_adjustment_missing_ledger'::text as issue, 'ADJ'::text as ref_type, sa.doc_no, sa.status, coalesce(sa.diff_qty, 0) as expected, coalesce(adj_ledger.net_qty, 0) as net_qty
+      from public.stock_adjustments sa
+      left join adj_ledger on adj_ledger.doc_no = sa.doc_no
+      where coalesce(sa.status, '') = 'posted'
+        and adj_ledger.doc_no is null
+
+      union all
+
+      select 'stock_adjustment_diff_mismatch'::text as issue, 'ADJ'::text as ref_type, sa.doc_no, sa.status, coalesce(sa.diff_qty, 0) as expected, coalesce(adj_ledger.net_qty, 0) as net_qty
+      from public.stock_adjustments sa
+      join adj_ledger on adj_ledger.doc_no = sa.doc_no
+      where coalesce(sa.status, '') = 'posted'
+        and abs(coalesce(sa.diff_qty, 0) - coalesce(adj_ledger.net_qty, 0)) > 0.000001
+
+      union all
+
+      select 'stock_adjustment_accounting_value_not_zero'::text as issue, 'ADJ'::text as ref_type, sa.doc_no, sa.status, 0::numeric as expected, coalesce(adj_ledger.ledger_value, 0) as net_qty
+      from public.stock_adjustments sa
+      join adj_ledger on adj_ledger.doc_no = sa.doc_no
+      where abs(coalesce(adj_ledger.ledger_value, 0)) > 0.000001
+      order by ref_type, doc_no
+      limit 500
+    `,
   ])
 
   const groups = {
@@ -377,6 +479,8 @@ export async function buildStockReconciliationReport() {
     negativeStockBalance: negativeBalanceRows.map(issue),
     orphanLedger: orphanLedgerRows.map(issue),
     pendingSaleIntegrity: pendingSaleIntegrityRows.map(issue),
+    statusConvertIntegrity: statusConvertIntegrityRows.map(issue),
+    stockAdjustmentIntegrity: stockAdjustmentIntegrityRows.map(issue),
   }
 
   return {

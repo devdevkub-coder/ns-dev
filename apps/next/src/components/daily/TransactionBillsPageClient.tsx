@@ -2196,7 +2196,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   return (
     <section className="space-y-4">
       {mode === 'stock-issue' ? (
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 sm:p-4 shadow-sm">
+        <div>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <TransactionKpi label="⏰ Pending / รายการ" tone="amber" value={`${totalRows.toLocaleString('th-TH')} ใบ`} />
             <TransactionKpi label="น้ำหนักรวมในหน้า" tone="blue" value={`${formatMoney(stockIssueQty)} กก.`} />

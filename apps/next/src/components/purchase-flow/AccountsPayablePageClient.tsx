@@ -264,7 +264,7 @@ export function AccountsPayablePageClient() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-5 text-sm">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-5 text-sm">
         <Metric label="ค้างจ่ายรวม" tone="red" value={formatMoney(totalAp)} />
         <Metric label="เกินกำหนด" tone="amber" value={formatMoney(overdueAp)} />
         <Metric label="ครบใน 7 วัน" tone="yellow" value={formatMoney(dueIn7)} />

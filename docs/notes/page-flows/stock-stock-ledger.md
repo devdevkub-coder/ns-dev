@@ -81,7 +81,9 @@ movement history ของ stock_ledger เท่านั้น
 
 ## Current Gap
 
-source links/reconciliation UI ยังต้องเติมให้ครบทุก movement type
+- source links สำหรับ ref type หลักเพิ่มแล้วใน detail modal
+- API query/pagination/running balance ปรับเป็น server-side แล้ว
+- remaining: cleanup/admin tooling ยังเป็น policy แยก ไม่ใช่หน้าปกติของ ledger
 
 ## Implementation Checklist
 

@@ -416,7 +416,7 @@ export function AdminUsersPageClient() {
       </div>
 
       {/* AcexPOS Style KPI / Summary Cards */}
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm animate-fade-in">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm animate-fade-in">
         {/* 1. ผู้ใช้ Active */}
         <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xl shrink-0">
