@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, ImagePlus, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, ChevronDown, ImagePlus, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
 import { Card } from '@/components/ui/Card'
@@ -172,10 +172,14 @@ export function WeightTicketsPageClient({
   initialType = 'WTI',
   lockType = false,
   ticketId = '',
+  onClose,
+  onSaveSuccess,
 }: {
   initialType?: WeightTicketType
   lockType?: boolean
   ticketId?: string
+  onClose?: () => void
+  onSaveSuccess?: (ticket: WeightTicketRecord) => void
 }) {
   const router = useRouter()
   const editingTicketId = ticketId.trim()
@@ -467,7 +471,11 @@ export function WeightTicketsPageClient({
   }
 
   function backToList() {
-    router.push(`/daily/weight-ticket-list?type=${form.type}`)
+    if (onClose) {
+      onClose()
+    } else {
+      router.push(`/daily/weight-ticket-list?type=${form.type}`)
+    }
   }
 
   async function saveTicket() {
@@ -513,7 +521,11 @@ export function WeightTicketsPageClient({
       setLoadedTicket(ticket)
       setSavedTicket(ticket)
       setForm(ticketToFormState(ticket))
-      router.push(`/daily/weight-ticket-list?type=${ticket.type}`)
+      if (onSaveSuccess) {
+        onSaveSuccess(ticket)
+      } else {
+        router.push(`/daily/weight-ticket-list?type=${ticket.type}`)
+      }
     } catch (caught) {
       setLoadError(getErrorMessage(caught, editingTicketId ? 'แก้ไขใบรับ-ส่งของไม่ได้' : 'บันทึกใบรับ-ส่งของไม่ได้'))
     } finally {
@@ -522,13 +534,16 @@ export function WeightTicketsPageClient({
   }
 
   return (
-    <div className="min-w-0 space-y-5 overflow-x-hidden pb-32">
-      <div>
-        <Button type="button" variant="outline" onClick={backToList}>
-          <ArrowLeft className="mr-1 h-4 w-4" />
-          กลับไปหน้ารายการ
-        </Button>
-      </div>
+    <div className="min-w-0 overflow-x-hidden">
+      <div className={cn("min-w-0 space-y-5", onClose ? "p-4 sm:p-5 pb-6" : "pb-32")}>
+        {!onClose && (
+        <div>
+          <Button type="button" variant="outline" onClick={backToList}>
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            กลับไปหน้ารายการ
+          </Button>
+        </div>
+      )}
       <div>
         {typeSelectionLocked ? (
           <div className={cn('inline-flex rounded-md px-3 py-1.5 text-sm font-semibold', ticketTheme.badge)}>
@@ -704,16 +719,6 @@ export function WeightTicketsPageClient({
 	                            updateLine(line.id, (current) => ({ ...current, productId: value, warehouseId: '' }))
 	                          }}
                         />
-                        <ProductImagePicker
-                          key={`${form.branchId}:${form.partyId}:${form.type}`}
-                          disabled={isLoadingProducts}
-                          products={products}
-                          value={line.productId}
-	                          onChange={(value) => {
-	                            markTouched(`line-${line.id}-product`)
-	                            updateLine(line.id, (current) => ({ ...current, productId: value, warehouseId: '' }))
-	                          }}
-	                        />
 	                      </div>
 	                      {form.type === 'WTO' ? (() => {
 	                        const stockKey = `${form.branchId}:${line.productId}`
@@ -798,6 +803,18 @@ export function WeightTicketsPageClient({
                         </FieldBlock>
                       ) : null}
                     </div>
+
+                    <ProductImagePicker
+                      key={`${form.branchId}:${form.partyId}:${form.type}`}
+                      disabled={isLoadingProducts}
+                      products={products}
+                      value={line.productId}
+                      onChange={(value) => {
+                        markTouched(`line-${line.id}-product`)
+                        updateLine(line.id, (current) => ({ ...current, productId: value, warehouseId: '' }))
+                      }}
+                    />
+
                     <div className="mt-3 grid grid-cols-3 gap-2 sm:mt-4">
                       <MiniMetric label="Gross" value={`${formatWeight(lineTotals.grossWeight)} กก.`} />
                       <MiniMetric label="Deduct" value={`${formatWeight(lineTotals.deductionWeight)} กก.`} />
@@ -846,17 +863,22 @@ export function WeightTicketsPageClient({
           </Card>
         </div>
       </div>
+      </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-sm lg:left-64">
+      <div className={cn(
+        onClose
+          ? "sticky bottom-0 z-20 border-t border-slate-200 bg-slate-50 px-4 py-3 shrink-0"
+          : "fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-sm lg:left-64"
+      )}>
         <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
+          <div className="min-w-0 w-full sm:w-auto flex justify-center sm:block">
             {savedTicket ? (
               <div className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-medium text-emerald-700 ring-1 ring-emerald-200">
                 <CheckCircle2 className="size-4" />
                 บันทึก {savedTicket.documentNo} แล้ว
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-sm sm:flex sm:flex-wrap sm:items-center sm:gap-x-5">
+              <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm sm:justify-start sm:gap-x-8">
                 <MetricInline label="รายการ" value={`${form.lines.length} รายการ`} />
                 <MetricInline label="น้ำหนักรวม" value={`${formatWeight(totals.grossWeight)} กก.`} />
                 <MetricInline label="หัก" value={`${formatWeight(totals.deductionWeight)} กก.`} />
@@ -864,24 +886,20 @@ export function WeightTicketsPageClient({
               </div>
             )}
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 justify-end sm:justify-end ml-auto">
             <Button disabled={isLoadingTicket || isSaving} type="button" variant="outline" onClick={backToList}>
-              <ArrowLeft className="mr-1 h-4 w-4" />
-              กลับไปหน้ารายการ
+              {!onClose && <ArrowLeft className="mr-1 h-4 w-4" />}
+              {onClose ? 'ปิด' : 'กลับไปหน้ารายการ'}
             </Button>
-            <Button className={ticketTheme.button} disabled={isLoadingTicket || isSaving} type="button" onClick={saveTicket}>
-              {isSaving
-                ? 'กำลังบันทึก...'
-                : editingTicketId
-                  ? `บันทึกการแก้ไข${form.type === 'WTI' ? 'ใบรับของ' : 'ใบส่งของ'}`
-                  : `บันทึก${form.type === 'WTI' ? 'ใบรับของ' : 'ใบส่งของ'}`}
+            <Button className="bg-slate-900 font-normal hover:bg-slate-800 text-white" disabled={isLoadingTicket || isSaving} type="button" onClick={saveTicket}>
+              {isSaving ? 'กำลังบันทึก...' : 'บันทึก'}
             </Button>
           </div>
         </div>
       </div>
 
       <Dialog open={Boolean(previewImage)} onOpenChange={(open) => setPreviewImage(open ? previewImage : null)}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-4xl !p-0 overflow-hidden bg-slate-900 border-none flex flex-col">
           {previewImage ? (
             <>
               <DialogHeader>
@@ -1005,6 +1023,7 @@ function ProductImagePicker({
   value: string
   onChange: (value: string) => void
 }) {
+  const [isOpen, setIsOpen] = useState(false)
   const [category, setCategory] = useState('all')
   const categories = useMemo(
     () => Array.from(new Set(products.map((product) => product.category?.trim()).filter((item): item is string => Boolean(item)))).sort((a, b) => a.localeCompare(b, 'th', { numeric: true })),
@@ -1016,75 +1035,117 @@ function ProductImagePicker({
     })
   }, [category, products])
 
+  const selectedProduct = useMemo(() => products.find((p) => p.id === value), [products, value])
+
+  if (disabled) return null
+
   return (
     <div className="mt-2">
-      <div className="mb-1 block text-xs font-medium text-slate-600">เลือกจากรูปสินค้า</div>
-      <div className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white p-1.5 sm:p-2">
-        {!disabled ? (
-          <>
-            <div className="flex min-w-0 gap-1.5 overflow-x-auto pb-1">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={cn(
+          "flex w-full items-center justify-between rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 shadow-sm transition hover:bg-slate-100 hover:border-slate-400 hover:text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-400",
+          isOpen && "rounded-b-none border-b-0 border-solid"
+        )}
+      >
+        <span className="flex items-center gap-1.5">
+          <ImagePlus className="h-4 w-4 text-slate-500" />
+          <span>เลือกสินค้าจากรูปภาพ</span>
+        </span>
+        <ChevronDown className={cn("h-4 w-4 text-slate-400 transition-transform duration-200", isOpen && "rotate-180")} />
+      </button>
+
+      {isOpen ? (
+        <div className="min-w-0 overflow-hidden rounded-b-md border border-slate-200 bg-white p-1.5 sm:p-2">
+          <div className="flex min-w-0 gap-1.5 overflow-x-auto pb-1">
+            <button
+              className={cn(
+                'shrink-0 rounded-md border px-2 py-1 text-xs font-medium',
+                category === 'all' ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100',
+              )}
+              type="button"
+              onClick={() => setCategory('all')}
+            >
+              ทั้งหมด
+            </button>
+            {categories.map((item) => (
               <button
                 className={cn(
                   'shrink-0 rounded-md border px-2 py-1 text-xs font-medium',
-                  category === 'all' ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100',
+                  category === item ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100',
                 )}
+                key={item}
                 type="button"
-                onClick={() => setCategory('all')}
+                onClick={() => setCategory(item)}
               >
-                ทั้งหมด
+                {item}
               </button>
-              {categories.map((item) => (
-                <button
-                  className={cn(
-                    'shrink-0 rounded-md border px-2 py-1 text-xs font-medium',
-                    category === item ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100',
-                  )}
-                  key={item}
-                  type="button"
-                  onClick={() => setCategory(item)}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-            <div className="mt-1.5 max-h-72 min-w-0 overflow-y-auto pr-1 sm:mt-2 sm:max-h-80">
-              <div className="grid min-w-0 grid-cols-4 gap-1.5 sm:grid-cols-5 lg:grid-cols-6">
-                {filteredProducts.map((product) => {
-                  const selected = product.id === value
-                  return (
-                    <button
-                      className={cn(
-                        'min-w-0 overflow-hidden rounded-md border bg-white text-left shadow-sm transition hover:border-emerald-500',
-                        selected ? 'border-emerald-600 ring-2 ring-emerald-200' : 'border-slate-200',
+            ))}
+          </div>
+          <div className="mt-1.5 max-h-72 min-w-0 overflow-y-auto pr-1 sm:mt-2 sm:max-h-80">
+            <div className="grid min-w-0 grid-cols-4 gap-1.5 sm:grid-cols-5 lg:grid-cols-6">
+              {filteredProducts.map((product) => {
+                const selected = product.id === value
+                return (
+                  <button
+                    className={cn(
+                      'min-w-0 overflow-hidden rounded-md border bg-white text-left shadow-sm transition hover:border-emerald-500',
+                      selected ? 'border-emerald-600 ring-2 ring-emerald-200' : 'border-slate-200',
+                    )}
+                    key={product.id}
+                    type="button"
+                    onClick={() => onChange(product.id)}
+                  >
+                    <div className="aspect-[4/3] w-full bg-slate-100">
+                      {product.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img alt={product.name ?? product.label} className="h-full w-full object-cover" src={product.imageUrl} />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-slate-400">
+                          <ImagePlus className="h-4 w-4" />
+                        </div>
                       )}
-                      key={product.id}
-                      type="button"
-                      onClick={() => onChange(product.id)}
-                    >
-                      <div className="h-10 bg-slate-100 sm:h-12">
-                        {product.imageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img alt={product.name ?? product.label} className="h-full w-full object-cover" src={product.imageUrl} />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-slate-400">
-                            <ImagePlus className="h-4 w-4" />
-                          </div>
-                        )}
-                      </div>
-                      <div className={cn('min-w-0 px-1 py-1 text-center text-[10px] font-semibold leading-tight sm:text-[11px]', selected ? 'bg-emerald-100 text-emerald-900' : 'bg-slate-50 text-slate-800')}>
-                        <div className="line-clamp-2 min-h-6 min-w-0 break-words">{product.name ?? product.label}</div>
-                      </div>
-                    </button>
-                  )
-                })}
-                {filteredProducts.length === 0 ? (
-                  <div className="col-span-full rounded-md bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">ไม่พบสินค้า</div>
-                ) : null}
-              </div>
+                    </div>
+                    <div className={cn('min-w-0 px-1 py-1 text-center text-[10px] font-semibold leading-tight sm:text-[11px]', selected ? 'bg-emerald-100 text-emerald-900' : 'bg-slate-50 text-slate-800')}>
+                      <div className="line-clamp-2 min-h-6 min-w-0 break-words">{product.name ?? product.label}</div>
+                    </div>
+                  </button>
+                )
+              })}
+              {filteredProducts.length === 0 ? (
+                <div className="col-span-full rounded-md bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">ไม่พบสินค้า</div>
+              ) : null}
             </div>
-          </>
-        ) : null}
-      </div>
+          </div>
+        </div>
+      ) : null}
+
+      {!isOpen && selectedProduct ? (
+        <div className="mt-2 flex items-center gap-3 rounded-md border border-slate-200 bg-white p-2 shadow-sm">
+          <div className="h-12 w-12 shrink-0 overflow-hidden rounded bg-slate-100 border border-slate-100">
+            {selectedProduct.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={selectedProduct.imageUrl} alt={selectedProduct.name ?? selectedProduct.label} className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-slate-400">
+                <ImagePlus className="h-4 w-4" />
+              </div>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{selectedProduct.category || 'ทั่วไป'}</div>
+            <div className="truncate text-xs font-semibold text-slate-800">{selectedProduct.name ?? selectedProduct.label}</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onChange('')}
+            className="text-xs text-rose-600 hover:text-rose-700 font-medium px-2 py-1 transition"
+          >
+            ล้าง
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }

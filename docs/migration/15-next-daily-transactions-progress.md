@@ -28,10 +28,10 @@
 | `/daily/expense` | `view-expense` | Batch A Done | Expense voucher list/form + VAT/WHT + payment status baseline |
 | `/daily/petty-advance` | `view-pettyAdvance` | Batch A Done | Petty cash/director advance baseline |
 | `/daily/expense-dashboard` | `view-expenseDashboard` | Batch A Done | Read-only dashboard from expenses |
-| `/stock/transfer` | stock transfer flow | Batch C Done | Inventory movement via `stock_ledger` |
+| `/stock/transfer` | stock transfer flow | Batch C Done (UI Standardized) | Inventory movement via `stock_ledger` |
 | `/daily/bill-swap-history` | `view-billSwapHistory` | Batch C Done | Read-only bill supplier-change audit |
 | `/finance/ap` | `view-ap` | Batch F Read Baseline Done | AP aging from purchase bills and supplier payments |
-| `/stock/ledger` | `view-stockLedger` | Batch F Read Baseline Done | Stock movement inspection, default PB view |
+| `/stock/ledger` | `view-stockLedger` | Batch F Read Baseline Done (UI Standardized) | Stock movement inspection, default PB view |
 | `/trading/matching` | `view-tradingMatching` | Batch F Read Baseline Done | Trading PB/SB and deal matching read surface |
 | `/purchase/po-buy` | `view-poBuy` | Batch G Read Baseline Done | PO Buy source for purchase bill PO receipt |
 | `/po-reports/outstanding` | `view-poOutstanding` | Batch G Read Baseline Done | Outstanding PO Buy/Sell with costing-only exclusion |
@@ -243,14 +243,16 @@ Tasks:
   - `โอนระหว่างสาขา-เข้า`
 - Done: implemented bill swap history read page/API using existing `bill_swap_history`.
 - Done on 2026-05-31: realigned `/stock/transfer` to the active design shell. The page now uses the shared filter/action row, count + page-size + pagination row above the table, the shared lined table, and a larger sectioned create modal instead of the earlier compact local modal layout.
-- Done on 2026-05-31: stock transfer create validation now follows the central required-field error pattern from `docs/design.md` with red field state, inline error text, and focus on the first invalid field after submit.
+- Done on 2026-06-13: Standardized the `/stock/transfer` modal design with dark header and card layout, aligning the primary action buttons to the right (`ml-auto`) per AcexPOS style.
+- Done on 2026-06-13: Standardized the `/stock/ledger` detail modal header layout and aligned its export buttons to the right side of the filter row (`ml-auto`) per AcexPOS style.
+- Done on 2026-06-13: Standardized the `/stock/reconciliation` KPI cards to AcexPOS style and aligned its refresh button to the right of the filter row (`ml-auto`).
 - Follow-up: stock transfer cost currently records `unit_cost = 0` until WAC/lot cost source is confirmed for Next.
 - Follow-up: cancel/void action is not implemented yet; financial/stock traceability decision is still pending.
 
 Validation:
 - Passed: `npm run type-check --workspace @ns-scrap-erp/next`
 - Passed: `npm run lint --workspace @ns-scrap-erp/next`
-- Passed: `npm run build`
+- Passed: `npm run build --workspace @ns-scrap-erp/next`
 - Build confirmed routes generated:
   - `/stock/transfer`
   - `/daily/bill-swap-history`

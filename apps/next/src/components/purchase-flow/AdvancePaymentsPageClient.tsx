@@ -656,11 +656,11 @@ export function AdvancePaymentsPageClient() {
         </>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Metric label="ยอดมัดจำในหน้านี้" value={formatMoney(data?.summary.totalAdvance ?? 0)} />
-            <Metric label="ยังไม่อนุมัติ" value={`${data?.summary.pendingCount ?? 0}`} />
-            <Metric label="ใช้หักบิลแล้ว" value={formatMoney(data?.summary.totalAllocated ?? 0)} />
-            <Metric label="คงเหลือ" tone="amber" value={formatMoney(data?.summary.totalRemaining ?? 0)} />
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
+            <KpiCard label="ยอดมัดจำในหน้านี้" tone="slate" value={formatMoney(data?.summary.totalAdvance ?? 0)} />
+            <KpiCard label="ยังไม่อนุมัติ" tone="pending" value={`${data?.summary.pendingCount ?? 0}`} />
+            <KpiCard label="ใช้หักบิลแล้ว" tone="allocated" value={formatMoney(data?.summary.totalAllocated ?? 0)} />
+            <KpiCard label="คงเหลือ" tone="amber" value={formatMoney(data?.summary.totalRemaining ?? 0)} />
           </div>
 
           <div className="space-y-2 rounded-md bg-white p-3 shadow">
@@ -949,14 +949,14 @@ export function AdvancePaymentsPageClient() {
         setIsDetailOpen(open)
         if (!open) setDetail(null)
       }}>
-        <DialogContent className="max-h-[90vh] max-w-5xl rounded-md !p-0 overflow-hidden flex flex-col" fallbackTitle="รายละเอียด ADV" hideClose>
+        <DialogContent className="max-h-[90vh] max-w-5xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-none" fallbackTitle="รายละเอียด ADV" hideClose>
           <DialogHeader className="p-4 bg-slate-900 text-white shrink-0">
             <DialogTitle className="text-white">{detail?.docNo ? `รายละเอียด ${detail.docNo}` : 'รายละเอียด ADV'}</DialogTitle>
             <DialogDescription className="text-slate-300">กดที่รายการเพื่อดูข้อมูลเอกสาร การหักบิลย้อนหลัง และ timeline ของรายการ ADV</DialogDescription>
           </DialogHeader>
           {isDetailLoading ? <div className="flex-1 p-8 text-center text-sm text-slate-500 bg-white">กำลังโหลดรายละเอียด...</div> : null}
           {!isDetailLoading && detail ? (
-            <div className="flex-1 overflow-y-auto space-y-4 p-4">
+            <div className="flex-1 overflow-y-auto space-y-4 p-4 bg-slate-50">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                 <Metric label="ยอดมัดจำ" value={formatMoney(detail.amount)} />
                 <Metric label="ใช้หักบิลแล้ว" value={formatMoney(detail.allocatedAmount)} />
@@ -965,7 +965,7 @@ export function AdvancePaymentsPageClient() {
               </div>
 
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-                <div className="rounded-md border border-slate-200 p-4">
+                <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="mb-3 text-sm font-semibold text-slate-900">ข้อมูลเอกสาร</div>
                   <DetailGrid
                     items={[
@@ -995,7 +995,7 @@ export function AdvancePaymentsPageClient() {
                 </div>
 
                 <div className="space-y-4">
-                  <div className="rounded-md border border-slate-200 p-4">
+                  <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="mb-3 text-sm font-semibold text-slate-900">การติดตามสถานะ</div>
                     <DetailGrid
                       items={[
@@ -1009,7 +1009,7 @@ export function AdvancePaymentsPageClient() {
                     />
                   </div>
 
-                  <div className="rounded-md border border-slate-200 p-4">
+                  <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="mb-3 text-sm font-semibold text-slate-900">รายการหักบิล</div>
                     {detail.allocations.length === 0 ? <div className="text-sm text-slate-400">ยังไม่มีการใช้ ADV หักบิล</div> : (
                       <div className="space-y-2">
@@ -1035,7 +1035,7 @@ export function AdvancePaymentsPageClient() {
                 </div>
               </div>
 
-              <div className="rounded-md border border-slate-200 p-4">
+              <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="mb-3 text-sm font-semibold text-slate-900">Timeline</div>
                 {detail.timeline.length === 0 ? <div className="text-sm text-slate-400">ยังไม่มี timeline ของรายการนี้</div> : (
                   <div className="space-y-3">
@@ -1258,6 +1258,49 @@ function Segment({ active, label, onClick }: { active: boolean; label: string; o
 
 function toggleStatusFilter(value: string, setStatuses: Dispatch<SetStateAction<string[]>>) {
   setStatuses((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value])
+}
+
+function KpiCard({ label, tone, value }: { label: string; tone: 'amber' | 'allocated' | 'pending' | 'slate'; value: string }) {
+  const configs = {
+    slate: {
+      bg: 'bg-slate-100 text-slate-600',
+      emoji: '📋',
+      labelColor: 'text-slate-500',
+      valueColor: 'text-slate-900',
+    },
+    pending: {
+      bg: 'bg-amber-100 text-amber-600',
+      emoji: '⏱️',
+      labelColor: 'text-amber-600',
+      valueColor: 'text-amber-700',
+    },
+    allocated: {
+      bg: 'bg-emerald-100 text-emerald-600',
+      emoji: '✅',
+      labelColor: 'text-emerald-600',
+      valueColor: 'text-emerald-700',
+    },
+    amber: {
+      bg: 'bg-blue-100 text-blue-600',
+      emoji: '💰',
+      labelColor: 'text-blue-600',
+      valueColor: 'text-blue-700',
+    },
+  }
+
+  const config = configs[tone]
+
+  return (
+    <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4 flex-1">
+      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${config.bg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
+        {config.emoji}
+      </div>
+      <div>
+        <div className={`text-xs ${config.labelColor}`}>{label}</div>
+        <div className={`font-bold ${config.valueColor}`}>{value}</div>
+      </div>
+    </div>
+  )
 }
 
 function Metric({ label, tone, value }: { label: string; tone?: 'amber'; value: string }) {

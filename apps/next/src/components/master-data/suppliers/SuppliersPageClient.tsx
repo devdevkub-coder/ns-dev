@@ -1191,13 +1191,13 @@ function SupplierForm({ supplier, bankNames, paymentMethods, districts, isSaving
   }
 
   return (
-    <form className="overflow-hidden rounded-md bg-white shadow-xl" onSubmit={handleSubmit}>
-      <div className="flex flex-col gap-3 bg-slate-900 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <form className="overflow-hidden rounded-md bg-slate-900 shadow-xl flex flex-col w-full max-h-[90vh]" onSubmit={handleSubmit}>
+      <div className="flex flex-col gap-3 bg-slate-900 px-5 py-4 sm:flex-row sm:items-center sm:justify-between shrink-0">
         <h3 className="text-lg font-bold text-slate-100">{form.id ? 'แก้ไขผู้ขาย' : 'เพิ่มผู้ขาย'}</h3>
         <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-slate-200" onChange={(checked) => update('active', checked)} />
       </div>
 
-      <div className="max-h-[76vh] space-y-5 overflow-y-auto bg-slate-50 px-5 py-5">
+      <div className="flex-1 space-y-5 overflow-y-auto bg-slate-50 px-5 py-5">
         <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <h4 className="mb-4 text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">ข้อมูลผู้ขาย</h4>
           <div className="grid gap-4 md:grid-cols-4">
@@ -1327,11 +1327,11 @@ function SupplierForm({ supplier, bankNames, paymentMethods, districts, isSaving
         </section>
       </div>
 
-      <div className="flex flex-wrap justify-end gap-3.5 border-t border-slate-100 bg-white px-5 py-4">
-        <button className="text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors" type="button" onClick={onCancel}>
+      <div className="flex flex-wrap justify-end gap-3.5 border-t border-slate-200 bg-slate-50 px-5 py-4 shrink-0">
+        <button className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50 transition-colors" type="button" onClick={onCancel}>
           ยกเลิก
         </button>
-        <button className="rounded-md bg-slate-900 px-5 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-60 shadow-sm" disabled={isSaving} type="submit">
+        <button className="rounded-md bg-slate-900 px-5 py-2 text-sm font-normal text-white hover:bg-slate-800 disabled:opacity-60 shadow-sm" disabled={isSaving} type="submit">
           {isSaving ? 'กำลังบันทึก...' : 'บันทึก'}
         </button>
       </div>

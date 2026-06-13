@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Button } from '@/components/ui/Button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
@@ -262,12 +264,12 @@ export function AccountsPayablePageClient() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <Metric className="border-red-500 bg-red-50" label="💸 ค้างจ่ายรวม" labelClassName="text-red-600" value={formatMoney(totalAp)} valueClassName="text-red-700" />
-        <Metric className="border-amber-500 bg-amber-50" label="⚠ เกินกำหนด" labelClassName="text-amber-700" value={formatMoney(overdueAp)} valueClassName="text-amber-700" />
-        <Metric className="border-yellow-500 bg-yellow-50" label="⏰ ครบใน 7 วัน" labelClassName="text-yellow-700" value={formatMoney(dueIn7)} valueClassName="text-yellow-700" />
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-5 text-sm">
+        <Metric label="ค้างจ่ายรวม" tone="red" value={formatMoney(totalAp)} />
+        <Metric label="เกินกำหนด" tone="amber" value={formatMoney(overdueAp)} />
+        <Metric label="ครบใน 7 วัน" tone="yellow" value={formatMoney(dueIn7)} />
         <Metric label="บิลค้างจ่าย" value={`${data?.summary.bills ?? 0} ใบ`} />
-        <Metric label="Supplier ค้างจ่าย" value={`${data?.summary.suppliers ?? 0} ราย`} />
+        <Metric className="col-span-2 lg:col-span-1" label="Supplier ค้างจ่าย" value={`${data?.summary.suppliers ?? 0} ราย`} />
       </div>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
@@ -451,22 +453,54 @@ export function AccountsPayablePageClient() {
 }
 
 function Metric({
-  className = 'border-transparent bg-white',
   label,
-  labelClassName = 'text-slate-500',
+  tone = 'slate',
   value,
-  valueClassName = 'text-slate-900',
+  className = '',
 }: {
-  className?: string
   label: string
-  labelClassName?: string
+  tone?: 'red' | 'amber' | 'yellow' | 'slate'
   value: string
-  valueClassName?: string
+  className?: string
 }) {
+  const configs = {
+    slate: {
+      bg: 'bg-slate-100 text-slate-600',
+      emoji: '📋',
+      labelColor: 'text-slate-500',
+      valueColor: 'text-slate-900',
+    },
+    red: {
+      bg: 'bg-red-100 text-red-600',
+      emoji: '💸',
+      labelColor: 'text-red-600',
+      valueColor: 'text-red-700',
+    },
+    amber: {
+      bg: 'bg-amber-100 text-amber-600',
+      emoji: '⚠️',
+      labelColor: 'text-amber-600',
+      valueColor: 'text-amber-700',
+    },
+    yellow: {
+      bg: 'bg-yellow-100 text-yellow-600',
+      emoji: '⏱️',
+      labelColor: 'text-yellow-600',
+      valueColor: 'text-yellow-700',
+    },
+  }
+
+  const config = configs[tone]
+
   return (
-    <div className={`rounded-md border-l-4 p-3 shadow ${className}`}>
-      <div className={`text-xs ${labelClassName}`}>{label}</div>
-      <div className={`mt-1 text-xl font-bold ${valueClassName}`}>{value}</div>
+    <div className={`bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4 ${className}`}>
+      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${config.bg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
+        {config.emoji}
+      </div>
+      <div>
+        <div className={`text-xs ${config.labelColor}`}>{label}</div>
+        <div className={`font-bold ${config.valueColor}`}>{value}</div>
+      </div>
     </div>
   )
 }
@@ -594,19 +628,23 @@ function DetailTable({
 
 function DetailModal({ onClose, row }: { onClose: () => void; row: ApRow }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-      <div className="w-full max-w-2xl rounded-md bg-white p-5 shadow-xl">
-        <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-3 mb-4">
+    <Dialog open={true} onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="max-h-[90vh] max-w-3xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-none">
+        <DialogHeader className="p-4 bg-slate-900 text-white shrink-0 flex flex-row items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">{row.docNo}</h2>
-            <p className="text-sm text-slate-500">{row.supplierName}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <DialogTitle className="text-lg font-bold text-white">{row.docNo}</DialogTitle>
+            </div>
+            <DialogDescription className="mt-1 text-xs text-slate-400">
+              {row.supplierName}
+            </DialogDescription>
           </div>
-          <button className="rounded-md bg-slate-100 px-3 py-1 text-sm" type="button" onClick={onClose}>ปิด</button>
-        </div>
-        <div className="space-y-4">
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto bg-slate-50 p-5 space-y-4 text-sm">
           {/* ข้อมูลเอกสาร */}
-          <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลเอกสาร</div>
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูลเอกสาร</div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
               <DetailItem label="วันที่บิล" value={formatDateDisplay(row.date)} />
               <DetailItem label="ครบกำหนด" value={formatDateDisplay(row.dueDate)} />
@@ -619,8 +657,8 @@ function DetailModal({ onClose, row }: { onClose: () => void; row: ApRow }) {
           </div>
 
           {/* ข้อมูลการเงิน */}
-          <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลการเงิน</div>
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูลการเงิน</div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
               <DetailItem label="ยอดบิล" value={`${formatMoney(row.totalAmount)} บาท`} />
               <DetailItem label="จ่ายแล้ว" value={`${formatMoney(row.paidAmount)} บาท`} />
@@ -629,8 +667,12 @@ function DetailModal({ onClose, row }: { onClose: () => void; row: ApRow }) {
             </div>
           </div>
         </div>
-      </div>
-    </div>
+
+        <DialogFooter className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 shrink-0">
+          <Button className="font-normal" size="sm" type="button" variant="outline" onClick={onClose}>ปิด</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

@@ -122,12 +122,34 @@ export function ProductionReconciliationPageClient() {
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
-        <Metric label="รวม issue" tone={totalIssues > 0 ? 'red' : 'emerald'} value={String(totalIssues)} />
-        {refTypeOrder.map((refType) => (
-          <Metric key={refType} label={refType} tone={(byRefType[refType] ?? 0) > 0 ? 'amber' : 'slate'} value={String(byRefType[refType] ?? 0)} />
-        ))}
-        <Metric label="จำกัดผล" tone="slate" value={String(data?.summary.limit ?? 500)} />
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 xl:grid-cols-6 text-sm">
+        <Metric
+          emoji={totalIssues > 0 ? '⚠️' : '✅'}
+          iconBg={totalIssues > 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}
+          label="รวม issue"
+          tone={totalIssues > 0 ? 'red' : 'emerald'}
+          value={String(totalIssues)}
+        />
+        {refTypeOrder.map((refType) => {
+          const count = byRefType[refType] ?? 0
+          return (
+            <Metric
+              key={refType}
+              emoji={count > 0 ? '⚠️' : '📄'}
+              iconBg={count > 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}
+              label={refType}
+              tone={count > 0 ? 'amber' : 'slate'}
+              value={String(count)}
+            />
+          )
+        })}
+        <Metric
+          emoji="⚙️"
+          iconBg="bg-slate-100 text-slate-700"
+          label="จำกัดผล"
+          tone="slate"
+          value={String(data?.summary.limit ?? 500)}
+        />
       </div>
 
       <div className="rounded-md bg-white p-3 shadow">
@@ -146,7 +168,7 @@ export function ProductionReconciliationPageClient() {
             <option value="all">ทุกประเภท issue</option>
             {issueKeys.map((issue) => <option key={issue} value={issue}>{issueLabel(issue)}</option>)}
           </select>
-          <button className="inline-flex h-9 items-center gap-1.5 rounded-md bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-wait disabled:opacity-60" disabled={isLoading} type="button" onClick={() => void loadData()}>
+          <button className="inline-flex h-9 items-center gap-1.5 rounded-md bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-wait disabled:opacity-60 ml-auto" disabled={isLoading} type="button" onClick={() => void loadData()}>
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
             รีเฟรช
           </button>
@@ -198,19 +220,43 @@ export function ProductionReconciliationPageClient() {
   )
 }
 
-function Metric({ label, tone, value }: { label: string; tone: 'amber' | 'emerald' | 'red' | 'slate'; value: string }) {
-  const className = tone === 'red'
-    ? 'border-red-200 bg-red-50 text-red-800'
-    : tone === 'amber'
-      ? 'border-amber-200 bg-amber-50 text-amber-800'
-      : tone === 'emerald'
-        ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-        : 'border-slate-200 bg-white text-slate-800'
+function Metric({
+  emoji,
+  iconBg = 'bg-slate-100',
+  label,
+  sub,
+  tone,
+  value,
+  className,
+}: {
+  emoji: string
+  iconBg?: string
+  label: string
+  sub?: string
+  tone?: 'amber' | 'blue' | 'emerald' | 'red' | 'slate'
+  value: string
+  className?: string
+}) {
+  const color = tone === 'blue'
+    ? 'text-blue-600'
+    : tone === 'emerald'
+      ? 'text-emerald-700'
+      : tone === 'amber'
+        ? 'text-amber-700'
+        : tone === 'red'
+          ? 'text-red-600'
+          : 'text-slate-900'
 
   return (
-    <div className={`rounded-md border p-3 shadow-sm ${className}`}>
-      <div className="text-xs font-medium text-slate-500">{label}</div>
-      <div className="mt-1 text-2xl font-bold tabular-nums">{value}</div>
+    <div className={`bg-white p-3 sm:p-4 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-3 ${className || ''}`}>
+      <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full ${iconBg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
+        {emoji}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-semibold text-slate-500 truncate">{label}</div>
+        <div className={`text-sm font-bold ${color} mt-0.5 tabular-nums`}>{value}</div>
+        {sub ? <div className="text-[10px] text-slate-400 mt-0.5 truncate">{sub}</div> : null}
+      </div>
     </div>
   )
 }

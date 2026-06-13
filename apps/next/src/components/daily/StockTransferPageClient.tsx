@@ -360,18 +360,18 @@ export function StockTransferPageClient() {
       </div>
 
       {formOpen ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-4">
-          <form noValidate className="mx-auto my-4 w-full max-w-5xl overflow-hidden rounded-md bg-white shadow-xl" onSubmit={save}>
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8 animate-fade-in">
+          <form noValidate className="w-full max-w-5xl overflow-hidden rounded-md bg-slate-900 shadow-xl flex flex-col max-h-[90vh]" onSubmit={save}>
+            <div className="flex items-center justify-between bg-slate-900 text-white px-5 py-4 shrink-0">
               <div>
-                <h3 className="text-xl font-bold text-slate-800">โอนสินค้าระหว่างสาขา</h3>
-                <p className="mt-1 text-xs text-slate-500">บันทึกการย้ายสินค้าระหว่างต้นทางและปลายทางโดยเก็บรายการน้ำหนักรายสินค้า</p>
+                <h3 className="font-bold text-slate-100 text-lg">โอนสินค้าระหว่างสาขา</h3>
+                <p className="mt-1 text-xs text-slate-400">บันทึกการย้ายสินค้าระหว่างต้นทางและปลายทางโดยเก็บรายการน้ำหนักรายสินค้า</p>
               </div>
-              <button className="text-3xl leading-none text-slate-400 hover:text-slate-700" type="button" onClick={() => setFormOpen(false)}>&times;</button>
+              <button className="text-2xl text-slate-400 hover:text-white" type="button" onClick={() => setFormOpen(false)}>&times;</button>
             </div>
 
-            <div className="space-y-4 bg-slate-50 p-6 text-sm">
-              <div className="rounded-md bg-white p-4 shadow">
+            <div className="max-h-[76vh] overflow-y-auto bg-slate-50 p-4 sm:p-5 space-y-4 text-sm flex-1">
+              <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 <h4 className="mb-3 font-bold text-slate-700">1. ข้อมูลเอกสาร</h4>
                 <div className="grid gap-3 md:grid-cols-2">
                   <FormField label="เลขที่เอกสาร">
@@ -384,8 +384,8 @@ export function StockTransferPageClient() {
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-md border border-red-200 bg-white p-4 shadow">
-                  <h4 className="mb-3 font-bold text-red-700">2. ต้นทาง</h4>
+                <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                  <h4 className="mb-3 font-bold text-slate-700">2. ต้นทาง</h4>
                   <div className="grid gap-3">
                     <SelectField
                       error={fieldErrors.fromBranchId}
@@ -408,8 +408,8 @@ export function StockTransferPageClient() {
                   </div>
                 </div>
 
-                <div className="rounded-md border border-emerald-200 bg-white p-4 shadow">
-                  <h4 className="mb-3 font-bold text-emerald-700">3. ปลายทาง</h4>
+                <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                  <h4 className="mb-3 font-bold text-slate-700">3. ปลายทาง</h4>
                   <div className="grid gap-3">
                     <SelectField
                       error={fieldErrors.toBranchId}
@@ -433,7 +433,7 @@ export function StockTransferPageClient() {
                 </div>
               </div>
 
-              <div className="rounded-md bg-white p-4 shadow">
+              <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <h4 className="font-bold text-slate-700">4. รายการสินค้า ({form.items.length})</h4>
                   <Button size="sm" type="button" onClick={() => setForm((current) => ({ ...current, items: [...current.items, { lotNo: null, productId: '', qty: 0 }] }))}>+ เพิ่มรายการ</Button>
@@ -509,7 +509,7 @@ export function StockTransferPageClient() {
                 </div>
               </div>
 
-              <div className="rounded-md bg-white p-4 shadow">
+              <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 <h4 className="mb-3 font-bold text-slate-700">5. ผู้รับผิดชอบและหมายเหตุ</h4>
                 <div className="grid gap-3 md:grid-cols-2">
                   <InputField
@@ -539,9 +539,9 @@ export function StockTransferPageClient() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 border-t border-slate-200 bg-white px-6 py-4">
-              <Button size="sm" type="button" variant="ghost" onClick={() => setFormOpen(false)}>ยกเลิก</Button>
-              <Button disabled={isSaving} size="sm" type="submit">{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</Button>
+            <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 shrink-0">
+              <Button size="sm" type="button" variant="outline" onClick={() => setFormOpen(false)}>ยกเลิก</Button>
+              <Button disabled={isSaving} size="sm" type="submit" className="bg-slate-900 hover:bg-slate-800 text-white font-normal">{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</Button>
             </div>
           </form>
         </div>

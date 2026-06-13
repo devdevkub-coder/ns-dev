@@ -687,14 +687,14 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
       </div>
 
       <Dialog open={Boolean(previewImage)} onOpenChange={(open) => setPreviewImage(open ? previewImage : null)}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-4xl !p-0 overflow-hidden bg-slate-900 border-none flex flex-col">
           {previewImage ? (
             <>
               <DialogHeader>
                 <DialogTitle>รูปภาพแนบ</DialogTitle>
                 <DialogDescription>{previewImage.fileName}</DialogDescription>
               </DialogHeader>
-              <div className="overflow-hidden rounded-md bg-slate-950">
+              <div className="overflow-hidden bg-slate-950 p-4">
                 <Image
                   alt={previewImage.fileName}
                   className="max-h-[70vh] w-full object-contain"
@@ -710,7 +710,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
       </Dialog>
 
       <Dialog open={Boolean(lineGallery)} onOpenChange={(open) => setLineGallery(open ? lineGallery : null)}>
-        <DialogContent className="max-w-5xl">
+        <DialogContent className="max-w-5xl !p-0 overflow-hidden bg-slate-900 border-none flex flex-col">
           {lineGallery && activeGalleryImage ? (
             <>
               <DialogHeader>
@@ -719,7 +719,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                   {activeGalleryImage.fileName} · รูป {lineGallery.activeIndex + 1} / {lineGallery.images.length}
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4">
+              <div className="space-y-4 p-4 bg-slate-950">
                 <div className="relative overflow-hidden rounded-md bg-slate-950">
                   <Image
                     alt={activeGalleryImage.fileName}

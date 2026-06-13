@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState, type ButtonHTMLAttributes } from 'react'
+import { FileText, Coins, CheckCircle, AlertCircle, FileCheck2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
@@ -620,12 +621,54 @@ export function PaymentApprovalPageClient() {
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-5">
-        <div className="rounded-md bg-slate-50 p-2"><div className="text-xs text-slate-500">รายการทั้งหมด</div><div className="font-bold">{filteredRows.length}</div></div>
-        <div className="rounded-md bg-blue-50 p-2"><div className="text-xs text-blue-600">ยอดเต็ม</div><div className="font-bold text-blue-700">{formatMoney(summary.totalFull)}</div></div>
-        <div className="rounded-md bg-emerald-50 p-2"><div className="text-xs text-emerald-600">ชำระแล้ว</div><div className="font-bold text-emerald-700">{formatMoney(summary.totalPaid)}</div></div>
-        <div className="rounded-md bg-red-50 p-2"><div className="text-xs text-red-600">คงเหลือ</div><div className="font-bold text-red-700">{formatMoney(summary.totalRemain)}</div></div>
-        <div className="rounded-md bg-amber-50 p-2"><div className="text-xs text-amber-600">อนุมัติ / รอ / ยกเลิก</div><div className="font-bold text-amber-700">{summary.approvedCount} / {summary.pendingCount} / {summary.voidedCount}</div></div>
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-5 text-sm">
+        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 text-lg sm:text-xl shrink-0">
+            📋
+          </div>
+          <div>
+            <div className="text-xs text-slate-500">รายการทั้งหมด</div>
+            <div className="font-bold text-slate-900">{filteredRows.length}</div>
+          </div>
+        </div>
+        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-lg sm:text-xl shrink-0">
+            💰
+          </div>
+          <div>
+            <div className="text-xs text-blue-600">ยอดเต็ม</div>
+            <div className="font-bold text-blue-700">{formatMoney(summary.totalFull)}</div>
+          </div>
+        </div>
+        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 text-lg sm:text-xl shrink-0">
+            ✅
+          </div>
+          <div>
+            <div className="text-xs text-emerald-600">ชำระแล้ว</div>
+            <div className="font-bold text-emerald-700">{formatMoney(summary.totalPaid)}</div>
+          </div>
+        </div>
+        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-lg sm:text-xl shrink-0">
+            🚨
+          </div>
+          <div>
+            <div className="text-xs text-red-600">คงเหลือ</div>
+            <div className="font-bold text-red-700">{formatMoney(summary.totalRemain)}</div>
+          </div>
+        </div>
+        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4 col-span-2 lg:col-span-1">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 text-lg sm:text-xl shrink-0">
+            ⏱️
+          </div>
+          <div>
+            <div className="text-xs text-amber-600">อนุมัติ / รอ / ยกเลิก</div>
+            <div className="font-bold text-amber-700">
+              {summary.approvedCount} / {summary.pendingCount} / {summary.voidedCount}
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-md bg-white shadow">
@@ -1081,13 +1124,13 @@ export function PaymentApprovalPageClient() {
       </div>
 
       <Dialog open={Boolean(detail)} onOpenChange={(open) => { if (!open) closeDetail() }}>
-        <DialogContent className="max-h-[90vh] max-w-3xl rounded-md !p-0 overflow-hidden flex flex-col" fallbackTitle="รายละเอียดการอนุมัติ" hideClose>
+        <DialogContent className="max-h-[90vh] max-w-3xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-none" fallbackTitle="รายละเอียดการอนุมัติ" hideClose>
           <DialogHeader className="p-4 bg-slate-900 text-white shrink-0">
             <DialogTitle>{detail ? detail.row.docNo : 'รายละเอียดการอนุมัติ'}</DialogTitle>
             <DialogDescription>รายละเอียดรายการในคิวอนุมัติจ่ายเงิน</DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto bg-slate-50">
 
           {detail?.tab === 'ap' ? (
             <div className="space-y-4 px-6 pb-6 pt-2">

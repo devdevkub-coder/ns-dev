@@ -193,7 +193,7 @@ export function ProductionOrdersPageClient() {
           </select>
           <button className="rounded-md border px-3 py-2 text-sm" type="button" onClick={() => setDirection((value) => value === 'asc' ? 'desc' : 'asc')}>{direction === 'asc' ? 'น้อยไปมาก' : 'มากไปน้อย'}</button>
           {(search || dateFrom || dateTo || status) ? <button className="rounded-md bg-slate-100 px-3 py-2 text-xs hover:bg-slate-200" type="button" onClick={clearFilters}>ล้าง</button> : null}
-          <button className="ml-auto rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white" type="button" onClick={() => setModalMode('create')}>+ ใบสั่งผลิตใหม่</button>
+          <button className="ml-auto rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800" type="button" onClick={() => setModalMode('create')}>+ ใบสั่งผลิตใหม่</button>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <span className="text-xs text-slate-500">ช่วง:</span>
@@ -573,31 +573,34 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8">
-      <div className="w-full max-w-5xl overflow-hidden rounded-md border border-slate-200 bg-white shadow-xl">
-        <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
+      <div className="w-full max-w-5xl overflow-hidden rounded-md border border-slate-800 bg-slate-900 shadow-xl flex flex-col max-h-[90vh]">
+        <div className="bg-slate-900 px-5 py-4 shrink-0">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="flex flex-wrap items-center gap-3">
-              <h3 className="font-mono text-lg font-bold text-slate-900">{isCreate ? 'ใบสั่งผลิตใหม่' : row?.docNo ?? ''}</h3>
+              <h3 className="font-mono text-lg font-bold text-slate-100">{isCreate ? 'ใบสั่งผลิตใหม่' : row?.docNo ?? ''}</h3>
               <StatusBadge status={isCreate ? 'Open' : row?.status ?? '-'} />
             </div>
-            {!isCreate && row ? (
-              <div className="flex flex-wrap gap-2">
-                <button className="rounded-md bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white disabled:bg-slate-300" disabled={isSaving || rowWipQty > 0 || row.status === 'Completed' || row.status === 'Cancelled'} type="button" onClick={() => void patchOrder('complete')}>จบงาน</button>
-                <button className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white disabled:bg-slate-300" disabled={isSaving || row.inputCount > 0 || row.outputCount > 0 || row.status === 'Cancelled'} type="button" onClick={() => void patchOrder('cancel')}>ยกเลิก</button>
-              </div>
-            ) : null}
+            <div className="flex items-center gap-2">
+              {!isCreate && row ? (
+                <div className="flex flex-wrap gap-2">
+                  <button className="rounded-md bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white disabled:bg-slate-800" disabled={isSaving || rowWipQty > 0 || row.status === 'Completed' || row.status === 'Cancelled'} type="button" onClick={() => void patchOrder('complete')}>จบงาน</button>
+                  <button className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white disabled:bg-slate-800" disabled={isSaving || row.inputCount > 0 || row.outputCount > 0 || row.status === 'Cancelled'} type="button" onClick={() => void patchOrder('cancel')}>ยกเลิก</button>
+                </div>
+              ) : null}
+              <button className="text-2xl text-slate-400 hover:text-slate-200 ml-2" type="button" onClick={() => onClose(false)}>×</button>
+            </div>
           </div>
           {!isCreate && row ? (
-            <div className="mt-3 rounded-md border-l-4 border-amber-500 bg-amber-50 p-3">
-              <div className="text-xs font-bold text-amber-700">สินค้าที่ผลิต</div>
-              <div className="text-lg font-bold text-amber-800">{row.productName}</div>
-              <div className="font-mono text-xs text-slate-500">{row.productCode || '-'}</div>
+            <div className="mt-3 rounded-md border-l-4 border-amber-500 bg-slate-800/80 p-3 text-white">
+              <div className="text-xs font-bold text-amber-300">สินค้าที่ผลิต</div>
+              <div className="text-lg font-bold text-amber-200">{row.productName}</div>
+              <div className="font-mono text-xs text-slate-300">{row.productCode || '-'}</div>
             </div>
           ) : null}
           {error ? <div className="mt-3"><Alert tone="red" title="บันทึกไม่สำเร็จ" text={error} /></div> : null}
         </div>
 
-        <div className="max-h-[76vh] space-y-4 overflow-y-auto p-5">
+        <div className="flex-1 overflow-y-auto bg-slate-50 space-y-4 p-5">
           {!isCreate ? (
             <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
               <Metric label="วัตถุดิบเบิก" value={formatMoney(row?.inputQty ?? 0)} tone="danger" />
@@ -721,9 +724,9 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
           ) : null}
         </div>
 
-        <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 px-5 py-4">
-          <button className="rounded-md px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100" type="button" onClick={() => onClose(false)}>ปิด</button>
-          {isCreate ? <button className="rounded-md bg-blue-600 px-5 py-2 text-sm font-semibold text-white disabled:bg-slate-300" disabled={isSaving} type="button" onClick={() => void submitCreate()}>บันทึก</button> : null}
+        <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 shrink-0">
+          <button className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50" type="button" onClick={() => onClose(false)}>ปิด</button>
+          {isCreate ? <button className="rounded-md bg-slate-900 px-5 py-2 text-sm font-normal text-white hover:bg-slate-800 disabled:bg-slate-300" disabled={isSaving} type="button" onClick={() => void submitCreate()}>บันทึก</button> : null}
         </div>
       </div>
     </div>

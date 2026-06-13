@@ -10,7 +10,7 @@ import { Card } from '@/components/ui/Card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import { cn } from '@/lib/utils'
-import { cancelWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, type WeightTicketRecord, type WeightTicketStatus, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
+import { cancelWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, type WeightTicketRecord, type WeightTicketStatus, type WeightTicketType, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
 import { getErrorMessage } from '@/lib/api-client'
 
 function formatDateTime(value?: string | null) {
@@ -82,7 +82,15 @@ function usageWeightClass(action: string) {
   return 'text-rose-700'
 }
 
-export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: string; onClose: () => void }) {
+export function WeightTicketDetailModal({
+  ticketId,
+  onClose,
+  onEdit,
+}: {
+  ticketId: string
+  onClose: () => void
+  onEdit?: (id: string, type: WeightTicketType) => void
+}) {
   const [ticket, setTicket] = useState<WeightTicketRecord | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -161,7 +169,7 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
     <Dialog open onOpenChange={(open) => {
       if (!open) onClose()
     }}>
-      <DialogContent aria-labelledby="weight-ticket-detail-title" className="max-h-[90vh] max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col" hideClose>
+      <DialogContent aria-labelledby="weight-ticket-detail-title" className="max-h-[90vh] max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-none" hideClose>
         <DialogHeader className="p-4 bg-slate-900 text-white shrink-0">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -172,18 +180,30 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
             </div>
             {ticket && ticket.canEdit ? (
               <div className="flex gap-2">
-                <Button asChild type="button" variant="outline" className="font-normal border-slate-700 bg-slate-800 text-white hover:bg-slate-700 hover:text-white">
-                  <Link href={`/daily/weight-tickets?id=${encodeURIComponent(ticket.id)}`}>
+                {onEdit ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="font-normal border-slate-700 bg-slate-800 text-white hover:bg-slate-700 hover:text-white"
+                    onClick={() => onEdit(ticket.id, ticket.type)}
+                  >
                     <SquarePen className="mr-2 size-4" />
                     แก้ไข
-                  </Link>
-                </Button>
+                  </Button>
+                ) : (
+                  <Button asChild type="button" variant="outline" className="font-normal border-slate-700 bg-slate-800 text-white hover:bg-slate-700 hover:text-white">
+                    <Link href={`/daily/weight-tickets?id=${encodeURIComponent(ticket.id)}`}>
+                      <SquarePen className="mr-2 size-4" />
+                      แก้ไข
+                    </Link>
+                  </Button>
+                )}
               </div>
             ) : null}
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto bg-slate-50">
 
         {isLoading ? (
           <div className="p-8 text-center text-sm text-slate-500">กำลังโหลดข้อมูล...</div>
@@ -196,7 +216,7 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
             <div className="space-y-4">
               <Card className="p-5">
                 <SectionTitle subtitle="ข้อมูลเอกสารและผู้ใช้งาน" title="ข้อมูลเอกสาร" />
-                <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 md:grid-cols-4">
                   <DetailItem
                     label={ticket.type === 'WTI' ? 'ใบรับของ' : 'ใบส่งของ'}
                     value={ticket.documentNo}
@@ -243,10 +263,11 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
                 ) : null}
               </Card>
 
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
                 <MetricCard icon={<ClipboardList className="size-4" />} label="สาขา" value={ticket.branchName} />
                 <MetricCard icon={<Scale className="size-4" />} label="น้ำหนักสุทธิ" value={`${formatWeight(ticket.totals.netWeight)} กก.`} />
                 <MetricCard
+                  className="col-span-2 md:col-span-1"
                   icon={<Package2 className="size-4" />}
                   label="สินค้าหลังรวม"
                   value={`${ticket.productSummaries.length} สินค้า / ${ticket.lines.length} lot`}
@@ -256,7 +277,7 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
               <Card className="p-5">
                 <SectionTitle subtitle="ข้อมูลคู่ค้าและรถที่ใช้ส่งสินค้า" title={ticket.type === 'WTI' ? 'ข้อมูลผู้ขาย' : 'ข้อมูลลูกค้า'} />
                 <div className="mt-4 grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start">
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid grid-cols-2 gap-4">
                     <DetailItem label={ticket.type === 'WTI' ? 'ผู้ขาย' : 'ลูกค้า'} value={ticket.partyName} />
                     <DetailItem label="ทะเบียนรถ" value={ticket.vehicleNo} />
                   </div>
@@ -274,7 +295,7 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
                       <SectionTitle subtitle="รองรับเอกสารยาวหลายสิบรายการ" title="รายการสินค้าแยกตาม lot" />
                     </div>
                     <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-slate-200 text-sm">
+                      <table className="hidden md:table min-w-full divide-y divide-slate-200 text-sm">
                         <thead className="bg-slate-200/80 border-b border-slate-300/80 text-xs font-semibold text-slate-600">
                           <tr>
                             <th className="px-3 py-3 text-left">ลำดับ</th>
@@ -335,6 +356,63 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
                           ))}
                         </tbody>
                       </table>
+
+                      <div className="block md:hidden divide-y divide-slate-100 bg-white">
+                        {ticket.lines.map((line, index) => (
+                          <div key={line.id} className="p-4 space-y-2">
+                            <div className="flex justify-between items-start gap-2">
+                              <div className="font-semibold text-slate-800 text-sm">{index + 1}. {line.productName}</div>
+                              {line.imageCount > 0 ? (
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="whitespace-nowrap text-slate-400 text-xs">{line.imageCount} รูป</span>
+                                  {line.imageNames.map(decodeStoredImageAsset).filter((image) => image.url).length > 0 ? (
+                                    <button
+                                      className="text-xs font-semibold text-blue-700 hover:underline"
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        const previewableImages = line.imageNames
+                                          .map(decodeStoredImageAsset)
+                                          .filter((image): image is { fileName: string; rawValue: string; url: string } => Boolean(image.url))
+                                          .map((image) => ({
+                                            fileName: image.fileName,
+                                            url: image.url,
+                                          }))
+                                        if (previewableImages.length > 0) {
+                                          setLineGallery({
+                                            activeIndex: 0,
+                                            images: previewableImages,
+                                            title: line.productName,
+                                          })
+                                        }
+                                      }}
+                                    >
+                                      ดูรูป
+                                    </button>
+                                  ) : null}
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 text-xs">-</span>
+                              )}
+                            </div>
+                            {line.note && <div className="text-xs text-slate-500">หมายเหตุ: {line.note}</div>}
+                            <div className="grid grid-cols-3 gap-2 text-center text-xs py-2 bg-slate-50 rounded-md">
+                              <div>
+                                <span className="text-[10px] text-slate-400 block">Gross</span>
+                                <span className="font-medium text-slate-700">{formatWeight(line.grossWeightValue)}</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-400 block">หัก {line.impurityName ? `(${line.impurityName})` : ''}</span>
+                                <span className="font-medium text-slate-700">{formatWeight(line.deductionWeight)}</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-400 block">Net</span>
+                                <span className="font-semibold text-slate-900">{formatWeight(line.netWeight)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </Card>
 
@@ -343,7 +421,7 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
                       <SectionTitle subtitle="รวมสินค้าชนิดเดียวกันในเอกสารเดียวกันก่อนนำไปใช้ออกบิล" title="สรุปต่อสินค้า" />
                     </div>
                     <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-slate-200 text-sm">
+                      <table className="hidden md:table min-w-full divide-y divide-slate-200 text-sm">
                         <thead className="bg-slate-200/80 border-b border-slate-300/80 text-xs font-semibold text-slate-600">
                           <tr>
                             <th className="px-3 py-3 text-left">ลำดับ</th>
@@ -367,6 +445,31 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
                           ))}
                         </tbody>
                       </table>
+
+                      <div className="block md:hidden divide-y divide-slate-100 bg-white">
+                        {ticket.productSummaries.map((summary, index) => (
+                          <div key={summary.id} className="p-4 space-y-2">
+                            <div className="flex justify-between items-center">
+                              <div className="font-semibold text-slate-800 text-sm">{index + 1}. {summary.productName}</div>
+                              <span className="text-xs text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded">{summary.lineCount} lot</span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-center text-xs py-2 bg-slate-50 rounded-md">
+                              <div>
+                                <span className="text-[10px] text-slate-400 block">Gross รวม</span>
+                                <span className="font-medium text-slate-700">{formatWeight(summary.grossWeight)}</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-400 block">หักรวม</span>
+                                <span className="font-medium text-slate-700">{formatWeight(summary.deductWeight)}</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-400 block">Net รวม</span>
+                                <span className="font-semibold text-slate-900">{formatWeight(summary.netWeight)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </Card>
                 </div>
@@ -418,7 +521,7 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
                   <SectionTitle subtitle="บันทึกการนำใบรับของไปออกบิลและการคืนยอด" title="ประวัติการใช้งานใบรับของ" />
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <table className="hidden md:table min-w-full divide-y divide-slate-200 text-sm">
                     <thead className="bg-slate-200/80 border-b border-slate-300/80 text-xs font-semibold text-slate-600">
                       <tr>
                         <th className="px-3 py-3 text-left">เวลา</th>
@@ -469,6 +572,43 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
                       ))}
                     </tbody>
                   </table>
+
+                  <div className="block md:hidden divide-y divide-slate-100 bg-white">
+                    {ticket.usageTimeline.length === 0 ? (
+                      <div className="p-4 text-center text-sm text-slate-400">ยังไม่มีประวัติการใช้งาน</div>
+                    ) : ticket.usageTimeline.map((event) => (
+                      <div key={event.id} className="p-4 space-y-2">
+                        <div className="flex justify-between items-start gap-2">
+                          <div>
+                            <div className="font-semibold text-slate-800 text-sm">{usageActionLabel(event.action)}</div>
+                            <div className="text-[10px] text-slate-400">{formatDateTime(event.createdAt)}</div>
+                          </div>
+                          <div className="text-right">
+                            <span className={cn('text-xs font-semibold block', usageWeightClass(event.action))}>
+                              {usageWeightLabel(event.action, event.allocatedNetWeight)}
+                            </span>
+                            {event.toRemainingWeight != null && (
+                              <span className="text-[10px] text-slate-400">คงเหลือ: {formatWeight(event.toRemainingWeight)} กก.</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-xs text-slate-600 space-y-1 pt-1.5 border-t border-slate-100/50">
+                          <div><span className="text-slate-400">สินค้า:</span> {event.productName} {event.productCode ? `(${event.productCode})` : ''}</div>
+                          {event.targetDocNo && (
+                            <div>
+                              <span className="text-slate-400">เอกสารปลายทาง:</span>{' '}
+                              <Link className="font-medium text-blue-700 hover:underline" href={`/purchase/bills/${encodeURIComponent(event.targetDocNo)}`}>
+                                {event.targetDocNo}
+                              </Link>
+                              {event.targetLineNo ? ` (รายการ ${event.targetLineNo})` : ''}
+                            </div>
+                          )}
+                          <div><span className="text-slate-400">ผู้ทำรายการ:</span> {event.createdBy || '-'}</div>
+                          {event.note && <div className="text-xs text-slate-500 bg-slate-50 p-2 rounded mt-1">หมายเหตุ: {event.note}</div>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </Card>
             ) : null}
@@ -586,12 +726,12 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
           <Dialog open onOpenChange={(open) => {
             if (!open) setPreviewImage(null)
           }}>
-            <DialogContent className="max-w-4xl">
+            <DialogContent className="max-w-4xl !p-0 overflow-hidden bg-slate-900 border-none flex flex-col">
               <DialogHeader>
                 <DialogTitle>รูปภาพแนบ</DialogTitle>
                 <DialogDescription>{previewImage.fileName}</DialogDescription>
               </DialogHeader>
-              <div className="overflow-hidden rounded-md bg-slate-950">
+              <div className="overflow-hidden bg-slate-950 p-4">
                 <Image
                   alt={previewImage.fileName}
                   className="max-h-[70vh] w-full object-contain"
@@ -609,14 +749,14 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
           <Dialog open onOpenChange={(open) => {
             if (!open) setLineGallery(null)
           }}>
-            <DialogContent className="max-w-5xl">
+            <DialogContent className="max-w-5xl !p-0 overflow-hidden bg-slate-900 border-none flex flex-col">
               <DialogHeader>
                 <DialogTitle>{lineGallery.title}</DialogTitle>
                 <DialogDescription>
                   {activeGalleryImage.fileName} · รูป {lineGallery.activeIndex + 1} / {lineGallery.images.length}
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4">
+              <div className="space-y-4 p-4 bg-slate-950">
                 <div className="relative overflow-hidden rounded-md bg-slate-950">
                   <Image
                     alt={activeGalleryImage.fileName}
@@ -688,9 +828,9 @@ function SectionTitle({ subtitle, title }: { subtitle: string; title: string }) 
   )
 }
 
-function MetricCard({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+function MetricCard({ className, icon, label, value }: { className?: string; icon: ReactNode; label: string; value: string }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-white px-4 py-4 shadow-sm">
+    <div className={cn("rounded-md border border-slate-200 bg-white px-4 py-4 shadow-sm", className)}>
       <div className="flex items-center gap-2 text-xs uppercase text-slate-500">{icon}{label}</div>
       <div className="mt-2 text-lg font-semibold tabular-nums text-slate-950">{value}</div>
     </div>

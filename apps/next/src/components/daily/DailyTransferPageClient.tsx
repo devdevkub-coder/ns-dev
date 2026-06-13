@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Input } from '@/components/ui/Input'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -484,29 +485,28 @@ export function DailyTransferPageClient() {
       ) : null}
 
       {selectedRow ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-4">
-          <div className="mx-auto my-4 w-full max-w-3xl overflow-hidden rounded-md bg-white shadow-xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
+        <Dialog open={true} onOpenChange={(open) => { if (!open) closeDetail() }}>
+          <DialogContent className="max-h-[90vh] max-w-3xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-none">
+            <DialogHeader className="p-4 bg-slate-900 text-white shrink-0 flex flex-row items-start justify-between gap-3">
               <div>
-                <h3 className="font-bold text-slate-900">รายละเอียดรายการโอนเงิน</h3>
-                <p className="mt-1 font-mono text-xs text-slate-500">{selectedRow.docNo}</p>
+                <DialogTitle className="text-lg font-bold text-white">รายละเอียดรายการโอนเงิน</DialogTitle>
+                <DialogDescription className="mt-1 font-mono text-xs text-slate-400">{selectedRow.docNo}</DialogDescription>
               </div>
-              <button className="text-3xl leading-none text-slate-400 hover:text-slate-700" type="button" onClick={closeDetail}>&times;</button>
-            </div>
-            <div className="space-y-4 p-5">
-              <div className="grid gap-3 md:grid-cols-3">
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto bg-slate-50 p-5 space-y-4 text-sm">
+              <div className="grid gap-3 md:grid-cols-3 bg-white rounded-lg border border-slate-200 shadow-sm p-5">
                 <SummaryBox label="ยอดโอน" value={formatMoney(selectedRow.amount)} />
                 <SummaryBox label="ค่าธรรมเนียม" value={formatMoney(selectedRow.fee)} />
                 <SummaryBox label="ยอดออกจากบัญชีต้นทาง" value={formatMoney(selectedRow.amount + selectedRow.fee)} />
               </div>
-              <div className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
+              <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-2">
                 <DetailItem label="วันที่" value={formatDateDisplay(selectedRow.date)} />
                 <DetailItem label="ผู้ทำรายการ" value={selectedRow.byPerson || '-'} />
                 <DetailItem label="บัญชีต้นทาง" tone="red" value={selectedRow.fromAccountName} />
                 <DetailItem label="บัญชีปลายทาง" tone="emerald" value={selectedRow.toAccountName} />
                 <DetailItem className="md:col-span-2" label="หมายเหตุ" value={selectedRow.notes || '-'} />
               </div>
-              <div className="rounded-md border border-slate-200">
+              <div className="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
                 <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900">ผลกระทบ Bank Statement</div>
                 <div className="grid gap-0 text-sm md:grid-cols-2">
                   <div className="border-b border-slate-200 px-4 py-3 md:border-b-0 md:border-r">
@@ -522,12 +522,12 @@ export function DailyTransferPageClient() {
                 </div>
               </div>
             </div>
-            <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
+            <DialogFooter className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 shrink-0">
               <Button className="font-normal" size="sm" type="button" variant="outline" onClick={closeDetail}>ปิด</Button>
               <Button size="sm" type="button" onClick={() => openEditFromDetail(selectedRow)}>แก้ไข</Button>
-            </div>
-          </div>
-        </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       ) : null}
 
       {/* Mobile Card List */}

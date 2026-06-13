@@ -226,7 +226,7 @@ export function ImpuritiesPageClient() {
               <option value="inactive">ปิด</option>
             </select>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2 w-full xl:w-auto">
+          <div className="flex flex-wrap items-center justify-end gap-2 w-full xl:w-auto xl:ml-auto">
             <button className="h-9 flex-1 xl:flex-none justify-center rounded-md border border-slate-300 px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 hidden xl:inline-flex" type="button" onClick={resetFilters}>
               ล้างตัวกรอง
             </button>
@@ -511,13 +511,13 @@ function ImpurityForm({ impurity, isSaving, onCancel, onSubmit }: ImpurityFormPr
   }
 
   return (
-    <form className="overflow-hidden rounded-md bg-white shadow-xl" onSubmit={handleSubmit}>
-      <div className="flex flex-col gap-3 bg-slate-900 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <form className="overflow-hidden rounded-md bg-slate-900 shadow-xl flex flex-col w-full max-h-[90vh]" onSubmit={handleSubmit}>
+      <div className="flex flex-col gap-3 bg-slate-900 px-5 py-4 sm:flex-row sm:items-center sm:justify-between shrink-0">
         <h3 className="text-lg font-bold text-slate-100">{form.id ? 'แก้ไขสิ่งเจือปน' : 'เพิ่มสิ่งเจือปน'}</h3>
         <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-slate-200" onChange={(checked) => update('active', checked)} />
       </div>
 
-      <div className="max-h-[76vh] space-y-5 overflow-y-auto bg-slate-50 px-5 py-5">
+      <div className="flex-1 overflow-y-auto bg-slate-50 px-5 py-5 space-y-5">
         <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <h4 className="mb-4 text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">ข้อมูลสิ่งเจือปน</h4>
           <div className="grid gap-4 md:grid-cols-2">
@@ -526,11 +526,11 @@ function ImpurityForm({ impurity, isSaving, onCancel, onSubmit }: ImpurityFormPr
         </section>
       </div>
 
-      <div className="flex flex-wrap justify-end gap-3.5 border-t border-slate-100 bg-white px-5 py-4">
-        <button className="text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors" type="button" onClick={onCancel}>
+      <div className="flex flex-wrap justify-end gap-3.5 border-t border-slate-200 bg-slate-50 px-5 py-4 shrink-0">
+        <button className="inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-normal text-slate-700 hover:bg-slate-50" type="button" onClick={onCancel}>
           ยกเลิก
         </button>
-        <button className="rounded-md bg-slate-900 px-5 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-60 shadow-sm" disabled={isSaving} type="submit">
+        <button className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-normal text-white hover:bg-slate-800 disabled:opacity-60 shadow-sm" disabled={isSaving} type="submit">
           {isSaving ? 'กำลังบันทึก...' : 'บันทึก'}
         </button>
       </div>

@@ -216,17 +216,22 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
           <button className="rounded-md border px-3 py-2 text-sm" type="button" onClick={() => { setDateFrom(''); setDateTo('') }}>ล้างวันที่</button>
           <button className="ml-auto rounded-md bg-emerald-600 px-4 py-2 text-sm text-white" type="button" onClick={exportCostCsv}>Export CSV</button>
         </div>
-        <div className="grid grid-cols-2 gap-3 text-xs md:grid-cols-7">
-          <CostCard label="RM Cost" tone="red" value={costTotals.rm} />
-          <CostCard label="Labor" value={costTotals.labor} />
-          <CostCard label="Electricity" value={costTotals.electricity} />
-          <CostCard label="Machine" value={costTotals.machine} />
-          <CostCard label="Fuel" value={costTotals.fuel} />
-          <CostCard label="Other Process" value={costTotals.otherProc + costTotals.maintenance} />
-          <div className="rounded-md bg-gradient-to-br from-blue-600 to-indigo-700 p-3 text-white shadow">
-            <div className="opacity-80">Total / Cost per Kg</div>
-            <div className="text-base font-bold">{formatMoney(costTotals.total)}</div>
-            <div className="text-xs opacity-80">{formatMoney(costTotals.outputQty > 0 ? costTotals.total / costTotals.outputQty : 0)} ฿/กก.</div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 lg:grid-cols-7 text-sm">
+          <CostCard label="RM Cost" tone="red" value={costTotals.rm} emoji="📦" iconBg="bg-red-100 text-red-700" />
+          <CostCard label="Labor" value={costTotals.labor} emoji="👷" iconBg="bg-blue-100 text-blue-700" />
+          <CostCard label="Electricity" value={costTotals.electricity} emoji="⚡" iconBg="bg-amber-100 text-amber-700" />
+          <CostCard label="Machine" value={costTotals.machine} emoji="⚙️" iconBg="bg-purple-100 text-purple-700" />
+          <CostCard label="Fuel" value={costTotals.fuel} emoji="🔥" iconBg="bg-red-100 text-red-700" />
+          <CostCard label="Other Process" value={costTotals.otherProc + costTotals.maintenance} emoji="🔧" />
+          <div className="bg-white p-3 sm:p-4 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-3 col-span-2 lg:col-span-1">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-lg sm:text-xl shrink-0">
+              💰
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-semibold text-slate-500 truncate">Total / Cost per Kg</div>
+              <div className="text-sm font-bold text-emerald-700 mt-0.5 tabular-nums">{formatMoney(costTotals.total)}</div>
+              <div className="text-[10px] text-slate-400 mt-0.5 truncate">{formatMoney(costTotals.outputQty > 0 ? costTotals.total / costTotals.outputQty : 0)} ฿/กก.</div>
+            </div>
           </div>
         </div>
         <div className="overflow-x-auto rounded-md bg-white shadow">
@@ -281,11 +286,11 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <DashboardKpi label="ใบสั่งผลิต" note={`Input ${formatMoney(summary.inputQty ?? 0)} | Output ${formatMoney(summary.outputQty ?? 0)}`} tone="blue" value={formatMoney(summary.count ?? 0)} />
-          <DashboardKpi label="ผลิตได้" note="กก. ไม่รวม Loss" tone="emerald" value={formatMoney(summary.outputQty ?? 0)} />
-          <DashboardKpi label="WIP คงเหลือทั้งระบบ" note="กก. ที่ยังผลิตค้างอยู่" tone="amber" value={formatMoney(summary.totalWipQty ?? summary.wipQty ?? 0)} />
-          <DashboardKpi label="Yield %" note={`Loss ${Number(summary.lossPct ?? 0).toFixed(1)}%`} tone="purple" value={`${Number(summary.yieldPct ?? 0).toFixed(1)}%`} />
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
+          <DashboardKpi label="ใบสั่งผลิต" note={`Input ${formatMoney(summary.inputQty ?? 0)} | Output ${formatMoney(summary.outputQty ?? 0)}`} tone="blue" value={formatMoney(summary.count ?? 0)} emoji="🏭" />
+          <DashboardKpi label="ผลิตได้" note="กก. ไม่รวม Loss" tone="emerald" value={formatMoney(summary.outputQty ?? 0)} emoji="📦" />
+          <DashboardKpi label="WIP คงเหลือทั้งระบบ" note="กก. ที่ยังผลิตค้างอยู่" tone="amber" value={formatMoney(summary.totalWipQty ?? summary.wipQty ?? 0)} emoji="⚙️" />
+          <DashboardKpi label="Yield %" note={`Loss ${Number(summary.lossPct ?? 0).toFixed(1)}%`} tone="purple" value={`${Number(summary.yieldPct ?? 0).toFixed(1)}%`} emoji="📈" />
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -379,11 +384,20 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
           <b>Machine Utilization</b> = ชั่วโมงประมาณการ / (8 ชม./วัน x จำนวนวัน) | <b>Yield Diff</b> = Actual Yield - Normal Yield
         </div>
       ) : null}
-      <div className={`grid gap-3 ${mode === 'report' ? 'md:grid-cols-7' : 'md:grid-cols-6'}`}>
-        {metricItems.map((metric) => <Metric key={metric.key} label={metric.label} type={metric.type} value={metric.value} />)}
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 xl:grid-cols-6 text-sm">
+        {metricItems.map((metric, index) => (
+          <Metric
+            key={metric.key}
+            label={metric.label}
+            type={metric.type}
+            value={metric.value}
+            metricKey={metric.key}
+            className={index === metricItems.length - 1 && metricItems.length % 2 !== 0 ? 'col-span-2 md:col-span-1' : ''}
+          />
+        ))}
       </div>
       {mode === 'yieldLoss' ? (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-4 text-sm mt-4">
           <ImpactCard label="Yield Gain (Output > คาดหวัง)" tone="gain" value={Number(data?.summary?.yieldGainValue ?? 0)} />
           <ImpactCard label="Abnormal Loss (Output < Normal)" tone="loss" value={Number(data?.summary?.abnormalLossValue ?? 0)} />
           <ImpactCard label="Net P&L Impact" tone={Number(data?.summary?.netPnL ?? 0) >= 0 ? 'netGood' : 'netBad'} value={Number(data?.summary?.netPnL ?? 0)} />
@@ -440,29 +454,154 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
   )
 }
 
-function Metric({ label, type, value }: { label: string; type?: 'money' | 'number' | 'percent'; value: number }) {
-  return <div className="rounded-md bg-white p-3 shadow"><div className="text-xs text-slate-500">{label}</div><div className="mt-1 text-lg font-bold text-slate-900">{formatCell(value, type)}</div></div>
+function Metric({
+  label,
+  type,
+  value,
+  metricKey,
+  className,
+}: {
+  label: string
+  type?: 'money' | 'number' | 'percent'
+  value: number
+  metricKey?: string
+  className?: string
+}) {
+  let emoji = '📄'
+  let tone: 'amber' | 'blue' | 'emerald' | 'red' | 'slate' | 'purple' = 'slate'
+  let iconBg = 'bg-slate-100 text-slate-700'
+
+  const key = metricKey?.toLowerCase() || ''
+  if (key.includes('count') || key.includes('batches')) {
+    emoji = '📋'
+  } else if (key.includes('input')) {
+    emoji = '📦'
+    tone = 'blue'
+    iconBg = 'bg-blue-100 text-blue-700'
+  } else if (key.includes('output')) {
+    emoji = '✅'
+    tone = 'emerald'
+    iconBg = 'bg-emerald-100 text-emerald-700'
+  } else if (key.includes('wip')) {
+    emoji = '⚙️'
+    tone = 'amber'
+    iconBg = 'bg-amber-100 text-amber-700'
+  } else if (key.includes('loss')) {
+    emoji = '📉'
+    tone = 'red'
+    iconBg = 'bg-red-100 text-red-700'
+  } else if (key.includes('yieldpct')) {
+    emoji = '📈'
+    tone = 'emerald'
+    iconBg = 'bg-emerald-100 text-emerald-700'
+  } else if (key.includes('cost') || key.includes('value') || key.includes('pnl')) {
+    emoji = '💰'
+    tone = 'emerald'
+    iconBg = 'bg-emerald-100 text-emerald-700'
+  } else if (key.includes('purple')) {
+    tone = 'purple'
+    iconBg = 'bg-purple-100 text-purple-700'
+  }
+
+  const color = tone === 'blue'
+    ? 'text-blue-600'
+    : tone === 'emerald'
+      ? 'text-emerald-700'
+      : tone === 'amber'
+        ? 'text-amber-700'
+        : tone === 'red'
+          ? 'text-red-600'
+          : tone === 'purple'
+            ? 'text-purple-700'
+            : 'text-slate-900'
+
+  return (
+    <div className={`bg-white p-3 sm:p-4 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-3 ${className || ''}`}>
+      <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full ${iconBg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
+        {emoji}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-semibold text-slate-500 truncate">{label}</div>
+        <div className={`text-sm font-bold ${color} mt-0.5 tabular-nums`}>{formatCell(value, type)}</div>
+      </div>
+    </div>
+  )
 }
 
 function ImpactCard({ label, tone, value }: { label: string; tone: 'gain' | 'loss' | 'netBad' | 'netGood'; value: number }) {
-  const classes = {
-    gain: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    loss: 'border-red-200 bg-red-50 text-red-700',
-    netBad: 'border-orange-300 bg-orange-50 text-orange-700',
-    netGood: 'border-blue-300 bg-blue-50 text-blue-700',
+  let emoji = '💰'
+  let toneColor: 'emerald' | 'red' | 'blue' | 'amber' = 'emerald'
+  let iconBg = 'bg-emerald-100 text-emerald-700'
+
+  if (tone === 'gain' || tone === 'netGood') {
+    emoji = tone === 'gain' ? '📈' : '💰'
+    toneColor = 'emerald'
+    iconBg = 'bg-emerald-100 text-emerald-700'
+  } else if (tone === 'loss' || tone === 'netBad') {
+    emoji = tone === 'loss' ? '📉' : '💸'
+    toneColor = 'red'
+    iconBg = 'bg-red-100 text-red-700'
   }
+
   const prefix = tone === 'gain' || tone === 'netGood' ? '+' : tone === 'loss' ? '-' : ''
-  return <div className={`rounded-md border-2 p-4 shadow ${classes[tone]}`}><div className="text-xs font-semibold">{label}</div><div className="mt-1 text-2xl font-bold">{prefix}{formatMoney(Math.abs(value))} ฿</div></div>
+  const color = toneColor === 'emerald' ? 'text-emerald-700' : 'text-red-600'
+
+  return (
+    <div className="bg-white p-3 sm:p-4 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-3">
+      <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full ${iconBg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
+        {emoji}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-semibold text-slate-500 truncate">{label}</div>
+        <div className={`text-sm font-bold ${color} mt-0.5 tabular-nums`}>
+          {prefix}{formatMoney(Math.abs(value))} ฿
+        </div>
+      </div>
+    </div>
+  )
 }
 
-function DashboardKpi({ label, note, tone, value }: { label: string; note: string; tone: 'amber' | 'blue' | 'emerald' | 'purple'; value: string }) {
-  const classes = {
-    amber: 'border-amber-200 bg-amber-50 text-amber-700',
-    blue: 'border-blue-200 bg-blue-50 text-blue-700',
-    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    purple: 'border-purple-200 bg-purple-50 text-purple-700',
-  }
-  return <div className={`rounded-md border p-3 ${classes[tone]}`}><div className="text-xs opacity-90">{label}</div><div className="text-2xl font-bold">{value}</div><div className="text-xs opacity-80">{note}</div></div>
+function DashboardKpi({
+  label,
+  note,
+  tone,
+  value,
+  emoji,
+}: {
+  label: string
+  note: string
+  tone: 'amber' | 'blue' | 'emerald' | 'purple'
+  value: string
+  emoji: string
+}) {
+  const iconBg = tone === 'blue'
+    ? 'bg-blue-100 text-blue-700'
+    : tone === 'emerald'
+      ? 'bg-emerald-100 text-emerald-700'
+      : tone === 'amber'
+        ? 'bg-amber-100 text-amber-700'
+        : 'bg-purple-100 text-purple-700'
+
+  const color = tone === 'blue'
+    ? 'text-blue-600'
+    : tone === 'emerald'
+      ? 'text-emerald-700'
+      : tone === 'amber'
+        ? 'text-amber-700'
+        : 'text-purple-700'
+
+  return (
+    <div className="bg-white p-3 sm:p-4 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-3">
+      <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full ${iconBg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
+        {emoji}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-semibold text-slate-500 truncate">{label}</div>
+        <div className={`text-sm font-bold ${color} mt-0.5 tabular-nums`}>{value}</div>
+        <div className="text-[10px] text-slate-400 mt-0.5 truncate">{note}</div>
+      </div>
+    </div>
+  )
 }
 
 function ChartPanel({ rows, title, type }: { rows: Array<{ input: number; label: string; loss: number; output: number }>; title: string; type: 'bar' | 'line' }) {
@@ -486,8 +625,40 @@ function ChartPanel({ rows, title, type }: { rows: Array<{ input: number; label:
   )
 }
 
-function CostCard({ label, tone, value }: { label: string; tone?: 'red'; value: number }) {
-  return <div className="rounded-md bg-white p-3 shadow"><div className="text-slate-500">{label}</div><div className={`text-base font-bold ${tone === 'red' ? 'text-red-700' : 'text-slate-900'}`}>{formatMoney(value)}</div></div>
+function StatusBar({ count, max, status }: { count: number; max: number; status: string }) {
+  return (
+    <div className="text-sm">
+      <div className="mb-1 flex justify-between"><span>{status}</span><b>{count}</b></div>
+      <div className="h-2 overflow-hidden rounded-md-full bg-slate-100"><div className="h-full rounded-md-full bg-purple-500" style={{ width: `${Math.max(4, (count / max) * 100)}%` }} /></div>
+    </div>
+  )
+}
+
+function CostCard({
+  label,
+  tone,
+  value,
+  emoji,
+  iconBg = 'bg-slate-100',
+}: {
+  label: string
+  tone?: 'red'
+  value: number
+  emoji: string
+  iconBg?: string
+}) {
+  const color = tone === 'red' ? 'text-red-600' : 'text-slate-900'
+  return (
+    <div className="bg-white p-3 sm:p-4 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-3">
+      <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full ${iconBg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
+        {emoji}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-semibold text-slate-500 truncate">{label}</div>
+        <div className={`text-sm font-bold ${color} mt-0.5 tabular-nums`}>{formatMoney(value)}</div>
+      </div>
+    </div>
+  )
 }
 
 function costBreakdown(row: Row) {

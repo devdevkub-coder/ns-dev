@@ -284,6 +284,8 @@ Tasks:
 - [x] Add QA checklist and run browser verification.
 - [x] Confirm legacy parity: legacy supports multi-round input/output by repeated modal saves; an in-modal editable multi-line grid is not required for MVP parity.
 - [x] Surface production reconciliation as read-only `/production/reconciliation` UI. It was initially added to navigation during the reconciliation batch, then removed from the Production menu on 2026-06-13 after the user narrowed the Production navigation scope.
+- [x] Done on 2026-06-13: Standardized the `/production/reconciliation` KPI cards to AcexPOS style and aligned its refresh button to the right of the filter row (`ml-auto`).
+- [x] Done on 2026-06-13: Standardized the `/production/report` KPI/cost/impact cards to AcexPOS style, and resolved a TypeScript compiler error concerning the `'purple'` tone check in the `Metric` component.
 
 #### 2026-06-12 Logged-in Browser QA Result
 

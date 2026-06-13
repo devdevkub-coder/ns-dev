@@ -168,13 +168,13 @@ export function StockBalancePageClient() {
   return (
     <section>
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
-      <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <Metric label="น้ำหนักสต๊อกรวม" value={`${formatMoney(summary.qty)} กก.`} tone="blue" />
-        <Metric label="มูลค่าสต๊อกรวม" value={formatMoney(summary.value)} tone="emerald" />
-        <Metric label="จองไว้" sub="จาก WTO ที่ยังไม่ออกบิล" value={`${formatMoney(summary.onHoldQty)} กก.`} tone="amber" />
-        <Metric label="พร้อมส่ง" sub={`${summary.availableQty > 0 ? (summary.readyQty / summary.availableQty * 100).toFixed(1) : '0'}% ของ Stock ที่พร้อมขาย`} value={`${formatMoney(summary.readyQty)} กก.`} tone="emeraldPanel" />
-        <Metric label="⚠ ไม่พร้อมขาย" sub={`${summary.value > 0 ? (summary.notAvailableValue / summary.value * 100).toFixed(1) : '0'}% ของ Stock`} value={formatMoney(summary.notAvailableValue)} tone="redPanel" />
-        <Metric label="ราคา/กก. เฉลี่ย" value={formatMoney(averageCost)} />
+      <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 xl:grid-cols-6 text-sm">
+        <Metric emoji="⚖️" iconBg="bg-blue-100 text-blue-700" label="น้ำหนักสต๊อกรวม" value={`${formatMoney(summary.qty)} กก.`} tone="blue" />
+        <Metric emoji="💰" iconBg="bg-emerald-100 text-emerald-700" label="มูลค่าสต๊อกรวม" value={formatMoney(summary.value)} tone="emerald" />
+        <Metric emoji="⏳" iconBg="bg-amber-100 text-amber-700" label="จองไว้" sub="จาก WTO ที่ยังไม่ออกบิล" value={`${formatMoney(summary.onHoldQty)} กก.`} tone="amber" />
+        <Metric emoji="✅" iconBg="bg-emerald-100 text-emerald-700" label="พร้อมส่ง" sub={`${summary.availableQty > 0 ? (summary.readyQty / summary.availableQty * 100).toFixed(1) : '0'}% ของ Stock ที่พร้อมขาย`} value={`${formatMoney(summary.readyQty)} กก.`} tone="emerald" />
+        <Metric emoji="⚠️" iconBg="bg-red-100 text-red-700" label="ไม่พร้อมขาย" sub={`${summary.value > 0 ? (summary.notAvailableValue / summary.value * 100).toFixed(1) : '0'}% ของ Stock`} value={formatMoney(summary.notAvailableValue)} tone="red" />
+        <Metric emoji="📊" iconBg="bg-slate-100 text-slate-700" label="ราคา/กก. เฉลี่ย" value={formatMoney(averageCost)} />
       </div>
       <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-3">
         {byStatus.map((item) => <StatusCard key={item.status} item={item} />)}
@@ -206,7 +206,7 @@ export function StockBalancePageClient() {
           />
         </div>
         {productId ? <button className="rounded-md bg-slate-100 px-2 py-1.5 text-xs hover:bg-slate-200" type="button" onClick={() => setProductId('')}>✕ ล้าง</button> : null}
-        <button className="ml-auto rounded-md bg-emerald-600 px-4 py-2 text-sm text-white" type="button" onClick={exportXlsx}>📥 Export .xlsx</button>
+        <button className="ml-auto rounded-md bg-emerald-600 px-4 py-2 text-sm text-white" type="button" onClick={exportXlsx}>ส่งออก Excel</button>
       </div>
       {productId && selectedProductInfo ? (
         <ProductPanel averageCost={selectedProductInfo.qty > 0 ? selectedProductInfo.value / selectedProductInfo.qty : 0} info={selectedProductInfo} rows={selectedProductRows} onClose={() => setProductId('')} onOpen={setDetailRow} />
@@ -229,9 +229,12 @@ export function StockBalancePageClient() {
       ) : <DetailTable isLoading={isLoading} onOpen={setDetailRow} rows={filteredRows} />}
       {detailRow ? (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-10">
-          <div className="w-full max-w-xl rounded-md bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b px-5 py-4"><h3 className="font-bold">รายละเอียดสต๊อก</h3><button className="text-2xl text-slate-400" type="button" onClick={() => setDetailRow(null)}>&times;</button></div>
-            <div className="space-y-2 p-5 text-sm">
+          <div className="w-full max-w-xl overflow-hidden rounded-md bg-slate-900 shadow-xl flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between bg-slate-900 px-5 py-4 shrink-0">
+              <h3 className="font-bold text-slate-100">รายละเอียดสต๊อก</h3>
+              <button className="text-2xl text-slate-400 hover:text-slate-200" type="button" onClick={() => setDetailRow(null)}>&times;</button>
+            </div>
+            <div className="flex-1 overflow-y-auto bg-slate-50 p-4 sm:p-5 space-y-2 text-sm">
               <Info label="สินค้า" value={`${detailRow.productCode} ${detailRow.productName}`} />
               <Info label="คลัง" value={stockStatusText(detailRow)} />
               <Info label="สาขา/คลัง" value={`${detailRow.branchName} / ${detailRow.warehouseName}`} />
@@ -242,6 +245,9 @@ export function StockBalancePageClient() {
               <Info label="มูลค่า" value={formatMoney(detailRow.value)} />
               <Info label="ต้นทุนเฉลี่ย" value={formatMoney(detailRow.avgCost)} />
               <Info label="วันที่ล่าสุด" value={detailRow.lastDate} />
+            </div>
+            <div className="flex justify-end border-t border-slate-200 bg-slate-50 px-5 py-4 shrink-0">
+              <button className="rounded-md border border-slate-300 bg-white px-5 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50" type="button" onClick={() => setDetailRow(null)}>ปิด</button>
             </div>
           </div>
         </div>
@@ -258,26 +264,40 @@ function Info({ label, value }: { label: string; value: string }) {
   return <div className="flex border-b py-1"><span className="w-32 text-slate-500">{label}</span><span className="font-medium text-slate-900">{value}</span></div>
 }
 
-function Metric({ label, sub, tone, value }: { label: string; sub?: string; tone?: 'amber' | 'blue' | 'emerald' | 'emeraldPanel' | 'red' | 'redPanel'; value: string }) {
-  const panel = tone === 'emeraldPanel'
-    ? 'border-l-4 border-emerald-500 bg-emerald-50'
-    : tone === 'redPanel'
-      ? 'border-l-4 border-red-500 bg-red-50'
-      : 'bg-white'
+function Metric({
+  emoji,
+  iconBg = 'bg-slate-100',
+  label,
+  sub,
+  tone,
+  value,
+}: {
+  emoji: string
+  iconBg?: string
+  label: string
+  sub?: string
+  tone?: 'amber' | 'blue' | 'emerald' | 'red' | 'slate'
+  value: string
+}) {
   const color = tone === 'blue'
     ? 'text-blue-600'
-    : tone === 'emerald' || tone === 'emeraldPanel'
+    : tone === 'emerald'
       ? 'text-emerald-700'
       : tone === 'amber'
         ? 'text-amber-700'
-        : tone === 'red' || tone === 'redPanel'
-          ? 'text-red-700'
+        : tone === 'red'
+          ? 'text-red-600'
           : 'text-slate-900'
   return (
-    <div className={`rounded-md p-4 shadow ${panel}`}>
-      <div className={`text-xs ${tone === 'emeraldPanel' ? 'text-emerald-700' : tone === 'redPanel' ? 'text-red-700' : 'text-slate-500'}`}>{label}</div>
-      <div className={`mt-1 text-2xl font-bold ${color}`}>{value}</div>
-      {sub ? <div className="mt-1 text-xs text-slate-500">{sub}</div> : null}
+    <div className="bg-white p-3 sm:p-4 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-3">
+      <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full ${iconBg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
+        {emoji}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-semibold text-slate-500 truncate">{label}</div>
+        <div className={`text-sm font-bold ${color} mt-0.5 tabular-nums`}>{value}</div>
+        {sub ? <div className="text-[10px] text-slate-400 mt-0.5 truncate">{sub}</div> : null}
+      </div>
     </div>
   )
 }

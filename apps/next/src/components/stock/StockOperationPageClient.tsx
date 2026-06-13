@@ -156,18 +156,16 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
       {mode === 'adjust' ? <AdjustPrincipleBox /> : null}
       <SummaryCards mode={mode} rows={rows} />
-      <div className={mode === 'status-convert' ? 'rounded-md bg-white p-3 shadow' : mode === 'convert' || mode === 'adjust' ? 'flex flex-wrap items-center gap-2 rounded-md bg-white p-3 shadow' : 'rounded-md bg-white p-3 shadow'}>
-        <div className={`flex flex-wrap items-center gap-2 ${mode === 'status-convert' ? 'justify-between' : ''}`}>
-          <div className={`flex flex-wrap items-center gap-2 ${mode === 'status-convert' ? 'flex-1' : ''}`}>
-            <input className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder={mode === 'convert' ? 'ค้นหา doc/source/target/ref...' : mode === 'adjust' ? 'ค้นหา doc/สินค้า/เหตุผล...' : 'ค้นหาเลขที่/สินค้า/หมายเหตุ...'} type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+      <div className="rounded-md bg-white p-3 shadow">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[260px]">
+            <input className="h-9 w-full flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder={mode === 'convert' ? 'ค้นหา doc/source/target/ref...' : mode === 'adjust' ? 'ค้นหา doc/สินค้า/เหตุผล...' : 'ค้นหาเลขที่/สินค้า/หมายเหตุ...'} type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
             {mode === 'status-convert' && search ? (
               <button className="h-9 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" type="button" onClick={() => setSearch('')}>
                 ล้างค้นหา
               </button>
             ) : null}
           </div>
-          {mode === 'adjust' ? <a className="rounded-md bg-amber-600 px-4 py-2 font-bold text-white hover:bg-amber-700" href={`${pathname}?new=1`}>+ ปรับสต๊อกใหม่ (Quick Adjust)</a> : null}
-          {mode === 'convert' ? <a className="rounded-md bg-cyan-600 px-4 py-2 font-bold text-white hover:bg-cyan-700" href={`${pathname}?new=1`}>+ ปรับเกรดใหม่</a> : null}
           {mode === 'convert' ? (
             <>
               <select className="h-9 rounded-md border bg-amber-50 px-3 py-2 text-sm font-medium" value={sourceTypeFilter} onChange={(event) => setSourceTypeFilter(event.target.value)}>
@@ -197,13 +195,30 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
               <DatePickerInput className="w-[130px]" title="ถึงวันที่" value={toDateFilter} onChange={setToDateFilter} />
               <button className="h-9 rounded-md bg-slate-700 px-3 py-2 text-sm text-white opacity-60" disabled title="รอ export contract สำหรับ stock adjustment" type="button">📥 CSV</button>
             </>
-          ) : mode === 'status-convert' ? (
-            <>
-              <button className="h-9 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" type="button" onClick={() => void loadData()}>Refresh</button>
-              <a className="inline-flex h-9 items-center rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800" href={`${pathname}?new=1`}>+ ปรับสถานะใหม่</a>
-            </>
-          ) : <a className="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white" href={`${pathname}?new=1`}>+ เพิ่มรายการ</a>}
-          {mode === 'status-convert' ? null : <button className="rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700" type="button" onClick={() => void loadData()}>Refresh</button>}
+          ) : null}
+          
+          <div className="flex items-center gap-2 ml-auto">
+            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors" type="button" onClick={() => void loadData()}>
+              Refresh
+            </button>
+            {mode === 'adjust' ? (
+              <a className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 transition-colors" href={`${pathname}?new=1`}>
+                + ปรับสต๊อกใหม่
+              </a>
+            ) : mode === 'convert' ? (
+              <a className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 transition-colors" href={`${pathname}?new=1`}>
+                + ปรับเกรดใหม่
+              </a>
+            ) : mode === 'status-convert' ? (
+              <a className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 transition-colors" href={`${pathname}?new=1`}>
+                + ปรับสถานะใหม่
+              </a>
+            ) : (
+              <a className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 transition-colors" href={`${pathname}?new=1`}>
+                + เพิ่มรายการ
+              </a>
+            )}
+          </div>
         </div>
       </div>
       {mode === 'status-convert' ? (
@@ -245,9 +260,12 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
         </div>
       ) : null}
       {formOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8">
-          <div className="w-full max-w-3xl overflow-hidden rounded-md bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b bg-slate-50 px-5 py-4"><h3 className="font-bold">{meta.title}</h3><a className="text-2xl text-slate-400" href={pathname}>&times;</a></div>
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8 animate-fade-in">
+          <div className="w-full max-w-3xl overflow-hidden rounded-md bg-slate-900 shadow-xl flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between bg-slate-900 text-white px-5 py-4 shrink-0">
+              <h3 className="font-bold text-slate-100">{meta.title}</h3>
+              <a className="text-2xl text-slate-400 hover:text-white" href={pathname}>&times;</a>
+            </div>
             {mode === 'status-convert' ? <StatusConvertForm cancelHref={pathname} isSaving={isSaving} reference={data.reference} onSubmit={submit} /> : null}
             {mode === 'convert' ? <ConvertForm cancelHref={pathname} isSaving={isSaving} reference={data.reference} onSubmit={submit} /> : null}
             {mode === 'adjust' ? <AdjustForm cancelHref={pathname} isSaving={isSaving} reference={data.reference} onSubmit={submit} /> : null}
@@ -267,12 +285,6 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
   )
 }
 
-function descriptionFor(mode: Mode) {
-  if (mode === 'status-convert') return 'เปลี่ยนสถานะ RM ↔ WIP ↔ FG ไม่ต้องเปิดใบสั่งผลิต · สร้าง Stock Ledger 2 ฝั่งอัตโนมัติ · เก็บประวัติพร้อมเหตุผล'
-  if (mode === 'convert') return 'ตัดสินค้าต้นทางและเพิ่มสินค้าปลายทางด้วยต้นทุน WAC ของ source'
-  return 'หาของไม่เจอ · สต๊อกตัด 0 แล้ว แต่ในระบบยังมี · นับเกินระบบ — Quick Adjust ทีละ row · Note-only ไม่ลง P&L'
-}
-
 function SummaryCards({ mode, rows }: { mode: Mode; rows: Payload['rows'] }) {
   const totalQty = rows.reduce((sum, row) => sum + Number(row.qty ?? row.sourceQty ?? row.diffQty ?? 0), 0)
   const totalValue = rows.reduce((sum, row) => sum + Number(row.value ?? row.valueNote ?? 0), 0)
@@ -283,14 +295,14 @@ function SummaryCards({ mode, rows }: { mode: Mode; rows: Payload['rows'] }) {
     const autoCount = rows.filter((row) => row.sourceType === 'Production Order').length
     const reversed = rows.filter((row) => row.status === 'reversed').length
     return (
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-7">
-        <Metric cardClassName="rounded-md bg-white p-3 shadow" label="รายการทั้งหมด" value={String(rows.length)} valueClassName="text-xl font-bold text-slate-900" />
-        <Metric cardClassName="rounded-md bg-emerald-50 p-3 shadow" label="Posted" value={String(posted)} valueClassName="text-xl font-bold text-emerald-700" />
-        <Metric cardClassName="rounded-md bg-amber-50 p-3 shadow" label="⏳ Pending Cost" value={String(pendingCost)} valueClassName="text-xl font-bold text-amber-700" />
-        <Metric cardClassName="rounded-md bg-blue-50 p-3 shadow" label="📝 Manual" value={String(manualCount)} valueClassName="text-xl font-bold text-blue-700" />
-        <Metric cardClassName="rounded-md bg-purple-50 p-3 shadow" label="🏭 Auto (Production)" value={String(autoCount)} valueClassName="text-xl font-bold text-purple-700" />
-        <Metric cardClassName="rounded-md bg-white p-3 shadow" label="น้ำหนักรวม" value={`${formatMoney(totalQty)} กก.`} valueClassName="text-xl font-bold text-slate-900" />
-        <Metric cardClassName="rounded-md bg-slate-50 p-3 shadow" label="Reversed" value={String(reversed)} valueClassName="text-xl font-bold text-slate-500" />
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 lg:grid-cols-7 text-sm">
+        <Metric emoji="📋" iconBg="bg-slate-100" label="รายการทั้งหมด" value={String(rows.length)} valueClassName="text-slate-900" />
+        <Metric emoji="✅" iconBg="bg-emerald-100 text-emerald-700" label="Posted" value={String(posted)} valueClassName="text-emerald-700" />
+        <Metric emoji="⏳" iconBg="bg-amber-100 text-amber-700" label="Pending Cost" value={String(pendingCost)} valueClassName="text-amber-700" />
+        <Metric emoji="📝" iconBg="bg-blue-100 text-blue-700" label="Manual" value={String(manualCount)} valueClassName="text-blue-700" />
+        <Metric emoji="🏭" iconBg="bg-purple-100 text-purple-700" label="Auto (Production)" value={String(autoCount)} valueClassName="text-purple-700" />
+        <Metric emoji="⚖️" iconBg="bg-slate-100" label="น้ำหนักรวม" value={`${formatMoney(totalQty)} กก.`} valueClassName="text-slate-900" />
+        <Metric emoji="🔄" iconBg="bg-slate-100 text-slate-500" label="Reversed" value={String(reversed)} valueClassName="text-slate-500" className="col-span-2 md:col-span-1" />
       </div>
     )
   }
@@ -302,22 +314,22 @@ function SummaryCards({ mode, rows }: { mode: Mode; rows: Payload['rows'] }) {
     const lossValue = lossRows.reduce((sum, row) => sum + Number(row.valueNote ?? 0), 0)
     const gainValue = gainRows.reduce((sum, row) => sum + Number(row.valueNote ?? 0), 0)
     return (
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <Metric cardClassName="rounded-md bg-white p-3 shadow" label="รายการทั้งหมด" value={String(rows.length)} valueClassName="text-xl font-bold text-slate-900" />
-        <Metric cardClassName="rounded-md bg-white p-3 shadow" label="นับขาด (LOSS)" value={`-${formatMoney(lossQty)} กก.`} valueClassName="text-xl font-bold text-red-600" />
-        <Metric cardClassName="rounded-md bg-white p-3 shadow" label="มูลค่าขาด (Note)" value={formatMoney(lossValue)} valueClassName="text-lg font-bold text-red-600" />
-        <Metric cardClassName="rounded-md bg-white p-3 shadow" label="นับเกิน (GAIN)" value={`+${formatMoney(gainQty)} กก.`} valueClassName="text-xl font-bold text-emerald-700" />
-        <Metric cardClassName="rounded-md bg-white p-3 shadow" label="มูลค่าเกิน (Note)" value={formatMoney(gainValue)} valueClassName="text-lg font-bold text-emerald-700" />
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-5 text-sm">
+        <Metric emoji="📋" iconBg="bg-slate-100" label="รายการทั้งหมด" value={String(rows.length)} valueClassName="text-slate-900" />
+        <Metric emoji="📉" iconBg="bg-red-100 text-red-700" label="นับขาด (LOSS)" value={`-${formatMoney(lossQty)} กก.`} valueClassName="text-red-600" />
+        <Metric emoji="💸" iconBg="bg-red-100 text-red-700" label="มูลค่าขาด (Note)" value={formatMoney(lossValue)} valueClassName="text-red-600" />
+        <Metric emoji="📈" iconBg="bg-emerald-100 text-emerald-700" label="นับเกิน (GAIN)" value={`+${formatMoney(gainQty)} กก.`} valueClassName="text-emerald-700" />
+        <Metric emoji="💰" iconBg="bg-emerald-100 text-emerald-700" label="มูลค่าเกิน (Note)" value={formatMoney(gainValue)} valueClassName="text-emerald-700" className="col-span-2 lg:col-span-1" />
       </div>
     )
   }
   if (mode === 'status-convert') return null
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-      <Metric label="รายการ" value={String(rows.length)} />
-      <Metric label="น้ำหนักรวม" value={`${formatMoney(totalQty)} กก.`} />
-      <Metric label="มูลค่า" value={formatMoney(totalValue)} />
-      <Metric label="สถานะ" value="DB-connected" />
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
+      <Metric emoji="📋" iconBg="bg-slate-100" label="รายการ" value={String(rows.length)} />
+      <Metric emoji="⚖️" iconBg="bg-slate-100" label="น้ำหนักรวม" value={`${formatMoney(totalQty)} กก.`} />
+      <Metric emoji="💰" iconBg="bg-slate-100" label="มูลค่า" value={formatMoney(totalValue)} />
+      <Metric emoji="🔗" iconBg="bg-slate-100" label="สถานะ" value="DB-connected" />
     </div>
   )
 }
@@ -325,10 +337,10 @@ function SummaryCards({ mode, rows }: { mode: Mode; rows: Payload['rows'] }) {
 function AdjustPrincipleBox() {
   return (
     <div className="rounded-md border-l-4 border-amber-500 bg-amber-50 p-3 text-xs text-slate-700">
-      <div className="mb-1 font-bold">📒 หลักการทำงาน — Note-only (ไม่ลง P&amp;L)</div>
+      <div className="mb-1 font-bold">📒 หลักการทำงาน — Note-only (ไม่ลง P&L)</div>
       <ul className="ml-5 list-disc space-y-0.5">
         <li>ปรับสต๊อกจริง (qty) ตาม &quot;นับจริง&quot; ของคุณ — ตัดออกหรือเพิ่มเข้า stock_ledger</li>
-        <li><strong>มูลค่า (value) = 0</strong> ใน ledger — ไม่กระทบ Stock Value · ไม่ลง P&amp;L · ไม่กระโดด WAC</li>
+        <li><strong>มูลค่า (value) = 0</strong> ใน ledger — ไม่กระทบ Stock Value · ไม่ลง P&L · ไม่กระโดด WAC</li>
         <li>มูลค่าที่หาย/เกินเก็บเป็น <strong>Note</strong> สำหรับ analysis เท่านั้น และแสดงใน column &quot;มูลค่า Note&quot;</li>
         <li>ใช้เมื่อ &quot;หาของไม่เจอ&quot; / &quot;นับจริง 0 แต่ระบบมี&quot; / &quot;นับเกินระบบ&quot;</li>
       </ul>
@@ -367,7 +379,7 @@ function OperationTable({
 }) {
   const columns = columnsFor(mode)
   return (
-    <div className={mode === 'convert' || mode === 'status-convert' ? 'overflow-x-auto rounded-md bg-white shadow' : 'overflow-x-auto rounded-md bg-white shadow'}>
+    <div className="overflow-x-auto rounded-md bg-white shadow">
       <table className={mode === 'convert' ? 'w-full min-w-[1300px] text-sm' : mode === 'status-convert' ? 'w-full min-w-[1120px] text-sm' : 'w-full min-w-[1000px] text-sm'}>
         <thead className="bg-slate-100">
           <tr>
@@ -389,9 +401,9 @@ function OperationTable({
             ))}
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-slate-100">
           {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={columns.length}>กำลังโหลดข้อมูล</td></tr> : null}
-          {!isLoading && rows.map((row, index) => <tr key={String(row.id ?? index)} className="border-t hover:bg-slate-50">{columns.map((column) => <td key={column.key} className={`p-2 ${column.cellClassName ?? ''}`}>{formatOperationCell(mode, row, column.key)}</td>)}</tr>)}
+          {!isLoading && rows.map((row, index) => <tr key={String(row.id ?? index)} className="hover:bg-slate-50">{columns.map((column) => <td key={column.key} className={`p-2 ${column.cellClassName ?? ''}`}>{formatOperationCell(mode, row, column.key)}</td>)}</tr>)}
           {!isLoading && !rows.length ? <tr><td className="p-8 text-center text-slate-400" colSpan={columns.length}>{emptyTextFor(mode)}</td></tr> : null}
         </tbody>
       </table>
@@ -546,16 +558,42 @@ function formatOperationCell(mode: Mode, row: Record<string, string | number | b
   return formatCell(row[key])
 }
 
-function Metric({ cardClassName = 'rounded-md bg-white p-3 shadow', label, value, valueClassName = 'mt-1 text-lg font-bold text-slate-900' }: { cardClassName?: string; label: string; value: string; valueClassName?: string }) {
-  return <div className={cardClassName}><div className="text-xs text-slate-500">{label}</div><div className={valueClassName}>{value}</div></div>
+function Metric({
+  emoji,
+  iconBg = 'bg-slate-100',
+  label,
+  labelClassName = 'text-slate-500',
+  value,
+  valueClassName = 'text-slate-900',
+  className = '',
+}: {
+  emoji: string
+  iconBg?: string
+  label: string
+  labelClassName?: string
+  value: string
+  valueClassName?: string
+  className?: string
+}) {
+  return (
+    <div className={`bg-white p-3 sm:p-4 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-3 ${className}`}>
+      <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full ${iconBg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
+        {emoji}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className={`text-xs font-semibold ${labelClassName} truncate`}>{label}</div>
+        <div className={`font-bold ${valueClassName} mt-0.5`}>{value}</div>
+      </div>
+    </div>
+  )
 }
 
 function Field(props: { label: string; onChange: (value: string) => void; type?: string; value: string }) {
-  return <label className="block text-sm font-medium">{props.label}{props.type === 'date' ? <DatePickerInput className="mt-1.5 w-full" value={props.value} onChange={props.onChange} /> : <input className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2" type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange(event.target.value)} />}</label>
+  return <label className="block text-xs font-semibold text-slate-600">{props.label}{props.type === 'date' ? <DatePickerInput className="mt-1.5 w-full font-normal" value={props.value} onChange={props.onChange} /> : <input className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-800 bg-white outline-none focus:border-slate-900" type={props.type ?? 'text'} value={props.value} onChange={(event) => props.onChange(event.target.value)} />}</label>
 }
 
 function Select(props: { label: string; onChange: (value: string) => void; options: StockOption[]; value: string }) {
-  return <label className="block text-sm font-medium">{props.label}<select className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2" value={props.value} onChange={(event) => props.onChange(event.target.value)}><option value="">เลือก</option>{props.options.filter((option) => option.active !== false).map((option) => <option key={option.id} value={option.id}>{option.code ? `${option.code} - ${option.name}` : option.name}</option>)}</select></label>
+  return <label className="block text-xs font-semibold text-slate-600">{props.label}<select className="mt-1.5 w-full h-10 rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-800 bg-white outline-none focus:border-slate-900" value={props.value} onChange={(event) => props.onChange(event.target.value)}><option value="">เลือก</option>{props.options.filter((option) => option.active !== false).map((option) => <option key={option.id} value={option.id}>{option.code ? `${option.code} - ${option.name}` : option.name}</option>)}</select></label>
 }
 
 function BranchWarehouseFields({ branchId, reference, setBranchId, setWarehouseId, warehouseId }: { branchId: string; reference: Payload['reference']; setBranchId: (value: string) => void; setWarehouseId: (value: string) => void; warehouseId: string }) {
@@ -568,14 +606,18 @@ function BranchWarehouseFields({ branchId, reference, setBranchId, setWarehouseI
 function StatusConvertForm(props: { cancelHref: string; isSaving: boolean; onSubmit: (values: StatusConvertFormValues) => void; reference: Payload['reference'] }) {
   const [values, setValues] = useState<StatusConvertFormValues>({ branchId: '', date: todayDateInput(), docNo: null, fromStatus: 'RM', lotNo: null, notes: null, productId: '', qty: 0, reason: null, toStatus: 'FG', warehouseId: '' })
   return <FormShell cancelHref={props.cancelHref} isSaving={props.isSaving} onSubmit={() => props.onSubmit(values)}>
-    <BaseDateDoc values={values} setValues={setValues} />
-    <Select label="สินค้า" options={props.reference.products} value={values.productId} onChange={(productId) => setValues({ ...values, productId })} />
-    <BranchWarehouseFields branchId={values.branchId} reference={props.reference} setBranchId={(branchId) => setValues({ ...values, branchId, warehouseId: '' })} setWarehouseId={(warehouseId) => setValues({ ...values, warehouseId })} warehouseId={values.warehouseId} />
-    <Select label="จากสถานะ" options={statusOptions()} value={values.fromStatus} onChange={(fromStatus) => setValues({ ...values, fromStatus: fromStatus as StatusConvertFormValues['fromStatus'] })} />
-    <Select label="เป็นสถานะ" options={statusOptions()} value={values.toStatus} onChange={(toStatus) => setValues({ ...values, toStatus: toStatus as StatusConvertFormValues['toStatus'] })} />
-    <Field label="น้ำหนัก" type="number" value={String(values.qty)} onChange={(qty) => setValues({ ...values, qty: Number(qty) })} />
-    <Field label="Lot" value={values.lotNo ?? ''} onChange={(lotNo) => setValues({ ...values, lotNo })} />
-    <Field label="เหตุผล" value={values.reason ?? ''} onChange={(reason) => setValues({ ...values, reason })} />
+    <div className="md:col-span-2 rounded-lg border border-slate-200 bg-white p-5 shadow-sm grid gap-4 md:grid-cols-2">
+      <BaseDateDoc values={values} setValues={setValues} />
+      <Select label="สินค้า" options={props.reference.products} value={values.productId} onChange={(productId) => setValues({ ...values, productId })} />
+      <BranchWarehouseFields branchId={values.branchId} reference={props.reference} setBranchId={(branchId) => setValues({ ...values, branchId, warehouseId: '' })} setWarehouseId={(warehouseId) => setValues({ ...values, warehouseId })} warehouseId={values.warehouseId} />
+      <Select label="จากสถานะ" options={statusOptions()} value={values.fromStatus} onChange={(fromStatus) => setValues({ ...values, fromStatus: fromStatus as StatusConvertFormValues['fromStatus'] })} />
+      <Select label="เป็นสถานะ" options={statusOptions()} value={values.toStatus} onChange={(toStatus) => setValues({ ...values, toStatus: toStatus as StatusConvertFormValues['toStatus'] })} />
+      <Field label="น้ำหนัก (กก.)" type="number" value={String(values.qty)} onChange={(qty) => setValues({ ...values, qty: Number(qty) })} />
+      <Field label="Lot" value={values.lotNo ?? ''} onChange={(lotNo) => setValues({ ...values, lotNo })} />
+      <div className="md:col-span-2">
+        <Field label="เหตุผล" value={values.reason ?? ''} onChange={(reason) => setValues({ ...values, reason })} />
+      </div>
+    </div>
   </FormShell>
 }
 
@@ -586,27 +628,29 @@ function ConvertForm(props: { cancelHref: string; isSaving: boolean; onSubmit: (
   const lossQty = Math.max(0, Number(values.sourceQty) - Number(values.targetQty))
   const yieldPct = Number(values.sourceQty) > 0 ? (Number(values.targetQty) / Number(values.sourceQty)) * 100 : 0
   return <FormShell cancelHref={props.cancelHref} isSaving={props.isSaving} mode="convert" onSubmit={() => props.onSubmit(values)}>
-    <BaseDateDoc values={values} setValues={setValues} />
-    <BranchWarehouseFields branchId={values.branchId} reference={props.reference} setBranchId={(branchId) => setValues({ ...values, branchId, warehouseId: '' })} setWarehouseId={(warehouseId) => setValues({ ...values, warehouseId })} warehouseId={values.warehouseId} />
-    <div className="rounded-md border border-red-100 bg-red-50/70 p-4 md:col-span-2">
+    <div className="md:col-span-2 rounded-lg border border-slate-200 bg-white p-5 shadow-sm grid gap-4 md:grid-cols-2 animate-fade-in">
+      <BaseDateDoc values={values} setValues={setValues} />
+      <BranchWarehouseFields branchId={values.branchId} reference={props.reference} setBranchId={(branchId) => setValues({ ...values, branchId, warehouseId: '' })} setWarehouseId={(warehouseId) => setValues({ ...values, warehouseId })} warehouseId={values.warehouseId} />
+    </div>
+    <div className="rounded-xl border border-red-200 bg-red-50/40 p-5 shadow-sm md:col-span-2">
       <div className="mb-3 text-sm font-bold text-red-700">Source (ออก)</div>
       <div className="grid gap-4 md:grid-cols-2">
         <Select label="สินค้าต้นทาง" options={props.reference.products} value={values.sourceProductId} onChange={(sourceProductId) => setValues({ ...values, sourceProductId })} />
-        <Field label="น้ำหนักต้นทาง" type="number" value={String(values.sourceQty)} onChange={(sourceQty) => setValues({ ...values, sourceQty: Number(sourceQty) })} />
+        <Field label="น้ำหนักต้นทาง (กก.)" type="number" value={String(values.sourceQty)} onChange={(sourceQty) => setValues({ ...values, sourceQty: Number(sourceQty) })} />
         <Field label="Lot ต้นทาง" value={values.lotNo ?? ''} onChange={(lotNo) => setValues({ ...values, lotNo })} />
         <ReadOnlyBox label="Source Product" value={sourceProduct ? `${sourceProduct.code ? `${sourceProduct.code} - ` : ''}${sourceProduct.name}` : '-'} />
       </div>
     </div>
-    <div className="rounded-md border border-emerald-100 bg-emerald-50/70 p-4 md:col-span-2">
+    <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-5 shadow-sm md:col-span-2">
       <div className="mb-3 text-sm font-bold text-emerald-700">Target (เข้า)</div>
       <div className="grid gap-4 md:grid-cols-2">
         <Select label="สินค้าปลายทาง" options={props.reference.products} value={values.targetProductId} onChange={(targetProductId) => setValues({ ...values, targetProductId })} />
-        <Field label="น้ำหนักปลายทาง" type="number" value={String(values.targetQty)} onChange={(targetQty) => setValues({ ...values, targetQty: Number(targetQty) })} />
+        <Field label="น้ำหนักปลายทาง (กก.)" type="number" value={String(values.targetQty)} onChange={(targetQty) => setValues({ ...values, targetQty: Number(targetQty) })} />
         <Field label="Lot ปลายทาง" value={values.targetLotNo ?? ''} onChange={(targetLotNo) => setValues({ ...values, targetLotNo })} />
         <ReadOnlyBox label="Target Product" value={targetProduct ? `${targetProduct.code ? `${targetProduct.code} - ` : ''}${targetProduct.name}` : '-'} />
       </div>
     </div>
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-4 md:col-span-2">
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:col-span-2">
       <div className="mb-3 text-sm font-bold text-slate-700">Loss / Yield / Cost Flow</div>
       <div className="grid gap-4 md:grid-cols-3">
         <ReadOnlyBox label="Loss" value={`${formatMoney(lossQty)} กก.`} />
@@ -624,12 +668,6 @@ function ConvertForm(props: { cancelHref: string; isSaving: boolean; onSubmit: (
 function AdjustForm(props: { cancelHref: string; isSaving: boolean; onSubmit: (values: StockAdjustFormValues) => void; reference: Payload['reference'] }) {
   const [values, setValues] = useState<StockAdjustFormValues>({ branchId: '', countedQty: 0, date: todayDateInput(), docNo: null, lotNo: null, productId: '', reason: '', remark: null, systemQty: 0, warehouseId: '' })
   return <FormShell cancelHref={props.cancelHref} isSaving={props.isSaving} onSubmit={() => props.onSubmit(values)}>
-    <BaseDateDoc values={values} setValues={setValues} />
-    <Select label="สินค้า" options={props.reference.products} value={values.productId} onChange={(productId) => setValues({ ...values, productId })} />
-    <BranchWarehouseFields branchId={values.branchId} reference={props.reference} setBranchId={(branchId) => setValues({ ...values, branchId, warehouseId: '' })} setWarehouseId={(warehouseId) => setValues({ ...values, warehouseId })} warehouseId={values.warehouseId} />
-    <Field label="Lot" value={values.lotNo ?? ''} onChange={(lotNo) => setValues({ ...values, lotNo })} />
-    <Field label="ยอดในระบบ" type="number" value={String(values.systemQty)} onChange={(systemQty) => setValues({ ...values, systemQty: Number(systemQty) })} />
-    <Field label="นับจริง" type="number" value={String(values.countedQty)} onChange={(countedQty) => setValues({ ...values, countedQty: Number(countedQty) })} />
     <Field label="เหตุผล" value={values.reason} onChange={(reason) => setValues({ ...values, reason })} />
   </FormShell>
 }
@@ -646,10 +684,25 @@ function ReadOnlyBox({ label, value }: { label: string; value: string }) {
 }
 
 function FormShell({ cancelHref, children, isSaving, mode, onSubmit }: { cancelHref: string; children: React.ReactNode; isSaving: boolean; mode?: Mode; onSubmit: () => void }) {
-  return <form onSubmit={(event) => { event.preventDefault(); onSubmit() }}>
-    <div className="grid gap-4 p-5 md:grid-cols-2">{children}</div>
-    <div className="flex justify-end gap-2 border-t px-5 py-4"><a className="rounded-md px-4 py-2 text-sm text-slate-600 hover:bg-slate-100" href={cancelHref}>ยกเลิก</a><button className={mode === 'convert' ? 'rounded-md bg-cyan-700 px-5 py-2 text-sm font-semibold text-white disabled:opacity-60' : 'rounded-md bg-slate-900 px-5 py-2 text-sm font-semibold text-white disabled:opacity-60'} disabled={isSaving} type="submit">{mode === 'convert' ? '💾 บันทึก (Post)' : 'บันทึก'}</button></div>
-  </form>
+  return (
+    <form className="flex-1 flex flex-col overflow-hidden" onSubmit={(event) => { event.preventDefault(); onSubmit() }}>
+      <div className="flex-1 overflow-y-auto bg-slate-50 p-4 sm:p-5">
+        <div className="grid gap-4 md:grid-cols-2">{children}</div>
+      </div>
+      <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 shrink-0">
+        <a className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50 flex items-center justify-center" href={cancelHref}>
+          ยกเลิก
+        </a>
+        <button
+          className="rounded-md bg-slate-900 px-5 py-2 text-sm font-normal text-white hover:bg-slate-800 disabled:opacity-60"
+          disabled={isSaving}
+          type="submit"
+        >
+          บันทึก
+        </button>
+      </div>
+    </form>
+  )
 }
 
 function statusOptions(): StockOption[] {

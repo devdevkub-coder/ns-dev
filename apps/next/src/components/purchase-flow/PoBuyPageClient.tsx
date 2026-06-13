@@ -754,24 +754,25 @@ export function PoBuyPageClient() {
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-3 text-sm">
         <SummaryCard
-          accentClassName="bg-gradient-to-br from-blue-500 to-indigo-700 text-white"
           label="ภาพรวม PO"
           sublabel={`มูลค่ารวม ${formatMoney(data?.summary.totalAmount ?? 0)}`}
+          tone="blue"
           value={`${data?.summary.totalRows ?? 0}`}
         />
         <SummaryCard
           label="สถานะการรับ"
           sublabel="ยังไม่รับ / บางส่วน / รับครบ / ปิดรับไม่ครบ"
+          tone="amber"
           value={`${openRows.length || data?.summary.open || 0} / ${partialRows.length} / ${receivedRows.length} / ${shortClosedRows.length || data?.summary.shortClosed || 0}`}
         />
         <SummaryCard
-          accentClassName="border border-amber-200 bg-amber-50"
+          className="col-span-2 lg:col-span-1"
           label="ยอดคงเหลือ"
           sublabel={`น้ำหนักรอรับ ${formatMoney(data?.summary.remainingQty ?? 0)}`}
+          tone="emerald"
           value={formatMoney(data?.summary.remainingAmount ?? 0)}
-          valueClassName="text-amber-700"
         />
       </div>
 
@@ -1192,23 +1193,57 @@ export function PoBuyPageClient() {
 }
 
 function SummaryCard({
-  accentClassName = 'border border-slate-200 bg-white text-slate-900',
+  className = '',
   label,
   sublabel,
+  tone = 'slate',
   value,
-  valueClassName = '',
 }: {
-  accentClassName?: string
+  className?: string
   label: string
-  sublabel: string
+  sublabel?: string
+  tone?: 'blue' | 'amber' | 'emerald' | 'slate'
   value: string
-  valueClassName?: string
 }) {
+  const configs = {
+    slate: {
+      bg: 'bg-slate-100 text-slate-600',
+      emoji: '📋',
+      labelColor: 'text-slate-500',
+      valueColor: 'text-slate-900',
+    },
+    blue: {
+      bg: 'bg-blue-100 text-blue-600',
+      emoji: '📋',
+      labelColor: 'text-blue-600',
+      valueColor: 'text-blue-700',
+    },
+    amber: {
+      bg: 'bg-amber-100 text-amber-600',
+      emoji: '⏱️',
+      labelColor: 'text-amber-600',
+      valueColor: 'text-amber-700',
+    },
+    emerald: {
+      bg: 'bg-emerald-100 text-emerald-600',
+      emoji: '💰',
+      labelColor: 'text-emerald-600',
+      valueColor: 'text-emerald-700',
+    },
+  }
+
+  const config = configs[tone]
+
   return (
-    <div className={`rounded-md p-3 shadow ${accentClassName}`}>
-      <div className="text-xs opacity-80">{label}</div>
-      <div className={`mt-1 text-lg font-bold ${valueClassName}`}>{value}</div>
-      <div className="mt-1 text-xs opacity-70">{sublabel}</div>
+    <div className={`bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4 ${className}`}>
+      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${config.bg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
+        {config.emoji}
+      </div>
+      <div>
+        <div className={`text-xs ${config.labelColor}`}>{label}</div>
+        <div className={`font-bold ${config.valueColor}`}>{value}</div>
+        {sublabel ? <div className="text-[10px] text-slate-400 font-medium mt-0.5">{sublabel}</div> : null}
+      </div>
     </div>
   )
 }
@@ -1765,7 +1800,7 @@ function PoBuyDetailModal({
     <Dialog open onOpenChange={(open) => {
       if (!open) onClose()
     }}>
-      <DialogContent aria-labelledby="po-buy-detail-title" className="max-h-[90vh] max-w-3xl rounded-md !p-0 overflow-hidden flex flex-col" hideClose>
+      <DialogContent aria-labelledby="po-buy-detail-title" className="max-h-[90vh] max-w-3xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-none" hideClose>
         <DialogHeader className="p-4 bg-slate-900 text-white shrink-0">
           <div>
             <DialogTitle id="po-buy-detail-title" className="text-white">รายละเอียด {row.docNo}</DialogTitle>
@@ -1773,18 +1808,58 @@ function PoBuyDetailModal({
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto">
-          <div className="grid grid-cols-2 gap-3 p-4 md:grid-cols-5">
-            <Detail label="วันที่สร้างเอกสาร" value={formatDateDisplay(row.date)} />
-            <Detail label="วันที่กำหนดส่ง" value={formatDateDisplay(row.expectedDelivery)} />
-            <Detail label="Qty" value={formatMoney(row.qty)} />
-            <Detail label="คงเหลือ" value={formatMoney(row.remainingQty)} />
-            <Detail label="ปิดรับไม่ครบ" value={row.shortClosedQty > 0 ? formatMoney(row.shortClosedQty) : '-'} />
+        <div className="flex-1 overflow-y-auto bg-slate-50 p-4 space-y-4 text-sm">
+          {/* Card 1: ข้อมูลหลัก */}
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">ข้อมูลหลัก</h4>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-5">
+              <div>
+                <div className="text-xs font-medium text-slate-500 mb-0.5">วันที่สร้างเอกสาร</div>
+                <div className="text-sm font-semibold text-slate-900">{formatDateDisplay(row.date)}</div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-slate-500 mb-0.5">วันที่กำหนดส่ง</div>
+                <div className="text-sm font-semibold text-slate-900">{formatDateDisplay(row.expectedDelivery)}</div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-slate-500 mb-0.5">สถานะ PO</div>
+                <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${statusBadge(row.status)}`}>
+                  <span className="size-1.5 rounded-full bg-current" />
+                  {poBuyStatusLabel(row.status)}
+                </span>
+              </div>
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-3 px-4 pb-4 md:grid-cols-3">
-            <Detail label="ยอดก่อน VAT" value={formatMoney(row.subtotal)} />
-            <Detail label={`VAT ${formatMoney(row.vatRatePercent)}%`} value={formatMoney(row.vatAmount)} />
-            <Detail label="ยอดรวม" value={formatMoney(row.totalAmount)} />
+
+          {/* Card 2: ยอดเงินและจำนวน */}
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">ยอดเงินและจำนวน</h4>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-5">
+              <div>
+                <div className="text-xs font-medium text-slate-500 mb-0.5">Qty (จำนวน)</div>
+                <div className="text-sm font-semibold text-slate-900">{formatMoney(row.qty)}</div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-slate-500 mb-0.5">คงเหลือ</div>
+                <div className="text-sm font-semibold text-slate-900">{formatMoney(row.remainingQty)}</div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-slate-500 mb-0.5">ปิดรับไม่ครบ</div>
+                <div className="text-sm font-semibold text-slate-900">{row.shortClosedQty > 0 ? formatMoney(row.shortClosedQty) : '-'}</div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-slate-500 mb-0.5">ยอดก่อน VAT</div>
+                <div className="text-sm font-semibold text-slate-900">{formatMoney(row.subtotal)}</div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-slate-500 mb-0.5">VAT {formatMoney(row.vatRatePercent)}%</div>
+                <div className="text-sm font-semibold text-slate-900">{formatMoney(row.vatAmount)}</div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-slate-500 mb-0.5">ยอดรวมสุทธิ</div>
+                <div className="text-sm font-bold text-blue-700">{formatMoney(row.totalAmount)}</div>
+              </div>
+            </div>
           </div>
           {row.notes.trim() ? (
             <div className="px-4 pb-4">

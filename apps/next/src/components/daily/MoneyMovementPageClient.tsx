@@ -1437,14 +1437,16 @@ export function MoneyMovementPageClient({
     <section className="space-y-5">
       {error && !formOpen ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-4 xl:grid-cols-5">
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-5 text-sm">
         <KpiCard label={mode === 'payment' ? 'จำนวนรายการ' : 'จำนวน Voucher'} value={rows.length.toLocaleString('th-TH')} tone="slate" />
         <KpiCard label={amountLabel} value={formatMoney(metrics.rowAmount)} tone={mode === 'payment' ? 'rose' : 'emerald'} />
         <KpiCard label="ยอดสุทธิ" value={formatMoney(metrics.rowNet)} tone="blue" />
         {mode === 'payment'
           ? <KpiCard label="Bank Fee" value={formatMoney(metrics.rowFee)} tone="amber" />
           : <KpiCard label="WHT / Fee" value={`${formatMoney(metrics.rowWht)} / ${formatMoney(metrics.rowFee)}`} tone="amber" />}
-        <KpiCard label={balanceLabel} value={formatMoney(metrics.outstanding)} tone="violet" />
+        <div className="col-span-2 lg:col-span-1">
+          <KpiCard label={balanceLabel} value={formatMoney(metrics.outstanding)} tone="violet" />
+        </div>
       </div>
 
       {showMoneyTabs ? (
@@ -2414,7 +2416,7 @@ function PaymentHistoryDetailDialog({
   const summary = detail?.summary
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-50" fallbackTitle="รายละเอียดการจ่ายเงิน" hideClose>
+      <DialogContent className="max-h-[90vh] max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-none" fallbackTitle="รายละเอียดการจ่ายเงิน" hideClose>
         <DialogHeader className="flex-row items-center justify-between gap-3 px-5 py-4 bg-slate-900 text-white">
           <div className="min-w-0">
             <DialogTitle className="truncate text-base font-bold text-white">{detail?.heading ?? 'รายละเอียดการจ่ายเงิน'}</DialogTitle>
@@ -2432,7 +2434,7 @@ function PaymentHistoryDetailDialog({
           </UiButton>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto space-y-4 p-5 text-sm">
+        <div className="flex-1 overflow-y-auto space-y-4 p-5 text-sm bg-slate-50">
           {isLoading ? <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow">กำลังโหลดรายละเอียด</div> : null}
           {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-red-800">{error}</div> : null}
           {!isLoading && !error && detail && summary ? (
@@ -2599,13 +2601,56 @@ function paymentBillStatus(bill: Bill) {
 }
 
 function KpiCard({ label, tone, value }: { label: string; tone: 'amber' | 'blue' | 'emerald' | 'rose' | 'slate' | 'violet'; value: string }) {
-  const tones = {
-    amber: 'text-amber-700',
-    blue: 'text-blue-700',
-    emerald: 'text-emerald-700',
-    rose: 'text-rose-700',
-    slate: 'text-slate-900',
-    violet: 'text-violet-700',
+  const configs = {
+    slate: {
+      bg: 'bg-slate-100 text-slate-600',
+      emoji: '📋',
+      labelColor: 'text-slate-500',
+      valueColor: 'text-slate-900',
+    },
+    rose: {
+      bg: 'bg-rose-100 text-rose-600',
+      emoji: '💸',
+      labelColor: 'text-rose-600',
+      valueColor: 'text-rose-700',
+    },
+    emerald: {
+      bg: 'bg-emerald-100 text-emerald-600',
+      emoji: '✅',
+      labelColor: 'text-emerald-600',
+      valueColor: 'text-emerald-700',
+    },
+    blue: {
+      bg: 'bg-blue-100 text-blue-600',
+      emoji: '💰',
+      labelColor: 'text-blue-600',
+      valueColor: 'text-blue-700',
+    },
+    amber: {
+      bg: 'bg-amber-100 text-amber-600',
+      emoji: '⚙️',
+      labelColor: 'text-amber-600',
+      valueColor: 'text-amber-700',
+    },
+    violet: {
+      bg: 'bg-violet-100 text-violet-600',
+      emoji: '⏳',
+      labelColor: 'text-violet-600',
+      valueColor: 'text-violet-700',
+    },
   }
-  return <div className="rounded-md bg-white p-3 shadow"><div className="text-xs text-slate-500">{label}</div><div className={`mt-1 break-words text-lg font-bold ${tones[tone]}`}>{value}</div></div>
+
+  const config = configs[tone]
+
+  return (
+    <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4 flex-1 w-full">
+      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${config.bg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
+        {config.emoji}
+      </div>
+      <div className="min-w-0">
+        <div className={`text-xs ${config.labelColor} truncate`}>{label}</div>
+        <div className={`font-bold ${config.valueColor} break-words`}>{value}</div>
+      </div>
+    </div>
+  )
 }
