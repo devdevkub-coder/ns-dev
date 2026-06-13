@@ -63,6 +63,18 @@ export function stockWhere(input: {
   to?: string | null
   warehouseId?: bigint | null
 }): Prisma.stock_ledgerWhereInput {
+  const statusWhere = input.status
+    ? {
+        OR: [
+          { output_category: input.status },
+          {
+            output_category: null,
+            warehouses: { type: input.status },
+          },
+        ],
+      }
+    : {}
+
   return {
     ...(input.productId ? { product_id: input.productId } : {}),
     ...(input.branchId ? { branch_id: input.branchId } : {}),
@@ -70,9 +82,16 @@ export function stockWhere(input: {
     ...(input.movementType ? { movement_type: input.movementType } : {}),
     ...(input.refType ? { ref_type: input.refType } : {}),
     ...(input.lotNo ? { lot_no: { contains: input.lotNo, mode: 'insensitive' } } : {}),
-    ...(input.status ? { output_category: input.status } : {}),
+    ...statusWhere,
     ...dateWhere(input),
   }
+}
+
+function stockStatusForLedgerRow(row: { output_category: string | null; warehouse_type?: string | null }) {
+  const explicitStatus = row.output_category?.trim()
+  if (explicitStatus) return explicitStatus
+  const warehouseType = row.warehouse_type?.trim().toUpperCase()
+  return warehouseType === 'RM' || warehouseType === 'WIP' || warehouseType === 'FG' ? warehouseType : '-'
 }
 
 export async function normalizeStockReferenceInput(input: {
@@ -138,7 +157,18 @@ function stockLedgerSqlWhere(input: {
   if (input.movementType) clauses.push(Prisma.sql`sl.movement_type = ${input.movementType}`)
   if (input.refType) clauses.push(Prisma.sql`sl.ref_type = ${input.refType}`)
   if (input.lotNo) clauses.push(Prisma.sql`sl.lot_no ilike ${`%${input.lotNo}%`}`)
-  if (input.status) clauses.push(Prisma.sql`sl.output_category = ${input.status}`)
+  if (input.status) clauses.push(Prisma.sql`(
+    sl.output_category = ${input.status}
+    or (
+      sl.output_category is null
+      and exists (
+        select 1
+        from public.warehouses sw
+        where sw.id = sl.warehouse_id
+          and sw.type = ${input.status}
+      )
+    )
+  )`)
   if (input.asOf) clauses.push(Prisma.sql`sl.date <= ${normalizeDate(input.asOf)}`)
   if (!input.asOf && input.from) clauses.push(Prisma.sql`sl.date >= ${normalizeDate(input.from)}`)
   if (!input.asOf && input.to) clauses.push(Prisma.sql`sl.date <= ${normalizeDate(input.to)}`)
@@ -162,6 +192,7 @@ type StockBalanceAggregateRow = {
   warehouse_code: string | null
   warehouse_id: bigint | null
   warehouse_name: string | null
+  warehouse_type: string | null
 }
 
 function rawNumeric(value: Prisma.Decimal | number | string | null) {
@@ -302,7 +333,8 @@ export async function stockBalanceSnapshot(input: {
         b.code as branch_code,
         b.name as branch_name,
         w.code as warehouse_code,
-        w.name as warehouse_name
+        w.name as warehouse_name,
+        w.type as warehouse_type
       from ledger_balance lb
       left join public.products p on p.id = lb.product_id
       left join public.branches b on b.id = lb.branch_id
@@ -391,7 +423,7 @@ export async function stockBalanceSnapshot(input: {
   )
 
   const rows = ledgerRows.map((row) => {
-    const productStatus = row.output_category ?? '-'
+    const productStatus = stockStatusForLedgerRow(row)
     const qty = rawNumeric(row.qty)
     const value = rawNumeric(row.value)
     const publicRow = {
