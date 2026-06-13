@@ -2288,7 +2288,7 @@ paths:
     post:
       tags: [Stock]
       operationId: createStockStatusConvert
-      summary: Convert product stock status between RM, WIP, and FG
+      summary: Convert product stock status between RM and FG
       requestBody:
         required: true
         content:
@@ -4461,15 +4461,19 @@ components:
       allOf:
         - $ref: "#/components/schemas/StockBaseWriteRequest"
         - type: object
-          required: [fromStatus, qty, toStatus]
+          required: [fromStatus, qty, reason, toStatus]
           properties:
             fromStatus:
-              $ref: "#/components/schemas/StockStatus"
+              $ref: "#/components/schemas/StatusConvertStatus"
             qty:
               type: number
               exclusiveMinimum: 0
             reason:
-              type: [string, "null"]
+              type: string
               maxLength: 240
             toStatus:
-              $ref: "#/components/schemas/StockStatus"
+              $ref: "#/components/schemas/StatusConvertStatus"
+    StatusConvertStatus:
+      type: string
+      description: Normal status-convert flow allows RM -> FG and FG -> RM only. WIP is owned by production PI/PO2/reversal flows.
+      enum: [RM, FG]

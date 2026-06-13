@@ -279,7 +279,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
               <button className="h-9 rounded-md bg-slate-700 px-3 py-2 text-sm text-white opacity-60" disabled title="รอ export contract สำหรับ stock adjustment" type="button">📥 CSV</button>
             </>
           ) : null}
-          
+
           <div className="flex items-center gap-2 ml-auto">
             <button className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors" type="button" onClick={() => void loadData()}>
               Refresh
@@ -688,42 +688,6 @@ function formatOperationCell(mode: Mode, row: Record<string, string | number | b
   return formatCell(row[key])
 }
 
-function Metric({
-  cardClassName,
-  emoji,
-  iconBg = 'bg-slate-100',
-  label,
-  labelClassName = 'text-slate-500',
-  value,
-  valueClassName = 'text-slate-900',
-  className = '',
-}: {
-  cardClassName?: string
-  emoji?: string
-  iconBg?: string
-  label: string
-  labelClassName?: string
-  value: string
-  valueClassName?: string
-  className?: string
-}) {
-  if (cardClassName) {
-    return <div className={cardClassName}><div className="text-xs text-slate-500">{label}</div><div className={`mt-1 text-lg font-bold ${valueClassName}`}>{value}</div></div>
-  }
-
-  return (
-    <div className={`bg-white p-3 sm:p-4 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-3 ${className}`}>
-      <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full ${iconBg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
-        {emoji ?? '•'}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className={`text-xs font-semibold ${labelClassName} truncate`}>{label}</div>
-        <div className={`font-bold ${valueClassName} mt-0.5`}>{value}</div>
-      </div>
-    </div>
-  )
-}
-
 function ConvertDetailModal({ detail, isLoading, onClose, onExport }: { detail: StockConvertDetail; isLoading: boolean; onClose: () => void; onExport: () => void }) {
   const totalQty = detail.lines.reduce((sum, line) => sum + line.qty, 0)
   const totalCost = detail.lines.reduce((sum, line) => sum + line.totalCost, 0)
@@ -794,6 +758,42 @@ function ConvertDetailModal({ detail, isLoading, onClose, onExport }: { detail: 
         <div className="border-t bg-slate-50 px-5 py-3 text-xs text-slate-500">
           เหตุผล: {detail.reason || '-'} · หมายเหตุ: {detail.notes || '-'} · เหตุผล override: {detail.targetCostReason || '-'}
         </div>
+      </div>
+    </div>
+  )
+}
+
+function Metric({
+  cardClassName,
+  emoji,
+  iconBg = 'bg-slate-100',
+  label,
+  labelClassName = 'text-slate-500',
+  value,
+  valueClassName = 'text-slate-900',
+  className = '',
+}: {
+  cardClassName?: string
+  emoji?: string
+  iconBg?: string
+  label: string
+  labelClassName?: string
+  value: string
+  valueClassName?: string
+  className?: string
+}) {
+  if (cardClassName) {
+    return <div className={cardClassName}><div className="text-xs text-slate-500">{label}</div><div className={`mt-1 text-lg font-bold ${valueClassName}`}>{value}</div></div>
+  }
+
+  return (
+    <div className={`bg-white p-3 sm:p-4 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-3 ${className}`}>
+      <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full ${iconBg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
+        {emoji ?? '•'}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className={`text-xs font-semibold ${labelClassName} truncate`}>{label}</div>
+        <div className={`font-bold ${valueClassName} mt-0.5`}>{value}</div>
       </div>
     </div>
   )

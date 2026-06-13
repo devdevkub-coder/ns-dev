@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components
 import { TableNumberCell } from '@/components/ui/TableNumberCell'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { CollapsedList } from '@/components/ui/CollapsedList'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 
 type Option = {
   active?: boolean | null
@@ -704,47 +705,48 @@ function PoSellDetailModal({
   row: PoSellRow
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8" role="dialog" aria-modal="true" aria-labelledby="po-sell-detail-title">
-      <div className="w-full max-w-xl overflow-hidden rounded-md bg-slate-900 shadow-xl flex flex-col max-h-[90vh]">
-        <div className="flex items-center justify-between bg-slate-900 px-5 py-4 shrink-0">
+    <Dialog open onOpenChange={(open) => {
+      if (!open) onClose()
+    }}>
+      <DialogContent aria-labelledby="po-sell-detail-title" className="max-h-[90vh] max-w-3xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-none" hideClose>
+        <DialogHeader className="p-4 bg-slate-900 text-white shrink-0">
           <div>
-            <h3 id="po-sell-detail-title" className="text-lg font-bold text-slate-100">รายละเอียด PO Sell</h3>
-            <div className="text-xs text-slate-400 font-mono mt-0.5">{row.docNo}</div>
+            <DialogTitle id="po-sell-detail-title" className="text-white">รายละเอียด {row.docNo}</DialogTitle>
+            <DialogDescription className="text-slate-300">{row.customerName}</DialogDescription>
           </div>
-          <button className="text-2xl text-slate-400 hover:text-slate-200" type="button" onClick={onClose}>×</button>
-        </div>
-        <div className="flex-1 overflow-y-auto bg-slate-50 p-5 space-y-4 text-sm">
-          {/* ข้อมูลทั่วไป */}
-          <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลเอกสาร</div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto bg-slate-50 p-4 space-y-4 text-sm">
+          {/* ข้อมูลเอกสาร */}
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">ข้อมูลเอกสาร</h4>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-5">
               <DetailItem label="วันที่สร้างเอกสาร" value={formatDateDisplay(row.date)} />
               <DetailItem label="วันที่กำหนดส่ง" value={formatDateDisplay(row.expectedDelivery)} />
-              <DetailItem className="col-span-2" label="Customer" value={row.customerName} />
               <DetailItem label="สาขา/คลัง" value={row.branchName || '-'} />
               <DetailItem label="ช่องทางขาย" value={row.channelName || '-'} />
             </div>
           </div>
 
           {/* สถานะรายการ */}
-          <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">สถานะรายการ</div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-              <div className="flex flex-col py-1">
-                <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">เอกสาร</div>
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">สถานะรายการ</h4>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-5">
+              <div>
+                <div className="text-xs font-medium text-slate-500 mb-0.5">เอกสาร</div>
                 <div className="mt-1"><StatusPill label={row.documentStatusLabel} tone={documentStatusPillTone(row.documentStatus)} /></div>
               </div>
-              <div className="flex flex-col py-1">
-                <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Match Cost</div>
+              <div>
+                <div className="text-xs font-medium text-slate-500 mb-0.5">Match Cost</div>
                 <div className="mt-1"><StatusPill label={row.matchStatus} tone="match" /></div>
               </div>
             </div>
           </div>
 
           {/* จำนวนและรายได้ */}
-          <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">จำนวนและรายได้</div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">จำนวนและรายได้</h4>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-5">
               <DetailItem label="จำนวนจองรวม" value={`${formatMoney(row.qty)} กก.`} />
               <DetailItem label="รายได้รวม" value={`${formatMoney(row.totalAmount)} บาท`} />
               <DetailItem label="จำนวน Matched" value={`${formatMoney(row.matchedQty)} กก.`} />
@@ -753,33 +755,33 @@ function PoSellDetailModal({
           </div>
 
           {/* Deal Margin */}
-          <div className="rounded-lg border border-slate-100 bg-emerald-50/30 p-4">
-            <div className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider mb-3 pb-1 border-b border-emerald-100">Deal Margin</div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+          <div className="rounded-lg border border-slate-200 bg-emerald-50/10 p-5 shadow-sm">
+            <h4 className="text-sm font-bold text-emerald-800 border-b border-emerald-100 pb-2 mb-4">Deal Margin</h4>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-5">
               <DetailItem label="Deal Margin" value={`${formatMoney(row.margin)} บาท`} />
               <DetailItem label="Margin %" value={formatPercent(row.marginPct)} />
             </div>
           </div>
 
           {/* รายการสินค้า */}
-          <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">รายการสินค้า</div>
-            <div className="text-slate-800 font-semibold">{row.productName || '-'}</div>
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">รายการสินค้า</h4>
+            <div className="text-sm font-semibold text-slate-900 mt-1">{row.productName || '-'}</div>
           </div>
         </div>
-        <div className="flex justify-end border-t border-slate-200 bg-slate-50 px-5 py-4 shrink-0">
+        <DialogFooter className="flex justify-end border-t border-slate-200 bg-slate-50 px-5 py-4 shrink-0">
           <button className="rounded-md border border-slate-300 bg-white px-5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" type="button" onClick={onClose}>ปิด</button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
 function DetailItem({ className = '', label, value }: { className?: string; label: string; value: string }) {
   return (
-    <div className={`flex flex-col py-1 ${className}`}>
-      <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{label}</div>
-      <div className="mt-0.5 text-xs sm:text-sm font-semibold text-slate-800">{value}</div>
+    <div className={className}>
+      <div className="text-xs font-medium text-slate-500 mb-0.5">{label}</div>
+      <div className="text-sm font-semibold text-slate-900">{value}</div>
     </div>
   )
 }

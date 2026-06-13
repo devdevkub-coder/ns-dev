@@ -384,7 +384,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
           <b>Machine Utilization</b> = ชั่วโมงประมาณการ / (8 ชม./วัน x จำนวนวัน) | <b>Yield Diff</b> = Actual Yield - Normal Yield
         </div>
       ) : null}
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 xl:grid-cols-6 text-sm">
+      <div className={`rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 text-sm ${mode === 'report' ? 'xl:grid-cols-7' : 'xl:grid-cols-6'}`}>
         {metricItems.map((metric, index) => (
           <Metric
             key={metric.key}
@@ -625,26 +625,17 @@ function ChartPanel({ rows, title, type }: { rows: Array<{ input: number; label:
   )
 }
 
-function StatusBar({ count, max, status }: { count: number; max: number; status: string }) {
-  return (
-    <div className="text-sm">
-      <div className="mb-1 flex justify-between"><span>{status}</span><b>{count}</b></div>
-      <div className="h-2 overflow-hidden rounded-md-full bg-slate-100"><div className="h-full rounded-md-full bg-purple-500" style={{ width: `${Math.max(4, (count / max) * 100)}%` }} /></div>
-    </div>
-  )
-}
-
 function CostCard({
   label,
   tone,
   value,
-  emoji,
+  emoji = '💰',
   iconBg = 'bg-slate-100',
 }: {
   label: string
   tone?: 'red'
   value: number
-  emoji: string
+  emoji?: string
   iconBg?: string
 }) {
   const color = tone === 'red' ? 'text-red-600' : 'text-slate-900'

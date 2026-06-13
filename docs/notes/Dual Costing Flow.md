@@ -89,6 +89,8 @@ Target scope ล่าสุดใช้ source เข้า Cost Pool เฉพ
 
 หมายเหตุ: legacy UI บางหน้าแสดง `Production` และ `Regrade` เป็น cost type หรือ waiting queue แต่ target ล่าสุดของเอกสาร [[Cost Pool]] จำกัด source ที่เข้า pool ไว้ที่ `PO_Buy` และ `Spot_Buy / No PO PB` เพื่อไม่ให้ต้นทุนผลิต/ปรับเกรดปนกับรอบจองดีลก่อน policy ชัด
 
+Clarification 2026-06-13: `stock_cost_pool_entries` ที่ใช้โดย `/stock/convert` เป็น operational Grade Adjustment cost pool สำหรับ trace source lot -> target regrade lot ภายใน stock convert เท่านั้น ไม่ได้เปลี่ยน scope ของ Dual Costing Cost Allocator ซึ่งยังจำกัด source ตามตารางนี้จนกว่าจะมี decision แยก
+
 ## Allocation Status
 
 | Status | Meaning |

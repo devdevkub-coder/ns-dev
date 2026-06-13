@@ -74,6 +74,8 @@ Source ที่เข้า Cost Pool ใน target scope ปัจจุบั
 
 หมายเหตุสำคัญ: `PO_Buy` เป็น reserve cost candidate ตั้งแต่สร้าง PO ไม่ใช่ stock จริง ส่วน `Spot_Buy` คือบิลรับซื้อ Stock ที่ไม่มี PO ให้ตัดยอดและเป็นต้นทุนซื้อจริงจาก PB line
 
+Clarification 2026-06-13: กติกาในเอกสารนี้เป็น Cost Pool สำหรับ Dual Costing / Cost Allocator เท่านั้น ส่วน `/stock/convert` ใช้ตาราง operational `stock_cost_pool_entries`/`stock_cost_pool_allocations` เพื่อ trace Grade Adjustment source lot -> target regrade lot แยกจาก allocator scope นี้
+
 Source ที่ไม่เข้า Cost Pool ใน target scope ปัจจุบัน:
 
 - PB line ที่อ้าง `PO Buy` ไม่สร้าง Cost Pool source เพิ่ม เพราะ PO Buy เข้า pool ตั้งแต่สร้าง PO แล้ว; PB ทำหน้าที่ตัด/reconcile PO usage เท่านั้น
