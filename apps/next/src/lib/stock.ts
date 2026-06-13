@@ -19,6 +19,7 @@ const stockConvertAllocationMethodSchema = z.enum(['FIFO', 'LIFO', 'HIGHEST_COST
 const stockConvertTargetCostPolicySchema = z.enum(['SOURCE_MATCHED', 'CUSTOM_UNIT_COST'])
 
 export const stockStatusSchema = z.enum(['RM', 'WIP', 'FG'])
+export const statusConvertStatusSchema = z.enum(['RM', 'FG'])
 
 export const stockQuerySchema = z.object({
   asOf: z.preprocess(blankToNull, requiredDate.nullable().default(null)),
@@ -42,16 +43,19 @@ export const statusConvertFormSchema = z.object({
   branchId: z.string().trim().min(1, 'เลือกสาขา'),
   date: requiredDate,
   docNo: optionalDocNo,
-  fromStatus: stockStatusSchema,
+  fromStatus: statusConvertStatusSchema,
   lotNo: optionalGeneralText('Lot', 80),
   notes: optionalGeneralText('หมายเหตุ', 500),
   productId: z.string().trim().min(1, 'เลือกสินค้า'),
   qty: positiveQty('น้ำหนัก'),
-  reason: optionalGeneralText('เหตุผล', 240),
-  toStatus: stockStatusSchema,
+  reason: z.string().trim().min(3, 'กรอกเหตุผลอย่างน้อย 3 ตัวอักษร').max(240, 'เหตุผลยาวเกินไป').regex(generalTextPattern, 'เหตุผลมีรูปแบบไม่ถูกต้อง'),
+  toStatus: statusConvertStatusSchema,
   warehouseId: z.string().trim().min(1, 'เลือกคลัง'),
 }).refine((value) => value.fromStatus !== value.toStatus, {
   message: 'สถานะต้นทางและปลายทางต้องไม่ซ้ำกัน',
+  path: ['toStatus'],
+}).refine((value) => (value.fromStatus === 'RM' && value.toStatus === 'FG') || (value.fromStatus === 'FG' && value.toStatus === 'RM'), {
+  message: 'ปรับสถานะได้เฉพาะ RM -> FG หรือ FG -> RM',
   path: ['toStatus'],
 })
 

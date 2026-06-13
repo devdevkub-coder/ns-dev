@@ -220,13 +220,11 @@ export const stockTransferFormSchema = z.object({
   fromWarehouseId: z.string().trim().min(1, 'เลือกคลังต้นทาง'),
   toBranchId: z.string().trim().min(1, 'เลือกสาขาปลายทาง'),
   toWarehouseId: z.string().trim().min(1, 'เลือกคลังปลายทาง'),
-  sender: optionalBusinessText('ผู้ส่ง', 160),
-  receiver: optionalBusinessText('ผู้รับ', 160),
   notes: optionalGeneralText('หมายเหตุ', 500),
+  submitMode: z.enum(['draft', 'post']).default('post'),
   items: z.array(z.object({
     productId: z.string().trim().min(1, 'เลือกสินค้า'),
     qty: positiveMoney('น้ำหนัก'),
-    lotNo: optionalGeneralText('Lot', 80),
   })).min(1, 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ'),
 }).refine((value) => value.fromBranchId !== value.toBranchId || value.fromWarehouseId !== value.toWarehouseId, {
   message: 'ต้นทางและปลายทางต้องไม่เหมือนกัน',

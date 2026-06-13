@@ -98,7 +98,7 @@ function dateWhere(input: { asOf?: string | null; from?: string | null; to?: str
   return {}
 }
 
-export async function stockReferenceData() {
+export async function stockReferenceData(input?: { includeCustomers?: boolean }) {
   const [branches, warehouses, products, customers] = await Promise.all([
     prisma.branches.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
     prisma.warehouses.findMany({
@@ -106,7 +106,9 @@ export async function stockReferenceData() {
       select: { active: true, branches: { select: { code: true } }, branch_id: true, code: true, id: true, name: true },
     }),
     prisma.products.findMany({ orderBy: [{ code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, metal_group: true, name: true } }),
-    prisma.customers.findMany({ orderBy: [{ code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
+    input?.includeCustomers === false
+      ? Promise.resolve([])
+      : prisma.customers.findMany({ orderBy: [{ code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
   ])
 
   return {
@@ -285,16 +287,17 @@ export async function stockBalanceSnapshot(input: {
   return { byStatus, rows: publicRows, summary }
 }
 
-export async function averageCostForStock(input: { branchId?: bigint | null; lotNo?: string | null; productId: string | bigint; warehouseId?: bigint | null }) {
+export async function averageCostForStock(input: { branchId?: bigint | null; lotNo?: string | null; productId: string | bigint; status?: string | null; warehouseId?: bigint | null }) {
   const snapshot = await stockBalanceSnapshot(input)
   const totalQty = snapshot.rows.reduce((sum, row) => sum + row.qty, 0)
   const totalValue = snapshot.rows.reduce((sum, row) => sum + row.value, 0)
   return totalQty > 0 ? totalValue / totalQty : 0
 }
 
-export async function quantityForStock(input: { branchId?: bigint | null; lotNo?: string | null; productId: string | bigint; status?: string | null; warehouseId?: bigint | null }) {
+export async function quantityForStock(input: { branchId?: bigint | null; lotNo?: string | null; productId: string | bigint; quantityType?: 'onHand' | 'ready'; status?: string | null; warehouseId?: bigint | null }) {
   const snapshot = await stockBalanceSnapshot(input)
-  return snapshot.rows.reduce((sum, row) => sum + row.qty, 0)
+  const field = input.quantityType === 'ready' ? 'readyQty' : 'qty'
+  return snapshot.rows.reduce((sum, row) => sum + row[field], 0)
 }
 
 export function buildStockWorkbook(sheetName: string, rows: Array<Record<string, string | number | boolean | null>>) {

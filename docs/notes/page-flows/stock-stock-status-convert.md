@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-06-11
+updated: 2026-06-13
 route: /stock/status-convert
 ---
 
@@ -25,28 +25,31 @@ route: /stock/status-convert
 
 ## Flow Baseline
 
-SC ย้าย qty ระหว่าง stock status/output category โดย product เดิม
+SC ย้าย qty ระหว่าง stock status/output category โดย product เดิม. Requirement ล่าสุดจำกัด normal flow เป็น `RM -> FG` และ `FG -> RM`.
 
 ## Page Responsibilities
 
-- ปรับสถานะสินค้าเช่น RM/WIP/FG/not available ตาม policy
+- ปรับสถานะสินค้าเฉพาะ `RM <-> FG` ตาม requirement ล่าสุด
 - เลือก product/warehouse/source status/target status/qty/reason
 - เขียน paired ledger ออกจาก status เดิมและเข้า status ใหม่
-- ใช้สำหรับ stock status correction ไม่ใช่ grade/product conversion
+- ใช้สำหรับ stock status correction และ RM/FG bucket conversion ไม่ใช่ grade/product conversion
+- ส่งผลต่อ Stock Ledger, stock balance, WAC และ production/reporting read model ที่อ่าน ledger fact
 
 ## Non-Responsibilities
 
 - ไม่เปลี่ยน product code/grade
 - ไม่ตั้งต้นทุนใหม่เกิน policy
 - ไม่รับ/ขาย/โอนข้าม warehouse ถ้าไม่ระบุใน rule
+- ไม่สร้าง production order และไม่ควรถูกรวมเป็น `PO2` output โดยไม่มี source label แยก
+- ไม่แก้ WIP ใน normal user flow; WIP correction ต้องเป็น admin/production reversal policy แยก
 
 ## Lifecycle / Operation Flow
 
 | Step | User action | System result |
 |---|---|---|
 | 1 | เปิดหน้า | GET list/options |
-| 2 | เลือก source stock | product+warehouse+status |
-| 3 | บันทึก | POST SC paired ledger |
+| 2 | เลือก source stock | product+warehouse+status โดย status ต้องเป็น RM หรือ FG |
+| 3 | บันทึก | POST SC paired ledger; RM->FG ลด RM เพิ่ม FG, FG->RM ลด FG เพิ่ม RM |
 | 4 | reverse | target reversal pair พร้อม reason |
 
 ## API / Data Contract
@@ -65,14 +68,17 @@ SC ย้าย qty ระหว่าง stock status/output category โดย
 
 ## Validation / Status Rules
 
-- qty > 0 และไม่เกิน available ของ source status
-- source/target status ต้องต่างกันและอยู่ใน allowed transition
+- qty > 0 และไม่เกิน available ของ source status แบบ hold-aware
+- source/target status ต้องเป็น transition ที่อนุญาต: `RM -> FG` หรือ `FG -> RM`
 - reason required
+- branch/warehouse/product/lot ต้องสัมพันธ์กับ source balance key ที่เลือก
 
 ## Side Effects
 
 - เขียน stock ledger out/in ด้วย ref_type SC
 - balance เปลี่ยน status bucket แต่ total product warehouse อาจเท่าเดิม
+- WAC target bucket รับ source unit cost; `value = qty * source unit cost`
+- production dashboard/report ต้องอ่าน `SC` เป็น source แยกจาก production order output ถ้าต้องนำไปแสดง
 
 ## Current Code Baseline
 
@@ -83,7 +89,8 @@ SC ย้าย qty ระหว่าง stock status/output category โดย
 
 ## Current Gap
 
-allowed transition matrix และ reversal/reconciliation ยังต้อง finalize
+- Runtime ยังเปิด RM/WIP/FG จาก legacy baseline; ต้องปรับให้ตรง requirement ล่าสุดเป็น RM<->FG เท่านั้น
+- hold-aware available, source-status WAC, server pagination/filter/index, reversal/reconciliation ยังต้อง finalize
 
 ## Implementation Checklist
 

@@ -107,10 +107,10 @@ Source:
 
 | Route | Page | Detailed doc | Current Next | Flow baseline | Gap |
 |---|---|---|---|---|---|
-| `/stock/transfer` | โอนสินค้าระหว่างสาขา | [[Stock Transfer Page Flow]], [[Stock Ledger and Stock Balance]] | accepted code baseline | legacy `stockTransfer`: transfer stock between branches/warehouses with two-sided ledger | finish hold-aware validation and reversal |
+| `/stock/transfer` | โอนสินค้าระหว่างสาขา | [[Stock Transfer Page Flow]], [[Stock Ledger and Stock Balance]] | accepted code baseline | target transfer stock between branches/warehouses with no revenue impact, source available/cost preview, and paired `ST` ledger | implement hold-aware validation, source cost/value, target filters/columns, and draft-only edit/cancel policy |
 | `/stock/balance` | สต๊อกคงเหลือ | [[Stock Balance Page Flow]], [[Stock Ledger and Stock Balance]] | accepted code baseline | target balance = ledger-derived on hand, hold, available by product/warehouse/status | implement hold-aware drilldown |
 | `/stock/ledger` | Stock Ledger | [[Stock Ledger Page Flow]], [[Stock Ledger and Stock Balance]] | accepted code baseline | target ledger shows physical stock movements only; hold is not ledger | finish source links and no-hold-row rule |
-| `/stock/status-convert` | ปรับสถานะสินค้า | [[Stock Status Convert Page Flow]] | accepted code baseline | legacy `statusConvert`: RM/WIP/FG status conversion with two-sided ledger | finish reversal and validation |
+| `/stock/status-convert` | ปรับสถานะสินค้า | [[Stock Status Convert Page Flow]] | accepted code baseline | target `SC`: RM<->FG status bucket conversion with two-sided ledger, source WAC carry-forward, and Production reporting source label | adjust runtime from legacy RM/WIP/FG to RM<->FG, then finish hold-aware validation/reversal |
 | `/stock/convert` | Grade Adjustment / ปรับเกรด | [[Stock Convert Page Flow]] | accepted code baseline | legacy `gradeAdjustment`: convert product/grade using source WAC | finish cost allocation and reversal |
 | `/stock/adjust` | นับสต๊อก / Stock Count Adjust | [[Stock Adjust Page Flow]] | accepted code baseline | legacy `stockAdjust`: count adjustment with reason and note-only/P&L policy | finalize approval/reconciliation boundary |
 

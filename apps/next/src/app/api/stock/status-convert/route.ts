@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { randomUUID } from 'node:crypto'
+import type { Prisma } from '../../../../../generated/prisma/client'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
@@ -10,9 +12,9 @@ import { statusConvertFormSchema } from '@/lib/stock'
 export const runtime = 'nodejs'
 
 const stockLedgerInclude = {
-  branches: true,
+  branches: { select: { name: true } },
   products: { select: { code: true, name: true } },
-  warehouses: true,
+  warehouses: { select: { name: true } },
 } as const
 
 async function nextDocNo() {
@@ -26,24 +28,69 @@ async function nextDocNo() {
   return `${prefix}${String(Number.isFinite(lastNumber) ? lastNumber + 1 : 1).padStart(6, '0')}`
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'stock.ledger.view')
-    const [reference, rows] = await Promise.all([
-      stockReferenceData(),
+    const searchParams = request.nextUrl.searchParams
+    const q = searchParams.get('q')?.trim()
+    const dateFrom = searchParams.get('dateFrom')?.trim()
+    const dateTo = searchParams.get('dateTo')?.trim()
+    const fromStatus = searchParams.get('fromStatus')?.trim()
+    const toStatus = searchParams.get('toStatus')?.trim()
+    const filterReferences = await normalizeStockReferenceInput({
+      branchId: searchParams.get('branchId'),
+      productId: searchParams.get('productId'),
+      warehouseId: searchParams.get('warehouseId'),
+    })
+    const page = Math.max(1, Number(searchParams.get('page') ?? '1') || 1)
+    const pageSize = Math.min(200, Math.max(10, Number(searchParams.get('pageSize') ?? '100') || 100))
+    const ledgerWhere: Prisma.stock_ledgerWhereInput = {
+      ref_type: 'SC',
+      qty_out: { gt: 0 },
+      ...(filterReferences.branchId ? { branch_id: filterReferences.branchId } : {}),
+      ...(filterReferences.productId ? { product_id: filterReferences.productId } : {}),
+      ...(filterReferences.warehouseId ? { warehouse_id: filterReferences.warehouseId } : {}),
+      ...(dateFrom || dateTo
+        ? {
+            date: {
+              ...(dateFrom ? { gte: normalizeDate(dateFrom) } : {}),
+              ...(dateTo ? { lte: normalizeDate(dateTo) } : {}),
+            },
+          }
+        : {}),
+      ...(fromStatus === 'RM' || fromStatus === 'FG' ? { output_category: fromStatus } : {}),
+      ...(toStatus === 'RM' || toStatus === 'FG' ? { note: toStatus } : {}),
+      ...(q
+        ? {
+            OR: [
+              { ref_no: { contains: q, mode: 'insensitive' as const } },
+              { lot_no: { contains: q, mode: 'insensitive' as const } },
+              { notes: { contains: q, mode: 'insensitive' as const } },
+              { products: { code: { contains: q, mode: 'insensitive' as const } } },
+              { products: { name: { contains: q, mode: 'insensitive' as const } } },
+            ],
+          }
+        : {}),
+    }
+    const [reference, rows, total] = await Promise.all([
+      stockReferenceData({ includeCustomers: false }),
       prisma.stock_ledger.findMany({
         include: stockLedgerInclude,
         orderBy: [{ date: 'desc' }, { created_at: 'desc' }],
-        take: 500,
-        where: { ref_type: 'SC', qty_out: { gt: 0 } },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        where: ledgerWhere,
       }),
+      prisma.stock_ledger.count({ where: ledgerWhere }),
     ])
 
     return NextResponse.json({
+      pagination: { page, pageSize, total },
       reference,
       rows: rows.map((row) => ({
         branchName: row.branches?.name ?? '-',
+        createdAt: row.created_at ? row.created_at.toISOString() : '',
         date: toDateOnly(row.date),
         id: row.ref_no ?? '',
         lotNo: row.lot_no ?? '',
@@ -81,18 +128,26 @@ export async function POST(request: Request) {
     if (!references.productId) {
       return NextResponse.json({ error: 'สินค้าไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     }
+    const warehouse = await prisma.warehouses.findFirst({
+      select: { branch_id: true },
+      where: { active: true, id: references.warehouseId },
+    })
+    if (!warehouse || warehouse.branch_id !== references.branchId) {
+      return NextResponse.json({ error: 'คลังไม่อยู่ในสาขาที่เลือก' }, { status: 400 })
+    }
     const availableQty = await quantityForStock({
       branchId: references.branchId,
       lotNo: values.lotNo,
       productId: references.productId,
+      quantityType: 'ready',
       status: values.fromStatus,
       warehouseId: references.warehouseId,
     })
     if (values.qty > availableQty + 0.000001) {
-      return NextResponse.json({ error: `จำนวนเกินสต๊อกที่มี (${availableQty.toLocaleString('th-TH')})` }, { status: 400 })
+      return NextResponse.json({ error: `จำนวนเกินสต๊อกพร้อมใช้ของ ${values.fromStatus} (${availableQty.toLocaleString('th-TH')})` }, { status: 400 })
     }
 
-    const unitCost = await averageCostForStock({ branchId: references.branchId, lotNo: values.lotNo, productId: references.productId, warehouseId: references.warehouseId })
+    const unitCost = await averageCostForStock({ branchId: references.branchId, lotNo: values.lotNo, productId: references.productId, status: values.fromStatus, warehouseId: references.warehouseId })
     const value = values.qty * unitCost
     const refId = `SC-${randomUUID()}`
     const refNo = values.docNo ?? await nextDocNo()

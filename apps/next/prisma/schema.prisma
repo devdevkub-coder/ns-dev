@@ -719,6 +719,8 @@ model branches {
   stock_holds               stock_holds[]
   stock_issues              stock_issues[]
   stock_ledger              stock_ledger[]
+  stock_transfers_from      stock_transfers[]           @relation("stock_transfers_from_branch_idTobranches")
+  stock_transfers_to        stock_transfers[]           @relation("stock_transfers_to_branch_idTobranches")
   supplier_advance_payments supplier_advance_payments[]
   suppliers                 suppliers[]
   warehouses                warehouses[]
@@ -1904,6 +1906,7 @@ model products {
   purchase_bill_items             purchase_bill_items[]
   stock_holds                     stock_holds[]
   stock_ledger                    stock_ledger[]
+  stock_transfer_items            stock_transfer_items[]
   trading_deals                   trading_deals[]
   weight_ticket_usage_logs        weight_ticket_usage_logs[]
   weight_ticket_lines             weight_ticket_lines[]
@@ -2772,6 +2775,9 @@ model stock_holds {
   source_doc_no         String
   source_line_no        Int?
   qty                   Decimal               @default(0) @db.Decimal
+  output_category       String?
+  lot_no                String?
+  not_available_for_sale Boolean              @default(false)
   status                String                @default("active")
   held_at               DateTime              @default(now()) @db.Timestamptz(6)
   released_at           DateTime?             @db.Timestamptz(6)
@@ -2809,6 +2815,60 @@ model stock_holds {
   @@index([weight_ticket_line_id], map: "idx_stock_holds_line")
   @@index([source_type, source_doc_no], map: "idx_stock_holds_source_doc")
   @@index([weight_ticket_id, status], map: "idx_stock_holds_ticket_status")
+  @@schema("public")
+}
+
+model stock_transfer_items {
+  qty                    Decimal         @db.Decimal
+  source_unit_cost       Decimal         @default(0) @db.Decimal
+  line_value             Decimal         @default(0) @db.Decimal
+  created_at             DateTime        @default(now()) @db.Timestamptz(6)
+  created_by             String?
+  updated_at             DateTime?       @db.Timestamptz(6)
+  updated_by             String?
+  id                     BigInt          @id @default(autoincrement())
+  transfer_id            BigInt
+  product_id             BigInt
+  products               products        @relation(fields: [product_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  stock_transfers        stock_transfers @relation(fields: [transfer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([product_id], map: "idx_stock_transfer_items_product")
+  @@index([transfer_id, product_id], map: "idx_stock_transfer_items_transfer_product")
+  @@schema("public")
+}
+
+model stock_transfers {
+  doc_no                 String                 @unique
+  date                   DateTime               @db.Date
+  status                 String                 @default("draft")
+  notes                  String?
+  total_qty              Decimal                @default(0) @db.Decimal
+  total_value            Decimal                @default(0) @db.Decimal
+  posted_at              DateTime?              @db.Timestamptz(6)
+  posted_by              String?
+  cancelled_at           DateTime?              @db.Timestamptz(6)
+  cancelled_by           String?
+  cancel_reason          String?
+  created_at             DateTime               @default(now()) @db.Timestamptz(6)
+  created_by             String?
+  updated_at             DateTime?              @db.Timestamptz(6)
+  updated_by             String?
+  version                Int                    @default(1)
+  id                     BigInt                 @id @default(autoincrement())
+  from_branch_id         BigInt
+  from_warehouse_id      BigInt
+  to_branch_id           BigInt
+  to_warehouse_id        BigInt
+  branches_from          branches               @relation("stock_transfers_from_branch_idTobranches", fields: [from_branch_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  branches_to            branches               @relation("stock_transfers_to_branch_idTobranches", fields: [to_branch_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  stock_transfer_items   stock_transfer_items[]
+  warehouses_from        warehouses             @relation("stock_transfers_from_warehouse_idTowarehouses", fields: [from_warehouse_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  warehouses_to          warehouses             @relation("stock_transfers_to_warehouse_idTowarehouses", fields: [to_warehouse_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([date(sort: Desc), doc_no(sort: Desc)], map: "idx_stock_transfers_date_doc")
+  @@index([doc_no], map: "idx_stock_transfers_doc_no")
+  @@index([status, date(sort: Desc), doc_no(sort: Desc)], map: "idx_stock_transfers_status_date_doc")
+  @@index([total_qty], map: "idx_stock_transfers_total_qty")
   @@schema("public")
 }
 
@@ -2861,6 +2921,11 @@ model stock_ledger {
   @@index([ref_type, ref_no, movement_type], map: "idx_stock_ledger_production_ref_movement", where: raw("(ref_type = ANY (ARRAY['PI'::text, 'PI-REV'::text, 'PO2'::text, 'PO2-REV'::text]))"))
   @@index([ref_type, ref_id, movement_type], map: "idx_stock_ledger_production_source_movement", where: raw("((ref_id IS NOT NULL) AND (ref_type = ANY (ARRAY['PI'::text, 'PO2'::text])))"))
   @@index([ref_type, ref_id], map: "idx_stock_ledger_source", where: raw("((ref_type IS NOT NULL) AND (ref_id IS NOT NULL))"))
+  @@index([ref_type, ref_no, ref_id], map: "idx_stock_ledger_st_ref", where: raw("(ref_type = 'ST'::text)"))
+  @@index([branch_id, warehouse_id, product_id, date], map: "idx_stock_ledger_st_source_lookup", where: raw("(ref_type = 'ST'::text)"))
+  @@index([date(sort: Desc), created_at(sort: Desc), id(sort: Desc)], map: "idx_stock_ledger_sc_list", where: raw("((ref_type = 'SC'::text) AND (qty_out > (0)::numeric))"))
+  @@index([output_category, note, branch_id, warehouse_id, product_id, date(sort: Desc)], map: "idx_stock_ledger_sc_filter", where: raw("((ref_type = 'SC'::text) AND (qty_out > (0)::numeric))"))
+  @@index([output_category, note, date(sort: Desc), created_at(sort: Desc), id(sort: Desc)], map: "idx_stock_ledger_sc_transition_list", where: raw("((ref_type = 'SC'::text) AND (qty_out > (0)::numeric))"))
   @@index([branch_id, warehouse_id, product_id, date], map: "idx_stock_ledger_stock_dimension")
   @@index([product_id], map: "idx_stock_product")
   @@index([ref_id], map: "idx_stock_ref")
@@ -3236,6 +3301,8 @@ model warehouses {
   stock_issues      stock_issues[]
   stock_holds       stock_holds[]
   stock_ledger      stock_ledger[]
+  stock_transfers_from stock_transfers[] @relation("stock_transfers_from_warehouse_idTowarehouses")
+  stock_transfers_to   stock_transfers[] @relation("stock_transfers_to_warehouse_idTowarehouses")
   weight_ticket_lines weight_ticket_lines[]
   branches          branches?           @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
