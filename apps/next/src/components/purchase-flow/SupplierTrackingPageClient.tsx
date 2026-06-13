@@ -1,7 +1,10 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { formatDateDisplay } from '@/lib/format'
 
 type SupplierTrackingRow = {
   avgBuy: number
@@ -19,6 +22,7 @@ type SupplierTrackingRow = {
 
 type SupplierTrackingPayload = {
   byProduct: Array<{ amount: number; avgBuy: number; billCount: number; productName: string; qty: number; suppliers: number }>
+  detail?: SupplierTrackingDetail | null
   filters?: { suppliers: Array<{ active: boolean | null; code: string | null; id: string; name: string }> }
   monthly: Array<{ amount: number; month: string; qty: number }>
   rows: SupplierTrackingRow[]
@@ -26,12 +30,21 @@ type SupplierTrackingPayload = {
   year: string
 }
 
+type SupplierTrackingDetail = {
+  bills: Array<{ amount: number; avgBuy: number; date: string; docNo: string; href: string; paidAmount: number; payable: number; qty: number; status: string }>
+  payments: Array<{ amount: number; date: string; docNo: string; method: string; netAmount: number; status: string }>
+  products: Array<{ amount: number; avgBuy: number; billCount: number; productName: string; qty: number }>
+  supplier: { code: string; id: string; name: string }
+}
+
 const monthLabels = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
 const months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
 
 export function SupplierTrackingPageClient() {
   const [data, setData] = useState<SupplierTrackingPayload | null>(null)
+  const [detail, setDetail] = useState<SupplierTrackingDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [month, setMonth] = useState('')
   const [search, setSearch] = useState('')
@@ -62,6 +75,22 @@ export function SupplierTrackingPageClient() {
   useEffect(() => {
     void loadData()
   }, [loadData])
+
+  const openDetail = useCallback(async (row: SupplierTrackingRow) => {
+    setIsDetailLoading(true)
+    setDetail({ bills: [], payments: [], products: [], supplier: { code: row.code, id: row.id, name: row.supplierName } })
+    try {
+      const params = new URLSearchParams(queryString)
+      params.set('detailId', row.id)
+      const payload = await dailyFetchJson<SupplierTrackingPayload>(`/api/tracking/supplier?${params.toString()}`)
+      setDetail(payload.detail ?? null)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'โหลดรายละเอียด Supplier ไม่ได้')
+      setDetail(null)
+    } finally {
+      setIsDetailLoading(false)
+    }
+  }, [queryString])
 
   const rows = data?.rows ?? []
 
@@ -151,7 +180,7 @@ export function SupplierTrackingPageClient() {
             ) : null}
             
             {!isLoading && rows.map((row) => (
-              <div key={row.id} className="rounded-md border border-slate-100 bg-white p-4 shadow-sm space-y-2">
+              <div key={row.id} className="rounded-md border border-slate-100 bg-white p-4 shadow-sm space-y-2" role="button" tabIndex={0} onClick={() => void openDetail(row)} onKeyDown={(event) => { if (event.key === 'Enter') void openDetail(row) }}>
                 <div className="flex justify-between items-start">
                   <span className="font-bold text-slate-800 text-sm">{row.supplierName}</span>
                   <span className="text-xs font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{row.code || '-'}</span>
@@ -213,7 +242,7 @@ export function SupplierTrackingPageClient() {
                 {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={9}>กำลังโหลดข้อมูล</td></tr> : null}
                 {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={9}>ไม่มีข้อมูล Supplier Tracking</td></tr> : null}
                 {!isLoading && rows.map((row) => (
-                  <tr key={row.id} className="border-t hover:bg-blue-50/40">
+                  <tr key={row.id} className="cursor-pointer border-t hover:bg-blue-50/40" onClick={() => void openDetail(row)}>
                     <td className="p-2 font-mono text-xs text-slate-500">{row.code || '-'}</td>
                     <td className="p-2 font-medium">{row.supplierName}</td>
                     <td className="p-2 text-right">{row.billCount}</td>
@@ -286,7 +315,64 @@ export function SupplierTrackingPageClient() {
           </div>
         </>
       ) : null}
+      <SupplierDetailDialog detail={detail} isLoading={isDetailLoading} onOpenChange={(open) => { if (!open) setDetail(null) }} />
     </section>
+  )
+}
+
+function SupplierDetailDialog({ detail, isLoading, onOpenChange }: { detail: SupplierTrackingDetail | null; isLoading: boolean; onOpenChange: (open: boolean) => void }) {
+  return (
+    <Dialog open={detail !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] max-w-5xl overflow-hidden !p-0" fallbackTitle="Supplier Tracking Detail">
+        <DialogHeader>
+          <DialogTitle>{detail?.supplier.name ?? 'รายละเอียด Supplier'}</DialogTitle>
+          <DialogDescription>{detail?.supplier.code ?? ''} · Purchase Bills / Payments / Product mix</DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[72vh] space-y-4 overflow-y-auto p-4">
+          {isLoading ? <div className="rounded-md bg-slate-50 p-6 text-center text-sm text-slate-500">กำลังโหลดรายละเอียด</div> : null}
+          {!isLoading && detail ? (
+            <>
+              <DetailSection title="Purchase Bill">
+                <SimpleTable
+                  headers={['วันที่', 'เอกสาร', 'น้ำหนัก', 'ยอดซื้อ', 'ราคาเฉลี่ย', 'จ่ายแล้ว', 'ค้างจ่าย', 'สถานะ']}
+                  rows={detail.bills.map((row) => [formatDateDisplay(row.date), row.docNo, formatMoney(row.qty), formatMoney(row.amount), formatMoney(row.avgBuy), formatMoney(row.paidAmount), formatMoney(row.payable), row.status])}
+                />
+              </DetailSection>
+              <DetailSection title="Payment">
+                <SimpleTable
+                  headers={['วันที่', 'เอกสาร', 'วิธีจ่าย', 'ยอดจ่าย', 'สุทธิ', 'สถานะ']}
+                  rows={detail.payments.map((row) => [formatDateDisplay(row.date), row.docNo, row.method, formatMoney(row.amount), formatMoney(row.netAmount), row.status])}
+                />
+              </DetailSection>
+              <DetailSection title="Product Mix">
+                <SimpleTable
+                  headers={['สินค้า', 'บิล', 'น้ำหนัก', 'ยอดซื้อ', 'ราคาเฉลี่ย']}
+                  rows={detail.products.map((row) => [row.productName, String(row.billCount), formatMoney(row.qty), formatMoney(row.amount), formatMoney(row.avgBuy)])}
+                />
+              </DetailSection>
+            </>
+          ) : null}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function DetailSection({ children, title }: { children: ReactNode; title: string }) {
+  return <section className="rounded-md border border-slate-200 bg-white"><div className="border-b bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700">{title}</div>{children}</section>
+}
+
+function SimpleTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[760px] text-sm">
+        <thead className="bg-slate-100"><tr>{headers.map((header) => <th key={header} className="p-2 text-left">{header}</th>)}</tr></thead>
+        <tbody>
+          {rows.length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={headers.length}>ไม่มีข้อมูล</td></tr> : null}
+          {rows.map((row, index) => <tr key={index} className="border-t">{row.map((cell, cellIndex) => <td key={`${index}-${headers[cellIndex]}`} className={cellIndex === 0 || cellIndex === 1 || cellIndex === headers.length - 1 ? 'p-2' : 'p-2 text-right'}>{cell}</td>)}</tr>)}
+        </tbody>
+      </table>
+    </div>
   )
 }
 

@@ -49,7 +49,7 @@ Latest user screenshot changes the target from a simple customer sales summary i
 - Required data groups: Sales Bill, Receipt, Margin, Return, Pending AR
 - Decision questions: ลูกค้าคนไหนซื้อเยอะ, margin ดีไหม, จ่ายช้าไหม, มี return บ่อยไหม
 - Business actions supported: เพิ่มเครดิต, ลดเครดิต, ต้นยอดขาย, blacklist
-- Local vs legacy finding: legacy row click opens customer detail with sales list, receipt list, product breakdown, and monthly breakdown. Current Next local page/API is still aggregate-only; rows are not detail-openable and API does not return detail timelines.
+- Local vs legacy finding: legacy row click opens customer detail with sales list, receipt list, product breakdown, and monthly breakdown. Current Next now supports row-click detail for SB/RCP/product breakdown via `detailId`; monthly detail and decision signals are still pending.
 - Target UI direction: list remains high-density, but each customer row/card should open a detail view/modal with SB/RCP/source links, product breakdown, monthly movement, return count/value when source is finalized, pending AR/receivable exposure, and credit decision signals.
 
 ## Page Responsibilities
@@ -152,8 +152,8 @@ Target detail payload fields:
 
 ## Current Gap
 
-- API does not yet return drilldown source rows per customer.
-- API does not yet return product/channel breakdown that legacy detail view had.
+- API now returns drilldown SB/RCP source rows per customer through `detailId`.
+- API now returns product breakdown per customer; channel breakdown is still pending.
 - Return signal/count is not wired yet; source ownership must be confirmed before adding it.
 - Credit decision signals are not yet exposed as structured fields.
 - AR aging buckets and due-date logic remain owned by [[Finance AR Page Flow]].
@@ -163,10 +163,10 @@ Target detail payload fields:
 
 ### API
 
-- [ ] Extend `GET /api/tracking/customer` with customer detail mode or detail payload keyed by customer business code.
-- [ ] Return SB source rows with doc no, date, channel, qty, revenue, COGS, GP, received, receivable, and source link.
-- [ ] Return RCP source rows with doc no, date, account, amount, and source link.
-- [ ] Return product breakdown per customer for selected period: product code/name, qty, revenue, COGS, GP, GP%.
+- [x] Extend `GET /api/tracking/customer` with customer detail mode or detail payload keyed by customer business code.
+- [x] Return SB source rows with doc no, date, qty, revenue, COGS, GP, received, receivable, and source link.
+- [x] Return RCP source rows with doc no, date, method, amount, and status.
+- [x] Return product breakdown per customer for selected period: product name, qty, revenue, COGS, GP, GP%.
 - [ ] Return monthly movement per customer for selected year: bill count, qty, revenue, GP, received, receivable.
 - [ ] Add structured decision signals: low margin, negative margin, pending AR, credit utilization, return frequency once source contract is confirmed.
 - [ ] Keep `year/month/customerId/q` filter and `format=xlsx` export aligned with the JSON result.
@@ -175,8 +175,10 @@ Target detail payload fields:
 
 - [ ] Keep `docs/design.md` ordering: KPI cards, filter shell, tabs, pagination/summary if row count grows, data area.
 - [ ] Use compact filter shell with year, month, customer, search, and XLSX export button.
-- [ ] Make desktop rows clickable and keyboard-openable; add dense mobile cards that open the same customer detail.
-- [ ] Add detail modal/view sections: decision signals, SB list, RCP list, product breakdown, monthly movement.
+- [x] Make desktop rows clickable to open customer detail.
+- [x] Add detail modal/view sections: SB list, RCP list, product breakdown.
+- [ ] Add dense mobile cards and keyboard-openable row controls for the same customer detail.
+- [ ] Add monthly movement and decision signals.
 - [ ] Add source document links as read-only navigation; no mutation actions.
 - [ ] Preserve table density with `text-sm`, `p-2`, `bg-slate-100` header, and no nested cards.
 
@@ -185,8 +187,9 @@ Target detail payload fields:
 - [x] Verify current API response shape and source tables
 - [x] Record legacy customer tracking/detail baseline
 - [x] Mark read-only/export side-effect boundary
-- [ ] Add customer detail/read endpoint or drilldown payload
-- [ ] Add source links to SB/RCP/customer documents
-- [ ] Add product/channel breakdown after source contract is finalized
+- [x] Add customer detail/read endpoint or drilldown payload
+- [x] Add source references to SB/RCP/customer documents
+- [x] Add product breakdown after source contract is finalized
+- [ ] Add channel breakdown after source contract is finalized
 - [ ] Add customer behavior signals for margin, late/pending AR, return frequency, and credit utilization
 - [ ] Add AR aging only when due-date rules are reconciled

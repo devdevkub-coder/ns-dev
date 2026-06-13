@@ -20,15 +20,15 @@ type JsonItem = {
   code?: string
   displayName?: string
   grossProfit?: number | string
-  id?: string | bigint
+  id?: string | number
   name?: string
   netAmount?: number | string
   netWeight?: number | string
   price?: number | string
   productCode?: string
-  productId?: string | bigint
+  productId?: string | number
   productName?: string
-  product_id?: string | bigint
+  product_id?: string | number
   profit?: number | string
   qty?: number | string
   total?: number | string
@@ -174,6 +174,7 @@ export async function GET(request: Request) {
     const year = url.searchParams.get('year') || String(new Date().getFullYear())
     const month = url.searchParams.get('month')
     const productId = url.searchParams.get('productId')
+    const detailId = url.searchParams.get('detailId')
     const metalGroup = url.searchParams.get('metalGroup')
     const branchId = url.searchParams.get('branchId')
     const supplierId = url.searchParams.get('supplierId')
@@ -191,6 +192,16 @@ export async function GET(request: Request) {
         ],
       },
     }) : null
+    const detailProduct = detailId ? await prisma.products.findFirst({
+      select: { active: true, code: true, id: true, metal_group: true, name: true, type: true, unit: true },
+      where: {
+        active: { not: false },
+        OR: [
+          { code: detailId.trim().toUpperCase() },
+          ...(parseInternalBigIntId(detailId) != null ? [{ id: parseInternalBigIntId(detailId) as bigint }] : []),
+        ],
+      },
+    }) : null
 
     const [products, purchaseBills, salesBills, suppliers, customers] = await Promise.all([
       prisma.products.findMany({
@@ -203,7 +214,7 @@ export async function GET(request: Request) {
         },
       }),
       prisma.purchase_bills.findMany({
-        include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } } },
+        include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } }, suppliers: { select: { code: true, name: true } } },
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         take: 10000,
         where: {
@@ -213,6 +224,7 @@ export async function GET(request: Request) {
         },
       }),
       prisma.sales_bills.findMany({
+        include: { customers: { select: { code: true, name: true } } },
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         take: 10000,
         where: {
@@ -333,6 +345,69 @@ export async function GET(request: Request) {
       return { buyAmount: buy.amount, buyQty: buy.qty, gp: sell.gp, month: monthKey, purchaseAmount: buy.amount, purchaseQty: buy.qty, revenue: sell.revenue, salesAmount: sell.revenue, salesQty: sell.qty, sellQty: sell.qty }
     })
 
+    const detail = detailProduct ? (() => {
+      const detailKeys = new Set(productLookupKeys(detailProduct))
+      const matchesDetailProduct = (item: JsonItem) => itemLookupKeys(item).some((key) => detailKeys.has(key))
+      const purchaseLines = purchaseBills
+        .filter((bill) => inYearMonth(bill.date, year, month))
+        .flatMap((bill) => purchaseBillItemRows(bill)
+          .filter(matchesDetailProduct)
+          .map((item) => {
+            const qty = itemQty(item)
+            const amount = itemAmount(item)
+            return {
+              amount,
+              avgBuy: qty > 0 ? amount / qty : 0,
+              date: toDateOnly(bill.date),
+              docNo: bill.doc_no,
+              href: `/purchase/bills/${encodeURIComponent(bill.doc_no)}`,
+              party: bill.suppliers?.name ?? '-',
+              qty,
+              status: bill.status ?? '-',
+            }
+          }))
+        .slice(0, 80)
+      const salesLines = salesBills
+        .filter((bill) => inYearMonth(bill.date, year, month))
+        .flatMap((bill) => {
+          if (!Array.isArray(bill.items)) return []
+          return bill.items
+            .filter(isJsonItem)
+            .filter(matchesDetailProduct)
+            .map((item) => {
+              const qty = itemQty(item)
+              const revenue = itemAmount(item)
+              const cogs = itemCost(item)
+              const gp = jsonNumber(item.profit ?? item.grossProfit) || revenue - cogs
+              return {
+                avgSell: qty > 0 ? revenue / qty : 0,
+                cogs,
+                date: toDateOnly(bill.date),
+                docNo: bill.doc_no,
+                gp,
+                href: `/sales/bills/${encodeURIComponent(bill.doc_no)}`,
+                party: bill.customers?.name ?? '-',
+                qty,
+                revenue,
+                status: bill.status ?? '-',
+              }
+            })
+        })
+        .slice(0, 80)
+
+      return {
+        product: {
+          code: requireBusinessCode(detailProduct.code, `สินค้า ${detailProduct.id}`),
+          id: requireBusinessCode(detailProduct.code, `สินค้า ${detailProduct.id}`),
+          metalGroup: detailProduct.metal_group,
+          name: detailProduct.name,
+          unit: detailProduct.unit ?? 'kg',
+        },
+        purchaseLines,
+        salesLines,
+      }
+    })() : null
+
     if (url.searchParams.get('format') === 'xlsx') {
       return xlsxResponse(buildWorkbook(rows.map((row) => ({
         AvgBuy: row.avgBuy,
@@ -351,6 +426,7 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({
+      detail,
       filters: {
         metalGroups: Array.from(new Set(products.map((product) => product.metal_group).filter(Boolean))).sort(),
         products: products.map((product) => ({ active: product.active, code: product.code, id: requireBusinessCode(product.code, `สินค้า ${product.id}`), metalGroup: product.metal_group, name: product.name })),

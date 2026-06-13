@@ -1,7 +1,10 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { formatDateDisplay } from '@/lib/format'
 
 type CustomerTrackingRow = {
   avgSell: number
@@ -19,11 +22,19 @@ type CustomerTrackingRow = {
   revenue: number
 }
 type CustomerTrackingPayload = {
+  detail?: CustomerTrackingDetail | null
   filters: { customers: Array<{ active: boolean | null; code: string | null; id: string; name: string }> }
   monthly: Array<{ gp: number; month: string; qty: number; revenue: number }>
   rows: CustomerTrackingRow[]
   summary: { cogs: number; customers: number; gp: number; qty: number; receivable: number; receivedAmount: number; revenue: number }
   year: string
+}
+
+type CustomerTrackingDetail = {
+  bills: Array<{ cogs: number; date: string; docNo: string; gp: number; href: string; qty: number; receivable: number; received: number; revenue: number; status: string }>
+  customer: { code: string; id: string; name: string }
+  products: Array<{ avgSell: number; cogs: number; gp: number; gpPct: number; productName: string; qty: number; revenue: number }>
+  receipts: Array<{ amount: number; date: string; docNo: string; method: string; netAmount: number; status: string }>
 }
 
 const monthLabels = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
@@ -32,6 +43,8 @@ const months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11'
 export function CustomerTrackingPageClient() {
   const [customerId, setCustomerId] = useState('')
   const [data, setData] = useState<CustomerTrackingPayload | null>(null)
+  const [detail, setDetail] = useState<CustomerTrackingDetail | null>(null)
+  const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [month, setMonth] = useState('')
@@ -62,6 +75,22 @@ export function CustomerTrackingPageClient() {
   useEffect(() => {
     void loadData()
   }, [loadData])
+
+  const openDetail = useCallback(async (row: CustomerTrackingRow) => {
+    setIsDetailLoading(true)
+    setDetail({ bills: [], customer: { code: row.code, id: row.id, name: row.customerName }, products: [], receipts: [] })
+    try {
+      const params = new URLSearchParams(queryString)
+      params.set('detailId', row.id)
+      const payload = await dailyFetchJson<CustomerTrackingPayload>(`/api/tracking/customer?${params.toString()}`)
+      setDetail(payload.detail ?? null)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'โหลดรายละเอียด Customer ไม่ได้')
+      setDetail(null)
+    } finally {
+      setIsDetailLoading(false)
+    }
+  }, [queryString])
 
   const rows = data?.rows ?? []
   const topFive = rows.slice(0, 5)
@@ -166,7 +195,7 @@ export function CustomerTrackingPageClient() {
               {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={12}>กำลังโหลดข้อมูล</td></tr> : null}
               {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={12}>ไม่มีข้อมูล Customer Tracking</td></tr> : null}
               {!isLoading && rows.map((row) => (
-                <tr key={row.id} className="border-t hover:bg-emerald-50/40">
+                <tr key={row.id} className="cursor-pointer border-t hover:bg-emerald-50/40" onClick={() => void openDetail(row)}>
                   <td className="p-2 font-mono text-xs text-slate-500">{row.code || '-'}</td>
                   <td className="p-2 font-medium">{row.customerName}</td>
                   <td className="p-2 text-right">{row.billCount}</td>
@@ -185,7 +214,75 @@ export function CustomerTrackingPageClient() {
           </table>
         </div>
       ) : null}
+
+      <CustomerDetailDialog detail={detail} isLoading={isDetailLoading} onOpenChange={(open) => { if (!open) setDetail(null) }} />
     </section>
+  )
+}
+
+function CustomerDetailDialog({ detail, isLoading, onOpenChange }: { detail: CustomerTrackingDetail | null; isLoading: boolean; onOpenChange: (open: boolean) => void }) {
+  return (
+    <Dialog open={detail !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] max-w-5xl overflow-hidden !p-0" fallbackTitle="Customer Tracking Detail">
+        <DialogHeader>
+          <DialogTitle>{detail?.customer.name ?? 'รายละเอียด Customer'}</DialogTitle>
+          <DialogDescription>{detail?.customer.code ?? ''} · Sales Bills / Receipts / Product breakdown</DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[72vh] space-y-4 overflow-y-auto p-4">
+          {isLoading ? <div className="rounded-md bg-slate-50 p-6 text-center text-sm text-slate-500">กำลังโหลดรายละเอียด</div> : null}
+          {!isLoading && detail ? (
+            <>
+              <DetailSection title="Sales Bill">
+                <SimpleTable
+                  headers={['วันที่', 'เอกสาร', 'น้ำหนัก', 'ยอดขาย', 'COGS', 'GP', 'รับเงิน', 'ลูกหนี้', 'สถานะ']}
+                  rows={detail.bills.map((row) => [
+                    formatDateDisplay(row.date),
+                    row.docNo,
+                    formatMoney(row.qty),
+                    formatMoney(row.revenue),
+                    formatMoney(row.cogs),
+                    formatMoney(row.gp),
+                    formatMoney(row.received),
+                    formatMoney(row.receivable),
+                    row.status,
+                  ])}
+                />
+              </DetailSection>
+              <DetailSection title="Receipt">
+                <SimpleTable
+                  headers={['วันที่', 'เอกสาร', 'วิธีรับเงิน', 'ยอดรับ', 'สุทธิ', 'สถานะ']}
+                  rows={detail.receipts.map((row) => [formatDateDisplay(row.date), row.docNo, row.method, formatMoney(row.amount), formatMoney(row.netAmount), row.status])}
+                />
+              </DetailSection>
+              <DetailSection title="Product Breakdown">
+                <SimpleTable
+                  headers={['สินค้า', 'น้ำหนัก', 'ยอดขาย', 'ราคาเฉลี่ย', 'COGS', 'GP', 'GP%']}
+                  rows={detail.products.map((row) => [row.productName, formatMoney(row.qty), formatMoney(row.revenue), formatMoney(row.avgSell), formatMoney(row.cogs), formatMoney(row.gp), `${row.gpPct.toFixed(2)}%`])}
+                />
+              </DetailSection>
+            </>
+          ) : null}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function DetailSection({ children, title }: { children: ReactNode; title: string }) {
+  return <section className="rounded-md border border-slate-200 bg-white"><div className="border-b bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700">{title}</div>{children}</section>
+}
+
+function SimpleTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[760px] text-sm">
+        <thead className="bg-slate-100"><tr>{headers.map((header) => <th key={header} className="p-2 text-left">{header}</th>)}</tr></thead>
+        <tbody>
+          {rows.length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={headers.length}>ไม่มีข้อมูล</td></tr> : null}
+          {rows.map((row, index) => <tr key={index} className="border-t">{row.map((cell, cellIndex) => <td key={`${index}-${headers[cellIndex]}`} className={cellIndex === 0 || cellIndex === 1 || cellIndex === headers.length - 1 ? 'p-2' : 'p-2 text-right'}>{cell}</td>)}</tr>)}
+        </tbody>
+      </table>
+    </div>
   )
 }
 

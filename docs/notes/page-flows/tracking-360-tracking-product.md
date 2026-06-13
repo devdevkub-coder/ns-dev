@@ -50,7 +50,7 @@ Latest user screenshot changes the main Product Tracking target into a profitabi
 - Required data groups: stock, sales, production, allocation, WAC
 - Decision questions: สินค้าไหนกำไรดี, stock หมุนเร็วไหม, loss สูงไหม, yield ดีไหม
 - Business importance: ใช้ optimize product mix ของโรงงาน
-- Local vs legacy finding: legacy row click opens product detail with purchase lines, sales lines, stock ledger movements, and monthly breakdown. Current Next local page/API is aggregate-only for visible rows and does not expose source detail payload.
+- Local vs legacy finding: legacy row click opens product detail with purchase lines, sales lines, stock ledger movements, and monthly breakdown. Current Next now supports row-click detail with purchase/sales source lines through `detailId`; stock, allocation, production/yield/loss, and monthly detail remain pending or support-only.
 - Latest screenshot marks `Stock` and `WAC` with a red cross on the far-right table columns. Treat crossed-out parts as removed from the primary visible table and primary export, not merely deprioritized.
 - Target main table columns: `Code`, `สินค้า`, `หมวด`, `ซื้อ`, `มูลค่าซื้อ`, `ซื้อเฉลี่ย`, `ขาย`, `ยอดขาย`, `ขายเฉลี่ย`, `COGS`, `GP`, `GP%`.
 - Target filters: year, month, product category, product, Supplier ฝั่งซื้อ, Customer ฝั่งขาย, and export with the same filter.
@@ -179,7 +179,7 @@ Target detail payload fields:
 
 ## Current Gap
 
-- API does not yet return source movement detail rows for product drilldown.
+- API now returns purchase/sales source movement detail rows for product drilldown through `detailId`.
 - API/UI now supports `supplierId` and `customerId` filters for buy-side/sell-side context in the aggregate Product Tracking view/export.
 - Crossed-out `Stock` and `WAC` have been removed from the primary Product Tracking table/export.
 - Production/yield/loss and allocation signals are not wired into Product Tracking yet.
@@ -196,8 +196,8 @@ Target detail payload fields:
 - [x] Apply `year/month/productId/metalGroup/branchId/supplierId/customerId/q` consistently to aggregate rows, monthly, top lists, and `format=xlsx` export.
 - [x] Remove crossed-out `Stock`, `StockValue`, and `WAC` columns from primary XLSX export.
 - [x] Keep primary row contract focused on product code/name/category, buy qty/amount/avg, sell qty/revenue/avg, COGS, GP, and GP%.
-- [ ] Add detail payload for purchase lines: PB doc no, date, supplier, qty, unit, amount, avg buy, and source link.
-- [ ] Add detail payload for sales lines: SB doc no, date, customer, qty, unit, revenue, COGS, GP, and source link.
+- [x] Add detail payload for purchase lines: PB doc no, date, supplier, qty, amount, avg buy, and source link.
+- [x] Add detail payload for sales lines: SB doc no, date, customer, qty, revenue, COGS, GP, and source link.
 - [ ] Add allocation/cost-source refs and production/yield/loss signals only after those source contracts are confirmed.
 - [ ] Keep stock/WAC out of the primary response/export unless later approved as a separated support-only section.
 
@@ -207,8 +207,10 @@ Target detail payload fields:
 - [x] Remove crossed-out `Stock` and `WAC` from the main visible table.
 - [x] Add Supplier ฝั่งซื้อ and Customer ฝั่งขาย controls to the `docs/design.md` filter shell.
 - [x] Keep export button aligned with the same filters.
-- [ ] Make desktop rows and mobile cards clickable to open product detail.
-- [ ] Add detail modal/view sections: purchase lines, sales lines, allocation/cost-source, production/yield/loss, source links.
+- [x] Make desktop rows clickable to open product detail.
+- [x] Add detail modal/view sections: purchase lines and sales lines.
+- [ ] Add dense mobile cards that open product detail.
+- [ ] Add detail modal/view sections: allocation/cost-source, production/yield/loss, source links.
 - [ ] If stock/balance access is needed, use a separate link to `/stock/balance`; do not add `Stock/WAC` back to the main Product Tracking table.
 - [ ] Follow `docs/design.md`: KPI cards before filters, compact controls, desktop table, dense mobile cards, no nested cards, no text overflow.
 
@@ -217,8 +219,9 @@ Target detail payload fields:
 - [x] Verify current API response shape and source tables
 - [x] Record legacy product tracking/detail baseline
 - [x] Mark read-only/export side-effect boundary
-- [ ] Add product detail/read endpoint or drilldown payload
-- [ ] Add source links to PB/SB/stock ledger rows
+- [x] Add product detail/read endpoint or drilldown payload
+- [x] Add source references to PB/SB rows
+- [ ] Add source links to stock ledger rows if a separated support-only stock detail is approved
 - [x] Add Supplier ฝั่งซื้อ and Customer ฝั่งขาย filters and apply them consistently to JSON/export
 - [x] Remove crossed-out `Stock` and `WAC` from the primary visible product profitability table and primary export
 - [ ] Add allocation, production, loss, and yield signals after source contracts are finalized
