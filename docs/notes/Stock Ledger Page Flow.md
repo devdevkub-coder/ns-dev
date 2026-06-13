@@ -153,10 +153,11 @@ Export `.xlsx` ต้องใช้ filter เดียวกับหน้า
 ## Current Implementation / Gap
 
 - มี read/export baseline และ row detail modal แล้ว
-- ต้องเพิ่ม/ยืนยัน source document links ให้ครบทุก ref type
-- ต้องยืนยัน `วันที่สร้างรายการ` แสดงใน list/detail/export
+- API ใช้ server-side `q` search, pagination count, aggregate summary, distinct movement types, และ SQL window running balance ต่อ page แทนการโหลดทุก row เข้า Node
+- row detail มี source document links สำหรับ ref type หลักที่ active app มี route: `PB/SB/PSALE/ST/SC/SC-REV/GA/ADJ/PI/PI-REV/PO2/PO2-REV`
+- list/detail/export แสดง business date และ detail แสดง created context ของ row
 - ต้องคง rule ว่า hold ไม่แสดงเป็น ledger row หลังเพิ่ม stock hold layer
-- running balance และ cleanup tools ยังเป็น follow-up/design-dependent
+- cleanup tools ยังเป็น follow-up/design-dependent และต้องเป็น admin-only flow แยก
 
 ## Related Notes
 

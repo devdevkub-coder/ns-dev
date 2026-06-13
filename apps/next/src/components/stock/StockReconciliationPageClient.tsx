@@ -24,6 +24,8 @@ type ReconciliationGroupKey =
   | 'negativeStockBalance'
   | 'orphanLedger'
   | 'pendingSaleIntegrity'
+  | 'statusConvertIntegrity'
+  | 'stockAdjustmentIntegrity'
 
 type ReconciliationPayload = {
   generatedAt: string
@@ -56,6 +58,14 @@ const groupLabels: Record<ReconciliationGroupKey, { label: string; note: string 
     label: 'ตรวจ PSALE',
     note: 'เบิกออกรอบิลต้องมี reversal/hold/converted state ถูกต้อง',
   },
+  statusConvertIntegrity: {
+    label: 'ตรวจ SC',
+    note: 'Status Convert และ reversal ต้องเป็น paired ledger และ net เป็นศูนย์',
+  },
+  stockAdjustmentIntegrity: {
+    label: 'ตรวจ ADJ',
+    note: 'Stock Adjust ต้องมี header/ledger ตรงกัน และ value ใน ledger เป็นศูนย์ตาม note-only policy',
+  },
 }
 
 const groupOrder: ReconciliationGroupKey[] = [
@@ -64,6 +74,8 @@ const groupOrder: ReconciliationGroupKey[] = [
   'cancelledDocumentNet',
   'cancelledSalesHolds',
   'pendingSaleIntegrity',
+  'statusConvertIntegrity',
+  'stockAdjustmentIntegrity',
   'negativeStockBalance',
 ]
 

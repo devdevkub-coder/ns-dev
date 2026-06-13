@@ -85,7 +85,9 @@ ADJ ปรับยอดจากการนับจริง พร้อม
 
 ## Current Gap
 
-approval/reconciliation boundary และ accounting impact ยังต้อง finalize
+- approval/reconciliation boundary ทำแล้วในระดับ runtime policy: direct post ถูก block ถ้า counted qty ต่ำกว่า active hold และต้องปลด hold/ทำ approval policy แยกก่อน
+- accounting impact เป็น `NOTE_ONLY`: ADJ ledger value ต้องเป็นศูนย์ และ reconciliation ตรวจ policy นี้แล้ว
+- remaining: dedicated approval/reversal document ยังเป็น future policy แยกจาก quick count adjust
 
 ## Implementation Checklist
 

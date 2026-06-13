@@ -2694,6 +2694,10 @@ model stock_adjustments {
   counted_qty     Decimal?  @default(0) @db.Decimal
   diff_qty        Decimal?  @default(0) @db.Decimal
   adjust_type     String?
+  output_category String?
+  on_hold_qty     Decimal?  @default(0) @db.Decimal
+  ready_qty_snapshot Decimal? @default(0) @db.Decimal
+  accounting_impact_policy String? @default("NOTE_ONLY")
   reason          String?
   remark          String?
   unit_cost_used  Decimal?  @default(0) @db.Decimal
@@ -2715,6 +2719,7 @@ model stock_adjustments {
   @@index([branch_id], map: "idx_stock_adjustments_branch")
   @@index([date(sort: Desc)], map: "idx_stock_adjustments_date")
   @@index([product_id], map: "idx_stock_adjustments_product")
+  @@index([output_category], map: "idx_stock_adjustments_output_category")
   @@index([status], map: "idx_stock_adjustments_status")
   @@schema("public")
 }
@@ -2808,6 +2813,7 @@ model stock_holds {
   weight_tickets        weight_tickets         @relation(fields: [weight_ticket_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
   @@index([branch_id, product_id, warehouse_id, output_category], map: "idx_stock_holds_active_lookup")
+  @@index([product_id, branch_id, warehouse_id, output_category, lot_no, not_available_for_sale, held_at(sort: Desc), id(sort: Desc)], map: "idx_stock_holds_active_bucket_detail", where: raw("(status = 'active'::text)"))
   @@index([consumed_by_ref_type, consumed_by_ref_no, status], map: "idx_stock_holds_consumed_ref")
   @@index([weight_ticket_line_id], map: "idx_stock_holds_line")
   @@index([source_type, source_doc_no], map: "idx_stock_holds_source_doc")
@@ -2924,6 +2930,8 @@ model stock_ledger {
   @@index([output_category, note, branch_id, warehouse_id, product_id, date(sort: Desc)], map: "idx_stock_ledger_sc_filter", where: raw("((ref_type = 'SC'::text) AND (qty_out > (0)::numeric))"))
   @@index([output_category, note, date(sort: Desc), created_at(sort: Desc), id(sort: Desc)], map: "idx_stock_ledger_sc_transition_list", where: raw("((ref_type = 'SC'::text) AND (qty_out > (0)::numeric))"))
   @@index([branch_id, warehouse_id, product_id, date], map: "idx_stock_ledger_stock_dimension")
+  @@index([product_id, branch_id, warehouse_id, output_category, lot_no, not_available_for_sale, date], map: "idx_stock_ledger_balance_bucket")
+  @@index([product_id, branch_id, warehouse_id, output_category, lot_no, not_available_for_sale, date(sort: Desc), created_at(sort: Desc), id(sort: Desc)], map: "idx_stock_ledger_bucket_detail")
   @@index([product_id], map: "idx_stock_product")
   @@index([ref_id], map: "idx_stock_ref")
   @@index([movement_type], map: "idx_stock_type")

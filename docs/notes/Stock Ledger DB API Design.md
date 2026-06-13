@@ -11,7 +11,7 @@ tags:
   - ledger
 status: draft
 created: 2026-06-12
-updated: 2026-06-12
+updated: 2026-06-13
 ---
 
 # Stock Ledger DB API Design
@@ -46,7 +46,8 @@ updated: 2026-06-12
 | `SB` | Sales Bill Stock | stock out | `SB-CANCEL` |
 | `SB-CANCEL` | Sales Bill cancel | stock in | สร้าง row ใหม่เพื่อคืน stock; ห้ามลบ `SB` row เดิม |
 | `ST` | Stock transfer | paired out/in | future cancel ต้อง paired reversal |
-| `SC` | Status convert | paired out/in | future cancel ต้อง paired reversal |
+| `SC` | Status convert | paired out/in | `SC-REV` |
+| `SC-REV` | Status convert reverse | paired out/in | append-only reverse rows; `ref_id` points to original `SC.ref_no` |
 | `GA` | Grade adjustment | paired out/in | future cancel ต้อง paired reversal |
 | `ADJ` | Stock adjustment | one-sided gain/loss | future correction ต้องเป็น adjustment/reversal row ใหม่ |
 | `PSALE` | Pending sale / stock issue after outbound weighing | stock out | `PSALE-CANCEL` |
@@ -68,6 +69,29 @@ available = onHandFromStockLedger - activeStockHolds
 ```
 
 ทุก write path ที่สร้าง hold หรือ stock-out จาก stock ปกติต้อง validate ด้วย branch + warehouse + product เดียวกัน เพื่อป้องกัน over selling
+
+## Stock Balance Read Model
+
+`/api/stock/balance` ต้องอ่าน `stock_ledger` เป็น bucket aggregate ใน DB ไม่โหลด movement rows ทั้งหมดมากลุ่มใน Node
+
+Bucket key:
+
+```text
+product_id + branch_id + warehouse_id + output_category + lot_no + not_available_for_sale
+```
+
+Read policy:
+
+- on-hand/value มาจาก `stock_ledger` aggregate ต่อ bucket
+- active hold overlay มาจาก `stock_holds.status = active` aggregate ต่อ bucket เดียวกัน
+- ready qty = positive on-hand - active hold เฉพาะ bucket ที่ขายได้
+- detail drilldown จำกัด latest movement/active hold rows ต่อ bucket
+
+Supporting indexes:
+
+- `idx_stock_ledger_balance_bucket`
+- `idx_stock_ledger_bucket_detail`
+- `idx_stock_holds_active_bucket_detail`
 
 ## WTO Hold Contract
 
@@ -239,7 +263,9 @@ Report groups:
 - `cancelledDocumentNet`: cancelled PB/SB ที่ net ledger ไม่กลับศูนย์
 - `cancelledSalesHolds`: `stock_holds` ที่ยัง `consumed` โดย SB ที่ถูก cancel แล้ว
 - `pendingSaleIntegrity`: PSALE ที่ missing reversal, duplicate SB stock-out, converted-without-SB, cancelled hold ยัง consumed, หรือ active PSALE ไม่มี consumed hold
-- `negativeStockBalance`: aggregate `stock_ledger + active stock_holds` ตาม branch/warehouse/product ที่ติดลบ
+- `statusConvertIntegrity`: `SC`/`SC-REV` ต้องเป็น paired rows และ net เป็นศูนย์; `SC-REV` ต้องชี้กลับ source `SC`
+- `stockAdjustmentIntegrity`: `ADJ` header ต้องมี ledger ที่ net qty ตรงกับ `diff_qty` และ ledger value ต้องเป็นศูนย์ตาม `NOTE_ONLY`
+- `negativeStockBalance`: aggregate `available = stock_ledger - active stock_holds` ตาม full stock bucket ที่ติดลบ
 
 UI report:
 

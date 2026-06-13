@@ -1,4 +1,4 @@
-import type { Prisma } from '../../../generated/prisma/client'
+import { Prisma } from '../../../generated/prisma/client'
 import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
@@ -27,6 +27,24 @@ export function stockKey(input: StockBalanceKey) {
     input.productId ?? '-',
     input.branchId ?? '-',
     input.warehouseId ?? '-',
+    input.lotNo ?? '-',
+    input.status ?? '-',
+    input.notAvailable ? 'NA' : 'A',
+  ].join('|')
+}
+
+function stockBucketInternalKey(input: {
+  branchId: bigint | null
+  lotNo: string | null
+  notAvailable: boolean
+  productId: bigint | null
+  status: string | null
+  warehouseId: bigint | null
+}) {
+  return [
+    input.productId?.toString() ?? '-',
+    input.branchId?.toString() ?? '-',
+    input.warehouseId?.toString() ?? '-',
     input.lotNo ?? '-',
     input.status ?? '-',
     input.notAvailable ? 'NA' : 'A',
@@ -98,6 +116,63 @@ function dateWhere(input: { asOf?: string | null; from?: string | null; to?: str
   return {}
 }
 
+function stockLedgerSqlWhere(input: {
+  asOf?: string | null
+  branchId?: bigint | null
+  from?: string | null
+  lotNo?: string | null
+  movementType?: string | null
+  productId?: bigint | null
+  refType?: string | null
+  status?: string | null
+  to?: string | null
+  warehouseId?: bigint | null
+}) {
+  const clauses: Prisma.Sql[] = [Prisma.sql`true`]
+  if (input.productId) clauses.push(Prisma.sql`sl.product_id = ${input.productId}`)
+  if (input.branchId) clauses.push(Prisma.sql`sl.branch_id = ${input.branchId}`)
+  if (input.warehouseId) clauses.push(Prisma.sql`sl.warehouse_id = ${input.warehouseId}`)
+  if (input.movementType) clauses.push(Prisma.sql`sl.movement_type = ${input.movementType}`)
+  if (input.refType) clauses.push(Prisma.sql`sl.ref_type = ${input.refType}`)
+  if (input.lotNo) clauses.push(Prisma.sql`sl.lot_no ilike ${`%${input.lotNo}%`}`)
+  if (input.status) clauses.push(Prisma.sql`sl.output_category = ${input.status}`)
+  if (input.asOf) clauses.push(Prisma.sql`sl.date <= ${normalizeDate(input.asOf)}`)
+  if (!input.asOf && input.from) clauses.push(Prisma.sql`sl.date >= ${normalizeDate(input.from)}`)
+  if (!input.asOf && input.to) clauses.push(Prisma.sql`sl.date <= ${normalizeDate(input.to)}`)
+  return Prisma.join(clauses, ' and ')
+}
+
+type StockBalanceAggregateRow = {
+  branch_code: string | null
+  branch_id: bigint | null
+  branch_name: string | null
+  last_date: Date | string | null
+  lot_no: string | null
+  not_available_for_sale: boolean | null
+  output_category: string | null
+  product_code: string | null
+  product_id: bigint | null
+  product_metal_group: string | null
+  product_name: string | null
+  qty: Prisma.Decimal | number | string | null
+  value: Prisma.Decimal | number | string | null
+  warehouse_code: string | null
+  warehouse_id: bigint | null
+  warehouse_name: string | null
+}
+
+function rawNumeric(value: Prisma.Decimal | number | string | null) {
+  if (value == null) return 0
+  if (typeof value === 'number') return value
+  if (typeof value === 'string') return Number(value)
+  return value.toNumber()
+}
+
+function rawDateOnly(value: Date | string | null) {
+  if (!value) return ''
+  return toDateOnly(typeof value === 'string' ? new Date(value) : value)
+}
+
 export async function stockReferenceData(input?: { includeCustomers?: boolean }) {
   const [branches, warehouses, products, customers] = await Promise.all([
     prisma.branches.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
@@ -142,7 +217,7 @@ export async function stockBalanceSnapshot(input: {
   warehouseId?: string | bigint | null
 }) {
   const normalizedInput = await normalizeStockReferenceInput(input)
-  const where = stockWhere({
+  const sqlWhere = stockLedgerSqlWhere({
     asOf: input.asOf,
     branchId: normalizedInput.branchId,
     lotNo: input.lotNo,
@@ -150,104 +225,134 @@ export async function stockBalanceSnapshot(input: {
     status: input.status,
     warehouseId: normalizedInput.warehouseId,
   })
-  const ledgerRows = await prisma.stock_ledger.findMany({
-    include: stockLedgerInclude,
-    orderBy: [{ date: 'asc' }, { created_at: 'asc' }, { id: 'asc' }],
-    where,
-  })
-  const holdSums = await prisma.stock_holds.groupBy({
-    _sum: { qty: true },
-    by: ['branch_id', 'product_id', 'warehouse_id'],
-    where: {
-      status: 'active',
-      ...(normalizedInput.branchId ? { branch_id: normalizedInput.branchId } : {}),
-      ...(normalizedInput.productId ? { product_id: normalizedInput.productId } : {}),
-      ...(normalizedInput.warehouseId ? { warehouse_id: normalizedInput.warehouseId } : {}),
-    },
-  })
+  const holdWhere = {
+    status: 'active',
+    ...(normalizedInput.branchId ? { branch_id: normalizedInput.branchId } : {}),
+    ...(normalizedInput.productId ? { product_id: normalizedInput.productId } : {}),
+    ...(normalizedInput.warehouseId ? { warehouse_id: normalizedInput.warehouseId } : {}),
+  } satisfies Prisma.stock_holdsWhereInput
+  const q = input.q?.trim() || null
+  const [ledgerRows, holdSums] = await Promise.all([
+    prisma.$queryRaw<StockBalanceAggregateRow[]>`
+      with ledger_balance as (
+        select
+          sl.product_id,
+          sl.branch_id,
+          sl.warehouse_id,
+          sl.output_category,
+          sl.lot_no,
+          coalesce(sl.not_available_for_sale, false) as not_available_for_sale,
+          sum(coalesce(sl.qty_in, 0) - coalesce(sl.qty_out, 0)) as qty,
+          sum(coalesce(sl.value_in, 0) - coalesce(sl.value_out, 0)) as value,
+          max(sl.date) as last_date
+        from public.stock_ledger sl
+        where ${sqlWhere}
+        group by
+          sl.product_id,
+          sl.branch_id,
+          sl.warehouse_id,
+          sl.output_category,
+          sl.lot_no,
+          coalesce(sl.not_available_for_sale, false)
+        having abs(sum(coalesce(sl.qty_in, 0) - coalesce(sl.qty_out, 0))) > 0.000001
+          or abs(sum(coalesce(sl.value_in, 0) - coalesce(sl.value_out, 0))) > 0.000001
+      )
+      select
+        lb.product_id,
+        lb.branch_id,
+        lb.warehouse_id,
+        lb.output_category,
+        lb.lot_no,
+        lb.not_available_for_sale,
+        lb.qty,
+        lb.value,
+        lb.last_date,
+        p.code as product_code,
+        p.name as product_name,
+        p.metal_group as product_metal_group,
+        b.code as branch_code,
+        b.name as branch_name,
+        w.code as warehouse_code,
+        w.name as warehouse_name
+      from ledger_balance lb
+      left join public.products p on p.id = lb.product_id
+      left join public.branches b on b.id = lb.branch_id
+      left join public.warehouses w on w.id = lb.warehouse_id
+      where ${q
+        ? Prisma.sql`concat_ws(' ', p.code, p.name, p.metal_group, b.name, w.name, coalesce(lb.lot_no, ''), coalesce(lb.output_category, '')) ilike ${`%${q}%`}`
+        : Prisma.sql`true`}
+      order by p.metal_group asc nulls last, p.code asc nulls last, b.name asc nulls last, w.name asc nulls last
+    `,
+    prisma.stock_holds.groupBy({
+      _sum: { qty: true },
+      by: ['branch_id', 'product_id', 'warehouse_id', 'output_category', 'lot_no', 'not_available_for_sale'],
+      where: holdWhere,
+    }),
+  ])
   const holdQtyByStockKey = new Map(
     holdSums.map((row) => [
-      `${row.product_id ?? '-'}:${row.branch_id ?? '-'}:${row.warehouse_id ?? '-'}`,
+      stockBucketInternalKey({
+        branchId: row.branch_id,
+        lotNo: row.lot_no,
+        notAvailable: row.not_available_for_sale === true,
+        productId: row.product_id,
+        status: row.output_category,
+        warehouseId: row.warehouse_id,
+      }),
       toNumber(row._sum.qty),
     ]),
   )
 
-  const grouped = new Map<string, {
-    avgCost: number
-    branchInternalId: bigint | null
-    branchId: string
-    branchName: string
-    key: string
-    lastDate: string
-    lotNo: string
-    notAvailable: boolean
-    onHoldQty: number
-    productInternalId: bigint | null
-    productCode: string
-    productId: string
-    productMetalGroup: string
-    productName: string
-    qty: number
-    readyQty: number
-    status: string
-    value: number
-    warehouseInternalId: bigint | null
-    warehouseId: string
-    warehouseName: string
-  }>()
-
-  for (const row of ledgerRows) {
+  const rows = ledgerRows.map((row) => {
     const productStatus = row.output_category ?? '-'
-    const key = stockKey({
-      branchId: row.branches?.code ?? null,
-      lotNo: row.lot_no ?? null,
-      notAvailable: row.not_available_for_sale === true,
-      productId: row.products?.code ?? null,
-      status: productStatus,
-      warehouseId: row.warehouses?.code ?? null,
-    })
-    const current = grouped.get(key) ?? {
-      avgCost: 0,
+    const qty = rawNumeric(row.qty)
+    const value = rawNumeric(row.value)
+    const publicRow = {
+      avgCost: qty > 0 ? value / qty : 0,
       branchInternalId: row.branch_id ?? null,
-      branchId: row.branches?.code ?? '',
-      branchName: row.branches?.name ?? '-',
-      key,
-      lastDate: toDateOnly(row.date),
+      branchId: row.branch_code ?? '',
+      branchName: row.branch_name ?? '-',
+      key: stockKey({
+        branchId: row.branch_code ?? null,
+        lotNo: row.lot_no ?? null,
+        notAvailable: row.not_available_for_sale === true,
+        productId: row.product_code ?? null,
+        status: productStatus,
+        warehouseId: row.warehouse_code ?? null,
+      }),
+      lastDate: rawDateOnly(row.last_date),
       lotNo: row.lot_no ?? '',
       notAvailable: row.not_available_for_sale === true,
       onHoldQty: 0,
       productInternalId: row.product_id ?? null,
-      productCode: row.products?.code ?? '',
-      productId: row.products?.code ?? '',
-      productMetalGroup: row.products?.metal_group ?? 'อื่นๆ',
-      productName: row.products?.name ?? '-',
-      qty: 0,
+      productCode: row.product_code ?? '',
+      productId: row.product_code ?? '',
+      productMetalGroup: row.product_metal_group ?? 'อื่นๆ',
+      productName: row.product_name ?? '-',
+      qty,
       readyQty: 0,
       status: productStatus,
-      value: 0,
+      value,
       warehouseInternalId: row.warehouse_id ?? null,
-      warehouseId: row.warehouses?.code ?? '',
-      warehouseName: row.warehouses?.name ?? '-',
+      warehouseId: row.warehouse_code ?? '',
+      warehouseName: row.warehouse_name ?? '-',
     }
-    current.qty += toNumber(row.qty_in) - toNumber(row.qty_out)
-    current.value += toNumber(row.value_in) - toNumber(row.value_out)
-    current.avgCost = current.qty > 0 ? current.value / current.qty : 0
-    current.lastDate = toDateOnly(row.date)
-    grouped.set(key, current)
-  }
-
-  const query = input.q?.trim().toLowerCase()
-  const rows = Array.from(grouped.values())
-    .filter((row) => Math.abs(row.qty) > 0.000001 || Math.abs(row.value) > 0.000001)
-    .filter((row) => !query || `${row.productCode} ${row.productName} ${row.productMetalGroup} ${row.branchName} ${row.warehouseName} ${row.lotNo} ${row.status}`.toLowerCase().includes(query))
-    .sort((left, right) => left.productMetalGroup.localeCompare(right.productMetalGroup) || left.productCode.localeCompare(right.productCode) || left.branchName.localeCompare(right.branchName) || left.warehouseName.localeCompare(right.warehouseName))
+    return publicRow
+  })
 
   for (const row of rows) {
     if (row.notAvailable || row.qty <= 0) {
       row.readyQty = 0
       continue
     }
-    const holdKey = `${row.productInternalId ?? '-'}:${row.branchInternalId ?? '-'}:${row.warehouseInternalId ?? '-'}`
+    const holdKey = stockBucketInternalKey({
+      branchId: row.branchInternalId,
+      lotNo: row.lotNo || null,
+      notAvailable: row.notAvailable,
+      productId: row.productInternalId,
+      status: row.status || null,
+      warehouseId: row.warehouseInternalId,
+    })
     const remainingHold = holdQtyByStockKey.get(holdKey) ?? 0
     row.onHoldQty = Math.min(row.qty, Math.max(0, remainingHold))
     row.readyQty = Math.max(0, row.qty - row.onHoldQty)
@@ -285,6 +390,85 @@ export async function stockBalanceSnapshot(input: {
   const publicRows = filteredRows.map(({ branchInternalId: _branchInternalId, productInternalId: _productInternalId, warehouseInternalId: _warehouseInternalId, ...row }) => row)
 
   return { byStatus, rows: publicRows, summary }
+}
+
+export async function stockBalanceDetail(input: {
+  branchId: string | bigint
+  lotNo?: string | null
+  notAvailable?: boolean
+  productId: string | bigint
+  status?: string | null
+  warehouseId: string | bigint
+}) {
+  const normalizedInput = await normalizeStockReferenceInput(input)
+  if (!normalizedInput.branchId || !normalizedInput.productId || !normalizedInput.warehouseId) {
+    throw new Error('ระบุสินค้า สาขา และคลังให้ครบก่อนดูรายละเอียด')
+  }
+  const lotNo = input.lotNo?.trim() || null
+  const status = input.status?.trim() || null
+  const notAvailable = input.notAvailable === true
+
+  const [ledgerRows, holdRows] = await Promise.all([
+    prisma.stock_ledger.findMany({
+      include: stockLedgerInclude,
+      orderBy: [{ date: 'desc' }, { created_at: 'desc' }, { id: 'desc' }],
+      take: 80,
+      where: {
+        branch_id: normalizedInput.branchId,
+        lot_no: lotNo,
+        ...(notAvailable ? { not_available_for_sale: true } : { OR: [{ not_available_for_sale: false }, { not_available_for_sale: null }] }),
+        output_category: status,
+        product_id: normalizedInput.productId,
+        warehouse_id: normalizedInput.warehouseId,
+      },
+    }),
+    prisma.stock_holds.findMany({
+      include: {
+        weight_ticket_lines: { select: { line_no: true, net_weight: true, product_name: true } },
+        weight_tickets: { include: { customers: { select: { code: true, name: true } } } },
+      },
+      orderBy: [{ held_at: 'desc' }, { id: 'desc' }],
+      take: 80,
+      where: {
+        branch_id: normalizedInput.branchId,
+        lot_no: lotNo,
+        not_available_for_sale: notAvailable,
+        output_category: status,
+        product_id: normalizedInput.productId,
+        status: 'active',
+        warehouse_id: normalizedInput.warehouseId,
+      },
+    }),
+  ])
+
+  return {
+    holds: holdRows.map((row) => ({
+      customerCode: row.weight_tickets.customers?.code ?? '',
+      customerName: row.weight_tickets.customers?.name ?? '-',
+      heldAt: row.held_at.toISOString(),
+      holdKey: row.hold_key,
+      lotNo: row.lot_no ?? '',
+      qty: toNumber(row.qty),
+      sourceDocNo: row.source_doc_no,
+      sourceLineNo: row.source_line_no ?? row.weight_ticket_lines?.line_no ?? null,
+      status: row.status,
+      weightTicketDate: toDateOnly(row.weight_tickets.document_date),
+    })),
+    ledgerRows: ledgerRows.map((row) => ({
+      createdAt: row.created_at ? row.created_at.toISOString() : '',
+      date: toDateOnly(row.date),
+      id: row.ledger_key,
+      movementType: row.movement_type,
+      note: row.note ?? row.notes ?? '',
+      qtyIn: toNumber(row.qty_in),
+      qtyOut: toNumber(row.qty_out),
+      refNo: row.ref_no ?? row.ref_id ?? '',
+      refType: row.ref_type ?? '',
+      unitCost: toNumber(row.unit_cost),
+      valueIn: toNumber(row.value_in),
+      valueOut: toNumber(row.value_out),
+    })),
+  }
 }
 
 export async function averageCostForStock(input: { branchId?: bigint | null; lotNo?: string | null; productId: string | bigint; status?: string | null; warehouseId?: bigint | null }) {

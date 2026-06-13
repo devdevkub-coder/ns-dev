@@ -125,8 +125,9 @@ Target validation:
 Target ที่ควรใช้:
 
 - ไม่แก้ ledger row เก่าโดยตรง
-- ถ้าต้อง reverse ให้สร้าง reversal document หรือ paired reversal rows
-- ต้อง block reverse ถ้า stock ที่ status ปลายทางถูกใช้ต่อแล้วและทำให้ยอดติดลบ
+- ถ้าต้อง reverse ให้สร้าง paired reversal rows ด้วย `ref_type = SC-REV`
+- `SC-REV.ref_id` ชี้กลับ `SC.ref_no` ต้นทาง และ original `SC` ต้องไม่ถูกแก้หรือลบ
+- ต้อง block reverse ถ้า stock ที่ status ปลายทางถูกใช้ต่อแล้วและทำให้ยอดพร้อมใช้ไม่พอ
 
 ## API Contract
 
@@ -151,6 +152,12 @@ Target ที่ควรใช้:
 - `reason`
 - `notes`
 
+`PATCH /api/stock/status-convert` รับ:
+
+- `action = reverse`
+- `refNo`
+- `note`
+
 ## Current Implementation / Gap
 
 - มี write baseline ที่สร้าง paired `SC` ledger rows แล้ว
@@ -158,7 +165,8 @@ Target ที่ควรใช้:
 - Runtime ปัจจุบันใช้ hold-aware `readyQty` สำหรับ source availability check แล้ว
 - Runtime ปัจจุบันให้ WAC คำนวณแยกตาม source status bucket แล้ว
 - Runtime ปัจจุบันบังคับ required reason แล้ว
-- ต้องออกแบบ reverse/cancel และ reconciliation query
+- Runtime ปัจจุบันรองรับ append-only reverse เป็น paired `SC-REV` ledger rows แล้ว และ block reverse เมื่อ target bucket ready stock ไม่พอ
+- Stock reconciliation ตรวจ `SC`/`SC-REV` pair integrity, net zero, และ missing source แล้ว
 - ต้องยืนยัน list/detail/export แสดง `วันที่สร้างรายการ`
 - Server-side filter/pagination/index สำหรับรายการ `SC` เพิ่มแล้วสำหรับ `q/dateFrom/dateTo/branchId/warehouseId/productId/fromStatus/toStatus/page/pageSize`; UI ยังใช้ client-side paging เป็นหลักและควรต่อ server params เมื่อข้อมูลโตจริง
 

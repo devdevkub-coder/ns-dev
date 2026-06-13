@@ -34,12 +34,44 @@ type BalancePayload = {
   summary: { availableQty: number; availableValue: number; count: number; negativeRows: number; notAvailableQty: number; notAvailableValue: number; onHoldQty: number; qty: number; readyQty: number; value: number }
 }
 
+type BalanceDetail = {
+  holds: Array<{
+    customerCode: string
+    customerName: string
+    heldAt: string
+    holdKey: string
+    lotNo: string
+    qty: number
+    sourceDocNo: string
+    sourceLineNo: number | null
+    status: string
+    weightTicketDate: string
+  }>
+  ledgerRows: Array<{
+    createdAt: string
+    date: string
+    id: string
+    movementType: string
+    note: string
+    qtyIn: number
+    qtyOut: number
+    refNo: string
+    refType: string
+    unitCost: number
+    valueIn: number
+    valueOut: number
+  }>
+}
+
 const ON_HOLD_STATUS = 'ON_HOLD'
 
 export function StockBalancePageClient() {
   const [branchId, setBranchId] = useState('')
   const [data, setData] = useState<BalancePayload | null>(null)
   const [detailRow, setDetailRow] = useState<BalanceRow | null>(null)
+  const [detailData, setDetailData] = useState<BalanceDetail | null>(null)
+  const [detailError, setDetailError] = useState<string | null>(null)
+  const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [group, setGroup] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -72,6 +104,42 @@ export function StockBalancePageClient() {
   useEffect(() => {
     void loadData()
   }, [loadData])
+
+  useEffect(() => {
+    if (!detailRow) {
+      setDetailData(null)
+      setDetailError(null)
+      setIsDetailLoading(false)
+      return
+    }
+    const row = detailRow
+    const controller = new AbortController()
+    async function loadDetail() {
+      setDetailError(null)
+      setDetailData(null)
+      setIsDetailLoading(true)
+      try {
+        const params = new URLSearchParams({
+          branchId: row.branchId,
+          detail: '1',
+          productId: row.productId,
+          warehouseId: row.warehouseId,
+        })
+        if (row.status) params.set('status', row.status)
+        if (row.lotNo) params.set('lotNo', row.lotNo)
+        if (row.notAvailable) params.set('notAvailable', '1')
+        const payload = await dailyFetchJson<{ detail: BalanceDetail }>(`/api/stock/balance?${params.toString()}`, { signal: controller.signal })
+        setDetailData(payload.detail)
+      } catch (caught) {
+        if (controller.signal.aborted) return
+        setDetailError(caught instanceof Error ? caught.message : 'โหลดรายละเอียดสต๊อกไม่ได้')
+      } finally {
+        if (!controller.signal.aborted) setIsDetailLoading(false)
+      }
+    }
+    void loadDetail()
+    return () => controller.abort()
+  }, [detailRow])
 
   const filteredRows = useMemo(() => {
     return (data?.rows ?? [])
@@ -165,6 +233,18 @@ export function StockBalancePageClient() {
     if (status && status !== ON_HOLD_STATUS) params.set('status', status)
     if (status === ON_HOLD_STATUS) params.set('onHold', '1')
     window.location.href = `/api/stock/balance?${params.toString()}`
+  }
+
+  function ledgerLinkFor(row: BalanceRow) {
+    const params = new URLSearchParams({
+      balanceMode: 'warehouse',
+      branchId: row.branchId,
+      productId: row.productId,
+      warehouseId: row.warehouseId,
+    })
+    if (row.status) params.set('status', row.status)
+    if (row.lotNo) params.set('lotNo', row.lotNo)
+    return `/stock/ledger?${params.toString()}`
   }
 
   const resetFilters = useCallback(() => {
@@ -447,6 +527,59 @@ export function StockBalancePageClient() {
                 <Info label="ต้นทุนเฉลี่ย (WAC)" value={`${formatMoney(detailRow.avgCost)} บาท`} />
                 <Info label="มูลค่ารวม" value={`${formatMoney(detailRow.value)} บาท`} tone="emerald" />
               </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-3 flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                  <h4 className="text-sm font-bold text-slate-800">Drilldown</h4>
+                  <a className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800" href={ledgerLinkFor(detailRow)}>
+                    เปิด Stock Ledger
+                  </a>
+                </div>
+                {isDetailLoading ? <div className="py-4 text-center text-xs text-slate-500">กำลังโหลดรายละเอียด</div> : null}
+                {detailError ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-700">{detailError}</div> : null}
+                {!isDetailLoading && !detailError ? (
+                  <div className="space-y-4">
+                    <div>
+                      <div className="mb-2 text-xs font-bold text-amber-700">WTO Hold ที่ยัง active ({detailData?.holds.length ?? 0})</div>
+                      <div className="max-h-40 overflow-auto rounded-md border border-slate-100">
+                        <table className="w-full text-xs">
+                          <thead className="bg-amber-50 text-slate-600"><tr><th className="p-2 text-left">WTO</th><th className="p-2 text-left">ลูกค้า</th><th className="p-2 text-right">Qty</th><th className="p-2 text-left">Held</th></tr></thead>
+                          <tbody>
+                            {detailData?.holds.map((hold) => (
+                              <tr key={hold.holdKey} className="border-t">
+                                <td className="p-2 font-mono">{hold.sourceDocNo}{hold.sourceLineNo ? ` #${hold.sourceLineNo}` : ''}</td>
+                                <td className="p-2">{hold.customerCode ? `${hold.customerCode} · ` : ''}{hold.customerName}</td>
+                                <td className="p-2 text-right font-semibold text-amber-700">{formatMoney(hold.qty)}</td>
+                                <td className="p-2">{formatDateTime(hold.heldAt)}</td>
+                              </tr>
+                            ))}
+                            {!detailData?.holds.length ? <tr><td className="p-3 text-center text-slate-400" colSpan={4}>ไม่มี active hold ใน bucket นี้</td></tr> : null}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="mb-2 text-xs font-bold text-slate-700">Movement ล่าสุด ({detailData?.ledgerRows.length ?? 0})</div>
+                      <div className="max-h-48 overflow-auto rounded-md border border-slate-100">
+                        <table className="w-full text-xs">
+                          <thead className="bg-slate-50 text-slate-600"><tr><th className="p-2 text-left">วันที่</th><th className="p-2 text-left">Ref</th><th className="p-2 text-right">เข้า</th><th className="p-2 text-right">ออก</th><th className="p-2 text-left">วันที่ทำ</th></tr></thead>
+                          <tbody>
+                            {detailData?.ledgerRows.map((ledger) => (
+                              <tr key={ledger.id} className="border-t">
+                                <td className="p-2">{ledger.date}</td>
+                                <td className="p-2 font-mono">{ledger.refType}:{ledger.refNo || '-'}</td>
+                                <td className="p-2 text-right text-emerald-700">{ledger.qtyIn ? formatMoney(ledger.qtyIn) : '-'}</td>
+                                <td className="p-2 text-right text-red-700">{ledger.qtyOut ? formatMoney(ledger.qtyOut) : '-'}</td>
+                                <td className="p-2">{formatDateTime(ledger.createdAt)}</td>
+                              </tr>
+                            ))}
+                            {!detailData?.ledgerRows.length ? <tr><td className="p-3 text-center text-slate-400" colSpan={5}>ไม่มี movement ใน bucket นี้</td></tr> : null}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             </div>
           ) : null}
 
@@ -463,6 +596,13 @@ export function StockBalancePageClient() {
       </Dialog>
     </section>
   )
+}
+
+function formatDateTime(value: string) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })
 }
 
 type StatusSummary = { count: number; qty: number; status: string; value: number }
@@ -752,4 +892,3 @@ function StockStatusCell({ row }: { row: BalanceRow }) {
 function stockStatusText(row: BalanceRow) {
   return row.onHoldQty > 0 ? `${row.status || '-'} / On Hold` : row.status || '-'
 }
-

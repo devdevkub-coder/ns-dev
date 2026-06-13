@@ -89,8 +89,10 @@ SC ย้าย qty ระหว่าง stock status/output category โดย
 
 ## Current Gap
 
-- Runtime ยังเปิด RM/WIP/FG จาก legacy baseline; ต้องปรับให้ตรง requirement ล่าสุดเป็น RM<->FG เท่านั้น
-- hold-aware available, source-status WAC, server pagination/filter/index, reversal/reconciliation ยังต้อง finalize
+- Runtime จำกัด normal flow เป็น `RM <-> FG` แล้ว
+- hold-aware available, source-status WAC, server pagination/filter/index ทำแล้ว
+- reversal/reconciliation ทำแล้วด้วย append-only `SC-REV` และ reconciliation pair checks
+- remaining: logged-in browser QA สำหรับ create/reverse
 
 ## Implementation Checklist
 
