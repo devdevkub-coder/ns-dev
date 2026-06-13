@@ -1772,14 +1772,14 @@ function PoBuyDetailModal({
             <DialogDescription>{row.supplierName}</DialogDescription>
           </div>
         </DialogHeader>
-        <div className="grid gap-3 p-4 md:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 p-4 md:grid-cols-5">
           <Detail label="วันที่สร้างเอกสาร" value={formatDateDisplay(row.date)} />
           <Detail label="วันที่กำหนดส่ง" value={formatDateDisplay(row.expectedDelivery)} />
           <Detail label="Qty" value={formatMoney(row.qty)} />
           <Detail label="คงเหลือ" value={formatMoney(row.remainingQty)} />
           <Detail label="ปิดรับไม่ครบ" value={row.shortClosedQty > 0 ? formatMoney(row.shortClosedQty) : '-'} />
         </div>
-        <div className="grid gap-3 px-4 pb-4 md:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 px-4 pb-4 md:grid-cols-3">
           <Detail label="ยอดก่อน VAT" value={formatMoney(row.subtotal)} />
           <Detail label={`VAT ${formatMoney(row.vatRatePercent)}%`} value={formatMoney(row.vatAmount)} />
           <Detail label="ยอดรวม" value={formatMoney(row.totalAmount)} />
