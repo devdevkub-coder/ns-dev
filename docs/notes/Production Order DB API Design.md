@@ -442,7 +442,7 @@ where po2.status = 'active'
 - [x] Add `GET /api/production/reconciliation` read API for PI/PO2 ledger mismatch, completed order WIP mismatch, open order movement mismatch, and missing reversal ledger checks.
 - [x] Run logged-in browser QA for create -> repeated input rounds -> repeated output/loss rounds -> complete -> reverse-block -> reconciliation.
 - [x] Confirm legacy parity: repeated modal saves are sufficient for MVP; an in-modal multi-line editor is not required.
-- [x] Surface production reconciliation in read-only `/production/reconciliation` UI.
+- [x] Surface production reconciliation in read-only `/production/reconciliation` UI. This is now an internal/supporting diagnostic surface and must not be exposed in the target Production navigation.
 
 ## 2026-06-12 Browser QA Evidence
 
@@ -456,7 +456,7 @@ where po2.status = 'active'
 ## 2026-06-12 Reconciliation UI Evidence
 
 - Added read-only page `/production/reconciliation`.
-- Added Production navigation item `Production Reconciliation`.
+- Initially added Production navigation item `Production Reconciliation`; superseded on 2026-06-13 because the target Production menu must expose only ใบสั่งผลิต, หมวดหมู่ผลผลิต, Production Dashboard, and รายงานการผลิต / Yield.
 - Page displays total issue count, ref-type counts, issue-type filter, search, refresh, and issue details table.
 - Authenticated browser QA passed with `GET /api/production/reconciliation = 200`, `issueCount=0`, empty state rendered, and no browser console errors.
 

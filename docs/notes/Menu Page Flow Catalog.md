@@ -79,7 +79,6 @@ Source:
 | `/production/output-categories` | หมวดหมู่ผลผลิต | [[Production Flow]] | accepted code baseline | target master for output categories `FG`, `RM`, `CUSTOMER_RETURN`, `LOSS` | enforce category effect in production output write flow |
 | `/production/dashboard` | Production Dashboard | [[Production Flow]] | accepted code baseline | legacy `productionDashboard`: production KPIs, WIP, output, cost, yield | reconcile with ledger facts after PI/PO2 writes |
 | `/production/report` | รายงานการผลิต / Yield | [[Production Flow]] | accepted code baseline | legacy `productionReport`: yield/output/loss report | connect abnormal loss policy and output categories |
-| `/production/production-cost-report` | Production Cost Report | [[Production Flow]] | accepted code baseline | legacy `productionCostReport`: process cost, input cost, output cost allocation | define final costing and variance allocation |
 ## Dual Costing
 
 | Route | Page | Detailed doc | Current Next | Flow baseline | Gap |

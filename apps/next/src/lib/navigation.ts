@@ -200,8 +200,6 @@ export const navigationItems: NavigationItem[] = [
   { href: '/production/output-categories', icon: '🏷️', label: 'หมวดหมู่ผลผลิต', section: 'production' },
   { href: '/production/dashboard', icon: '📊', label: 'Production Dashboard', section: 'production' },
   { href: '/production/report', icon: '📐', label: 'รายงานการผลิต / Yield', section: 'production' },
-  { href: '/production/production-cost-report', icon: '💴', label: 'Production Cost Report', section: 'production' },
-  { href: '/production/reconciliation', icon: '✅', label: 'Production Reconciliation', pageSubtitle: 'ตรวจความสมดุล PI/PO2/WIP ระหว่างเอกสารผลิตกับ Stock Ledger', section: 'production' },
   { href: '/purchase/po-buy', icon: '📝', label: 'PO Buy (จองซื้อ)', pageTitle: 'PO Buy (จองซื้อ)', pageSubtitle: 'จองซื้อล่วงหน้า - ใช้จองดีลกับ Supplier ล็อคยอด ล็อคราคาล่วงหน้า', section: 'daily' },
   { href: '/sales/po-sell', icon: '📃', label: 'PO Sell (จองขาย)', pageTitle: 'PO Sell (จองขาย)', pageSubtitle: 'จองขายล่วงหน้า - ใช้กับ Cost Allocator เพื่อคำนวณกำไรคาดการณ์ก่อนขายจริง', section: 'daily' },
   { href: '/dual-costing/cost-pool', icon: '🪣', label: 'Cost Pool', section: 'dual-costing' },

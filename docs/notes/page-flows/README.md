@@ -53,7 +53,6 @@ updated: 2026-06-11
   - `/production/output-categories`
   - `/production/dashboard`
   - `/production/report`
-  - `/production/production-cost-report`
 - Batch 3 deepened report/read-model pages across main dashboards, tracking, trading/PO reports, dual costing, general reports, and finance-accounting pages with Current API/read-model contracts.
 - Batch 4 deepened all active master-data and admin/system pages, and separated platform/support behavior into [[System Supporting Flows]].
 - P0 transaction/stock/payment pages are now accepted as current implementation baseline per [[P0 Transaction Stock Payment Current Code Baseline]]; target-complete gaps remain active for runtime hardening.
@@ -104,7 +103,6 @@ updated: 2026-06-11
 | `/production/output-categories` | หมวดหมู่ผลผลิต | [production-production-output-categories.md](production-production-output-categories.md) | [[Production Flow]] |
 | `/production/dashboard` | Production Dashboard | [production-production-dashboard.md](production-production-dashboard.md) | [[Production Flow]] |
 | `/production/report` | รายงานการผลิต / Yield | [production-production-report.md](production-production-report.md) | [[Production Flow]] |
-| `/production/production-cost-report` | Production Cost Report | [production-production-production-cost-report.md](production-production-production-cost-report.md) | [[Production Flow]] |
 | `/dual-costing/cost-pool` | Cost Pool | [dual-costing-dual-costing-cost-pool.md](dual-costing-dual-costing-cost-pool.md) | [[Dual Costing Flow]], [[Cost Pool]] |
 | `/dual-costing/cost-allocator` | Cost Allocator | [dual-costing-dual-costing-cost-allocator.md](dual-costing-dual-costing-cost-allocator.md) | [[Dual Costing Flow]], [[Cost Pool]], [[PO Sell Flow]] |
 | `/dual-costing/waiting-allocations` | Waiting Allocations | [dual-costing-dual-costing-waiting-allocations.md](dual-costing-dual-costing-waiting-allocations.md) | [[Dual Costing Flow]], [[Cost Pool]] |
