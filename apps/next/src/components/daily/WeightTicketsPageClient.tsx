@@ -629,7 +629,10 @@ export function WeightTicketsPageClient({
 
           <Card className={cn(onClose ? "border-0 bg-transparent shadow-none p-0" : "p-5")}>
             <SectionHeader title="สินค้าและน้ำหนัก" subtitle="เลือกสินค้า กรอกน้ำหนัก และเลือกวิธีหักสิ่งเจือปนต่อรายการ" />
-            <div className="mt-4 grid min-w-0 items-start gap-4 xl:grid-cols-[18rem_minmax(0,1fr)]">
+            <div className={cn(
+              "mt-4 grid min-w-0 items-start gap-4",
+              activeLine ? "xl:grid-cols-[18rem_minmax(0,1fr)]" : "grid-cols-1"
+            )}>
               <div className="min-w-0 space-y-3 xl:max-h-[calc(100vh-16rem)] xl:overflow-hidden">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-sm font-medium text-slate-700">รายการทั้งหมด {form.lines.length} รายการ</div>
@@ -638,7 +641,10 @@ export function WeightTicketsPageClient({
                     เพิ่ม
                   </Button>
                 </div>
-                <div className="space-y-2 xl:max-h-[calc(100vh-19rem)] xl:overflow-y-auto xl:pr-1">
+                <div className={cn(
+                  "space-y-2 xl:max-h-[calc(100vh-19rem)] xl:overflow-y-auto xl:pr-1",
+                  !activeLine && "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 space-y-0"
+                )}>
                   {form.lines.map((line, index) => {
                     const lineTotals = calculateLineTotals(line)
                     const hasError = Boolean(
@@ -849,13 +855,7 @@ export function WeightTicketsPageClient({
                     </div>
                   </div>
                 )
-              })() : (
-                <div className="flex flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50/50 p-12 text-center text-slate-500 min-h-[18rem] xl:min-h-[24rem]">
-                  <span className="text-3xl">👈</span>
-                  <div className="mt-2 text-sm font-medium text-slate-700">กรุณาเลือกรายการสินค้าด้านซ้าย</div>
-                  <div className="mt-1 text-xs text-slate-500">เพื่อเพิ่มรูปภาพ กรอกน้ำหนัก และรายละเอียดรายการ</div>
-                </div>
-              )}
+              })() : null}
             </div>
           </Card>
 
