@@ -15,6 +15,8 @@ const optionalGeneralText = (label: string, maxLength = 500) => z.preprocess(
 )
 const positiveQty = (label = 'จำนวน') => z.coerce.number({ invalid_type_error: `${label}ต้องเป็นตัวเลข` }).finite(`${label}ต้องเป็นตัวเลข`).gt(0, `${label}ต้องมากกว่า 0`)
 const nonNegativeQty = (label = 'จำนวน') => z.coerce.number({ invalid_type_error: `${label}ต้องเป็นตัวเลข` }).finite(`${label}ต้องเป็นตัวเลข`).min(0, `${label}ต้องไม่ติดลบ`)
+const stockConvertAllocationMethodSchema = z.enum(['FIFO', 'LIFO', 'HIGHEST_COST', 'LOWEST_COST', 'MANUAL'])
+const stockConvertTargetCostPolicySchema = z.enum(['SOURCE_MATCHED', 'CUSTOM_UNIT_COST'])
 
 export const stockStatusSchema = z.enum(['RM', 'WIP', 'FG'])
 
@@ -56,21 +58,41 @@ export const statusConvertFormSchema = z.object({
 export type StatusConvertFormValues = z.infer<typeof statusConvertFormSchema>
 
 export const stockConvertFormSchema = z.object({
+  allocationMethod: stockConvertAllocationMethodSchema.default('FIFO'),
   branchId: z.string().trim().min(1, 'เลือกสาขา'),
   date: requiredDate,
   docNo: optionalDocNo,
   lotNo: optionalGeneralText('Lot', 80),
+  manualAllocations: z.array(z.object({
+    poolEntryId: z.string().trim().min(1, 'เลือก Cost Pool lot'),
+    qty: positiveQty('จำนวนที่เลือกจาก Cost Pool'),
+  })).default([]),
   notes: optionalGeneralText('หมายเหตุ', 500),
   reason: optionalGeneralText('เหตุผล', 240),
   sourceProductId: z.string().trim().min(1, 'เลือกสินค้าต้นทาง'),
   sourceQty: positiveQty('น้ำหนักต้นทาง'),
+  targetCostPolicy: stockConvertTargetCostPolicySchema.default('SOURCE_MATCHED'),
   targetLotNo: optionalGeneralText('Lot ปลายทาง', 80),
   targetProductId: z.string().trim().min(1, 'เลือกสินค้าปลายทาง'),
   targetQty: positiveQty('น้ำหนักปลายทาง'),
+  targetUnitCost: z.preprocess(blankToNull, positiveQty('Custom unit cost').nullable().default(null)),
+  targetUnitCostReason: optionalGeneralText('เหตุผล override ต้นทุน', 240),
   warehouseId: z.string().trim().min(1, 'เลือกคลัง'),
 }).refine((value) => value.sourceProductId !== value.targetProductId || value.lotNo !== value.targetLotNo, {
   message: 'สินค้าหรือ Lot ปลายทางต้องต่างจากต้นทาง',
   path: ['targetProductId'],
+}).refine((value) => value.targetQty <= value.sourceQty, {
+  message: 'น้ำหนักปลายทางต้องน้อยกว่าหรือเท่ากับน้ำหนักต้นทาง',
+  path: ['targetQty'],
+}).refine((value) => value.allocationMethod !== 'MANUAL' || value.manualAllocations.length > 0, {
+  message: 'Manual ต้องเลือก Cost Pool lot อย่างน้อย 1 รายการ',
+  path: ['manualAllocations'],
+}).refine((value) => value.targetCostPolicy !== 'CUSTOM_UNIT_COST' || value.targetUnitCost !== null, {
+  message: 'Custom unit cost ต้องมากกว่า 0',
+  path: ['targetUnitCost'],
+}).refine((value) => value.targetCostPolicy !== 'CUSTOM_UNIT_COST' || Boolean(value.targetUnitCostReason && value.targetUnitCostReason.length >= 3), {
+  message: 'กรอกเหตุผล override ต้นทุนอย่างน้อย 3 ตัวอักษร',
+  path: ['targetUnitCostReason'],
 })
 
 export type StockConvertFormValues = z.infer<typeof stockConvertFormSchema>
@@ -98,4 +120,20 @@ export type StockOption = {
   metalGroup?: string | null
   name: string
   status?: string | null
+}
+
+export type StockCostPoolOption = {
+  availableQty: number
+  availableValue: number
+  branchId: string | null
+  date: string
+  id: string
+  lotNo: string | null
+  originalQty: number
+  productId: string
+  sourceRefNo: string | null
+  sourceType: string
+  status: string
+  unitCost: number
+  warehouseId: string | null
 }

@@ -61,7 +61,25 @@ type WtoCreatedLine = {
 
 type TxClient = Prisma.TransactionClient
 
+type WtoStockBucket = {
+  availableQty: number
+  lotNo: string | null
+  notAvailableForSale: boolean
+  outputCategory: string | null
+  productId: bigint
+  warehouseId: bigint
+}
+
+type WtoHoldAllocation = WtoStockBucket & {
+  qty: number
+  sourceLineId: bigint
+  sourceLineNo: number
+}
+
 export type ConsumedWtoStockHoldLine = {
+  lotNo: string | null
+  notAvailableForSale: boolean
+  outputCategory: string | null
   productId: bigint
   qty: number
   sourceDocNo: string
@@ -74,6 +92,22 @@ export type ConsumedWtoStockHoldLine = {
 
 function normalizeCode(value: string | null | undefined) {
   return String(value ?? '').trim().toUpperCase()
+}
+
+function bucketKey(input: {
+  lotNo: string | null
+  notAvailableForSale: boolean | null
+  outputCategory: string | null
+  productId: bigint | null
+  warehouseId: bigint | null
+}) {
+  return [
+    input.productId?.toString() ?? '-',
+    input.warehouseId?.toString() ?? '-',
+    input.outputCategory ?? '-',
+    input.lotNo ?? '-',
+    input.notAvailableForSale ? 'NA' : 'A',
+  ].join('|')
 }
 
 export async function loadWtoStockOptions(input: {
@@ -134,18 +168,23 @@ export async function loadWtoStockOptions(input: {
   const [ledgerSums, holdSums] = await Promise.all([
     prisma.stock_ledger.groupBy({
       _sum: { qty_in: true, qty_out: true },
-      by: ['warehouse_id'],
+      by: ['warehouse_id', 'output_category', 'not_available_for_sale'],
       where: {
         branch_id: branch.id,
+        OR: [
+          { not_available_for_sale: false },
+          { not_available_for_sale: null },
+        ],
         product_id: product.id,
         warehouse_id: { in: warehouseIds },
       },
     }),
     prisma.stock_holds.groupBy({
       _sum: { qty: true },
-      by: ['warehouse_id'],
+      by: ['warehouse_id', 'output_category', 'not_available_for_sale'],
       where: {
         branch_id: branch.id,
+        not_available_for_sale: false,
         product_id: product.id,
         status: 'active',
         warehouse_id: { in: warehouseIds },
@@ -154,13 +193,20 @@ export async function loadWtoStockOptions(input: {
   ])
 
   const onHandByWarehouse = new Map(
-    ledgerSums.map((row) => [
-      row.warehouse_id,
-      toNumber(row._sum.qty_in) - toNumber(row._sum.qty_out),
-    ]),
+    warehouses.map((warehouse) => {
+      const qty = ledgerSums
+        .filter((row) => row.warehouse_id === warehouse.id && row.output_category === warehouse.type && row.not_available_for_sale !== true)
+        .reduce((sum, row) => sum + toNumber(row._sum.qty_in) - toNumber(row._sum.qty_out), 0)
+      return [warehouse.id, qty] as const
+    }),
   )
   const onHoldByWarehouse = new Map(
-    holdSums.map((row) => [row.warehouse_id, toNumber(row._sum.qty)]),
+    warehouses.map((warehouse) => {
+      const qty = holdSums
+        .filter((row) => row.warehouse_id === warehouse.id && row.output_category === warehouse.type && row.not_available_for_sale !== true)
+        .reduce((sum, row) => sum + toNumber(row._sum.qty), 0)
+      return [warehouse.id, qty] as const
+    }),
   )
 
   return {
@@ -223,6 +269,139 @@ export async function resolveWtoWarehousesForLines(tx: TxClient, input: {
   return warehouseByCode
 }
 
+async function loadSaleableBuckets(tx: TxClient, input: {
+  branchId: bigint
+  productIds: bigint[]
+  warehouseIds: bigint[]
+}) {
+  if (!input.productIds.length || !input.warehouseIds.length) return [] as WtoStockBucket[]
+
+  const [ledgerSums, holdSums] = await Promise.all([
+    tx.stock_ledger.groupBy({
+      _sum: { qty_in: true, qty_out: true },
+      by: ['product_id', 'warehouse_id', 'output_category', 'lot_no', 'not_available_for_sale'],
+      where: {
+        branch_id: input.branchId,
+        OR: [
+          { not_available_for_sale: false },
+          { not_available_for_sale: null },
+        ],
+        product_id: { in: input.productIds },
+        warehouse_id: { in: input.warehouseIds },
+      },
+    }),
+    tx.stock_holds.groupBy({
+      _sum: { qty: true },
+      by: ['product_id', 'warehouse_id', 'output_category', 'lot_no', 'not_available_for_sale'],
+      where: {
+        branch_id: input.branchId,
+        not_available_for_sale: false,
+        product_id: { in: input.productIds },
+        status: 'active',
+        warehouse_id: { in: input.warehouseIds },
+      },
+    }),
+  ])
+
+  const onHoldByBucket = new Map(
+    holdSums.map((row) => [
+      bucketKey({
+        lotNo: row.lot_no,
+        notAvailableForSale: row.not_available_for_sale,
+        outputCategory: row.output_category,
+        productId: row.product_id,
+        warehouseId: row.warehouse_id,
+      }),
+      toNumber(row._sum.qty),
+    ]),
+  )
+
+  return ledgerSums
+    .map((row) => {
+      const key = bucketKey({
+        lotNo: row.lot_no,
+        notAvailableForSale: row.not_available_for_sale,
+        outputCategory: row.output_category,
+        productId: row.product_id,
+        warehouseId: row.warehouse_id,
+      })
+      return {
+        availableQty: toNumber(row._sum.qty_in) - toNumber(row._sum.qty_out) - (onHoldByBucket.get(key) ?? 0),
+        lotNo: row.lot_no,
+        notAvailableForSale: row.not_available_for_sale === true,
+        outputCategory: row.output_category,
+        productId: row.product_id as bigint,
+        warehouseId: row.warehouse_id as bigint,
+      }
+    })
+    .filter((row) => row.productId != null && row.warehouseId != null && row.availableQty > 0.000001)
+    .sort((left, right) => (
+      (left.outputCategory ?? '').localeCompare(right.outputCategory ?? '')
+      || (left.lotNo ?? '').localeCompare(right.lotNo ?? '')
+      || left.productId.toString().localeCompare(right.productId.toString())
+      || left.warehouseId.toString().localeCompare(right.warehouseId.toString())
+    ))
+}
+
+async function allocateWtoHoldBuckets(tx: TxClient, input: {
+  branchId: bigint
+  lines: WtoCreatedLine[]
+}) {
+  const requiredLines = input.lines.filter((line) => line.warehouse_id != null && toNumber(line.net_weight) > 0)
+  if (!requiredLines.length) return [] as WtoHoldAllocation[]
+
+  const warehouseIds = [...new Set(requiredLines.map((line) => line.warehouse_id as bigint))]
+  const warehouseTypes = await tx.warehouses.findMany({
+    select: { id: true, type: true },
+    where: { id: { in: warehouseIds } },
+  })
+  const warehouseTypeById = new Map(warehouseTypes.map((warehouse) => [warehouse.id, warehouse.type] as const))
+  const buckets = await loadSaleableBuckets(tx, {
+    branchId: input.branchId,
+    productIds: [...new Set(requiredLines.map((line) => line.product_id))],
+    warehouseIds,
+  })
+  const remainingByBucket = new Map(buckets.map((bucket) => [bucketKey(bucket), bucket.availableQty]))
+  const allocations: WtoHoldAllocation[] = []
+
+  for (const line of requiredLines) {
+    const warehouseId = line.warehouse_id as bigint
+    const warehouseType = warehouseTypeById.get(warehouseId) ?? null
+    let remainingLineQty = toNumber(line.net_weight)
+    const candidates = buckets.filter((bucket) => (
+      bucket.productId === line.product_id
+      && bucket.warehouseId === warehouseId
+      && bucket.outputCategory === warehouseType
+      && !bucket.notAvailableForSale
+    ))
+
+    for (const bucket of candidates) {
+      if (remainingLineQty <= 0.000001) break
+      const key = bucketKey(bucket)
+      const remainingBucketQty = remainingByBucket.get(key) ?? 0
+      if (remainingBucketQty <= 0.000001) continue
+      const qty = Math.min(remainingLineQty, remainingBucketQty)
+      allocations.push({
+        ...bucket,
+        qty,
+        sourceLineId: line.id,
+        sourceLineNo: line.line_no,
+      })
+      remainingLineQty -= qty
+      remainingByBucket.set(key, remainingBucketQty - qty)
+    }
+
+    if (remainingLineQty > 0.000001) {
+      throw new WtoStockHoldError(`รายการที่ ${line.line_no}: ${line.product_name} มีจำนวนพร้อมส่งไม่พอ`, {
+        [`lines.${line.line_no - 1}.grossWeight`]: [`จำนวนพร้อมส่งไม่พอใน bucket ${warehouseType ?? '-'}`],
+        [`lines.${line.line_no - 1}.warehouseId`]: ['คลังนี้มีจำนวนพร้อมส่งไม่พอ'],
+      })
+    }
+  }
+
+  return allocations
+}
+
 export async function validateWtoStockAvailability(tx: TxClient, input: {
   branchId: bigint
   lines: WtoAvailabilityLine[]
@@ -253,39 +432,20 @@ export async function validateWtoStockAvailability(tx: TxClient, input: {
 
   const productIds = [...new Set([...required.values()].map((row) => row.productId))]
   const warehouseIds = [...new Set([...required.values()].map((row) => row.warehouseId))]
-  const [ledgerSums, holdSums] = await Promise.all([
-    tx.stock_ledger.groupBy({
-      _sum: { qty_in: true, qty_out: true },
-      by: ['product_id', 'warehouse_id'],
-      where: {
-        branch_id: input.branchId,
-        product_id: { in: productIds },
-        warehouse_id: { in: warehouseIds },
-      },
-    }),
-    tx.stock_holds.groupBy({
-      _sum: { qty: true },
-      by: ['product_id', 'warehouse_id'],
-      where: {
-        branch_id: input.branchId,
-        product_id: { in: productIds },
-        status: 'active',
-        warehouse_id: { in: warehouseIds },
-      },
-    }),
+  const [warehouses, buckets] = await Promise.all([
+    tx.warehouses.findMany({ select: { id: true, type: true }, where: { id: { in: warehouseIds } } }),
+    loadSaleableBuckets(tx, { branchId: input.branchId, productIds, warehouseIds }),
   ])
-
-  const onHandByKey = new Map(
-    ledgerSums.map((row) => [
-      `${row.product_id}:${row.warehouse_id}`,
-      toNumber(row._sum.qty_in) - toNumber(row._sum.qty_out),
-    ]),
-  )
-  const onHoldByKey = new Map(
-    holdSums.map((row) => [`${row.product_id}:${row.warehouse_id}`, toNumber(row._sum.qty)]),
-  )
+  const warehouseTypeById = new Map(warehouses.map((warehouse) => [warehouse.id, warehouse.type] as const))
+  const availableByKey = new Map<string, number>()
+  for (const bucket of buckets) {
+    const warehouseType = warehouseTypeById.get(bucket.warehouseId) ?? null
+    if (bucket.outputCategory !== warehouseType || bucket.notAvailableForSale) continue
+    const key = `${bucket.productId}:${bucket.warehouseId}`
+    availableByKey.set(key, (availableByKey.get(key) ?? 0) + bucket.availableQty)
+  }
   for (const [key, row] of required) {
-    const available = (onHandByKey.get(key) ?? 0) - (onHoldByKey.get(key) ?? 0)
+    const available = availableByKey.get(key) ?? 0
     if (row.qty > available + 0.000001) {
       const firstIndex = row.indexes[0] ?? 0
       throw new WtoStockHoldError(`รายการที่ ${firstIndex + 1}: ${row.productName} มีจำนวนพร้อมส่งไม่พอ`, {
@@ -303,23 +463,28 @@ export async function createActiveWtoStockHolds(tx: TxClient, input: {
   lines: WtoCreatedLine[]
   weightTicketId: bigint
 }) {
+  const allocations = await allocateWtoHoldBuckets(tx, { branchId: input.branchId, lines: input.lines })
   const rows = input.lines
-    .filter((line) => line.warehouse_id != null && toNumber(line.net_weight) > 0)
-    .map((line) => ({
+    .flatMap((line) => allocations
+      .filter((allocation) => allocation.sourceLineId === line.id)
+      .map((allocation) => ({
       branch_id: input.branchId,
       created_by: input.actor,
       held_at: new Date(),
       product_id: line.product_id,
-      qty: toNumber(line.net_weight),
+      lot_no: allocation.lotNo,
+      not_available_for_sale: allocation.notAvailableForSale,
+      output_category: allocation.outputCategory,
+      qty: allocation.qty,
       source_doc_no: input.documentNo,
       source_line_no: line.line_no,
       source_type: 'WTO',
       status: 'active',
       updated_by: input.actor,
-      warehouse_id: line.warehouse_id as bigint,
+      warehouse_id: allocation.warehouseId,
       weight_ticket_id: input.weightTicketId,
       weight_ticket_line_id: line.id,
-    }))
+    })))
   if (!rows.length) return
   await tx.stock_holds.createMany({ data: rows })
 }
@@ -367,7 +532,7 @@ export async function consumeActiveWtoStockHolds(tx: TxClient, input: {
   const warehouseIds = [...new Set(holds.map((hold) => hold.warehouse_id))]
   const ledgerSums = await tx.stock_ledger.groupBy({
     _sum: { qty_in: true, qty_out: true, value_in: true, value_out: true },
-    by: ['product_id', 'warehouse_id'],
+    by: ['product_id', 'warehouse_id', 'output_category', 'lot_no', 'not_available_for_sale'],
     where: {
       branch_id: input.branchId,
       product_id: { in: productIds },
@@ -378,19 +543,34 @@ export async function consumeActiveWtoStockHolds(tx: TxClient, input: {
     ledgerSums.map((row) => {
       const qty = toNumber(row._sum.qty_in) - toNumber(row._sum.qty_out)
       const value = toNumber(row._sum.value_in) - toNumber(row._sum.value_out)
-      return [`${row.product_id}:${row.warehouse_id}`, qty > 0 ? value / qty : 0] as const
+      return [bucketKey({
+        lotNo: row.lot_no,
+        notAvailableForSale: row.not_available_for_sale,
+        outputCategory: row.output_category,
+        productId: row.product_id,
+        warehouseId: row.warehouse_id,
+      }), qty > 0 ? value / qty : 0] as const
     }),
   )
   const ledgerRows = holds.map((hold) => {
-    const unitCost = unitCostByKey.get(`${hold.product_id}:${hold.warehouse_id}`) ?? 0
+    const unitCost = unitCostByKey.get(bucketKey({
+      lotNo: hold.lot_no,
+      notAvailableForSale: hold.not_available_for_sale,
+      outputCategory: hold.output_category,
+      productId: hold.product_id,
+      warehouseId: hold.warehouse_id,
+    })) ?? 0
     const qty = toNumber(hold.qty)
     return {
       branch_id: input.branchId,
       created_by: input.actor,
       date: input.billDate,
+      lot_no: hold.lot_no,
       movement_type: 'ขายออก',
       note: `WTO ${hold.source_doc_no}${hold.source_line_no ? ` / รายการ ${hold.source_line_no}` : ''}`,
       notes: `ตัด stock จาก hold ${hold.hold_key}`,
+      not_available_for_sale: hold.not_available_for_sale,
+      output_category: hold.output_category,
       product_id: hold.product_id,
       qty_in: 0,
       qty_out: qty,
@@ -448,7 +628,7 @@ export async function consumeActiveWtoStockHoldsForPendingSale(tx: TxClient, inp
   const warehouseIds = [...new Set(holds.map((hold) => hold.warehouse_id))]
   const ledgerSums = await tx.stock_ledger.groupBy({
     _sum: { qty_in: true, qty_out: true, value_in: true, value_out: true },
-    by: ['product_id', 'warehouse_id'],
+    by: ['product_id', 'warehouse_id', 'output_category', 'lot_no', 'not_available_for_sale'],
     where: {
       branch_id: input.branchId,
       product_id: { in: productIds },
@@ -459,13 +639,28 @@ export async function consumeActiveWtoStockHoldsForPendingSale(tx: TxClient, inp
     ledgerSums.map((row) => {
       const qty = toNumber(row._sum.qty_in) - toNumber(row._sum.qty_out)
       const value = toNumber(row._sum.value_in) - toNumber(row._sum.value_out)
-      return [`${row.product_id}:${row.warehouse_id}`, qty > 0 ? value / qty : 0] as const
+      return [bucketKey({
+        lotNo: row.lot_no,
+        notAvailableForSale: row.not_available_for_sale,
+        outputCategory: row.output_category,
+        productId: row.product_id,
+        warehouseId: row.warehouse_id,
+      }), qty > 0 ? value / qty : 0] as const
     }),
   )
   const consumedLines: ConsumedWtoStockHoldLine[] = holds.map((hold) => {
-    const unitCost = unitCostByKey.get(`${hold.product_id}:${hold.warehouse_id}`) ?? 0
+    const unitCost = unitCostByKey.get(bucketKey({
+      lotNo: hold.lot_no,
+      notAvailableForSale: hold.not_available_for_sale,
+      outputCategory: hold.output_category,
+      productId: hold.product_id,
+      warehouseId: hold.warehouse_id,
+    })) ?? 0
     const qty = toNumber(hold.qty)
     return {
+      lotNo: hold.lot_no,
+      notAvailableForSale: hold.not_available_for_sale,
+      outputCategory: hold.output_category,
       productId: hold.product_id,
       qty,
       sourceDocNo: hold.source_doc_no,
@@ -481,9 +676,12 @@ export async function consumeActiveWtoStockHoldsForPendingSale(tx: TxClient, inp
       branch_id: input.branchId,
       created_by: input.actor,
       date: input.issueDate,
+      lot_no: line.lotNo,
       movement_type: 'เบิกออกรอบิล',
       note: `WTO ${line.sourceDocNo}${line.sourceLineNo ? ` / รายการ ${line.sourceLineNo}` : ''}`,
       notes: `ตัด stock เข้า Pending Sale ${input.stockIssueDocNo}`,
+      not_available_for_sale: line.notAvailableForSale,
+      output_category: line.outputCategory,
       product_id: line.productId,
       qty_in: 0,
       qty_out: line.qty,

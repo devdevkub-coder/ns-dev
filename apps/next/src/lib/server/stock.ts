@@ -98,7 +98,8 @@ function dateWhere(input: { asOf?: string | null; from?: string | null; to?: str
   return {}
 }
 
-export async function stockReferenceData() {
+export async function stockReferenceData(options: { includeCustomers?: boolean } = {}) {
+  const includeCustomers = options.includeCustomers !== false
   const [branches, warehouses, products, customers] = await Promise.all([
     prisma.branches.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
     prisma.warehouses.findMany({
@@ -106,7 +107,9 @@ export async function stockReferenceData() {
       select: { active: true, branches: { select: { code: true } }, branch_id: true, code: true, id: true, name: true },
     }),
     prisma.products.findMany({ orderBy: [{ code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, metal_group: true, name: true } }),
-    prisma.customers.findMany({ orderBy: [{ code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
+    includeCustomers
+      ? prisma.customers.findMany({ orderBy: [{ code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } })
+      : Promise.resolve([]),
   ])
 
   return {
@@ -292,9 +295,9 @@ export async function averageCostForStock(input: { branchId?: bigint | null; lot
   return totalQty > 0 ? totalValue / totalQty : 0
 }
 
-export async function quantityForStock(input: { branchId?: bigint | null; lotNo?: string | null; productId: string | bigint; status?: string | null; warehouseId?: bigint | null }) {
+export async function quantityForStock(input: { branchId?: bigint | null; lotNo?: string | null; productId: string | bigint; quantityType?: 'ready' | 'total'; status?: string | null; warehouseId?: bigint | null }) {
   const snapshot = await stockBalanceSnapshot(input)
-  return snapshot.rows.reduce((sum, row) => sum + row.qty, 0)
+  return snapshot.rows.reduce((sum, row) => sum + (input.quantityType === 'ready' ? row.readyQty : row.qty), 0)
 }
 
 export function buildStockWorkbook(sheetName: string, rows: Array<Record<string, string | number | boolean | null>>) {
