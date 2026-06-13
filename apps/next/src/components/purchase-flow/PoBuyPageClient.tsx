@@ -1765,7 +1765,7 @@ function PoBuyDetailModal({
     <Dialog open onOpenChange={(open) => {
       if (!open) onClose()
     }}>
-      <DialogContent aria-labelledby="po-buy-detail-title" className="max-h-[90vh] max-w-3xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-slate-900" hideClose>
+      <DialogContent aria-labelledby="po-buy-detail-title" className="max-h-[90vh] max-w-3xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-none" hideClose>
         <DialogHeader className="p-4 bg-slate-900 text-white shrink-0">
           <div>
             <DialogTitle id="po-buy-detail-title" className="text-white">รายละเอียด {row.docNo}</DialogTitle>
@@ -1773,18 +1773,58 @@ function PoBuyDetailModal({
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto bg-white">
-          <div className="grid grid-cols-2 gap-3 p-4 md:grid-cols-5">
-            <Detail label="วันที่สร้างเอกสาร" value={formatDateDisplay(row.date)} />
-            <Detail label="วันที่กำหนดส่ง" value={formatDateDisplay(row.expectedDelivery)} />
-            <Detail label="Qty" value={formatMoney(row.qty)} />
-            <Detail label="คงเหลือ" value={formatMoney(row.remainingQty)} />
-            <Detail label="ปิดรับไม่ครบ" value={row.shortClosedQty > 0 ? formatMoney(row.shortClosedQty) : '-'} />
+        <div className="flex-1 overflow-y-auto bg-slate-50 p-4 space-y-4 text-sm">
+          {/* Card 1: ข้อมูลหลัก */}
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">ข้อมูลหลัก</h4>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-5">
+              <div>
+                <div className="text-xs font-medium text-slate-500 mb-0.5">วันที่สร้างเอกสาร</div>
+                <div className="text-sm font-semibold text-slate-900">{formatDateDisplay(row.date)}</div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-slate-500 mb-0.5">วันที่กำหนดส่ง</div>
+                <div className="text-sm font-semibold text-slate-900">{formatDateDisplay(row.expectedDelivery)}</div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-slate-500 mb-0.5">สถานะ PO</div>
+                <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${statusBadge(row.status)}`}>
+                  <span className="size-1.5 rounded-full bg-current" />
+                  {poBuyStatusLabel(row.status)}
+                </span>
+              </div>
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-3 px-4 pb-4 md:grid-cols-3">
-            <Detail label="ยอดก่อน VAT" value={formatMoney(row.subtotal)} />
-            <Detail label={`VAT ${formatMoney(row.vatRatePercent)}%`} value={formatMoney(row.vatAmount)} />
-            <Detail label="ยอดรวม" value={formatMoney(row.totalAmount)} />
+
+          {/* Card 2: ยอดเงินและจำนวน */}
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">ยอดเงินและจำนวน</h4>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-5">
+              <div>
+                <div className="text-xs font-medium text-slate-500 mb-0.5">Qty (จำนวน)</div>
+                <div className="text-sm font-semibold text-slate-900">{formatMoney(row.qty)}</div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-slate-500 mb-0.5">คงเหลือ</div>
+                <div className="text-sm font-semibold text-slate-900">{formatMoney(row.remainingQty)}</div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-slate-500 mb-0.5">ปิดรับไม่ครบ</div>
+                <div className="text-sm font-semibold text-slate-900">{row.shortClosedQty > 0 ? formatMoney(row.shortClosedQty) : '-'}</div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-slate-500 mb-0.5">ยอดก่อน VAT</div>
+                <div className="text-sm font-semibold text-slate-900">{formatMoney(row.subtotal)}</div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-slate-500 mb-0.5">VAT {formatMoney(row.vatRatePercent)}%</div>
+                <div className="text-sm font-semibold text-slate-900">{formatMoney(row.vatAmount)}</div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-slate-500 mb-0.5">ยอดรวมสุทธิ</div>
+                <div className="text-sm font-bold text-blue-700">{formatMoney(row.totalAmount)}</div>
+              </div>
+            </div>
           </div>
           {row.notes.trim() ? (
             <div className="px-4 pb-4">

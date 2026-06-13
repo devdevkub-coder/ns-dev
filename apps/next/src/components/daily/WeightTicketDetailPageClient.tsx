@@ -687,7 +687,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
       </div>
 
       <Dialog open={Boolean(previewImage)} onOpenChange={(open) => setPreviewImage(open ? previewImage : null)}>
-        <DialogContent className="max-w-4xl !p-0 overflow-hidden bg-slate-900 border-slate-900 flex flex-col">
+        <DialogContent className="max-w-4xl !p-0 overflow-hidden bg-slate-900 border-none flex flex-col">
           {previewImage ? (
             <>
               <DialogHeader>
@@ -710,7 +710,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
       </Dialog>
 
       <Dialog open={Boolean(lineGallery)} onOpenChange={(open) => setLineGallery(open ? lineGallery : null)}>
-        <DialogContent className="max-w-5xl !p-0 overflow-hidden bg-slate-900 border-slate-900 flex flex-col">
+        <DialogContent className="max-w-5xl !p-0 overflow-hidden bg-slate-900 border-none flex flex-col">
           {lineGallery && activeGalleryImage ? (
             <>
               <DialogHeader>

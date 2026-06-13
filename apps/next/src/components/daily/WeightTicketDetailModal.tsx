@@ -161,7 +161,7 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
     <Dialog open onOpenChange={(open) => {
       if (!open) onClose()
     }}>
-      <DialogContent aria-labelledby="weight-ticket-detail-title" className="max-h-[90vh] max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-slate-900" hideClose>
+      <DialogContent aria-labelledby="weight-ticket-detail-title" className="max-h-[90vh] max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-none" hideClose>
         <DialogHeader className="p-4 bg-slate-900 text-white shrink-0">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -586,7 +586,7 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
           <Dialog open onOpenChange={(open) => {
             if (!open) setPreviewImage(null)
           }}>
-            <DialogContent className="max-w-4xl !p-0 overflow-hidden bg-slate-900 border-slate-900 flex flex-col">
+            <DialogContent className="max-w-4xl !p-0 overflow-hidden bg-slate-900 border-none flex flex-col">
               <DialogHeader>
                 <DialogTitle>รูปภาพแนบ</DialogTitle>
                 <DialogDescription>{previewImage.fileName}</DialogDescription>
@@ -609,7 +609,7 @@ export function WeightTicketDetailModal({ ticketId, onClose }: { ticketId: strin
           <Dialog open onOpenChange={(open) => {
             if (!open) setLineGallery(null)
           }}>
-            <DialogContent className="max-w-5xl !p-0 overflow-hidden bg-slate-900 border-slate-900 flex flex-col">
+            <DialogContent className="max-w-5xl !p-0 overflow-hidden bg-slate-900 border-none flex flex-col">
               <DialogHeader>
                 <DialogTitle>{lineGallery.title}</DialogTitle>
                 <DialogDescription>
