@@ -2341,6 +2341,9 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                       <Segment value="STOCK" current={filterMode} label="📦 STOCK" onClick={setFilterMode} />
                       <Segment value="TRADING" current={filterMode} label="🔄 TRADING" onClick={setFilterMode} />
                     </div>
+                  </div>
+                  <div>
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะ</span>
                     <div className="flex flex-wrap gap-2">
                       {statusOptions.map((option) => (
                         <SegmentMulti key={option.label} current={statusFilter} label={option.label} onClick={setStatusFilter} values={option.values} />
