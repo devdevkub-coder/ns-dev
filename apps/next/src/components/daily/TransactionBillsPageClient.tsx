@@ -638,6 +638,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const [cancelNoteError, setCancelNoteError] = useState('')
   const [cancelingBill, setCancelingBill] = useState<BillRow | StockIssueRow | null>(null)
   const [detailBill, setDetailBill] = useState<PurchaseBillDetail | null>(null)
+  const [salesDetailBill, setSalesDetailBill] = useState<SalesBillDetail | null>(null)
   const [detailBillDocNo, setDetailBillDocNo] = useState<string | null>(null)
   const [detailError, setDetailError] = useState<string | null>(null)
   const [branchFilter, setBranchFilter] = useState('')
@@ -1223,21 +1224,28 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   }
 
   async function openRow(row: BillRow | StockIssueRow) {
-    if (mode !== 'purchase' || isStockIssueRow(row)) return
+    if ((mode !== 'purchase' && mode !== 'sales') || isStockIssueRow(row)) return
     const docNo = row.docNo || row.id
     const requestId = latestDetailRequestRef.current + 1
     latestDetailRequestRef.current = requestId
     setDetailBillDocNo(docNo)
     setDetailBill(null)
+    setSalesDetailBill(null)
     setDetailError(null)
     setIsDetailLoading(true)
     try {
+      if (mode === 'sales') {
+        const detail = await dailyFetchJson<SalesBillDetail>(`/api/sales/bills/${encodeURIComponent(docNo)}`)
+        if (latestDetailRequestRef.current !== requestId) return
+        setSalesDetailBill(detail)
+        return
+      }
       const detail = await dailyFetchJson<PurchaseBillDetail>(`/api/purchase/bills/${encodeURIComponent(docNo)}`)
       if (latestDetailRequestRef.current !== requestId) return
       setDetailBill(detail)
     } catch (caught) {
       if (latestDetailRequestRef.current !== requestId) return
-      setDetailError(caught instanceof Error ? caught.message : 'โหลดรายละเอียดบิลรับซื้อไม่ได้')
+      setDetailError(caught instanceof Error ? caught.message : mode === 'sales' ? 'โหลดรายละเอียดบิลขายไม่ได้' : 'โหลดรายละเอียดบิลรับซื้อไม่ได้')
     } finally {
       if (latestDetailRequestRef.current !== requestId) return
       setIsDetailLoading(false)
@@ -2614,7 +2622,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           <TableBody className="divide-y divide-slate-100">
             {isLoading ? <TableRow><td className="p-6 text-center text-slate-500" colSpan={tableColSpan}>กำลังโหลดข้อมูล</td></TableRow> : null}
             {!isLoading && pageRows.map((row) => (
-              <TableRow key={row.id} className={`hover:bg-slate-50 ${mode === 'purchase' && !isStockIssueRow(row) ? 'cursor-pointer' : ''}`} onClick={() => openRow(row)}>
+              <TableRow key={row.id} className={`hover:bg-slate-50 ${(mode === 'purchase' || mode === 'sales') && !isStockIssueRow(row) ? 'cursor-pointer' : ''}`} onClick={() => openRow(row)}>
                 <td className="whitespace-nowrap p-2 text-xs font-semibold text-slate-700">{row.docNo}</td>
                 {mode === 'purchase' && !isStockIssueRow(row) ? (
                   <td className="p-2 text-xs font-semibold text-slate-700">
@@ -3632,7 +3640,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           </div>
         </div>
       ) : null}
-	      {detailBillDocNo ? (
+	      {detailBillDocNo && mode === 'purchase' ? (
 	        <PurchaseBillDetailModal
           detail={detailBill}
           docNo={detailBillDocNo}
@@ -3643,10 +3651,29 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
             latestDetailRequestRef.current += 1
             setDetailBillDocNo(null)
             setDetailBill(null)
+            setSalesDetailBill(null)
             setDetailError(null)
             setIsDetailLoading(false)
           }}
           onPrint={(detail) => void printPurchaseBill(detail)}
+	        />
+	      ) : null}
+	      {detailBillDocNo && mode === 'sales' ? (
+	        <SalesBillDetailModal
+          detail={salesDetailBill}
+          docNo={detailBillDocNo}
+          error={detailError}
+          isLoading={isDetailLoading}
+          isPrinting={printingBillDocNo === detailBillDocNo}
+          onClose={() => {
+            latestDetailRequestRef.current += 1
+            setDetailBillDocNo(null)
+            setDetailBill(null)
+            setSalesDetailBill(null)
+            setDetailError(null)
+            setIsDetailLoading(false)
+          }}
+          onPrint={(detail) => void printSalesBill(detail)}
 	        />
 	      ) : null}
 	      {showStockIssueDetail ? (
@@ -3894,6 +3921,166 @@ function PurchaseBillDetailModal({
         </div>
 
         <DialogFooter className="flex flex-wrap gap-2 justify-end p-4 border-t bg-slate-50 shrink-0">
+          {detail ? (
+            <Button className="gap-2 font-normal" disabled={isPrinting} type="button" variant="outline" onClick={() => onPrint(detail)}>
+              <Printer className="size-4" />
+              {isPrinting ? 'กำลังเตรียม...' : 'พิมพ์'}
+            </Button>
+          ) : null}
+          <Button className="font-normal" type="button" variant="outline" onClick={onClose}>ปิด</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function SalesBillDetailModal({
+  detail,
+  docNo,
+  error,
+  isLoading,
+  isPrinting,
+  onClose,
+  onPrint,
+}: {
+  detail: SalesBillDetail | null
+  docNo: string
+  error: string | null
+  isLoading: boolean
+  isPrinting: boolean
+  onClose: () => void
+  onPrint: (detail: SalesBillDetail) => void
+}) {
+  return (
+    <Dialog open onOpenChange={(open) => {
+      if (!open) onClose()
+    }}>
+      <DialogContent aria-labelledby="sales-bill-detail-title" className="max-h-[90vh] max-w-6xl overflow-y-auto rounded-md p-0" hideClose>
+        <DialogHeader className="p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <DialogTitle id="sales-bill-detail-title">รายละเอียดบิลขาย</DialogTitle>
+              <DialogDescription className="font-mono text-xs">{detail?.docNo ?? docNo}</DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="p-8 text-center text-sm text-slate-500">กำลังโหลดรายละเอียดบิลขาย</div>
+        ) : error ? (
+          <div className="p-4">
+            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+          </div>
+        ) : detail ? (
+          <div className="space-y-4 p-4 text-sm">
+            <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
+              <div className="mb-3 border-b border-slate-100/80 pb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">ข้อมูลเอกสาร</div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+                <DetailItem label="เลขที่บิล" value={detail.docNo} />
+                <DetailItem label="วันที่เอกสาร" value={formatDateDisplay(detail.date)} />
+                <DetailItem label="วันที่ครบกำหนด" value={detail.dueDate ? formatDateDisplay(detail.dueDate) : '-'} />
+                <DetailItem className="col-span-2 sm:col-span-3" label="ลูกค้า" value={`${detail.customerCode ? `[${detail.customerCode}] ` : ''}${detail.customerName}`} />
+                <DetailItem label="สาขา/คลัง" value={[detail.branchName, detail.warehouseName].filter((value) => value && value !== '-').join(' / ') || '-'} />
+                <DetailItem label="ช่องทางขาย" value={detail.channelName || '-'} />
+                <DetailItem label="ประเภทบิล" value={detail.transactionMode || '-'} />
+                <DetailItem label="ผู้ขาย" value={detail.salesName || '-'} />
+                <DetailItem label="ผู้ทำรายการ" value={detail.createdBy || '-'} />
+                <DetailItem className="col-span-2 sm:col-span-3" label="อ้างอิงใบส่งของ WTO" value={detail.deliveryDocNos.join(', ') || '-'} />
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
+              <div className="mb-3 border-b border-slate-100/80 pb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">สถานะและการรับเงิน</div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+                <div className="flex flex-col py-1">
+                  <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">สถานะรับเงิน</div>
+                  <div className="mt-1">
+                    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${statusBadgeClass(detail.status)}`}>
+                      <span className="size-1.5 rounded-full bg-current" />
+                      {detail.statusLabel}
+                    </span>
+                  </div>
+                </div>
+                <DetailItem label="ยอดเงินสุทธิ" value={`${formatMoney(detail.totalAmount)} บาท`} />
+                <DetailItem label="รับแล้ว" value={`${formatMoney(detail.receivedAmount || detail.paidAmount)} บาท`} />
+                <DetailItem label="ยอดคงเหลือค้างรับ" value={`${formatMoney(detail.receivableBalance)} บาท`} />
+                {detail.customerAdvanceDocNo ? (
+                  <DetailItem className="col-span-2 sm:col-span-4" label="หักมัดจำ / เงินล่วงหน้า Customer" value={detail.customerAdvanceDocNo} />
+                ) : null}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
+              <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">รายการสินค้า / Source</div>
+              <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
+                <table className="w-full min-w-[1100px] text-sm">
+                  <thead className="bg-slate-50 text-slate-600">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium">สินค้า</th>
+                      <th className="px-3 py-2 text-left font-medium">ใบส่งของ WTO</th>
+                      <th className="px-3 py-2 text-left font-medium">PO / ที่มา</th>
+                      <th className="px-3 py-2 text-right font-medium">Gross</th>
+                      <th className="px-3 py-2 text-right font-medium">หัก</th>
+                      <th className="px-3 py-2 text-right font-medium">จำนวนสุทธิ</th>
+                      <th className="px-3 py-2 text-right font-medium">ราคา/หน่วย</th>
+                      <th className="px-3 py-2 text-right font-medium">ส่วนลด</th>
+                      <th className="px-3 py-2 text-right font-medium">ยอดรวม</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detail.items.map((item) => (
+                      <tr key={`${item.lineNo}-${item.productCode}-${item.deliveryLineId}`} className="border-t border-slate-200">
+                        <td className="px-3 py-2 align-top">
+                          <div className="font-medium text-slate-900">{item.productName}</div>
+                          <div className="text-xs text-slate-500">{[item.productCode || null, `line ${item.lineNo}`].filter(Boolean).join(' · ')}</div>
+                          {item.note ? <div className="mt-1 text-xs text-slate-500">{item.note}</div> : null}
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          <div className="text-slate-900">{item.deliveryTicketDocNo || '-'}</div>
+                          <div className="text-xs text-slate-500">{item.deliveryVehicleNo || '-'}</div>
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          <div className="text-slate-900">{item.sourceLabel || '-'}</div>
+                          <div className="text-xs text-slate-500">{item.poSellDocNo ? 'ตัดตาม PO Sell' : 'ขายแบบ Spot Sale'}</div>
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatMoney(item.grossWeight)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatMoney(item.deductWeight)}</td>
+                        <td className="px-3 py-2 text-right font-medium tabular-nums">{formatMoney(item.qty || item.netWeight)} {item.unit}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatMoney(item.price)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatMoney(item.discount)}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-blue-700 tabular-nums">{formatMoney(item.amount)}</td>
+                      </tr>
+                    ))}
+                    {detail.items.length === 0 ? <tr><td className="px-6 py-6 text-center text-slate-500" colSpan={9}>ไม่มีรายการสินค้าในบิล</td></tr> : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-md border border-slate-200 p-3">
+                <div className="mb-2 text-sm font-medium text-slate-700">VAT / ยอดรวม</div>
+                <div className="space-y-2 text-sm">
+                  <SummaryLine label="ยอดก่อนส่วนลด" value={formatMoney(detail.subtotal)} />
+                  <SummaryLine label="ส่วนลดท้ายบิล" tone="red" value={`-${formatMoney(detail.discount)}`} />
+                  <SummaryLine label="VAT" value={formatMoney(detail.vatAmount)} />
+                  <SummaryLine label="ยอดสุทธิ" value={formatMoney(detail.totalAmount)} />
+                </div>
+              </div>
+              <div className="rounded-md border border-slate-200 p-3">
+                <div className="mb-2 text-sm font-medium text-slate-700">ใบกำกับภาษี / หมายเหตุ</div>
+                <div className="grid gap-3 text-sm md:grid-cols-2">
+                  <PlainDetail label="ออกใบกำกับภาษี" value={detail.vatInvoiceIssued ? 'ออกแล้ว' : 'ยังไม่ได้ออก'} />
+                  <PlainDetail label="เลขที่ใบกำกับภาษี" value={detail.vatInvoiceNo || '-'} />
+                  <PlainDetail label="วันที่ใบกำกับภาษี" value={detail.vatInvoiceDate ? formatDateDisplay(detail.vatInvoiceDate) : '-'} />
+                  <PlainDetail label="หมายเหตุ" value={detail.note || '-'} />
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        <DialogFooter>
           {detail ? (
             <Button className="gap-2 font-normal" disabled={isPrinting} type="button" variant="outline" onClick={() => onPrint(detail)}>
               <Printer className="size-4" />
