@@ -2785,9 +2785,6 @@ model stock_holds {
   cancelled_at          DateTime?             @db.Timestamptz(6)
   released_by           String?
   consumed_by           String?
-  output_category       String?
-  lot_no                String?
-  not_available_for_sale Boolean              @default(false)
   cancelled_by          String?
   release_reason        String?
   consumed_by_ref_type  String?
