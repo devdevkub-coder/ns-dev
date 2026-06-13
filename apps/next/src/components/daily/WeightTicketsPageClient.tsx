@@ -813,6 +813,7 @@ export function WeightTicketsPageClient({
                         markTouched(`line-${line.id}-product`)
                         updateLine(line.id, (current) => ({ ...current, productId: value, warehouseId: '' }))
                       }}
+                      buttonClassName={ticketTheme.button}
                     />
 
                     <div className="mt-3 grid grid-cols-3 gap-2 sm:mt-4">
@@ -1017,11 +1018,13 @@ function ProductImagePicker({
   products,
   value,
   onChange,
+  buttonClassName,
 }: {
   disabled: boolean
   products: OptionItem[]
   value: string
   onChange: (value: string) => void
+  buttonClassName?: string
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const [category, setCategory] = useState('all')
@@ -1068,7 +1071,10 @@ function ProductImagePicker({
           setTempSelectedId(value)
           setIsOpen(true)
         }}
-        className="w-full bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center gap-1.5 h-10 rounded-md text-xs font-semibold"
+        className={cn(
+          "w-full text-white flex items-center justify-center gap-1.5 h-10 rounded-md text-xs font-semibold",
+          buttonClassName || "bg-slate-900 hover:bg-slate-800"
+        )}
       >
         <Plus className="h-4 w-4" />
         เพิ่มสินค้า
