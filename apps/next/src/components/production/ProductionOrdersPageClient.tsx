@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/Dialog'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
@@ -89,6 +90,18 @@ const sortOptions = [
   { label: 'มูลค่าผลผลิต', value: 'outputValue' },
 ]
 
+function MatchButton({ active, label, onClick, tone = 'dark' }: { active: boolean; label: string; onClick: () => void; tone?: 'amber' | 'dark' | 'emerald' | 'red' | 'slate' }) {
+  const activeClass = {
+    amber: 'border-amber-600 bg-amber-600 text-white',
+    dark: 'border-slate-700 bg-slate-700 text-white',
+    emerald: 'border-emerald-600 bg-emerald-600 text-white',
+    red: 'border-red-600 bg-red-600 text-white',
+    slate: 'border-slate-500 bg-slate-500 text-white',
+  }[tone]
+  const idleClass = tone === 'amber' ? 'border-slate-300 bg-white hover:bg-amber-50' : tone === 'emerald' ? 'border-slate-300 bg-white hover:bg-emerald-50' : tone === 'red' ? 'border-slate-300 bg-white hover:bg-red-50' : 'border-slate-300 bg-white hover:bg-slate-100'
+  return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
+}
+
 export function ProductionOrdersPageClient() {
   const [data, setData] = useState<ProductionOrdersPayload | null>(null)
   const [dateFrom, setDateFrom] = useState('')
@@ -103,6 +116,7 @@ export function ProductionOrdersPageClient() {
   const [selectedRow, setSelectedRow] = useState<ProductionOrderRow | null>(null)
   const [sort, setSort] = useState('date')
   const [status, setStatus] = useState('')
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
   const latestLoadRequestRef = useRef(0)
 
   const loadData = useCallback(async () => {
@@ -178,32 +192,139 @@ export function ProductionOrdersPageClient() {
     <section className="space-y-4">
       {error ? <Alert tone="red" title="โหลดข้อมูลใบสั่งผลิตไม่ได้" text={error} /> : null}
 
-      <div className="rounded-md bg-white p-3 shadow">
+      {/* Desktop Toolbar (Hidden on Mobile) */}
+      <div className="hidden md:block mb-3 space-y-2 rounded-md bg-white p-3 shadow">
         <div className="flex flex-wrap items-center gap-2">
-          <input className="min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหาเลขใบสั่งผลิต / สินค้า / หมายเหตุ..." type="search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} />
+          <input 
+            className="min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm h-9 border-slate-300" 
+            placeholder="ค้นหาเลขใบสั่งผลิต / สินค้า / หมายเหตุ..." 
+            type="search" 
+            value={search} 
+            onChange={(event) => { setSearch(event.target.value); setPage(1) }} 
+          />
           <label className="text-xs text-slate-500">วันที่:</label>
-          <DatePickerInput className="w-[130px]" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
+          <DatePickerInput className="w-[130px] !h-9 text-sm" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
           <span className="text-slate-400">→</span>
-          <DatePickerInput className="w-[130px]" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
-          <select className="rounded-md border px-3 py-2 text-sm" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1) }}>
+          <DatePickerInput className="w-[130px] !h-9 text-sm" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
+          <select className="h-9 rounded-md border px-3 text-sm bg-white text-slate-800 border-slate-300" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1) }}>
             {statusOptions.map((option) => <option key={option || 'all'} value={option}>{option || 'ทุกสถานะ'}</option>)}
           </select>
-          <select className="rounded-md border px-3 py-2 text-sm" value={sort} onChange={(event) => { setSort(event.target.value); setPage(1) }}>
+          <select className="h-9 rounded-md border px-3 text-sm bg-white text-slate-800 border-slate-300" value={sort} onChange={(event) => { setSort(event.target.value); setPage(1) }}>
             {sortOptions.map((option) => <option key={option.value} value={option.value}>เรียง: {option.label}</option>)}
           </select>
-          <button className="rounded-md border px-3 py-2 text-sm" type="button" onClick={() => setDirection((value) => value === 'asc' ? 'desc' : 'asc')}>{direction === 'asc' ? 'น้อยไปมาก' : 'มากไปน้อย'}</button>
-          {(search || dateFrom || dateTo || status) ? <button className="rounded-md bg-slate-100 px-3 py-2 text-xs hover:bg-slate-200" type="button" onClick={clearFilters}>ล้าง</button> : null}
-          <button className="ml-auto rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800" type="button" onClick={() => setModalMode('create')}>+ ใบสั่งผลิตใหม่</button>
+          <button className="h-9 rounded-md border px-3 text-sm bg-white text-slate-700 hover:bg-slate-50 border-slate-300" type="button" onClick={() => setDirection((value) => value === 'asc' ? 'desc' : 'asc')}>{direction === 'asc' ? 'น้อยไปมาก' : 'มากไปน้อย'}</button>
+          {(search || dateFrom || dateTo || status) ? (
+            <button className="h-9 rounded-md bg-slate-100 px-3 text-xs hover:bg-slate-200" type="button" onClick={clearFilters}>
+              ✕ ล้างทั้งหมด
+            </button>
+          ) : null}
+          <button className="ml-auto rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 h-9 flex items-center" type="button" onClick={() => setModalMode('create')}>+ ใบสั่งผลิตใหม่</button>
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <span className="text-xs text-slate-500">ช่วง:</span>
-          <button className="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-medium hover:bg-slate-50" type="button" onClick={() => setPeriod('')}>ทั้งหมด</button>
-          <button className="rounded-md border border-blue-200 bg-white px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50" type="button" onClick={() => setPeriod('today')}>วันนี้</button>
-          <button className="rounded-md border border-emerald-200 bg-white px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50" type="button" onClick={() => setPeriod('week')}>7 วัน</button>
-          <button className="rounded-md border border-amber-200 bg-white px-3 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50" type="button" onClick={() => setPeriod('month')}>เดือนนี้</button>
+        <div className="mt-2 flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+          <span className="text-xs text-slate-500">ช่วงเวลา:</span>
+          <MatchButton active={!dateFrom && !dateTo} label="ทั้งหมด" onClick={() => setPeriod('')} />
+          <MatchButton active={dateFrom === todayDateInput() && dateTo === todayDateInput()} label="วันนี้" onClick={() => setPeriod('today')} />
+          <MatchButton active={dateFrom !== todayDateInput() && dateFrom !== '' && dateTo === todayDateInput()} label="7 วัน" onClick={() => setPeriod('week')} />
+          <MatchButton active={dateFrom !== '' && dateFrom.endsWith('-01') && dateTo === todayDateInput()} label="เดือนนี้" onClick={() => setPeriod('month')} />
           <span className="ml-auto text-xs text-slate-500">พบ <b className="text-slate-700">{data?.summary.total ?? 0}</b> ใบ</span>
         </div>
       </div>
+
+      {/* Mobile Toolbar (Hidden on Desktop) */}
+      <div className="mb-3 space-y-2 rounded-md bg-white p-3 shadow md:hidden animate-fade-in">
+        <div className="flex gap-2 items-center">
+          <input 
+            className="min-w-[150px] flex-1 rounded-md border px-3 h-9 text-sm border-slate-300" 
+            placeholder="ค้นหาใบสั่งผลิต..." 
+            type="search" 
+            value={search} 
+            onChange={(event) => { setSearch(event.target.value); setPage(1) }} 
+          />
+          <button className="h-9 rounded-md bg-slate-100 px-2.5 text-xs text-slate-700" type="button" onClick={() => void loadData()}>
+            Refresh
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            onClick={() => setShowMobileFilters(true)}
+          >
+            ตัวกรอง {(dateFrom || dateTo || status) ? '(มี)' : ''}
+          </button>
+        </div>
+      </div>
+
+      {/* Bottom Sheet Filter for Mobile */}
+      {showMobileFilters ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 md:hidden animate-fade-in">
+          <div className="w-full rounded-t-2xl bg-white p-4 shadow-xl border-t border-slate-200 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <h4 className="font-bold text-slate-800">ตัวกรองใบสั่งผลิต</h4>
+              <button
+                className="p-1 text-slate-400 hover:text-slate-600 text-xl font-bold font-sans"
+                onClick={() => setShowMobileFilters(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">ช่วงเวลา</span>
+                <div className="flex flex-wrap gap-2">
+                  <button className={`flex-1 h-9 rounded-md text-xs border ${!dateFrom && !dateTo ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 text-slate-700 bg-white'}`} type="button" onClick={() => setPeriod('')}>ทั้งหมด</button>
+                  <button className={`flex-1 h-9 rounded-md text-xs border ${dateFrom === todayDateInput() && dateTo === todayDateInput() ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 text-slate-700 bg-white'}`} type="button" onClick={() => setPeriod('today')}>วันนี้</button>
+                  <button className={`flex-1 h-9 rounded-md text-xs border ${dateFrom && dateFrom !== todayDateInput() && dateTo === todayDateInput() ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 text-slate-700 bg-white'}`} type="button" onClick={() => setPeriod('week')}>7 วัน</button>
+                  <button className={`flex-1 h-9 rounded-md text-xs border ${dateFrom && dateFrom.endsWith('-01') && dateTo === todayDateInput() ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 text-slate-700 bg-white'}`} type="button" onClick={() => setPeriod('month')}>เดือนนี้</button>
+                </div>
+              </div>
+
+              <div>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
+                <div className="flex items-center gap-2">
+                  <DatePickerInput className="flex-1" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
+                  <span className="text-slate-400">→</span>
+                  <DatePickerInput className="flex-1" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
+                </div>
+              </div>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะ</span>
+                <select className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800 font-sans" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1) }}>
+                  {statusOptions.map((option) => <option key={option || 'all'} value={option}>{option || 'ทุกสถานะ'}</option>)}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">เรียงลำดับ</span>
+                <select className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800 font-sans" value={sort} onChange={(event) => { setSort(event.target.value); setPage(1) }}>
+                  {sortOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-6 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 font-sans"
+                onClick={() => {
+                  clearFilters()
+                  setShowMobileFilters(false)
+                }}
+              >
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                className="h-11 rounded-md bg-slate-900 text-sm font-semibold text-white hover:bg-slate-800 font-sans"
+                onClick={() => setShowMobileFilters(false)}
+              >
+                ใช้ตัวกรอง
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {isLoading ? <div className="rounded-md bg-white p-10 text-center text-slate-500 shadow">กำลังโหลดข้อมูล</div> : null}
       {!isLoading && currentRows.length > 0 ? (
@@ -221,12 +342,12 @@ export function ProductionOrdersPageClient() {
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
         <div>รวมทั้งหมด <span className="font-semibold text-slate-900">{data?.summary.total ?? 0}</span> รายการ</div>
         <div className="flex flex-wrap items-center gap-2">
-          <select className="rounded-md border border-slate-300 px-2 py-1" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>
+          <select className="rounded-md border border-slate-300 px-2 py-1 bg-white text-slate-800 text-sm" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>
             {pageSizeOptions.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
           </select>
-          <button className="rounded-md border border-slate-300 px-3 py-1 disabled:opacity-50" disabled={page <= 1} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</button>
-          <span className="px-1">หน้า {data?.page ?? page} / {totalPages}</span>
-          <button className="rounded-md border border-slate-300 px-3 py-1 disabled:opacity-50" disabled={page >= totalPages} type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</button>
+          <button className="rounded-md border border-slate-300 px-3 py-1 disabled:opacity-50 bg-white text-slate-700 hover:bg-slate-50 text-sm" disabled={page <= 1} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</button>
+          <span className="px-1 text-sm font-medium">หน้า {data?.page ?? page} / {totalPages}</span>
+          <button className="rounded-md border border-slate-300 px-3 py-1 disabled:opacity-50 bg-white text-slate-700 hover:bg-slate-50 text-sm" disabled={page >= totalPages} type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</button>
         </div>
       </div>
 
@@ -245,8 +366,8 @@ function OrderCard({ onOpen, row }: { onOpen: () => void; row: ProductionOrderRo
       <div className="mb-3 text-xs text-slate-500">{formatDateDisplay(row.date)} · {row.branchName}</div>
       <div className="mb-3 rounded-md border border-slate-200 bg-white/80 p-3">
         <div className="mb-1 text-xs text-slate-500">สินค้าที่ผลิต</div>
-        <div className="text-base font-bold leading-tight text-amber-700">{row.productName || 'ยังไม่ได้กำหนดสินค้า'}</div>
-        <div className="mt-1 text-xs text-slate-500">{row.productCode || row.productId || '-'} · {row.warehouseName}</div>
+        <div className="text-base font-bold leading-tight text-amber-700 truncate">{row.productName || 'ยังไม่ได้กำหนดสินค้า'}</div>
+        <div className="mt-1 text-xs text-slate-500 truncate">{row.productCode || row.productId || '-'} · {row.warehouseName}</div>
       </div>
       <div className="mb-3 grid grid-cols-3 gap-2 text-center">
         <MiniMetric label="เบิก" tone="red" value={row.inputQty} />
@@ -261,7 +382,7 @@ function OrderCard({ onOpen, row }: { onOpen: () => void; row: ProductionOrderRo
       ) : null}
       <div className="flex items-center justify-between border-t border-slate-200/60 pt-2">
         <div className="text-xs"><span className="text-slate-500">ต้นทุน:</span><b className="ml-1 text-slate-700">{formatMoney(row.inputCost)}</b></div>
-        <button className="rounded-md bg-blue-600 px-3 py-1 text-xs font-bold text-white" type="button">เปิด</button>
+        <button className="rounded-md bg-blue-600 px-3 py-1 text-xs font-bold text-white hover:bg-blue-700" type="button">เปิด</button>
       </div>
     </div>
   )
@@ -356,6 +477,7 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
           if (!current.wipWarehouseCode) return current
           const next = { ...current }
           delete next.wipWarehouseCode
+          return next
           return next
         })
       }
@@ -572,22 +694,22 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8">
-      <div className="w-full max-w-5xl overflow-hidden rounded-md border border-slate-800 bg-slate-900 shadow-xl flex flex-col max-h-[90vh]">
-        <div className="bg-slate-900 px-5 py-4 shrink-0">
+    <Dialog open={true} onOpenChange={(open) => { if (!open) onClose(false) }}>
+      <DialogContent className="max-w-5xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 max-h-[90vh] animate-fade-in" hideClose>
+        <div className="bg-slate-900 px-5 py-4 shrink-0 border-b border-slate-800">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="flex flex-wrap items-center gap-3">
-              <h3 className="font-mono text-lg font-bold text-slate-100">{isCreate ? 'ใบสั่งผลิตใหม่' : row?.docNo ?? ''}</h3>
+              <DialogTitle className="font-mono text-lg font-bold text-slate-100">{isCreate ? 'ใบสั่งผลิตใหม่' : row?.docNo ?? ''}</DialogTitle>
               <StatusBadge status={isCreate ? 'Open' : row?.status ?? '-'} />
             </div>
             <div className="flex items-center gap-2">
               {!isCreate && row ? (
                 <div className="flex flex-wrap gap-2">
-                  <button className="rounded-md bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white disabled:bg-slate-800" disabled={isSaving || rowWipQty > 0 || row.status === 'Completed' || row.status === 'Cancelled'} type="button" onClick={() => void patchOrder('complete')}>จบงาน</button>
-                  <button className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white disabled:bg-slate-800" disabled={isSaving || row.inputCount > 0 || row.outputCount > 0 || row.status === 'Cancelled'} type="button" onClick={() => void patchOrder('cancel')}>ยกเลิก</button>
+                  <button className="rounded-md bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white disabled:bg-slate-800 hover:bg-teal-700" disabled={isSaving || rowWipQty > 0 || row.status === 'Completed' || row.status === 'Cancelled'} type="button" onClick={() => void patchOrder('complete')}>จบงาน</button>
+                  <button className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white disabled:bg-slate-800 hover:bg-red-700" disabled={isSaving || row.inputCount > 0 || row.outputCount > 0 || row.status === 'Cancelled'} type="button" onClick={() => void patchOrder('cancel')}>ยกเลิก</button>
                 </div>
               ) : null}
-              <button className="text-2xl text-slate-400 hover:text-slate-200 ml-2" type="button" onClick={() => onClose(false)}>×</button>
+              <button className="text-2xl text-slate-400 hover:text-slate-200 ml-2" type="button" onClick={() => onClose(false)}>&times;</button>
             </div>
           </div>
           {!isCreate && row ? (
@@ -602,7 +724,7 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
 
         <div className="flex-1 overflow-y-auto bg-slate-50 space-y-4 p-5">
           {!isCreate ? (
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-6 text-sm">
               <Metric label="วัตถุดิบเบิก" value={formatMoney(row?.inputQty ?? 0)} tone="danger" />
               <Metric label="ผลผลิตได้" value={formatMoney(row?.outputQty ?? 0)} />
               <Metric label="WIP คงเหลือ" value={formatMoney(rowWipQty)} />
@@ -648,8 +770,8 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
                   <SelectField error={createErrors.destinationWarehouseCode} label="คลังรับผลผลิต *" placeholder="เลือกคลังรับผลผลิต" value={createForm.destinationWarehouseCode} options={branchWarehouses} onChange={(destinationWarehouseCode) => updateCreateForm('destinationWarehouseCode', destinationWarehouseCode)} />
                   <SelectField label="เครื่องจักร" allowBlank value={createForm.machineCode} options={options.machines} onChange={(machineCode) => updateCreateForm('machineCode', machineCode)} />
                   <SelectField label="ไลน์ผลิต" allowBlank value={createForm.productionLineCode} options={options.productionLines} onChange={(productionLineCode) => updateCreateForm('productionLineCode', productionLineCode)} />
-                  <FormField label="Shift"><input className="w-full rounded-md border px-3 py-2" value={createForm.shift} onChange={(event) => updateCreateForm('shift', event.target.value)} /></FormField>
-                  <FormField label="หมายเหตุ"><input className="w-full rounded-md border px-3 py-2" value={createForm.notes} onChange={(event) => updateCreateForm('notes', event.target.value)} /></FormField>
+                  <FormField label="Shift"><input className="w-full rounded-md border px-3 py-2 border-slate-300 bg-white" value={createForm.shift} onChange={(event) => updateCreateForm('shift', event.target.value)} /></FormField>
+                  <FormField label="หมายเหตุ"><input className="w-full rounded-md border px-3 py-2 border-slate-300 bg-white" value={createForm.notes} onChange={(event) => updateCreateForm('notes', event.target.value)} /></FormField>
                   <div className="md:col-span-3">
                     <ProductStockPreview
                       destinationWarehouseName={selectedDestinationWarehouse?.name ?? ''}
@@ -689,9 +811,9 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
                   <SearchCombobox inputId="production-input-product" label="สินค้า" options={productSearchOptions} placeholder="พิมพ์รหัส/ชื่อสินค้า..." value={inputForm.productCode} onChange={(productCode) => setInputForm((form) => ({ ...form, productCode }))} />
                   <SelectField selectId="production-input-source-warehouse" label="คลังต้นทาง" value={inputForm.sourceWarehouseCode} options={options.warehouses} onChange={(sourceWarehouseCode) => setInputForm((form) => ({ ...form, sourceWarehouseCode }))} />
                   <SelectField selectId="production-input-stock-status" label="สถานะสต๊อก" value={inputForm.stockStatus} options={[{ code: 'RM', id: 'RM', name: 'RM' }, { code: 'FG', id: 'FG', name: 'FG' }]} onChange={(stockStatus) => setInputForm((form) => ({ ...form, stockStatus }))} />
-                  <FormField label="Net (กก.)"><input key={`input-net-${row?.inputCount ?? 0}`} ref={inputNetQtyRef} id="production-input-net-qty" className="w-full rounded-md border px-3 py-2 text-right" defaultValue={inputForm.netQty} inputMode="decimal" /></FormField>
-                  <FormField label="Lot No."><input className="w-full rounded-md border px-3 py-2" value={inputForm.lotNo} onChange={(event) => setInputForm((form) => ({ ...form, lotNo: event.target.value }))} /></FormField>
-                  <FormField label="หมายเหตุ"><input className="w-full rounded-md border px-3 py-2" value={inputForm.notes} onChange={(event) => setInputForm((form) => ({ ...form, notes: event.target.value }))} /></FormField>
+                  <FormField label="Net (กก.)"><input key={`input-net-${row?.inputCount ?? 0}`} ref={inputNetQtyRef} id="production-input-net-qty" className="w-full rounded-md border px-3 py-2 text-right border-slate-300 bg-white" defaultValue={inputForm.netQty} inputMode="decimal" /></FormField>
+                  <FormField label="Lot No."><input className="w-full rounded-md border px-3 py-2 border-slate-300 bg-white" value={inputForm.lotNo} onChange={(event) => setInputForm((form) => ({ ...form, lotNo: event.target.value }))} /></FormField>
+                  <FormField label="หมายเหตุ"><input className="w-full rounded-md border px-3 py-2 border-slate-300 bg-white" value={inputForm.notes} onChange={(event) => setInputForm((form) => ({ ...form, notes: event.target.value }))} /></FormField>
                 </div>
               )}
               onSubmit={(formElement) => void submitInput(formElement)}
@@ -712,11 +834,11 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
                   <SearchCombobox inputId="production-output-product" label="สินค้า/Grade" options={productSearchOptions} placeholder="พิมพ์รหัส/ชื่อสินค้า..." value={outputForm.productCode} onChange={(productCode) => setOutputForm((form) => ({ ...form, productCode }))} />
                   <SelectField selectId="production-output-category" label="ประเภท" value={outputForm.categoryCode} options={[{ code: 'FG', id: 'FG', name: 'FG' }, { code: 'RM', id: 'RM', name: 'RM' }]} onChange={(categoryCode) => setOutputForm((form) => ({ ...form, categoryCode }))} />
                   <SelectField selectId="production-output-destination-warehouse" label="คลังรับ" value={outputForm.destinationWarehouseCode} options={options.warehouses} onChange={(destinationWarehouseCode) => setOutputForm((form) => ({ ...form, destinationWarehouseCode }))} />
-                  <FormField label="Net (กก.)"><input key={`output-net-${row?.outputCount ?? 0}`} ref={outputNetQtyRef} id="production-output-net-qty" className="w-full rounded-md border px-3 py-2 text-right" defaultValue={outputForm.netQty} inputMode="decimal" /></FormField>
-                  <FormField label="Loss kg"><input key={`output-loss-${row?.outputCount ?? 0}`} ref={outputLossQtyRef} id="production-output-loss-qty" className="w-full rounded-md border px-3 py-2 text-right" defaultValue={outputForm.lossQty} inputMode="decimal" /></FormField>
-                  <FormField label="Lot No."><input className="w-full rounded-md border px-3 py-2" value={outputForm.lotNo} onChange={(event) => setOutputForm((form) => ({ ...form, lotNo: event.target.value }))} /></FormField>
-                  <label className="flex items-center gap-2 rounded-md border px-3 py-2"><input checked={outputForm.completeOrder} type="checkbox" onChange={(event) => setOutputForm((form) => ({ ...form, completeOrder: event.target.checked }))} />จบงานหลังรับ</label>
-                  <FormField label="หมายเหตุ"><input className="w-full rounded-md border px-3 py-2" value={outputForm.notes} onChange={(event) => setOutputForm((form) => ({ ...form, notes: event.target.value }))} /></FormField>
+                  <FormField label="Net (กก.)"><input key={`output-net-${row?.outputCount ?? 0}`} ref={outputNetQtyRef} id="production-output-net-qty" className="w-full rounded-md border px-3 py-2 text-right border-slate-300 bg-white" defaultValue={outputForm.netQty} inputMode="decimal" /></FormField>
+                  <FormField label="Loss kg"><input key={`output-loss-${row?.outputCount ?? 0}`} ref={outputLossQtyRef} id="production-output-loss-qty" className="w-full rounded-md border px-3 py-2 text-right border-slate-300 bg-white" defaultValue={outputForm.lossQty} inputMode="decimal" /></FormField>
+                  <FormField label="Lot No."><input className="w-full rounded-md border px-3 py-2 border-slate-300 bg-white" value={outputForm.lotNo} onChange={(event) => setOutputForm((form) => ({ ...form, lotNo: event.target.value }))} /></FormField>
+                  <label className="flex items-center gap-2 rounded-md border px-3 py-2 border-slate-300 bg-white h-9 mt-6 select-none cursor-pointer"><input checked={outputForm.completeOrder} type="checkbox" onChange={(event) => setOutputForm((form) => ({ ...form, completeOrder: event.target.checked }))} />จบงานหลังรับ</label>
+                  <FormField label="หมายเหตุ"><input className="w-full rounded-md border px-3 py-2 border-slate-300 bg-white" value={outputForm.notes} onChange={(event) => setOutputForm((form) => ({ ...form, notes: event.target.value }))} /></FormField>
                 </div>
               )}
               onSubmit={(formElement) => void submitOutput(formElement)}
@@ -726,85 +848,178 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
 
         <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 shrink-0">
           <button className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50" type="button" onClick={() => onClose(false)}>ปิด</button>
-          {isCreate ? <button className="rounded-md bg-slate-900 px-5 py-2 text-sm font-normal text-white hover:bg-slate-800 disabled:bg-slate-300" disabled={isSaving} type="button" onClick={() => void submitCreate()}>บันทึก</button> : null}
+          {isCreate ? <button className="rounded-md bg-slate-900 px-5 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50" disabled={isSaving} type="button" onClick={() => void submitCreate()}>{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</button> : null}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
-function MovementPanel({ actionLabel, canWrite, form, isSaving, onReverse, onSubmit, rows, title }: { actionLabel: string; canWrite: boolean; form: React.ReactNode; isSaving: boolean; onReverse: (docNo: string) => void; onSubmit: (formElement: HTMLFormElement) => void; rows: ProductionMovementRow[]; title: string }) {
+function MovementPanel({
+  actionLabel,
+  canWrite,
+  form,
+  isSaving,
+  onReverse,
+  onSubmit,
+  rows,
+  title,
+}: {
+  actionLabel: string
+  canWrite: boolean
+  form: React.ReactNode
+  isSaving: boolean
+  onReverse: (docNo: string) => void
+  onSubmit: (formElement?: HTMLFormElement) => void
+  rows: ProductionMovementRow[]
+  title: string
+}) {
+  const formRef = useRef<HTMLFormElement | null>(null)
   return (
-    <div className="space-y-4">
+    <div className="rounded-md bg-white p-5 shadow space-y-4">
+      <div className="border-b pb-2">
+        <h4 className="text-base font-bold text-slate-800">{title}</h4>
+      </div>
+
       {canWrite ? (
-        <form className="rounded-md bg-white p-5 shadow" onSubmit={(event) => {
-          event.preventDefault()
-          onSubmit(event.currentTarget)
-        }}>
+        <form
+          ref={formRef}
+          noValidate
+          className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault()
+            onSubmit(formRef.current ?? undefined)
+          }}
+        >
           {form}
-          <div className="mt-4 flex justify-end">
-            <button className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:bg-slate-300" disabled={isSaving} type="submit">{actionLabel}</button>
+          <div className="flex justify-end pt-2 border-t border-slate-200">
+            <button
+              className="rounded-md bg-slate-900 px-5 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+              disabled={isSaving}
+              type="submit"
+            >
+              {isSaving ? 'กำลังบันทึก...' : actionLabel}
+            </button>
           </div>
         </form>
       ) : null}
-      <div className="rounded-md bg-white p-5 shadow">
-        <h3 className="mb-3 font-semibold">{title}</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead className="bg-slate-100">
-              <tr><th className="p-2 text-left">เลขที่</th><th className="p-2 text-left">วันที่</th><th className="p-2 text-left">สินค้า</th><th className="p-2 text-left">คลัง</th><th className="p-2 text-right">จำนวน</th><th className="p-2 text-right">มูลค่า</th><th className="p-2 text-left">สถานะ</th><th className="p-2 text-right">จัดการ</th></tr>
-            </thead>
-            <tbody>
-              {rows.map((movement, index) => (
-                <tr key={`${movement.docNo}-${index}`} className="border-t">
-                  <td className="p-2 font-mono">{movement.docNo}</td>
-                  <td className="p-2">{formatDateDisplay(movement.date)}</td>
-                  <td className="p-2">{movement.productName}</td>
-                  <td className="p-2">{movement.warehouseName}</td>
-                  <td className="p-2 text-right">{formatMoney(movement.qty)}</td>
-                  <td className="p-2 text-right">{formatMoney(movement.totalCost)}</td>
-                  <td className="p-2">{movement.status}</td>
-                  <td className="p-2 text-right">
-                    <button className="rounded-md border px-2 py-1 text-xs text-red-700 disabled:opacity-40" disabled={movement.status !== 'active'} type="button" onClick={() => onReverse(movement.docNo)}>Reverse</button>
-                  </td>
-                </tr>
-              ))}
-              {rows.length === 0 ? <tr><td className="py-6 text-center text-slate-400" colSpan={8}>ยังไม่มีรายการ</td></tr> : null}
-            </tbody>
-          </table>
-        </div>
+
+      <div className="overflow-x-auto rounded-md border border-slate-200">
+        <table className="w-full text-xs">
+          <thead className="bg-slate-100">
+            <tr>
+              <th className="p-2 text-left">วันที่</th>
+              <th className="p-2 text-left">เลขที่</th>
+              <th className="p-2 text-left">สินค้า</th>
+              <th className="p-2 text-left">คลัง</th>
+              <th className="p-2 text-left">Lot No.</th>
+              <th className="p-2 text-right">น้ำหนัก (กก.)</th>
+              <th className="p-2 text-right">ราคา/กก.</th>
+              <th className="p-2 text-right">รวมมูลค่า</th>
+              <th className="p-2 text-center">สถานะ</th>
+              <th className="p-2 text-center">จัดการ</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((row, index) => (
+              <tr key={index} className={`hover:bg-slate-50 ${row.status === 'Reversed' ? 'bg-slate-50/50 text-slate-400 line-through' : ''}`}>
+                <td className="p-2 whitespace-nowrap">{formatDateDisplay(row.date)}</td>
+                <td className="p-2 font-mono">{row.docNo}</td>
+                <td className="p-2">
+                  <span className="font-semibold">{row.productName}</span>
+                  <div className="text-[10px] text-slate-400 font-mono">{row.productCode}</div>
+                </td>
+                <td className="p-2">
+                  {row.warehouseName}
+                  {row.stockStatus ? <span className="ml-1 text-[10px] text-slate-400 font-semibold">[{row.stockStatus}]</span> : null}
+                </td>
+                <td className="p-2 font-mono">{row.lotNo || '-'}</td>
+                <td className="p-2 text-right font-medium tabular-nums">{formatMoney(row.qty)}</td>
+                <td className="p-2 text-right text-slate-500 tabular-nums">{formatMoney(row.unitCost)}</td>
+                <td className="p-2 text-right font-semibold text-blue-700 tabular-nums">{formatMoney(row.totalCost)}</td>
+                <td className="p-2 text-center">
+                  <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${row.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{row.status}</span>
+                </td>
+                <td className="p-2 text-center">
+                  <button
+                    className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                    disabled={!canWrite || row.status !== 'Active'}
+                    type="button"
+                    onClick={() => onReverse(row.docNo)}
+                  >
+                    Reverse
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {rows.length === 0 ? (
+              <tr>
+                <td className="p-6 text-center text-slate-400" colSpan={10}>
+                  ยังไม่มีรายการเคลื่อนไหว
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
       </div>
     </div>
   )
 }
 
-function ProductStockPreview({ destinationWarehouseName, error, isLoading, isReady, stock }: { destinationWarehouseName: string; error: string | null; isLoading: boolean; isReady: boolean; stock: ProductStockPayload | null }) {
-  const totalQty = stock?.rows.reduce((sum, row) => sum + row.qty, 0) ?? 0
-  const totalValue = stock?.rows.reduce((sum, row) => sum + row.value, 0) ?? 0
+function ProductStockPreview({
+  destinationWarehouseName,
+  error,
+  isLoading,
+  isReady,
+  stock,
+}: {
+  destinationWarehouseName: string
+  error: string | null
+  isLoading: boolean
+  isReady: boolean
+  stock: ProductStockPayload | null
+}) {
+  if (!isReady) return null
+  if (isLoading) return <div className="rounded-md bg-slate-50 p-4 text-center text-xs text-slate-500">กำลังดึงข้อมูล Stock...</div>
+  if (error) return <div className="rounded-md border border-red-200 bg-red-50 p-4 text-xs text-red-800 font-semibold">โหลดสต๊อกล้มเหลว: {error}</div>
+  if (!stock) return null
+
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <div className="text-xs font-semibold text-slate-600">Stock สินค้าที่ผลิตในคลังรับผลผลิต</div>
-          <div className="text-xs text-slate-500">{destinationWarehouseName || 'เลือกสาขา สินค้า และคลังรับผลผลิตเพื่อดู stock'}</div>
-        </div>
-        {stock ? <div className="text-right text-xs text-slate-500">รวม <b className="text-slate-800">{formatMoney(totalQty)}</b> กก. · {formatMoney(totalValue)}</div> : null}
+    <div className="rounded-lg border border-indigo-100 bg-indigo-50/50 p-4 space-y-2">
+      <h5 className="font-bold text-indigo-800 text-xs flex items-center gap-1.5">
+        📦 ข้อมูล Stock ปัจจุบันของสินค้าที่จะผลิต: <span className="font-normal text-slate-600">{stock.productName} ({stock.productCode})</span>
+      </h5>
+      <div className="overflow-x-auto rounded-md bg-white border border-indigo-100">
+        <table className="w-full text-xs">
+          <thead className="bg-indigo-50 text-indigo-700">
+            <tr>
+              <th className="p-2 text-left">สาขา / คลัง</th>
+              <th className="p-2 text-center">ประเภท</th>
+              <th className="p-2 text-right">จำนวนคงเหลือ (กก.)</th>
+              <th className="p-2 text-right">ราคาเฉลี่ย/กก.</th>
+              <th className="p-2 text-right">รวมมูลค่า</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-indigo-50/50">
+            {stock.rows.map((row, index) => (
+              <tr key={index} className="hover:bg-indigo-50/10">
+                <td className="p-2 font-medium text-slate-700">{stock.branchCode} / {destinationWarehouseName}</td>
+                <td className="p-2 text-center"><span className="rounded bg-slate-100 px-1 py-0.5 text-[10px] font-bold text-slate-600">{row.status}</span></td>
+                <td className="p-2 text-right font-bold text-slate-900 tabular-nums">{formatMoney(row.qty)}</td>
+                <td className="p-2 text-right text-slate-500 tabular-nums">{formatMoney(row.avgCost)}</td>
+                <td className="p-2 text-right font-bold text-indigo-700 tabular-nums">{formatMoney(row.value)}</td>
+              </tr>
+            ))}
+            {stock.rows.length === 0 ? (
+              <tr>
+                <td className="p-4 text-center text-slate-400 font-semibold" colSpan={5}>
+                  ไม่มีของในคลังนี้ (เป็นศูนย์)
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
       </div>
-      {!isReady ? <div className="rounded-md border border-dashed border-slate-300 bg-white px-3 py-4 text-center text-xs text-slate-500">เลือกสาขา สินค้าที่ผลิต และคลังรับผลผลิตก่อน</div> : null}
-      {isReady && isLoading ? <div className="rounded-md bg-white px-3 py-4 text-center text-xs text-slate-500">กำลังโหลด stock</div> : null}
-      {isReady && !isLoading && error ? <div className="rounded-md border border-red-200 bg-red-50 px-3 py-3 text-xs text-red-700">{error}</div> : null}
-      {isReady && !isLoading && !error && stock && stock.rows.length === 0 ? <div className="rounded-md bg-white px-3 py-4 text-center text-xs text-slate-500">ยังไม่มี stock ของสินค้านี้ในคลังที่เลือก</div> : null}
-      {isReady && !isLoading && !error && stock && stock.rows.length > 0 ? (
-        <div className="grid gap-2 md:grid-cols-3">
-          {stock.rows.map((row) => (
-            <div key={row.status} className="rounded-md bg-white p-3 shadow-sm">
-              <div className="text-xs font-semibold text-slate-500">{row.status}</div>
-              <div className="mt-1 text-lg font-bold text-slate-900">{formatMoney(row.qty)} กก.</div>
-              <div className="mt-1 text-xs text-slate-500">WAC {formatMoney(row.avgCost)} · มูลค่า {formatMoney(row.value)}</div>
-            </div>
-          ))}
-        </div>
-      ) : null}
     </div>
   )
 }
@@ -814,7 +1029,7 @@ function FormField({ children, error, label }: { children: React.ReactNode; erro
   const labelText = hasInlineRequired ? label.trim().slice(0, -1).trimEnd() : label
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium text-slate-600">{labelText}{hasInlineRequired ? <span className="ml-1 text-red-600">*</span> : null}</span>
+      <span className="mb-1 block text-xs font-semibold text-slate-600">{labelText}{hasInlineRequired ? <span className="ml-1 text-red-600 font-bold">*</span> : null}</span>
       {children}
       {error ? <span className="mt-1 block text-xs text-red-600">{error}</span> : null}
     </label>
@@ -837,7 +1052,7 @@ function getComboboxCode(formElement: HTMLFormElement | undefined, inputId: stri
 function SelectField({ allowBlank = false, disabled = false, error, helperText, label, onChange, options, placeholder, selectId, value }: { allowBlank?: boolean; disabled?: boolean; error?: string; helperText?: string; label: string; onChange: (value: string) => void; options: Option[]; placeholder?: string; selectId?: string; value: string }) {
   return (
     <FormField error={error} label={label}>
-      <select id={selectId} className={`w-full rounded-md border px-3 py-2 disabled:bg-slate-100 disabled:text-slate-600 ${error ? 'border-red-400 bg-red-50' : 'border-slate-300'}`} disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)}>
+      <select id={selectId} className={`w-full rounded-md border px-3 py-2 disabled:bg-slate-100 disabled:text-slate-600 ${error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300 bg-white text-slate-800'} h-9 text-sm outline-none`} disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)}>
         <option value="">{allowBlank ? '-' : (placeholder ?? 'เลือกข้อมูล')}</option>
         {options.map((option) => <option key={`${option.code}-${option.id}`} value={option.code}>{option.code} - {option.name}</option>)}
       </select>
@@ -853,8 +1068,8 @@ function MiniMetric({ label, tone, value }: { label: string; tone: 'amber' | 'em
 
 function Metric({ label, value, tone = 'normal' }: { label: string; tone?: 'normal' | 'danger'; value: string }) {
   return (
-    <div className="rounded-md bg-white p-3 shadow">
-      <div className="text-xs text-slate-500">{label}</div>
+    <div className="rounded-md bg-white p-3 shadow border border-slate-200/50">
+      <div className="text-xs text-slate-500 font-semibold">{label}</div>
       <div className={`mt-1 text-lg font-bold ${tone === 'danger' ? 'text-red-700' : 'text-slate-900'}`}>{value}</div>
     </div>
   )
@@ -863,8 +1078,8 @@ function Metric({ label, value, tone = 'normal' }: { label: string; tone?: 'norm
 function ReadField({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className="mt-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">{value}</div>
+      <div className="text-xs text-slate-500 font-semibold">{label}</div>
+      <div className="mt-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">{value}</div>
     </div>
   )
 }
@@ -890,5 +1105,6 @@ function statusClass(status: string) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  return <span className={`rounded-full px-2 py-1 text-xs font-bold ${statusClass(status)}`}>{status}</span>
+  return <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${statusClass(status)}`}>{status}</span>
 }
+

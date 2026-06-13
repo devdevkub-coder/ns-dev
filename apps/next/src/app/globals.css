@@ -245,3 +245,14 @@ input[type="search"]::-webkit-search-results-decoration {
   scrollbar-width: thin;
   scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
 }
+
+button:focus,
+button:active,
+a:focus,
+a:active,
+[role="dialog"]:focus,
+[role="dialog"]:active,
+[role="dialog"] *:focus,
+[role="dialog"] *:active {
+  outline: none !important;
+}

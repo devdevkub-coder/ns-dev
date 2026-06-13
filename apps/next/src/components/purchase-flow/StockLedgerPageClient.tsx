@@ -1,8 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button } from '@/components/ui/Button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/Dialog'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { AlertTriangle, Download, RotateCcw, Search, X } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
@@ -34,6 +33,19 @@ const stockLedgerColumns: Array<ResizableColumnDefinition<StockLedgerColumnKey>>
 ]
 
 type StockLedgerColumnKey = StockLedgerSortKey
+
+function MatchButton({ active, label, onClick, tone = 'dark' }: { active: boolean; label: string; onClick: () => void; tone?: 'amber' | 'dark' | 'emerald' | 'red' | 'slate' }) {
+  const activeClass = {
+    amber: 'border-amber-600 bg-amber-600 text-white',
+    dark: 'border-slate-700 bg-slate-700 text-white',
+    emerald: 'border-emerald-600 bg-emerald-600 text-white',
+    red: 'border-red-600 bg-red-600 text-white',
+    slate: 'border-slate-500 bg-slate-500 text-white',
+  }[tone]
+  const idleClass = tone === 'amber' ? 'border-slate-300 bg-white hover:bg-amber-50' : tone === 'emerald' ? 'border-slate-300 bg-white hover:bg-emerald-50' : tone === 'red' ? 'border-slate-300 bg-white hover:bg-red-50' : 'border-slate-300 bg-white hover:bg-slate-100'
+  return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
+}
+
 
 type StockLedgerPayload = {
   movementTypes: string[]
@@ -87,6 +99,7 @@ export function StockLedgerPageClient() {
   const [sortDirection, setSortDirection] = useState<StockLedgerSortDirection>('desc')
   const [sortKey, setSortKey] = useState<StockLedgerSortKey>('date')
   const [toDate, setToDate] = useState('')
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
   const columnResize = useResizableColumns('stock.ledger', stockLedgerColumns)
 
   const loadData = useCallback(async () => {
@@ -168,9 +181,22 @@ export function StockLedgerPageClient() {
   return (
     <section>
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
-      <div className="mb-3 rounded-md bg-white p-3 shadow">
+      
+      {/* Desktop Toolbar (Hidden on Mobile) */}
+      <div className="hidden md:block mb-3 space-y-2 rounded-md bg-white p-3 shadow">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="min-w-[260px] max-w-md flex-1">
+          <div className="relative min-w-[200px] flex-1">
+            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <input 
+              className="h-9 w-full rounded-md border py-2 pl-9 pr-3 text-sm" 
+              placeholder="ค้นหาเลขเอกสาร / ผู้ขาย/ผู้ซื้อ / สาขา / คลัง..." 
+              type="search" 
+              value={search} 
+              onChange={(event) => setSearch(event.target.value)} 
+            />
+          </div>
+
+          <div className="min-w-[260px]">
             <SearchCombobox
               hideLabel
               inputClassName="h-9 text-sm"
@@ -185,49 +211,208 @@ export function StockLedgerPageClient() {
               }}
             />
           </div>
-          <select className="h-9 rounded-md border px-3 text-sm" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>
+
+          {filtersActive ? (
+            <button 
+              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-slate-100 px-3 text-xs hover:bg-slate-200" 
+              type="button" 
+              onClick={() => { setBranchId(''); setFromDate(''); setMovementType(''); setPage(1); setProductId(''); setSearch(''); setToDate('') }}
+            >
+              <RotateCcw className="h-3.5 w-3.5" /> ล้างตัวกรอง
+            </button>
+          ) : null}
+
+          <button 
+            className="h-9 rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200" 
+            type="button" 
+            onClick={() => void loadData()}
+          >
+            Refresh
+          </button>
+
+          <button 
+            className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 h-9 flex items-center gap-1.5" 
+            type="button" 
+            onClick={exportXlsx}
+          >
+            <Download className="h-3.5 w-3.5" /> ส่งออก Excel
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+          <span className="text-xs text-slate-500">Running Balance:</span>
+          <MatchButton active={balanceMode === 'product'} label="ต่อสินค้า" onClick={() => { setPage(1); setBalanceMode('product') }} />
+          <MatchButton active={balanceMode === 'warehouse'} label="ต่อคลัง" onClick={() => { setPage(1); setBalanceMode('warehouse') }} />
+
+          <span className="text-xs text-slate-500 ml-4">สาขา:</span>
+          <select className="h-7 rounded-md border border-slate-300 px-2 py-0.5 text-xs bg-white text-slate-800" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>
             <option value="">ทุกสาขา</option>
             {(data?.reference.branches ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
-          <select className="h-9 rounded-md border px-3 text-sm" value={movementType} onChange={(event) => { setPage(1); setMovementType(event.target.value) }}>
+
+          <span className="text-xs text-slate-500 ml-4">ประเภท:</span>
+          <select className="h-7 rounded-md border border-slate-300 px-2 py-0.5 text-xs bg-white text-slate-800" value={movementType} onChange={(event) => { setPage(1); setMovementType(event.target.value) }}>
             <option value="">ทุกประเภท</option>
             {(data?.movementTypes ?? []).map((item) => <option key={item} value={item}>{stockMovementTypeLabel(item)}</option>)}
           </select>
-          <DatePickerInput className="w-[130px]" title="จากวันที่" value={fromDate} onChange={(value) => { setPage(1); setFromDate(value) }} />
+
+          <span className="text-xs text-slate-500 ml-4">ช่วงเวลา:</span>
+          <DatePickerInput className="w-[130px] !h-7 text-xs" title="จากวันที่" value={fromDate} onChange={(value) => { setPage(1); setFromDate(value) }} />
           <span className="text-slate-400">→</span>
-          <DatePickerInput className="w-[130px]" title="ถึงวันที่" value={toDate} onChange={(value) => { setPage(1); setToDate(value) }} />
-          {filtersActive ? <button className="inline-flex h-9 items-center gap-1.5 rounded-md bg-slate-100 px-3 text-xs hover:bg-slate-200" type="button" onClick={() => { setBranchId(''); setFromDate(''); setMovementType(''); setPage(1); setProductId(''); setSearch(''); setToDate('') }}><RotateCcw className="h-3.5 w-3.5" />ล้าง</button> : null}
-          <div className="inline-flex h-9 overflow-hidden rounded-md border border-slate-300 text-xs" title="โหมดคำนวณ Running Balance">
-            <button className={`px-3 font-bold ${balanceMode === 'product' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-100'}`} title="คำนวณยอดต่อสินค้าเท่านั้น (ตรงกับหน้า Stock Balance + Drilldown)" type="button" onClick={() => { setPage(1); setBalanceMode('product') }}>ต่อสินค้า</button>
-            <button className={`border-l border-slate-300 px-3 font-bold ${balanceMode === 'warehouse' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-100'}`} title="คำนวณยอดต่อสินค้า × สาขา × คลัง" type="button" onClick={() => { setPage(1); setBalanceMode('warehouse') }}>ต่อคลัง</button>
-          </div>
-          <button className="hidden md:inline-flex h-9 items-center gap-1.5 rounded-md bg-emerald-600 px-3 text-xs font-bold text-white ml-auto" type="button" onClick={exportXlsx}><Download className="h-3.5 w-3.5" />.xlsx</button>
+          <DatePickerInput className="w-[130px] !h-7 text-xs" title="ถึงวันที่" value={toDate} onChange={(value) => { setPage(1); setToDate(value) }} />
         </div>
       </div>
+
+      {/* Mobile Toolbar (Hidden on Desktop) */}
+      <div className="mb-3 space-y-2 rounded-md bg-white p-3 shadow md:hidden">
+        <div className="flex gap-2 items-center">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <input 
+              className="h-9 w-full rounded-md border py-2 pl-9 pr-3 text-sm" 
+              placeholder="ค้นหา..." 
+              type="search" 
+              value={search} 
+              onChange={(event) => setSearch(event.target.value)} 
+            />
+          </div>
+          <button className="h-9 rounded-md bg-slate-100 px-2.5 text-xs text-slate-700" type="button" onClick={() => void loadData()}>
+            Refresh
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            onClick={() => setShowMobileFilters(true)}
+          >
+            ตัวกรอง {filtersActive ? '(มี)' : ''}
+          </button>
+        </div>
+        
+        <div className="flex gap-2 border-t border-slate-100 pt-2">
+          <button 
+            className={`flex-1 h-8 rounded-md text-xs font-semibold ${balanceMode === 'product' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-700'}`} 
+            type="button"
+            onClick={() => { setPage(1); setBalanceMode('product') }}
+          >
+            ต่อสินค้า
+          </button>
+          <button 
+            className={`flex-1 h-8 rounded-md text-xs font-semibold ${balanceMode === 'warehouse' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-700'}`} 
+            type="button"
+            onClick={() => { setPage(1); setBalanceMode('warehouse') }}
+          >
+            ต่อคลัง
+          </button>
+        </div>
+      </div>
+
+      {/* Bottom Sheet Filter for Mobile */}
+      {showMobileFilters ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 md:hidden animate-fade-in">
+          <div className="w-full rounded-t-2xl bg-white p-4 shadow-xl border-t border-slate-200 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <h4 className="font-bold text-slate-800 font-sans">ตัวกรอง Stock Ledger</h4>
+              <button
+                className="p-1 text-slate-400 hover:text-slate-600 text-xl font-bold font-sans"
+                onClick={() => setShowMobileFilters(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">สินค้า</span>
+                <SearchCombobox
+                  hideLabel
+                  inputClassName="h-10 text-sm"
+                  inputId="stock-ledger-product-search-mobile"
+                  label="สินค้า"
+                  options={productOptions}
+                  placeholder="ทุกสินค้า"
+                  value={productId}
+                  onChange={(value) => {
+                    setPage(1)
+                    setProductId(value)
+                  }}
+                />
+              </div>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
+                <select className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" value={branchId} onChange={(event) => { setPage(1); setBranchId(event.target.value) }}>
+                  <option value="">ทุกสาขา</option>
+                  {(data?.reference.branches ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">ประเภทการโอน</span>
+                <select className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" value={movementType} onChange={(event) => { setPage(1); setMovementType(event.target.value) }}>
+                  <option value="">ทุกประเภท</option>
+                  {(data?.movementTypes ?? []).map((item) => <option key={item} value={item}>{stockMovementTypeLabel(item)}</option>)}
+                </select>
+              </label>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="mb-1 block text-xs font-semibold text-slate-600 font-sans">จากวันที่</span>
+                  <DatePickerInput className="w-full h-10 text-sm" title="จากวันที่" value={fromDate} onChange={(value) => { setPage(1); setFromDate(value) }} />
+                </div>
+                <div>
+                  <span className="mb-1 block text-xs font-semibold text-slate-600 font-sans">ถึงวันที่</span>
+                  <DatePickerInput className="w-full h-10 text-sm" title="ถึงวันที่" value={toDate} onChange={(value) => { setPage(1); setToDate(value) }} />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-6 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => {
+                  setBranchId('')
+                  setFromDate('')
+                  setMovementType('')
+                  setPage(1)
+                  setProductId('')
+                  setSearch('')
+                  setToDate('')
+                  setShowMobileFilters(false)
+                }}
+              >
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                className="h-11 rounded-md bg-slate-900 text-sm font-semibold text-white hover:bg-slate-850"
+                onClick={() => setShowMobileFilters(false)}
+              >
+                ใช้ตัวกรอง
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {movementType ? (
-        <div className="mb-3 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <div className="mb-3 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 animate-fade-in">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <div><b>คุณกำลังกรองประเภท {stockMovementTypeLabel(movementType)}</b> — <b>คงเหลือ</b> เป็นยอดสะสมจากทุกประเภท เพื่อให้ตรง ledger running balance</div>
         </div>
       ) : null}
-      <div className="mb-3 rounded-md bg-white p-3 shadow">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-64 flex-1">
-            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-            <input className="h-9 w-full rounded-md border py-2 pl-9 pr-3 text-sm" placeholder="ค้นหาเลขเอกสาร / สินค้า / ผู้ขาย/ผู้ซื้อ / สาขา" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-          </div>
-        </div>
-      </div>
+
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
         <span>พบทั้งหมด <span className="font-semibold text-slate-900">{data?.total ?? 0}</span> รายการ</span>
         <div className="flex flex-wrap items-center gap-2">
           {columnResize.hasCustomWidths ? <button className="hidden md:inline-flex h-9 rounded-md border px-3 text-sm text-slate-700 hover:bg-slate-50" type="button" onClick={columnResize.resetColumnWidths}>Set col to default</button> : null}
-          <select aria-label="จำนวนรายการต่อหน้า" className="h-9 rounded-md border px-2 text-sm" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>
+          <select aria-label="จำนวนรายการต่อหน้า" className="h-9 rounded-md border px-2 text-sm bg-white text-slate-800" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>
             {stockLedgerPageSizes.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
           </select>
-          <button className="h-9 rounded-md border px-3 text-sm disabled:opacity-40" disabled={page <= 1} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</button>
-          <span className="px-1 text-sm">หน้า {page} / {totalPages}</span>
-          <button className="h-9 rounded-md border px-3 text-sm disabled:opacity-40" disabled={page >= totalPages} type="button" onClick={() => setPage((value) => value + 1)}>ถัดไป</button>
+          <button className="h-9 rounded-md border px-3 text-sm disabled:opacity-40 bg-white text-slate-700 hover:bg-slate-50" disabled={page <= 1} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</button>
+          <span className="px-1 text-sm font-medium">หน้า {page} / {totalPages}</span>
+          <button className="h-9 rounded-md border px-3 text-sm disabled:opacity-40 bg-white text-slate-700 hover:bg-slate-50" disabled={page >= totalPages} type="button" onClick={() => setPage((value) => value + 1)}>ถัดไป</button>
         </div>
       </div>
 
@@ -250,12 +435,12 @@ export function StockLedgerPageClient() {
             
             <div className="text-xs text-slate-600 space-y-1">
               <div>
-                <span className="font-semibold text-slate-500">สินค้า: </span>
+                <span className="font-semibold text-slate-500 font-sans">สินค้า: </span>
                 <span className="text-slate-800">{row.productCode ? `${row.productCode} · ` : ''}{row.productName}</span>
                 {row.lotNo && row.lotNo !== 'OPENING' ? <span className="ml-1 text-[11px] font-medium text-slate-400">[{row.lotNo}]</span> : null}
               </div>
               <div>
-                <span className="font-semibold text-slate-500">ประเภทการโอน: </span>
+                <span className="font-semibold text-slate-500 font-sans">ประเภทการโอน: </span>
                 <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${row.qtyIn > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
                   {stockMovementTypeLabel(row.movementType)}
                 </span>
@@ -275,7 +460,7 @@ export function StockLedgerPageClient() {
                 </div>
               </div>
               <div className="flex justify-between items-center text-[10px] text-slate-400 pt-1 border-t border-slate-100/60 mt-1">
-                <span>ต้นทุน/น.: {formatMoney(row.unitCost)} บาท</span>
+                <span>ต้นทุน/น.: {formatMoney(row.runningBalanceByProduct < 0 ? 0 : row.unitCost)} บาท</span>
                 <span className="truncate max-w-[150px]">{row.counterpartyName && row.counterpartyName !== '-' ? row.counterpartyName : ''}</span>
               </div>
             </div>
@@ -289,6 +474,7 @@ export function StockLedgerPageClient() {
         ) : null}
       </div>
 
+      {/* Desktop Table View */}
       <div className="hidden md:block overflow-x-auto rounded-md bg-white shadow">
         <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
@@ -347,6 +533,7 @@ export function StockLedgerPageClient() {
           </tbody>
         </table>
       </div>
+      
       {selectedRow ? <StockLedgerDetailModal row={selectedRow} onClose={() => setSelectedRow(null)} /> : null}
     </section>
   )
@@ -438,17 +625,16 @@ function StockLedgerDetailModal({ onClose, row }: { onClose: () => void; row: St
 
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="max-h-[90vh] max-w-3xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-none">
-        <DialogHeader className="px-5 py-4 bg-slate-900 text-white shrink-0 flex flex-row items-start justify-between gap-3">
+      <DialogContent className="max-h-[90vh] max-w-3xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 animate-fade-in" hideClose>
+        <div className="flex items-center justify-between bg-slate-900 text-white px-5 py-4 shrink-0 border-b border-slate-800">
           <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <DialogTitle className="text-lg font-bold text-white">รายละเอียด Stock Ledger</DialogTitle>
-            </div>
-            <DialogDescription className="mt-1 text-xs text-slate-400">
+            <DialogTitle className="text-lg font-bold text-white">รายละเอียด Stock Ledger</DialogTitle>
+            <DialogDescription className="mt-0.5 text-xs text-slate-400">
               อ่านอย่างเดียวจากรายการ ledger ที่แสดงในตาราง
             </DialogDescription>
           </div>
-        </DialogHeader>
+          <button className="text-2xl text-slate-400 hover:text-white" type="button" onClick={onClose}>&times;</button>
+        </div>
 
         <div className="flex-1 overflow-y-auto bg-slate-50 p-5 space-y-4 text-sm">
           <div className="grid gap-4 md:grid-cols-2">
@@ -501,12 +687,18 @@ function StockLedgerDetailModal({ onClose, row }: { onClose: () => void; row: St
           </div>
         </div>
 
-        <DialogFooter className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 shrink-0">
-          <Button className="font-normal" size="sm" type="button" variant="outline" onClick={onClose}>ปิด</Button>
-        </DialogFooter>
+        <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 shrink-0">
+          <button 
+            className="rounded-md border border-slate-300 bg-white px-5 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50 animate-fade-in" 
+            type="button" 
+            onClick={onClose}
+          >
+            ปิด
+          </button>
+        </div>
       </DialogContent>
     </Dialog>
-)
+  )
 }
 
 function DetailPanel({ children, title }: { children: ReactNode; title: string }) {
@@ -532,3 +724,4 @@ function DetailRow({ className = '', label, mono = false, tone = 'normal', value
     </div>
   )
 }
+

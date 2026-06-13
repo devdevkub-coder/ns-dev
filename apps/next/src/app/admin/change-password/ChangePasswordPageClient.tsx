@@ -155,21 +155,36 @@ export function ChangePasswordPageClient() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-md bg-white p-4 shadow">
+      {/* Desktop Toolbar (Hidden on Mobile) */}
+      <div className="hidden md:block rounded-md bg-white p-4 shadow border border-slate-200">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">เปลี่ยนรหัสผ่าน</h2>
+            <p className="mt-1 text-sm text-slate-500">ยืนยันรหัสผ่านเดิมก่อนตั้งรหัสผ่านใหม่ของบัญชีผู้ใช้ปัจจุบัน</p>
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800 shrink-0">
+            <ShieldCheck className="size-4" />
+            Supabase Auth
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Toolbar (Hidden on Desktop) */}
+      <div className="md:hidden rounded-md bg-white p-3.5 shadow space-y-2.5 border border-slate-200 animate-fade-in">
         <div>
           <h2 className="text-lg font-bold text-slate-900">เปลี่ยนรหัสผ่าน</h2>
-          <p className="mt-1 text-sm text-slate-500">ยืนยันรหัสผ่านเดิมก่อนตั้งรหัสผ่านใหม่ของบัญชีผู้ใช้ปัจจุบัน</p>
+          <p className="mt-0.5 text-xs text-slate-500">ยืนยันรหัสผ่านเดิมก่อนตั้งรหัสผ่านใหม่</p>
         </div>
-        <div className="inline-flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800">
-          <ShieldCheck className="size-4" />
+        <div className="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-800 w-fit shrink-0">
+          <ShieldCheck className="size-3.5" />
           Supabase Auth
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <form className="space-y-4 rounded-md bg-white p-5 shadow" onSubmit={submit}>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] animate-fade-in">
+        <form className="space-y-4 rounded-md bg-white p-5 shadow border border-slate-200" onSubmit={submit}>
           {user?.mustChangePassword ? (
-            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            <div className="rounded-md border border-amber-250 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 animate-pulse">
               รหัสผ่านของคุณยังเป็นค่าเริ่มต้น กรุณาเปลี่ยนก่อนใช้งานต่อ
             </div>
           ) : null}
@@ -211,17 +226,17 @@ export function ChangePasswordPageClient() {
             onChange={setConfirmPassword}
           />
 
-          <label className="inline-flex items-center gap-2 text-sm text-slate-600">
-            <input checked={showPassword} className="size-4 rounded border-slate-300" onChange={(event) => setShowPassword(event.target.checked)} type="checkbox" />
+          <label className="inline-flex items-center gap-2 text-sm text-slate-650 cursor-pointer select-none">
+            <input checked={showPassword} className="size-4 rounded border-slate-300 text-slate-900 focus:ring-blue-500 focus:border-blue-500" onChange={(event) => setShowPassword(event.target.checked)} type="checkbox" />
             {showPassword ? <EyeOff className="size-4 text-slate-500" /> : <Eye className="size-4 text-slate-500" />}
             แสดงรหัสผ่าน
           </label>
 
-          {error ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
-          {message ? <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{message}</div> : null}
+          {error ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 animate-fade-in">{error}</div> : null}
+          {message ? <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700 animate-fade-in">{message}</div> : null}
 
           <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
-            <Button disabled={isLoading || isFetchingUser || !isSupabaseReady} type="submit">
+            <Button className="w-full sm:w-auto font-semibold" disabled={isLoading || isFetchingUser || !isSupabaseReady} type="submit">
               <KeyRound className="mr-2 size-4" />
               {isLoading ? 'กำลังเปลี่ยนรหัสผ่าน...' : 'บันทึกรหัสผ่านใหม่'}
             </Button>
@@ -229,22 +244,22 @@ export function ChangePasswordPageClient() {
         </form>
 
         <aside className="space-y-3">
-          <div className="rounded-md bg-white p-4 shadow">
+          <div className="rounded-md bg-white p-4 shadow border border-slate-200">
             <div className="flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded-md bg-slate-900 text-white">
+              <div className="flex size-10 items-center justify-center rounded bg-slate-900 text-white shrink-0">
                 <UserRound className="size-5" />
               </div>
-              <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-slate-900">{isFetchingUser ? 'กำลังโหลดผู้ใช้...' : user?.name ?? '-'}</div>
-                <div className="truncate text-xs text-slate-500">@{user?.username ?? '-'}</div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-bold text-slate-900">{isFetchingUser ? 'กำลังโหลดผู้ใช้...' : user?.name ?? '-'}</div>
+                <div className="truncate text-xs text-slate-500 mt-0.5">@{user?.username ?? '-'}</div>
               </div>
             </div>
-            <div className="mt-3 truncate rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">{user?.email || '-'}</div>
+            <div className="mt-3 truncate rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 font-medium">{user?.email || '-'}</div>
           </div>
 
           <div className="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-            <div className="font-semibold text-slate-900">คำแนะนำรหัสผ่าน</div>
-            <ul className="mt-2 list-disc space-y-1 pl-4 text-xs leading-5 text-slate-600">
+            <div className="font-bold text-slate-900 text-xs uppercase tracking-wide">คำแนะนำรหัสผ่าน</div>
+            <ul className="mt-2.5 list-disc space-y-1.5 pl-4 text-xs leading-relaxed text-slate-600">
               <li>ใช้ตัวอักษรใหญ่ ตัวอักษรเล็ก และตัวเลขร่วมกัน</li>
               <li>หลีกเลี่ยงรหัสผ่านเดียวกับระบบอื่น</li>
               <li>ระบบใช้ Supabase Auth เป็นแหล่งข้อมูลรหัสผ่าน ไม่บันทึกในตารางของแอป</li>
@@ -268,11 +283,11 @@ function PasswordField(props: {
 }) {
   return (
     <label className="block text-sm font-medium text-slate-700">
-      {props.label} <span className="text-red-600">*</span>
-      {props.description ? <span className="ml-1 text-xs font-normal text-slate-500">({props.description})</span> : null}
+      {props.label} <span className="text-red-650">*</span>
+      {props.description ? <span className="ml-1 text-[11px] font-normal text-slate-500">({props.description})</span> : null}
       <Input
         autoComplete={props.autoComplete}
-        className={`mt-1.5 h-9 ${props.error ? 'border-red-400 bg-red-50' : ''}`}
+        className={`mt-1.5 h-9 focus:ring-blue-500 focus:border-blue-500 ${props.error ? 'border-red-400 bg-red-50 focus:border-red-400' : ''}`}
         disabled={props.disabled}
         type={props.showPassword ? 'text' : 'password'}
         value={props.value}

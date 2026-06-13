@@ -23,6 +23,7 @@ import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { formatDecimalDisplay, formatDecimalDraft, formatPhoneDisplay, sanitizeAccountNoInput, sanitizeDecimalInput } from '@/lib/format'
+import { Dialog, DialogContent } from '@/components/ui/Dialog'
 
 type SortKey = keyof MasterDataRecord
 type TableColumnKey = SortKey | '__action'
@@ -286,6 +287,8 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
   const [selectedRecord, setSelectedRecord] = useState<MasterDataRecord | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [sortKey, setSortKey] = useState<SortKey>(config.columns[0]?.key ?? 'code')
+  const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
   const resizableColumns = useMemo<Array<ResizableColumnDefinition<TableColumnKey>>>(() => ([
     ...config.columns.map((column) => ({
       defaultWidth: column.width ?? 136,
@@ -339,14 +342,19 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
 
   const filteredRecords = useMemo(() => {
     const query = search.trim().toLowerCase()
-    const rows = !query
-      ? records
-      : records.filter((record) =>
-          Object.values(record).some((value) => String(value ?? '').toLowerCase().includes(query)),
-        )
+    const rows = records.filter((record) => {
+      if (config.supportsActive !== false) {
+        if (activeFilter === 'active' && !record.active) return false
+        if (activeFilter === 'inactive' && record.active) return false
+      }
+      if (!query) return true
+      return Object.values(record).some((value) =>
+        String(value ?? '').toLowerCase().includes(query),
+      )
+    })
 
     return [...rows].sort((left, right) => compareRecords(left, right, sortKey, sortDirection))
-  }, [records, search, sortDirection, sortKey])
+  }, [records, search, sortDirection, sortKey, activeFilter, config.supportsActive])
 
   const total = filteredRecords.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
@@ -357,8 +365,15 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
   }, [currentPage, filteredRecords, pageSize])
 
   useEffect(() => {
-    if (page > totalPages) setPage(totalPages)
-  }, [page, totalPages])
+    setPage(1)
+  }, [search, activeFilter, pageSize])
+
+  const hasFilters = Boolean(search.trim() || (config.supportsActive !== false && activeFilter !== 'all'))
+  const resetFilters = useCallback(() => {
+    setSearch('')
+    setActiveFilter('all')
+    setPage(1)
+  }, [])
 
   function openCreateForm() {
     setSelectedRecord(null)
@@ -416,33 +431,72 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
         </div>
       ) : null}
 
-      <div className="rounded-md bg-white p-4 shadow">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="w-full md:max-w-md">
-            <input
-              className="h-9 w-full rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-700"
-              onChange={(event) => {
-                setSearch(event.target.value)
-                setPage(1)
-              }}
-              placeholder="ค้นหา..."
-              type="search"
-              value={search}
-            />
-            {config.description ? <div className="mt-2 text-xs text-slate-500">{config.description}</div> : null}
-          </div>
-          <div className="flex flex-wrap items-center justify-end gap-2 hidden md:flex">
-            <button className="h-9 rounded-md bg-slate-900 px-4 text-sm font-bold text-white hover:bg-slate-700" type="button" onClick={openCreateForm}>
-              + {config.createLabel}
+      {/* Desktop Toolbar (Hidden on Mobile) */}
+      <div className="hidden md:block mb-4 space-y-2 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            className="min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm h-9 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+            placeholder="ค้นหา..."
+            type="search"
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value)
+              setPage(1)
+            }}
+          />
+          {hasFilters ? (
+            <button className="rounded-md bg-slate-100 hover:bg-slate-200 px-3 py-2 text-xs h-9 focus:outline-none" type="button" onClick={resetFilters}>
+              ✕ ล้าง
             </button>
+          ) : null}
+          <button
+            className="ml-auto rounded-md bg-slate-900 hover:bg-slate-800 px-4 py-2 text-sm text-white disabled:opacity-60 h-9 flex items-center justify-center font-normal focus:outline-none"
+            type="button"
+            onClick={openCreateForm}
+          >
+            + {config.createLabel}
+          </button>
+        </div>
+        {config.supportsActive !== false ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-slate-500">สถานะ:</span>
+            <MatchButton active={activeFilter === 'all'} label="ทั้งหมด" onClick={() => setActiveFilter('all')} />
+            <MatchButton active={activeFilter === 'active'} label="ใช้งาน" tone="emerald" onClick={() => setActiveFilter('active')} />
+            <MatchButton active={activeFilter === 'inactive'} label="ปิด" tone="slate" onClick={() => setActiveFilter('inactive')} />
           </div>
+        ) : null}
+        {config.description ? <div className="text-xs text-slate-500 mt-1">{config.description}</div> : null}
+      </div>
+
+      {/* Mobile Toolbar (Hidden on Desktop) */}
+      <div className="mb-4 space-y-2 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm md:hidden">
+        <div className="flex gap-2 items-center">
+          <input
+            className="min-w-[200px] flex-1 rounded-md border px-3 py-2 text-sm h-9 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+            placeholder="ค้นหา..."
+            type="search"
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value)
+              setPage(1)
+            }}
+          />
+          {config.supportsActive !== false ? (
+            <button
+              type="button"
+              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none"
+              onClick={() => setShowMobileFilters(true)}
+            >
+              ตัวกรอง {activeFilter !== 'all' ? '(มี)' : ''}
+            </button>
+          ) : null}
         </div>
       </div>
 
       {/* Floating Action Button (FAB) for Mobile */}
       <div className="fixed bottom-6 right-6 z-40 md:hidden">
         <button
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg active:scale-95 transition-transform"
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg active:scale-95 transition-transform focus:outline-none"
           onClick={openCreateForm}
           type="button"
           aria-label={config.createLabel}
@@ -451,24 +505,71 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
         </button>
       </div>
 
-      {formOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8">
-          <div className="w-full max-w-4xl">
-            <MasterDataForm
-              config={resolvedConfig}
-              isSaving={isSaving}
-              paymentMethodRows={fieldOptionRows.type ?? []}
-              supportsActive={config.supportsActive !== false}
-              record={selectedRecord}
-              onCancel={() => {
-                setFormOpen(false)
-                setSelectedRecord(null)
-              }}
-              onSubmit={handleSubmit}
-            />
+      {/* Bottom Sheet Filter for Mobile */}
+      {showMobileFilters && config.supportsActive !== false ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 md:hidden">
+          <div className="w-full rounded-t-2xl bg-white p-4 shadow-xl border-t border-slate-200 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <h4 className="font-bold text-slate-800">ตัวกรองเพิ่มเติม</h4>
+              <button
+                className="p-1 text-slate-400 hover:text-slate-600 text-xl font-bold"
+                onClick={() => setShowMobileFilters(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะการใช้งาน</span>
+                <div className="flex flex-wrap gap-2">
+                  <MatchButton active={activeFilter === 'all'} label="ทั้งหมด" onClick={() => setActiveFilter('all')} />
+                  <MatchButton active={activeFilter === 'active'} label="ใช้งาน" tone="emerald" onClick={() => setActiveFilter('active')} />
+                  <MatchButton active={activeFilter === 'inactive'} label="ปิด" tone="slate" onClick={() => setActiveFilter('inactive')} />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-6 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => {
+                  resetFilters()
+                  setShowMobileFilters(false)
+                }}
+              >
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                className="h-11 rounded-md bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700"
+                onClick={() => setShowMobileFilters(false)}
+              >
+                ใช้ตัวกรอง
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
+
+      <Dialog open={formOpen} onOpenChange={(open) => { if (!open) { setFormOpen(false); setSelectedRecord(null); } }}>
+        <DialogContent className="max-w-4xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" hideClose>
+          <MasterDataForm
+            config={resolvedConfig}
+            isSaving={isSaving}
+            paymentMethodRows={fieldOptionRows.type ?? []}
+            supportsActive={config.supportsActive !== false}
+            record={selectedRecord}
+            onCancel={() => {
+              setFormOpen(false)
+              setSelectedRecord(null)
+            }}
+            onSubmit={handleSubmit}
+          />
+        </DialogContent>
+      </Dialog>
 
       {isLoading ? <div className="rounded-md bg-white p-6 text-center text-sm text-slate-500 shadow">กำลังโหลดข้อมูล</div> : null}
 
@@ -502,7 +603,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
           </div>
 
           {/* Desktop Table View */}
-          <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm hidden md:block">
+          <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white shadow-sm hidden md:block">
             <div className="overflow-x-auto">
               <Table className="[&_tbody_tr]:border-slate-100" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
                 <colgroup>
@@ -855,7 +956,7 @@ function FormField({ error, field, value, onChange }: FormFieldProps) {
         <input
           aria-invalid={Boolean(error)}
           aria-required={field.required}
-          className={`w-full h-10 rounded-md border px-3 py-2 text-sm outline-none transition-all duration-150 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 ${isMoneyField ? 'text-right' : ''} ${error ? 'border-red-400 bg-red-50/50' : 'bg-white text-slate-800 border-slate-300 hover:border-slate-400'}`}
+          className={`w-full h-10 rounded-md border px-3 py-2 text-sm outline-none transition-all duration-150 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ${isMoneyField ? 'text-right' : ''} ${error ? 'border-red-400 bg-red-50/50' : 'bg-white text-slate-800 border-slate-300 hover:border-slate-400'}`}
           inputMode={isEmailField ? 'email' : isAccountNoField ? 'numeric' : isNumberField ? 'decimal' : undefined}
           placeholder={inputPlaceholder}
           type={inputType}
@@ -907,3 +1008,17 @@ function FormField({ error, field, value, onChange }: FormFieldProps) {
     </label>
   )
 }
+
+function MatchButton({ active, label, onClick, tone = 'dark' }: { active: boolean; label: string; onClick: () => void; tone?: 'amber' | 'dark' | 'emerald' | 'red' | 'slate' }) {
+  const activeClass = {
+    amber: 'border-amber-600 bg-amber-600 text-white',
+    dark: 'border-slate-700 bg-slate-700 text-white',
+    emerald: 'border-emerald-600 bg-emerald-600 text-white',
+    red: 'border-red-600 bg-red-600 text-white',
+    slate: 'border-slate-500 bg-slate-500 text-white',
+  }[tone]
+  const idleClass = tone === 'amber' ? 'border-slate-300 bg-white hover:bg-amber-50' : tone === 'emerald' ? 'border-slate-300 bg-white hover:bg-emerald-50' : tone === 'red' ? 'border-slate-300 bg-white hover:bg-red-50' : 'border-slate-300 bg-white hover:bg-slate-100'
+  return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
+}
+
+

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { Button } from '@/components/ui/Button'
+import { Dialog, DialogContent } from '@/components/ui/Dialog'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -181,6 +182,8 @@ export function ImpuritiesPageClient() {
     setPage(1)
   }
 
+  const hasFilters = Boolean(search.trim() || activeFilter !== '')
+
   return (
     <section className="space-y-4">
       {error ? (
@@ -190,56 +193,65 @@ export function ImpuritiesPageClient() {
         </div>
       ) : null}
 
-      <div className="rounded-md bg-white p-3 shadow">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex flex-col gap-2 w-full xl:max-w-2xl xl:grid xl:grid-cols-[minmax(0,1fr)_130px]">
-            <div className="flex gap-2 w-full">
-              <input
-                className="h-9 w-full flex-1 rounded-md border border-slate-300 px-3 text-sm"
-                onChange={(event) => {
-                  setPage(1)
-                  setSearch(event.target.value)
-                }}
-                placeholder="ค้นหา..."
-                type="search"
-                value={search}
-              />
-              <button
-                type="button"
-                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 xl:hidden"
-                onClick={() => setShowMobileFilters(true)}
-              >
-                <span className="text-slate-500">🔍</span> ตัวกรอง {activeFilter ? '(1)' : ''}
-              </button>
-            </div>
-            <select
-              aria-label="กรองสถานะใช้งาน"
-              className="h-9 rounded-md border border-slate-300 px-3 text-sm hidden xl:block"
-              value={activeFilter}
-              onChange={(event) => {
-                setPage(1)
-                setActiveFilter(event.target.value)
-              }}
-            >
-              <option value="">ทั้งหมด</option>
-              <option value="active">ใช้งาน</option>
-              <option value="inactive">ปิด</option>
-            </select>
-          </div>
-          <div className="flex flex-wrap items-center justify-end gap-2 w-full xl:w-auto xl:ml-auto">
-            <button className="h-9 flex-1 xl:flex-none justify-center rounded-md border border-slate-300 px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 hidden xl:inline-flex" type="button" onClick={resetFilters}>
-              ล้างตัวกรอง
+      {/* Desktop Toolbar (Hidden on Mobile) */}
+      <div className="hidden md:block mb-4 space-y-2 rounded-md bg-white p-3 shadow">
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            className="min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm h-9"
+            placeholder="ค้นหา..."
+            type="search"
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value)
+              setPage(1)
+            }}
+          />
+          {hasFilters ? (
+            <button className="rounded-md bg-slate-100 px-3 py-2 text-xs hover:bg-slate-200 h-9" type="button" onClick={resetFilters}>
+              ✕ ล้าง
             </button>
-            <button className="inline-flex h-9 w-full xl:w-auto justify-center items-center gap-1 rounded-md bg-slate-900 px-4 text-sm font-medium text-white hidden xl:inline-flex" type="button" onClick={openCreateForm}>
-              <Plus aria-hidden="true" className="h-4 w-4" />
-              เพิ่มสิ่งเจือปน
-            </button>
-          </div>
+          ) : null}
+          <button
+            className="ml-auto rounded-md bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60 h-9 flex items-center justify-center font-normal"
+            type="button"
+            onClick={openCreateForm}
+          >
+            + เพิ่มสิ่งเจือปน
+          </button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-slate-500">สถานะ:</span>
+          <MatchButton active={activeFilter === ''} label="ทั้งหมด" onClick={() => setActiveFilter('')} />
+          <MatchButton active={activeFilter === 'active'} label="ใช้งาน" tone="emerald" onClick={() => setActiveFilter('active')} />
+          <MatchButton active={activeFilter === 'inactive'} label="ปิด" tone="slate" onClick={() => setActiveFilter('inactive')} />
+        </div>
+      </div>
+
+      {/* Mobile Toolbar (Hidden on Desktop) */}
+      <div className="mb-4 space-y-2 rounded-md bg-white p-3 shadow md:hidden">
+        <div className="flex gap-2 items-center">
+          <input
+            className="min-w-[200px] flex-1 rounded-md border px-3 py-2 text-sm h-9"
+            placeholder="ค้นหา..."
+            type="search"
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value)
+              setPage(1)
+            }}
+          />
+          <button
+            type="button"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            onClick={() => setShowMobileFilters(true)}
+          >
+            ตัวกรอง {activeFilter !== '' ? '(มี)' : ''}
+          </button>
         </div>
       </div>
 
       {/* Floating Action Button (FAB) for Mobile */}
-      <div className="fixed bottom-6 right-6 z-40 xl:hidden">
+      <div className="fixed bottom-6 right-6 z-40 md:hidden">
         <button
           className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg active:scale-95 transition-transform"
           onClick={openCreateForm}
@@ -252,8 +264,8 @@ export function ImpuritiesPageClient() {
 
       {/* Bottom Sheet Filter for Mobile */}
       {showMobileFilters ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 xl:hidden">
-          <div className="w-full rounded-t-2xl bg-white p-4 shadow-xl border-t border-slate-200 animate-slide-up max-h-[80vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 md:hidden">
+          <div className="w-full rounded-t-2xl bg-white p-4 shadow-xl border-t border-slate-200 max-h-[80vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
               <h4 className="font-bold text-slate-800">ตัวกรองเพิ่มเติม</h4>
               <button
@@ -266,22 +278,14 @@ export function ImpuritiesPageClient() {
             </div>
 
             <div className="space-y-4">
-              <label className="block">
-                <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะใช้งาน</span>
-                <select
-                  aria-label="กรองสถานะใช้งานมือถือ"
-                  className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm bg-white"
-                  value={activeFilter}
-                  onChange={(event) => {
-                    setPage(1)
-                    setActiveFilter(event.target.value)
-                  }}
-                >
-                  <option value="">ทั้งหมด</option>
-                  <option value="active">ใช้งาน</option>
-                  <option value="inactive">ปิด</option>
-                </select>
-              </label>
+              <div>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะการใช้งาน</span>
+                <div className="flex flex-wrap gap-2">
+                  <MatchButton active={activeFilter === ''} label="ทั้งหมด" onClick={() => setActiveFilter('')} />
+                  <MatchButton active={activeFilter === 'active'} label="ใช้งาน" tone="emerald" onClick={() => setActiveFilter('active')} />
+                  <MatchButton active={activeFilter === 'inactive'} label="ปิด" tone="slate" onClick={() => setActiveFilter('inactive')} />
+                </div>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 mt-6 pt-3 border-t border-slate-100">
@@ -289,8 +293,7 @@ export function ImpuritiesPageClient() {
                 type="button"
                 className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50"
                 onClick={() => {
-                  setActiveFilter('')
-                  setPage(1)
+                  resetFilters()
                   setShowMobileFilters(false)
                 }}
               >
@@ -308,74 +311,69 @@ export function ImpuritiesPageClient() {
         </div>
       ) : null}
 
-
-      {!isLoading ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm text-slate-600">
-          <div>
-            พบทั้งหมด <span className="font-semibold text-slate-900">{total.toLocaleString('th-TH')}</span> รายการ
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {columnResize.hasCustomWidths ? (
-              <Button className="hidden md:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>
-                Set col to default
-              </Button>
-            ) : null}
-            <select
-              aria-label="จำนวนรายการต่อหน้า"
-              className="h-9 rounded-md border border-slate-300 px-2 py-1 text-sm bg-white"
-              value={pageSize}
-              onChange={(event) => {
-                setPage(1)
-                setPageSize(Number(event.target.value))
-              }}
-            >
-              {pageSizeOptions.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-            </select>
-            <Button
-              disabled={page <= 1 || isLoading}
-              size="sm"
-              type="button"
-              variant="outline"
-              onClick={() => setPage(Math.max(1, page - 1))}
-            >
-              ก่อนหน้า
-            </Button>
-            <span className="px-1 text-xs">
-              หน้า {currentPage.toLocaleString('th-TH')} / {totalPages.toLocaleString('th-TH')}
-            </span>
-            <Button
-              disabled={page >= totalPages || isLoading}
-              size="sm"
-              type="button"
-              variant="outline"
-              onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
-            >
-              ถัดไป
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
-      {formOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8">
-          <div className="w-full max-w-4xl">
-            <ImpurityForm
-              impurity={selectedImpurity}
-              isSaving={isSaving}
-              onCancel={() => {
-                setFormOpen(false)
-                setSelectedImpurity(null)
-              }}
-              onSubmit={handleSubmit}
-            />
-          </div>
-        </div>
-      ) : null}
+      <Dialog open={formOpen} onOpenChange={(open) => { if (!open) { setFormOpen(false); setSelectedImpurity(null); } }}>
+        <DialogContent className="max-w-4xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" hideClose>
+          <ImpurityForm
+            impurity={selectedImpurity}
+            isSaving={isSaving}
+            onCancel={() => {
+              setFormOpen(false)
+              setSelectedImpurity(null)
+            }}
+            onSubmit={handleSubmit}
+          />
+        </DialogContent>
+      </Dialog>
 
       {isLoading ? <div className="rounded-md bg-white p-6 text-center text-sm text-slate-500 shadow">กำลังโหลดข้อมูลสิ่งเจือปน</div> : null}
 
       {!isLoading ? (
-        <>
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm text-slate-600">
+            <div>
+              พบทั้งหมด <span className="font-semibold text-slate-900">{total.toLocaleString('th-TH')}</span> รายการ
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {columnResize.hasCustomWidths ? (
+                <Button className="hidden md:inline-flex" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>
+                  Set col to default
+                </Button>
+              ) : null}
+              <select
+                aria-label="จำนวนรายการต่อหน้า"
+                className="h-9 rounded-md border border-slate-300 px-2 py-1 text-sm bg-white"
+                value={pageSize}
+                onChange={(event) => {
+                  setPage(1)
+                  setPageSize(Number(event.target.value))
+                }}
+              >
+                {pageSizeOptions.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
+              </select>
+              <Button
+                disabled={page <= 1 || isLoading}
+                size="sm"
+                type="button"
+                variant="outline"
+                onClick={() => setPage(Math.max(1, page - 1))}
+              >
+                ก่อนหน้า
+              </Button>
+              <span className="px-1 text-xs">
+                หน้า {currentPage.toLocaleString('th-TH')} / {totalPages.toLocaleString('th-TH')}
+              </span>
+              <Button
+                disabled={page >= totalPages || isLoading}
+                size="sm"
+                type="button"
+                variant="outline"
+                onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
+              >
+                ถัดไป
+              </Button>
+            </div>
+          </div>
+
           {/* Desktop Table View */}
           <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm hidden md:block">
             <div className="overflow-x-auto">
@@ -472,7 +470,7 @@ export function ImpuritiesPageClient() {
               </div>
             ) : null}
           </div>
-        </>
+        </div>
       ) : null}
     </section>
   )
@@ -556,7 +554,7 @@ function TextField({ className = '', error, label, value, onChange }: TextFieldP
         {labelText}{hasInlineRequired ? <span className="ml-0.5 text-red-500">*</span> : null}
       </span>
       <input
-        className={`w-full h-10 rounded-md border px-3 py-2 text-sm outline-none transition-all duration-150 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 bg-white text-slate-800 border-slate-300 hover:border-slate-400 ${error ? 'border-red-400 bg-red-50/50' : ''}`}
+        className={`w-full h-10 rounded-md border px-3 py-2 text-sm outline-none transition-all duration-150 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white text-slate-800 border-slate-300 hover:border-slate-400 ${error ? 'border-red-400 bg-red-50/50' : ''}`}
         type="text"
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -565,3 +563,16 @@ function TextField({ className = '', error, label, value, onChange }: TextFieldP
     </label>
   )
 }
+
+function MatchButton({ active, label, onClick, tone = 'dark' }: { active: boolean; label: string; onClick: () => void; tone?: 'amber' | 'dark' | 'emerald' | 'red' | 'slate' }) {
+  const activeClass = {
+    amber: 'border-amber-600 bg-amber-600 text-white',
+    dark: 'border-slate-700 bg-slate-700 text-white',
+    emerald: 'border-emerald-600 bg-emerald-600 text-white',
+    red: 'border-red-600 bg-red-600 text-white',
+    slate: 'border-slate-500 bg-slate-500 text-white',
+  }[tone]
+  const idleClass = tone === 'amber' ? 'border-slate-300 bg-white hover:bg-amber-50' : tone === 'emerald' ? 'border-slate-300 bg-white hover:bg-emerald-50' : tone === 'red' ? 'border-slate-300 bg-white hover:bg-red-50' : 'border-slate-300 bg-white hover:bg-slate-100'
+  return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
+}
+

@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { getErrorMessage, readBlobResponse, readJsonResponse } from '@/lib/api-client'
 import { formatDateDisplay } from '@/lib/format'
+import { Filter, SlidersHorizontal } from 'lucide-react'
 
 const transactionLedgerPayloadSchema = z.object({
   accounts: z.array(z.object({
@@ -111,6 +112,7 @@ export function TransactionLedgerPageClient() {
   const [isLoading, setIsLoading] = useState(true)
   const [rows, setRows] = useState<LedgerRow[]>([])
   const [search, setSearch] = useState('')
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
 
   const loadData = useCallback(async () => {
     setError(null)
@@ -213,15 +215,23 @@ export function TransactionLedgerPageClient() {
     }
   }
 
+  function clearFilters() {
+    setSearch('')
+    setDateFrom('')
+    setDateTo('')
+    setFilterAccount('')
+    setFilterRefType('')
+  }
+
   return (
     <section className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-gradient-to-r from-cyan-700 to-blue-700 p-4 text-white shadow">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 rounded-md bg-gradient-to-r from-cyan-700 to-blue-700 p-4 text-white shadow">
         <div>
           <h1 className="text-xl font-bold">📒 Transaction Ledger — เช็คเงินเข้า-ออกทุกบัญชี</h1>
           <p className="mt-1 text-sm opacity-90">ตรวจสอบทุกการเคลื่อนไหวในบัญชีธนาคารจาก bank statement พร้อม source voucher และบิลที่เกี่ยวข้อง</p>
         </div>
-        <button className="rounded-md bg-white/15 px-4 py-2 text-sm font-bold text-white shadow hover:bg-white/25 disabled:opacity-60" disabled={isLoading} type="button" onClick={() => void loadData()}>
-          {isLoading ? 'กำลังโหลด...' : '🔄 Refresh'}
+        <button className="rounded-md bg-white/15 px-4 py-2 text-sm font-bold text-white shadow hover:bg-white/25 disabled:opacity-60 shrink-0 self-start md:self-auto" disabled={isLoading} type="button" onClick={() => void loadData()}>
+          {isLoading ? 'กำลังโหลด...' : '🔄 รีเฟรช'}
         </button>
       </div>
 
@@ -237,13 +247,13 @@ export function TransactionLedgerPageClient() {
           <h3 className="font-bold text-slate-800">💰 ยอดคงเหลือทุกบัญชี</h3>
           <span className="text-xs text-slate-500">{accounts.length.toLocaleString('th-TH')} บัญชี</span>
         </div>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 animate-fade-in">
           {accountBalances.map((account) => (
             <div key={account.id} className={`rounded-md border-2 p-3 transition ${filterAccount === account.id ? 'border-blue-500 bg-blue-50' : account.hasActual ? (account.match ? 'border-emerald-300 bg-emerald-50' : 'border-red-300 bg-red-50') : 'border-slate-200 bg-slate-50'}`}>
               <button className="mb-2 flex w-full cursor-pointer items-center gap-2 text-left" type="button" onClick={() => setFilterAccount(filterAccount === account.id ? '' : account.id)}>
                 <span className="text-lg">{accountIcon(account.type)}</span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-bold">{account.name}</span>
+                  <span className="block truncate text-sm font-bold text-slate-800">{account.name}</span>
                   <span className="block text-xs text-slate-500">{accountTypeLabel(account.type)} · {account.accountNo || '-'}</span>
                 </span>
                 {account.hasActual ? <span className="text-lg">{account.match ? '✅' : '⚠️'}</span> : null}
@@ -255,7 +265,7 @@ export function TransactionLedgerPageClient() {
                 </div>
                 <label>
                   <span className="text-slate-500">🔍 นับจริง</span>
-                  <input className="w-full rounded-md border px-1 py-0.5 text-right font-mono font-bold" placeholder="กรอกยอดจริง..." step="0.01" type="number" value={account.actual ?? ''} onChange={(event) => setActualBalances((current) => ({ ...current, [account.id]: Number(event.target.value || 0) }))} />
+                  <input className="w-full rounded-md border border-slate-300 bg-white px-1 py-0.5 text-right font-mono font-bold" placeholder="กรอกยอด..." step="0.01" type="number" value={account.actual ?? ''} onChange={(event) => setActualBalances((current) => ({ ...current, [account.id]: Number(event.target.value || 0) }))} />
                 </label>
               </div>
               {account.hasActual ? (
@@ -268,38 +278,155 @@ export function TransactionLedgerPageClient() {
           ))}
           {!isLoading && accountBalances.length === 0 ? <div className="rounded-md border border-dashed p-5 text-sm text-slate-500">ยังไม่มีบัญชีเงินในระบบ</div> : null}
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 border-t pt-3 md:grid-cols-3">
-          <div className="rounded-md bg-emerald-50 p-2 text-center"><div className="text-xs text-emerald-700">💰 ยอดคงเหลือรวม</div><div className="text-lg font-bold text-emerald-700">{formatMoney(grandTotal)}</div></div>
-          <div className="rounded-md bg-amber-50 p-2 text-center"><div className="text-xs text-amber-700">⚠ OD ใช้รวม</div><div className="text-lg font-bold text-amber-700">{formatMoney(odUsedTotal)}</div></div>
-          <div className="rounded-md bg-blue-50 p-2 text-center"><div className="text-xs text-blue-700">📊 Net Cash Position</div><div className="text-lg font-bold text-blue-700">{formatMoney(grandTotal - odUsedTotal)}</div></div>
+        {/* AcexPOS Style Grand Totals KPI Cards */}
+        <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-3 sm:p-4 shadow-inner grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 text-sm">
+          {/* 1. ยอดคงเหลือรวม */}
+          <div className="bg-white p-3 sm:p-4 border border-slate-200 rounded-xl shadow-sm flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xl shrink-0">
+              💰
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-semibold text-slate-500 truncate">ยอดคงเหลือรวม</div>
+              <div className="text-sm font-bold text-emerald-700 mt-0.5 tabular-nums">{formatMoney(grandTotal)}</div>
+            </div>
+          </div>
+
+          {/* 2. OD ใช้รวม */}
+          <div className="bg-white p-3 sm:p-4 border border-slate-200 rounded-xl shadow-sm flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xl shrink-0">
+              ⚠️
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-semibold text-slate-500 truncate">OD ใช้รวม</div>
+              <div className="text-sm font-bold text-amber-700 mt-0.5 tabular-nums">{formatMoney(odUsedTotal)}</div>
+            </div>
+          </div>
+
+          {/* 3. Net Cash Position */}
+          <div className="bg-white p-3 sm:p-4 border border-slate-200 rounded-xl shadow-sm flex items-center gap-3 col-span-2 md:col-span-1">
+            <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xl shrink-0">
+              📊
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-semibold text-slate-500 truncate">Net Cash Position</div>
+              <div className="text-sm font-bold text-blue-700 mt-0.5 tabular-nums">{formatMoney(grandTotal - odUsedTotal)}</div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="rounded-md bg-white p-3 shadow">
+      {/* Desktop Toolbar (Hidden on Mobile) */}
+      <div className="hidden md:block rounded-md bg-white p-3 shadow">
         <div className="flex flex-wrap items-center gap-2">
-          <input className="min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหา เลขที่ / รายละเอียด / ผู้รับ-ส่ง..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <input className="min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm h-9 border-slate-300" placeholder="ค้นหา เลขที่ / รายละเอียด / ผู้รับ-ส่ง..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <DatePickerInput className="w-[130px]" value={dateFrom} onChange={setDateFrom} />
           <span className="text-slate-400">→</span>
           <DatePickerInput className="w-[130px]" value={dateTo} onChange={setDateTo} />
-          <select className="rounded-md border px-3 py-2 text-sm" value={filterAccount} onChange={(event) => setFilterAccount(event.target.value)}>
+          <select className="rounded-md border border-slate-300 px-3 text-sm h-9 bg-white text-slate-850" value={filterAccount} onChange={(event) => setFilterAccount(event.target.value)}>
             <option value="">💳 ทุกบัญชี</option>
             {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
           </select>
-          <select className="rounded-md border px-3 py-2 text-sm" value={filterRefType} onChange={(event) => setFilterRefType(event.target.value)}>
+          <select className="rounded-md border border-slate-300 px-3 text-sm h-9 bg-white text-slate-850" value={filterRefType} onChange={(event) => setFilterRefType(event.target.value)}>
             <option value="">📋 ทุกประเภท</option>
             {refTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
-          <button className="rounded-md bg-emerald-600 px-3 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-60" disabled={ledger.length === 0 || isExporting} type="button" onClick={() => void exportExcel()}>{isExporting ? 'กำลัง Export...' : '📊 Export Excel'}</button>
-          <button className="rounded-md bg-white px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-60" disabled={ledger.length === 0} type="button" onClick={exportCsv}>CSV</button>
+          <button className="rounded-md bg-emerald-600 px-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60 h-9 flex items-center shrink-0" disabled={ledger.length === 0 || isExporting} type="button" onClick={() => void exportExcel()}>{isExporting ? 'กำลัง Export...' : '📊 Excel'}</button>
+          <button className="rounded-md bg-white px-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-60 h-9 flex items-center shrink-0" disabled={ledger.length === 0} type="button" onClick={exportCsv}>CSV</button>
         </div>
-        <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-600">
+        <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-600 pt-2 border-t border-slate-100">
           <span className="rounded-md bg-emerald-50 px-2 py-1">📥 เงินเข้ารวม <b className="text-emerald-700">{formatMoney(summary.totalIn)}</b></span>
           <span className="rounded-md bg-red-50 px-2 py-1">📤 เงินออกรวม <b className="text-red-700">{formatMoney(summary.totalOut)}</b></span>
           <span className={`rounded-md px-2 py-1 ${summary.net >= 0 ? 'bg-blue-50' : 'bg-rose-50'}`}>📊 Net <b className={summary.net >= 0 ? 'text-blue-700' : 'text-rose-700'}>{formatMoney(summary.net)}</b></span>
           <span className="rounded-md bg-slate-50 px-2 py-1">📋 พบ <b>{summary.count.toLocaleString('th-TH')}</b> รายการ</span>
-          {duplicateGroups.length > 0 ? <span className="rounded-md bg-amber-50 px-2 py-1 text-amber-800">⚠️ พบยอดซ้ำ <b>{duplicateGroups.length.toLocaleString('th-TH')}</b> กลุ่ม</span> : null}
+          {duplicateGroups.length > 0 ? <span className="rounded-md bg-amber-50 px-2 py-1 text-amber-800 font-semibold">⚠️ ยอดซ้ำ {duplicateGroups.length} กลุ่ม</span> : null}
         </div>
       </div>
+
+      {/* Mobile Toolbar (Hidden on Desktop) */}
+      <div className="md:hidden rounded-md bg-white p-3 shadow space-y-2">
+        <div className="flex gap-2 items-center">
+          <input className="flex-1 rounded-md border px-3 h-9 text-sm border-slate-300" placeholder="ค้นหา..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <button
+            type="button"
+            className="h-9 rounded-md border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-1 shrink-0"
+            onClick={() => setShowMobileFilters(true)}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            ตัวกรอง {(dateFrom || dateTo || filterAccount || filterRefType) ? '(มี)' : ''}
+          </button>
+          <button className="h-9 rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60 shrink-0" disabled={ledger.length === 0 || isExporting} type="button" onClick={() => void exportExcel()}>{isExporting ? '..' : 'Excel'}</button>
+        </div>
+        <div className="flex flex-wrap gap-1.5 text-[10px] text-slate-500 pt-1">
+          <span className="rounded bg-emerald-50 px-1 py-0.5 text-emerald-700 font-medium">เข้า: {formatMoney(summary.totalIn)}</span>
+          <span className="rounded bg-red-50 px-1 py-0.5 text-red-700 font-medium">ออก: {formatMoney(summary.totalOut)}</span>
+          <span className="rounded bg-slate-50 px-1 py-0.5 text-slate-700">พบ: {summary.count} รายการ</span>
+        </div>
+      </div>
+
+      {/* Bottom Sheet Filter for Mobile */}
+      {showMobileFilters ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 md:hidden animate-fade-in">
+          <div className="w-full rounded-t-2xl bg-white p-4 shadow-xl border-t border-slate-200 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <h4 className="font-bold text-slate-800">ตัวกรองรายการ</h4>
+              <button
+                className="p-1 text-slate-400 hover:text-slate-600 text-xl font-bold font-sans"
+                onClick={() => setShowMobileFilters(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">ระบุวันที่</span>
+                <div className="flex items-center gap-2">
+                  <DatePickerInput className="flex-1" value={dateFrom} onChange={setDateFrom} />
+                  <span className="text-slate-400">→</span>
+                  <DatePickerInput className="flex-1" value={dateTo} onChange={setDateTo} />
+                </div>
+              </div>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">เลือกบัญชี</span>
+                <select className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800 font-sans" value={filterAccount} onChange={(event) => setFilterAccount(event.target.value)}>
+                  <option value="">💳 ทุกบัญชี</option>
+                  {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">ประเภทรายการ</span>
+                <select className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800 font-sans" value={filterRefType} onChange={(event) => setFilterRefType(event.target.value)}>
+                  <option value="">📋 ทุกประเภท</option>
+                  {refTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-6 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 font-sans"
+                onClick={() => {
+                  clearFilters()
+                  setShowMobileFilters(false)
+                }}
+              >
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                className="h-11 rounded-md bg-slate-900 text-sm font-semibold text-white hover:bg-slate-800 font-sans"
+                onClick={() => setShowMobileFilters(false)}
+              >
+                ใช้ตัวกรอง
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {duplicateGroups.length > 0 ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
@@ -327,43 +454,44 @@ export function TransactionLedgerPageClient() {
         </div>
       ) : null}
 
-      <div className="overflow-x-auto rounded-md bg-white shadow">
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 bg-slate-100">
+      {/* Desktop Table View (Hidden on Mobile) */}
+      <div className="hidden md:block overflow-x-auto rounded-md bg-white shadow">
+        <table className="w-full text-sm min-w-[1000px]">
+          <thead className="bg-slate-100 text-slate-700">
             <tr>
-              <th className="p-2 text-left">วันที่</th>
-              <th className="p-2 text-left">บัญชี</th>
-              <th className="p-2 text-left">ประเภท</th>
-              <th className="p-2 text-left">เลขที่</th>
-              <th className="p-2 text-left">บิลที่เกี่ยวข้อง</th>
-              <th className="p-2 text-left">ผู้รับ/ส่ง</th>
-              <th className="p-2 text-left">รายละเอียด</th>
-              <th className="p-2 text-right text-emerald-700">เงินเข้า</th>
-              <th className="p-2 text-right text-red-600">เงินออก</th>
-              <th className="p-2 text-right">คงเหลือ</th>
+              <th className="p-3 text-left font-semibold">วันที่</th>
+              <th className="p-3 text-left font-semibold">บัญชี</th>
+              <th className="p-3 text-left font-semibold">ประเภท</th>
+              <th className="p-3 text-left font-semibold">เลขที่</th>
+              <th className="p-3 text-left font-semibold">บิลที่เกี่ยวข้อง</th>
+              <th className="p-3 text-left font-semibold">ผู้รับ/ส่ง</th>
+              <th className="p-3 text-left font-semibold">รายละเอียด</th>
+              <th className="p-3 text-right font-semibold text-emerald-700">เงินเข้า</th>
+              <th className="p-3 text-right font-semibold text-red-600">เงินออก</th>
+              <th className="p-3 text-right font-semibold">คงเหลือ</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td className="py-8 text-center text-slate-400" colSpan={10}>กำลังโหลด Transaction Ledger</td></tr>
+              <tr><td className="py-8 text-center text-slate-400 font-medium" colSpan={10}>กำลังโหลด Transaction Ledger...</td></tr>
             ) : ledger.length > 0 ? ledger.map((row) => (
-              <tr key={row.id} className="border-t hover:bg-slate-50">
-                <td className="p-2 text-xs">{row.date ? formatDateDisplay(row.date) : '-'}</td>
-                <td className="p-2 text-xs">{row.accountName}</td>
-                <td className="p-2"><span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{row.refType}</span></td>
-                <td className="p-2 font-mono text-xs">{row.refNo}</td>
-                <td className="p-2 text-xs">
+              <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50">
+                <td className="p-3 text-xs text-slate-600">{row.date ? formatDateDisplay(row.date) : '-'}</td>
+                <td className="p-3 text-xs text-slate-900 font-medium">{row.accountName}</td>
+                <td className="p-3"><span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">{row.refType}</span></td>
+                <td className="p-3 font-mono text-xs text-slate-700">{row.refNo}</td>
+                <td className="p-3 text-xs">
                   {row.linkedBills.length > 0 ? (
                     <div className="flex flex-wrap gap-1">
-                      {row.linkedBills.map((bill) => <span key={`${row.id}-${bill.type}-${bill.docNo}`} className="rounded-md bg-blue-50 px-2 py-0.5 font-mono text-blue-700">{bill.type}:{bill.docNo}</span>)}
+                      {row.linkedBills.map((bill) => <span key={`${row.id}-${bill.type}-${bill.docNo}`} className="rounded bg-blue-50 px-2 py-0.5 font-mono text-blue-700">{bill.type}:{bill.docNo}</span>)}
                     </div>
                   ) : '-'}
                 </td>
-                <td className="p-2 text-xs">{row.payee || '-'}</td>
-                <td className="p-2 text-xs">{row.description || row.note || '-'}</td>
-                <td className="p-2 text-right font-mono font-medium text-emerald-700">{row.amountIn > 0 ? formatMoney(row.amountIn) : '-'}</td>
-                <td className="p-2 text-right font-mono font-medium text-red-600">{row.amountOut > 0 ? formatMoney(row.amountOut) : '-'}</td>
-                <td className="p-2 text-right font-mono text-xs">{row.runningBalance === null ? '-' : formatMoney(row.runningBalance)}</td>
+                <td className="p-3 text-xs text-slate-700">{row.payee || '-'}</td>
+                <td className="p-3 text-xs text-slate-600 leading-normal">{row.description || row.note || '-'}</td>
+                <td className="p-3 text-right font-mono font-bold text-emerald-700">{row.amountIn > 0 ? formatMoney(row.amountIn) : '-'}</td>
+                <td className="p-3 text-right font-mono font-bold text-red-600">{row.amountOut > 0 ? formatMoney(row.amountOut) : '-'}</td>
+                <td className="p-3 text-right font-mono text-xs text-slate-600">{row.runningBalance === null ? '-' : formatMoney(row.runningBalance)}</td>
               </tr>
             )) : (
               <tr><td className="py-8 text-center text-slate-400" colSpan={10}>ไม่มีรายการ</td></tr>
@@ -371,6 +499,70 @@ export function TransactionLedgerPageClient() {
           </tbody>
         </table>
       </div>
+
+      {/* Mobile View: Dense Card List (Hidden on Desktop) */}
+      {!isLoading && ledger.length > 0 ? (
+        <div className="space-y-3 md:hidden">
+          {ledger.map((row) => (
+            <div key={row.id} className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-sm space-y-2.5 animate-fade-in">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <span className="inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-700">{row.refType}</span>
+                  <span className="ml-1.5 font-mono text-[11px] text-slate-500 bg-slate-50 px-1 py-0.5 rounded border border-slate-100">{row.refNo}</span>
+                </div>
+                <span className="text-[11px] font-medium text-slate-500">{row.date ? formatDateDisplay(row.date) : '-'}</span>
+              </div>
+
+              <div className="text-xs">
+                <div className="font-semibold text-slate-800">{row.accountName}</div>
+                <div className="text-slate-500 mt-0.5 leading-snug">{row.description || row.note || '-'}</div>
+                {row.payee ? (
+                  <div className="text-[11px] text-slate-400 mt-1">
+                    <span className="font-medium text-slate-500">ผู้รับ/ส่ง:</span> {row.payee}
+                  </div>
+                ) : null}
+              </div>
+
+              {row.linkedBills.length > 0 ? (
+                <div className="flex flex-wrap gap-1 border-t border-slate-50 pt-2">
+                  {row.linkedBills.map((bill) => (
+                    <span key={`${row.id}-${bill.type}-${bill.docNo}`} className="rounded bg-blue-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-blue-700">
+                      {bill.type}:{bill.docNo}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+
+              <div className="grid grid-cols-3 gap-2 border-t border-slate-100 pt-2.5 text-center text-xs">
+                <div>
+                  <span className="text-slate-400 block text-[9px] uppercase font-semibold">เงินเข้า</span>
+                  <span className="font-bold tabular-nums text-emerald-700">{row.amountIn > 0 ? formatMoney(row.amountIn) : '-'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[9px] uppercase font-semibold">เงินออก</span>
+                  <span className="font-bold tabular-nums text-red-600">{row.amountOut > 0 ? formatMoney(row.amountOut) : '-'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[9px] uppercase font-semibold">คงเหลือ</span>
+                  <span className="font-semibold tabular-nums text-slate-600">{row.runningBalance === null ? '-' : formatMoney(row.runningBalance)}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {!isLoading && ledger.length === 0 ? (
+        <div className="rounded-lg border border-slate-200 bg-white p-12 text-center text-slate-400 shadow-sm md:hidden">
+          ไม่มีรายการ
+        </div>
+      ) : null}
+
+      {isLoading ? (
+        <div className="rounded-lg border border-slate-200 bg-white p-12 text-center text-slate-400 shadow-sm md:hidden">
+          กำลังโหลด Transaction Ledger...
+        </div>
+      ) : null}
 
       <div className="rounded-md border-l-4 border-amber-500 bg-amber-50 p-3 text-xs text-amber-800">
         <b>💡 คำแนะนำ:</b> หน้านี้เป็น read-only ledger view สำหรับตรวจยอดเงินเข้า-ออกจาก `bank_statement` พร้อม source voucher และบิลที่เกี่ยวข้อง การแก้ไข/ลบรายการควรเปิดพร้อม audit log และ reconciliation rule.

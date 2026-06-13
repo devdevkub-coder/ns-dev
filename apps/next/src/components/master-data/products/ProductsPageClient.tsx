@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download, ImagePlus, Plus, Trash2, Upload } from 'lucide-react'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { Button } from '@/components/ui/Button'
+import { Dialog, DialogContent } from '@/components/ui/Dialog'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
@@ -368,6 +369,8 @@ export function ProductsPageClient() {
     setPage(1)
   }
 
+  const hasFilters = Boolean(search.trim() || productTypeFilter || activeFilter)
+
   return (
     <section className="space-y-4">
       {error ? (
@@ -377,59 +380,27 @@ export function ProductsPageClient() {
         </div>
       ) : null}
 
-      <div className="rounded-md bg-white p-3 shadow">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex flex-col gap-2 w-full xl:max-w-3xl xl:grid xl:grid-cols-[minmax(0,1fr)_190px_130px]">
-            <div className="flex gap-2 w-full">
-              <input
-                className="h-9 w-full flex-1 rounded-md border border-slate-300 px-3 text-sm"
-                onChange={(event) => {
-                  setPage(1)
-                  setSearch(event.target.value)
-                }}
-                placeholder="ค้นหา..."
-                type="search"
-                value={search}
-              />
-              <button
-                type="button"
-                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 xl:hidden"
-                onClick={() => setShowMobileFilters(true)}
-              >
-                <span className="text-slate-500">🔍</span> ตัวกรอง {(productTypeFilter || activeFilter) ? '(1)' : ''}
-              </button>
-            </div>
-            <select
-              aria-label="กรองประเภทสินค้า"
-              className="h-9 rounded-md border border-slate-300 px-3 text-sm hidden xl:block"
-              value={productTypeFilter}
-              onChange={(event) => {
-                setPage(1)
-                setProductTypeFilter(event.target.value)
-              }}
-            >
-              <option value="">ทุกประเภท</option>
-              {productTypeOptions.map((type) => <option key={type} value={type}>{type}</option>)}
-            </select>
-            <select
-              aria-label="กรองสถานะใช้งาน"
-              className="h-9 rounded-md border border-slate-300 px-3 text-sm hidden xl:block"
-              value={activeFilter}
-              onChange={(event) => {
-                setPage(1)
-                setActiveFilter(event.target.value)
-              }}
-            >
-              <option value="">ทั้งหมด</option>
-              <option value="active">ใช้งาน</option>
-              <option value="inactive">ปิด</option>
-            </select>
-          </div>
-          <div className="flex flex-wrap items-center justify-end gap-2 w-full xl:w-auto">
-            <button className="h-9 flex-1 xl:flex-none justify-center rounded-md border border-slate-300 px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 hidden xl:inline-flex" type="button" onClick={resetFilters}>
-              ล้างตัวกรอง
+      {/* Desktop Toolbar (Hidden on Mobile) */}
+      <div className="hidden md:block mb-4 space-y-3 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            className="min-w-[260px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm h-9 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+            placeholder="ค้นหา..."
+            type="search"
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value)
+              setPage(1)
+            }}
+          />
+          {hasFilters ? (
+            <button className="rounded-md bg-slate-100 hover:bg-slate-200 px-3 py-2 text-xs h-9 focus:outline-none" type="button" onClick={resetFilters}>
+              ✕ ล้าง
             </button>
-            <label className={`inline-flex h-9 flex-1 xl:flex-none justify-center cursor-pointer items-center gap-1 rounded-md bg-blue-600 px-3 text-sm font-medium text-white ${isImporting || isLoading ? 'pointer-events-none opacity-60' : ''}`}>
+          ) : null}
+
+          <div className="ml-auto flex items-center gap-2">
+            <label className={`inline-flex h-9 cursor-pointer items-center gap-1 rounded-md bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60 focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2 focus-within:outline-none ${isImporting || isLoading ? 'pointer-events-none opacity-60' : ''}`}>
               <Upload aria-hidden="true" className="h-4 w-4" />
               <span className="text-xs sm:text-sm">{isImporting ? 'กำลัง Import...' : 'Import Excel'}</span>
               <input
@@ -443,22 +414,69 @@ export function ProductsPageClient() {
                 }}
               />
             </label>
-            <button className="inline-flex h-9 flex-1 xl:flex-none justify-center items-center gap-1 rounded-md bg-emerald-600 px-3 text-sm font-medium text-white disabled:opacity-60" disabled={isExporting || isLoading} type="button" onClick={() => void handleExport()}>
+            <button className="inline-flex h-9 items-center gap-1 rounded-md bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60 focus:outline-none" disabled={isExporting || isLoading} type="button" onClick={() => void handleExport()}>
               <Download aria-hidden="true" className="h-4 w-4" />
               <span className="text-xs sm:text-sm">{isExporting ? 'กำลัง Export...' : 'Export Excel'}</span>
             </button>
-            <button className="inline-flex h-9 w-full xl:w-auto justify-center items-center gap-1 rounded-md bg-slate-900 px-4 text-sm font-medium text-white hidden xl:inline-flex" type="button" onClick={openCreateForm}>
+            <button className="inline-flex h-9 items-center gap-1 rounded-md bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60 focus:outline-none" type="button" onClick={openCreateForm}>
               <Plus aria-hidden="true" className="h-4 w-4" />
               เพิ่มสินค้า
             </button>
           </div>
         </div>
+
+        <div className="flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-50 pt-2 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-slate-500 font-medium">ประเภทสินค้า:</span>
+            <select
+              aria-label="กรองประเภทสินค้า"
+              className="h-8 rounded-md border border-slate-300 px-2 text-xs bg-white text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              value={productTypeFilter}
+              onChange={(event) => {
+                setPage(1)
+                setProductTypeFilter(event.target.value)
+              }}
+            >
+              <option value="">ทุกประเภท</option>
+              {productTypeOptions.map((type) => <option key={type} value={type}>{type}</option>)}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-slate-500 font-medium">สถานะ:</span>
+            <MatchButton active={activeFilter === ''} label="ทั้งหมด" onClick={() => { setActiveFilter(''); setPage(1); }} />
+            <MatchButton active={activeFilter === 'active'} label="ใช้งาน" tone="emerald" onClick={() => { setActiveFilter('active'); setPage(1); }} />
+            <MatchButton active={activeFilter === 'inactive'} label="ปิด" tone="slate" onClick={() => { setActiveFilter('inactive'); setPage(1); }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Toolbar (Hidden on Desktop) */}
+      <div className="mb-4 space-y-2 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm md:hidden">
+        <div className="flex gap-2 items-center">
+          <input
+            className="min-w-[200px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm h-9 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+            placeholder="ค้นหา..."
+            type="search"
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value)
+              setPage(1)
+            }}
+          />
+          <button
+            type="button"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none"
+            onClick={() => setShowMobileFilters(true)}
+          >
+            ตัวกรอง {hasFilters ? '(มี)' : ''}
+          </button>
+        </div>
       </div>
 
       {/* Floating Action Button (FAB) for Mobile */}
-      <div className="fixed bottom-6 right-6 z-40 xl:hidden">
+      <div className="fixed bottom-6 right-6 z-40 md:hidden">
         <button
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg active:scale-95 transition-transform"
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg active:scale-95 transition-transform focus:outline-none"
           onClick={openCreateForm}
           type="button"
           aria-label="เพิ่มสินค้า"
@@ -469,8 +487,8 @@ export function ProductsPageClient() {
 
       {/* Bottom Sheet Filter for Mobile */}
       {showMobileFilters ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 xl:hidden">
-          <div className="w-full rounded-t-2xl bg-white p-4 shadow-xl border-t border-slate-200 animate-slide-up max-h-[80vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 md:hidden">
+          <div className="w-full rounded-t-2xl bg-white p-4 shadow-xl border-t border-slate-200 max-h-[80vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
               <h4 className="font-bold text-slate-800">ตัวกรองเพิ่มเติม</h4>
               <button
@@ -484,7 +502,7 @@ export function ProductsPageClient() {
 
             <div className="space-y-4">
               <label className="block">
-                <span className="mb-1 block text-xs font-semibold text-slate-600">ประเภทสินค้า</span>
+                <span className="mb-1.5 block text-xs font-semibold text-slate-600">ประเภทสินค้า</span>
                 <select
                   aria-label="กรองประเภทสินค้ามือถือ"
                   className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm bg-white"
@@ -499,22 +517,39 @@ export function ProductsPageClient() {
                 </select>
               </label>
 
-              <label className="block">
-                <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะใช้งาน</span>
-                <select
-                  aria-label="กรองสถานะใช้งานมือถือ"
-                  className="h-11 w-full rounded-md border border-slate-300 px-3 text-sm bg-white"
-                  value={activeFilter}
-                  onChange={(event) => {
-                    setPage(1)
-                    setActiveFilter(event.target.value)
-                  }}
-                >
-                  <option value="">ทั้งหมด</option>
-                  <option value="active">ใช้งาน</option>
-                  <option value="inactive">ปิด</option>
-                </select>
-              </label>
+              <div>
+                <span className="mb-1.5 block text-xs font-semibold text-slate-600">สถานะการใช้งาน</span>
+                <div className="flex flex-wrap gap-2">
+                  <MatchButton active={activeFilter === ''} label="ทั้งหมด" onClick={() => { setActiveFilter(''); setPage(1); }} />
+                  <MatchButton active={activeFilter === 'active'} label="ใช้งาน" tone="emerald" onClick={() => { setActiveFilter('active'); setPage(1); }} />
+                  <MatchButton active={activeFilter === 'inactive'} label="ปิด" tone="slate" onClick={() => { setActiveFilter('inactive'); setPage(1); }} />
+                </div>
+              </div>
+
+              <div className="border-t border-slate-100 pt-4 space-y-3">
+                <span className="block text-xs font-semibold text-slate-600">จัดการไฟล์</span>
+                <div className="flex gap-2">
+                  <label className={`flex-1 inline-flex h-10 cursor-pointer items-center justify-center gap-1.5 rounded-md bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60 ${isImporting || isLoading ? 'pointer-events-none opacity-60' : ''}`}>
+                    <Upload aria-hidden="true" className="h-4 w-4" />
+                    <span>{isImporting ? 'Importing...' : 'Import Excel'}</span>
+                    <input
+                      accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                      className="hidden"
+                      disabled={isImporting || isLoading}
+                      type="file"
+                      onChange={(event) => {
+                        void handleImport(event.target.files?.[0] ?? null)
+                        event.currentTarget.value = ''
+                        setShowMobileFilters(false)
+                      }}
+                    />
+                  </label>
+                  <button className="flex-1 inline-flex h-10 items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60" disabled={isExporting || isLoading} type="button" onClick={() => { void handleExport(); setShowMobileFilters(false); }}>
+                    <Download aria-hidden="true" className="h-4 w-4" />
+                    <span>{isExporting ? 'Exporting...' : 'Export Excel'}</span>
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 mt-6 pt-3 border-t border-slate-100">
@@ -522,9 +557,7 @@ export function ProductsPageClient() {
                 type="button"
                 className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50"
                 onClick={() => {
-                  setProductTypeFilter('')
-                  setActiveFilter('')
-                  setPage(1)
+                  resetFilters()
                   setShowMobileFilters(false)
                 }}
               >
@@ -593,30 +626,28 @@ export function ProductsPageClient() {
         </div>
       ) : null}
 
-      {formOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8">
-          <div className="w-full max-w-4xl">
-            <ProductForm
-              isSaving={isSaving}
-              product={selectedProduct}
-              productTypes={productTypeOptions}
-              productUnits={productUnits}
-              onCancel={() => {
-                setFormOpen(false)
-                setSelectedProduct(null)
-              }}
-              onSubmit={handleSubmit}
-            />
-          </div>
-        </div>
-      ) : null}
+      <Dialog open={formOpen} onOpenChange={(open) => { if (!open) { setFormOpen(false); setSelectedProduct(null); } }}>
+        <DialogContent className="max-w-4xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" hideClose>
+          <ProductForm
+            isSaving={isSaving}
+            product={selectedProduct}
+            productTypes={productTypeOptions}
+            productUnits={productUnits}
+            onCancel={() => {
+              setFormOpen(false)
+              setSelectedProduct(null)
+            }}
+            onSubmit={handleSubmit}
+          />
+        </DialogContent>
+      </Dialog>
 
       {isLoading ? <div className="rounded-md bg-white p-6 text-center text-sm text-slate-500 shadow">กำลังโหลดข้อมูลสินค้า</div> : null}
 
       {!isLoading ? (
         <>
           {/* Desktop Table View */}
-          <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm hidden md:block">
+          <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white shadow-sm hidden md:block">
             <div className="overflow-x-auto">
               <Table className="[&_tbody_tr]:border-slate-100" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
                 <colgroup>
@@ -923,7 +954,7 @@ function SelectField({ children, error, label, value, onChange }: SelectFieldPro
         {labelText}{hasInlineRequired ? <span className="ml-0.5 text-red-500">*</span> : null}
       </span>
       <select
-        className={`w-full h-10 rounded-md border px-3 py-2 text-sm text-slate-900 outline-none transition-all duration-150 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 bg-white border-slate-300 hover:border-slate-400 ${error ? 'border-red-400 bg-red-50/50' : ''}`}
+        className={`w-full h-10 rounded-md border px-3 py-2 text-sm text-slate-900 outline-none transition-all duration-150 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white border-slate-300 hover:border-slate-400 ${error ? 'border-red-400 bg-red-50/50' : ''}`}
         value={value}
         onChange={(event) => onChange(event.target.value)}
       >
@@ -956,7 +987,7 @@ function TextField({ className = '', error, label, list, readOnly = false, type 
         {labelText}{hasInlineRequired ? <span className="ml-0.5 text-red-500">*</span> : null}
       </span>
       <input
-        className={`w-full h-10 rounded-md border px-3 py-2 text-sm outline-none transition-all duration-150 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 ${isNumberField ? '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none' : ''} ${readOnly ? 'bg-slate-50 text-slate-500 border-slate-200' : 'bg-white text-slate-800 border-slate-300 hover:border-slate-400'} ${error ? 'border-red-400 bg-red-50/50' : ''}`}
+        className={`w-full h-10 rounded-md border px-3 py-2 text-sm outline-none transition-all duration-150 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ${isNumberField ? '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none' : ''} ${readOnly ? 'bg-slate-50 text-slate-500 border-slate-200' : 'bg-white text-slate-800 border-slate-300 hover:border-slate-400'} ${error ? 'border-red-400 bg-red-50/50' : ''}`}
         list={list}
         min={type === 'number' ? 0 : undefined}
         readOnly={readOnly}
@@ -969,3 +1000,16 @@ function TextField({ className = '', error, label, list, readOnly = false, type 
     </label>
   )
 }
+
+function MatchButton({ active, label, onClick, tone = 'dark' }: { active: boolean; label: string; onClick: () => void; tone?: 'amber' | 'dark' | 'emerald' | 'red' | 'slate' }) {
+  const activeClass = {
+    amber: 'border-amber-600 bg-amber-600 text-white',
+    dark: 'border-slate-700 bg-slate-700 text-white',
+    emerald: 'border-emerald-600 bg-emerald-600 text-white',
+    red: 'border-red-600 bg-red-600 text-white',
+    slate: 'border-slate-500 bg-slate-500 text-white',
+  }[tone]
+  const idleClass = tone === 'amber' ? 'border-slate-300 bg-white hover:bg-amber-50' : tone === 'emerald' ? 'border-slate-300 bg-white hover:bg-emerald-50' : tone === 'red' ? 'border-slate-300 bg-white hover:bg-red-50' : 'border-slate-300 bg-white hover:bg-slate-100'
+  return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
+}
+

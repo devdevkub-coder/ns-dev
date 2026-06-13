@@ -37,7 +37,7 @@ export function FormSelectField({
         {labelText}{required || hasInlineRequired ? <span className="ml-0.5 text-red-500">*</span> : null}
       </span>
       <Select
-        className={`w-full h-10 rounded-md border text-sm outline-none transition-all duration-150 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 ${disabled ? 'bg-slate-50 text-slate-500 border-slate-200' : 'bg-white text-slate-800 border-slate-300 hover:border-slate-400'} ${error ? 'border-red-400 bg-red-50/50' : ''}`}
+        className={`w-full h-10 rounded-md border text-sm outline-none transition-all duration-150 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ${disabled ? 'bg-slate-50 text-slate-500 border-slate-200' : 'bg-white text-slate-800 border-slate-300 hover:border-slate-400'} ${error ? 'border-red-400 bg-red-50/50' : ''}`}
         disabled={disabled}
         required={required || hasInlineRequired}
         value={value}

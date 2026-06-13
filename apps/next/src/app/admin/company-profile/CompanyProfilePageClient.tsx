@@ -324,23 +324,30 @@ export function CompanyProfilePageClient() {
 
   return (
     <section className="space-y-3">
-      <div className="rounded-md bg-gradient-to-r from-blue-700 to-cyan-600 p-4 text-white shadow">
+      {/* Desktop Toolbar (Hidden on Mobile) */}
+      <div className="hidden md:block rounded-md bg-gradient-to-r from-blue-700 to-cyan-600 p-4 text-white shadow">
         <h1 className="text-xl font-bold">🏢 ข้อมูลบริษัทตามสาขา</h1>
         <p className="mt-1 text-sm opacity-90">เลือกสาขาก่อนแก้ไขข้อมูลหัวกระดาษสำหรับใบรับสินค้า / ใบส่งของ</p>
       </div>
 
-      {error ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div> : null}
-      {message ? <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{message}</div> : null}
+      {/* Mobile Toolbar (Hidden on Desktop) */}
+      <div className="md:hidden rounded-md bg-gradient-to-r from-blue-700 to-cyan-600 p-3.5 text-white shadow animate-fade-in">
+        <h1 className="text-lg font-bold">🏢 ข้อมูลบริษัทตามสาขา</h1>
+        <p className="mt-0.5 text-xs opacity-90">เลือกสาขาก่อนแก้ไขข้อมูลหัวกระดาษสำหรับใบพิมพ์</p>
+      </div>
+
+      {error ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800 animate-fade-in">{error}</div> : null}
+      {message ? <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 animate-fade-in">{message}</div> : null}
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-[260px_minmax(0,1fr)]">
-        <div className="rounded-md bg-white p-3 text-sm shadow">
+        <div className="rounded-md bg-white p-3 text-sm shadow h-fit">
           <div className="mb-2 flex items-center justify-between gap-2">
             <div className="text-xs font-bold uppercase tracking-wide text-slate-500">สาขา</div>
-            <div className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+            <div className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
               {branches.length.toLocaleString('th-TH')} สาขา
             </div>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 max-h-[300px] lg:max-h-[60vh] overflow-y-auto pr-1">
             {branches.length ? branches.map((branch) => {
               const selected = branch.id === selectedBranchId
               return (
@@ -353,8 +360,8 @@ export function CompanyProfilePageClient() {
                 >
                   <span className="block text-sm font-bold">{branch.name}</span>
                   <span className="mt-0.5 block text-xs text-slate-500">รหัส {branch.code}</span>
-                  <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${branch.hasProfile ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                    {branch.hasProfile ? 'ตั้งค่าข้อมูลสาขาแล้ว' : 'ยังไม่ได้ตั้งค่า'}
+                  <span className={`mt-1 inline-flex rounded px-2 py-0.5 text-[11px] font-semibold ${branch.hasProfile ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                    {branch.hasProfile ? 'ตั้งค่าแล้ว' : 'ยังไม่ได้ตั้งค่า'}
                   </span>
                 </button>
               )
@@ -377,7 +384,7 @@ export function CompanyProfilePageClient() {
           <TextField error={fieldErrors.taxId} inputMode="numeric" label="เลขประจำตัวผู้เสียภาษี (13 หลัก)" value={form.taxId ?? ''} onChange={(value) => update('taxId', value.replace(/\D/g, '').slice(0, 13) || null)} />
           <label className="md:col-span-2">
             <span className="mb-1 block text-xs font-bold text-slate-700">ที่อยู่ (ตามใบทะเบียนพาณิชย์) *</span>
-            <textarea className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100" rows={2} value={form.address} onChange={(event) => update('address', event.target.value)} />
+            <textarea className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-700 focus:outline-none focus:ring-0" rows={2} value={form.address} onChange={(event) => update('address', event.target.value)} />
             {fieldErrors.address ? <span className="mt-1 block text-xs text-red-600">{fieldErrors.address}</span> : null}
           </label>
           <label>
@@ -412,12 +419,12 @@ export function CompanyProfilePageClient() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 rounded-md bg-slate-50 p-4">
-        <button className="rounded-md bg-blue-600 px-6 py-2 font-bold text-white hover:bg-blue-700 disabled:opacity-60" disabled={isLoading || isSaving || !selectedBranchId} type="button" onClick={() => void save()}>
+      <div className="flex flex-col sm:flex-row gap-2 rounded-md bg-slate-50 p-4">
+        <button className="w-full sm:w-auto rounded-md bg-blue-600 px-6 py-2 font-bold text-white hover:bg-blue-700 disabled:opacity-60 h-10 flex items-center justify-center" disabled={isLoading || isSaving || !selectedBranchId} type="button" onClick={() => void save()}>
           {isSaving ? 'กำลังบันทึก...' : '💾 บันทึก'}
         </button>
-        <button className="rounded-md bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-60" disabled={isLoading || isSaving || !selectedBranchId} type="button" onClick={() => void previewReceipt()}>👁 ดูตัวอย่างใบรับสินค้า</button>
-        <button className="rounded-md bg-amber-600 px-4 py-2 text-sm text-white hover:bg-amber-700 disabled:opacity-60" disabled={isLoading || isSaving || !selectedBranchId} type="button" onClick={() => void previewDelivery()}>👁 ดูตัวอย่างใบส่งของ</button>
+        <button className="w-full sm:w-auto rounded-md bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-60 h-10 flex items-center justify-center font-semibold" disabled={isLoading || isSaving || !selectedBranchId} type="button" onClick={() => void previewReceipt()}>👁 ดูตัวอย่างใบรับสินค้า</button>
+        <button className="w-full sm:w-auto rounded-md bg-amber-600 px-4 py-2 text-sm text-white hover:bg-amber-700 disabled:opacity-60 h-10 flex items-center justify-center font-semibold" disabled={isLoading || isSaving || !selectedBranchId} type="button" onClick={() => void previewDelivery()}>👁 ดูตัวอย่างใบส่งของ</button>
       </div>
 
       <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
@@ -451,7 +458,7 @@ function TextField({
   return (
     <label className={className}>
       <span className="mb-1 block text-xs font-bold text-slate-700">{label}</span>
-      <input className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100" inputMode={inputMode} placeholder={placeholder} type={type} value={value} onBlur={onBlur} onChange={(event) => onChange(event.target.value)} />
+      <input className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-750 focus:outline-none focus:ring-0" inputMode={inputMode} placeholder={placeholder} type={type} value={value} onBlur={onBlur} onChange={(event) => onChange(event.target.value)} />
       {error ? <span className="mt-1 block text-xs text-red-600">{error}</span> : null}
     </label>
   )

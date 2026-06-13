@@ -486,7 +486,7 @@ export function DailyTransferPageClient() {
 
       {selectedRow ? (
         <Dialog open={true} onOpenChange={(open) => { if (!open) closeDetail() }}>
-          <DialogContent className="max-h-[90vh] max-w-3xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-none">
+          <DialogContent className="max-h-[90vh] max-w-3xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-0">
             <DialogHeader className="p-4 bg-slate-900 text-white shrink-0 flex flex-row items-start justify-between gap-3">
               <div>
                 <DialogTitle className="text-lg font-bold text-white">รายละเอียดรายการโอนเงิน</DialogTitle>
@@ -729,3 +729,4 @@ function SelectField(props: { error?: string; label: string; onChange: (value: s
     </label>
   )
 }
+

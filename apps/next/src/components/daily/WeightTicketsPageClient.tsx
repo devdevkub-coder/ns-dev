@@ -899,7 +899,7 @@ export function WeightTicketsPageClient({
       </div>
 
       <Dialog open={Boolean(previewImage)} onOpenChange={(open) => setPreviewImage(open ? previewImage : null)}>
-        <DialogContent className="max-w-4xl !p-0 overflow-hidden bg-slate-900 border-none flex flex-col">
+        <DialogContent className="max-w-4xl !p-0 overflow-hidden bg-slate-900 border-0 flex flex-col">
           {previewImage ? (
             <>
               <DialogHeader>
@@ -1234,3 +1234,4 @@ function MetricInline({ emphasis = false, label, value }: { emphasis?: boolean; 
     </div>
   )
 }
+

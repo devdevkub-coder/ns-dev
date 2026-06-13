@@ -629,7 +629,7 @@ function DetailTable({
 function DetailModal({ onClose, row }: { onClose: () => void; row: ApRow }) {
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="max-h-[90vh] max-w-3xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-none">
+      <DialogContent className="max-h-[90vh] max-w-3xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-0">
         <DialogHeader className="p-4 bg-slate-900 text-white shrink-0 flex flex-row items-start justify-between gap-3">
           <div>
             <div className="flex flex-wrap items-center gap-2">
@@ -684,3 +684,4 @@ function DetailItem({ className = '', label, value }: { className?: string; labe
     </div>
   )
 }
+

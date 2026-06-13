@@ -1800,7 +1800,7 @@ function PoBuyDetailModal({
     <Dialog open onOpenChange={(open) => {
       if (!open) onClose()
     }}>
-      <DialogContent aria-labelledby="po-buy-detail-title" className="max-h-[90vh] max-w-3xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-none" hideClose>
+      <DialogContent aria-labelledby="po-buy-detail-title" className="max-h-[90vh] max-w-3xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" hideClose>
         <DialogHeader className="p-4 bg-slate-900 text-white shrink-0">
           <div>
             <DialogTitle id="po-buy-detail-title" className="text-white">รายละเอียด {row.docNo}</DialogTitle>
@@ -1971,3 +1971,4 @@ function SummaryLine({ label, strong = false, value }: { label: string; strong?:
     </div>
   )
 }
+

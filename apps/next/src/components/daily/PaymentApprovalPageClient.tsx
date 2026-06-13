@@ -1124,7 +1124,7 @@ export function PaymentApprovalPageClient() {
       </div>
 
       <Dialog open={Boolean(detail)} onOpenChange={(open) => { if (!open) closeDetail() }}>
-        <DialogContent className="max-h-[90vh] max-w-3xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-none" fallbackTitle="รายละเอียดการอนุมัติ" hideClose>
+        <DialogContent className="max-h-[90vh] max-w-3xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" fallbackTitle="รายละเอียดการอนุมัติ" hideClose>
           <DialogHeader className="p-4 bg-slate-900 text-white shrink-0">
             <DialogTitle>{detail ? detail.row.docNo : 'รายละเอียดการอนุมัติ'}</DialogTitle>
             <DialogDescription>รายละเอียดรายการในคิวอนุมัติจ่ายเงิน</DialogDescription>
@@ -1242,3 +1242,4 @@ export function PaymentApprovalPageClient() {
     </section>
   )
 }
+

@@ -163,7 +163,80 @@ export function StockReconciliationPageClient() {
           <span>ตรวจล่าสุด {generatedText}</span>
         </div>
       </div>
-      <div className="overflow-x-auto rounded-md bg-white shadow">
+      {/* Mobile Card list */}
+      <div className="block md:hidden space-y-3">
+        {isLoading ? (
+          <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">กำลังตรวจข้อมูล</div>
+        ) : null}
+        
+        {!isLoading && rows.map((row, index) => (
+          <div
+            key={`${row.groupKey}-${row.issue.docNo ?? row.issue.refNo ?? index}`}
+            className="rounded-md border border-slate-100 bg-white p-4 shadow-sm space-y-2"
+          >
+            <div className="flex justify-between items-start">
+              <span className="font-bold text-slate-800 text-sm">{groupLabels[row.groupKey].label}</span>
+              <span className="text-xs text-slate-500 font-medium">{issueText(row.issue.issue)}</span>
+            </div>
+            
+            <p className="text-xs text-slate-400">{groupLabels[row.groupKey].note}</p>
+            
+            <div className="text-xs text-slate-600 space-y-1 pt-1.5 border-t border-slate-50/60 mt-1">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="font-semibold text-slate-500">Doc No: </span>
+                  <span className="text-slate-800 font-mono">{row.issue.docNo || '-'}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-slate-500">Ref No: </span>
+                  <span className="text-slate-800 font-mono">{row.issue.refNo || '-'}</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="font-semibold text-slate-500">สินค้า: </span>
+                  <span className="text-slate-800">{row.issue.productCode || '-'}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-slate-500">คลัง: </span>
+                  <span className="text-slate-800">{row.issue.warehouseCode || '-'}</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="font-semibold text-slate-500">Net Qty: </span>
+                  <span className="text-slate-800 font-bold">{row.issue.netQty != null ? formatMoney(row.issue.netQty) : '-'}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-slate-500">Expected: </span>
+                  <span className="text-slate-800 font-bold">{row.issue.expected != null ? formatMoney(row.issue.expected) : '-'}</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="font-semibold text-slate-500">Ref Type: </span>
+                  <span className="text-slate-800">{row.issue.refType || '-'}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-slate-500">Status: </span>
+                  <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${row.issue.status === 'OK' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                    {row.issue.status || '-'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {!isLoading && rows.length === 0 ? (
+          <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">
+            ไม่พบ issue ตามเงื่อนไข
+          </div>
+        ) : null}
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden md:block overflow-x-auto rounded-md bg-white shadow">
         <table className="w-full min-w-[1080px] text-xs">
           <thead className="bg-slate-100 text-left text-slate-600">
             <tr>

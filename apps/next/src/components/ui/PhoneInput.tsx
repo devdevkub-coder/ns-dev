@@ -23,7 +23,7 @@ export function PhoneInput({
       <input
         {...props}
         className={cn(
-          'w-full h-10 rounded-md border px-3 py-2 text-sm outline-none transition-all duration-150 focus:border-slate-900 focus:ring-1 focus:ring-slate-900',
+          'w-full h-10 rounded-md border px-3 py-2 text-sm outline-none transition-all duration-150 focus:border-blue-500 focus:ring-1 focus:ring-blue-500',
           props.disabled || props.readOnly
             ? 'bg-slate-50 text-slate-500 border-slate-200'
             : 'bg-white text-slate-800 border-slate-300 hover:border-slate-400',

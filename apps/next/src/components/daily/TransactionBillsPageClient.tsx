@@ -3746,7 +3746,7 @@ function PurchaseBillDetailModal({
     <Dialog open onOpenChange={(open) => {
       if (!open) onClose()
     }}>
-      <DialogContent aria-labelledby="purchase-bill-detail-title" className="max-h-[90vh] max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-none" hideClose>
+      <DialogContent aria-labelledby="purchase-bill-detail-title" className="max-h-[90vh] max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" hideClose>
         <DialogHeader className="p-4 bg-slate-900 text-white shrink-0">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -4196,7 +4196,7 @@ function StockIssueDetailModal({ onClose, row }: { onClose: () => void; row: Sto
     <Dialog open onOpenChange={(open) => {
       if (!open) onClose()
     }}>
-      <DialogContent aria-labelledby="stock-issue-detail-title" className="max-h-[90vh] max-w-5xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-none" hideClose>
+      <DialogContent aria-labelledby="stock-issue-detail-title" className="max-h-[90vh] max-w-5xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" hideClose>
         <DialogHeader className="p-4 bg-slate-900 text-white shrink-0">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -4459,3 +4459,4 @@ function DetailItem({ className = '', label, value }: { className?: string; labe
     </div>
   )
 }
+

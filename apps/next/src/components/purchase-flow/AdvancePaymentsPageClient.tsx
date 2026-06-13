@@ -949,7 +949,7 @@ export function AdvancePaymentsPageClient() {
         setIsDetailOpen(open)
         if (!open) setDetail(null)
       }}>
-        <DialogContent className="max-h-[90vh] max-w-5xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-none" fallbackTitle="รายละเอียด ADV" hideClose>
+        <DialogContent className="max-h-[90vh] max-w-5xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" fallbackTitle="รายละเอียด ADV" hideClose>
           <DialogHeader className="p-4 bg-slate-900 text-white shrink-0">
             <DialogTitle className="text-white">{detail?.docNo ? `รายละเอียด ${detail.docNo}` : 'รายละเอียด ADV'}</DialogTitle>
             <DialogDescription className="text-slate-300">กดที่รายการเพื่อดูข้อมูลเอกสาร การหักบิลย้อนหลัง และ timeline ของรายการ ADV</DialogDescription>
@@ -1401,3 +1401,4 @@ function timelineMetadataText(event: AdvancePaymentTimelineEvent) {
     note,
   ].filter(Boolean).join(' · ')
 }
+

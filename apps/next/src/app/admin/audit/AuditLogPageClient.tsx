@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getErrorMessage, readJsonResponse } from '@/lib/api-client'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/Dialog'
+import { SlidersHorizontal } from 'lucide-react'
 import { z } from 'zod'
 
 type AuditUser = { displayName: string | null; username: string } | null
@@ -37,7 +39,7 @@ const auditPayloadSchema = z.object({
     createdAt: z.string(),
     eventType: z.string(),
     id: z.string(),
-    metadata: z.any().default(null), // Audit metadata is arbitrary JSON from DB.
+    metadata: z.any().default(null),
     target: auditUserSchema,
     userAgent: z.string().nullable(),
   })),
@@ -107,10 +109,10 @@ function eventGroup(eventType: string) {
 }
 
 function groupBadgeClass(group: string) {
-  if (group === 'Auth') return 'bg-sky-50 text-sky-700 ring-sky-200'
-  if (group === 'Users') return 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-  if (group === 'Permissions') return 'bg-amber-50 text-amber-700 ring-amber-200'
-  return 'bg-slate-100 text-slate-700 ring-slate-200'
+  if (group === 'Auth') return 'bg-sky-50 text-sky-705 border-sky-100'
+  if (group === 'Users') return 'bg-emerald-50 text-emerald-705 border-emerald-100'
+  if (group === 'Permissions') return 'bg-amber-50 text-amber-705 border-amber-100'
+  return 'bg-slate-100 text-slate-700 border-slate-200'
 }
 
 function eventTitle(eventType: string) {
@@ -157,6 +159,7 @@ export function AuditLogPageClient() {
   const [selectedRow, setSelectedRow] = useState<AuditEvent | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
 
   const loadRows = useCallback(async () => {
     setIsLoading(true)
@@ -206,48 +209,162 @@ export function AuditLogPageClient() {
 
   return (
     <section className="space-y-4">
-      <div className="rounded-md border bg-white p-4 shadow">
+      {/* Desktop Toolbar (Hidden on Mobile) */}
+      <div className="hidden md:block rounded-md bg-white p-4 shadow">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-xl font-bold text-slate-900">Audit & Activity Log</h2>
             <p className="mt-1 text-sm text-slate-500">ตรวจสอบประวัติ user activity, auth event, user management และ permission-sensitive actions</p>
           </div>
-          <button className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60" disabled={isLoading} type="button" onClick={() => void loadRows()}>
-            {isLoading ? 'กำลังโหลด...' : 'Refresh'}
+          <button className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60 h-9 flex items-center shrink-0" disabled={isLoading} type="button" onClick={() => void loadRows()}>
+            {isLoading ? 'กำลังโหลด...' : 'รีเฟรช'}
           </button>
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-4">
+      {/* Mobile Toolbar (Hidden on Desktop) */}
+      <div className="md:hidden rounded-md bg-white p-3.5 shadow space-y-2.5 animate-fade-in">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">Audit & Activity Log</h2>
+          <p className="mt-0.5 text-xs text-slate-500">ประวัติ user activity, auth event, และ sensitive actions</p>
+        </div>
+        <div className="flex gap-2">
+          <input className="flex-1 rounded-md border px-3 h-9 text-sm border-slate-300 bg-white" placeholder="ค้นหา..." value={query} onChange={(event) => {
+            setQuery(event.target.value)
+            setPage(1)
+          }} />
+          <button className="h-9 rounded-md bg-slate-100 px-3 text-xs text-slate-700 font-semibold" disabled={isLoading} type="button" onClick={() => void loadRows()}>
+            Refresh
+          </button>
+          <button
+            type="button"
+            className="h-9 rounded-md border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-1 shrink-0"
+            onClick={() => setShowMobileFilters(true)}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            ตัวกรอง {(actor || eventType || group !== 'all' || target) ? '(มี)' : ''}
+          </button>
+        </div>
+      </div>
+
+      {/* Bottom Sheet Filter for Mobile */}
+      {showMobileFilters ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 md:hidden animate-fade-in">
+          <div className="w-full rounded-t-2xl bg-white p-4 shadow-xl border-t border-slate-200 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <h4 className="font-bold text-slate-800">ตัวกรองกิจกรรม</h4>
+              <button
+                className="p-1 text-slate-400 hover:text-slate-600 text-xl font-bold font-sans"
+                onClick={() => setShowMobileFilters(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">กลุ่ม</span>
+                <select className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800 font-sans" value={group} onChange={(event) => {
+                  setGroup(event.target.value as EventGroup)
+                  setPage(1)
+                }}>
+                  {eventGroups.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">Event Type</span>
+                <input className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800 font-sans" list="audit-event-types-mobile" placeholder="เช่น app_user.updated" value={eventType} onChange={(event) => {
+                  setEventType(event.target.value)
+                  setPage(1)
+                }} />
+                <datalist id="audit-event-types-mobile">
+                  {eventTypes.map((type) => <option key={type} value={type} />)}
+                </datalist>
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">ผู้ทำรายการ</span>
+                <input className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800 font-sans" placeholder="username/display" value={actor} onChange={(event) => {
+                  setActor(event.target.value)
+                  setPage(1)
+                }} />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">เป้าหมาย</span>
+                <input className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800 font-sans" placeholder="username/display" value={target} onChange={(event) => {
+                  setTarget(event.target.value)
+                  setPage(1)
+                }} />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">ต่อหน้า</span>
+                <select className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800 font-sans" value={pageSize} onChange={(event) => {
+                  setPageSize(Number(event.target.value))
+                  setPage(1)
+                }}>
+                  {pageSizeOptions.map((size) => <option key={size} value={size}>{size} รายการ</option>)}
+                </select>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-6 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 font-sans"
+                onClick={() => {
+                  resetFilters()
+                  setShowMobileFilters(false)
+                }}
+              >
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                className="h-11 rounded-md bg-slate-900 text-sm font-semibold text-white hover:bg-slate-800 font-sans"
+                onClick={() => setShowMobileFilters(false)}
+              >
+                ใช้ตัวกรอง
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
         {eventGroups.filter((item) => item.value !== 'all').map((item) => (
           <button
             key={item.value}
-            className={`rounded-md border bg-white p-3 text-left shadow-sm ring-1 ring-transparent transition hover:bg-slate-50 ${group === item.value ? 'border-slate-900' : 'border-slate-200'}`}
+            className={`rounded-md border bg-white p-3 text-left shadow-sm transition hover:bg-slate-50 ${group === item.value ? 'border-slate-500 bg-slate-50' : 'border-slate-200/80'}`}
             type="button"
             onClick={() => {
               setGroup(item.value)
               setPage(1)
             }}
           >
-            <div className="text-xs font-medium text-slate-500">{item.label}</div>
-            <div className="mt-1 text-2xl font-bold text-slate-900">{summary.get(item.label) ?? 0}</div>
-            <div className="mt-1 text-xs text-slate-500">ในหน้าปัจจุบัน</div>
+            <div className="text-xs font-semibold text-slate-500">{item.label}</div>
+            <div className="mt-1 text-xl md:text-2xl font-bold text-slate-900">{summary.get(item.label) ?? 0}</div>
+            <div className="mt-1 text-[10px] text-slate-400">ในหน้าปัจจุบัน</div>
           </button>
         ))}
       </div>
 
-      <div className="rounded-md border bg-white p-4 shadow">
+      {/* Desktop Filter Panel (Hidden on Mobile) */}
+      <div className="hidden md:block rounded-md bg-white p-4 shadow">
         <div className="grid gap-3 lg:grid-cols-5">
           <label className="block text-sm font-medium lg:col-span-2">
             ค้นหา
-            <input className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-slate-700" placeholder="event, user, metadata, user agent" value={query} onChange={(event) => {
+            <input className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 outline-none focus:border-slate-700 text-sm" placeholder="event, user, metadata, user agent" value={query} onChange={(event) => {
               setQuery(event.target.value)
               setPage(1)
             }} />
           </label>
           <label className="block text-sm font-medium">
             กลุ่ม
-            <select className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-slate-700" value={group} onChange={(event) => {
+            <select className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 outline-none focus:border-slate-700 text-sm" value={group} onChange={(event) => {
               setGroup(event.target.value as EventGroup)
               setPage(1)
             }}>
@@ -256,7 +373,7 @@ export function AuditLogPageClient() {
           </label>
           <label className="block text-sm font-medium">
             Event Type
-            <input className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-slate-700" list="audit-event-types" placeholder="app_user.updated" value={eventType} onChange={(event) => {
+            <input className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 outline-none focus:border-slate-700 text-sm" list="audit-event-types" placeholder="app_user.updated" value={eventType} onChange={(event) => {
               setEventType(event.target.value)
               setPage(1)
             }} />
@@ -266,7 +383,7 @@ export function AuditLogPageClient() {
           </label>
           <label className="block text-sm font-medium">
             ต่อหน้า
-            <select className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-slate-700" value={pageSize} onChange={(event) => {
+            <select className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 outline-none focus:border-slate-700 text-sm" value={pageSize} onChange={(event) => {
               setPageSize(Number(event.target.value))
               setPage(1)
             }}>
@@ -275,65 +392,66 @@ export function AuditLogPageClient() {
           </label>
           <label className="block text-sm font-medium">
             ผู้ทำรายการ
-            <input className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-slate-700" placeholder="username/display" value={actor} onChange={(event) => {
+            <input className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 outline-none focus:border-slate-700 text-sm" placeholder="username/display" value={actor} onChange={(event) => {
               setActor(event.target.value)
               setPage(1)
             }} />
           </label>
           <label className="block text-sm font-medium">
             เป้าหมาย
-            <input className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-slate-700" placeholder="username/display" value={target} onChange={(event) => {
+            <input className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 outline-none focus:border-slate-700 text-sm" placeholder="username/display" value={target} onChange={(event) => {
               setTarget(event.target.value)
               setPage(1)
             }} />
           </label>
           <div className="flex items-end gap-2 lg:col-span-3">
-            <button className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" type="button" onClick={resetFilters}>ล้าง filter</button>
-            <button className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50" disabled={isLoading || data.rows.length === 0} type="button" onClick={() => exportAuditCsv(data.rows)}>Export CSV หน้านี้</button>
+            <button className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 h-9 flex items-center shrink-0" type="button" onClick={resetFilters}>ล้าง filter</button>
+            <button className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 h-9 flex items-center shrink-0 ml-auto" disabled={isLoading || data.rows.length === 0} type="button" onClick={() => exportAuditCsv(data.rows)}>Export CSV หน้านี้</button>
           </div>
         </div>
       </div>
 
-      <div className="rounded-md border bg-white shadow">
+      <div className="rounded-md bg-white shadow overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3 text-sm text-slate-600">
           <div>พบทั้งหมด <span className="font-semibold text-slate-900">{data.total.toLocaleString('th-TH')}</span> รายการ</div>
           <div className="flex items-center gap-2">
-            <button className="rounded-md border border-slate-300 px-3 py-1 disabled:opacity-50" disabled={page <= 1 || isLoading} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</button>
-            <span>หน้า {data.page} / {data.totalPages}</span>
-            <button className="rounded-md border border-slate-300 px-3 py-1 disabled:opacity-50" disabled={page >= data.totalPages || isLoading} type="button" onClick={() => setPage((value) => Math.min(data.totalPages, value + 1))}>ถัดไป</button>
+            <button className="rounded-md border border-slate-300 bg-white px-3 py-1 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50" disabled={page <= 1 || isLoading} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</button>
+            <span className="font-medium text-xs">หน้า {data.page} / {data.totalPages}</span>
+            <button className="rounded-md border border-slate-300 bg-white px-3 py-1 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50" disabled={page >= data.totalPages || isLoading} type="button" onClick={() => setPage((value) => Math.min(data.totalPages, value + 1))}>ถัดไป</button>
           </div>
         </div>
 
-        {error ? <div className="m-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
-        {isLoading ? <div className="p-6 text-center text-sm text-slate-500">กำลังโหลดข้อมูล</div> : null}
+        {error ? <div className="m-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 animate-fade-in">{error}</div> : null}
+        {isLoading ? <div className="p-12 text-center text-sm text-slate-500">กำลังโหลดข้อมูล...</div> : null}
 
-        {!isLoading ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-100">
+        {/* Desktop Table View (Hidden on Mobile) */}
+        {!isLoading && (
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-sm min-w-[1000px]">
+              <thead className="bg-slate-100 text-slate-700 border-b">
                 <tr>
-                  <th className="p-2 text-left">เวลา</th>
-                  <th className="p-2 text-left">กลุ่ม</th>
-                  <th className="p-2 text-left">เหตุการณ์</th>
-                  <th className="p-2 text-left">ผู้ทำรายการ</th>
-                  <th className="p-2 text-left">เป้าหมาย</th>
-                  <th className="p-2 text-left">รายละเอียด</th>
+                  <th className="p-3 text-left font-semibold">เวลา</th>
+                  <th className="p-3 text-left font-semibold">กลุ่ม</th>
+                  <th className="p-3 text-left font-semibold">เหตุการณ์</th>
+                  <th className="p-3 text-left font-semibold">ผู้ทำรายการ</th>
+                  <th className="p-3 text-left font-semibold">เป้าหมาย</th>
+                  <th className="p-3 text-left font-semibold">รายละเอียด</th>
                 </tr>
               </thead>
               <tbody>
                 {data.rows.map((row) => {
                   const groupLabel = eventGroup(row.eventType)
                   return (
-                    <tr key={row.id} className="cursor-pointer border-t hover:bg-slate-50" onClick={() => setSelectedRow(row)}>
-                      <td className="whitespace-nowrap p-2 text-slate-600">{formatDate(row.createdAt)}</td>
-                      <td className="p-2"><span className={`inline-flex rounded-md-full px-2 py-0.5 text-xs font-semibold ring-1 ${groupBadgeClass(groupLabel)}`}>{groupLabel}</span></td>
-                      <td className="p-2">
-                        <div className="font-medium text-slate-900">{eventTitle(row.eventType)}</div>
-                        <div className="font-mono text-xs text-slate-500">{row.eventType}</div>
+                    <tr key={row.id} className="cursor-pointer border-t border-slate-100 hover:bg-slate-50" onClick={() => setSelectedRow(row)}>
+                      <td className="whitespace-nowrap p-3 text-xs text-slate-500">{formatDate(row.createdAt)}</td>
+                      <td className="p-3"><span className={`inline-flex rounded border px-2 py-0.5 text-xs font-bold ${groupBadgeClass(groupLabel)}`}>{groupLabel}</span></td>
+                      <td className="p-3">
+                        <div className="font-bold text-slate-900">{eventTitle(row.eventType)}</div>
+                        <div className="font-mono text-xs text-slate-400 mt-0.5">{row.eventType}</div>
                       </td>
-                      <td className="p-2">{userLabel(row.actor)}</td>
-                      <td className="p-2">{userLabel(row.target)}</td>
-                      <td className="max-w-xl truncate p-2 font-mono text-xs text-slate-500" title={metadataText(row.metadata)}>
+                      <td className="p-3 text-slate-800 font-semibold">{userLabel(row.actor)}</td>
+                      <td className="p-3 text-slate-700">{userLabel(row.target)}</td>
+                      <td className="max-w-xl truncate p-3 font-mono text-xs text-slate-400" title={metadataText(row.metadata)}>
                         {metadataText(row.metadata)}
                       </td>
                     </tr>
@@ -341,32 +459,72 @@ export function AuditLogPageClient() {
                 })}
                 {data.rows.length === 0 ? (
                   <tr>
-                    <td className="p-4 text-center text-sm text-slate-500" colSpan={6}>ยังไม่มี Audit หรือ Activity Log ตามเงื่อนไขนี้</td>
+                    <td className="p-8 text-center text-sm text-slate-400 font-medium" colSpan={6}>ยังไม่มี Audit หรือ Activity Log ตามเงื่อนไขนี้</td>
                   </tr>
                 ) : null}
               </tbody>
             </table>
           </div>
+        )}
+
+        {/* Mobile View: Dense Card List (Hidden on Desktop) */}
+        {!isLoading && data.rows.length > 0 ? (
+          <div className="md:hidden divide-y divide-slate-100">
+            {data.rows.map((row) => {
+              const groupLabel = eventGroup(row.eventType)
+              return (
+                <div key={row.id} className="p-4 bg-white space-y-3 animate-fade-in hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedRow(row)}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className={`inline-flex rounded border px-1.5 py-0.5 text-[10px] font-bold ${groupBadgeClass(groupLabel)}`}>{groupLabel}</span>
+                      <span className="ml-1.5 font-mono text-[11px] text-slate-500 bg-slate-50 px-1 py-0.5 rounded border border-slate-100">{row.eventType}</span>
+                    </div>
+                    <span className="text-[11px] font-medium text-slate-500">{formatDate(row.createdAt)}</span>
+                  </div>
+
+                  <div className="text-xs">
+                    <div className="font-bold text-slate-800 text-sm leading-snug">{eventTitle(row.eventType)}</div>
+                    <div className="text-slate-600 mt-2 space-y-1.5">
+                      <div><span className="font-semibold text-slate-400 text-[10px] uppercase block">ผู้ทำรายการ</span> <span className="font-medium text-slate-800">{userLabel(row.actor)}</span></div>
+                      {row.target ? (
+                        <div><span className="font-semibold text-slate-400 text-[10px] uppercase block">เป้าหมาย</span> <span className="font-medium text-slate-800">{userLabel(row.target)}</span></div>
+                      ) : null}
+                    </div>
+                  </div>
+                  
+                  <div className="text-[11px] text-slate-400 font-mono truncate max-w-full bg-slate-50 p-1.5 rounded border border-slate-100">
+                    {metadataText(row.metadata)}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : null}
+
+        {!isLoading && data.rows.length === 0 ? (
+          <div className="md:hidden p-8 text-center text-sm text-slate-400">
+            ยังไม่มี Audit หรือ Activity Log ตามเงื่อนไขนี้
+          </div>
         ) : null}
       </div>
 
       {selectedRow ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/40 p-4 pt-8" role="dialog" aria-modal="true">
-          <div className="w-full max-w-3xl overflow-hidden rounded-md bg-white shadow-xl">
-            <div className="flex items-start justify-between gap-3 border-b border-slate-100 bg-white px-5 py-4">
+        <Dialog open={!!selectedRow} onOpenChange={() => setSelectedRow(null)}>
+          <DialogContent className="max-w-3xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 max-h-[90vh] animate-fade-in" hideClose>
+            <div className="border-b border-slate-800 px-5 py-4 bg-slate-900 shrink-0 flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-bold text-slate-900">{eventTitle(selectedRow.eventType)}</h3>
+                <DialogTitle className="text-lg font-bold text-slate-100">{eventTitle(selectedRow.eventType)}</DialogTitle>
                 <p className="mt-0.5 text-xs text-slate-400">ID: {selectedRow.id}</p>
               </div>
-              <button className="rounded-md bg-slate-100 px-3 py-1 text-sm text-slate-600 hover:bg-slate-200" type="button" onClick={() => setSelectedRow(null)}>ปิด</button>
+              <button className="text-2xl text-slate-400 hover:text-slate-200 ml-2" type="button" onClick={() => setSelectedRow(null)}>&times;</button>
             </div>
             
-            <div className="space-y-4 p-5">
+            <div className="space-y-4 p-5 bg-slate-50 flex-1 overflow-y-auto">
               <div className="grid gap-4 md:grid-cols-2">
                 {/* ข้อมูลเหตุการณ์ */}
-                <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลเหตุการณ์</div>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูลเหตุการณ์</div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
                     <DetailItem label="กลุ่ม" value={eventGroup(selectedRow.eventType)} />
                     <DetailItem label="เวลา" value={formatDate(selectedRow.createdAt)} />
                     <DetailItem className="col-span-2" label="Event Type" value={selectedRow.eventType} mono />
@@ -374,8 +532,8 @@ export function AuditLogPageClient() {
                 </div>
 
                 {/* ผู้ทำและเป้าหมาย */}
-                <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ผู้ทำและเป้าหมาย</div>
+                <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ผู้ทำและเป้าหมาย</div>
                   <div className="grid grid-cols-1 gap-3">
                     <DetailItem label="ผู้ทำรายการ" value={userLabel(selectedRow.actor)} />
                     <DetailItem label="เป้าหมาย" value={userLabel(selectedRow.target)} />
@@ -384,19 +542,23 @@ export function AuditLogPageClient() {
               </div>
 
               {/* ข้อมูลระบบและเมทาดาตา */}
-              <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลระบบและเมทาดาตา</div>
+              <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูลระบบและเมทาดาตา</div>
                 <div className="space-y-4">
                   <DetailItem label="User Agent" value={selectedRow.userAgent || '-'} />
                   <div>
-                    <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1">Metadata</div>
-                    <pre className="max-h-60 overflow-auto rounded-md bg-slate-950 p-3.5 font-mono text-[11px] leading-relaxed text-slate-200">{metadataText(selectedRow.metadata)}</pre>
+                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Metadata</div>
+                    <pre className="max-h-60 overflow-auto rounded bg-slate-950 p-3.5 font-mono text-[11px] leading-relaxed text-slate-200">{metadataText(selectedRow.metadata)}</pre>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
+            
+            <div className="flex justify-end border-t border-slate-200 bg-white px-5 py-4 shrink-0">
+              <button className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" onClick={() => setSelectedRow(null)}>ปิด</button>
+            </div>
+          </DialogContent>
+        </Dialog>
       ) : null}
     </section>
   )
@@ -406,7 +568,8 @@ function DetailItem({ className = '', label, value, mono = false }: { className?
   return (
     <div className={`flex flex-col py-1 ${className}`}>
       <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{label}</div>
-      <div className={`mt-0.5 text-xs sm:text-sm font-semibold text-slate-800 ${mono ? 'font-mono' : ''}`}>{value}</div>
+      <div className={`mt-0.5 text-xs sm:text-sm font-bold text-slate-800 ${mono ? 'font-mono' : ''}`}>{value}</div>
     </div>
   )
 }
+

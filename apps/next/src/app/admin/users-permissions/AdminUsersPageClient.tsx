@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/Dialog'
 import { getErrorMessage, readJsonResponse } from '@/lib/api-client'
 import { z } from 'zod'
 
@@ -372,112 +373,177 @@ export function AdminUsersPageClient() {
 
   return (
     <section className="space-y-4">
-      <div className="rounded-md border bg-white p-4 shadow">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      {/* Desktop Toolbar (Hidden on Mobile) */}
+      <div className="hidden md:block rounded-md bg-white p-4 shadow">
+        <div className="flex flex-wrap items-center gap-3">
           <div>
             <h2 className="text-xl font-bold text-slate-900">Users & Permissions</h2>
             <p className="text-sm text-slate-500">ผู้ใช้ {data?.users.length ?? 0} รายการ · Roles {data?.roles.length ?? 0} รายการ</p>
           </div>
-          <div className="flex flex-col gap-2 md:flex-row md:items-center">
+          <div className="ml-auto flex items-center gap-2">
             <input
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 md:w-72"
+              className="w-72 rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 h-9"
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="ค้นหา"
+              placeholder="ค้นหา..."
               type="search"
               value={search}
             />
-            <button className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={!data} type="button" onClick={openAddUser}>
-              เพิ่มผู้ใช้
+            <button className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 h-9 flex items-center" disabled={!data} type="button" onClick={openAddUser}>
+              + เพิ่มผู้ใช้
             </button>
           </div>
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <div className="rounded-md border bg-white p-3 shadow-sm"><div className="text-xs text-slate-500">ผู้ใช้ Active</div><div className="mt-1 text-2xl font-bold text-emerald-700">{userSummary.active}</div></div>
-        <div className="rounded-md border bg-white p-3 shadow-sm"><div className="text-xs text-slate-500">จำกัดสาขา</div><div className="mt-1 text-2xl font-bold text-blue-700">{userSummary.branchScoped}</div></div>
-        <div className="rounded-md border bg-white p-3 shadow-sm"><div className="text-xs text-slate-500">ยังไม่ link Auth</div><div className="mt-1 text-2xl font-bold text-amber-700">{userSummary.pendingAuth}</div></div>
-        <div className="rounded-md border bg-white p-3 shadow-sm"><div className="text-xs text-slate-500">ต้องเปลี่ยน Password</div><div className="mt-1 text-2xl font-bold text-purple-700">{userSummary.mustChange}</div></div>
+      {/* Mobile Toolbar (Hidden on Desktop) */}
+      <div className="md:hidden rounded-md bg-white p-3.5 shadow space-y-2.5">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">Users & Permissions</h2>
+          <p className="text-xs text-slate-500">ผู้ใช้ {data?.users.length ?? 0} รายการ · Roles {data?.roles.length ?? 0} รายการ</p>
+        </div>
+        <div className="flex gap-2">
+          <input
+            className="flex-1 rounded-md border border-slate-300 px-3 h-9 text-sm"
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="ค้นหา..."
+            type="search"
+            value={search}
+          />
+          <button className="rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50 h-9 shrink-0 flex items-center" disabled={!data} type="button" onClick={openAddUser}>
+            + เพิ่มผู้ใช้
+          </button>
+        </div>
+      </div>
+
+      {/* AcexPOS Style KPI / Summary Cards */}
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm animate-fade-in">
+        {/* 1. ผู้ใช้ Active */}
+        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xl shrink-0">
+            👥
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-semibold text-slate-500 truncate">ผู้ใช้ Active</div>
+            <div className="text-sm font-bold text-emerald-700 mt-0.5 tabular-nums">{userSummary.active}</div>
+          </div>
+        </div>
+        {/* 2. จำกัดสาขา */}
+        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xl shrink-0">
+            🏢
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-semibold text-slate-500 truncate">จำกัดสาขา</div>
+            <div className="text-sm font-bold text-blue-700 mt-0.5 tabular-nums">{userSummary.branchScoped}</div>
+          </div>
+        </div>
+        {/* 3. ยังไม่ link Auth */}
+        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xl shrink-0">
+            🔗
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-semibold text-slate-500 truncate">ยังไม่ link Auth</div>
+            <div className="text-sm font-bold text-amber-700 mt-0.5 tabular-nums">{userSummary.pendingAuth}</div>
+          </div>
+        </div>
+        {/* 4. ต้องเปลี่ยน Password */}
+        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 text-purple-750 flex items-center justify-center text-xl shrink-0">
+            🔑
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-semibold text-slate-500 truncate">ต้องเปลี่ยน Password</div>
+            <div className="text-sm font-bold text-purple-700 mt-0.5 tabular-nums">{userSummary.mustChange}</div>
+          </div>
+        </div>
       </div>
 
       {formOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/40 p-4">
-          <form className="mt-10 w-full max-w-2xl overflow-hidden rounded-md bg-white shadow-xl" onSubmit={saveUser}>
-            <div className="flex items-center justify-between border-b border-slate-100 bg-white px-5 py-4">
-              <h3 className="text-lg font-bold text-slate-900">{editingUser ? 'แก้ไขผู้ใช้' : 'เพิ่มผู้ใช้'}</h3>
-              <ActiveToggle checked={form.active} onChange={(checked) => setForm((current) => ({ ...current, active: checked }))} />
-            </div>
-
-            <div className="grid gap-4 px-5 py-5 md:grid-cols-2">
-              <label className="text-sm font-medium text-slate-700">
-                Username *
-                <input className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-300 focus:ring-2 focus:ring-slate-100" value={form.username} onChange={(event) => setForm((current) => ({ ...current, username: event.target.value }))} />
-              </label>
-              <label className="text-sm font-medium text-slate-700">
-                Email *
-                <input className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-300 focus:ring-2 focus:ring-slate-100" type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} />
-              </label>
-              <label className="md:col-span-2 text-sm font-medium text-slate-700">
-                ชื่อผู้ใช้ *
-                <input className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-300 focus:ring-2 focus:ring-slate-100" value={form.displayName} onChange={(event) => setForm((current) => ({ ...current, displayName: event.target.value }))} />
-              </label>
-
-              <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">Roles *</div>
-                <div className="grid gap-2">
-                  {data?.roles.filter((role) => role.active).map((role) => (
-                    <label key={role.id} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                      <input checked={form.roleIds.includes(role.id)} type="checkbox" className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" onChange={() => toggleFormArray('roleIds', role.id)} />
-                      <span>{role.name}</span>
-                      <span className="font-mono text-xs text-slate-400">{role.code}</span>
-                    </label>
-                  ))}
+        <Dialog open={formOpen} onOpenChange={setFormOpen}>
+          <DialogContent className="max-w-2xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 max-h-[90vh] animate-fade-in" hideClose>
+            <form className="flex flex-col h-full overflow-hidden" onSubmit={saveUser}>
+              <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-5 py-4 shrink-0">
+                <DialogTitle className="text-lg font-bold text-slate-100">{editingUser ? 'แก้ไขผู้ใช้' : 'เพิ่มผู้ใช้'}</DialogTitle>
+                <div className="flex items-center gap-4">
+                  <ActiveToggle checked={form.active} onChange={(checked) => setForm((current) => ({ ...current, active: checked }))} />
+                  <button className="text-2xl text-slate-400 hover:text-slate-200 ml-2" type="button" onClick={() => setFormOpen(false)}>&times;</button>
                 </div>
               </div>
 
-              <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">สาขาที่เข้าถึง</div>
-                <div className="grid gap-2">
-                  {data?.branches.map((branch) => (
-                    <label key={branch.id} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                      <input checked={form.branchIds.includes(branch.id)} type="checkbox" className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" onChange={() => toggleFormArray('branchIds', branch.id)} />
-                      <span>{branch.name}</span>
-                      <span className="font-mono text-xs text-slate-400">{branch.code}</span>
-                    </label>
-                  ))}
-                  {data?.branches.length === 0 ? <span className="text-sm text-slate-500">ยังไม่มีสาขาที่เปิดใช้งาน</span> : null}
+              <div className="flex-1 overflow-y-auto bg-slate-50 p-5 space-y-4">
+                <div className="grid gap-4 text-sm md:grid-cols-2">
+                  <label className="text-sm font-medium text-slate-700">
+                    Username *
+                    <input className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400" value={form.username} onChange={(event) => setForm((current) => ({ ...current, username: event.target.value }))} />
+                  </label>
+                  <label className="text-sm font-medium text-slate-700">
+                    Email *
+                    <input className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400" type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} />
+                  </label>
+                  <label className="md:col-span-2 text-sm font-medium text-slate-700">
+                    ชื่อผู้ใช้ *
+                    <input className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400" value={form.displayName} onChange={(event) => setForm((current) => ({ ...current, displayName: event.target.value }))} />
+                  </label>
+
+                  <div className="rounded-lg border border-slate-200 bg-white p-4">
+                    <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">Roles *</div>
+                    <div className="grid gap-2">
+                      {data?.roles.filter((role) => role.active).map((role) => (
+                        <label key={role.id} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                          <input checked={form.roleIds.includes(role.id)} type="checkbox" className="rounded border-slate-300 text-slate-800 focus:ring-blue-500" onChange={() => toggleFormArray('roleIds', role.id)} />
+                          <span>{role.name}</span>
+                          <span className="font-mono text-xs text-slate-400">{role.code}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-200 bg-white p-4">
+                    <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">สาขาที่เข้าถึง</div>
+                    <div className="grid gap-2">
+                      {data?.branches.map((branch) => (
+                        <label key={branch.id} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                          <input checked={form.branchIds.includes(branch.id)} type="checkbox" className="rounded border-slate-300 text-slate-800 focus:ring-blue-500" onChange={() => toggleFormArray('branchIds', branch.id)} />
+                          <span>{branch.name}</span>
+                          <span className="font-mono text-xs text-slate-400">{branch.code}</span>
+                        </label>
+                      ))}
+                      {data?.branches.length === 0 ? <span className="text-sm text-slate-500">ยังไม่มีสาขาที่เปิดใช้งาน</span> : null}
+                    </div>
+                  </div>
+
+                  <label className="md:col-span-2 flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none mt-2">
+                    <input checked={form.mustChangePassword} type="checkbox" className="rounded border-slate-300 text-slate-800 focus:ring-blue-500" onChange={(event) => setForm((current) => ({ ...current, mustChangePassword: event.target.checked }))} />
+                    บังคับเปลี่ยน password หลังเข้าสู่ระบบ
+                  </label>
+
+                  {formError ? <p className="md:col-span-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{formError}</p> : null}
                 </div>
               </div>
 
-              <label className="md:col-span-2 flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
-                <input checked={form.mustChangePassword} type="checkbox" className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" onChange={(event) => setForm((current) => ({ ...current, mustChangePassword: event.target.checked }))} />
-                บังคับเปลี่ยน password หลังเข้าสู่ระบบ
-              </label>
-
-              {formError ? <p className="md:col-span-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{formError}</p> : null}
-            </div>
-
-            <div className="flex justify-end gap-2 border-t border-slate-100 bg-white px-5 py-4">
-              <button className="rounded-md px-4 py-2 text-sm text-slate-600 hover:bg-slate-50" disabled={isSaving} type="button" onClick={() => setFormOpen(false)}>ยกเลิก</button>
-              <button className="rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-50 transition-colors" disabled={isSaving} type="submit">
-                {isSaving ? 'กำลังบันทึก...' : 'บันทึก'}
-              </button>
-            </div>
-          </form>
-        </div>
+              <div className="flex justify-end gap-2 border-t border-slate-200 bg-white px-5 py-4 shrink-0">
+                <button className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 font-medium" disabled={isSaving} type="button" onClick={() => setFormOpen(false)}>ยกเลิก</button>
+                <button className="rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 transition-colors" disabled={isSaving} type="submit">
+                  {isSaving ? 'กำลังบันทึก...' : 'บันทึก'}
+                </button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       ) : null}
 
-      <div className="rounded-md border bg-white shadow">
-        <div className="flex border-b">
+      <div className="rounded-md bg-white shadow overflow-hidden border border-slate-200">
+        <div className="flex border-b border-slate-200 bg-slate-50">
           <button
-            className={`border-b-2 px-5 py-3 text-sm font-medium ${tab === 'users' ? 'border-slate-700 text-slate-900' : 'border-transparent text-slate-500'}`}
+            className={`border-b-2 px-5 py-3 text-sm font-bold transition-all outline-none ${tab === 'users' ? 'border-blue-600 text-blue-600 bg-white' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
             type="button"
             onClick={() => setTab('users')}
           >
             Users
           </button>
           <button
-            className={`border-b-2 px-5 py-3 text-sm font-medium ${tab === 'roles' ? 'border-slate-700 text-slate-900' : 'border-transparent text-slate-500'}`}
+            className={`border-b-2 px-5 py-3 text-sm font-bold transition-all outline-none ${tab === 'roles' ? 'border-blue-600 text-blue-600 bg-white' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
             type="button"
             onClick={() => setTab('roles')}
           >
@@ -487,116 +553,227 @@ export function AdminUsersPageClient() {
 
         {error ? <div className="m-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
         {notice ? <div className="m-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{notice}</div> : null}
-        {isLoading ? <div className="p-6 text-center text-sm text-slate-500">กำลังโหลดข้อมูล</div> : null}
+        {isLoading ? <div className="p-12 text-center text-sm text-slate-500">กำลังโหลดข้อมูล...</div> : null}
 
+        {/* Tab 1: Users */}
         {!isLoading && tab === 'users' ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-100">
-                <tr>
-                  <th className="p-2 text-left">Username</th>
-                  <th className="p-2 text-left">ชื่อ</th>
-                  <th className="p-2 text-left">Email</th>
-                  <th className="p-2 text-left">Role</th>
-                  <th className="p-2 text-left">สาขา</th>
-                  <th className="p-2 text-center">สถานะ</th>
-                  <th className="p-2 text-center">ตั้งรหัส</th>
-                  <th className="p-2 text-left">Login ล่าสุด</th>
-                  <th className="p-2 text-center">แก้ไข</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredUsers.map((user) => (
-                  <tr key={user.id} className="border-t hover:bg-slate-50">
-                    <td className="p-2 font-mono text-xs">{user.username}</td>
-                    <td className="p-2 font-medium">{user.displayName || '-'}</td>
-                    <td className="p-2 text-slate-600">{user.email || '-'}</td>
-                    <td className="p-2">{user.roles.map((role) => role.name).join(', ') || '-'}</td>
-                    <td className="p-2">{user.branches.length ? user.branches.map((branch) => branch.name).join(', ') : 'ทุกสาขา'}</td>
-                    <td className="p-2 text-center">
-                      <ActiveToggle checked={user.active} disabled={savingUserId === user.id} label={statusText(user.active)} onChange={(checked) => void updateUserStatus(user.id, checked)} />
-                    </td>
-                    <td className="p-2 text-center">
-                      <button
-                        className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 disabled:opacity-50"
-                        disabled={!user.email || !user.active || actionUserId === user.id}
-                        type="button"
-                        onClick={() => void sendUserInvite(user)}
-                      >
-                        {actionUserId === user.id ? 'กำลังส่ง...' : user.authUserId ? 'Reset' : 'Invite'}
-                      </button>
-                    </td>
-                    <td className="p-2 text-slate-600">{formatDate(user.lastLoginAt)}</td>
-                    <td className="p-2 text-center">
-                      <button className="text-blue-700 hover:underline" type="button" onClick={() => openEditUser(user)}>
-                        แก้ไข
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {filteredUsers.length === 0 ? (
+          <>
+            {/* Desktop Table View (Hidden on Mobile) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm min-w-[1000px]">
+                <thead className="bg-slate-100 text-slate-700 border-b">
                   <tr>
-                    <td className="p-4 text-center text-sm text-slate-500" colSpan={9}>ไม่พบผู้ใช้</td>
+                    <th className="p-3 text-left font-semibold">Username</th>
+                    <th className="p-3 text-left font-semibold">ชื่อ</th>
+                    <th className="p-3 text-left font-semibold">Email</th>
+                    <th className="p-3 text-left font-semibold">Role</th>
+                    <th className="p-3 text-left font-semibold">สาขา</th>
+                    <th className="p-3 text-center font-semibold">สถานะ</th>
+                    <th className="p-3 text-center font-semibold">ตั้งรหัส</th>
+                    <th className="p-3 text-left font-semibold">Login ล่าสุด</th>
+                    <th className="p-3 text-center font-semibold">แก้ไข</th>
                   </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filteredUsers.map((user) => (
+                    <tr key={user.id} className="border-t border-slate-100 hover:bg-slate-50">
+                      <td className="p-3 font-mono text-xs">{user.username}</td>
+                      <td className="p-3 font-medium text-slate-900">{user.displayName || '-'}</td>
+                      <td className="p-3 text-slate-600">{user.email || '-'}</td>
+                      <td className="p-3 text-slate-700">{user.roles.map((role) => role.name).join(', ') || '-'}</td>
+                      <td className="p-3 text-slate-700">{user.branches.length ? user.branches.map((branch) => branch.name).join(', ') : 'ทุกสาขา'}</td>
+                      <td className="p-3 text-center">
+                        <ActiveToggle checked={user.active} disabled={savingUserId === user.id} label={statusText(user.active)} onChange={(checked) => void updateUserStatus(user.id, checked)} />
+                      </td>
+                      <td className="p-3 text-center">
+                        <button
+                          className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 font-semibold hover:bg-slate-50 disabled:opacity-50"
+                          disabled={!user.email || !user.active || actionUserId === user.id}
+                          type="button"
+                          onClick={() => void sendUserInvite(user)}
+                        >
+                          {actionUserId === user.id ? 'กำลังส่ง...' : user.authUserId ? 'Reset' : 'Invite'}
+                        </button>
+                      </td>
+                      <td className="p-3 text-slate-600">{formatDate(user.lastLoginAt)}</td>
+                      <td className="p-3 text-center">
+                        <button className="text-blue-700 hover:underline font-bold" type="button" onClick={() => openEditUser(user)}>
+                          แก้ไข
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredUsers.length === 0 ? (
+                    <tr>
+                      <td className="p-8 text-center text-sm text-slate-500" colSpan={9}>ไม่พบผู้ใช้</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile View: Dense Card List (Hidden on Desktop) */}
+            <div className="md:hidden divide-y divide-slate-100">
+              {filteredUsers.map((user) => (
+                <div key={user.id} className="p-4 bg-white space-y-3 animate-fade-in">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="font-bold text-slate-900 text-sm leading-snug">{user.displayName || '-'}</div>
+                      <div className="font-mono text-xs text-slate-500 mt-0.5">{user.username}</div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <ActiveToggle checked={user.active} disabled={savingUserId === user.id} onChange={(checked) => void updateUserStatus(user.id, checked)} />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="col-span-2">
+                      <span className="text-slate-400 block text-[9px] uppercase font-semibold">Email</span>
+                      <span className="text-slate-700 break-all">{user.email || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[9px] uppercase font-semibold">Role</span>
+                      <span className="text-slate-700 font-semibold">{user.roles.map((role) => role.name).join(', ') || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[9px] uppercase font-semibold">สาขา</span>
+                      <span className="text-slate-700 font-semibold">{user.branches.length ? user.branches.map((branch) => branch.name).join(', ') : 'ทุกสาขา'}</span>
+                    </div>
+                    <div className="col-span-2 border-t border-slate-50 pt-2 flex items-center justify-between">
+                      <div>
+                        <span className="text-slate-400 block text-[9px] uppercase">Login ล่าสุด</span>
+                        <span className="text-slate-600 text-[11px]">{formatDate(user.lastLoginAt)}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-700 font-bold hover:bg-slate-50 disabled:opacity-50"
+                          disabled={!user.email || !user.active || actionUserId === user.id}
+                          type="button"
+                          onClick={() => void sendUserInvite(user)}
+                        >
+                          {actionUserId === user.id ? 'ส่ง...' : user.authUserId ? 'Reset' : 'Invite'}
+                        </button>
+                        <button className="rounded bg-blue-600 text-white px-3 py-1 text-xs font-bold hover:bg-blue-700" type="button" onClick={() => openEditUser(user)}>
+                          แก้ไข
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {filteredUsers.length === 0 ? (
+                <div className="p-8 text-center text-sm text-slate-400">ไม่พบผู้ใช้</div>
+              ) : null}
+            </div>
+          </>
         ) : null}
 
+        {/* Tab 2: Roles */}
         {!isLoading && tab === 'roles' ? (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-sm">
-              <thead className="bg-slate-100">
-                <tr>
-                  <th className="p-2 text-left">Role</th>
-                  <th className="p-2 text-left">รายละเอียด</th>
-                  <th className="p-2 text-left">ประเภท</th>
-                  <th className="p-2 text-left">สาขา</th>
-                  <th className="p-2 text-right">ผู้ใช้</th>
-                  <th className="p-2 text-center">ต้นทุน</th>
-                  <th className="p-2 text-center">กำไร</th>
-                  <th className="p-2 text-center">เงินสด</th>
-                  <th className="p-2 text-center">งบ</th>
-                  <th className="p-2 text-center">Opening</th>
-                  <th className="p-2 text-center">สถานะ</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRoles.map((role) => (
-                  <tr key={role.id} className="border-t align-top hover:bg-slate-50">
-                    <td className="p-2">
-                      <div className="font-semibold text-slate-900">{role.name}</div>
-                      <div className="mt-0.5 font-mono text-xs text-slate-500">{role.code}</div>
-                    </td>
-                    <td className="max-w-[320px] p-2 text-slate-600">{role.description || '-'}</td>
-                    <td className="p-2">
-                      <span className={`rounded-md px-2 py-0.5 text-xs ${role.isSystem ? 'bg-slate-200 text-slate-700' : 'bg-blue-100 text-blue-700'}`}>
+          <>
+            {/* Desktop Table View (Hidden on Mobile) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm min-w-[1000px]">
+                <thead className="bg-slate-100 text-slate-700 border-b">
+                  <tr>
+                    <th className="p-3 text-left font-semibold">Role</th>
+                    <th className="p-3 text-left font-semibold">รายละเอียด</th>
+                    <th className="p-3 text-left font-semibold">ประเภท</th>
+                    <th className="p-3 text-left font-semibold">สาขา</th>
+                    <th className="p-3 text-right font-semibold">ผู้ใช้</th>
+                    <th className="p-3 text-center font-semibold">ต้นทุน</th>
+                    <th className="p-3 text-center font-semibold">กำไร</th>
+                    <th className="p-3 text-center font-semibold">เงินสด</th>
+                    <th className="p-3 text-center font-semibold">งบ</th>
+                    <th className="p-3 text-center font-semibold">Opening</th>
+                    <th className="p-3 text-center font-semibold">สถานะ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRoles.map((role) => (
+                    <tr key={role.id} className="border-t border-slate-100 align-top hover:bg-slate-50">
+                      <td className="p-3">
+                        <div className="font-bold text-slate-900">{role.name}</div>
+                        <div className="mt-0.5 font-mono text-xs text-slate-500">{role.code}</div>
+                      </td>
+                      <td className="max-w-[280px] p-3 text-slate-600 leading-normal">{role.description || '-'}</td>
+                      <td className="p-3">
+                        <span className={`rounded px-2 py-0.5 text-xs font-bold ${role.isSystem ? 'bg-slate-200 text-slate-700' : 'bg-blue-100 text-blue-700'}`}>
+                          {role.isSystem ? 'SYSTEM' : 'CUSTOM'}
+                        </span>
+                      </td>
+                      <td className="p-3 text-slate-700">{branchScopeText(role.branchScope)}</td>
+                      <td className="p-3 text-right font-bold text-slate-800">{roleUserCounts.get(role.id) ?? 0}</td>
+                      <RoleCheck enabled={role.canSeeCost} />
+                      <RoleCheck enabled={role.canSeeProfit} />
+                      <RoleCheck enabled={role.canSeeCash} />
+                      <RoleCheck enabled={role.canSeeFinancials} />
+                      <RoleCheck enabled={role.canEditOpeningBalance} />
+                      <td className="p-3 text-center">
+                        <span className={`rounded px-2.5 py-0.5 text-xs font-bold ${role.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
+                          {role.active ? 'ใช้งาน' : 'ปิด'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredRoles.length === 0 ? (
+                    <tr>
+                      <td className="p-8 text-center text-sm text-slate-500" colSpan={11}>ไม่พบ role</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile View: Dense Card List (Hidden on Desktop) */}
+            <div className="md:hidden divide-y divide-slate-100">
+              {filteredRoles.map((role) => (
+                <div key={role.id} className="p-4 bg-white space-y-3 animate-fade-in">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="font-bold text-slate-900 text-sm leading-snug">{role.name}</div>
+                      <div className="font-mono text-xs text-slate-500 mt-0.5">{role.code}</div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${role.isSystem ? 'bg-slate-100 text-slate-600' : 'bg-blue-50 text-blue-600 border border-blue-100'}`}>
                         {role.isSystem ? 'SYSTEM' : 'CUSTOM'}
                       </span>
-                    </td>
-                    <td className="p-2 text-slate-700">{branchScopeText(role.branchScope)}</td>
-                    <td className="p-2 text-right font-semibold">{roleUserCounts.get(role.id) ?? 0}</td>
-                    <RoleCheck enabled={role.canSeeCost} />
-                    <RoleCheck enabled={role.canSeeProfit} />
-                    <RoleCheck enabled={role.canSeeCash} />
-                    <RoleCheck enabled={role.canSeeFinancials} />
-                    <RoleCheck enabled={role.canEditOpeningBalance} />
-                    <td className="p-2 text-center">
-                      <span className={`rounded-md px-2 py-0.5 text-xs ${role.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
+                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${role.active ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-100 text-slate-500'}`}>
                         {role.active ? 'ใช้งาน' : 'ปิด'}
                       </span>
-                    </td>
-                  </tr>
-                ))}
-                {filteredRoles.length === 0 ? (
-                  <tr>
-                    <td className="p-4 text-center text-sm text-slate-500" colSpan={11}>ไม่พบ role</td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-slate-600 leading-normal">{role.description || '-'}</div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs border-t border-slate-50 pt-2">
+                    <div>
+                      <span className="text-slate-400 block text-[9px] uppercase font-semibold">สาขา</span>
+                      <span className="text-slate-700 font-semibold">{branchScopeText(role.branchScope)}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[9px] uppercase font-semibold">จำนวนผู้ใช้</span>
+                      <span className="text-slate-700 font-bold">{roleUserCounts.get(role.id) ?? 0} คน</span>
+                    </div>
+                    
+                    <div className="col-span-2 pt-1">
+                      <span className="text-slate-400 block text-[9px] uppercase font-semibold mb-1">สิทธิ์การเข้าถึงข้อมูลสำคัญ</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        <Badge label="ต้นทุน" active={role.canSeeCost} />
+                        <Badge label="กำไร" active={role.canSeeProfit} />
+                        <Badge label="เงินสด" active={role.canSeeCash} />
+                        <Badge label="งบ" active={role.canSeeFinancials} />
+                        <Badge label="Opening" active={role.canEditOpeningBalance} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {filteredRoles.length === 0 ? (
+                <div className="p-8 text-center text-sm text-slate-400">ไม่พบ role</div>
+              ) : null}
+            </div>
+          </>
         ) : null}
       </div>
     </section>
@@ -605,10 +782,19 @@ export function AdminUsersPageClient() {
 
 function RoleCheck({ enabled }: { enabled: boolean }) {
   return (
-    <td className="p-2 text-center">
-      <span className={`inline-flex size-6 items-center justify-center rounded-md-full text-xs font-bold ${enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-300'}`}>
+    <td className="p-3 text-center">
+      <span className={`inline-flex size-6 items-center justify-center rounded-full text-xs font-bold ${enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-300'}`}>
         {enabled ? '✓' : '—'}
       </span>
     </td>
   )
 }
+
+function Badge({ active, label }: { active: boolean; label: string }) {
+  return (
+    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${active ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-50 text-slate-300 border border-slate-100'}`}>
+      {label}
+    </span>
+  )
+}
+

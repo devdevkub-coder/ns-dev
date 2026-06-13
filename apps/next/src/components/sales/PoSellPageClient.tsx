@@ -708,7 +708,7 @@ function PoSellDetailModal({
     <Dialog open onOpenChange={(open) => {
       if (!open) onClose()
     }}>
-      <DialogContent aria-labelledby="po-sell-detail-title" className="max-h-[90vh] max-w-3xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-none" hideClose>
+      <DialogContent aria-labelledby="po-sell-detail-title" className="max-h-[90vh] max-w-3xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" hideClose>
         <DialogHeader className="p-4 bg-slate-900 text-white shrink-0">
           <div>
             <DialogTitle id="po-sell-detail-title" className="text-white">รายละเอียด {row.docNo}</DialogTitle>
@@ -785,3 +785,4 @@ function DetailItem({ className = '', label, value }: { className?: string; labe
     </div>
   )
 }
+

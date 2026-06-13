@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
+import { Dialog, DialogContent } from '@/components/ui/Dialog'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import type { StockOption } from '@/lib/stock'
 
@@ -47,6 +48,7 @@ export function StockBalancePageClient() {
   const [status, setStatus] = useState('')
   const [viewMode, setViewMode] = useState<'detail' | 'summary'>('summary')
   const [warehouseId, setWarehouseId] = useState('')
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
 
   const loadData = useCallback(async () => {
     setError(null)
@@ -165,9 +167,24 @@ export function StockBalancePageClient() {
     window.location.href = `/api/stock/balance?${params.toString()}`
   }
 
+  const resetFilters = useCallback(() => {
+    setQ('')
+    setBranchId('')
+    setProductId('')
+    setWarehouseId('')
+    setStatus('')
+    setGroup('')
+  }, [])
+
+  const hasFilters = useMemo(() => {
+    return Boolean(q.trim() || branchId || productId || warehouseId || status || group)
+  }, [q, branchId, productId, warehouseId, status, group])
+
   return (
-    <section>
+    <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
+      
+      {/* Metric Cards */}
       <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4 shadow-sm grid grid-cols-2 gap-2.5 sm:gap-4 xl:grid-cols-6 text-sm">
         <Metric emoji="⚖️" iconBg="bg-blue-100 text-blue-700" label="น้ำหนักสต๊อกรวม" value={`${formatMoney(summary.qty)} กก.`} tone="blue" />
         <Metric emoji="💰" iconBg="bg-emerald-100 text-emerald-700" label="มูลค่าสต๊อกรวม" value={formatMoney(summary.value)} tone="emerald" />
@@ -176,82 +193,274 @@ export function StockBalancePageClient() {
         <Metric emoji="⚠️" iconBg="bg-red-100 text-red-700" label="ไม่พร้อมขาย" sub={`${summary.value > 0 ? (summary.notAvailableValue / summary.value * 100).toFixed(1) : '0'}% ของ Stock`} value={formatMoney(summary.notAvailableValue)} tone="red" />
         <Metric emoji="📊" iconBg="bg-slate-100 text-slate-700" label="ราคา/กก. เฉลี่ย" value={formatMoney(averageCost)} />
       </div>
+
+      {/* Status Cards */}
       <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-3">
         {byStatus.map((item) => <StatusCard key={item.status} item={item} />)}
       </div>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="flex overflow-hidden rounded-md border">
-          <button className={`px-4 py-2 text-sm ${viewMode === 'summary' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600'}`} type="button" onClick={() => setViewMode('summary')}>📊 Matrix (กลุ่ม × คลัง)</button>
-          <button className={`border-l px-4 py-2 text-sm ${viewMode === 'detail' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600'}`} type="button" onClick={() => setViewMode('detail')}>📄 รายสินค้า</button>
-        </div>
-        <select className="rounded-md border px-3 py-2 text-sm" value={group} onChange={(event) => setGroup(event.target.value)}>
-          <option value="">ทุกหมวด</option>{groupOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-        </select>
-        <select className="rounded-md border px-3 py-2 text-sm" value={status} onChange={(event) => setStatus(event.target.value)}>
-          <option value="">ทุกคลัง</option><option value="RM">📦 RM</option><option value="WIP">⚙️ WIP</option><option value="FG">✅ FG</option><option value={ON_HOLD_STATUS}>On Hold</option>
-        </select>
-        <select className="rounded-md border px-3 py-2 text-sm" value={branchId} onChange={(event) => { setBranchId(event.target.value); setWarehouseId('') }}>
-          <option value="">ทุกสาขา</option>{data?.reference.branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select>
-        <div className="min-w-72">
-          <SearchCombobox
-            hideLabel
-            inputClassName="h-9 text-sm"
-            inputId="stock-balance-product-search"
-            label="สินค้า"
-            options={productOptions}
-            placeholder="ค้นหารหัสหรือชื่อสินค้า"
-            value={productId}
-            onChange={setProductId}
+
+      {/* Desktop Toolbar (Hidden on Mobile) */}
+      <div className="hidden md:block mb-3 space-y-2 rounded-md bg-white p-3 shadow">
+        <div className="flex flex-wrap items-center gap-2">
+          <input 
+            className="min-w-[200px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm h-9" 
+            placeholder="ค้นหารหัส/ชื่อสินค้า/Lot/สาขา/คลัง/หมวด..." 
+            type="search" 
+            value={q} 
+            onChange={(event) => setQ(event.target.value)} 
           />
+          
+          <div className="min-w-64">
+            <SearchCombobox
+              hideLabel
+              inputClassName="h-9 text-sm"
+              inputId="stock-balance-product-search"
+              label="สินค้า"
+              options={productOptions}
+              placeholder="ค้นหารหัสหรือชื่อสินค้า"
+              value={productId}
+              onChange={setProductId}
+            />
+          </div>
+          {productId ? (
+            <button className="rounded-md bg-slate-100 px-2 py-1.5 text-xs hover:bg-slate-200 h-9 flex items-center" type="button" onClick={() => setProductId('')}>
+              ✕ ล้างสินค้า
+            </button>
+          ) : null}
+
+          {hasFilters ? (
+            <button className="rounded-md bg-slate-100 px-3 py-2 text-xs hover:bg-slate-200 h-9" type="button" onClick={resetFilters}>
+              ✕ ล้างทั้งหมด
+            </button>
+          ) : null}
+          
+          <button className="h-9 rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200" type="button" onClick={() => void loadData()}>
+            Refresh
+          </button>
+          
+          <button className="ml-auto rounded-md bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700 h-9 flex items-center" type="button" onClick={exportXlsx}>
+            ส่งออก Excel
+          </button>
         </div>
-        {productId ? <button className="rounded-md bg-slate-100 px-2 py-1.5 text-xs hover:bg-slate-200" type="button" onClick={() => setProductId('')}>✕ ล้าง</button> : null}
-        <button className="ml-auto rounded-md bg-emerald-600 px-4 py-2 text-sm text-white" type="button" onClick={exportXlsx}>ส่งออก Excel</button>
+
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+          <span className="text-xs text-slate-500">รูปแบบแสดงผล:</span>
+          <MatchButton active={viewMode === 'summary'} label="Matrix (กลุ่ม × คลัง)" onClick={() => setViewMode('summary')} />
+          <MatchButton active={viewMode === 'detail'} label="รายสินค้า" onClick={() => setViewMode('detail')} />
+
+          <span className="text-xs text-slate-500 ml-4">หมวดสินค้า:</span>
+          <select className="h-7 rounded-md border border-slate-300 px-2 py-0.5 text-xs bg-white text-slate-800" value={group} onChange={(event) => setGroup(event.target.value)}>
+            <option value="">ทุกหมวด</option>
+            {groupOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+
+          <span className="text-xs text-slate-500 ml-4">คลังสินค้า:</span>
+          <select className="h-7 rounded-md border border-slate-300 px-2 py-0.5 text-xs bg-white text-slate-800" value={status} onChange={(event) => setStatus(event.target.value)}>
+            <option value="">ทุกประเภท</option>
+            <option value="RM">📦 RM</option>
+            <option value="WIP">⚙️ WIP</option>
+            <option value="FG">✅ FG</option>
+            <option value={ON_HOLD_STATUS}>On Hold</option>
+          </select>
+
+          <span className="text-xs text-slate-500 ml-4">สาขา:</span>
+          <select className="h-7 rounded-md border border-slate-300 px-2 py-0.5 text-xs bg-white text-slate-800" value={branchId} onChange={(event) => { setBranchId(event.target.value); setWarehouseId('') }}>
+            <option value="">ทุกสาขา</option>
+            {data?.reference.branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+
+          <span className="text-xs text-slate-500 ml-4">คลัง:</span>
+          <select className="h-7 rounded-md border border-slate-300 px-2 py-0.5 text-xs bg-white text-slate-800" value={warehouseId} onChange={(event) => setWarehouseId(event.target.value)}>
+            <option value="">ทุกคลัง</option>
+            {data?.reference.warehouses.filter((item) => !branchId || item.branchId === branchId).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+        </div>
       </div>
+
+      {/* Mobile Toolbar (Hidden on Desktop) */}
+      <div className="mb-3 space-y-2 rounded-md bg-white p-3 shadow md:hidden">
+        <div className="flex gap-2 items-center">
+          <input 
+            className="min-w-[150px] flex-1 rounded-md border border-slate-300 px-3 h-9 text-sm" 
+            placeholder="ค้นหาด่วน..." 
+            type="search" 
+            value={q} 
+            onChange={(event) => setQ(event.target.value)} 
+          />
+          <button className="h-9 rounded-md bg-slate-100 px-2.5 text-xs text-slate-700" type="button" onClick={() => void loadData()}>
+            Refresh
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            onClick={() => setShowMobileFilters(true)}
+          >
+            ตัวกรอง {hasFilters ? '(มี)' : ''}
+          </button>
+        </div>
+        
+        <div className="flex gap-2 border-t border-slate-100 pt-2">
+          <button 
+            className={`flex-1 h-8 rounded-md text-xs font-semibold ${viewMode === 'summary' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-700'}`} 
+            onClick={() => setViewMode('summary')}
+          >
+             Matrix
+          </button>
+          <button 
+            className={`flex-1 h-8 rounded-md text-xs font-semibold ${viewMode === 'detail' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-700'}`} 
+            onClick={() => setViewMode('detail')}
+          >
+             รายสินค้า
+          </button>
+        </div>
+      </div>
+
+      {/* Bottom Sheet Filter for Mobile */}
+      {showMobileFilters ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 md:hidden">
+          <div className="w-full rounded-t-2xl bg-white p-4 shadow-xl border-t border-slate-200 max-h-[80vh] overflow-y-auto animate-slide-up">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <h4 className="font-bold text-slate-800">ตัวกรองสต๊อก</h4>
+              <button
+                className="p-1 text-slate-400 hover:text-slate-600 text-xl font-bold"
+                onClick={() => setShowMobileFilters(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">ค้นหาสินค้า</span>
+                <SearchCombobox
+                  hideLabel
+                  inputClassName="h-10 text-sm"
+                  inputId="stock-balance-product-search-mobile"
+                  label="สินค้า"
+                  options={productOptions}
+                  placeholder="ค้นหารหัสหรือชื่อสินค้า"
+                  value={productId}
+                  onChange={setProductId}
+                />
+              </div>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">หมวดสินค้า</span>
+                <select className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" value={group} onChange={(event) => setGroup(event.target.value)}>
+                  <option value="">ทุกหมวด</option>
+                  {groupOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">ประเภทคลัง</span>
+                <select className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" value={status} onChange={(event) => setStatus(event.target.value)}>
+                  <option value="">ทุกประเภท</option>
+                  <option value="RM">📦 RM</option>
+                  <option value="WIP">⚙️ WIP</option>
+                  <option value="FG">✅ FG</option>
+                  <option value={ON_HOLD_STATUS}>On Hold</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
+                <select className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" value={branchId} onChange={(event) => { setBranchId(event.target.value); setWarehouseId('') }}>
+                  <option value="">ทุกสาขา</option>
+                  {data?.reference.branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">คลังย่อย</span>
+                <select className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800" value={warehouseId} onChange={(event) => setWarehouseId(event.target.value)}>
+                  <option value="">ทุกคลัง</option>
+                  {data?.reference.warehouses.filter((item) => !branchId || item.branchId === branchId).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                </select>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-6 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => {
+                  resetFilters()
+                  setShowMobileFilters(false)
+                }}
+              >
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                className="h-11 rounded-md bg-slate-900 text-sm font-semibold text-white hover:bg-slate-850"
+                onClick={() => setShowMobileFilters(false)}
+              >
+                ใช้ตัวกรอง
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {productId && selectedProductInfo ? (
         <ProductPanel averageCost={selectedProductInfo.qty > 0 ? selectedProductInfo.value / selectedProductInfo.qty : 0} info={selectedProductInfo} rows={selectedProductRows} onClose={() => setProductId('')} onOpen={setDetailRow} />
       ) : null}
-      <div className="mb-3 rounded-md bg-white p-3 shadow">
-        <div className="flex flex-wrap items-center gap-2">
-          <input className="min-w-56 flex-1 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหารหัส/ชื่อสินค้า/Lot/สาขา/คลัง/หมวด" type="search" value={q} onChange={(event) => setQ(event.target.value)} />
-          <select className="rounded-md border px-3 py-2 text-sm" value={warehouseId} onChange={(event) => setWarehouseId(event.target.value)}>
-            <option value="">ทุกคลัง</option>{data?.reference.warehouses.filter((item) => !branchId || item.branchId === branchId).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </select>
-          <button className="rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700" type="button" onClick={() => void loadData()}>Refresh</button>
-          <span className="text-xs text-slate-500">พบ {filteredRows.length} รายการ / ติดลบ {summary.negativeRows} รายการ</span>
-        </div>
+
+      <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
+        <span>พบทั้งหมด {filteredRows.length} รายการ / สต๊อกติดลบ {summary.negativeRows} รายการ</span>
       </div>
+
       {viewMode === 'summary' ? (
         <>
           <StockCharts byStatus={byStatus} matrixRows={matrixRows} totalValue={summary.value} />
           <MatrixTable byStatus={byStatus} isLoading={isLoading} matrixRows={matrixRows} totalQty={summary.qty} totalValue={summary.value} />
         </>
-      ) : <DetailTable isLoading={isLoading} onOpen={setDetailRow} rows={filteredRows} />}
-      {detailRow ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-10">
-          <div className="w-full max-w-xl overflow-hidden rounded-md bg-slate-900 shadow-xl flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between bg-slate-900 px-5 py-4 shrink-0">
-              <h3 className="font-bold text-slate-100">รายละเอียดสต๊อก</h3>
-              <button className="text-2xl text-slate-400 hover:text-slate-200" type="button" onClick={() => setDetailRow(null)}>&times;</button>
-            </div>
-            <div className="flex-1 overflow-y-auto bg-slate-50 p-4 sm:p-5 space-y-2 text-sm">
-              <Info label="สินค้า" value={`${detailRow.productCode} ${detailRow.productName}`} />
-              <Info label="คลัง" value={stockStatusText(detailRow)} />
-              <Info label="สาขา/คลัง" value={`${detailRow.branchName} / ${detailRow.warehouseName}`} />
-              <Info label="Lot" value={detailRow.lotNo || '-'} />
-              <Info label="คงเหลือ" value={`${formatMoney(detailRow.qty)} กก.`} />
-              <Info label="จองไว้" value={`${formatMoney(detailRow.onHoldQty)} กก.`} />
-              <Info label="พร้อมส่ง" value={`${formatMoney(detailRow.readyQty)} กก.`} />
-              <Info label="มูลค่า" value={formatMoney(detailRow.value)} />
-              <Info label="ต้นทุนเฉลี่ย" value={formatMoney(detailRow.avgCost)} />
-              <Info label="วันที่ล่าสุด" value={detailRow.lastDate} />
-            </div>
-            <div className="flex justify-end border-t border-slate-200 bg-slate-50 px-5 py-4 shrink-0">
-              <button className="rounded-md border border-slate-300 bg-white px-5 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50" type="button" onClick={() => setDetailRow(null)}>ปิด</button>
-            </div>
+      ) : (
+        <DetailTable isLoading={isLoading} onOpen={setDetailRow} rows={filteredRows} />
+      )}
+
+      <Dialog open={!!detailRow} onOpenChange={(open) => { if (!open) setDetailRow(null) }}>
+        <DialogContent className="max-w-xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 animate-fade-in" hideClose>
+          <div className="flex items-center justify-between bg-slate-900 text-white px-5 py-4 shrink-0 border-b border-slate-800">
+            <h3 className="font-bold text-slate-100 text-[16px]">รายละเอียดสต๊อกคงเหลือ</h3>
+            <button className="text-2xl text-slate-400 hover:text-white" type="button" onClick={() => setDetailRow(null)}>&times;</button>
           </div>
-        </div>
-      ) : null}
+          
+          {detailRow ? (
+            <div className="flex-1 overflow-y-auto bg-slate-50 p-4 sm:p-5 space-y-4 text-sm">
+              <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+                <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-2">ข้อมูลสินค้า</h4>
+                <Info label="สินค้า" value={`${detailRow.productCode} - ${detailRow.productName}`} />
+                <Info label="ประเภทคลัง" value={stockStatusText(detailRow)} />
+                <Info label="สาขา / คลัง" value={`${detailRow.branchName} / ${detailRow.warehouseName}`} />
+                <Info label="Lot" value={detailRow.lotNo || '-'} mono />
+                <Info label="วันที่ล่าสุด" value={detailRow.lastDate} />
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+                <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-2">จำนวนและมูลค่าสต๊อก</h4>
+                <Info label="คงเหลือสุทธิ" value={`${formatMoney(detailRow.qty)} กก.`} tone={detailRow.qty < 0 ? 'red' : 'emerald'} />
+                <Info label="จองไว้ (WTO)" value={`${formatMoney(detailRow.onHoldQty)} กก.`} tone="amber" />
+                <Info label="พร้อมส่ง / พร้อมขาย" value={`${formatMoney(detailRow.readyQty)} กก.`} tone="emerald" />
+                <Info label="ต้นทุนเฉลี่ย (WAC)" value={`${formatMoney(detailRow.avgCost)} บาท`} />
+                <Info label="มูลค่ารวม" value={`${formatMoney(detailRow.value)} บาท`} tone="emerald" />
+              </div>
+            </div>
+          ) : null}
+
+          <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 shrink-0">
+            <button 
+              className="rounded-md border border-slate-300 bg-white px-5 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50 animate-fade-in" 
+              type="button" 
+              onClick={() => setDetailRow(null)}
+            >
+              ปิด
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }
@@ -260,9 +469,45 @@ type StatusSummary = { count: number; qty: number; status: string; value: number
 
 type MatrixRow = { fgQty: number; fgVal: number; group: string; rmQty: number; rmVal: number; wipQty: number; wipVal: number }
 
-function Info({ label, value }: { label: string; value: string }) {
-  return <div className="flex border-b py-1"><span className="w-32 text-slate-500">{label}</span><span className="font-medium text-slate-900">{value}</span></div>
+function Info({
+  label,
+  mono,
+  tone,
+  value,
+}: {
+  label: string
+  mono?: boolean
+  tone?: string
+  value: string
+}) {
+  const valueColor = tone === 'red'
+    ? 'text-red-600 font-bold'
+    : tone === 'emerald'
+      ? 'text-emerald-700 font-bold'
+      : tone === 'amber'
+        ? 'text-amber-700 font-bold'
+        : 'text-slate-900 font-medium'
+  const fontClass = mono ? 'font-mono' : ''
+  return (
+    <div className="flex border-b py-1.5">
+      <span className="w-36 text-slate-500 shrink-0">{label}</span>
+      <span className={`${valueColor} ${fontClass} break-all`}>{value}</span>
+    </div>
+  )
 }
+
+function MatchButton({ active, label, onClick, tone = 'dark' }: { active: boolean; label: string; onClick: () => void; tone?: 'amber' | 'dark' | 'emerald' | 'red' | 'slate' }) {
+  const activeClass = {
+    amber: 'border-amber-600 bg-amber-600 text-white',
+    dark: 'border-slate-700 bg-slate-700 text-white',
+    emerald: 'border-emerald-600 bg-emerald-600 text-white',
+    red: 'border-red-600 bg-red-600 text-white',
+    slate: 'border-slate-500 bg-slate-500 text-white',
+  }[tone]
+  const idleClass = tone === 'amber' ? 'border-slate-300 bg-white hover:bg-amber-50' : tone === 'emerald' ? 'border-slate-300 bg-white hover:bg-emerald-50' : tone === 'red' ? 'border-slate-300 bg-white hover:bg-red-50' : 'border-slate-300 bg-white hover:bg-slate-100'
+  return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
+}
+
 
 function Metric({
   emoji,
@@ -507,3 +752,4 @@ function StockStatusCell({ row }: { row: BalanceRow }) {
 function stockStatusText(row: BalanceRow) {
   return row.onHoldQty > 0 ? `${row.status || '-'} / On Hold` : row.status || '-'
 }
+
