@@ -784,7 +784,7 @@ function StockCharts({ byStatus, matrixRows, totalValue }: { byStatus: StatusSum
             <LegendRow color="bg-blue-500" label="📦 RM" value={rm} />
             <LegendRow color="bg-amber-500" label="⚙️ WIP" value={wip} />
             <LegendRow color="bg-emerald-500" label="✅ FG" value={fg} />
-            <div className="flex justify-between border-t pt-2 font-bold"><span>รวม</span><span>{formatMoney(totalValue)}</span></div>
+            <div className="flex justify-between border-t border-slate-200 pt-2 font-bold"><span>รวม</span><span>{formatMoney(totalValue)}</span></div>
           </div>
         </div>
       </div>
