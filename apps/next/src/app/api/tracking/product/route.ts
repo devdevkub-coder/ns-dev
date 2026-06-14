@@ -50,6 +50,8 @@ type ProductRef = {
 }
 
 type ProductAgg = {
+  allocationCogs: number
+  allocationQty: number
   buyAmount: number
   buyBills: Set<string>
   buyQty: number
@@ -61,6 +63,9 @@ type ProductAgg = {
   matchKey: string
   metalGroup: string
   name: string
+  productionInputQty: number
+  productionLossQty: number
+  productionOutputQty: number
   sellBills: Set<string>
   sellQty: number
   type: string
@@ -86,6 +91,11 @@ function inYearMonth(date: Date, year: string | null, month: string | null) {
   if (year && value.slice(0, 4) !== year) return false
   if (month && value.slice(5, 7) !== month.padStart(2, '0')) return false
   return true
+}
+
+function isLossOutput(output: { category_code?: string | null; output_status?: string | null; output_type?: string | null }) {
+  const value = `${output.output_type ?? ''} ${output.output_status ?? ''} ${output.category_code ?? ''}`.toLowerCase()
+  return value.includes('loss') || value.includes('waste') || value.includes('เสีย') || value.includes('สูญเสีย')
 }
 
 function itemQty(item: JsonItem) {
@@ -146,6 +156,8 @@ function xlsxResponse(body: Buffer, filename: string) {
 
 function createAgg(product: ProductRef | undefined, fallbackName: string, matchKey: string): ProductAgg {
   return {
+    allocationCogs: 0,
+    allocationQty: 0,
     buyAmount: 0,
     buyBills: new Set<string>(),
     buyQty: 0,
@@ -157,6 +169,9 @@ function createAgg(product: ProductRef | undefined, fallbackName: string, matchK
     matchKey,
     metalGroup: product?.metal_group ?? '',
     name: product?.name ?? fallbackName,
+    productionInputQty: 0,
+    productionLossQty: 0,
+    productionOutputQty: 0,
     revenue: 0,
     sellBills: new Set<string>(),
     sellQty: 0,
@@ -203,7 +218,7 @@ export async function GET(request: Request) {
       },
     }) : null
 
-    const [products, purchaseBills, salesBills, suppliers, customers] = await Promise.all([
+    const [products, purchaseBills, salesBills, suppliers, customers, productionOrders, allocationFacts] = await Promise.all([
       prisma.products.findMany({
         orderBy: [{ code: 'asc' }, { name: 'asc' }],
         select: { active: true, code: true, id: true, metal_group: true, name: true, type: true, unit: true },
@@ -235,6 +250,27 @@ export async function GET(request: Request) {
       }),
       prisma.suppliers.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true }, where: { active: { not: false } } }),
       prisma.customers.findMany({ orderBy: [{ name: 'asc' }], select: { active: true, code: true, id: true, name: true }, where: { active: { not: false } } }),
+      prisma.production_orders.findMany({
+        include: {
+          production_inputs: { where: { status: 'active' } },
+          production_outputs: { where: { status: 'active' } },
+        },
+        orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
+        take: 10000,
+        where: {
+          status: { not: 'Cancelled' },
+          ...(branch?.id != null ? { branch_id: branch.id } : {}),
+        },
+      }),
+      prisma.trading_allocation_facts.findMany({
+        orderBy: [{ date: 'desc' }, { id: 'desc' }],
+        take: 10000,
+        where: {
+          status: 'active',
+          ...(supplier ? { supplier_id: supplier.id } : {}),
+          ...(customer ? { customer_id: customer.id } : {}),
+        },
+      }),
     ])
 
     const productsByKey = new Map<string, ProductRef>()
@@ -282,10 +318,49 @@ export async function GET(request: Request) {
           })
       })
 
+    productionOrders
+      .filter((order) => inYearMonth(order.date, year, month))
+      .forEach((order) => {
+        order.production_inputs.forEach((input) => {
+          const product = input.product_id != null ? productsByKey.get(String(input.product_id)) : undefined
+          if ((productId || metalGroup) && !product) return
+          const key = product ? String(product.id) : `production-input:${input.product_id ?? input.doc_no}`
+          if (!rowsByKey.has(key)) rowsByKey.set(key, createAgg(product, input.doc_no, key))
+          const row = rowsByKey.get(key)
+          if (row) row.productionInputQty += toNumber(input.qty)
+        })
+        order.production_outputs.forEach((output) => {
+          const product = output.product_id != null ? productsByKey.get(String(output.product_id)) : undefined
+          if ((productId || metalGroup) && !product) return
+          const key = product ? String(product.id) : `production-output:${output.product_id ?? output.doc_no}`
+          if (!rowsByKey.has(key)) rowsByKey.set(key, createAgg(product, output.doc_no, key))
+          const row = rowsByKey.get(key)
+          if (!row) return
+          const qty = toNumber(output.qty)
+          if (isLossOutput(output)) row.productionLossQty += qty
+          else row.productionOutputQty += qty
+        })
+      })
+
+    allocationFacts
+      .filter((fact) => inYearMonth(fact.date, year, month))
+      .forEach((fact) => {
+        const product = fact.product_id != null ? productsByKey.get(String(fact.product_id)) : undefined
+        if ((productId || metalGroup) && !product) return
+        const key = product ? String(product.id) : `allocation:${fact.product_id ?? fact.product_code_snapshot ?? fact.product_name_snapshot ?? fact.allocation_no}`
+        if (!rowsByKey.has(key)) rowsByKey.set(key, createAgg(product, fact.product_name_snapshot ?? fact.product_code_snapshot ?? fact.allocation_no, key))
+        const row = rowsByKey.get(key)
+        if (!row) return
+        row.allocationQty += toNumber(fact.qty)
+        row.allocationCogs += toNumber(fact.matched_cogs)
+      })
+
     const rows = Array.from(rowsByKey.values())
       .map((row) => ({
         avgBuy: row.buyQty > 0 ? row.buyAmount / row.buyQty : 0,
         avgSell: row.sellQty > 0 ? row.revenue / row.sellQty : 0,
+        allocationCogs: row.allocationCogs,
+        allocationQty: row.allocationQty,
         buyAmount: row.buyAmount,
         buyBillCount: row.buyBills.size,
         buyQty: row.buyQty,
@@ -299,6 +374,11 @@ export async function GET(request: Request) {
         metalGroup: row.metalGroup,
         name: row.name,
         productName: row.name,
+        productionInputQty: row.productionInputQty,
+        productionLossPct: row.productionInputQty > 0 ? (row.productionLossQty / row.productionInputQty) * 100 : 0,
+        productionLossQty: row.productionLossQty,
+        productionOutputQty: row.productionOutputQty,
+        productionYieldPct: row.productionInputQty > 0 ? (row.productionOutputQty / row.productionInputQty) * 100 : 0,
         purchaseAmount: row.buyAmount,
         purchaseBillCount: row.buyBills.size,
         purchaseQty: row.buyQty,
@@ -312,7 +392,7 @@ export async function GET(request: Request) {
         revenue: row.revenue,
       }))
       .filter((row) => !search || `${row.code} ${row.name} ${row.metalGroup} ${row.itemStatus}`.toLowerCase().includes(search))
-      .filter((row) => row.buyQty > 0 || row.sellQty > 0)
+      .filter((row) => row.buyQty > 0 || row.sellQty > 0 || row.productionInputQty > 0 || row.productionOutputQty > 0 || row.productionLossQty > 0 || row.allocationQty > 0)
       .sort((left, right) => (right.revenue - left.revenue) || (right.buyAmount - left.buyAmount))
 
     const monthly = Array.from({ length: 12 }, (_, index) => {
@@ -342,7 +422,34 @@ export async function GET(request: Request) {
         })
         return sum
       }, { gp: 0, qty: 0, revenue: 0 })
-      return { buyAmount: buy.amount, buyQty: buy.qty, gp: sell.gp, month: monthKey, purchaseAmount: buy.amount, purchaseQty: buy.qty, revenue: sell.revenue, salesAmount: sell.revenue, salesQty: sell.qty, sellQty: sell.qty }
+      const production = productionOrders.filter((order) => inYearMonth(order.date, year, monthKey)).reduce((sum, order) => {
+        order.production_inputs.forEach((input) => {
+          if (input.product_id != null && rows.some((product) => product.matchKey === String(input.product_id))) sum.inputQty += toNumber(input.qty)
+        })
+        order.production_outputs.forEach((output) => {
+          if (output.product_id == null || !rows.some((product) => product.matchKey === String(output.product_id))) return
+          const qty = toNumber(output.qty)
+          if (isLossOutput(output)) sum.lossQty += qty
+          else sum.outputQty += qty
+        })
+        return sum
+      }, { inputQty: 0, lossQty: 0, outputQty: 0 })
+      return {
+        buyAmount: buy.amount,
+        buyQty: buy.qty,
+        gp: sell.gp,
+        month: monthKey,
+        productionInputQty: production.inputQty,
+        productionLossQty: production.lossQty,
+        productionOutputQty: production.outputQty,
+        productionYieldPct: production.inputQty > 0 ? (production.outputQty / production.inputQty) * 100 : 0,
+        purchaseAmount: buy.amount,
+        purchaseQty: buy.qty,
+        revenue: sell.revenue,
+        salesAmount: sell.revenue,
+        salesQty: sell.qty,
+        sellQty: sell.qty,
+      }
     })
 
     const detail = detailProduct ? (() => {
@@ -394,14 +501,96 @@ export async function GET(request: Request) {
             })
         })
         .slice(0, 80)
+      const detailProductionOrders = productionOrders
+        .filter((order) => inYearMonth(order.date, year, month))
+        .map((order) => {
+          const inputQty = order.production_inputs.filter((input) => input.product_id === detailProduct.id).reduce((sum, input) => sum + toNumber(input.qty), 0)
+          const outputQty = order.production_outputs.filter((output) => output.product_id === detailProduct.id && !isLossOutput(output)).reduce((sum, output) => sum + toNumber(output.qty), 0)
+          const lossQty = order.production_outputs.filter((output) => output.product_id === detailProduct.id && isLossOutput(output)).reduce((sum, output) => sum + toNumber(output.qty), 0)
+          return { date: toDateOnly(order.date), docNo: order.doc_no, inputQty, lossQty, outputQty, status: order.status ?? '-', yieldPct: inputQty > 0 ? (outputQty / inputQty) * 100 : 0 }
+        })
+        .filter((order) => order.inputQty > 0 || order.outputQty > 0 || order.lossQty > 0)
+        .slice(0, 80)
+      const allocationLines = allocationFacts
+        .filter((fact) => fact.product_id === detailProduct.id && inYearMonth(fact.date, year, month))
+        .map((fact) => ({
+          allocationNo: fact.allocation_no,
+          date: toDateOnly(fact.date),
+          matchedCogs: toNumber(fact.matched_cogs),
+          method: fact.allocation_method,
+          qty: toNumber(fact.qty),
+          salesDocNo: fact.sales_doc_no ?? '-',
+          sourceDocNo: fact.source_doc_no ?? '-',
+          sourceType: fact.source_type,
+          status: fact.status,
+        }))
+        .slice(0, 80)
+      const detailMonthly = Array.from({ length: 12 }, (_, index) => {
+        const monthKey = String(index + 1).padStart(2, '0')
+        const buy = purchaseBills.filter((bill) => inYearMonth(bill.date, year, monthKey)).reduce((sum, bill) => {
+          purchaseBillItemRows(bill).filter(matchesDetailProduct).forEach((item) => {
+            sum.amount += itemAmount(item)
+            sum.qty += itemQty(item)
+          })
+          return sum
+        }, { amount: 0, qty: 0 })
+        const sell = salesBills.filter((bill) => inYearMonth(bill.date, year, monthKey)).reduce((sum, bill) => {
+          if (!Array.isArray(bill.items)) return sum
+          bill.items.filter(isJsonItem).filter(matchesDetailProduct).forEach((item) => {
+            const revenue = itemAmount(item)
+            const cogs = itemCost(item)
+            sum.gp += jsonNumber(item.profit ?? item.grossProfit) || revenue - cogs
+            sum.qty += itemQty(item)
+            sum.revenue += revenue
+          })
+          return sum
+        }, { gp: 0, qty: 0, revenue: 0 })
+        const production = productionOrders.filter((order) => inYearMonth(order.date, year, monthKey)).reduce((sum, order) => {
+          sum.inputQty += order.production_inputs.filter((input) => input.product_id === detailProduct.id).reduce((total, input) => total + toNumber(input.qty), 0)
+          sum.outputQty += order.production_outputs.filter((output) => output.product_id === detailProduct.id && !isLossOutput(output)).reduce((total, output) => total + toNumber(output.qty), 0)
+          sum.lossQty += order.production_outputs.filter((output) => output.product_id === detailProduct.id && isLossOutput(output)).reduce((total, output) => total + toNumber(output.qty), 0)
+          return sum
+        }, { inputQty: 0, lossQty: 0, outputQty: 0 })
+        return {
+          buyAmount: buy.amount,
+          buyQty: buy.qty,
+          gp: sell.gp,
+          month: monthKey,
+          productionInputQty: production.inputQty,
+          productionLossQty: production.lossQty,
+          productionOutputQty: production.outputQty,
+          productionYieldPct: production.inputQty > 0 ? (production.outputQty / production.inputQty) * 100 : 0,
+          revenue: sell.revenue,
+          sellQty: sell.qty,
+        }
+      })
+      const productionTotals = detailMonthly.reduce((sum, row) => ({
+        inputQty: sum.inputQty + row.productionInputQty,
+        lossQty: sum.lossQty + row.productionLossQty,
+        outputQty: sum.outputQty + row.productionOutputQty,
+      }), { inputQty: 0, lossQty: 0, outputQty: 0 })
 
       return {
+        allocationLines,
+        monthly: detailMonthly,
         product: {
           code: requireBusinessCode(detailProduct.code, `สินค้า ${detailProduct.id}`),
           id: requireBusinessCode(detailProduct.code, `สินค้า ${detailProduct.id}`),
           metalGroup: detailProduct.metal_group,
           name: detailProduct.name,
           unit: detailProduct.unit ?? 'kg',
+        },
+        productionLines: detailProductionOrders,
+        productionSignals: {
+          allocationCogs: allocationLines.reduce((sum, row) => sum + row.matchedCogs, 0),
+          allocationCount: allocationLines.length,
+          allocationQty: allocationLines.reduce((sum, row) => sum + row.qty, 0),
+          inputQty: productionTotals.inputQty,
+          lossPct: productionTotals.inputQty > 0 ? (productionTotals.lossQty / productionTotals.inputQty) * 100 : 0,
+          lossQty: productionTotals.lossQty,
+          outputQty: productionTotals.outputQty,
+          productionOrderCount: detailProductionOrders.length,
+          yieldPct: productionTotals.inputQty > 0 ? (productionTotals.outputQty / productionTotals.inputQty) * 100 : 0,
         },
         purchaseLines,
         salesLines,

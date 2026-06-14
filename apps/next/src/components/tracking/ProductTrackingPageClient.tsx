@@ -8,6 +8,8 @@ import { formatDateDisplay } from '@/lib/format'
 
 type ProductTrackingRow = {
   amount?: number
+  allocationCogs?: number
+  allocationQty?: number
   avgBuy?: number
   avgSell?: number
   billCount?: number
@@ -23,6 +25,11 @@ type ProductTrackingRow = {
   metalGroup?: string
   name?: string
   productName?: string
+  productionInputQty?: number
+  productionLossPct?: number
+  productionLossQty?: number
+  productionOutputQty?: number
+  productionYieldPct?: number
   purchaseAmount?: number
   purchaseBillCount?: number
   purchaseQty?: number
@@ -53,6 +60,10 @@ type ProductTrackingPayload = {
     month: string
     purchaseAmount?: number
     purchaseQty?: number
+    productionInputQty?: number
+    productionLossQty?: number
+    productionOutputQty?: number
+    productionYieldPct?: number
     qty?: number
     revenue?: number
     salesAmount?: number
@@ -84,7 +95,11 @@ type ProductTrackingPayload = {
 }
 
 type ProductTrackingDetail = {
+  allocationLines: Array<{ allocationNo: string; date: string; matchedCogs: number; method: string; qty: number; salesDocNo: string; sourceDocNo: string; sourceType: string; status: string }>
+  monthly: Array<{ buyAmount: number; buyQty: number; gp: number; month: string; productionInputQty: number; productionLossQty: number; productionOutputQty: number; productionYieldPct: number; revenue: number; sellQty: number }>
   product: { code: string; id: string; metalGroup: string | null; name: string; unit: string }
+  productionLines: Array<{ date: string; docNo: string; inputQty: number; lossQty: number; outputQty: number; status: string; yieldPct: number }>
+  productionSignals: { allocationCogs: number; allocationCount: number; allocationQty: number; inputQty: number; lossPct: number; lossQty: number; outputQty: number; productionOrderCount: number; yieldPct: number }
   purchaseLines: Array<{ amount: number; avgBuy: number; date: string; docNo: string; href: string; party: string; qty: number; status: string }>
   salesLines: Array<{ avgSell: number; cogs: number; date: string; docNo: string; gp: number; href: string; party: string; qty: number; revenue: number; status: string }>
 }
@@ -137,7 +152,25 @@ export function ProductTrackingPageClient() {
   const openDetail = useCallback(async (row: ProductTrackingRow) => {
     const code = row.code || row.id
     setIsDetailLoading(true)
-    setDetail({ product: { code, id: code, metalGroup: row.metalGroup ?? null, name: row.name ?? row.productName ?? '-', unit: row.unit ?? 'kg' }, purchaseLines: [], salesLines: [] })
+    setDetail({
+      allocationLines: [],
+      monthly: [],
+      product: { code, id: code, metalGroup: row.metalGroup ?? null, name: row.name ?? row.productName ?? '-', unit: row.unit ?? 'kg' },
+      productionLines: [],
+      productionSignals: {
+        allocationCogs: row.allocationCogs ?? 0,
+        allocationCount: 0,
+        allocationQty: row.allocationQty ?? 0,
+        inputQty: row.productionInputQty ?? 0,
+        lossPct: row.productionLossPct ?? 0,
+        lossQty: row.productionLossQty ?? 0,
+        outputQty: row.productionOutputQty ?? 0,
+        productionOrderCount: 0,
+        yieldPct: row.productionYieldPct ?? 0,
+      },
+      purchaseLines: [],
+      salesLines: [],
+    })
     try {
       const params = new URLSearchParams(queryString)
       params.set('detailId', code)
@@ -258,6 +291,8 @@ export function ProductTrackingPageClient() {
                 <MiniLine label="ยอดซื้อ" value={formatMoney(row.buyAmount ?? row.purchaseAmount ?? 0)} />
                 <MiniLine label="ขาย" value={`${formatMoney(row.sellQty ?? row.salesQty ?? 0)} กก.`} />
                 <MiniLine label="GP%" tone={(row.gp ?? 0) >= 0 ? 'orange' : 'red'} value={`${(row.gpPct ?? 0).toFixed(2)}%`} />
+                <MiniLine label="Yield" tone="orange" value={`${(row.productionYieldPct ?? 0).toFixed(1)}%`} />
+                <MiniLine label="Loss" tone={(row.productionLossQty ?? 0) > 0 ? 'red' : 'slate'} value={`${formatMoney(row.productionLossQty ?? 0)} กก.`} />
               </div>
             </div>
           ))}
@@ -315,12 +350,24 @@ function ProductDetailDialog({ detail, isLoading, onOpenChange }: { detail: Prod
       <DialogContent className="max-h-[90vh] max-w-5xl overflow-hidden !p-0" fallbackTitle="Product Tracking Detail">
         <DialogHeader>
           <DialogTitle>{detail?.product.name ?? 'รายละเอียด Product'}</DialogTitle>
-          <DialogDescription>{detail?.product.code ?? ''} · {detail?.product.metalGroup ?? '-'} · Purchase/Sales source lines</DialogDescription>
+          <DialogDescription>{detail?.product.code ?? ''} · {detail?.product.metalGroup ?? '-'} · Purchase / Sales / Production / Allocation</DialogDescription>
         </DialogHeader>
         <div className="max-h-[72vh] space-y-4 overflow-y-auto p-4">
           {isLoading ? <div className="rounded-md bg-slate-50 p-6 text-center text-sm text-slate-500">กำลังโหลดรายละเอียด</div> : null}
           {!isLoading && detail ? (
             <>
+              <DetailSection title="Production / Allocation Signals">
+                <div className="grid gap-2 p-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <SignalMetric label="Production Orders" value={`${detail.productionSignals.productionOrderCount}`} />
+                  <SignalMetric label="Input" value={`${formatMoney(detail.productionSignals.inputQty)} กก.`} />
+                  <SignalMetric label="Output" value={`${formatMoney(detail.productionSignals.outputQty)} กก.`} />
+                  <SignalMetric label="Yield" value={`${detail.productionSignals.yieldPct.toFixed(1)}%`} />
+                  <SignalMetric label="Loss" value={`${formatMoney(detail.productionSignals.lossQty)} กก.`} />
+                  <SignalMetric label="Loss%" value={`${detail.productionSignals.lossPct.toFixed(1)}%`} />
+                  <SignalMetric label="Allocated Qty" value={`${formatMoney(detail.productionSignals.allocationQty)} กก.`} />
+                  <SignalMetric label="Allocated COGS" value={formatMoney(detail.productionSignals.allocationCogs)} />
+                </div>
+              </DetailSection>
               <DetailSection title="Purchase Lines">
                 <SimpleTable
                   headers={['วันที่', 'เอกสาร', 'Supplier', 'น้ำหนัก', 'ยอดซื้อ', 'ซื้อเฉลี่ย', 'สถานะ']}
@@ -331,6 +378,24 @@ function ProductDetailDialog({ detail, isLoading, onOpenChange }: { detail: Prod
                 <SimpleTable
                   headers={['วันที่', 'เอกสาร', 'Customer', 'น้ำหนัก', 'ยอดขาย', 'ขายเฉลี่ย', 'COGS', 'GP', 'สถานะ']}
                   rows={detail.salesLines.map((row) => [formatDateDisplay(row.date), row.docNo, row.party, formatMoney(row.qty), formatMoney(row.revenue), formatMoney(row.avgSell), formatMoney(row.cogs), formatMoney(row.gp), row.status])}
+                />
+              </DetailSection>
+              <DetailSection title="Monthly Detail">
+                <SimpleTable
+                  headers={['เดือน', 'ซื้อ', 'มูลค่าซื้อ', 'ขาย', 'ยอดขาย', 'GP', 'Input', 'Output', 'Loss', 'Yield']}
+                  rows={detail.monthly.map((row, index) => [monthLabels[index] ?? row.month, formatMoney(row.buyQty), formatMoney(row.buyAmount), formatMoney(row.sellQty), formatMoney(row.revenue), formatMoney(row.gp), formatMoney(row.productionInputQty), formatMoney(row.productionOutputQty), formatMoney(row.productionLossQty), `${row.productionYieldPct.toFixed(1)}%`])}
+                />
+              </DetailSection>
+              <DetailSection title="Production Lines">
+                <SimpleTable
+                  headers={['วันที่', 'ใบสั่งผลิต', 'Input', 'Output', 'Loss', 'Yield', 'สถานะ']}
+                  rows={detail.productionLines.map((row) => [formatDateDisplay(row.date), row.docNo, formatMoney(row.inputQty), formatMoney(row.outputQty), formatMoney(row.lossQty), `${row.yieldPct.toFixed(1)}%`, row.status])}
+                />
+              </DetailSection>
+              <DetailSection title="Allocation / Cost Source">
+                <SimpleTable
+                  headers={['วันที่', 'Allocation', 'Source', 'Sales', 'Qty', 'Matched COGS', 'Method', 'สถานะ']}
+                  rows={detail.allocationLines.map((row) => [formatDateDisplay(row.date), row.allocationNo, row.sourceDocNo, row.salesDocNo, formatMoney(row.qty), formatMoney(row.matchedCogs), row.method, row.status])}
                 />
               </DetailSection>
             </>
@@ -366,6 +431,10 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
 function MiniLine({ label, tone = 'slate', value }: { label: string; tone?: 'orange' | 'red' | 'slate'; value: string }) {
   const text = tone === 'orange' ? 'text-orange-700' : tone === 'red' ? 'text-red-700' : 'text-slate-800'
   return <div><div className="text-slate-500">{label}</div><div className={`font-mono font-bold ${text}`}>{value}</div></div>
+}
+
+function SignalMetric({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-md bg-slate-50 p-3"><div className="text-xs font-semibold text-slate-500">{label}</div><div className="mt-1 text-sm font-bold text-slate-900">{value}</div></div>
 }
 
 function Tab({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {

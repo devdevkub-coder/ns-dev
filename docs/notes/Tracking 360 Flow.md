@@ -53,7 +53,7 @@ User-provided screenshots clarify that Tracking 360 is a business decision surfa
 - Business importance: ใช้ optimize product mix ของโรงงาน
 - Target visible table from latest screenshot should focus on `Code`, `สินค้า`, `หมวด`, `ซื้อ`, `มูลค่าซื้อ`, `ซื้อเฉลี่ย`, `ขาย`, `ยอดขาย`, `ขายเฉลี่ย`, `COGS`, `GP`, and `GP%`. Columns/sections marked with red cross in the screenshot, specifically `Stock` and `WAC` on the far right, must be removed from the main visible table and primary export.
 - Target filters should include buyer/seller context where useful: Supplier ฝั่งซื้อ and Customer ฝั่งขาย in addition to year/month/category/product.
-- Target gap from local/legacy comparison: legacy has product drilldown with purchase lines, sales lines, stock movement, and monthly detail; current Next now exposes purchase/sales drilldown through `detailId` and removes crossed-out Stock/WAC from the main surface, while stock support detail, allocation, production/yield/loss, and monthly detail are still pending.
+- Target gap from local/legacy comparison: legacy has product drilldown with purchase lines, sales lines, stock movement, and monthly detail; current Next now exposes purchase/sales/monthly drilldown plus allocation and production/yield/loss signals through `detailId`, and removes crossed-out Stock/WAC from the main surface. Stock support detail remains separate/pending by design.
 
 ## Active Pages
 
@@ -96,7 +96,7 @@ User-provided screenshots clarify that Tracking 360 is a business decision surfa
 - Customer/Supplier/Product row drilldown is partially implemented through `detailId`: Customer has SB/RCP/product detail, Supplier has PB/payment/product detail, and Product has PB/SB source lines.
 - Customer Tracking still lacks channel breakdown and Return frequency; monthly detail, pending AR, credit utilization, and margin decision signals are implemented in the detail view.
 - Supplier Tracking server-backed `supplierId`/`q` filtering is implemented for aggregate rows, product mix, monthly, summary, and export; supplier detail now includes monthly purchase/payment trend, WTI delivery/deduction, Grade Adjust count, and payment reliability signals. Return frequency is still pending.
-- Product Tracking now removes crossed-out `Stock` and `WAC` from the main list/export and supports Supplier ฝั่งซื้อ / Customer ฝั่งขาย filters in aggregate rows/monthly/top/export.
+- Product Tracking now removes crossed-out `Stock` and `WAC` from the main list/export, supports Supplier ฝั่งซื้อ / Customer ฝั่งขาย filters in aggregate rows/monthly/top/export, and exposes monthly detail plus production/yield/loss/allocation signals in product detail.
 - Product Tracking availability/hold-aware `พร้อมใช้` remains owned by stock balance docs and is not represented in the main profitability table.
 - Aging buckets for receivable/payable/slow stock should be added only after [[Document Aging Policy]] and stock hold policy are finalized.
 - Formula/source reconciliation is still required when COGS/WAC behavior changes in Sales/Stock flows.
@@ -169,7 +169,7 @@ Local route smoke:
 - [x] Remove crossed-out `Stock` and `WAC` from primary export columns.
 - [x] Keep stock/WAC calculations out of the primary row contract unless added later as separated support-only detail.
 - [x] Add product detail payload: purchase lines and sales lines.
-- [ ] Add allocation/cost-source refs and production/yield/loss signals when source contracts are ready.
+- [x] Add allocation/cost-source refs and production/yield/loss signals when source contracts are ready.
 - [ ] Keep COGS/GP source formulas traceable to sales bill item facts and documented fallbacks.
 
 ### Batch T360-7: Product Tracking UI
@@ -179,7 +179,7 @@ Local route smoke:
 - [x] Add Supplier ฝั่งซื้อ and Customer ฝั่งขาย filters in the filter shell.
 - [x] Make product desktop rows and dense mobile cards clickable to open detail.
 - [x] Add detail sections for purchase lines and sales lines.
-- [ ] Add allocation, production/yield/loss, and source links.
+- [x] Add allocation, production/yield/loss, monthly detail, and source links.
 
 ### Batch T360-8: Design And QA
 

@@ -5,7 +5,7 @@ tags:
   - menu
   - tracking
 status: accepted-baseline
-updated: 2026-06-13
+updated: 2026-06-14
 route: /tracking/product
 ---
 
@@ -50,11 +50,11 @@ Latest user screenshot changes the main Product Tracking target into a profitabi
 - Required data groups: stock, sales, production, allocation, WAC
 - Decision questions: สินค้าไหนกำไรดี, stock หมุนเร็วไหม, loss สูงไหม, yield ดีไหม
 - Business importance: ใช้ optimize product mix ของโรงงาน
-- Local vs legacy finding: legacy row click opens product detail with purchase lines, sales lines, stock ledger movements, and monthly breakdown. Current Next now supports row-click detail with purchase/sales source lines through `detailId`; stock, allocation, production/yield/loss, and monthly detail remain pending or support-only.
+- Local vs legacy finding: legacy row click opens product detail with purchase lines, sales lines, stock ledger movements, and monthly breakdown. Current Next now supports row-click detail with purchase/sales/monthly source lines plus production/yield/loss and allocation/cost-source signals through `detailId`; stock remains support-only because latest screenshot removes Stock/WAC from the primary surface.
 - Latest screenshot marks `Stock` and `WAC` with a red cross on the far-right table columns. Treat crossed-out parts as removed from the primary visible table and primary export, not merely deprioritized.
 - Target main table columns: `Code`, `สินค้า`, `หมวด`, `ซื้อ`, `มูลค่าซื้อ`, `ซื้อเฉลี่ย`, `ขาย`, `ยอดขาย`, `ขายเฉลี่ย`, `COGS`, `GP`, `GP%`.
 - Target filters: year, month, product category, product, Supplier ฝั่งซื้อ, Customer ฝั่งขาย, and export with the same filter.
-- Target detail: product -> purchase lines, sales lines, allocation/cost source facts, production/yield/loss signals, and source document links. Stock/WAC may be reached through stock/balance or a clearly separated support drilldown if later approved, but not shown in the main profitability table from this screenshot.
+- Target detail: product -> purchase lines, sales lines, monthly detail, allocation/cost source facts, production/yield/loss signals, and source document links. Stock/WAC may be reached through stock/balance or a clearly separated support drilldown if later approved, but not shown in the main profitability table from this screenshot.
 
 ## Page Responsibilities
 
@@ -97,6 +97,8 @@ Source tables:
 - `products` active only
 - `purchase_bills` excluding `PURCHASE_BILL_CANCELLED_STATUSES`
 - `sales_bills` excluding `status = cancelled`
+- `production_orders`, `production_inputs`, `production_outputs` excluding cancelled/inactive source rows
+- `trading_allocation_facts` active rows for allocation/cost-source refs
 - `suppliers` and `customers` for buy-side/sell-side filter options
 - `stock_ledger` is intentionally not part of the primary main-table/export payload after the crossed-out `Stock/WAC` requirement.
 
@@ -135,8 +137,10 @@ Target detail payload fields:
 
 - `purchaseLines`: PB doc no/date/supplier/product qty/unit/amount/avg buy/source link
 - `salesLines`: SB doc no/date/customer/product qty/unit/revenue/COGS/GP/source link
-- `allocationLines`: allocation/cost-source refs and matched cost when available
-- `productionSignals`: output qty, loss qty, yield, production source docs when available
+- `monthly`: buy qty/amount, sell qty/revenue/GP, production input/output/loss/yield by month
+- `allocationLines`: allocation/cost-source refs, source doc, sales doc, matched qty/COGS/method/status
+- `productionLines`: production order doc/date/input/output/loss/yield/status
+- `productionSignals`: input qty, output qty, loss qty, loss%, yield%, allocation qty/COGS/count
 - `stockFacts`: not part of the primary table in this requirement; link users to `/stock/balance` or add a separated support-only drilldown only if approved later
 
 ## Calculation Rules
@@ -148,6 +152,11 @@ Target detail payload fields:
 - Sales revenue uses `netAmount`, `amount`, `totalAmount`, `total`; fallback qty x price.
 - Sales COGS uses `totalCost`, `total_cost`, `cogs`; fallback qty x unitCost.
 - Sales GP uses `profit`, `grossProfit`; fallback revenue - COGS.
+- Production input comes from active `production_inputs.qty`.
+- Production output comes from active `production_outputs.qty` excluding loss/waste outputs.
+- Production loss comes from active `production_outputs.qty` whose type/status/category indicates loss/waste.
+- Yield% = production output qty / production input qty when input qty exists.
+- Allocation qty/COGS comes from active `trading_allocation_facts.qty` and `matched_cogs`.
 - Stock qty/value/WAC calculations are not primary visible table/export columns under the crossed-out screenshot requirement.
 - If stock-rotation signal is later approved, derive it from stock/balance or stock-ledger facts in a separated support section, not in the main profitability table.
 - Sort default is revenue descending, then buy amount descending.
@@ -180,9 +189,9 @@ Target detail payload fields:
 ## Current Gap
 
 - API now returns purchase/sales source movement detail rows for product drilldown through `detailId`.
+- API/UI now return product monthly detail, production/yield/loss signals, production lines, and allocation/cost-source lines through `detailId`.
 - API/UI now supports `supplierId` and `customerId` filters for buy-side/sell-side context in the aggregate Product Tracking view/export.
 - Crossed-out `Stock` and `WAC` have been removed from the primary Product Tracking table/export.
-- Production/yield/loss and allocation signals are not wired into Product Tracking yet.
 - Stock availability/hold-aware `พร้อมใช้` is not represented here.
 - Item JSON normalization/source links still need reconciliation before relying on per-line product matching for all legacy rows.
 - Product Tracking remains revenue-first sorted by design; other sort modes should be explicit UI/API options if added.
@@ -198,7 +207,7 @@ Target detail payload fields:
 - [x] Keep primary row contract focused on product code/name/category, buy qty/amount/avg, sell qty/revenue/avg, COGS, GP, and GP%.
 - [x] Add detail payload for purchase lines: PB doc no, date, supplier, qty, amount, avg buy, and source link.
 - [x] Add detail payload for sales lines: SB doc no, date, customer, qty, revenue, COGS, GP, and source link.
-- [ ] Add allocation/cost-source refs and production/yield/loss signals only after those source contracts are confirmed.
+- [x] Add allocation/cost-source refs and production/yield/loss signals from `trading_allocation_facts`, `production_inputs`, and `production_outputs`.
 - [ ] Keep stock/WAC out of the primary response/export unless later approved as a separated support-only section.
 
 ### UI
@@ -210,7 +219,7 @@ Target detail payload fields:
 - [x] Make desktop rows and dense mobile cards clickable to open product detail.
 - [x] Add detail modal/view sections: purchase lines and sales lines.
 - [x] Add dense mobile cards that open product detail.
-- [ ] Add detail modal/view sections: allocation/cost-source, production/yield/loss, source links.
+- [x] Add detail modal/view sections: monthly detail, allocation/cost-source, production/yield/loss, source links.
 - [ ] If stock/balance access is needed, use a separate link to `/stock/balance`; do not add `Stock/WAC` back to the main Product Tracking table.
 - [ ] Follow `docs/design.md`: KPI cards before filters, compact controls, desktop table, dense mobile cards, no nested cards, no text overflow.
 
@@ -224,6 +233,6 @@ Target detail payload fields:
 - [ ] Add source links to stock ledger rows if a separated support-only stock detail is approved
 - [x] Add Supplier ฝั่งซื้อ and Customer ฝั่งขาย filters and apply them consistently to JSON/export
 - [x] Remove crossed-out `Stock` and `WAC` from the primary visible product profitability table and primary export
-- [ ] Add allocation, production, loss, and yield signals after source contracts are finalized
+- [x] Add allocation, production, loss, and yield signals
 - [ ] Reconcile COGS/WAC with final stock and sales-bill policy
 - [ ] Decide whether hold/available should be shown here or only linked to stock balance
