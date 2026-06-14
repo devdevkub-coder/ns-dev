@@ -714,7 +714,7 @@ function StockLedgerDetailModal({ onClose, row }: { onClose: () => void; row: St
 function DetailPanel({ children, title }: { children: ReactNode; title: string }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider pb-1 border-b border-slate-100">{title}</div>
+      <div className="mb-3 text-xs sm:text-sm font-bold text-slate-600 pb-1 border-b border-slate-100">{title}</div>
       <div className="space-y-2">{children}</div>
     </div>
   )
@@ -729,8 +729,8 @@ function DetailRow({ className = '', label, mono = false, tone = 'normal', value
   }[tone]
   return (
     <div className={`flex flex-col py-0.5 ${className}`}>
-      <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{label}</div>
-      <div className={`mt-0.5 text-xs sm:text-sm font-semibold ${mono ? 'font-mono' : ''} ${toneClass}`}>{value}</div>
+      <div className="text-xs text-slate-500 font-medium">{label}</div>
+      <div className={`mt-0.5 text-sm font-semibold ${mono ? 'font-mono' : ''} ${toneClass}`}>{value}</div>
     </div>
   )
 }
