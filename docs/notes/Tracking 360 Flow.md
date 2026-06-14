@@ -32,10 +32,10 @@ User-provided screenshots clarify that Tracking 360 is a business decision surfa
 ### Customer Tracking
 
 - Purpose: ติดตามพฤติกรรมลูกค้า ยอดซื้อ/ขาย กำไร เครดิต และ movement ทั้งหมดของ customer
-- Required source groups: Sales Bill, Receipt, margin, Return, Pending AR
-- Decision questions: ลูกค้าคนไหนซื้อเยอะ, margin ดีไหม, จ่ายช้าไหม, มี return บ่อยไหม
+- Required source groups: Sales Bill, Receipt, margin, Pending AR; customer return is intentionally not a separate tracking source and should use Sales Bill void/cancel instead
+- Decision questions: ลูกค้าคนไหนซื้อเยอะ, margin ดีไหม, จ่ายช้าไหม, มี void/cancel เอกสารผิดปกติไหมใน source flow
 - Business decisions supported: เพิ่มเครดิต, ลดเครดิต, ต้นยอดขาย, blacklist
-- Target gap from local/legacy comparison: legacy has customer row drilldown with SB/RCP/product/monthly detail; current Next now exposes SB/RCP/product/monthly drilldown plus pending AR, credit utilization, and margin decision signals through `detailId`; channel breakdown and Return frequency remain pending.
+- Target gap from local/legacy comparison: legacy has customer row drilldown with SB/RCP/product/monthly detail; current Next now exposes SB/RCP/product/monthly drilldown plus pending AR, credit utilization, and margin decision signals through `detailId`; channel breakdown remains pending. Customer Return frequency is removed by requirement because corrections use void/cancel documents.
 
 ### Supplier Tracking
 
@@ -94,7 +94,7 @@ User-provided screenshots clarify that Tracking 360 is a business decision surfa
 ## Current Gaps
 
 - Customer/Supplier/Product row drilldown is partially implemented through `detailId`: Customer has SB/RCP/product detail, Supplier has PB/payment/product detail, and Product has PB/SB source lines.
-- Customer Tracking still lacks channel breakdown and Return frequency; monthly detail, pending AR, credit utilization, and margin decision signals are implemented in the detail view.
+- Customer Tracking still lacks channel breakdown; monthly detail, pending AR, credit utilization, and margin decision signals are implemented in the detail view. Customer Return frequency is intentionally removed; use void/cancel documents in the Sales flow instead.
 - Supplier Tracking server-backed `supplierId`/`q` filtering is implemented for aggregate rows, product mix, monthly, summary, and export; supplier detail now includes monthly purchase/payment trend, WTI delivery/deduction, Grade Adjust count, and payment reliability signals. Return frequency is still pending.
 - Product Tracking now removes crossed-out `Stock` and `WAC` from the main list/export, supports Supplier ฝั่งซื้อ / Customer ฝั่งขาย filters in aggregate rows/monthly/top/export, and exposes monthly detail plus production/yield/loss/allocation signals in product detail.
 - Product Tracking availability/hold-aware `พร้อมใช้` remains owned by stock balance docs and is not represented in the main profitability table.
@@ -133,7 +133,7 @@ Local route smoke:
 - [x] Extend `GET /api/tracking/customer` to support row detail for selected customer without changing write-side flows.
 - [x] Add customer detail payload: SB lines, RCP lines, and product breakdown.
 - [x] Add monthly movement and receivable/pending AR signal.
-- [ ] Add return signal after source ownership is confirmed.
+- [x] Remove Customer Return as a separate signal; void/cancel Sales documents are the correction mechanism.
 - [ ] Keep `year`, `month`, `customerId`, and `q` filters consistent for summary, rows, detail, and export.
 - [ ] Add source-link fields using business doc numbers for SB/RCP.
 
@@ -144,7 +144,7 @@ Local route smoke:
 - [x] Add detail sections for SB list, RCP list, and product breakdown.
 - [x] Add mobile cards and keyboard-open mobile card controls.
 - [x] Add monthly movement and decision signals.
-- [ ] Add channel/return signals after source contracts are confirmed.
+- [ ] Add channel signals after source contracts are confirmed.
 - [ ] Keep actions read-only; source document links navigate to owner pages when available.
 
 ### Batch T360-4: Supplier Tracking API

@@ -316,7 +316,6 @@ export async function GET(request: Request) {
           negativeMarginBillCount: detailTotals.negativeMarginBillCount,
           pendingArAmount: detailTotals.receivable,
           pendingArBillCount: detailTotals.pendingArBillCount,
-          returnSignalStatus: 'ยังไม่มี sales return source table ใน schema ปัจจุบัน',
         },
       }
     })() : null

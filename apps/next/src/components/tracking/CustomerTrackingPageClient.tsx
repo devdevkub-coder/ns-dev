@@ -49,7 +49,6 @@ type CustomerTrackingDetail = {
     negativeMarginBillCount: number
     pendingArAmount: number
     pendingArBillCount: number
-    returnSignalStatus: string
   }
 }
 
@@ -108,7 +107,6 @@ export function CustomerTrackingPageClient() {
         negativeMarginBillCount: row.negativeMarginBillCount,
         pendingArAmount: row.receivable,
         pendingArBillCount: row.pendingArBillCount,
-        returnSignalStatus: 'ยังไม่มี sales return source table ใน schema ปัจจุบัน',
       },
     })
     try {
@@ -302,7 +300,6 @@ function CustomerDetailDialog({ detail, isLoading, onOpenChange }: { detail: Cus
                   <SignalMetric label="บิล Margin ต่ำ" value={`${detail.signals.lowMarginBillCount} บิล`} />
                   <SignalMetric label="บิล GP ติดลบ" value={`${detail.signals.negativeMarginBillCount} บิล`} />
                   <SignalMetric label="Credit Limit" value={formatMoney(detail.signals.creditLimit)} />
-                  <SignalMetric label="Return" value={detail.signals.returnSignalStatus} />
                 </div>
               </DetailSection>
               <DetailSection title="Sales Bill">

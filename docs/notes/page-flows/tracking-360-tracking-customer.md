@@ -46,11 +46,11 @@ Legacy `view-customerTracking`:
 Latest user screenshot changes the target from a simple customer sales summary into a decision page for customer behavior, credit, and movement.
 
 - Purpose: ติดตามพฤติกรรมลูกค้า ยอดซื้อ/ขาย กำไร เครดิต และ movement ทั้งหมดของ customer
-- Required data groups: Sales Bill, Receipt, Margin, Return, Pending AR
-- Decision questions: ลูกค้าคนไหนซื้อเยอะ, margin ดีไหม, จ่ายช้าไหม, มี return บ่อยไหม
+- Required data groups: Sales Bill, Receipt, Margin, Pending AR. Customer return is intentionally not tracked as a separate source; corrections use Sales Bill void/cancel.
+- Decision questions: ลูกค้าคนไหนซื้อเยอะ, margin ดีไหม, จ่ายช้าไหม, มี void/cancel เอกสารผิดปกติไหมใน source flow
 - Business actions supported: เพิ่มเครดิต, ลดเครดิต, ต้นยอดขาย, blacklist
 - Local vs legacy finding: legacy row click opens customer detail with sales list, receipt list, product breakdown, and monthly breakdown. Current Next now supports row-click detail for SB/RCP/product/monthly breakdown via `detailId`; pending AR, credit utilization, and margin decision signals are wired from current source facts.
-- Target UI direction: list remains high-density, but each customer row/card opens a detail modal with SB/RCP/source links, product breakdown, monthly movement, pending AR/receivable exposure, and credit/margin decision signals. Return count/value remains pending until the source contract is finalized.
+- Target UI direction: list remains high-density, but each customer row/card opens a detail modal with SB/RCP/source links, product breakdown, monthly movement, pending AR/receivable exposure, and credit/margin decision signals. Return count/value is removed by requirement; use void/cancel documents instead.
 
 ## Page Responsibilities
 
@@ -114,7 +114,7 @@ Target detail payload fields:
 - `receipts`: RCP doc no/date/account/amount/source link
 - `products`: product code/name/qty/revenue/COGS/GP/GP%
 - `monthly`: bill count/qty/revenue/GP/received/receivable by month
-- `signals`: margin quality, pending AR, credit-limit utilization, return source status
+- `signals`: margin quality, pending AR, credit-limit utilization
 
 ## Calculation Rules
 
@@ -127,6 +127,7 @@ Target detail payload fields:
 - Pending AR bill count = sales bills whose receivable balance is greater than zero.
 - Credit utilization% = pending AR amount / customer credit limit when credit limit is configured.
 - Low-margin bill count uses GP% below 5%; negative-margin bill count uses GP below zero.
+- Customer return frequency is not calculated; cancelled/voided Sales Bill and Receipt rows are excluded from active totals and remain auditable in their owner flow.
 - Rows with no bill/revenue/receivable are excluded.
 - Sort default is revenue descending.
 
@@ -159,7 +160,7 @@ Target detail payload fields:
 - API now returns product breakdown per customer; channel breakdown is still pending.
 - API/UI now return monthly movement per customer for selected year.
 - API/UI now expose pending AR amount/count, credit utilization, low-margin bill count, and negative-margin bill count as decision signals.
-- Return signal/count is not wired yet; source ownership must be confirmed before adding it.
+- Return signal/count is removed by requirement; customer corrections use Sales Bill void/cancel instead of a separate Customer Return source.
 - AR aging buckets and due-date logic remain owned by [[Finance AR Page Flow]].
 - Customer advance allocation is out of scope here and should come from Sales/Payment flow facts.
 
@@ -173,7 +174,7 @@ Target detail payload fields:
 - [x] Return product breakdown per customer for selected period: product name, qty, revenue, COGS, GP, GP%.
 - [x] Return monthly movement per customer for selected year: bill count, qty, revenue, GP, received, receivable.
 - [x] Add structured decision signals: low margin, negative margin, pending AR, and credit utilization.
-- [ ] Add return frequency once source contract is confirmed.
+- [x] Remove return frequency from Customer Tracking; use void/cancel Sales documents.
 - [ ] Keep `year/month/customerId/q` filter and `format=xlsx` export aligned with the JSON result.
 
 ### UI
@@ -197,5 +198,5 @@ Target detail payload fields:
 - [x] Add product breakdown after source contract is finalized
 - [ ] Add channel breakdown after source contract is finalized
 - [x] Add customer behavior signals for margin, pending AR, and credit utilization
-- [ ] Add return frequency after source ownership/schema is confirmed
+- [x] Remove customer return frequency; correction flow is void/cancel document
 - [ ] Add AR aging only when due-date rules are reconciled
