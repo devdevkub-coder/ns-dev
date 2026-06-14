@@ -122,7 +122,18 @@ function pct(grossProfit: number, revenue: number) {
 export async function buildDualCostingManagement() {
   const [salesBills, tradingDeals, products] = await Promise.all([
     prisma.sales_bills.findMany({
-      include: { branches: true, customers: true },
+      include: {
+        branches: true,
+        customers: true,
+        sales_bill_lines: {
+          include: {
+            products: true,
+            sales_bill_po_sell_allocations: { orderBy: { id: 'asc' } },
+          },
+          orderBy: { line_no: 'asc' },
+          where: { status: 'active' },
+        },
+      },
       orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
       take: 10000,
       where: { NOT: { status: { in: ['cancelled', 'Cancelled'] } } },
@@ -151,6 +162,49 @@ export async function buildDualCostingManagement() {
   const waitingRows: WaitingAllocationRow[] = []
   salesBills.forEach((bill) => {
     if (isCancelled(bill.status) || bill.transaction_mode === 'TRADING') return
+    if (bill.po_sell_id) return
+
+    if (bill.sales_bill_lines.length) {
+      bill.sales_bill_lines.forEach((line) => {
+        if (!line.product_id) return
+        const hasPoSellAllocation = line.sales_bill_po_sell_allocations.some((allocation) => allocation.status === 'active' && allocation.po_sell_id != null)
+        if (hasPoSellAllocation) return
+
+        const product = line.products
+        if (!isDualCostingGroup(product?.metal_group)) return
+
+        const qty = jsonNumber(line.qty) || jsonNumber(line.net_weight)
+        if (qty <= 0) return
+
+        const unitPrice = jsonNumber(line.unit_price)
+        const matched = matchedBySaleProduct.get(`${bill.id}|${line.product_id}`) ?? { cost: 0, qty: 0, revenue: 0 }
+        const allocatedQty = Math.min(qty, matched.qty)
+        const remainingQty = Math.max(0, qty - allocatedQty)
+        if (remainingQty <= 0.001) return
+
+        const productCode = line.product_code_snapshot || product?.code || ''
+        waitingRows.push({
+          allocatedQty,
+          allocationStatus: allocatedQty > 0 ? 'partially_allocated' : 'pending_allocation',
+          branchName: bill.branches?.name ?? '-',
+          customerName: bill.customers?.name ?? '-',
+          date: toDateOnly(bill.date),
+          docNo: bill.doc_no,
+          id: `${bill.doc_no}-${line.line_no}-${productCode || line.product_id.toString()}`,
+          itemId: String(line.line_no),
+          metalGroup: product?.metal_group ?? '-',
+          productId: productCode,
+          productName: product ? `${product.code} - ${product.name}` : line.product_name_snapshot,
+          qty,
+          remainingQty,
+          revenuePending: remainingQty * unitPrice,
+          salesBillId: bill.doc_no,
+          unitPrice,
+        })
+      })
+      return
+    }
+
     if (!Array.isArray(bill.items)) return
 
     const items = (bill.items as unknown[]).filter(isJsonItem)

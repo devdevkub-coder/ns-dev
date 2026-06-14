@@ -87,21 +87,24 @@ Target write behavior เมื่อ implement จริง:
 
 Current query params:
 
+- `sourceType` (`spot-sell` default, or `po-sell`)
 - `productId`
-- `poSellId`
+- `poSellId` (target id; for `spot-sell` this is `SB_DOC_NO:lineNo`)
 - `mode`
 
 Current source:
 
 - reads `GET /api/dual-costing/cost-pool?availableOnly=true`
-- reads `po_sells`, `sales_bills`, `trading_deals`, `products`
+- reads `sales_bills` + `sales_bill_lines` for Spot Sell/no-PO targets
+- reads `po_sells` for legacy PO Sell target mode
+- reads `trading_deals`, `products`
 
 Required payload groups:
 
 | Group | Meaning |
 |---|---|
 | `products` | eligible product options |
-| `salesRows` | PO Sell / target candidates |
+| `salesRows` | Spot Sell/no-PO or PO Sell target candidates, depending on `sourceType` |
 | `poolRows` | available Cost Pool rows |
 | `candidates` | preview rows with `qtyToUse` / cost |
 | `summary` | pool qty/value, target remaining, expected margin |
@@ -112,7 +115,7 @@ Required payload groups:
 - Candidate pool rows must come from filtered Cost Pool API.
 - `qtyToUse` cannot exceed pool row `availableQty`.
 - total allocated qty cannot exceed target `remainingQty`.
-- mode must be one of `FIFO`, `Cheap`, `Expensive`; legacy `Manual` needs explicit target-write decision before re-enabling in current API.
+- mode must be one of `FIFO`, `LIFO`, `Cheap`, `Expensive`; legacy `Manual` remains a UI option but needs explicit target-write decision before confirm is enabled.
 - Confirm write must be idempotent and create an auditable `matchId`.
 
 ## Side Effects
@@ -130,18 +133,20 @@ Target future confirm:
 
 - Current API/page is implemented as read-only simulation and protected by `finance.cash.view`.
 - Current API delegates pool eligibility to Cost Pool API, so Cost Pool hardening is prerequisite.
+- 2026-06-14 runtime opens `spot-sell` read targets from Sales Bill lines with no active PO allocation and non-Trading transaction mode. This is the default mode per latest requirement.
 
 ## Current Gap
 
 - No durable allocation write API yet.
 - No append-only allocation ledger table yet.
 - Current API does not support legacy manual target-cost mode.
-- Spot Sell allocation target needs final alignment with Sales Bill/WTO target flow before write.
+- Spot Sell write confirmation still needs durable allocation ledger design before enabling the confirm button.
 
 ## Implementation Checklist
 
 - [x] Legacy allocator flow inspected
 - [x] Current simulation API identified
+- [x] Open Spot Sell/no-PO target read path
 - [ ] Implement durable allocation table/log
 - [ ] Add confirm allocation endpoint
 - [ ] Add reverse/recreate edit policy

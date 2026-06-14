@@ -124,6 +124,11 @@ function isCancelled(status: string | null | undefined) {
   return ['cancelled', 'canceled'].includes((status ?? '').trim().toLowerCase())
 }
 
+function isDualCostingGroup(group?: string | null) {
+  const normalized = (group ?? '').toLowerCase()
+  return ['ทองแดง', 'ทองเหลือง', 'copper', 'brass'].some((key) => normalized.includes(key))
+}
+
 function sortPool(rows: CostPoolRow[], mode: string) {
   const nextRows = [...rows]
   if (mode === 'Cheap') return nextRows.sort((left, right) => left.unitCost - right.unitCost)
@@ -154,8 +159,9 @@ export async function GET(request: Request) {
     const productId = url.searchParams.get('productId')
     const poSellId = url.searchParams.get('poSellId')
     const mode = url.searchParams.get('mode') ?? 'FIFO'
+    const sourceType = url.searchParams.get('sourceType') ?? 'spot-sell'
 
-    const [costPool, poSells, salesBills, tradingDeals, products] = await Promise.all([
+    const [costPool, poSells, salesBills, spotSalesBills, tradingDeals, products] = await Promise.all([
       readCostPool(request),
       prisma.po_sells.findMany({
         include: { customers: true },
@@ -167,6 +173,28 @@ export async function GET(request: Request) {
         select: { id: true, po_sell_id: true },
         take: 10000,
         where: { NOT: { status: 'cancelled' }, po_sell_id: { not: null } },
+      }),
+      prisma.sales_bills.findMany({
+        include: {
+          customers: true,
+          sales_bill_lines: {
+            include: {
+              products: true,
+              sales_bill_po_sell_allocations: { orderBy: { id: 'asc' } },
+            },
+            orderBy: { line_no: 'asc' },
+            where: { status: 'active' },
+          },
+        },
+        orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
+        take: 10000,
+        where: {
+          NOT: [
+            { status: { in: ['cancelled', 'Cancelled', 'canceled', 'Canceled'] } },
+            { transaction_mode: 'TRADING' },
+          ],
+          po_sell_id: null,
+        },
       }),
       prisma.trading_deals.findMany({
         orderBy: [{ date: 'desc' }],
@@ -196,6 +224,13 @@ export async function GET(request: Request) {
       matchedQtyByPoSellId.set(po.id, matchedQty)
     })
 
+    const matchedQtyBySpotProduct = new Map<string, number>()
+    tradingDeals.forEach((deal) => {
+      if (!deal.sales_bill_id || !deal.product_id || isCancelled(deal.status)) return
+      const key = `${deal.sales_bill_id.toString()}:${deal.product_id.toString()}`
+      matchedQtyBySpotProduct.set(key, (matchedQtyBySpotProduct.get(key) ?? 0) + toNumber(deal.matched_qty))
+    })
+
     const salesRows: SaleRow[] = poSells.flatMap((po) => {
       const fallbackProduct = po.product_id ? productById.get(po.product_id) ?? null : null
       const items = itemRows(po, fallbackProduct, productById)
@@ -220,12 +255,39 @@ export async function GET(request: Request) {
       })
     }).filter((row) => row.productId && row.remainingQty > 0)
 
+    const spotSalesRows: SaleRow[] = spotSalesBills.flatMap((bill) => bill.sales_bill_lines.flatMap((line) => {
+      const product = line.products
+      if (!product || !isDualCostingGroup(product.metal_group)) return []
+      const hasPoSellAllocation = line.sales_bill_po_sell_allocations.some((allocation) => allocation.status === 'active' && allocation.po_sell_id != null)
+      if (hasPoSellAllocation) return []
+      const productCode = requireBusinessCode(line.product_code_snapshot || product.code, `สินค้า ${product.id}`)
+      const qty = jsonNumber(line.qty) || jsonNumber(line.net_weight)
+      if (qty <= 0) return []
+      const matchedQty = matchedQtyBySpotProduct.get(`${bill.id.toString()}:${line.product_id?.toString() ?? ''}`) ?? 0
+      const remainingQty = Math.max(0, qty - matchedQty)
+      if (remainingQty <= 0.001) return []
+      return [{
+        customerName: bill.customers?.name ?? '-',
+        date: toDateOnly(bill.date),
+        docNo: bill.doc_no,
+        id: `${bill.doc_no}:${line.line_no}`,
+        matchedQty,
+        productId: productCode,
+        productName: line.product_name_snapshot || product.name,
+        qty,
+        remainingQty,
+        unitPrice: jsonNumber(line.unit_price),
+      }]
+    }))
+
+    const targetRows = sourceType === 'po-sell' ? salesRows : spotSalesRows
+
     const poolRows = costPool.rows.filter((row) => row.productId && row.availableQty > 0)
-    const productIds = new Set([...salesRows.map((row) => row.productId), ...poolRows.map((row) => row.productId)])
+    const productIds = new Set([...targetRows.map((row) => row.productId), ...poolRows.map((row) => row.productId)])
     const productOptions = Array.from(productIds).map((id) => {
       const product = productByCode.get(id)
       const poolForProduct = poolRows.filter((row) => row.productId === id)
-      const salesForProduct = salesRows.filter((row) => row.productId === id)
+      const salesForProduct = targetRows.filter((row) => row.productId === id)
       return {
         code: product?.code ?? id,
         id,
@@ -238,7 +300,7 @@ export async function GET(request: Request) {
     }).sort((left, right) => `${left.code} ${left.name}`.localeCompare(`${right.code} ${right.name}`))
 
     const filteredPool = productId ? poolRows.filter((row) => row.productId === productId) : []
-    const filteredSales = productId ? salesRows.filter((row) => row.productId === productId) : []
+    const filteredSales = productId ? targetRows.filter((row) => row.productId === productId) : []
     const selectedSale = poSellId ? filteredSales.find((row) => row.id === poSellId) ?? null : null
     const selectedPool = sortPool(filteredPool, mode)
 

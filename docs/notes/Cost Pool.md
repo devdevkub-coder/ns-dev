@@ -136,7 +136,8 @@ available_value = available_qty * unit_cost
 |---|---|
 | Product eligibility | `products.metal_group` |
 | PO candidate | `po_buys` + `po_buy_status_logs` + `po_buy_allocation_logs` |
-| Spot Buy purchase lines | `purchase_bills` + `purchase_bill_items` เฉพาะ line ที่ไม่มี `po_buy_id` / No PO |
+| Spot Buy purchase lines | `purchase_bills` + `purchase_bill_items` ตาม legacy visibility; duplicate/cost-deducted policy ต้องอยู่ใน durable allocation decision |
+| Production/Regrade cost rows | `stock_cost_pool_entries` ที่มี source เป็น `Production` หรือ `Regrade` และ product eligible |
 | PB -> WTI usage | `purchase_bill_receipt_allocations` + `weight_ticket_usage_logs` |
 | PB -> PO usage | `purchase_bill_po_allocations` + `po_buy_allocation_logs` |
 | Stock actual movement | `stock_ledger` |
@@ -147,24 +148,22 @@ available_value = available_qty * unit_cost
 
 - `/dual-costing/cost-pool` ต้องแสดงเฉพาะสินค้า eligible
 - `/api/dual-costing/cost-pool` ต้อง filter eligible ใน backend ก่อนคำนวณ summary, filters, export, และ rows
-- `/api/dual-costing/cost-pool` ต้องนับ PB purchase lines เฉพาะ Spot Buy / No PO เท่านั้น; PB line ที่มี `po_buy_id` ต้องไม่ถูกนับเป็น `Spot_Buy`
+- `/api/dual-costing/cost-pool` แสดง PB purchase item visibility ตาม legacy `Spot_Buy`; ห้ามตัด row เงียบ ๆ จาก `po_buy_id` โดยไม่มี durable allocation policy
 - `/dual-costing/cost-allocator` ต้องรับ candidate จาก Cost Pool ที่ถูก filter แล้วเท่านั้น
 - Product filter ในหน้า Cost Pool ต้องมีเฉพาะ product eligible ที่มี source rows
 - Export Excel ต้องใช้ row set เดียวกับหน้าจอ ไม่ export สินค้านอกกลุ่ม
 - หน้า PO Buy ยังสร้าง PO สินค้ากลุ่มอื่นได้ แต่สินค้าเหล่านั้นต้องไม่ถูกนับใน Cost Pool
 
-## Current Implementation Gap
+## Runtime Status
 
-สถานะตรวจเมื่อ 2026-06-07:
+สถานะตรวจล่าสุด 2026-06-14:
 
-- Target docs ระบุแล้วว่า Cost Pool รับเฉพาะทองแดง/ทองเหลือง
-- `/api/dual-costing/cost-pool` ปัจจุบันยังอ่านสินค้าแค่ `code`, `id`, `name` และยังไม่ได้ filter ด้วย `metal_group`
-- `/api/dual-costing/cost-pool` ปัจจุบันยังอ่าน purchase bill items ทุกบรรทัดเป็น `Spot_Buy` โดยยังไม่ได้จำกัดเฉพาะ No PO / ไม่มี `po_buy_id`
-- ผล read-only check ใน dev DB พบ candidate ที่ไม่ใช่ทองแดง/ทองเหลืองยังมีโอกาสถูกนับโดย endpoint ปัจจุบัน:
-  - `PO_Buy`: 17 จาก 493 candidate
-  - `Spot_Buy`: 15 จาก 15 candidate
+- `/api/dual-costing/cost-pool` enforce `products.metal_group` eligibility แล้ว โดยรับเฉพาะ `ทองแดง`, `ทองเหลือง`, `copper`, `brass`
+- `/api/dual-costing/cost-pool` ส่ง `Production` และ `Regrade` จาก normalized `stock_cost_pool_entries` เมื่อ product eligible
+- `/api/dual-costing/cost-pool` แสดง `Spot_Buy` จาก PB items ตาม legacy visibility
+- `/dual-costing/cost-pool` และ export XLSX ใช้ row set เดียวกันจาก API
 
-ดังนั้นงาน implementation ถัดไปคือต้องเพิ่ม helper กลาง เช่น `isCostPoolEligibleProduct(product.metal_group)` แล้วใช้กับ Cost Pool API และ API ที่ consume Cost Pool ทุกจุด พร้อมจำกัด `Spot_Buy` source ให้เป็นบิลซื้อ/line ที่ไม่มี PO เท่านั้น
+Remaining gap: usage reduction ยังอิง `trading_deals`; durable allocation ledger ยังเป็นงานอนาคต
 
 ## Acceptance Criteria
 
@@ -172,7 +171,7 @@ available_value = available_qty * unit_cost
 - สร้าง PO Buy สินค้าอื่นแล้วไม่เห็นใน Cost Pool
 - บันทึก PB Stock + Spot Buy / No PO สินค้าทองแดง/ทองเหลืองแล้วเข้า Cost Pool
 - บันทึก PB Stock + Spot Buy / No PO สินค้าอื่นแล้วเข้า stock/WAC แต่ไม่เข้า Cost Pool
-- บันทึก PB Stock ที่อ้าง PO Buy แล้วไม่สร้าง Cost Pool source จาก PB เพิ่ม; ใช้/reconcile `PO_Buy` candidate เดิม
+- บันทึก PB Stock ที่อ้าง PO Buy แล้วยังเห็น PB item ตาม legacy visibility จนกว่าจะมี durable duplicate/cost-deducted policy
 - Cost Allocator ไม่เสนอสินค้านอกทองแดง/ทองเหลือง
 - ปิด PO แบบส่งของไม่ครบต้อง release remaining eligible qty ออกจาก Cost Pool
 - ยกเลิก PB ต้อง reverse/recalc Cost Pool usage โดยไม่ rewrite history

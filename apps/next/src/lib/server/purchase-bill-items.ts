@@ -59,7 +59,7 @@ export function purchaseBillItemRows(row: PurchaseBillWithLineItems): PurchaseBi
       lineId: String(item.line_no ?? index + 1),
       lotNo: item.lot_no ?? undefined,
       note: item.note ?? undefined,
-      poBuyId: typeof snapshot.poBuyId === 'string' ? snapshot.poBuyId : undefined,
+      poBuyId: typeof snapshot.poBuyId === 'string' ? snapshot.poBuyId : item.po_buy_id == null ? undefined : String(item.po_buy_id),
       price: toNumber(item.price as Parameters<typeof toNumber>[0]),
       productCode: item.product_code ?? '',
       productId: item.product_code ?? '',

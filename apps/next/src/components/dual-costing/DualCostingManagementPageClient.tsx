@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Input } from '@/components/ui/Input'
@@ -29,10 +30,13 @@ type WaitingRow = {
   docNo: string
   id: string
   metalGroup: string
+  productId: string
   productName: string
   qty: number
   remainingQty: number
   revenuePending: number
+  salesBillId: string
+  itemId: string
   unitPrice: number
 }
 
@@ -179,7 +183,25 @@ function WaitingAllocationsView() {
         <TableBody>
           {isLoading ? <TableRow><TableCell className="py-8 text-center text-slate-500" colSpan={12}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
           {!isLoading && (data?.rows.length ?? 0) === 0 ? <TableRow><TableCell className="py-8 text-center text-emerald-700" colSpan={12}>ไม่มีรายการค้าง allocate ตามตัวกรอง</TableCell></TableRow> : null}
-          {(data?.rows ?? []).map((row) => <TableRow key={row.id} className="hover:bg-amber-50/30"><TableCell className="font-mono">{row.docNo}</TableCell><TableCell>{formatDateDisplay(row.date)}</TableCell><TableCell>{row.customerName}</TableCell><TableCell>{row.productName}</TableCell><TableCell className="text-center"><span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs text-amber-800">{row.metalGroup}</span></TableCell><TableCell className="text-right">{formatMoney(row.qty)}</TableCell><TableCell className="text-right text-emerald-700">{formatMoney(row.allocatedQty)}</TableCell><TableCell className="text-right font-bold text-amber-700">{formatMoney(row.remainingQty)}</TableCell><TableCell className="text-right">{formatMoney(row.unitPrice)}</TableCell><TableCell className="text-right text-emerald-700">{formatMoney(row.revenuePending)}</TableCell><TableCell className="text-center"><StatusPill status={row.allocationStatus} /></TableCell><TableCell className="text-center"><Button disabled size="xs" type="button">จัดสรร</Button></TableCell></TableRow>)}
+          {(data?.rows ?? []).map((row) => {
+            const allocatorHref = `/dual-costing/cost-allocator?sourceType=spot-sell&productId=${encodeURIComponent(row.productId)}&poSellId=${encodeURIComponent(`${row.salesBillId}:${row.itemId}`)}`
+            return (
+              <TableRow key={row.id} className="hover:bg-amber-50/30">
+                <TableCell className="font-mono">{row.docNo}</TableCell>
+                <TableCell>{formatDateDisplay(row.date)}</TableCell>
+                <TableCell>{row.customerName}</TableCell>
+                <TableCell>{row.productName}</TableCell>
+                <TableCell className="text-center"><span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs text-amber-800">{row.metalGroup}</span></TableCell>
+                <TableCell className="text-right">{formatMoney(row.qty)}</TableCell>
+                <TableCell className="text-right text-emerald-700">{formatMoney(row.allocatedQty)}</TableCell>
+                <TableCell className="text-right font-bold text-amber-700">{formatMoney(row.remainingQty)}</TableCell>
+                <TableCell className="text-right">{formatMoney(row.unitPrice)}</TableCell>
+                <TableCell className="text-right text-emerald-700">{formatMoney(row.revenuePending)}</TableCell>
+                <TableCell className="text-center"><StatusPill status={row.allocationStatus} /></TableCell>
+                <TableCell className="text-center"><Button asChild size="xs" type="button"><Link href={allocatorHref}>จัดสรร</Link></Button></TableCell>
+              </TableRow>
+            )
+          })}
         </TableBody>
       </Table>
     </DualCostingPageSection>

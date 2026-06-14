@@ -43,7 +43,8 @@ Legacy sections:
 
 Target scope ล่าสุด:
 
-- แสดง PO Sell และ Spot Sell eligible ที่ยังค้าง allocation
+- แสดง Spot Sell / Sales Bill ไม่มี PO เป็น target หลักที่ยังค้าง allocation
+- PO Sell เป็น legacy mode ที่ยังเปิดใน Cost Allocator เพื่ออ่านเทียบ แต่ไม่ใช่ scope หลักรอบนี้
 - แสดงเฉพาะทองแดง/ทองเหลือง
 - action หลักคือเปิด Cost Allocator พร้อม context
 - Grade Adjustment/Production queue เป็น legacy evidence เท่านั้น ยังไม่เข้า target Cost Pool จนกว่าจะมี decision ใหม่
@@ -88,7 +89,8 @@ Current query params:
 Current source:
 
 - shared `buildDualCostingManagement()`
-- reads `sales_bills`, `trading_deals`, `products`
+- reads `sales_bills`, `sales_bill_lines`, active `sales_bill_po_sell_allocations`, `trading_deals`, `products`
+- excludes Sales Bill header/line ที่มี PO Sell allocation และ excludes `transaction_mode = TRADING`
 - filters product group with `isDualCostingGroup()`
 
 Required row fields:
@@ -118,10 +120,12 @@ Required row fields:
 
 Read-only. `Allocate` navigation/preselect is a UI action only.
 
+`Allocate` opens `/dual-costing/cost-allocator?sourceType=spot-sell&productId=...&poSellId=SB_DOC_NO:lineNo`.
+
 ## Current Code Baseline
 
 - Current API/page is implemented and protected by `finance.cash.view`.
-- Current code filters copper/brass in shared management builder.
+- Current code filters copper/brass in shared management builder and uses Sales Bill line facts where available.
 
 ## Current Gap
 
@@ -134,6 +138,6 @@ Read-only. `Allocate` navigation/preselect is a UI action only.
 
 - [x] Legacy queue sections inspected
 - [x] Current API identified
+- [x] Add direct navigation contract to Cost Allocator in Next
 - [ ] Define stale allocation aging buckets
-- [ ] Add direct navigation contract to Cost Allocator in Next if missing
 - [ ] Decide whether GA/Production pending cost returns to target scope

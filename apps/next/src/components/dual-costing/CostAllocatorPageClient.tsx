@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
@@ -72,14 +72,15 @@ type Payload = {
 }
 
 export function CostAllocatorPageClient() {
+  const initialParams = typeof window === 'undefined' ? new URLSearchParams() : new URLSearchParams(window.location.search)
   const [allocationMode, setAllocationMode] = useState('FIFO')
   const [data, setData] = useState<Payload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [selectedPoSellId, setSelectedPoSellId] = useState('')
-  const [selectedProductId, setSelectedProductId] = useState('')
+  const [selectedPoSellId, setSelectedPoSellId] = useState(initialParams.get('poSellId') ?? '')
+  const [selectedProductId, setSelectedProductId] = useState(initialParams.get('productId') ?? '')
   const [showPreview, setShowPreview] = useState(false)
-  const [sourceType, setSourceType] = useState('po-sell')
+  const [sourceType, setSourceType] = useState(initialParams.get('sourceType') ?? 'spot-sell')
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams()
@@ -90,29 +91,30 @@ export function CostAllocatorPageClient() {
     return params.toString()
   }, [allocationMode, selectedPoSellId, selectedProductId, sourceType])
 
-  const loadData = useCallback(async () => {
-    setError(null)
-    setIsLoading(true)
-    try {
-      setData(await dailyFetchJson<Payload>(`/api/dual-costing/cost-allocator?${queryString}`))
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'โหลด Cost Allocator ไม่ได้')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [queryString])
-
   useEffect(() => {
+    let mounted = true
+    async function loadData() {
+      setError(null)
+      setIsLoading(true)
+      try {
+        const payload = await dailyFetchJson<Payload>(`/api/dual-costing/cost-allocator?${queryString}`)
+        if (mounted) setData(payload)
+      } catch (caught) {
+        if (mounted) setError(caught instanceof Error ? caught.message : 'โหลด Cost Allocator ไม่ได้')
+      } finally {
+        if (mounted) setIsLoading(false)
+      }
+    }
     void loadData()
-  }, [loadData])
+    return () => { mounted = false }
+  }, [queryString])
 
   const selectedProduct = data?.filters.products.find((product) => product.id === selectedProductId)
   const hasSelection = Boolean(selectedProductId)
   const hasPoSell = Boolean(data?.selectedPoSell)
   const hasCandidates = (data?.candidates.length ?? 0) > 0
   const sourceTypeButtons = data?.filters.sourceTypes ?? ['po-sell', 'spot-sell']
-  const sourceTypeLabel = sourceType === 'po-sell' ? 'PO Sell' : 'Spot Sell'
-  const sourceTypeReady = sourceType === 'po-sell'
+  const sourceTypeLabel = sourceType === 'po-sell' ? 'PO Sell' : 'Spot Sell / บิลขายไม่มี PO'
 
   function resetSale() {
     setSelectedPoSellId('')
@@ -122,7 +124,7 @@ export function CostAllocatorPageClient() {
   return (
     <DualCostingPageSection>
       <DualCostingHint tone="purple">
-        <strong>Cost Allocator</strong> ใช้เลือกดีลขาย จากนั้น preview การหยิบต้นทุนจริงจาก Cost Pool ตามลำดับที่กำหนด โดย batch นี้ยังเป็น read-only และยังไม่เขียน match log จริง
+        <strong>Cost Allocator</strong> ใช้เลือกบิลขายไม่มี PO หรือ PO Sell จากนั้น preview การหยิบต้นทุนจริงจาก Cost Pool ตามลำดับที่กำหนด โดย batch นี้ยังเป็น read-only และยังไม่เขียน match log จริง
       </DualCostingHint>
 
       <DualCostingErrorBox error={error} />
@@ -142,16 +144,14 @@ export function CostAllocatorPageClient() {
                   resetSale()
                 }}
               >
-                {item === 'po-sell' ? 'PO Sell' : 'Spot Sell'}
+                {item === 'po-sell' ? 'PO Sell' : 'Spot Sell / ไม่มี PO'}
               </button>
             )
           })}
         </div>
-        {!sourceTypeReady ? (
-          <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-            Spot Sell allocator ยังเป็น shell ตาม design เดิม แต่ data source / write flow ยังไม่เปิดใน batch นี้ จึงแสดงผล read-only เพื่อให้ layout ตรงกับหมวด dual costing ก่อน
-          </div>
-        ) : null}
+        <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+          Scope ล่าสุดใช้ Spot Sell / Sales Bill ไม่มี PO เป็น target หลักสำหรับทองแดงและทองเหลือง ส่วนการยืนยัน Match ยังปิดไว้จนกว่าจะมี durable allocation ledger
+        </div>
       </DualCostingPanel>
 
       <DualCostingPanel title="① เลือกสินค้าที่ต้องการ Match ต้นทุน">
@@ -183,17 +183,16 @@ export function CostAllocatorPageClient() {
             <div className="md:col-span-2">
               <label className="mb-1 block text-xs text-slate-500">{sourceTypeLabel} *</label>
               <Select
-                disabled={!sourceTypeReady}
                 value={selectedPoSellId}
                 onChange={(event) => {
                   setSelectedPoSellId(event.target.value)
                   setShowPreview(false)
                 }}
               >
-                <option value="">{sourceTypeReady ? '-- เลือก PO ขาย --' : '-- ยังไม่พร้อมใช้งาน --'}</option>
-                {(data?.poSells ?? []).map((po) => <option key={po.id} value={po.id}>{po.docNo} | {po.customerName} | จองขาย {formatMoney(po.qty)} กก. · เหลือต้อง match {formatMoney(po.remainingQty)} กก. · ฿{formatMoney(po.unitPrice)}/กก.</option>)}
+                <option value="">{sourceType === 'po-sell' ? '-- เลือก PO ขาย --' : '-- เลือกบิลขายไม่มี PO --'}</option>
+                {(data?.poSells ?? []).map((po) => <option key={po.id} value={po.id}>{po.docNo} | {po.customerName} | ขาย {formatMoney(po.qty)} กก. · เหลือต้อง match {formatMoney(po.remainingQty)} กก. · ฿{formatMoney(po.unitPrice)}/กก.</option>)}
               </Select>
-              {!isLoading && sourceTypeReady && (data?.poSells.length ?? 0) === 0 ? <div className="mt-1 text-xs text-amber-700">ไม่มี PO ขาย ของสินค้านี้ที่ยังไม่ match</div> : null}
+              {!isLoading && (data?.poSells.length ?? 0) === 0 ? <div className="mt-1 text-xs text-amber-700">ไม่มี {sourceTypeLabel} ของสินค้านี้ที่ยังไม่ match</div> : null}
             </div>
             <div>
               <label className="mb-1 block text-xs text-slate-500">Allocation Mode</label>

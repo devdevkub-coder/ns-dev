@@ -107,9 +107,9 @@ Clarification 2026-06-13: `stock_cost_pool_entries` ที่ใช้โดย 
 
 | Route | Current API | Current source |
 |---|---|---|
-| `/dual-costing/cost-pool` | `GET /api/dual-costing/cost-pool` | `po_buys`, `purchase_bills`, currently also `production_outputs`, `grade_adjustments`, `trading_deals` |
-| `/dual-costing/cost-allocator` | `GET /api/dual-costing/cost-allocator` | `Cost Pool API`, `po_sells`, `sales_bills`, `trading_deals`, `products` |
-| `/dual-costing/waiting-allocations` | `GET /api/dual-costing/waiting-allocations` | shared `buildDualCostingManagement()` from `sales_bills`, `trading_deals`, `products` |
+| `/dual-costing/cost-pool` | `GET /api/dual-costing/cost-pool` | `po_buys`, `purchase_bills`, `stock_cost_pool_entries` for Production/Regrade, `trading_deals` |
+| `/dual-costing/cost-allocator` | `GET /api/dual-costing/cost-allocator` | `Cost Pool API`, Sales Bill no-PO lines by default, optional `po_sells`, `trading_deals`, `products` |
+| `/dual-costing/waiting-allocations` | `GET /api/dual-costing/waiting-allocations` | shared `buildDualCostingManagement()` from `sales_bills`, `sales_bill_lines`, PO allocation facts, `trading_deals`, `products` |
 | `/dual-costing/cost-allocation-ledger` | `GET /api/dual-costing/cost-allocation-ledger` | shared `buildDualCostingManagement()` from `trading_deals` |
 | `/dual-costing/report` | `GET /api/dual-costing/report` | shared `buildDualCostingManagement()` |
 | `/dual-costing/match-log` | `GET /api/dual-costing/match-log` | `trading_deals` as current read baseline |
@@ -119,9 +119,8 @@ Clarification 2026-06-13: `stock_cost_pool_entries` ที่ใช้โดย 
 ## Implementation Gaps To Keep Visible
 
 - `/api/dual-costing/cost-pool` must filter product eligibility by `products.metal_group`.
-- `/api/dual-costing/cost-pool` must stop counting non-PO PB lines unless they are truly `Spot_Buy / No PO`.
-- `/api/dual-costing/cost-pool` must exclude `Production` and `Regrade` from target Cost Pool until a new decision exists.
-- Current `Cost Allocator` is read-only simulation; no durable allocation write API exists yet.
+- Cost Pool PB/Production/Regrade visibility follows the legacy baseline until durable allocation/cost-deducted policy replaces it.
+- Current `Cost Allocator` is read-only simulation; default target is Sales Bill no-PO Spot Sell and no durable allocation write API exists yet.
 - Current `Match Log` and `Allocation Ledger` read from `trading_deals`; target needs a durable allocation ledger/match log when allocator write is implemented.
 - Reverse/edit rules must be append-only or reverse-based; no physical delete of allocation history.
 - Report formulas must always label whether they use Deal Cost or WAC.
