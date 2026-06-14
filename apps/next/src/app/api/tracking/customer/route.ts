@@ -133,27 +133,38 @@ export async function GET(request: Request) {
         const item = itemTotals(bill.items)
         const revenue = item.amount || toNumber(bill.subtotal) || toNumber(bill.total_amount)
         const received = receivedByBill.get(bill.id) ?? toNumber(bill.received_amount)
+        const cogs = toNumber(bill.cogs_amount ?? bill.total_cost)
+        const gp = toNumber(bill.gross_profit) || revenue - cogs
+        const receivable = Math.max(0, toNumber(bill.receivable_balance) || toNumber(bill.total_amount) - received)
         return {
           billCount: sum.billCount + 1,
-          cogs: sum.cogs + toNumber(bill.cogs_amount ?? bill.total_cost),
-          gp: sum.gp + toNumber(bill.gross_profit),
+          cogs: sum.cogs + cogs,
+          gp: sum.gp + gp,
+          lowMarginBillCount: sum.lowMarginBillCount + (revenue > 0 && gp / revenue < 0.05 ? 1 : 0),
+          negativeMarginBillCount: sum.negativeMarginBillCount + (gp < 0 ? 1 : 0),
+          pendingArBillCount: sum.pendingArBillCount + (receivable > 0 ? 1 : 0),
           qty: sum.qty + item.qty,
-          receivable: sum.receivable + Math.max(0, toNumber(bill.total_amount) - received),
+          receivable: sum.receivable + receivable,
           revenue: sum.revenue + revenue,
         }
-      }, { billCount: 0, cogs: 0, gp: 0, qty: 0, receivable: 0, revenue: 0 })
+      }, { billCount: 0, cogs: 0, gp: 0, lowMarginBillCount: 0, negativeMarginBillCount: 0, pendingArBillCount: 0, qty: 0, receivable: 0, revenue: 0 })
       const receivedAmount = customerReceipts.reduce((sum, receipt) => sum + toNumber(receipt.amount) + toNumber(receipt.withholding_tax) + toNumber(receipt.discount), 0)
       const gp = totals.gp || totals.revenue - totals.cogs
+      const creditLimit = toNumber(customer.credit_limit)
       return {
         avgSell: totals.qty > 0 ? totals.revenue / totals.qty : 0,
         billCount: totals.billCount,
         cogs: totals.cogs,
         code: requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`),
-        creditLimit: toNumber(customer.credit_limit),
+        creditLimit,
+        creditUtilizationPct: creditLimit > 0 ? (totals.receivable / creditLimit) * 100 : 0,
         customerName: customer.name,
         gp,
         gpPct: totals.revenue > 0 ? (gp / totals.revenue) * 100 : 0,
         id: requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`),
+        lowMarginBillCount: totals.lowMarginBillCount,
+        negativeMarginBillCount: totals.negativeMarginBillCount,
+        pendingArBillCount: totals.pendingArBillCount,
         profitPerKg: totals.qty > 0 ? gp / totals.qty : 0,
         qty: totals.qty,
         receivable: totals.receivable,
@@ -183,6 +194,8 @@ export async function GET(request: Request) {
     const detail = detailCustomer ? (() => {
       const detailBills = bills.filter((bill) => bill.customer_id === detailCustomer.id && inYearMonth(bill.date, year, month))
       const detailReceipts = receipts.filter((receipt) => receipt.customer_id === detailCustomer.id && inYearMonth(receipt.date, year, month))
+      const detailYearBills = bills.filter((bill) => bill.customer_id === detailCustomer.id && inYearMonth(bill.date, year, null))
+      const detailYearReceipts = receipts.filter((receipt) => receipt.customer_id === detailCustomer.id && inYearMonth(receipt.date, year, null))
       const productMap = new Map<string, { cogs: number; gp: number; productName: string; qty: number; revenue: number }>()
 
       detailBills.forEach((bill) => {
@@ -203,6 +216,23 @@ export async function GET(request: Request) {
             productMap.set(productName, current)
           })
       })
+      const detailTotals = detailBills.reduce((sum, bill) => {
+        const item = itemTotals(bill.items)
+        const revenue = item.amount || toNumber(bill.subtotal) || toNumber(bill.total_amount)
+        const received = receivedByBill.get(bill.id) ?? toNumber(bill.received_amount)
+        const receivable = Math.max(0, toNumber(bill.receivable_balance) || toNumber(bill.total_amount) - received)
+        const cogs = toNumber(bill.cogs_amount ?? bill.total_cost)
+        const gp = toNumber(bill.gross_profit) || revenue - cogs
+        return {
+          gp: sum.gp + gp,
+          lowMarginBillCount: sum.lowMarginBillCount + (revenue > 0 && gp / revenue < 0.05 ? 1 : 0),
+          negativeMarginBillCount: sum.negativeMarginBillCount + (gp < 0 ? 1 : 0),
+          pendingArBillCount: sum.pendingArBillCount + (receivable > 0 ? 1 : 0),
+          receivable: sum.receivable + receivable,
+          revenue: sum.revenue + revenue,
+        }
+      }, { gp: 0, lowMarginBillCount: 0, negativeMarginBillCount: 0, pendingArBillCount: 0, receivable: 0, revenue: 0 })
+      const detailCreditLimit = toNumber(customers.find((customer) => customer.id === detailCustomer.id)?.credit_limit)
 
       return {
         bills: detailBills.slice(0, 50).map((bill) => {
@@ -218,13 +248,53 @@ export async function GET(request: Request) {
             gp,
             href: `/sales/bills/${encodeURIComponent(bill.doc_no)}`,
             qty: item.qty,
-            receivable: Math.max(0, toNumber(bill.total_amount) - received),
+            receivable: Math.max(0, toNumber(bill.receivable_balance) || toNumber(bill.total_amount) - received),
             received,
             revenue,
             status: bill.status ?? '-',
           }
         }),
         customer: { code: detailCustomer.code, id: detailCustomer.code, name: detailCustomer.name },
+        monthly: Array.from({ length: 12 }, (_, index) => {
+          const monthKey = String(index + 1).padStart(2, '0')
+          const monthBills = detailYearBills.filter((bill) => inYearMonth(bill.date, year, monthKey))
+          const monthReceipts = detailYearReceipts.filter((receipt) => inYearMonth(receipt.date, year, monthKey))
+          const receivedAmount = monthReceipts.reduce((sum, receipt) => sum + toNumber(receipt.amount) + toNumber(receipt.withholding_tax) + toNumber(receipt.discount), 0)
+          return monthBills.reduce<{
+            billCount: number
+            gp: number
+            month: string
+            qty: number
+            receivable: number
+            receiptCount: number
+            receivedAmount: number
+            revenue: number
+          }>((sum, bill) => {
+            const item = itemTotals(bill.items)
+            const revenue = item.amount || toNumber(bill.subtotal) || toNumber(bill.total_amount)
+            const received = receivedByBill.get(bill.id) ?? toNumber(bill.received_amount)
+            const cogs = toNumber(bill.cogs_amount ?? bill.total_cost)
+            return {
+              billCount: sum.billCount + 1,
+              gp: sum.gp + (toNumber(bill.gross_profit) || revenue - cogs),
+              month: monthKey,
+              qty: sum.qty + item.qty,
+              receivable: sum.receivable + Math.max(0, toNumber(bill.receivable_balance) || toNumber(bill.total_amount) - received),
+              receiptCount: monthReceipts.length,
+              receivedAmount,
+              revenue: sum.revenue + revenue,
+            }
+          }, {
+            billCount: 0,
+            gp: 0,
+            month: monthKey,
+            qty: 0,
+            receivable: 0,
+            receiptCount: monthReceipts.length,
+            receivedAmount,
+            revenue: 0,
+          })
+        }),
         products: Array.from(productMap.values()).map((row) => ({
           ...row,
           avgSell: row.qty > 0 ? row.revenue / row.qty : 0,
@@ -238,6 +308,16 @@ export async function GET(request: Request) {
           netAmount: toNumber(receipt.net_amount),
           status: receipt.status ?? '-',
         })),
+        signals: {
+          creditLimit: detailCreditLimit,
+          creditUtilizationPct: detailCreditLimit > 0 ? (detailTotals.receivable / detailCreditLimit) * 100 : 0,
+          gpPct: detailTotals.revenue > 0 ? (detailTotals.gp / detailTotals.revenue) * 100 : 0,
+          lowMarginBillCount: detailTotals.lowMarginBillCount,
+          negativeMarginBillCount: detailTotals.negativeMarginBillCount,
+          pendingArAmount: detailTotals.receivable,
+          pendingArBillCount: detailTotals.pendingArBillCount,
+          returnSignalStatus: 'ยังไม่มี sales return source table ใน schema ปัจจุบัน',
+        },
       }
     })() : null
 
@@ -247,9 +327,14 @@ export async function GET(request: Request) {
         Bills: row.billCount,
         COGS: row.cogs,
         Code: row.code,
+        CreditLimit: row.creditLimit,
+        CreditUtilizationPct: row.creditUtilizationPct,
         Customer: row.customerName,
         GP: row.gp,
         GPPct: row.gpPct,
+        LowMarginBills: row.lowMarginBillCount,
+        NegativeMarginBills: row.negativeMarginBillCount,
+        PendingArBills: row.pendingArBillCount,
         Qty: row.qty,
         Receivable: row.receivable,
         Received: row.receivedAmount,

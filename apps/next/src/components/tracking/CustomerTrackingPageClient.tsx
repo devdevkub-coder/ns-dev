@@ -11,10 +11,15 @@ type CustomerTrackingRow = {
   billCount: number
   code: string
   cogs: number
+  creditLimit: number
+  creditUtilizationPct: number
   customerName: string
   gp: number
   gpPct: number
   id: string
+  lowMarginBillCount: number
+  negativeMarginBillCount: number
+  pendingArBillCount: number
   profitPerKg: number
   qty: number
   receivable: number
@@ -33,8 +38,19 @@ type CustomerTrackingPayload = {
 type CustomerTrackingDetail = {
   bills: Array<{ cogs: number; date: string; docNo: string; gp: number; href: string; qty: number; receivable: number; received: number; revenue: number; status: string }>
   customer: { code: string; id: string; name: string }
+  monthly: Array<{ billCount: number; gp: number; month: string; qty: number; receivable: number; receiptCount: number; receivedAmount: number; revenue: number }>
   products: Array<{ avgSell: number; cogs: number; gp: number; gpPct: number; productName: string; qty: number; revenue: number }>
   receipts: Array<{ amount: number; date: string; docNo: string; method: string; netAmount: number; status: string }>
+  signals: {
+    creditLimit: number
+    creditUtilizationPct: number
+    gpPct: number
+    lowMarginBillCount: number
+    negativeMarginBillCount: number
+    pendingArAmount: number
+    pendingArBillCount: number
+    returnSignalStatus: string
+  }
 }
 
 const monthLabels = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
@@ -78,7 +94,23 @@ export function CustomerTrackingPageClient() {
 
   const openDetail = useCallback(async (row: CustomerTrackingRow) => {
     setIsDetailLoading(true)
-    setDetail({ bills: [], customer: { code: row.code, id: row.id, name: row.customerName }, products: [], receipts: [] })
+    setDetail({
+      bills: [],
+      customer: { code: row.code, id: row.id, name: row.customerName },
+      monthly: [],
+      products: [],
+      receipts: [],
+      signals: {
+        creditLimit: row.creditLimit,
+        creditUtilizationPct: row.creditUtilizationPct,
+        gpPct: row.gpPct,
+        lowMarginBillCount: row.lowMarginBillCount,
+        negativeMarginBillCount: row.negativeMarginBillCount,
+        pendingArAmount: row.receivable,
+        pendingArBillCount: row.pendingArBillCount,
+        returnSignalStatus: 'ยังไม่มี sales return source table ใน schema ปัจจุบัน',
+      },
+    })
     try {
       const params = new URLSearchParams(queryString)
       params.set('detailId', row.id)
@@ -191,6 +223,8 @@ export function CustomerTrackingPageClient() {
                 <MiniLine label="GP" tone={row.gp >= 0 ? 'emerald' : 'red'} value={formatMoney(row.gp)} />
                 <MiniLine label="น้ำหนัก" value={`${formatMoney(row.qty)} กก.`} />
                 <MiniLine label="ลูกหนี้" tone="amber" value={formatMoney(row.receivable)} />
+                <MiniLine label="บิลค้าง AR" tone="amber" value={`${row.pendingArBillCount}`} />
+                <MiniLine label="ใช้เครดิต" tone={row.creditUtilizationPct >= 100 ? 'red' : 'slate'} value={`${row.creditUtilizationPct.toFixed(1)}%`} />
               </div>
             </div>
           ))}
@@ -211,11 +245,13 @@ export function CustomerTrackingPageClient() {
                 <th className="p-2 text-right">฿/กก.</th>
                 <th className="p-2 text-right">รับเงิน</th>
                 <th className="p-2 text-right">ลูกหนี้</th>
+                <th className="p-2 text-right">บิลค้าง AR</th>
+                <th className="p-2 text-right">ใช้เครดิต</th>
               </tr>
             </thead>
             <tbody>
-              {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={12}>กำลังโหลดข้อมูล</td></tr> : null}
-              {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={12}>ไม่มีข้อมูล Customer Tracking</td></tr> : null}
+              {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={14}>กำลังโหลดข้อมูล</td></tr> : null}
+              {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={14}>ไม่มีข้อมูล Customer Tracking</td></tr> : null}
               {!isLoading && rows.map((row) => (
                 <tr key={row.id} className="cursor-pointer border-t hover:bg-emerald-50/40" onClick={() => void openDetail(row)}>
                   <td className="p-2 font-mono text-xs text-slate-500">{row.code || '-'}</td>
@@ -230,6 +266,8 @@ export function CustomerTrackingPageClient() {
                   <td className="p-2 text-right">{formatMoney(row.profitPerKg)}</td>
                   <td className="p-2 text-right">{formatMoney(row.receivedAmount)}</td>
                   <td className="p-2 text-right text-amber-700">{formatMoney(row.receivable)}</td>
+                  <td className="p-2 text-right">{row.pendingArBillCount}</td>
+                  <td className={`p-2 text-right ${row.creditUtilizationPct >= 100 ? 'font-semibold text-red-700' : ''}`}>{row.creditUtilizationPct.toFixed(1)}%</td>
                 </tr>
               ))}
             </tbody>
@@ -249,12 +287,24 @@ function CustomerDetailDialog({ detail, isLoading, onOpenChange }: { detail: Cus
       <DialogContent className="max-h-[90vh] max-w-5xl overflow-hidden !p-0" fallbackTitle="Customer Tracking Detail">
         <DialogHeader>
           <DialogTitle>{detail?.customer.name ?? 'รายละเอียด Customer'}</DialogTitle>
-          <DialogDescription>{detail?.customer.code ?? ''} · Sales Bills / Receipts / Product breakdown</DialogDescription>
+          <DialogDescription>{detail?.customer.code ?? ''} · Sales Bills / Receipts / Monthly movement / Product breakdown</DialogDescription>
         </DialogHeader>
         <div className="max-h-[72vh] space-y-4 overflow-y-auto p-4">
           {isLoading ? <div className="rounded-md bg-slate-50 p-6 text-center text-sm text-slate-500">กำลังโหลดรายละเอียด</div> : null}
           {!isLoading && detail ? (
             <>
+              <DetailSection title="Decision Signals">
+                <div className="grid gap-2 p-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <SignalMetric label="Pending AR" value={formatMoney(detail.signals.pendingArAmount)} />
+                  <SignalMetric label="บิลค้าง AR" value={`${detail.signals.pendingArBillCount} บิล`} />
+                  <SignalMetric label="ใช้เครดิต" value={`${detail.signals.creditUtilizationPct.toFixed(1)}%`} />
+                  <SignalMetric label="GP%" value={`${detail.signals.gpPct.toFixed(2)}%`} />
+                  <SignalMetric label="บิล Margin ต่ำ" value={`${detail.signals.lowMarginBillCount} บิล`} />
+                  <SignalMetric label="บิล GP ติดลบ" value={`${detail.signals.negativeMarginBillCount} บิล`} />
+                  <SignalMetric label="Credit Limit" value={formatMoney(detail.signals.creditLimit)} />
+                  <SignalMetric label="Return" value={detail.signals.returnSignalStatus} />
+                </div>
+              </DetailSection>
               <DetailSection title="Sales Bill">
                 <SimpleTable
                   headers={['วันที่', 'เอกสาร', 'น้ำหนัก', 'ยอดขาย', 'COGS', 'GP', 'รับเงิน', 'ลูกหนี้', 'สถานะ']}
@@ -275,6 +325,12 @@ function CustomerDetailDialog({ detail, isLoading, onOpenChange }: { detail: Cus
                 <SimpleTable
                   headers={['วันที่', 'เอกสาร', 'วิธีรับเงิน', 'ยอดรับ', 'สุทธิ', 'สถานะ']}
                   rows={detail.receipts.map((row) => [formatDateDisplay(row.date), row.docNo, row.method, formatMoney(row.amount), formatMoney(row.netAmount), row.status])}
+                />
+              </DetailSection>
+              <DetailSection title="Monthly Movement">
+                <SimpleTable
+                  headers={['เดือน', 'บิล', 'รับเงิน', 'น้ำหนัก', 'ยอดขาย', 'GP', 'รับแล้ว', 'ลูกหนี้']}
+                  rows={detail.monthly.map((row, index) => [monthLabels[index] ?? row.month, String(row.billCount), String(row.receiptCount), formatMoney(row.qty), formatMoney(row.revenue), formatMoney(row.gp), formatMoney(row.receivedAmount), formatMoney(row.receivable)])}
                 />
               </DetailSection>
               <DetailSection title="Product Breakdown">
@@ -316,6 +372,10 @@ function MiniStat({ label, value }: { label: string; value: string }) {
 function MiniLine({ label, tone = 'slate', value }: { label: string; tone?: 'amber' | 'emerald' | 'red' | 'slate'; value: string }) {
   const text = tone === 'amber' ? 'text-amber-700' : tone === 'emerald' ? 'text-emerald-700' : tone === 'red' ? 'text-red-700' : 'text-slate-800'
   return <div><div className="text-slate-500">{label}</div><div className={`font-mono font-bold ${text}`}>{value}</div></div>
+}
+
+function SignalMetric({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-md bg-slate-50 p-3"><div className="text-xs font-semibold text-slate-500">{label}</div><div className="mt-1 text-sm font-bold text-slate-900">{value}</div></div>
 }
 
 function Tab({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {

@@ -35,7 +35,7 @@ User-provided screenshots clarify that Tracking 360 is a business decision surfa
 - Required source groups: Sales Bill, Receipt, margin, Return, Pending AR
 - Decision questions: ลูกค้าคนไหนซื้อเยอะ, margin ดีไหม, จ่ายช้าไหม, มี return บ่อยไหม
 - Business decisions supported: เพิ่มเครดิต, ลดเครดิต, ต้นยอดขาย, blacklist
-- Target gap from local/legacy comparison: legacy has customer row drilldown with SB/RCP/product/monthly detail; current Next now exposes SB/RCP/product drilldown through `detailId`, while monthly detail, channel breakdown, and decision signals are still pending.
+- Target gap from local/legacy comparison: legacy has customer row drilldown with SB/RCP/product/monthly detail; current Next now exposes SB/RCP/product/monthly drilldown plus pending AR, credit utilization, and margin decision signals through `detailId`; channel breakdown and Return frequency remain pending.
 
 ### Supplier Tracking
 
@@ -94,7 +94,7 @@ User-provided screenshots clarify that Tracking 360 is a business decision surfa
 ## Current Gaps
 
 - Customer/Supplier/Product row drilldown is partially implemented through `detailId`: Customer has SB/RCP/product detail, Supplier has PB/payment/product detail, and Product has PB/SB source lines.
-- Customer Tracking still lacks channel breakdown, monthly detail, and decision signals from the legacy-style detail view.
+- Customer Tracking still lacks channel breakdown and Return frequency; monthly detail, pending AR, credit utilization, and margin decision signals are implemented in the detail view.
 - Supplier Tracking server-backed `supplierId`/`q` filtering is implemented for aggregate rows, product mix, monthly, summary, and export; supplier detail now includes monthly purchase/payment trend, WTI delivery/deduction, Grade Adjust count, and payment reliability signals. Return frequency is still pending.
 - Product Tracking now removes crossed-out `Stock` and `WAC` from the main list/export and supports Supplier ฝั่งซื้อ / Customer ฝั่งขาย filters in aggregate rows/monthly/top/export.
 - Product Tracking availability/hold-aware `พร้อมใช้` remains owned by stock balance docs and is not represented in the main profitability table.
@@ -129,7 +129,8 @@ Local route smoke:
 
 - [x] Extend `GET /api/tracking/customer` to support row detail for selected customer without changing write-side flows.
 - [x] Add customer detail payload: SB lines, RCP lines, and product breakdown.
-- [ ] Add monthly movement, receivable/pending AR signal, and return signal after source ownership is confirmed.
+- [x] Add monthly movement and receivable/pending AR signal.
+- [ ] Add return signal after source ownership is confirmed.
 - [ ] Keep `year`, `month`, `customerId`, and `q` filters consistent for summary, rows, detail, and export.
 - [ ] Add source-link fields using business doc numbers for SB/RCP.
 
@@ -139,7 +140,8 @@ Local route smoke:
 - [x] Make desktop rows and dense mobile cards clickable to open a detail modal/view.
 - [x] Add detail sections for SB list, RCP list, and product breakdown.
 - [x] Add mobile cards and keyboard-open mobile card controls.
-- [ ] Add summary signals, monthly movement, and decision signals.
+- [x] Add monthly movement and decision signals.
+- [ ] Add channel/return signals after source contracts are confirmed.
 - [ ] Keep actions read-only; source document links navigate to owner pages when available.
 
 ### Batch T360-4: Supplier Tracking API
