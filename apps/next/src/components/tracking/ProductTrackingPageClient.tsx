@@ -197,34 +197,6 @@ export function ProductTrackingPageClient() {
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="rounded-md bg-white p-3 shadow">
-        <div className="grid gap-2 md:grid-cols-4 xl:grid-cols-8">
-          <input className="rounded-md border px-3 py-2 text-sm" type="number" value={year} onChange={(event) => setYear(event.target.value)} />
-          <select className="rounded-md border px-3 py-2 text-sm" value={month} onChange={(event) => setMonth(event.target.value)}>
-            <option value="">ทั้งปี</option>
-            {months.map((value, index) => <option key={value} value={value}>{monthLabels[index]}</option>)}
-          </select>
-          <select className="rounded-md border px-3 py-2 text-sm" value={metalGroup} onChange={(event) => { setMetalGroup(event.target.value); setProductId('') }}>
-            <option value="">ทุกหมวด</option>
-            {(data?.filters?.metalGroups ?? []).map((group) => <option key={group} value={group}>{group}</option>)}
-          </select>
-          <select className="rounded-md border px-3 py-2 text-sm md:col-span-2" value={productId} onChange={(event) => setProductId(event.target.value)}>
-            <option value="">สินค้าทั้งหมด</option>
-            {filteredProducts.map((product) => <option key={product.id} value={product.id}>{product.code ? `${product.code} - ${product.name}` : product.name}</option>)}
-          </select>
-          <select className="rounded-md border px-3 py-2 text-sm" value={supplierId} onChange={(event) => setSupplierId(event.target.value)}>
-            <option value="">ทุก Supplier</option>
-            {(data?.filters?.suppliers ?? []).map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.code ? `${supplier.code} - ${supplier.name}` : supplier.name}</option>)}
-          </select>
-          <select className="rounded-md border px-3 py-2 text-sm" value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
-            <option value="">ทุก Customer</option>
-            {(data?.filters?.customers ?? []).map((customer) => <option key={customer.id} value={customer.id}>{customer.code ? `${customer.code} - ${customer.name}` : customer.name}</option>)}
-          </select>
-          <input className="rounded-md border px-3 py-2 text-sm" placeholder="ค้นหา Product" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <a className="rounded-md bg-orange-600 px-4 py-2 text-center text-sm font-bold text-white" href={exportHref}>📥 XLSX</a>
-        </div>
-      </div>
-
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
         <SummaryCard label="รายการ" value={formatMoney(data?.summary.products ?? 0)} />
         <SummaryCard label="ซื้อ (กก.)" value={formatMoney(data?.summary.buyQty ?? data?.summary.purchaseQty ?? 0)} />
@@ -232,6 +204,34 @@ export function ProductTrackingPageClient() {
         <SummaryCard label="ยอดซื้อ" value={formatMoney(data?.summary.buyAmount ?? data?.summary.purchaseAmount ?? 0)} />
         <SummaryCard label="ยอดขาย" value={formatMoney(data?.summary.revenue ?? data?.summary.salesAmount ?? 0)} />
         <SummaryCard label="GP" value={formatMoney(data?.summary.gp ?? 0)} />
+      </div>
+
+      <div className="rounded-md bg-white p-3 shadow">
+        <div className="grid gap-2 md:grid-cols-4 xl:grid-cols-8">
+          <input className="h-9 rounded-md border px-3 text-sm" type="number" value={year} onChange={(event) => setYear(event.target.value)} />
+          <select className="h-9 rounded-md border px-3 text-sm" value={month} onChange={(event) => setMonth(event.target.value)}>
+            <option value="">ทั้งปี</option>
+            {months.map((value, index) => <option key={value} value={value}>{monthLabels[index]}</option>)}
+          </select>
+          <select className="h-9 rounded-md border px-3 text-sm" value={metalGroup} onChange={(event) => { setMetalGroup(event.target.value); setProductId('') }}>
+            <option value="">ทุกหมวด</option>
+            {(data?.filters?.metalGroups ?? []).map((group) => <option key={group} value={group}>{group}</option>)}
+          </select>
+          <select className="h-9 rounded-md border px-3 text-sm md:col-span-2" value={productId} onChange={(event) => setProductId(event.target.value)}>
+            <option value="">สินค้าทั้งหมด</option>
+            {filteredProducts.map((product) => <option key={product.id} value={product.id}>{product.code ? `${product.code} - ${product.name}` : product.name}</option>)}
+          </select>
+          <select className="h-9 rounded-md border px-3 text-sm" value={supplierId} onChange={(event) => setSupplierId(event.target.value)}>
+            <option value="">ทุก Supplier</option>
+            {(data?.filters?.suppliers ?? []).map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.code ? `${supplier.code} - ${supplier.name}` : supplier.name}</option>)}
+          </select>
+          <select className="h-9 rounded-md border px-3 text-sm" value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
+            <option value="">ทุก Customer</option>
+            {(data?.filters?.customers ?? []).map((customer) => <option key={customer.id} value={customer.id}>{customer.code ? `${customer.code} - ${customer.name}` : customer.name}</option>)}
+          </select>
+          <input className="h-9 rounded-md border px-3 text-sm" placeholder="ค้นหา Product" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <a className="inline-flex h-9 items-center justify-center rounded-md bg-orange-600 px-4 text-center text-sm font-bold text-white" href={exportHref}>📥 XLSX</a>
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
