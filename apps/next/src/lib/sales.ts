@@ -38,6 +38,7 @@ export const salesLineItemSchema = z.object({
   price: positiveNumber('ราคา/หน่วย'),
   productId: z.string().trim().min(1, 'เลือกสินค้า').max(80, 'รหัสสินค้ายาวเกินไป').regex(safeIdPattern, 'รหัสสินค้ามีรูปแบบไม่ถูกต้อง'),
   qty: positiveNumber('จำนวน'),
+  tradingCostSourceId: optionalSafeId('Trading cost source'),
 })
 
 export const salesBillFormSchema = z.object({
@@ -80,6 +81,9 @@ export const salesBillFormSchema = z.object({
 }).refine((value) => value.transactionMode !== 'STOCK' || Boolean(value.deliveryTicketId) || Boolean(value.pendingStockIssueId) || Boolean(value.fromPsaleNo), {
   message: 'เลือกใบส่งของ WTO หรือระบุใบเบิกออก PSALE',
   path: ['deliveryTicketId'],
+}).refine((value) => value.transactionMode !== 'TRADING' || value.items.every((item) => Boolean(item.tradingCostSourceId)), {
+  message: 'บิลขาย Trading ต้องเลือกต้นทุน Trading PB/Cost Source ให้ครบทุกแถว',
+  path: ['items'],
 })
 
 export const salesBillCancelSchema = z.object({

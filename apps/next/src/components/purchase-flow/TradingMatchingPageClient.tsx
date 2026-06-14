@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
@@ -16,7 +17,17 @@ type TradingPayload = {
 }
 
 type TradingDealRow = TradingPayload['deals'][number]
-type TradingBillRow = TradingPayload['purchases'][number] | TradingPayload['sales'][number]
+type TradingPurchaseRow = TradingPayload['purchases'][number]
+
+const allocationLinks = [
+  { href: '/dual-costing/cost-allocation-ledger', label: 'Allocation Ledger' },
+  { href: '/dual-costing/deal-margin', label: 'Deal Margin' },
+  { href: '/dual-costing/waiting-allocations', label: 'Waiting Allocation' },
+]
+
+function isCancelled(status: string) {
+  return status.toLowerCase().includes('cancel')
+}
 
 export function TradingMatchingPageClient() {
   const [data, setData] = useState<TradingPayload | null>(null)
@@ -25,9 +36,7 @@ export function TradingMatchingPageClient() {
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedDeal, setSelectedDeal] = useState<TradingDealRow | null>(null)
-  const [status, setStatus] = useState('all')
-  const [showCancelled, setShowCancelled] = useState(false)
-  const [tab, setTab] = useState<'match' | 'unmatched'>('match')
+  const [tab, setTab] = useState<'allocations' | 'remaining'>('allocations')
   const [toDate, setToDate] = useState('')
 
   const loadData = useCallback(async () => {
@@ -46,284 +55,194 @@ export function TradingMatchingPageClient() {
     void loadData()
   }, [loadData])
 
-  const deals = useMemo(() => {
+  const filteredDeals = useMemo(() => {
     const query = search.trim().toLowerCase()
     return (data?.deals ?? []).filter((row) => {
-      if (status !== 'all' && row.status !== status) return false
+      if (isCancelled(row.status)) return false
       if (fromDate && row.date < fromDate) return false
       if (toDate && row.date > toDate) return false
       if (!query) return true
-      return `${row.dealNo} ${row.purchaseBillNo} ${row.salesBillNo} ${row.supplierName} ${row.customerName} ${row.productName} ${row.status}`.toLowerCase().includes(query)
+      return `${row.purchaseBillNo} ${row.salesBillNo} ${row.supplierName} ${row.customerName} ${row.productName}`.toLowerCase().includes(query)
     })
-  }, [data?.deals, fromDate, search, status, toDate])
+  }, [data?.deals, fromDate, search, toDate])
 
-  const visibleDeals = showCancelled ? deals : deals.filter((row) => !row.status.toLowerCase().includes('cancel'))
-  const completedDeals = (data?.deals ?? []).filter((row) => row.status.toLowerCase().includes('complete') || row.status.toLowerCase().includes('full'))
-  const partialDeals = (data?.deals ?? []).filter((row) => row.status.toLowerCase().includes('partial'))
-  const cancelledDeals = (data?.deals ?? []).filter((row) => row.status.toLowerCase().includes('cancel'))
-  const totalDeals = (data?.deals ?? []).length
-  const totalSales = (data?.deals ?? []).reduce((sum, row) => sum + row.matchedSalesAmount, 0)
-  const totalCost = (data?.deals ?? []).reduce((sum, row) => sum + row.matchedPurchaseAmount, 0)
-  const totalGP = (data?.deals ?? []).reduce((sum, row) => sum + row.grossProfit, 0)
-  const gpPct = totalSales > 0 ? totalGP / totalSales * 100 : 0
-  const purchaseTotal = data?.summary.purchaseTotal ?? 0
-  const salesTotal = data?.summary.salesTotal ?? 0
-  const purchaseRemaining = data?.summary.purchaseRemaining ?? 0
-  const salesRemaining = data?.summary.salesRemaining ?? 0
-  const matchRatePurchase = purchaseTotal > 0 ? (purchaseTotal - purchaseRemaining) / purchaseTotal * 100 : 0
-  const matchRateSales = salesTotal > 0 ? (salesTotal - salesRemaining) / salesTotal * 100 : 0
-  const topPairs = Array.from((data?.deals ?? []).reduce((map, row) => {
-    const pair = `${row.supplierName || '-'} → ${row.customerName || '-'}`
-    const current = map.get(pair) ?? { deals: 0, gp: 0, pair, sales: 0 }
-    current.deals += 1
-    current.gp += row.grossProfit
-    current.sales += row.matchedSalesAmount
-    map.set(pair, current)
-    return map
-  }, new Map<string, { deals: number; gp: number; pair: string; sales: number }>()).values()).sort((left, right) => right.gp - left.gp).slice(0, 5)
-  const monthlyGP = buildMonthlyGP(data?.deals ?? [])
-  const unmatchedPurchases = (data?.purchases ?? []).filter((row) => row.remainingAmount > 0.01)
-  const unmatchedSales = (data?.sales ?? []).filter((row) => row.remainingAmount > 0.01)
+  const remainingPurchases = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    return (data?.purchases ?? []).filter((row) => {
+      if (row.remainingAmount <= 0.01) return false
+      if (fromDate && row.date < fromDate) return false
+      if (toDate && row.date > toDate) return false
+      if (!query) return true
+      return `${row.docNo} ${row.supplierName}`.toLowerCase().includes(query)
+    })
+  }, [data?.purchases, fromDate, search, toDate])
+
+  const totals = useMemo(() => {
+    const salesAmount = filteredDeals.reduce((sum, row) => sum + row.matchedSalesAmount, 0)
+    const costAmount = filteredDeals.reduce((sum, row) => sum + row.matchedPurchaseAmount, 0)
+    const grossProfit = salesAmount - costAmount
+    const remainingCost = remainingPurchases.reduce((sum, row) => sum + row.remainingAmount, 0)
+    const remainingMatchedCost = remainingPurchases.reduce((sum, row) => sum + row.matchedAmount, 0)
+    return {
+      allocationCount: filteredDeals.length,
+      costAmount,
+      grossProfit,
+      grossProfitPct: salesAmount > 0 ? grossProfit / salesAmount * 100 : 0,
+      remainingCost,
+      remainingMatchedCost,
+      salesAmount,
+    }
+  }, [filteredDeals, remainingPurchases])
 
   const exportHref = useMemo(() => {
     const params = new URLSearchParams({ format: 'xlsx' })
     if (search.trim()) params.set('q', search.trim())
-    if (status !== 'all') params.set('status', status)
     if (fromDate) params.set('from', fromDate)
     if (toDate) params.set('to', toDate)
     return `/api/trading/matching?${params.toString()}`
-  }, [fromDate, search, status, toDate])
+  }, [fromDate, search, toDate])
 
   const resetFilters = () => {
     setFromDate('')
     setSearch('')
-    setStatus('all')
     setToDate('')
   }
 
-  const hasFilters = search.trim() || status !== 'all' || fromDate || toDate
+  const hasFilters = Boolean(search.trim() || fromDate || toDate)
 
   return (
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="flex flex-wrap gap-2 rounded-md bg-white p-3 shadow">
-        <button className="rounded-md bg-purple-100 px-3 py-2 text-sm font-bold text-purple-700 opacity-60" type="button" disabled>🧹 ตรวจ Dup</button>
-        <button className="rounded-md bg-blue-100 px-3 py-2 text-sm font-bold text-blue-800 opacity-60" type="button" disabled>📥 Pull จาก Cloud</button>
-        <button className="rounded-md bg-amber-100 px-3 py-2 text-sm font-bold text-amber-800 opacity-60" type="button" disabled>🔄 Recalc Cost</button>
-        <button className="rounded-md border border-fuchsia-200 bg-fuchsia-50 px-4 py-2 font-bold text-fuchsia-700 opacity-70" type="button" disabled>+ จับคู่ใหม่</button>
-      </div>
-
-      <div className="grid gap-3 lg:grid-cols-3">
-        <div className="relative overflow-hidden rounded-md bg-gradient-to-br from-fuchsia-600 via-purple-700 to-violet-800 p-6 text-white shadow-lg lg:col-span-2">
-          <div className="absolute -right-10 -top-10 h-40 w-40 rounded-md-full bg-white/10" />
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+        <div className="relative overflow-hidden rounded-md bg-gradient-to-br from-fuchsia-600 via-purple-700 to-violet-800 p-6 text-white shadow-lg">
+          <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10" />
           <div className="relative">
-            <div className="text-sm uppercase tracking-wider opacity-80">💰 Trading Gross Profit รวม</div>
-            <div className={`mt-2 text-5xl font-bold ${totalGP >= 0 ? '' : 'text-red-200'}`}>{formatMoney(totalGP)}</div>
-            <div className="mt-1 text-sm opacity-90">บาท · GP {gpPct.toFixed(2)}% · {totalDeals} ดีล</div>
-            <div className="mt-4 grid grid-cols-3 gap-3 border-t border-white/20 pt-4">
-              <div><div className="text-[10px] opacity-75">ยอดขาย Trading</div><div className="text-xl font-bold">{formatMoney(totalSales)}</div></div>
-              <div><div className="text-[10px] opacity-75">ต้นทุน Trading</div><div className="text-xl font-bold">{formatMoney(totalCost)}</div></div>
-              <div><div className="text-[10px] opacity-75">รอจับคู่</div><div className="text-xl font-bold text-amber-200">{formatMoney(purchaseRemaining + salesRemaining)}</div></div>
+            <div className="text-sm font-semibold uppercase opacity-85">Trading Matching / จับคู่ต้นทุนขาย Trading</div>
+            <div className={`mt-2 text-4xl font-bold ${totals.grossProfit >= 0 ? '' : 'text-red-200'}`}>{formatMoney(totals.grossProfit)}</div>
+            <div className="mt-1 text-sm opacity-90">Expected GP · GP% = GP / Sale Amount · {totals.allocationCount} allocation</div>
+            <div className="mt-4 grid gap-3 border-t border-white/20 pt-4 sm:grid-cols-4">
+              <HeroMetric label="Sales Amount" value={formatMoney(totals.salesAmount)} />
+              <HeroMetric label="Cost" value={formatMoney(totals.costAmount)} />
+              <HeroMetric label="GP%" value={`${totals.grossProfitPct.toFixed(2)}%`} />
+              <HeroMetric label="Remaining Cost" value={formatMoney(totals.remainingCost)} />
             </div>
           </div>
         </div>
-        <StatusDonut cancelled={cancelledDeals.length} completed={completedDeals.length} partial={partialDeals.length} total={totalDeals} />
-      </div>
 
-      <div className="grid gap-3 lg:grid-cols-3">
-        <div className="rounded-md bg-white p-4 shadow">
-          <div className="mb-3 text-sm font-bold text-slate-700">🎯 Match Rate</div>
-          <Gauge color="blue" label="บิลซื้อ Trading" remaining={purchaseRemaining} total={purchaseTotal} value={matchRatePurchase} />
-          <Gauge color="emerald" label="บิลขาย Trading" remaining={salesRemaining} total={salesTotal} value={matchRateSales} />
-          <div className="rounded-md bg-fuchsia-50 p-2 text-center">
-            <div className="text-[10px] text-fuchsia-600">GP Margin %</div>
-            <div className="text-2xl font-bold text-fuchsia-700">{gpPct.toFixed(2)}%</div>
+        <div className="rounded-md border border-purple-100 bg-white p-4 shadow">
+          <div className="text-sm font-bold text-slate-800">เส้นทางข้อมูล</div>
+          <div className="mt-3 space-y-2 text-xs text-slate-600">
+            <FlowLine label="ฝั่งซื้อ" value="PO Buy / Purchase Bill Trading -> Cost Source" />
+            <FlowLine label="ฝั่งขาย" value="PO Sell -> Pending Sale -> Sales Bill Trading" />
+            <FlowLine label="ผลลัพธ์" value="allocation, expected GP, remaining qty, exposure tracking" />
           </div>
-        </div>
-        <div className="rounded-md bg-white p-4 shadow">
-          <div className="mb-3 text-sm font-bold text-slate-700">📈 GP รายเดือน (6 เดือนล่าสุด)</div>
-          <div className="flex h-32 items-end gap-3 border-b px-2">
-            {monthlyGP.map((month) => (
-              <div key={month.key} className="flex flex-1 flex-col items-center gap-1">
-                <div className={`w-full rounded-md-t ${month.gp >= 0 ? 'bg-purple-500' : 'bg-red-500'}`} style={{ height: `${Math.max(6, Math.abs(month.gp) / Math.max(...monthlyGP.map((item) => Math.abs(item.gp)), 1) * 110)}px` }} />
-                <span className="text-[10px] text-slate-500">{month.label}</span>
-              </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {allocationLinks.map((item) => (
+              <Link key={item.href} className="rounded-md border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-semibold text-purple-700 hover:bg-purple-100" href={item.href}>
+                {item.label}
+              </Link>
             ))}
-          </div>
-        </div>
-        <div className="rounded-md bg-white p-4 shadow">
-          <div className="mb-3 text-sm font-bold text-slate-700">🏆 Top 5 คู่ค้า GP สูงสุด</div>
-          <div className="space-y-2">
-            {topPairs.map((pair) => <div key={pair.pair} className="rounded-md-r border-l-4 border-fuchsia-500 bg-fuchsia-50 py-1 pl-2"><div className="truncate text-[11px] font-semibold text-slate-700">{pair.pair}</div><div className="flex justify-between text-[10px]"><span className="text-slate-500">{pair.deals} ดีล · ขาย {formatMoney(pair.sales)}</span><span className="font-bold text-fuchsia-700">GP {formatMoney(pair.gp)}</span></div></div>)}
-            {topPairs.length === 0 ? <div className="py-4 text-center text-xs text-slate-400">ยังไม่มีดีล</div> : null}
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
-        <Metric label="Deals ทั้งหมด" tone="slate" value={`${totalDeals}`} />
-        <Metric label="Completed" tone="emerald" value={`${completedDeals.length}`} />
-        <Metric label="Partially Matched" tone="amber" value={`${partialDeals.length}`} />
-        <Metric label="Total Trading GP" tone={totalGP >= 0 ? 'purple' : 'red'} value={formatMoney(totalGP)} />
+        <Metric label="Allocation" tone="slate" value={`${totals.allocationCount}`} />
+        <Metric label="Expected GP" tone={totals.grossProfit >= 0 ? 'purple' : 'red'} value={formatMoney(totals.grossProfit)} />
+        <Metric label="Cost Allocated" tone="emerald" value={formatMoney(totals.costAmount)} />
+        <Metric label="Remaining Cost" tone="amber" value={formatMoney(totals.remainingCost)} />
       </div>
 
       <div className="rounded-md bg-white p-3 shadow">
         <div className="flex flex-wrap items-center gap-2">
-          <select aria-label="สถานะ" className="rounded-md border px-3 py-2 text-sm" value={status} onChange={(event) => setStatus(event.target.value)}>
-            <option value="all">ทุกสถานะ</option>
-            {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
-          </select>
           <DatePickerInput ariaLabel="วันที่เริ่มต้น" className="w-[130px]" value={fromDate} onChange={setFromDate} />
           <DatePickerInput ariaLabel="วันที่สิ้นสุด" className="w-[130px]" value={toDate} onChange={setToDate} />
-          <input className="min-w-64 flex-1 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหา deal / PB / SB / คู่ค้า / สินค้า" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <input className="min-w-64 flex-1 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหา Sales Bill / Purchase Bill / คู่ค้า / สินค้า" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
           {hasFilters ? <button className="rounded-md border px-3 py-2 text-sm" type="button" onClick={resetFilters}>ล้าง</button> : null}
-          <a className="hidden md:inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white" href={exportHref}>Export XLSX</a>
+          <button className="rounded-md border px-3 py-2 text-sm" type="button" onClick={() => void loadData()}>Refresh</button>
+          <a className="inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white" href={exportHref}>Export XLSX</a>
         </div>
       </div>
 
       <div className="rounded-md border bg-white shadow">
         <div className="flex flex-wrap items-center border-b">
-          <button className={`border-b-2 px-5 py-3 text-sm font-medium ${tab === 'match' ? 'border-fuchsia-600 text-fuchsia-700' : 'border-transparent text-slate-500'}`} type="button" onClick={() => setTab('match')}>🤝 Deals ({visibleDeals.length})</button>
-          <button className={`border-b-2 px-5 py-3 text-sm font-medium ${tab === 'unmatched' ? 'border-fuchsia-600 text-fuchsia-700' : 'border-transparent text-slate-500'}`} type="button" onClick={() => setTab('unmatched')}>⚠ Unmatched</button>
-          {cancelledDeals.length > 0 ? <label className="ml-auto mr-4 flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"><input checked={showCancelled} type="checkbox" onChange={(event) => setShowCancelled(event.target.checked)} /><span>👁 แสดง Cancelled ({cancelledDeals.length})</span></label> : null}
+          <button className={`border-b-2 px-5 py-3 text-sm font-medium ${tab === 'allocations' ? 'border-fuchsia-600 text-fuchsia-700' : 'border-transparent text-slate-500'}`} type="button" onClick={() => setTab('allocations')}>Allocation ({filteredDeals.length})</button>
+          <button className={`border-b-2 px-5 py-3 text-sm font-medium ${tab === 'remaining' ? 'border-fuchsia-600 text-fuchsia-700' : 'border-transparent text-slate-500'}`} type="button" onClick={() => setTab('remaining')}>ต้นทุนคงเหลือ ({remainingPurchases.length})</button>
         </div>
-        {tab === 'match' ? (
+
+        {tab === 'allocations' ? (
           <>
-            {/* Mobile Card list for Matches */}
-            <div className="block md:hidden space-y-3 p-4">
-              {isLoading ? (
-                <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">กำลังโหลดข้อมูล</div>
-              ) : null}
-              
-              {!isLoading && visibleDeals.map((row) => (
-                <div
-                  key={row.id}
-                  className={`rounded-md border p-4 shadow-sm space-y-2 active:bg-slate-50 cursor-pointer ${row.status.toLowerCase().includes('cancel') ? 'border-slate-200 bg-slate-50/50 line-through opacity-70' : 'border-slate-100 bg-white'}`}
-                  onClick={() => setSelectedDeal(row)}
-                >
-                  <div className="flex justify-between items-start">
-                    <span className="font-bold text-slate-800 text-sm">{row.dealNo}</span>
+            <div className="block space-y-3 p-4 md:hidden">
+              {isLoading ? <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm">กำลังโหลดข้อมูล</div> : null}
+              {!isLoading && filteredDeals.map((row) => (
+                <button key={row.id} className="block w-full rounded-md border border-slate-100 bg-white p-4 text-left shadow-sm active:bg-slate-50" type="button" onClick={() => setSelectedDeal(row)}>
+                  <div className="flex justify-between gap-3">
+                    <span className="font-bold text-slate-800">{row.salesBillNo || '-'}</span>
                     <span className="text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
                   </div>
-                  
-                  <div className="text-xs text-slate-600 space-y-1">
-                    <div>
-                      <span className="font-semibold text-slate-500">ดีล: </span>
-                      <span className="text-slate-800">{row.supplierName} ➔ {row.customerName}</span>
-                    </div>
-                    <div>
-                      <span className="font-semibold text-slate-500">สินค้า: </span>
-                      <span className="text-slate-800">{row.productName}</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 pt-1">
-                      <div>
-                        <span className="font-semibold text-slate-500 block">น้ำหนัก: </span>
-                        <span className="text-slate-800 font-semibold">{formatMoney(row.matchedQty)} กก.</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold text-slate-500 block">สถานะ: </span>
-                        <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${statusBadge(row.status)}`}>
-                          {row.status}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-100/60 mt-1">
-                      <div>
-                        <span className="font-semibold text-slate-400 block">ต้นทุน: </span>
-                        <span className="text-red-600 tabular-nums">{formatMoney(row.matchedPurchaseAmount)}</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold text-slate-400 block">ยอดขาย: </span>
-                        <span className="text-emerald-700 tabular-nums">{formatMoney(row.matchedSalesAmount)}</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold text-slate-500 block">GP: </span>
-                        <span className={`font-bold tabular-nums ${row.grossProfit >= 0 ? 'text-purple-700' : 'text-red-600'}`}>
-                          {formatMoney(row.grossProfit)} ({row.grossProfitPct.toFixed(1)}%)
-                        </span>
-                      </div>
-                    </div>
+                  <div className="mt-1 text-xs text-slate-500">Cost source: {row.purchaseBillNo || '-'}</div>
+                  <div className="mt-2 text-xs text-slate-600">{row.supplierName} ไปยัง {row.customerName}</div>
+                  <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-2 text-xs">
+                    <Amount label="Cost" tone="red" value={row.matchedPurchaseAmount} />
+                    <Amount label="Sales" tone="emerald" value={row.matchedSalesAmount} />
+                    <Amount label="GP" tone={row.grossProfit >= 0 ? 'purple' : 'red'} value={row.grossProfit} />
                   </div>
-                </div>
+                </button>
               ))}
-
-              {!isLoading && visibleDeals.length === 0 ? (
-                <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">
-                  ยังไม่มีดีล Trading — กด + จับคู่ใหม่
-                </div>
-              ) : null}
+              {!isLoading && filteredDeals.length === 0 ? <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-slate-400 shadow-sm">ยังไม่มี allocation ตามเงื่อนไขที่ค้นหา</div> : null}
             </div>
 
-            <div className="hidden md:block overflow-x-auto p-5">
-              <table className="w-full min-w-[1220px] text-sm">
-                <thead className="bg-slate-100"><tr><th className="p-2 text-left">Deal No</th><th className="p-2 text-left">วันที่</th><th className="p-2 text-left">Purchase</th><th className="p-2 text-left">Supplier</th><th className="p-2 text-left">Sales</th><th className="p-2 text-left">Customer</th><th className="p-2 text-right">Qty</th><th className="p-2 text-right">Cost</th><th className="p-2 text-right">Sales Amt</th><th className="p-2 text-right">GP</th><th className="p-2 text-right">GP%</th><th className="p-2 text-center">Status</th><th></th></tr></thead>
+            <div className="hidden overflow-x-auto p-5 md:block">
+              <table className="w-full min-w-[1080px] text-sm">
+                <thead className="bg-slate-100">
+                  <tr>
+                    <th className="p-2 text-left">Sales Bill</th>
+                    <th className="p-2 text-left">วันที่</th>
+                    <th className="p-2 text-left">Cost Source</th>
+                    <th className="p-2 text-left">Supplier</th>
+                    <th className="p-2 text-left">Customer</th>
+                    <th className="p-2 text-left">สินค้า</th>
+                    <th className="p-2 text-right">Qty</th>
+                    <th className="p-2 text-right">Cost</th>
+                    <th className="p-2 text-right">Sales Amt</th>
+                    <th className="p-2 text-right">Expected GP</th>
+                    <th className="p-2 text-right">GP%</th>
+                    <th className="p-2 text-center">Action</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={13}>กำลังโหลดข้อมูล</td></tr> : null}
-                  {!isLoading && !error && visibleDeals.length === 0 ? <tr><td className="py-8 text-center text-slate-400" colSpan={13}>ยังไม่มีดีล Trading — กด + จับคู่ใหม่</td></tr> : null}
-                  {!isLoading && visibleDeals.map((row) => <tr key={row.id} className={`border-t hover:bg-slate-50 ${row.status.toLowerCase().includes('cancel') ? 'bg-slate-50 text-slate-400 line-through' : ''}`}><td className="p-2 font-mono text-xs">{row.dealNo}</td><td className="p-2 text-xs">{formatDateDisplay(row.date)}</td><td className="p-2 font-mono text-xs">{row.purchaseBillNo || '-'}</td><td className="p-2 text-xs">{row.supplierName}</td><td className="p-2 font-mono text-xs">{row.salesBillNo || '-'}</td><td className="p-2 text-xs">{row.customerName}</td><td className="p-2 text-right">{formatMoney(row.matchedQty)}</td><td className={`p-2 text-right ${row.status.toLowerCase().includes('cancel') ? '' : 'text-red-600'}`}>{formatMoney(row.matchedPurchaseAmount)}</td><td className={`p-2 text-right ${row.status.toLowerCase().includes('cancel') ? '' : 'text-emerald-700'}`}>{formatMoney(row.matchedSalesAmount)}</td><td className={`p-2 text-right font-bold ${row.status.toLowerCase().includes('cancel') ? '' : row.grossProfit >= 0 ? 'text-purple-700' : 'text-red-600'}`}>{formatMoney(row.grossProfit)}</td><td className="p-2 text-right">{row.grossProfitPct.toFixed(2)}%</td><td className="p-2 text-center"><span className={`rounded-md px-2 py-0.5 text-xs ${statusBadge(row.status)}`}>{row.status}</span></td><td className="whitespace-nowrap p-2"><button className="mr-2 rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50" type="button" onClick={() => setSelectedDeal(row)}>จัดการ</button><button className="mr-2 rounded-md border border-slate-300 px-2 py-1 text-xs text-blue-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50" type="button" disabled>🔄 Recalc</button><button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" type="button" disabled>Reverse</button></td></tr>)}
+                  {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={12}>กำลังโหลดข้อมูล</td></tr> : null}
+                  {!isLoading && !error && filteredDeals.length === 0 ? <tr><td className="py-8 text-center text-slate-400" colSpan={12}>ยังไม่มี allocation ตามเงื่อนไขที่ค้นหา</td></tr> : null}
+                  {!isLoading && filteredDeals.map((row) => (
+                    <tr key={row.id} className="border-t hover:bg-slate-50">
+                      <td className="p-2 font-mono text-xs font-semibold text-slate-800">{row.salesBillNo || '-'}</td>
+                      <td className="p-2 text-xs">{formatDateDisplay(row.date)}</td>
+                      <td className="p-2 font-mono text-xs">{row.purchaseBillNo || '-'}</td>
+                      <td className="p-2 text-xs">{row.supplierName}</td>
+                      <td className="p-2 text-xs">{row.customerName}</td>
+                      <td className="p-2 text-xs">{row.productName}</td>
+                      <td className="p-2 text-right">{formatMoney(row.matchedQty)}</td>
+                      <td className="p-2 text-right text-red-600">{formatMoney(row.matchedPurchaseAmount)}</td>
+                      <td className="p-2 text-right text-emerald-700">{formatMoney(row.matchedSalesAmount)}</td>
+                      <td className={`p-2 text-right font-bold ${row.grossProfit >= 0 ? 'text-purple-700' : 'text-red-600'}`}>{formatMoney(row.grossProfit)}</td>
+                      <td className="p-2 text-right">{row.grossProfitPct.toFixed(2)}%</td>
+                      <td className="whitespace-nowrap p-2 text-center"><button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" type="button" onClick={() => setSelectedDeal(row)}>Detail</button></td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
           </>
         ) : (
           <>
-            {/* Mobile Card list for Unmatched */}
-            <div className="block md:hidden space-y-4 p-4">
-              <div>
-                <h4 className="font-bold text-slate-800 text-xs mb-2">📥 Trading Purchases — รอจับคู่ขาย (มือถือ)</h4>
-                <div className="space-y-2">
-                  {unmatchedPurchases.map((row) => (
-                    <div key={row.id} className="rounded-md border border-slate-100 bg-white p-3 shadow-sm text-xs space-y-1">
-                      <div className="flex justify-between font-bold text-slate-800">
-                        <span>{row.docNo}</span>
-                        <span>{formatDateDisplay(row.date)}</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold text-slate-500">Supplier: </span>
-                        <span className="text-slate-800">{row.supplierName}</span>
-                      </div>
-                      <div className="flex justify-between border-t border-slate-50 pt-1 mt-1 font-semibold">
-                        <span>ยอดบิล: {formatMoney(row.totalAmount)}</span>
-                        <span className="text-amber-700">เหลือจับ: {formatMoney(row.remainingAmount)}</span>
-                      </div>
-                    </div>
-                  ))}
-                  {unmatchedPurchases.length === 0 ? (
-                    <div className="text-center py-4 text-xs text-slate-400">ทั้งหมด matched ✓</div>
-                  ) : null}
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-bold text-slate-800 text-xs mb-2">📤 Trading Sales — รอจับคู่ต้นทุน (มือถือ)</h4>
-                <div className="space-y-2">
-                  {unmatchedSales.map((row) => (
-                    <div key={row.id} className="rounded-md border border-slate-100 bg-white p-3 shadow-sm text-xs space-y-1">
-                      <div className="flex justify-between font-bold text-slate-800">
-                        <span>{row.docNo}</span>
-                        <span>{formatDateDisplay(row.date)}</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold text-slate-500">Customer: </span>
-                        <span className="text-slate-800">{row.customerName}</span>
-                      </div>
-                      <div className="flex justify-between border-t border-slate-50 pt-1 mt-1 font-semibold">
-                        <span>ยอดขาย: {formatMoney(row.totalAmount)}</span>
-                        <span className="text-amber-700">รอ match: {formatMoney(row.remainingAmount)}</span>
-                      </div>
-                    </div>
-                  ))}
-                  {unmatchedSales.length === 0 ? (
-                    <div className="text-center py-4 text-xs text-slate-400">ทั้งหมด matched ✓</div>
-                  ) : null}
-                </div>
-              </div>
+            <div className="block space-y-3 p-4 md:hidden">
+              {remainingPurchases.map((row) => <RemainingPurchaseCard key={row.id} row={row} />)}
+              {!isLoading && remainingPurchases.length === 0 ? <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-slate-400 shadow-sm">ไม่มีต้นทุน Trading คงเหลือ</div> : null}
             </div>
 
-            <div className="hidden md:grid gap-3 p-5 lg:grid-cols-2">
-              <TradingBillTable rows={unmatchedPurchases} title="📥 Trading Purchases — รอจับคู่ขาย" type="purchases" />
-              <TradingBillTable rows={unmatchedSales} title="📤 Trading Sales — รอจับคู่ต้นทุน" type="sales" />
+            <div className="hidden p-5 md:block">
+              <RemainingPurchaseTable rows={remainingPurchases} />
             </div>
           </>
         )}
@@ -333,50 +252,82 @@ export function TradingMatchingPageClient() {
   )
 }
 
-function TradingBillTable({ rows, title, type }: { rows: TradingBillRow[]; title: string; type: 'purchases' | 'sales' }) {
-  return <div><div className={`mb-2 font-bold ${type === 'purchases' ? 'text-emerald-700' : 'text-blue-700'}`}>{title}</div><table className="w-full text-xs"><thead className="bg-slate-100"><tr><th className="p-2 text-left">บิล</th><th className="p-2 text-left">{type === 'purchases' ? 'Supplier' : 'Customer'}</th><th className="p-2 text-right">มูลค่า</th><th className="p-2 text-right">{type === 'purchases' ? 'เหลือจับ' : 'รอ match cost'}</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id} className={`border-t ${type === 'sales' ? 'bg-amber-50/30' : ''}`}><td className="p-2 font-mono">{row.docNo}</td><td className="p-2">{type === 'purchases' ? 'supplierName' in row ? row.supplierName : '' : 'customerName' in row ? row.customerName : ''}</td><td className="p-2 text-right">{formatMoney(row.totalAmount)}</td><td className="p-2 text-right font-bold text-amber-700">{formatMoney(row.remainingAmount)}</td></tr>)}{rows.length === 0 ? <tr><td className="py-4 text-center text-slate-400" colSpan={4}>ทั้งหมด matched ✓</td></tr> : null}</tbody></table></div>
+function HeroMetric({ label, value }: { label: string; value: string }) {
+  return <div><div className="text-[10px] opacity-75">{label}</div><div className="text-lg font-bold">{value}</div></div>
+}
+
+function FlowLine({ label, value }: { label: string; value: string }) {
+  return <div><span className="font-semibold text-slate-800">{label}: </span>{value}</div>
+}
+
+function Amount({ label, tone, value }: { label: string; tone: 'emerald' | 'purple' | 'red'; value: number }) {
+  const color = tone === 'emerald' ? 'text-emerald-700' : tone === 'purple' ? 'text-purple-700' : 'text-red-600'
+  return <div><span className="block text-slate-400">{label}</span><span className={`font-bold tabular-nums ${color}`}>{formatMoney(value)}</span></div>
+}
+
+function RemainingPurchaseCard({ row }: { row: TradingPurchaseRow }) {
+  return (
+    <div className="rounded-md border border-slate-100 bg-white p-3 text-xs shadow-sm">
+      <div className="flex justify-between gap-3 font-bold text-slate-800">
+        <span>{row.docNo}</span>
+        <span>{formatDateDisplay(row.date)}</span>
+      </div>
+      <div className="mt-1 text-slate-600">{row.supplierName}</div>
+      <div className="mt-2 flex justify-between border-t border-slate-50 pt-2 font-semibold">
+        <span>ต้นทุนรวม {formatMoney(row.totalAmount)}</span>
+        <span className="text-amber-700">คงเหลือ {formatMoney(row.remainingAmount)}</span>
+      </div>
+    </div>
+  )
+}
+
+function RemainingPurchaseTable({ rows }: { rows: TradingPurchaseRow[] }) {
+  return (
+    <div>
+      <div className="mb-2 font-bold text-emerald-700">Trading Purchases / Cost Source — ยังไม่ได้จับ Matched</div>
+      <table className="w-full text-xs">
+        <thead className="bg-slate-100">
+          <tr>
+            <th className="p-2 text-left">บิลซื้อ</th>
+            <th className="p-2 text-left">วันที่</th>
+            <th className="p-2 text-left">Supplier</th>
+            <th className="p-2 text-right">มูลค่า</th>
+            <th className="p-2 text-right">Matched</th>
+            <th className="p-2 text-right">ต้นทุนคงเหลือ</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id} className="border-t">
+              <td className="p-2 font-mono">{row.docNo}</td>
+              <td className="p-2">{formatDateDisplay(row.date)}</td>
+              <td className="p-2">{row.supplierName}</td>
+              <td className="p-2 text-right">{formatMoney(row.totalAmount)}</td>
+              <td className="p-2 text-right">{formatMoney(row.matchedAmount)}</td>
+              <td className="p-2 text-right font-bold text-amber-700">{formatMoney(row.remainingAmount)}</td>
+            </tr>
+          ))}
+          {rows.length === 0 ? <tr><td className="py-4 text-center text-slate-400" colSpan={6}>ไม่มีต้นทุน Trading คงเหลือ</td></tr> : null}
+        </tbody>
+      </table>
+    </div>
+  )
 }
 
 function Metric({ label, tone = 'slate', value }: { label: string; tone?: 'amber' | 'emerald' | 'purple' | 'red' | 'slate'; value: string }) {
   const configs = {
-    slate: {
-      bg: 'bg-slate-100 text-slate-600',
-      emoji: '📋',
-      labelColor: 'text-slate-500',
-      valueColor: 'text-slate-900',
-    },
-    emerald: {
-      bg: 'bg-emerald-100 text-emerald-600',
-      emoji: '✅',
-      labelColor: 'text-emerald-600',
-      valueColor: 'text-emerald-700',
-    },
-    amber: {
-      bg: 'bg-amber-100 text-amber-600',
-      emoji: '⚠️',
-      labelColor: 'text-amber-600',
-      valueColor: 'text-amber-700',
-    },
-    purple: {
-      bg: 'bg-purple-100 text-purple-600',
-      emoji: '📈',
-      labelColor: 'text-purple-600',
-      valueColor: 'text-purple-700',
-    },
-    red: {
-      bg: 'bg-red-100 text-red-600',
-      emoji: '📉',
-      labelColor: 'text-red-600',
-      valueColor: 'text-red-700',
-    },
+    amber: { bg: 'bg-amber-100 text-amber-600', labelColor: 'text-amber-600', valueColor: 'text-amber-700' },
+    emerald: { bg: 'bg-emerald-100 text-emerald-600', labelColor: 'text-emerald-600', valueColor: 'text-emerald-700' },
+    purple: { bg: 'bg-purple-100 text-purple-600', labelColor: 'text-purple-600', valueColor: 'text-purple-700' },
+    red: { bg: 'bg-red-100 text-red-600', labelColor: 'text-red-600', valueColor: 'text-red-700' },
+    slate: { bg: 'bg-slate-100 text-slate-600', labelColor: 'text-slate-500', valueColor: 'text-slate-900' },
   }
-
   const config = configs[tone]
 
   return (
-    <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4 flex-1">
-      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${config.bg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
-        {config.emoji}
+    <div className="flex flex-1 items-center gap-2.5 rounded-md border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-5">
+      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg font-bold sm:h-12 sm:w-12 sm:text-xl ${config.bg}`}>
+        {label.slice(0, 1)}
       </div>
       <div>
         <div className={`text-xs ${config.labelColor}`}>{label}</div>
@@ -386,79 +337,37 @@ function Metric({ label, tone = 'slate', value }: { label: string; tone?: 'amber
   )
 }
 
-function Gauge({ color, label, remaining, total, value }: { color: 'blue' | 'emerald'; label: string; remaining: number; total: number; value: number }) {
-  const bar = color === 'blue' ? 'bg-blue-500' : 'bg-emerald-500'
-  const text = color === 'blue' ? 'text-blue-700' : 'text-emerald-700'
-  return <div className="mb-3"><div className="mb-1 flex justify-between text-xs"><span className={`font-semibold ${text}`}>{label}</span><span className="font-bold">{value.toFixed(1)}%</span></div><div className="h-3 rounded-md-full bg-slate-100"><div className={`h-3 rounded-md-full ${bar}`} style={{ width: `${Math.min(100, Math.max(0, value))}%` }} /></div><div className="mt-0.5 text-[10px] text-slate-500">เหลือ {formatMoney(remaining)} จาก {formatMoney(total)}</div></div>
-}
-
-function StatusDonut({ cancelled, completed, partial, total }: { cancelled: number; completed: number; partial: number; total: number }) {
-  const circumference = 439.8
-  const completeLength = total > 0 ? completed / total * circumference : 0
-  const partialLength = total > 0 ? partial / total * circumference : 0
-  const cancelledLength = total > 0 ? cancelled / total * circumference : 0
-  return <div className="rounded-md bg-white p-4 shadow"><div className="mb-2 text-xs font-bold text-slate-700">🥧 สถานะดีล</div><svg viewBox="0 0 200 200" className="h-44 w-full"><g transform="rotate(-90 100 100)"><circle cx="100" cy="100" fill="none" r="70" stroke="#10b981" strokeDasharray={`${completeLength} ${circumference}`} strokeWidth="30" /><circle cx="100" cy="100" fill="none" r="70" stroke="#f59e0b" strokeDasharray={`${partialLength} ${circumference}`} strokeDashoffset={-completeLength} strokeWidth="30" /><circle cx="100" cy="100" fill="none" r="70" stroke="#94a3b8" strokeDasharray={`${cancelledLength} ${circumference}`} strokeDashoffset={-(completeLength + partialLength)} strokeWidth="30" /></g><text fill="#64748b" fontSize="10" textAnchor="middle" x="100" y="98">ดีลทั้งหมด</text><text fill="#1e293b" fontSize="14" fontWeight="bold" textAnchor="middle" x="100" y="115">{total}</text></svg><div className="mt-1 grid grid-cols-3 gap-1 text-[10px]"><div><span className="inline-block h-2 w-2 rounded-md-sm bg-emerald-500" /> Completed: {completed}</div><div><span className="inline-block h-2 w-2 rounded-md-sm bg-amber-500" /> Partial: {partial}</div><div><span className="inline-block h-2 w-2 rounded-md-sm bg-slate-400" /> Cancelled: {cancelled}</div></div></div>
-}
-
-function statusBadge(status: string) {
-  const normalized = status.toLowerCase()
-  if (normalized.includes('cancel')) return 'bg-slate-100 text-slate-500'
-  if (normalized.includes('partial')) return 'bg-amber-100 text-amber-700'
-  if (normalized.includes('complete') || normalized.includes('full')) return 'bg-emerald-100 text-emerald-700'
-  return 'bg-blue-100 text-blue-700'
-}
-
-function buildMonthlyGP(rows: TradingDealRow[]) {
-  const formatter = new Intl.DateTimeFormat('th-TH', { month: 'short' })
-  const map = new Map<string, { gp: number; key: string; label: string }>()
-  rows.forEach((row) => {
-    const key = row.date.slice(0, 7)
-    if (!key) return
-    const date = new Date(`${key}-01T00:00:00`)
-    const current = map.get(key) ?? { gp: 0, key, label: formatter.format(date) }
-    current.gp += row.grossProfit
-    map.set(key, current)
-  })
-  const ordered = Array.from(map.values()).sort((left, right) => left.key.localeCompare(right.key)).slice(-6)
-  return ordered.length > 0 ? ordered : Array.from({ length: 6 }, (_, index) => ({ gp: 0, key: `empty-${index}`, label: '-' }))
-}
-
 function DealDetailModal({ deal, onClose }: { deal: TradingDealRow; onClose: () => void }) {
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent className="max-h-[90vh] max-w-2xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-0">
-        <DialogHeader className="p-4 bg-slate-900 text-white shrink-0 flex flex-row items-start justify-between gap-3">
+        <DialogHeader className="flex shrink-0 flex-row items-start justify-between gap-3 bg-slate-900 p-4 text-white">
           <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <DialogTitle className="text-lg font-bold text-white">รายละเอียด {deal.dealNo}</DialogTitle>
-            </div>
+            <DialogTitle className="text-lg font-bold text-white">Sales Bill {deal.salesBillNo || '-'}</DialogTitle>
             <DialogDescription className="mt-1 text-xs text-slate-400">
-              {deal.productName}
+              Cost source {deal.purchaseBillNo || '-'} · {deal.productName}
             </DialogDescription>
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto bg-slate-50 p-5 space-y-4 text-sm">
-          <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-3">
+        <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-5 text-sm">
+          <div className="grid gap-3 rounded-md border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-3">
             <Detail label="วันที่" value={deal.date || '-'} />
-            <Detail label="สถานะ" value={deal.status || '-'} />
             <Detail label="Qty" value={formatMoney(deal.matchedQty)} />
+            <Detail label="GP %" value={`${formatMoney(deal.grossProfitPct)}%`} />
             <div className="md:col-span-3">
               <Detail label="PB / Supplier" value={`${deal.purchaseBillNo || '-'} · ${deal.supplierName}`} />
             </div>
             <div className="md:col-span-3">
               <Detail label="SB / Customer" value={`${deal.salesBillNo || '-'} · ${deal.customerName}`} />
             </div>
-            <Detail label="GP %" value={`${formatMoney(deal.grossProfitPct)}%`} />
             <Detail label="Cost" value={formatMoney(deal.matchedPurchaseAmount)} />
             <Detail label="Sales" value={formatMoney(deal.matchedSalesAmount)} />
-            <div className="md:col-span-3">
-              <Detail label="GP" value={formatMoney(deal.grossProfit)} />
-            </div>
+            <Detail label="Expected GP" value={formatMoney(deal.grossProfit)} />
           </div>
         </div>
 
-        <DialogFooter className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 shrink-0">
+        <DialogFooter className="flex shrink-0 justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
           <Button className="font-normal" size="sm" type="button" variant="outline" onClick={onClose}>ปิด</Button>
         </DialogFooter>
       </DialogContent>
@@ -469,9 +378,8 @@ function DealDetailModal({ deal, onClose }: { deal: TradingDealRow; onClose: () 
 function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col py-1">
-      <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{label}</div>
-      <div className="mt-0.5 text-xs sm:text-sm font-semibold text-slate-800">{value}</div>
+      <div className="text-[10px] font-medium uppercase text-slate-400">{label}</div>
+      <div className="mt-0.5 text-xs font-semibold text-slate-800 sm:text-sm">{value}</div>
     </div>
   )
 }
-

@@ -5,6 +5,7 @@ import { toNumber } from '@/lib/server/daily'
 type DbClient = Prisma.TransactionClient
 
 export const SALES_BILL_STATUS_ACTION = {
+  ALLOCATION_CORRECTED: 'allocation_corrected',
   CANCELLED: 'cancelled',
   CREATED: 'created',
   STATUS_SYNCED: 'status_synced',

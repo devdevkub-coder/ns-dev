@@ -88,6 +88,7 @@ const blankPoSellItem = (): PoSellFormValues['items'][number] => ({
   price: 0,
   productId: '',
   qty: 0,
+  tradingCostSourceId: null,
 })
 
 const initialPoSellForm = (): PoSellFormValues => ({
@@ -785,4 +786,3 @@ function DetailItem({ className = '', label, value }: { className?: string; labe
     </div>
   )
 }
-

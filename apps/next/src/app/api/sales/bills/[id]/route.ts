@@ -2,13 +2,17 @@ import { NextResponse } from 'next/server'
 import { salesBillCancelSchema } from '@/lib/sales'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { currentActor, normalizeDate, toNumber } from '@/lib/server/daily'
+import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { appendSalesBillStatusLog, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
 import { getSalesBillDetail } from '@/lib/server/sales-bill-detail'
 import { activeSalesReceiptCount, isSalesBillActiveForCancel } from '@/lib/server/sales-bill-cancel-policy'
 import { appendStockIssueStatusLog, STOCK_ISSUE_STATUS_ACTION } from '@/lib/server/stock-issue-history'
 import { reopenConsumedWtoStockHoldsForSalesBill, reversePendingSaleStockIssue, WtoStockHoldError } from '@/lib/server/stock-holds'
+import {
+  correctTradingAllocationsSchema as tradingCorrectionSchema,
+  correctTradingSalesBillAllocations as runTradingSalesBillAllocationCorrection,
+} from '@/lib/server/trading-sales-bill-allocation-correction'
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
 import { appendWeightTicketUsageLogs, WEIGHT_TICKET_USAGE_ACTION } from '@/lib/server/weight-ticket-usage-history'
 import type { Prisma } from '../../../../../../generated/prisma/client'
@@ -155,6 +159,22 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const { id } = await context.params
     const payload = await request.json()
     const action = typeof payload?.action === 'string' ? payload.action : 'cancel'
+    if (action === 'correct_trading_allocations') {
+      const values = tradingCorrectionSchema.parse(payload)
+      const actor = currentActor(auth)
+      const correctedAt = new Date()
+      const billRef = decodeURIComponent(id)
+      const result = await prisma.$transaction((tx) => runTradingSalesBillAllocationCorrection(tx, {
+        actor,
+        allocations: values.allocations,
+        billRef,
+        correctedAt,
+        note: values.note,
+      }))
+
+      return NextResponse.json({ docNo: result.docNo, id: result.docNo, totalCost: result.totalCost })
+    }
+
     if (action !== 'cancel') {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'รองรับเฉพาะ action cancel' }, { status: 400 })
     }
@@ -321,6 +341,19 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       }
 
       await reversePoSellUsage(tx, bill.items, actor, cancelledAt)
+
+      await tx.trading_allocation_facts.updateMany({
+        data: {
+          notes: `Cancelled from Sales Bill ${bill.doc_no}: ${values.note}`,
+          status: 'cancelled',
+          updated_at: cancelledAt,
+          updated_by: actor,
+        },
+        where: {
+          sales_bill_id: bill.id,
+          status: 'active',
+        },
+      })
 
       const updated = await tx.sales_bills.update({
         data: {

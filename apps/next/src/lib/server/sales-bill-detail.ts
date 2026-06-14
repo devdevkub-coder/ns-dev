@@ -28,6 +28,7 @@ export type SalesBillDetail = {
     discount: number
     grossWeight: number
     lineNo: number
+    matchedCogs: number
     netWeight: number
     note: string
     poSellDocNo: string
@@ -38,6 +39,8 @@ export type SalesBillDetail = {
     qty: number
     sourceLabel: string
     sourceType: string
+    tradingSourceDocNo: string
+    tradingSourceLineNo: number | null
     unit: string
   }>
   note: string
@@ -138,7 +141,7 @@ export async function getSalesBillDetail(docNo: string): Promise<SalesBillDetail
   const snapshots = itemSnapshots(bill.items)
   const deliveryDocNos = Array.from(new Set(snapshots.map((item) => snapshotString(item, 'deliveryTicketDocNo')).filter(Boolean)))
   const poSellDocNos = Array.from(new Set(snapshots.map((item) => snapshotString(item, 'poSellId')).filter(Boolean)))
-  const [deliveryTickets, poSells, salesperson, customerAdvance] = await Promise.all([
+  const [deliveryTickets, poSells, salesperson, customerAdvance, tradingAllocationFacts] = await Promise.all([
     deliveryDocNos.length
       ? prisma.weight_tickets.findMany({
           select: {
@@ -190,20 +193,62 @@ export async function getSalesBillDetail(docNo: string): Promise<SalesBillDetail
           },
         })
       : Promise.resolve(null),
+    bill.transaction_mode === 'TRADING'
+      ? prisma.trading_allocation_facts.findMany({
+          include: {
+            purchase_bills: { select: { doc_no: true } },
+            trading_cost_sources: { select: { source_no: true, source_type: true } },
+          },
+          orderBy: [{ sales_line_no: 'asc' }, { id: 'asc' }],
+          where: {
+            sales_bill_id: bill.id,
+            status: 'active',
+          },
+        })
+      : Promise.resolve([]),
   ])
 
   const vehicleByDeliveryDocNo = new Map(deliveryTickets.map((ticket) => [ticket.doc_no, ticket.vehicle_no ?? '']))
   const poSellDocNoSet = new Set(poSells.map((poSell) => poSell.doc_no))
   const fallbackPoSellDocNo = poSells[0]?.doc_no ?? ''
+  const tradingFactByLineNo = new Map<number, (typeof tradingAllocationFacts)[number]>()
+  tradingAllocationFacts.forEach((fact) => {
+    if (fact.sales_line_no == null) return
+    tradingFactByLineNo.set(fact.sales_line_no, fact)
+  })
 
   const items = snapshots.map((item, index) => {
+    const lineNo = index + 1
     const deliveryTicketDocNo = snapshotString(item, 'deliveryTicketDocNo')
     const snapshotPoSellDocNo = snapshotString(item, 'poSellId')
     const poSellDocNo = poSellDocNoSet.has(snapshotPoSellDocNo) ? snapshotPoSellDocNo : fallbackPoSellDocNo
-    const sourceType = poSellDocNo ? 'PO Sell' : 'Spot Sale'
-    const sourceParts = [
-      poSellDocNo || 'Spot Sale',
-    ].filter(Boolean)
+    const tradingFact = bill.transaction_mode === 'TRADING' ? tradingFactByLineNo.get(lineNo) ?? null : null
+    const tradingSourceDocNo = tradingFact?.source_doc_no ?? tradingFact?.trading_cost_sources?.source_no ?? tradingFact?.purchase_bills?.doc_no ?? ''
+    const tradingSourceLineNo = tradingFact?.source_line_no ?? null
+    const tradingSourceType = String(tradingFact?.source_type ?? '').toUpperCase()
+    const tradingSourcePrefix = tradingSourceType === 'TRADING_COST_SOURCE'
+      ? 'Cost Source'
+      : tradingSourceType === 'TRADING_PURCHASE_BILL'
+        ? 'Trading PB'
+        : 'Cost'
+    const tradingSourceLabel = bill.transaction_mode === 'TRADING'
+      ? tradingFact
+        ? `${tradingSourcePrefix} ${tradingSourceDocNo}${tradingSourceLineNo ? `:${tradingSourceLineNo}` : ''}`
+        : 'รอ Trading allocation'
+      : ''
+    const poSellSourceLabel = poSellDocNo ? `PO Sell ${poSellDocNo}` : 'Spot Sale'
+    const sourceType = bill.transaction_mode === 'TRADING'
+      ? tradingFact
+        ? tradingSourceType === 'TRADING_COST_SOURCE'
+          ? 'Trading Cost Source Allocation'
+          : tradingSourceType === 'TRADING_PURCHASE_BILL'
+            ? 'Trading PB Allocation'
+            : 'Trading Allocation'
+        : 'Pending Trading Allocation'
+      : poSellDocNo ? 'PO Sell' : 'Spot Sale'
+    const sourceParts = bill.transaction_mode === 'TRADING'
+      ? [tradingSourceLabel, poSellSourceLabel]
+      : [poSellSourceLabel]
     return {
       amount: snapshotNumber(item, 'amount'),
       deliveryLineId: snapshotString(item, 'deliveryLineId'),
@@ -212,7 +257,8 @@ export async function getSalesBillDetail(docNo: string): Promise<SalesBillDetail
       deductWeight: snapshotNumber(item, 'deductWeight'),
       discount: snapshotNumber(item, 'discount'),
       grossWeight: snapshotNumber(item, 'grossWeight'),
-      lineNo: index + 1,
+      lineNo,
+      matchedCogs: toNumber(tradingFact?.matched_cogs),
       netWeight: snapshotNumber(item, 'netWeight') || snapshotNumber(item, 'qty'),
       note: snapshotString(item, 'note'),
       poSellDocNo,
@@ -223,6 +269,8 @@ export async function getSalesBillDetail(docNo: string): Promise<SalesBillDetail
       qty: snapshotNumber(item, 'qty'),
       sourceLabel: sourceParts.join(' / '),
       sourceType,
+      tradingSourceDocNo,
+      tradingSourceLineNo,
       unit: snapshotString(item, 'unit') || 'กก.',
     }
   })

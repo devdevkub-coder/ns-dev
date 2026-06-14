@@ -589,11 +589,21 @@ Reporting rule:
   - [ ] `PO Sell` allocation logs for billed/released quantity from `SB`
   - [ ] detail/timeline reads dedicated logs for `WTO`, `PO Sell`, and `SB`
 - [ ] Harden SB detail/print after allocation facts exist
-  - [ ] detail source labels read line allocation facts instead of snapshot/header fallback
-  - [ ] print source labels read line allocation facts
+  - [x] detail source labels read line allocation facts instead of snapshot/header fallback
+  - [x] print source labels read line allocation facts via shared Sales Bill detail read model
   - [ ] QA long A4 multi-page print with mixed `PO Sell`/`Spot Sale`
-- [ ] Design Trading sales bill flow as follow-up: choose multiple purchase bills first, auto-fill sale lines, allow manual stock lines, and allocate each line to PO Sell
-- [ ] Define sales bill allocation tables/rules for `sales bill -> purchase bill`, `sales bill -> stock`, and `sales bill -> PO Sell`
+- [ ] Design Trading sales bill flow as follow-up: choose optional purchase bills, auto-fill sale lines when linked, allow optional PO Sell linking, and send Trading lines to Trading Matching without stock-out
+  - [x] Expose optional row-level `PO Sell / Spot Sale` selector in Trading SB create UI
+  - [x] Keep Trading SB server-side stock boundary: reject WTO/PSALE/warehouse payload fields and persist no stock source fields
+  - [x] Linked Trading SB rows reuse the existing PO Sell remaining reduction path without writing stock ledger
+  - [x] Design/implement durable Trading source allocation facts for `SB Trading line -> PB Trading line` on create/cancel
+  - [x] Design first-class non-PB Trading cost source for `SB Trading line -> Spot Trading source` allocations
+  - [x] Add Trading SB allocation-only correction API that reverses old active facts and appends a corrected active fact set
+  - [x] Add UI action for Trading SB allocation-only correction; full Sales Bill edit remains disabled until sales-side allocation tables are complete
+  - [x] Add rollback-based automated verification for Trading SB allocation correction success, capacity guard, product mismatch guard, corrected COGS/GP, and no stock ledger side effect
+  - [x] Add dashboard UI to create/list manual non-PB Trading Cost Source
+  - [ ] Logged-in browser QA Trading SB allocation correction: open `แก้ต้นทุน`, change multiple line sources, save, verify revised Matched COGS/GP, then reverse/cancel behavior
+- [ ] Define sales bill allocation tables/rules for `sales bill -> purchase bill`, `sales bill -> Trading spot`, and `sales bill -> PO Sell`; stock sales must use the separate Stock/WTO/PSALE flow
 - [x] Implement `/sales/stock-issue` pending sale write flow from `docs/notes/Pending Sale Page Flow.md`
   - [x] create pending sale validates active WTO hold availability and writes `PSALE` stock-out ledger because goods physically leave before billing
   - [x] direct edit is intentionally disabled; pending PSALE corrections use cancel-and-recreate
@@ -731,6 +741,7 @@ Tracker หลักสำหรับงานที่เหลือทั้
 
 ## 2026-06-05 Identifier Contract Checkpoint
 
+- [x] `/trading/dashboard` target runtime batch 2026-06-13: replace legacy accounting/trend/donut UI with trader/operator tabs, explicit date/supplier/customer/bill/product filters, allocation-backed Matched COGS, Product Qty/Sales from Trading Sales Bill lines, PB/SB source links, and no WAC/subtotal cost fallback.
 - [x] `/api/sales/bills` returns and creates sales bills with outward `id = doc_no`
 - [x] `/api/sales/po-sell` returns and creates PO-sell documents with outward `id = doc_no`
 - [x] `/api/daily/payment-approval` removes `approval.doc_no ?? approval.id` fallback; approved rows require real approval `doc_no`

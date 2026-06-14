@@ -118,8 +118,8 @@ Source:
 
 | Route | Page | Detailed doc | Current Next | Flow baseline | Gap |
 |---|---|---|---|---|---|
-| `/trading/dashboard` | Trading Dashboard | [[Trading Flow]], [[page-flows/trading-po-reports-trading-dashboard|Trading Dashboard Page Flow]] | accepted code baseline | legacy `tradingDashboard`: monitor Trading PB/SB/deals, ex-VAT GP, unmatched, AR/AP; Trading does not affect stock on hand/WAC | add source document links and aging buckets |
-| `/trading/matching` | Trading Matching | [[Trading Flow]], [[page-flows/trading-po-reports-trading-matching|Trading Matching Page Flow]] | accepted code baseline | legacy `tradingMatching`: match Trading PB to Trading SB, calculate GP before VAT, reverse by marking Cancelled | finish durable match write/reverse API and audited duplicate cleanup |
+| `/trading/dashboard` | Trading Dashboard | [[Trading Flow]], [[page-flows/trading-po-reports-trading-dashboard|Trading Dashboard Page Flow]] | accepted code baseline | target update: trader/operator monitor for Trading margin, allocation, pending buy/sell, exposure, stock/cost-source readiness; not an accounting AR/AP dashboard | replace legacy accounting/trend/donut emphasis with Trading by Product/Purchase/Sales tabs, explicit filters, source links, aging buckets, and allocation-backed Matched COGS |
+| `/trading/matching` | Trading Matching | [[Trading Flow]], [[page-flows/trading-po-reports-trading-matching|Trading Matching Page Flow]] | accepted code baseline | updated requirement: Sales Bill-led allocation read surface with Cost, Sales Amount, Expected GP, GP%, and buy-side remaining cost | add source bill drilldown and normalized allocation ledger/source model |
 | `/po-reports/outstanding` | PO ซื้อ/ขาย คงเหลือ | [[Trading Flow]], [[page-flows/trading-po-reports-po-reports-outstanding|PO Outstanding Page Flow]], [[Purchase Flow]], [[PO Sell Flow]] | accepted code baseline | legacy `poOutstanding`: outstanding PO Buy and PO Sell commitments with remaining qty/value and delivery aging | add server-side filters/export, source usage links, and close-short ownership |
 
 ## Reports

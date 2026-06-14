@@ -23,12 +23,13 @@
 | `accounts` | keep | `cash_bank_accounts` or `accounts` | clarify scope |
 | `purchase_bills` | refactor | `purchase_bills` + `purchase_bill_lines` + receipt/PO allocation lines + supplier printable snapshot + header discount expense entry | move `items jsonb` to lines; Stock bills choose receipt lines and allocate to PO or Spot Buy; line items must keep `ราคาหน้าใบ` / `sales_price` for Sale Tracking commission; target has only header-level `ส่วนลดท้ายใบ`, no line-item discount; PB owns supplier printable fields (`name/tax/address/phone/sale contact`) so print/RV reads do not change when Supplier master changes later |
 | `/daily/weight-tickets` prototype | refactor | `weight_tickets` + `weight_ticket_lines` + ticket images | target has no plain `WT` document; inbound receiving issues `ใบรับของ / Weight Ticket In` with `WTI{branchCode}{YYMM}-NNNN`, outbound delivery issues `ใบส่งของ / Weight Ticket Out` with `WTO{branchCode}{YYMM}-NNNN`; header needs direction, auto document date/time/entered-by, branch, party, vehicle plate; lines need gross weight, deduction mode, impurity reference when deducted, deduction value, net weight; PO/Spot cut happens later in Stock purchase bill allocation |
-| `sales_bills` | refactor | `sales_bills` + `sales_bill_lines` + purchase/stock/PO allocation lines | move `items jsonb` to lines; Trading sales choose multiple purchase bills first, auto-fill sale lines from purchase bills, allow manual stock lines, and allocate each line to PO Sell when applicable |
+| `sales_bills` | refactor | `sales_bills` + `sales_bill_lines` + purchase/Trading/PO allocation lines | move `items jsonb` to lines; Trading sales choose multiple Trading PB lines or manual Trading Cost Sources, never create stock-out lines, and allocate each line to PO Sell when applicable |
 | `payments` | refactor | `supplier_payments` + allocations | move `lines jsonb` out |
 | `receipts` | refactor | `customer_receipts` + allocations | normalize allocation model |
 | `stock_ledger` | refactor | `inventory_transactions` + lines | review event model |
 | `po_buys` | refactor | `purchase_orders` + lines | normalize PO structure |
 | `po_sells` | refactor | `sales_orders` + lines | normalize PO structure |
+| `trading_deals` | refactor | `trading_allocation_facts` + `trading_cost_sources` + future normalized Trading allocation write tables | current target read model stores explicit PB/SB/product allocation facts for Matched COGS and dashboard/matching reads; manual non-PB Trading sources live in `trading_cost_sources`; runtime must not fallback to WAC/subtotal when facts are missing |
 | `production_orders` | refactor | `production_orders` | extend input/output references |
 | `production_inputs` | keep/refactor | `production_inputs` | validate costing logic |
 | `production_outputs` | keep/refactor | `production_outputs` | validate output model |
@@ -49,7 +50,8 @@
 - mixed Stock bill allocation where one receipt line can be split between PO and Spot Buy when receipt weight exceeds PO remaining
 - purchase bill item `ราคาหน้าใบ` / `sales_price` mapping for Sale Tracking commission calculation
 - header-only purchase bill discount mapping: `ส่วนลดท้ายใบ` posts as expense/separate entry and does not reduce product cost/WAC/Cost Pool
-- Trading sales bill source allocation: selected purchase bills can be many-to-one sales bill sources, manual stock lines create stock out, and PO Sell cuts happen at sales bill line level
+- Trading sales bill source allocation: selected Trading PB lines or manual Trading Cost Sources can be many-to-one sales bill sources, Trading sale lines never create stock out, and PO Sell cuts happen at sales bill line level as commitment reduction only
+- Trading allocation facts: Matched COGS/GP read models consume `trading_allocation_facts`; legacy document-level `trading_deals` can be backfilled with a recorded proportional basis, but new source flows must write line/product facts directly and link non-PB sources through `trading_cost_source_id`
 - PO Buy short-close action (`ปิดรับไม่ครบ`) with reason/status log and remaining quantity release
 - Cost Pool eligibility filter by product metal group: copper/brass only
 - JSON to relational mapping

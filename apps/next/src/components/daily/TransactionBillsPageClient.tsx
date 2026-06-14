@@ -238,8 +238,10 @@ type Option = {
   remainingQty?: number | null
   sales_id?: string | null
   sales_name?: string | null
+  sourceLineNo?: number | null
   status?: string | null
   supplier_id?: string | null
+  supplier_name?: string | null
   type?: string | null
   unitPrice?: number | null
   unit?: string | null
@@ -266,6 +268,7 @@ type OptionsPayload = Omit<PurchasePayload, 'rows'> & {
   deliveries: DeliveryOption[]
   poSells: Option[]
   salesChannels: Option[]
+  tradingCostSources: Option[]
 }
 
 type ReceiptOption = {
@@ -356,6 +359,7 @@ type SalesPayload = TransactionPayload & {
   poSells: Option[]
   products: Option[]
   salesChannels: Option[]
+  tradingCostSources: Option[]
   vatRatePercent?: number
   warehouses: Option[]
 }
@@ -589,6 +593,7 @@ const blankSalesItem = (): SalesBillFormValues['items'][number] => ({
   price: 0,
   productId: '',
   qty: 0,
+  tradingCostSourceId: null,
 })
 
 const initialSalesForm = (): SalesBillFormValues => ({
@@ -654,7 +659,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const [isExporting, setIsExporting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  const [options, setOptions] = useState<OptionsPayload>({ advancePayments: [], branches: [], customers: [], customerAdvancePayments: [], deliveries: [], poBuys: [], poSells: [], products: [], receipts: [], salesChannels: [], salespersons: [], suppliers: [], warehouses: [] })
+  const [options, setOptions] = useState<OptionsPayload>({ advancePayments: [], branches: [], customers: [], customerAdvancePayments: [], deliveries: [], poBuys: [], poSells: [], products: [], receipts: [], salesChannels: [], salespersons: [], suppliers: [], tradingCostSources: [], warehouses: [] })
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [preferredBranchId, setPreferredBranchId] = useState<string | null>(null)
@@ -739,6 +744,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           salesChannels: [],
           salespersons: payload.salespersons,
           suppliers: payload.suppliers,
+          tradingCostSources: [],
           warehouses: payload.warehouses,
         })
       } else if (mode === 'sales') {
@@ -757,6 +763,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           poSells: payload.poSells ?? [],
           products: payload.products,
           salesChannels: payload.salesChannels,
+          tradingCostSources: payload.tradingCostSources ?? [],
           warehouses: payload.warehouses,
         }))
       } else {
@@ -772,6 +779,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           deliveries: 'deliveries' in payload && Array.isArray(payload.deliveries) ? payload.deliveries as DeliveryOption[] : current.deliveries,
           products: 'products' in payload && Array.isArray(payload.products) ? payload.products as Option[] : current.products,
           salesChannels: 'salesChannels' in payload && Array.isArray(payload.salesChannels) ? payload.salesChannels as Option[] : current.salesChannels,
+          tradingCostSources: 'tradingCostSources' in payload && Array.isArray(payload.tradingCostSources) ? payload.tradingCostSources as Option[] : current.tradingCostSources,
           warehouses: 'warehouses' in payload && Array.isArray(payload.warehouses) ? payload.warehouses as Option[] : current.warehouses,
         }))
       }
@@ -845,6 +853,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     if (salesForm.branchId && option.branch_id && option.branch_id !== salesForm.branchId) return false
     return option.active !== false && (option.remainingQty ?? 0) > 0.0001
   })
+  const activeTradingCostSources = (options.tradingCostSources ?? []).filter((option) => option.active !== false && ((option.remainingQty ?? 0) > 0.0001 || (option.remainingAmount ?? 0) > 0.01))
   const activeSalesChannels = options.salesChannels.filter((option) => option.active !== false)
   const activeSuppliers = options.suppliers.filter((option) => option.active !== false)
   const defaultPurchaseWarehouse = useCallback((branchId: string) => options.warehouses.find((warehouse) => warehouse.active !== false && warehouse.branch_id === branchId && warehouse.type?.toUpperCase() === 'RM') ?? null, [options.warehouses])
@@ -1150,6 +1159,31 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     return Math.max(0, (po.remainingQty ?? 0) - allocatedOtherRows)
   }
 
+  function tradingCostSourceOptionForProduct(sourceId: string | null | undefined, productId: string | null | undefined) {
+    if (!sourceId) return null
+    const productMatched = productId
+      ? activeTradingCostSources.find((option) => option.id === sourceId && option.product_id === productId)
+      : null
+    return productMatched
+      ?? activeTradingCostSources.find((option) => option.id === sourceId)
+      ?? null
+  }
+
+  function tradingCostSourceAvailableForRow(sourceId: string | null, index: number) {
+    if (!sourceId) return 0
+    const currentItem = salesForm.items[index]
+    const currentProductId = currentItem?.productId ?? null
+    const source = tradingCostSourceOptionForProduct(sourceId, currentProductId)
+    if (!source) return 0
+    const allocatedOtherRows = salesForm.items.reduce((sum, item, itemIndex) => {
+      if (itemIndex === index) return sum
+      if (item.tradingCostSourceId !== sourceId) return sum
+      if (currentProductId && item.productId !== currentProductId) return sum
+      return sum + item.qty
+    }, 0)
+    return Math.max(0, (source.remainingQty ?? 0) - allocatedOtherRows)
+  }
+
   const salesStockAllocationIssues = (() => {
     if (salesForm.transactionMode !== 'STOCK' || !selectedDelivery) return []
     return selectedDelivery.productSummaries.flatMap((summary) => {
@@ -1202,6 +1236,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       price: 0,
       productId: summary.productId,
       qty: summary.remainingWeight,
+      tradingCostSourceId: null,
     }))
   }
 
@@ -1250,6 +1285,36 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       if (latestDetailRequestRef.current !== requestId) return
       setIsDetailLoading(false)
     }
+  }
+
+  async function reloadSalesDetail(docNo: string) {
+    const requestId = latestDetailRequestRef.current + 1
+    latestDetailRequestRef.current = requestId
+    setDetailError(null)
+    setIsDetailLoading(true)
+    try {
+      const detail = await dailyFetchJson<SalesBillDetail>(`/api/sales/bills/${encodeURIComponent(docNo)}`)
+      if (latestDetailRequestRef.current !== requestId) return
+      setSalesDetailBill(detail)
+    } catch (caught) {
+      if (latestDetailRequestRef.current !== requestId) return
+      setDetailError(caught instanceof Error ? caught.message : 'โหลดรายละเอียดบิลขายไม่ได้')
+    } finally {
+      if (latestDetailRequestRef.current !== requestId) return
+      setIsDetailLoading(false)
+    }
+  }
+
+  async function correctTradingAllocations(docNo: string, allocations: Array<{ salesLineNo: number; tradingCostSourceId: string }>, note: string) {
+    await dailyFetchJson(`/api/sales/bills/${encodeURIComponent(docNo)}`, {
+      body: JSON.stringify({
+        action: 'correct_trading_allocations',
+        allocations,
+        note,
+      }),
+      method: 'PATCH',
+    })
+    await Promise.all([loadData(), reloadSalesDetail(docNo)])
   }
 
   async function printPurchaseBill(rowOrDetail: BillRow | PurchaseBillDetail) {
@@ -1893,13 +1958,17 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       const items = current.items.map((item, itemIndex) => {
         if (itemIndex !== index) return item
         const selectedPoSell = poSellId ? poSellOptionForProduct(poSellId, item.productId) : null
+        const selectedTradingCostSource = item.tradingCostSourceId ? tradingCostSourceOptionForProduct(item.tradingCostSourceId, item.productId) : null
         const summaryId = item.deliverySummaryId ?? item.deliveryLineId ?? null
         const summary = summaryId ? deliverySummaryById.get(summaryId) : null
         const allocatedOtherSummaryRows = current.items.reduce((sum, row, rowIndex) => {
           if (rowIndex === index) return sum
           return (row.deliverySummaryId ?? row.deliveryLineId) === summaryId ? sum + row.qty : sum
         }, 0)
-        const summaryCapacity = Math.max(0, (summary?.remainingWeight ?? item.netWeight ?? item.qty) - allocatedOtherSummaryRows)
+        const tradingRequestedQty = item.qty > 0 ? item.qty : selectedPoSell?.remainingQty ?? 0
+        const summaryCapacity = current.transactionMode === 'STOCK'
+          ? Math.max(0, (summary?.remainingWeight ?? item.netWeight ?? item.qty) - allocatedOtherSummaryRows)
+          : Math.max(0, tradingRequestedQty)
         const allocatedOtherPoRows = poSellId
           ? current.items.reduce((sum, row, rowIndex) => {
             if (rowIndex === index) return sum
@@ -1909,11 +1978,48 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           }, 0)
           : 0
         const poCapacity = poSellId ? Math.max(0, (selectedPoSell?.remainingQty ?? 0) - allocatedOtherPoRows) : summaryCapacity
+        const allocatedOtherCostSourceRows = item.tradingCostSourceId
+          ? current.items.reduce((sum, row, rowIndex) => {
+            if (rowIndex === index) return sum
+            if (row.tradingCostSourceId !== item.tradingCostSourceId) return sum
+            if (item.productId && row.productId !== item.productId) return sum
+            return sum + row.qty
+          }, 0)
+          : 0
+        const costSourceCapacity = item.tradingCostSourceId
+          ? Math.max(0, (selectedTradingCostSource?.remainingQty ?? 0) - allocatedOtherCostSourceRows)
+          : Number.POSITIVE_INFINITY
         return {
           ...item,
           poSellId,
           price: poSellId ? (selectedPoSell?.unitPrice ?? 0) : item.price,
-          qty: Math.min(summaryCapacity, poCapacity),
+          qty: poSellId ? Math.min(summaryCapacity, poCapacity, costSourceCapacity) : item.qty,
+        }
+      })
+      return { ...current, items }
+    })
+    setSalesFieldErrors({})
+  }
+
+  function updateSalesItemTradingCostSource(index: number, tradingCostSourceId: string | null) {
+    setSalesForm((current) => {
+      const items = current.items.map((item, itemIndex) => {
+        if (itemIndex !== index) return item
+        const selectedSource = tradingCostSourceId ? tradingCostSourceOptionForProduct(tradingCostSourceId, item.productId) : null
+        const allocatedOtherRows = tradingCostSourceId
+          ? current.items.reduce((sum, row, rowIndex) => {
+              if (rowIndex === index) return sum
+              if (row.tradingCostSourceId !== tradingCostSourceId) return sum
+              if (item.productId && row.productId !== item.productId) return sum
+              return sum + row.qty
+            }, 0)
+          : 0
+        const sourceCapacity = tradingCostSourceId ? Math.max(0, (selectedSource?.remainingQty ?? 0) - allocatedOtherRows) : 0
+        const nextQty = tradingCostSourceId && item.qty <= 0.0001 ? sourceCapacity : item.qty
+        return {
+          ...item,
+          qty: tradingCostSourceId ? Math.min(nextQty, sourceCapacity) : item.qty,
+          tradingCostSourceId,
         }
       })
       return { ...current, items }
@@ -2529,6 +2635,17 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     >
                       พิมพ์
                     </button>
+                    {String(row.transactionMode ?? '').toUpperCase() === 'TRADING' ? (
+                      <button
+                        className="rounded-md border border-purple-200 px-2.5 py-1 text-xs font-semibold text-purple-700 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={row.status === 'cancelled'}
+                        title={row.status === 'cancelled' ? 'บิลที่ยกเลิกแล้วแก้ Trading allocation ไม่ได้' : 'แก้เฉพาะ Trading allocation'}
+                        type="button"
+                        onClick={() => openRow(row)}
+                      >
+                        แก้ต้นทุน
+                      </button>
+                    ) : null}
                     <button
                       className="rounded-md border border-red-200 px-2.5 py-1 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
                       disabled={row.canCancel === false}
@@ -2696,7 +2813,19 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                       >
                         {printingBillDocNo === row.docNo ? 'เตรียม...' : 'พิมพ์'}
                       </button>
-                      <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50" disabled title="รอเปิด flow แก้ไขบิลขาย" type="button">แก้ไข</button>
+                      {String(row.transactionMode ?? '').toUpperCase() === 'TRADING' ? (
+                        <button
+                          className="rounded-md border border-purple-200 px-2 py-1 text-xs font-semibold text-purple-700 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={row.status === 'cancelled'}
+                          title={row.status === 'cancelled' ? 'บิลที่ยกเลิกแล้วแก้ Trading allocation ไม่ได้' : 'แก้เฉพาะ Trading allocation'}
+                          type="button"
+                          onClick={(event) => { event.stopPropagation(); void openRow(row) }}
+                        >
+                          แก้ต้นทุน
+                        </button>
+                      ) : (
+                        <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50" disabled title="รอเปิด flow แก้ไขบิลขาย" type="button">แก้ไข</button>
+                      )}
                       <button
                         className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={row.canCancel === false}
@@ -3315,8 +3444,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="emerald">1</StepBadge>ประเภทบิล</h4>
                 <div className="grid gap-3 md:grid-cols-2">
                   <RadioCard active={salesForm.transactionMode === 'STOCK'} disabled={stockDeliveryLocked} label="📦 STOCK" note="ขายจากสต๊อกจริง" onClick={() => updateSalesForm('transactionMode', 'STOCK')} />
-                  <RadioCard active={salesForm.transactionMode === 'TRADING'} disabled={stockDeliveryLocked} label="🔄 TRADING" note="ขายแบบจับคู่ต้นทุนผ่าน Trading" onClick={() => updateSalesForm('transactionMode', 'TRADING')} />
+                  <RadioCard active={salesForm.transactionMode === 'TRADING'} disabled={stockDeliveryLocked} label="🔄 TRADING" note="ขายแบบจับคู่ต้นทุน · ไม่ตัด Stock" onClick={() => updateSalesForm('transactionMode', 'TRADING')} />
                 </div>
+                {salesForm.transactionMode === 'TRADING' ? (
+                  <div className="mt-3 rounded-md border border-purple-200 bg-purple-50 p-2 text-xs text-purple-700">บิลขาย Trading ไม่ตัด Stock เอง แม้ผูก PO Sell หรือเป็นทองเหลือง/ทองแดง รายการจะถูกส่งต่อไป Trading Matching เพื่อจับคู่กับบิลรับซื้อ</div>
+                ) : null}
               </div>
 
               <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
@@ -3511,51 +3643,105 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                   )
                 ) : (
                   <div className="overflow-x-auto rounded-md border">
-                    <table className="w-full min-w-[780px] text-sm">
+                    <table className="w-full min-w-[1160px] text-sm">
                       <tbody>
-                        {salesForm.items.map((item, index) => (
-                          <tr key={index} className="border-t align-top hover:bg-blue-50/30">
-                            <td className="p-2" colSpan={3}>
-                              <ProductSearchCombobox error={salesFieldErrors[`items.${index}.productId`]} errorKey={`items.${index}.productId`} inputId={`sales-bill-product-${index}`} options={activeProducts} value={item.productId} onChange={(value) => updateSalesItem(index, 'productId', value)} />
-                            </td>
-                            <td className="p-2">
-                              <div className="mb-1 text-[11px] font-semibold text-emerald-700">จำนวนสุทธิ</div>
-                              <input data-error-key={`items.${index}.qty`} className={`w-full rounded-md border bg-emerald-50 px-2 py-2 text-right font-bold tabular-nums text-emerald-700 ${salesFieldErrors[`items.${index}.qty`] ? 'border-red-400 bg-red-50 text-red-700' : ''} ${numberInputClass}`} min="0" step="0.01" type="number" value={item.qty || ''} onChange={(event) => updateSalesItem(index, 'qty', Number(event.target.value || 0))} />
-                              {salesFieldErrors[`items.${index}.qty`] ? <div className="mt-1 text-xs text-red-600">{salesFieldErrors[`items.${index}.qty`]}</div> : null}
-                            </td>
-                            <td className="p-2">
-                              <div className="mb-1 text-[11px] font-semibold text-slate-500">ราคา/หน่วย</div>
-                              <InlineMoneyInput
-                                error={salesFieldErrors[`items.${index}.price`]}
-                                errorKey={`items.${index}.price`}
-                                value={item.price}
-                                onChange={(value) => updateSalesItem(index, 'price', value)}
-                              />
-                            </td>
-                            <td className="p-2">
-                              <div className="mb-1 text-[11px] font-semibold text-slate-500">ส่วนลด</div>
-                              <InlineMoneyInput
-                                error={salesFieldErrors[`items.${index}.discount`]}
-                                errorKey={`items.${index}.discount`}
-                                value={item.discount}
-                                onChange={(value) => updateSalesItem(index, 'discount', value)}
-                              />
-                            </td>
-                            <td className="p-2">
-                              <div className="mb-1 text-[11px] font-semibold text-blue-700">ยอดรวม</div>
-                              <div className="rounded-md border border-blue-100 bg-blue-50 px-2 py-2 text-right font-bold tabular-nums text-blue-700">{formatMoney(Math.max(0, item.qty * item.price - item.discount))}</div>
-                            </td>
-                            <td className="p-2 text-right align-middle">
-                              {salesForm.items.length > 1 ? (
-                                <button className="rounded-md px-3 py-2 text-red-600 hover:bg-red-50" type="button" onClick={() => removeSalesItem(index)}>ลบ</button>
-                              ) : null}
-                            </td>
-                          </tr>
-                        ))}
+                        {salesForm.items.map((item, index) => {
+                          const itemPoSellOptions = activePoSells.filter((po) => {
+                            if (po.product_id && po.product_id !== item.productId) return false
+                            if (item.poSellId === po.id) return true
+                            return poSellAvailableForRow(po.id, index) > 0.0001
+                          })
+                          const itemTradingCostSourceOptions = activeTradingCostSources.filter((source) => {
+                            if (source.product_id && source.product_id !== item.productId) return false
+                            if (item.tradingCostSourceId === source.id) return true
+                            return tradingCostSourceAvailableForRow(source.id, index) > 0.0001
+                          })
+                          const selectedPoSell = poSellOptionForProduct(item.poSellId, item.productId)
+                          const rowPoCapacity = item.poSellId ? poSellAvailableForRow(item.poSellId, index) : null
+                          const poSellVariance = rowPoCapacity != null ? poQtyVariance(rowPoCapacity, item.qty) : null
+                          const selectedTradingCostSource = tradingCostSourceOptionForProduct(item.tradingCostSourceId, item.productId)
+                          const rowCostSourceCapacity = item.tradingCostSourceId ? tradingCostSourceAvailableForRow(item.tradingCostSourceId, index) : null
+                          const costSourceVariance = rowCostSourceCapacity != null ? poQtyVariance(rowCostSourceCapacity, item.qty) : null
+                          return (
+                            <tr key={index} className="border-t align-top hover:bg-blue-50/30">
+                              <td className="p-2" colSpan={2}>
+                                <ProductSearchCombobox error={salesFieldErrors[`items.${index}.productId`]} errorKey={`items.${index}.productId`} inputId={`sales-bill-product-${index}`} options={activeProducts} value={item.productId} onChange={(value) => updateSalesItem(index, 'productId', value)} />
+                              </td>
+                              <td className="p-2">
+                                <div className="mb-1 text-[11px] font-semibold text-indigo-700">อ้างอิง PO Sell</div>
+                                <select className="w-full rounded-md border bg-blue-50 px-2 py-2 text-xs" value={item.poSellId ?? ''} onChange={(event) => updateSalesItemPoSell(index, event.target.value || null)}>
+                                  <option value="">Spot Sale</option>
+                                  {itemPoSellOptions.map((po) => <option key={`${po.id}-${po.line_id ?? po.product_id ?? 'all'}`} value={po.id}>{po.label ?? po.name}</option>)}
+                                </select>
+                                {poSellVariance ? <div className={`mt-1 text-[11px] font-semibold ${poSellVariance.className}`}>{poSellVariance.text}</div> : null}
+                              </td>
+                              <td className="p-2">
+                                <div className="mb-1 text-[11px] font-semibold text-purple-700">Trading Cost Source *</div>
+                                <SearchCombobox
+                                  error={salesFieldErrors[`items.${index}.tradingCostSourceId`]}
+                                  errorKey={`items.${index}.tradingCostSourceId`}
+                                  hideLabel
+                                  inputClassName="bg-purple-50 text-xs"
+                                  inputId={`sales-bill-trading-cost-source-${index}`}
+                                  label="Trading Cost Source *"
+                                  options={itemTradingCostSourceOptions.map((source) => ({
+                                    description: [
+                                      source.supplier_name,
+                                      `คงเหลือ ${formatMoney(source.remainingQty ?? 0)} ${source.unit ?? 'กก.'}`,
+                                      `${formatMoney(source.remainingAmount ?? 0)} บาท`,
+                                    ].filter(Boolean).join(' · '),
+                                    id: source.id,
+                                    label: source.label ?? source.name,
+                                    searchText: `${source.label ?? ''} ${source.name} ${source.supplier_name ?? ''} ${source.product_id ?? ''} ${source.id}`.toLowerCase(),
+                                  }))}
+                                  placeholder="ค้นหา Trading PB / Cost Source"
+                                  value={item.tradingCostSourceId ?? ''}
+                                  onChange={(value) => updateSalesItemTradingCostSource(index, value || null)}
+                                />
+                                {selectedTradingCostSource ? <div className="mt-1 text-[11px] text-slate-500">{selectedTradingCostSource.supplier_name ?? ''}</div> : null}
+                                {salesFieldErrors[`items.${index}.tradingCostSourceId`] ? <div className="mt-1 text-xs text-red-600">{salesFieldErrors[`items.${index}.tradingCostSourceId`]}</div> : null}
+                                {costSourceVariance ? <div className={`mt-1 text-[11px] font-semibold ${costSourceVariance.className}`}>{costSourceVariance.text}</div> : null}
+                              </td>
+                              <td className="p-2">
+                                <div className="mb-1 text-[11px] font-semibold text-emerald-700">จำนวนสุทธิ</div>
+                                <input data-error-key={`items.${index}.qty`} className={`w-full rounded-md border bg-emerald-50 px-2 py-2 text-right font-bold tabular-nums text-emerald-700 ${salesFieldErrors[`items.${index}.qty`] ? 'border-red-400 bg-red-50 text-red-700' : ''} ${numberInputClass} ${item.poSellId ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`} disabled={Boolean(item.poSellId)} max={Math.min(rowPoCapacity ?? Number.POSITIVE_INFINITY, rowCostSourceCapacity ?? Number.POSITIVE_INFINITY)} min="0" step="0.01" type="number" value={item.qty || ''} onChange={(event) => updateSalesItem(index, 'qty', Number(event.target.value || 0))} />
+                                {salesFieldErrors[`items.${index}.qty`] ? <div className="mt-1 text-xs text-red-600">{salesFieldErrors[`items.${index}.qty`]}</div> : null}
+                              </td>
+                              <td className="p-2">
+                                <div className="mb-1 text-[11px] font-semibold text-slate-500">ราคา/หน่วย</div>
+                                <InlineMoneyInput
+                                  disabled={Boolean(selectedPoSell)}
+                                  error={salesFieldErrors[`items.${index}.price`]}
+                                  errorKey={`items.${index}.price`}
+                                  value={item.price}
+                                  onChange={(value) => updateSalesItem(index, 'price', value)}
+                                />
+                              </td>
+                              <td className="p-2">
+                                <div className="mb-1 text-[11px] font-semibold text-slate-500">ส่วนลด</div>
+                                <InlineMoneyInput
+                                  error={salesFieldErrors[`items.${index}.discount`]}
+                                  errorKey={`items.${index}.discount`}
+                                  value={item.discount}
+                                  onChange={(value) => updateSalesItem(index, 'discount', value)}
+                                />
+                              </td>
+                              <td className="p-2">
+                                <div className="mb-1 text-[11px] font-semibold text-blue-700">ยอดรวม</div>
+                                <div className="rounded-md border border-blue-100 bg-blue-50 px-2 py-2 text-right font-bold tabular-nums text-blue-700">{formatMoney(Math.max(0, item.qty * item.price - item.discount))}</div>
+                              </td>
+                              <td className="p-2 text-right align-middle">
+                                {salesForm.items.length > 1 ? (
+                                  <button className="rounded-md px-3 py-2 text-red-600 hover:bg-red-50" type="button" onClick={() => removeSalesItem(index)}>ลบ</button>
+                                ) : null}
+                              </td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                       <tfoot className="border-t bg-emerald-50 font-bold">
                         <tr>
-                          <td className="p-2 text-right tabular-nums text-emerald-700" colSpan={4}><span className="mr-2 text-slate-700">น้ำหนักรวม</span>{formatMoney(salesForm.items.reduce((sum, item) => sum + item.qty, 0))}</td>
+                          <td className="p-2 text-right tabular-nums text-emerald-700" colSpan={5}><span className="mr-2 text-slate-700">น้ำหนักรวม</span>{formatMoney(salesForm.items.reduce((sum, item) => sum + item.qty, 0))}</td>
                           <td></td>
                           <td></td>
                           <td className="p-2 text-right tabular-nums text-blue-700">{formatMoney(salesSubtotal)}</td>
@@ -3668,6 +3854,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           error={detailError}
           isLoading={isDetailLoading}
           isPrinting={printingBillDocNo === detailBillDocNo}
+          tradingCostSources={options.tradingCostSources ?? []}
           onClose={() => {
             latestDetailRequestRef.current += 1
             setDetailBillDocNo(null)
@@ -3676,6 +3863,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
             setDetailError(null)
             setIsDetailLoading(false)
           }}
+          onCorrectTradingAllocations={correctTradingAllocations}
           onPrint={(detail) => void printSalesBill(detail)}
 	        />
 	      ) : null}
@@ -3943,7 +4131,9 @@ function SalesBillDetailModal({
   error,
   isLoading,
   isPrinting,
+  tradingCostSources,
   onClose,
+  onCorrectTradingAllocations,
   onPrint,
 }: {
   detail: SalesBillDetail | null
@@ -3951,9 +4141,66 @@ function SalesBillDetailModal({
   error: string | null
   isLoading: boolean
   isPrinting: boolean
+  tradingCostSources: Option[]
   onClose: () => void
+  onCorrectTradingAllocations: (docNo: string, allocations: Array<{ salesLineNo: number; tradingCostSourceId: string }>, note: string) => Promise<void>
   onPrint: (detail: SalesBillDetail) => void
 }) {
+  const [correctionError, setCorrectionError] = useState<string | null>(null)
+  const [correctionNote, setCorrectionNote] = useState('')
+  const [correctionSources, setCorrectionSources] = useState<Record<number, string>>({})
+  const [isCorrecting, setIsCorrecting] = useState(false)
+  const [showCorrection, setShowCorrection] = useState(false)
+
+  useEffect(() => {
+    if (!detail || detail.transactionMode !== 'TRADING') {
+      setShowCorrection(false)
+      setCorrectionSources({})
+      setCorrectionNote('')
+      setCorrectionError(null)
+      return
+    }
+    setCorrectionSources(Object.fromEntries(detail.items.map((item) => {
+      const sourceType = item.sourceType.toUpperCase()
+      const sourceDocNo = item.tradingSourceDocNo
+      const sourceLineNo = item.tradingSourceLineNo ?? 1
+      const sourceId = !sourceDocNo
+        ? ''
+        : sourceType.includes('COST SOURCE')
+          ? `SRC:${sourceDocNo}:1`
+          : `PB:${sourceDocNo}:${sourceLineNo}`
+      return [item.lineNo, sourceId]
+    })))
+    setCorrectionError(null)
+  }, [detail])
+
+  const submitCorrection = async () => {
+    if (!detail) return
+    setCorrectionError(null)
+    const allocations = detail.items.map((item) => ({
+      salesLineNo: item.lineNo,
+      tradingCostSourceId: correctionSources[item.lineNo] ?? '',
+    }))
+    if (allocations.some((allocation) => !allocation.tradingCostSourceId)) {
+      setCorrectionError('เลือก Trading Cost Source ให้ครบทุกแถว')
+      return
+    }
+    if (!correctionNote.trim()) {
+      setCorrectionError('กรอกเหตุผลการแก้ไข allocation')
+      return
+    }
+    setIsCorrecting(true)
+    try {
+      await onCorrectTradingAllocations(detail.docNo, allocations, correctionNote.trim())
+      setShowCorrection(false)
+      setCorrectionNote('')
+    } catch (caught) {
+      setCorrectionError(caught instanceof Error ? caught.message : 'แก้ไข Trading allocation ไม่สำเร็จ')
+    } finally {
+      setIsCorrecting(false)
+    }
+  }
+
   return (
     <Dialog open onOpenChange={(open) => {
       if (!open) onClose()
@@ -4014,7 +4261,74 @@ function SalesBillDetailModal({
             </div>
 
             <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-              <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">รายการสินค้า / Source</div>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">รายการสินค้า / Source</div>
+                {detail.transactionMode === 'TRADING' ? (
+                  <Button className="h-8 px-3 text-xs font-normal" type="button" variant="outline" onClick={() => setShowCorrection((current) => !current)}>
+                    {showCorrection ? 'ซ่อนแก้ allocation' : 'แก้ Trading allocation'}
+                  </Button>
+                ) : null}
+              </div>
+              {detail.transactionMode === 'TRADING' && showCorrection ? (
+                <div className="mb-3 rounded-md border border-purple-100 bg-purple-50 p-3">
+                  <div className="grid gap-3">
+                    <div className="text-xs font-semibold text-purple-800">แก้เฉพาะ Cost Source ของบิลขาย Trading</div>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      {detail.items.map((item) => {
+                        const selectedSourceId = correctionSources[item.lineNo] ?? ''
+                        const sourceOptions = tradingCostSources.filter((source) => {
+                          if (selectedSourceId === source.id) return true
+                          if (source.active === false) return false
+                          const sameProduct = source.product_id === item.productId || source.product_id === item.productCode
+                          return sameProduct && ((source.remainingQty ?? 0) > 0.0001 || (source.remainingAmount ?? 0) > 0.01)
+                        })
+                        const comboboxOptions = sourceOptions.map((source) => ({
+                          id: source.id,
+                          label: source.label ?? source.name,
+                          searchText: [source.name, source.label, source.supplier_name].filter(Boolean).join(' '),
+                        }))
+                        if (selectedSourceId && !comboboxOptions.some((source) => source.id === selectedSourceId)) {
+                          comboboxOptions.unshift({
+                            id: selectedSourceId,
+                            label: item.sourceLabel || selectedSourceId,
+                            searchText: [item.sourceLabel, item.productCode, item.productName].filter(Boolean).join(' '),
+                          })
+                        }
+                        return (
+                          <div key={`correction-${item.lineNo}`} className="rounded-md bg-white p-2">
+                            <div className="mb-1 text-xs font-semibold text-slate-700">Line {item.lineNo}: {item.productName}</div>
+                            <SearchCombobox
+                              hideLabel
+                              inputClassName="h-9 text-sm"
+                              inputId={`sales-bill-correction-source-${item.lineNo}`}
+                              label={`Trading Cost Source line ${item.lineNo}`}
+                              options={comboboxOptions}
+                              placeholder="เลือก Trading PB / Cost Source"
+                              value={selectedSourceId}
+                              onChange={(value) => setCorrectionSources((current) => ({ ...current, [item.lineNo]: value }))}
+                            />
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor="sales-bill-correction-note">เหตุผลการแก้ไข</label>
+                      <textarea
+                        className="min-h-20 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                        id="sales-bill-correction-note"
+                        value={correctionNote}
+                        onChange={(event) => setCorrectionNote(event.target.value)}
+                      />
+                    </div>
+                    {correctionError ? <div className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">{correctionError}</div> : null}
+                    <div className="flex justify-end">
+                      <Button className="font-normal" disabled={isCorrecting} type="button" onClick={() => void submitCorrection()}>
+                        {isCorrecting ? 'กำลังบันทึก...' : 'บันทึก allocation correction'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
               <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
                 <table className="w-full min-w-[1100px] text-sm">
                   <thead className="bg-slate-50 text-slate-600">
@@ -4044,7 +4358,8 @@ function SalesBillDetailModal({
                         </td>
                         <td className="px-3 py-2 align-top">
                           <div className="text-slate-900">{item.sourceLabel || '-'}</div>
-                          <div className="text-xs text-slate-500">{item.poSellDocNo ? 'ตัดตาม PO Sell' : 'ขายแบบ Spot Sale'}</div>
+                          <div className="text-xs text-slate-500">{item.sourceType || '-'}</div>
+                          {item.matchedCogs > 0 ? <div className="mt-1 text-xs text-red-600">Matched COGS {formatMoney(item.matchedCogs)}</div> : null}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatMoney(item.grossWeight)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatMoney(item.deductWeight)}</td>
@@ -4462,4 +4777,3 @@ function DetailItem({ className = '', label, value }: { className?: string; labe
     </div>
   )
 }
-

@@ -10,7 +10,12 @@ import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 export const runtime = 'nodejs'
 
 function isCancelled(status: string | null | undefined) {
-  return status === 'Cancelled' || status === 'cancelled'
+  return status === 'Cancelled' || status === 'cancelled' || status === 'reversed'
+}
+
+function addAmount<TKey>(map: Map<TKey, number>, key: TKey | null | undefined, amount: number) {
+  if (key == null) return
+  map.set(key, (map.get(key) ?? 0) + amount)
 }
 
 function buildWorkbook(rows: Array<Record<string, string | number>>) {
@@ -44,7 +49,7 @@ export async function GET(request: Request) {
     const to = url.searchParams.get('to')
     const activeStatusFilter = statusFilter && statusFilter !== 'all' ? statusFilter : null
 
-    const [purchaseBills, salesBills, deals] = await Promise.all([
+    const [purchaseBills, salesBills, allocationFacts] = await Promise.all([
       prisma.purchase_bills.findMany({
         include: { suppliers: true },
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
@@ -57,28 +62,37 @@ export async function GET(request: Request) {
         take: 5000,
         where: { NOT: { status: 'cancelled' }, transaction_mode: 'TRADING' },
       }),
-      prisma.trading_deals.findMany({
+      prisma.trading_allocation_facts.findMany({
         include: {
           customers: true,
           products: true,
+          purchase_bills: true,
+          sales_bills: true,
           suppliers: true,
         },
-        orderBy: [{ date: 'desc' }, { deal_no: 'desc' }],
+        orderBy: [{ date: 'desc' }, { id: 'desc' }],
         take: 5000,
+        where: { status: 'active' },
       }),
     ])
 
-    const activeDeals = deals.filter((deal) => !isCancelled(deal.status))
     const matchedPurchaseMap = new Map<bigint, number>()
+    const matchedPurchaseDocMap = new Map<string, number>()
     const matchedSalesMap = new Map<bigint, number>()
-    activeDeals.forEach((deal) => {
-      if (deal.purchase_bill_id) matchedPurchaseMap.set(deal.purchase_bill_id, (matchedPurchaseMap.get(deal.purchase_bill_id) ?? 0) + toNumber(deal.matched_purchase_amount))
-      if (deal.sales_bill_id) matchedSalesMap.set(deal.sales_bill_id, (matchedSalesMap.get(deal.sales_bill_id) ?? 0) + toNumber(deal.matched_sales_amount))
+    const matchedSalesDocMap = new Map<string, number>()
+    allocationFacts.forEach((fact) => {
+      if (isCancelled(fact.status)) return
+      const matchedCost = toNumber(fact.matched_cogs)
+      const matchedSales = toNumber(fact.sales_amount)
+      addAmount(matchedPurchaseMap, fact.purchase_bill_id, matchedCost)
+      addAmount(matchedPurchaseDocMap, fact.source_doc_no, matchedCost)
+      addAmount(matchedSalesMap, fact.sales_bill_id, matchedSales)
+      addAmount(matchedSalesDocMap, fact.sales_doc_no, matchedSales)
     })
 
     const purchaseRows = purchaseBills.map((bill) => {
       const total = toNumber(bill.subtotal) || toNumber(bill.total_amount)
-      const matchedAmount = matchedPurchaseMap.get(bill.id) ?? 0
+      const matchedAmount = matchedPurchaseMap.get(bill.id) ?? matchedPurchaseDocMap.get(bill.doc_no) ?? 0
       return {
         date: toDateOnly(bill.date),
         docNo: bill.doc_no,
@@ -95,7 +109,7 @@ export async function GET(request: Request) {
 
     const salesRows = salesBills.map((bill) => {
       const total = toNumber(bill.subtotal) || toNumber(bill.total_amount)
-      const matchedAmount = matchedSalesMap.get(bill.id) ?? 0
+      const matchedAmount = matchedSalesMap.get(bill.id) ?? matchedSalesDocMap.get(bill.doc_no) ?? 0
       return {
         customerName: bill.customers?.name ?? '-',
         date: toDateOnly(bill.date),
@@ -110,26 +124,26 @@ export async function GET(request: Request) {
       .filter((row) => !to || row.date <= to)
       .filter((row) => !q || `${row.docNo} ${row.customerName}`.toLowerCase().includes(q))
 
-    const dealRows = deals.map((deal, index) => {
-      const salesAmount = toNumber(deal.matched_sales_amount)
-      const purchaseAmount = toNumber(deal.matched_purchase_amount)
+    const dealRows = allocationFacts.map((fact, index) => {
+      const salesAmount = toNumber(fact.sales_amount)
+      const purchaseAmount = toNumber(fact.matched_cogs)
       const grossProfit = salesAmount - purchaseAmount
-      const customerName = deal.customers?.name ?? '-'
-      const supplierName = deal.suppliers?.name ?? '-'
-      const productName = deal.products?.name ?? '-'
-      const date = toDateOnly(deal.date)
-      const status = deal.status ?? ''
-      const purchaseBillNo = deal.purchase_bill_no ?? ''
-      const salesBillNo = deal.sales_bill_no ?? ''
+      const customerName = fact.customer_name_snapshot ?? fact.customers?.name ?? '-'
+      const supplierName = fact.supplier_name_snapshot ?? fact.suppliers?.name ?? '-'
+      const productName = fact.product_name_snapshot ?? fact.products?.name ?? '-'
+      const date = toDateOnly(fact.date)
+      const status = fact.status ?? ''
+      const purchaseBillNo = fact.source_doc_no ?? fact.purchase_bills?.doc_no ?? ''
+      const salesBillNo = fact.sales_doc_no ?? fact.sales_bills?.doc_no ?? ''
       return {
         customerName,
         date,
-        dealNo: deal.deal_no,
+        dealNo: fact.allocation_no,
         grossProfit,
         grossProfitPct: salesAmount > 0 ? (grossProfit / salesAmount) * 100 : 0,
-        id: `${deal.deal_no}:${purchaseBillNo}:${salesBillNo}:${supplierName}:${customerName}:${productName}:${date}:${status}:${index}`,
+        id: `${fact.allocation_no}:${purchaseBillNo}:${salesBillNo}:${supplierName}:${customerName}:${productName}:${date}:${status}:${index}`,
         matchedPurchaseAmount: purchaseAmount,
-        matchedQty: toNumber(deal.matched_qty),
+        matchedQty: toNumber(fact.qty),
         matchedSalesAmount: salesAmount,
         productName,
         purchaseBillNo,
@@ -151,15 +165,13 @@ export async function GET(request: Request) {
         Cost: deal.matchedPurchaseAmount,
         Customer: stringifyBusinessValue(deal.customerName),
         Date: deal.date,
-        DealNo: deal.dealNo,
-        GP: deal.grossProfit,
+        ExpectedGP: deal.grossProfit,
         GPPct: deal.grossProfitPct,
         Product: deal.productName,
-        PurchaseBillNo: deal.purchaseBillNo,
+        CostSource: deal.purchaseBillNo,
         Qty: deal.matchedQty,
         Sales: deal.matchedSalesAmount,
         SalesBillNo: deal.salesBillNo,
-        Status: deal.status,
         Supplier: stringifyBusinessValue(deal.supplierName),
       }))), 'trading_matching.xlsx')
     }
@@ -167,7 +179,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       deals: dealRows,
       filters: {
-        statuses: Array.from(new Set(deals.map((deal) => deal.status ?? 'Open'))).sort(),
+        statuses: Array.from(new Set(allocationFacts.map((fact) => fact.status ?? 'active'))).sort(),
       },
       purchases: purchaseRows,
       sales: salesRows,

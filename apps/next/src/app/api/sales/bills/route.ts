@@ -224,6 +224,7 @@ function salesItems(
       productId: requireBusinessCode(product?.code, `สินค้า ${productId}`),
       productName: product?.name ?? '',
       qty: item.qty,
+      tradingCostSourceId: item.tradingCostSourceId,
       unit: product?.unit ?? 'กก.',
       unitPrice: item.price,
     }
@@ -231,6 +232,33 @@ function salesItems(
 }
 
 type SalesItemSnapshot = ReturnType<typeof salesItems>[number]
+
+function parseTradingCostSourceId(sourceId: string) {
+  const parts = sourceId.split(':')
+  const sourceType = parts[0] === 'SRC' ? 'MANUAL' : 'PB'
+  const [docNo, lineNoText] = sourceType === 'MANUAL' ? [parts[1], parts[2] ?? '1'] : parts[0] === 'PB' ? [parts[1], parts[2]] : parts
+  const lineNo = Number(lineNoText)
+  if (!docNo || !Number.isInteger(lineNo) || lineNo <= 0) return null
+  return { docNo, lineNo, sourceType }
+}
+
+type TradingCostSourceLine = {
+  amount: number
+  billId: bigint | null
+  costSourceId: bigint | null
+  docNo: string
+  lineNo: number
+  productCode: string
+  productId: bigint | null
+  productName: string
+  qty: number
+  remainingAmount: number
+  remainingQty: number
+  supplierId: bigint | null
+  supplierName: string | null
+  type: 'MANUAL' | 'PB'
+  unitCost: number
+}
 
 function deliverySummaryUsageKey(ticketId: bigint, summaryId: bigint) {
   return `${ticketId.toString()}:${summaryId.toString()}`
@@ -567,7 +595,7 @@ async function validateStockDeliverySelection(
 }
 
 async function salesOptionsPayload() {
-  const [branches, customers, products, salesChannels, warehouses, vatRatePercent, deliveryTickets, poSellRows, customerAdvanceRows, salesBillsWithAdvance] = await Promise.all([
+  const [branches, customers, products, salesChannels, warehouses, vatRatePercent, deliveryTickets, poSellRows, tradingPurchaseBills, tradingManualCostSources, tradingAllocationFacts, customerAdvanceRows, salesBillsWithAdvance] = await Promise.all([
     prisma.branches.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
     prisma.customers.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
     prisma.products.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true, unit: true } }),
@@ -625,6 +653,50 @@ async function salesOptionsPayload() {
         status: { notIn: ['cancelled', 'canceled', 'closed', 'completed', 'fully matched', 'received', 'void', 'Cancelled', 'Canceled', 'Closed', 'Completed'] },
       },
     }),
+    prisma.purchase_bills.findMany({
+      include: {
+        purchase_bill_items: {
+          orderBy: { line_no: 'asc' },
+          select: {
+            amount: true,
+            line_no: true,
+            product_code: true,
+            product_id: true,
+            product_name: true,
+            qty: true,
+          },
+        },
+        suppliers: { select: { name: true } },
+      },
+      orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
+      take: 500,
+      where: {
+        status: { notIn: ['cancelled', 'Cancelled', 'void', 'voided', 'reversed'] },
+        transaction_mode: 'TRADING',
+      },
+    }),
+    prisma.trading_cost_sources.findMany({
+      include: {
+        products: { select: { code: true, name: true } },
+        suppliers: { select: { name: true } },
+      },
+      orderBy: [{ date: 'desc' }, { source_no: 'desc' }],
+      take: 500,
+      where: {
+        status: 'active',
+      },
+    }),
+    prisma.trading_allocation_facts.findMany({
+      select: {
+        matched_cogs: true,
+        purchase_bill_id: true,
+        qty: true,
+        source_doc_no: true,
+        source_line_no: true,
+        trading_cost_source_id: true,
+      },
+      where: { status: 'active' },
+    }),
     prisma.bank_statement.findMany({
       include: {
         accounts: { select: { name: true } },
@@ -651,6 +723,22 @@ async function salesOptionsPayload() {
   const branchCodeById = new Map(branches.map((branch) => [branch.id, requireBusinessCode(branch.code, `สาขา ${branch.id}`)]))
   const customerCodeById = new Map(customers.map((customer) => [customer.id, requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`)]))
   const customerByCode = new Map(customers.map((customer) => [requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`), customer] as const))
+  const matchedTradingCostBySource = new Map<string, { amount: number; qty: number }>()
+  tradingAllocationFacts.forEach((fact) => {
+    const sourceLineNo = fact.source_line_no
+    const sourceKey = fact.purchase_bill_id != null && sourceLineNo != null
+      ? `${fact.purchase_bill_id.toString()}:${sourceLineNo}`
+      : fact.trading_cost_source_id != null
+        ? `SRC:${fact.trading_cost_source_id.toString()}:1`
+      : fact.source_doc_no && sourceLineNo != null
+        ? `${fact.source_doc_no}:${sourceLineNo}`
+        : null
+    if (!sourceKey) return
+    const current = matchedTradingCostBySource.get(sourceKey) ?? { amount: 0, qty: 0 }
+    current.amount += toNumber(fact.matched_cogs)
+    current.qty += toNumber(fact.qty)
+    matchedTradingCostBySource.set(sourceKey, current)
+  })
   const customerAdvanceUsedById = new Map<string, number>()
   salesBillsWithAdvance.forEach((bill) => {
     const advanceId = customerAdvanceIdFromBillItems(bill.items)
@@ -703,6 +791,66 @@ async function salesOptionsPayload() {
         }]
       })
     }),
+    tradingCostSources: [
+      ...tradingPurchaseBills.flatMap((bill) => bill.purchase_bill_items.flatMap((item) => {
+      const productCode = item.product_id != null ? productCodeById.get(item.product_id) ?? item.product_code ?? '' : item.product_code ?? ''
+      if (!productCode) return []
+      const sourceKeyById = `${bill.id.toString()}:${item.line_no}`
+      const sourceKeyByDoc = `${bill.doc_no}:${item.line_no}`
+      const matched = matchedTradingCostBySource.get(sourceKeyById) ?? matchedTradingCostBySource.get(sourceKeyByDoc) ?? { amount: 0, qty: 0 }
+      const qty = toNumber(item.qty)
+      const amount = toNumber(item.amount)
+      const remainingQty = Math.max(0, qty - matched.qty)
+      const remainingAmount = Math.max(0, amount - matched.amount)
+      if (remainingQty <= 0.0001 && remainingAmount <= 0.01) return []
+      const supplierName = bill.suppliers?.name ?? 'ไม่ระบุ Supplier'
+      return [{
+        active: true,
+        id: `PB:${sourceKeyByDoc}`,
+        label: `${bill.doc_no} · ${item.product_name ?? productCode} · คงเหลือ ${remainingQty.toLocaleString('th-TH')} กก. · ${remainingAmount.toLocaleString('th-TH')} บาท`,
+        line_id: `PB:${sourceKeyByDoc}`,
+        name: bill.doc_no,
+        product_id: productCode,
+        remainingAmount,
+        remainingQty,
+        sourceLineNo: item.line_no,
+        status: bill.status ?? 'active',
+        supplier_id: null,
+        supplier_name: supplierName,
+        unitPrice: qty > 0 ? amount / qty : 0,
+      }]
+    })),
+      ...tradingManualCostSources.flatMap((source) => {
+        const productCode = source.product_id != null ? productCodeById.get(source.product_id) ?? source.products?.code ?? source.product_code_snapshot ?? '' : source.product_code_snapshot ?? ''
+        if (!productCode) return []
+        const sourceKeyById = `SRC:${source.id.toString()}:1`
+        const sourceKeyByNo = `SRC:${source.source_no}:1`
+        const matched = matchedTradingCostBySource.get(sourceKeyById) ?? matchedTradingCostBySource.get(sourceKeyByNo) ?? { amount: 0, qty: 0 }
+        const qty = toNumber(source.qty)
+        const amount = toNumber(source.total_amount)
+        const remainingQty = Math.max(0, qty - matched.qty)
+        const remainingAmount = Math.max(0, amount - matched.amount)
+        if (remainingQty <= 0.0001 && remainingAmount <= 0.01) return []
+        const sourceName = source.source_no
+        const productName = source.product_name_snapshot ?? source.products?.name ?? productCode
+        const supplierName = source.supplier_name_snapshot ?? source.suppliers?.name ?? 'Manual Trading Source'
+        return [{
+          active: true,
+          id: sourceKeyByNo,
+          label: `${sourceName} · ${productName} · คงเหลือ ${remainingQty.toLocaleString('th-TH')} กก. · ${remainingAmount.toLocaleString('th-TH')} บาท`,
+          line_id: sourceKeyByNo,
+          name: sourceName,
+          product_id: productCode,
+          remainingAmount,
+          remainingQty,
+          sourceLineNo: 1,
+          status: source.status,
+          supplier_id: null,
+          supplier_name: supplierName,
+          unitPrice: qty > 0 ? amount / qty : toNumber(source.unit_cost),
+        }]
+      }),
+    ],
     customerAdvancePayments: customerAdvanceRows.flatMap((advance) => {
       const customerCode = String(advance.ref_id ?? '').trim()
       const customer = customerByCode.get(customerCode)
@@ -856,6 +1004,12 @@ export async function POST(request: Request) {
     if (!customer) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ลูกค้าไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (!channel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ช่องทางขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    if (
+      values.transactionMode === 'TRADING'
+      && (values.deliveryTicketId || values.pendingStockIssueId || values.fromPsaleNo || values.fromPsaleId || values.warehouseId)
+    ) {
+      return NextResponse.json({ code: 'BAD_REQUEST', error: 'บิลขาย Trading ห้ามอ้างอิงใบส่งของ คลัง หรือใบเบิก Stock' }, { status: 400 })
+    }
     if (values.warehouseId && !warehouse) return NextResponse.json({ code: 'BAD_REQUEST', error: 'คลังไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (branch?.code && warehouse?.branchCode && warehouse.branchCode !== branch.code) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาและคลังไม่ตรงกัน' }, { status: 400 })
 
@@ -1021,7 +1175,196 @@ export async function POST(request: Request) {
       }
       poSellAllocations.set(poSellDocNo, allocation)
     }
-    const totalCost = 0
+    const tradingCostSourceByLineIndex = new Map<number, TradingCostSourceLine>()
+    const tradingMatchedCogsByLineIndex = new Map<number, number>()
+    if (values.transactionMode === 'TRADING') {
+      const tradingSourceIds = values.items.map((item) => item.tradingCostSourceId?.trim() ?? '')
+      const invalidSourceIndex = tradingSourceIds.findIndex((sourceId) => !sourceId || !parseTradingCostSourceId(sourceId))
+      if (invalidSourceIndex >= 0) {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: `เลือก Trading Cost Source ให้รายการที่ ${invalidSourceIndex + 1}` }, { status: 400 })
+      }
+      const parsedSources = tradingSourceIds.map((sourceId) => parseTradingCostSourceId(sourceId)!)
+      const sourceDocNos = [...new Set(parsedSources.filter((source) => source.sourceType === 'PB').map((source) => source.docNo))]
+      const manualSourceNos = [...new Set(parsedSources.filter((source) => source.sourceType === 'MANUAL').map((source) => source.docNo))]
+      const sourceBills = await prisma.purchase_bills.findMany({
+        include: {
+          purchase_bill_items: {
+            orderBy: { line_no: 'asc' },
+            select: {
+              amount: true,
+              line_no: true,
+              product_code: true,
+              product_id: true,
+              product_name: true,
+              qty: true,
+            },
+          },
+          suppliers: { select: { name: true } },
+        },
+        where: {
+          doc_no: { in: sourceDocNos },
+          status: { notIn: ['cancelled', 'Cancelled', 'void', 'voided', 'reversed'] },
+          transaction_mode: 'TRADING',
+        },
+      })
+      const manualSources = await prisma.trading_cost_sources.findMany({
+        include: {
+          products: { select: { code: true, name: true } },
+          suppliers: { select: { name: true } },
+        },
+        where: {
+          source_no: { in: manualSourceNos },
+          status: 'active',
+        },
+      })
+      const sourceBillByDocNo = new Map(sourceBills.map((bill) => [bill.doc_no, bill] as const))
+      const manualSourceByNo = new Map(manualSources.map((source) => [source.source_no, source] as const))
+      const sourceBillIds = sourceBills.map((bill) => bill.id)
+      const manualSourceIds = manualSources.map((source) => source.id)
+      const activeFacts = sourceBillIds.length || manualSourceIds.length
+        ? await prisma.trading_allocation_facts.findMany({
+            select: {
+              matched_cogs: true,
+              purchase_bill_id: true,
+              qty: true,
+              source_doc_no: true,
+              source_line_no: true,
+              trading_cost_source_id: true,
+            },
+            where: {
+              OR: [
+                ...(sourceBillIds.length ? [{ purchase_bill_id: { in: sourceBillIds } }] : []),
+                ...(manualSourceIds.length ? [{ trading_cost_source_id: { in: manualSourceIds } }] : []),
+              ],
+              status: 'active',
+            },
+          })
+        : []
+      const matchedBySource = new Map<string, { amount: number; qty: number }>()
+      activeFacts.forEach((fact) => {
+        const sourceLineNo = fact.source_line_no
+        if (sourceLineNo == null) return
+        const keys = [
+          fact.purchase_bill_id != null ? `${fact.purchase_bill_id.toString()}:${sourceLineNo}` : null,
+          fact.trading_cost_source_id != null ? `SRC:${fact.trading_cost_source_id.toString()}:1` : null,
+          fact.source_doc_no ? `${fact.source_doc_no}:${sourceLineNo}` : null,
+          fact.source_doc_no ? `SRC:${fact.source_doc_no}:1` : null,
+        ].filter((key): key is string => Boolean(key))
+        keys.forEach((key) => {
+          const current = matchedBySource.get(key) ?? { amount: 0, qty: 0 }
+          current.amount += toNumber(fact.matched_cogs)
+          current.qty += toNumber(fact.qty)
+          matchedBySource.set(key, current)
+        })
+      })
+      const requestedQtyBySource = new Map<string, number>()
+      const requestedCostBySource = new Map<string, number>()
+      for (const [index, source] of parsedSources.entries()) {
+        if (source.sourceType === 'MANUAL') {
+          const manualSource = manualSourceByNo.get(source.docNo)
+          if (!manualSource) {
+            return NextResponse.json({ code: 'BAD_REQUEST', error: `ไม่พบ Trading Cost Source ${source.docNo}` }, { status: 400 })
+          }
+          const productId = parsedProductIds[index]
+          if (manualSource.product_id != null && productId != null && manualSource.product_id !== productId) {
+            return NextResponse.json({ code: 'BAD_REQUEST', error: `สินค้ารายการที่ ${index + 1} ไม่ตรงกับต้นทุนที่เลือก` }, { status: 400 })
+          }
+          const sourceKeyById = `SRC:${manualSource.id.toString()}:1`
+          const sourceKeyByNo = `SRC:${manualSource.source_no}:1`
+          const matched = matchedBySource.get(sourceKeyById) ?? matchedBySource.get(sourceKeyByNo) ?? { amount: 0, qty: 0 }
+          const sourceQty = toNumber(manualSource.qty)
+          const sourceAmount = toNumber(manualSource.total_amount)
+          if (sourceQty <= 0.0001 || sourceAmount <= 0.01) {
+            return NextResponse.json({ code: 'BAD_REQUEST', error: `ต้นทุน ${manualSource.source_no} ไม่มีจำนวน/มูลค่าพร้อมใช้` }, { status: 400 })
+          }
+          const remainingQty = Math.max(0, sourceQty - matched.qty)
+          const remainingAmount = Math.max(0, sourceAmount - matched.amount)
+          const alreadyRequestedQty = requestedQtyBySource.get(sourceKeyByNo) ?? 0
+          const requestedQty = values.items[index]?.qty ?? 0
+          if (alreadyRequestedQty + requestedQty > remainingQty + 0.0001) {
+            return NextResponse.json({ code: 'BAD_REQUEST', error: `จำนวนรายการที่ ${index + 1} เกินต้นทุนคงเหลือของ ${manualSource.source_no}` }, { status: 400 })
+          }
+          const unitCost = sourceAmount / sourceQty
+          const alreadyRequestedCost = requestedCostBySource.get(sourceKeyByNo) ?? 0
+          const matchedCogs = Math.min(Math.max(0, remainingAmount - alreadyRequestedCost), requestedQty * unitCost)
+          requestedQtyBySource.set(sourceKeyByNo, alreadyRequestedQty + requestedQty)
+          requestedCostBySource.set(sourceKeyByNo, alreadyRequestedCost + matchedCogs)
+          const productCode = manualSource.product_code_snapshot ?? manualSource.products?.code ?? ''
+          tradingCostSourceByLineIndex.set(index, {
+            amount: sourceAmount,
+            billId: null,
+            costSourceId: manualSource.id,
+            docNo: manualSource.source_no,
+            lineNo: 1,
+            productCode,
+            productId: manualSource.product_id,
+            productName: manualSource.product_name_snapshot ?? manualSource.products?.name ?? '',
+            qty: sourceQty,
+            remainingAmount,
+            remainingQty,
+            supplierId: manualSource.supplier_id,
+            supplierName: manualSource.supplier_name_snapshot ?? manualSource.suppliers?.name ?? null,
+            type: 'MANUAL',
+            unitCost,
+          })
+          tradingMatchedCogsByLineIndex.set(index, matchedCogs)
+          continue
+        }
+        const sourceBill = sourceBillByDocNo.get(source.docNo)
+        if (!sourceBill) {
+          return NextResponse.json({ code: 'BAD_REQUEST', error: `ไม่พบ Trading PB/Cost Source ${source.docNo}` }, { status: 400 })
+        }
+        const sourceLine = sourceBill.purchase_bill_items.find((line) => line.line_no === source.lineNo)
+        if (!sourceLine) {
+          return NextResponse.json({ code: 'BAD_REQUEST', error: `ไม่พบรายการต้นทุน ${source.docNo}:${source.lineNo}` }, { status: 400 })
+        }
+        const productId = parsedProductIds[index]
+        if (sourceLine.product_id != null && productId != null && sourceLine.product_id !== productId) {
+          return NextResponse.json({ code: 'BAD_REQUEST', error: `สินค้ารายการที่ ${index + 1} ไม่ตรงกับต้นทุนที่เลือก` }, { status: 400 })
+        }
+        const sourceKeyById = `${sourceBill.id.toString()}:${source.lineNo}`
+        const sourceKeyByDoc = `${sourceBill.doc_no}:${source.lineNo}`
+        const matched = matchedBySource.get(sourceKeyById) ?? matchedBySource.get(sourceKeyByDoc) ?? { amount: 0, qty: 0 }
+        const sourceQty = toNumber(sourceLine.qty)
+        const sourceAmount = toNumber(sourceLine.amount)
+        if (sourceQty <= 0.0001 || sourceAmount <= 0.01) {
+          return NextResponse.json({ code: 'BAD_REQUEST', error: `ต้นทุน ${sourceBill.doc_no}:${source.lineNo} ไม่มีจำนวน/มูลค่าพร้อมใช้` }, { status: 400 })
+        }
+        const remainingQty = Math.max(0, sourceQty - matched.qty)
+        const remainingAmount = Math.max(0, sourceAmount - matched.amount)
+        const alreadyRequestedQty = requestedQtyBySource.get(sourceKeyByDoc) ?? 0
+        const requestedQty = values.items[index]?.qty ?? 0
+        if (alreadyRequestedQty + requestedQty > remainingQty + 0.0001) {
+          return NextResponse.json({ code: 'BAD_REQUEST', error: `จำนวนรายการที่ ${index + 1} เกินต้นทุนคงเหลือของ ${sourceBill.doc_no}:${source.lineNo}` }, { status: 400 })
+        }
+        const unitCost = sourceAmount / sourceQty
+        const alreadyRequestedCost = requestedCostBySource.get(sourceKeyByDoc) ?? 0
+        const matchedCogs = Math.min(Math.max(0, remainingAmount - alreadyRequestedCost), requestedQty * unitCost)
+        requestedQtyBySource.set(sourceKeyByDoc, alreadyRequestedQty + requestedQty)
+        requestedCostBySource.set(sourceKeyByDoc, alreadyRequestedCost + matchedCogs)
+        tradingCostSourceByLineIndex.set(index, {
+          amount: sourceAmount,
+          billId: sourceBill.id,
+          costSourceId: null,
+          docNo: sourceBill.doc_no,
+          lineNo: source.lineNo,
+          productCode: sourceLine.product_code ?? '',
+          productId: sourceLine.product_id,
+          productName: sourceLine.product_name ?? '',
+          qty: sourceQty,
+          remainingAmount,
+          remainingQty,
+          supplierId: sourceBill.supplier_id,
+          supplierName: sourceBill.suppliers?.name ?? sourceBill.supplier_name_snapshot ?? null,
+          type: 'PB',
+          unitCost,
+        })
+        tradingMatchedCogsByLineIndex.set(index, matchedCogs)
+      }
+    }
+    const totalCost = values.transactionMode === 'TRADING'
+      ? Array.from(tradingMatchedCogsByLineIndex.values()).reduce((sum, amount) => sum + amount, 0)
+      : 0
     const selectedHeaderPoSell = poSells.length === 1 ? poSells[0] : null
 
     const created = await prisma.$transaction(async (tx) => {
@@ -1059,9 +1402,9 @@ export async function POST(request: Request) {
           vat_invoice_issued: values.vatInvoiceIssued,
           vat_invoice_no: values.vatInvoiceNo,
           vat_type: values.vatType,
-          warehouse_id: warehouse?.id ?? null,
-          from_p_sale_no: sourceStockIssue?.doc_no ?? null,
-          from_p_sale_id: sourceStockIssue?.id ?? null,
+          warehouse_id: values.transactionMode === 'STOCK' ? warehouse?.id ?? null : null,
+          from_p_sale_no: values.transactionMode === 'STOCK' ? sourceStockIssue?.doc_no ?? null : null,
+          from_p_sale_id: values.transactionMode === 'STOCK' ? sourceStockIssue?.id ?? null : null,
         },
         select: { doc_no: true, id: true },
       })
@@ -1081,6 +1424,44 @@ export async function POST(request: Request) {
           },
           where: { id: poSell.id },
         })
+      }
+
+      if (values.transactionMode === 'TRADING') {
+        const allocationRows = items.map((item, index) => {
+          const source = tradingCostSourceByLineIndex.get(index)
+          if (!source) return null
+          return {
+            allocation_method: 'RECORDED_LINE',
+            allocation_no: `TAF-${docNo}-${String(index + 1).padStart(3, '0')}`,
+            created_at: createdAt,
+            created_by: actor,
+            customer_id: customer.id,
+            customer_name_snapshot: customer.name,
+            date: normalizeDate(billDate),
+            matched_cogs: tradingMatchedCogsByLineIndex.get(index) ?? 0,
+            product_code_snapshot: source.productCode || item.productCode,
+            product_id: source.productId ?? parsedProductIds[index] ?? null,
+            product_name_snapshot: source.productName || item.productName,
+            purchase_bill_id: source.billId,
+            trading_cost_source_id: source.costSourceId,
+            qty: item.qty,
+            sales_amount: item.amount,
+            sales_bill_id: createdBill.id,
+            sales_doc_no: docNo,
+            sales_line_no: index + 1,
+            source_doc_no: source.docNo,
+            source_line_no: source.lineNo,
+            source_type: source.type === 'MANUAL' ? 'TRADING_COST_SOURCE' : 'TRADING_PURCHASE_BILL',
+            status: 'active',
+            supplier_id: source.supplierId,
+            supplier_name_snapshot: source.supplierName,
+            updated_at: createdAt,
+            updated_by: actor,
+          }
+        }).filter((row): row is NonNullable<typeof row> => row != null)
+        if (allocationRows.length > 0) {
+          await tx.trading_allocation_facts.createMany({ data: allocationRows })
+        }
       }
 
       if (values.transactionMode === 'STOCK' && pendingStockIssue) {
@@ -1287,6 +1668,7 @@ export async function PATCH(request: Request) {
 
     const createdAt = new Date()
     const billItems = Array.isArray(bill.items) ? (bill.items as unknown[] as SalesItemSnapshot[]) : []
+    const isStockBill = String(bill.transaction_mode ?? 'STOCK') === 'STOCK'
     const poSellDocNos = [...new Set(billItems.map(item => item.poSellId).filter(Boolean) as string[])]
 
     const poSells = poSellDocNos.length
@@ -1346,109 +1728,121 @@ export async function PATCH(request: Request) {
         })
       }
 
-      // 3. Revert stock changes / stock issues depending on origin
-      if (bill.from_p_sale_id != null) {
-        await tx.stock_issues.update({
-          data: {
-            status: 'pending',
-            converted_to_bill_id: null,
-          },
-          where: { id: bill.from_p_sale_id },
-        })
-      } else {
-        // Delete stock_ledger entries
-        await tx.stock_ledger.deleteMany({
-          where: {
-            ref_type: 'SB',
-            ref_id: bill.doc_no,
-          },
-        })
+      await tx.trading_allocation_facts.updateMany({
+        data: {
+          notes: `Cancelled from Sales Bill ${bill.doc_no}: ${reason}`,
+          status: 'cancelled',
+          updated_at: createdAt,
+          updated_by: actor,
+        },
+        where: {
+          sales_bill_id: bill.id,
+          status: 'active',
+        },
+      })
 
-        // Restore consumed WTO holds
-        await tx.stock_holds.updateMany({
-          data: {
-            consumed_at: null,
-            consumed_by: null,
-            consumed_by_ref_no: null,
-            consumed_by_ref_type: null,
-            status: 'active',
-            updated_at: createdAt,
-            updated_by: actor,
-          },
-          where: {
-            consumed_by_ref_no: bill.doc_no,
-            consumed_by_ref_type: 'SB',
-            status: 'consumed',
-          },
-        })
+      if (isStockBill) {
+        // 3. Revert stock changes / stock issues depending on origin.
+        if (bill.from_p_sale_id != null) {
+          await tx.stock_issues.update({
+            data: {
+              status: 'pending',
+              converted_to_bill_id: null,
+            },
+            where: { id: bill.from_p_sale_id },
+          })
+        } else {
+          await tx.stock_ledger.deleteMany({
+            where: {
+              ref_type: 'SB',
+              ref_id: bill.doc_no,
+            },
+          })
 
-        // Revert Weight Tickets status & release usage logs
-        const usageLogs = await tx.weight_ticket_usage_logs.findMany({
-          where: {
-            target_id: bill.id,
-            target_type: 'SALES_BILL',
-            action: WEIGHT_TICKET_USAGE_ACTION.ALLOCATED_TO_SALES_BILL,
-          },
-        })
+          await tx.stock_holds.updateMany({
+            data: {
+              consumed_at: null,
+              consumed_by: null,
+              consumed_by_ref_no: null,
+              consumed_by_ref_type: null,
+              status: 'active',
+              updated_at: createdAt,
+              updated_by: actor,
+            },
+            where: {
+              consumed_by_ref_no: bill.doc_no,
+              consumed_by_ref_type: 'SB',
+              status: 'consumed',
+            },
+          })
 
-        if (usageLogs.length > 0) {
-          const revertUsageLogs = usageLogs.map((log) => ({
-            action: WEIGHT_TICKET_USAGE_ACTION.RELEASED_FROM_SALES_BILL,
-            actor,
-            allocatedDeductWeight: toNumber(log.allocated_deduct_weight),
-            allocatedGrossWeight: toNumber(log.allocated_gross_weight),
-            allocatedNetWeight: toNumber(log.allocated_net_weight),
-            allocatedQty: toNumber(log.allocated_qty),
-            meta: { reason: 'sales_bill_cancel' },
-            productCodeSnapshot: log.product_code_snapshot,
-            productId: log.product_id,
-            productNameSnapshot: log.product_name_snapshot,
-            targetDocNo: bill.doc_no,
-            targetId: bill.id,
-            targetType: 'SALES_BILL' as const,
-            weightTicketId: log.weight_ticket_id,
-            weightTicketProductSummaryId: log.weight_ticket_product_summary_id!,
-          }))
-          await appendWeightTicketUsageLogs(tx, revertUsageLogs)
+          const usageLogs = await tx.weight_ticket_usage_logs.findMany({
+            where: {
+              target_id: bill.id,
+              target_type: 'SALES_BILL',
+              action: WEIGHT_TICKET_USAGE_ACTION.ALLOCATED_TO_SALES_BILL,
+            },
+          })
 
-          for (const log of usageLogs) {
-            await tx.weight_ticket_product_summaries.update({
-              data: {
-                billed_weight: { decrement: toNumber(log.allocated_qty) },
-                remaining_weight: { increment: toNumber(log.allocated_qty) },
-                updated_at: createdAt,
-              },
-              where: { id: log.weight_ticket_product_summary_id! },
-            })
-          }
+          if (usageLogs.length > 0) {
+            const revertUsageLogs = usageLogs.map((log) => ({
+              action: WEIGHT_TICKET_USAGE_ACTION.RELEASED_FROM_SALES_BILL,
+              actor,
+              allocatedDeductWeight: toNumber(log.allocated_deduct_weight),
+              allocatedGrossWeight: toNumber(log.allocated_gross_weight),
+              allocatedNetWeight: toNumber(log.allocated_net_weight),
+              allocatedQty: toNumber(log.allocated_qty),
+              meta: { reason: 'sales_bill_cancel' },
+              productCodeSnapshot: log.product_code_snapshot,
+              productId: log.product_id,
+              productNameSnapshot: log.product_name_snapshot,
+              targetDocNo: bill.doc_no,
+              targetId: bill.id,
+              targetType: 'SALES_BILL' as const,
+              weightTicketId: log.weight_ticket_id,
+              weightTicketProductSummaryId: log.weight_ticket_product_summary_id!,
+            }))
+            await appendWeightTicketUsageLogs(tx, revertUsageLogs)
 
-          const uniqueTicketIds = [...new Set(usageLogs.map((log) => log.weight_ticket_id))]
-          for (const ticketId of uniqueTicketIds) {
-            const ticket = await tx.weight_tickets.findUnique({
-              select: { status: true },
-              where: { id: ticketId },
-            })
-            if (ticket) {
-              await tx.weight_tickets.update({
+            for (const log of usageLogs) {
+              await tx.weight_ticket_product_summaries.update({
                 data: {
-                  status: 'delivered',
+                  billed_weight: { decrement: toNumber(log.allocated_qty) },
+                  remaining_weight: { increment: toNumber(log.allocated_qty) },
                   updated_at: createdAt,
-                  updated_by: actor,
                 },
+                where: { id: log.weight_ticket_product_summary_id! },
+              })
+            }
+
+            const uniqueTicketIds = [...new Set(usageLogs.map((log) => log.weight_ticket_id))]
+            for (const ticketId of uniqueTicketIds) {
+              const ticket = await tx.weight_tickets.findUnique({
+                select: { status: true },
                 where: { id: ticketId },
               })
-              await appendWeightTicketStatusLog(tx, {
-                action: WEIGHT_TICKET_STATUS_ACTION.USAGE_STATUS_CHANGED,
-                actor,
-                createdAt,
-                fromStatus: ticket.status,
-                meta: {
-                  reason: 'sales_bill_cancel',
-                  salesBillDocNo: bill.doc_no,
-                },
-                toStatus: 'delivered',
-                weightTicketId: ticketId,
-              })
+              if (ticket) {
+                await tx.weight_tickets.update({
+                  data: {
+                    status: 'delivered',
+                    updated_at: createdAt,
+                    updated_by: actor,
+                  },
+                  where: { id: ticketId },
+                })
+                await appendWeightTicketStatusLog(tx, {
+                  action: WEIGHT_TICKET_STATUS_ACTION.USAGE_STATUS_CHANGED,
+                  actor,
+                  createdAt,
+                  fromStatus: ticket.status,
+                  meta: {
+                    reason: 'sales_bill_cancel',
+                    salesBillDocNo: bill.doc_no,
+                  },
+                  toStatus: 'delivered',
+                  weightTicketId: ticketId,
+                })
+              }
             }
           }
         }

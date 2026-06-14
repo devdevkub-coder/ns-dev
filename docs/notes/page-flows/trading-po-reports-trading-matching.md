@@ -5,7 +5,7 @@ tags:
   - menu
   - trading
 status: accepted-baseline
-updated: 2026-06-11
+updated: 2026-06-13
 route: /trading/matching
 ---
 
@@ -30,26 +30,37 @@ route: /trading/matching
 - [[Document History Table Design]]
 - [[Menu Page Flow Catalog]]
 
-## Legacy Baseline
+## Updated Requirement Baseline
 
-Legacy `view-tradingMatching`:
+Update 2026-06-13: Trading Matching is not a standalone matching workbench anymore. The user must choose the Trading purchase/cost source while creating the Trading Sales Bill. This page is the allocation and margin read surface after that enforced match exists.
 
-- หน้าเดียวมีทั้ง list, dashboard, match modal, reverse match, pull cloud, recalc cost, cleanup duplicate
-- Trading purchases/sales มาจาก PB/SB ที่ `transactionMode === 'TRADING'` และไม่ cancelled
-- ใช้ยอดก่อน VAT (`subtotal` fallback `totalAmount`) ในการจับคู่และคำนวณ remaining
-- Deal statuses หลัก: `Completed`, `Partially Matched`, `Cancelled`
-- Duplicate protection ใน legacy ตรวจคู่ `(purchaseBillId, salesBillId)` ที่ยังไม่ cancelled
-- Reverse match ใช้วิธี mark `status = Cancelled` และ verify cloud ไม่ใช่ hard-delete
-- Recalc cost ใน legacy มี fallback จาก source link หรือ PB total x qty ratio แต่ใน target ควรย้ายเป็น audited service/admin action
+Source flow:
+
+- Buy side: `PO Buy` / Trading purchase bill / cost source.
+- Sell side: `PO Sell` -> Pending Sale -> Trading Sales Bill.
+- User decision point: choose which cost lot/source is applied to which Trading sales bill before the sales bill reaches this page.
+- System dimensions produced from that decision: allocation, expected GP, remaining quantity/cost, and exposure tracking.
+- Downstream views: Allocation Ledger, Deal Margin, Waiting Allocation.
+- Important business rule: a wrong Trading match makes margin wrong across the downstream system.
+
+Legacy actions that must not be shown on this page:
+
+- `ตรวจ Dup`
+- `Pull จาก Cloud`
+- `Recalc Cost`
+- `+ จับคู่ใหม่`
+- row-level `Reverse`
+
+Reverse/correction must happen through the source Purchase Bill / Sales Bill correction flow, not from this report page.
 
 ## Page Responsibilities
 
-- แสดง Trading PB ที่ยังมี remaining cost ให้จับคู่
-- แสดง Trading SB ที่ยังมี remaining sales ให้จับคู่
-- แสดง Trading deal rows พร้อม GP, GP%, status, supplier/customer/product
-- แสดง summary: active deals, gross profit, purchase/sales total, purchase/sales remaining
-- Export deal rows เป็น `.xlsx`
-- Target future: เป็น entry point สำหรับสร้าง/reverse Trading match แบบ audited
+- แสดง allocation rows ที่เกิดจาก Trading Sales Bill ซึ่งผูกกับ Trading cost source แล้ว
+- ใช้ Sales Bill เป็น primary business reference; ไม่ใช้ `Deal No` เป็นคอลัมน์หลัก เพราะขั้นตอน match อ้างอิงบิลขาย
+- แสดง Cost, Sales Amount, Expected GP, และ GP% (`GP / Sale Amount`)
+- แสดง Trading purchase/cost source ที่ยังมี remaining cost ให้ตรวจต่อ
+- แสดงทางไป Allocation Ledger, Deal Margin, และ Waiting Allocation
+- Export allocation rows เป็น `.xlsx`
 
 ## Non-Responsibilities
 
@@ -57,7 +68,8 @@ Legacy `view-tradingMatching`:
 - ไม่สร้าง bank statement, receipt, payment, PMA/PMT
 - ไม่เปลี่ยน AP/AR/payment status ของ PB/SB
 - ไม่ cleanup duplicate แบบ silent ใน read API
-- ไม่รับผิดชอบ cost pool / dual costing allocation ของทองแดง/ทองเหลือง
+- ไม่เลือก allocation ใหม่จากหน้านี้
+- ไม่ reverse allocation จากหน้านี้
 
 ## Current API
 
@@ -69,8 +81,8 @@ Query:
 
 | Query | Meaning |
 |---|---|
-| `q` | ค้นหา deal no, PB no, SB no, supplier, customer, product, status |
-| `status` | filter deal status; `all` หรือไม่ส่ง = ทุกสถานะ |
+| `q` | ค้นหา PB no, SB no, supplier, customer, product |
+| `status` | legacy-compatible query; current UI does not expose status filter |
 | `from` | วันที่เริ่มต้น |
 | `to` | วันที่สิ้นสุด |
 | `format=xlsx` | export deal rows เป็น workbook |
@@ -79,89 +91,81 @@ Source tables:
 
 - `purchase_bills` where `transaction_mode = 'TRADING'` and not `cancelled`
 - `sales_bills` where `transaction_mode = 'TRADING'` and not `cancelled`
-- `trading_deals`
+- `trading_allocation_facts` where `status = active`
 
 Response:
 
 | Field | Meaning |
 |---|---|
-| `purchases` | PB Trading rows with `totalAmount`, `matchedAmount`, `remainingAmount`, `supplierName` |
-| `sales` | SB Trading rows with `totalAmount`, `matchedAmount`, `remainingAmount`, `customerName` |
-| `deals` | deal rows with visible `dealNo`, composite `id`, PB/SB refs, matched amounts, GP, GP%, status |
-| `summary` | activeDeals, grossProfit, purchase/sales total and remaining |
-| `filters.statuses` | distinct deal status list |
+| `purchases` | Trading purchase/cost source rows with `totalAmount`, `matchedAmount`, `remainingAmount`, `supplierName` |
+| `sales` | Trading sales rows retained for API compatibility; current UI does not render a separate unmatched sales pane |
+| `deals` | allocation rows with composite `id`, PB/SB refs, matched amounts, GP, GP%, and source snapshots |
+| `summary` | active allocation count, gross profit, purchase/sales total and remaining |
+| `filters.statuses` | legacy-compatible status list; current UI does not render status |
 
 Export:
 
 - `format=xlsx` returns `trading_matching.xlsx`
-- Export rows use the same filtered deal rows as JSON response
+- Export rows use the same filtered allocation rows as JSON response
+- Export columns intentionally omit `DealNo` and `Status`; Sales Bill is the primary reference
 
 ## Calculation Rules
 
-- Purchase remaining = PB ex-VAT total - active matched purchase amount.
-- Sales remaining = SB ex-VAT total - active matched sales amount.
-- Active matched amount excludes deals with `Cancelled` / `cancelled`.
-- Deal GP = `matchedSalesAmount - matchedPurchaseAmount`.
-- Deal row `id` is a deterministic composite to avoid duplicate React keys while keeping visible `dealNo`.
+- Purchase/cost remaining = PB ex-VAT total - active fact `matched_cogs`.
+- Sales remaining = SB ex-VAT total - active fact `sales_amount`.
+- Active matched amount excludes facts with `cancelled` / `reversed`.
+- Expected GP = `matchedSalesAmount - matchedPurchaseAmount`.
+- GP% = `Expected GP / matchedSalesAmount`.
+- Deal row `id` is a deterministic composite to avoid duplicate React keys while the visible business reference is Sales Bill.
 - Summary GP excludes cancelled deals in `grossProfit`.
 
-## Target Write / Reverse Flow
+## Status Rules
 
-Current Next route handler is read/export only. Target implementation should add separate audited write endpoints instead of mixing writes into the report GET:
-
-| Target API | Purpose | Required rule |
-|---|---|---|
-| `POST /api/trading/matches` | Create/update match | PB/SB must be active Trading documents; matched amount > 0; amount must not exceed remaining; write timeline/audit |
-| `POST /api/trading/matches/{id}/reverse` | Reverse match | Mark cancelled/reversed with user/time/reason; do not hard-delete; recompute remaining from active deals |
-| Admin cleanup API | Duplicate cleanup | Admin-only, dry-run preview, keep latest approved rule, mark extras cancelled with audit |
-
-## Target Match Status Rules
-
-| Status | Rule |
-|---|---|
-| `Completed` | After save, both PB side and SB side are fully matched within tolerance |
-| `Partially Matched` | At least one side still has remaining amount |
-| `Cancelled` | Reversed match; excluded from active totals |
+- Current page must not show a status donut, match-rate card, completed card, partial card, or status column.
+- Normal rows that reach this page are already matched by the Trading Sales Bill flow and are treated as completed allocation facts for display.
+- Cancelled/reversed facts are excluded from visible allocation totals.
+- Corrections belong to the source Purchase Bill / Sales Bill flow and the audit ledger, not to inline reverse buttons on this page.
 
 ## Lifecycle / Read Flow
 
 | Step | User action | System result |
 |---|---|---|
-| 1 | เปิดหน้า | โหลด PB/SB Trading และ deal rows |
-| 2 | กรองวันที่/search/status | API filters purchases, sales, deals, and export consistently |
-| 3 | ตรวจ remaining | User sees source PB/SB that still need matching |
-| 4 | Export | Export current filtered deal rows only |
-| 5 | Future save/reverse | Must use write endpoint with audit/timeline, not GET side effect |
+| 1 | เปิดหน้า | โหลด allocation rows และ Trading purchase/cost source remaining |
+| 2 | กรองวันที่/search | UI filters allocation rows, purchase remaining, and export consistently |
+| 3 | ตรวจ margin | User sees Sales Amount, Cost, Expected GP, and GP% by Sales Bill |
+| 4 | ตรวจ remaining cost | User sees only buy-side/cost-source rows still not fully matched |
+| 5 | ไปหน้าต่อ | User opens Allocation Ledger, Deal Margin, or Waiting Allocation for audit/margin/pending views |
+| 6 | Export | Export current filtered allocation rows only |
 
 ## Validation Rules
 
 - PB/SB ต้องเป็น `transaction_mode = TRADING`
-- PB/SB ที่ cancelled ห้ามจับคู่ใหม่
-- Match amount ต้องไม่เกิน remaining active amount ของแต่ละฝั่ง
-- Duplicate active `(purchase_bill_id, sales_bill_id)` ต้องถูกป้องกันหรือ update ตาม rule ที่กำหนด
-- Reverse ต้องไม่แก้ source bill totals และไม่ hard-delete match fact
-- Write API ต้องบันทึก created/updated/cancelled metadata และ reason
+- PB/SB ที่ cancelled ต้องไม่ถูกนำเข้า active allocation totals
+- Match amount จาก source flow ต้องไม่เกิน remaining active amount ของแต่ละฝั่ง
+- Duplicate active `(purchase_bill_id, sales_bill_id)` ต้องถูกป้องกันหรือ update ตาม rule ที่กำหนดใน source write flow
+- Reverse/correction ต้องไม่ hard-delete match fact และต้องถูก audit ผ่าน source bill/ledger flow
 
 ## Side Effects
 
 - Current API: read-only/export only
-- Target write API: เขียนเฉพาะ `trading_deals` และ timeline/audit ของ Trading match
+- Source Sales Bill/Purchase Bill correction flow owns match write/reverse behavior
 - ห้ามเขียน stock ledger, bank statement, payment/receipt, AP/AR settlement
 
 ## Current Gap
 
-- Next ยังไม่มี durable create/update/reverse match endpoint ใน API ที่ตรวจรอบนี้
-- Current UI/API ยังเป็น report baseline; legacy write actions เป็น reference เท่านั้น
-- ยังต้องกำหนด uniqueness ของ match ว่าหนึ่ง PB+SB update deal เดิมหรือรองรับหลาย allocation rows ได้อย่างไร
-- ยังไม่มี row drilldown ไป PB/SB detail
-- Recalc cost/cleanup duplicate ควรถูกย้ายเป็น admin/audited flow ก่อนเปิดใช้จริง
+- Current API reads `trading_allocation_facts` as the normalized read model, with current legacy/current `trading_deals` backfilled by migration.
+- Trading SB create now writes allocation facts directly for row-level Trading PB cost sources, and Trading SB cancel marks active facts cancelled.
+- Source edit/correction flow still needs to update/cancel/recreate allocation facts without hard delete, and first-class non-PB Cost Pool sources still need a normalized source model.
+- Current UI has no source Sales Bill/Purchase Bill edit drilldown.
+- Need to define durable uniqueness when one Sales Bill can allocate against multiple cost sources.
+- Need to reconcile whether Trading uses current `purchase_bills` source only or also a normalized Cost Pool source in the future data model.
 
 ## Implementation Checklist
 
 - [x] Verify current GET/export API response shape
-- [x] Record legacy matching/write/reverse behavior as baseline, not current implementation
+- [x] Record updated requirement: match enforced before this page via Trading Sales Bill flow
+- [x] Remove legacy write/recalc/reverse controls from visible page requirements
 - [x] Mark stock/bank/AP/AR side-effect boundaries
-- [ ] Design durable `POST` match API and reverse API
-- [ ] Add source row links to PB/SB/deal detail
-- [ ] Define duplicate/partial allocation model
-- [ ] Add timeline/history rows for match create/update/reverse
+- [ ] Add source row links to PB/SB detail
+- [x] Define and use normalized allocation fact read model for Trading PB-backed SB allocations
+- [ ] Define duplicate/multi-source allocation model
