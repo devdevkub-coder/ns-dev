@@ -54,7 +54,7 @@ Latest user screenshot changes the main Product Tracking target into a profitabi
 - Latest screenshot marks `Stock` and `WAC` with a red cross on the far-right table columns. Treat crossed-out parts as removed from the primary visible table and primary export, not merely deprioritized.
 - Target main table columns: `Code`, `สินค้า`, `หมวด`, `ซื้อ`, `มูลค่าซื้อ`, `ซื้อเฉลี่ย`, `ขาย`, `ยอดขาย`, `ขายเฉลี่ย`, `COGS`, `GP`, `GP%`.
 - Target filters: year, month, product category, product, Supplier ฝั่งซื้อ, Customer ฝั่งขาย, and export with the same filter.
-- Target detail: product -> purchase lines, sales lines, monthly detail, allocation/cost source facts, production/yield/loss signals, and source document links. Stock/WAC may be reached through stock/balance or a clearly separated support drilldown if later approved, but not shown in the main profitability table from this screenshot.
+- Target detail: product -> purchase lines, sales lines, monthly detail, allocation/cost source facts, production/yield/loss signals, and PB/SB source document links. Stock/WAC may be reached through stock/balance or a clearly separated support drilldown if later approved, but not shown in the main profitability table from this screenshot.
 
 ## Page Responsibilities
 
@@ -193,7 +193,8 @@ Target detail payload fields:
 - API/UI now supports `supplierId` and `customerId` filters for buy-side/sell-side context in the aggregate Product Tracking view/export.
 - Crossed-out `Stock` and `WAC` have been removed from the primary Product Tracking table/export.
 - Stock availability/hold-aware `พร้อมใช้` is not represented here.
-- Item JSON normalization/source links still need reconciliation before relying on per-line product matching for all legacy rows.
+- Item JSON normalization still needs reconciliation before relying on per-line product matching for all legacy rows.
+- PB/SB source links are available from purchase/sales lines; allocation/production links remain pending until owner route contracts are confirmed.
 - Product Tracking remains revenue-first sorted by design; other sort modes should be explicit UI/API options if added.
 
 ## Implementation Tasks

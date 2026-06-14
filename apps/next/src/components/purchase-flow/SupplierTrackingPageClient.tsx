@@ -52,6 +52,8 @@ type SupplierTrackingDetail = {
   weightTickets: Array<{ billedWeight: number; date: string; deductWeight: number; docNo: string; grossWeight: number; netWeight: number; remainingWeight: number; status: string }>
 }
 
+type DetailCell = string | { href: string; label: string }
+
 const monthLabels = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
 const months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
 
@@ -398,7 +400,7 @@ function SupplierDetailDialog({ detail, isLoading, onOpenChange }: { detail: Sup
               <DetailSection title="Purchase Bill">
                 <SimpleTable
                   headers={['วันที่', 'เอกสาร', 'น้ำหนัก', 'ยอดซื้อ', 'ราคาเฉลี่ย', 'จ่ายแล้ว', 'ค้างจ่าย', 'สถานะ']}
-                  rows={detail.bills.map((row) => [formatDateDisplay(row.date), row.docNo, formatMoney(row.qty), formatMoney(row.amount), formatMoney(row.avgBuy), formatMoney(row.paidAmount), formatMoney(row.payable), row.status])}
+                  rows={detail.bills.map((row) => [formatDateDisplay(row.date), { href: row.href, label: row.docNo }, formatMoney(row.qty), formatMoney(row.amount), formatMoney(row.avgBuy), formatMoney(row.paidAmount), formatMoney(row.payable), row.status])}
                 />
               </DetailSection>
               <DetailSection title="Payment">
@@ -443,14 +445,22 @@ function DetailSection({ children, title }: { children: ReactNode; title: string
   return <section className="rounded-md border border-slate-200 bg-white"><div className="border-b bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700">{title}</div>{children}</section>
 }
 
-function SimpleTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
+function SimpleTable({ headers, rows }: { headers: string[]; rows: DetailCell[][] }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[760px] text-sm">
         <thead className="bg-slate-100"><tr>{headers.map((header) => <th key={header} className="p-2 text-left">{header}</th>)}</tr></thead>
         <tbody>
           {rows.length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={headers.length}>ไม่มีข้อมูล</td></tr> : null}
-          {rows.map((row, index) => <tr key={index} className="border-t">{row.map((cell, cellIndex) => <td key={`${index}-${headers[cellIndex]}`} className={cellIndex === 0 || cellIndex === 1 || cellIndex === headers.length - 1 ? 'p-2' : 'p-2 text-right'}>{cell}</td>)}</tr>)}
+          {rows.map((row, index) => (
+            <tr key={index} className="border-t">
+              {row.map((cell, cellIndex) => (
+                <td key={`${index}-${headers[cellIndex]}`} className={cellIndex === 0 || cellIndex === 1 || cellIndex === headers.length - 1 ? 'p-2' : 'p-2 text-right'}>
+                  {typeof cell === 'string' ? cell : <a className="font-mono font-semibold text-blue-700 underline-offset-2 hover:underline" href={cell.href}>{cell.label}</a>}
+                </td>
+              ))}
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>

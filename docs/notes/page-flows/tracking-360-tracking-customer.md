@@ -50,7 +50,7 @@ Latest user screenshot changes the target from a simple customer sales summary i
 - Decision questions: ลูกค้าคนไหนซื้อเยอะ, margin ดีไหม, จ่ายช้าไหม, มี void/cancel เอกสารผิดปกติไหมใน source flow
 - Business actions supported: เพิ่มเครดิต, ลดเครดิต, ต้นยอดขาย, blacklist
 - Local vs legacy finding: legacy row click opens customer detail with sales list, receipt list, product breakdown, and monthly breakdown. Current Next now supports row-click detail for SB/RCP/product/monthly breakdown via `detailId`; pending AR, credit utilization, and margin decision signals are wired from current source facts.
-- Target UI direction: list remains high-density, but each customer row/card opens a detail modal with SB/RCP/source links, product breakdown, channel breakdown, monthly movement, pending AR/receivable exposure, and credit/margin decision signals. Return count/value is removed by requirement; use void/cancel documents instead.
+- Target UI direction: list remains high-density, but each customer row/card opens a detail modal with SB/RCP movement, SB source links, product breakdown, channel breakdown, monthly movement, pending AR/receivable exposure, and credit/margin decision signals. Return count/value is removed by requirement; use void/cancel documents instead.
 
 ## Page Responsibilities
 
@@ -111,7 +111,7 @@ Row fields:
 Target detail payload fields:
 
 - `sales`: SB doc no/date/channel/qty/revenue/COGS/GP/received/receivable/source link
-- `receipts`: RCP doc no/date/account/amount/source link
+- `receipts`: RCP doc no/date/account/amount/status; source link waits for receipt owner route contract
 - `products`: product code/name/qty/revenue/COGS/GP/GP%
 - `channels`: channel name, bill count, qty, revenue, COGS, GP, GP%
 - `monthly`: bill count/qty/revenue/GP/received/receivable by month
@@ -178,6 +178,8 @@ Target detail payload fields:
 - [x] Add structured decision signals: low margin, negative margin, pending AR, and credit utilization.
 - [x] Remove return frequency from Customer Tracking; use void/cancel Sales documents.
 - [ ] Keep `year/month/customerId/q` filter and `format=xlsx` export aligned with the JSON result.
+- [x] Render SB source links in the detail table; `/sales/bills/[id]` is available as a read-only owner page.
+- [ ] Add RCP source links after `/sales/receipts` detail/deep-link contract is confirmed.
 
 ### UI
 

@@ -50,7 +50,7 @@ Latest user screenshot changes the target from purchase/payable summary into a s
 - Decision questions: supplier ไหนต้นทุนดี, ส่งครบไหม, quality ดีไหม, จ่ายดีไหม
 - Business importance: ธุรกิจ scrap ต้องเห็น supplier quality เพราะ supplier แต่ละรายไม่เท่ากัน
 - Local vs legacy finding: legacy row click opens supplier detail with PB list, payment list, product breakdown, and monthly breakdown. Current Next now has server-backed `supplierId`/`q` filters and row-click detail for PB/payment/product/monthly mix via `detailId`; WTI delivery, deduction, Grade Adjust, and payment reliability signals are wired from current source facts.
-- Target UI direction: each supplier row/card opens a detail modal with PB/PMT, WTI delivery facts, Grade Adjust signals, product mix, monthly trend, and reliability/quality signals. Return remains pending until a purchase return source table/owner is confirmed.
+- Target UI direction: each supplier row/card opens a detail modal with PB source links, PMT movement, WTI delivery facts, Grade Adjust signals, product mix, monthly trend, and reliability/quality signals. Return is held until a purchase return source table/owner is confirmed.
 
 ## Page Responsibilities
 
@@ -117,7 +117,7 @@ Row fields:
 Target detail payload fields:
 
 - `bills`: PB doc no/date/product qty/amount/avg buy/paid/payable/status/source link
-- `payments`: PMT/PMA doc no/date/account/amount/status/source link
+- `payments`: PMT/PMA doc no/date/account/amount/status; source link waits for payment owner route contract
 - `products`: product code/name/qty/purchase amount/avg buy/bill count
 - `monthly`: bill count/payment count/qty/purchase amount/paid/payable by month
 - `qualitySignals`: WTI delivery completeness, WTI deduction rate, Grade Adjust count, payment reliability, Return source status
@@ -168,7 +168,7 @@ Target detail payload fields:
 - Product mix follows the active supplier/filter and is also available inside supplier detail.
 - Supplier detail monthly purchase/payment trend is available for the selected year.
 - WTI delivery completeness, WTI deduction rate, Grade Adjust count, and payment reliability are wired into the API/UI.
-- Return frequency is not wired because the current schema has no confirmed purchase return source table.
+- Return frequency is intentionally held because the current schema has no confirmed purchase return source table/owner contract.
 - AP aging/payment-cycle locks remain outside this page.
 
 ## Implementation Tasks
@@ -182,7 +182,7 @@ Target detail payload fields:
 - [x] Return product mix scoped by selected supplier when supplier filter/detail is active.
 - [x] Add monthly purchase/payment trend scoped to supplier detail.
 - [x] Add quality/reliability signal fields from confirmed source facts: WTI delivery completeness, WTI deduction, Grade Adjust count, and payment reliability.
-- [ ] Add Return frequency once source ownership/schema exists.
+- [ ] HOLD: Add Return frequency once source ownership/schema exists.
 - [ ] Keep AP aging out until [[Finance AP Page Flow]] due-date rules are reconciled.
 
 ### UI
@@ -194,7 +194,8 @@ Target detail payload fields:
 - [x] Add detail sections for WTI, Grade Adjust, payment reliability, and quality signals.
 - [x] Add monthly trend.
 - [ ] Keep product breakdown visible but scoped to the active supplier/filter.
-- [ ] Keep all interactions read-only; source document links navigate to owner pages only.
+- [x] Keep PB source document links read-only and navigate to the purchase bill owner page.
+- [ ] Add PMT/WTI/Grade Adjust source links after owner route contracts are confirmed.
 
 ## Implementation Checklist
 

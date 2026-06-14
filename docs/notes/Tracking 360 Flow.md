@@ -135,7 +135,8 @@ Local route smoke:
 - [x] Add monthly movement and receivable/pending AR signal.
 - [x] Remove Customer Return as a separate signal; void/cancel Sales documents are the correction mechanism.
 - [ ] Keep `year`, `month`, `customerId`, and `q` filters consistent for summary, rows, detail, and export.
-- [ ] Add source-link fields using business doc numbers for SB/RCP.
+- [x] Add source-link fields using business doc numbers for SB.
+- [ ] Add source-link fields using business doc numbers for RCP.
 
 ### Batch T360-3: Customer Tracking UI
 
@@ -145,7 +146,8 @@ Local route smoke:
 - [x] Add mobile cards and keyboard-open mobile card controls.
 - [x] Add monthly movement and decision signals.
 - [x] Add channel breakdown from Sales Bill channel facts.
-- [ ] Keep actions read-only; source document links navigate to owner pages when available.
+- [x] Keep actions read-only; SB source document links navigate to owner pages when available.
+- [ ] Add RCP source document links after the receipt owner route contract is confirmed.
 
 ### Batch T360-4: Supplier Tracking API
 
@@ -153,7 +155,7 @@ Local route smoke:
 - [x] Add supplier detail payload: PB lines, payment lines, and product mix.
 - [x] Add monthly purchase/payment trend.
 - [x] Add reliability/quality signal fields from owned source facts: WTI completeness/deduction, Grade Adjust count, and Payment reliability.
-- [ ] Add Return signal after purchase return source ownership/schema is confirmed.
+- [ ] HOLD: Add Return signal after purchase return source ownership/schema is confirmed.
 - [x] Ensure product mix can be scoped to the selected supplier, not only global period.
 
 ### Batch T360-5: Supplier Tracking UI
@@ -163,7 +165,7 @@ Local route smoke:
 - [x] Add detail sections for PB list, payment list, and product mix.
 - [x] Add quality/reliability signals for WTI, Grade Adjust, and Payment reliability.
 - [x] Add monthly trend.
-- [ ] Add Return signal after source contract is confirmed.
+- [ ] HOLD: Add Return signal after source contract is confirmed.
 - [ ] Apply `docs/design.md` dense card/mobile table behavior and avoid nested card surfaces.
 
 ### Batch T360-6: Product Tracking API
@@ -182,7 +184,7 @@ Local route smoke:
 - [x] Add Supplier ฝั่งซื้อ and Customer ฝั่งขาย filters in the filter shell.
 - [x] Make product desktop rows and dense mobile cards clickable to open detail.
 - [x] Add detail sections for purchase lines and sales lines.
-- [x] Add allocation, production/yield/loss, monthly detail, and source links.
+- [x] Add allocation, production/yield/loss, monthly detail, and PB/SB source links.
 
 ### Batch T360-8: Design And QA
 
