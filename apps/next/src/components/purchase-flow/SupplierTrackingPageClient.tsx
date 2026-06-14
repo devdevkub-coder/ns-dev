@@ -37,6 +37,7 @@ type SupplierTrackingPayload = {
 type SupplierTrackingDetail = {
   bills: Array<{ amount: number; avgBuy: number; date: string; docNo: string; href: string; paidAmount: number; payable: number; qty: number; status: string }>
   gradeAdjustments: Array<{ date: string; docNo: string; qtyDiff: number; reason: string; status: string; valueDiff: number }>
+  monthly: Array<{ billCount: number; month: string; paidAmount: number; payable: number; paymentCount: number; purchaseAmount: number; qty: number }>
   payments: Array<{ amount: number; date: string; docNo: string; method: string; netAmount: number; status: string }>
   products: Array<{ amount: number; avgBuy: number; billCount: number; productName: string; qty: number }>
   qualitySignals: {
@@ -95,6 +96,7 @@ export function SupplierTrackingPageClient() {
     setDetail({
       bills: [],
       gradeAdjustments: [],
+      monthly: [],
       payments: [],
       products: [],
       qualitySignals: {
@@ -403,6 +405,12 @@ function SupplierDetailDialog({ detail, isLoading, onOpenChange }: { detail: Sup
                 <SimpleTable
                   headers={['วันที่', 'เอกสาร', 'วิธีจ่าย', 'ยอดจ่าย', 'สุทธิ', 'สถานะ']}
                   rows={detail.payments.map((row) => [formatDateDisplay(row.date), row.docNo, row.method, formatMoney(row.amount), formatMoney(row.netAmount), row.status])}
+                />
+              </DetailSection>
+              <DetailSection title="Monthly Purchase / Payment Trend">
+                <SimpleTable
+                  headers={['เดือน', 'บิล', 'จ่าย', 'น้ำหนัก', 'ยอดซื้อ', 'จ่ายแล้ว', 'ค้างจ่าย']}
+                  rows={detail.monthly.map((row, index) => [monthLabels[index] ?? row.month, String(row.billCount), String(row.paymentCount), formatMoney(row.qty), formatMoney(row.purchaseAmount), formatMoney(row.paidAmount), formatMoney(row.payable)])}
                 />
               </DetailSection>
               <DetailSection title="WTI / Delivery">

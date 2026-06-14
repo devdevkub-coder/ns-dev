@@ -221,6 +221,8 @@ export async function GET(request: Request) {
       const detailBills = bills.filter((bill) => bill.supplier_id === detailSupplier.id && inYearMonth(bill.date, year, month))
       const detailPayments = payments.filter((payment) => payment.supplier_id === detailSupplier.id && inYearMonth(payment.date, year, month))
       const detailTickets = weightTickets.filter((ticket) => ticket.supplier_id === detailSupplier.id && inYearMonth(ticket.document_date, year, month))
+      const detailYearBills = bills.filter((bill) => bill.supplier_id === detailSupplier.id && inYearMonth(bill.date, year, null))
+      const detailYearPayments = payments.filter((payment) => payment.supplier_id === detailSupplier.id && inYearMonth(payment.date, year, null))
       const detailProductMap = new Map<string, { amount: number; bills: Set<string>; productName: string; qty: number }>()
       const detailProductIds = new Set(detailTickets.flatMap((ticket) => ticket.weight_ticket_product_summaries.map((summary) => String(summary.product_id))))
       const detailGradeAdjustments = gradeAdjustments.filter((row) => [row.product_id, row.source_product_id, row.target_product_id].some((id) => id != null && detailProductIds.has(String(id)))).slice(0, 30)
@@ -266,6 +268,41 @@ export async function GET(request: Request) {
           netAmount: toNumber(payment.net_amount),
           status: payment.status ?? '-',
         })),
+        monthly: Array.from({ length: 12 }, (_, index) => {
+          const monthKey = String(index + 1).padStart(2, '0')
+          const monthBills = detailYearBills.filter((bill) => inYearMonth(bill.date, year, monthKey))
+          const monthPayments = detailYearPayments.filter((payment) => inYearMonth(payment.date, year, monthKey))
+          const paidAmount = monthPayments.reduce((sum, payment) => sum + toNumber(payment.amount), 0)
+          return monthBills.reduce<{
+            billCount: number
+            month: string
+            paidAmount: number
+            payable: number
+            paymentCount: number
+            purchaseAmount: number
+            qty: number
+          }>((sum, bill) => {
+            const item = itemTotals(purchaseBillItemRows(bill))
+            const amount = item.amount || toNumber(bill.subtotal) || toNumber(bill.total_amount)
+            return {
+              billCount: sum.billCount + 1,
+              month: monthKey,
+              paidAmount,
+              payable: sum.payable + toNumber(bill.payable_balance),
+              paymentCount: monthPayments.length,
+              purchaseAmount: sum.purchaseAmount + amount,
+              qty: sum.qty + item.qty,
+            }
+          }, {
+            billCount: 0,
+            month: monthKey,
+            paidAmount,
+            payable: 0,
+            paymentCount: monthPayments.length,
+            purchaseAmount: 0,
+            qty: 0,
+          })
+        }),
         qualitySignals: {
           deliveryCompletionPct: detailTicketTotals.netWeight > 0 ? (detailTicketTotals.billedWeight / detailTicketTotals.netWeight) * 100 : 0,
           deductionPct: detailTicketTotals.grossWeight > 0 ? (detailTicketTotals.deductWeight / detailTicketTotals.grossWeight) * 100 : 0,

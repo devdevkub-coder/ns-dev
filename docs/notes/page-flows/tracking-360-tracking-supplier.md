@@ -49,8 +49,8 @@ Latest user screenshot changes the target from purchase/payable summary into a s
 - Required data groups: Purchase Bill, WT/WTI, Grade Adjust, Payment, Return
 - Decision questions: supplier ไหนต้นทุนดี, ส่งครบไหม, quality ดีไหม, จ่ายดีไหม
 - Business importance: ธุรกิจ scrap ต้องเห็น supplier quality เพราะ supplier แต่ละรายไม่เท่ากัน
-- Local vs legacy finding: legacy row click opens supplier detail with PB list, payment list, product breakdown, and monthly breakdown. Current Next now has server-backed `supplierId`/`q` filters and row-click detail for PB/payment/product mix via `detailId`; WTI delivery, deduction, Grade Adjust, and payment reliability signals are wired from current source facts.
-- Target UI direction: each supplier row/card opens a detail modal with PB/PMT, WTI delivery facts, Grade Adjust signals, product mix, and reliability/quality signals. Return remains pending until a purchase return source table/owner is confirmed.
+- Local vs legacy finding: legacy row click opens supplier detail with PB list, payment list, product breakdown, and monthly breakdown. Current Next now has server-backed `supplierId`/`q` filters and row-click detail for PB/payment/product/monthly mix via `detailId`; WTI delivery, deduction, Grade Adjust, and payment reliability signals are wired from current source facts.
+- Target UI direction: each supplier row/card opens a detail modal with PB/PMT, WTI delivery facts, Grade Adjust signals, product mix, monthly trend, and reliability/quality signals. Return remains pending until a purchase return source table/owner is confirmed.
 
 ## Page Responsibilities
 
@@ -119,7 +119,7 @@ Target detail payload fields:
 - `bills`: PB doc no/date/product qty/amount/avg buy/paid/payable/status/source link
 - `payments`: PMT/PMA doc no/date/account/amount/status/source link
 - `products`: product code/name/qty/purchase amount/avg buy/bill count
-- `monthly`: bill count/qty/purchase amount/paid/payable by month
+- `monthly`: bill count/payment count/qty/purchase amount/paid/payable by month
 - `qualitySignals`: WTI delivery completeness, WTI deduction rate, Grade Adjust count, payment reliability, Return source status
 - `weightTickets`: WTI doc/date/net/billed/remaining/deduction/status rows
 - `gradeAdjustments`: adjustment doc/date/qty diff/value diff/reason/status rows
@@ -166,6 +166,7 @@ Target detail payload fields:
 - Supplier/search server-side filter is now implemented for aggregate rows, product mix, monthly, summary, and export.
 - API now returns supplier detail rows for PB/payment drilldown through `detailId`.
 - Product mix follows the active supplier/filter and is also available inside supplier detail.
+- Supplier detail monthly purchase/payment trend is available for the selected year.
 - WTI delivery completeness, WTI deduction rate, Grade Adjust count, and payment reliability are wired into the API/UI.
 - Return frequency is not wired because the current schema has no confirmed purchase return source table.
 - AP aging/payment-cycle locks remain outside this page.
@@ -179,6 +180,7 @@ Target detail payload fields:
 - [x] Return PB source rows with doc no, date, qty, purchase amount, avg buy, paid, payable, status, and source link.
 - [x] Return PMT/Payment rows with doc no, date, method, amount, status, and source facts.
 - [x] Return product mix scoped by selected supplier when supplier filter/detail is active.
+- [x] Add monthly purchase/payment trend scoped to supplier detail.
 - [x] Add quality/reliability signal fields from confirmed source facts: WTI delivery completeness, WTI deduction, Grade Adjust count, and payment reliability.
 - [ ] Add Return frequency once source ownership/schema exists.
 - [ ] Keep AP aging out until [[Finance AP Page Flow]] due-date rules are reconciled.
@@ -190,7 +192,7 @@ Target detail payload fields:
 - [x] Make desktop rows and mobile cards clickable to open supplier detail.
 - [x] Add detail modal/view sections: PB list, payment list, product mix.
 - [x] Add detail sections for WTI, Grade Adjust, payment reliability, and quality signals.
-- [ ] Add monthly trend.
+- [x] Add monthly trend.
 - [ ] Keep product breakdown visible but scoped to the active supplier/filter.
 - [ ] Keep all interactions read-only; source document links navigate to owner pages only.
 

@@ -43,7 +43,7 @@ User-provided screenshots clarify that Tracking 360 is a business decision surfa
 - Required source groups: Purchase Bill, WT/WTI, Grade Adjust, Payment, Return
 - Decision questions: supplier ไหนต้นทุนดี, ส่งครบไหม, quality ดีไหม, จ่ายดีไหม
 - Business importance: ธุรกิจ scrap ต้องเห็น supplier quality เพราะ supplier แต่ละรายไม่เท่ากัน
-- Target gap from local/legacy comparison: legacy has supplier row drilldown with PB/PMT/product/monthly detail; current Next now provides server-side supplier/search filters, PB/payment/product drilldown, WTI delivery/deduction signals, Grade Adjust count, and payment reliability through `detailId`; monthly detail and Return frequency remain pending.
+- Target gap from local/legacy comparison: legacy has supplier row drilldown with PB/PMT/product/monthly detail; current Next now provides server-side supplier/search filters, PB/payment/product/monthly drilldown, WTI delivery/deduction signals, Grade Adjust count, and payment reliability through `detailId`; Return frequency remains pending.
 
 ### Product Tracking
 
@@ -95,7 +95,7 @@ User-provided screenshots clarify that Tracking 360 is a business decision surfa
 
 - Customer/Supplier/Product row drilldown is partially implemented through `detailId`: Customer has SB/RCP/product detail, Supplier has PB/payment/product detail, and Product has PB/SB source lines.
 - Customer Tracking still lacks channel breakdown, monthly detail, and decision signals from the legacy-style detail view.
-- Supplier Tracking server-backed `supplierId`/`q` filtering is implemented for aggregate rows, product mix, monthly, summary, and export; WTI delivery/deduction, Grade Adjust count, and payment reliability signals are implemented. Return frequency and monthly detail signals are still pending.
+- Supplier Tracking server-backed `supplierId`/`q` filtering is implemented for aggregate rows, product mix, monthly, summary, and export; supplier detail now includes monthly purchase/payment trend, WTI delivery/deduction, Grade Adjust count, and payment reliability signals. Return frequency is still pending.
 - Product Tracking now removes crossed-out `Stock` and `WAC` from the main list/export and supports Supplier ฝั่งซื้อ / Customer ฝั่งขาย filters in aggregate rows/monthly/top/export.
 - Product Tracking availability/hold-aware `พร้อมใช้` remains owned by stock balance docs and is not represented in the main profitability table.
 - Aging buckets for receivable/payable/slow stock should be added only after [[Document Aging Policy]] and stock hold policy are finalized.
@@ -146,7 +146,7 @@ Local route smoke:
 
 - [x] Add server-side `supplierId` and `q` filters to `GET /api/tracking/supplier`.
 - [x] Add supplier detail payload: PB lines, payment lines, and product mix.
-- [ ] Add monthly purchase/payment trend.
+- [x] Add monthly purchase/payment trend.
 - [x] Add reliability/quality signal fields from owned source facts: WTI completeness/deduction, Grade Adjust count, and Payment reliability.
 - [ ] Add Return signal after purchase return source ownership/schema is confirmed.
 - [x] Ensure product mix can be scoped to the selected supplier, not only global period.
@@ -157,7 +157,8 @@ Local route smoke:
 - [x] Make supplier table rows/mobile cards clickable to open detail.
 - [x] Add detail sections for PB list, payment list, and product mix.
 - [x] Add quality/reliability signals for WTI, Grade Adjust, and Payment reliability.
-- [ ] Add monthly trend and Return signal after source contract is confirmed.
+- [x] Add monthly trend.
+- [ ] Add Return signal after source contract is confirmed.
 - [ ] Apply `docs/design.md` dense card/mobile table behavior and avoid nested card surfaces.
 
 ### Batch T360-6: Product Tracking API
