@@ -1,12 +1,18 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { formatDateDisplay } from '@/lib/format'
 
 type SupplierTrackingRow = {
   avgBuy: number
   billCount: number
   code: string
+  deliveryCompletionPct: number
+  deductionPct: number
+  gradeAdjustmentCount: number
   id: string
   paidAmount: number
   paidPct: number
@@ -15,14 +21,35 @@ type SupplierTrackingRow = {
   purchaseAmount: number
   qty: number
   supplierName: string
+  wtiCount: number
 }
 
 type SupplierTrackingPayload = {
   byProduct: Array<{ amount: number; avgBuy: number; billCount: number; productName: string; qty: number; suppliers: number }>
+  detail?: SupplierTrackingDetail | null
+  filters?: { suppliers: Array<{ active: boolean | null; code: string | null; id: string; name: string }> }
   monthly: Array<{ amount: number; month: string; qty: number }>
   rows: SupplierTrackingRow[]
   summary: { paidAmount: number; payable: number; purchaseAmount: number; qty: number; suppliers: number }
   year: string
+}
+
+type SupplierTrackingDetail = {
+  bills: Array<{ amount: number; avgBuy: number; date: string; docNo: string; href: string; paidAmount: number; payable: number; qty: number; status: string }>
+  gradeAdjustments: Array<{ date: string; docNo: string; qtyDiff: number; reason: string; status: string; valueDiff: number }>
+  monthly: Array<{ billCount: number; month: string; paidAmount: number; payable: number; paymentCount: number; purchaseAmount: number; qty: number }>
+  payments: Array<{ amount: number; date: string; docNo: string; method: string; netAmount: number; status: string }>
+  products: Array<{ amount: number; avgBuy: number; billCount: number; productName: string; qty: number }>
+  qualitySignals: {
+    deliveryCompletionPct: number
+    deductionPct: number
+    gradeAdjustmentCount: number
+    paymentReliabilityPct: number
+    returnSignalStatus: string
+    wtiCount: number
+  }
+  supplier: { code: string; id: string; name: string }
+  weightTickets: Array<{ billedWeight: number; date: string; deductWeight: number; docNo: string; grossWeight: number; netWeight: number; remainingWeight: number; status: string }>
 }
 
 const monthLabels = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
@@ -30,7 +57,9 @@ const months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11'
 
 export function SupplierTrackingPageClient() {
   const [data, setData] = useState<SupplierTrackingPayload | null>(null)
+  const [detail, setDetail] = useState<SupplierTrackingDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [month, setMonth] = useState('')
   const [search, setSearch] = useState('')
@@ -38,32 +67,63 @@ export function SupplierTrackingPageClient() {
   const [view, setView] = useState<'list' | 'top10' | 'yearCompare'>('list')
   const [year, setYear] = useState(String(new Date().getFullYear()))
 
+  const queryString = useMemo(() => {
+    const params = new URLSearchParams({ year })
+    if (month) params.set('month', month)
+    if (supplierId) params.set('supplierId', supplierId)
+    if (search.trim()) params.set('q', search.trim())
+    return params.toString()
+  }, [month, search, supplierId, year])
+
   const loadData = useCallback(async () => {
     setError(null)
     setIsLoading(true)
     try {
-      const params = new URLSearchParams({ year })
-      if (month) params.set('month', month)
-      setData(await dailyFetchJson<SupplierTrackingPayload>(`/api/tracking/supplier?${params.toString()}`))
+      setData(await dailyFetchJson<SupplierTrackingPayload>(`/api/tracking/supplier?${queryString}`))
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'โหลด Supplier Tracking ไม่ได้')
     } finally {
       setIsLoading(false)
     }
-  }, [month, year])
+  }, [queryString])
 
   useEffect(() => {
     void loadData()
   }, [loadData])
 
-  const rows = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    return (data?.rows ?? []).filter((row) => {
-      const matchesSupplier = !supplierId || row.id === supplierId
-      const matchesSearch = !query || `${row.code} ${row.supplierName}`.toLowerCase().includes(query)
-      return matchesSupplier && matchesSearch
+  const openDetail = useCallback(async (row: SupplierTrackingRow) => {
+    setIsDetailLoading(true)
+    setDetail({
+      bills: [],
+      gradeAdjustments: [],
+      monthly: [],
+      payments: [],
+      products: [],
+      qualitySignals: {
+        deliveryCompletionPct: row.deliveryCompletionPct,
+        deductionPct: row.deductionPct,
+        gradeAdjustmentCount: row.gradeAdjustmentCount,
+        paymentReliabilityPct: row.paidPct,
+        returnSignalStatus: 'ยังไม่มี purchase return source table ใน schema ปัจจุบัน',
+        wtiCount: row.wtiCount,
+      },
+      supplier: { code: row.code, id: row.id, name: row.supplierName },
+      weightTickets: [],
     })
-  }, [data?.rows, search, supplierId])
+    try {
+      const params = new URLSearchParams(queryString)
+      params.set('detailId', row.id)
+      const payload = await dailyFetchJson<SupplierTrackingPayload>(`/api/tracking/supplier?${params.toString()}`)
+      setDetail(payload.detail ?? null)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'โหลดรายละเอียด Supplier ไม่ได้')
+      setDetail(null)
+    } finally {
+      setIsDetailLoading(false)
+    }
+  }, [queryString])
+
+  const rows = data?.rows ?? []
 
   const topFive = rows.slice(0, 5)
   const topPurchase = [...rows].sort((left, right) => right.purchaseAmount - left.purchaseAmount).slice(0, 10)
@@ -72,7 +132,7 @@ export function SupplierTrackingPageClient() {
   const expensive = [...rows].filter((row) => row.avgBuy > 0).sort((left, right) => right.avgBuy - left.avgBuy).slice(0, 10)
   const topPayable = [...rows].sort((left, right) => right.payable - left.payable).slice(0, 10)
   const maxMonthAmount = Math.max(1, ...(data?.monthly ?? []).map((item) => item.amount))
-  const exportHref = `/api/tracking/supplier?${new URLSearchParams({ year, ...(month ? { month } : {}), format: 'xlsx' }).toString()}`
+  const exportHref = `/api/tracking/supplier?${queryString}&format=xlsx`
   const paidAmount = rows.reduce((sum, row) => sum + row.paidAmount, 0)
   const payable = rows.reduce((sum, row) => sum + row.payable, 0)
 
@@ -80,26 +140,26 @@ export function SupplierTrackingPageClient() {
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="rounded-md bg-white p-3 shadow">
-        <div className="grid gap-2 md:grid-cols-6">
-          <input className="rounded-md border px-3 py-2 text-sm" type="number" value={year} onChange={(event) => setYear(event.target.value)} />
-          <select className="rounded-md border px-3 py-2 text-sm" value={month} onChange={(event) => setMonth(event.target.value)}>
-            <option value="">ทั้งปี</option>
-            {months.map((value, index) => <option key={value} value={value}>{monthLabels[index]}</option>)}
-          </select>
-          <select className="rounded-md border px-3 py-2 text-sm md:col-span-2" value={supplierId} onChange={(event) => setSupplierId(event.target.value)}>
-            <option value="">Supplier ทั้งหมด</option>
-            {(data?.rows ?? []).map((row) => <option key={row.id} value={row.id}>{row.code ? `${row.code} - ${row.supplierName}` : row.supplierName}</option>)}
-          </select>
-          <input className="rounded-md border px-3 py-2 text-sm" placeholder="ค้นหา Supplier" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <a className="hidden md:inline-flex items-center justify-center rounded-md bg-blue-700 px-4 py-2 text-center text-sm font-bold text-white" href={exportHref}>📥 XLSX</a>
-        </div>
-      </div>
-
       <div className="grid gap-4 lg:grid-cols-3">
         <SummaryCard color="blue" label="💰 ยอดซื้อรวม" value={formatMoney(rows.reduce((sum, row) => sum + row.purchaseAmount, 0))} />
         <SummaryCard color="indigo" label="⚖️ น้ำหนักรวม" value={`${formatMoney(rows.reduce((sum, row) => sum + row.qty, 0))} กก.`} />
         <SummaryCard color="red" label="🏦 เจ้าหนี้ค้าง" value={formatMoney(payable)} />
+      </div>
+
+      <div className="rounded-md bg-white p-3 shadow">
+        <div className="grid gap-2 md:grid-cols-6">
+          <input className="h-9 rounded-md border px-3 text-sm" type="number" value={year} onChange={(event) => setYear(event.target.value)} />
+          <select className="h-9 rounded-md border px-3 text-sm" value={month} onChange={(event) => setMonth(event.target.value)}>
+            <option value="">ทั้งปี</option>
+            {months.map((value, index) => <option key={value} value={value}>{monthLabels[index]}</option>)}
+          </select>
+          <select className="h-9 rounded-md border px-3 text-sm md:col-span-2" value={supplierId} onChange={(event) => setSupplierId(event.target.value)}>
+            <option value="">Supplier ทั้งหมด</option>
+            {(data?.filters?.suppliers ?? []).map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.code ? `${supplier.code} - ${supplier.name}` : supplier.name}</option>)}
+          </select>
+          <input className="h-9 rounded-md border px-3 text-sm" placeholder="ค้นหา Supplier" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <a className="inline-flex h-9 items-center justify-center rounded-md bg-blue-700 px-4 text-center text-sm font-bold text-white" href={exportHref}>📥 XLSX</a>
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -151,7 +211,7 @@ export function SupplierTrackingPageClient() {
             ) : null}
             
             {!isLoading && rows.map((row) => (
-              <div key={row.id} className="rounded-md border border-slate-100 bg-white p-4 shadow-sm space-y-2">
+              <div key={row.id} className="rounded-md border border-slate-100 bg-white p-4 shadow-sm space-y-2" role="button" tabIndex={0} onClick={() => void openDetail(row)} onKeyDown={(event) => { if (event.key === 'Enter') void openDetail(row) }}>
                 <div className="flex justify-between items-start">
                   <span className="font-bold text-slate-800 text-sm">{row.supplierName}</span>
                   <span className="text-xs font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{row.code || '-'}</span>
@@ -183,6 +243,20 @@ export function SupplierTrackingPageClient() {
                       <span className="text-red-700 font-bold tabular-nums">{formatMoney(row.payable)} ({row.paidPct.toFixed(0)}% จ่าย)</span>
                     </div>
                   </div>
+                  <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-100/60 mt-1">
+                    <div>
+                      <span className="font-semibold text-slate-400 block">WTI: </span>
+                      <span className="text-slate-800">{row.wtiCount} ใบ</span>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-slate-400 block">ส่งครบ: </span>
+                      <span className="text-emerald-700 font-semibold">{row.deliveryCompletionPct.toFixed(1)}%</span>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-slate-400 block">หัก: </span>
+                      <span className="text-amber-700 font-semibold">{row.deductionPct.toFixed(1)}%</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
@@ -195,7 +269,7 @@ export function SupplierTrackingPageClient() {
           </div>
 
           <div className="hidden md:block overflow-x-auto rounded-md bg-white shadow mb-4">
-            <table className="w-full min-w-[960px] text-sm">
+            <table className="w-full min-w-[1180px] text-sm">
               <thead className="bg-slate-100">
                 <tr>
                   <th className="p-2 text-left">Code</th>
@@ -207,13 +281,17 @@ export function SupplierTrackingPageClient() {
                   <th className="p-2 text-right">จ่ายแล้ว</th>
                   <th className="p-2 text-right">ค้างจ่าย</th>
                   <th className="p-2 text-right">% จ่าย</th>
+                  <th className="p-2 text-right">WTI</th>
+                  <th className="p-2 text-right">ส่งครบ</th>
+                  <th className="p-2 text-right">หัก%</th>
+                  <th className="p-2 text-right">Grade</th>
                 </tr>
               </thead>
               <tbody>
-                {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={9}>กำลังโหลดข้อมูล</td></tr> : null}
-                {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={9}>ไม่มีข้อมูล Supplier Tracking</td></tr> : null}
+                {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={13}>กำลังโหลดข้อมูล</td></tr> : null}
+                {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={13}>ไม่มีข้อมูล Supplier Tracking</td></tr> : null}
                 {!isLoading && rows.map((row) => (
-                  <tr key={row.id} className="border-t hover:bg-blue-50/40">
+                  <tr key={row.id} className="cursor-pointer border-t hover:bg-blue-50/40" onClick={() => void openDetail(row)}>
                     <td className="p-2 font-mono text-xs text-slate-500">{row.code || '-'}</td>
                     <td className="p-2 font-medium">{row.supplierName}</td>
                     <td className="p-2 text-right">{row.billCount}</td>
@@ -223,6 +301,10 @@ export function SupplierTrackingPageClient() {
                     <td className="p-2 text-right">{formatMoney(row.paidAmount)}</td>
                     <td className="p-2 text-right text-red-700">{formatMoney(row.payable)}</td>
                     <td className="p-2 text-right">{row.paidPct.toFixed(1)}%</td>
+                    <td className="p-2 text-right">{row.wtiCount}</td>
+                    <td className="p-2 text-right font-semibold text-emerald-700">{row.deliveryCompletionPct.toFixed(1)}%</td>
+                    <td className="p-2 text-right text-amber-700">{row.deductionPct.toFixed(1)}%</td>
+                    <td className="p-2 text-right">{row.gradeAdjustmentCount}</td>
                   </tr>
                 ))}
               </tbody>
@@ -286,7 +368,92 @@ export function SupplierTrackingPageClient() {
           </div>
         </>
       ) : null}
+      <SupplierDetailDialog detail={detail} isLoading={isDetailLoading} onOpenChange={(open) => { if (!open) setDetail(null) }} />
     </section>
+  )
+}
+
+function SupplierDetailDialog({ detail, isLoading, onOpenChange }: { detail: SupplierTrackingDetail | null; isLoading: boolean; onOpenChange: (open: boolean) => void }) {
+  return (
+    <Dialog open={detail !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] max-w-5xl overflow-hidden !p-0" fallbackTitle="Supplier Tracking Detail">
+        <DialogHeader>
+          <DialogTitle>{detail?.supplier.name ?? 'รายละเอียด Supplier'}</DialogTitle>
+          <DialogDescription>{detail?.supplier.code ?? ''} · Purchase Bills / Payments / WTI / Grade Adjust / Product mix</DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[72vh] space-y-4 overflow-y-auto p-4">
+          {isLoading ? <div className="rounded-md bg-slate-50 p-6 text-center text-sm text-slate-500">กำลังโหลดรายละเอียด</div> : null}
+          {!isLoading && detail ? (
+            <>
+              <DetailSection title="Reliability / Quality Signals">
+                <div className="grid gap-2 p-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <SignalMetric label="ส่งครบจาก WTI" value={`${detail.qualitySignals.deliveryCompletionPct.toFixed(1)}%`} />
+                  <SignalMetric label="หักน้ำหนัก" value={`${detail.qualitySignals.deductionPct.toFixed(1)}%`} />
+                  <SignalMetric label="จ่ายดี" value={`${detail.qualitySignals.paymentReliabilityPct.toFixed(1)}%`} />
+                  <SignalMetric label="WTI" value={`${detail.qualitySignals.wtiCount} ใบ`} />
+                  <SignalMetric label="Grade Adjust" value={`${detail.qualitySignals.gradeAdjustmentCount} รายการ`} />
+                  <SignalMetric label="Return" value={detail.qualitySignals.returnSignalStatus} />
+                </div>
+              </DetailSection>
+              <DetailSection title="Purchase Bill">
+                <SimpleTable
+                  headers={['วันที่', 'เอกสาร', 'น้ำหนัก', 'ยอดซื้อ', 'ราคาเฉลี่ย', 'จ่ายแล้ว', 'ค้างจ่าย', 'สถานะ']}
+                  rows={detail.bills.map((row) => [formatDateDisplay(row.date), row.docNo, formatMoney(row.qty), formatMoney(row.amount), formatMoney(row.avgBuy), formatMoney(row.paidAmount), formatMoney(row.payable), row.status])}
+                />
+              </DetailSection>
+              <DetailSection title="Payment">
+                <SimpleTable
+                  headers={['วันที่', 'เอกสาร', 'วิธีจ่าย', 'ยอดจ่าย', 'สุทธิ', 'สถานะ']}
+                  rows={detail.payments.map((row) => [formatDateDisplay(row.date), row.docNo, row.method, formatMoney(row.amount), formatMoney(row.netAmount), row.status])}
+                />
+              </DetailSection>
+              <DetailSection title="Monthly Purchase / Payment Trend">
+                <SimpleTable
+                  headers={['เดือน', 'บิล', 'จ่าย', 'น้ำหนัก', 'ยอดซื้อ', 'จ่ายแล้ว', 'ค้างจ่าย']}
+                  rows={detail.monthly.map((row, index) => [monthLabels[index] ?? row.month, String(row.billCount), String(row.paymentCount), formatMoney(row.qty), formatMoney(row.purchaseAmount), formatMoney(row.paidAmount), formatMoney(row.payable)])}
+                />
+              </DetailSection>
+              <DetailSection title="WTI / Delivery">
+                <SimpleTable
+                  headers={['วันที่', 'WTI', 'น้ำหนักสุทธิ', 'ชั่งบิลแล้ว', 'คงเหลือ', 'หักน้ำหนัก', 'สถานะ']}
+                  rows={detail.weightTickets.map((row) => [formatDateDisplay(row.date), row.docNo, formatMoney(row.netWeight), formatMoney(row.billedWeight), formatMoney(row.remainingWeight), formatMoney(row.deductWeight), row.status])}
+                />
+              </DetailSection>
+              <DetailSection title="Grade Adjust">
+                <SimpleTable
+                  headers={['วันที่', 'เอกสาร', 'Qty Diff', 'Value Diff', 'เหตุผล', 'สถานะ']}
+                  rows={detail.gradeAdjustments.map((row) => [formatDateDisplay(row.date), row.docNo, formatMoney(row.qtyDiff), formatMoney(row.valueDiff), row.reason, row.status])}
+                />
+              </DetailSection>
+              <DetailSection title="Product Mix">
+                <SimpleTable
+                  headers={['สินค้า', 'บิล', 'น้ำหนัก', 'ยอดซื้อ', 'ราคาเฉลี่ย']}
+                  rows={detail.products.map((row) => [row.productName, String(row.billCount), formatMoney(row.qty), formatMoney(row.amount), formatMoney(row.avgBuy)])}
+                />
+              </DetailSection>
+            </>
+          ) : null}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function DetailSection({ children, title }: { children: ReactNode; title: string }) {
+  return <section className="rounded-md border border-slate-200 bg-white"><div className="border-b bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700">{title}</div>{children}</section>
+}
+
+function SimpleTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[760px] text-sm">
+        <thead className="bg-slate-100"><tr>{headers.map((header) => <th key={header} className="p-2 text-left">{header}</th>)}</tr></thead>
+        <tbody>
+          {rows.length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={headers.length}>ไม่มีข้อมูล</td></tr> : null}
+          {rows.map((row, index) => <tr key={index} className="border-t">{row.map((cell, cellIndex) => <td key={`${index}-${headers[cellIndex]}`} className={cellIndex === 0 || cellIndex === 1 || cellIndex === headers.length - 1 ? 'p-2' : 'p-2 text-right'}>{cell}</td>)}</tr>)}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
@@ -297,6 +464,10 @@ function SummaryCard({ color, label, value }: { color: 'blue' | 'indigo' | 'red'
 
 function MiniMetric({ label, value }: { label: string; value: string }) {
   return <div className="rounded-md bg-slate-50 p-2"><div className="text-slate-500">{label}</div><div className="font-mono font-bold text-slate-900">{value}</div></div>
+}
+
+function SignalMetric({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-md bg-slate-50 p-3"><div className="text-xs font-semibold text-slate-500">{label}</div><div className="mt-1 text-sm font-bold text-slate-900">{value}</div></div>
 }
 
 function Tab({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
