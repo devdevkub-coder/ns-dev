@@ -275,8 +275,12 @@ export function StockBalancePageClient() {
       </div>
 
       {/* Status Cards */}
-      <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-        {byStatus.map((item) => <StatusCard key={item.status} item={item} />)}
+      <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-3">
+        {byStatus.map((item, index) => (
+          <div key={item.status} className={index === 2 ? 'col-span-2 md:col-span-1' : ''}>
+            <StatusCard item={item} />
+          </div>
+        ))}
       </div>
 
       {/* Desktop Toolbar (Hidden on Mobile) */}
@@ -315,7 +319,7 @@ export function StockBalancePageClient() {
           ) : null}
           
           <button className="h-9 rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200" type="button" onClick={() => void loadData()}>
-            Refresh
+            โหลดใหม่
           </button>
           
           <button className="ml-auto rounded-md bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700 h-9 flex items-center" type="button" onClick={exportXlsx}>
@@ -368,7 +372,7 @@ export function StockBalancePageClient() {
             onChange={(event) => setQ(event.target.value)} 
           />
           <button className="h-9 rounded-md bg-slate-100 px-2.5 text-xs text-slate-700" type="button" onClick={() => void loadData()}>
-            Refresh
+            โหลดใหม่
           </button>
           <button
             type="button"
@@ -770,8 +774,8 @@ function StockCharts({ byStatus, matrixRows, totalValue }: { byStatus: StatusSum
       <div className="rounded-md bg-white p-4 shadow">
         <h3 className="mb-2 font-bold text-slate-800">🥧 สัดส่วน Stock RM/WIP/FG (มูลค่า)</h3>
         <div className="flex flex-wrap items-center gap-4">
-          <div className="flex h-[180px] w-[180px] items-center justify-center rounded-md-full" style={{ background: totalValue > 0 ? `conic-gradient(#3b82f6 0deg ${rmDeg}deg, #f59e0b ${rmDeg}deg ${rmDeg + wipDeg}deg, #10b981 ${rmDeg + wipDeg}deg 360deg)` : '#e5e7eb' }}>
-            <div className="flex h-24 w-24 flex-col items-center justify-center rounded-md-full bg-white text-center">
+          <div className="flex h-[180px] w-[180px] items-center justify-center rounded-full" style={{ background: totalValue > 0 ? `conic-gradient(#3b82f6 0deg ${rmDeg}deg, #f59e0b ${rmDeg}deg ${rmDeg + wipDeg}deg, #10b981 ${rmDeg + wipDeg}deg 360deg)` : '#e5e7eb' }}>
+            <div className="flex h-24 w-24 flex-col items-center justify-center rounded-full bg-white text-center">
               <span className="text-xs text-slate-500">รวม</span>
               <span className="text-xs font-bold text-slate-900">{formatMoney(totalValue)}</span>
             </div>
@@ -794,7 +798,7 @@ function StockCharts({ byStatus, matrixRows, totalValue }: { byStatus: StatusSum
             return (
               <div key={row.group}>
                 <div className="mb-0.5 flex justify-between text-sm"><span className="font-medium">{row.group} <span className="text-xs text-slate-400">({formatMoney(row.rmQty + row.wipQty + row.fgQty)} กก.)</span></span><span className="font-mono font-bold">{formatMoney(value)}</span></div>
-                <div className="h-2 w-full rounded-md-full bg-slate-100"><div className={`h-2 rounded-md-full bg-gradient-to-r ${colors[index % colors.length]}`} style={{ width: `${Math.max(2, value / maxGroup * 100)}%` }} /></div>
+                <div className="h-2 w-full rounded-full bg-slate-100"><div className={`h-2 rounded-full bg-gradient-to-r ${colors[index % colors.length]}`} style={{ width: `${Math.max(2, value / maxGroup * 100)}%` }} /></div>
               </div>
             )
           })}

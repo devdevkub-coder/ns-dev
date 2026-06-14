@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePathname } from 'next/navigation'
+import { Plus } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
+import { formatDateDisplay } from '@/lib/format'
 import { stockAdjustReasonOptions } from '@/lib/stock'
 import type { StatusConvertFormValues, StockAdjustFormValues, StockConvertFormValues, StockCostPoolOption, StockOption } from '@/lib/stock'
 
@@ -115,6 +117,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
   const [adjustBranchFilter, setAdjustBranchFilter] = useState('')
   const [adjustTypeFilter, setAdjustTypeFilter] = useState('')
   const [formOpen, setFormOpen] = useState(false)
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [fromDateFilter, setFromDateFilter] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -185,7 +188,22 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
     const startIndex = (statusConvertPage - 1) * statusConvertPageSize
     return statusConvertSortedRows.slice(startIndex, startIndex + statusConvertPageSize)
   }, [mode, rows, statusConvertPage, statusConvertPageSize, statusConvertSortedRows])
-  const hasAdjustFilters = Boolean(adjustBranchFilter || adjustTypeFilter || fromDateFilter || toDateFilter)
+
+  const hasFilters = useMemo(() => {
+    if (mode === 'convert') return Boolean(search.trim() || sourceTypeFilter || costStatusFilter)
+    if (mode === 'adjust') return Boolean(search.trim() || adjustBranchFilter || adjustTypeFilter || fromDateFilter || toDateFilter)
+    return Boolean(search.trim())
+  }, [mode, search, sourceTypeFilter, costStatusFilter, adjustBranchFilter, adjustTypeFilter, fromDateFilter, toDateFilter])
+
+  const resetFilters = useCallback(() => {
+    setSearch('')
+    setSourceTypeFilter('')
+    setCostStatusFilter('')
+    setAdjustBranchFilter('')
+    setAdjustTypeFilter('')
+    setFromDateFilter('')
+    setToDateFilter('')
+  }, [])
 
   function toggleStatusConvertSort(nextKey: StatusConvertSortKey) {
     if (statusConvertSortKey === nextKey) {
@@ -297,19 +315,19 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
       {mode === 'adjust' ? <AdjustPrincipleBox /> : null}
       <SummaryCards mode={mode} rows={rows} />
-      <div className="space-y-2 rounded-md bg-white p-3 shadow">
+      {/* Desktop Toolbar (Hidden on Mobile) */}
+      <div className="hidden md:block mb-4 space-y-2 rounded-md bg-white p-3 shadow">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[260px]">
-            <input className="h-9 w-full min-w-[260px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder={mode === 'convert' ? 'ค้นหา doc/source/target/ref...' : mode === 'adjust' ? 'ค้นหา doc/สินค้า/เหตุผล...' : 'ค้นหาเลขที่/วันที่/สินค้า/เหตุผล...'} type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-            {mode === 'status-convert' && search ? (
-              <button className="h-9 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" type="button" onClick={() => setSearch('')}>
-                ล้างค้นหา
-              </button>
-            ) : null}
-          </div>
+          <input
+            className="h-9 min-w-[260px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+            placeholder={mode === 'convert' ? 'ค้นหา doc/source/target/ref...' : mode === 'adjust' ? 'ค้นหา doc/สินค้า/เหตุผล...' : 'ค้นหาเลขที่/วันที่/สินค้า/เหตุผล...'}
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
           {mode === 'convert' ? (
             <>
-              <select className="h-9 rounded-md border bg-amber-50 px-3 py-2 text-sm font-medium" value={sourceTypeFilter} onChange={(event) => setSourceTypeFilter(event.target.value)}>
+              <select className="h-9 rounded-md border border-slate-300 bg-amber-50 px-3 text-sm font-medium text-slate-800" value={sourceTypeFilter} onChange={(event) => setSourceTypeFilter(event.target.value)}>
                 <option value="">ทุก Source Type</option>
                 <option value="Manual">📝 Manual</option>
                 <option value="Auto (FIFO)">Auto FIFO</option>
@@ -318,7 +336,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
                 <option value="Auto (LOWEST_COST)">Auto Lowest Cost</option>
                 <option value="Legacy">Legacy</option>
               </select>
-              <select className="h-9 rounded-md border px-3 py-2 text-sm" value={costStatusFilter} onChange={(event) => setCostStatusFilter(event.target.value)}>
+              <select className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800" value={costStatusFilter} onChange={(event) => setCostStatusFilter(event.target.value)}>
                 <option value="">ทุก Cost Status</option>
                 <option value="allocated">✓ Allocated</option>
                 <option value="pending_cost">⏳ Pending Cost</option>
@@ -327,55 +345,31 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
             </>
           ) : mode === 'adjust' ? (
             <>
-              <select className="h-9 rounded-md border px-3 py-2 text-sm" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
+              <select className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
                 <option value="">ทุกสาขา</option>
                 {data.reference.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
               </select>
-              <DatePickerInput className="w-[130px]" title="จากวันที่" value={fromDateFilter} onChange={setFromDateFilter} />
-              <DatePickerInput className="w-[130px]" title="ถึงวันที่" value={toDateFilter} onChange={setToDateFilter} />
-              {hasAdjustFilters ? (
-                <button
-                  className="h-9 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                  type="button"
-                  onClick={() => {
-                    setAdjustBranchFilter('')
-                    setAdjustTypeFilter('')
-                    setFromDateFilter('')
-                    setToDateFilter('')
-                  }}
-                >
-                  ล้างตัวกรอง
-                </button>
-              ) : null}
-              <button className="h-9 rounded-md bg-slate-700 px-3 py-2 text-sm text-white opacity-60" disabled title="รอ export contract สำหรับ stock adjustment" type="button">📥 CSV</button>
+              <DatePickerInput className="w-[130px] h-9" title="จากวันที่" value={fromDateFilter} onChange={setFromDateFilter} />
+              <DatePickerInput className="w-[130px] h-9" title="ถึงวันที่" value={toDateFilter} onChange={setToDateFilter} />
+              <button className="h-9 rounded-md bg-slate-100 px-3 py-2 text-sm text-slate-500 opacity-60 flex items-center justify-center border border-slate-200" disabled title="รอ export contract สำหรับ stock adjustment" type="button">📥 CSV</button>
             </>
           ) : null}
 
-          <div className="flex items-center gap-2 ml-auto">
-            <button className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors" type="button" onClick={() => void loadData()}>
-              Refresh
+          {hasFilters ? (
+            <button className="h-9 rounded-md border border-slate-300 bg-slate-100 px-3 text-xs hover:bg-slate-200" type="button" onClick={resetFilters}>
+              ✕ ล้าง
             </button>
-            {mode === 'adjust' ? (
-              <a className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 transition-colors" href={`${pathname}?new=1`}>
-                + ปรับสต๊อกใหม่
-              </a>
-            ) : mode === 'convert' ? (
-              <a className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 transition-colors" href={`${pathname}?new=1`}>
-                + ปรับเกรดใหม่
-              </a>
-            ) : mode === 'status-convert' ? (
-              <a className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 transition-colors" href={`${pathname}?new=1`}>
-                + ปรับสถานะใหม่
-              </a>
-            ) : (
-              <a className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 transition-colors" href={`${pathname}?new=1`}>
-                + เพิ่มรายการ
-              </a>
-            )}
-          </div>
+          ) : null}
+
+          <button className="h-9 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors" type="button" onClick={() => void loadData()}>
+            โหลดใหม่
+          </button>
+          <a className="inline-flex h-9 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 transition-colors ml-auto" href={`${pathname}?new=1`}>
+            {mode === 'adjust' ? '+ ปรับสต๊อกใหม่' : mode === 'convert' ? '+ ปรับเกรดใหม่' : '+ ปรับสถานะใหม่'}
+          </a>
         </div>
         {mode === 'adjust' ? (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
             <span className="text-xs text-slate-500">ประเภท:</span>
             <SegmentedButton active={!adjustTypeFilter} label="ทั้งหมด" onClick={() => setAdjustTypeFilter('')} />
             <SegmentedButton active={adjustTypeFilter === 'LOSS'} label="นับขาด" onClick={() => setAdjustTypeFilter('LOSS')} />
@@ -383,6 +377,130 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
           </div>
         ) : null}
       </div>
+
+      {/* Mobile Toolbar (Hidden on Desktop) */}
+      <div className="mb-4 space-y-2 rounded-md bg-white p-3 shadow md:hidden">
+        <div className="flex gap-2 items-center">
+          <input
+            className="min-w-[150px] flex-1 rounded-md border border-slate-300 px-3 h-9 text-sm"
+            placeholder="ค้นหาด่วน..."
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+          <button className="h-9 rounded-md bg-slate-100 px-2.5 text-xs text-slate-700 border border-slate-200" type="button" onClick={() => void loadData()}>
+            โหลดใหม่
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            onClick={() => setShowMobileFilters(true)}
+          >
+            ตัวกรอง {hasFilters ? '(มี)' : ''}
+          </button>
+        </div>
+        {mode === 'adjust' ? (
+          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100">
+            <span className="text-[11px] text-slate-500">ประเภท:</span>
+            <SegmentedButton active={!adjustTypeFilter} label="ทั้งหมด" onClick={() => setAdjustTypeFilter('')} />
+            <SegmentedButton active={adjustTypeFilter === 'LOSS'} label="นับขาด" onClick={() => setAdjustTypeFilter('LOSS')} />
+            <SegmentedButton active={adjustTypeFilter === 'GAIN'} label="นับเกิน" onClick={() => setAdjustTypeFilter('GAIN')} />
+          </div>
+        ) : null}
+      </div>
+
+      {/* Bottom Sheet Filter for Mobile */}
+      {showMobileFilters ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 md:hidden">
+          <div className="w-full rounded-t-2xl bg-white p-4 shadow-xl border-t border-slate-200 max-h-[80vh] overflow-y-auto animate-slide-up">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <h4 className="font-bold text-slate-800">ตัวกรองรายการ</h4>
+              <button
+                className="p-1 text-slate-400 hover:text-slate-600 text-xl font-bold"
+                onClick={() => setShowMobileFilters(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-4 text-sm">
+              {mode === 'convert' ? (
+                <>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">Source Type</span>
+                    <select className="h-10 w-full rounded-md border border-slate-300 px-3 bg-white text-slate-800" value={sourceTypeFilter} onChange={(event) => setSourceTypeFilter(event.target.value)}>
+                      <option value="">ทุก Source Type</option>
+                      <option value="Manual">📝 Manual</option>
+                      <option value="Auto (FIFO)">Auto FIFO</option>
+                      <option value="Auto (LIFO)">Auto LIFO</option>
+                      <option value="Auto (HIGHEST_COST)">Auto Highest Cost</option>
+                      <option value="Auto (LOWEST_COST)">Auto Lowest Cost</option>
+                      <option value="Legacy">Legacy</option>
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">Cost Status</span>
+                    <select className="h-10 w-full rounded-md border border-slate-300 px-3 bg-white text-slate-800" value={costStatusFilter} onChange={(event) => setCostStatusFilter(event.target.value)}>
+                      <option value="">ทุก Cost Status</option>
+                      <option value="allocated">✓ Allocated</option>
+                      <option value="pending_cost">⏳ Pending Cost</option>
+                      <option value="partial">📋 Partial</option>
+                    </select>
+                  </label>
+                </>
+              ) : mode === 'adjust' ? (
+                <>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
+                    <select className="h-10 w-full rounded-md border border-slate-300 px-3 bg-white text-slate-800" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
+                      <option value="">ทุกสาขา</option>
+                      {data.reference.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+                    </select>
+                  </label>
+                  <div>
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">ช่วงวันที่</span>
+                    <div className="flex items-center gap-2">
+                      <DatePickerInput className="flex-1" value={fromDateFilter} onChange={setFromDateFilter} />
+                      <span className="text-slate-400">→</span>
+                      <DatePickerInput className="flex-1" value={toDateFilter} onChange={setToDateFilter} />
+                    </div>
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-6 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                className="h-11 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => {
+                  resetFilters()
+                  setShowMobileFilters(false)
+                }}
+              >
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                className="h-11 rounded-md bg-slate-900 text-sm font-semibold text-white hover:bg-slate-850"
+                onClick={() => setShowMobileFilters(false)}
+              >
+                ใช้ตัวกรอง
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* FAB for Mobile Creation */}
+      <a
+        aria-label="สร้างรายการใหม่"
+        className="h-14 w-14 rounded-full bg-blue-600 text-white shadow-lg fixed bottom-6 right-6 z-40 md:hidden flex items-center justify-center hover:bg-blue-700"
+        href={`${pathname}?new=1`}
+      >
+        <Plus className="h-6 w-6" />
+      </a>
       {mode === 'status-convert' ? (
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
           <span>พบทั้งหมด {rows.length} รายการ</span>
@@ -567,35 +685,217 @@ function OperationTable({
 }) {
   const columns = columnsFor(mode)
   return (
-    <div className="overflow-x-auto rounded-md bg-white shadow">
-      <table className={mode === 'convert' ? 'w-full min-w-[1300px] text-sm' : mode === 'status-convert' ? 'w-full min-w-[1280px] text-sm' : 'w-full min-w-[1500px] text-xs'}>
-        <thead className="bg-slate-100">
-          <tr>
-            {columns.map((column) => (
-              <th key={column.key} className={`p-2 text-left ${column.headerClassName ?? ''}`}>
-                {mode === 'status-convert' && column.sortable && onSortChange ? (
+    <>
+      {/* Mobile Card List (Hidden on Desktop) */}
+      <div className="block space-y-3 md:hidden">
+        {isLoading ? <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-slate-500 shadow">กำลังโหลดข้อมูล</div> : null}
+        {!isLoading && rows.map((row, index) => {
+          const id = String(row.id ?? index)
+          const date = String(row.date ?? '')
+          const refNo = String(row.refNo ?? row.docNo ?? '')
+
+          if (mode === 'adjust') {
+            const diffQty = Number(row.diffQty ?? 0)
+            const adjustType = String(row.adjustType ?? '')
+            const value = signedAdjustValue(row)
+            const countedQty = Number(row.countedQty ?? 0)
+            const systemQty = Number(row.systemQty ?? 0)
+
+            return (
+              <div key={id} className="rounded-md border border-slate-200 bg-white p-4 shadow-sm hover:bg-slate-50">
+                <div className="mb-2 flex items-start justify-between">
+                  <span className="font-bold text-slate-800">{refNo}</span>
+                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${adjustType === 'LOSS' ? 'bg-red-100 text-red-700' : adjustType === 'GAIN' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                    {adjustType === 'LOSS' ? '📉 นับขาด' : adjustType === 'GAIN' ? '📈 นับเกิน' : '-'}
+                  </span>
+                </div>
+                <div className="text-xs text-slate-500">{formatDateTime(row.createdAt)}</div>
+                <div className="my-3 space-y-1 text-xs text-slate-600">
+                  <div><span className="font-semibold">สินค้า:</span> {formatCell(row.productName)}</div>
+                  <div><span className="font-semibold">สาขา/คลัง:</span> {formatCell(row.branchWarehouse)}</div>
+                  {row.lotNo ? <div><span className="font-semibold">Lot:</span> <code className="font-mono">{String(row.lotNo)}</code></div> : null}
+                  {row.reason ? <div><span className="font-semibold">เหตุผล:</span> {String(row.reason)}</div> : null}
+                </div>
+                <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 text-xs">
+                  <div>
+                    <div className="text-slate-400">ระบบ / นับจริง</div>
+                    <div className="font-semibold text-slate-800">{formatMoney(systemQty)} / {formatMoney(countedQty)} กก.</div>
+                  </div>
+                  <div>
+                    <div className="text-slate-400">Diff น้ำหนัก</div>
+                    <div className={`font-semibold ${diffQty < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatMoney(diffQty)} กก.</div>
+                  </div>
+                  <div>
+                    <div className="text-slate-400">ราคา/กก.</div>
+                    <div className="font-semibold text-slate-800">{formatMoney(Number(row.unitPricePerKg ?? 0))} บาท</div>
+                  </div>
+                  <div>
+                    <div className="text-slate-400">มูลค่ารวม</div>
+                    <div className={`font-semibold ${value < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatMoney(value)} บาท</div>
+                  </div>
+                </div>
+                <div className="mt-3 flex justify-end gap-2">
                   <button
-                    className="inline-flex items-center gap-1 font-medium text-slate-700 hover:text-slate-900"
+                    disabled={!row.canEdit || !onAdjustCorrect}
+                    className="rounded-md border border-slate-300 px-3 py-1.5 text-xs hover:bg-slate-50 disabled:opacity-50"
                     type="button"
-                    onClick={() => onSortChange(column.key as StatusConvertSortKey)}
+                    onClick={() => onAdjustCorrect?.(row)}
                   >
-                    <span>{column.label}</span>
-                    <span className="text-xs text-slate-400">{sortKey === column.key ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}</span>
+                    แก้ไข
                   </button>
-                ) : (
-                  column.label
-                )}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={columns.length}>กำลังโหลดข้อมูล</td></tr> : null}
-          {!isLoading && rows.map((row, index) => <tr key={String(row.id ?? index)} className="border-t hover:bg-slate-50">{columns.map((column) => <td key={column.key} className={`p-2 align-top ${mode === 'adjust' ? 'font-semibold text-slate-700' : ''} ${column.cellClassName ?? ''}`}>{formatOperationCell(mode, row, column.key, onConvertReverse, onConvertDetail, onStatusConvertReverse, onAdjustCorrect)}</td>)}</tr>)}
-          {!isLoading && !rows.length ? <tr><td className="p-8 text-center text-slate-400" colSpan={columns.length}>{emptyTextFor(mode)}</td></tr> : null}
-        </tbody>
-      </table>
-    </div>
+                </div>
+              </div>
+            )
+          }
+
+          if (mode === 'convert') {
+            const status = String(row.status ?? '')
+            const costStatus = String(row.costStatus ?? '')
+            const costStatusLabel = costStatus === 'allocated' ? '✓ Allocated' : costStatus === 'pending_cost' ? '⏳ Pending Cost' : costStatus === 'partial' ? '📋 Partial' : '-'
+            const costStatusColor = costStatus === 'allocated' ? 'bg-emerald-100 text-emerald-700' : costStatus === 'pending_cost' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
+            const statusColor = status === 'posted' ? 'bg-emerald-100 text-emerald-700' : status === 'reversed' ? 'bg-slate-200 text-slate-600' : 'bg-amber-100 text-amber-700'
+            const sourceType = String(row.sourceType ?? 'Manual')
+            const sourceTypeColor = sourceType.startsWith('Auto') ? 'bg-purple-100 text-purple-700' : sourceType === 'Legacy' ? 'bg-slate-100 text-slate-600' : 'bg-blue-100 text-blue-700'
+
+            return (
+              <div key={id} className="rounded-md border border-slate-200 bg-white p-4 shadow-sm hover:bg-slate-50">
+                <div className="mb-2 flex items-start justify-between">
+                  <span className="font-bold text-slate-800">{refNo}</span>
+                  <div className="flex gap-1.5">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${sourceTypeColor}`}>{sourceType}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusColor}`}>{status || 'posted'}</span>
+                  </div>
+                </div>
+                <div className="text-xs text-slate-500">{formatDateDisplay(date)}</div>
+                <div className="my-3 space-y-1 text-xs text-slate-600">
+                  <div><span className="font-semibold text-red-600">Source (ออก):</span> {formatCell(row.sourceProduct)}</div>
+                  <div><span className="font-semibold text-emerald-700">Target (เข้า):</span> {formatCell(row.targetProduct)}</div>
+                  <div><span className="font-semibold">สาขา / คลัง:</span> {formatCell(row.branchWarehouse)}</div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 text-xs">
+                  <div>
+                    <div className="text-slate-400">Source Qty</div>
+                    <div className="font-semibold text-red-700">{formatMoney(Number(row.sourceQty ?? 0))} กก. (@{formatMoney(Number(row.unitCost ?? 0))})</div>
+                  </div>
+                  <div>
+                    <div className="text-slate-400">Target Qty</div>
+                    <div className="font-semibold text-emerald-700">{formatMoney(Number(row.targetQty ?? 0))} กก. (@{formatMoney(Number(row.targetUnitCost ?? 0))})</div>
+                  </div>
+                  <div>
+                    <div className="text-slate-400">Loss / Cost Status</div>
+                    <div className="font-semibold text-slate-800">
+                      {formatMoney(Number(row.lossQty ?? 0))} กก. / <span className={`inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${costStatusColor}`}>{costStatusLabel}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 flex justify-end gap-1">
+                  <button
+                    className="rounded-md border border-slate-300 px-3 py-1.5 text-xs hover:bg-slate-50 disabled:opacity-50"
+                    disabled={!onConvertDetail}
+                    type="button"
+                    onClick={() => onConvertDetail?.(refNo)}
+                  >
+                    รายละเอียด
+                  </button>
+                  <button
+                    className="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                    disabled={status === 'reversed' || !onConvertReverse}
+                    type="button"
+                    onClick={() => onConvertReverse?.(refNo)}
+                  >
+                    ย้อนกลับ
+                  </button>
+                </div>
+              </div>
+          }
+
+          if (mode === 'status-convert') {
+            const status = String(row.status ?? 'posted')
+            const statusColor = status === 'reversed' ? 'bg-slate-200 text-slate-600' : 'bg-emerald-100 text-emerald-700'
+
+            return (
+              <div key={id} className="rounded-md border border-slate-200 bg-white p-4 shadow-sm hover:bg-slate-50">
+                <div className="mb-2 flex items-start justify-between">
+                  <span className="font-bold text-slate-800">{refNo}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusColor}`}>{status}</span>
+                </div>
+                <div className="text-xs text-slate-500">{formatDateDisplay(date)}</div>
+                <div className="my-3 space-y-1 text-xs text-slate-600">
+                  <div><span className="font-semibold">สินค้า:</span> <b>{formatCell(row.productCode)}</b> - {formatCell(row.productName)}</div>
+                  <div><span className="font-semibold">สาขา/คลัง:</span> {formatCell(row.branchName)} / {formatCell(row.warehouseName)}</div>
+                  {row.lotNo ? <div><span className="font-semibold">Lot:</span> <code className="font-mono">{String(row.lotNo)}</code></div> : null}
+                  <div>
+                    <span className="font-semibold">การเปลี่ยนสถานะ:</span>{' '}
+                    <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700">{formatCell(row.statusFrom)}</span>
+                    <span className="mx-1 text-amber-600">→</span>
+                    <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] text-emerald-700">{formatCell(row.statusTo)}</span>
+                  </div>
+                  {row.note ? <div><span className="font-semibold">เหตุผล:</span> {String(row.note)}</div> : null}
+                </div>
+                <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 text-xs">
+                  <div>
+                    <div className="text-slate-400">น้ำหนัก / ต้นทุน</div>
+                    <div className="font-semibold text-purple-700">{formatMoney(Number(row.qty ?? 0))} กก. (@{formatMoney(Number(row.unitCost ?? 0))})</div>
+                  </div>
+                  <div>
+                    <div className="text-slate-400">มูลค่ารวม</div>
+                    <div className="font-semibold text-slate-800">{formatMoney(Number(row.value ?? 0))} บาท</div>
+                  </div>
+                  <div>
+                    <div className="text-slate-400">ผู้ทำ / วันที่ทำ</div>
+                    <div className="font-semibold text-slate-600">{formatCell(row.createdBy)} ({formatDateTime(row.createdAt)})</div>
+                  </div>
+                </div>
+                <div className="mt-3 flex justify-end gap-2">
+                  <button
+                    className="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                    disabled={status === 'reversed' || !onStatusConvertReverse}
+                    type="button"
+                    onClick={() => onStatusConvertReverse?.(refNo)}
+                  >
+                    ย้อนกลับ
+                  </button>
+                </div>
+              </div>
+            )
+          }
+
+          return null
+        })}
+        {!isLoading && !rows.length ? <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-slate-400 shadow">{emptyTextFor(mode)}</div> : null}
+      </div>
+
+      {/* Desktop Table (Hidden on Mobile) */}
+      <div className="hidden md:block overflow-x-auto rounded-md bg-white shadow">
+        <table className={mode === 'convert' ? 'w-full min-w-[1300px] text-sm' : mode === 'status-convert' ? 'w-full min-w-[1280px] text-sm' : 'w-full min-w-[1500px] text-xs'}>
+          <thead className="bg-slate-100">
+            <tr>
+              {columns.map((column) => (
+                <th key={column.key} className={`p-2 text-left ${column.headerClassName ?? ''}`}>
+                  {mode === 'status-convert' && column.sortable && onSortChange ? (
+                    <button
+                      className="inline-flex items-center gap-1 font-medium text-slate-700 hover:text-slate-900"
+                      type="button"
+                      onClick={() => onSortChange(column.key as StatusConvertSortKey)}
+                    >
+                      <span>{column.label}</span>
+                      <span className="text-xs text-slate-400">{sortKey === column.key ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}</span>
+                    </button>
+                  ) : (
+                    column.label
+                  )}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={columns.length}>กำลังโหลดข้อมูล</td></tr> : null}
+            {!isLoading && rows.map((row, index) => <tr key={String(row.id ?? index)} className="border-t hover:bg-slate-50">{columns.map((column) => <td key={column.key} className={`p-2 align-top ${mode === 'adjust' ? 'font-semibold text-slate-700' : ''} ${column.cellClassName ?? ''}`}>{formatOperationCell(mode, row, column.key, onConvertReverse, onConvertDetail, onStatusConvertReverse, onAdjustCorrect)}</td>)}</tr>)}
+            {!isLoading && !rows.length ? <tr><td className="p-8 text-center text-slate-400" colSpan={columns.length}>{emptyTextFor(mode)}</td></tr> : null}
+          </tbody>
+        </table>
+      </div>
+    </>
   )
 }
 
