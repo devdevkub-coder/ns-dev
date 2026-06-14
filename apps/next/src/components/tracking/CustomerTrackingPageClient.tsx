@@ -137,22 +137,6 @@ export function CustomerTrackingPageClient() {
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="rounded-md bg-white p-3 shadow">
-        <div className="grid gap-2 md:grid-cols-6">
-          <input className="rounded-md border px-3 py-2 text-sm" type="number" value={year} onChange={(event) => setYear(event.target.value)} />
-          <select className="rounded-md border px-3 py-2 text-sm" value={month} onChange={(event) => setMonth(event.target.value)}>
-            <option value="">ทั้งปี</option>
-            {months.map((value, index) => <option key={value} value={value}>{monthLabels[index]}</option>)}
-          </select>
-          <select className="rounded-md border px-3 py-2 text-sm md:col-span-2" value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
-            <option value="">ลูกค้าทั้งหมด</option>
-            {(data?.filters.customers ?? []).map((customer) => <option key={customer.id} value={customer.id}>{customer.code ? `${customer.code} - ${customer.name}` : customer.name}</option>)}
-          </select>
-          <input className="rounded-md border px-3 py-2 text-sm" placeholder="ค้นหา Customer" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <a className="rounded-md bg-emerald-600 px-4 py-2 text-center text-sm font-bold text-white" href={exportHref}>📥 XLSX</a>
-        </div>
-      </div>
-
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="rounded-md bg-gradient-to-br from-emerald-500 to-teal-700 p-5 text-white shadow-xl lg:col-span-2">
           <div className="text-xs opacity-80">💰 ยอดขายรวม</div>
@@ -167,6 +151,22 @@ export function CustomerTrackingPageClient() {
         <div className="rounded-md bg-white p-4 shadow-lg">
           <div className="mb-3 text-sm font-bold text-slate-700">🏆 Top 5 Customer</div>
           <BarList color="emerald" rows={topFive.map((row) => ({ label: row.customerName, value: row.revenue }))} />
+        </div>
+      </div>
+
+      <div className="rounded-md bg-white p-3 shadow">
+        <div className="grid gap-2 md:grid-cols-6">
+          <input className="h-9 rounded-md border px-3 text-sm" type="number" value={year} onChange={(event) => setYear(event.target.value)} />
+          <select className="h-9 rounded-md border px-3 text-sm" value={month} onChange={(event) => setMonth(event.target.value)}>
+            <option value="">ทั้งปี</option>
+            {months.map((value, index) => <option key={value} value={value}>{monthLabels[index]}</option>)}
+          </select>
+          <select className="h-9 rounded-md border px-3 text-sm md:col-span-2" value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
+            <option value="">ลูกค้าทั้งหมด</option>
+            {(data?.filters.customers ?? []).map((customer) => <option key={customer.id} value={customer.id}>{customer.code ? `${customer.code} - ${customer.name}` : customer.name}</option>)}
+          </select>
+          <input className="h-9 rounded-md border px-3 text-sm" placeholder="ค้นหา Customer" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <a className="inline-flex h-9 items-center justify-center rounded-md bg-emerald-600 px-4 text-center text-sm font-bold text-white" href={exportHref}>📥 XLSX</a>
         </div>
       </div>
 

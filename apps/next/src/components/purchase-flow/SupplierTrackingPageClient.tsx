@@ -140,26 +140,26 @@ export function SupplierTrackingPageClient() {
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="rounded-md bg-white p-3 shadow">
-        <div className="grid gap-2 md:grid-cols-6">
-          <input className="rounded-md border px-3 py-2 text-sm" type="number" value={year} onChange={(event) => setYear(event.target.value)} />
-          <select className="rounded-md border px-3 py-2 text-sm" value={month} onChange={(event) => setMonth(event.target.value)}>
-            <option value="">ทั้งปี</option>
-            {months.map((value, index) => <option key={value} value={value}>{monthLabels[index]}</option>)}
-          </select>
-          <select className="rounded-md border px-3 py-2 text-sm md:col-span-2" value={supplierId} onChange={(event) => setSupplierId(event.target.value)}>
-            <option value="">Supplier ทั้งหมด</option>
-            {(data?.filters?.suppliers ?? []).map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.code ? `${supplier.code} - ${supplier.name}` : supplier.name}</option>)}
-          </select>
-          <input className="rounded-md border px-3 py-2 text-sm" placeholder="ค้นหา Supplier" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <a className="hidden md:inline-flex items-center justify-center rounded-md bg-blue-700 px-4 py-2 text-center text-sm font-bold text-white" href={exportHref}>📥 XLSX</a>
-        </div>
-      </div>
-
       <div className="grid gap-4 lg:grid-cols-3">
         <SummaryCard color="blue" label="💰 ยอดซื้อรวม" value={formatMoney(rows.reduce((sum, row) => sum + row.purchaseAmount, 0))} />
         <SummaryCard color="indigo" label="⚖️ น้ำหนักรวม" value={`${formatMoney(rows.reduce((sum, row) => sum + row.qty, 0))} กก.`} />
         <SummaryCard color="red" label="🏦 เจ้าหนี้ค้าง" value={formatMoney(payable)} />
+      </div>
+
+      <div className="rounded-md bg-white p-3 shadow">
+        <div className="grid gap-2 md:grid-cols-6">
+          <input className="h-9 rounded-md border px-3 text-sm" type="number" value={year} onChange={(event) => setYear(event.target.value)} />
+          <select className="h-9 rounded-md border px-3 text-sm" value={month} onChange={(event) => setMonth(event.target.value)}>
+            <option value="">ทั้งปี</option>
+            {months.map((value, index) => <option key={value} value={value}>{monthLabels[index]}</option>)}
+          </select>
+          <select className="h-9 rounded-md border px-3 text-sm md:col-span-2" value={supplierId} onChange={(event) => setSupplierId(event.target.value)}>
+            <option value="">Supplier ทั้งหมด</option>
+            {(data?.filters?.suppliers ?? []).map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.code ? `${supplier.code} - ${supplier.name}` : supplier.name}</option>)}
+          </select>
+          <input className="h-9 rounded-md border px-3 text-sm" placeholder="ค้นหา Supplier" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <a className="inline-flex h-9 items-center justify-center rounded-md bg-blue-700 px-4 text-center text-sm font-bold text-white" href={exportHref}>📥 XLSX</a>
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">

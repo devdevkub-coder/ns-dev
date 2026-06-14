@@ -100,6 +100,7 @@ User-provided screenshots clarify that Tracking 360 is a business decision surfa
 - Product Tracking availability/hold-aware `พร้อมใช้` remains owned by stock balance docs and is not represented in the main profitability table.
 - Aging buckets for receivable/payable/slow stock should be added only after [[Document Aging Policy]] and stock hold policy are finalized.
 - Formula/source reconciliation is still required when COGS/WAC behavior changes in Sales/Stock flows.
+- Design polish checkpoint 2026-06-14: Customer/Supplier/Product Tracking now place KPI/summary surfaces before the filter shell and use compact `h-9` filter/export controls per `docs/design.md`.
 
 ## Local Audit 2026-06-13
 
@@ -114,6 +115,8 @@ Local route smoke:
 
 - `/tracking/customer`, `/tracking/supplier`, `/tracking/product` redirect to login when unauthenticated, as expected for protected report pages.
 - Current local UI/API shape is confirmed from source code; authenticated browser QA should be run after implementation with a valid local session.
+- 2026-06-14 unauthenticated smoke: the three Tracking pages returned `307` to `/login?redirect=...`, and `GET /api/tracking/{customer,supplier,product}` returned `401`.
+- Authenticated Playwright QA is still blocked in this session because the shared Playwright MCP browser profile is already in use.
 
 ## Implementation Task Breakdown
 
@@ -183,12 +186,13 @@ Local route smoke:
 
 ### Batch T360-8: Design And QA
 
-- [ ] Use `docs/design.md` filter shell: `rounded-md bg-white p-3 shadow`, compact `h-9` controls, export button on the right.
-- [ ] Use AcexPOS-style KPI grid without extra outer card wrappers.
-- [ ] Use desktop table with `overflow-x-auto rounded-md bg-white shadow`, `text-sm`, `bg-slate-100` header, `p-2` cells.
+- [x] Use `docs/design.md` filter shell: `rounded-md bg-white p-3 shadow`, compact `h-9` controls, export button in the filter shell.
+- [x] Place KPI/summary surfaces before filters across Customer, Supplier, and Product Tracking.
+- [x] Use desktop table with `overflow-x-auto rounded-md bg-white shadow`, `text-sm`, `bg-slate-100` header, `p-2` cells.
 - [x] Add dense mobile card lists for Customer, Supplier, and Product; cards open the same detail as desktop rows.
 - [ ] Verify no text overflow/overlap on mobile and desktop.
-- [ ] Run validation: targeted lint for changed Tracking files, full type-check, build if API/data contracts change, and authenticated browser QA for all three routes.
+- [x] Run validation: full lint, full type-check, full build, `git diff --check`, and unauthenticated route/API smoke.
+- [ ] Authenticated browser QA for all three routes after the Playwright profile/session is available.
 
 ## Implementation Direction
 
