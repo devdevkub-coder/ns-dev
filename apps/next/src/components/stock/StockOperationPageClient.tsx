@@ -891,7 +891,7 @@ function OperationTable({
           </thead>
           <tbody className="divide-y divide-slate-100">
             {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={columns.length}>กำลังโหลดข้อมูล</td></tr> : null}
-            {!isLoading && rows.map((row, index) => <tr key={String(row.id ?? index)} className="border-t hover:bg-slate-50">{columns.map((column) => <td key={column.key} className={`p-2 align-top ${mode === 'adjust' ? 'font-semibold text-slate-700' : ''} ${column.cellClassName ?? ''}`}>{formatOperationCell(mode, row, column.key, onConvertReverse, onConvertDetail, onStatusConvertReverse, onAdjustCorrect)}</td>)}</tr>)}
+            {!isLoading && rows.map((row, index) => <tr key={String(row.id ?? index)} className="border-t border-slate-200 hover:bg-slate-50">{columns.map((column) => <td key={column.key} className={`p-2 align-top ${mode === 'adjust' ? 'font-semibold text-slate-700' : ''} ${column.cellClassName ?? ''}`}>{formatOperationCell(mode, row, column.key, onConvertReverse, onConvertDetail, onStatusConvertReverse, onAdjustCorrect)}</td>)}</tr>)}
             {!isLoading && !rows.length ? <tr><td className="p-8 text-center text-slate-400" colSpan={columns.length}>{emptyTextFor(mode)}</td></tr> : null}
           </tbody>
         </table>
@@ -1132,7 +1132,7 @@ function ConvertDetailModal({ detail, isLoading, onClose, onExport }: { detail: 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-10">
       <div className="w-full max-w-5xl overflow-hidden rounded-md bg-white shadow-xl">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-slate-50 px-5 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-5 py-4">
           <div>
             <h3 className="font-bold">Cost Allocation Detail · {detail.refNo}</h3>
             <div className="mt-1 text-xs text-slate-500">{detail.date} · {detail.branchWarehouse || '-'} · {detail.status}</div>
@@ -1142,7 +1142,7 @@ function ConvertDetailModal({ detail, isLoading, onClose, onExport }: { detail: 
             <button className="text-2xl text-slate-400 hover:text-slate-700" type="button" onClick={onClose}>&times;</button>
           </div>
         </div>
-        <div className="grid gap-3 border-b p-5 md:grid-cols-5">
+        <div className="grid gap-3 border-b border-slate-200 p-5 md:grid-cols-5">
           <Metric cardClassName="rounded-md bg-slate-50 p-3" label="Source Qty" value={`${formatMoney(detail.sourceQty)} กก.`} />
           <Metric cardClassName="rounded-md bg-slate-50 p-3" label="Target Qty" value={`${formatMoney(detail.targetQty)} กก.`} />
           <Metric cardClassName="rounded-md bg-slate-50 p-3" label="Loss" value={`${formatMoney(detail.lossQty)} กก.`} />
@@ -1169,7 +1169,7 @@ function ConvertDetailModal({ detail, isLoading, onClose, onExport }: { detail: 
             </thead>
             <tbody>
               {detail.lines.map((line) => (
-                <tr key={`${line.lineNo}-${line.sourcePoolId ?? 'source'}`} className="border-t">
+                <tr key={`${line.lineNo}-${line.sourcePoolId ?? 'source'}`} className="border-t border-slate-100">
                   <td className="p-2 font-mono">{line.lineNo}</td>
                   <td className="p-2">
                     <div className="font-semibold text-slate-700">{line.sourceRefNo ?? line.sourceType ?? '-'}</div>
@@ -1193,7 +1193,7 @@ function ConvertDetailModal({ detail, isLoading, onClose, onExport }: { detail: 
             </tbody>
           </table>
         </div>
-        <div className="border-t bg-slate-50 px-5 py-3 text-xs text-slate-500">
+        <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-xs text-slate-500">
           เหตุผล: {detail.reason || '-'} · หมายเหตุ: {detail.notes || '-'} · เหตุผล override: {detail.targetCostReason || '-'}
         </div>
       </div>
@@ -1366,7 +1366,7 @@ function CostPoolPreview({
             </thead>
             <tbody>
               {entries.map((entry) => (
-                <tr key={entry.id} className="border-t">
+                <tr key={entry.id} className="border-t border-slate-100">
                   <td className="p-2">
                     <div className="font-semibold text-slate-700">{entry.sourceRefNo ?? entry.sourceType}</div>
                     <div className="text-slate-500">{entry.date}{entry.lotNo ? ` · Lot ${entry.lotNo}` : ''}</div>
@@ -1402,7 +1402,7 @@ function CostPoolPreview({
             </thead>
             <tbody>
               {previewRows.map((line) => (
-                <tr key={line.entry.id} className="border-t">
+                <tr key={line.entry.id} className="border-t border-slate-100">
                   <td className="p-2">
                     <div className="font-semibold text-slate-700">{line.entry.sourceRefNo ?? line.entry.sourceType}</div>
                     <div className="text-slate-500">{line.entry.date}{line.entry.lotNo ? ` · Lot ${line.entry.lotNo}` : ''}</div>

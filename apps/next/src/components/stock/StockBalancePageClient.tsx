@@ -633,7 +633,7 @@ function Info({
         : 'text-slate-900 font-medium'
   const fontClass = mono ? 'font-mono' : ''
   return (
-    <div className="flex border-b py-1.5">
+    <div className="flex border-b border-slate-100 py-1.5">
       <span className="w-36 text-slate-500 shrink-0">{label}</span>
       <span className={`${valueColor} ${fontClass} break-all`}>{value}</span>
     </div>
@@ -730,7 +730,7 @@ function ProductPanel({ averageCost, info, onClose, onOpen, rows }: {
         <div className="rounded-md bg-white p-3 shadow"><div className="text-xs text-slate-500">พร้อมส่ง</div><div className="text-2xl font-bold text-emerald-600">{formatMoney(info.ready)} <span className="text-sm font-normal">กก.</span></div></div>
       </div>
       <div className="mt-3 rounded-md bg-white shadow">
-        <div className="flex items-center justify-between border-b bg-slate-50 p-3">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 p-3">
           <h4 className="font-bold text-slate-700">📜 รายการสต๊อกของสินค้านี้ ({rows.length} รายการ)</h4>
           <span className="text-xs text-slate-500">กด Detail เพื่อดู row ปัจจุบัน</span>
         </div>
@@ -741,7 +741,7 @@ function ProductPanel({ averageCost, info, onClose, onOpen, rows }: {
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.key} className="border-t hover:bg-blue-50/30">
+                <tr key={row.key} className="border-t border-slate-100 hover:bg-blue-50/30">
                   <td className="p-2">{row.lastDate}</td>
                   <td className="p-2"><StockStatusCell row={row} /></td>
                   <td className="p-2 text-slate-500">{row.branchName} / {row.warehouseName}</td>
@@ -821,7 +821,7 @@ function MatrixTable({ byStatus, isLoading, matrixRows, totalQty, totalValue }: 
         <tbody>
           {isLoading ? <tr><td className="p-8 text-center text-slate-400" colSpan={9}>กำลังโหลดข้อมูล</td></tr> : null}
           {!isLoading && matrixRows.map((row) => (
-            <tr key={row.group} className="border-t hover:bg-slate-50">
+            <tr key={row.group} className="border-t border-slate-100 hover:bg-slate-50">
               <td className="p-2 font-bold">{row.group}</td>
               <td className="p-2 text-right text-blue-700">{row.rmQty ? formatMoney(row.rmQty) : '-'}</td>
               <td className="p-2 text-right text-blue-700">{row.rmVal ? formatMoney(row.rmVal) : '-'}</td>
@@ -853,7 +853,7 @@ function DetailTable({ isLoading, onOpen, rows }: { isLoading: boolean; onOpen: 
         <tbody>
           {isLoading ? <tr><td className="p-8 text-center text-slate-400" colSpan={11}>กำลังโหลดข้อมูล</td></tr> : null}
           {!isLoading && rows.map((row) => (
-            <tr key={row.key} className={`border-t ${row.qty < 0 ? 'bg-red-50/60' : 'hover:bg-slate-50'}`}>
+            <tr key={row.key} className={`border-t border-slate-100 ${row.qty < 0 ? 'bg-red-50/60' : 'hover:bg-slate-50'}`}>
               <td className="p-2"><span className="font-mono text-xs text-slate-500">{row.productCode}</span> {row.productName}<div className="text-xs text-slate-400">Lot: {row.lotNo || '-'}</div></td>
               <td className="p-2">{row.productMetalGroup || 'อื่นๆ'}</td>
               <td className="p-2 text-center"><StockStatusCell row={row} /></td>
