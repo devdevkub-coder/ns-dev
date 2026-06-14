@@ -2196,7 +2196,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   return (
     <section className="space-y-4">
       {mode === 'stock-issue' ? (
-        <div>
+        <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl shadow-sm">
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <TransactionKpi label="⏰ Pending / รายการ" tone="amber" value={`${totalRows.toLocaleString('th-TH')} ใบ`} />
             <TransactionKpi label="น้ำหนักรวมในหน้า" tone="blue" value={`${formatMoney(stockIssueQty)} กก.`} />
@@ -2241,17 +2241,18 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           {mode === 'sales' ? <ExportButton isExporting={isExporting} onClick={() => void exportExcel()} /> : null}
           {mode === 'sales' ? <Button disabled={isSaving} type="button" className="hidden md:inline-flex" onClick={openSalesForm}>+ บิลขายใหม่</Button> : null}
           {mode === 'stock-issue' ? (
-            <>
-              <Select className="w-auto" value={filterMode} onChange={(event) => setFilterMode(event.target.value)}>
-                <option value="">ทุกสถานะ</option>
-                <option value="pending">⏰ Pending</option>
-                <option value="converted">✓ เปิดบิลแล้ว</option>
-                <option value="cancelled">⊘ ยกเลิก</option>
-              </Select>
-              <Button className="hidden md:inline-flex ml-auto bg-amber-600 hover:bg-amber-700" disabled={isSaving} type="button" onClick={openStockIssueForm}>+ เบิกออกใหม่</Button>
-            </>
+            <Button className="hidden md:inline-flex ml-auto" disabled={isSaving} type="button" onClick={openStockIssueForm}>+ เบิกออกใหม่</Button>
           ) : null}
         </div>
+        {mode === 'stock-issue' ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-slate-500">สถานะ:</span>
+            <Segment value="" current={filterMode} label="ทั้งหมด" onClick={setFilterMode} />
+            <Segment value="pending" current={filterMode} label="⏰ Pending" onClick={setFilterMode} />
+            <Segment value="converted" current={filterMode} label="✓ เปิดบิลแล้ว" onClick={setFilterMode} />
+            <Segment value="cancelled" current={filterMode} label="⊘ ยกเลิก" onClick={setFilterMode} />
+          </div>
+        ) : null}
         {mode === 'purchase' || mode === 'sales' ? (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-slate-500">ประเภท:</span>
@@ -2354,12 +2355,12 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               ) : (
                 <div>
                   <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะ</span>
-                  <Select className="w-full" value={filterMode} onChange={(event) => setFilterMode(event.target.value)}>
-                    <option value="">ทุกสถานะ</option>
-                    <option value="pending">⏰ Pending</option>
-                    <option value="converted">✓ เปิดบิลแล้ว</option>
-                    <option value="cancelled">⊘ ยกเลิก</option>
-                  </Select>
+                  <div className="flex flex-wrap gap-2">
+                    <Segment value="" current={filterMode} label="ทั้งหมด" onClick={setFilterMode} />
+                    <Segment value="pending" current={filterMode} label="⏰ Pending" onClick={setFilterMode} />
+                    <Segment value="converted" current={filterMode} label="✓ เปิดบิลแล้ว" onClick={setFilterMode} />
+                    <Segment value="cancelled" current={filterMode} label="⊘ ยกเลิก" onClick={setFilterMode} />
+                  </div>
                 </div>
               )}
             </div>
@@ -2390,7 +2391,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
         <div>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
         <div className="flex flex-wrap items-center gap-2">
-          {columnResize.hasCustomWidths ? <Button size="sm" type="button" variant="outline" className="hidden md:inline-flex" onClick={columnResize.resetColumnWidths}>Set col to default</Button> : null}
+          {columnResize.hasCustomWidths ? <Button size="sm" type="button" variant="outline" className="hidden md:inline-flex" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
           <Select
             aria-label="จำนวนรายการต่อหน้า"
             className="h-9 w-auto px-2 py-1"
@@ -2607,7 +2608,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label={mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า'} resizeProps={columnResize.getResizeHandleProps('partyName', mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า')} sortKey="name" onSort={changeSort} />
               {mode !== 'purchase' ? <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label="สาขา / คลัง" resizeProps={columnResize.getResizeHandleProps('warehouse', 'สาขา / คลัง')} sortKey="warehouse" onSort={changeSort} /> : null}
               {mode !== 'stock-issue' ? <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('transactionMode', 'ประเภท')} sortKey="transactionMode" onSort={changeSort} /> : null}
-              <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label={mode === 'purchase' ? 'สถานะเอกสาร' : 'สถานะรับเงิน'} resizeProps={columnResize.getResizeHandleProps('status', mode === 'purchase' ? 'สถานะเอกสาร' : 'สถานะรับเงิน')} sortKey="status" onSort={changeSort} />
+              <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label={mode === 'purchase' ? 'สถานะเอกสาร' : mode === 'stock-issue' ? 'สถานะ' : 'สถานะรับเงิน'} resizeProps={columnResize.getResizeHandleProps('status', mode === 'purchase' ? 'สถานะเอกสาร' : mode === 'stock-issue' ? 'สถานะ' : 'สถานะรับเงิน')} sortKey="status" onSort={changeSort} />
               {mode === 'purchase' ? <ResizableTableHead label="PMA / PMT" resizeProps={columnResize.getResizeHandleProps('paymentDocs', 'PMA / PMT')} /> : null}
               {mode !== 'purchase' ? <SortHeader activeKey={sortKey} align="right" direction={sortDirection} label="รายการ" resizeProps={columnResize.getResizeHandleProps('itemCount', 'รายการ')} sortKey="itemCount" onSort={changeSort} /> : null}
               {mode === 'stock-issue' ? <ResizableTableHead align="right" label="น้ำหนัก" resizeProps={columnResize.getResizeHandleProps('stockQty', 'น้ำหนัก')} /> : null}
@@ -2618,8 +2619,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               {mode !== 'stock-issue' ? <SortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ค้างชำระ" resizeProps={columnResize.getResizeHandleProps('outstanding', 'ค้างชำระ')} sortKey="outstanding" onSort={changeSort} /> : null}
               {mode === 'sales' ? <ResizableTableHead align="center" label="VAT" resizeProps={columnResize.getResizeHandleProps('vat', 'VAT')} /> : null}
               {mode !== 'stock-issue' ? <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label="อัพเดตล่าสุด" resizeProps={columnResize.getResizeHandleProps('updatedBy', 'อัพเดตล่าสุด')} sortKey="updatedBy" onSort={changeSort} /> : null}
-              {mode === 'purchase' ? <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} /> : null}
-              {mode === 'sales' ? <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} /> : null}
+              <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
             </tr>
           </TableHeader>
           <TableBody className="divide-y divide-slate-100">
