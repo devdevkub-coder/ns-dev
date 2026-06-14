@@ -83,7 +83,7 @@ function parseBillQuery(url: URL, includePaging = true): BillQuery {
   }
 }
 
-function billJson(row: SalesBillRow, activeReceiptCount = 0) {
+function billJson(row: SalesBillRow, activeReceiptCount = 0, lineCount?: number) {
   const cancelState = salesBillCancelState(row.status, activeReceiptCount)
   return {
     branchId: row.branches?.code ?? '',
@@ -98,7 +98,7 @@ function billJson(row: SalesBillRow, activeReceiptCount = 0) {
     docNo: row.doc_no,
     grossProfit: toNumber(row.gross_profit),
     id: row.doc_no,
-    itemCount: Array.isArray(row.items) ? row.items.length : 0,
+    itemCount: lineCount ?? (Array.isArray(row.items) ? row.items.length : 0),
     lockedReason: cancelState.lockedReason,
     receivableBalance: toNumber(row.receivable_balance),
     receivedAmount: toNumber(row.received_amount),
@@ -114,6 +114,19 @@ function billJson(row: SalesBillRow, activeReceiptCount = 0) {
     warehouseId: row.warehouses?.code ?? '',
     warehouseName: row.warehouses?.name ?? '-',
   }
+}
+
+async function salesBillLineCountByBillId(billIds: bigint[]) {
+  if (!billIds.length) return new Map<bigint, number>()
+  const rows = await prisma.sales_bill_lines.groupBy({
+    _count: { id: true },
+    by: ['sales_bill_id'],
+    where: {
+      sales_bill_id: { in: billIds },
+      status: { in: ['active', 'cancelled'] },
+    },
+  })
+  return new Map(rows.map((row) => [row.sales_bill_id, row._count.id] as const))
 }
 
 function billWhere(query: BillQuery): Prisma.sales_billsWhereInput {
@@ -1095,8 +1108,12 @@ export async function GET(request: Request) {
       prisma.sales_bills.count({ where }),
       prisma.sales_bills.aggregate({ _sum: { total_amount: true }, where }),
     ])
-    const activeReceiptCountByBillId = await activeSalesReceiptCountByBillId(prisma, rows.map((row) => row.id))
-    const jsonRows = rows.map((row) => billJson(row, activeReceiptCountByBillId.get(row.id) ?? 0))
+    const billIds = rows.map((row) => row.id)
+    const [activeReceiptCountByBillId, lineCountByBillId] = await Promise.all([
+      activeSalesReceiptCountByBillId(prisma, billIds),
+      salesBillLineCountByBillId(billIds),
+    ])
+    const jsonRows = rows.map((row) => billJson(row, activeReceiptCountByBillId.get(row.id) ?? 0, lineCountByBillId.get(row.id)))
 
     if (url.searchParams.get('format') === 'xlsx') {
       const body = buildWorkbook(jsonRows)

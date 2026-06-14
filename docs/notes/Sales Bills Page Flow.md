@@ -46,11 +46,11 @@ updated: 2026-06-14
 - `PATCH /api/sales/bills/[id]` action `cancel` เพิ่มแล้วสำหรับ `STOCK` SB ที่ยังไม่มี active receipt: block active `RCP`, reopen consumed `WTO` hold, เขียน `stock_ledger.ref_type = SB-CANCEL`, append `released_from_sales_bill`, คืน `WTO` เป็น `delivered`, reverse `PO Sell` usage, mark `SB` เป็น `cancelled`, และ append `sales_bill_status_logs`
 - UI ปุ่มยกเลิกของบิลขายเปิดใช้แล้วสำหรับ row ที่ server ส่ง `canCancel = true`; browser QA ผ่านสำหรับ WTO-backed Stock SB cancel และ PO Sell outstanding reversal
 - `TRADING` SB มี row-level Trading Cost Source, `trading_allocation_facts`, allocation-only correction API/UI, และ browser QA ผ่านแล้วสำหรับ multi-line source correction โดยไม่เขียน stock ledger
-- new SB create/cancel write-path now records dedicated allocation facts for `WTO/PSALE -> SB`, `SB -> PO Sell/Spot Sale`, and `Customer advance -> SB`; Stock SB detail/print/export still read mostly from `sales_bills.items` snapshots until reconciliation/backfill policy is defined
+- new SB create/cancel write-path now records dedicated allocation facts for `SB line`, `WTO/PSALE -> SB`, `SB -> PO Sell/Spot Sale`, and `Customer advance -> SB`; Stock SB detail/print/list item-count reads durable line/source/PO facts first, while legacy SBs without facts show a reconciliation warning instead of inventing allocation data from JSON
 
 ## Target Durable Allocation Contract
 
-เป้าหมายก่อนเปิด full edit/correction ของ `STOCK` SB คือแยก fact ที่อ่านซ้ำได้จาก `sales_bills.items` JSON ออกมาเป็น table ชัดเจน โดยไม่ทำ runtime fallback จาก JSON ถ้า fact ขาด ต้อง reject write หรือแสดง reconciliation gap ให้แก้ data/write path. Migration/write-path สำหรับบิลใหม่มีแล้ว; read-model normalization/backfill สำหรับบิลเก่ายังเป็นงานถัดไป
+เป้าหมายก่อนเปิด full edit/correction ของ `STOCK` SB คือแยก fact ที่อ่านซ้ำได้จาก `sales_bills.items` JSON ออกมาเป็น table ชัดเจน โดยไม่ทำ runtime fallback จาก JSON เพื่อเดา allocation ถ้า fact ขาด ต้อง reject write หรือแสดง reconciliation gap ให้แก้ data/write path. Migration/write-path และ read-model สำหรับบิลใหม่มีแล้ว; reconciliation/backfill สำหรับบิลเก่ายังเป็นงานถัดไป
 
 ### Owner Boundary
 
@@ -95,7 +95,7 @@ Index minimum:
 
 `GET /api/sales/bills` and `GET /api/sales/bills/{docNo}`:
 
-- Detail, print, export, dashboard, and tracking must read normalized line/allocation facts once implemented.
+- Detail and print read normalized line/allocation facts for new SBs; list export currently remains list-level but counts durable line facts first. Any future line-level export, dashboard, and tracking must use the same normalized facts.
 - If a legacy SB has no normalized facts, show a migration/reconciliation signal; do not invent source labels, COGS, PO Sell usage, or customer advance from stale JSON.
 
 `PATCH /api/sales/bills/{docNo}`:
@@ -326,7 +326,8 @@ Design/API รายละเอียดอยู่ที่ [[Stock Ledger DB
 - [x] ออกแบบ/เพิ่ม current allocation table สำหรับ `SB -> Spot Sale`
 - [x] ออกแบบ/เพิ่ม current allocation table สำหรับ `Customer advance -> SB`
 - [x] เพิ่ม transaction-safe cancellation ของ active line/source/PO/customer-advance allocation facts; full edit/rebuild ยัง disabled
-- [ ] เพิ่ม server-side read/validation pass ให้ detail/print/export ยึด allocation facts/current tables แทนการอ่าน json snapshot
+- [x] เพิ่ม server-side read/validation pass ให้ detail/print และ list item-count ยึด allocation facts/current tables ก่อน json snapshot
+- [ ] เพิ่ม line-level export/dashboard/tracking pass ให้ยึด allocation facts/current tables เมื่อเปิดใช้ surface เหล่านั้น
 
 #### Batch SB-5: Status And Timeline Logs
 
@@ -344,7 +345,7 @@ Design/API รายละเอียดอยู่ที่ [[Stock Ledger DB
 - [x] Print เป็น A4 portrait รองรับ multi-page, repeat table header, fixed footer
 - [x] Print แสดง Customer/document panels, VAT/totals, Customer advance, receivable balance
 - [x] Print ไม่แสดงทะเบียนรถ และไม่ซ้ำเลข `WTO` ในตารางรายการสินค้า
-- [ ] Detail/print อ่าน source ต่อ line จาก allocation facts หลัง Batch SB-4 แทนการพึ่ง snapshot/header fallback
+- [x] Detail/print อ่าน source ต่อ line จาก allocation facts หลัง Batch SB-4 แทนการพึ่ง snapshot/header fallback; legacy rows without facts show reconciliation warning
 - [ ] เพิ่ม QA print ด้วยรายการยาวหลายหน้าและ mixed `PO Sell`/`Spot Sale`
 
 #### Batch SB-7: Trading Sales Bill Follow-up

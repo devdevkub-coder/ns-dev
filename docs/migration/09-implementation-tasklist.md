@@ -574,7 +574,8 @@ Reporting rule:
   - [x] current allocation table for `SB -> PO Sell`
   - [x] current allocation table for `SB -> Spot Sale`
   - [x] current allocation table for `Customer advance -> SB`
-  - [ ] server-side detail/print/export reads allocation facts/current tables, not only json snapshots
+  - [x] server-side detail/print and list item-count reads allocation facts/current tables before json snapshots
+  - [ ] future line-level export/dashboard/tracking reads allocation facts/current tables, not json snapshots
 - [ ] Runtime status/usage cleanup after status decision
   - [x] WTI/WTO list filters use canonical target status only
   - [x] WTI has no target partial-billed status in new writes
@@ -605,7 +606,8 @@ Reporting rule:
   - [x] Logged-in browser QA Trading SB allocation correction: open `แก้ต้นทุน`, change multiple line sources, save, verify revised Matched COGS/GP, and confirm no stock ledger side effect
 - [x] Define sales bill allocation tables/rules for `sales bill -> WTO/PSALE/direct stock`, `sales bill -> PO Sell/Spot Sale`, and `Customer advance -> sales bill`; Trading cost continues through `trading_allocation_facts`
 - [x] Implement the durable Sales Bill allocation tables/write path after the design above: `sales_bill_lines`, `sales_bill_source_allocations`, `sales_bill_po_sell_allocations`, and `sales_bill_customer_advance_allocations`
-- [ ] Switch Stock SB detail/print/export read models from `sales_bills.items` snapshots to durable Sales Bill allocation facts after reconciliation/backfill policy is defined
+- [x] Switch Stock SB detail/print/list item-count read models from `sales_bills.items` snapshots to durable Sales Bill allocation facts, with no-fallback warning for legacy rows without facts
+- [ ] Decide legacy SB reconciliation/backfill policy before removing the legacy snapshot display path entirely
 - [x] Implement `/sales/stock-issue` pending sale write flow from `docs/notes/Pending Sale Page Flow.md`
   - [x] create pending sale validates active WTO hold availability and writes `PSALE` stock-out ledger because goods physically leave before billing
   - [x] direct edit is intentionally disabled; pending PSALE corrections use cancel-and-recreate

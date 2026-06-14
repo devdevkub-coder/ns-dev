@@ -4260,6 +4260,12 @@ function SalesBillDetailModal({
               </div>
             </div>
 
+            {detail.readModelWarning ? (
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                {detail.readModelWarning}
+              </div>
+            ) : null}
+
             <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">รายการสินค้า / Source</div>

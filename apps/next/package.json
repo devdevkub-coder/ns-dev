@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "qa:stock-ledger-write-paths": "npx tsx scripts/qa-stock-ledger-write-paths.ts",
     "verify:production-report": "npx tsx scripts/verify-production-report-formulas.ts",
+    "verify:sales-bill-allocation-read-model": "npx tsx scripts/verify-sales-bill-allocation-read-model.ts",
     "verify:trading-allocation-correction": "npx tsx scripts/verify-trading-allocation-correction-contract.ts",
     "verify:stock-transfer": "npx tsx scripts/verify-stock-transfer-contract.ts",
     "verify:stock-ledger": "npx tsx scripts/verify-stock-ledger-contract.ts",
