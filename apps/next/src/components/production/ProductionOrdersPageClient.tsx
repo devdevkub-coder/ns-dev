@@ -810,6 +810,7 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
                   <ReadField label="สถานะ" value={row?.status ?? '-'} />
                   <ReadField label="สินค้าเป้าหมาย" value={row?.productName ?? '-'} />
                   <ReadField label="สาขา" value={row?.branchName ?? '-'} />
+                  <ReadField label="คลังรับผลผลิต" value={row?.warehouseName ?? '-'} />
                   <ReadField label="WIP" value={formatMoney(rowWipQty)} />
                   <ReadField label="หมายเหตุ" value={row?.notes || '-'} />
                 </div>
