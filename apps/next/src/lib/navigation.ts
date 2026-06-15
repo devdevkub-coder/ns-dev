@@ -197,7 +197,7 @@ export const navigationItems: NavigationItem[] = [
   { href: '/stock/transfer', icon: '🚚', label: 'โอนสินค้าระหว่างสาขา', section: 'stock' },
   { href: '/daily/design-mockup', icon: '🎨', label: 'Design Mockup', pageSubtitle: 'พื้นที่สำหรับทดสอบและออกแบบ UI (Playground)', section: 'daily' },
   { href: '/production/orders', icon: '🏭', label: 'ใบสั่งผลิต', section: 'production' },
-  { href: '/production/dashboard', icon: '📊', label: 'แดชบอร์ดการผลิต', section: 'production' },
+  // { href: '/production/dashboard', icon: '📊', label: 'แดชบอร์ดการผลิต', section: 'production' },
   { href: '/production/report', icon: '📐', label: 'รายงานการผลิต / Yield', section: 'production' },
   { href: '/purchase/po-buy', icon: '📝', label: 'PO Buy (จองซื้อ)', pageTitle: 'PO Buy (จองซื้อ)', pageSubtitle: 'จองซื้อล่วงหน้า - ใช้จองดีลกับ Supplier ล็อคยอด ล็อคราคาล่วงหน้า', section: 'daily' },
   { href: '/sales/po-sell', icon: '📃', label: 'PO Sell (จองขาย)', pageTitle: 'PO Sell (จองขาย)', pageSubtitle: 'จองขายล่วงหน้า - ใช้กับ Cost Allocator เพื่อคำนวณกำไรคาดการณ์ก่อนขายจริง', section: 'daily' },

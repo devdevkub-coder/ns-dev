@@ -150,6 +150,15 @@ Dashboard source-of-truth ต้องใช้ production facts ที่ recon
   - ฟิลด์ **"เครื่องจักร" (machineCode)** และ **"ไลน์ผลิต" (productionLineCode)** ดั้งเดิม API validation บังคับแปลงเป็น Uppercase ทั้งหมดใน backend (ด้วย codeSchema) ส่งผลให้เมื่อไปคิวรี่หาในตาราง database (เช่น ค้นหาไลน์ผลิต "LINE A - เครื่องอัดแนวตั้ง/เครื่องตัด" ทั้งที่ใน db เก็บเป็น Camel-case "Line A - เครื่องอัดแนวตั้ง/เครื่องตัด") จะหาไม่พบและเกิด validation error ทันที
   - **แนวทางการแก้ไข:** ปรับเปลี่ยน Schema ใน Zod ให้เป็น string ธรรมดา (โดยไม่แปลง Uppercase) และปรับฟังก์ชันค้นหาของ Prisma ให้ค้นหาแบบ case-insensitive (`mode: 'insensitive'`) ทำให้ระบบรองรับการป้อนข้อมูลได้ถูกต้องยืดหยุ่น และสร้างใบสั่งผลิตสำเร็จโดยไม่มีข้อบกพร่องทางข้อมูลอีกต่อไป
 
+### 📢 ข้อตกลงตาราง WIP และการซ่อนหน้าจอแดชบอร์ด (WIP Table & Dashboard Suppression - 2026-06-15)
+* **ตาราง WIP คงเหลือในรายงานการผลิต/Yield (`/production/report`):**
+  * เพิ่มตารางแสดงผล "WIP คงเหลือ" ไว้ด้านบนสุดของรายงานการผลิต (เมื่อ `mode === 'report'`)
+  * ตารางจะแสดงรายการใบสั่งผลิตที่มีงาน WIP ค้างอยู่ พร้อมคำนวณอายุการค้างเป็นจำนวนวัน และสรุป `totalWipQty` และ `totalWipValue` แบบเรียลไทม์ฝั่ง Client
+  * รองรับ Responsive: บน Mobile จะแปลงการแสดงผลตารางเป็นแบบการ์ดแนวตั้งเพื่อหลีกเลี่ยง Horizontal Scroll และหากไม่มีงาน WIP ค้าง จะขึ้นแสดงกล่องสถานะสีเขียวแจ้งว่า "ไม่มี WIP คงเหลือ - ผลิตเสร็จทุกใบ" แทนอย่างสวยงาม
+* **การซ่อนหน้าจอแดชบอร์ดการผลิต (`/production/dashboard`):**
+  * ตามคำสั่งผู้ใช้ ให้ทำการซ่อนหน้าแดชบอร์ดการผลิตชั่วคราวเพื่อเก็บไว้ก่อน
+  * ดำเนินการโดยคอมเมนต์เส้นทางเข้าถึงออกจากโครงสร้างเมนูหลัก [navigation.ts](file:///c:/new-ns-scrap-erp/apps/next/src/lib/navigation.ts) และหน้ารวมรายงาน [ReportsIndexPageClient.tsx](file:///c:/new-ns-scrap-erp/apps/next/src/app/reports/ReportsIndexPageClient.tsx) เรียบร้อยแล้ว
+
 
 Status target สำหรับ MVP:
 

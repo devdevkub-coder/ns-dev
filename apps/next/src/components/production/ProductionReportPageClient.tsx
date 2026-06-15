@@ -15,6 +15,7 @@ type Payload = {
   rows: Row[]
   summary: Record<string, number>
   topProducts?: Array<{ avgCost?: number; batches: number; code?: string; cost: number; name: string; qty: number }>
+  wipRows?: Row[]
 }
 
 type Column = {
@@ -115,6 +116,10 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
     })
     return Array.from(byProduct.values()).map((item) => ({ ...item, unitCost: item.qty > 0 ? item.cost / item.qty : 0 })).sort((left, right) => right.qty - left.qty)
   }, [rows])
+
+  const wipRows = useMemo(() => data?.wipRows ?? [], [data?.wipRows])
+  const totalWipQty = useMemo(() => wipRows.reduce((sum, r) => sum + Number(r.wipQty ?? 0), 0), [wipRows])
+  const totalWipValue = useMemo(() => wipRows.reduce((sum, r) => sum + Number(r.wipValue ?? 0), 0), [wipRows])
 
   function applyDashboardRange(range: 'last30' | 'last7' | 'last90' | 'month' | 'today' | 'year') {
     const end = new Date()
@@ -523,63 +528,172 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
         </div>
       ) : null}
       {mode === 'report' ? (
-        <div className="rounded-xl border border-slate-200/60 bg-white shadow-sm flex flex-col overflow-hidden">
-          <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-3"><h3 className="font-bold text-slate-700 text-sm">📦 ผลผลิตแยกตามสินค้า</h3></div>
-          
-          {/* Desktop View */}
-          <div className="hidden lg:block overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-100 border-b border-slate-100">
-                <tr className="border-slate-100">
-                  <th className="p-2 text-left text-xs font-semibold text-slate-500">สินค้า</th>
-                  <th className="p-2 text-right text-xs font-semibold text-slate-500">รอบ</th>
-                  <th className="p-2 text-right text-xs font-semibold text-slate-500">น้ำหนักรวม</th>
-                  <th className="p-2 text-right text-xs font-semibold text-slate-500">ต้นทุนรวม</th>
-                  <th className="p-2 text-right text-xs font-semibold text-slate-500">ต้นทุน/กก.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {productSummary.map((item) => (
-                  <tr key={item.name} className="border-t border-slate-100 hover:bg-slate-50">
-                    <td className="p-2 text-xs">{item.name}</td>
-                    <td className="p-2 text-right text-xs">{item.count}</td>
-                    <td className="p-2 text-right font-medium text-emerald-700 text-xs">{formatMoney(item.qty)}</td>
-                    <td className="p-2 text-right text-xs">{formatMoney(item.cost)}</td>
-                    <td className="p-2 text-right text-xs">{formatMoney(item.unitCost)}</td>
-                  </tr>
-                ))}
-                {!productSummary.length ? <tr><td className="py-6 text-center text-slate-400" colSpan={5}>ไม่มีข้อมูล</td></tr> : null}
-              </tbody>
-            </table>
+        <div className="space-y-4">
+          {/* WIP คงเหลือ (Work-in-Progress) */}
+          <div className="rounded-xl border border-slate-200/60 bg-white shadow-sm flex flex-col overflow-hidden">
+            <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <span className="text-lg">🏆</span>
+                <h3 className="font-bold text-slate-700 text-sm">WIP คงเหลือ (Work-in-Progress) - ของที่ยังผลิตค้างอยู่</h3>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600">
+                <span className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">📦 {wipRows.length} ใบ</span>
+                <span className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">⚖️ รวม {formatMoney(totalWipQty)} กก.</span>
+                <span className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">💰 มูลค่า {formatMoney(totalWipValue)}</span>
+              </div>
+            </div>
+            {wipRows.length === 0 ? (
+              <div className="p-4 bg-emerald-50 text-emerald-800 text-sm font-medium flex items-center gap-2 border-t border-emerald-100">
+                <span className="text-lg">✔️</span>
+                <span>ไม่มี WIP คงเหลือ - ผลิตเสร็จทุกใบ</span>
+              </div>
+            ) : (
+              <>
+                {/* Desktop View */}
+                <div className="hidden lg:block overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 border-b border-slate-100">
+                      <tr className="border-slate-100">
+                        <th className="p-2 text-left text-xs font-semibold text-slate-500">ใบสั่งผลิต</th>
+                        <th className="p-2 text-left text-xs font-semibold text-slate-500">วันที่เริ่ม</th>
+                        <th className="p-2 text-right text-xs font-semibold text-slate-500">อายุ (วัน)</th>
+                        <th className="p-2 text-left text-xs font-semibold text-slate-500">สาขา</th>
+                        <th className="p-2 text-left text-xs font-semibold text-slate-500">เครื่องจักร</th>
+                        <th className="p-2 text-right text-xs font-semibold text-slate-500">Input</th>
+                        <th className="p-2 text-right text-xs font-semibold text-slate-500">Output</th>
+                        <th className="p-2 text-right text-xs font-semibold text-slate-500">WIP Qty</th>
+                        <th className="p-2 text-right text-xs font-semibold text-slate-500">WIP Value</th>
+                        <th className="p-2 text-left text-xs font-semibold text-slate-500">สถานะ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {wipRows.map((row, index) => {
+                        const ageDays = Math.max(0, Math.floor((new Date().getTime() - new Date(String(row.date ?? '')).getTime()) / (1000 * 60 * 60 * 24)))
+                        return (
+                          <tr key={String(row.id ?? index)} className={`border-t border-slate-100 hover:bg-slate-50 ${wipAgeClass(ageDays)}`}>
+                            <td className="p-2 font-mono text-xs text-slate-900">{String(row.docNo ?? '')}</td>
+                            <td className="p-2 text-xs">{formatDateDisplay(String(row.date ?? ''))}</td>
+                            <td className={`p-2 text-right text-xs ${cellTone(ageDays, { key: 'ageDays', label: 'อายุ (วัน)' }, 'wip')}`}>{ageDays}</td>
+                            <td className="p-2 text-xs text-slate-700">{String(row.branchName ?? '-')}</td>
+                            <td className="p-2 text-xs text-slate-700">{String(row.machineName ?? '-')}</td>
+                            <td className="p-2 text-right text-xs text-slate-700">{formatMoney(Number(row.inputQty ?? 0))}</td>
+                            <td className="p-2 text-right text-xs text-slate-700">{formatMoney(Number(row.outputQty ?? 0))}</td>
+                            <td className="p-2 text-right font-bold text-amber-700 text-xs">{formatMoney(Number(row.wipQty ?? 0))}</td>
+                            <td className="p-2 text-right text-xs text-slate-700">{formatMoney(Number(row.wipValue ?? 0))}</td>
+                            <td className="p-2 text-xs">
+                              <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${row.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
+                                {String(row.status ?? '')}
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile View */}
+                <div className="lg:hidden p-3 space-y-3 bg-slate-50/30">
+                  {wipRows.map((row, index) => {
+                    const ageDays = Math.max(0, Math.floor((new Date().getTime() - new Date(String(row.date ?? '')).getTime()) / (1000 * 60 * 60 * 24)))
+                    return (
+                      <div key={String(row.id ?? index)} className={`bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm space-y-3 ${wipAgeClass(ageDays)}`}>
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                          <span className="font-mono text-sm font-bold text-slate-800">{String(row.docNo ?? '')}</span>
+                          <span className="text-xs text-slate-500 font-medium">{formatDateDisplay(String(row.date ?? ''))}</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-xs">
+                          <div>
+                            <span className="text-slate-500 block text-xs font-semibold">อายุ (วัน)</span>
+                            <span className={`text-sm font-semibold ${cellTone(ageDays, { key: 'ageDays', label: 'อายุ (วัน)' }, 'wip')}`}>{ageDays} วัน</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 block text-xs font-semibold">สาขา / เครื่องจักร</span>
+                            <span className="text-sm font-semibold text-slate-800 truncate block mt-0.5">{String(row.branchName ?? '')} / {String(row.machineName ?? '-')}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 block text-xs font-semibold">Input / Output</span>
+                            <span className="text-sm font-semibold text-slate-800 mt-0.5">{formatMoney(Number(row.inputQty ?? 0))} / {formatMoney(Number(row.outputQty ?? 0))} กก.</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 block text-xs font-semibold">สถานะ</span>
+                            <span className="text-sm font-semibold text-slate-800 mt-0.5">{String(row.status ?? '')}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between border-t border-slate-100 pt-2 mt-1">
+                          <span className="text-xs font-semibold text-slate-500">WIP Qty / Value</span>
+                          <div className="text-right">
+                            <div className="text-sm font-bold text-amber-700">{formatMoney(Number(row.wipQty ?? 0))} กก.</div>
+                            <div className="text-xs text-slate-500 font-medium">{formatMoney(Number(row.wipValue ?? 0))} ฿</div>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
+            )}
           </div>
 
-          {/* Mobile View */}
-          <div className="lg:hidden p-3 space-y-3 bg-slate-50/30">
-            {productSummary.map((item) => (
-              <div key={item.name} className="bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm space-y-2">
-                <div className="border-b border-slate-100 pb-1.5 flex justify-between items-center">
-                  <span className="font-semibold text-slate-800 text-sm">{item.name}</span>
-                  <span className="text-xs font-semibold bg-slate-100 px-2 py-0.5 rounded text-slate-600 shrink-0">
-                    {item.count} รอบ
-                  </span>
+          {/* ผลผลิตแยกตามสินค้า */}
+          <div className="rounded-xl border border-slate-200/60 bg-white shadow-sm flex flex-col overflow-hidden">
+            <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-3"><h3 className="font-bold text-slate-700 text-sm">📦 ผลผลิตแยกตามสินค้า</h3></div>
+
+            {/* Desktop View */}
+            <div className="hidden lg:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-100 border-b border-slate-100">
+                  <tr className="border-slate-100">
+                    <th className="p-2 text-left text-xs font-semibold text-slate-500">สินค้า</th>
+                    <th className="p-2 text-right text-xs font-semibold text-slate-500">รอบ</th>
+                    <th className="p-2 text-right text-xs font-semibold text-slate-500">น้ำหนักรวม</th>
+                    <th className="p-2 text-right text-xs font-semibold text-slate-500">ต้นทุนรวม</th>
+                    <th className="p-2 text-right text-xs font-semibold text-slate-500">ต้นทุน/กก.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {productSummary.map((item) => (
+                    <tr key={item.name} className="border-t border-slate-100 hover:bg-slate-50">
+                      <td className="p-2 text-xs">{item.name}</td>
+                      <td className="p-2 text-right text-xs">{item.count}</td>
+                      <td className="p-2 text-right font-medium text-emerald-700 text-xs">{formatMoney(item.qty)}</td>
+                      <td className="p-2 text-right text-xs">{formatMoney(item.cost)}</td>
+                      <td className="p-2 text-right text-xs">{formatMoney(item.unitCost)}</td>
+                    </tr>
+                  ))}
+                  {!productSummary.length ? <tr><td className="py-6 text-center text-slate-400" colSpan={5}>ไม่มีข้อมูล</td></tr> : null}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile View */}
+            <div className="lg:hidden p-3 space-y-3 bg-slate-50/30">
+              {productSummary.map((item) => (
+                <div key={item.name} className="bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm space-y-2">
+                  <div className="border-b border-slate-100 pb-1.5 flex justify-between items-center">
+                    <span className="font-semibold text-slate-800 text-sm">{item.name}</span>
+                    <span className="text-xs font-semibold bg-slate-100 px-2 py-0.5 rounded text-slate-600 shrink-0">
+                      {item.count} รอบ
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <span className="text-slate-500 block text-xs font-semibold">น้ำหนักรวม</span>
+                      <span className="text-sm font-bold text-emerald-700">{formatMoney(item.qty)} กก.</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block text-xs font-semibold">ต้นทุนรวม</span>
+                      <span className="text-sm font-semibold text-slate-800">{formatMoney(item.cost)} ฿</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block text-xs font-semibold">ต้นทุน/กก.</span>
+                      <span className="text-sm font-semibold text-slate-800">{formatMoney(item.unitCost)} ฿/กก.</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <span className="text-slate-500 block text-xs font-semibold">น้ำหนักรวม</span>
-                    <span className="text-sm font-bold text-emerald-700">{formatMoney(item.qty)} กก.</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block text-xs font-semibold">ต้นทุนรวม</span>
-                    <span className="text-sm font-semibold text-slate-800">{formatMoney(item.cost)} ฿</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block text-xs font-semibold">ต้นทุน/กก.</span>
-                    <span className="text-sm font-semibold text-slate-800">{formatMoney(item.unitCost)} ฿/กก.</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-            {!productSummary.length ? <div className="py-4 text-center text-xs text-slate-400">ไม่มีข้อมูล</div> : null}
+              ))}
+              {!productSummary.length ? <div className="py-4 text-center text-xs text-slate-400">ไม่มีข้อมูล</div> : null}
+            </div>
           </div>
         </div>
       ) : null}
