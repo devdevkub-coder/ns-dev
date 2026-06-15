@@ -157,6 +157,15 @@ async function findOrderByDocNo(tx: DbClient, docNo: string) {
   return order
 }
 
+function isGracePeriodActive(order: { status: string | null; closed_at: Date | null }) {
+  if (order.status !== 'Completed' || !order.closed_at) return false
+  const closedTime = new Date(order.closed_at).getTime()
+  const now = Date.now()
+  const diffTime = now - closedTime
+  const diffDays = diffTime / (1000 * 60 * 60 * 24)
+  return diffDays <= 7
+}
+
 export async function productionWipBalance(tx: DbClient, orderId: bigint) {
   const [input, output] = await Promise.all([
     tx.production_inputs.aggregate({
@@ -278,7 +287,8 @@ async function stockSnapshot(tx: DbClient, input: {
 export async function createProductionInput(orderDocNo: string, values: CreateProductionInputValues, actor: string) {
   return prisma.$transaction(async (tx) => {
     const order = await findOrderByDocNo(tx, orderDocNo)
-    if (!['Open', 'In Production', 'Partially Completed'].includes(order.status ?? '')) {
+    const isGrace = isGracePeriodActive(order)
+    if (!['Open', 'In Production', 'Partially Completed'].includes(order.status ?? '') && !isGrace) {
       throw new ProductionOrderError('สถานะใบสั่งผลิตไม่อนุญาตให้เบิกวัตถุดิบ')
     }
     if (!order.branch_id || !order.warehouse_wip_id || !order.product_id) throw new ProductionOrderError('ใบสั่งผลิตไม่มีสาขา สินค้า หรือคลัง WIP ที่ครบถ้วน')
@@ -390,7 +400,10 @@ export async function createProductionInput(orderDocNo: string, values: CreatePr
 export async function reverseProductionInput(orderDocNo: string, inputDocNo: string, values: ReverseProductionMovementValues, actor: string) {
   return prisma.$transaction(async (tx) => {
     const order = await findOrderByDocNo(tx, orderDocNo)
-    if (['Completed', 'Cancelled'].includes(order.status ?? '')) throw new ProductionOrderError('ใบสั่งผลิตปิดงานหรือยกเลิกแล้ว ไม่สามารถ reverse ได้')
+    const isGrace = isGracePeriodActive(order)
+    if (['Completed', 'Cancelled'].includes(order.status ?? '') && (!isGrace || order.status === 'Cancelled')) {
+      throw new ProductionOrderError('ใบสั่งผลิตปิดงานหรือยกเลิกแล้ว ไม่สามารถ reverse ได้')
+    }
     if (!order.branch_id || !order.warehouse_wip_id || !order.product_id) throw new ProductionOrderError('ใบสั่งผลิตไม่มีสาขา สินค้า หรือคลัง WIP ที่ครบถ้วน')
 
     const inputs = await tx.production_inputs.findMany({
@@ -485,7 +498,8 @@ export async function reverseProductionInput(orderDocNo: string, inputDocNo: str
 export async function createProductionOutput(orderDocNo: string, values: CreateProductionOutputValues, actor: string) {
   return prisma.$transaction(async (tx) => {
     const order = await findOrderByDocNo(tx, orderDocNo)
-    if (!['In Production', 'Partially Completed'].includes(order.status ?? '')) throw new ProductionOrderError('สถานะใบสั่งผลิตไม่อนุญาตให้รับผลผลิต')
+    const isGrace = isGracePeriodActive(order)
+    if (!['In Production', 'Partially Completed'].includes(order.status ?? '') && !isGrace) throw new ProductionOrderError('สถานะใบสั่งผลิตไม่อนุญาตให้รับผลผลิต')
     if (!order.branch_id || !order.warehouse_wip_id || !order.product_id) throw new ProductionOrderError('ใบสั่งผลิตไม่มีสาขา สินค้า หรือคลัง WIP ที่ครบถ้วน')
     const beforeWip = await productionWipBalance(tx, order.id)
     const requestedWipQty = values.lines.reduce((sum, line) => sum + line.netQty, 0) + toNumber(values.lossQty)
@@ -631,7 +645,10 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
 export async function reverseProductionOutput(orderDocNo: string, outputDocNo: string, values: ReverseProductionMovementValues, actor: string) {
   return prisma.$transaction(async (tx) => {
     const order = await findOrderByDocNo(tx, orderDocNo)
-    if (['Completed', 'Cancelled'].includes(order.status ?? '')) throw new ProductionOrderError('ใบสั่งผลิตปิดงานหรือยกเลิกแล้ว ไม่สามารถ reverse ได้')
+    const isGrace = isGracePeriodActive(order)
+    if (['Completed', 'Cancelled'].includes(order.status ?? '') && (!isGrace || order.status === 'Cancelled')) {
+      throw new ProductionOrderError('ใบสั่งผลิตปิดงานหรือยกเลิกแล้ว ไม่สามารถ reverse ได้')
+    }
     if (!order.branch_id || !order.warehouse_wip_id || !order.product_id) throw new ProductionOrderError('ใบสั่งผลิตไม่มีสาขา สินค้า หรือคลัง WIP ที่ครบถ้วน')
 
     const outputs = await tx.production_outputs.findMany({

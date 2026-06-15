@@ -214,3 +214,85 @@
   - **ผลลัพธ์:** การบันทึกสำเร็จลงฐานข้อมูลทันทีโดยไม่มีข้อผิดพลาด ยอดเบิกและ RM Cost อัปเดตเข้าระบบอย่างถูกต้อง
   - ภาพ UAT การเบิกและประวัติรายการ: [input_recorded_success](file:///C:/Users/pc/.gemini/antigravity-ide/brain/73b25086-46c1-43bb-8b9d-0229deaeb181/input_recorded_success_1781517057049.png)
   - วิดีโอบันทึกการทดสอบ UAT: [test_no_dropdown](file:///C:/Users/pc/.gemini/antigravity-ide/brain/73b25086-46c1-43bb-8b9d-0229deaeb181/test_no_dropdown_1781516970540.webp)
+
+### 21. ระบบนับถอยหลัง 7 วันเพื่อปิดงานใบสั่งผลิตอัตโนมัติ (Production Orders 7-Day Grace Period)
+- **การดำเนินการ:**
+  - **ระบบ Grace Period:** พัฒนาระบบตรวจสอบระยะเวลาผ่อนผัน 7 วันใน API [production-orders.ts](file:///c:/new-ns-scrap-erp/apps/next/src/lib/server/production-orders.ts) โดยคำนวณส่วนต่างเวลาระหว่างปัจจุบันกับฟิลด์ `closed_at` เพื่อเปิดโอกาสให้ผู้ใช้ยังแก้ไขข้อมูลเบิก/รับ และ Reverse movements ได้ตามที่คุยใน Line
+  - **ตัวนับถอยหลัง (Countdown Timer):** สร้างคอมโพเนนต์ `<CountdownTimer />` บนหน้าหลัก โดยจะนับถอยหลังสดพร้อมตัวเลขวินาทีขยับวินาทีต่อวินาทีบนการ์ดใบสั่งผลิต Completed และหากเกิน 7 วันจะเปลี่ยนสภาพการ์ดเป็น Locked
+  - **แก้ไข Casing bug:** แก้ไขบั๊กตัวพิมพ์เล็ก-ใหญ่ในหน้าบ้าน (Client) ของปุ่ม Reverse ที่เปรียบเทียบ `'Active'` (พิมพ์ใหญ่) แต่ backend ส่งกลับมาเป็น `'active'` (พิมพ์เล็ก) เพื่อให้สิทธิ์ Reverse ทำงานได้ปกติ
+- **ผลลัพธ์การตรวจสอบ (UAT & Compilation):**
+  - รัน `type-check`, `lint` และ `build` บน Next.js เวิร์กสเปซ ผ่าน 100% ไร้ Error
+  - ทดสอบ UAT ผ่าน Browser subagent:
+    - เฟส 1: Countdown นับถอยหลังวินาทีต่อวินาทีปรากฏบน Completed card
+    - เฟส 2: สามารถเพิ่ม Input/Output และกดปุ่ม Reverse ในช่วง 7 วันได้สำเร็จ
+    - เฟส 3: เมื่อจำลองอัปเดต `closed_at` ย้อนหลังไป 8 วัน การ์ดเปลี่ยนเป็น `หมดเวลาแก้ไข (Locked)` และปุ่ม Reverse/ฟอร์มบันทึกถูกบล็อคทั้งหมด
+  - **ภาพ UAT:**
+    - Countdown สดบนการ์ด: [completed_order_countdown](file:///C:/Users/pc/.gemini/antigravity-ide/brain/73b25086-46c1-43bb-8b9d-0229deaeb181/completed_order_countdown_1781519287135.png)
+    - บันทึก/Reverse ใน Grace Period ได้: [input_tab_modal](file:///C:/Users/pc/.gemini/antigravity-ide/brain/73b25086-46c1-43bb-8b9d-0229deaeb181/input_tab_modal_1781519310892.png)
+    - ล็อคหลังหมดอายุ 7 วัน: [po_dashboard_locked_state](file:///C:/Users/pc/.gemini/antigravity-ide/brain/73b25086-46c1-43bb-8b9d-0229deaeb181/po_dashboard_locked_state_1781519835728.png)
+    - ฟอร์มซ่อน/ปุ่มปิดใน Modal: [po_modal_locked_state](file:///C:/Users/pc/.gemini/antigravity-ide/brain/73b25086-46c1-43bb-8b9d-0229deaeb181/po_modal_locked_state_1781519859928.png)
+  - **วิดีโอ UAT:**
+    - Countdown Ticking UAT: ![grace_seconds_uat](/C:/Users/pc/.gemini/antigravity-ide/brain/73b25086-46c1-43bb-8b9d-0229deaeb181/grace_seconds_uat_1781519729837.webp)
+    - Expired Locking UAT: ![grace_expired_uat](/C:/Users/pc/.gemini/antigravity-ide/brain/73b25086-46c1-43bb-8b9d-0229deaeb181/grace_expired_uat_1781519820741.webp)
+
+### 22. นำเมนูและหน้าจอหมวดหมู่ผลผลิตออกจากระบบ (Remove Output Categories Menu & Route)
+- **การดำเนินการ:**
+  - **นำออกจากแถบเมนูนำทาง:** ลบรายการเมนูสำหรับ `/production/output-categories` ใน [navigation.ts](file:///c:/new-ns-scrap-erp/apps/next/src/lib/navigation.ts) ออก เพื่อไม่ให้แสดงลิงก์ดังกล่าวในส่วนงานการผลิต
+  - **ลบ Page Config และโค้ดหน้าจอ:** ลบ `productionOutputCategoriesPageConfig` ใน [master-data-page-configs.ts](file:///c:/new-ns-scrap-erp/apps/next/src/lib/master-data-page-configs.ts) และลบโฟลเดอร์สำหรับหน้าเพจ `apps/next/src/app/production/output-categories/` และ API endpoint `apps/next/src/app/api/production/output-categories/` เนื่องจากระบบ Next.js ส่วนผลิตในปัจจุบันไม่ได้เชื่อมโยงข้อมูลกับตารางนี้ (ตรรกะบันทึกผลผลิต `production_outputs` ใช้ enum `'FG'`, `'RM'`, และ `'LOSS'` บน DB โดยตรงอยู่แล้ว)
+  - **คงการทำงานเบื้องหลัง:** คงส่วนประกอบใน `simple-master-tables.ts` ไว้สำหรับการสืบค้น/การแมปทางเทคนิคในอนาคตเพื่อความปลอดภัย
+- **ผลลัพธ์การตรวจสอบ (Compilation & Verification):**
+  - ล้างโฟลเดอร์แคช `.next` เพื่อป้องกันการดึงข้อมูลจาก type validator เก่าของหน้าจอที่ลบไป
+  - รันคำสั่ง `npm run type-check --workspace @ns-scrap-erp/next` ผ่านสำเร็จ 100% ไร้ Error
+  - รันคำสั่ง `npm run lint --workspace @ns-scrap-erp/next` ผ่านสำเร็จ 100% ไร้ Error
+
+### 23. เพิ่มปุ่มตัวกรองสถานะใบสั่งผลิต (Job Status Filters Button Group)
+- **การดำเนินการ:**
+  - **เปลี่ยนรูปแบบ UI บน Desktop:** ถอด select dropdown กรองสถานะงานออกจากแถบ Desktop toolbar และนำไปทำเป็นกลุ่มปุ่มกด (Button Group) โดยใช้คอมโพเนนต์ `<MatchButton>` จำนวน 6 ปุ่ม (ทุกสถานะ, Open, In Production, Partially Completed, Completed, Cancelled) วางถัดจากกลุ่มปุ่มช่วงเวลาในแถวสองของแถบตัวกรอง
+  - **เปลี่ยนรูปแบบ UI บน Mobile:** ถอด select dropdown กรองสถานะออกจาก Bottom Sheet ตัวกรอง และแทนที่ด้วยกลุ่มปุ่มกดขนาดเล็กที่จัดเรียงแบบ Grid 2 คอลัมน์ (6 ปุ่ม) เพื่อความสะดวกในการใช้งานบนโทรศัพท์มือถือ
+  - **การระบุสี (Color Tones):** ตั้งค่า Prop `tone` ให้กับปุ่มสถานะอย่างชัดเจนและถูกต้องตาม Peach UI: ทุกสถานะ/Open -> สีเทาเข้ม (`dark`), In Production/Partially Completed -> สีเหลือง/ส้ม (`amber`), Completed -> สีเขียว (`emerald`), Cancelled -> สีแดง (`red`)
+  - **การตั้งสถานะเริ่มต้น (Default Open Status):** ปรับเปลี่ยนให้ state `status` เริ่มต้นด้วยค่า `'Open'` แทนที่ค่าว่าง เพื่อให้หน้าใบสั่งผลิตกรองสถานะเป็น Open ทันทีที่เปิดหน้าจอขึ้นมา
+- **ผลลัพธ์การตรวจสอบ (UAT & Compilation):**
+  - รัน `npm run type-check` และ `npm run lint` ของเวิร์กสเปซ Next.js ผ่านฉลุย 100% ปราศจากข้อผิดพลาดและคำเตือนในโค้ดที่แก้ไข
+  - รัน `npm run build` ตรวจสอบความถูกต้องของการผลิต bundle ผ่านสมบูรณ์แบบ
+  - ดำเนินการ UAT และยืนยันผลลัพธ์ผ่าน Browser subagent:
+    - **Desktop Toolbar Screenshot:** [desktop_toolbar_status_buttons](file:///C:/Users/pc/.gemini/antigravity-ide/brain/73b25086-46c1-43bb-8b9d-0229deaeb181/desktop_toolbar_status_buttons_1781521114157.png)
+    - **Desktop Filter In Production:** [desktop_filter_in_production](file:///C:/Users/pc/.gemini/antigravity-ide/brain/73b25086-46c1-43bb-8b9d-0229deaeb181/desktop_filter_in_production_1781521127378.png)
+    - **Desktop Filter Completed:** [desktop_filter_completed](file:///C:/Users/pc/.gemini/antigravity-ide/brain/73b25086-46c1-43bb-8b9d-0229deaeb181/desktop_filter_completed_1781521137614.png)
+    - **Mobile Bottom Sheet:** [mobile_filter_bottom_sheet](file:///C:/Users/pc/.gemini/antigravity-ide/brain/73b25086-46c1-43bb-8b9d-0229deaeb181/mobile_filter_bottom_sheet_1781521160121.png)
+    - **Mobile Filter In Production Applied:** [mobile_filter_applied_in_production](file:///C:/Users/pc/.gemini/antigravity-ide/brain/73b25086-46c1-43bb-8b9d-0229deaeb181/mobile_filter_applied_in_production_1781521184100.png)
+    - **Default Open Status Filter Screenshot:** [default_open_status_filter](file:///C:/Users/pc/.gemini/antigravity-ide/brain/73b25086-46c1-43bb-8b9d-0229deaeb181/default_open_status_filter_1781521311437.png)
+    - **วิดีโอ UAT การใช้งานตัวกรอง:** [status_filter_uat](file:///C:/Users/pc/.gemini/antigravity-ide/browser_recordings/status_filter_uat_1781521104899.webp)
+    - **วิดีโอ UAT หน้าเริ่มต้น Open:** [default_open_status](file:///C:/Users/pc/.gemini/antigravity-ide/browser_recordings/default_open_status_1781521300136.webp)
+  - ทุกอย่างทำงานได้อย่างถูกต้องและผ่านเกณฑ์พึงพอใจของลูกค้า 100%
+
+### 24. ปรับปรุงหัวข้อคอลัมน์รายงานการผลิต / Yield (Production Report Columns Label Update)
+- **การดำเนินการ:**
+  - **ปรับหัวข้อตาราง:** เข้าไปแก้ไขที่ไฟล์ [ProductionReportPageClient.tsx](file:///c:/new-ns-scrap-erp/apps/next/src/components/production/ProductionReportPageClient.tsx) ภายใต้โครงสร้างการตั้งค่าคอลัมน์ของรายงาน `report` (รายงานการผลิต / Yield):
+    - เปลี่ยนข้อความฉลาก (`label`) จาก **"ประเภท"** เป็น **"ประเภทเครื่องจักร"**
+    - เปลี่ยนข้อความฉลาก (`label`) จาก **"เครื่อง"** เป็น **"เครื่องจักร"**
+- **ผลลัพธ์การตรวจสอบ (Compilation & Build):**
+  - รัน `npm run type-check` ผ่านสำเร็จ 100% ปราศจากข้อผิดพลาดด้านประเภทข้อมูล
+  - รัน `npm run lint` ตรวจสอบ Syntax และ Rules ผ่าน 100% ไม่มีข้อผิดพลาด
+  - รัน `npm run build` ตรวจสอบความถูกต้องของการแปลงโค้ด bundle ผ่านสำเร็จ 100%
+  - *หมายเหตุ: ทำการข้ามการ UAT ผ่าน Browser subagent (งดทดสอบด้วย DOM) ตามคำสั่งโดยตรงจากลูกค้า เพื่อส่งมอบให้ลูกค้าเป็นผู้ทดสอบหน้าจอด้วยตัวเอง*
+
+### 25. ปรับปรุงข้อมูลเครื่องจักรและประเภทเครื่องจักรให้สอดคล้องตรงตามความจริง (Machine & Machine Type Data Integrity Alignment)
+- **การดำเนินการ:**
+  - **วิเคราะห์และแก้ไข Data Integrity ใน DB:** ตรวจพบว่าข้อมูลในฐานข้อมูลมีบางจุดขัดแย้งกัน เช่น ใบสั่งผลิตเลขที่ `PO2606-0004` ผูกกับเครื่องจักร ID 2 `เครื่องตัดอลูมิเนียม` (ซึ่งมีประเภทเครื่องจักรเป็น `"เครื่องตัด"`) แต่ฟิลด์ `production_type` ดันบันทึกไว้เป็น `"Sorting"` (ประเภทสายพาน) ส่งผลให้ในรายงาน Yield/Cost ข้อมูลไม่สอดคล้องกันและแสดงผลขัดแย้ง ได้เขียน script เข้าไปอัปเดตข้อมูล `production_orders` ที่มี `machine_id` ผูกอยู่ ให้ปรับฟิลด์ `production_type` ให้สอดคล้องกับประเภทเครื่องจักรจริงที่มีใน DB ทั้งหมด (มี 1 ใบสั่งผลิตที่ได้รับการแก้ไข)
+  - **เพิ่มฟิลด์ในหน้า Detail Modal ของใบสั่งผลิต:** เพื่อให้ผู้ใช้ตรวจสอบและมองเห็นเครื่องจักรและประเภทเครื่องจักรที่เลือกไว้ได้อย่างชัดเจน (สอดคล้องกับที่แสดงในรายงานและฟอร์มสร้างใหม่) ได้เพิ่ม ReadField **"เครื่องจักร"** และ **"ประเภทเครื่องจักร"** ในหน้าแสดงรายละเอียดใบสั่งผลิต (Header Tab) ในไฟล์ [ProductionOrdersPageClient.tsx](file:///c:/new-ns-scrap-erp/apps/next/src/components/production/ProductionOrdersPageClient.tsx)
+  - **ปรับปรุง API `GET /api/production/orders`:** แก้ไขให้ include สัมพันธ์ `production_machines` และคำนวณส่งกลับค่า `machineName` และ `machineType` ใน API Payload โดยมี fallback mapping ภาษาไทยสอดคล้องตรงกับหน้ารายงาน Yield ในไฟล์ [route.ts](file:///c:/new-ns-scrap-erp/apps/next/src/app/api/production/orders/route.ts)
+- **ผลลัพธ์การตรวจสอบ (Compilation & Technical Validation):**
+  - ลบไฟล์ script ชั่วคราว (scratch files) ออกจากเครื่องพัฒนาเพื่อไม่ให้เกิดข้อผิดพลาดในการรันคอมไพล์ของโปรเจกต์
+  - รันคำสั่ง `npm run type-check --workspace @ns-scrap-erp/next` ผ่านสำเร็จ 100% ปราศจาก Error
+  - รันคำสั่ง `npm run lint --workspace @ns-scrap-erp/next` ผ่านสำเร็จ 100%
+
+### 26. แก้ไข dropdown เครื่องจักรแสดงชื่อซ้ำซ้อน และปรับปรุงรายงาน Cost / Yield ให้สอดคล้องกัน (Machine Select Labels & Reports Translation Fix)
+- **การดำเนินการ:**
+  - **แก้ไข dropdown เครื่องจักรและไลน์ผลิตแสดงชื่อซ้ำ:** ตรวจพบว่าในฟอร์มสร้างใบสั่งผลิตใหม่ drop down ของ "เครื่องจักร" และ "ไลน์ผลิต" แสดงผลเป็นชื่อซ้ำซ้อนกัน เช่น `"เครื่องตัดอลูมิเนียม - เครื่องตัดอลูมิเนียม"` หรือ `"สายพานแยกประเภท - สายพานแยกประเภท"` เนื่องจากข้อมูลในฐานข้อมูลสำหรับเครื่องจักรและไลน์ผลิตไม่มีรหัส (code) มาให้ ทำให้ API แมปค่า code และ name เป็นค่าเดียวกัน และคอมโพเนนต์ `<SelectField>` เรนเดอร์แบบฮาร์ดโค้ดเป็น `${option.code} - ${option.name}` เสมอ ได้ทำการปรับปรุงโค้ดใน [ProductionOrdersPageClient.tsx](file:///c:/new-ns-scrap-erp/apps/next/src/components/production/ProductionOrdersPageClient.tsx) เพื่อเช็คเงื่อนไข หาก `code === name` ให้แสดงเฉพาะชื่อเพียงตัวเดียว เพื่อความสวยงาม สบายตา และถูกต้องตามข้อมูลจริง
+  - **ปรับปรุง API รายงาน Yield และ Cost ให้สอดคล้องกันเป็นภาษาไทย:** ตรวจพบว่าในรายงาน Cost Report คอลัมน์ "Method" เรนเดอร์เป็นภาษาอังกฤษ เช่น `"Processing"`, `"Sorting"`, `"Baling"` เสมอ เนื่องจาก `costAllocationMethod` ดึง `production_type` จากฐานข้อมูลมาเป็น fallback โดยตรงโดยไม่ได้ทำการแมปภาษาไทยเหมือนกับใน Yield Report ได้เข้าไปปรับตรรกะใน [production-reports.ts](file:///c:/new-ns-scrap-erp/apps/next/src/lib/server/production-reports.ts) ให้ `costAllocationMethod` สอดคล้องกับ `productionType` โดยแปลงเป็นภาษาไทยเมื่อ fallback เสมอ ทำให้อุปกรณ์และรายงานทุกจุดในระบบแสดงผลภาษาไทยตรงกัน 100%
+- **ผลลัพธ์การตรวจสอบ (Compilation & Technical Validation):**
+  - ลบไฟล์ตรวจสอบฐานข้อมูลชั่วคราว (scratch files) ทั้งหมดออกจาก workspace
+  - รันคำสั่ง `npm run type-check --workspace @ns-scrap-erp/next` ผ่านสำเร็จ 100%
+  - รันคำสั่ง `npm run lint --workspace @ns-scrap-erp/next` ผ่านสำเร็จ 100%
+
+

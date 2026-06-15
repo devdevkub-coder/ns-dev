@@ -348,45 +348,6 @@ export const productionLinesPageConfig: MasterDataPageConfig = {
   ],
 }
 
-export const productionOutputCategoriesPageConfig: MasterDataPageConfig = {
-  apiPath: '/api/production/output-categories',
-  createLabel: 'เพิ่มหมวดหมู่ผลผลิต',
-  entityName: 'หมวดหมู่ผลผลิต',
-  emptyMessage: 'ไม่พบข้อมูลหมวดหมู่ผลผลิต',
-  fields: [
-    { key: 'code', label: 'รหัส', required: true },
-    { key: 'name', label: 'ชื่อหมวดหมู่', required: true },
-    {
-      key: 'stockEffect',
-      label: 'ผลต่อสต๊อก',
-      type: 'select',
-      required: true,
-      options: [
-        { label: 'รับเข้าสต๊อก', value: 'stock_in' },
-        { label: 'รับเข้าของคืน', value: 'return_stock_in' },
-        { label: 'สูญเสีย/ของเสีย', value: 'loss' },
-      ],
-    },
-    {
-      key: 'availableForSale',
-      label: 'ขายได้',
-      type: 'select',
-      options: [
-        { label: 'ขายได้', value: 'true' },
-        { label: 'ขายไม่ได้', value: 'false' },
-      ],
-    },
-    { key: 'sortOrder', label: 'ลำดับ', type: 'number' },
-  ],
-  columns: [
-    { key: 'code', label: 'รหัส' },
-    { key: 'name', label: 'ชื่อหมวดหมู่' },
-    { key: 'stockEffect', label: 'ผลต่อสต๊อก' },
-    { key: 'availableForSale', label: 'ขายได้', align: 'center' },
-    { key: 'sortOrder', label: 'ลำดับ', align: 'right', format: 'number' },
-    statusColumn,
-  ],
-}
 
 export const beneficiariesPageConfig: MasterDataPageConfig = {
   apiPath: '/api/master-data/beneficiaries',

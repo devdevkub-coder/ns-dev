@@ -62,6 +62,7 @@ export async function GET(request: Request) {
           production_inputs: { include: { products: true }, orderBy: [{ date: 'asc' }, { id: 'asc' }], where: { status: 'active' } },
           production_outputs: { include: { products: true }, orderBy: [{ date: 'asc' }, { id: 'asc' }], where: { status: 'active' } },
           warehouses: true,
+          production_machines: true,
         },
         orderBy: orderBy(sort, direction),
         skip: (page - 1) * pageSize,
@@ -122,6 +123,13 @@ export async function GET(request: Request) {
         })),
         inputQty,
         lossQty,
+        machineName: row.production_machines?.name ?? '-',
+        machineType: row.production_machines?.type || (row.production_type ? ({
+          Processing: 'เครื่องตัด/เครื่องบด',
+          Baling: 'เครื่องอัด',
+          Sorting: 'สายพาน',
+          Melting: 'เครื่องหลอม',
+        }[row.production_type] || row.production_type) : '-'),
         notes: row.notes ?? '',
         outputCategories: outputCategories.map((code) => ({
           code,

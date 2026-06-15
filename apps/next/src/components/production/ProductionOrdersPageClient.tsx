@@ -35,6 +35,8 @@ type ProductionOrderRow = {
   inputCount: number
   inputQty: number
   inputs: ProductionMovementRow[]
+  machineName?: string
+  machineType?: string
   notes: string
   outputCategories: Array<{ code: string; name: string }>
   outputCount: number
@@ -99,6 +101,13 @@ function MatchButton({ active, label, onClick, tone = 'dark' }: { active: boolea
   return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
 }
 
+function formatDateLocal(d: Date) {
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
 export function ProductionOrdersPageClient() {
   const [data, setData] = useState<ProductionOrdersPayload | null>(null)
   const [dateFrom, setDateFrom] = useState('')
@@ -112,7 +121,28 @@ export function ProductionOrdersPageClient() {
   const [search, setSearch] = useState('')
   const [selectedRow, setSelectedRow] = useState<ProductionOrderRow | null>(null)
   const [sort, setSort] = useState('date')
-  const [status, setStatus] = useState('')
+  const [status, setStatus] = useState('Open')
+
+  const isAllPeriod = !dateFrom && !dateTo
+  const isTodayPeriod = dateFrom === todayDateInput() && dateTo === todayDateInput()
+
+  const expectedWeekStart = useMemo(() => {
+    const today = todayDateInput()
+    const d = new Date(`${today}T00:00:00`)
+    d.setDate(d.getDate() - 6)
+    return formatDateLocal(d)
+  }, [])
+
+  const expectedMonthStart = useMemo(() => {
+    const today = todayDateInput()
+    const d = new Date(`${today}T00:00:00`)
+    d.setDate(1)
+    return formatDateLocal(d)
+  }, [])
+
+  const isWeekPeriod = dateFrom === expectedWeekStart && dateTo === todayDateInput()
+  const isMonthPeriod = dateFrom === expectedMonthStart && dateTo === todayDateInput()
+
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const latestLoadRequestRef = useRef(0)
 
@@ -165,7 +195,7 @@ export function ProductionOrdersPageClient() {
     const start = new Date(`${today}T00:00:00`)
     if (period === 'week') start.setDate(start.getDate() - 6)
     if (period === 'month') start.setDate(1)
-    setDateFrom(start.toISOString().slice(0, 10))
+    setDateFrom(formatDateLocal(start))
     setDateTo(today)
     setPage(1)
   }
@@ -203,9 +233,6 @@ export function ProductionOrdersPageClient() {
           <DatePickerInput className="w-[130px] !h-9 text-sm" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1) }} />
           <span className="text-slate-400">→</span>
           <DatePickerInput className="w-[130px] !h-9 text-sm" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1) }} />
-          <select className="h-9 rounded-md border px-3 text-sm bg-white text-slate-800 border-slate-300" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1) }}>
-            {statusOptions.map((option) => <option key={option || 'all'} value={option}>{option || 'ทุกสถานะ'}</option>)}
-          </select>
           <select className="h-9 rounded-md border px-3 text-sm bg-white text-slate-800 border-slate-300" value={sort} onChange={(event) => { setSort(event.target.value); setPage(1) }}>
             {sortOptions.map((option) => <option key={option.value} value={option.value}>เรียง: {option.label}</option>)}
           </select>
@@ -217,13 +244,26 @@ export function ProductionOrdersPageClient() {
           ) : null}
           <button className="ml-auto rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 h-9 flex items-center" type="button" onClick={() => setModalMode('create')}>+ ใบสั่งผลิตใหม่</button>
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
-          <span className="text-xs text-slate-500">ช่วงเวลา:</span>
-          <MatchButton active={!dateFrom && !dateTo} label="ทั้งหมด" onClick={() => setPeriod('')} />
-          <MatchButton active={dateFrom === todayDateInput() && dateTo === todayDateInput()} label="วันนี้" onClick={() => setPeriod('today')} />
-          <MatchButton active={dateFrom !== todayDateInput() && dateFrom !== '' && dateTo === todayDateInput()} label="7 วัน" onClick={() => setPeriod('week')} />
-          <MatchButton active={dateFrom !== '' && dateFrom.endsWith('-01') && dateTo === todayDateInput()} label="เดือนนี้" onClick={() => setPeriod('month')} />
-          <span className="ml-auto text-xs text-slate-500">พบ <b className="text-slate-700">{data?.summary.total ?? 0}</b> ใบ</span>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-500 font-medium">ช่วงเวลา:</span>
+              <MatchButton active={isAllPeriod} label="ทั้งหมด" onClick={() => setPeriod('')} />
+              <MatchButton active={isTodayPeriod} label="วันนี้" onClick={() => setPeriod('today')} />
+              <MatchButton active={isWeekPeriod} label="7 วัน" onClick={() => setPeriod('week')} />
+              <MatchButton active={isMonthPeriod} label="เดือนนี้" onClick={() => setPeriod('month')} />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-500 font-medium">สถานะ:</span>
+              <MatchButton active={status === ''} label="ทุกสถานะ" onClick={() => { setStatus(''); setPage(1) }} tone="dark" />
+              <MatchButton active={status === 'Open'} label="Open" onClick={() => { setStatus('Open'); setPage(1) }} tone="dark" />
+              <MatchButton active={status === 'In Production'} label="In Production" onClick={() => { setStatus('In Production'); setPage(1) }} tone="amber" />
+              <MatchButton active={status === 'Partially Completed'} label="Partially Completed" onClick={() => { setStatus('Partially Completed'); setPage(1) }} tone="amber" />
+              <MatchButton active={status === 'Completed'} label="Completed" onClick={() => { setStatus('Completed'); setPage(1) }} tone="emerald" />
+              <MatchButton active={status === 'Cancelled'} label="Cancelled" onClick={() => { setStatus('Cancelled'); setPage(1) }} tone="red" />
+            </div>
+          </div>
+          <span className="text-xs text-slate-500">พบ <b className="text-slate-700">{data?.summary.total ?? 0}</b> ใบ</span>
         </div>
       </div>
 
@@ -269,10 +309,10 @@ export function ProductionOrdersPageClient() {
               <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">ช่วงเวลา</span>
                 <div className="flex flex-wrap gap-2">
-                  <button className={`flex-1 h-9 rounded-md text-xs border ${!dateFrom && !dateTo ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 text-slate-700 bg-white'}`} type="button" onClick={() => setPeriod('')}>ทั้งหมด</button>
-                  <button className={`flex-1 h-9 rounded-md text-xs border ${dateFrom === todayDateInput() && dateTo === todayDateInput() ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 text-slate-700 bg-white'}`} type="button" onClick={() => setPeriod('today')}>วันนี้</button>
-                  <button className={`flex-1 h-9 rounded-md text-xs border ${dateFrom && dateFrom !== todayDateInput() && dateTo === todayDateInput() ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 text-slate-700 bg-white'}`} type="button" onClick={() => setPeriod('week')}>7 วัน</button>
-                  <button className={`flex-1 h-9 rounded-md text-xs border ${dateFrom && dateFrom.endsWith('-01') && dateTo === todayDateInput() ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 text-slate-700 bg-white'}`} type="button" onClick={() => setPeriod('month')}>เดือนนี้</button>
+                  <button className={`flex-1 h-9 rounded-md text-xs border ${isAllPeriod ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 text-slate-700 bg-white'}`} type="button" onClick={() => setPeriod('')}>ทั้งหมด</button>
+                  <button className={`flex-1 h-9 rounded-md text-xs border ${isTodayPeriod ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 text-slate-700 bg-white'}`} type="button" onClick={() => setPeriod('today')}>วันนี้</button>
+                  <button className={`flex-1 h-9 rounded-md text-xs border ${isWeekPeriod ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 text-slate-700 bg-white'}`} type="button" onClick={() => setPeriod('week')}>7 วัน</button>
+                  <button className={`flex-1 h-9 rounded-md text-xs border ${isMonthPeriod ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 text-slate-700 bg-white'}`} type="button" onClick={() => setPeriod('month')}>เดือนนี้</button>
                 </div>
               </div>
 
@@ -285,12 +325,77 @@ export function ProductionOrdersPageClient() {
                 </div>
               </div>
 
-              <label className="block">
+              <div>
                 <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะ</span>
-                <select className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm bg-white text-slate-800 font-sans" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1) }}>
-                  {statusOptions.map((option) => <option key={option || 'all'} value={option}>{option || 'ทุกสถานะ'}</option>)}
-                </select>
-              </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    className={`h-9 rounded-md text-xs font-medium border font-sans outline-none ${
+                      status === '' 
+                        ? 'border-slate-700 bg-slate-700 text-white' 
+                        : 'border-slate-300 text-slate-700 bg-white hover:bg-slate-50'
+                    }`}
+                    type="button"
+                    onClick={() => { setStatus(''); setPage(1) }}
+                  >
+                    ทุกสถานะ
+                  </button>
+                  <button
+                    className={`h-9 rounded-md text-xs font-medium border font-sans outline-none ${
+                      status === 'Open' 
+                        ? 'border-slate-700 bg-slate-700 text-white' 
+                        : 'border-slate-300 text-slate-700 bg-white hover:bg-slate-50'
+                    }`}
+                    type="button"
+                    onClick={() => { setStatus('Open'); setPage(1) }}
+                  >
+                    Open
+                  </button>
+                  <button
+                    className={`h-9 rounded-md text-xs font-medium border font-sans outline-none ${
+                      status === 'In Production' 
+                        ? 'border-amber-600 bg-amber-600 text-white' 
+                        : 'border-slate-300 text-slate-700 bg-white hover:bg-amber-50'
+                    }`}
+                    type="button"
+                    onClick={() => { setStatus('In Production'); setPage(1) }}
+                  >
+                    In Production
+                  </button>
+                  <button
+                    className={`h-9 rounded-md text-xs font-medium border font-sans outline-none ${
+                      status === 'Partially Completed' 
+                        ? 'border-amber-600 bg-amber-600 text-white' 
+                        : 'border-slate-300 text-slate-700 bg-white hover:bg-amber-50'
+                    }`}
+                    type="button"
+                    onClick={() => { setStatus('Partially Completed'); setPage(1) }}
+                  >
+                    Partially Completed
+                  </button>
+                  <button
+                    className={`h-9 rounded-md text-xs font-medium border font-sans outline-none ${
+                      status === 'Completed' 
+                        ? 'border-emerald-600 bg-emerald-600 text-white' 
+                        : 'border-slate-300 text-slate-700 bg-white hover:bg-emerald-50'
+                    }`}
+                    type="button"
+                    onClick={() => { setStatus('Completed'); setPage(1) }}
+                  >
+                    Completed
+                  </button>
+                  <button
+                    className={`h-9 rounded-md text-xs font-medium border font-sans outline-none ${
+                      status === 'Cancelled' 
+                        ? 'border-red-600 bg-red-600 text-white' 
+                        : 'border-slate-300 text-slate-700 bg-white hover:bg-red-50'
+                    }`}
+                    type="button"
+                    onClick={() => { setStatus('Cancelled'); setPage(1) }}
+                  >
+                    Cancelled
+                  </button>
+                </div>
+              </div>
 
               <label className="block">
                 <span className="mb-1 block text-xs font-semibold text-slate-600">เรียงลำดับ</span>
@@ -389,6 +494,7 @@ function OrderCard({ onOpen, row }: { onOpen: () => void; row: ProductionOrderRo
           <div className="h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full bg-blue-500" style={{ width: `${Math.min(100, yieldPct)}%` }} /></div>
         </div>
       ) : null}
+      {row.status === 'Completed' ? <CountdownTimer closedAt={row.closedAt} /> : null}
       <div className="flex items-center justify-between border-t border-slate-200/60 pt-2">
         <div className="text-xs"><span className="text-slate-500">ต้นทุน:</span><b className="ml-1 text-slate-700">{formatMoney(row.inputCost)}</b></div>
         <button className="rounded-md bg-blue-600 px-3 py-1 text-xs font-bold text-white hover:bg-blue-700" type="button">เปิด</button>
@@ -396,6 +502,55 @@ function OrderCard({ onOpen, row }: { onOpen: () => void; row: ProductionOrderRo
     </div>
   )
 }
+
+function CountdownTimer({ closedAt }: { closedAt: string | null }) {
+  const [text, setText] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!closedAt) return
+
+    const update = () => {
+      const closedTime = new Date(closedAt).getTime()
+      const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
+      const expireTime = closedTime + sevenDaysMs
+      const now = Date.now()
+      const remainingMs = expireTime - now
+
+      if (remainingMs <= 0) {
+        setText('หมดเวลาแก้ไข (Locked)')
+        return
+      }
+
+      const remainingDays = Math.floor(remainingMs / (1000 * 60 * 60 * 24))
+      const remainingHours = Math.floor((remainingMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+      const remainingMinutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60))
+      const remainingSeconds = Math.floor((remainingMs % (1000 * 60)) / 1000)
+
+      if (remainingDays > 0) {
+        setText(`เหลือเวลาแก้ไข ${remainingDays} วัน ${remainingHours} ชม. ${remainingMinutes} น. ${remainingSeconds} วิ.`)
+      } else if (remainingHours > 0) {
+        setText(`เหลือเวลาแก้ไข ${remainingHours} ชม. ${remainingMinutes} น. ${remainingSeconds} วิ.`)
+      } else {
+        setText(`เหลือเวลาแก้ไข ${remainingMinutes} น. ${remainingSeconds} วิ.`)
+      }
+    }
+
+    update()
+    const timer = setInterval(update, 1000)
+    return () => clearInterval(timer)
+  }, [closedAt])
+
+  if (!text) return null
+
+  const isLocked = text.includes('Locked')
+
+  return (
+    <div className={`mb-3 flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-md ${isLocked ? 'bg-slate-200 text-slate-600 border border-slate-300' : 'bg-amber-100 text-amber-800 border border-amber-200'}`}>
+      <span className={isLocked ? '' : 'animate-pulse'}>⏱️</span> {text}
+    </div>
+  )
+}
+
 
 function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'create' | 'detail'; onClose: (refresh?: boolean) => void; onRefreshRow: (docNo: string) => Promise<ProductionOrderRow | null>; row: ProductionOrderRow | null }) {
   const isCreate = mode === 'create'
@@ -435,7 +590,17 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
   const branchWipWarehouses = useMemo(() => createForm.branchCode ? branchWarehouses.filter((warehouse) => warehouse.type?.toUpperCase() === 'WIP') : [], [branchWarehouses, createForm.branchCode])
   const isWipWarehouseLocked = isCreate && branchWipWarehouses.length === 1
   const rowWipQty = wip?.wipQty ?? Math.max(0, (row?.inputQty ?? 0) - (row?.outputQty ?? 0))
-  const canWrite = row ? ['Open', 'In Production', 'Partially Completed'].includes(row.status) : false
+  const isGracePeriodActive = useCallback((orderRow: ProductionOrderRow | null) => {
+    if (!orderRow || orderRow.status !== 'Completed' || !orderRow.closedAt) return false
+    const closedTime = new Date(orderRow.closedAt).getTime()
+    const now = Date.now()
+    const diffTime = now - closedTime
+    const diffDays = diffTime / (1000 * 60 * 60 * 24)
+    return diffDays <= 7
+  }, [])
+  const canWrite = row
+    ? ['Open', 'In Production', 'Partially Completed'].includes(row.status) || isGracePeriodActive(row)
+    : false
   const productSearchOptions = useMemo<SearchComboboxOption[]>(() => options.products.map((product) => ({
     description: `รหัส ${product.code}`,
     id: product.code,
@@ -854,6 +1019,8 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
                   <ReadField label="สถานะ" value={row?.status ?? '-'} />
                   <ReadField label="สินค้าเป้าหมาย" value={row?.productName ?? '-'} />
                   <ReadField label="สาขา" value={row?.branchName ?? '-'} />
+                  <ReadField label="เครื่องจักร" value={row?.machineName ?? '-'} />
+                  <ReadField label="ประเภทเครื่องจักร" value={row?.machineType ?? '-'} />
                   <ReadField label="คลังรับผลผลิต" value={row?.warehouseName ?? '-'} />
                   <ReadField label="WIP" value={formatMoney(rowWipQty)} />
                   <ReadField label="หมายเหตุ" value={row?.notes || '-'} />
@@ -1013,37 +1180,43 @@ function MovementPanel({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {rows.map((row, index) => (
-              <tr key={index} className={`hover:bg-slate-50 ${row.status === 'Reversed' ? 'bg-slate-50/50 text-slate-400 line-through' : ''}`}>
-                <td className="p-2 whitespace-nowrap">{formatDateDisplay(row.date)}</td>
-                <td className="p-2 font-mono">{row.docNo}</td>
-                <td className="p-2">
-                  <span className="font-semibold">{row.productName}</span>
-                  <div className="text-[10px] text-slate-400 font-mono">{row.productCode}</div>
-                </td>
-                <td className="p-2">
-                  {row.warehouseName}
-                  {row.stockStatus ? <span className="ml-1 text-[10px] text-slate-400 font-semibold">[{row.stockStatus}]</span> : null}
-                </td>
-                <td className="p-2 font-mono">{row.lotNo || '-'}</td>
-                <td className="p-2 text-right font-medium tabular-nums">{formatMoney(row.qty)}</td>
-                <td className="p-2 text-right text-slate-500 tabular-nums">{formatMoney(row.unitCost)}</td>
-                <td className="p-2 text-right font-semibold text-blue-700 tabular-nums">{formatMoney(row.totalCost)}</td>
-                <td className="p-2 text-center">
-                  <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${row.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{row.status}</span>
-                </td>
-                <td className="p-2 text-center">
-                  <button
-                    className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-                    disabled={!canWrite || row.status !== 'Active'}
-                    type="button"
-                    onClick={() => onReverse(row.docNo)}
-                  >
-                    Reverse
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {rows.map((row, index) => {
+              const isRowActive = row.status?.toLowerCase() === 'active'
+              const isRowReversed = row.status?.toLowerCase() === 'reversed'
+              return (
+                <tr key={index} className={`hover:bg-slate-50 ${isRowReversed ? 'bg-slate-50/50 text-slate-400 line-through' : ''}`}>
+                  <td className="p-2 whitespace-nowrap">{formatDateDisplay(row.date)}</td>
+                  <td className="p-2 font-mono">{row.docNo}</td>
+                  <td className="p-2">
+                    <span className="font-semibold">{row.productName}</span>
+                    <div className="text-[10px] text-slate-400 font-mono">{row.productCode}</div>
+                  </td>
+                  <td className="p-2">
+                    {row.warehouseName}
+                    {row.stockStatus ? <span className="ml-1 text-[10px] text-slate-400 font-semibold">[{row.stockStatus}]</span> : null}
+                  </td>
+                  <td className="p-2 font-mono">{row.lotNo || '-'}</td>
+                  <td className="p-2 text-right font-medium tabular-nums">{formatMoney(row.qty)}</td>
+                  <td className="p-2 text-right text-slate-500 tabular-nums">{formatMoney(row.unitCost)}</td>
+                  <td className="p-2 text-right font-semibold text-blue-700 tabular-nums">{formatMoney(row.totalCost)}</td>
+                  <td className="p-2 text-center">
+                    <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${isRowActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                      {isRowActive ? 'Active' : 'Reversed'}
+                    </span>
+                  </td>
+                  <td className="p-2 text-center">
+                    <button
+                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                      disabled={!canWrite || !isRowActive}
+                      type="button"
+                      onClick={() => onReverse(row.docNo)}
+                    >
+                      Reverse
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
             {rows.length === 0 ? (
               <tr>
                 <td className="p-6 text-center text-slate-400" colSpan={10}>
@@ -1055,53 +1228,57 @@ function MovementPanel({
         </table>
 
         <div className="block md:hidden divide-y divide-slate-100 bg-white">
-          {rows.map((row, index) => (
-            <div key={index} className={`p-4 space-y-2 text-xs ${row.status === 'Reversed' ? 'bg-slate-50/50 text-slate-400 line-through' : ''}`}>
-              <div className="flex justify-between items-start gap-2">
-                <div>
-                  <span className="font-semibold text-slate-900 text-sm leading-tight block">{index + 1}. {row.productName}</span>
-                  <span className="text-[10px] text-slate-400 font-mono block">{row.productCode}</span>
+          {rows.map((row, index) => {
+            const isRowActive = row.status?.toLowerCase() === 'active'
+            const isRowReversed = row.status?.toLowerCase() === 'reversed'
+            return (
+              <div key={index} className={`p-4 space-y-2 text-xs ${isRowReversed ? 'bg-slate-50/50 text-slate-400 line-through' : ''}`}>
+                <div className="flex justify-between items-start gap-2">
+                  <div>
+                    <span className="font-semibold text-slate-900 text-sm leading-tight block">{index + 1}. {row.productName}</span>
+                    <span className="text-[10px] text-slate-400 font-mono block">{row.productCode}</span>
+                  </div>
+                  <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${isRowActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                    {isRowActive ? 'Active' : 'Reversed'}
+                  </span>
                 </div>
-                <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${row.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                  {row.status}
-                </span>
+
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 py-1.5 border-t border-b border-slate-100/50 text-slate-600">
+                  <div><span className="text-slate-400 font-medium">วันที่:</span> {formatDateDisplay(row.date)}</div>
+                  <div><span className="text-slate-400 font-medium">เลขที่:</span> <span className="font-mono">{row.docNo}</span></div>
+                  <div><span className="text-slate-400 font-medium">คลัง:</span> {row.warehouseName} {row.stockStatus ? `[${row.stockStatus}]` : ''}</div>
+                  <div><span className="text-slate-400 font-medium">Lot No.:</span> <span className="font-mono">{row.lotNo || '-'}</span></div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center py-2 bg-slate-50 rounded-md">
+                  <div>
+                    <span className="text-[9px] text-slate-400 block">น้ำหนัก (กก.)</span>
+                    <span className="font-bold text-slate-700 tabular-nums">{formatMoney(row.qty)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-400 block">ราคา/กก.</span>
+                    <span className="font-medium text-slate-500 tabular-nums">{formatMoney(row.unitCost)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-400 block">รวมมูลค่า</span>
+                    <span className="font-bold text-blue-700 tabular-nums">{formatMoney(row.totalCost)}</span>
+                  </div>
+                </div>
+
+                {canWrite && isRowActive && (
+                  <div className="flex justify-end pt-1">
+                    <button
+                      className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-50"
+                      type="button"
+                      onClick={() => onReverse(row.docNo)}
+                    >
+                      Reverse
+                    </button>
+                  </div>
+                )}
               </div>
-              
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 py-1.5 border-t border-b border-slate-100/50 text-slate-600">
-                <div><span className="text-slate-400 font-medium">วันที่:</span> {formatDateDisplay(row.date)}</div>
-                <div><span className="text-slate-400 font-medium">เลขที่:</span> <span className="font-mono">{row.docNo}</span></div>
-                <div><span className="text-slate-400 font-medium">คลัง:</span> {row.warehouseName} {row.stockStatus ? `[${row.stockStatus}]` : ''}</div>
-                <div><span className="text-slate-400 font-medium">Lot No.:</span> <span className="font-mono">{row.lotNo || '-'}</span></div>
-              </div>
-              
-              <div className="grid grid-cols-3 gap-2 text-center py-2 bg-slate-50 rounded-md">
-                <div>
-                  <span className="text-[9px] text-slate-400 block">น้ำหนัก (กก.)</span>
-                  <span className="font-bold text-slate-700 tabular-nums">{formatMoney(row.qty)}</span>
-                </div>
-                <div>
-                  <span className="text-[9px] text-slate-400 block">ราคา/กก.</span>
-                  <span className="font-medium text-slate-500 tabular-nums">{formatMoney(row.unitCost)}</span>
-                </div>
-                <div>
-                  <span className="text-[9px] text-slate-400 block">รวมมูลค่า</span>
-                  <span className="font-bold text-blue-700 tabular-nums">{formatMoney(row.totalCost)}</span>
-                </div>
-              </div>
-              
-              {canWrite && row.status === 'Active' && (
-                <div className="flex justify-end pt-1">
-                  <button
-                    className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-50"
-                    type="button"
-                    onClick={() => onReverse(row.docNo)}
-                  >
-                    Reverse
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
+            )
+          })}
           {rows.length === 0 ? (
             <div className="p-6 text-center text-slate-400">ยังไม่มีรายการเคลื่อนไหว</div>
           ) : null}
@@ -1232,7 +1409,10 @@ function SelectField({ allowBlank = false, disabled = false, error, helperText, 
     <FormField error={error} label={label}>
       <select id={selectId} className={`w-full rounded-md border px-3 py-2 disabled:bg-slate-100 disabled:text-slate-600 ${error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300 bg-white text-slate-800'} h-9 text-sm outline-none`} disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)}>
         <option value="">{allowBlank ? '-' : (placeholder ?? 'เลือกข้อมูล')}</option>
-        {options.map((option) => <option key={`${option.code}-${option.id}`} value={option.code}>{option.code} - {option.name}</option>)}
+        {options.map((option) => {
+          const displayLabel = option.code === option.name ? option.name : `${option.code} - ${option.name}`
+          return <option key={`${option.code}-${option.id}`} value={option.code}>{displayLabel}</option>
+        })}
       </select>
       {helperText ? <span className="mt-1 block text-xs text-slate-500">{helperText}</span> : null}
     </FormField>

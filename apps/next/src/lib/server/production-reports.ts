@@ -135,7 +135,7 @@ export async function loadProductionMetrics(filters: ProductionReportFilters = {
           where: { status: 'active' },
         },
         production_lines: { select: { name: true } },
-        production_machines: { select: { name: true } },
+        production_machines: { select: { name: true, type: true } },
         production_outputs: {
           select: {
             category_code: true,
@@ -271,9 +271,16 @@ export async function loadProductionMetrics(filters: ProductionReportFilters = {
     const ledgerBalanced = ledgerMismatchQty <= 0.000001
     const wipValue = Math.max(0, rawWipValue)
 
+    const mappedProductionType = order.production_machines?.type || (order.production_type ? ({
+      Processing: 'เครื่องตัด/เครื่องบด',
+      Baling: 'เครื่องอัด',
+      Sorting: 'สายพาน',
+      Melting: 'เครื่องหลอม',
+    }[order.production_type] || order.production_type) : '-')
+
     return {
       branchName: order.branches?.name ?? '-',
-      costAllocationMethod: order.cost_allocation_method ?? order.production_type ?? '-',
+      costAllocationMethod: order.cost_allocation_method ?? mappedProductionType,
       costPerKg: productionCostPerKg,
       costBreakdown: Object.fromEntries(order.process_costs
         .filter((cost) => cost.status !== 'reversed' && cost.include_in_production)
@@ -298,7 +305,7 @@ export async function loadProductionMetrics(filters: ProductionReportFilters = {
       productCode: order.products?.code ?? '',
       productName: order.products?.name ?? '-',
       productionLineName: order.production_lines?.name ?? '-',
-      productionType: order.production_type ?? '-',
+      productionType: mappedProductionType,
       rmCostPerKg,
       status: order.status ?? 'Open',
       totalCost,
