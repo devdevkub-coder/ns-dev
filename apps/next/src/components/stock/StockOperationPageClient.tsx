@@ -1276,9 +1276,33 @@ function Select(props: { disabled?: boolean; label: string; onChange: (value: st
 }
 
 function BranchWarehouseFields({ branchId, reference, setBranchId, setWarehouseId, warehouseId }: { branchId: string; reference: Payload['reference']; setBranchId: (value: string) => void; setWarehouseId: (value: string) => void; warehouseId: string }) {
+  const activeBranches = reference.branches.filter((option) => option.active !== false)
+  const activeWarehouses = reference.warehouses.filter((option) => option.active !== false && (!branchId || option.branchId === branchId))
   return <>
-    <Select label="สาขา" options={reference.branches} value={branchId} onChange={setBranchId} />
-    <Select disabled={!branchId} label="คลัง" options={reference.warehouses.filter((item) => !branchId || item.branchId === branchId)} placeholder={branchId ? 'เลือก' : 'เลือกสาขาก่อน'} value={warehouseId} onChange={setWarehouseId} />
+    <label className="block text-xs font-semibold text-slate-600">
+      สาขา
+      <select
+        className="mt-1.5 h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+        disabled={!activeBranches.length}
+        value={branchId}
+        onChange={(event) => setBranchId(event.target.value)}
+      >
+        <option value="">{activeBranches.length ? 'เลือกสาขา' : 'กำลังโหลดสาขา...'}</option>
+        {activeBranches.map((option) => <option key={option.id} value={option.id}>{option.code ? `${option.code} - ${option.name}` : option.name}</option>)}
+      </select>
+    </label>
+    <label className="block text-xs font-semibold text-slate-600">
+      คลัง
+      <select
+        className="mt-1.5 h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+        disabled={!branchId}
+        value={warehouseId}
+        onChange={(event) => setWarehouseId(event.target.value)}
+      >
+        <option value="">{branchId ? 'เลือกคลัง' : 'เลือกสาขาก่อน'}</option>
+        {activeWarehouses.map((option) => <option key={option.id} value={option.id}>{option.code ? `${option.code} - ${option.name}` : option.name}</option>)}
+      </select>
+    </label>
   </>
 }
 
@@ -1288,7 +1312,6 @@ function StatusConvertForm(props: { cancelHref: string; isSaving: boolean; onSub
   const setToStatus = (toStatus: StatusConvertFormValues['toStatus']) => setValues({ ...values, fromStatus: toStatus === 'RM' ? 'FG' : 'RM', toStatus })
   return <FormShell cancelHref={props.cancelHref} isSaving={props.isSaving} onSubmit={() => props.onSubmit(values)}>
     <div className="md:col-span-2 rounded-lg border border-slate-200 bg-white p-5 shadow-sm grid gap-4 md:grid-cols-2">
-      <BaseDateDoc values={values} setValues={setValues} />
       <Select label="สินค้า" options={props.reference.products} value={values.productId} onChange={(productId) => setValues({ ...values, productId })} />
       <BranchWarehouseFields branchId={values.branchId} reference={props.reference} setBranchId={(branchId) => setValues({ ...values, branchId, warehouseId: '' })} setWarehouseId={(warehouseId) => setValues({ ...values, warehouseId })} warehouseId={values.warehouseId} />
       <Select label="จากสถานะ" options={statusOptions()} value={values.fromStatus} onChange={(fromStatus) => setFromStatus(fromStatus as StatusConvertFormValues['fromStatus'])} />
