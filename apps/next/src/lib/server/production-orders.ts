@@ -25,9 +25,9 @@ export const createProductionOrderSchema = z.object({
   branchCode: codeSchema,
   date: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'วันที่ต้องเป็นรูปแบบ YYYY-MM-DD'),
   destinationWarehouseCode: codeSchema,
-  machineCode: codeSchema.optional(),
+  machineCode: z.string().trim().optional(),
   notes: z.string().trim().max(1000).optional(),
-  productionLineCode: codeSchema.optional(),
+  productionLineCode: z.string().trim().optional(),
   productionType: z.string().trim().min(1, 'เลือกประเภทการผลิต').max(80),
   shift: z.string().trim().max(80).optional(),
   sourceWarehouseCode: codeSchema,
@@ -137,14 +137,14 @@ async function findActiveProductByCode(tx: DbClient, code: string) {
 
 async function findOptionalMachineByCode(tx: DbClient, code?: string) {
   if (!code) return null
-  const machine = await tx.production_machines.findFirst({ select: { id: true }, where: { active: true, name: code } })
+  const machine = await tx.production_machines.findFirst({ select: { id: true }, where: { active: true, name: { equals: code, mode: 'insensitive' } } })
   if (!machine) throw new ProductionOrderError(`ไม่พบเครื่องจักร ${code}`)
   return machine
 }
 
 async function findOptionalProductionLineByCode(tx: DbClient, code?: string) {
   if (!code) return null
-  const line = await tx.production_lines.findFirst({ select: { id: true }, where: { active: true, name: code } })
+  const line = await tx.production_lines.findFirst({ select: { id: true }, where: { active: true, name: { equals: code, mode: 'insensitive' } } })
   if (!line) throw new ProductionOrderError(`ไม่พบไลน์ผลิต ${code}`)
   return line
 }

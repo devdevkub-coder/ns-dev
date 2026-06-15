@@ -192,3 +192,15 @@
   - ภาพหลักฐาน UAT แท็บ Output: [output_tab_clean](file:///C:/Users/pc/.gemini/antigravity-ide/brain/027f3d4f-1a1a-4f60-881c-53257b3b2958/output_tab_verification_1781511355423.png)
   - ภาพหลักฐาน UAT Stock Preview แยกคลัง/ประเภท: [stock_preview_all_warehouses](file:///C:/Users/pc/.gemini/antigravity-ide/brain/027f3d4f-1a1a-4f60-881c-53257b3b2958/sku001_stock_preview_1781511807699.png)
 
+### 19. แก้ไขปัญหาความสอดคล้องตัวพิมพ์เล็ก-ใหญ่ของชื่อไลน์ผลิตและเครื่องจักร (Machine & Line Case-Sensitivity Fix)
+- **การดำเนินการ:**
+  - **วิเคราะห์สาเหตุ:** ตรวจพบว่า `createProductionOrderSchema` ฝั่ง backend บังคับใช้ `codeSchema` (ซึ่งมีการทำ `.toUpperCase()`) กับฟิลด์ `machineCode` และ `productionLineCode` แต่ทว่าใน Database ฟิลด์ `name` ของไลน์ผลิตเก็บค่าเป็นแบบตัวพิมพ์ใหญ่ปนเล็ก (Camel-case) เช่น `"Line A - เครื่องอัดแนวตั้ง/เครื่องตัด"` ทำให้เมื่อ API ได้รับข้อมูลแล้วแปลงเป็น Uppercase ทั้งหมด (เช่น `"LINE A - เครื่องอัดแนวตั้ง/เครื่องตัด"`) แล้วนำไปคิวรี่หาในฐานข้อมูล ส่งผลให้หาข้อมูลไม่พบและโยน error เสมอ แม้บน UI ผู้ใช้จะเลือกเป็นค่าว่าง (`-` หรือ `""`) แต่มีค่า Uppercase เดิมค้างใน React state ที่ HTML Select แสดงผลเป็น `-` เนื่องจากค่าไม่ตรงกับ Option values
+  - **แก้ไข Zod Schema:** ปรับเปลี่ยน Schema ของ `machineCode` และ `productionLineCode` ใน `createProductionOrderSchema` จาก `codeSchema.optional()` เป็น `z.string().trim().optional()`
+  - **ปรับการค้นหาในฐานข้อมูล:** ปรับปรุงฟังก์ชัน `findOptionalMachineByCode` และ `findOptionalProductionLineByCode` ใน `production-orders.ts` ให้คิวรี่หาชื่อเครื่องจักรและไลน์ผลิตแบบไม่สนใจตัวพิมพ์เล็ก-ใหญ่ (`mode: 'insensitive'`) ใน Prisma
+- **ผลลัพธ์การตรวจสอบ (UAT & Compilation):**
+  - รัน `npm run type-check` และ `npm run lint` ของ Next.js Workspace ผ่านสำเร็จ 100% (0 errors)
+  - ดำเนินการทดสอบผ่าน Browser subagent โดยจำลองการสร้างใบสั่งผลิตด้วยการเลือก เครื่องจักร: `สายพานแยกประเภท - สายพานแยกประเภท` และ ไลน์ผลิต: `-` (ว่าง)
+  - **ผลลัพธ์:** การบันทึกสำเร็จลงฐานข้อมูลทันทีโดยไม่มีข้อผิดพลาด และได้เอกสารใบสั่งผลิตเลขที่ **`PO2606-0012`** แสดงผลในตารางได้อย่างถูกต้องและสมบูรณ์
+  - ภาพบันทึกการกรอกฟอร์ม UAT: [filled_dialog](file:///C:/Users/pc/.gemini/antigravity-ide/brain/027f3d4f-1a1a-4f60-881c-53257b3b2958/filled_dialog_1781513565416.png)
+  - ภาพบันทึกตารางหลังสร้างใบสั่งผลิตสำเร็จ: [order_created](file:///C:/Users/pc/.gemini/antigravity-ide/brain/027f3d4f-1a1a-4f60-881c-53257b3b2958/order_created_1781513576631.png)
+

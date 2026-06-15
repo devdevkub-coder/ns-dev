@@ -152,9 +152,13 @@
   - **รายละเอียด:** ปุ่มตัวกรองวันและปุ่ม Export CSV เดิมแสดงผลเบียดเสียดกันหรือเลยขอบกรอบการ์ดออกมาเมื่อเปิดบนอุปกรณ์หน้าจอขนาดเล็ก
   - **แนวทางแก้ไข:** แยกการจัดวางเป็น 2 แถวบนมือถือ โดยแถวแรกเป็น DatePicker 2 ช่องคู่กับปุ่มล้างวันที่ (ใช้ `flex-1` เพื่อหด/ขยายขนาด DatePicker ตามพื้นที่หน้าจอโดยอัตโนมัติ ช่วยป้องกันไม่ให้ปุ่มล้างล้นกรอบการ์ด) ส่วนแถวที่สองจัดปุ่มส่งออก CSV ให้ขยายความกว้างเต็มพื้นที่ (`w-full`) เพื่อให้กดง่ายและได้สัดส่วนสวยงาม ส่วนบนจอเดสก์ท็อปจะแสดงเรียงในแถวเดียวตามปกติ
 
-
-
-
+- **บั๊ก Case-sensitivity ของรหัสเครื่องจักรและไลน์ผลิต (Machine & Production Line Case-Sensitivity Mismatch - แก้ไขแล้ว):**
+  - **ไฟล์ที่แก้ไข:** [production-orders.ts](file:///c:/new-ns-scrap-erp/apps/next/src/lib/server/production-orders.ts)
+  - **รายละเอียด:** Zod schema ของ API backend บังคับใช้ `codeSchema` (แปลงเป็น Uppercase ทั้งหมด) สำหรับฟิลด์ `machineCode` และ `productionLineCode` แต่ข้อมูลจริงใน Database บันทึกชื่อเป็น Camel-case (เช่น `"Line A - เครื่องอัดแนวตั้ง/เครื่องตัด"`) ทำให้เมื่อ API ได้รับข้อมูลแล้วนำไปคิวรี่เปรียบเทียบในลักษณะ Case-sensitive ส่งผลให้หาไม่พบและเด้ง error "ไม่พบไลน์ผลิต..." แม้ผู้ใช้จะเลือกเป็น `-` (ว่าง) แต่มีค่า Uppercase เดิมค้างใน React state ที่ HTML select นำเสนอเป็น `-` เนื่องจากค่าสะกดไม่ตรงกับ Option values
+  - **แนวทางแก้ไข:**
+    1. ปรับเปลี่ยน schema ของ `machineCode` และ `productionLineCode` ใน backend validation จาก `codeSchema.optional()` เป็น string ธรรมดา (`z.string().trim().optional()`)
+    2. อัปเดตฟังก์ชัน `findOptionalMachineByCode` และ `findOptionalProductionLineByCode` ให้เปรียบเทียบค่าชื่อเครื่องจักรและไลน์ผลิตแบบไม่สนใจตัวพิมพ์เล็ก-ใหญ่ (`mode: 'insensitive'`) ใน Prisma
+    3. ดำเนินการทดสอบผ่าน Browser subagent จำลองผู้ใช้เลือกเครื่องจักรและว่างไลน์ผลิต บันทึกใบสั่งผลิตรหัส `PO2606-0012` ได้สำเร็จลุล่วง 100% ปราศจากข้อผิดพลาดเรื่อง validation แล้ว
 
 
 
