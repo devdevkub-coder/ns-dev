@@ -10,7 +10,6 @@ import { activeSalesReceiptCount, isSalesBillActiveForCancel } from '@/lib/serve
 import { reversePoSellUsage } from '@/lib/server/sales-bill-po-sell-reversal'
 import { appendStockIssueStatusLog, STOCK_ISSUE_STATUS_ACTION } from '@/lib/server/stock-issue-history'
 import { reopenConsumedWtoStockHoldsForSalesBill, reversePendingSaleStockIssue, WtoStockHoldError } from '@/lib/server/stock-holds'
-import { assertTaxFilingPeriodUnlocked } from '@/lib/server/tax-filing-source-lock'
 import {
   correctTradingAllocationsSchema as tradingCorrectionSchema,
   correctTradingSalesBillAllocations as runTradingSalesBillAllocationCorrection,
@@ -112,13 +111,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       })
       if (!bill) throw new Error('ไม่พบบิลขายที่ต้องการยกเลิก')
       if (!isSalesBillActiveForCancel(bill.status)) throw new Error('บิลขายนี้ถูกยกเลิกแล้ว')
-      if (toNumber(bill.vat_amount) > 0) {
-        await assertTaxFilingPeriodUnlocked(tx, {
-          date: bill.date,
-          sourceLabel: `บิลขาย ${bill.doc_no}`,
-          taxTypes: ['VAT'],
-        })
-      }
 
       const activeReceiptCount = await activeSalesReceiptCount(tx, bill.id)
       if (activeReceiptCount > 0) {

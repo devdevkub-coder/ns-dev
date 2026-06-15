@@ -16,7 +16,6 @@ import { salesBillLineFactsForBills, type SalesBillLineFactRow } from '@/lib/ser
 import { appendStockIssueStatusLog, STOCK_ISSUE_STATUS_ACTION } from '@/lib/server/stock-issue-history'
 import { consumeActiveWtoStockHolds, WtoStockHoldError } from '@/lib/server/stock-holds'
 import { activeVatRatePercent } from '@/lib/server/tax-settings'
-import { assertTaxFilingPeriodUnlocked } from '@/lib/server/tax-filing-source-lock'
 import { findActiveWarehouseReferenceByCodeOrId } from '@/lib/server/warehouse-reference'
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
 import { appendWeightTicketUsageLogs, WEIGHT_TICKET_USAGE_ACTION } from '@/lib/server/weight-ticket-usage-history'
@@ -1208,13 +1207,6 @@ export async function POST(request: Request) {
     const billDate = createdAt.toISOString().slice(0, 10)
     const vatRatePercent = await activeVatRatePercent(normalizeDate(billDate))
     const totals = calculateSalesTotals(values, vatRatePercent)
-    if (totals.vatAmount > 0) {
-      await assertTaxFilingPeriodUnlocked(prisma, {
-        date: normalizeDate(billDate),
-        sourceLabel: 'บิลขาย',
-        taxTypes: ['VAT'],
-      })
-    }
     const requestedProductCodes = values.items.map((item) => item.productId?.trim() ?? '')
     const invalidProductIndex = requestedProductCodes.findIndex((productCode) => !productCode)
     if (invalidProductIndex >= 0) {
@@ -1994,13 +1986,6 @@ export async function PATCH(request: Request) {
     }
     if (bill.status === 'cancelled') {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'บิลนี้ถูกยกเลิกแล้ว' }, { status: 400 })
-    }
-    if (toNumber(bill.vat_amount) > 0) {
-      await assertTaxFilingPeriodUnlocked(prisma, {
-        date: bill.date,
-        sourceLabel: `บิลขาย ${bill.doc_no}`,
-        taxTypes: ['VAT'],
-      })
     }
 
     const activeReceiptsCount = await prisma.receipts.count({
