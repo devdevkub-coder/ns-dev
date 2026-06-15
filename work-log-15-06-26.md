@@ -157,3 +157,20 @@
   - รายการตารางแสดงเอกสาร PO2606-0005 ที่ถูกสร้างสำเร็จ: [order_created_in_table](file:///C:/Users/pc/.gemini/antigravity-ide/brain/73b25086-46c1-43bb-8b9d-0229deaeb181/order_created_in_table_1781503761738.png)
   - แท็บ Output ที่มีช่องคลังรับสำหรับบันทึกผลผลิต: [output_tab_dest_warehouse_visible](file:///C:/Users/pc/.gemini/antigravity-ide/brain/73b25086-46c1-43bb-8b9d-0229deaeb181/output_tab_dest_warehouse_visible_1781503832898.png)
   - วิดีโอบันทึกการทดสอบ E2E: ![verify_prod_warehouse_removal](/C:/Users/pc/.gemini/antigravity-ide/brain/73b25086-46c1-43bb-8b9d-0229deaeb181/verify_prod_warehouse_removal_1781503698390.webp)
+
+### 17. กู้คืนฟิลด์คลังรับผลผลิตในหน้ารายละเอียด และคงคลังรับในแท็บ Output ตามฟีดแบ็กล่าสุด
+- **การดำเนินการ:**
+  - แก้ไขไฟล์ [ProductionOrdersPageClient.tsx](file:///c:/new-ns-scrap-erp/apps/next/src/components/production/ProductionOrdersPageClient.tsx) เพื่อนำฟิลด์แสดงผลแบบอ่านอย่างเดียว **"คลังรับผลผลิต"** กลับมาแสดงในหน้ารายละเอียดหลัก (Header Tab) หลังจากถูกซ่อนไปในการแก้ไขรอบแรก เพื่อให้ผู้ใช้งานยังคงมองเห็นคลังสินค้าสำเร็จรูปเริ่มต้นที่ระบบกำหนดไว้ให้
+  - คงฟิลด์เลือก **"คลังรับ"** ในแท็บ **Output** ของหน้ารายละเอียดใบสั่งผลิตไว้ตามเดิม ไม่มีการถอดถอน เพื่อให้ผู้ใช้งานสามารถระบุคลังสำหรับนำผลผลิตจริงเข้าสต๊อกได้ปกติ
+- **ผลลัพธ์การตรวจสอบ (Technical Validation):**
+  - รันคำสั่งตรวจสอบ Type-check และ ESLint บน Next.js Workspace ผ่านสำเร็จ 100% ไม่มีข้อผิดพลาด
+  - ดำเนินการทดสอบผ่าน Browser subagent เพื่อยืนยันว่า:
+    1. หน้าต่างสร้างใบสั่งผลิตใหม่: ไม่มีช่องเลือกคลังรับผลผลิต (แสดงผลตรงตามต้องการเพื่อลดความซ้ำซ้อน)
+    2. หน้าต่างรายละเอียด - แท็บ Header: แสดงฟิลด์ "คลังรับผลผลิต" (Read-only) เป็นข้อมูลอ้างอิงได้อย่างถูกต้อง
+    3. หน้าต่างรายละเอียด - แท็บ Output: แสดงฟิลด์เลือก "คลังรับ" เป็น Dropdown สำหรับใช้ระบุข้อมูลตามปกติ
+- **ภาพหลักฐานการทดสอบในระบบ (Artifact Screenshots & Videos):**
+  - หน้าสร้างใหม่ไม่มีคลังรับ: [new_order_modal](file:///C:/Users/pc/.gemini/antigravity-ide/brain/73b25086-46c1-43bb-8b9d-0229deaeb181/new_order_modal_1781504854406.png)
+  - แท็บ Header ที่แสดงคลังรับผลผลิต: [details_header_tab](file:///C:/Users/pc/.gemini/antigravity-ide/brain/73b25086-46c1-43bb-8b9d-0229deaeb181/details_header_tab_1781504871303.png)
+  - แท็บ Output ที่แสดงคลังรับสำหรับระบุข้อมูล: [details_output_tab](file:///C:/Users/pc/.gemini/antigravity-ide/brain/73b25086-46c1-43bb-8b9d-0229deaeb181/details_output_tab_1781504883438.png)
+  - วิดีโอบันทึกการทดสอบ E2E: ![verify_prod_wh_visibility](/C:/Users/pc/.gemini/antigravity-ide/brain/73b25086-46c1-43bb-8b9d-0229deaeb181/verify_prod_wh_visibility_1781504831149.webp)
+
