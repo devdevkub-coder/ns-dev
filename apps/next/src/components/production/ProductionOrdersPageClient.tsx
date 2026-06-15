@@ -451,7 +451,17 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
         const payload = await dailyFetchJson<ProductionOrderOptions>('/api/production/orders/options')
         if (cancelled) return
         setOptions(payload)
-        setInputForm((current) => ({ ...current, productCode: current.productCode || payload.products[0]?.code || '', sourceWarehouseCode: current.sourceWarehouseCode || payload.warehouses[0]?.code || '' }))
+        setInputForm((current) => {
+          const defaultWhCode = current.sourceWarehouseCode || payload.warehouses[0]?.code || ''
+          const selectedWh = payload.warehouses.find((w) => w.code === defaultWhCode)
+          const inferredStatus = selectedWh?.type?.toUpperCase() === 'FG' ? 'FG' : 'RM'
+          return {
+            ...current,
+            productCode: current.productCode || payload.products[0]?.code || '',
+            sourceWarehouseCode: defaultWhCode,
+            stockStatus: inferredStatus,
+          }
+        })
         setOutputForm((current) => ({ ...current, destinationWarehouseCode: current.destinationWarehouseCode || payload.warehouses[0]?.code || '', productCode: current.productCode || payload.products[0]?.code || '' }))
       } catch (caught) {
         if (!cancelled) setError(caught instanceof Error ? caught.message : 'โหลดตัวเลือกไม่ได้')
@@ -649,7 +659,7 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
     const netQty = Number(netQtyText)
     const productCode = getComboboxCode(formElement, 'production-input-product', inputForm.productCode)
     const sourceWarehouseCode = readFormValue(formElement, 'production-input-source-warehouse') || inputForm.sourceWarehouseCode
-    const stockStatus = 'RM'
+    const stockStatus = (inputForm.stockStatus || 'RM') as 'RM' | 'FG'
     if (!productCode || !sourceWarehouseCode || !Number.isFinite(netQty) || netQty <= 0) {
       setError('กรุณาเลือกสินค้า คลังต้นทาง และระบุ Net (กก.) มากกว่า 0')
       return
@@ -866,7 +876,17 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
                   <div className="md:col-span-2">
                     <SearchCombobox inputId="production-input-product" label="สินค้า" options={productSearchOptions} placeholder="พิมพ์รหัส/ชื่อสินค้า..." value={inputForm.productCode} onChange={(productCode) => setInputForm((form) => ({ ...form, productCode }))} />
                   </div>
-                  <SelectField selectId="production-input-source-warehouse" label="คลังต้นทาง" value={inputForm.sourceWarehouseCode} options={options.warehouses} onChange={(sourceWarehouseCode) => setInputForm((form) => ({ ...form, sourceWarehouseCode }))} />
+                  <SelectField
+                    selectId="production-input-source-warehouse"
+                    label="คลังต้นทาง"
+                    value={inputForm.sourceWarehouseCode}
+                    options={options.warehouses}
+                    onChange={(sourceWarehouseCode) => {
+                      const selectedWarehouse = options.warehouses.find((w) => w.code === sourceWarehouseCode)
+                      const inferredStatus = selectedWarehouse?.type?.toUpperCase() === 'FG' ? 'FG' : 'RM'
+                      setInputForm((form) => ({ ...form, sourceWarehouseCode, stockStatus: inferredStatus }))
+                    }}
+                  />
                   <FormField label="Net (กก.)"><input key={`input-net-${row?.inputCount ?? 0}`} ref={inputNetQtyRef} id="production-input-net-qty" className="w-full rounded-md border px-3 py-2 text-right border-slate-300 bg-white" defaultValue={inputForm.netQty} inputMode="decimal" /></FormField>
                   <FormField label="หมายเหตุ"><input className="w-full rounded-md border px-3 py-2 border-slate-300 bg-white" value={inputForm.notes} onChange={(event) => setInputForm((form) => ({ ...form, notes: event.target.value }))} /></FormField>
                 </div>
