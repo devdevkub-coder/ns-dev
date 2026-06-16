@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
+import { SearchCombobox } from '@/components/ui/SearchCombobox'
+import type { SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import {
   DualCostingErrorBox,
@@ -122,6 +124,14 @@ export function CostAllocatorPageClient() {
     return () => { mounted = false }
   }, [queryString])
 
+  const productSearchOptions = useMemo<SearchComboboxOption[]>(() => {
+    return (data?.filters.products ?? []).map((product) => ({
+      id: product.id,
+      label: product.code ? `${product.code} - ${product.name}` : product.name,
+      searchText: `${product.code ?? ''} ${product.name} ${product.metalGroup ?? ''}`.toLowerCase(),
+    }))
+  }, [data?.filters.products])
+
   const selectedProduct = data?.filters.products.find((product) => product.id === selectedProductId)
   const hasSelection = Boolean(selectedProductId)
   const hasPoSell = Boolean(data?.selectedPoSell)
@@ -170,17 +180,20 @@ export function CostAllocatorPageClient() {
       </DualCostingPanel>
 
       <DualCostingPanel title="① เลือกสินค้าที่ต้องการ Match ต้นทุน">
-        <Select
-          className="w-full rounded-md"
-          value={selectedProductId}
-          onChange={(event) => {
-            setSelectedProductId(event.target.value)
-            resetSale()
-          }}
-        >
-          <option value="">— เลือกสินค้า —</option>
-          {(data?.filters.products ?? []).map((product) => <option key={product.id} value={product.id}>{product.code ? `${product.code} - ` : ''}{product.name}{product.metalGroup ? ` · ${product.metalGroup}` : ''}</option>)}
-        </Select>
+        <div className="w-full">
+          <SearchCombobox
+            inputId="cost-allocator-product"
+            label="สินค้า"
+            hideLabel={true}
+            options={productSearchOptions}
+            placeholder="พิมพ์รหัส/ชื่อสินค้าเพื่อค้นหา..."
+            value={selectedProductId}
+            onChange={(value) => {
+              setSelectedProductId(value)
+              resetSale()
+            }}
+          />
+        </div>
         {hasSelection ? (
           <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
             <DualCostingStatCard label="Cost Pool ของสินค้านี้" value={`${data?.summary.poolCount ?? 0} รายการ`} />

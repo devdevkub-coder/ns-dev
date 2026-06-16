@@ -50,6 +50,8 @@ type ProductionOrderRow = {
   status: string
   variance: number
   warehouseName: string
+  wipQty: number
+  wipValue: number
 }
 type ProductionOrdersPayload = {
   categories: Category[]
@@ -472,7 +474,7 @@ export function ProductionOrdersPageClient() {
 
 function OrderCard({ onOpen, row }: { onOpen: () => void; row: ProductionOrderRow }) {
   const yieldPct = row.inputQty > 0 ? (row.outputQty / row.inputQty) * 100 : 0
-  const wipQty = Math.max(0, row.inputQty - row.outputQty)
+  const wipQty = Math.max(0, row.wipQty ?? 0)
   return (
     <div className={`relative cursor-pointer overflow-hidden rounded-md border-2 p-4 shadow-md transition hover:shadow-xl ${cardClass(row.status)}`} onClick={onOpen}>
       <div className="absolute right-2 top-2"><StatusBadge status={row.status} /></div>
@@ -589,7 +591,7 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
   }, [createForm.branchCode, isCreate, options.warehouses])
   const branchWipWarehouses = useMemo(() => createForm.branchCode ? branchWarehouses.filter((warehouse) => warehouse.type?.toUpperCase() === 'WIP') : [], [branchWarehouses, createForm.branchCode])
   const isWipWarehouseLocked = isCreate && branchWipWarehouses.length === 1
-  const rowWipQty = wip?.wipQty ?? Math.max(0, (row?.inputQty ?? 0) - (row?.outputQty ?? 0))
+  const rowWipQty = wip?.wipQty ?? row?.wipQty ?? Math.max(0, (row?.inputQty ?? 0) - (row?.outputQty ?? 0))
   const isGracePeriodActive = useCallback((orderRow: ProductionOrderRow | null) => {
     if (!orderRow || orderRow.status !== 'Completed' || !orderRow.closedAt) return false
     const closedTime = new Date(orderRow.closedAt).getTime()

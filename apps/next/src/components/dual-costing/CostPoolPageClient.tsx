@@ -6,6 +6,8 @@ import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
+import { SearchCombobox } from '@/components/ui/SearchCombobox'
+import type { SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import {
@@ -100,6 +102,15 @@ export function CostPoolPageClient() {
     void loadData()
   }, [loadData])
 
+  const productSearchOptions = useMemo<SearchComboboxOption[]>(() => {
+    const list = (data?.filters.products ?? []).map((product) => ({
+      id: product.id,
+      label: product.name,
+      searchText: product.name.toLowerCase(),
+    }))
+    return [{ id: 'all', label: 'ทุกสินค้า', searchText: 'ทุกสินค้า all' }, ...list]
+  }, [data?.filters.products])
+
   const exportHref = `/api/dual-costing/cost-pool?${queryString ? `${queryString}&` : ''}format=xlsx`
   const hasActiveFilters = Boolean(search || fromDate || toDate || productId !== 'all' || costType !== 'all' || sourceType !== 'all' || status !== 'all' || !availableOnly || sort !== 'FIFO')
 
@@ -160,10 +171,18 @@ export function CostPoolPageClient() {
           <DatePickerInput id="cost-pool-date-from" value={fromDate} onChange={setFromDate} />
           <span className="text-slate-400">→</span>
           <DatePickerInput id="cost-pool-date-to" value={toDate} onChange={setToDate} />
-          <Select aria-label="สินค้า" className="w-auto min-w-[180px]" value={productId} onChange={(event) => setProductId(event.target.value)}>
-            <option value="all">ทุกสินค้า</option>
-            {(data?.filters.products ?? []).map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
-          </Select>
+          <div className="w-auto min-w-[180px]">
+            <SearchCombobox
+              hideLabel
+              inputClassName="h-9 text-sm"
+              inputId="cost-pool-product-filter"
+              label="สินค้า"
+              options={productSearchOptions}
+              placeholder="ค้นหาสินค้า"
+              value={productId}
+              onChange={(value) => setProductId(value || 'all')}
+            />
+          </div>
           <Select aria-label="Cost Type" className="w-auto min-w-[160px]" value={costType} onChange={(event) => setCostType(event.target.value)}>
             <option value="all">ทุก Cost Type</option>
             {(data?.filters.costTypes ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
