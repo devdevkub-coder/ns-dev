@@ -71,6 +71,7 @@ POS เป็น customer commitment/reservation ฝั่งขาย ก่อ
 - date filter ของหน้า PO Sell ใช้ `created_at` / `วันที่สร้างรายการ`
 - `สถานะเอกสาร` ใน table/card/detail ใช้ status display ตาม `docs/design.md`: dot + ข้อความสี ไม่ใช้ badge background
 - `สถานะ Match` แสดงเป็นข้อความสีอย่างเดียว ไม่มี dot
+- `สถานะ Match` ใน filter/table/card/detail/export ต้องใช้ label ภาษาไทยชุดเดียวกัน: `ยังไม่จับคู่`, `จับคู่บางส่วน`, `จับคู่ครบ`, `จับคู่เกิน`, `ยกเลิก`
 - segmented filter ของสถานะใช้ active/idle สีมาตรฐานกลาง ไม่แยกสีตามสถานะ
 - transaction write ต้องทำใน server transaction และ append timeline/status/audit ตาม document policy
 - ถ้า field เป็น money/qty/date/business code ให้ validate ตาม `docs/design.md` และ server-side ซ้ำ

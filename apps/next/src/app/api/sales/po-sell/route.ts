@@ -35,7 +35,13 @@ const DOCUMENT_STATUS_OPTIONS = [
   { label: 'ปิดแล้ว', value: 'closed' },
 ] as const
 
-const MATCH_STATUS_OPTIONS = ['Not Matched', 'Partially Matched', 'Fully Matched', 'Over Matched', 'Cancelled'] as const
+const MATCH_STATUS_OPTIONS = [
+  { label: 'ยังไม่จับคู่', value: 'Not Matched' },
+  { label: 'จับคู่บางส่วน', value: 'Partially Matched' },
+  { label: 'จับคู่ครบ', value: 'Fully Matched' },
+  { label: 'จับคู่เกิน', value: 'Over Matched' },
+  { label: 'ยกเลิก', value: 'Cancelled' },
+] as const
 const CANCELLED_STATUSES = ['cancelled', 'Cancelled', 'canceled', 'Canceled', 'void', 'Void']
 
 const poSellPatchSchema = z.discriminatedUnion('action', [
@@ -160,6 +166,10 @@ function matchStatus(matchedQty: number, qty: number, currentDocumentStatus: PoS
   if (qty > 0 && matchedQty > qty + 0.001) return 'Over Matched'
   if (qty > 0 && matchedQty >= qty - 0.001) return 'Fully Matched'
   return 'Partially Matched'
+}
+
+function matchStatusLabel(status: string) {
+  return MATCH_STATUS_OPTIONS.find((option) => option.value === status)?.label ?? status
 }
 
 function buildWorkbook(rows: Array<Record<string, string | number>>) {
@@ -396,6 +406,7 @@ export async function GET(request: Request) {
         documentStatus: currentDocumentStatus,
         documentStatusLabel: documentStatusLabel(currentDocumentStatus),
         matchStatus: currentMatchStatus,
+        matchStatusLabel: matchStatusLabel(currentMatchStatus),
         matchedCost: matched.cost,
         matchedPct: qty > 0 ? (matched.qty / qty) * 100 : 0,
         matchedQty: matched.qty,
@@ -414,7 +425,7 @@ export async function GET(request: Request) {
     })
       .filter((row) => !activeStatusFilter || row.documentStatus === activeStatusFilter)
       .filter((row) => !activeMatchStatusFilter || row.matchStatus === activeMatchStatusFilter)
-      .filter((row) => !q || `${row.docNo} ${row.customerName} ${row.channelName} ${row.branchName} ${row.productName} ${row.documentStatusLabel} ${row.status} ${row.matchStatus}`.toLowerCase().includes(q))
+      .filter((row) => !q || `${row.docNo} ${row.customerName} ${row.channelName} ${row.branchName} ${row.productName} ${row.documentStatusLabel} ${row.status} ${row.matchStatus} ${row.matchStatusLabel}`.toLowerCase().includes(q))
 
     if (url.searchParams.get('format') === 'xlsx') {
       return xlsxResponse(buildWorkbook(rows.map((row) => ({
@@ -427,7 +438,7 @@ export async function GET(request: Request) {
         Margin: row.margin,
         MarginPct: row.marginPct,
         DocumentStatus: row.documentStatusLabel,
-        MatchStatus: row.matchStatus,
+        MatchStatus: row.matchStatusLabel,
         อัพเดตล่าสุด: row.updatedAt,
         อัพเดตโดย: row.updatedBy,
         MatchedCost: row.matchedCost,

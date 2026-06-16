@@ -122,15 +122,15 @@ Current Next implementation normalizes raw PO Sell status into a separate docume
 
 ## Match Status Contract
 
-Match status is separate from delivery/billing status.
+Match status is separate from delivery/billing status. The API keeps the existing English values for filtering and compatibility, but list/detail/export/filter labels must display the same Thai wording.
 
-| Match Status | Meaning |
-|---|---|
-| `Not Matched` | No cost allocation or matched sales-bill facts yet |
-| `Partially Matched` | Some quantity matched to cost/source |
-| `Fully Matched` | Matched quantity reaches PO Sell quantity |
-| `Over Matched` | Matched quantity exceeds PO Sell quantity; should be treated as an exception |
-| `Cancelled` | PO Sell was cancelled |
+| Internal value | Thai display label | Meaning |
+|---|---|---|
+| `Not Matched` | `ยังไม่จับคู่` | No cost allocation or matched sales-bill facts yet |
+| `Partially Matched` | `จับคู่บางส่วน` | Some quantity matched to cost/source |
+| `Fully Matched` | `จับคู่ครบ` | Matched quantity reaches PO Sell quantity |
+| `Over Matched` | `จับคู่เกิน` | Matched quantity exceeds PO Sell quantity; should be treated as an exception |
+| `Cancelled` | `ยกเลิก` | PO Sell was cancelled |
 
 Do not use match status as the only business status. A PO can be `Open` while `Not Matched`; that is normal immediately after create.
 

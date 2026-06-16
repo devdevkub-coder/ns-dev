@@ -53,6 +53,7 @@ type PoSellRow = {
   documentStatus: string
   documentStatusLabel: string
   matchStatus: string
+  matchStatusLabel: string
   matchedCost: number
   matchedPct: number
   matchedQty: number
@@ -75,7 +76,7 @@ type StatusFilterOption = {
 }
 
 type PoSellPayload = {
-  filters: { matchStatuses: string[]; statuses: StatusFilterOption[] }
+  filters: { matchStatuses: StatusFilterOption[]; statuses: StatusFilterOption[] }
   options: {
     branches: Option[]
     customers: Option[]
@@ -197,7 +198,7 @@ export function PoSellPageClient() {
       if (matchStatus !== 'all' && row.matchStatus !== matchStatus) return false
       if (documentStatus !== 'all' && row.documentStatus !== documentStatus) return false
       if (!query) return true
-      return `${row.docNo} ${row.customerName} ${row.channelName} ${row.branchName} ${row.productName} ${row.documentStatusLabel} ${row.status} ${row.matchStatus}`.toLowerCase().includes(query)
+      return `${row.docNo} ${row.customerName} ${row.channelName} ${row.branchName} ${row.productName} ${row.documentStatusLabel} ${row.status} ${row.matchStatus} ${row.matchStatusLabel}`.toLowerCase().includes(query)
     })
   }, [data?.rows, documentStatus, matchStatus, search])
 
@@ -357,9 +358,9 @@ export function PoSellPageClient() {
 
       <div className="mb-4 grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-6 text-sm">
         <Metric emoji="📋" iconBg="bg-slate-100" label="PO ทั้งหมด" subLabel={`รายได้รวม ${formatMoney(data?.summary.totalAmount ?? 0)}`} value={`${data?.summary.totalRows ?? 0}`} />
-        <Metric emoji="⚪" iconBg="bg-slate-100" label="Not Matched" subLabel="รอ Match Cost" value={`${data?.summary.unmatched ?? 0}`} />
-        <Metric emoji="⚙️" iconBg="bg-amber-100 text-amber-700" label="Partial" subLabel="Match บางส่วน" value={`${data?.summary.partiallyMatched ?? 0}`} />
-        <Metric emoji="✓" iconBg="bg-emerald-100 text-emerald-700" label="Fully Matched" subLabel="พร้อมขาย" value={`${data?.summary.fullyMatched ?? 0}`} />
+        <Metric emoji="⚪" iconBg="bg-slate-100" label="ยังไม่จับคู่" subLabel="รอ Match Cost" value={`${data?.summary.unmatched ?? 0}`} />
+        <Metric emoji="⚙️" iconBg="bg-amber-100 text-amber-700" label="จับคู่บางส่วน" subLabel="จับคู่ต้นทุนบางส่วน" value={`${data?.summary.partiallyMatched ?? 0}`} />
+        <Metric emoji="✓" iconBg="bg-emerald-100 text-emerald-700" label="จับคู่ครบ" subLabel="พร้อมขาย" value={`${data?.summary.fullyMatched ?? 0}`} />
         <Metric emoji="⏳" iconBg="bg-amber-100 text-amber-700" label="น้ำหนักรอส่ง" subLabel={`จาก ${formatMoney(data?.summary.qty ?? 0)} กก.`} value={formatMoney(data?.summary.remainingQty ?? 0)} />
         <Metric emoji="💰" iconBg="bg-emerald-100 text-emerald-700" label="มูลค่ารอส่ง" subLabel="รายได้รอรับ" value={formatMoney(data?.summary.remainingAmount ?? 0)} />
       </div>
@@ -386,11 +387,9 @@ export function PoSellPageClient() {
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-slate-500">สถานะ Match:</span>
           <MatchButton active={matchStatus === 'all'} label="ทั้งหมด" onClick={() => setMatchStatus('all')} />
-          <MatchButton active={matchStatus === 'Not Matched'} label="ยังไม่ Match" tone="slate" onClick={() => setMatchStatus('Not Matched')} />
-          <MatchButton active={matchStatus === 'Partially Matched'} label="Partial" tone="amber" onClick={() => setMatchStatus('Partially Matched')} />
-          <MatchButton active={matchStatus === 'Fully Matched'} label="Full" tone="emerald" onClick={() => setMatchStatus('Fully Matched')} />
-          <MatchButton active={matchStatus === 'Over Matched'} label="Over" tone="red" onClick={() => setMatchStatus('Over Matched')} />
-          <MatchButton active={matchStatus === 'Cancelled'} label="Cancelled" tone="slate" onClick={() => setMatchStatus('Cancelled')} />
+          {(data?.filters.matchStatuses ?? []).map((item) => (
+            <MatchButton key={item.value} active={matchStatus === item.value} label={item.label} onClick={() => setMatchStatus(item.value)} />
+          ))}
         </div>
       </div>
 
@@ -476,11 +475,9 @@ export function PoSellPageClient() {
                 <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะ Match Cost</span>
                 <div className="flex flex-wrap gap-2">
                   <MatchButton active={matchStatus === 'all'} label="ทั้งหมด" onClick={() => setMatchStatus('all')} />
-                  <MatchButton active={matchStatus === 'Not Matched'} label="ยังไม่ Match" tone="slate" onClick={() => setMatchStatus('Not Matched')} />
-                  <MatchButton active={matchStatus === 'Partially Matched'} label="Partial" tone="amber" onClick={() => setMatchStatus('Partially Matched')} />
-                  <MatchButton active={matchStatus === 'Fully Matched'} label="Full" tone="emerald" onClick={() => setMatchStatus('Fully Matched')} />
-                  <MatchButton active={matchStatus === 'Over Matched'} label="Over" tone="red" onClick={() => setMatchStatus('Over Matched')} />
-                  <MatchButton active={matchStatus === 'Cancelled'} label="Cancelled" tone="slate" onClick={() => setMatchStatus('Cancelled')} />
+                  {(data?.filters.matchStatuses ?? []).map((item) => (
+                    <MatchButton key={item.value} active={matchStatus === item.value} label={item.label} onClick={() => setMatchStatus(item.value)} />
+                  ))}
                 </div>
               </div>
             </div>
@@ -543,7 +540,7 @@ export function PoSellPageClient() {
             <div className="flex justify-between items-end pt-2 border-t border-slate-100">
               <div className="flex flex-wrap gap-1">
                 <StatusPill label={row.documentStatusLabel} tone={documentStatusPillTone(row.documentStatus)} />
-                <StatusPill label={row.matchStatus} tone="match" />
+                <StatusPill label={row.matchStatusLabel} tone="match" />
               </div>
               <div className="text-right">
                 <span className="text-[10px] text-slate-400 block">จำนวนรวม / รายได้รวม</span>
@@ -610,7 +607,7 @@ export function PoSellPageClient() {
               <TableCell className={`text-right pr-4 font-bold tabular-nums ${row.margin < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatMoney(row.margin)}</TableCell>
               <TableCell className={`text-right pr-4 tabular-nums ${row.marginPct < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatPercent(row.marginPct)}</TableCell>
               <TableCell className="text-center"><StatusPill label={row.documentStatusLabel} tone={documentStatusPillTone(row.documentStatus)} /></TableCell>
-              <TableCell className="text-center"><StatusPill label={row.matchStatus} tone="match" /></TableCell>
+              <TableCell className="text-center"><StatusPill label={row.matchStatusLabel} tone="match" /></TableCell>
               <TableCell className="w-32 whitespace-nowrap text-xs text-slate-600">
                 <div className="truncate font-semibold text-slate-700">{row.updatedBy || '-'}</div>
                 <div className="font-mono text-[10px] text-slate-400">{formatTimestampDisplay(row.updatedAt)}</div>
@@ -1161,7 +1158,7 @@ function PoSellDetailModal({
               </div>
               <div>
                 <div className="text-xs font-medium text-slate-500 mb-0.5">Match Cost</div>
-                <div className="mt-1"><StatusPill label={row.matchStatus} tone="match" /></div>
+                <div className="mt-1"><StatusPill label={row.matchStatusLabel} tone="match" /></div>
               </div>
             </div>
           </div>
