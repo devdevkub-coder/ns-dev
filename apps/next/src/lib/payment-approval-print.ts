@@ -95,6 +95,14 @@ function paymentSummaryGroupKey(row: PrintPmaRow) {
   return `${normalizedGroupValue(payeeName(row))}::${normalizedGroupValue(destinationText(row))}`
 }
 
+function documentNo(row: PrintPmaRow) {
+  return row.approvalDisplayDocNo || row.docNo || '-'
+}
+
+function referenceDocNo(row: PrintPmaRow) {
+  return row.sourceDocNo || row.refDocNo || '-'
+}
+
 function bankAccountHtml(row: PrintPmaRow) {
   const destination = destinationText(row)
   if (destination && destination.includes(' / ')) {
@@ -244,7 +252,8 @@ export function buildPmaSummaryPrintHtml(rows: PrintPmaRow[], profile: CompanyPr
     const rowHtml = `
       <tr>
         <td class="font-medium">${escapeHtml(formatDateDisplay(row.date))}</td>
-        <td class="font-semibold text-slate-700">${escapeHtml(row.sourceDocNo || row.docNo || '-')}</td>
+        <td class="font-semibold text-slate-700">${escapeHtml(documentNo(row))}</td>
+        <td class="font-semibold text-slate-700">${escapeHtml(referenceDocNo(row))}</td>
         <td class="font-bold text-slate-800">${escapeHtml(payee)}</td>
         <td>${bankAccountHtml(row)}</td>
         <td class="num font-semibold text-slate-700">${money(billTotal)}</td>
@@ -257,6 +266,7 @@ export function buildPmaSummaryPrintHtml(rows: PrintPmaRow[], profile: CompanyPr
 
     return `${rowHtml}
       <tr class="group-total">
+        <td></td>
         <td></td>
         <td></td>
         <td class="font-bold text-slate-900">${escapeHtml(group.payeeName)} รวม</td>
@@ -328,14 +338,15 @@ export function buildPmaSummaryPrintHtml(rows: PrintPmaRow[], profile: CompanyPr
       <table class="summary-table">
         <thead>
           <tr>
-            <th style="width: 9%;">วันที่ PMA</th>
-            <th style="width: 12%;">เลขที่เอกสาร</th>
-            <th style="width: 22%;">Supplier</th>
-            <th style="width: 23%;">เลขบัญชีธนาคาร</th>
+            <th style="width: 8%;">วันที่ PMA</th>
+            <th style="width: 11%;">เลขที่เอกสาร</th>
+            <th style="width: 12%;">เอกสารอ้างอิง</th>
+            <th style="width: 20%;">Supplier</th>
+            <th style="width: 21%;">เลขบัญชีธนาคาร</th>
             <th class="num" style="width: 10%;">ยอดเต็ม</th>
-            <th class="num" style="width: 8%;">ชำระแล้ว</th>
-            <th class="num" style="width: 8%;">คงเหลือ</th>
-            <th class="num" style="width: 8%;">ยอดที่จะจ่าย</th>
+            <th class="num" style="width: 6%;">ชำระแล้ว</th>
+            <th class="num" style="width: 6%;">คงเหลือ</th>
+            <th class="num" style="width: 6%;">ยอดที่จะจ่าย</th>
           </tr>
         </thead>
         <tbody>
@@ -343,7 +354,7 @@ export function buildPmaSummaryPrintHtml(rows: PrintPmaRow[], profile: CompanyPr
         </tbody>
         <tfoot>
           <tr>
-            <td colspan="7" class="num" style="font-size: 14px;">รวมทั้งสิ้น:</td>
+            <td colspan="8" class="num" style="font-size: 14px;">รวมทั้งสิ้น:</td>
             <td class="num" style="font-size: 13px; color: #000;">
               <div style="font-weight: 900; padding-bottom: 2px;">${money(totalAmountToPay)}</div>
               <div style="font-size: 10px; font-weight: bold; color: #475569;">บาท</div>
