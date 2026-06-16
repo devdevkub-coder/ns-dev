@@ -11,7 +11,7 @@ import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/
 import { prisma } from '@/lib/server/prisma'
 import { findActiveSalesChannelReferenceByCode } from '@/lib/server/sales-channel-reference'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
-import type { Prisma } from '../../../../../generated/prisma/client'
+import { Prisma } from '../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
 
@@ -133,6 +133,27 @@ function itemRows(
   }]
 }
 
+async function activeDualCostingPoSellFactCount(poSellId: bigint, tx: Pick<typeof prisma, '$queryRaw'> = prisma) {
+  const rows = await tx.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
+    select count(*)::bigint as count
+    from public.dual_costing_allocation_facts
+    where po_sell_id = ${poSellId}
+      and status = 'active'
+  `)
+  return Number(rows[0]?.count ?? 0n)
+}
+
+async function activeDualCostingPoSellFactRefs(poSellIds: bigint[]) {
+  if (poSellIds.length === 0) return []
+  return prisma.$queryRaw<Array<{ po_sell_id: bigint }>>(Prisma.sql`
+    select po_sell_id
+    from public.dual_costing_allocation_facts
+    where po_sell_id in (${Prisma.join(poSellIds)})
+      and status = 'active'
+      and po_sell_id is not null
+  `)
+}
+
 async function activePoSellDownstreamCount(poSellId: bigint, tx: typeof prisma = prisma) {
   const [allocationCount, directBillCount, factCount] = await Promise.all([
     tx.sales_bill_po_sell_allocations.count({
@@ -141,9 +162,7 @@ async function activePoSellDownstreamCount(poSellId: bigint, tx: typeof prisma =
     tx.sales_bills.count({
       where: { po_sell_id: poSellId, NOT: { status: { in: CANCELLED_STATUSES } } },
     }),
-    tx.dual_costing_allocation_facts.count({
-      where: { po_sell_id: poSellId, status: 'active' },
-    }),
+    activeDualCostingPoSellFactCount(poSellId, tx),
   ])
   return allocationCount + directBillCount + factCount
 }
@@ -308,10 +327,7 @@ export async function GET(request: Request) {
           select: { po_sell_id: true },
           where: { po_sell_id: { in: poSellIds }, status: 'active' },
         }),
-        prisma.dual_costing_allocation_facts.findMany({
-          select: { po_sell_id: true },
-          where: { po_sell_id: { in: poSellIds }, status: 'active' },
-        }),
+        activeDualCostingPoSellFactRefs(poSellIds),
       ])
       : [[], []]
 
