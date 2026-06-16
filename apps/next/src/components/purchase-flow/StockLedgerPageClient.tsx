@@ -644,8 +644,6 @@ function StockLedgerDetailModal({ onClose, row }: { onClose: () => void; row: St
                 <DetailRow label="วันที่" value={row.date || '-'} />
                 <DetailRow label="เลขบิล" value={row.refNo || '-'} mono />
                 <DetailRow className="col-span-2" label="ผู้ขาย/ผู้ซื้อ" value={row.counterpartyName || '-'} />
-                <DetailRow label="Ref Type" value={row.refType || '-'} />
-                <DetailRow label="Ref No" value={row.refId || '-'} mono />
                 <DetailRow className="col-span-2" label="Movement" value={stockMovementTypeLabel(row.movementType)} />
                 <div className="col-span-2">
                   {row.sourcePath ? (
@@ -662,10 +660,8 @@ function StockLedgerDetailModal({ onClose, row }: { onClose: () => void; row: St
             <DetailPanel title="สินค้า / ที่เก็บ">
               <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                 <DetailRow className="col-span-2" label="สินค้า" value={`${row.productCode ? `${row.productCode} · ` : ''}${row.productName}`} />
-                <DetailRow className="col-span-2" label="Product ID" value={row.productId || '-'} mono />
-                <DetailRow label="Lot" value={row.lotNo || '-'} />
                 <DetailRow label="สาขา" value={row.branchName || '-'} />
-                <DetailRow className="col-span-2" label="คลัง" value={row.warehouseName || '-'} />
+                <DetailRow label="คลัง" value={row.warehouseName || '-'} />
               </div>
             </DetailPanel>
 

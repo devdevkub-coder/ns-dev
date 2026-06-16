@@ -894,10 +894,10 @@ function OperationTable({
           <thead className="bg-slate-100">
             <tr>
               {columns.map((column) => (
-                <th key={column.key} className={`p-2 text-left ${column.headerClassName ?? ''}`}>
+                <th key={column.key} className={`p-2 ${column.headerClassName?.includes('text-') ? '' : 'text-left'} ${column.headerClassName ?? ''}`}>
                   {mode === 'status-convert' && column.sortable && onSortChange ? (
                     <button
-                      className="inline-flex items-center gap-1 font-medium text-slate-700 hover:text-slate-900"
+                      className={`inline-flex items-center gap-1 font-medium text-slate-700 hover:text-slate-900 ${column.headerClassName?.includes('text-right') ? 'justify-end w-full' : ''}`}
                       type="button"
                       onClick={() => onSortChange(column.key as StatusConvertSortKey)}
                     >
@@ -947,15 +947,15 @@ function columnsFor(mode: Mode): OperationColumn[] {
     { key: 'productDisplay', label: 'สินค้า', sortable: true },
     { key: 'lotNo', label: 'Lot', sortable: true },
     { key: 'locationDisplay', label: 'สาขา/คลัง', sortable: true },
-    { key: 'qty', label: 'จำนวน (กก.)', cellClassName: 'text-right font-bold text-purple-700', sortable: true },
-    { key: 'unitCost', label: 'ต้นทุน (บาท/กก.)', cellClassName: 'text-right text-slate-600', sortable: true },
-    { key: 'value', label: 'มูลค่า', cellClassName: 'text-right text-slate-600', sortable: true },
-    { key: 'statusFlow', label: 'เปลี่ยนสถานะ', cellClassName: 'text-center', sortable: true },
+    { key: 'qty', label: 'จำนวน (กก.)', cellClassName: 'text-right font-bold text-purple-700', headerClassName: 'text-right', sortable: true },
+    { key: 'unitCost', label: 'ต้นทุน (บาท/กก.)', cellClassName: 'text-right text-slate-600', headerClassName: 'text-right', sortable: true },
+    { key: 'value', label: 'มูลค่า', cellClassName: 'text-right text-slate-600', headerClassName: 'text-right', sortable: true },
+    { key: 'statusFlow', label: 'เปลี่ยนสถานะ', cellClassName: 'text-center', headerClassName: 'text-center', sortable: true },
     { key: 'note', label: 'เหตุผล', sortable: true },
-    { key: 'status', label: 'สถานะ', cellClassName: 'text-center', sortable: true },
+    { key: 'status', label: 'สถานะ', cellClassName: 'text-center', headerClassName: 'text-center', sortable: true },
     { key: 'createdBy', label: 'ผู้ทำ', sortable: true },
     { key: 'createdAt', label: 'วันที่ทำ', sortable: true },
-    { key: 'action', label: 'การกระทำ', cellClassName: 'text-center' },
+    { key: 'action', label: 'การกระทำ', cellClassName: 'text-center', headerClassName: 'text-center' },
   ]
   if (mode === 'convert') return [
     { key: 'sourceType', label: 'Source Type' },
@@ -980,18 +980,18 @@ function columnsFor(mode: Mode): OperationColumn[] {
     { key: 'productName', label: 'สินค้า' },
     { key: 'lotNo', label: 'Lot' },
     { key: 'outputCategory', label: 'คลัง' },
-    { key: 'systemQty', label: 'ระบบ', cellClassName: 'text-right font-mono' },
-    { key: 'onHoldQty', label: 'จองไว้', cellClassName: 'text-right font-mono text-amber-700' },
-    { key: 'readyQty', label: 'พร้อมใช้', cellClassName: 'text-right font-mono text-emerald-700' },
-    { key: 'countedQty', label: 'นับจริง', cellClassName: 'text-right font-mono' },
-    { key: 'diffQty', label: 'Diff', cellClassName: 'text-right font-mono' },
+    { key: 'systemQty', label: 'ระบบ', cellClassName: 'text-right font-mono', headerClassName: 'text-right' },
+    { key: 'onHoldQty', label: 'จองไว้', cellClassName: 'text-right font-mono text-amber-700', headerClassName: 'text-right' },
+    { key: 'readyQty', label: 'พร้อมใช้', cellClassName: 'text-right font-mono text-emerald-700', headerClassName: 'text-right' },
+    { key: 'countedQty', label: 'นับจริง', cellClassName: 'text-right font-mono', headerClassName: 'text-right' },
+    { key: 'diffQty', label: 'Diff', cellClassName: 'text-right font-mono', headerClassName: 'text-right' },
     { key: 'adjustType', label: 'ประเภท' },
-    { key: 'unitPricePerKg', label: 'ราคา/กก.', cellClassName: 'text-right font-mono' },
-    { key: 'totalValue', label: 'มูลค่ารวม', cellClassName: 'text-right font-mono' },
+    { key: 'unitPricePerKg', label: 'ราคา/กก.', cellClassName: 'text-right font-mono', headerClassName: 'text-right' },
+    { key: 'totalValue', label: 'มูลค่ารวม', cellClassName: 'text-right font-mono', headerClassName: 'text-right' },
     { key: 'reason', label: 'เหตุผล' },
     { key: 'createdAt', label: 'วันที่สร้างรายการ' },
     { key: 'updatedBy', label: 'แก้ไขโดย' },
-    { key: 'action', label: 'การกระทำ', cellClassName: 'text-center' },
+    { key: 'action', label: 'การกระทำ', cellClassName: 'text-center', headerClassName: 'text-center' },
   ]
   return []
 }
@@ -1340,6 +1340,45 @@ function StatusConvertForm(props: { cancelHref: string; isSaving: boolean; error
   const activeBranches = props.reference.branches.filter((option) => option.active !== false)
   const activeWarehouses = props.reference.warehouses.filter((option) => option.active !== false && (!values.branchId || option.branchId === values.branchId))
 
+  const [productStock, setProductStock] = useState<ProductStockPayload | null>(null)
+  const [productStockError, setProductStockError] = useState<string | null>(null)
+  const [isStockPreviewLoading, setIsStockPreviewLoading] = useState(false)
+
+  useEffect(() => {
+    const productCode = props.reference.products.find(p => p.id === values.productId)?.code
+    const branchCode = props.reference.branches.find(b => b.id === values.branchId)?.code
+    
+    if (!branchCode || !productCode) {
+      setProductStock(null)
+      setProductStockError(null)
+      setIsStockPreviewLoading(false)
+      return
+    }
+
+    let cancelled = false
+    async function loadProductStock() {
+      setIsStockPreviewLoading(true)
+      setProductStockError(null)
+      try {
+        const params = new URLSearchParams({
+          branchCode: branchCode ?? '',
+          productCode: productCode ?? '',
+          warehouseCode: '',
+        })
+        const payload = await dailyFetchJson<ProductStockPayload>(`/api/production/orders/product-stock?${params.toString()}`)
+        if (!cancelled) setProductStock(payload)
+      } catch (caught) {
+        if (cancelled) return
+        setProductStock(null)
+        setProductStockError(caught instanceof Error ? caught.message : 'โหลดสต๊อกสินค้าไม่ได้')
+      } finally {
+        if (!cancelled) setIsStockPreviewLoading(false)
+      }
+    }
+    void loadProductStock()
+    return () => { cancelled = true }
+  }, [values.productId, values.branchId, props.reference.products, props.reference.branches])
+
   const productSearchOptions = useMemo<SearchComboboxOption[]>(() => {
     return props.reference.products
       .filter((option) => option.active !== false)
@@ -1411,6 +1450,15 @@ function StatusConvertForm(props: { cancelHref: string; isSaving: boolean; error
       </div>
       <div className="md:col-span-2">
         <Field label="หมายเหตุ" value={values.notes ?? ''} onChange={(notes) => setValues({ ...values, notes })} />
+      </div>
+      <div className="md:col-span-2">
+        <ProductStockPreview
+          destinationWarehouseName=""
+          error={productStockError}
+          isLoading={isStockPreviewLoading}
+          isReady={Boolean(values.branchId && values.productId)}
+          stock={productStock}
+        />
       </div>
     </div>
   </FormShell>
@@ -1763,8 +1811,6 @@ function AdjustForm(props: { cancelHref: string; isSaving: boolean; error?: stri
         />
       </div>
       <BranchWarehouseFields branchId={values.branchId} reference={props.reference} setBranchId={(branchId) => setValues({ ...values, branchId, warehouseId: '' })} setWarehouseId={(warehouseId) => setValues({ ...values, warehouseId })} warehouseId={values.warehouseId} />
-      <Select label="สถานะสินค้า" options={[{ active: true, id: 'RM', name: 'RM' }, { active: true, id: 'WIP', name: 'WIP' }, { active: true, id: 'FG', name: 'FG' }]} value={values.status} onChange={(status) => setValues({ ...values, status: status as StockAdjustFormValues['status'] })} />
-      <Field label="Lot" value={values.lotNo ?? ''} onChange={(lotNo) => setValues({ ...values, lotNo })} />
       <Field label="นับจริง" type="number" value={String(values.countedQty)} onChange={(countedQty) => setValues({ ...values, countedQty: Number(countedQty) })} />
       <div className="md:col-span-2 grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs md:grid-cols-5">
         <ReadOnlyBox label="ระบบมี" value={isSnapshotLoading ? 'กำลังโหลด' : `${formatMoney(snapshot?.systemQty ?? values.systemQty)} กก.`} />
@@ -1822,4 +1868,109 @@ function FormShell({ cancelHref, children, isSaving, error, onSubmit }: { cancel
 
 function statusOptions(): StockOption[] {
   return [{ active: true, id: 'RM', name: 'RM' }, { active: true, id: 'FG', name: 'FG' }]
+}
+
+interface ProductStockPayload {
+  productCode: string
+  productName: string
+  branchCode: string
+  rows: Array<{
+    warehouseCode: string
+    warehouseName: string
+    status: string
+    qty: number
+    avgCost: number
+    value: number
+  }>
+}
+
+function ProductStockPreview({
+  destinationWarehouseName,
+  error,
+  isLoading,
+  isReady,
+  stock,
+}: {
+  destinationWarehouseName: string
+  error: string | null
+  isLoading: boolean
+  isReady: boolean
+  stock: ProductStockPayload | null
+}) {
+  if (!isReady) return null
+  if (isLoading) return <div className="rounded-md bg-slate-50 p-4 text-center text-xs text-slate-500">กำลังดึงข้อมูล Stock...</div>
+  if (error) return <div className="rounded-md border border-red-200 bg-red-50 p-4 text-xs text-red-800 font-semibold">โหลดสต๊อกล้มเหลว: {error}</div>
+  if (!stock) return null
+
+  return (
+    <div className="rounded-lg border border-indigo-100 bg-indigo-50/50 p-4 space-y-2 text-left">
+      <h5 className="font-bold text-indigo-800 text-xs flex items-center gap-1.5">
+        📦 ข้อมูล Stock ปัจจุบันของสินค้าที่จะปรับสถานะสินค้า: <span className="font-normal text-slate-600">{stock.productName} ({stock.productCode})</span>
+      </h5>
+      
+      {/* Desktop Table View */}
+      <div className="hidden md:block overflow-x-auto rounded-md bg-white border border-indigo-100">
+        <table className="w-full text-xs">
+          <thead className="bg-indigo-50 text-indigo-700">
+            <tr>
+              <th className="p-2 text-left">สาขา / คลัง</th>
+              <th className="p-2 text-center">ประเภท</th>
+              <th className="p-2 text-right">จำนวนคงเหลือ (กก.)</th>
+              <th className="p-2 text-right">ราคาเฉลี่ย/กก.</th>
+              <th className="p-2 text-right">รวมมูลค่า</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-indigo-50/50">
+            {stock.rows.map((row, index) => (
+              <tr key={index} className="hover:bg-indigo-50/10">
+                <td className="p-2 font-medium text-slate-700">{stock.branchCode} / {row.warehouseCode || destinationWarehouseName}</td>
+                <td className="p-2 text-center"><span className="rounded bg-slate-100 px-1 py-0.5 text-[10px] font-bold text-slate-600">{row.status}</span></td>
+                <td className="p-2 text-right font-bold text-slate-900 tabular-nums">{formatMoney(row.qty)}</td>
+                <td className="p-2 text-right text-slate-500 tabular-nums">{formatMoney(row.avgCost)}</td>
+                <td className="p-2 text-right font-bold text-indigo-700 tabular-nums">{formatMoney(row.value)}</td>
+              </tr>
+            ))}
+            {stock.rows.length === 0 ? (
+              <tr>
+                <td className="p-4 text-center text-slate-400 font-semibold" colSpan={5}>
+                  ไม่มีของในคลังนี้ (เป็นศูนย์)
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile Card List View */}
+      <div className="block md:hidden divide-y divide-indigo-100/60 bg-white rounded-md border border-indigo-100 overflow-hidden shadow-sm">
+        {stock.rows.map((row, index) => (
+          <div key={index} className="p-3 space-y-2 text-xs">
+            <div className="flex justify-between items-center">
+              <span className="font-semibold text-slate-700">{stock.branchCode} / {row.warehouseCode || destinationWarehouseName}</span>
+              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">{row.status}</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center py-1.5 bg-indigo-50/30 rounded-md">
+              <div>
+                <span className="text-[9px] text-slate-400 block">คงเหลือ (กก.)</span>
+                <span className="font-bold text-slate-900 tabular-nums">{formatMoney(row.qty)}</span>
+              </div>
+              <div>
+                <span className="text-[9px] text-slate-400 block">เฉลี่ย/กก.</span>
+                <span className="font-medium text-slate-500 tabular-nums">{formatMoney(row.avgCost)}</span>
+              </div>
+              <div>
+                <span className="text-[9px] text-slate-400 block">รวมมูลค่า</span>
+                <span className="font-bold text-indigo-700 tabular-nums">{formatMoney(row.value)}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+        {stock.rows.length === 0 ? (
+          <div className="p-4 text-center text-slate-400 font-semibold text-xs">
+            ไม่มีของในคลังนี้ (เป็นศูนย์)
+          </div>
+        ) : null}
+      </div>
+    </div>
+  )
 }
