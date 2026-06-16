@@ -826,7 +826,7 @@ export async function POST(request: Request) {
         const status = returnedAmount >= toNumber(advance.amount) ? 'closed' : advance.status
         const approvedAt = new Date()
         await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('payment_approvals.doc_no'))`
-        const [approvalDocNo] = await nextPaymentApprovalDocNos(tx, new Date(returnDate), '', 1)
+        const [approvalDocNo] = await nextPaymentApprovalDocNos(tx, normalizeDate(returnDate), '', 1)
         const returnDocNo = await nextDailyDocNo('petty_advance_returns', 'PRET', returnDate, tx)
 
         const entry = await tx.petty_advance_returns.create({
