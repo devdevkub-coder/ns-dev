@@ -98,28 +98,58 @@ export async function GET(request: NextRequest) {
     ])
     const reversedRefSet = new Set(reversedRefs.map((row) => row.ref_id).filter(Boolean))
 
+    const refNos = rows.map((row) => row.ref_no).filter(Boolean) as string[]
+    const targetLedgers = refNos.length
+      ? await prisma.stock_ledger.findMany({
+          select: {
+            ref_no: true,
+            warehouse_id: true,
+            warehouses: { select: { name: true } },
+          },
+          where: {
+            ref_no: { in: refNos },
+            ref_type: 'SC',
+            qty_in: { gt: 0 },
+          },
+        })
+      : []
+
+    const targetWarehouseMap = new Map<string, { id: string; name: string }>()
+    for (const item of targetLedgers) {
+      if (item.ref_no && item.warehouse_id) {
+        targetWarehouseMap.set(item.ref_no, {
+          id: String(item.warehouse_id),
+          name: item.warehouses?.name ?? '-',
+        })
+      }
+    }
+
     return NextResponse.json({
       pagination: { page, pageSize, total },
       reference,
-      rows: rows.map((row) => ({
-        branchName: row.branches?.name ?? '-',
-        createdAt: row.created_at ? row.created_at.toISOString() : '',
-        date: toDateOnly(row.date),
-        id: row.ref_no ?? '',
-        lotNo: row.lot_no ?? '',
-        note: row.notes ?? '',
-        productCode: row.products?.code ?? '',
-        productName: row.products?.name ?? '-',
-        qty: toNumber(row.qty_out),
-        refNo: row.ref_no ?? '',
-        status: reversedRefSet.has(row.ref_no ?? '') ? 'reversed' : 'posted',
-        statusFrom: row.output_category ?? '',
-        statusTo: row.note ?? '',
-        unitCost: toNumber(row.unit_cost),
-        value: toNumber(row.value_out),
-        createdBy: row.created_by ?? '',
-        warehouseName: row.warehouses?.name ?? '-',
-      })),
+      rows: rows.map((row) => {
+        const target = targetWarehouseMap.get(row.ref_no ?? '')
+        return {
+          branchName: row.branches?.name ?? '-',
+          createdAt: row.created_at ? row.created_at.toISOString() : '',
+          date: toDateOnly(row.date),
+          id: row.ref_no ?? '',
+          lotNo: row.lot_no ?? '',
+          note: row.notes ?? '',
+          productCode: row.products?.code ?? '',
+          productName: row.products?.name ?? '-',
+          qty: toNumber(row.qty_out),
+          refNo: row.ref_no ?? '',
+          status: reversedRefSet.has(row.ref_no ?? '') ? 'reversed' : 'posted',
+          statusFrom: row.output_category ?? '',
+          statusTo: row.note ?? '',
+          unitCost: toNumber(row.unit_cost),
+          value: toNumber(row.value_out),
+          createdBy: row.created_by ?? '',
+          warehouseName: row.warehouses?.name ?? '-',
+          targetWarehouseName: target?.name ?? '-',
+        }
+      }),
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
@@ -243,6 +273,21 @@ export async function POST(request: Request) {
     if (!warehouse || warehouse.branch_id !== references.branchId) {
       return NextResponse.json({ error: 'คลังไม่อยู่ในสาขาที่เลือก' }, { status: 400 })
     }
+
+    // ตรวจสอบคลังสินค้าปลายทาง
+    const targetRef = await normalizeStockReferenceInput({ branchId: values.branchId, warehouseId: values.targetWarehouseId })
+    const targetWarehouseId = targetRef.warehouseId
+    if (!targetWarehouseId) {
+      return NextResponse.json({ error: 'คลังปลายทางไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    }
+    const targetWarehouse = await prisma.warehouses.findFirst({
+      select: { branch_id: true },
+      where: { active: true, id: targetWarehouseId },
+    })
+    if (!targetWarehouse || targetWarehouse.branch_id !== references.branchId) {
+      return NextResponse.json({ error: 'คลังปลายทางไม่ถูกต้องหรือไมู่อยู่ในสาขาที่เลือก' }, { status: 400 })
+    }
+
     const availableQty = await quantityForStock({
       branchId: references.branchId,
       lotNo: values.lotNo,
@@ -301,7 +346,7 @@ export async function POST(request: Request) {
           unit_cost: unitCost,
           value_in: value,
           value_out: 0,
-          warehouse_id: references.warehouseId,
+          warehouse_id: targetWarehouseId,
         },
       ],
     })

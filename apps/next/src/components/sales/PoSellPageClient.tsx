@@ -13,6 +13,7 @@ import { TableNumberCell } from '@/components/ui/TableNumberCell'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { CollapsedList } from '@/components/ui/CollapsedList'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { SearchCombobox } from '@/components/ui/SearchCombobox'
 
 type Option = {
   active?: boolean | null
@@ -690,11 +691,24 @@ function optionLabel(option: Option) {
 }
 
 function ProductSelect({ inputId, onChange, options, value }: { inputId: string; onChange: (productId: string) => void; options: Option[]; value: string }) {
+  const mappedOptions = useMemo(() => {
+    return options.map((option) => ({
+      id: option.id,
+      label: optionLabel(option),
+      searchText: `${option.code ?? ''} ${option.name}`.toLowerCase(),
+    }))
+  }, [options])
+
   return (
-    <select id={inputId} className="w-full rounded-md border px-2 py-1.5" value={value} onChange={(event) => onChange(event.target.value)}>
-      <option value="">พิมพ์รหัส/ชื่อสินค้า...</option>
-      {options.map((option) => <option key={option.id} value={option.id}>{optionLabel(option)}</option>)}
-    </select>
+    <SearchCombobox
+      inputId={inputId}
+      label="สินค้า"
+      hideLabel={true}
+      options={mappedOptions}
+      placeholder="พิมพ์รหัส/ชื่อสินค้า..."
+      value={value}
+      onChange={onChange}
+    />
   )
 }
 

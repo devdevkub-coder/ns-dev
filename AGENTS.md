@@ -19,6 +19,7 @@ This project is an existing NS Scrap ERP system that must be rehabilitated and r
   - if both remotes exist, verify the destination remote before push, branch deletion, or PR creation
 - Update docs at every meaningful checkpoint as if the session can close at any time.
 - Use a sub agent by default for Playwright/browser QA work; the main agent still defines scope and integrates findings.
+- If the user requests modifications or code improvements, only perform the code changes and verify compilation locally. Do NOT run browser or DOM UAT testing unless the user explicitly requests testing (i.e. do not use browser sub-agent unless told to test).
 - Split large refactors into reviewable batches with one clear module, transform, or behavior change per batch.
 - During clone/migration batches, use `docs/design.md` as the active design convention source and keep legacy/Vue parity unless a difference is documented and approved.
 - For every UI/page change in `apps/next/`, check these three inputs before editing:

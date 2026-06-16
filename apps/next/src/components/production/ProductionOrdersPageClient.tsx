@@ -1044,6 +1044,7 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
                     <SearchCombobox inputId="production-input-product" label="สินค้า" options={productSearchOptions} placeholder="พิมพ์รหัส/ชื่อสินค้า..." value={inputForm.productCode} onChange={(productCode) => setInputForm((form) => ({ ...form, productCode }))} />
                   </div>
                   <SelectField
+                    hideCode={true}
                     selectId="production-input-source-warehouse"
                     label="คลังต้นทาง"
                     value={inputForm.sourceWarehouseCode}
@@ -1076,7 +1077,7 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
                   <div className="md:col-span-2">
                     <SearchCombobox inputId="production-output-product" label="สินค้า/Grade" options={productSearchOptions} placeholder="พิมพ์รหัส/ชื่อสินค้า..." value={outputForm.productCode} onChange={(productCode) => setOutputForm((form) => ({ ...form, productCode }))} />
                   </div>
-                  <SelectField selectId="production-output-destination-warehouse" label="คลังรับ" value={outputForm.destinationWarehouseCode} options={options.warehouses} onChange={(destinationWarehouseCode) => setOutputForm((form) => ({ ...form, destinationWarehouseCode }))} />
+                  <SelectField hideCode={true} selectId="production-output-destination-warehouse" label="คลังรับ" value={outputForm.destinationWarehouseCode} options={options.warehouses} onChange={(destinationWarehouseCode) => setOutputForm((form) => ({ ...form, destinationWarehouseCode }))} />
                   <FormField label="Net (กก.)"><input key={`output-net-${row?.outputCount ?? 0}`} ref={outputNetQtyRef} id="production-output-net-qty" className="w-full rounded-md border px-3 py-2 text-right border-slate-300 bg-white" defaultValue={outputForm.netQty} inputMode="decimal" /></FormField>
                   <FormField label="Loss kg"><input key={`output-loss-${row?.outputCount ?? 0}`} ref={outputLossQtyRef} id="production-output-loss-qty" className="w-full rounded-md border px-3 py-2 text-right border-slate-300 bg-white" defaultValue={outputForm.lossQty} inputMode="decimal" /></FormField>
                   <label className="flex items-center gap-2 rounded-md border px-3 py-2 border-slate-300 bg-white h-9 mt-6 select-none cursor-pointer"><input checked={outputForm.completeOrder} type="checkbox" onChange={(event) => setOutputForm((form) => ({ ...form, completeOrder: event.target.checked }))} />จบงานหลังรับ</label>
@@ -1404,13 +1405,13 @@ function getComboboxCode(formElement: HTMLFormElement | undefined, inputId: stri
   return currentValue || parsedCode
 }
 
-function SelectField({ allowBlank = false, disabled = false, error, helperText, label, onChange, options, placeholder, selectId, value }: { allowBlank?: boolean; disabled?: boolean; error?: string; helperText?: string; label: string; onChange: (value: string) => void; options: Option[]; placeholder?: string; selectId?: string; value: string }) {
+function SelectField({ allowBlank = false, disabled = false, error, helperText, label, onChange, options, placeholder, selectId, value, hideCode = false }: { allowBlank?: boolean; disabled?: boolean; error?: string; helperText?: string; label: string; onChange: (value: string) => void; options: Option[]; placeholder?: string; selectId?: string; value: string; hideCode?: boolean }) {
   return (
     <FormField error={error} label={label}>
       <select id={selectId} className={`w-full rounded-md border px-3 py-2 disabled:bg-slate-100 disabled:text-slate-600 ${error ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300 bg-white text-slate-800'} h-9 text-sm outline-none`} disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)}>
         <option value="">{allowBlank ? '-' : (placeholder ?? 'เลือกข้อมูล')}</option>
         {options.map((option) => {
-          const displayLabel = option.code === option.name ? option.name : `${option.code} - ${option.name}`
+          const displayLabel = hideCode ? option.name : (option.code === option.name ? option.name : `${option.code} - ${option.name}`)
           return <option key={`${option.code}-${option.id}`} value={option.code}>{displayLabel}</option>
         })}
       </select>

@@ -483,6 +483,7 @@ export function StockTransferPageClient() {
                     <SelectField displayMode="name" error={fieldErrors.fromBranchId} errorKey="fromBranchId" label="สาขาต้นทาง *" options={branchOptions} placeholder="เลือกสาขาต้นทาง" value={form.fromBranchId} onChange={(value) => updateForm('fromBranchId', value)} />
                     <SelectField
                       disabled={!form.fromBranchId}
+                      displayMode="name"
                       error={fieldErrors.fromWarehouseId}
                       errorKey="fromWarehouseId"
                       label="คลังต้นทาง *"
@@ -500,6 +501,7 @@ export function StockTransferPageClient() {
                     <SelectField displayMode="name" error={fieldErrors.toBranchId} errorKey="toBranchId" label="สาขาปลายทาง *" options={branchOptions} placeholder="เลือกสาขาปลายทาง" value={form.toBranchId} onChange={(value) => updateForm('toBranchId', value)} />
                     <SelectField
                       disabled={!form.toBranchId}
+                      displayMode="name"
                       error={fieldErrors.toWarehouseId}
                       errorKey="toWarehouseId"
                       label="คลังปลายทาง *"

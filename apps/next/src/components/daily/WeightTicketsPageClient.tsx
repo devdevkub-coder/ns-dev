@@ -310,7 +310,7 @@ export function WeightTicketsPageClient({
           options: warehouses.map((warehouse) => ({
             description: `${warehouse.type} · พร้อมส่ง ${formatWeight(warehouse.availableQty)} กก.`,
             id: warehouse.id,
-            label: `${warehouse.code} - ${warehouse.name}`,
+            label: warehouse.name,
             searchText: `${warehouse.code} ${warehouse.name} ${warehouse.type}`,
           })),
           warehousesById: Object.fromEntries(warehouses.map((warehouse) => [warehouse.id, warehouse] as const)),

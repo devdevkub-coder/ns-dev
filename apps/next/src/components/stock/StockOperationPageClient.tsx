@@ -4,10 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Plus } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { SearchCombobox } from '@/components/ui/SearchCombobox'
+import type { SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
-import { stockAdjustReasonOptions } from '@/lib/stock'
+import { stockAdjustReasonOptions, statusConvertFormSchema, stockConvertFormSchema, stockAdjustFormSchema } from '@/lib/stock'
 import type { StatusConvertFormValues, StockAdjustFormValues, StockConvertFormValues, StockCostPoolOption, StockOption } from '@/lib/stock'
+import { z } from 'zod'
+import { ApiError } from '@/lib/api-client'
 
 type Mode = 'adjust' | 'convert' | 'status-convert'
 type Payload = {
@@ -218,11 +222,29 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
     setError(null)
     setIsSaving(true)
     try {
+      if (mode === 'status-convert') {
+        statusConvertFormSchema.parse(values)
+      } else if (mode === 'convert') {
+        stockConvertFormSchema.parse(values)
+      } else if (mode === 'adjust') {
+        stockAdjustFormSchema.parse(values)
+      }
+
       await dailyFetchJson(meta.api, { body: JSON.stringify(values), method: 'POST' })
       setFormOpen(false)
       await loadData()
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'บันทึกข้อมูลไม่ได้')
+      if (caught instanceof z.ZodError) {
+        const messages = caught.errors.map((err) => err.message)
+        setError(messages.join('\n'))
+      } else if (caught instanceof ApiError && caught.code === 'VALIDATION_ERROR' && caught.fieldErrors) {
+        const messages = Object.entries(caught.fieldErrors)
+          .map(([_, errs]) => errs?.join(', '))
+          .filter(Boolean)
+        setError(messages.length > 0 ? messages.join('\n') : caught.message)
+      } else {
+        setError(caught instanceof Error ? caught.message : 'บันทึกข้อมูลไม่ได้')
+      }
     } finally {
       setIsSaving(false)
     }
@@ -546,9 +568,9 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
               <h3 className="font-bold text-slate-900">{meta.title}</h3>
               <a className="text-2xl text-slate-400 hover:text-slate-700" href={pathname}>&times;</a>
             </div>
-            {mode === 'status-convert' ? <StatusConvertForm cancelHref={pathname} isSaving={isSaving} reference={data.reference} onSubmit={submit} /> : null}
-            {mode === 'convert' ? <ConvertForm cancelHref={pathname} isSaving={isSaving} reference={data.reference} onSubmit={submit} /> : null}
-            {mode === 'adjust' ? <AdjustForm cancelHref={pathname} isSaving={isSaving} reference={data.reference} onSubmit={submit} /> : null}
+            {mode === 'status-convert' ? <StatusConvertForm cancelHref={pathname} isSaving={isSaving} error={error} reference={data.reference} onSubmit={submit} /> : null}
+            {mode === 'convert' ? <ConvertForm cancelHref={pathname} isSaving={isSaving} error={error} reference={data.reference} onSubmit={submit} /> : null}
+            {mode === 'adjust' ? <AdjustForm cancelHref={pathname} isSaving={isSaving} error={error} reference={data.reference} onSubmit={submit} /> : null}
           </div>
         </div>
       ) : null}
@@ -823,7 +845,7 @@ function OperationTable({
                 <div className="text-xs text-slate-500">{formatDateDisplay(date)}</div>
                 <div className="my-3 space-y-1 text-xs text-slate-600">
                   <div><span className="font-semibold">สินค้า:</span> <b>{formatCell(row.productCode)}</b> - {formatCell(row.productName)}</div>
-                  <div><span className="font-semibold">สาขา/คลัง:</span> {formatCell(row.branchName)} / {formatCell(row.warehouseName)}</div>
+                  <div><span className="font-semibold">สาขา/คลัง:</span> {formatCell(row.branchName)} / {formatCell(row.warehouseName)} → {formatCell(row.targetWarehouseName)}</div>
                   {row.lotNo ? <div><span className="font-semibold">Lot:</span> <code className="font-mono">{String(row.lotNo)}</code></div> : null}
                   <div>
                     <span className="font-semibold">การเปลี่ยนสถานะ:</span>{' '}
@@ -995,7 +1017,7 @@ function normalizeSortValue(value: string | number | boolean | null | undefined)
 
 function statusConvertSortValue(row: Record<string, string | number | boolean | null>, key: StatusConvertSortKey) {
   if (key === 'productDisplay') return `${String(row.productCode ?? '')} ${String(row.productName ?? '')}`.trim().toLowerCase()
-  if (key === 'locationDisplay') return `${String(row.branchName ?? '')} ${String(row.warehouseName ?? '')}`.trim().toLowerCase()
+  if (key === 'locationDisplay') return `${String(row.branchName ?? '')} ${String(row.warehouseName ?? '')} ${String(row.targetWarehouseName ?? '')}`.trim().toLowerCase()
   if (key === 'statusFlow') return `${String(row.statusFrom ?? '')} ${String(row.statusTo ?? '')}`.trim().toLowerCase()
   if (key === 'note') return normalizeSortValue(row.note ?? row.reason)
   return normalizeSortValue(row[key])
@@ -1024,7 +1046,7 @@ function compareStatusConvertRows(
 function formatOperationCell(mode: Mode, row: Record<string, string | number | boolean | null>, key: string, onConvertReverse?: (refNo: string) => void, onConvertDetail?: (refNo: string) => void, onStatusConvertReverse?: (refNo: string) => void, onAdjustCorrect?: (row: Record<string, string | number | boolean | null>) => void) {
   if (mode === 'status-convert') {
     if (key === 'productDisplay') return <><b>{formatCell(row.productCode)}</b><div className="text-xs text-slate-500">{formatCell(row.productName)}</div></>
-    if (key === 'locationDisplay') return <span className="text-xs">{formatCell(row.branchName)}<br />{formatCell(row.warehouseName)}</span>
+    if (key === 'locationDisplay') return <span className="text-xs">{formatCell(row.branchName)}<br />{formatCell(row.warehouseName)} → {formatCell(row.targetWarehouseName)}</span>
     if (key === 'statusFlow') return <><span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs text-amber-700">{formatCell(row.statusFrom)}</span><span className="mx-1 text-amber-600">→</span><span className="rounded-md bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">{formatCell(row.statusTo)}</span></>
     if (key === 'createdAt') return formatDateTime(row.createdAt)
     if (key === 'status') {
@@ -1307,22 +1329,81 @@ function BranchWarehouseFields({ branchId, reference, setBranchId, setWarehouseI
         onChange={(event) => setWarehouseId(event.target.value)}
       >
         <option value="">{branchId ? 'เลือกคลัง' : 'เลือกสาขาก่อน'}</option>
-        {activeWarehouses.map((option) => <option key={option.id} value={option.id}>{option.code ? `${option.code} - ${option.name}` : option.name}</option>)}
+        {activeWarehouses.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
       </select>
     </label>
   </>
 }
 
-function StatusConvertForm(props: { cancelHref: string; isSaving: boolean; onSubmit: (values: StatusConvertFormValues) => void; reference: Payload['reference'] }) {
-  const [values, setValues] = useState<StatusConvertFormValues>({ branchId: '', date: todayDateInput(), docNo: null, fromStatus: 'RM', lotNo: null, notes: null, productId: '', qty: 0, reason: '', toStatus: 'FG', warehouseId: '' })
-  const setFromStatus = (fromStatus: StatusConvertFormValues['fromStatus']) => setValues({ ...values, fromStatus, toStatus: fromStatus === 'RM' ? 'FG' : 'RM' })
-  const setToStatus = (toStatus: StatusConvertFormValues['toStatus']) => setValues({ ...values, fromStatus: toStatus === 'RM' ? 'FG' : 'RM', toStatus })
-  return <FormShell cancelHref={props.cancelHref} isSaving={props.isSaving} onSubmit={() => props.onSubmit(values)}>
+function StatusConvertForm(props: { cancelHref: string; isSaving: boolean; error?: string | null; onSubmit: (values: StatusConvertFormValues) => void; reference: Payload['reference'] }) {
+  const [values, setValues] = useState<StatusConvertFormValues>({ branchId: '', date: todayDateInput(), docNo: null, fromStatus: 'RM', lotNo: null, notes: null, productId: '', qty: 0, reason: '', toStatus: 'FG', warehouseId: '', targetWarehouseId: '' })
+  const activeBranches = props.reference.branches.filter((option) => option.active !== false)
+  const activeWarehouses = props.reference.warehouses.filter((option) => option.active !== false && (!values.branchId || option.branchId === values.branchId))
+
+  const productSearchOptions = useMemo<SearchComboboxOption[]>(() => {
+    return props.reference.products
+      .filter((option) => option.active !== false)
+      .map((option) => ({
+        id: option.id,
+        label: option.code ? `${option.code} - ${option.name}` : option.name,
+        searchText: `${option.code ?? ''} ${option.name}`.toLowerCase(),
+      }))
+  }, [props.reference.products])
+
+  return <FormShell cancelHref={props.cancelHref} isSaving={props.isSaving} error={props.error} onSubmit={() => props.onSubmit(values)}>
     <div className="md:col-span-2 rounded-lg border border-slate-200 bg-white p-5 shadow-sm grid gap-4 md:grid-cols-2">
-      <Select label="สินค้า" options={props.reference.products} value={values.productId} onChange={(productId) => setValues({ ...values, productId })} />
-      <BranchWarehouseFields branchId={values.branchId} reference={props.reference} setBranchId={(branchId) => setValues({ ...values, branchId, warehouseId: '' })} setWarehouseId={(warehouseId) => setValues({ ...values, warehouseId })} warehouseId={values.warehouseId} />
-      <Select label="จากสถานะ" options={statusOptions()} value={values.fromStatus} onChange={(fromStatus) => setFromStatus(fromStatus as StatusConvertFormValues['fromStatus'])} />
-      <Select label="เป็นสถานะ" options={statusOptions()} value={values.toStatus} onChange={(toStatus) => setToStatus(toStatus as StatusConvertFormValues['toStatus'])} />
+      <div className="w-full">
+        <SearchCombobox
+          inputId="status-convert-product-search"
+          label="สินค้า *"
+          options={productSearchOptions}
+          placeholder="พิมพ์รหัส/ชื่อสินค้า..."
+          value={values.productId}
+          onChange={(productId) => setValues({ ...values, productId })}
+        />
+      </div>
+      {/* สาขา */}
+      <label className="block text-xs font-semibold text-slate-600">
+        สาขา
+        <select
+          className="mt-1.5 h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+          disabled={!activeBranches.length}
+          value={values.branchId}
+          onChange={(event) => setValues({ ...values, branchId: event.target.value, warehouseId: '', targetWarehouseId: '' })}
+        >
+          <option value="">{activeBranches.length ? 'เลือกสาขา' : 'กำลังโหลดสาขา...'}</option>
+          {activeBranches.map((option) => <option key={option.id} value={option.id}>{option.code ? `${option.code} - ${option.name}` : option.name}</option>)}
+        </select>
+      </label>
+
+      {/* คลังต้นทาง */}
+      <label className="block text-xs font-semibold text-slate-600">
+        คลังต้นทาง
+        <select
+          className="mt-1.5 h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+          disabled={!values.branchId}
+          value={values.warehouseId}
+          onChange={(event) => setValues({ ...values, warehouseId: event.target.value })}
+        >
+          <option value="">{values.branchId ? 'เลือกคลังต้นทาง' : 'เลือกสาขาก่อน'}</option>
+          {activeWarehouses.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+        </select>
+      </label>
+
+      {/* คลังปลายทาง */}
+      <label className="block text-xs font-semibold text-slate-600">
+        คลังปลายทาง
+        <select
+          className="mt-1.5 h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+          disabled={!values.branchId}
+          value={values.targetWarehouseId}
+          onChange={(event) => setValues({ ...values, targetWarehouseId: event.target.value })}
+        >
+          <option value="">{values.branchId ? 'เลือกคลังปลายทาง' : 'เลือกสาขาก่อน'}</option>
+          {activeWarehouses.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+        </select>
+      </label>
+
       <Field label="น้ำหนัก (กก.)" type="number" value={String(values.qty)} onChange={(qty) => setValues({ ...values, qty: Number(qty) })} />
       <Field label="Lot" value={values.lotNo ?? ''} onChange={(lotNo) => setValues({ ...values, lotNo })} />
       <div className="md:col-span-2">
@@ -1451,7 +1532,7 @@ function CostPoolPreview({
   )
 }
 
-function ConvertForm(props: { cancelHref: string; isSaving: boolean; onSubmit: (values: StockConvertFormValues) => void; reference: Payload['reference'] }) {
+function ConvertForm(props: { cancelHref: string; isSaving: boolean; error?: string | null; onSubmit: (values: StockConvertFormValues) => void; reference: Payload['reference'] }) {
   const [values, setValues] = useState<StockConvertFormValues>({
     allocationMethod: 'FIFO',
     branchId: '',
@@ -1506,7 +1587,17 @@ function ConvertForm(props: { cancelHref: string; isSaving: boolean; onSubmit: (
     setValues({ ...values, manualAllocations: qty > 0 ? [...existing, { poolEntryId, qty }] : existing })
   }
 
-  return <FormShell cancelHref={props.cancelHref} isSaving={props.isSaving} mode="convert" onSubmit={() => props.onSubmit(values)}>
+  const productSearchOptions = useMemo<SearchComboboxOption[]>(() => {
+    return props.reference.products
+      .filter((option) => option.active !== false)
+      .map((option) => ({
+        id: option.id,
+        label: option.code ? `${option.code} - ${option.name}` : option.name,
+        searchText: `${option.code ?? ''} ${option.name}`.toLowerCase(),
+      }))
+  }, [props.reference.products])
+
+  return <FormShell cancelHref={props.cancelHref} isSaving={props.isSaving} error={props.error} onSubmit={() => props.onSubmit(values)}>
     <div className="md:col-span-2 rounded-lg border border-slate-200 bg-white p-5 shadow-sm grid gap-4 md:grid-cols-2 animate-fade-in">
       <BaseDateDoc values={values} setValues={setValues} />
       <BranchWarehouseFields branchId={values.branchId} reference={props.reference} setBranchId={(branchId) => setValues({ ...values, branchId, warehouseId: '' })} setWarehouseId={(warehouseId) => setValues({ ...values, warehouseId })} warehouseId={values.warehouseId} />
@@ -1514,7 +1605,16 @@ function ConvertForm(props: { cancelHref: string; isSaving: boolean; onSubmit: (
     <div className="rounded-xl border border-red-200 bg-red-50/40 p-5 shadow-sm md:col-span-2">
       <div className="mb-3 text-sm font-bold text-red-700">Source (ออก)</div>
       <div className="grid gap-4 md:grid-cols-2">
-        <Select label="สินค้าต้นทาง" options={props.reference.products} value={values.sourceProductId} onChange={(sourceProductId) => setValues({ ...values, sourceProductId })} />
+        <div className="w-full">
+          <SearchCombobox
+            inputId="stock-convert-source-product"
+            label="สินค้าต้นทาง *"
+            options={productSearchOptions}
+            placeholder="พิมพ์รหัส/ชื่อสินค้า..."
+            value={values.sourceProductId}
+            onChange={(sourceProductId) => setValues({ ...values, sourceProductId })}
+          />
+        </div>
         <Field label="น้ำหนักต้นทาง (กก.)" type="number" value={String(values.sourceQty)} onChange={(sourceQty) => setValues({ ...values, sourceQty: Number(sourceQty) })} />
         <Field label="Lot ต้นทาง" value={values.lotNo ?? ''} onChange={(lotNo) => setValues({ ...values, lotNo })} />
         <ReadOnlyBox label="Source Product" value={sourceProduct ? `${sourceProduct.code ? `${sourceProduct.code} - ` : ''}${sourceProduct.name}` : '-'} />
@@ -1547,7 +1647,16 @@ function ConvertForm(props: { cancelHref: string; isSaving: boolean; onSubmit: (
     <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-5 shadow-sm md:col-span-2">
       <div className="mb-3 text-sm font-bold text-emerald-700">Target (เข้า)</div>
       <div className="grid gap-4 md:grid-cols-2">
-        <Select label="สินค้าปลายทาง" options={props.reference.products} value={values.targetProductId} onChange={(targetProductId) => setValues({ ...values, targetProductId })} />
+        <div className="w-full">
+          <SearchCombobox
+            inputId="stock-convert-target-product"
+            label="สินค้าปลายทาง *"
+            options={productSearchOptions}
+            placeholder="พิมพ์รหัส/ชื่อสินค้า..."
+            value={values.targetProductId}
+            onChange={(targetProductId) => setValues({ ...values, targetProductId })}
+          />
+        </div>
         <Field label="น้ำหนักปลายทาง (กก.)" type="number" value={String(values.targetQty)} onChange={(targetQty) => setValues({ ...values, targetQty: Number(targetQty) })} />
         <Field label="Lot ปลายทาง" value={values.targetLotNo ?? ''} onChange={(targetLotNo) => setValues({ ...values, targetLotNo })} />
         <ReadOnlyBox label="Target Product" value={targetProduct ? `${targetProduct.code ? `${targetProduct.code} - ` : ''}${targetProduct.name}` : '-'} />
@@ -1587,7 +1696,7 @@ function ConvertForm(props: { cancelHref: string; isSaving: boolean; onSubmit: (
   </FormShell>
 }
 
-function AdjustForm(props: { cancelHref: string; isSaving: boolean; onSubmit: (values: StockAdjustFormValues) => void; reference: Payload['reference'] }) {
+function AdjustForm(props: { cancelHref: string; isSaving: boolean; error?: string | null; onSubmit: (values: StockAdjustFormValues) => void; reference: Payload['reference'] }) {
   const [values, setValues] = useState<StockAdjustFormValues>({ branchId: '', countedQty: 0, date: todayDateInput(), docNo: null, lotNo: null, productId: '', reason: stockAdjustReasonOptions[0], remark: null, status: 'RM', systemQty: 0, warehouseId: '' })
   const [snapshot, setSnapshot] = useState<StockAdjustSnapshot | null>(null)
   const [snapshotError, setSnapshotError] = useState<string | null>(null)
@@ -1630,10 +1739,29 @@ function AdjustForm(props: { cancelHref: string; isSaving: boolean; onSubmit: (v
     return () => controller.abort()
   }, [snapshotReady, values.branchId, values.countedQty, values.date, values.lotNo, values.productId, values.status, values.warehouseId])
 
-  return <FormShell cancelHref={props.cancelHref} isSaving={props.isSaving} onSubmit={() => props.onSubmit(values)}>
+  const productSearchOptions = useMemo<SearchComboboxOption[]>(() => {
+    return props.reference.products
+      .filter((option) => option.active !== false)
+      .map((option) => ({
+        id: option.id,
+        label: option.code ? `${option.code} - ${option.name}` : option.name,
+        searchText: `${option.code ?? ''} ${option.name}`.toLowerCase(),
+      }))
+  }, [props.reference.products])
+
+  return <FormShell cancelHref={props.cancelHref} isSaving={props.isSaving} error={props.error} onSubmit={() => props.onSubmit(values)}>
     <div className="md:col-span-2 rounded-lg border border-slate-200 bg-white p-5 shadow-sm grid gap-4 md:grid-cols-2">
       <BaseDateDoc values={values} setValues={setValues} />
-      <Select label="สินค้า" options={props.reference.products} value={values.productId} onChange={(productId) => setValues({ ...values, productId })} />
+      <div className="w-full">
+        <SearchCombobox
+          inputId="stock-adjust-product"
+          label="สินค้า *"
+          options={productSearchOptions}
+          placeholder="พิมพ์รหัส/ชื่อสินค้า..."
+          value={values.productId}
+          onChange={(productId) => setValues({ ...values, productId })}
+        />
+      </div>
       <BranchWarehouseFields branchId={values.branchId} reference={props.reference} setBranchId={(branchId) => setValues({ ...values, branchId, warehouseId: '' })} setWarehouseId={(warehouseId) => setValues({ ...values, warehouseId })} warehouseId={values.warehouseId} />
       <Select label="สถานะสินค้า" options={[{ active: true, id: 'RM', name: 'RM' }, { active: true, id: 'WIP', name: 'WIP' }, { active: true, id: 'FG', name: 'FG' }]} value={values.status} onChange={(status) => setValues({ ...values, status: status as StockAdjustFormValues['status'] })} />
       <Field label="Lot" value={values.lotNo ?? ''} onChange={(lotNo) => setValues({ ...values, lotNo })} />
@@ -1665,10 +1793,15 @@ function ReadOnlyBox({ label, value, valueClassName = 'text-slate-800' }: { labe
   return <div className="rounded-md border border-white/70 bg-white/80 px-3 py-2"><div className="text-xs text-slate-500">{label}</div><div className={`mt-1 text-sm font-semibold ${valueClassName}`}>{value}</div></div>
 }
 
-function FormShell({ cancelHref, children, isSaving, mode, onSubmit }: { cancelHref: string; children: React.ReactNode; isSaving: boolean; mode?: Mode; onSubmit: () => void }) {
+function FormShell({ cancelHref, children, isSaving, error, onSubmit }: { cancelHref: string; children: React.ReactNode; isSaving: boolean; error?: string | null; onSubmit: () => void }) {
   return (
     <form className="flex-1 flex flex-col overflow-hidden" onSubmit={(event) => { event.preventDefault(); onSubmit() }}>
-      <div className="flex-1 overflow-y-auto bg-slate-50 p-4 sm:p-5">
+      <div className="flex-1 overflow-y-auto bg-slate-50 p-4 sm:p-5 space-y-4">
+        {error ? (
+          <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800 whitespace-pre-line">
+            {error}
+          </div>
+        ) : null}
         <div className="grid gap-4 md:grid-cols-2">{children}</div>
       </div>
       <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 shrink-0">
