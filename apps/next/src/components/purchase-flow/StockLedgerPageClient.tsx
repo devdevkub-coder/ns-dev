@@ -21,15 +21,15 @@ const stockLedgerPageSizes = [25, 50, 80, 100]
 const stockLedgerColumns: Array<ResizableColumnDefinition<StockLedgerColumnKey>> = [
   { defaultWidth: 92, key: 'date', minWidth: 82 },
   { defaultWidth: 132, key: 'refNo', minWidth: 110 },
-  { defaultWidth: 320, key: 'counterpartyName', minWidth: 150 },
-  { defaultWidth: 132, key: 'movementType', minWidth: 110 },
-  { defaultWidth: 280, key: 'productName', minWidth: 160 },
-  { defaultWidth: 92, key: 'qtyIn', minWidth: 80 },
-  { defaultWidth: 92, key: 'qtyOut', minWidth: 80 },
-  { defaultWidth: 112, key: 'runningBalanceByProduct', minWidth: 96 },
-  { defaultWidth: 104, key: 'unitCost', minWidth: 90 },
-  { defaultWidth: 112, key: 'valueIn', minWidth: 96 },
-  { defaultWidth: 112, key: 'valueOut', minWidth: 96 },
+  { defaultWidth: 200, key: 'counterpartyName', minWidth: 140 },
+  { defaultWidth: 170, key: 'movementType', minWidth: 140 },
+  { defaultWidth: 240, key: 'productName', minWidth: 160 },
+  { defaultWidth: 100, key: 'qtyIn', minWidth: 85 },
+  { defaultWidth: 100, key: 'qtyOut', minWidth: 85 },
+  { defaultWidth: 120, key: 'runningBalanceByProduct', minWidth: 100 },
+  { defaultWidth: 120, key: 'unitCost', minWidth: 100 },
+  { defaultWidth: 130, key: 'valueIn', minWidth: 110 },
+  { defaultWidth: 130, key: 'valueOut', minWidth: 110 },
 ]
 
 type StockLedgerColumnKey = StockLedgerSortKey
@@ -101,7 +101,7 @@ export function StockLedgerPageClient() {
   const [sortKey, setSortKey] = useState<StockLedgerSortKey>('date')
   const [toDate, setToDate] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
-  const columnResize = useResizableColumns('stock.ledger', stockLedgerColumns)
+  const columnResize = useResizableColumns('stock.ledger.v3', stockLedgerColumns)
 
   const loadData = useCallback(async () => {
     const requestId = latestLoadRequestRef.current + 1
@@ -479,9 +479,9 @@ export function StockLedgerPageClient() {
       <div className="hidden md:block overflow-x-auto rounded-md bg-white shadow">
         <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
-            {stockLedgerColumns.map((column, index) => {
+            {stockLedgerColumns.map((column) => {
               const style = columnResize.getColumnStyle(column.key);
-              if (index === stockLedgerColumns.length - 1) {
+              if (column.key === 'productName') {
                 return <col key={column.key} style={{ minWidth: column.minWidth }} />;
               }
               return <col key={column.key} style={style} />;
@@ -520,7 +520,7 @@ export function StockLedgerPageClient() {
                 <td className="whitespace-nowrap p-2 text-xs font-semibold text-slate-700 tabular-nums">{formatDateDisplay(row.date)}</td>
                 <td className="truncate whitespace-nowrap p-2 text-xs font-semibold text-slate-700 tabular-nums">{row.refNo || '-'}</td>
                 <td className="p-2"><Counterparty name={row.counterpartyName} refType={row.refType} /></td>
-                <td className="whitespace-nowrap p-2"><span className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${row.qtyIn > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{stockMovementTypeLabel(row.movementType)}</span></td>
+                <td className="p-2 overflow-hidden max-w-[170px]"><span className={`inline-block truncate max-w-full rounded-md px-2 py-0.5 text-[11px] font-medium ${row.qtyIn > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`} title={stockMovementTypeLabel(row.movementType)}>{stockMovementTypeLabel(row.movementType)}</span></td>
                 <td className="truncate p-2 text-xs font-semibold text-slate-700"><span>{row.productCode ? `${row.productCode} · ` : ''}{row.productName}</span>{row.lotNo && row.lotNo !== 'OPENING' ? <span className="ml-1 text-[11px] font-medium text-slate-400">[{row.lotNo}]</span> : null}</td>
                 <td className="p-2 pr-4 text-right text-xs font-semibold text-emerald-600 tabular-nums">{row.qtyIn ? formatMoney(row.qtyIn) : '-'}</td>
                 <td className="p-2 pr-4 text-right text-xs font-semibold text-red-600 tabular-nums">{row.qtyOut ? formatMoney(row.qtyOut) : '-'}</td>
@@ -644,8 +644,6 @@ function StockLedgerDetailModal({ onClose, row }: { onClose: () => void; row: St
                 <DetailRow label="วันที่" value={row.date || '-'} />
                 <DetailRow label="เลขบิล" value={row.refNo || '-'} mono />
                 <DetailRow className="col-span-2" label="ผู้ขาย/ผู้ซื้อ" value={row.counterpartyName || '-'} />
-                <DetailRow label="Ref Type" value={row.refType || '-'} />
-                <DetailRow label="Ref No" value={row.refId || '-'} mono />
                 <DetailRow className="col-span-2" label="Movement" value={stockMovementTypeLabel(row.movementType)} />
                 <div className="col-span-2">
                   {row.sourcePath ? (
@@ -662,10 +660,8 @@ function StockLedgerDetailModal({ onClose, row }: { onClose: () => void; row: St
             <DetailPanel title="สินค้า / ที่เก็บ">
               <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                 <DetailRow className="col-span-2" label="สินค้า" value={`${row.productCode ? `${row.productCode} · ` : ''}${row.productName}`} />
-                <DetailRow className="col-span-2" label="Product ID" value={row.productId || '-'} mono />
-                <DetailRow label="Lot" value={row.lotNo || '-'} />
                 <DetailRow label="สาขา" value={row.branchName || '-'} />
-                <DetailRow className="col-span-2" label="คลัง" value={row.warehouseName || '-'} />
+                <DetailRow label="คลัง" value={row.warehouseName || '-'} />
               </div>
             </DetailPanel>
 

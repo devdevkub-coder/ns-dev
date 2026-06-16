@@ -129,6 +129,9 @@ function stockLedgerSqlWhere(input: {
   warehouseId?: bigint | null
 }) {
   const clauses: Prisma.Sql[] = [Prisma.sql`true`]
+  // กรองยอด Loss ออกจากรายงานยอดคงเหลือสต๊อกเสมอ
+  clauses.push(Prisma.sql`coalesce(sl.output_category, '') != 'LOSS'`)
+
   if (input.productId) clauses.push(Prisma.sql`sl.product_id = ${input.productId}`)
   if (input.branchId) clauses.push(Prisma.sql`sl.branch_id = ${input.branchId}`)
   if (input.warehouseId) clauses.push(Prisma.sql`sl.warehouse_id = ${input.warehouseId}`)
