@@ -39,12 +39,23 @@ Legacy behavior to preserve unless a later requirement explicitly changes it:
 
 | Step | Actor | Action | Result |
 |---|---|---|---|
-| 1 | User | Opens `/sales/po-sell` and clicks create | Form opens with empty customer/channel/branch, one item row, and expected delivery date |
-| 2 | User | Selects customer, optional branch/channel, expected delivery date, products, quantities, prices, and note | Client validates required customer, at least one item, product, qty, and price |
+| 1 | User | Opens `/sales/po-sell` and clicks create | Form opens with empty customer/channel/branch, one item row, and delivery date |
+| 2 | User | Selects customer, optional branch/channel, delivery date, products, quantities, prices, and note | Client validates required customer, delivery date, at least one item, product, qty, and price |
 | 3 | System | Saves through `POST /api/sales/po-sell` | Creates `po_sells` row with generated `POS...` doc no |
 | 4 | System | Stores item snapshot and totals | `items`, `qty`, `total_amount`, `remaining_qty`, and `remaining_amount` are initialized from submitted lines |
 | 5 | System | Sets initial status | `status = Open`, match status derives as `Not Matched` |
 | 6 | UI | Reloads PO Sell list | New row appears in the main table and can be searched by its doc no |
+
+## Edit / Cancel Flow
+
+PO Sell follows the same operational rule as PO Buy: edit/cancel is allowed only before the document is consumed by downstream transactions.
+
+| Action | Allowed When | System Result |
+|---|---|---|
+| Edit | `status = Open`, full quantity/value still remaining, and no active downstream Sales Bill / PO Sell allocation / Dual Costing allocation fact | Updates customer/branch/channel/delivery date/items/totals and `updated_by` / `updated_at`; keeps the original doc no and created date |
+| Cancel | `status = Open`, full quantity/value still remaining, and no active downstream Sales Bill / PO Sell allocation / Dual Costing allocation fact | Requires a cancel note, sets `status = Cancelled`, clears remaining quantity/value, keeps the original document for audit |
+
+The list UI keeps `แก้ไข` and `ยกเลิก` buttons visible on every row, but disables them with a reason when the row is no longer eligible.
 
 ## Initial State After Create
 
@@ -60,6 +71,17 @@ Legacy behavior to preserve unless a later requirement explicitly changes it:
 | Require delivery | `true` |
 | AR / receipt impact | None |
 | Stock ledger impact | None |
+
+## Date Contract
+
+PO Sell exposes only two user-facing dates:
+
+| User-facing label | Source | Meaning |
+|---|---|---|
+| วันที่สร้างรายการ | `created_at` | system-created timestamp/date for audit, list sorting, and date filtering |
+| วันที่ส่งมอบ | `expected_delivery` | business delivery date selected by the user |
+
+The legacy `date` / document date column is not a separate user-facing field for PO Sell. Current writes may keep it populated from `created_at` for compatibility and document-number generation, but list/detail/export should not present it as another date.
 
 ## Where The Created Row Must Appear
 

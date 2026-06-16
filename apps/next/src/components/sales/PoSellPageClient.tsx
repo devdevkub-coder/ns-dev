@@ -1,19 +1,21 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
 import { Plus } from 'lucide-react'
+import { Button as UiButton } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { Input as UiInput } from '@/components/ui/Input'
+import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
+import { Select as UiSelect } from '@/components/ui/Select'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { poSellFormSchema, type PoSellFormValues } from '@/lib/sales'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
-import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/Table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
 import { TableNumberCell } from '@/components/ui/TableNumberCell'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { CollapsedList } from '@/components/ui/CollapsedList'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
-import { SearchCombobox } from '@/components/ui/SearchCombobox'
 
 type Option = {
   active?: boolean | null
@@ -24,13 +26,27 @@ type Option = {
 }
 
 type PoSellRow = {
+  branchId: string | null
   branchName: string
+  canCancel: boolean
+  canEdit: boolean
+  cancelDisabledReason: string
+  channelId: string | null
   channelName: string
+  createdAt: string
+  customerId: string | null
   customerName: string
-  date: string
   docNo: string
+  editDisabledReason: string
   expectedDelivery: string
   id: string
+  items: Array<{
+    discount: number
+    note: string | null
+    price: number
+    productId: string
+    qty: number
+  }>
   itemCount: number
   margin: number
   marginPct: number
@@ -40,6 +56,7 @@ type PoSellRow = {
   matchedCost: number
   matchedPct: number
   matchedQty: number
+  note: string | null
   productName: string
   qty: number
   remainingAmount: number
@@ -48,6 +65,8 @@ type PoSellRow = {
   status: string
   totalAmount: number
   unitPrice: number
+  updatedAt: string
+  updatedBy: string
 }
 
 type StatusFilterOption = {
@@ -103,7 +122,8 @@ const initialPoSellForm = (): PoSellFormValues => ({
 
 const poSellColumns: ResizableColumnDefinition<string>[] = [
   { key: 'docNo', minWidth: 90, defaultWidth: 110 },
-  { key: 'date', minWidth: 80, defaultWidth: 90 },
+  { key: 'createdAt', minWidth: 100, defaultWidth: 115 },
+  { key: 'expectedDelivery', minWidth: 100, defaultWidth: 115 },
   { key: 'customerName', minWidth: 120, defaultWidth: 420 },
   { key: 'productName', minWidth: 100, defaultWidth: 280 },
   { key: 'qty', minWidth: 70, defaultWidth: 75 },
@@ -114,13 +134,18 @@ const poSellColumns: ResizableColumnDefinition<string>[] = [
   { key: 'marginPct', minWidth: 50, defaultWidth: 55 },
   { key: 'documentStatus', minWidth: 80, defaultWidth: 90 },
   { key: 'matchStatus', minWidth: 80, defaultWidth: 90 },
+  { key: 'updatedAt', minWidth: 120, defaultWidth: 135 },
   { key: 'action', minWidth: 80, defaultWidth: 90 },
 ]
 
 export function PoSellPageClient() {
   const latestLoadRequestRef = useRef(0)
+  const [cancelNote, setCancelNote] = useState('')
+  const [cancelNoteError, setCancelNoteError] = useState('')
+  const [cancelingRow, setCancelingRow] = useState<PoSellRow | null>(null)
   const [data, setData] = useState<PoSellPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [editingDocNo, setEditingDocNo] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState<PoSellFormValues>(initialPoSellForm())
   const [fromDate, setFromDate] = useState('')
@@ -211,10 +236,48 @@ export function PoSellPageClient() {
   }
 
   function openCreateForm() {
+    setEditingDocNo(null)
     setForm(initialPoSellForm())
     setFieldErrors({})
     setError(null)
     setShowForm(true)
+  }
+
+  function openEditForm(row: PoSellRow) {
+    if (!row.canEdit) {
+      setError(row.editDisabledReason || 'รายการนี้ยังไม่สามารถแก้ไขได้')
+      return
+    }
+    setEditingDocNo(row.docNo)
+    setForm({
+      branchId: row.branchId ?? null,
+      channelId: row.channelId ?? null,
+      customerId: row.customerId ?? '',
+      expectedDelivery: row.expectedDelivery,
+      items: row.items.length ? row.items.map((item) => ({
+        ...blankPoSellItem(),
+        discount: item.discount,
+        note: item.note,
+        price: item.price,
+        productId: item.productId,
+        qty: item.qty,
+      })) : [blankPoSellItem()],
+      note: row.note ?? null,
+    })
+    setFieldErrors({})
+    setError(null)
+    setShowForm(true)
+  }
+
+  function openCancelDialog(row: PoSellRow) {
+    if (!row.canCancel) {
+      setError(row.cancelDisabledReason || 'รายการนี้ยังไม่สามารถยกเลิกได้')
+      return
+    }
+    setCancelingRow(row)
+    setCancelNote('')
+    setCancelNoteError('')
+    setError(null)
   }
 
   function updateForm<K extends keyof PoSellFormValues>(key: K, value: PoSellFormValues[K]) {
@@ -246,15 +309,43 @@ export function PoSellPageClient() {
     setIsSaving(true)
     setError(null)
     try {
-      const created = await dailyFetchJson<{ docNo: string }>('/api/sales/po-sell', {
-        body: JSON.stringify(parsed.data),
-        method: 'POST',
+      const saved = await dailyFetchJson<{ docNo: string }>('/api/sales/po-sell', {
+        body: JSON.stringify(editingDocNo ? { ...parsed.data, action: 'update', docNo: editingDocNo } : parsed.data),
+        method: editingDocNo ? 'PATCH' : 'POST',
       })
+      setEditingDocNo(null)
       setShowForm(false)
-      setSearch(created.docNo)
+      setSearch(saved.docNo)
       await loadData()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'บันทึก PO Sell ไม่ได้')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  async function submitCancel() {
+    if (!cancelingRow) return
+    const note = cancelNote.trim()
+    if (!note) {
+      setCancelNoteError('กรอกหมายเหตุการยกเลิก')
+      return
+    }
+
+    setIsSaving(true)
+    setError(null)
+    setCancelNoteError('')
+    try {
+      await dailyFetchJson<{ docNo: string }>('/api/sales/po-sell', {
+        body: JSON.stringify({ action: 'cancel', docNo: cancelingRow.docNo, note }),
+        method: 'PATCH',
+      })
+      setSearch(cancelingRow.docNo)
+      setCancelingRow(null)
+      setCancelNote('')
+      await loadData()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'ยกเลิก PO Sell ไม่ได้')
     } finally {
       setIsSaving(false)
     }
@@ -277,7 +368,7 @@ export function PoSellPageClient() {
       <div className="hidden md:block mb-4 space-y-2 rounded-md bg-white p-3 shadow">
         <div className="flex flex-wrap items-center gap-2">
           <input className="min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหาเลข PO / ชื่อ Customer / ชื่อสินค้า / หมายเหตุ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <label className="text-xs text-slate-500">วันที่:</label>
+          <label className="text-xs text-slate-500">วันที่สร้างรายการ:</label>
           <DatePickerInput ariaLabel="จากวันที่" className="w-[130px]" title="จากวันที่" value={fromDate} onChange={setFromDate} />
           <span className="text-slate-400">→</span>
           <DatePickerInput ariaLabel="ถึงวันที่" className="w-[130px]" title="ถึงวันที่" value={toDate} onChange={setToDate} />
@@ -431,7 +522,7 @@ export function PoSellPageClient() {
           >
             <div className="flex justify-between items-start mb-2">
               <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
-              <span className="text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
+              <span className="text-xs text-slate-500">{formatDateDisplay(row.createdAt)}</span>
             </div>
 
             <div className="text-xs text-slate-600 mb-3 space-y-1">
@@ -442,6 +533,10 @@ export function PoSellPageClient() {
               <div>
                 <span className="font-semibold text-slate-500">สินค้า: </span>
                 <span className="text-slate-800">{row.productName || '-'}</span>
+              </div>
+              <div>
+                <span className="font-semibold text-slate-500">วันที่ส่งมอบ: </span>
+                <span className="text-slate-800">{formatDateDisplay(row.expectedDelivery)}</span>
               </div>
             </div>
 
@@ -476,7 +571,8 @@ export function PoSellPageClient() {
         <TableHeader>
           <tr>
             <ResizableTableHead label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
-            <ResizableTableHead label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
+            <ResizableTableHead label="วันที่สร้างรายการ" resizeProps={columnResize.getResizeHandleProps('createdAt', 'วันที่สร้างรายการ')} />
+            <ResizableTableHead label="วันที่ส่งมอบ" resizeProps={columnResize.getResizeHandleProps('expectedDelivery', 'วันที่ส่งมอบ')} />
             <ResizableTableHead label="Customer" resizeProps={columnResize.getResizeHandleProps('customerName', 'Customer')} />
             <ResizableTableHead label="รายการ" resizeProps={columnResize.getResizeHandleProps('productName', 'รายการ')} />
             <ResizableTableHead align="right" label="จำนวนรวม" resizeProps={columnResize.getResizeHandleProps('qty', 'จำนวนรวม')} />
@@ -487,16 +583,18 @@ export function PoSellPageClient() {
             <ResizableTableHead align="right" label="%" resizeProps={columnResize.getResizeHandleProps('marginPct', '%')} />
             <ResizableTableHead align="center" label="สถานะเอกสาร" resizeProps={columnResize.getResizeHandleProps('documentStatus', 'สถานะเอกสาร')} />
             <ResizableTableHead align="center" label="สถานะ Match" resizeProps={columnResize.getResizeHandleProps('matchStatus', 'สถานะ Match')} />
+            <ResizableTableHead label="อัพเดตล่าสุด" resizeProps={columnResize.getResizeHandleProps('updatedAt', 'อัพเดตล่าสุด')} />
             <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
           </tr>
         </TableHeader>
         <TableBody>
-          {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={13}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
-          {!isLoading && !error && rows.length === 0 ? <TableRow><TableCell className="py-10 text-center text-slate-400" colSpan={13}>ยังไม่มี PO Sell</TableCell></TableRow> : null}
+          {isLoading ? <TableRow><TableCell className="p-6 text-center text-slate-500" colSpan={15}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+          {!isLoading && !error && rows.length === 0 ? <TableRow><TableCell className="py-10 text-center text-slate-400" colSpan={15}>ยังไม่มี PO Sell</TableCell></TableRow> : null}
           {!isLoading && pageRows.map((row) => (
             <TableRow key={row.id} className="border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedRow(row)}>
               <TableCell className="whitespace-nowrap font-mono">{row.docNo}</TableCell>
-              <TableCell className="whitespace-nowrap">{formatDateDisplay(row.date)}</TableCell>
+              <TableCell className="whitespace-nowrap">{formatDateDisplay(row.createdAt)}</TableCell>
+              <TableCell className="whitespace-nowrap">{formatDateDisplay(row.expectedDelivery)}</TableCell>
               <TableCell className="truncate">{row.customerName}</TableCell>
               <TableCell className="text-xs font-semibold text-slate-700">
                 <CollapsedList
@@ -513,7 +611,38 @@ export function PoSellPageClient() {
               <TableCell className={`text-right pr-4 tabular-nums ${row.marginPct < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatPercent(row.marginPct)}</TableCell>
               <TableCell className="text-center"><StatusPill label={row.documentStatusLabel} tone={documentStatusPillTone(row.documentStatus)} /></TableCell>
               <TableCell className="text-center"><StatusPill label={row.matchStatus} tone="match" /></TableCell>
-              <TableCell className="whitespace-nowrap text-right"><div className="flex justify-end gap-1"><button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:opacity-50" disabled title="รอออกแบบ write permission/audit ก่อนเปิดใช้งาน" type="button">แก้ไข</button><button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:opacity-50" disabled title="รอออกแบบ cancel/reconciliation ก่อนเปิดใช้งาน" type="button">ยกเลิก</button></div></TableCell>
+              <TableCell className="w-32 whitespace-nowrap text-xs text-slate-600">
+                <div className="truncate font-semibold text-slate-700">{row.updatedBy || '-'}</div>
+                <div className="font-mono text-[10px] text-slate-400">{formatTimestampDisplay(row.updatedAt)}</div>
+              </TableCell>
+              <TableCell className="whitespace-nowrap text-right">
+                <div className="flex justify-end gap-1">
+                  <button
+                    className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={isSaving || !row.canEdit}
+                    title={row.canEdit ? `แก้ไข ${row.docNo}` : row.editDisabledReason}
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      openEditForm(row)
+                    }}
+                  >
+                    แก้ไข
+                  </button>
+                  <button
+                    className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={isSaving || !row.canCancel}
+                    title={row.canCancel ? `ยกเลิก ${row.docNo}` : row.cancelDisabledReason}
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      openCancelDialog(row)
+                    }}
+                  >
+                    ยกเลิก
+                  </button>
+                </div>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -537,61 +666,47 @@ export function PoSellPageClient() {
       ) : null}
 
       {showForm ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8" role="dialog" aria-modal="true" aria-labelledby="po-sell-form-title">
-          <div className="w-full max-w-3xl overflow-hidden rounded-md bg-slate-900 shadow-xl flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between bg-slate-900 px-5 py-4 shrink-0">
-              <h3 id="po-sell-form-title" className="text-lg font-bold text-slate-100">สร้าง PO Sell (จองขาย)</h3>
-              <button className="text-2xl text-slate-400 hover:text-slate-200" type="button" onClick={() => setShowForm(false)}>×</button>
-            </div>
-            <div className="flex-1 overflow-y-auto bg-slate-50 p-5 space-y-4 text-sm">
-              <div className="grid grid-cols-2 gap-3">
-                <SelectField className="col-span-2" error={fieldErrors.customerId} label="Customer *" options={activeCustomers} value={form.customerId} onChange={(value) => updateForm('customerId', value)} />
-                <SelectField error={fieldErrors.branchId} label="สาขา/คลัง *" options={activeBranches} value={form.branchId ?? ''} onChange={(value) => updateForm('branchId', value || null)} />
-                <SelectField error={fieldErrors.channelId} label="ช่องทางขาย" options={activeChannels} value={form.channelId ?? ''} onChange={(value) => updateForm('channelId', value || null)} />
-                <Field error={fieldErrors.expectedDelivery} label="วันส่งมอบ *"><DatePickerInput className="w-full" required value={form.expectedDelivery} onChange={(value) => updateForm('expectedDelivery', value)} /></Field>
-              </div>
-
-              <div>
-                <div className="mb-3 flex items-center justify-between">
-                  <label className="font-medium">📋 รายการสินค้า ({form.items.length})</label>
-                  <button className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs text-white hover:bg-emerald-700" type="button" onClick={() => setForm((current) => ({ ...current, items: [...current.items, blankPoSellItem()] }))}>+ เพิ่มรายการ</button>
-                </div>
-                {fieldErrors.items ? <div className="mb-2 text-xs text-red-600">{fieldErrors.items}</div> : null}
-                <div className="overflow-x-auto rounded-md border">
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-100">
-                      <tr><th className="p-2 text-left">สินค้า / Grade *</th><th className="w-32 p-2 text-right">จำนวน (กก.) *</th><th className="w-32 p-2 text-right">ราคา/หน่วย *</th><th className="w-32 p-2 text-right">มูลค่ารวม</th><th className="w-8 p-2" /></tr>
-                    </thead>
-                    <tbody>
-                      {form.items.map((item, index) => (
-                        <tr key={index} className="border-t">
-                          <td className="p-1 align-top"><ProductSelect inputId={`po-sell-product-${index}`} options={activeProducts} value={item.productId} onChange={(value) => updateItem(index, 'productId', value)} /></td>
-                          <td className="p-1 align-top"><input className="w-full rounded-md border px-2 py-1.5 text-right" min={0} step="0.01" type="number" value={item.qty || ''} onChange={(event) => updateItem(index, 'qty', Number(event.target.value))} /></td>
-                          <td className="p-1 align-top"><input className="w-full rounded-md border px-2 py-1.5 text-right" min={0} step="0.01" type="number" value={item.price || ''} onChange={(event) => updateItem(index, 'price', Number(event.target.value))} /></td>
-                          <td className="bg-blue-50 p-1 px-2 text-right font-bold text-blue-700">{formatMoney(Math.max(0, item.qty * item.price - item.discount))}</td>
-                          <td className="p-1 text-center">{form.items.length > 1 ? <button className="px-2 text-red-500" type="button" onClick={() => removeItem(index)}>×</button> : null}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="bg-slate-50 font-bold">
-                      <tr><td className="p-2 text-right">รวม {form.items.length} รายการ</td><td className="p-2 text-right">{formatMoney(formQty)}</td><td /><td className="p-2 text-right text-base text-blue-700">{formatMoney(formSubtotal)}</td><td /></tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs">หมายเหตุ</label>
-                <textarea className="w-full rounded-md border px-2 py-1.5" rows={2} value={form.note ?? ''} onChange={(event) => updateForm('note', event.target.value || null)} />
-                {fieldErrors.note ? <div className="mt-1 text-xs text-red-600">{fieldErrors.note}</div> : null}
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 shrink-0">
-              <button className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50" disabled={isSaving} type="button" onClick={() => setShowForm(false)}>ยกเลิก</button>
-              <button className="rounded-md bg-slate-900 px-5 py-2 text-sm font-normal text-white hover:bg-slate-800 disabled:opacity-60" disabled={isSaving} type="submit" onClick={() => void savePoSell()}>{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</button>
-            </div>
-          </div>
-        </div>
+        <PoSellFormModal
+          branches={activeBranches}
+          channels={activeChannels}
+          customers={activeCustomers}
+          errors={fieldErrors}
+          form={form}
+          isSaving={isSaving}
+          products={activeProducts}
+          subtotal={formSubtotal}
+          submitLabel={editingDocNo ? 'บันทึกการแก้ไข' : 'บันทึก PO Sell'}
+          title={editingDocNo ? `แก้ไข PO Sell ${editingDocNo}` : 'สร้าง PO Sell (จองขาย)'}
+          totalQty={formQty}
+          onAddItem={() => setForm((current) => ({ ...current, items: [...current.items, blankPoSellItem()] }))}
+          onClose={() => {
+            setEditingDocNo(null)
+            setShowForm(false)
+          }}
+          onRemoveItem={removeItem}
+          onSubmit={savePoSell}
+          onUpdate={updateForm}
+          onUpdateItem={updateItem}
+        />
+      ) : null}
+      {cancelingRow ? (
+        <PoSellCancelModal
+          error={cancelNoteError}
+          isSaving={isSaving}
+          note={cancelNote}
+          row={cancelingRow}
+          onChangeNote={(value) => {
+            setCancelNote(value)
+            setCancelNoteError('')
+          }}
+          onClose={() => {
+            if (isSaving) return
+            setCancelingRow(null)
+            setCancelNote('')
+            setCancelNoteError('')
+          }}
+          onSubmit={submitCancel}
+        />
       ) : null}
     </section>
   )
@@ -601,15 +716,24 @@ function formatPercent(value: number | null | undefined) {
   return `${formatMoney(value ?? 0)}%`
 }
 
+function formatTimestampDisplay(value: string | null | undefined) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })
+}
+
 function documentStatusTone(value: string): 'amber' | 'dark' | 'emerald' | 'red' | 'slate' {
   if (value === 'cancelled') return 'slate'
   if (value === 'closed') return 'emerald'
+  if (value === 'partial') return 'amber'
   return 'dark'
 }
 
-function documentStatusPillTone(value: string): 'cancelled' | 'closed' | 'match' | 'open' | 'status' {
+function documentStatusPillTone(value: string): 'cancelled' | 'closed' | 'match' | 'open' | 'partial' | 'status' {
   if (value === 'cancelled') return 'cancelled'
   if (value === 'closed') return 'closed'
+  if (value === 'partial') return 'partial'
   return 'open'
 }
 
@@ -643,46 +767,27 @@ function Metric({
 }
 
 function MatchButton({ active, label, onClick, tone = 'dark' }: { active: boolean; label: string; onClick: () => void; tone?: 'amber' | 'dark' | 'emerald' | 'red' | 'slate' }) {
-  const activeClass = {
-    amber: 'border-amber-600 bg-amber-600 text-white',
-    dark: 'border-slate-700 bg-slate-700 text-white',
-    emerald: 'border-emerald-600 bg-emerald-600 text-white',
-    red: 'border-red-600 bg-red-600 text-white',
-    slate: 'border-slate-500 bg-slate-500 text-white',
-  }[tone]
-  const idleClass = tone === 'amber' ? 'border-slate-300 bg-white hover:bg-amber-50' : tone === 'emerald' ? 'border-slate-300 bg-white hover:bg-emerald-50' : tone === 'red' ? 'border-slate-300 bg-white hover:bg-red-50' : 'border-slate-300 bg-white hover:bg-slate-100'
+  void tone
+  const activeClass = 'border-slate-700 bg-slate-700 text-white'
+  const idleClass = 'border-slate-300 bg-white hover:bg-slate-50'
   return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
 }
 
-function StatusPill({ label, tone = 'status' }: { label: string; tone?: 'cancelled' | 'closed' | 'match' | 'open' | 'status' }) {
+function StatusPill({ label, tone = 'status' }: { label: string; tone?: 'cancelled' | 'closed' | 'match' | 'open' | 'partial' | 'status' }) {
   const color = {
-    cancelled: 'bg-slate-100 text-slate-700',
-    closed: 'bg-emerald-50 text-emerald-700',
-    match: 'bg-cyan-50 text-cyan-700',
-    open: 'bg-amber-50 text-amber-700',
-    status: 'bg-slate-100 text-slate-700',
+    cancelled: 'text-slate-500',
+    closed: 'text-emerald-700',
+    match: 'text-cyan-700',
+    open: 'text-amber-700',
+    partial: 'text-cyan-700',
+    status: 'text-slate-700',
   }[tone]
-  return <span className={`inline-flex rounded-full px-2 py-0.5 text-xs ${color}`}>{label || '-'}</span>
-}
-
-function renderFieldLabel(label: string) {
-  const hasInlineRequired = label.trim().endsWith('*')
-  const labelText = hasInlineRequired ? label.trim().slice(0, -1).trimEnd() : label
-  return <>{labelText}{hasInlineRequired ? <span className="ml-1 text-red-600">*</span> : null}</>
-}
-
-function Field({ children, className, error, label }: { children: ReactNode; className?: string; error?: string; label: string }) {
-  return <label className={className}><span className="mb-1 block text-xs font-bold text-slate-700">{renderFieldLabel(label)}</span>{children}{error ? <span className="mt-1 block text-xs text-red-600">{error}</span> : null}</label>
-}
-
-function SelectField({ className, error, label, onChange, options, placeholder = 'เลือก', value }: { className?: string; error?: string; label: string; onChange: (value: string) => void; options: Option[]; placeholder?: string; value: string }) {
+  if (tone === 'match') return <span className={`text-xs font-semibold ${color}`}>{label || '-'}</span>
   return (
-    <Field className={className} error={error} label={label}>
-      <select className="w-full rounded-md border px-3 py-2" value={value} onChange={(event) => onChange(event.target.value)}>
-        <option value="">{placeholder}</option>
-        {options.map((option) => <option key={option.id} value={option.id}>{option.code ? `${option.code} - ` : ''}{option.name}</option>)}
-      </select>
-    </Field>
+    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${color}`}>
+      <span className="size-1.5 rounded-full bg-current" />
+      {label || '-'}
+    </span>
   )
 }
 
@@ -690,25 +795,327 @@ function optionLabel(option: Option) {
   return option.code ? `${option.code} - ${option.name}` : option.name
 }
 
-function ProductSelect({ inputId, onChange, options, value }: { inputId: string; onChange: (productId: string) => void; options: Option[]; value: string }) {
-  const mappedOptions = useMemo(() => {
-    return options.map((option) => ({
-      id: option.id,
-      label: optionLabel(option),
-      searchText: `${option.code ?? ''} ${option.name}`.toLowerCase(),
-    }))
-  }, [options])
+function searchableText(option: Option) {
+  return `${option.code ?? ''} ${option.name} ${option.id}`.toLowerCase()
+}
 
+function sanitizeDecimalInput(value: string) {
+  return value
+    .replace(/,/g, '')
+    .replace(/[^\d.]/g, '')
+    .replace(/(\..*)\./g, '$1')
+}
+
+function formatDecimalInput(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return ''
+  return value.toLocaleString('th-TH', { maximumFractionDigits: 2, minimumFractionDigits: 2 })
+}
+
+function CustomerSearchCombobox({
+  error,
+  options,
+  value,
+  onChange,
+}: {
+  error?: string
+  options: Option[]
+  value: string
+  onChange: (customerId: string) => void
+}) {
   return (
     <SearchCombobox
+      error={error}
+      inputId="po-sell-customer-search"
+      inputClassName="!h-9 px-2 py-1.5"
+      label="Customer *"
+      options={options.map((customer) => ({
+        id: customer.id,
+        label: optionLabel(customer),
+        searchText: searchableText(customer),
+      }))}
+      optionsPanelClassName="max-h-[280px]"
+      placeholder="พิมพ์ชื่อ Customer..."
+      value={value}
+      onChange={onChange}
+    />
+  )
+}
+
+function ProductSearchCombobox({
+  error,
+  inputId,
+  options,
+  value,
+  onChange,
+}: {
+  error?: string
+  inputId: string
+  options: SearchComboboxOption[]
+  value: string
+  onChange: (productId: string) => void
+}) {
+  return (
+    <SearchCombobox
+      error={error}
+      hideLabel
       inputId={inputId}
-      label="สินค้า"
-      hideLabel={true}
-      options={mappedOptions}
+      inputClassName="!h-9 px-2 py-1.5"
+      label="สินค้า *"
+      options={options}
+      optionsPanelClassName="max-h-[280px]"
       placeholder="พิมพ์รหัส/ชื่อสินค้า..."
       value={value}
       onChange={onChange}
     />
+  )
+}
+
+function DecimalPatternInput({
+  formatOnBlur = false,
+  value,
+  onChange,
+}: {
+  formatOnBlur?: boolean
+  value: number
+  onChange: (value: number) => void
+}) {
+  const [isFocused, setIsFocused] = useState(false)
+  const [rawValue, setRawValue] = useState('')
+
+  useEffect(() => {
+    if (!isFocused) setRawValue(formatOnBlur ? formatDecimalInput(value) : value > 0 ? sanitizeDecimalInput(String(value)) : '')
+  }, [formatOnBlur, isFocused, value])
+
+  return (
+    <UiInput
+      className="!h-9 w-full px-2 py-1.5 text-right"
+      inputMode="decimal"
+      type="text"
+      value={isFocused ? rawValue : formatOnBlur ? formatDecimalInput(value) : rawValue}
+      onBlur={() => {
+        setIsFocused(false)
+        setRawValue(formatOnBlur ? formatDecimalInput(value) : value > 0 ? sanitizeDecimalInput(String(value)) : '')
+      }}
+      onChange={(event) => {
+        const nextRawValue = sanitizeDecimalInput(event.target.value)
+        setRawValue(nextRawValue)
+        onChange(nextRawValue ? Number(nextRawValue) : 0)
+      }}
+      onFocus={() => {
+        setIsFocused(true)
+        setRawValue(value > 0 ? sanitizeDecimalInput(String(value)) : '')
+      }}
+    />
+  )
+}
+
+function PoSellFormModal({
+  branches,
+  channels,
+  customers,
+  errors,
+  form,
+  isSaving,
+  products,
+  submitLabel,
+  subtotal,
+  title,
+  totalQty,
+  onAddItem,
+  onClose,
+  onRemoveItem,
+  onSubmit,
+  onUpdate,
+  onUpdateItem,
+}: {
+  branches: Option[]
+  channels: Option[]
+  customers: Option[]
+  errors: Record<string, string>
+  form: PoSellFormValues
+  isSaving: boolean
+  products: Option[]
+  submitLabel: string
+  subtotal: number
+  title: string
+  totalQty: number
+  onAddItem: () => void
+  onClose: () => void
+  onRemoveItem: (index: number) => void
+  onSubmit: () => void
+  onUpdate: <Key extends keyof PoSellFormValues>(key: Key, value: PoSellFormValues[Key]) => void
+  onUpdateItem: (index: number, key: keyof PoSellFormValues['items'][number], value: string | number | null) => void
+}) {
+  const productOptions = useMemo<SearchComboboxOption[]>(() => products.map((product) => ({
+    description: undefined,
+    id: product.id,
+    label: optionLabel(product),
+    searchText: searchableText(product),
+  })), [products])
+  const fieldError = (name: string) => errors[name] ? <div className="mt-1 text-xs text-red-600">{errors[name]}</div> : null
+
+  return (
+    <Dialog open onOpenChange={(open) => {
+      if (!open && !isSaving) onClose()
+    }}>
+      <DialogContent aria-labelledby="po-sell-form-title" className="max-h-[90vh] max-w-5xl overflow-y-auto rounded-md p-0" data-combobox-portal-root="true" hideClose>
+        <DialogHeader className="px-5 py-3">
+          <DialogTitle id="po-sell-form-title">{title}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3 p-5 text-sm">
+          <div className="rounded-md border border-slate-200 bg-white p-4">
+            <div className="mb-3 text-sm font-bold text-slate-800">ข้อมูลเอกสาร</div>
+            <div className="grid gap-3 md:grid-cols-4">
+              <div className="md:col-span-2">
+                <CustomerSearchCombobox
+                  error={errors.customerId}
+                  options={customers}
+                  value={form.customerId}
+                  onChange={(customerId) => onUpdate('customerId', customerId)}
+                />
+                {fieldError('customerId')}
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">สาขา/คลัง <span className="text-red-600">*</span></label>
+                <UiSelect className={`!h-9 w-full px-2 py-1.5 text-sm ${form.branchId ? '' : 'text-slate-400'}`} value={form.branchId ?? ''} onChange={(event) => onUpdate('branchId', event.target.value || null)}>
+                  <option value="">เลือกสาขา/คลัง</option>
+                  {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+                </UiSelect>
+                {fieldError('branchId')}
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">วันส่งมอบ <span className="text-red-600">*</span></label>
+                <DatePickerInput className="!h-9 w-full" required value={form.expectedDelivery} onChange={(value) => onUpdate('expectedDelivery', value)} />
+                {fieldError('expectedDelivery')}
+              </div>
+              <div className="md:col-span-2">
+                <label className="mb-1 block text-xs font-medium text-slate-600">ช่องทางขาย</label>
+                <UiSelect className={`!h-9 w-full px-2 py-1.5 text-sm ${form.channelId ? '' : 'text-slate-400'}`} value={form.channelId ?? ''} onChange={(event) => onUpdate('channelId', event.target.value || null)}>
+                  <option value="">เลือกช่องทางขาย</option>
+                  {channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
+                </UiSelect>
+                {fieldError('channelId')}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-md border border-slate-200 bg-white p-4">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <label className="font-medium">📋 รายการสินค้า ({form.items.length})</label>
+              <UiButton className="bg-emerald-600 font-normal hover:bg-emerald-700" size="xs" type="button" variant="default" onClick={onAddItem}>+ เพิ่มรายการ</UiButton>
+            </div>
+            <div className="overflow-x-auto rounded-md border">
+              <Table className="min-w-[820px] border-0">
+                <TableHeader>
+                  <tr>
+                    <TableHead>สินค้า / Grade *</TableHead>
+                    <TableHead className="w-36 text-right">จำนวน (กก.) *</TableHead>
+                    <TableHead className="w-36 text-right">ราคา/หน่วย *</TableHead>
+                    <TableHead className="w-36 text-right">มูลค่ารวม</TableHead>
+                    <TableHead className="w-10" />
+                  </tr>
+                </TableHeader>
+                <TableBody>
+                  {form.items.map((item, index) => (
+                    <TableRow key={index}>
+                      <TableCell className="p-1 align-top">
+                        <ProductSearchCombobox
+                          error={errors[`items.${index}.productId`]}
+                          inputId={`po-sell-product-${index}`}
+                          options={productOptions}
+                          value={item.productId}
+                          onChange={(productId) => onUpdateItem(index, 'productId', productId)}
+                        />
+                        {fieldError(`items.${index}.productId`)}
+                      </TableCell>
+                      <TableCell className="p-1 align-top">
+                        <DecimalPatternInput value={item.qty} onChange={(value) => onUpdateItem(index, 'qty', value)} />
+                        {fieldError(`items.${index}.qty`)}
+                      </TableCell>
+                      <TableCell className="p-1 align-top">
+                        <DecimalPatternInput formatOnBlur value={item.price} onChange={(value) => onUpdateItem(index, 'price', value)} />
+                        {fieldError(`items.${index}.price`)}
+                      </TableCell>
+                      <TableCell className="bg-blue-50 p-1 px-2 text-right font-bold text-blue-700">{formatMoney(Math.max(0, item.qty * item.price - item.discount))}</TableCell>
+                      <TableCell className="p-1 text-center">{form.items.length > 1 ? <UiButton className="h-8 w-8 px-0 text-red-500" size="icon" type="button" variant="ghost" onClick={() => onRemoveItem(index)}>×</UiButton> : null}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+                <tfoot className="bg-slate-50 font-bold">
+                  <tr><td className="p-2 text-right">รวม {form.items.length} รายการ</td><td className="p-2 text-right">{formatMoney(totalQty)}</td><td /><td className="p-2 text-right text-base text-blue-700">{formatMoney(subtotal)}</td><td /></tr>
+                </tfoot>
+              </Table>
+            </div>
+            {fieldError('items')}
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="rounded-md border border-slate-200 bg-white p-4">
+              <label className="mb-1 block text-xs font-medium text-slate-600">หมายเหตุ</label>
+              <textarea className="min-h-16 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" rows={2} value={form.note ?? ''} onChange={(event) => onUpdate('note', event.target.value || null)} />
+              {fieldError('note')}
+            </div>
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+              <SummaryLine label="จำนวนรวม" value={`${formatMoney(totalQty)} กก.`} />
+              <SummaryLine label="มูลค่ารวม" strong value={formatMoney(subtotal)} />
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="px-5">
+          <UiButton className="font-normal" disabled={isSaving} type="button" variant="outline" onClick={onClose}>ยกเลิก</UiButton>
+          <UiButton className="bg-blue-600 font-normal hover:bg-blue-700" disabled={isSaving} type="button" variant="default" onClick={() => void onSubmit()}>{isSaving ? 'กำลังบันทึก...' : submitLabel}</UiButton>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function PoSellCancelModal({
+  error,
+  isSaving,
+  note,
+  onChangeNote,
+  onClose,
+  onSubmit,
+  row,
+}: {
+  error: string
+  isSaving: boolean
+  note: string
+  onChangeNote: (value: string) => void
+  onClose: () => void
+  onSubmit: () => void
+  row: PoSellRow
+}) {
+  return (
+    <Dialog open onOpenChange={(open) => {
+      if (!open && !isSaving) onClose()
+    }}>
+      <DialogContent aria-labelledby="po-sell-cancel-title" className="top-auto bottom-0 w-full max-w-lg translate-x-[-50%] translate-y-0 rounded-t-md md:top-1/2 md:bottom-auto md:-translate-y-1/2 md:rounded-md" hideClose>
+        <DialogHeader>
+          <DialogTitle id="po-sell-cancel-title">ยกเลิก PO Sell {row.docNo}</DialogTitle>
+          <DialogDescription>{row.customerName}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2 p-4 text-sm">
+          <label className="block text-xs font-medium text-slate-600" htmlFor="po-sell-cancel-note">หมายเหตุการยกเลิก *</label>
+          <textarea
+            id="po-sell-cancel-note"
+            className="w-full rounded-md border px-3 py-2"
+            maxLength={500}
+            rows={3}
+            value={note}
+            onChange={(event) => onChangeNote(event.target.value)}
+          />
+          {error ? <div className="text-xs text-red-600">{error}</div> : null}
+        </div>
+        <DialogFooter>
+          <UiButton className="font-normal" disabled={isSaving} type="button" variant="ghost" onClick={onClose}>ปิด</UiButton>
+          <UiButton className="bg-red-600 font-normal hover:bg-red-700" disabled={isSaving} type="button" variant="default" onClick={onSubmit}>{isSaving ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}</UiButton>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -736,8 +1143,9 @@ function PoSellDetailModal({
           <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">ข้อมูลเอกสาร</h4>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-5">
-              <DetailItem label="วันที่สร้างเอกสาร" value={formatDateDisplay(row.date)} />
-              <DetailItem label="วันที่กำหนดส่ง" value={formatDateDisplay(row.expectedDelivery)} />
+              <DetailItem label="วันที่สร้างรายการ" value={formatDateDisplay(row.createdAt)} />
+              <DetailItem label="วันที่ส่งมอบ" value={formatDateDisplay(row.expectedDelivery)} />
+              <DetailItem label="อัพเดตล่าสุด" value={`${row.updatedBy || '-'} · ${formatTimestampDisplay(row.updatedAt)}`} />
               <DetailItem label="สาขา/คลัง" value={row.branchName || '-'} />
               <DetailItem label="ช่องทางขาย" value={row.channelName || '-'} />
             </div>
@@ -797,6 +1205,15 @@ function DetailItem({ className = '', label, value }: { className?: string; labe
     <div className={className}>
       <div className="text-xs font-medium text-slate-500 mb-0.5">{label}</div>
       <div className="text-sm font-semibold text-slate-900">{value}</div>
+    </div>
+  )
+}
+
+function SummaryLine({ label, strong = false, value }: { label: string; strong?: boolean; value: string }) {
+  return (
+    <div className={`flex items-center justify-between gap-3 py-1 text-sm ${strong ? 'border-t border-slate-200 pt-2 font-bold text-blue-700' : 'text-slate-700'}`}>
+      <span>{label}</span>
+      <span className="font-mono">{value}</span>
     </div>
   )
 }
