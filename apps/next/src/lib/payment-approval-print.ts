@@ -96,7 +96,9 @@ function paymentSummaryGroupKey(row: PrintPmaRow) {
 }
 
 function documentNo(row: PrintPmaRow) {
-  return row.approvalDisplayDocNo || row.docNo || '-'
+  if (row.approvalDisplayDocNo) return row.approvalDisplayDocNo
+  if (row.approvalStatus !== 'pending' && row.docNo) return row.docNo
+  return '-'
 }
 
 function referenceDocNo(row: PrintPmaRow) {
