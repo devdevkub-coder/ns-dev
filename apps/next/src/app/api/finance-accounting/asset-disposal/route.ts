@@ -28,6 +28,14 @@ function nbv(asset: { depreciations: { amount: DecimalLike; status: string | nul
   return Math.max(toNumber(asset.salvage_value), netAssetCost - accumDep)
 }
 
+function monthlyDep(asset: { depreciation_method: string | null; net_asset_cost: DecimalLike; salvage_value: DecimalLike; useful_life_months: number | null }) {
+  const method = asset.depreciation_method || 'Straight Line'
+  if (method === 'No Depreciation' || method === 'Manual') return 0
+  const usefulLife = asset.useful_life_months || 0
+  if (usefulLife <= 0) return 0
+  return Math.max(0, (toNumber(asset.net_asset_cost) - toNumber(asset.salvage_value)) / usefulLife)
+}
+
 function disposalStatus(type: string) {
   if (type === 'Sale') return 'Sold'
   if (type === 'Lost') return 'Lost'
@@ -135,7 +143,55 @@ export async function POST(request: NextRequest) {
       const asset = await tx.assets.findUnique({ include: { depreciations: true }, where: { id: assetId } })
       if (!asset) throw new Error('ไม่พบทรัพย์สิน')
       if (['Sold', 'Disposed', 'Lost'].includes(asset.asset_status || '')) throw new Error('ทรัพย์สินนี้ถูกจำหน่ายแล้ว')
-      const bookValue = nbv(asset)
+      
+      const dDate = new Date(disposalDate)
+      const dYear = dDate.getUTCFullYear()
+      const dMonth = dDate.getUTCMonth() + 1
+      const dDay = dDate.getUTCDate()
+      
+      const alreadyDeped = asset.depreciations.some(
+        (dep) => dep.period_year === dYear && dep.period_month === dMonth && dep.status !== 'reversed'
+      )
+      
+      let depAmount = 0
+      const accumBefore = asset.depreciations.filter((dep) => dep.status !== 'reversed').reduce((sum, dep) => sum + toNumber(dep.amount), 0)
+      const netAssetCost = toNumber(asset.net_asset_cost) || (toNumber(asset.original_cost) - toNumber(asset.vat_amount))
+      const salvageValue = toNumber(asset.salvage_value)
+      
+      if (!alreadyDeped) {
+        const totalDaysInMonth = new Date(Date.UTC(dYear, dMonth, 0)).getUTCDate()
+        let startDay = 1
+        if (asset.purchase_date) {
+          const pDate = new Date(asset.purchase_date)
+          if (pDate.getUTCFullYear() === dYear && pDate.getUTCMonth() + 1 === dMonth) {
+            startDay = pDate.getUTCDate()
+          }
+        }
+        const activeDays = Math.max(0, dDay - startDay + 1)
+        const baseDep = (monthlyDep(asset) / totalDaysInMonth) * activeDays
+        const nbvBefore = Math.max(salvageValue, netAssetCost - accumBefore)
+        depAmount = Math.min(baseDep, Math.max(0, nbvBefore - salvageValue))
+        
+        if (depAmount > 0) {
+          await tx.depreciations.create({
+            data: {
+              accumulated: accumBefore + depAmount,
+              amount: depAmount,
+              asset_id: assetId,
+              date: dDate,
+              nbv: netAssetCost - (accumBefore + depAmount),
+              period_month: dMonth,
+              period_year: dYear,
+              posted_by: actor,
+              status: 'posted',
+            },
+          })
+        }
+      }
+      
+      const currentAccum = accumBefore + depAmount
+      const bookValue = Math.max(salvageValue, netAssetCost - currentAccum)
+      
       const disposal = await tx.asset_disposals.create({
         data: {
           approved_at: new Date(),

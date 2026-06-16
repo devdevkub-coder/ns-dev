@@ -45,12 +45,32 @@ function activeDeps(asset: DepAsset) {
   return asset.depreciations.filter((dep) => dep.status !== 'reversed')
 }
 
-function assetRunRow(asset: DepAsset) {
+function assetRunRow(asset: DepAsset, periodYear: number, periodMonth: number) {
   const accumBefore = activeDeps(asset).reduce((sum, dep) => sum + toNumber(dep.amount), 0)
   const netAssetCost = toNumber(asset.net_asset_cost)
   const salvageValue = toNumber(asset.salvage_value)
   const nbvBefore = Math.max(salvageValue, netAssetCost - accumBefore)
-  const depreciationAmount = Math.min(monthlyDep(asset), Math.max(0, nbvBefore - salvageValue))
+  
+  let baseDep = monthlyDep(asset)
+  
+  if (asset.purchase_date) {
+    const pDate = new Date(asset.purchase_date)
+    const purchaseYear = pDate.getUTCFullYear()
+    const purchaseMonth = pDate.getUTCMonth() + 1
+    
+    if (purchaseYear === periodYear && purchaseMonth === periodMonth) {
+      // เดือนแรกที่ซื้อ -> คำนวณเศษจำนวนวันแบบ Pro-rata
+      const purchaseDay = pDate.getUTCDate()
+      const totalDaysInMonth = new Date(Date.UTC(periodYear, periodMonth, 0)).getUTCDate()
+      const activeDays = Math.max(0, totalDaysInMonth - purchaseDay + 1)
+      baseDep = (baseDep / totalDaysInMonth) * activeDays
+    } else if (purchaseYear > periodYear || (purchaseYear === periodYear && purchaseMonth > periodMonth)) {
+      // ซื้อในอนาคตเทียบกับงวดที่เลือก -> ไม่มีค่าเสื่อมงวดนี้
+      baseDep = 0
+    }
+  }
+
+  const depreciationAmount = Math.min(baseDep, Math.max(0, nbvBefore - salvageValue))
   const accumAfter = accumBefore + depreciationAmount
   const nbvAfter = Math.max(salvageValue, netAssetCost - accumAfter)
   return {
@@ -76,6 +96,7 @@ async function previewRun(periodYear: number, periodMonth: number) {
     where: {
       asset_status: { notIn: ['Inactive', 'Sold', 'Disposed', 'Lost', 'Fully Depreciated'] },
       depreciation_method: { notIn: ['No Depreciation', 'Manual'] },
+      purchase_date: { lte: periodDate(periodYear, periodMonth) },
     },
     take: 5000,
   })
@@ -89,7 +110,7 @@ async function previewRun(periodYear: number, periodMonth: number) {
   )
   const rows = assets
     .filter((asset) => !alreadyRun.has(String(asset.id)))
-    .map(assetRunRow)
+    .map((asset) => assetRunRow(asset, periodYear, periodMonth))
     .filter((row) => row.depreciationAmount > 0)
   return {
     periodDate: toDateOnly(periodDate(periodYear, periodMonth)),
