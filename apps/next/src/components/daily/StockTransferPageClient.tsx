@@ -96,7 +96,7 @@ export function StockTransferPageClient() {
   const [sourceStockLoading, setSourceStockLoading] = useState(false)
   const [totalQtyFrom, setTotalQtyFrom] = useState('')
   const [totalQtyTo, setTotalQtyTo] = useState('')
-  const columnResize = useResizableColumns('daily.stock-transfer.v2', stockTransferColumns)
+  const columnResize = useResizableColumns('daily.stock-transfer.v3', stockTransferColumns)
 
   const loadData = useCallback(async () => {
     setIsLoading(true)
@@ -729,9 +729,9 @@ export function StockTransferPageClient() {
       <div className="hidden overflow-x-auto rounded-md bg-white shadow md:block">
         <Table style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
           <colgroup>
-            {stockTransferColumns.map((column, index) => {
+            {stockTransferColumns.map((column) => {
               const style = columnResize.getColumnStyle(column.key)
-              if (index === stockTransferColumns.length - 1) {
+              if (column.key === 'from') {
                 return <col key={column.key} style={{ minWidth: column.minWidth }} />
               }
               return <col key={column.key} style={style} />
