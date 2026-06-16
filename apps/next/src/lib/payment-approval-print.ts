@@ -71,6 +71,102 @@ function companyInfo(profile: CompanyProfilePrintValues) {
   ].filter(Boolean).map(escapeHtml).join('<br>')
 }
 
+function amountToPay(row: PrintPmaRow) {
+  return row.approvalStatus === 'pending' && row.payableBalance ? row.payableBalance : row.approvedAmount
+}
+
+function billRemain(row: PrintPmaRow) {
+  return row.payableBalance ?? (row.totalAmount - (row.paidAmount ?? 0))
+}
+
+function payeeName(row: PrintPmaRow) {
+  return row.supplierName || row.payee || '-'
+}
+
+function destinationText(row: PrintPmaRow) {
+  return row.destinationLabel || row.accountName || ''
+}
+
+function normalizedGroupValue(value: string) {
+  return value.trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+function paymentSummaryGroupKey(row: PrintPmaRow) {
+  return `${normalizedGroupValue(payeeName(row))}::${normalizedGroupValue(destinationText(row))}`
+}
+
+function bankAccountHtml(row: PrintPmaRow) {
+  const destination = destinationText(row)
+  if (destination && destination.includes(' / ')) {
+    const parts = destination.split(' / ')
+    if (parts.length >= 3) {
+      return `<span class="font-semibold">${escapeHtml(parts[1])}</span> // <span class="font-bold">${escapeHtml(parts[2])}</span>`
+    }
+    return escapeHtml(destination)
+  }
+  if (destination && destination !== 'ยังไม่มีช่องทางจ่ายปลายทาง' && destination !== 'ยังไม่มีบัญชีจ่ายปลายทาง') {
+    return escapeHtml(destination)
+  }
+  return '<span class="text-red font-bold text-xs">⚠ ไม่มี</span>'
+}
+
+function buildPaymentSummaryGroups(rows: PrintPmaRow[]) {
+  const groupStats = new Map<string, {
+    count: number
+    paidAmount: number
+    payableBalance: number
+    payeeName: string
+    destinationHtml: string
+    totalAmount: number
+    totalToPay: number
+  }>()
+
+  rows.forEach((row) => {
+    const key = paymentSummaryGroupKey(row)
+    const current = groupStats.get(key) ?? {
+      count: 0,
+      paidAmount: 0,
+      payableBalance: 0,
+      payeeName: payeeName(row),
+      destinationHtml: bankAccountHtml(row),
+      totalAmount: 0,
+      totalToPay: 0,
+    }
+    current.count += 1
+    current.totalAmount += row.totalAmount
+    current.paidAmount += row.paidAmount ?? 0
+    current.payableBalance += billRemain(row)
+    current.totalToPay += amountToPay(row)
+    groupStats.set(key, current)
+  })
+
+  const seenCounts = new Map<string, number>()
+  return rows.map((row) => {
+    const key = paymentSummaryGroupKey(row)
+    const group = groupStats.get(key)
+    const seen = (seenCounts.get(key) ?? 0) + 1
+    seenCounts.set(key, seen)
+    return {
+      group,
+      row,
+      shouldRenderGroupSummary: Boolean(group && group.count > 1 && seen === group.count),
+    }
+  })
+}
+
+function sortedRowsForPaymentSummary(rows: PrintPmaRow[]) {
+  const collator = new Intl.Collator('th-TH', { numeric: true, sensitivity: 'base' })
+  return [...rows].sort((left, right) => {
+    const groupCompare = collator.compare(paymentSummaryGroupKey(left), paymentSummaryGroupKey(right))
+    if (groupCompare !== 0) return groupCompare
+    const dateCompare = collator.compare(left.date ?? '', right.date ?? '')
+    if (dateCompare !== 0) return dateCompare
+    const sourceCompare = collator.compare(left.sourceDocNo ?? '', right.sourceDocNo ?? '')
+    if (sourceCompare !== 0) return sourceCompare
+    return collator.compare(left.docNo ?? '', right.docNo ?? '')
+  })
+}
+
 export function thaiBahtText(num: number): string {
   if (isNaN(num) || num === null || num === undefined) return ''
   if (num === 0) return 'ศูนย์บาทถ้วน'
@@ -136,40 +232,39 @@ function convertToThaiText(numberStr: string): string {
 
 export function buildPmaSummaryPrintHtml(rows: PrintPmaRow[], profile: CompanyProfilePrintValues, modeLabel: string) {
   const currentDate = formatDateDisplay(new Date().toISOString().split('T')[0])
-  const totalAmountToPay = rows.reduce((sum, row) => sum + (row.approvalStatus === 'pending' && row.payableBalance ? row.payableBalance : row.approvedAmount), 0)
+  const totalAmountToPay = rows.reduce((sum, row) => sum + amountToPay(row), 0)
+  const sortedRows = sortedRowsForPaymentSummary(rows)
 
-  const rowsHtml = rows.map((row) => {
-    const isPending = row.approvalStatus === 'pending'
-    const payeeName = row.supplierName || row.payee || '-'
-    const destinationText = row.destinationLabel || row.accountName || ''
-    
-    // จัดการบัญชีธนาคาร
-    let bankAccountHtml = '<span class="text-red font-bold text-xs">⚠ ไม่มี</span>'
-    if (destinationText && destinationText.includes(' / ')) {
-       const parts = destinationText.split(' / ')
-       if (parts.length >= 3) {
-          bankAccountHtml = `<span class="font-semibold">${escapeHtml(parts[1])}</span> // <span class="font-bold">${escapeHtml(parts[2])}</span>`
-       } else {
-          bankAccountHtml = escapeHtml(destinationText)
-       }
-    } else if (destinationText && destinationText !== 'ยังไม่มีช่องทางจ่ายปลายทาง' && destinationText !== 'ยังไม่มีบัญชีจ่ายปลายทาง') {
-       bankAccountHtml = escapeHtml(destinationText)
-    }
-
-    const amountToPay = isPending && row.payableBalance ? row.payableBalance : row.approvedAmount
+  const rowsHtml = buildPaymentSummaryGroups(sortedRows).map(({ group, row, shouldRenderGroupSummary }) => {
+    const payee = payeeName(row)
     const billTotal = row.totalAmount
     const billPaid = row.paidAmount ?? 0
-    const billRemain = row.payableBalance ?? (billTotal - billPaid)
+    const remaining = billRemain(row)
 
-    return `
+    const rowHtml = `
       <tr>
         <td class="font-medium">${escapeHtml(formatDateDisplay(row.date))}</td>
-        <td class="font-bold text-slate-800">${escapeHtml(payeeName)}</td>
-        <td>${bankAccountHtml}</td>
+        <td class="font-semibold text-slate-700">${escapeHtml(row.sourceDocNo || row.docNo || '-')}</td>
+        <td class="font-bold text-slate-800">${escapeHtml(payee)}</td>
+        <td>${bankAccountHtml(row)}</td>
         <td class="num font-semibold text-slate-700">${money(billTotal)}</td>
         <td class="num text-slate-600">${money(billPaid)}</td>
-        <td class="num font-semibold text-slate-700">${money(billRemain)}</td>
-        <td class="num font-bold text-slate-900">${money(amountToPay)}</td>
+        <td class="num font-semibold text-slate-700">${money(remaining)}</td>
+        <td class="num font-bold text-slate-900">${money(amountToPay(row))}</td>
+      </tr>
+    `
+    if (!shouldRenderGroupSummary || !group) return rowHtml
+
+    return `${rowHtml}
+      <tr class="group-total">
+        <td></td>
+        <td></td>
+        <td class="font-bold text-slate-900">${escapeHtml(group.payeeName)} รวม</td>
+        <td>${group.destinationHtml}</td>
+        <td class="num font-bold">${money(group.totalAmount)}</td>
+        <td class="num font-bold">${money(group.paidAmount)}</td>
+        <td class="num font-bold">${money(group.payableBalance)}</td>
+        <td class="num font-bold">${money(group.totalToPay)}</td>
       </tr>
     `
   }).join('')
@@ -198,6 +293,7 @@ export function buildPmaSummaryPrintHtml(rows: PrintPmaRow[], profile: CompanyPr
       .summary-table th { background: #f8fafc; border: 1px solid #cbd5e1; color: #334155; font-weight: 800; padding: 10px; text-align: left; font-size: 12px; }
       .summary-table td { border: 1px solid #e2e8f0; padding: 8px 10px; font-size: 12px; }
       .summary-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+      .summary-table .group-total td { background: #f1f5f9; border-top: 2px solid #94a3b8; border-bottom: 2px solid #cbd5e1; }
       
       .summary-table tfoot td { background: #f8fafc; font-weight: 800; border-top: 2px solid #94a3b8; }
       
@@ -215,6 +311,7 @@ export function buildPmaSummaryPrintHtml(rows: PrintPmaRow[], profile: CompanyPr
         .toolbar { display: none; }
         .page { padding: 0; }
         .summary-table th { background: #f8fafc !important; -webkit-print-color-adjust: exact; }
+        .summary-table .group-total td { background: #f1f5f9 !important; -webkit-print-color-adjust: exact; }
         .summary-table tfoot td { background: #f8fafc !important; -webkit-print-color-adjust: exact; }
       }
     </style>
@@ -231,13 +328,14 @@ export function buildPmaSummaryPrintHtml(rows: PrintPmaRow[], profile: CompanyPr
       <table class="summary-table">
         <thead>
           <tr>
-            <th style="width: 10%;">วันที่</th>
-            <th style="width: 25%;">Supplier</th>
-            <th style="width: 25%;">เลขบัญชีธนาคาร</th>
+            <th style="width: 9%;">วันที่ PMA</th>
+            <th style="width: 12%;">เลขที่เอกสาร</th>
+            <th style="width: 22%;">Supplier</th>
+            <th style="width: 23%;">เลขบัญชีธนาคาร</th>
             <th class="num" style="width: 10%;">ยอดเต็ม</th>
-            <th class="num" style="width: 10%;">ชำระแล้ว</th>
-            <th class="num" style="width: 10%;">คงเหลือ</th>
-            <th class="num" style="width: 10%;">ยอดที่จะจ่าย</th>
+            <th class="num" style="width: 8%;">ชำระแล้ว</th>
+            <th class="num" style="width: 8%;">คงเหลือ</th>
+            <th class="num" style="width: 8%;">ยอดที่จะจ่าย</th>
           </tr>
         </thead>
         <tbody>
@@ -245,7 +343,7 @@ export function buildPmaSummaryPrintHtml(rows: PrintPmaRow[], profile: CompanyPr
         </tbody>
         <tfoot>
           <tr>
-            <td colspan="6" class="num" style="font-size: 14px;">รวมทั้งสิ้น:</td>
+            <td colspan="7" class="num" style="font-size: 14px;">รวมทั้งสิ้น:</td>
             <td class="num" style="font-size: 13px; color: #000;">
               <div style="font-weight: 900; padding-bottom: 2px;">${money(totalAmountToPay)}</div>
               <div style="font-size: 10px; font-weight: bold; color: #475569;">บาท</div>

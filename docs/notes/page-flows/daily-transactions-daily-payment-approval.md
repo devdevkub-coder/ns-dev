@@ -34,6 +34,7 @@ PMA approval document สำหรับ source payable ก่อน PMT
 - แสดง PMA approved ที่รอทำจ่าย และ PMA voided แบบ read-only
 - snapshot ผู้รับเงิน ช่องทางรับเงิน บัญชีรับเงิน ยอดอนุมัติ และผู้อนุมัติ
 - lock source document เมื่อมี active PMA approved
+- ใบพิมพ์ชุดที่เลือกต้องแสดงรายการเดิมครบ, sort ให้ผู้รับเงิน/Supplier และช่องทางจ่ายเดียวกันอยู่ติดกัน, แสดงเลขที่เอกสารต้นทาง, ใช้วันที่ PMA ในคอลัมน์วันที่ และเพิ่มแถวรวมเมื่อผู้รับเงิน/Supplier เดียวกันใช้ช่องทางจ่ายหรือเลขบัญชีเดียวกันมากกว่า 1 รายการ
 
 ## Non-Responsibilities
 
