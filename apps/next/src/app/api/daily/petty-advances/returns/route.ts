@@ -3,7 +3,7 @@ import { pettyAdvanceReturnFormSchema } from '@/lib/daily'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
-import { currentActor, nextDailyDocNo, normalizeDate, toNumber } from '@/lib/server/daily'
+import { currentActor, normalizeDate, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import type { Prisma } from '../../../../../../generated/prisma/client'
 
@@ -35,55 +35,49 @@ export async function POST(request: Request) {
         return null
       }
 
-      const entry = await tx.petty_advance_returns.create({
-        data: {
-          account_id: account.id,
-          advance_id: advance.id,
-          amount: values.amount,
-          created_by: actor,
-          date: normalizeDate(values.date),
-          doc_no: await nextDailyDocNo('petty_advance_returns', 'PRET', values.date, tx),
-          notes: values.notes,
+      const existingPending = await tx.payment_approvals.findFirst({
+        where: {
+          source_id: advance.id.toString(),
+          source_type: 'petty_advance_return',
+          status: 'pending',
         },
       })
+      if (existingPending) {
+        throw new Error('มีรายการคืนเงินรออนุมัติอยู่แล้ว')
+      }
+      const remaining = Math.max(0, toNumber(advance.amount) - toNumber(advance.returned_amount))
+      if (values.amount - remaining > 0.01) {
+        throw new Error('ยอดคืนเงินเกินยอดคงค้าง')
+      }
 
-      const returnedAmount = toNumber(advance.returned_amount) + values.amount
-      const status = returnedAmount >= toNumber(advance.amount) ? 'closed' : advance.status
-      await tx.petty_advances.update({
+      const requestedReturn = await tx.payment_approvals.create({
         data: {
-          closed_at: status === 'closed' ? new Date() : advance.closed_at,
-          returned_amount: returnedAmount,
-          status,
+          approved_amount: values.amount,
+          approved_by: actor,
+          destination_account_no_snapshot: account.accountNo ?? null,
+          destination_bank_account_id_snapshot: account.code ?? null,
+          destination_bank_name_snapshot: account.name,
+          destination_payment_method_snapshot: account.type ?? 'รับคืน',
+          note: values.notes,
+          party_id: advance.recipient_person_code ?? null,
+          party_name_snapshot: advance.recipient_name,
+          source_date_snapshot: normalizeDate(values.date),
+          source_doc_no_snapshot: advance.doc_no,
+          source_id: advance.id.toString(),
+          source_type: 'petty_advance_return',
+          status: 'pending',
           updated_at: new Date(),
-          updated_by: actor,
-        },
-        where: { id: advance.id },
-      })
-
-      await tx.bank_statement.create({
-        data: {
-          account_id: account.id,
-          amount_in: values.amount,
-          amount_out: 0,
-          created_by: actor,
-          date: normalizeDate(values.date),
-          description: `คืน ${advance.doc_no} โดย ${advance.recipient_name}`,
-          doc_no: await nextDailyDocNo('bank_statement', 'BST', values.date, tx),
-          ref_id: entry.doc_no,
-          ref_no: entry.doc_no,
-          ref_type: 'PRET',
-          type: 'คืนเงินสำรองจ่าย',
         },
       })
 
-      return entry
+      return requestedReturn
     })
 
     if (!result) {
       return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบรายการเงินสำรอง' }, { status: 404 })
     }
 
-    return NextResponse.json({ docNo: result.doc_no, id: result.doc_no })
+    return NextResponse.json({ id: result.id.toString(), status: result.status })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'บันทึกคืนเงินสำรองจ่ายไม่ได้', 400)

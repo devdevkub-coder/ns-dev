@@ -14,6 +14,7 @@ type PettyAdvanceRow = PettyAdvanceFormValues & {
   accountName: string
   docNo: string
   id: string
+  pendingReturn: number
   remaining: number
   recipientAccountLabel: string
   recipientAccountNo: string
@@ -556,7 +557,7 @@ export function DailyPettyAdvancePageClient() {
             </div>
             <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
               <button className="rounded-md px-4 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/50" type="button" onClick={() => setReturningRow(null)}>ยกเลิก</button>
-              <button className="rounded-md bg-[#0F172A] hover:bg-[#1E293B] px-5 py-2 text-sm font-semibold text-white disabled:opacity-60 transition-colors" disabled={isSaving} type="submit">บันทึกคืนเงิน</button>
+              <button className="rounded-md bg-[#0F172A] hover:bg-[#1E293B] px-5 py-2 text-sm font-semibold text-white disabled:opacity-60 transition-colors" disabled={isSaving} type="submit">{isSaving ? 'กำลังส่งอนุมัติ...' : 'ส่งอนุมัติคืนเงิน'}</button>
             </div>
           </form>
         </div>
@@ -597,6 +598,9 @@ export function DailyPettyAdvancePageClient() {
               <div className="text-xs text-slate-500">
                 {row.spent > 0 ? (
                   <span className="block">ใช้ไปแล้ว: <span className="font-semibold text-blue-700">{formatMoney(row.spent)}</span></span>
+                ) : null}
+                {row.pendingReturn > 0 ? (
+                  <span className="block">รออนุมัติคืน: <span className="font-semibold text-amber-700">{formatMoney(row.pendingReturn)}</span></span>
                 ) : null}
                 {row.returned > 0 ? (
                   <span className="block">คืนแล้ว: <span className="font-semibold text-emerald-700">{formatMoney(row.returned)}</span></span>
@@ -661,7 +665,7 @@ export function DailyPettyAdvancePageClient() {
                 <td className="p-2 text-center"><StatusBadge status={row.status} /></td>
                 <td className="space-x-1 whitespace-nowrap p-2 text-right">
                   <button className="text-xs text-blue-600 hover:underline" title="ดูรายละเอียด" type="button" onClick={(event) => { event.stopPropagation(); setDetailRow(row) }}>ดู</button>
-                  {row.status === 'active' && row.remaining > 0 ? <button className="rounded-md bg-emerald-600 px-2 py-1 text-xs text-white" type="button" onClick={(event) => { event.stopPropagation(); openReturnForm(row) }}>คืนเงิน</button> : null}
+                  {row.status === 'active' && row.remaining > 0 && row.pendingReturn <= 0 ? <button className="rounded-md bg-emerald-600 px-2 py-1 text-xs text-white" type="button" onClick={(event) => { event.stopPropagation(); openReturnForm(row) }}>คืนเงิน</button> : null}
                   {row.status === 'active' ? <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50" type="button" onClick={(event) => { event.stopPropagation(); openEditForm(row) }}>แก้ไข</button> : null}
                   <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" disabled type="button" onClick={(event) => event.stopPropagation()}>ยกเลิก</button>
                 </td>
@@ -677,7 +681,7 @@ export function DailyPettyAdvancePageClient() {
 
 function DetailModal({ onClose, onReturn, row }: { onClose: () => void; onReturn: (row: PettyAdvanceRow) => void; row: PettyAdvanceRow }) {
   const returns = row.returns ?? []
-  const canReturn = row.status === 'active' && row.remaining > 0
+  const canReturn = row.status === 'active' && row.remaining > 0 && row.pendingReturn <= 0
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8" onClick={onClose}>
       <div className="w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-xl animate-in fade-in zoom-in-95 duration-150" onClick={(event) => event.stopPropagation()}>
@@ -721,6 +725,7 @@ function DetailModal({ onClose, onReturn, row }: { onClose: () => void; onReturn
             <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลการยืมและผู้รับ</div>
             <div className="grid grid-cols-1 gap-y-3">
               <DetailItem label="บัญชีรับเงินของกรรมการ/พนักงาน" value={row.recipientAccountLabel || '-'} />
+              {row.pendingReturn > 0 ? <DetailItem label="ยอดรออนุมัติคืน" value={`${formatMoney(row.pendingReturn)} บาท`} /> : null}
               <DetailItem label="หมายเหตุการยืม" value={row.notes || '-'} />
             </div>
           </div>

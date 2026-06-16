@@ -173,7 +173,7 @@ function pettyAdvanceFieldError(path: string, message: string) {
   return new z.ZodError([{ code: z.ZodIssueCode.custom, message, path: [path] }])
 }
 
-function advanceJson(row: PettyAdvanceWithRelations) {
+function advanceJson(row: PettyAdvanceWithRelations, pendingReturn = 0) {
   const returned = toNumber(row.returned_amount)
   const spent = 0
   const amount = toNumber(row.amount)
@@ -186,6 +186,7 @@ function advanceJson(row: PettyAdvanceWithRelations) {
     docNo: row.doc_no,
     id: row.doc_no,
     notes: row.notes ?? '',
+    pendingReturn,
     recipientAccountLabel: formatBankLabel({
       accountName: row.recipient_bank_account_name,
       accountNo: row.recipient_account_no,
@@ -220,7 +221,7 @@ export async function GET() {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'finance.cash.view')
 
-    const [accounts, rows, recipientOptions] = await Promise.all([
+    const [accounts, rows, recipientOptions, pendingReturnApprovals] = await Promise.all([
       listDailyAccounts(),
       prisma.petty_advances.findMany({
         include: {
@@ -234,9 +235,23 @@ export async function GET() {
         take: 5000,
       }),
       listPettyAdvanceRecipients(),
+      prisma.payment_approvals.findMany({
+        select: {
+          approved_amount: true,
+          source_id: true,
+        },
+        where: {
+          source_type: 'petty_advance_return',
+          status: 'pending',
+        },
+      }),
     ])
+    const pendingReturnByAdvanceId = new Map<string, number>()
+    pendingReturnApprovals.forEach((approval) => {
+      pendingReturnByAdvanceId.set(approval.source_id, (pendingReturnByAdvanceId.get(approval.source_id) ?? 0) + toNumber(approval.approved_amount))
+    })
 
-    return NextResponse.json({ accounts, recipientOptions, rows: rows.map(advanceJson) })
+    return NextResponse.json({ accounts, recipientOptions, rows: rows.map((row) => advanceJson(row, pendingReturnByAdvanceId.get(row.id.toString()) ?? 0)) })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'โหลดเงินสำรองจ่ายไม่ได้', 500)

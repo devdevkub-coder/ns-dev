@@ -34,7 +34,7 @@ type PrintPmaRow = {
   payableBalance?: number
   sourceDocNo: string
   sourceLabel?: string
-  sourceType: 'advance_payment' | 'purchase_bill' | 'expense'
+  sourceType: 'advance_payment' | 'purchase_bill' | 'expense' | 'petty_advance_return'
   supplierName?: string
   payee?: string
   totalAmount: number
