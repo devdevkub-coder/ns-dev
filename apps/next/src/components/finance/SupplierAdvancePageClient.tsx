@@ -91,14 +91,12 @@ export function SupplierAdvancePageClient() {
 
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <Metric label="Advance คงเหลือรวม (THB)" value={formatMoney(data?.summary.totalRemainingThb ?? 0)} tone="amber" />
-          <Metric label="จำนวนรายการ Active" value={`${data?.summary.activeCount ?? 0}`} />
-          <div className="flex items-center justify-end gap-2">
-            <a className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50" href={exportHref}>Export XLSX</a>
-            <button className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white opacity-60" disabled type="button">+ จ่ายล่วงหน้าใหม่</button>
-          </div>
+      <div className="grid grid-cols-1 gap-2.5 sm:gap-4 md:grid-cols-3 text-sm">
+        <Metric label="Advance คงเหลือรวม (THB)" value={formatMoney(data?.summary.totalRemainingThb ?? 0)} tone="amber" />
+        <Metric label="จำนวนรายการ Active" value={`${data?.summary.activeCount ?? 0}`} />
+        <div className="flex items-center justify-end gap-2">
+          <a className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50" href={exportHref}>Export XLSX</a>
+          <button className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white opacity-60" disabled type="button">+ จ่ายล่วงหน้าใหม่</button>
         </div>
       </div>
 
@@ -199,12 +197,20 @@ export function SupplierAdvancePageClient() {
 }
 
 function Metric({ label, tone, value }: { label: string; tone?: 'amber'; value: string }) {
-  const config = tone === 'amber'
-    ? { bg: 'bg-amber-100 text-amber-600', emoji: '💵', labelColor: 'text-amber-600', valueColor: 'text-amber-700' }
-    : { bg: 'bg-slate-100 text-slate-600', emoji: '📋', labelColor: 'text-slate-500', valueColor: 'text-slate-900' }
+  const configs = {
+    amber: { bg: 'bg-amber-100 text-amber-600', emoji: '💵', labelColor: 'text-amber-600', valueColor: 'text-amber-700' },
+    slate: { bg: 'bg-slate-100 text-slate-600', emoji: '📋', labelColor: 'text-slate-500', valueColor: 'text-slate-900' }
+  }
+
+  const numericValue = parseFloat(value.replace(/[^0-9.-]/g, ''))
+  const isZero = isNaN(numericValue) ? false : numericValue === 0
+
+  const config = isZero
+    ? { bg: 'bg-slate-100 text-slate-600', emoji: configs[tone || 'slate'].emoji, labelColor: 'text-slate-500', valueColor: 'text-slate-900' }
+    : configs[tone || 'slate']
 
   return (
-    <div className="bg-white p-3 sm:p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+    <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
       <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${config.bg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
         {config.emoji}
       </div>

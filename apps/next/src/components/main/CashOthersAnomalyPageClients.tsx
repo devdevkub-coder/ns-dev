@@ -107,16 +107,16 @@ function Grand({ danger = false, icon, label, value }: { danger?: boolean; icon:
 
 function PendingSaleBlock({ summary }: { summary: Record<string, number> }) {
   return (
-    <div className="rounded-xl border border-slate-100 bg-slate-50/40 p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800">
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="flex items-center gap-2 text-sm font-bold text-slate-850">
           <span className="text-xl">📦</span> ต้นทุนรอเปิดบิล (Pending Sale) — เงินค้างใน Stock ที่เบิกออกไปแล้ว
         </h3>
         <Link className="rounded-lg bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-bold text-white transition-colors outline-none focus:outline-none" href="/sales/stock-issue">
           ดูทั้งหมด →
         </Link>
       </div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
         <Mini label="⏰ จำนวนใบ" tone="amber" value={money(summary.count)} />
         <Mini label="⚖ น้ำหนัก" tone="blue" value={`${money(summary.qty)} กก.`} />
         <Mini label="💰 ต้นทุน (เงินที่ค้าง)" tone="red" value={money(summary.cost)} />
@@ -128,16 +128,16 @@ function PendingSaleBlock({ summary }: { summary: Record<string, number> }) {
 
 function TradingPendingBlock({ summary }: { summary: Record<string, number> }) {
   return (
-    <div className="rounded-xl border border-slate-100 bg-slate-50/40 p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800">
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="flex items-center gap-2 text-sm font-bold text-slate-850">
           <span className="text-xl">🔄</span> Trading Pending รับเงิน — Trading ซื้อจ่ายแล้ว แต่ Sales ยังไม่เปิด
         </h3>
         <Link className="rounded-lg bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-bold text-white transition-colors outline-none focus:outline-none" href="/trading/matching">
           Trading Matching →
         </Link>
       </div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
         <Mini label="📋 บิลซื้อ" tone="purple" value={`${money(summary.billCount)} ใบ`} />
         <Mini label="💸 จ่ายไปแล้ว" tone="blue" value={money(summary.paidAmount)} />
         <Mini label="✓ Match แล้ว" tone="emerald" value={money(summary.matchedAmount)} />
@@ -148,6 +148,9 @@ function TradingPendingBlock({ summary }: { summary: Record<string, number> }) {
 }
 
 function Mini({ label, tone, value }: { label: string; tone: string; value: string }) {
+  const numericValue = parseFloat(value.replace(/[^0-9.-]/g, ''))
+  const isZero = isNaN(numericValue) ? false : numericValue === 0
+
   const textToneMap: Record<string, string> = {
     amber: 'text-amber-700',
     blue: 'text-blue-750',
@@ -156,9 +159,9 @@ function Mini({ label, tone, value }: { label: string; tone: string; value: stri
     purpleStrong: 'text-purple-800',
     red: 'text-red-700'
   }
-  const color = textToneMap[tone] ?? 'text-slate-700'
+  const color = isZero ? 'text-slate-900' : (textToneMap[tone] ?? 'text-slate-700')
   return (
-    <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
       <div className="text-xs text-slate-500 font-medium">{label}</div>
       <div className={`mt-0.5 break-words text-lg font-bold ${color}`}>{value}</div>
     </div>

@@ -152,12 +152,10 @@ export function FxGainLossReportPageClient() {
         </div>
       </div>
 
-      <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <MetricCard label="FX Gain รวม" tone="gain" value={data?.summary.totalGain ?? 0} />
-          <MetricCard label="FX Loss รวม" tone="loss" value={data?.summary.totalLoss ?? 0} />
-          <MetricCard label="Net FX G/L" tone="net" value={data?.summary.net ?? 0} />
-        </div>
+      <div className="grid grid-cols-1 gap-2.5 sm:gap-4 md:grid-cols-3 text-sm">
+        <MetricCard label="FX Gain รวม" tone="gain" value={data?.summary.totalGain ?? 0} />
+        <MetricCard label="FX Loss รวม" tone="loss" value={data?.summary.totalLoss ?? 0} />
+        <MetricCard label="Net FX G/L" tone="net" value={data?.summary.net ?? 0} />
       </div>
 
       <div className="hidden lg:block">
@@ -257,7 +255,10 @@ export function FxGainLossReportPageClient() {
 function MetricCard({ label, tone, value }: { label: string; tone: 'gain' | 'loss' | 'net'; value: number }) {
   let config = { bg: 'bg-slate-100 text-slate-600', emoji: '📊', labelColor: 'text-slate-500', valueColor: 'text-slate-900' }
 
-  if (tone === 'gain') {
+  if (value === 0) {
+    const emojis = { gain: '📈', loss: '📉', net: '💰' }
+    config = { bg: 'bg-slate-100 text-slate-600', emoji: emojis[tone] || '📊', labelColor: 'text-slate-500', valueColor: 'text-slate-900' }
+  } else if (tone === 'gain') {
     config = { bg: 'bg-emerald-100 text-emerald-600', emoji: '📈', labelColor: 'text-emerald-600', valueColor: 'text-emerald-700' }
   } else if (tone === 'loss') {
     config = { bg: 'bg-rose-100 text-rose-600', emoji: '📉', labelColor: 'text-rose-600', valueColor: 'text-rose-700' }

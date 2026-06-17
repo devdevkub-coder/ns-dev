@@ -2527,13 +2527,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   return (
     <section className="space-y-4">
       {mode === 'stock-issue' ? (
-        <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl shadow-sm">
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <TransactionKpi label="⏰ Pending / รายการ" tone="amber" value={`${totalRows.toLocaleString('th-TH')} ใบ`} />
-            <TransactionKpi label="น้ำหนักรวมในหน้า" tone="blue" value={`${formatMoney(stockIssueQty)} กก.`} />
-            <TransactionKpi label="ต้นทุน (WAC)" tone="red" value={formatMoney(stockIssueCost)} />
-            <TransactionKpi label="ยอดขายคาด" tone="emerald" value={formatMoney(stockIssueEst || total)} />
-          </div>
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
+          <TransactionKpi label="⏰ Pending / รายการ" tone="amber" value={`${totalRows.toLocaleString('th-TH')} ใบ`} />
+          <TransactionKpi label="น้ำหนักรวมในหน้า" tone="blue" value={`${formatMoney(stockIssueQty)} กก.`} />
+          <TransactionKpi label="ต้นทุน (WAC)" tone="red" value={formatMoney(stockIssueCost)} />
+          <TransactionKpi label="ยอดขายคาด" tone="emerald" value={formatMoney(stockIssueEst || total)} />
         </div>
       ) : null}
 
@@ -5081,13 +5079,18 @@ function TransactionKpi({ label, tone, value }: { label: string; tone: 'amber' |
     emoji = '⚙️'
   }
 
-  const config = {
-    amber: { iconBg: 'bg-amber-100 text-amber-700', color: 'text-amber-700' },
-    blue: { iconBg: 'bg-blue-100 text-blue-700', color: 'text-blue-700' },
-    emerald: { iconBg: 'bg-emerald-100 text-emerald-700', color: 'text-emerald-700' },
-    red: { iconBg: 'bg-red-100 text-red-700', color: 'text-red-600' },
-    slate: { iconBg: 'bg-slate-100 text-slate-700', color: 'text-slate-900' },
-  }[tone] || { iconBg: 'bg-slate-100 text-slate-700', color: 'text-slate-900' }
+  const numericValue = parseFloat(value.replace(/[^0-9.-]/g, ''))
+  const isZero = isNaN(numericValue) ? false : numericValue === 0
+
+  const config = isZero
+    ? { iconBg: 'bg-slate-100 text-slate-700', color: 'text-slate-900' }
+    : {
+        amber: { iconBg: 'bg-amber-100 text-amber-700', color: 'text-amber-700' },
+        blue: { iconBg: 'bg-blue-100 text-blue-700', color: 'text-blue-700' },
+        emerald: { iconBg: 'bg-emerald-100 text-emerald-700', color: 'text-emerald-700' },
+        red: { iconBg: 'bg-red-100 text-red-700', color: 'text-red-600' },
+        slate: { iconBg: 'bg-slate-100 text-slate-700', color: 'text-slate-900' },
+      }[tone] || { iconBg: 'bg-slate-100 text-slate-700', color: 'text-slate-900' }
 
   // Clean label from prefix emojis to prevent duplicate symbols on circular icons
   const cleanLabel = label.replace(/[⏰⚖💰📈⊘✓]/g, '').trim()

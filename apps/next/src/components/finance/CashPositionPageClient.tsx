@@ -134,52 +134,50 @@ export function CashPositionPageClient() {
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <div className={`relative overflow-hidden rounded-xl p-5 text-white shadow-xl ${netCash >= 0 ? 'bg-gradient-to-br from-emerald-500 to-teal-700' : 'bg-gradient-to-br from-red-500 to-rose-700'}`}>
-            <div className="absolute right-3 top-2 text-7xl opacity-15">{netCash >= 0 ? '💰' : '⚠️'}</div>
-            <div className="text-xs opacity-90">Net Cash Position</div>
-            <div className="mt-1 text-4xl font-bold">{formatMoney(netCash)}</div>
-            <div className="mt-3 text-sm opacity-90">= Cash + Bank + FCD + AR − AP − OD ใช้</div>
-          </div>
+      <div className="grid grid-cols-1 gap-2.5 sm:gap-4 md:grid-cols-3 text-sm">
+        <div className={`relative overflow-hidden rounded-xl p-5 text-white shadow-xl ${netCash >= 0 ? 'bg-gradient-to-br from-emerald-500 to-teal-700' : 'bg-gradient-to-br from-red-500 to-rose-700'}`}>
+          <div className="absolute right-3 top-2 text-7xl opacity-15">{netCash >= 0 ? '💰' : '⚠️'}</div>
+          <div className="text-xs opacity-90">Net Cash Position</div>
+          <div className="mt-1 text-4xl font-bold">{formatMoney(netCash)}</div>
+          <div className="mt-3 text-sm opacity-90">= Cash + Bank + FCD + AR − AP − OD ใช้</div>
+        </div>
 
-          <div className="bg-white p-4 border border-slate-100 rounded-xl shadow-sm">
-            <div className="mb-2 text-sm font-bold text-slate-700">🥧 องค์ประกอบเงิน (Liquid)</div>
-            <div className="mx-auto flex h-36 w-36 items-center justify-center rounded-full p-6" style={{ background: donut }}>
-              <div className="flex h-full w-full flex-col items-center justify-center rounded-full bg-white text-center text-xs font-bold text-slate-700">
-                <span className="text-[10px] font-normal text-slate-500">รวม</span>
-                <span>{formatMoney(liquidTotal)}</span>
-              </div>
-            </div>
-            <div className="mt-3 flex flex-wrap justify-center gap-2 text-xs">
-              <span className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-emerald-500" />💵 Cash</span>
-              <span className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-blue-500" />🏦 Bank</span>
-              <span className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-indigo-500" />💱 FCD</span>
+        <div className="bg-white p-4 border border-slate-200 rounded-xl shadow-sm">
+          <div className="mb-2 text-sm font-bold text-slate-700">🥧 องค์ประกอบเงิน (Liquid)</div>
+          <div className="mx-auto flex h-36 w-36 items-center justify-center rounded-full p-6" style={{ background: donut }}>
+            <div className="flex h-full w-full flex-col items-center justify-center rounded-full bg-white text-center text-xs font-bold text-slate-700">
+              <span className="text-[10px] font-normal text-slate-500">รวม</span>
+              <span>{formatMoney(liquidTotal)}</span>
             </div>
           </div>
+          <div className="mt-3 flex flex-wrap justify-center gap-2 text-xs">
+            <span className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-emerald-500" />💵 Cash</span>
+            <span className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-blue-500" />🏦 Bank</span>
+            <span className="flex items-center gap-1"><span className="h-3 w-3 rounded bg-indigo-500" />💱 FCD</span>
+          </div>
+        </div>
 
-          <div className="bg-white p-4 border border-slate-100 rounded-xl shadow-sm">
-            <div className="mb-2 text-sm font-bold text-slate-700">⚖ AR vs AP</div>
-            <div className="space-y-3 text-sm">
-              <div>
-                <div className="mb-1 flex justify-between"><span className="text-emerald-600">📥 ลูกหนี้ (AR)</span><span className="font-bold text-emerald-700">{formatMoney(arTotal)}</span></div>
-                <div className="h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-emerald-500" style={{ width: '100%' }} /></div>
-              </div>
-              <div>
-                <div className="mb-1 flex justify-between"><span className="text-red-600">📤 เจ้าหนี้ (AP)</span><span className="font-bold text-red-700">{formatMoney(apTotal)}</span></div>
-                <div className="h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-red-500" style={{ width: arTotal > 0 ? `${Math.min(100, (apTotal / arTotal) * 100)}%` : '0%' }} /></div>
-              </div>
-              <div className={`rounded-xl p-2 text-center ${arTotal >= apTotal ? 'bg-emerald-50' : 'bg-red-50'}`}>
-                <div className="text-xs text-slate-500">Net (AR − AP)</div>
-                <div className={`text-xl font-bold ${arTotal >= apTotal ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(arTotal - apTotal)}</div>
-              </div>
+        <div className="bg-white p-4 border border-slate-200 rounded-xl shadow-sm">
+          <div className="mb-2 text-sm font-bold text-slate-700">⚖ AR vs AP</div>
+          <div className="space-y-3 text-sm">
+            <div>
+              <div className="mb-1 flex justify-between"><span className="text-emerald-600">📥 ลูกหนี้ (AR)</span><span className="font-bold text-emerald-700">{formatMoney(arTotal)}</span></div>
+              <div className="h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-emerald-500" style={{ width: '100%' }} /></div>
+            </div>
+            <div>
+              <div className="mb-1 flex justify-between"><span className="text-red-600">📤 เจ้าหนี้ (AP)</span><span className="font-bold text-red-700">{formatMoney(apTotal)}</span></div>
+              <div className="h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-red-500" style={{ width: arTotal > 0 ? `${Math.min(100, (apTotal / arTotal) * 100)}%` : '0%' }} /></div>
+            </div>
+            <div className={`rounded-xl p-2 text-center ${arTotal >= apTotal ? 'bg-emerald-50' : 'bg-red-50'}`}>
+              <div className="text-xs text-slate-500">Net (AR − AP)</div>
+              <div className={`text-xl font-bold ${arTotal >= apTotal ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(arTotal - apTotal)}</div>
             </div>
           </div>
         </div>
       </div>
 
       {topAccounts.length > 0 ? (
-        <div className="bg-white p-4 border border-slate-100 rounded-xl shadow-sm">
+        <div className="bg-white p-4 border border-slate-200 rounded-xl shadow-sm">
           <div className="mb-3 text-sm font-bold text-slate-700">🏆 Top บัญชีที่มียอด</div>
           <div className="space-y-2">
             {topAccounts.map((account, index) => (
@@ -196,38 +194,36 @@ export function CashPositionPageClient() {
         </div>
       ) : null}
 
-      <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <Metric tone="emerald" label="เงินสดรวม" value={formatMoney(cashTotal)} />
-          <Metric tone="blue" label="ธนาคารรวม" value={formatMoney(bankTotal)} />
-          <Metric tone="indigo" label="FCD (THB equiv.)" value={formatMoney(fcdTotal)} />
-          <div className="bg-white p-3 sm:p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-lg sm:text-xl shrink-0">
-              ⚠️
-            </div>
-            <div>
-              <div className="text-xs text-amber-600">⚠ OD ใช้ไป</div>
-              <div className="text-2xl font-bold text-amber-600">{formatMoney(odUsedTotal)}</div>
-              <div className="text-xs text-slate-500 mt-0.5">เหลือใช้ {formatMoney(odAvailTotal)}</div>
-            </div>
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
+        <Metric tone="emerald" label="เงินสดรวม" value={formatMoney(cashTotal)} />
+        <Metric tone="blue" label="ธนาคารรวม" value={formatMoney(bankTotal)} />
+        <Metric tone="indigo" label="FCD (THB equiv.)" value={formatMoney(fcdTotal)} />
+        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${odUsedTotal === 0 ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-600'} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
+            ⚠️
           </div>
-          <div className="col-span-2 bg-white p-3 sm:p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-lg sm:text-xl shrink-0">
-              📥
-            </div>
-            <div>
-              <div className="text-xs text-emerald-600">📥 ลูกหนี้รวม (เงินที่จะได้รับ)</div>
-              <div className="text-2xl font-bold text-emerald-700">{formatMoney(arTotal)}</div>
-            </div>
+          <div>
+            <div className={`text-xs ${odUsedTotal === 0 ? 'text-slate-500' : 'text-amber-600'}`}>⚠ OD ใช้ไป</div>
+            <div className={`text-2xl font-bold ${odUsedTotal === 0 ? 'text-slate-900' : 'text-amber-600'}`}>{formatMoney(odUsedTotal)}</div>
+            <div className="text-xs text-slate-500 mt-0.5">เหลือใช้ {formatMoney(odAvailTotal)}</div>
           </div>
-          <div className="col-span-2 bg-white p-3 sm:p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-lg sm:text-xl shrink-0">
-              📤
-            </div>
-            <div>
-              <div className="text-xs text-red-600">📤 เจ้าหนี้รวม (เงินที่ต้องจ่าย)</div>
-              <div className="text-2xl font-bold text-red-700">{formatMoney(apTotal)}</div>
-            </div>
+        </div>
+        <div className="col-span-2 bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${arTotal === 0 ? 'bg-slate-100 text-slate-600' : 'bg-emerald-100 text-emerald-600'} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
+            📥
+          </div>
+          <div>
+            <div className={`text-xs ${arTotal === 0 ? 'text-slate-500' : 'text-emerald-600'}`}>📥 ลูกหนี้รวม (เงินที่จะได้รับ)</div>
+            <div className={`text-2xl font-bold ${arTotal === 0 ? 'text-slate-900' : 'text-emerald-700'}`}>{formatMoney(arTotal)}</div>
+          </div>
+        </div>
+        <div className="col-span-2 bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${apTotal === 0 ? 'bg-slate-100 text-slate-600' : 'bg-red-100 text-red-650'} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
+            📤
+          </div>
+          <div>
+            <div className={`text-xs ${apTotal === 0 ? 'text-slate-500' : 'text-red-600'}`}>📤 เจ้าหนี้รวม (เงินที่ต้องจ่าย)</div>
+            <div className={`text-2xl font-bold ${apTotal === 0 ? 'text-slate-900' : 'text-red-700'}`}>{formatMoney(apTotal)}</div>
           </div>
         </div>
       </div>
@@ -339,9 +335,21 @@ function Metric({ label, tone, value }: { label: string; tone?: 'emerald' | 'blu
     amber: { bg: 'bg-amber-100 text-amber-600', emoji: '⚠️', labelColor: 'text-amber-600', valueColor: 'text-amber-700' },
     slate: { bg: 'bg-slate-100 text-slate-600', emoji: '📋', labelColor: 'text-slate-500', valueColor: 'text-slate-900' },
   }
-  const config = configs[tone || 'slate']
+
+  const numericValue = parseFloat(value.replace(/[^0-9.-]/g, ''))
+  const isZero = isNaN(numericValue) ? false : numericValue === 0
+
+  const config = isZero
+    ? {
+        bg: 'bg-slate-100 text-slate-600',
+        emoji: configs[tone || 'slate'].emoji,
+        labelColor: 'text-slate-500',
+        valueColor: 'text-slate-900',
+      }
+    : configs[tone || 'slate']
+
   return (
-    <div className="bg-white p-3 sm:p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+    <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
       <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${config.bg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
         {config.emoji}
       </div>

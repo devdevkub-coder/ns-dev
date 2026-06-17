@@ -275,16 +275,18 @@ export function AccountsPayablePageClient() {
         <Metric className="col-span-2 lg:col-span-1" label="Supplier ค้างจ่าย" value={`${data?.summary.suppliers ?? 0} ราย`} />
       </div>
 
-      <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-          {bucketRows.map((bucket) => (
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-5">
+        {bucketRows.map((bucket) => {
+          const isZero = bucket.total === 0
+          const textClass = isZero ? 'text-slate-500' : bucketTextClass(bucket.bucket)
+          return (
             <div key={`card-${bucket.bucket}`} className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-sm text-center">
-              <div className={`text-xs font-semibold ${bucketTextClass(bucket.bucket)}`}>อายุ {bucketLongLabel(bucket.bucket)}</div>
+              <div className={`text-xs font-semibold ${textClass}`}>อายุ {bucketLongLabel(bucket.bucket)}</div>
               <div className="text-lg font-bold text-slate-900 mt-1 tabular-nums">{formatMoney(bucket.total)}</div>
               <div className="mt-1 text-[10px] text-slate-400 font-medium">{bucket.bills} ใบ</div>
             </div>
-          ))}
-        </div>
+          )
+        })}
       </div>
 
       {/* Filters Toolbar */}
@@ -620,7 +622,17 @@ function Metric({
     },
   }
 
-  const config = configs[tone]
+  const numericValue = parseFloat(value.replace(/[^0-9.-]/g, ''))
+  const isZero = isNaN(numericValue) ? false : numericValue === 0
+
+  const config = isZero
+    ? {
+        bg: 'bg-slate-100 text-slate-600',
+        emoji: configs[tone].emoji,
+        labelColor: 'text-slate-500',
+        valueColor: 'text-slate-900',
+      }
+    : configs[tone]
 
   return (
     <div className={`bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4 ${className}`}>

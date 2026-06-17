@@ -26,6 +26,7 @@ type PoSellItem = {
   totalAmount?: number | string
   totalRevenue?: number | string
   unitPrice?: number | string
+  unit?: string | null
 }
 
 const DOCUMENT_STATUS_OPTIONS = [
@@ -117,6 +118,7 @@ function itemRows(
         remainingQty: jsonNumber(item.remainingQty ?? item.qty),
         totalAmount: jsonNumber(item.totalRevenue ?? item.totalAmount),
         unitPrice: jsonNumber(item.unitPrice),
+        unit: typeof item.unit === 'string' ? item.unit : 'กก.',
       }))
   }
 
@@ -129,6 +131,7 @@ function itemRows(
     remainingQty: jsonNumber(row.remaining_qty ?? row.qty),
     totalAmount: 0,
     unitPrice: jsonNumber(row.unit_price),
+    unit: 'กก.',
   }]
 }
 
@@ -404,6 +407,9 @@ export async function GET(request: Request) {
         channelName: po.channel_id ? channelById.get(po.channel_id)?.name ?? '-' : '-',
         customerId: po.customers?.code ?? null,
         customerName: po.customers?.name ?? '-',
+        customerAddress: po.customers?.address ?? '',
+        customerTaxId: po.customers?.tax_id ?? '',
+        customerPhone: po.customers?.phone ?? '',
         createdAt: toDateOnly(po.created_at ?? po.date),
         docNo: po.doc_no,
         editDisabledReason: canWrite ? '' : lockedByDownstream ? 'มีรายการนำไปเปิดบิล/จัดสรรต้นทุนแล้ว' : 'แก้ไขได้เฉพาะรายการที่เปิดอยู่',
@@ -414,7 +420,12 @@ export async function GET(request: Request) {
           note: item.note,
           price: item.unitPrice,
           productId: item.productId,
+          productName: item.productName,
           qty: item.qty,
+          remainingQty: item.remainingQty,
+          totalAmount: item.totalAmount,
+          unitPrice: item.unitPrice,
+          unit: item.unit,
         })),
         itemCount: items.length,
         margin,
@@ -437,6 +448,7 @@ export async function GET(request: Request) {
         unitPrice: qty > 0 ? totalAmount / qty : toNumber(po.unit_price),
         updatedAt: po.updated_at?.toISOString() ?? po.created_at?.toISOString() ?? po.date.toISOString(),
         updatedBy: po.updated_by ?? po.created_by ?? '',
+        createdBy: po.created_by ?? '',
       }
     })
       .filter((row) => !activeStatusFilter || row.documentStatus === activeStatusFilter)

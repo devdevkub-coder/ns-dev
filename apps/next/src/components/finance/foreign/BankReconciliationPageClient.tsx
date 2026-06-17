@@ -125,14 +125,12 @@ export function BankReconciliationPageClient() {
         </div>
       </div>
 
-      <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-          <Stat label="Bank รายการรวม" value={data?.stats.total ?? 0} />
-          <Stat label="Matched" tone="matched" value={data?.stats.matched ?? 0} />
-          <Stat label="Bank Unmatched" tone="unmatched" value={data?.stats.unmatched ?? 0} />
-          <Stat label="Ignored" tone="ignored" value={data?.stats.ignored ?? 0} />
-          <Stat label="ERP ไม่มีใน Bank" tone="erp" value={data?.stats.erpUnmatched ?? 0} />
-        </div>
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-5 text-sm">
+        <Stat label="Bank รายการรวม" value={data?.stats.total ?? 0} />
+        <Stat label="Matched" tone="matched" value={data?.stats.matched ?? 0} />
+        <Stat label="Bank Unmatched" tone="unmatched" value={data?.stats.unmatched ?? 0} />
+        <Stat label="Ignored" tone="ignored" value={data?.stats.ignored ?? 0} />
+        <Stat label="ERP ไม่มีใน Bank" tone="erp" value={data?.stats.erpUnmatched ?? 0} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -155,9 +153,19 @@ function Stat({ label, tone, value }: { label: string; tone?: 'matched' | 'unmat
     ignored: { bg: 'bg-slate-100 text-slate-600', emoji: '🚫', labelColor: 'text-slate-500', valueColor: 'text-slate-900' },
     slate: { bg: 'bg-blue-100 text-blue-600', emoji: '📊', labelColor: 'text-blue-500', valueColor: 'text-blue-900' },
   }
-  const config = configs[tone || 'slate']
+
+  const isZero = value === 0
+  const config = isZero
+    ? {
+        bg: 'bg-slate-100 text-slate-600',
+        emoji: configs[tone || 'slate'].emoji,
+        labelColor: 'text-slate-500',
+        valueColor: 'text-slate-900',
+      }
+    : configs[tone || 'slate']
+
   return (
-    <div className="bg-white p-3 sm:p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+    <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
       <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${config.bg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
         {config.emoji}
       </div>

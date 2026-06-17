@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Printer } from 'lucide-react'
+import { openPoSellPrint, openPoSellPrintWindow, type PoSellPrintDocument } from '@/lib/po-sell-print'
 import { Button as UiButton } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Input as UiInput } from '@/components/ui/Input'
@@ -36,6 +37,9 @@ type PoSellRow = {
   createdAt: string
   customerId: string | null
   customerName: string
+  customerAddress?: string | null
+  customerTaxId?: string | null
+  customerPhone?: string | null
   docNo: string
   editDisabledReason: string
   expectedDelivery: string
@@ -45,7 +49,12 @@ type PoSellRow = {
     note: string | null
     price: number
     productId: string
+    productName: string
     qty: number
+    remainingQty: number
+    totalAmount: number
+    unitPrice: number
+    unit?: string | null
   }>
   itemCount: number
   margin: number
@@ -68,6 +77,7 @@ type PoSellRow = {
   unitPrice: number
   updatedAt: string
   updatedBy: string
+  createdBy: string
 }
 
 type StatusFilterOption = {
@@ -161,6 +171,23 @@ export function PoSellPageClient() {
   const [selectedRow, setSelectedRow] = useState<PoSellRow | null>(null)
   const [documentStatus, setDocumentStatus] = useState('all')
   const [toDate, setToDate] = useState('')
+  const [printingPoDocNo, setPrintingPoDocNo] = useState<string | null>(null)
+
+  const printPoSell = async (row: PoSellRow) => {
+    if (printingPoDocNo) return
+    let printWindow: Window | null = null
+    setPrintingPoDocNo(row.docNo)
+    try {
+      printWindow = openPoSellPrintWindow()
+      await openPoSellPrint(row satisfies PoSellPrintDocument, printWindow)
+    } catch (err) {
+      printWindow?.close()
+      alert(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการพิมพ์')
+    } finally {
+      setPrintingPoDocNo(null)
+    }
+  }
+
   const columnResize = useResizableColumns('sales.po-sell', poSellColumns)
 
   const dateQuery = useMemo(() => {
@@ -627,6 +654,19 @@ export function PoSellPageClient() {
                     แก้ไข
                   </button>
                   <button
+                    className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 inline-flex items-center gap-1"
+                    disabled={printingPoDocNo === row.docNo}
+                    title={`พิมพ์ ${row.docNo}`}
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      void printPoSell(row)
+                    }}
+                  >
+                    <Printer className="size-3" />
+                    {printingPoDocNo === row.docNo ? 'เตรียม...' : 'พิมพ์'}
+                  </button>
+                  <button
                     className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                     disabled={isSaving || !row.canCancel}
                     title={row.canCancel ? `ยกเลิก ${row.docNo}` : row.cancelDisabledReason}
@@ -659,7 +699,12 @@ export function PoSellPageClient() {
       </div>
 
       {selectedRow ? (
-        <PoSellDetailModal row={selectedRow} onClose={() => setSelectedRow(null)} />
+        <PoSellDetailModal
+          isPrinting={printingPoDocNo === selectedRow.docNo}
+          row={selectedRow}
+          onClose={() => setSelectedRow(null)}
+          onPrint={(rowToPrint) => void printPoSell(rowToPrint)}
+        />
       ) : null}
 
       {showForm ? (
@@ -1137,9 +1182,13 @@ function PoSellCancelModal({
 function PoSellDetailModal({
   onClose,
   row,
+  isPrinting,
+  onPrint,
 }: {
   onClose: () => void
   row: PoSellRow
+  isPrinting: boolean
+  onPrint: (row: PoSellRow) => void
 }) {
   return (
     <Dialog open onOpenChange={(open) => {
@@ -1215,8 +1264,17 @@ function PoSellDetailModal({
             <div className="text-sm font-semibold text-slate-900 mt-1">{row.productName || '-'}</div>
           </div>
         </div>
-        <DialogFooter className="flex justify-end border-t border-slate-100 bg-slate-50 px-5 py-4 shrink-0 rounded-b-2xl">
+        <DialogFooter className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 shrink-0 rounded-b-2xl">
           <button className="rounded-xl border border-slate-200 bg-white px-5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 outline-none focus:ring-0 transition-colors" type="button" onClick={onClose}>ปิด</button>
+          <button
+            className="rounded-xl border border-slate-200 bg-white px-5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 outline-none focus:ring-0 transition-colors inline-flex items-center gap-1.5"
+            disabled={isPrinting}
+            type="button"
+            onClick={() => onPrint(row)}
+          >
+            <Printer className="size-4" />
+            {isPrinting ? 'กำลังเตรียม...' : 'พิมพ์ PO Sell'}
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -196,17 +196,15 @@ export function FxRatePageClient() {
 
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-          {latestRates.slice(0, 5).map((rate) => (
-            <div key={rate.id} className="bg-white border border-slate-100 rounded-xl p-3.5 text-center shadow-sm hover:shadow-md transition-shadow">
-              <div className="text-xs font-semibold text-slate-500">{rate.fromCurrency} &rarr; {rate.toCurrency}</div>
-              <div className="text-2xl font-bold text-slate-900 mt-1">{formatRate(rate.rate)}</div>
-              <div className="mt-1.5 text-[10px] font-medium text-slate-400">{formatDateDisplay(rate.rateDate)}</div>
-            </div>
-          ))}
-          {!isLoading && (data?.latestRates.length ?? 0) === 0 ? <div className="col-span-full rounded-xl bg-white border border-slate-100 p-6 text-center text-sm text-slate-500 shadow-sm">ยังไม่มี FX Rate</div> : null}
-        </div>
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-5 text-sm">
+        {latestRates.slice(0, 5).map((rate) => (
+          <div key={rate.id} className="bg-white border border-slate-200 rounded-xl p-3.5 text-center shadow-sm hover:shadow-md transition-shadow">
+            <div className="text-xs font-semibold text-slate-500">{rate.fromCurrency} &rarr; {rate.toCurrency}</div>
+            <div className="text-2xl font-bold text-slate-900 mt-1">{formatRate(rate.rate)}</div>
+            <div className="mt-1.5 text-[10px] font-medium text-slate-400">{formatDateDisplay(rate.rateDate)}</div>
+          </div>
+        ))}
+        {!isLoading && (data?.latestRates.length ?? 0) === 0 ? <div className="col-span-full rounded-xl bg-white border border-slate-200 p-6 text-center text-sm text-slate-500 shadow-sm">ยังไม่มี FX Rate</div> : null}
       </div>
 
       {/* Filters Toolbar */}

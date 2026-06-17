@@ -85,34 +85,32 @@ export function FcdLedgerPageClient() {
         </select>
       </div>
 
-      <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-          <div className="bg-white p-3 sm:p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-lg sm:text-xl shrink-0">
-              🏦
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-xs text-slate-500">บัญชี</div>
-              <div className="truncate text-lg font-bold text-slate-800">{data?.account?.name ?? '-'}</div>
-            </div>
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 text-sm">
+        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-lg sm:text-xl shrink-0">
+            🏦
           </div>
-          <div className="bg-white p-3 sm:p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-lg sm:text-xl shrink-0">
-              💱
-            </div>
-            <div>
-              <div className="text-xs text-indigo-600">ยอดคงเหลือ ({currency || '-'})</div>
-              <div className="font-mono text-2xl font-bold text-indigo-700">{formatMoney(data?.summary.foreignBalance ?? 0)}</div>
-            </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-xs text-slate-500">บัญชี</div>
+            <div className="truncate text-lg font-bold text-slate-800">{data?.account?.name ?? '-'}</div>
           </div>
-          <div className="bg-white p-3 sm:p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-lg sm:text-xl shrink-0">
-              💰
-            </div>
-            <div>
-              <div className="text-xs text-blue-600">ยอดคงเหลือ THB Equivalent</div>
-              <div className="font-mono text-2xl font-bold text-blue-700">{formatMoney(data?.summary.thbBalance ?? 0)}</div>
-            </div>
+        </div>
+        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${(data?.summary.foreignBalance ?? 0) === 0 ? 'bg-slate-100 text-slate-600' : 'bg-indigo-100 text-indigo-600'} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
+            💱
+          </div>
+          <div>
+            <div className={`text-xs ${(data?.summary.foreignBalance ?? 0) === 0 ? 'text-slate-500' : 'text-indigo-600'}`}>ยอดคงเหลือ ({currency || '-'})</div>
+            <div className={`font-mono text-2xl font-bold ${(data?.summary.foreignBalance ?? 0) === 0 ? 'text-slate-900' : 'text-indigo-700'}`}>{formatMoney(data?.summary.foreignBalance ?? 0)}</div>
+          </div>
+        </div>
+        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${(data?.summary.thbBalance ?? 0) === 0 ? 'bg-slate-100 text-slate-600' : 'bg-blue-100 text-blue-600'} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
+            💰
+          </div>
+          <div>
+            <div className={`text-xs ${(data?.summary.thbBalance ?? 0) === 0 ? 'text-slate-500' : 'text-blue-600'}`}>ยอดคงเหลือ THB Equivalent</div>
+            <div className={`font-mono text-2xl font-bold ${(data?.summary.thbBalance ?? 0) === 0 ? 'text-slate-900' : 'text-blue-700'}`}>{formatMoney(data?.summary.thbBalance ?? 0)}</div>
           </div>
         </div>
       </div>

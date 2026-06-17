@@ -232,47 +232,45 @@ export function BankStatementPageClient() {
         </div>
       </div>
 
-      <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <div className="bg-white p-3 sm:p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-lg sm:text-xl shrink-0">
-              🏦
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-xs text-slate-500">บัญชี</div>
-              <div className="truncate text-lg font-bold text-slate-800">{selectedAccount?.name ?? 'กำลังโหลด'}</div>
-              <div className="text-[10px] text-slate-400 font-medium mt-0.5">{selectedAccount?.type ?? '-'}</div>
-            </div>
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
+        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-lg sm:text-xl shrink-0">
+            🏦
           </div>
-          <div className="bg-white p-3 sm:p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-lg sm:text-xl shrink-0">
-              📥
-            </div>
-            <div>
-              <div className="text-xs text-emerald-600">เงินเข้ารวม</div>
-              <div className="font-mono text-2xl font-bold text-emerald-700">{formatMoney(cashIn)}</div>
-              <div className="text-[10px] text-slate-400 font-medium mt-0.5">บาท</div>
-            </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-xs text-slate-500">บัญชี</div>
+            <div className="truncate text-lg font-bold text-slate-800">{selectedAccount?.name ?? 'กำลังโหลด'}</div>
+            <div className="text-[10px] text-slate-400 font-medium mt-0.5">{selectedAccount?.type ?? '-'}</div>
           </div>
-          <div className="bg-white p-3 sm:p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-lg sm:text-xl shrink-0">
-              📤
-            </div>
-            <div>
-              <div className="text-xs text-rose-600">เงินออกรวม</div>
-              <div className="font-mono text-2xl font-bold text-rose-700">{formatMoney(cashOut)}</div>
-              <div className="text-[10px] text-slate-400 font-medium mt-0.5">บาท</div>
-            </div>
+        </div>
+        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${cashIn === 0 ? 'bg-slate-100 text-slate-600' : 'bg-emerald-100 text-emerald-600'} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
+            📥
           </div>
-          <div className="bg-white p-3 sm:p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-lg sm:text-xl shrink-0">
-              💰
-            </div>
-            <div>
-              <div className="text-xs text-blue-600">ยอดคงเหลือ</div>
-              <div className="font-mono text-2xl font-bold text-blue-700">{formatMoney(closingBalance)}</div>
-              <div className="text-[10px] text-slate-400 font-medium mt-0.5">บาท</div>
-            </div>
+          <div>
+            <div className={`text-xs ${cashIn === 0 ? 'text-slate-500' : 'text-emerald-600'}`}>เงินเข้ารวม</div>
+            <div className={`font-mono text-2xl font-bold ${cashIn === 0 ? 'text-slate-900' : 'text-emerald-700'}`}>{formatMoney(cashIn)}</div>
+            <div className="text-[10px] text-slate-400 font-medium mt-0.5">บาท</div>
+          </div>
+        </div>
+        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${cashOut === 0 ? 'bg-slate-100 text-slate-600' : 'bg-rose-100 text-rose-600'} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
+            📤
+          </div>
+          <div>
+            <div className={`text-xs ${cashOut === 0 ? 'text-slate-500' : 'text-rose-600'}`}>เงินออกรวม</div>
+            <div className={`font-mono text-2xl font-bold ${cashOut === 0 ? 'text-slate-900' : 'text-rose-700'}`}>{formatMoney(cashOut)}</div>
+            <div className="text-[10px] text-slate-400 font-medium mt-0.5">บาท</div>
+          </div>
+        </div>
+        <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${closingBalance === 0 ? 'bg-slate-100 text-slate-600' : 'bg-blue-100 text-blue-600'} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
+            💰
+          </div>
+          <div>
+            <div className={`text-xs ${closingBalance === 0 ? 'text-slate-500' : 'text-blue-600'}`}>ยอดคงเหลือ</div>
+            <div className={`font-mono text-2xl font-bold ${closingBalance === 0 ? 'text-slate-900' : 'text-blue-700'}`}>{formatMoney(closingBalance)}</div>
+            <div className="text-[10px] text-slate-400 font-medium mt-0.5">บาท</div>
           </div>
         </div>
       </div>

@@ -178,7 +178,7 @@ export function AppNavigation({ compact = false, onNavigate }: AppNavigationProp
                       <button
                         aria-current={active ? 'page' : undefined}
                         aria-expanded={expanded}
-                        className={`flex min-w-0 flex-1 items-center gap-3 px-4 py-2 text-left ${compact ? 'lg:justify-center lg:px-2' : ''}`}
+                        className={`flex min-w-0 flex-1 items-center gap-3 px-4 py-2 text-left ${active ? 'text-white' : 'text-slate-300'} ${compact ? 'lg:justify-center lg:px-2' : ''}`}
                         data-active-nav={active ? 'true' : undefined}
                         title={compact ? item.label : undefined}
                         type="button"
@@ -193,7 +193,7 @@ export function AppNavigation({ compact = false, onNavigate }: AppNavigationProp
                     ) : (
                       <Link
                         aria-current={active ? 'page' : undefined}
-                        className={`flex min-w-0 flex-1 items-center gap-3 px-4 py-2 text-left ${compact ? 'lg:justify-center lg:px-2' : ''}`}
+                        className={`flex min-w-0 flex-1 items-center gap-3 px-4 py-2 text-left ${active ? 'text-white' : 'text-slate-300'} ${compact ? 'lg:justify-center lg:px-2' : ''}`}
                         data-active-nav={active ? 'true' : undefined}
                         href={item.href}
                         title={compact ? item.label : undefined}

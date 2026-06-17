@@ -2015,7 +2015,7 @@ function ExpenseDetailModal({ onClose, onEdit, row }: { onClose: () => void; onE
 
         <div className="flex-1 overflow-y-auto bg-slate-50 p-5 space-y-4 text-sm">
           {/* Summary Band */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 bg-white rounded-lg border border-slate-200 shadow-sm p-5">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-4 sm:grid-cols-4">
             <SummaryTile emphasize label="Net Pay" value={formatMoney(row.netAmount)} />
             <SummaryTile label="ยอดก่อน VAT" value={formatMoney(row.amount)} />
             <SummaryTile label="VAT" value={formatMoney(row.vat)} />
@@ -2174,10 +2174,26 @@ function getCategoryIcon(name: string): string {
 }
 
 function SummaryTile({ emphasize = false, label, value }: { emphasize?: boolean; label: string; value: string }) {
+  const isZero = !value || value === '0' || value === '0.00' || parseFloat(value.replace(/[^0-9.-]/g, '')) === 0;
+  
+  let cardClass = 'bg-white border-slate-200 shadow-sm rounded-xl';
+  let labelClass = 'text-slate-500';
+  let valueClass = 'text-slate-900';
+
+  if (isZero) {
+    cardClass = 'bg-slate-50 border-slate-200/60 shadow-sm rounded-xl';
+    labelClass = 'text-slate-400';
+    valueClass = 'text-slate-400';
+  } else if (emphasize) {
+    cardClass = 'bg-red-50/50 border-red-200 shadow-sm rounded-xl';
+    labelClass = 'text-red-700';
+    valueClass = 'text-red-700';
+  }
+
   return (
-    <div className={`rounded-lg border p-3 transition-all ${emphasize ? 'border-red-100 bg-red-50/50' : 'border-slate-100 bg-slate-50/50'}`}>
-      <div className={`text-[10px] font-bold uppercase tracking-wider ${emphasize ? 'text-red-700' : 'text-slate-500'}`}>{label}</div>
-      <div className={`mt-1 text-right text-base font-semibold tabular-nums ${emphasize ? 'text-red-700' : 'text-slate-900'}`}>
+    <div className={`border p-3 sm:p-4 transition-all ${cardClass}`}>
+      <div className={`text-[11px] font-bold uppercase tracking-wider ${labelClass}`}>{label}</div>
+      <div className={`mt-1 text-right text-sm sm:text-base font-semibold tabular-nums ${valueClass}`}>
         {value}
       </div>
     </div>

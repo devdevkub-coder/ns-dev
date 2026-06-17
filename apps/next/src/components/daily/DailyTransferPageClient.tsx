@@ -556,7 +556,7 @@ export function DailyTransferPageClient() {
               </div>
             </DialogHeader>
             <div className="flex-1 overflow-y-auto bg-slate-50 p-5 space-y-4 text-sm">
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-white rounded-lg border border-slate-200 shadow-sm p-5">
+              <div className="grid grid-cols-2 gap-2.5 sm:gap-4 sm:grid-cols-3 text-sm">
                 <SummaryBox label="ยอดโอน" value={formatMoney(selectedRow.amount)} />
                 <SummaryBox label="ค่าธรรมเนียม" value={formatMoney(selectedRow.fee)} />
                 <div className="col-span-2 sm:col-span-1">
@@ -721,10 +721,22 @@ function parseMoneyInput(value: string) {
 }
 
 function SummaryBox(props: { label: string; value: string }) {
+  const isZero = !props.value || props.value === '0' || props.value === '0.00' || parseFloat(props.value.replace(/[^0-9.-]/g, '')) === 0;
+
+  let cardClass = 'bg-white border-slate-200 shadow-sm rounded-xl';
+  let labelClass = 'text-slate-500';
+  let valueClass = 'text-slate-900';
+
+  if (isZero) {
+    cardClass = 'bg-slate-50 border-slate-200/60 shadow-sm rounded-xl';
+    labelClass = 'text-slate-400';
+    valueClass = 'text-slate-400';
+  }
+
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-3">
-      <div className="text-xs text-slate-500">{props.label}</div>
-      <div className="mt-1 text-lg font-bold text-slate-900">{props.value}</div>
+    <div className={`border p-3 sm:p-4 transition-all ${cardClass}`}>
+      <div className={`text-xs font-semibold ${labelClass}`}>{props.label}</div>
+      <div className={`mt-1 text-sm sm:text-base font-bold tabular-nums ${valueClass}`}>{props.value}</div>
     </div>
   )
 }
