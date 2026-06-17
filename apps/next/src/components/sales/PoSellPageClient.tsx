@@ -173,6 +173,18 @@ export function PoSellPageClient() {
   const [toDate, setToDate] = useState('')
   const [printingPoDocNo, setPrintingPoDocNo] = useState<string | null>(null)
 
+  const [sortKey, setSortKey] = useState<string | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDirection('asc')
+    }
+  }
+
   const printPoSell = async (row: PoSellRow) => {
     if (printingPoDocNo) return
     let printWindow: Window | null = null
@@ -229,6 +241,53 @@ export function PoSellPageClient() {
     })
   }, [data?.rows, documentStatus, matchStatus, search])
 
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+    return [...rows].sort((a, b) => {
+      let aVal: any = ''
+      let bVal: any = ''
+
+      if (sortKey === 'marginPct') {
+        aVal = a.marginPct ?? 0
+        bVal = b.marginPct ?? 0
+      } else if (sortKey === 'qty') {
+        aVal = a.qty ?? 0
+        bVal = b.qty ?? 0
+      } else if (sortKey === 'totalAmount') {
+        aVal = a.totalAmount ?? 0
+        bVal = b.totalAmount ?? 0
+      } else if (sortKey === 'matchedQty') {
+        aVal = a.matchedQty ?? 0
+        bVal = b.matchedQty ?? 0
+      } else if (sortKey === 'remainingQty') {
+        aVal = a.remainingQty ?? 0
+        bVal = b.remainingQty ?? 0
+      } else if (sortKey === 'margin') {
+        aVal = a.margin ?? 0
+        bVal = b.margin ?? 0
+      } else if (sortKey === 'documentStatus') {
+        aVal = a.documentStatusLabel ?? ''
+        bVal = b.documentStatusLabel ?? ''
+      } else if (sortKey === 'matchStatus') {
+        aVal = a.matchStatusLabel ?? ''
+        bVal = b.matchStatusLabel ?? ''
+      } else {
+        aVal = a[sortKey as keyof PoSellRow] ?? ''
+        bVal = b[sortKey as keyof PoSellRow] ?? ''
+      }
+
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return sortDirection === 'asc'
+          ? aVal.localeCompare(bVal, 'th')
+          : bVal.localeCompare(aVal, 'th')
+      }
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortDirection === 'asc' ? aVal - bVal : bVal - aVal
+      }
+      return 0
+    })
+  }, [rows, sortKey, sortDirection])
+
   useEffect(() => {
     setPage(1)
   }, [documentStatus, fromDate, matchStatus, pageSize, search, toDate])
@@ -236,7 +295,7 @@ export function PoSellPageClient() {
   const totalRows = rows.length
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
   const currentPage = Math.min(page, totalPages)
-  const pageRows = rows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  const pageRows = sortedRows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const activeBranches = (data?.options.branches ?? []).filter((option) => option.active !== false)
   const activeChannels = (data?.options.salesChannels ?? []).filter((option) => option.active !== false)
   const activeCustomers = (data?.options.customers ?? []).filter((option) => option.active !== false)
@@ -594,20 +653,20 @@ export function PoSellPageClient() {
         </colgroup>
         <TableHeader>
           <tr>
-            <ResizableTableHead label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
-            <ResizableTableHead label="วันที่สร้างรายการ" resizeProps={columnResize.getResizeHandleProps('createdAt', 'วันที่สร้างรายการ')} />
-            <ResizableTableHead label="วันที่ส่งมอบ" resizeProps={columnResize.getResizeHandleProps('expectedDelivery', 'วันที่ส่งมอบ')} />
-            <ResizableTableHead label="Customer" resizeProps={columnResize.getResizeHandleProps('customerName', 'Customer')} />
-            <ResizableTableHead label="รายการ" resizeProps={columnResize.getResizeHandleProps('productName', 'รายการ')} />
-            <ResizableTableHead align="right" label="จำนวนรวม" resizeProps={columnResize.getResizeHandleProps('qty', 'จำนวนรวม')} />
-            <ResizableTableHead align="right" label="รายได้รวม" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'รายได้รวม')} />
-            <ResizableTableHead align="right" label="Matched" resizeProps={columnResize.getResizeHandleProps('matchedQty', 'Matched')} />
-            <ResizableTableHead align="right" label="เหลือ" resizeProps={columnResize.getResizeHandleProps('remainingQty', 'เหลือ')} />
-            <ResizableTableHead align="right" label="Deal Margin" resizeProps={columnResize.getResizeHandleProps('margin', 'Deal Margin')} />
-            <ResizableTableHead align="right" label="%" resizeProps={columnResize.getResizeHandleProps('marginPct', '%')} />
-            <ResizableTableHead align="center" label="สถานะเอกสาร" resizeProps={columnResize.getResizeHandleProps('documentStatus', 'สถานะเอกสาร')} />
-            <ResizableTableHead align="center" label="สถานะ Match" resizeProps={columnResize.getResizeHandleProps('matchStatus', 'สถานะ Match')} />
-            <ResizableTableHead label="อัพเดตล่าสุด" resizeProps={columnResize.getResizeHandleProps('updatedAt', 'อัพเดตล่าสุด')} />
+            <ResizableTableHead label="เลขที่" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
+            <ResizableTableHead label="วันที่สร้างรายการ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="createdAt" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('createdAt', 'วันที่สร้างรายการ')} />
+            <ResizableTableHead label="วันที่ส่งมอบ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="expectedDelivery" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('expectedDelivery', 'วันที่ส่งมอบ')} />
+            <ResizableTableHead label="Customer" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="customerName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('customerName', 'Customer')} />
+            <ResizableTableHead label="รายการ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="productName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('productName', 'รายการ')} />
+            <ResizableTableHead align="right" label="จำนวนรวม" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="qty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('qty', 'จำนวนรวม')} />
+            <ResizableTableHead align="right" label="รายได้รวม" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="totalAmount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('totalAmount', 'รายได้รวม')} />
+            <ResizableTableHead align="right" label="Matched" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="matchedQty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('matchedQty', 'Matched')} />
+            <ResizableTableHead align="right" label="เหลือ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="remainingQty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('remainingQty', 'เหลือ')} />
+            <ResizableTableHead align="right" label="Deal Margin" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="margin" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('margin', 'Deal Margin')} />
+            <ResizableTableHead align="right" label="%" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="marginPct" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('marginPct', '%')} />
+            <ResizableTableHead align="center" label="สถานะเอกสาร" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="documentStatus" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('documentStatus', 'สถานะเอกสาร')} />
+            <ResizableTableHead align="center" label="สถานะ Match" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="matchStatus" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('matchStatus', 'สถานะ Match')} />
+            <ResizableTableHead label="อัพเดตล่าสุด" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="updatedAt" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('updatedAt', 'อัพเดตล่าสุด')} />
             <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
           </tr>
         </TableHeader>
