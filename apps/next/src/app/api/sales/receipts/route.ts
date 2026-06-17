@@ -30,7 +30,7 @@ export async function GET() {
           status: true,
         },
         where: {
-          customer_receipts: { status: { notIn: ['cancelled', 'canceled'] } },
+          customer_receipts: { is: { status: { notIn: ['cancelled', 'canceled'] } } },
           status: 'active',
         },
       },
