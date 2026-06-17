@@ -2220,7 +2220,7 @@ export function MoneyMovementPageClient({
                 <div className="grid gap-4 p-5 md:grid-cols-2">
                   <Field label="วันที่" type="date" value={form.date} onChange={(value) => setForm({ ...form, date: value })} />
                   <SearchCombobox
-                    disabled={Boolean(form.id)}
+                    disabled={Boolean(form.id || form.billId)}
                     inputClassName="!h-9 px-2 py-1.5"
                     inputId="receipt-customer-search"
                     label={`${partyLabel} *`}
