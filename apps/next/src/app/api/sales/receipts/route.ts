@@ -14,6 +14,11 @@ const CUSTOMER_RECEIPT_LIST_LIMIT = 5000
 const CANCELLED_RECEIPT_STATUSES = ['cancelled', 'canceled']
 const RECEIPT_QUEUE_STATUSES = ['pending', 'active']
 
+function logReceiptQueueError(context: string, caught: unknown) {
+  const message = caught instanceof Error ? caught.message : String(caught)
+  console.error(`[sales/receipts] ${context}: ${message}`)
+}
+
 type PendingReceiptSalesBill = {
   branch_id: bigint | null
   customer_id: bigint
@@ -63,97 +68,101 @@ async function ensurePendingCustomerReceipts(context: Awaited<ReturnType<typeof 
     if (!paymentMethod) throw new Error('ไม่พบวิธีรับเงิน active สำหรับออกใบรับเงินรอดำเนินการ')
 
     for (const bill of bills as PendingReceiptSalesBill[]) {
-      const activeAllocation = await tx.customer_receipt_allocations.findFirst({
-        select: { id: true },
-        where: {
-          sales_bill_id: bill.id,
-          status: { in: RECEIPT_QUEUE_STATUSES },
-          customer_receipts: { is: { status: { in: RECEIPT_QUEUE_STATUSES } } },
-        },
-      })
-      if (activeAllocation) continue
-      const cancelledPendingAllocation = await tx.customer_receipt_allocations.findFirst({
-        select: { id: true },
-        where: {
-          allocated_ar_amount: 0,
-          sales_bill_id: bill.id,
-          status: { in: CANCELLED_RECEIPT_STATUSES },
-          customer_receipts: {
-            is: {
-              status: { in: CANCELLED_RECEIPT_STATUSES },
+      try {
+        const activeAllocation = await tx.customer_receipt_allocations.findFirst({
+          select: { id: true },
+          where: {
+            sales_bill_id: bill.id,
+            status: { in: RECEIPT_QUEUE_STATUSES },
+            customer_receipts: { is: { status: { in: RECEIPT_QUEUE_STATUSES } } },
+          },
+        })
+        if (activeAllocation) continue
+        const cancelledPendingAllocation = await tx.customer_receipt_allocations.findFirst({
+          select: { id: true },
+          where: {
+            allocated_ar_amount: 0,
+            sales_bill_id: bill.id,
+            status: { in: CANCELLED_RECEIPT_STATUSES },
+            customer_receipts: {
+              is: {
+                status: { in: CANCELLED_RECEIPT_STATUSES },
+              },
             },
           },
-        },
-      })
-      if (cancelledPendingAllocation) continue
+        })
+        if (cancelledPendingAllocation) continue
 
-      const customerCode = bill.customers?.code?.trim()
-      if (!customerCode) continue
-      const date = toDateOnly(bill.date)
-      const docNo = await nextDailyDocNo('customer_receipts', 'RCP', date, tx)
-      const receivableBalance = toNumber(bill.receivable_balance as { toNumber: () => number } | number | null | undefined)
-      const receipt = await tx.customer_receipts.create({
-        data: {
-          account_code_snapshot: requireBusinessCode(account.code, `บัญชีเงิน ${account.id}`),
-          account_id: account.id,
-          account_name_snapshot: account.name,
-          bank_fee_total: 0,
-          branch_id: bill.branch_id,
-          customer_code_snapshot: customerCode,
-          customer_id: bill.customer_id,
-          customer_name_snapshot: bill.customers?.name ?? '-',
-          date: normalizeDate(date),
-          discount_total: 0,
-          doc_no: docNo,
-          gross_amount: receivableBalance,
-          net_cash_in: 0,
-          notes: `สร้างอัตโนมัติจากบิลขาย ${bill.doc_no}`,
-          payment_method_code_snapshot: paymentMethod.code,
-          payment_method_id: paymentMethod.id,
-          payment_method_name_snapshot: paymentMethod.name,
-          status: 'pending',
-          updated_by: actor,
-          withholding_tax_total: 0,
-          created_by: actor,
-        },
-      })
-
-      await tx.customer_receipt_allocations.create({
-        data: {
-          allocated_ar_amount: 0,
-          created_by: actor,
-          customer_code_snapshot: customerCode,
-          discount_amount: 0,
-          line_no: 1,
-          outstanding_after: receivableBalance,
-          outstanding_before: receivableBalance,
-          receipt_amount: 0,
-          receipt_id: receipt.id,
-          sales_bill_doc_no_snapshot: bill.doc_no,
-          sales_bill_id: bill.id,
-          status: 'pending',
-          updated_by: actor,
-          withholding_tax_amount: 0,
-        },
-      })
-
-      await tx.customer_receipt_status_logs.create({
-        data: {
-          action: 'pending_created',
-          created_by: actor,
-          event_key: `customer-receipt.pending-created.${docNo}`,
-          gross_amount_snapshot: receivableBalance,
-          meta: {
-            salesBillDocNo: bill.doc_no,
-            salesBillId: stringifyBusinessValue(bill.id),
+        const customerCode = bill.customers?.code?.trim()
+        if (!customerCode) continue
+        const date = toDateOnly(bill.date)
+        const docNo = await nextDailyDocNo('customer_receipts', 'RCP', date, tx)
+        const receivableBalance = toNumber(bill.receivable_balance as { toNumber: () => number } | number | null | undefined)
+        const receipt = await tx.customer_receipts.create({
+          data: {
+            account_code_snapshot: requireBusinessCode(account.code, `บัญชีเงิน ${account.id}`),
+            account_id: account.id,
+            account_name_snapshot: account.name,
+            bank_fee_total: 0,
+            branch_id: bill.branch_id,
+            customer_code_snapshot: customerCode,
+            customer_id: bill.customer_id,
+            customer_name_snapshot: bill.customers?.name ?? '-',
+            date: normalizeDate(date),
+            discount_total: 0,
+            doc_no: docNo,
+            gross_amount: receivableBalance,
+            net_cash_in: 0,
+            notes: `สร้างอัตโนมัติจากบิลขาย ${bill.doc_no}`,
+            payment_method_code_snapshot: paymentMethod.code,
+            payment_method_id: paymentMethod.id,
+            payment_method_name_snapshot: paymentMethod.name,
+            status: 'pending',
+            updated_by: actor,
+            withholding_tax_total: 0,
+            created_by: actor,
           },
-          net_cash_in_snapshot: 0,
-          note: `สร้างใบรับเงินรอรับเงินจากบิลขาย ${bill.doc_no}`,
-          receipt_doc_no: docNo,
-          receipt_id: receipt.id,
-          to_status: 'pending',
-        },
-      })
+        })
+
+        await tx.customer_receipt_allocations.create({
+          data: {
+            allocated_ar_amount: 0,
+            created_by: actor,
+            customer_code_snapshot: customerCode,
+            discount_amount: 0,
+            line_no: 1,
+            outstanding_after: receivableBalance,
+            outstanding_before: receivableBalance,
+            receipt_amount: 0,
+            receipt_id: receipt.id,
+            sales_bill_doc_no_snapshot: bill.doc_no,
+            sales_bill_id: bill.id,
+            status: 'pending',
+            updated_by: actor,
+            withholding_tax_amount: 0,
+          },
+        })
+
+        await tx.customer_receipt_status_logs.create({
+          data: {
+            action: 'pending_created',
+            created_by: actor,
+            event_key: `customer-receipt.pending-created.${docNo}`,
+            gross_amount_snapshot: receivableBalance,
+            meta: {
+              salesBillDocNo: bill.doc_no,
+              salesBillId: stringifyBusinessValue(bill.id),
+            },
+            net_cash_in_snapshot: 0,
+            note: `สร้างใบรับเงินรอรับเงินจากบิลขาย ${bill.doc_no}`,
+            receipt_doc_no: docNo,
+            receipt_id: receipt.id,
+            to_status: 'pending',
+          },
+        })
+      } catch (caught) {
+        logReceiptQueueError(`skip pending receipt for ${bill.doc_no}`, caught)
+      }
     }
   })
 }
@@ -162,7 +171,11 @@ export async function GET() {
   try {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'finance.cash.view')
-    await ensurePendingCustomerReceipts(context)
+    try {
+      await ensurePendingCustomerReceipts(context)
+    } catch (caught) {
+      logReceiptQueueError('ensure pending receipts failed', caught)
+    }
 
     const salesBillSelect = {
       customer_receipt_allocations: {
