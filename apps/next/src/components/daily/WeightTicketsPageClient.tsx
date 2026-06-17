@@ -149,6 +149,7 @@ function ticketToFormState(ticket: WeightTicketRecord): FormState {
   return {
     branchId: ticket.branchId,
     lines: ticket.lines.map((line) => ({
+      containerDeductionWeight: line.containerDeductionWeight,
       deductionMode: line.deductionMode,
       deductionValue: line.deductionValue,
       grossWeight: line.grossWeight,
@@ -380,9 +381,18 @@ export function WeightTicketsPageClient({
 
     form.lines.forEach((line, index) => {
       const lineTotals = calculateLineTotals(line)
+      const rawContainerDeduction = Number(line.containerDeductionWeight || 0)
+      const rawImpurityDeduction = line.deductionMode === 'percent'
+        ? lineTotals.grossWeight * Number(line.deductionValue || 0) / 100
+        : line.deductionMode === 'kg'
+          ? Number(line.deductionValue || 0)
+          : 0
       if (!line.productId) next[`line-${line.id}-product`] = `เลือกสินค้าบรรทัดที่ ${index + 1}`
       if (form.type === 'WTO' && !line.warehouseId) next[`line-${line.id}-warehouse`] = `เลือกคลังบรรทัดที่ ${index + 1}`
       if (lineTotals.grossWeight <= 0) next[`line-${line.id}-gross`] = `กรอกน้ำหนักบรรทัดที่ ${index + 1}`
+      if (rawContainerDeduction > lineTotals.grossWeight) {
+        next[`line-${line.id}-container`] = 'หักภาชนะต้องไม่เกินน้ำหนักรวม'
+      }
       if (getLineImages(line).length === 0) next[`line-${line.id}-images`] = `แนบรูปภาพบรรทัดที่ ${index + 1} อย่างน้อย 1 รูป`
       if (line.deductionMode !== 'none' && !getLineImpurityId(line)) {
         next[`line-${line.id}-impurity`] = impurities.length > 0 ? `เลือกสิ่งเจือปนบรรทัดที่ ${index + 1}` : 'ยังไม่มีสิ่งเจือปนที่ใช้งานใน master data'
@@ -392,6 +402,9 @@ export function WeightTicketsPageClient({
       }
       if (line.deductionMode === 'kg' && Number(line.deductionValue || 0) > lineTotals.grossWeight) {
         next[`line-${line.id}-deduction`] = 'น้ำหนักหักต้องไม่เกินน้ำหนักรวม'
+      }
+      if (rawContainerDeduction + rawImpurityDeduction > lineTotals.grossWeight) {
+        next[`line-${line.id}-deduction`] = 'ยอดหักรวมต้องไม่เกินน้ำหนักรวม'
       }
     })
     return next
@@ -488,6 +501,7 @@ export function WeightTicketsPageClient({
       nextTouched[`line-${line.id}-product`] = true
       nextTouched[`line-${line.id}-warehouse`] = true
       nextTouched[`line-${line.id}-gross`] = true
+      nextTouched[`line-${line.id}-container`] = true
       nextTouched[`line-${line.id}-deduction`] = true
       nextTouched[`line-${line.id}-images`] = true
       nextTouched[`line-${line.id}-impurity`] = true
@@ -501,6 +515,7 @@ export function WeightTicketsPageClient({
         branchId: form.branchId,
         id: editingTicketId || undefined,
         lines: form.lines.map((line) => ({
+          containerDeductionWeight: Number(line.containerDeductionWeight || 0),
           deductionMode: line.deductionMode,
           deductionValue: Number(line.deductionValue || 0),
           grossWeight: Number(line.grossWeight || 0),
@@ -647,6 +662,7 @@ export function WeightTicketsPageClient({
                     const hasError = Boolean(
                       errors[`line-${line.id}-product`]
                       || errors[`line-${line.id}-gross`]
+                      || errors[`line-${line.id}-container`]
 	                      || errors[`line-${line.id}-images`]
 	                      || errors[`line-${line.id}-impurity`]
 	                      || errors[`line-${line.id}-warehouse`]
@@ -701,11 +717,11 @@ export function WeightTicketsPageClient({
                       'grid min-w-0 gap-4',
 	                      line.deductionMode === 'none'
 	                        ? form.type === 'WTO'
-	                          ? 'xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_10rem_10rem_10rem]'
-	                          : 'xl:grid-cols-[minmax(0,1.4fr)_10rem_10rem_10rem]'
+	                          ? 'xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_10rem_10rem_10rem_10rem]'
+	                          : 'xl:grid-cols-[minmax(0,1.4fr)_10rem_10rem_10rem_10rem]'
 	                        : form.type === 'WTO'
-	                          ? 'xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_10rem_10rem_minmax(0,1fr)_10rem]'
-	                          : 'xl:grid-cols-[minmax(0,1.3fr)_10rem_10rem_minmax(0,1fr)_10rem]',
+	                          ? 'xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_10rem_10rem_10rem_minmax(0,1fr)_10rem]'
+	                          : 'xl:grid-cols-[minmax(0,1.3fr)_10rem_10rem_10rem_minmax(0,1fr)_10rem]',
                     )}
                     >
                       <div className="min-w-0">
@@ -761,6 +777,21 @@ export function WeightTicketsPageClient({
                           onChange={(event) => updateLine(line.id, (current) => ({ ...current, grossWeight: normalizeDecimalInput(event.target.value) }))}
                         />
                       </FieldBlock>
+                      <FieldBlock error={showError(`line-${line.id}-container`)} label="หักภาชนะ(กก.)">
+                        <Input
+                          inputMode="decimal"
+                          placeholder="0.00"
+                          value={line.containerDeductionWeight}
+                          onBlur={() => markTouched(`line-${line.id}-container`)}
+                          onChange={(event) => {
+                            const containerDeductionWeight = normalizeDecimalInput(event.target.value)
+                            updateLine(line.id, (current) => ({
+                              ...current,
+                              containerDeductionWeight,
+                            }))
+                          }}
+                        />
+                      </FieldBlock>
                       <FieldBlock label="หักสิ่งเจือปน">
                         <SimpleDropdown
                           options={[
@@ -795,7 +826,7 @@ export function WeightTicketsPageClient({
                         />
                       ) : null}
                       {line.deductionMode !== 'none' ? (
-                        <FieldBlock error={showError(`line-${line.id}-deduction`)} label={line.deductionMode === 'percent' ? 'ค่าหัก %' : 'น้ำหนักหัก กก.'}>
+                        <FieldBlock error={showError(`line-${line.id}-deduction`)} label={line.deductionMode === 'percent' ? 'ค่าหัก %' : 'น้ำหนักหักสิ่งเจือปน(กก.)'}>
                           <Input
                             inputMode="decimal"
                             placeholder="0.00"
@@ -819,9 +850,10 @@ export function WeightTicketsPageClient({
                       buttonClassName={ticketTheme.button}
                     />
 
-                    <div className="mt-3 grid grid-cols-3 gap-2 sm:mt-4">
+                    <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 lg:grid-cols-4">
                       <MiniMetric label="Gross" value={`${formatWeight(lineTotals.grossWeight)} กก.`} />
-                      <MiniMetric label="Deduct" value={`${formatWeight(lineTotals.deductionWeight)} กก.`} />
+                      <MiniMetric label="ภาชนะ" value={`${formatWeight(lineTotals.containerDeductionWeight)} กก.`} />
+                      <MiniMetric label="สิ่งเจือปน" value={`${formatWeight(lineTotals.deductionWeight)} กก.`} />
                       <MiniMetric label="Net" value={`${formatWeight(lineTotals.netWeight)} กก.`} />
                     </div>
                     <div className="mt-4">
@@ -885,7 +917,8 @@ export function WeightTicketsPageClient({
               <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm sm:justify-start sm:gap-x-8">
                 <MetricInline label="รายการ" value={`${form.lines.length} รายการ`} />
                 <MetricInline label="น้ำหนักรวม" value={`${formatWeight(totals.grossWeight)} กก.`} />
-                <MetricInline label="หัก" value={`${formatWeight(totals.deductionWeight)} กก.`} />
+                <MetricInline label="หักภาชนะ" value={`${formatWeight(totals.containerDeductionWeight)} กก.`} />
+                <MetricInline label="หักสิ่งเจือปน" value={`${formatWeight(totals.deductionWeight)} กก.`} />
                 <MetricInline emphasis label="สุทธิ" value={`${formatWeight(totals.netWeight)} กก.`} />
               </div>
             )}
@@ -1311,4 +1344,3 @@ function MetricInline({ emphasis = false, label, value }: { emphasis?: boolean; 
     </div>
   )
 }
-

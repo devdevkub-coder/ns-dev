@@ -6,6 +6,7 @@ export type DeductionMode = 'none' | 'kg' | 'percent'
 export type WeightTicketStatus = 'received' | 'delivered' | 'partially_billed' | 'billed' | 'cancelled'
 
 export type WeightTicketLine = {
+  containerDeductionWeight: string
   deductionMode: DeductionMode
   deductionValue: string
   grossWeight: string
@@ -18,6 +19,7 @@ export type WeightTicketLine = {
 }
 
 export type WeightTicketRecordLine = WeightTicketLine & {
+  containerDeductionWeightValue: number
   deductionWeight: number
   grossWeightValue: number
   imageCount: number
@@ -31,6 +33,7 @@ export type WeightTicketRecordLine = WeightTicketLine & {
 
 export type WeightTicketProductSummary = {
   billedWeight: number
+  containerDeductionWeight: number
   deductWeight: number
   grossWeight: number
   hasMixedDeductionProfiles: boolean
@@ -80,6 +83,7 @@ export type WeightTicketRecord = {
   remark: string
   status: WeightTicketStatus
   totals: {
+    containerDeductionWeight: number
     deductionWeight: number
     grossWeight: number
     netWeight: number
@@ -160,6 +164,7 @@ const blankToEmpty = (value: unknown) => (typeof value === 'string' ? value.trim
 const attachmentValueSchema = z.string().trim().min(1).max(4_000_000, 'ข้อมูลรูปภาพใหญ่เกินไป')
 
 const weightTicketLinePayloadSchema = z.object({
+  containerDeductionWeight: z.coerce.number().finite().min(0).default(0),
   deductionMode: deductionModeEnum,
   deductionValue: z.coerce.number().finite().min(0).default(0),
   grossWeight: z.coerce.number().finite().gt(0, 'กรอกน้ำหนักมากกว่า 0'),
@@ -170,6 +175,19 @@ const weightTicketLinePayloadSchema = z.object({
   productId: z.string().trim().min(1, 'เลือกสินค้า'),
   warehouseId: z.preprocess(blankToEmpty, z.string().max(80).default('')),
 }).superRefine((value, ctx) => {
+  const containerDeductionWeight = Math.min(value.containerDeductionWeight, value.grossWeight)
+  const impurityDeductionWeight = value.deductionMode === 'percent'
+    ? value.grossWeight * value.deductionValue / 100
+    : value.deductionMode === 'kg'
+      ? value.deductionValue
+      : 0
+  if (value.containerDeductionWeight > value.grossWeight) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'หักภาชนะต้องไม่เกินน้ำหนักรวม',
+      path: ['containerDeductionWeight'],
+    })
+  }
   if (value.deductionMode !== 'none' && !value.impurityId) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -188,6 +206,13 @@ const weightTicketLinePayloadSchema = z.object({
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'น้ำหนักหักต้องไม่เกินน้ำหนักรวม',
+      path: ['deductionValue'],
+    })
+  }
+  if (containerDeductionWeight + impurityDeductionWeight > value.grossWeight) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'ยอดหักรวมต้องไม่เกินน้ำหนักรวม',
       path: ['deductionValue'],
     })
   }
@@ -221,6 +246,8 @@ export const weightTicketFormSchema = z.object({
 })
 
 const weightTicketRecordLineSchema = z.object({
+  containerDeductionWeight: z.string().default(''),
+  containerDeductionWeightValue: z.number().default(0),
   deductionMode: deductionModeEnum,
   deductionValue: z.string(),
   deductionWeight: z.number(),
@@ -273,6 +300,7 @@ const weightTicketUsageTimelineSchema = z.object({
 
 const weightTicketProductSummarySchema = z.object({
   billedWeight: z.number(),
+  containerDeductionWeight: z.number().default(0),
   deductWeight: z.number(),
   grossWeight: z.number(),
   hasMixedDeductionProfiles: z.boolean(),
@@ -322,6 +350,7 @@ export const weightTicketRecordSchema = z.object({
   remark: z.string(),
   status: statusEnum,
   totals: z.object({
+    containerDeductionWeight: z.number().default(0),
     deductionWeight: z.number(),
     grossWeight: z.number(),
     netWeight: z.number(),
@@ -359,6 +388,7 @@ export type WeightTicketFormValues = z.infer<typeof weightTicketFormSchema>
 
 export function createWeightTicketLine(id = crypto.randomUUID()): WeightTicketLine {
   return {
+    containerDeductionWeight: '',
     deductionMode: 'none',
     deductionValue: '',
     grossWeight: '',
@@ -438,29 +468,32 @@ export function decodeStoredImageAsset(rawValue: string): StoredImageAsset {
   }
 }
 
-export function calculateLineTotals(line: Pick<WeightTicketLine, 'deductionMode' | 'deductionValue' | 'grossWeight'>) {
+export function calculateLineTotals(line: Pick<WeightTicketLine, 'containerDeductionWeight' | 'deductionMode' | 'deductionValue' | 'grossWeight'>) {
   const grossWeight = Math.max(0, toNumber(line.grossWeight))
+  const containerDeductionWeight = Math.min(Math.max(0, toNumber(line.containerDeductionWeight)), grossWeight)
   const rawDeduction = line.deductionMode === 'percent'
     ? grossWeight * Math.max(0, toNumber(line.deductionValue)) / 100
     : line.deductionMode === 'kg'
       ? Math.max(0, toNumber(line.deductionValue))
       : 0
-  const deductionWeight = Math.min(rawDeduction, grossWeight)
+  const deductionWeight = Math.min(rawDeduction, Math.max(0, grossWeight - containerDeductionWeight))
   return {
+    containerDeductionWeight,
     deductionWeight,
     grossWeight,
-    netWeight: Math.max(0, grossWeight - deductionWeight),
+    netWeight: Math.max(0, grossWeight - containerDeductionWeight - deductionWeight),
   }
 }
 
-export function calculateTicketTotals(lines: Array<Pick<WeightTicketLine, 'deductionMode' | 'deductionValue' | 'grossWeight'>>) {
+export function calculateTicketTotals(lines: Array<Pick<WeightTicketLine, 'containerDeductionWeight' | 'deductionMode' | 'deductionValue' | 'grossWeight'>>) {
   return lines.reduce((summary, line) => {
     const totals = calculateLineTotals(line)
+    summary.containerDeductionWeight += totals.containerDeductionWeight
     summary.grossWeight += totals.grossWeight
     summary.deductionWeight += totals.deductionWeight
     summary.netWeight += totals.netWeight
     return summary
-  }, { deductionWeight: 0, grossWeight: 0, netWeight: 0 })
+  }, { containerDeductionWeight: 0, deductionWeight: 0, grossWeight: 0, netWeight: 0 })
 }
 
 export function findOptionLabel(options: OptionItem[], id: string) {
@@ -549,6 +582,7 @@ function payloadFromForm(values: WeightTicketFormValues) {
     ...values,
     lines: values.lines.map((line) => ({
       ...line,
+      containerDeductionWeight: Number(line.containerDeductionWeight),
       deductionValue: line.deductionMode === 'none' ? 0 : Number(line.deductionValue),
       grossWeight: Number(line.grossWeight),
     })),

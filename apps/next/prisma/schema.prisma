@@ -2786,6 +2786,7 @@ model weight_tickets {
   vehicle_image_count               Int                                 @default(0)
   vehicle_image_names               String[]                            @default([])
   gross_weight                      Decimal                             @default(0) @db.Decimal
+  container_deduction_weight        Decimal                             @default(0) @db.Decimal
   deduct_weight                     Decimal                             @default(0) @db.Decimal
   net_weight                        Decimal                             @default(0) @db.Decimal
   cancel_note                       String?
@@ -2826,6 +2827,7 @@ model weight_ticket_lines {
   line_no                             Int
   product_name                        String
   gross_weight                        Decimal                              @default(0) @db.Decimal
+  container_deduction_weight          Decimal                              @default(0) @db.Decimal
   deduct_weight                       Decimal                              @default(0) @db.Decimal
   net_weight                          Decimal                              @default(0) @db.Decimal
   deduction_mode                      String
@@ -2859,6 +2861,7 @@ model weight_ticket_product_summaries {
   product_name                        String
   line_count                          Int                                   @default(0)
   gross_weight                        Decimal                               @default(0) @db.Decimal
+  container_deduction_weight          Decimal                               @default(0) @db.Decimal
   deduct_weight                       Decimal                               @default(0) @db.Decimal
   net_weight                          Decimal                               @default(0) @db.Decimal
   billed_weight                       Decimal                               @default(0) @db.Decimal

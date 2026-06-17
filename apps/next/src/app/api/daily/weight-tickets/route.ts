@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { parseInternalBigIntId } from '@/lib/business-code'
-import { weightTicketFormSchema } from '@/lib/weight-tickets'
+import { calculateTicketTotals, weightTicketFormSchema } from '@/lib/weight-tickets'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { recordAuditLog } from '@/lib/server/app-logging'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
@@ -170,18 +170,12 @@ export async function POST(request: Request) {
     const actor = currentActor(context)
     const enteredBy = enteredByLabel(context)
     const documentDate = bangkokDateInput(new Date())
-    const totals = values.lines.reduce((summary, line) => {
-      const grossWeight = Number(line.grossWeight)
-      const deductionWeight = line.deductionMode === 'percent'
-        ? grossWeight * Number(line.deductionValue) / 100
-        : line.deductionMode === 'kg'
-          ? Number(line.deductionValue)
-          : 0
-      summary.grossWeight += grossWeight
-      summary.deductionWeight += Math.min(deductionWeight, grossWeight)
-      summary.netWeight += Math.max(0, grossWeight - Math.min(deductionWeight, grossWeight))
-      return summary
-    }, { deductionWeight: 0, grossWeight: 0, netWeight: 0 })
+    const totals = calculateTicketTotals(values.lines.map((line) => ({
+      containerDeductionWeight: String(line.containerDeductionWeight),
+      deductionMode: line.deductionMode,
+      deductionValue: String(line.deductionValue),
+      grossWeight: String(line.grossWeight),
+    })))
 
     const created = await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('weight_tickets.doc_no'))`
@@ -196,6 +190,7 @@ export async function POST(request: Request) {
           doc_type: values.type,
           document_date: new Date(`${documentDate}T00:00:00.000Z`),
           entered_by: enteredBy,
+          container_deduction_weight: totals.containerDeductionWeight,
           gross_weight: totals.grossWeight,
           image_count: values.vehicleImageNames.length,
           net_weight: totals.netWeight,

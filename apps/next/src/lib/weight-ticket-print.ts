@@ -75,6 +75,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
 	          <div class="muted">${escapeHtml(line.note || '-')}</div>
 	        </td>
         <td class="r">${formatPrintableNumber(line.grossWeightValue)}</td>
+        <td class="r">${formatPrintableNumber(line.containerDeductionWeightValue)}</td>
         <td class="r">${escapeHtml(line.impurityName || '-')} ${line.deductionWeight > 0 ? `(${formatPrintableNumber(line.deductionWeight)} kg${line.deductionMode === 'percent' ? ` / ${escapeHtml(line.deductionValue)}%` : ''})` : ''}</td>
         <td class="r strong">${formatPrintableNumber(line.netWeight)}</td>
       </tr>
@@ -83,7 +84,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
 
   function emptyRows(count: number) {
     return Array.from({ length: Math.max(0, count) }, () => (
-      '<tr class="empty"><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>'
+      '<tr class="empty"><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>'
     )).join('')
   }
 
@@ -149,7 +150,8 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
               <th class="c rank-cell" style="width:7mm">#</th>
               <th>รายการสินค้า</th>
               <th class="r" style="width:24mm">รวม (kg)</th>
-              <th class="r" style="width:38mm">หักสิ่งเจือปน</th>
+              <th class="r" style="width:25mm">หักภาชนะ</th>
+              <th class="r" style="width:34mm">หักสิ่งเจือปน</th>
               <th class="r" style="width:24mm">สุทธิ</th>
             </tr>
           </thead>
@@ -162,6 +164,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
               <tr>
                 <td colspan="2" class="r">รวมทั้งสิ้น</td>
                 <td class="r">${formatPrintableNumber(ticket.totals.grossWeight)}</td>
+                <td class="r">${formatPrintableNumber(ticket.totals.containerDeductionWeight)} kg</td>
                 <td class="r">${formatPrintableNumber(ticket.totals.deductionWeight)} kg</td>
                 <td class="r final-weight">${formatPrintableNumber(ticket.totals.netWeight)}</td>
               </tr>
@@ -180,6 +183,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
               <div class="panel-body two-col">
                 <div><div class="field-label">จำนวนรายการ</div><div class="field-value">${ticket.lines.length.toLocaleString('th-TH')} รายการ</div></div>
                 <div><div class="field-label">น้ำหนักรวม</div><div class="field-value">${formatPrintableNumber(ticket.totals.grossWeight)} kg</div></div>
+                <div><div class="field-label">หักภาชนะ</div><div class="field-value">${formatPrintableNumber(ticket.totals.containerDeductionWeight)} kg</div></div>
                 <div><div class="field-label">หักสิ่งเจือปน</div><div class="field-value">${formatPrintableNumber(ticket.totals.deductionWeight)} kg</div></div>
                 <div><div class="field-label">น้ำหนักสุทธิ</div><div class="field-value strong">${formatPrintableNumber(ticket.totals.netWeight)} kg</div></div>
               </div>

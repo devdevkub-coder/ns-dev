@@ -262,6 +262,7 @@ export function buildWeightTicketLineRows(
       deductionMode: line.deductionMode,
       deductionValue: String(line.deductionValue),
       grossWeight: String(line.grossWeight),
+      containerDeductionWeight: String(line.containerDeductionWeight),
     })
     const productCode = line.productId.trim().toUpperCase()
     const product = productByCode.get(productCode)
@@ -274,6 +275,7 @@ export function buildWeightTicketLineRows(
     const impurity = impurityId == null ? null : impurityById.get(impurityId)
 
     return {
+      container_deduction_weight: lineTotals.containerDeductionWeight,
       deduct_weight: lineTotals.deductionWeight,
       deduction_mode: line.deductionMode,
       deduction_value: line.deductionMode === 'none' ? 0 : Number(line.deductionValue),
@@ -297,6 +299,7 @@ export function buildWeightTicketProductSummaryRows(
   ticketId: bigint,
   lineRows: Array<{
     deduct_weight: number | Prisma.Decimal
+    container_deduction_weight?: number | Prisma.Decimal
     deduction_mode: string
     deduction_value: number | Prisma.Decimal | null
     gross_weight: number | Prisma.Decimal
@@ -310,6 +313,7 @@ export function buildWeightTicketProductSummaryRows(
 ) {
   const grouped = new Map<bigint, {
     billedWeight: number
+    containerDeductionWeight: number
     deductWeight: number
     grossWeight: number
     lineCount: number
@@ -322,9 +326,10 @@ export function buildWeightTicketProductSummaryRows(
 
   lineRows.forEach((line) => {
     const existing = grouped.get(line.product_id)
-    const profileKey = `${line.deduction_mode}|${line.impurity_id ?? ''}|${line.deduction_value ?? 0}`
+    const profileKey = `${line.container_deduction_weight ?? 0}|${line.deduction_mode}|${line.impurity_id ?? ''}|${line.deduction_value ?? 0}`
     if (existing) {
       existing.deductWeight += toNumber(line.deduct_weight)
+      existing.containerDeductionWeight += toNumber(line.container_deduction_weight ?? 0)
       existing.grossWeight += toNumber(line.gross_weight)
       existing.lineCount += 1
       existing.lineIds.push(line.id)
@@ -335,6 +340,7 @@ export function buildWeightTicketProductSummaryRows(
 
     grouped.set(line.product_id, {
       billedWeight: 0,
+      containerDeductionWeight: toNumber(line.container_deduction_weight ?? 0),
       deductWeight: toNumber(line.deduct_weight),
       grossWeight: toNumber(line.gross_weight),
       lineCount: 1,
@@ -348,6 +354,7 @@ export function buildWeightTicketProductSummaryRows(
 
   const summaryRows = [...grouped.values()].map((summary) => ({
     billed_weight: summary.billedWeight,
+    container_deduction_weight: summary.containerDeductionWeight,
     created_at: new Date(),
     deduct_weight: summary.deductWeight,
     gross_weight: summary.grossWeight,
@@ -626,6 +633,8 @@ export function canMutateWeightTicket(row: { status: string | null }, usage: Wei
 export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsage) {
   const canMutate = canMutateWeightTicket(row, usage)
   const lineRows = row.weight_ticket_lines.map((line: WeightTicketRow['weight_ticket_lines'][number]) => ({
+    containerDeductionWeight: toNumber(line.container_deduction_weight).toString(),
+    containerDeductionWeightValue: toNumber(line.container_deduction_weight),
     deductionMode: (line.deduction_mode ?? 'none') as 'none' | 'kg' | 'percent',
     deductionValue: toNumber(line.deduction_value).toString(),
     deductionWeight: toNumber(line.deduct_weight),
@@ -647,6 +656,7 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
   const lineImageNames = lineRows.flatMap((line: { imageNames: string[] }) => line.imageNames)
   const productSummaries = row.weight_ticket_product_summaries.map((summary) => ({
     billedWeight: toNumber(summary.billed_weight),
+    containerDeductionWeight: toNumber(summary.container_deduction_weight),
     deductWeight: toNumber(summary.deduct_weight),
     grossWeight: toNumber(summary.gross_weight),
     hasMixedDeductionProfiles: summary.has_mixed_deduction_profiles ?? false,
@@ -680,6 +690,7 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
     remark: row.remark ?? '',
     status: (row.status ?? defaultTicketStatus(row.doc_type as WeightTicketType)) as WeightTicketStatus,
     totals: {
+      containerDeductionWeight: toNumber(row.container_deduction_weight),
       deductionWeight: toNumber(row.deduct_weight),
       grossWeight: toNumber(row.gross_weight),
       netWeight: toNumber(row.net_weight),

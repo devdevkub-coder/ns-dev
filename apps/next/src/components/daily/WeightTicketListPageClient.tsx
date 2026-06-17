@@ -35,7 +35,7 @@ import {
 
 type TypeFilter = WeightTicketType
 type StatusFilter = WeightTicketStatus
-type WeightTicketColumnKey = 'action' | 'branch' | 'createdAt' | 'documentNo' | 'netWeight' | 'partyName' | 'status' | 'updatedAt' | 'vehicleNo'
+type WeightTicketColumnKey = 'action' | 'branch' | 'createdAt' | 'deductionWeight' | 'documentNo' | 'impurityDeduction' | 'netWeight' | 'partyName' | 'status' | 'updatedAt' | 'vehicleNo'
 
 const pageSize = 10
 const weightTicketColumns: Array<ResizableColumnDefinition<WeightTicketColumnKey>> = [
@@ -45,6 +45,8 @@ const weightTicketColumns: Array<ResizableColumnDefinition<WeightTicketColumnKey
   { key: 'branch', defaultWidth: 140, minWidth: 110 },
   { key: 'vehicleNo', defaultWidth: 130, minWidth: 110 },
   { key: 'netWeight', defaultWidth: 150, minWidth: 120 },
+  { key: 'deductionWeight', defaultWidth: 150, minWidth: 125 },
+  { key: 'impurityDeduction', defaultWidth: 170, minWidth: 130 },
   { key: 'status', defaultWidth: 160, minWidth: 130 },
   { key: 'updatedAt', defaultWidth: 170, minWidth: 130 },
   { key: 'action', defaultWidth: 300, minWidth: 240 },
@@ -79,6 +81,14 @@ function formatDateTime(value?: string | null) {
     month: '2-digit',
     year: 'numeric',
   })
+}
+
+function formatImpurityDeduction(ticket: WeightTicketRecord) {
+  return `${formatWeight(ticket.totals.deductionWeight)} กก.`
+}
+
+function formatContainerDeduction(ticket: WeightTicketRecord) {
+  return `${formatWeight(ticket.totals.containerDeductionWeight)} กก.`
 }
 
 function SortHeader({
@@ -550,6 +560,14 @@ export function WeightTicketListPageClient() {
                   <span className="font-semibold text-slate-500">สาขา: </span>
                   <span className="text-slate-800">{ticket.branchName}</span>
                 </div>
+                <div>
+                  <span className="font-semibold text-slate-500">หักสิ่งเจือปน: </span>
+                  <span className="text-slate-800">{formatImpurityDeduction(ticket)}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-slate-500">หักภาชนะ: </span>
+                  <span className="text-slate-800">{formatContainerDeduction(ticket)}</span>
+                </div>
               </div>
 
               <div className="flex justify-between items-center pt-2 border-t border-slate-100">
@@ -566,6 +584,7 @@ export function WeightTicketListPageClient() {
                 <div className="text-right">
                   <span className="text-[10px] text-slate-400 block">น้ำหนักสุทธิ</span>
                   <span className="font-bold text-slate-900 text-sm tabular-nums">{formatWeight(ticket.totals.netWeight)} กก.</span>
+                  <span className="mt-0.5 block text-[10px] text-amber-700 tabular-nums">หักรวม {formatWeight(ticket.totals.containerDeductionWeight + ticket.totals.deductionWeight)} กก.</span>
                 </div>
               </div>
 
@@ -637,6 +656,8 @@ export function WeightTicketListPageClient() {
                 <ResizableTableHead label="สาขา" resizeProps={columnResize.getResizeHandleProps('branch', 'สาขา')} />
                 <ResizableTableHead label="ทะเบียนรถ" resizeProps={columnResize.getResizeHandleProps('vehicleNo', 'ทะเบียนรถ')} />
                 <SortHeader activeKey={sortBy} align="right" direction={sortDir} label="น้ำหนักสุทธิ" resizeProps={columnResize.getResizeHandleProps('netWeight', 'น้ำหนักสุทธิ')} onSort={toggleSort} sortKey="netWeight" />
+                <ResizableTableHead align="right" label="หักภาชนะ(กก.)" resizeProps={columnResize.getResizeHandleProps('deductionWeight', 'หักภาชนะ(กก.)')} />
+                <ResizableTableHead label="หักสิ่งเจือปน" resizeProps={columnResize.getResizeHandleProps('impurityDeduction', 'หักสิ่งเจือปน')} />
                 <ResizableTableHead label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
                 <ResizableTableHead label="อัปเดตล่าสุด" resizeProps={columnResize.getResizeHandleProps('updatedAt', 'อัปเดตล่าสุด')} />
                 <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
@@ -645,15 +666,15 @@ export function WeightTicketListPageClient() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td className="px-3 py-10 text-center text-slate-500" colSpan={10}>กำลังโหลดข้อมูล</td>
+                  <td className="px-3 py-10 text-center text-slate-500" colSpan={11}>กำลังโหลดข้อมูล</td>
                 </tr>
               ) : loadError ? (
                 <tr>
-                  <td className="px-3 py-10 text-center text-red-600" colSpan={10}>{loadError}</td>
+                  <td className="px-3 py-10 text-center text-red-600" colSpan={11}>{loadError}</td>
                 </tr>
               ) : tickets.length === 0 ? (
                 <tr>
-                  <td className="px-3 py-10 text-center text-slate-500" colSpan={10}>ยังไม่มีรายการตามเงื่อนไข</td>
+                  <td className="px-3 py-10 text-center text-slate-500" colSpan={11}>ยังไม่มีรายการตามเงื่อนไข</td>
                 </tr>
               ) : tickets.map((ticket) => (
                 <tr
@@ -667,6 +688,10 @@ export function WeightTicketListPageClient() {
                   <td className="whitespace-nowrap px-3 py-3 text-slate-600">{ticket.branchName}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-slate-600">{ticket.vehicleNo}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-slate-900">{formatWeight(ticket.totals.netWeight)} กก.</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-amber-700">{formatContainerDeduction(ticket)}</td>
+                  <td className="px-3 py-3 text-slate-600">
+                    <div className="truncate">{formatImpurityDeduction(ticket)}</div>
+                  </td>
                   <td className="box-border h-[39px] w-[140px] px-3 py-2">
                     <div className="flex min-h-[23px] flex-col items-start justify-center">
                       <span className={cn(
@@ -819,7 +844,7 @@ export function WeightTicketListPageClient() {
             <div className="flex-1 overflow-y-auto bg-slate-50 p-0">
               <WeightTicketsPageClient
                 initialType={activeForm.type}
-                lockType={Boolean(activeForm.id)}
+                lockType
                 ticketId={activeForm.id}
                 onClose={() => setActiveForm(null)}
                 onSaveSuccess={() => {
@@ -834,4 +859,3 @@ export function WeightTicketListPageClient() {
     </div>
   )
 }
-

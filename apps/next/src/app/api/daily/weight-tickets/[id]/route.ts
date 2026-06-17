@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { parseInternalBigIntId } from '@/lib/business-code'
-import { weightTicketCancelSchema, weightTicketFormSchema } from '@/lib/weight-tickets'
+import { calculateTicketTotals, weightTicketCancelSchema, weightTicketFormSchema } from '@/lib/weight-tickets'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { recordAuditLog } from '@/lib/server/app-logging'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
@@ -188,18 +188,12 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     const nextStatus = existing.status === 'billed'
       ? existing.status
       : defaultTicketStatus(values.type)
-    const totals = values.lines.reduce((summary, line) => {
-      const grossWeight = Number(line.grossWeight)
-      const deductionWeight = line.deductionMode === 'percent'
-        ? grossWeight * Number(line.deductionValue) / 100
-        : line.deductionMode === 'kg'
-          ? Number(line.deductionValue)
-          : 0
-      summary.grossWeight += grossWeight
-      summary.deductionWeight += Math.min(deductionWeight, grossWeight)
-      summary.netWeight += Math.max(0, grossWeight - Math.min(deductionWeight, grossWeight))
-      return summary
-    }, { deductionWeight: 0, grossWeight: 0, netWeight: 0 })
+    const totals = calculateTicketTotals(values.lines.map((line) => ({
+      containerDeductionWeight: String(line.containerDeductionWeight),
+      deductionMode: line.deductionMode,
+      deductionValue: String(line.deductionValue),
+      grossWeight: String(line.grossWeight),
+    })))
 
     const updated = await prisma.$transaction(async (tx) => {
       const branchCode = String(branch.code ?? '').replace(/\D/g, '').slice(-2).padStart(2, '0')
@@ -217,6 +211,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
           cancel_note: null,
           cancelled_at: null,
           cancelled_by: null,
+          container_deduction_weight: totals.containerDeductionWeight,
           customer_id: values.type === 'WTO' ? customer?.id ?? null : null,
           deduct_weight: totals.deductionWeight,
           doc_no: docNo,

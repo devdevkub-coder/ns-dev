@@ -263,11 +263,13 @@ export function WeightTicketDetailModal({
                 ) : null}
               </Card>
 
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
                 <MetricCard icon={<ClipboardList className="size-4" />} label="สาขา" value={ticket.branchName} />
+                <MetricCard icon={<Scale className="size-4" />} label="หักภาชนะ" value={`${formatWeight(ticket.totals.containerDeductionWeight)} กก.`} />
+                <MetricCard icon={<Scale className="size-4" />} label="หักสิ่งเจือปน" value={`${formatWeight(ticket.totals.deductionWeight)} กก.`} />
                 <MetricCard icon={<Scale className="size-4" />} label="น้ำหนักสุทธิ" value={`${formatWeight(ticket.totals.netWeight)} กก.`} />
                 <MetricCard
-                  className="col-span-2 md:col-span-1"
+                  className="col-span-2 md:col-span-4"
                   icon={<Package2 className="size-4" />}
                   label="สินค้าหลังรวม"
                   value={`${ticket.productSummaries.length} สินค้า / ${ticket.lines.length} lot`}
@@ -302,7 +304,8 @@ export function WeightTicketDetailModal({
                             <th className="px-3 py-3 text-left">สินค้า</th>
                             <th className="px-3 py-3 text-left">หมายเหตุ</th>
                             <th className="px-3 py-3 text-right">Gross</th>
-                            <th className="px-3 py-3 text-right">หัก</th>
+                            <th className="px-3 py-3 text-right">หักภาชนะ</th>
+                            <th className="px-3 py-3 text-right">หักสิ่งเจือปน</th>
                             <th className="px-3 py-3 text-right">Net</th>
                             <th className="px-3 py-3 text-left">สิ่งเจือปน</th>
                             <th className="px-3 py-3 text-left">รูป</th>
@@ -315,6 +318,7 @@ export function WeightTicketDetailModal({
                               <td className="px-3 py-3 font-medium text-slate-900">{line.productName}</td>
                               <td className="px-3 py-3 text-slate-600">{line.note || '-'}</td>
                               <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(line.grossWeightValue)}</td>
+                              <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(line.containerDeductionWeightValue)}</td>
                               <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(line.deductionWeight)}</td>
                               <td className="whitespace-nowrap px-3 py-3 text-right font-semibold tabular-nums text-slate-900">{formatWeight(line.netWeight)}</td>
                               <td className="px-3 py-3 text-slate-600">{line.impurityName || '-'}</td>
@@ -396,13 +400,17 @@ export function WeightTicketDetailModal({
                               )}
                             </div>
                             {line.note && <div className="text-xs text-slate-500">หมายเหตุ: {line.note}</div>}
-                            <div className="grid grid-cols-3 gap-2 text-center text-xs py-2 bg-slate-50 rounded-md">
+                            <div className="grid grid-cols-2 gap-2 text-center text-xs py-2 bg-slate-50 rounded-md sm:grid-cols-4">
                               <div>
                                 <span className="text-[10px] text-slate-400 block">Gross</span>
                                 <span className="font-medium text-slate-700">{formatWeight(line.grossWeightValue)}</span>
                               </div>
                               <div>
-                                <span className="text-[10px] text-slate-400 block">หัก {line.impurityName ? `(${line.impurityName})` : ''}</span>
+                                <span className="text-[10px] text-slate-400 block">ภาชนะ</span>
+                                <span className="font-medium text-slate-700">{formatWeight(line.containerDeductionWeightValue)}</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-400 block">สิ่งเจือปน {line.impurityName ? `(${line.impurityName})` : ''}</span>
                                 <span className="font-medium text-slate-700">{formatWeight(line.deductionWeight)}</span>
                               </div>
                               <div>
@@ -428,7 +436,8 @@ export function WeightTicketDetailModal({
                             <th className="px-3 py-3 text-left">สินค้า</th>
                             <th className="px-3 py-3 text-left">จำนวน lot</th>
                             <th className="px-3 py-3 text-right">Gross รวม</th>
-                            <th className="px-3 py-3 text-right">หักรวม</th>
+                            <th className="px-3 py-3 text-right">หักภาชนะรวม</th>
+                            <th className="px-3 py-3 text-right">หักสิ่งเจือปนรวม</th>
                             <th className="px-3 py-3 text-right">Net รวม</th>
                           </tr>
                         </thead>
@@ -439,6 +448,7 @@ export function WeightTicketDetailModal({
                               <td className="px-3 py-3 font-medium text-slate-900">{summary.productName}</td>
                               <td className="px-3 py-3 text-slate-600">{summary.lineCount} lot</td>
                               <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(summary.grossWeight)}</td>
+                              <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(summary.containerDeductionWeight)}</td>
                               <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(summary.deductWeight)}</td>
                               <td className="whitespace-nowrap px-3 py-3 text-right font-semibold tabular-nums text-slate-900">{formatWeight(summary.netWeight)}</td>
                             </tr>
@@ -453,13 +463,17 @@ export function WeightTicketDetailModal({
                               <div className="font-semibold text-slate-800 text-sm">{index + 1}. {summary.productName}</div>
                               <span className="text-xs text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded">{summary.lineCount} lot</span>
                             </div>
-                            <div className="grid grid-cols-3 gap-2 text-center text-xs py-2 bg-slate-50 rounded-md">
+                            <div className="grid grid-cols-2 gap-2 text-center text-xs py-2 bg-slate-50 rounded-md sm:grid-cols-4">
                               <div>
                                 <span className="text-[10px] text-slate-400 block">Gross รวม</span>
                                 <span className="font-medium text-slate-700">{formatWeight(summary.grossWeight)}</span>
                               </div>
                               <div>
-                                <span className="text-[10px] text-slate-400 block">หักรวม</span>
+                                <span className="text-[10px] text-slate-400 block">ภาชนะรวม</span>
+                                <span className="font-medium text-slate-700">{formatWeight(summary.containerDeductionWeight)}</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-400 block">สิ่งเจือปนรวม</span>
                                 <span className="font-medium text-slate-700">{formatWeight(summary.deductWeight)}</span>
                               </div>
                               <div>
@@ -887,4 +901,3 @@ function ImageGrid({
     </div>
   )
 }
-

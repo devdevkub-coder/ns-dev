@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-06-12
+updated: 2026-06-17
 route: /daily/weight-ticket-list
 ---
 
@@ -84,6 +84,7 @@ list/detail/create link สำหรับ WTI/WTO; WTI/WTO เป็น evidenc
 - list/detail/print/export ต้องอ่าน source contract เดียวกันเพื่อลด drift
 - transaction write ต้องทำใน server transaction และ append timeline/status/audit ตาม document policy
 - ถ้า field เป็น money/qty/date/business code ให้ validate ตาม `docs/design.md` และ server-side ซ้ำ
+- น้ำหนักสุทธิต้องคำนวณจาก `gross_weight - container_deduction_weight - deduct_weight`; `container_deduction_weight` คือหักภาชนะ ส่วน `deduct_weight` คือหักสิ่งเจือปนเดิม และต้องเก็บแยกทั้ง header/line/product summary
 - สำหรับ `WTO`, `warehouseId` เป็น line-level stock location ไม่ใช่ header field เพราะแต่ละสินค้าอาจออกจากคลังต่างกัน
 - `warehouseId` ที่ส่งออก client ควรเป็น business code ของ warehouse; server resolve เป็น internal bigint id ก่อนเขียน DB
 

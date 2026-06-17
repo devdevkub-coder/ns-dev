@@ -28,6 +28,8 @@ function buildWeightTicketShareMessage(ticket: Pick<WeightTicketRecord, 'branchN
     `${partyLabel}: ${ticket.partyName}`,
     `สาขา: ${ticket.branchName}`,
     `วันที่/เวลาเอกสาร: ${formatDateTime(ticket.createdAt)}`,
+    `หักภาชนะ: ${formatWeight(ticket.totals.containerDeductionWeight)} กก.`,
+    `หักสิ่งเจือปน: ${formatWeight(ticket.totals.deductionWeight)} กก.`,
     `น้ำหนักสุทธิ: ${formatWeight(ticket.totals.netWeight)} กก.`,
     documentUrl,
   ].join('\n')
