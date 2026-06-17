@@ -562,7 +562,7 @@ export function MoneyMovementPageClient({
   const [paymentDetail, setPaymentDetail] = useState<PaymentHistoryDetail | null>(null)
   const [isPaymentDetailLoading, setIsPaymentDetailLoading] = useState(false)
   const [paymentDetailError, setPaymentDetailError] = useState<string | null>(null)
-  const paymentQueueColumnResize = useResizableColumns('daily.purchase-payments.queue', paymentQueueColumns)
+  const paymentQueueColumnResize = useResizableColumns(`daily.money-movement.${mode}.queue`, paymentQueueColumns)
   const historyColumns = useMemo(() => mode === 'payment' ? paymentHistoryColumns : receiptHistoryColumns, [mode])
   const historyColumnResize = useResizableColumns(`daily.money-movement.${mode}.history`, historyColumns)
 
@@ -705,18 +705,76 @@ export function MoneyMovementPageClient({
     })
   }, [billSearch, billSort, data.bills, mode, partyMap, paymentMethods, supplierMap])
 
+  const receiptBills = useMemo(() => {
+    if (mode !== 'receipt') return []
+    const query = billSearch.trim().toLowerCase()
+    return data.bills.filter((bill) => {
+      const customerName = partyMap.get(bill.customerId ?? '') ?? bill.customerId ?? ''
+      const balance = bill.receivableBalance ?? 0
+      const searchHaystack = [
+        bill.id,
+        bill.docNo,
+        customerName,
+        bill.customerId ?? '',
+        bill.date ?? '',
+      ].join(' ').toLowerCase()
+      const matchesSearch = !query || searchHaystack.includes(query)
+      return matchesSearch && balance > 0
+    }).sort((left, right) => {
+      const leftCustomerName = partyMap.get(left.customerId ?? '') ?? left.customerId ?? ''
+      const rightCustomerName = partyMap.get(right.customerId ?? '') ?? right.customerId ?? ''
+      switch (billSort) {
+        case 'age_asc':
+          return ageInDays(left.date) - ageInDays(right.date)
+        case 'age_desc':
+          return ageInDays(right.date) - ageInDays(left.date)
+        case 'balance_asc':
+          return (left.receivableBalance ?? 0) - (right.receivableBalance ?? 0)
+        case 'balance_desc':
+          return (right.receivableBalance ?? 0) - (left.receivableBalance ?? 0)
+        case 'date_asc':
+          return String(left.date ?? '').localeCompare(String(right.date ?? ''))
+        case 'date_desc':
+          return String(right.date ?? '').localeCompare(String(left.date ?? ''))
+        case 'doc_asc':
+          return left.docNo.localeCompare(right.docNo)
+        case 'doc_desc':
+          return right.docNo.localeCompare(left.docNo)
+        case 'paid_asc':
+          return (left.paidAmount ?? 0) - (right.paidAmount ?? 0)
+        case 'paid_desc':
+          return (right.paidAmount ?? 0) - (left.paidAmount ?? 0)
+        case 'supplier_asc':
+          return leftCustomerName.localeCompare(rightCustomerName, 'th')
+        case 'supplier_desc':
+          return rightCustomerName.localeCompare(leftCustomerName, 'th')
+        case 'total_asc':
+          return (left.totalAmount ?? 0) - (right.totalAmount ?? 0)
+        case 'total_desc':
+          return (right.totalAmount ?? 0) - (left.totalAmount ?? 0)
+        default:
+          return String(right.date ?? '').localeCompare(String(left.date ?? ''))
+      }
+    })
+  }, [billSearch, billSort, data.bills, mode, partyMap])
+
   const supplierBillTotalRows = supplierBills.length
   const supplierBillTotalPages = Math.max(1, Math.ceil(supplierBillTotalRows / billPageSize))
   const supplierBillCurrentPage = Math.min(billPage, supplierBillTotalPages)
   const supplierBillPageRows = supplierBills.slice((supplierBillCurrentPage - 1) * billPageSize, supplierBillCurrentPage * billPageSize)
+  const receiptBillTotalRows = receiptBills.length
+  const receiptBillTotalPages = Math.max(1, Math.ceil(receiptBillTotalRows / billPageSize))
+  const receiptBillCurrentPage = Math.min(billPage, receiptBillTotalPages)
+  const receiptBillPageRows = receiptBills.slice((receiptBillCurrentPage - 1) * billPageSize, receiptBillCurrentPage * billPageSize)
+  const entryBillTotalPages = mode === 'payment' ? supplierBillTotalPages : receiptBillTotalPages
   const hasActiveBillFilters = billSearch.trim() !== '' || billSort !== 'date_desc'
   useEffect(() => {
     setBillPage(1)
   }, [billSearch, billPageSize, billSort])
 
   useEffect(() => {
-    if (billPage > supplierBillTotalPages) setBillPage(supplierBillTotalPages)
-  }, [billPage, supplierBillTotalPages])
+    if (billPage > entryBillTotalPages) setBillPage(entryBillTotalPages)
+  }, [billPage, entryBillTotalPages])
 
   const rows = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -1463,11 +1521,157 @@ export function MoneyMovementPageClient({
       ) : null}
 
       {mode === 'receipt' && showEntrySection ? (
-        <div className="hidden lg:flex flex-wrap items-center justify-end gap-2 rounded-md bg-white p-3 shadow">
-          <UiButton className="font-bold shadow" type="button" variant="default" onClick={openForm}>
-            + รับเงิน Customer
-          </UiButton>
-        </div>
+        <>
+          <div className="space-y-2 rounded-md bg-white p-3 shadow">
+            <div className="flex flex-wrap items-center gap-2">
+              <UiInput
+                className="h-9 min-w-[260px] flex-1 rounded-md"
+                placeholder="ค้นหา Sales Bill / ลูกค้า / วันที่"
+                type="search"
+                value={billSearch}
+                onChange={(event) => setBillSearch(event.target.value)}
+              />
+              {hasActiveBillFilters ? (
+                <UiButton
+                  className="h-9 font-normal"
+                  size="sm"
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setBillSearch('')
+                    setBillSort('date_desc')
+                  }}
+                >
+                  <X aria-hidden="true" className="mr-1 h-4 w-4" />
+                  ล้าง
+                </UiButton>
+              ) : null}
+              <UiButton className="h-9 font-bold shadow" size="sm" type="button" variant="default" onClick={openForm}>
+                + รับเงินเอง
+              </UiButton>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
+            <div>พบบิลขายค้างรับ <span className="font-semibold text-slate-900">{receiptBillTotalRows}</span> รายการ</div>
+            <div className="flex flex-wrap items-center gap-2">
+              {paymentQueueColumnResize.hasCustomWidths ? <UiButton className="h-9 font-normal" size="sm" type="button" variant="outline" onClick={paymentQueueColumnResize.resetColumnWidths}>คืนค่าเดิมตาราง</UiButton> : null}
+              <UiSelect
+                aria-label="จำนวนรายการต่อหน้า"
+                className="h-9 w-auto min-w-[96px] px-2"
+                value={billPageSize}
+                onChange={(event) => setBillPageSize(Number(event.target.value))}
+              >
+                {pageSizeOptions.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
+              </UiSelect>
+              <UiButton className="h-9 font-normal" disabled={receiptBillCurrentPage <= 1} size="sm" type="button" variant="outline" onClick={() => setBillPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</UiButton>
+              <span className="px-1">หน้า {receiptBillCurrentPage} / {receiptBillTotalPages}</span>
+              <UiButton className="h-9 font-normal" disabled={receiptBillCurrentPage >= receiptBillTotalPages} size="sm" type="button" variant="outline" onClick={() => setBillPage((value) => Math.min(receiptBillTotalPages, value + 1))}>ถัดไป</UiButton>
+            </div>
+          </div>
+
+          <div className="block lg:hidden space-y-3">
+            {isLoading ? (
+              <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-200">กำลังโหลดข้อมูล</div>
+            ) : null}
+            {!isLoading && receiptBillPageRows.map((bill) => {
+              const balance = bill.receivableBalance ?? 0
+              return (
+                <div
+                  key={bill.id}
+                  className="rounded-md border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 cursor-pointer transition-colors"
+                  onClick={() => openFormForBill(bill)}
+                >
+                  <div className="mb-2 flex items-start justify-between">
+                    <div className="font-bold text-slate-800 text-sm">{bill.docNo}</div>
+                    <span className="text-xs text-slate-500">{formatDateDisplay(bill.date)}</span>
+                  </div>
+                  <div className="mb-3 space-y-1 text-xs text-slate-600">
+                    <div>
+                      <span className="font-semibold text-slate-500">ลูกค้า: </span>
+                      <span className="text-slate-800">{partyMap.get(bill.customerId ?? '') ?? bill.customerId ?? '-'}</span>
+                    </div>
+                    <div className="text-[11px] text-slate-500">อายุเอกสาร: {ageInDays(bill.date)} วัน</div>
+                  </div>
+                  <div className="flex items-end justify-between border-t border-slate-100 pt-2">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block">ค้างรับ</span>
+                      <span className="font-bold text-sm tabular-nums text-emerald-700">{formatMoney(balance)}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] text-slate-400 block">ยอดรวมบิล</span>
+                      <span className="font-bold text-slate-900 text-sm tabular-nums">{formatMoney(bill.totalAmount)}</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+            {!isLoading && receiptBillPageRows.length === 0 ? (
+              <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">ไม่พบบิลขายค้างรับตามเงื่อนไข</div>
+            ) : null}
+          </div>
+
+          <div className="hidden lg:block overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+            <Table className="text-xs" style={{ minWidth: paymentQueueColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
+              <colgroup>
+                {paymentQueueColumns.map((column, index) => {
+                  const style = paymentQueueColumnResize.getColumnStyle(column.key)
+                  if (index === paymentQueueColumns.length - 1) {
+                    return <col key={column.key} style={{ minWidth: column.minWidth }} />
+                  }
+                  return <col key={column.key} style={style} />
+                })}
+              </colgroup>
+              <TableHeader className="text-slate-700">
+                <tr>
+                  <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="เลขที่บิลขาย" resizeProps={paymentQueueColumnResize.getResizeHandleProps('docNo', 'เลขที่บิลขาย')} sortKey="docNo" onSort={toggleBillSort} />
+                  <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="วันที่" resizeProps={paymentQueueColumnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={toggleBillSort} />
+                  <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="ลูกค้า" resizeProps={paymentQueueColumnResize.getResizeHandleProps('partyName', 'ลูกค้า')} sortKey="supplier" onSort={toggleBillSort} />
+                  <ResizableTableHead label="แหล่งข้อมูล" resizeProps={paymentQueueColumnResize.getResizeHandleProps('bankName', 'แหล่งข้อมูล')} />
+                  <ResizableTableHead label="เอกสารอ้างอิง" resizeProps={paymentQueueColumnResize.getResizeHandleProps('accountNo', 'เอกสารอ้างอิง')} />
+                  <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="ยอดรวม" resizeProps={paymentQueueColumnResize.getResizeHandleProps('totalAmount', 'ยอดรวม')} sortKey="totalAmount" onSort={toggleBillSort} />
+                  <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="รับแล้ว" resizeProps={paymentQueueColumnResize.getResizeHandleProps('paidAmount', 'รับแล้ว')} sortKey="paidAmount" onSort={toggleBillSort} />
+                  <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="ค้างรับ" resizeProps={paymentQueueColumnResize.getResizeHandleProps('balance', 'ค้างรับ')} sortKey="balance" onSort={toggleBillSort} />
+                  <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="อายุ(วัน)" resizeProps={paymentQueueColumnResize.getResizeHandleProps('age', 'อายุ(วัน)')} sortKey="age" onSort={toggleBillSort} />
+                  <ResizableTableHead align="center" label="จัดการ" resizeProps={paymentQueueColumnResize.getResizeHandleProps('action', 'Action')} />
+                </tr>
+              </TableHeader>
+              <TableBody className="divide-y divide-slate-100">
+                {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={10}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+                {!isLoading && receiptBillPageRows.map((bill) => {
+                  const balance = bill.receivableBalance ?? 0
+                  const receivedAmount = Math.max(0, (bill.totalAmount ?? 0) - balance)
+                  return (
+                    <TableRow key={bill.id} className="cursor-pointer hover:bg-slate-50" onClick={() => openFormForBill(bill)}>
+                      <TableCell className="text-xs font-semibold text-slate-700">{bill.docNo}</TableCell>
+                      <TableCell className="text-xs font-semibold text-slate-700">{formatDateDisplay(bill.date)}</TableCell>
+                      <TableCell className="max-w-72 truncate text-xs font-semibold text-slate-700">{partyMap.get(bill.customerId ?? '') ?? bill.customerId ?? '-'}</TableCell>
+                      <TableCell className="text-xs font-semibold text-slate-700">Sales Bill</TableCell>
+                      <TableCell className="text-xs font-semibold text-slate-700">{bill.sourceDocNo || bill.docNo}</TableCell>
+                      <TableCell className="whitespace-nowrap pr-4 text-right text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(bill.totalAmount)}</TableCell>
+                      <TableCell className="whitespace-nowrap pr-4 text-right text-xs font-semibold text-blue-700 tabular-nums">{formatMoney(receivedAmount)}</TableCell>
+                      <TableCell className="whitespace-nowrap pr-4 text-right text-xs font-semibold text-emerald-700 tabular-nums">{formatMoney(balance)}</TableCell>
+                      <TableCell className="whitespace-nowrap pr-4 text-right text-xs font-semibold text-slate-700 tabular-nums">{ageInDays(bill.date)}</TableCell>
+                      <TableCell className="text-center">
+                        <button
+                          className="rounded-md border border-emerald-200 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            openFormForBill(bill)
+                          }}
+                        >
+                          รับเงิน
+                        </button>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+                {!isLoading && receiptBillPageRows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={10}>ไม่พบบิลขายค้างรับตามเงื่อนไข</TableCell></TableRow> : null}
+              </TableBody>
+            </Table>
+          </div>
+        </>
       ) : null}
 
       {mode === 'payment' && showEntrySection ? (
@@ -2654,4 +2858,3 @@ function KpiCard({ label, tone, value }: { label: string; tone: 'amber' | 'blue'
     </div>
   )
 }
-

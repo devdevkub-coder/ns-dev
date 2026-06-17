@@ -87,8 +87,10 @@ export async function GET() {
       accounts,
       bills: bills.map((bill) => ({
         customerId: requireBusinessCode(bill.customers?.code, `ลูกค้าบิลขาย ${bill.id}`),
+        date: toDateOnly(bill.date),
         docNo: bill.doc_no,
         id: bill.doc_no,
+        paidAmount: Math.max(0, toNumber(bill.total_amount) - toNumber(bill.receivable_balance)),
         receivableBalance: toNumber(bill.receivable_balance),
         totalAmount: toNumber(bill.total_amount),
       })),
