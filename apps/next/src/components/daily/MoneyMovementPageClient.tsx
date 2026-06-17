@@ -541,10 +541,19 @@ function buildCustomerReceiptPrintHtml(row: MoneyRow) {
   </body></html>`
 }
 
+function receiptQueueDocNo(bill: Bill) {
+  return bill.activeReceiptDocNos?.[0] ?? 'รอออกเลขใบรับเงิน'
+}
+
+function receiptQueueStatusLabel(bill: Bill) {
+  return bill.activeReceiptDocNos?.length ? 'รับเงินแล้ว' : 'รอรับเงิน'
+}
+
 function buildReceivableBillPrintHtml(bill: Bill, customerName: string) {
   const balance = bill.receivableBalance ?? 0
   const receivedAmount = Math.max(0, (bill.totalAmount ?? 0) - balance)
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(bill.docNo)}</title>
+  const receiptDocNo = receiptQueueDocNo(bill)
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(receiptDocNo)}</title>
     <style>
       @page { size: A4; margin: 12mm; }
       body { font-family: 'Noto Sans Thai', Arial, sans-serif; color: #0f172a; font-size: 12px; margin: 0; }
@@ -571,22 +580,24 @@ function buildReceivableBillPrintHtml(bill: Bill, customerName: string) {
     <div class="page">
       <div class="header">
         <div>
-          <h1>Sales Bill Receivable</h1>
-          <div class="muted">รายการบิลขายค้างรับ Customer</div>
+          <h1>Receipt Voucher Queue</h1>
+          <div class="muted">ใบรับเงิน Customer รอดำเนินการ</div>
         </div>
         <div style="text-align:right">
-          <div class="label">เลขที่บิลขาย</div>
-          <div class="value">${escapeHtml(bill.docNo)}</div>
+          <div class="label">เลขที่ใบรับเงิน</div>
+          <div class="value">${escapeHtml(receiptDocNo)}</div>
           <div class="label" style="margin-top:6px">วันที่</div>
           <div class="value">${escapeHtml(formatDateDisplay(bill.date))}</div>
         </div>
       </div>
       <div class="grid">
         <div class="box"><div class="label">ลูกค้า</div><div class="value">${escapeHtml(customerName || '-')}</div></div>
+        <div class="box"><div class="label">บิลขายอ้างอิง</div><div class="value">${escapeHtml(bill.docNo)}</div></div>
         <div class="box"><div class="label">เอกสารอ้างอิง</div><div class="value">${escapeHtml(bill.sourceDocNo || bill.docNo)}</div></div>
+        <div class="box"><div class="label">สถานะใบรับเงิน</div><div class="value">${escapeHtml(receiptQueueStatusLabel(bill))}</div></div>
       </div>
       <div class="summary">
-        <div class="box"><div class="label">ยอดรวม</div><div class="value">${escapeHtml(formatMoney(bill.totalAmount))}</div></div>
+        <div class="box"><div class="label">ยอดรวมบิล</div><div class="value">${escapeHtml(formatMoney(bill.totalAmount))}</div></div>
         <div class="box"><div class="label">รับแล้ว</div><div class="value blue">${escapeHtml(formatMoney(receivedAmount))}</div></div>
         <div class="box"><div class="label">ค้างรับ</div><div class="value green">${escapeHtml(formatMoney(balance))}</div></div>
       </div>
@@ -857,6 +868,8 @@ export function MoneyMovementPageClient({
       const customerName = partyMap.get(bill.customerId ?? '') ?? bill.customerId ?? ''
       const balance = bill.receivableBalance ?? 0
       const searchHaystack = [
+        receiptQueueDocNo(bill),
+        ...(bill.activeReceiptDocNos ?? []),
         bill.id,
         bill.docNo,
         customerName,
@@ -1753,7 +1766,7 @@ export function MoneyMovementPageClient({
             <div className="flex flex-wrap items-center gap-2">
               <UiInput
                 className="h-9 min-w-[260px] flex-1 rounded-md"
-                placeholder="ค้นหา Sales Bill / ลูกค้า / วันที่"
+                placeholder="ค้นหาใบรับเงิน / Sales Bill / ลูกค้า / วันที่"
                 type="search"
                 value={billSearch}
                 onChange={(event) => setBillSearch(event.target.value)}
@@ -1780,7 +1793,7 @@ export function MoneyMovementPageClient({
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
-            <div>พบบิลขายค้างรับ <span className="font-semibold text-slate-900">{receiptBillTotalRows}</span> รายการ</div>
+            <div>พบใบรับเงินรอดำเนินการ <span className="font-semibold text-slate-900">{receiptBillTotalRows}</span> รายการ</div>
             <div className="flex flex-wrap items-center gap-2">
               {paymentQueueColumnResize.hasCustomWidths ? <UiButton className="h-9 font-normal" size="sm" type="button" variant="outline" onClick={paymentQueueColumnResize.resetColumnWidths}>คืนค่าเดิมตาราง</UiButton> : null}
               <UiSelect
@@ -1804,6 +1817,7 @@ export function MoneyMovementPageClient({
             {!isLoading && receiptBillPageRows.map((bill) => {
               const balance = bill.receivableBalance ?? 0
               const cancelableReceipt = findActiveReceiptForBill(bill)
+              const receiptDocNo = receiptQueueDocNo(bill)
               return (
                 <div
                   key={bill.id}
@@ -1811,7 +1825,10 @@ export function MoneyMovementPageClient({
                   onClick={() => openReceivableBillDetail(bill)}
                 >
                   <div className="mb-2 flex items-start justify-between">
-                    <div className="font-bold text-slate-800 text-sm">{bill.docNo}</div>
+                    <div>
+                      <div className="font-bold text-slate-800 text-sm">{receiptDocNo}</div>
+                      <div className="mt-0.5 text-[11px] text-slate-500">อ้างอิง {bill.docNo}</div>
+                    </div>
                     <span className="text-xs text-slate-500">{formatDateDisplay(bill.date)}</span>
                   </div>
                   <div className="mb-3 space-y-1 text-xs text-slate-600">
@@ -1820,6 +1837,7 @@ export function MoneyMovementPageClient({
                       <span className="text-slate-800">{partyMap.get(bill.customerId ?? '') ?? bill.customerId ?? '-'}</span>
                     </div>
                     <div className="text-[11px] text-slate-500">อายุเอกสาร: {ageInDays(bill.date)} วัน</div>
+                    <div className="text-[11px] font-semibold text-amber-700">{receiptQueueStatusLabel(bill)}</div>
                   </div>
                   <div className="flex items-end justify-between border-t border-slate-100 pt-2">
                     <div>
@@ -1877,7 +1895,7 @@ export function MoneyMovementPageClient({
               )
             })}
             {!isLoading && receiptBillPageRows.length === 0 ? (
-              <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">ไม่พบบิลขายค้างรับตามเงื่อนไข</div>
+              <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-200">ไม่พบใบรับเงินรอดำเนินการตามเงื่อนไข</div>
             ) : null}
           </div>
 
@@ -1894,10 +1912,10 @@ export function MoneyMovementPageClient({
               </colgroup>
               <TableHeader className="text-slate-700">
                 <tr>
-                  <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="เลขที่บิลขาย" resizeProps={paymentQueueColumnResize.getResizeHandleProps('docNo', 'เลขที่บิลขาย')} sortKey="docNo" onSort={toggleBillSort} />
+                  <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="เลขที่ใบรับเงิน" resizeProps={paymentQueueColumnResize.getResizeHandleProps('docNo', 'เลขที่ใบรับเงิน')} sortKey="docNo" onSort={toggleBillSort} />
                   <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="วันที่" resizeProps={paymentQueueColumnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={toggleBillSort} />
                   <TableSortHeader activeKey={billSortState.field} align="left" direction={billSortState.direction} label="ลูกค้า" resizeProps={paymentQueueColumnResize.getResizeHandleProps('partyName', 'ลูกค้า')} sortKey="supplier" onSort={toggleBillSort} />
-                  <ResizableTableHead label="เอกสารอ้างอิง" resizeProps={paymentQueueColumnResize.getResizeHandleProps('accountNo', 'เอกสารอ้างอิง')} />
+                  <ResizableTableHead label="บิลขายอ้างอิง" resizeProps={paymentQueueColumnResize.getResizeHandleProps('accountNo', 'บิลขายอ้างอิง')} />
                   <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="ยอดรวม" resizeProps={paymentQueueColumnResize.getResizeHandleProps('totalAmount', 'ยอดรวม')} sortKey="totalAmount" onSort={toggleBillSort} />
                   <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="รับแล้ว" resizeProps={paymentQueueColumnResize.getResizeHandleProps('paidAmount', 'รับแล้ว')} sortKey="paidAmount" onSort={toggleBillSort} />
                   <TableSortHeader activeKey={billSortState.field} align="right" direction={billSortState.direction} label="ค้างรับ" resizeProps={paymentQueueColumnResize.getResizeHandleProps('balance', 'ค้างรับ')} sortKey="balance" onSort={toggleBillSort} />
@@ -1911,12 +1929,16 @@ export function MoneyMovementPageClient({
                   const balance = bill.receivableBalance ?? 0
                   const receivedAmount = Math.max(0, (bill.totalAmount ?? 0) - balance)
                   const cancelableReceipt = findActiveReceiptForBill(bill)
+                  const receiptDocNo = receiptQueueDocNo(bill)
                   return (
                     <TableRow key={bill.id} className="cursor-pointer hover:bg-slate-50" onClick={() => openReceivableBillDetail(bill)}>
-                      <TableCell className="text-xs font-semibold text-slate-700">{bill.docNo}</TableCell>
+                      <TableCell className="text-xs font-semibold text-slate-700">
+                        <div>{receiptDocNo}</div>
+                        <div className="mt-1 text-[11px] font-normal text-amber-700">{receiptQueueStatusLabel(bill)}</div>
+                      </TableCell>
                       <TableCell className="text-xs font-semibold text-slate-700">{formatDateDisplay(bill.date)}</TableCell>
                       <TableCell className="max-w-72 truncate text-xs font-semibold text-slate-700">{partyMap.get(bill.customerId ?? '') ?? bill.customerId ?? '-'}</TableCell>
-                      <TableCell className="text-xs font-semibold text-slate-700">{bill.sourceDocNo || bill.docNo}</TableCell>
+                      <TableCell className="text-xs font-semibold text-slate-700">{bill.docNo}</TableCell>
                       <TableCell className="whitespace-nowrap pr-4 text-right text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(bill.totalAmount)}</TableCell>
                       <TableCell className="whitespace-nowrap pr-4 text-right text-xs font-semibold text-blue-700 tabular-nums">{formatMoney(receivedAmount)}</TableCell>
                       <TableCell className="whitespace-nowrap pr-4 text-right text-xs font-semibold text-emerald-700 tabular-nums">{formatMoney(balance)}</TableCell>
@@ -1968,7 +1990,7 @@ export function MoneyMovementPageClient({
                     </TableRow>
                   )
                 })}
-                {!isLoading && receiptBillPageRows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={9}>ไม่พบบิลขายค้างรับตามเงื่อนไข</TableCell></TableRow> : null}
+                {!isLoading && receiptBillPageRows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={9}>ไม่พบใบรับเงินรอดำเนินการตามเงื่อนไข</TableCell></TableRow> : null}
               </TableBody>
             </Table>
           </div>
@@ -3140,13 +3162,14 @@ function ReceivableBillDetailDialog({
 }) {
   const balance = bill?.receivableBalance ?? 0
   const receivedAmount = Math.max(0, (bill?.totalAmount ?? 0) - balance)
+  const receiptDocNo = bill ? receiptQueueDocNo(bill) : '-'
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-4xl overflow-hidden rounded-md !p-0 flex flex-col bg-slate-900 border-0" fallbackTitle="รายละเอียดบิลค้างรับ" hideClose>
+      <DialogContent className="max-h-[90vh] max-w-4xl overflow-hidden rounded-md !p-0 flex flex-col bg-slate-900 border-0" fallbackTitle="รายละเอียดใบรับเงิน Customer" hideClose>
         <DialogHeader className="flex-row items-center justify-between gap-3 bg-slate-900 px-5 py-4 text-white">
           <div className="min-w-0">
-            <DialogTitle className="truncate text-base font-bold text-white">รายละเอียดบิลค้างรับ</DialogTitle>
-            <div className="mt-1 truncate font-mono text-xs text-slate-300">{bill?.docNo ?? '-'}</div>
+            <DialogTitle className="truncate text-base font-bold text-white">รายละเอียดใบรับเงิน Customer</DialogTitle>
+            <div className="mt-1 truncate font-mono text-xs text-slate-300">{receiptDocNo}</div>
           </div>
           <UiButton
             aria-label="ปิดรายละเอียด"
@@ -3178,11 +3201,13 @@ function ReceivableBillDetailDialog({
               </div>
 
               <div className="grid gap-3 md:grid-cols-2">
-                <DetailCard label="เลขที่บิลขาย" value={bill.docNo} />
+                <DetailCard label="เลขที่ใบรับเงิน" value={receiptDocNo} />
                 <DetailCard label="วันที่" value={formatDateDisplay(bill.date)} />
                 <DetailCard label="ลูกค้า" value={customerName || '-'} />
+                <DetailCard label="บิลขายอ้างอิง" value={bill.docNo} />
                 <DetailCard label="เอกสารอ้างอิง" value={bill.sourceDocNo || bill.docNo} />
-                <DetailCard label="สถานะ" value={paymentBillStatus(bill)} />
+                <DetailCard label="สถานะใบรับเงิน" value={receiptQueueStatusLabel(bill)} />
+                <DetailCard label="สถานะบิลขาย" value={paymentBillStatus(bill)} />
                 <DetailCard label="อายุเอกสาร" value={`${ageInDays(bill.date)} วัน`} />
               </div>
             </>
