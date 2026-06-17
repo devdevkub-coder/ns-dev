@@ -93,8 +93,7 @@ async function ensurePendingCustomerReceipts(context: Awaited<ReturnType<typeof 
         })
         if (cancelledPendingAllocation) continue
 
-        const customerCode = bill.customers?.code?.trim()
-        if (!customerCode) continue
+        const customerCode = bill.customers?.code?.trim() || stringifyBusinessValue(bill.customer_id)
         const date = toDateOnly(bill.date)
         const docNo = await nextDailyDocNo('customer_receipts', 'RCP', date, tx)
         const receivableBalance = toNumber(bill.receivable_balance as { toNumber: () => number } | number | null | undefined)
@@ -194,6 +193,7 @@ export async function GET() {
           status: { in: RECEIPT_QUEUE_STATUSES },
         },
       },
+      customer_id: true,
       customers: { select: { code: true } },
       date: true,
       doc_no: true,
@@ -296,7 +296,7 @@ export async function GET() {
           })
           .map((allocation) => allocation.customer_receipts.doc_no))],
         receiptStatus: bill.customer_receipt_allocations.find((allocation) => RECEIPT_QUEUE_STATUSES.includes(allocation.status))?.customer_receipts.status ?? '',
-        customerId: bill.customers?.code?.trim() || stringifyBusinessValue(bill.id),
+        customerId: bill.customers?.code?.trim() || stringifyBusinessValue(bill.customer_id),
         date: toDateOnly(bill.date),
         docNo: bill.doc_no,
         id: bill.doc_no,
