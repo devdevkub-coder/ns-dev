@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { Prisma } from '../../../../../generated/prisma/client'
 import { customerReceiptFormSchema } from '@/lib/daily'
 import { requireBusinessCode } from '@/lib/business-code'
 import { apiErrorResponse } from '@/lib/server/api-error'
@@ -20,7 +21,7 @@ export async function GET() {
 
     const salesBillSelect = {
       customer_receipt_allocations: {
-        orderBy: [{ created_at: 'desc' }],
+        orderBy: [{ created_at: 'desc' }] as any,
         select: {
           customer_receipts: {
             select: {
@@ -41,7 +42,7 @@ export async function GET() {
       id: true,
       receivable_balance: true,
       total_amount: true,
-    } as const
+    }
 
     const [accounts, customers, outstandingBills, allocatedBills, receipts, paymentMethods] = await Promise.all([
       listDailyAccounts(),
