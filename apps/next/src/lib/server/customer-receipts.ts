@@ -30,6 +30,11 @@ type ReceiptLineInput = {
   withholdingTaxAmount: number
 }
 
+type ReceiptAccountSplitInput = {
+  account: AccountReference
+  amount: number
+}
+
 type PaymentMethodReference = {
   code: string
   id: bigint
@@ -39,6 +44,7 @@ type PaymentMethodReference = {
 
 type PreparedCustomerReceipt = {
   account: AccountReference
+  accountSplits: ReceiptAccountSplitInput[]
   actor: string
   bankFeeTotal: number
   discountTotal: number
@@ -111,12 +117,29 @@ async function prepareCustomerReceipt(values: CustomerReceiptFormValues, context
     throw new Error('ยอดรับสุทธิต้องไม่ติดลบ')
   }
 
-  const account = await findActiveAccountReferenceByCode(values.accountId)
+  const rawSplits = values.splits && values.splits.length > 0
+    ? values.splits
+    : [{ accountId: values.accountId, amount: netCashIn, id: null }]
+  const splitTotal = roundMoney(rawSplits.reduce((sum, split) => sum + (Number(split.amount) || 0), 0))
+  assertMoneyEquals(splitTotal, netCashIn, 'รวมยอดแยกบัญชีรับเงินต้องเท่ากับยอดสุทธิที่ต้องรับ')
+
+  const splitAccountCodes = [...new Set(rawSplits.map((split) => split.accountId).filter(Boolean))]
+  const splitAccountReferences = await Promise.all(splitAccountCodes.map(async (code) => [code, await findActiveAccountReferenceByCode(code)] as const))
+  const splitAccountByCode = new Map(splitAccountReferences)
+  if (splitAccountReferences.some(([, splitAccount]) => !splitAccount)) {
+    throw new Error('บัญชีรับเงินบางรายการไม่ถูกต้องหรือไม่ active')
+  }
+  const accountSplits = rawSplits.map((split) => {
+    const splitAccount = splitAccountByCode.get(split.accountId)
+    if (!splitAccount) throw new Error('บัญชีรับเงินบางรายการไม่ถูกต้องหรือไม่ active')
+    return { account: splitAccount, amount: roundMoney(Number(split.amount) || 0) }
+  }).filter((split) => split.amount > 0)
+  const account = accountSplits[0]?.account ?? null
   if (!account) {
     throw new Error('บัญชีรับเงินไม่ถูกต้องหรือถูกปิดใช้งาน')
   }
 
-  return { account, actor, bankFeeTotal, discountTotal, grossAmount, lines, netCashIn, withholdingTaxTotal }
+  return { account, accountSplits, actor, bankFeeTotal, discountTotal, grossAmount, lines, netCashIn, withholdingTaxTotal }
 }
 
 async function findActiveCustomerByCode(value: string | null | undefined, tx: Prisma.TransactionClient) {
@@ -168,6 +191,7 @@ async function createCustomerReceiptInTransaction(
 ) {
   const {
     account,
+    accountSplits,
     actor,
     bankFeeTotal,
     discountTotal,
@@ -191,7 +215,7 @@ async function createCustomerReceiptInTransaction(
   }
 
   const docNo = values.docNo ?? await nextDailyDocNo('customer_receipts', RECEIPT_DOC_PREFIX, values.date, tx)
-  const [bankStatementDocNo] = await nextBankStatementDocNos(values.date, 1, tx)
+  const bankStatementDocNos = await nextBankStatementDocNos(values.date, accountSplits.length, tx)
   const billDocNos = lines.map((line) => line.salesBillDocNo)
   const salesBills = await tx.sales_bills.findMany({
     select: {
@@ -307,26 +331,32 @@ async function createCustomerReceiptInTransaction(
     })
   }
 
-  const bankStatement = await tx.bank_statement.create({
-    data: {
-      account_id: account.id,
-      amount_in: netCashIn,
+  await tx.bank_statement.createMany({
+    data: accountSplits.map((split, index) => ({
+      account_id: split.account.id,
+      amount_in: split.amount,
       amount_out: 0,
       created_by: actor,
       date: normalizeDate(values.date),
-      description: `${docNo} - รับเงิน Customer`,
-      doc_no: bankStatementDocNo,
+      description: `${docNo} - รับเงิน Customer${accountSplits.length > 1 ? ` (split ${index + 1}/${accountSplits.length})` : ''}`,
+      doc_no: bankStatementDocNos[index]!,
       ref_id: stringifyBusinessValue(receiptHeader.id),
       ref_no: docNo,
       ref_type: RECEIPT_REF_TYPE,
       type: 'รับเงิน Customer',
-    },
+    })),
   })
+  const createdBankStatements = await tx.bank_statement.findMany({
+    where: { doc_no: { in: bankStatementDocNos } },
+  })
+  const bankStatementByDocNo = new Map(createdBankStatements.map((statement) => [statement.doc_no, statement] as const))
+  const primaryBankStatementDocNo = bankStatementDocNos[0]!
+  const primaryBankStatement = bankStatementByDocNo.get(primaryBankStatementDocNo)
 
   await tx.customer_receipts.update({
     data: {
-      bank_statement_doc_no: bankStatement.doc_no,
-      bank_statement_id: bankStatement.id,
+      bank_statement_doc_no: primaryBankStatementDocNo,
+      bank_statement_id: primaryBankStatement?.id ?? null,
     },
     where: { id: receiptHeader.id },
   })
@@ -434,9 +464,10 @@ async function createCustomerReceiptInTransaction(
       gross_amount_snapshot: grossAmount,
       meta: {
         allocationCount: lines.length,
-        bankStatementDocNo,
+        bankStatementDocNos,
         netCashIn,
         replacementOfDocNo: options.replacementOfDocNo ?? null,
+        splitCount: accountSplits.length,
       },
       net_cash_in_snapshot: netCashIn,
       note: options.replacementOfDocNo ? `ออกใบแทน ${options.replacementOfDocNo}` : 'บันทึกรับเงิน Customer',
@@ -541,21 +572,33 @@ async function cancelCustomerReceiptInTransaction(
     throw new Error('Receipt Voucher นี้ถูกยกเลิกแล้ว')
   }
 
-  const [reversalBankDocNo] = await nextBankStatementDocNos(toDateString(receipt.date), 1, tx)
-  await tx.bank_statement.create({
-    data: {
-      account_id: receipt.account_id,
+  const receiptBankStatements = await tx.bank_statement.findMany({
+    orderBy: [{ doc_no: 'asc' }],
+    select: { account_id: true, amount_in: true },
+    where: {
+      amount_in: { gt: 0 },
+      ref_id: stringifyBusinessValue(receipt.id),
+      ref_type: RECEIPT_REF_TYPE,
+    },
+  })
+  const bankStatementsToReverse = receiptBankStatements.length > 0
+    ? receiptBankStatements
+    : [{ account_id: receipt.account_id, amount_in: receipt.net_cash_in }]
+  const reversalBankDocNos = await nextBankStatementDocNos(toDateString(receipt.date), bankStatementsToReverse.length, tx)
+  await tx.bank_statement.createMany({
+    data: bankStatementsToReverse.map((statement, index) => ({
+      account_id: statement.account_id,
       amount_in: 0,
-      amount_out: receipt.net_cash_in,
+      amount_out: statement.amount_in,
       created_by: actor,
       date: receipt.date,
-      description: `${receipt.doc_no} - ยกเลิกรับเงิน Customer`,
-      doc_no: reversalBankDocNo,
+      description: `${receipt.doc_no} - ยกเลิกรับเงิน Customer${bankStatementsToReverse.length > 1 ? ` (split ${index + 1}/${bankStatementsToReverse.length})` : ''}`,
+      doc_no: reversalBankDocNos[index]!,
       ref_id: stringifyBusinessValue(receipt.id),
       ref_no: receipt.doc_no,
       ref_type: RECEIPT_CANCEL_REF_TYPE,
       type: 'ยกเลิกรับเงิน Customer',
-    },
+    })),
   })
 
   for (const allocation of receipt.customer_receipt_allocations) {

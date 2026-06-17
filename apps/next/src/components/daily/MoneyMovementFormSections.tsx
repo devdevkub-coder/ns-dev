@@ -45,11 +45,19 @@ type PaymentSplitLike = {
 
 export function PaymentSplitsSection({
   activeAccounts,
+  addButtonLabel = '+ เพิ่มบัญชี',
+  afterLabel = '📊 หลังจ่าย',
+  amountLabel = '➖ จ่าย',
+  balanceMode = 'subtract',
   form,
   formNetAmount,
   moneyInputValue,
+  netTargetLabel = '🎯 ยอดสุทธิที่ต้องจ่าย',
   paymentSplits,
   paymentSplitTotal,
+  sectionHelp = 'เลือกได้หลายบัญชี กรณีวงเงินเต็ม → split',
+  sectionTitle = '💳 บัญชีจ่าย *',
+  totalLabel = '💰 รวมแยกบัญชี',
   onAddPaymentSplit,
   onChangeMoneyInput,
   onFinishMoneyInput,
@@ -59,11 +67,19 @@ export function PaymentSplitsSection({
   onUpdatePaymentSplit,
 }: {
   activeAccounts: DailyAccountOption[]
+  addButtonLabel?: string
+  afterLabel?: string
+  amountLabel?: string
+  balanceMode?: 'add' | 'subtract'
   form: MoneyFormLike
   formNetAmount: number
   moneyInputValue: (key: string, value: number) => string
+  netTargetLabel?: string
   paymentSplits: PaymentSplitLike[]
   paymentSplitTotal: number
+  sectionHelp?: string
+  sectionTitle?: string
+  totalLabel?: string
   onAddPaymentSplit: () => void
   onChangeMoneyInput: (key: string, rawValue: string, onValue: (value: number) => void) => void
   onFinishMoneyInput: (key: string) => void
@@ -77,14 +93,15 @@ export function PaymentSplitsSection({
   return (
     <div className="order-3 rounded-md border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h4 className="font-medium text-blue-900">💳 บัญชีจ่าย * <span className="text-xs font-normal text-slate-600">(เลือกได้หลายบัญชี กรณีวงเงินเต็ม → split)</span></h4>
-        <UiButton className="bg-blue-600 font-semibold hover:bg-blue-700" size="xs" type="button" variant="default" onClick={onAddPaymentSplit}>+ เพิ่มบัญชี</UiButton>
+        <h4 className="font-medium text-blue-900">{sectionTitle} <span className="text-xs font-normal text-slate-600">({sectionHelp})</span></h4>
+        <UiButton className="bg-blue-600 font-semibold hover:bg-blue-700" size="xs" type="button" variant="default" onClick={onAddPaymentSplit}>{addButtonLabel}</UiButton>
       </div>
       <div className="space-y-2">
         {paymentSplits.map((split, splitIndex) => {
           const splitAccount = activeAccounts.find((account) => account.id === split.accountId)
           const splitBalance = splitAccount?.balance ?? 0
           const splitAmount = Number(split.amount) || 0
+          const balanceAfter = balanceMode === 'add' ? splitBalance + splitAmount : splitBalance - splitAmount
           const splitAmountKey = `split-${split.id ?? splitIndex}-amount`
           return (
             <div key={split.id ?? splitIndex} className="grid grid-cols-12 items-center gap-2 rounded-md border border-slate-200 bg-white p-2">
@@ -131,12 +148,12 @@ export function PaymentSplitsSection({
                     <input className="mt-1 w-full bg-transparent p-0 text-right font-semibold text-blue-700 disabled:opacity-100" disabled type="text" value={formatMoney(splitBalance)} />
                   </label>
                   <label className="block text-amber-700">
-                    <span>➖ จ่าย</span>
+                    <span>{amountLabel}</span>
                     <input className="mt-1 w-full bg-transparent p-0 text-right font-semibold text-amber-700 disabled:opacity-100" disabled type="text" value={splitAmount ? formatMoney(splitAmount) : ''} />
                   </label>
                   <label className="block text-emerald-700">
-                    <span>📊 หลังจ่าย</span>
-                    <input className="mt-1 w-full bg-transparent p-0 text-right font-semibold text-emerald-700 disabled:opacity-100" disabled type="text" value={formatMoney(splitBalance - splitAmount)} />
+                    <span>{afterLabel}</span>
+                    <input className="mt-1 w-full bg-transparent p-0 text-right font-semibold text-emerald-700 disabled:opacity-100" disabled type="text" value={formatMoney(balanceAfter)} />
                   </label>
                 </div>
               ) : null}
@@ -172,11 +189,11 @@ export function PaymentSplitsSection({
       </div>
       <div className="mt-2 grid grid-cols-3 gap-2 border-t border-slate-200 pt-2 text-sm">
         <div className="rounded-md bg-slate-100 p-2">
-          <div className="text-xs text-slate-600">💰 รวมแยกบัญชี</div>
+          <div className="text-xs text-slate-600">{totalLabel}</div>
           <div className="font-bold">{formatMoney(paymentSplitTotal)}</div>
         </div>
         <div className="rounded-md bg-amber-50 p-2">
-          <div className="text-xs text-amber-700">🎯 ยอดสุทธิที่ต้องจ่าย</div>
+          <div className="text-xs text-amber-700">{netTargetLabel}</div>
           <div className="font-bold text-amber-700">{formatMoney(formNetAmount)}</div>
         </div>
         <div className={`rounded-md p-2 ${Math.abs(paymentSplitTotal - formNetAmount) < 0.01 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>

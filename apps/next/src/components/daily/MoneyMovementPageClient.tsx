@@ -54,6 +54,11 @@ type MoneyRow = {
   accountId?: string
   accountName: string
   accountNames?: string[]
+  accountSplits?: Array<{
+    accountId: string
+    amount: number
+    id?: string | null
+  }>
   accountSummaries?: string[]
   approvalId?: string
   approvalIds?: string[]
@@ -126,6 +131,7 @@ type MoneyForm = SupplierPaymentFormValues | CustomerReceiptFormValues
 type PaymentLine = NonNullable<SupplierPaymentFormValues['lines']>[number] & { billText?: string }
 type PaymentSplit = SupplierPaymentFormValues['splits'][number]
 type ReceiptLine = NonNullable<CustomerReceiptFormValues['lines']>[number]
+type ReceiptSplit = NonNullable<CustomerReceiptFormValues['splits']>[number]
 type PaymentBillSort = 'age_asc' | 'age_desc' | 'balance_asc' | 'balance_desc' | 'date_asc' | 'date_desc' | 'doc_asc' | 'doc_desc' | 'paid_asc' | 'paid_desc' | 'supplier_asc' | 'supplier_desc' | 'total_asc' | 'total_desc'
 type PaymentBillSortField = 'age' | 'balance' | 'date' | 'docNo' | 'paidAmount' | 'supplier' | 'totalAmount'
 type HistorySortField = 'accountName' | 'amount' | 'date' | 'docNo' | 'netAmount' | 'partyName'
@@ -182,6 +188,10 @@ function newPaymentLine(): PaymentLine {
 
 function newPaymentSplit(): PaymentSplit {
   return { accountId: '', amount: 0, id: `SP-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` }
+}
+
+function newReceiptSplit(): ReceiptSplit {
+  return { accountId: '', amount: 0, id: `RS-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` }
 }
 
 function newReceiptLine(): ReceiptLine {
@@ -296,7 +306,7 @@ function initialForm(mode: 'payment' | 'receipt'): MoneyForm {
     id: null,
     method: '',
     notes: null,
-    ...(mode === 'payment' ? { lines: [newPaymentLine()], splits: [newPaymentSplit()], supplierId: '' } : { customerId: '', lines: [newReceiptLine()] }),
+    ...(mode === 'payment' ? { lines: [newPaymentLine()], splits: [newPaymentSplit()], supplierId: '' } : { customerId: '', lines: [newReceiptLine()], splits: [newReceiptSplit()] }),
     withholdingTax: 0,
   } as MoneyForm
 }
@@ -732,7 +742,6 @@ export function MoneyMovementPageClient({
   const title = mode === 'payment' ? 'จ่ายเงินผู้รับเงิน' : 'รับเงิน Customer'
   const subtitle = mode === 'payment' ? 'Payment Voucher' : 'Receipt Voucher'
   const amountLabel = mode === 'payment' ? 'ยอดจ่าย' : 'ยอดรับ'
-  const accountLabel = mode === 'payment' ? 'บัญชีจ่าย' : 'บัญชีรับ'
   const partyLabel = mode === 'payment' ? 'ผู้รับเงิน' : 'ลูกค้า'
   const balanceLabel = mode === 'payment' ? 'ค้างจ่าย' : 'ค้างรับ'
   const partyValue = mode === 'payment'
@@ -777,7 +786,9 @@ export function MoneyMovementPageClient({
     ? form.amount + form.fee
     : form.amount - form.fee - form.withholdingTax
   const paymentSplits = mode === 'payment' ? (form as SupplierPaymentFormValues).splits ?? [] : []
+  const receiptSplits = mode === 'receipt' ? (form as CustomerReceiptFormValues).splits ?? [] : []
   const paymentSplitTotal = paymentSplits.reduce((sum, split) => sum + (Number(split.amount) || 0), 0)
+  const receiptSplitTotal = receiptSplits.reduce((sum, split) => sum + (Number(split.amount) || 0), 0)
 
   const outstandingBills = useMemo(() => data.bills
     .filter((bill) => (mode === 'payment' ? (bill.payableBalance ?? 0) > 0 : (bill.receivableBalance ?? 0) > 0))
@@ -1023,6 +1034,7 @@ export function MoneyMovementPageClient({
           receiptAmount: amount,
           salesBillDocNo: bill.docNo,
         }],
+        splits: [{ ...newReceiptSplit(), amount }],
       } as MoneyForm)
       setMoneyDrafts({})
       setIsBillLocked(true)
@@ -1085,6 +1097,17 @@ export function MoneyMovementPageClient({
       lines,
       method: row.method ?? '',
       notes: row.notes ?? null,
+      splits: row.accountSplits?.length
+        ? row.accountSplits.map((split) => {
+          const nextSplit = newReceiptSplit()
+          return {
+            ...nextSplit,
+            accountId: split.accountId,
+            amount: split.amount,
+            id: split.id ?? nextSplit.id,
+          }
+        })
+        : [{ ...newReceiptSplit(), accountId: row.accountId ?? '', amount: row.netAmount }],
       withholdingTax: roundMoney(lines.reduce((sum, line) => sum + line.withholdingTaxAmount, 0)),
     } as MoneyForm)
     setMoneyDrafts({})
@@ -1383,6 +1406,11 @@ export function MoneyMovementPageClient({
     const nextAmount = roundMoney(normalizedLines.reduce((sum, line) => sum + line.receiptAmount, 0))
     const nextDiscount = roundMoney(normalizedLines.reduce((sum, line) => sum + line.discountAmount, 0))
     const nextWithholdingTax = roundMoney(normalizedLines.reduce((sum, line) => sum + line.withholdingTaxAmount, 0))
+    const nextFee = Number((form as CustomerReceiptFormValues).fee) || 0
+    const nextNetAmount = roundMoney(nextAmount - nextFee - nextWithholdingTax)
+    const nextSplits = ((form as CustomerReceiptFormValues).splits ?? []).map((split, splitIndex, splits) => (
+      splitIndex === 0 && splits.length === 1 ? { ...split, amount: nextNetAmount } : split
+    ))
     const nextCustomerId = patch.customerId ?? ((form as CustomerReceiptFormValues).customerId || firstBill?.customerId || '')
     setForm({
       ...form,
@@ -1392,7 +1420,25 @@ export function MoneyMovementPageClient({
       customerId: nextCustomerId,
       discount: nextDiscount,
       lines: normalizedLines,
+      splits: nextSplits,
       withholdingTax: nextWithholdingTax,
+    } as MoneyForm)
+  }
+
+  function updateReceiptForm(patch: Partial<CustomerReceiptFormValues>) {
+    setError(null)
+    const nextAmount = Number(form.amount) || 0
+    const nextWithholdingTax = Number(form.withholdingTax) || 0
+    const nextFee = 'fee' in patch ? Number(patch.fee) || 0 : Number(form.fee) || 0
+    const nextNetAmount = roundMoney(nextAmount - nextFee - nextWithholdingTax)
+    const nextSplits = receiptSplits.map((split, splitIndex, splits) => (
+      splitIndex === 0 && splits.length === 1 ? { ...split, amount: nextNetAmount } : split
+    ))
+    setForm({
+      ...form,
+      ...patch,
+      fee: nextFee,
+      splits: nextSplits,
     } as MoneyForm)
   }
 
@@ -1574,6 +1620,32 @@ export function MoneyMovementPageClient({
     }))
   }
 
+  function syncReceiptSplits(nextSplits: ReceiptSplit[]) {
+    const firstAccountId = nextSplits[0]?.accountId ?? ''
+    setForm({ ...form, accountId: firstAccountId, splits: nextSplits } as MoneyForm)
+  }
+
+  function addReceiptSplit() {
+    syncReceiptSplits([...receiptSplits, newReceiptSplit()])
+  }
+
+  function removeReceiptSplit(index: number) {
+    if (receiptSplits.length <= 1) return
+    syncReceiptSplits(receiptSplits.filter((_, splitIndex) => splitIndex !== index))
+  }
+
+  function updateReceiptSplit(index: number, patch: Partial<ReceiptSplit>) {
+    setError(null)
+    syncReceiptSplits(receiptSplits.map((split, splitIndex) => {
+      if (splitIndex !== index) return split
+      const nextSplit = { ...split, ...patch }
+      if ('accountId' in patch && receiptSplits.length === 1 && (Number(nextSplit.amount) || 0) <= 0) {
+        nextSplit.amount = formNetAmount
+      }
+      return nextSplit
+    }))
+  }
+
   function moneyInputValue(key: string, value: number) {
     if (Object.prototype.hasOwnProperty.call(moneyDrafts, key)) return moneyDrafts[key]
     return value ? formatMoney(value) : ''
@@ -1636,6 +1708,7 @@ export function MoneyMovementPageClient({
 
   function normalizedReceiptForm() {
     const receiptForm = form as CustomerReceiptFormValues
+    const normalizedSplits = (receiptForm.splits ?? []).map((split) => ({ ...split }))
     const payloadLines = (receiptForm.lines ?? [])
       .filter((line) => line.salesBillDocNo && Number(line.receiptAmount) > 0)
       .map((line) => ({
@@ -1649,7 +1722,9 @@ export function MoneyMovementPageClient({
       amount: roundMoney(payloadLines.reduce((sum, line) => sum + line.receiptAmount, 0)),
       billId: payloadLines[0]?.salesBillDocNo ?? null,
       discount: roundMoney(payloadLines.reduce((sum, line) => sum + line.discountAmount, 0)),
+      accountId: normalizedSplits[0]?.accountId ?? receiptForm.accountId,
       lines: payloadLines,
+      splits: normalizedSplits,
       withholdingTax: roundMoney(payloadLines.reduce((sum, line) => sum + line.withholdingTaxAmount, 0)),
     }
   }
@@ -1665,6 +1740,10 @@ export function MoneyMovementPageClient({
     }
     if (mode === 'payment' && Math.abs(paymentSplitTotal - formNetAmount) > 0.01) {
       setError('รวมยอดแยกบัญชีต้องเท่ากับยอดสุทธิที่ต้องจ่าย')
+      return
+    }
+    if (mode === 'receipt' && Math.abs(receiptSplitTotal - formNetAmount) > 0.01) {
+      setError('รวมยอดแยกบัญชีรับเงินต้องเท่ากับยอดสุทธิที่ต้องรับ')
       return
     }
     isSavingRef.current = true
@@ -2313,8 +2392,6 @@ export function MoneyMovementPageClient({
                     value={partyValue}
                     onChange={changeReceiptCustomer}
                   />
-                  <SelectField label={accountLabel} value={form.accountId} onChange={(value) => setForm({ ...form, accountId: value })} options={activeAccounts} />
-                  <Field label="ค่าธรรมเนียม" type="number" value={String(form.fee)} onChange={(value) => setForm({ ...form, fee: Number(value) })} />
                   <label className="block">
                     <span className="mb-1 block text-xs text-slate-600">วิธีจ่าย/รับเงิน</span>
                     <UiSelect className="h-9 rounded-md border border-slate-300 px-2 py-1.5 text-sm" value={form.method ?? ''} onChange={(event) => setForm({ ...form, method: event.target.value })}>
@@ -2407,6 +2484,31 @@ export function MoneyMovementPageClient({
                       </tbody>
                     </table>
                   </div>
+                </div>
+                <div className="px-5 pb-5">
+                  <PaymentSplitsSection
+                    activeAccounts={activeAccounts}
+                    addButtonLabel="+ เพิ่มบัญชีรับ"
+                    afterLabel="📊 หลังรับ"
+                    amountLabel="➕ รับ"
+                    balanceMode="add"
+                    form={form}
+                    formNetAmount={formNetAmount}
+                    moneyInputValue={moneyInputValue}
+                    netTargetLabel="🎯 ยอดสุทธิที่ต้องรับ"
+                    paymentSplits={receiptSplits}
+                    paymentSplitTotal={receiptSplitTotal}
+                    sectionHelp="เลือกได้หลายบัญชี กรณีรับเงินเข้าหลายบัญชี"
+                    sectionTitle="💳 บัญชีรับเงิน *"
+                    totalLabel="💰 รวมเข้าบัญชี"
+                    onAddPaymentSplit={addReceiptSplit}
+                    onChangeMoneyInput={changeMoneyInput}
+                    onFinishMoneyInput={finishMoneyInput}
+                    onRemovePaymentSplit={removeReceiptSplit}
+                    onStartMoneyInput={startMoneyInput}
+                    onUpdatePaymentForm={updateReceiptForm}
+                    onUpdatePaymentSplit={updateReceiptSplit}
+                  />
                 </div>
                 <div className="grid gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 md:grid-cols-5">
                   <SummaryPill label={amountLabel} value={formatMoney(form.amount)} />

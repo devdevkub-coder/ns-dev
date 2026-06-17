@@ -230,6 +230,7 @@ export async function GET() {
           date: true,
           doc_no: true,
           gross_amount: true,
+          id: true,
           net_cash_in: true,
           notes: true,
           payment_method_name_snapshot: true,
@@ -245,6 +246,31 @@ export async function GET() {
     const bills = [...new Map([...outstandingBills, ...allocatedBills].map((bill) => [bill.doc_no, bill])).values()]
       .sort((left, right) => right.date.getTime() - left.date.getTime())
       .slice(0, CUSTOMER_RECEIPT_LIST_LIMIT)
+    const receiptIdStrings = receipts.map((receipt) => stringifyBusinessValue(receipt.id))
+    const receiptBankStatements = receiptIdStrings.length > 0
+      ? await prisma.bank_statement.findMany({
+        orderBy: [{ doc_no: 'asc' }],
+        select: {
+          accounts: { select: { code: true, name: true } },
+          amount_in: true,
+          ref_id: true,
+        },
+        where: {
+          amount_in: { gt: 0 },
+          ref_id: { in: receiptIdStrings },
+          ref_type: 'RCP',
+        },
+      })
+      : []
+    type ReceiptBankStatement = (typeof receiptBankStatements)[number]
+    const bankStatementsByReceiptId = new Map<string, ReceiptBankStatement[]>()
+    for (const statement of receiptBankStatements) {
+      const key = statement.ref_id ?? ''
+      if (!key) continue
+      const current = bankStatementsByReceiptId.get(key) ?? []
+      current.push(statement)
+      bankStatementsByReceiptId.set(key, current)
+    }
 
     return NextResponse.json({
       accounts,
@@ -269,32 +295,53 @@ export async function GET() {
         id: requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`),
       })),
       paymentMethods,
-      rows: receipts.map((receipt) => ({
-        accountId: receipt.account_code_snapshot,
-        accountName: receipt.account_name_snapshot,
-        amount: toNumber(receipt.gross_amount),
-        billDocNos: receipt.customer_receipt_allocations.map((allocation) => allocation.sales_bill_doc_no_snapshot),
-        billId: receipt.customer_receipt_allocations[0]?.sales_bill_doc_no_snapshot ?? '',
-        customerId: receipt.customer_code_snapshot,
-        customerName: receipt.customer_name_snapshot,
-        date: toDateOnly(receipt.date),
-        docNo: receipt.doc_no,
-        fee: toNumber(receipt.bank_fee_total),
-        id: receipt.doc_no,
-        method: receipt.payment_method_name_snapshot,
-        netAmount: toNumber(receipt.net_cash_in),
-        notes: receipt.notes ?? '',
-        partyName: receipt.customer_name_snapshot,
-        receiptLines: receipt.customer_receipt_allocations.map((allocation) => ({
-          discountAmount: toNumber(allocation.discount_amount),
-          lineNo: allocation.line_no,
-          receiptAmount: toNumber(allocation.receipt_amount),
-          salesBillDocNo: allocation.sales_bill_doc_no_snapshot,
-          withholdingTaxAmount: toNumber(allocation.withholding_tax_amount),
-        })),
-        status: receipt.status,
-        withholdingTax: toNumber(receipt.withholding_tax_total),
-      })),
+      rows: receipts.map((receipt) => {
+        const receiptStatements = bankStatementsByReceiptId.get(stringifyBusinessValue(receipt.id)) ?? []
+        const accountSummaries = receiptStatements.length > 0
+          ? receiptStatements.map((statement) => `${statement.accounts?.name ?? '-'} - ${toNumber(statement.amount_in).toLocaleString('th-TH', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`)
+          : [receipt.account_name_snapshot]
+        return {
+          accountId: receipt.account_code_snapshot,
+          accountName: accountSummaries[0] ?? receipt.account_name_snapshot,
+          accountNames: receiptStatements.length > 0
+            ? receiptStatements.map((statement) => statement.accounts?.name ?? '-')
+            : [receipt.account_name_snapshot],
+          accountSplits: receiptStatements.length > 0
+            ? receiptStatements.map((statement, index) => ({
+              accountId: statement.accounts?.code ?? receipt.account_code_snapshot,
+              amount: toNumber(statement.amount_in),
+              id: `${receipt.doc_no}-split-${index + 1}`,
+            }))
+            : [{
+              accountId: receipt.account_code_snapshot,
+              amount: toNumber(receipt.net_cash_in),
+              id: `${receipt.doc_no}-split-1`,
+            }],
+          accountSummaries,
+          amount: toNumber(receipt.gross_amount),
+          billDocNos: receipt.customer_receipt_allocations.map((allocation) => allocation.sales_bill_doc_no_snapshot),
+          billId: receipt.customer_receipt_allocations[0]?.sales_bill_doc_no_snapshot ?? '',
+          customerId: receipt.customer_code_snapshot,
+          customerName: receipt.customer_name_snapshot,
+          date: toDateOnly(receipt.date),
+          docNo: receipt.doc_no,
+          fee: toNumber(receipt.bank_fee_total),
+          id: receipt.doc_no,
+          method: receipt.payment_method_name_snapshot,
+          netAmount: toNumber(receipt.net_cash_in),
+          notes: receipt.notes ?? '',
+          partyName: receipt.customer_name_snapshot,
+          receiptLines: receipt.customer_receipt_allocations.map((allocation) => ({
+            discountAmount: toNumber(allocation.discount_amount),
+            lineNo: allocation.line_no,
+            receiptAmount: toNumber(allocation.receipt_amount),
+            salesBillDocNo: allocation.sales_bill_doc_no_snapshot,
+            withholdingTaxAmount: toNumber(allocation.withholding_tax_amount),
+          })),
+          status: receipt.status,
+          withholdingTax: toNumber(receipt.withholding_tax_total),
+        }
+      }),
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
