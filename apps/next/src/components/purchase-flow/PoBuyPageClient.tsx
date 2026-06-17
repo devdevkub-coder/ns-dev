@@ -278,18 +278,18 @@ type PoBuyColumnKey = 'action' | 'checkbox' | 'date' | 'docNo' | 'expectedDelive
 
 const poBuyColumns: Array<ResizableColumnDefinition<PoBuyColumnKey>> = [
   { key: 'checkbox', defaultWidth: 40, minWidth: 40 },
-  { key: 'docNo', defaultWidth: 120, minWidth: 90 },
-  { key: 'date', defaultWidth: 90, minWidth: 80 },
-  { key: 'supplierName', defaultWidth: 420, minWidth: 120 },
-  { key: 'productName', defaultWidth: 280, minWidth: 100 },
-  { key: 'qty', defaultWidth: 75, minWidth: 70 },
-  { key: 'totalAmount', defaultWidth: 80, minWidth: 80 },
-  { key: 'remainingQty', defaultWidth: 75, minWidth: 70 },
-  { key: 'expectedDelivery', defaultWidth: 95, minWidth: 80 },
-  { key: 'note', defaultWidth: 70, minWidth: 60 },
-  { key: 'status', defaultWidth: 90, minWidth: 90 },
-  { key: 'updatedAt', defaultWidth: 90, minWidth: 90 },
-  { key: 'action', defaultWidth: 110, minWidth: 100 },
+  { key: 'docNo', defaultWidth: 110, minWidth: 90 },
+  { key: 'date', defaultWidth: 95, minWidth: 80 },
+  { key: 'supplierName', defaultWidth: 260, minWidth: 120 },
+  { key: 'productName', defaultWidth: 180, minWidth: 100 },
+  { key: 'qty', defaultWidth: 110, minWidth: 90 },
+  { key: 'totalAmount', defaultWidth: 135, minWidth: 110 },
+  { key: 'remainingQty', defaultWidth: 110, minWidth: 90 },
+  { key: 'expectedDelivery', defaultWidth: 110, minWidth: 90 },
+  { key: 'note', defaultWidth: 85, minWidth: 70 },
+  { key: 'status', defaultWidth: 110, minWidth: 90 },
+  { key: 'updatedAt', defaultWidth: 180, minWidth: 150 },
+  { key: 'action', defaultWidth: 240, minWidth: 210 },
 ]
 
 function poBuyAllocationActionLabel(action: string) {
@@ -451,7 +451,7 @@ function ExportButton({ href }: { href: string }) {
 }
 
 export function PoBuyPageClient() {
-  const columnResize = useResizableColumns('daily.po-buy', poBuyColumns)
+  const columnResize = useResizableColumns('daily.po-buy.v5', poBuyColumns)
   const [cancelNote, setCancelNote] = useState('')
   const [cancelNoteError, setCancelNoteError] = useState('')
   const [cancelingRow, setCancelingRow] = useState<PoBuyRow | null>(null)

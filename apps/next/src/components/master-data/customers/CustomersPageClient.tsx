@@ -29,16 +29,16 @@ type CustomerColumnKey = SortKey | 'action' | 'address'
 
 const customerColumns: Array<ResizableColumnDefinition<CustomerColumnKey>> = [
   { key: 'code', defaultWidth: 100, minWidth: 80 },
-  { key: 'name', defaultWidth: 320, minWidth: 180 },
+  { key: 'name', defaultWidth: 260, minWidth: 180 },
   { key: 'taxId', defaultWidth: 130, minWidth: 110 },
   { key: 'type', defaultWidth: 95, minWidth: 80 },
   { key: 'phone', defaultWidth: 110, minWidth: 90 },
   { key: 'email', defaultWidth: 140, minWidth: 100 },
   { key: 'address', defaultWidth: 260, minWidth: 180 },
   { key: 'creditTerm', defaultWidth: 95, minWidth: 70 },
-  { key: 'creditLimit', defaultWidth: 110, minWidth: 85 },
+  { key: 'creditLimit', defaultWidth: 120, minWidth: 95 },
   { key: 'active', defaultWidth: 110, minWidth: 90 },
-  { key: 'action', defaultWidth: 80, minWidth: 70 },
+  { key: 'action', defaultWidth: 110, minWidth: 90 },
 ]
 
 
@@ -168,7 +168,7 @@ export function CustomersPageClient() {
   const [sortKey, setSortKey] = useState<SortKey>('code')
   const [subdistricts, setSubdistricts] = useState<ThaiSubdistrict[]>([])
   const [showMobileFilters, setShowMobileFilters] = useState(false)
-  const columnResize = useResizableColumns('master-data.customers', customerColumns)
+  const columnResize = useResizableColumns('master-data.customers.v5', customerColumns)
 
 
   const loadData = useCallback(async () => {

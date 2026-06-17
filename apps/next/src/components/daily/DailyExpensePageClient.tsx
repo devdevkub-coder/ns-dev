@@ -131,13 +131,13 @@ const expenseColumns: Array<ResizableColumnDefinition<ExpenseColumnKey>> = [
   { key: 'date', defaultWidth: 120, minWidth: 100 },
   { key: 'dueDate', defaultWidth: 120, minWidth: 100 },
   { key: 'refDocNo', defaultWidth: 140, minWidth: 110 },
-  { key: 'payee', defaultWidth: 320, minWidth: 130 },
+  { key: 'payee', defaultWidth: 260, minWidth: 130 },
   { key: 'category', defaultWidth: 160, minWidth: 120 },
   { key: 'account', defaultWidth: 180, minWidth: 130 },
   { key: 'status', defaultWidth: 130, minWidth: 110 },
-  { key: 'netAmount', defaultWidth: 85, minWidth: 80 },
-  { key: 'amountSummary', defaultWidth: 95, minWidth: 80 },
-  { key: 'action', defaultWidth: 150, minWidth: 140 },
+  { key: 'netAmount', defaultWidth: 110, minWidth: 90 },
+  { key: 'amountSummary', defaultWidth: 120, minWidth: 95 },
+  { key: 'action', defaultWidth: 180, minWidth: 150 },
 ]
 
 function expenseStatusLabel(status: ExpenseFormValues['status']) {
@@ -402,7 +402,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
   const [selectedCategoryRow, setSelectedCategoryRow] = useState<ExpenseHeatmapRow | null>(null)
   const [showDashboardMobileFilters, setShowDashboardMobileFilters] = useState(false)
   const formRef = useRef<HTMLFormElement | null>(null)
-  const columnResize = useResizableColumns('daily.expense', expenseColumns)
+  const columnResize = useResizableColumns('daily.expense.v5', expenseColumns)
 
   const loadData = useCallback(async () => {
     setIsLoading(true)

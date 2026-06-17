@@ -88,7 +88,7 @@ export function CashFlowAnalysisPageClient() {
         <Panel title="📊 กำไร vs เงินสดจริง">
           <Bar label="Net Profit (Accrual)" max={maxProfit} tone="emerald" value={data?.summary.netProfit ?? 0} />
           <Bar label="Operating Cash Flow" max={maxProfit} tone="blue" value={data?.summary.operatingCashFlow ?? 0} />
-          <div className="flex justify-between border-t pt-2 text-sm font-bold text-amber-700"><span>ส่วนต่าง (NP - OCF)</span><span>{money((data?.summary.netProfit ?? 0) - (data?.summary.operatingCashFlow ?? 0))}</span></div>
+          <div className="flex justify-between border-t border-slate-100 pt-2 text-sm font-bold text-amber-700"><span>ส่วนต่าง (NP - OCF)</span><span>{money((data?.summary.netProfit ?? 0) - (data?.summary.operatingCashFlow ?? 0))}</span></div>
         </Panel>
         <Panel title="🪤 เงินจมที่ไหน"><TrapDonut ar={data?.summary.arNow ?? 0} cash={data?.summary.cashNow ?? 0} stock={data?.summary.stockNow ?? 0} /></Panel>
         <Panel title="🔥 Burn Rate & OD Status">
@@ -269,7 +269,7 @@ function TopAr({ rows }: { rows: ForecastPayload['insights']['topAR'] }) {
   const headingCls = 'bg-emerald-50 text-emerald-700'
   return (
     <div className="rounded-md bg-white shadow">
-      <div className={`border-b p-3 font-bold ${headingCls}`}>📥 ต้องเร่งเก็บลูกค้าคนไหน (Top 10 Overdue)</div>
+      <div className={`border-b border-emerald-100 p-3 font-bold ${headingCls}`}>📥 ต้องเร่งเก็บลูกค้าคนไหน (Top 10 Overdue)</div>
       
       {/* Desktop Table View */}
       <table className="hidden lg:table w-full text-sm">
@@ -318,7 +318,7 @@ function TopAp({ rows }: { rows: ForecastPayload['insights']['topAP'] }) {
   const headingCls = 'bg-red-50 text-red-700'
   return (
     <div className="rounded-md bg-white shadow">
-      <div className={`border-b p-3 font-bold ${headingCls}`}>📤 อาจจะต้องเลื่อนจ่าย Supplier คนไหน (Top 10 ยอดสูง)</div>
+      <div className={`border-b border-red-100 p-3 font-bold ${headingCls}`}>📤 อาจจะต้องเลื่อนจ่าย Supplier คนไหน (Top 10 ยอดสูง)</div>
       
       {/* Desktop Table View */}
       <table className="hidden lg:table w-full text-sm">

@@ -26,7 +26,7 @@ export function PurchaseBillsPageClient({ initialTab = 'bills' }: { initialTab?:
         </TabsList>
       </Tabs>
 
-      {tab === 'bills' ? <TransactionBillsPageClient mode="purchase" /> : <BillSwapHistoryPageClient tableKey="purchase.bills.supplier-swap-history" />}
+      {tab === 'bills' ? <TransactionBillsPageClient mode="purchase" /> : <BillSwapHistoryPageClient tableKey="purchase.bills.supplier-swap-history.v5" />}
     </section>
   )
 }

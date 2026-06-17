@@ -96,20 +96,20 @@ const paymentApprovalApColumns: Array<ResizableColumnDefinition<PaymentApprovalA
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'sourceDocNo', defaultWidth: 150, minWidth: 120 },
   { key: 'date', defaultWidth: 120, minWidth: 100 },
-  { key: 'partyName', defaultWidth: 320, minWidth: 140 },
+  { key: 'partyName', defaultWidth: 260, minWidth: 140 },
   { key: 'bankAccount', defaultWidth: 220, minWidth: 180 },
-  { key: 'totalAmount', defaultWidth: 85, minWidth: 80 },
-  { key: 'paidAmount', defaultWidth: 85, minWidth: 80 },
-  { key: 'payableBalance', defaultWidth: 90, minWidth: 80 },
+  { key: 'totalAmount', defaultWidth: 110, minWidth: 90 },
+  { key: 'paidAmount', defaultWidth: 110, minWidth: 90 },
+  { key: 'payableBalance', defaultWidth: 110, minWidth: 90 },
   { key: 'status', defaultWidth: 130, minWidth: 110 },
 ]
 const paymentApprovalExpenseColumns: Array<ResizableColumnDefinition<PaymentApprovalExpenseColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'sourceDocNo', defaultWidth: 150, minWidth: 120 },
   { key: 'dueDate', defaultWidth: 120, minWidth: 100 },
-  { key: 'partyName', defaultWidth: 320, minWidth: 140 },
+  { key: 'partyName', defaultWidth: 260, minWidth: 140 },
   { key: 'refDocNo', defaultWidth: 150, minWidth: 130 },
-  { key: 'totalAmount', defaultWidth: 85, minWidth: 80 },
+  { key: 'totalAmount', defaultWidth: 120, minWidth: 95 },
   { key: 'status', defaultWidth: 130, minWidth: 110 },
 ]
 const approvalFilterOptions: Array<{ label: string; values: ApprovalStatus[] }> = [
@@ -271,8 +271,8 @@ export function PaymentApprovalPageClient() {
   const [sortKey, setSortKey] = useState<ApprovalSortKey>('date')
   const [splitDrafts, setSplitDrafts] = useState<SplitDraft[]>([])
   const [tab, setTab] = useState<ApprovalTab>('ap')
-  const apColumnResize = useResizableColumns('daily.payment-approval.ap', paymentApprovalApColumns)
-  const expenseColumnResize = useResizableColumns('daily.payment-approval.expense', paymentApprovalExpenseColumns)
+  const apColumnResize = useResizableColumns('daily.payment-approval.ap.v5', paymentApprovalApColumns)
+  const expenseColumnResize = useResizableColumns('daily.payment-approval.expense.v5', paymentApprovalExpenseColumns)
   const activeColumnResize = tab === 'expense' || tab === 'pettyReturn' ? expenseColumnResize : apColumnResize
   const loadData = useCallback(async () => {
     setIsLoading(true)

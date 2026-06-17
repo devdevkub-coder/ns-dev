@@ -55,13 +55,13 @@ type CashPositionColumnKey = 'code' | 'name' | 'type' | 'bankName' | 'accountNo'
 
 const cashPositionColumns: Array<ResizableColumnDefinition<CashPositionColumnKey>> = [
   { key: 'code', defaultWidth: 80, minWidth: 60 },
-  { key: 'name', defaultWidth: 180, minWidth: 120 },
+  { key: 'name', defaultWidth: 200, minWidth: 120 },
   { key: 'type', defaultWidth: 100, minWidth: 80 },
   { key: 'bankName', defaultWidth: 160, minWidth: 110 },
   { key: 'accountNo', defaultWidth: 140, minWidth: 100 },
   { key: 'currency', defaultWidth: 80, minWidth: 60 },
-  { key: 'odLimit', defaultWidth: 130, minWidth: 90 },
-  { key: 'balance', defaultWidth: 140, minWidth: 100 },
+  { key: 'odLimit', defaultWidth: 140, minWidth: 110 },
+  { key: 'balance', defaultWidth: 140, minWidth: 110 },
 ]
 
 export function CashPositionPageClient() {
@@ -71,7 +71,7 @@ export function CashPositionPageClient() {
   const [sortKey, setSortKey] = useState<string>('code')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
-  const columnResize = useResizableColumns('finance.cash-position', cashPositionColumns)
+  const columnResize = useResizableColumns('finance.cash-position.v5', cashPositionColumns)
 
   const changeSort = useCallback((nextKey: string) => {
     if (sortKey === nextKey) {

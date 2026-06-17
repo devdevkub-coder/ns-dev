@@ -55,14 +55,14 @@ const numberInputClass = '[appearance:textfield] [&::-webkit-inner-spin-button]:
 const stockTransferColumns: Array<ResizableColumnDefinition<StockTransferColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'date', defaultWidth: 120, minWidth: 100 },
-  { key: 'from', defaultWidth: 240, minWidth: 160 },
-  { key: 'to', defaultWidth: 240, minWidth: 160 },
+  { key: 'from', defaultWidth: 220, minWidth: 160 },
+  { key: 'to', defaultWidth: 220, minWidth: 160 },
   { key: 'itemCount', defaultWidth: 80, minWidth: 70 },
-  { key: 'totalQty', defaultWidth: 110, minWidth: 95 },
-  { key: 'totalValue', defaultWidth: 130, minWidth: 110 },
+  { key: 'totalQty', defaultWidth: 120, minWidth: 95 },
+  { key: 'totalValue', defaultWidth: 140, minWidth: 110 },
   { key: 'updated', defaultWidth: 180, minWidth: 150 },
   { key: 'status', defaultWidth: 110, minWidth: 95 },
-  { key: 'action', defaultWidth: 170, minWidth: 150 },
+  { key: 'action', defaultWidth: 200, minWidth: 170 },
 ]
 
 const emptyForm: StockTransferFormValues = {
@@ -96,7 +96,7 @@ export function StockTransferPageClient() {
   const [sourceStockLoading, setSourceStockLoading] = useState(false)
   const [totalQtyFrom, setTotalQtyFrom] = useState('')
   const [totalQtyTo, setTotalQtyTo] = useState('')
-  const columnResize = useResizableColumns('daily.stock-transfer.v3', stockTransferColumns)
+  const columnResize = useResizableColumns('daily.stock-transfer.v5', stockTransferColumns)
 
   const loadData = useCallback(async () => {
     setIsLoading(true)

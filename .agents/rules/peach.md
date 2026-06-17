@@ -23,6 +23,7 @@ description: "Peach: AcexPOS UI Standard, Git & Scope Rules"
 
 ### 3. Data Table & Grid
 - **Lined Table Style (/purchase/bills style):** Desktop main table must use thin row dividers (`divide-y divide-slate-100`), soft borders (`border border-slate-200 shadow-sm rounded-md`), and gentle hover highlights (`hover:bg-slate-50`). No thick black lines.
+- **Resizable & Sorting Columns:** Every main and sub data table on Desktop must support resizable column widths (using `useResizableColumns` and `<ResizableTableHead>`) and column sorting. A "Reset Table Widths" button must be provided to restore column widths to their defaults.
 - **Mobile Table Parity:** Hide desktop tables on small viewports and render a compact vertical card list instead.
 - **Focus Rings:** Remove default browser black focus rings (add `outline-none` or customize globally).
 

@@ -140,38 +140,38 @@ const companyProfilePayloadSchema = z.object({
 const paymentQueueColumns: Array<ResizableColumnDefinition<PaymentQueueColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'date', defaultWidth: 120, minWidth: 100 },
-  { key: 'partyName', defaultWidth: 320, minWidth: 150 },
+  { key: 'partyName', defaultWidth: 260, minWidth: 150 },
   { key: 'bankName', defaultWidth: 150, minWidth: 120 },
   { key: 'accountNo', defaultWidth: 220, minWidth: 160 },
-  { key: 'totalAmount', defaultWidth: 85, minWidth: 80 },
-  { key: 'paidAmount', defaultWidth: 85, minWidth: 80 },
-  { key: 'balance', defaultWidth: 90, minWidth: 80 },
+  { key: 'totalAmount', defaultWidth: 110, minWidth: 90 },
+  { key: 'paidAmount', defaultWidth: 110, minWidth: 90 },
+  { key: 'balance', defaultWidth: 110, minWidth: 90 },
   { key: 'age', defaultWidth: 75, minWidth: 60 },
-  { key: 'action', defaultWidth: 210, minWidth: 190 },
+  { key: 'action', defaultWidth: 240, minWidth: 210 },
 ]
 const paymentHistoryColumns: Array<ResizableColumnDefinition<MoneyHistoryColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'date', defaultWidth: 150, minWidth: 120 },
-  { key: 'partyName', defaultWidth: 320, minWidth: 140 },
+  { key: 'partyName', defaultWidth: 260, minWidth: 140 },
   { key: 'billRefs', defaultWidth: 220, minWidth: 160 },
   { key: 'accountName', defaultWidth: 220, minWidth: 160 },
-  { key: 'amount', defaultWidth: 85, minWidth: 80 },
-  { key: 'wht', defaultWidth: 80, minWidth: 70 },
-  { key: 'bankFee', defaultWidth: 80, minWidth: 70 },
-  { key: 'netAmount', defaultWidth: 85, minWidth: 80 },
+  { key: 'amount', defaultWidth: 110, minWidth: 90 },
+  { key: 'wht', defaultWidth: 100, minWidth: 80 },
+  { key: 'bankFee', defaultWidth: 100, minWidth: 80 },
+  { key: 'netAmount', defaultWidth: 110, minWidth: 90 },
   { key: 'status', defaultWidth: 130, minWidth: 110 },
   { key: 'notes', defaultWidth: 180, minWidth: 130 },
 ]
 const receiptHistoryColumns: Array<ResizableColumnDefinition<MoneyHistoryColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'date', defaultWidth: 150, minWidth: 120 },
-  { key: 'partyName', defaultWidth: 320, minWidth: 140 },
+  { key: 'partyName', defaultWidth: 260, minWidth: 140 },
   { key: 'billRefs', defaultWidth: 220, minWidth: 160 },
   { key: 'accountName', defaultWidth: 220, minWidth: 160 },
-  { key: 'amount', defaultWidth: 85, minWidth: 80 },
-  { key: 'wht', defaultWidth: 80, minWidth: 70 },
-  { key: 'bankFee', defaultWidth: 80, minWidth: 70 },
-  { key: 'netAmount', defaultWidth: 85, minWidth: 80 },
+  { key: 'amount', defaultWidth: 110, minWidth: 90 },
+  { key: 'wht', defaultWidth: 100, minWidth: 80 },
+  { key: 'bankFee', defaultWidth: 100, minWidth: 80 },
+  { key: 'netAmount', defaultWidth: 110, minWidth: 90 },
   { key: 'notes', defaultWidth: 180, minWidth: 130 },
 ]
 
@@ -711,9 +711,9 @@ export function MoneyMovementPageClient({
   const [paymentDetail, setPaymentDetail] = useState<PaymentHistoryDetail | null>(null)
   const [isPaymentDetailLoading, setIsPaymentDetailLoading] = useState(false)
   const [paymentDetailError, setPaymentDetailError] = useState<string | null>(null)
-  const paymentQueueColumnResize = useResizableColumns(`daily.money-movement.${mode}.queue`, paymentQueueColumns)
+  const paymentQueueColumnResize = useResizableColumns(`daily.money-movement.${mode}.queue.v5`, paymentQueueColumns)
   const historyColumns = useMemo(() => mode === 'payment' ? paymentHistoryColumns : receiptHistoryColumns, [mode])
-  const historyColumnResize = useResizableColumns(`daily.money-movement.${mode}.history`, historyColumns)
+  const historyColumnResize = useResizableColumns(`daily.money-movement.${mode}.history.v5`, historyColumns)
 
   const showReceiptTabs = mode === 'receipt' && !entryOnly && !historyOnly
   const showPaymentTabs = mode === 'payment' && !entryOnly && !historyOnly

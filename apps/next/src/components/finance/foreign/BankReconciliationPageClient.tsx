@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 
@@ -16,6 +19,26 @@ type Payload = {
   stats: { erpUnmatched: number; ignored: number; matched: number; total: number; unmatched: number }
 }
 
+type ImportedColumnKey = 'date' | 'desc' | 'in' | 'out' | 'matchStatus'
+
+const importedColumns: Array<ResizableColumnDefinition<ImportedColumnKey>> = [
+  { key: 'date', defaultWidth: 100, minWidth: 80 },
+  { key: 'desc', defaultWidth: 220, minWidth: 150 },
+  { key: 'in', defaultWidth: 120, minWidth: 95 },
+  { key: 'out', defaultWidth: 120, minWidth: 95 },
+  { key: 'matchStatus', defaultWidth: 100, minWidth: 80 },
+]
+
+type ErpColumnKey = 'date' | 'type' | 'refNo' | 'in' | 'out'
+
+const erpColumns: Array<ResizableColumnDefinition<ErpColumnKey>> = [
+  { key: 'date', defaultWidth: 100, minWidth: 80 },
+  { key: 'type', defaultWidth: 100, minWidth: 80 },
+  { key: 'refNo', defaultWidth: 150, minWidth: 110 },
+  { key: 'in', defaultWidth: 120, minWidth: 95 },
+  { key: 'out', defaultWidth: 120, minWidth: 95 },
+]
+
 export function BankReconciliationPageClient() {
   const latestLoadRequestRef = useRef(0)
   const [accountId, setAccountId] = useState('')
@@ -25,6 +48,69 @@ export function BankReconciliationPageClient() {
   const [isLoading, setIsLoading] = useState(true)
   const [toDate, setToDate] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
+
+  const importedColumnResize = useResizableColumns('finance.bank-reconciliation.imported.v5', importedColumns)
+  const erpColumnResize = useResizableColumns('finance.bank-reconciliation.erp.v5', erpColumns)
+
+  const [importedSortKey, setImportedSortKey] = useState<ImportedColumnKey>('date')
+  const [importedSortDirection, setImportedSortDirection] = useState<'asc' | 'desc'>('desc')
+
+  const [erpSortKey, setErpSortKey] = useState<ErpColumnKey>('date')
+  const [erpSortDirection, setErpSortDirection] = useState<'asc' | 'desc'>('desc')
+
+  const handleImportedSort = useCallback((key: ImportedColumnKey) => {
+    if (importedSortKey === key) {
+      setImportedSortDirection((current) => current === 'asc' ? 'desc' : 'asc')
+    } else {
+      setImportedSortKey(key)
+      setImportedSortDirection('asc')
+    }
+  }, [importedSortKey])
+
+  const handleErpSort = useCallback((key: ErpColumnKey) => {
+    if (erpSortKey === key) {
+      setErpSortDirection((current) => current === 'asc' ? 'desc' : 'asc')
+    } else {
+      setErpSortKey(key)
+      setErpSortDirection('asc')
+    }
+  }, [erpSortKey])
+
+  const sortedImportedRows = useMemo(() => {
+    const rows = data?.importedRows ?? []
+    return [...rows].sort((left, right) => {
+      let leftVal = left[importedSortKey]
+      let rightVal = right[importedSortKey]
+
+      if (leftVal === undefined) leftVal = ''
+      if (rightVal === undefined) rightVal = ''
+
+      const multiplier = importedSortDirection === 'asc' ? 1 : -1
+
+      if (typeof leftVal === 'number' && typeof rightVal === 'number') {
+        return (leftVal - rightVal) * multiplier
+      }
+      return String(leftVal).localeCompare(String(rightVal), 'th', { numeric: true }) * multiplier
+    })
+  }, [data?.importedRows, importedSortKey, importedSortDirection])
+
+  const sortedErpRows = useMemo(() => {
+    const rows = data?.erpRows ?? []
+    return [...rows].sort((left, right) => {
+      let leftVal = left[erpSortKey]
+      let rightVal = right[erpSortKey]
+
+      if (leftVal === undefined) leftVal = ''
+      if (rightVal === undefined) rightVal = ''
+
+      const multiplier = erpSortDirection === 'asc' ? 1 : -1
+
+      if (typeof leftVal === 'number' && typeof rightVal === 'number') {
+        return (leftVal - rightVal) * multiplier
+      }
+      return String(leftVal).localeCompare(String(rightVal), 'th', { numeric: true }) * multiplier
+    })
+  }, [data?.erpRows, erpSortKey, erpSortDirection])
 
 
   const query = useMemo(() => {
@@ -134,11 +220,35 @@ export function BankReconciliationPageClient() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Panel title="Bank Statement (Imported)" tone="bank">
-          <ImportedTable isLoading={isLoading} rows={data?.importedRows ?? []} />
+        <Panel
+          title="Bank Statement (Imported)"
+          tone="bank"
+          hasCustomWidths={importedColumnResize.hasCustomWidths}
+          onResetWidths={importedColumnResize.resetColumnWidths}
+        >
+          <ImportedTable
+            columnResize={importedColumnResize}
+            isLoading={isLoading}
+            rows={sortedImportedRows}
+            sortDirection={importedSortDirection}
+            sortKey={importedSortKey}
+            onSort={handleImportedSort}
+          />
         </Panel>
-        <Panel title="ERP Bank Statement" tone="erp">
-          <ErpTable isLoading={isLoading} rows={data?.erpRows ?? []} />
+        <Panel
+          title="ERP Bank Statement"
+          tone="erp"
+          hasCustomWidths={erpColumnResize.hasCustomWidths}
+          onResetWidths={erpColumnResize.resetColumnWidths}
+        >
+          <ErpTable
+            columnResize={erpColumnResize}
+            isLoading={isLoading}
+            rows={sortedErpRows}
+            sortDirection={erpSortDirection}
+            sortKey={erpSortKey}
+            onSort={handleErpSort}
+          />
         </Panel>
       </div>
     </section>
@@ -177,20 +287,114 @@ function Stat({ label, tone, value }: { label: string; tone?: 'matched' | 'unmat
   )
 }
 
-function Panel({ children, title, tone }: { children: React.ReactNode; title: string; tone: 'bank' | 'erp' }) {
-  const heading = tone === 'bank' ? 'bg-blue-50' : 'bg-emerald-50'
-  return <div className="overflow-hidden rounded-md bg-white shadow"><h3 className={`border-b px-4 py-3 font-semibold ${heading}`}>{title}</h3><div className="max-h-96 overflow-x-auto">{children}</div></div>
+function Panel({
+  children,
+  title,
+  tone,
+  onResetWidths,
+  hasCustomWidths,
+}: {
+  children: React.ReactNode
+  title: string
+  tone: 'bank' | 'erp'
+  onResetWidths?: () => void
+  hasCustomWidths?: boolean
+}) {
+  const heading = tone === 'bank' ? 'bg-blue-50/50 text-blue-900' : 'bg-emerald-50/50 text-emerald-900'
+  return (
+    <div className="overflow-hidden rounded-lg border border-slate-200/60 bg-white shadow-sm">
+      <div className={`border-b border-slate-100 px-4 py-3 flex items-center justify-between ${heading}`}>
+        <h3 className="text-sm font-semibold">{title}</h3>
+        {hasCustomWidths && onResetWidths && (
+          <button
+            className="rounded bg-white/85 px-2 py-0.5 text-xs font-semibold text-slate-700 shadow-sm border border-slate-200 hover:bg-white hover:text-slate-900 transition-colors"
+            type="button"
+            onClick={onResetWidths}
+          >
+            คืนค่าเดิมตาราง
+          </button>
+        )}
+      </div>
+      <div className="max-h-96 overflow-auto">{children}</div>
+    </div>
+  )
 }
 
-function ImportedTable({ isLoading, rows }: { isLoading: boolean; rows: ImportedRow[] }) {
+function ImportedTable({
+  isLoading,
+  rows,
+  columnResize,
+  sortKey,
+  sortDirection,
+  onSort,
+}: {
+  isLoading: boolean
+  rows: ImportedRow[]
+  columnResize: {
+    tableMinWidth: string
+    getColumnStyle: (key: ImportedColumnKey) => React.CSSProperties
+    getResizeHandleProps: (key: ImportedColumnKey, label: string) => any
+  }
+  sortKey: ImportedColumnKey
+  sortDirection: 'asc' | 'desc'
+  onSort: (key: ImportedColumnKey) => void
+}) {
   return (
     <>
-      <table className="hidden lg:table w-full text-xs">
-        <thead className="sticky top-0 bg-slate-50 border-b border-slate-100 text-slate-500 font-medium"><tr><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">วันที่</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">รายละเอียด</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">เข้า</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">ออก</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-center">Match</th><th></th></tr></thead>
-        <tbody>
-          {isLoading ? <tr><td className="py-6 text-center text-slate-400" colSpan={6}>กำลังโหลดข้อมูล</td></tr> : null}
-          {!isLoading && rows.length === 0 ? <tr><td className="py-6 text-center text-slate-400" colSpan={6}>ยังไม่ได้ import statement</td></tr> : null}
-        </tbody>
+      <table className="hidden lg:table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <colgroup>
+          {importedColumns.map((column) => (
+            <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+          ))}
+        </colgroup>
+        <TableHeader>
+          <TableRow>
+            <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={onSort} />
+            <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="รายละเอียด" resizeProps={columnResize.getResizeHandleProps('desc', 'รายละเอียด')} sortKey="desc" onSort={onSort} />
+            <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="เข้า" resizeProps={columnResize.getResizeHandleProps('in', 'เข้า')} sortKey="in" onSort={onSort} />
+            <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ออก" resizeProps={columnResize.getResizeHandleProps('out', 'ออก')} sortKey="out" onSort={onSort} />
+            <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="Match" resizeProps={columnResize.getResizeHandleProps('matchStatus', 'Match')} sortKey="matchStatus" onSort={onSort} />
+          </TableRow>
+        </TableHeader>
+        <TableBody className="divide-y divide-slate-100">
+          {isLoading ? (
+            <TableRow>
+              <TableCell className="py-6 text-center text-slate-400" colSpan={5}>
+                กำลังโหลดข้อมูล
+              </TableCell>
+            </TableRow>
+          ) : null}
+          {!isLoading && rows.length === 0 ? (
+            <TableRow>
+              <TableCell className="py-6 text-center text-slate-400" colSpan={5}>
+                ยังไม่ได้ import statement
+              </TableCell>
+            </TableRow>
+          ) : null}
+          {!isLoading && rows.map((row) => (
+            <TableRow key={row.id} className="hover:bg-slate-50/50 transition-colors">
+              <TableCell className="px-4 py-3.5 text-left text-slate-600 font-medium">
+                {formatDateDisplay(row.date)}
+              </TableCell>
+              <TableCell className="px-4 py-3.5 text-left text-slate-700 max-w-xs truncate" title={row.desc}>
+                {row.desc || '-'}
+              </TableCell>
+              <TableCell className="px-4 py-3.5 text-right font-bold font-mono text-emerald-600">
+                {row.in ? formatMoney(row.in) : '-'}
+              </TableCell>
+              <TableCell className="px-4 py-3.5 text-right font-bold font-mono text-red-600">
+                {row.out ? formatMoney(row.out) : '-'}
+              </TableCell>
+              <TableCell className="px-4 py-3.5 text-center">
+                <span className={`inline-block rounded-md px-2 py-0.5 text-xs font-semibold ${
+                  row.matchStatus === 'Matched' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {row.matchStatus}
+                </span>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
       </table>
 
       {/* Mobile view */}
@@ -227,20 +431,71 @@ function ImportedTable({ isLoading, rows }: { isLoading: boolean; rows: Imported
   )
 }
 
-function ErpTable({ isLoading, rows }: { isLoading: boolean; rows: ErpRow[] }) {
+function ErpTable({
+  isLoading,
+  rows,
+  columnResize,
+  sortKey,
+  sortDirection,
+  onSort,
+}: {
+  isLoading: boolean
+  rows: ErpRow[]
+  columnResize: {
+    tableMinWidth: string
+    getColumnStyle: (key: ErpColumnKey) => React.CSSProperties
+    getResizeHandleProps: (key: ErpColumnKey, label: string) => any
+  }
+  sortKey: ErpColumnKey
+  sortDirection: 'asc' | 'desc'
+  onSort: (key: ErpColumnKey) => void
+}) {
   return (
     <>
-      <table className="hidden lg:table w-full text-xs">
-        <thead className="sticky top-0 bg-slate-50 border-b border-slate-100 text-slate-500 font-medium"><tr><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">วันที่</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">ประเภท</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">Ref</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">เข้า</th><th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">ออก</th></tr></thead>
-        <tbody>
-          {isLoading ? <tr><td className="py-6 text-center text-slate-400" colSpan={5}>กำลังโหลดข้อมูล</td></tr> : null}
-          {!isLoading && rows.length === 0 ? <tr><td className="py-6 text-center text-slate-400" colSpan={5}>ไม่มีรายการใน ERP</td></tr> : null}
-          {!isLoading && rows.map((row) => (
-            <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50/50 transition-colors">
-              <td className="px-4 py-3.5">{formatDateDisplay(row.date)}</td><td className="px-4 py-3.5">{row.type}</td><td className="px-4 py-3.5 font-mono text-blue-600">{row.refNo}</td><td className="px-4 py-3.5 text-right text-emerald-600">{row.in ? formatMoney(row.in) : '-'}</td><td className="px-4 py-3.5 text-right text-red-600">{row.out ? formatMoney(row.out) : '-'}</td>
-            </tr>
+      <table className="hidden lg:table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <colgroup>
+          {erpColumns.map((column) => (
+            <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
           ))}
-        </tbody>
+        </colgroup>
+        <TableHeader>
+          <TableRow>
+            <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={onSort} />
+            <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} sortKey="type" onSort={onSort} />
+            <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="Ref" resizeProps={columnResize.getResizeHandleProps('refNo', 'Ref')} sortKey="refNo" onSort={onSort} />
+            <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="เข้า" resizeProps={columnResize.getResizeHandleProps('in', 'เข้า')} sortKey="in" onSort={onSort} />
+            <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ออก" resizeProps={columnResize.getResizeHandleProps('out', 'ออก')} sortKey="out" onSort={onSort} />
+          </TableRow>
+        </TableHeader>
+        <TableBody className="divide-y divide-slate-100">
+          {isLoading ? (
+            <TableRow>
+              <TableCell className="py-6 text-center text-slate-400" colSpan={5}>
+                กำลังโหลดข้อมูล
+              </TableCell>
+            </TableRow>
+          ) : null}
+          {!isLoading && rows.length === 0 ? (
+            <TableRow>
+              <TableCell className="py-6 text-center text-slate-400" colSpan={5}>
+                ไม่มีรายการใน ERP
+              </TableCell>
+            </TableRow>
+          ) : null}
+          {!isLoading && rows.map((row) => (
+            <TableRow key={row.id} className="hover:bg-slate-50/50 transition-colors">
+              <TableCell className="px-4 py-3.5 text-left text-slate-600 font-medium">{formatDateDisplay(row.date)}</TableCell>
+              <TableCell className="px-4 py-3.5 text-left text-slate-700">{row.type}</TableCell>
+              <TableCell className="px-4 py-3.5 text-left font-mono text-blue-600 font-medium">{row.refNo}</TableCell>
+              <TableCell className="px-4 py-3.5 text-right font-bold font-mono text-emerald-600">
+                {row.in ? formatMoney(row.in) : '-'}
+              </TableCell>
+              <TableCell className="px-4 py-3.5 text-right font-bold font-mono text-red-600">
+                {row.out ? formatMoney(row.out) : '-'}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
       </table>
 
       {/* Mobile view */}

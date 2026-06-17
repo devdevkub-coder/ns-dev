@@ -427,45 +427,45 @@ const purchaseBillColumns: Array<ResizableColumnDefinition<TransactionBillColumn
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'receiptDocs', defaultWidth: 150, minWidth: 120 },
   { key: 'date', defaultWidth: 140, minWidth: 110 },
-  { key: 'partyName', defaultWidth: 320, minWidth: 140 },
+  { key: 'partyName', defaultWidth: 260, minWidth: 140 },
   { key: 'transactionMode', defaultWidth: 120, minWidth: 100 },
   { key: 'status', defaultWidth: 140, minWidth: 120 },
   { key: 'paymentDocs', defaultWidth: 150, minWidth: 120 },
-  { key: 'totalAmount', defaultWidth: 85, minWidth: 80 },
-  { key: 'outstanding', defaultWidth: 85, minWidth: 80 },
+  { key: 'totalAmount', defaultWidth: 110, minWidth: 90 },
+  { key: 'outstanding', defaultWidth: 110, minWidth: 90 },
   { key: 'updatedBy', defaultWidth: 170, minWidth: 130 },
-  { key: 'action', defaultWidth: 210, minWidth: 190 },
+  { key: 'action', defaultWidth: 240, minWidth: 210 },
 ]
 
 const salesBillColumns: Array<ResizableColumnDefinition<TransactionBillColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'refNo', defaultWidth: 150, minWidth: 120 },
   { key: 'date', defaultWidth: 120, minWidth: 100 },
-  { key: 'partyName', defaultWidth: 320, minWidth: 140 },
+  { key: 'partyName', defaultWidth: 260, minWidth: 140 },
   { key: 'warehouse', defaultWidth: 160, minWidth: 120 },
   { key: 'transactionMode', defaultWidth: 120, minWidth: 100 },
   { key: 'status', defaultWidth: 140, minWidth: 120 },
   { key: 'itemCount', defaultWidth: 75, minWidth: 60 },
-  { key: 'totalAmount', defaultWidth: 85, minWidth: 80 },
-  { key: 'gp', defaultWidth: 85, minWidth: 80 },
-  { key: 'paidAmount', defaultWidth: 85, minWidth: 80 },
-  { key: 'outstanding', defaultWidth: 85, minWidth: 80 },
-  { key: 'vat', defaultWidth: 85, minWidth: 80 },
+  { key: 'totalAmount', defaultWidth: 110, minWidth: 90 },
+  { key: 'gp', defaultWidth: 110, minWidth: 90 },
+  { key: 'paidAmount', defaultWidth: 110, minWidth: 90 },
+  { key: 'outstanding', defaultWidth: 110, minWidth: 90 },
+  { key: 'vat', defaultWidth: 110, minWidth: 90 },
   { key: 'updatedBy', defaultWidth: 170, minWidth: 130 },
-  { key: 'action', defaultWidth: 150, minWidth: 140 },
+  { key: 'action', defaultWidth: 180, minWidth: 150 },
 ]
 
 const stockIssueColumns: Array<ResizableColumnDefinition<TransactionBillColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'date', defaultWidth: 120, minWidth: 100 },
-  { key: 'partyName', defaultWidth: 320, minWidth: 140 },
+  { key: 'partyName', defaultWidth: 260, minWidth: 140 },
   { key: 'warehouse', defaultWidth: 160, minWidth: 120 },
   { key: 'status', defaultWidth: 140, minWidth: 120 },
   { key: 'itemCount', defaultWidth: 75, minWidth: 60 },
-  { key: 'stockQty', defaultWidth: 85, minWidth: 80 },
-  { key: 'stockCost', defaultWidth: 85, minWidth: 80 },
-  { key: 'totalAmount', defaultWidth: 85, minWidth: 80 },
-  { key: 'action', defaultWidth: 230, minWidth: 200 },
+  { key: 'stockQty', defaultWidth: 110, minWidth: 90 },
+  { key: 'stockCost', defaultWidth: 110, minWidth: 90 },
+  { key: 'totalAmount', defaultWidth: 110, minWidth: 90 },
+  { key: 'action', defaultWidth: 240, minWidth: 215 },
 ]
 
 function formatPercent(value: number) {
@@ -719,7 +719,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     if (mode === 'sales') return salesBillColumns
     return stockIssueColumns
   }, [mode])
-  const columnResize = useResizableColumns(`daily.transaction-bills.${mode}`, tableColumns)
+  const columnResize = useResizableColumns(`daily.transaction-bills.${mode}.v5`, tableColumns)
   const apiPath = mode === 'purchase' ? '/api/purchase/bills' : mode === 'sales' ? '/api/sales/bills' : '/api/sales/stock-issue'
   const requestPath = useMemo(() => {
     const params = new URLSearchParams({
@@ -3126,7 +3126,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       {showForm && mode === 'purchase' ? (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4">
           <div className="mx-auto my-4 flex max-h-[94vh] max-w-5xl flex-col rounded-md bg-white shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-md border-b bg-slate-900 px-6 py-4 text-white">
+            <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-md border-b border-slate-800 bg-slate-900 px-6 py-4 text-white">
               <div>
                 <h3 className="text-xl font-bold">📥 {editingBillId ? 'แก้ไขบิลรับซื้อ' : 'สร้างบิลรับซื้อใหม่'}</h3>
                 <p className="mt-1 text-xs opacity-80">{editingBillId ? 'แก้ไขได้เฉพาะบิลที่ยังไม่อนุมัติโอนเงินและยังไม่มีการชำระเงิน' : 'บันทึก header และรายการสินค้าในบิลรับซื้อ'}</p>
@@ -3262,7 +3262,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                           ))}
                         </div>
                       ) : null}
-                      <div className="overflow-x-auto rounded-md border">
+                      <div className="overflow-x-auto rounded-md border border-slate-200/60">
                       <table className="w-full min-w-[920px] text-sm">
                         <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
                           <tr>
@@ -3392,7 +3392,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     </div>
                   )
                 ) : (
-                  <div className="overflow-x-auto rounded-md border">
+                  <div className="overflow-x-auto rounded-md border border-slate-200/60">
                     <table className="w-full min-w-[780px] text-sm">
                       <tbody>
                         {form.items.map((item, index) => (
@@ -3546,7 +3546,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 }} /></Field>
               </div>
             </div>
-            <div className="flex justify-end gap-2 rounded-b-md border-t bg-white p-4">
+            <div className="flex justify-end gap-2 rounded-b-md border-t border-slate-100 bg-white p-4">
               <button className="rounded-md px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-50 outline-none" type="button" onClick={() => { setSupplierSwapMode(false); setSupplierSwapSupplierId(''); setLockedReceiptSnapshot(null); setShowForm(false) }}>ยกเลิก</button>
               <button className="rounded-md bg-[#0F172A] hover:bg-[#1E293B] px-5 py-2 text-sm font-bold text-white disabled:opacity-60 outline-none" disabled={isSaving || !stockReceiptSelected} type="button" onClick={() => void savePurchaseBill()}>{isSaving ? 'กำลังบันทึก...' : supplierSwapMode ? 'บันทึกและสร้าง PB ใหม่' : editingBillId ? 'บันทึกการแก้ไข' : 'บันทึกบิลรับซื้อ'}</button>
             </div>
@@ -3597,7 +3597,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="mb-3 font-bold text-slate-700">รายการสินค้า</h4>
                 {selectedStockIssueDelivery ? (
-                  <div className="overflow-x-auto rounded-md border">
+                  <div className="overflow-x-auto rounded-md border border-slate-200/60">
                     <table className="min-w-full text-xs">
                       <thead className="bg-slate-50 text-slate-500">
                         <tr>
@@ -3664,7 +3664,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       {showSalesForm && (mode === 'sales' || mode === 'stock-issue') ? (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4">
           <div className="relative mx-auto my-4 flex max-h-[94vh] w-full max-w-[1480px] flex-col rounded-md bg-white shadow-2xl" data-combobox-portal-root="true">
-            <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-md border-b bg-slate-900 px-6 py-4 text-white">
+            <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-md border-b border-slate-800 bg-slate-900 px-6 py-4 text-white">
               <div>
                 <h3 className="text-xl font-bold">สร้างบิลขายใหม่</h3>
                 <p className="mt-1 text-xs opacity-80">บันทึกบิลขายแบบ Stock / Trading พร้อม VAT และข้อมูลรับเงิน</p>
@@ -3836,7 +3836,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                          ))}
 	                        </div>
 	                      ) : null}
-	                      <div className="overflow-x-auto rounded-md border">
+	                      <div className="overflow-x-auto rounded-md border border-slate-200/60">
 	                      <table className="w-full min-w-[1260px] text-sm">
                         <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
                           <tr>
@@ -3969,7 +3969,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     เลือกบิลซื้อ Trading หรือใบส่งของ WTO เพื่อดึงรายการสินค้าและน้ำหนักมาออกบิล
                   </div>
                 ) : (
-                  <div className="overflow-x-auto rounded-md border">
+                  <div className="overflow-x-auto rounded-md border border-slate-200/60">
                     <table className="w-full min-w-[1240px] text-sm">
                       <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium text-xs">
                         <tr>
@@ -4151,7 +4151,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 <Field error={salesFieldErrors.note} label="หมายเหตุ"><textarea data-error-key="note" className={`w-full rounded-md border px-3 py-2 ${salesFieldErrors.note ? 'border-red-400 bg-red-50' : ''}`} rows={2} value={salesForm.note ?? ''} onChange={(event) => updateSalesForm('note', event.target.value || null)} /></Field>
               </div>
             </div>
-            <div className="flex justify-end gap-2 rounded-b-md border-t bg-white p-4">
+            <div className="flex justify-end gap-2 rounded-b-md border-t border-slate-100 bg-white p-4">
               <button className="rounded-md px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-50 outline-none" disabled={isSaving} type="button" onClick={() => setShowSalesForm(false)}>ยกเลิก</button>
               <button className="rounded-md bg-[#0F172A] hover:bg-[#1E293B] px-5 py-2 text-sm font-bold text-white disabled:opacity-60 outline-none" disabled={isSaving} type="button" onClick={() => void saveSalesBill()}>{isSaving ? 'กำลังบันทึก...' : 'บันทึกบิลขาย'}</button>
             </div>

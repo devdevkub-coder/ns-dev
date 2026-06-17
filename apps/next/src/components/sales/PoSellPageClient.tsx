@@ -132,21 +132,21 @@ const initialPoSellForm = (): PoSellFormValues => ({
 })
 
 const poSellColumns: ResizableColumnDefinition<string>[] = [
-  { key: 'docNo', minWidth: 90, defaultWidth: 110 },
-  { key: 'createdAt', minWidth: 100, defaultWidth: 115 },
-  { key: 'expectedDelivery', minWidth: 100, defaultWidth: 115 },
-  { key: 'customerName', minWidth: 120, defaultWidth: 420 },
-  { key: 'productName', minWidth: 100, defaultWidth: 280 },
-  { key: 'qty', minWidth: 70, defaultWidth: 75 },
-  { key: 'totalAmount', minWidth: 80, defaultWidth: 80 },
-  { key: 'matchedQty', minWidth: 70, defaultWidth: 75 },
-  { key: 'remainingQty', minWidth: 70, defaultWidth: 75 },
-  { key: 'margin', minWidth: 80, defaultWidth: 80 },
-  { key: 'marginPct', minWidth: 50, defaultWidth: 55 },
-  { key: 'documentStatus', minWidth: 80, defaultWidth: 90 },
-  { key: 'matchStatus', minWidth: 80, defaultWidth: 90 },
-  { key: 'updatedAt', minWidth: 120, defaultWidth: 135 },
-  { key: 'action', minWidth: 80, defaultWidth: 90 },
+  { key: 'docNo', minWidth: 90, defaultWidth: 100 },
+  { key: 'createdAt', minWidth: 100, defaultWidth: 110 },
+  { key: 'expectedDelivery', minWidth: 100, defaultWidth: 110 },
+  { key: 'customerName', minWidth: 120, defaultWidth: 260 },
+  { key: 'productName', minWidth: 100, defaultWidth: 180 },
+  { key: 'qty', minWidth: 90, defaultWidth: 110 },
+  { key: 'totalAmount', minWidth: 110, defaultWidth: 135 },
+  { key: 'matchedQty', minWidth: 90, defaultWidth: 110 },
+  { key: 'remainingQty', minWidth: 90, defaultWidth: 110 },
+  { key: 'margin', minWidth: 110, defaultWidth: 135 },
+  { key: 'marginPct', minWidth: 70, defaultWidth: 85 },
+  { key: 'documentStatus', minWidth: 100, defaultWidth: 120 },
+  { key: 'matchStatus', minWidth: 110, defaultWidth: 130 },
+  { key: 'updatedAt', minWidth: 150, defaultWidth: 180 },
+  { key: 'action', minWidth: 180, defaultWidth: 200 },
 ]
 
 export function PoSellPageClient() {
@@ -188,7 +188,7 @@ export function PoSellPageClient() {
     }
   }
 
-  const columnResize = useResizableColumns('sales.po-sell', poSellColumns)
+  const columnResize = useResizableColumns('sales.po-sell.v5', poSellColumns)
 
   const dateQuery = useMemo(() => {
     const params = new URLSearchParams()

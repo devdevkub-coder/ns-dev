@@ -23,9 +23,9 @@ const stockLedgerColumns: Array<ResizableColumnDefinition<StockLedgerColumnKey>>
   { defaultWidth: 132, key: 'refNo', minWidth: 110 },
   { defaultWidth: 200, key: 'counterpartyName', minWidth: 140 },
   { defaultWidth: 170, key: 'movementType', minWidth: 140 },
-  { defaultWidth: 240, key: 'productName', minWidth: 160 },
-  { defaultWidth: 100, key: 'qtyIn', minWidth: 85 },
-  { defaultWidth: 100, key: 'qtyOut', minWidth: 85 },
+  { defaultWidth: 180, key: 'productName', minWidth: 140 },
+  { defaultWidth: 110, key: 'qtyIn', minWidth: 90 },
+  { defaultWidth: 110, key: 'qtyOut', minWidth: 90 },
   { defaultWidth: 120, key: 'runningBalanceByProduct', minWidth: 100 },
   { defaultWidth: 120, key: 'unitCost', minWidth: 100 },
   { defaultWidth: 130, key: 'valueIn', minWidth: 110 },
@@ -102,7 +102,7 @@ export function StockLedgerPageClient() {
   const [sortKey, setSortKey] = useState<StockLedgerSortKey>('date')
   const [toDate, setToDate] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
-  const columnResize = useResizableColumns('stock.ledger.v3', stockLedgerColumns)
+  const columnResize = useResizableColumns('stock.ledger.v5', stockLedgerColumns)
 
   const loadData = useCallback(async () => {
     const requestId = latestLoadRequestRef.current + 1

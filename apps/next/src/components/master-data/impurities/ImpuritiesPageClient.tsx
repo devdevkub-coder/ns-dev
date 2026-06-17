@@ -22,9 +22,9 @@ type SortKey = 'active' | 'name'
 type ImpurityColumnKey = SortKey | 'action'
 
 const impurityColumns: Array<ResizableColumnDefinition<ImpurityColumnKey>> = [
-  { key: 'name', defaultWidth: 320, minWidth: 180 },
+  { key: 'name', defaultWidth: 280, minWidth: 180 },
   { key: 'active', defaultWidth: 110, minWidth: 90 },
-  { key: 'action', defaultWidth: 80, minWidth: 70 },
+  { key: 'action', defaultWidth: 110, minWidth: 90 },
 ]
 
 
@@ -71,7 +71,7 @@ export function ImpuritiesPageClient() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
-  const columnResize = useResizableColumns('master-data.impurities', impurityColumns)
+  const columnResize = useResizableColumns('master-data.impurities.v5', impurityColumns)
 
 
   const loadData = useCallback(async () => {

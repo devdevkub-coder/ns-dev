@@ -34,12 +34,12 @@ const transferColumns: Array<ResizableColumnDefinition<TransferColumnKey>> = [
   { key: 'index', defaultWidth: 70, minWidth: 50 },
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'date', defaultWidth: 120, minWidth: 100 },
-  { key: 'from', defaultWidth: 280, minWidth: 150 },
-  { key: 'to', defaultWidth: 280, minWidth: 150 },
-  { key: 'amount', defaultWidth: 85, minWidth: 80 },
-  { key: 'fee', defaultWidth: 80, minWidth: 70 },
+  { key: 'from', defaultWidth: 240, minWidth: 150 },
+  { key: 'to', defaultWidth: 240, minWidth: 150 },
+  { key: 'amount', defaultWidth: 110, minWidth: 90 },
+  { key: 'fee', defaultWidth: 100, minWidth: 80 },
   { key: 'byPerson', defaultWidth: 160, minWidth: 120 },
-  { key: 'action', defaultWidth: 150, minWidth: 140 },
+  { key: 'action', defaultWidth: 180, minWidth: 150 },
 ]
 
 const emptyForm: TransferFormValues = {
@@ -74,7 +74,7 @@ export function DailyTransferPageClient() {
   const [fromAccountId, setFromAccountId] = useState('')
   const [toAccountId, setToAccountId] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
-  const columnResize = useResizableColumns('daily.transfer', transferColumns)
+  const columnResize = useResizableColumns('daily.transfer.v5', transferColumns)
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
 

@@ -33,11 +33,11 @@ type ProductColumnKey = SortKey | 'action'
 
 const productColumns: Array<ResizableColumnDefinition<ProductColumnKey>> = [
   { key: 'code', defaultWidth: 100, minWidth: 80 },
-  { key: 'name', defaultWidth: 320, minWidth: 180 },
+  { key: 'name', defaultWidth: 280, minWidth: 180 },
   { key: 'type', defaultWidth: 140, minWidth: 100 },
   { key: 'unit', defaultWidth: 90, minWidth: 70 },
   { key: 'active', defaultWidth: 110, minWidth: 90 },
-  { key: 'action', defaultWidth: 80, minWidth: 70 },
+  { key: 'action', defaultWidth: 110, minWidth: 90 },
 ]
 
 
@@ -124,7 +124,7 @@ export function ProductsPageClient() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [sortKey, setSortKey] = useState<SortKey>('code')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
-  const columnResize = useResizableColumns('master-data.products', productColumns)
+  const columnResize = useResizableColumns('master-data.products.v5', productColumns)
 
 
   const loadData = useCallback(async () => {

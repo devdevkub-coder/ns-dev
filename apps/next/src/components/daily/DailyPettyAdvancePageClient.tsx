@@ -54,13 +54,13 @@ const pettyAdvanceColumns: Array<ResizableColumnDefinition<PettyAdvanceColumnKey
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'date', defaultWidth: 120, minWidth: 100 },
   { key: 'type', defaultWidth: 150, minWidth: 120 },
-  { key: 'recipientName', defaultWidth: 320, minWidth: 130 },
-  { key: 'amount', defaultWidth: 85, minWidth: 80 },
-  { key: 'spent', defaultWidth: 85, minWidth: 80 },
-  { key: 'returned', defaultWidth: 85, minWidth: 80 },
-  { key: 'remaining', defaultWidth: 85, minWidth: 80 },
+  { key: 'recipientName', defaultWidth: 260, minWidth: 130 },
+  { key: 'amount', defaultWidth: 110, minWidth: 90 },
+  { key: 'spent', defaultWidth: 110, minWidth: 90 },
+  { key: 'returned', defaultWidth: 110, minWidth: 90 },
+  { key: 'remaining', defaultWidth: 110, minWidth: 90 },
   { key: 'status', defaultWidth: 120, minWidth: 100 },
-  { key: 'action', defaultWidth: 180, minWidth: 160 },
+  { key: 'action', defaultWidth: 210, minWidth: 180 },
 ]
 
 const emptyForm: PettyAdvanceFormValues = {
@@ -113,7 +113,7 @@ export function DailyPettyAdvancePageClient() {
   const [type, setType] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
-  const columnResize = useResizableColumns('daily.petty-advance', pettyAdvanceColumns)
+  const columnResize = useResizableColumns('daily.petty-advance.v5', pettyAdvanceColumns)
 
   const loadData = useCallback(async () => {
     setIsLoading(true)

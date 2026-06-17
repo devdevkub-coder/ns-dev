@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { RotateCcw } from 'lucide-react'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 
 type BranchRow = { code: string; id: string; name: string }
@@ -55,6 +58,78 @@ type ProfitPayload = {
   sourceState: SourceState
   summary: { bankFee: number; fxLoss: number; interestExpense: number; negTotal: number; outlierCount: number; productionLoss: number; stockLoss: number; totalLeak: number }
 }
+
+type StockProductColumnKey = 'code' | 'name' | 'metalGroup' | 'qty' | 'wac' | 'value' | 'daysSinceSale' | 'stdPrice' | 'marginPotential'
+
+const stockProductColumns: Array<ResizableColumnDefinition<StockProductColumnKey>> = [
+  { defaultWidth: 95, key: 'code', minWidth: 80 },
+  { defaultWidth: 200, key: 'name', minWidth: 140 },
+  { defaultWidth: 95, key: 'metalGroup', minWidth: 80 },
+  { defaultWidth: 95, key: 'qty', minWidth: 80 },
+  { defaultWidth: 95, key: 'wac', minWidth: 80 },
+  { defaultWidth: 110, key: 'value', minWidth: 90 },
+  { defaultWidth: 120, key: 'daysSinceSale', minWidth: 90 },
+  { defaultWidth: 110, key: 'stdPrice', minWidth: 80 },
+  { defaultWidth: 115, key: 'marginPotential', minWidth: 90 },
+]
+
+type NegMarginColumnKey = 'date' | 'docNo' | 'customer' | 'productName' | 'qty' | 'price' | 'unitCost' | 'loss'
+
+const negMarginColumns: Array<ResizableColumnDefinition<NegMarginColumnKey>> = [
+  { defaultWidth: 95, key: 'date', minWidth: 80 },
+  { defaultWidth: 115, key: 'docNo', minWidth: 90 },
+  { defaultWidth: 170, key: 'customer', minWidth: 120 },
+  { defaultWidth: 190, key: 'productName', minWidth: 130 },
+  { defaultWidth: 90, key: 'qty', minWidth: 70 },
+  { defaultWidth: 90, key: 'price', minWidth: 70 },
+  { defaultWidth: 90, key: 'unitCost', minWidth: 70 },
+  { defaultWidth: 110, key: 'loss', minWidth: 80 },
+]
+
+type OutlierColumnKey = 'date' | 'category' | 'docNo' | 'payee' | 'amount' | 'mean' | 'over'
+
+const outlierColumns: Array<ResizableColumnDefinition<OutlierColumnKey>> = [
+  { defaultWidth: 95, key: 'date', minWidth: 80 },
+  { defaultWidth: 115, key: 'category', minWidth: 90 },
+  { defaultWidth: 115, key: 'docNo', minWidth: 90 },
+  { defaultWidth: 170, key: 'payee', minWidth: 120 },
+  { defaultWidth: 110, key: 'amount', minWidth: 80 },
+  { defaultWidth: 110, key: 'mean', minWidth: 80 },
+  { defaultWidth: 120, key: 'over', minWidth: 90 },
+]
+
+type DetailColumnKey = 'label' | 'value'
+
+const detailColumns: Array<ResizableColumnDefinition<DetailColumnKey>> = [
+  { defaultWidth: 350, key: 'label', minWidth: 200 },
+  { defaultWidth: 150, key: 'value', minWidth: 100 },
+]
+
+type LowMarginColumnKey = 'docNo' | 'customer' | 'gpPct' | 'shortfall'
+
+const lowMarginColumns: Array<ResizableColumnDefinition<LowMarginColumnKey>> = [
+  { defaultWidth: 100, key: 'docNo', minWidth: 80 },
+  { defaultWidth: 150, key: 'customer', minWidth: 100 },
+  { defaultWidth: 80, key: 'gpPct', minWidth: 60 },
+  { defaultWidth: 100, key: 'shortfall', minWidth: 80 },
+]
+
+type LowCustomerColumnKey = 'name' | 'revenue' | 'gpPct'
+
+const lowCustomerColumns: Array<ResizableColumnDefinition<LowCustomerColumnKey>> = [
+  { defaultWidth: 160, key: 'name', minWidth: 110 },
+  { defaultWidth: 110, key: 'revenue', minWidth: 80 },
+  { defaultWidth: 80, key: 'gpPct', minWidth: 60 },
+]
+
+type HighSupplierColumnKey = 'supplierName' | 'productName' | 'premiumPct' | 'premiumValue'
+
+const highSupplierColumns: Array<ResizableColumnDefinition<HighSupplierColumnKey>> = [
+  { defaultWidth: 150, key: 'supplierName', minWidth: 100 },
+  { defaultWidth: 150, key: 'productName', minWidth: 100 },
+  { defaultWidth: 80, key: 'premiumPct', minWidth: 60 },
+  { defaultWidth: 100, key: 'premiumValue', minWidth: 80 },
+]
 
 function today() {
   return localDateInputValue(new Date())
@@ -345,17 +420,73 @@ function Insight({ body, title, tone, value }: { body: string; title: string; to
 }
 
 function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: WorkingPayload['calculationRows'] }) {
+  const columnResize = useResizableColumns('finance.working-capital.calculation.v5', detailColumns)
+  const [sortKey, setSortKey] = useState<DetailColumnKey | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  const handleSort = (key: DetailColumnKey) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDirection('asc')
+    }
+  }
+
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+    return [...rows].sort((a, b) => {
+      const aVal = a[sortKey]
+      const bVal = b[sortKey]
+
+      if (aVal === undefined || aVal === null) return 1
+      if (bVal === undefined || bVal === null) return -1
+
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return sortDirection === 'asc'
+          ? aVal.localeCompare(bVal, 'th')
+          : bVal.localeCompare(aVal, 'th')
+      }
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortDirection === 'asc' ? aVal - bVal : bVal - aVal
+      }
+      return 0
+    })
+  }, [rows, sortKey, sortDirection])
+
   return (
     <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
-      <h3 className="border-b border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700">📋 ตารางคำนวณ</h3>
-      <div className="overflow-auto">
+      <div className="flex justify-between items-center border-b border-slate-100 bg-slate-50 px-4 py-3 font-bold text-slate-700 text-sm">
+        <span>📋 ตารางคำนวณ</span>
+        {columnResize.hasCustomWidths && (
+          <button
+            className="hidden lg:inline-flex items-center gap-1 h-7 rounded bg-white border border-slate-200 px-2.5 text-xs text-slate-700 hover:bg-slate-50 font-normal transition outline-none"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            <RotateCcw className="h-3 w-3" /> คืนค่าเดิมตาราง
+          </button>
+        )}
+      </div>
+      <div className="overflow-x-auto">
         {/* Desktop View */}
-        <table className="hidden lg:table w-full text-xs">
+        <table className="hidden lg:table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <colgroup>
+            {detailColumns.map((column) => (
+              <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+            ))}
+          </colgroup>
+          <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
+            <tr>
+              <ResizableTableHead label="คำอธิบาย" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="label" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('label', 'คำอธิบาย')} />
+              <ResizableTableHead align="right" label="มูลค่า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="value" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('value', 'มูลค่า')} />
+            </tr>
+          </thead>
           <tbody>
             {isLoading ? (
               <tr><td className="py-6 text-center text-slate-400" colSpan={2}>กำลังโหลดข้อมูล</td></tr>
             ) : null}
-            {rows.map((row) => {
+            {sortedRows.map((row) => {
               const bgCls = row.tone === 'blue' ? 'bg-blue-50/30' : row.tone === 'emerald' ? 'bg-emerald-50/30' : row.tone === 'amber' ? 'bg-amber-50/30' : row.tone === 'purple' ? 'bg-purple-50/30' : ''
               return (
                 <tr key={row.label} className={`border-t border-slate-100 hover:bg-slate-50/50 transition ${bgCls}`}>
@@ -370,7 +501,7 @@ function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: WorkingPay
         {/* Mobile View */}
         <div className="block lg:hidden divide-y divide-slate-100">
           {isLoading && <div className="py-6 text-center text-slate-400 text-xs">กำลังโหลดข้อมูล</div>}
-          {!isLoading && rows.map((row) => {
+          {!isLoading && sortedRows.map((row) => {
             const bgCls = row.tone === 'blue' ? 'bg-blue-50/30' : row.tone === 'emerald' ? 'bg-emerald-50/30' : row.tone === 'amber' ? 'bg-amber-50/30' : row.tone === 'purple' ? 'bg-purple-50/30' : ''
             return (
               <div key={row.label} className={`flex justify-between items-center p-3 text-xs ${bgCls}`}>
@@ -434,22 +565,78 @@ function TopProduct({ index, max, row }: { index: number; max: number; row: Stoc
 }
 
 function ProductTable({ rows }: { rows: StockProduct[] }) {
+  const columnResize = useResizableColumns('finance.stock-finance.slow-moving.v5', stockProductColumns)
+  const [sortKey, setSortKey] = useState<StockProductColumnKey | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  const handleSort = (key: StockProductColumnKey) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDirection('asc')
+    }
+  }
+
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+    return [...rows].sort((a, b) => {
+      const aVal = a[sortKey]
+      const bVal = b[sortKey]
+
+      if (aVal === undefined || aVal === null) return 1
+      if (bVal === undefined || bVal === null) return -1
+
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return sortDirection === 'asc'
+          ? aVal.localeCompare(bVal, 'th')
+          : bVal.localeCompare(aVal, 'th')
+      }
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortDirection === 'asc' ? aVal - bVal : bVal - aVal
+      }
+      return 0
+    })
+  }, [rows, sortKey, sortDirection])
+
   return (
     <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
-      <div className="border-b border-red-100 bg-red-50/50 px-4 py-3 font-bold text-red-700 text-sm">Slow Moving / สินค้าที่ควรรีบขาย (Top 15 — ไม่ขาย &gt; 60 วัน)</div>
+      <div className="flex justify-between items-center border-b border-red-100 bg-red-50/50 px-4 py-3 font-bold text-red-700 text-sm">
+        <span>Slow Moving / สินค้าที่ควรรีบขาย (Top 15 — ไม่ขาย &gt; 60 วัน)</span>
+        {columnResize.hasCustomWidths && (
+          <button
+            className="hidden lg:inline-flex items-center gap-1 h-7 rounded bg-white border border-red-200 px-2.5 text-xs text-red-700 hover:bg-red-50 font-normal transition outline-none"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            <RotateCcw className="h-3 w-3" /> คืนค่าเดิมตาราง
+          </button>
+        )}
+      </div>
       
       {/* Desktop View */}
-      <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
-        <table className="w-full text-xs">
+      <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-100 bg-white shadow-sm">
+        <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <colgroup>
+            {stockProductColumns.map((column) => (
+              <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+            ))}
+          </colgroup>
           <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
             <tr>
-              <Th>รหัส</Th><Th>ชื่อ</Th><Th>หมวด</Th>
-              <Th align="right">จำนวน</Th><Th align="right">WAC</Th><Th align="right">มูลค่า</Th>
-              <Th align="right">ครั้งสุดท้ายขาย</Th><Th align="right">ราคามาตรฐาน</Th><Th align="right">Margin Pot</Th>
+              <ResizableTableHead label="รหัส" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="code" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('code', 'รหัส')} />
+              <ResizableTableHead label="ชื่อ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="name" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('name', 'ชื่อ')} />
+              <ResizableTableHead label="หมวด" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="metalGroup" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('metalGroup', 'หมวด')} />
+              <ResizableTableHead align="right" label="จำนวน" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="qty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('qty', 'จำนวน')} />
+              <ResizableTableHead align="right" label="WAC" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="wac" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('wac', 'WAC')} />
+              <ResizableTableHead align="right" label="มูลค่า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="value" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('value', 'มูลค่า')} />
+              <ResizableTableHead align="right" label="ครั้งสุดท้ายขาย" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="daysSinceSale" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('daysSinceSale', 'ครั้งสุดท้ายขาย')} />
+              <ResizableTableHead align="right" label="ราคามาตรฐาน" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="stdPrice" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('stdPrice', 'ราคามาตรฐาน')} />
+              <ResizableTableHead align="right" label="Margin Pot" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="marginPotential" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('marginPotential', 'Margin Pot')} />
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {sortedRows.map((row) => (
               <tr className="border-t border-slate-100 hover:bg-slate-50/50 transition" key={row.id}>
                 <Td mono className="font-bold text-amber-700">{row.code}</Td>
                 <Td className="font-semibold text-slate-900">{row.name}</Td>
@@ -462,17 +649,17 @@ function ProductTable({ rows }: { rows: StockProduct[] }) {
                 <Td align="right" className="text-emerald-700 font-semibold">{money(row.marginPotential)}</Td>
               </tr>
             ))}
-            {!rows.length ? <tr><td className="py-8 text-center text-slate-400" colSpan={9}>ไม่มี Slow Moving ✓</td></tr> : null}
+            {!sortedRows.length ? <tr><td className="py-8 text-center text-slate-400" colSpan={9}>ไม่มี Slow Moving ✓</td></tr> : null}
           </tbody>
         </table>
       </div>
 
       {/* Mobile View */}
       <div className="block lg:hidden divide-y divide-slate-100">
-        {!rows.length ? (
+        {!sortedRows.length ? (
           <div className="py-8 text-center text-slate-400 text-xs">ไม่มี Slow Moving ✓</div>
         ) : (
-          rows.map((row) => (
+          sortedRows.map((row) => (
             <div key={row.id} className="p-4 space-y-2 text-xs hover:bg-slate-50/50 transition">
               <div className="flex justify-between items-start">
                 <div>
@@ -498,24 +685,80 @@ function ProductTable({ rows }: { rows: StockProduct[] }) {
 }
 
 function NegativeMarginTable({ rows, total }: { rows: ProfitPayload['negMarginItems']; total: number }) {
+  const columnResize = useResizableColumns('finance.profit-leak.neg-margin.v5', negMarginColumns)
+  const [sortKey, setSortKey] = useState<NegMarginColumnKey | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  const handleSort = (key: NegMarginColumnKey) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDirection('asc')
+    }
+  }
+
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+    return [...rows].sort((a, b) => {
+      const aVal = a[sortKey]
+      const bVal = b[sortKey]
+
+      if (aVal === undefined || aVal === null) return 1
+      if (bVal === undefined || bVal === null) return -1
+
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return sortDirection === 'asc'
+          ? aVal.localeCompare(bVal, 'th')
+          : bVal.localeCompare(aVal, 'th')
+      }
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortDirection === 'asc' ? aVal - bVal : bVal - aVal
+      }
+      return 0
+    })
+  }, [rows, sortKey, sortDirection])
+
   return (
     <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
-      <div className="flex justify-between border-b border-red-100 bg-red-50/50 px-4 py-3 font-bold text-red-700 text-sm">
-        <span>📉 ขายต่ำกว่า WAC ({rows.length} รายการ)</span>
-        <span>รวมขาดทุน {money(total)}</span>
+      <div className="flex justify-between items-center border-b border-red-100 bg-red-50/50 px-4 py-3 font-bold text-red-700 text-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <span>📉 ขายต่ำกว่า WAC ({rows.length} รายการ)</span>
+          <span className="font-semibold">รวมขาดทุน {money(total)}</span>
+        </div>
+        {columnResize.hasCustomWidths && (
+          <button
+            className="hidden lg:inline-flex items-center gap-1 h-7 rounded bg-white border border-red-200 px-2.5 text-xs text-red-700 hover:bg-red-50 font-normal transition outline-none"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            <RotateCcw className="h-3 w-3" /> คืนค่าเดิมตาราง
+          </button>
+        )}
       </div>
       
       {/* Desktop View */}
-      <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
-        <table className="w-full text-xs">
+      <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-100 bg-white shadow-sm">
+        <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <colgroup>
+            {negMarginColumns.map((column) => (
+              <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+            ))}
+          </colgroup>
           <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
             <tr>
-              <Th>วันที่</Th><Th>บิล</Th><Th>ลูกค้า</Th><Th>สินค้า</Th>
-              <Th align="right">Qty</Th><Th align="right">ราคา</Th><Th align="right">WAC</Th><Th align="right">ขาดทุน</Th>
+              <ResizableTableHead label="วันที่" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
+              <ResizableTableHead label="บิล" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'บิล')} />
+              <ResizableTableHead label="ลูกค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="customer" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('customer', 'ลูกค้า')} />
+              <ResizableTableHead label="สินค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="productName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} />
+              <ResizableTableHead align="right" label="Qty" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="qty" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('qty', 'Qty')} />
+              <ResizableTableHead align="right" label="ราคา" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="price" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('price', 'ราคา')} />
+              <ResizableTableHead align="right" label="WAC" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="unitCost" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('unitCost', 'WAC')} />
+              <ResizableTableHead align="right" label="ขาดทุน" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="loss" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('loss', 'ขาดทุน')} />
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {sortedRows.map((row) => (
               <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50/50 transition-colors transition">
                 <Td>{row.date}</Td>
                 <Td mono className="font-semibold text-slate-800">{row.docNo}</Td>
@@ -527,17 +770,17 @@ function NegativeMarginTable({ rows, total }: { rows: ProfitPayload['negMarginIt
                 <Td align="right" className="font-bold text-red-700">{money(row.loss)}</Td>
               </tr>
             ))}
-            {!rows.length ? <tr><td className="py-4 text-center text-slate-400" colSpan={8}>ไม่มี ✓</td></tr> : null}
+            {!sortedRows.length ? <tr><td className="py-4 text-center text-slate-400" colSpan={8}>ไม่มี ✓</td></tr> : null}
           </tbody>
         </table>
       </div>
 
       {/* Mobile View */}
       <div className="block lg:hidden divide-y divide-slate-100">
-        {!rows.length ? (
+        {!sortedRows.length ? (
           <div className="py-8 text-center text-slate-400 text-xs">ไม่มี ✓</div>
         ) : (
-          rows.map((row) => (
+          sortedRows.map((row) => (
             <div key={row.id} className="p-4 space-y-2 text-xs hover:bg-slate-50/50 transition">
               <div className="flex justify-between items-start">
                 <div>
@@ -561,20 +804,73 @@ function NegativeMarginTable({ rows, total }: { rows: ProfitPayload['negMarginIt
 }
 
 function LowMarginTable({ rows, targetMargin }: { rows: ProfitPayload['lowMarginBills']; targetMargin: number }) {
+  const columnResize = useResizableColumns('finance.profit-leak.low-margin.v5', lowMarginColumns)
+  const [sortKey, setSortKey] = useState<LowMarginColumnKey | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  const handleSort = (key: LowMarginColumnKey) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDirection('asc')
+    }
+  }
+
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+    return [...rows].sort((a, b) => {
+      const aVal = a[sortKey]
+      const bVal = b[sortKey]
+
+      if (aVal === undefined || aVal === null) return 1
+      if (bVal === undefined || bVal === null) return -1
+
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return sortDirection === 'asc'
+          ? aVal.localeCompare(bVal, 'th')
+          : bVal.localeCompare(aVal, 'th')
+      }
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortDirection === 'asc' ? aVal - bVal : bVal - aVal
+      }
+      return 0
+    })
+  }, [rows, sortKey, sortDirection])
+
   return (
     <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
-      <div className="border-b border-slate-100 bg-slate-50 px-4 py-3 font-bold text-slate-700 text-xs">⬇ บิลที่ GP &lt; {targetMargin}%</div>
+      <div className="flex justify-between items-center border-b border-slate-100 bg-slate-50 px-4 py-3 font-bold text-slate-700 text-xs">
+        <span>⬇ บิลที่ GP &lt; {targetMargin}%</span>
+        {columnResize.hasCustomWidths && (
+          <button
+            className="inline-flex items-center gap-1 h-5 rounded bg-white border border-slate-200 px-1.5 text-[10px] text-slate-700 hover:bg-slate-50 font-normal transition outline-none"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            <RotateCcw className="h-2.5 w-2.5" /> รีเซ็ต
+          </button>
+        )}
+      </div>
       
       {/* Desktop View */}
       <div className="hidden lg:block max-h-64 overflow-auto">
-        <table className="w-full text-xs">
+        <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <colgroup>
+            {lowMarginColumns.map((column) => (
+              <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+            ))}
+          </colgroup>
           <thead className="sticky top-0 bg-slate-50 border-b border-slate-100 text-slate-500 font-medium z-10">
             <tr>
-              <Th>บิล</Th><Th>ลูกค้า</Th><Th align="right">GP%</Th><Th align="right">ขาด</Th>
+              <ResizableTableHead label="บิล" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'บิล')} />
+              <ResizableTableHead label="ลูกค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="customer" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('customer', 'ลูกค้า')} />
+              <ResizableTableHead align="right" label="GP%" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="gpPct" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('gpPct', 'GP%')} />
+              <ResizableTableHead align="right" label="ขาด" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="shortfall" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('shortfall', 'ขาด')} />
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {sortedRows.map((row) => (
               <tr className="border-t border-slate-100 hover:bg-slate-50/50 transition" key={row.id}>
                 <Td mono className="font-semibold text-slate-800">{row.docNo}</Td>
                 <Td>{row.customer}</Td>
@@ -582,17 +878,17 @@ function LowMarginTable({ rows, targetMargin }: { rows: ProfitPayload['lowMargin
                 <Td align="right" className="font-bold text-red-600">{money(row.shortfall)}</Td>
               </tr>
             ))}
-            {!rows.length ? <Empty colSpan={4} /> : null}
+            {!sortedRows.length ? <Empty colSpan={4} /> : null}
           </tbody>
         </table>
       </div>
 
       {/* Mobile View */}
       <div className="block lg:hidden divide-y divide-slate-100 max-h-64 overflow-auto">
-        {!rows.length ? (
+        {!sortedRows.length ? (
           <div className="py-4 text-center text-slate-400 text-xs">ไม่มี ✓</div>
         ) : (
-          rows.map((row) => (
+          sortedRows.map((row) => (
             <div key={row.id} className="p-3 space-y-1 text-xs">
               <div className="flex justify-between items-center">
                 <span className="font-mono text-slate-800 font-semibold">{row.docNo}</span>
@@ -611,37 +907,89 @@ function LowMarginTable({ rows, targetMargin }: { rows: ProfitPayload['lowMargin
 }
 
 function LowCustomerTable({ rows }: { rows: ProfitPayload['lowCustomers'] }) {
+  const columnResize = useResizableColumns('finance.profit-leak.low-customers.v5', lowCustomerColumns)
+  const [sortKey, setSortKey] = useState<LowCustomerColumnKey | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  const handleSort = (key: LowCustomerColumnKey) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDirection('asc')
+    }
+  }
+
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+    return [...rows].sort((a, b) => {
+      const aVal = a[sortKey]
+      const bVal = b[sortKey]
+
+      if (aVal === undefined || aVal === null) return 1
+      if (bVal === undefined || bVal === null) return -1
+
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return sortDirection === 'asc'
+          ? aVal.localeCompare(bVal, 'th')
+          : bVal.localeCompare(aVal, 'th')
+      }
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortDirection === 'asc' ? aVal - bVal : bVal - aVal
+      }
+      return 0
+    })
+  }, [rows, sortKey, sortDirection])
+
   return (
     <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
-      <div className="border-b border-slate-100 bg-slate-50 px-4 py-3 font-bold text-slate-700 text-xs">👥 ลูกค้ากำไรต่ำ (Top 10)</div>
+      <div className="flex justify-between items-center border-b border-slate-100 bg-slate-50 px-4 py-3 font-bold text-slate-700 text-xs">
+        <span>👥 ลูกค้ากำไรต่ำ (Top 10)</span>
+        {columnResize.hasCustomWidths && (
+          <button
+            className="inline-flex items-center gap-1 h-5 rounded bg-white border border-slate-200 px-1.5 text-[10px] text-slate-700 hover:bg-slate-50 font-normal transition outline-none"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            <RotateCcw className="h-2.5 w-2.5" /> รีเซ็ต
+          </button>
+        )}
+      </div>
       
       {/* Desktop View */}
       <div className="hidden lg:block max-h-64 overflow-auto">
-        <table className="w-full text-xs">
+        <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <colgroup>
+            {lowCustomerColumns.map((column) => (
+              <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+            ))}
+          </colgroup>
           <thead className="sticky top-0 bg-slate-50 border-b border-slate-100 text-slate-500 font-medium z-10">
             <tr>
-              <Th>ลูกค้า</Th><Th align="right">ยอดขาย</Th><Th align="right">GP%</Th>
+              <ResizableTableHead label="ลูกค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="name" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('name', 'ลูกค้า')} />
+              <ResizableTableHead align="right" label="ยอดขาย" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="revenue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('revenue', 'ยอดขาย')} />
+              <ResizableTableHead align="right" label="GP%" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="gpPct" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('gpPct', 'GP%')} />
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {sortedRows.map((row) => (
               <tr className="border-t border-slate-100 hover:bg-slate-50/50 transition" key={row.id}>
                 <Td className="font-semibold text-slate-850">{row.name}</Td>
                 <Td align="right" className="font-bold text-slate-900">{money(row.revenue)}</Td>
                 <Td align="right" className="font-bold text-red-600">{row.gpPct.toFixed(1)}%</Td>
               </tr>
             ))}
-            {!rows.length ? <Empty colSpan={3} /> : null}
+            {!sortedRows.length ? <Empty colSpan={3} /> : null}
           </tbody>
         </table>
       </div>
 
       {/* Mobile View */}
       <div className="block lg:hidden divide-y divide-slate-100 max-h-64 overflow-auto">
-        {!rows.length ? (
+        {!sortedRows.length ? (
           <div className="py-4 text-center text-slate-400 text-xs">ไม่มี ✓</div>
         ) : (
-          rows.map((row) => (
+          sortedRows.map((row) => (
             <div key={row.id} className="p-3 flex justify-between items-center text-xs">
               <div>
                 <span className="font-semibold text-slate-850">{row.name}</span>
@@ -657,20 +1005,81 @@ function LowCustomerTable({ rows }: { rows: ProfitPayload['lowCustomers'] }) {
 }
 
 function HighSupplierTable({ rows }: { rows: ProfitPayload['highSuppliers'] }) {
+  const columnResize = useResizableColumns('finance.profit-leak.high-suppliers.v5', highSupplierColumns)
+  const [sortKey, setSortKey] = useState<HighSupplierColumnKey | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  const handleSort = (key: HighSupplierColumnKey) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDirection('asc')
+    }
+  }
+
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+    return [...rows].sort((a, b) => {
+      let aVal: string | number = ''
+      let bVal: string | number = ''
+
+      if (sortKey === 'premiumValue') {
+        aVal = a.premium * a.qty
+        bVal = b.premium * b.qty
+      } else {
+        aVal = a[sortKey]
+        bVal = b[sortKey]
+      }
+
+      if (aVal === undefined || aVal === null) return 1
+      if (bVal === undefined || bVal === null) return -1
+
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return sortDirection === 'asc'
+          ? aVal.localeCompare(bVal, 'th')
+          : bVal.localeCompare(aVal, 'th')
+      }
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortDirection === 'asc' ? aVal - bVal : bVal - aVal
+      }
+      return 0
+    })
+  }, [rows, sortKey, sortDirection])
+
   return (
     <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
-      <div className="border-b border-slate-100 bg-slate-50 px-4 py-3 font-bold text-slate-700 text-xs">🏭 Supplier ต้นทุนสูง (Top 10)</div>
+      <div className="flex justify-between items-center border-b border-slate-100 bg-slate-50 px-4 py-3 font-bold text-slate-700 text-xs">
+        <span>🏭 Supplier ต้นทุนสูง (Top 10)</span>
+        {columnResize.hasCustomWidths && (
+          <button
+            className="inline-flex items-center gap-1 h-5 rounded bg-white border border-slate-200 px-1.5 text-[10px] text-slate-700 hover:bg-slate-50 font-normal transition outline-none"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            <RotateCcw className="h-2.5 w-2.5" /> รีเซ็ต
+          </button>
+        )}
+      </div>
       
       {/* Desktop View */}
       <div className="hidden lg:block max-h-64 overflow-auto">
-        <table className="w-full text-xs">
+        <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <colgroup>
+            {highSupplierColumns.map((column) => (
+              <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+            ))}
+          </colgroup>
           <thead className="sticky top-0 bg-slate-50 border-b border-slate-100 text-slate-500 font-medium z-10">
             <tr>
-              <Th>Supplier</Th><Th>สินค้า</Th><Th align="right">+%</Th><Th align="right">ส่วนเกิน</Th>
+              <ResizableTableHead label="Supplier" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="supplierName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('supplierName', 'Supplier')} />
+              <ResizableTableHead label="สินค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="productName" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} />
+              <ResizableTableHead align="right" label="+%" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="premiumPct" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('premiumPct', '+%')} />
+              <ResizableTableHead align="right" label="ส่วนเกิน" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="premiumValue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('premiumValue', 'ส่วนเกิน')} />
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {sortedRows.map((row) => (
               <tr className="border-t border-slate-100 hover:bg-slate-50/50 transition" key={row.id}>
                 <Td className="font-semibold text-slate-850">{row.supplierName}</Td>
                 <Td>{row.productName}</Td>
@@ -678,17 +1087,17 @@ function HighSupplierTable({ rows }: { rows: ProfitPayload['highSuppliers'] }) {
                 <Td align="right" className="font-bold text-red-600">{money(row.premium * row.qty)}</Td>
               </tr>
             ))}
-            {!rows.length ? <Empty colSpan={4} /> : null}
+            {!sortedRows.length ? <Empty colSpan={4} /> : null}
           </tbody>
         </table>
       </div>
 
       {/* Mobile View */}
       <div className="block lg:hidden divide-y divide-slate-100 max-h-64 overflow-auto">
-        {!rows.length ? (
+        {!sortedRows.length ? (
           <div className="py-4 text-center text-slate-400 text-xs">ไม่มี ✓</div>
         ) : (
-          rows.map((row) => (
+          sortedRows.map((row) => (
             <div key={row.id} className="p-3 space-y-1 text-xs">
               <div className="flex justify-between items-center">
                 <span className="font-semibold text-slate-850">{row.supplierName}</span>
@@ -707,20 +1116,75 @@ function HighSupplierTable({ rows }: { rows: ProfitPayload['highSuppliers'] }) {
 }
 
 function OutlierTable({ rows }: { rows: ProfitPayload['outliers'] }) {
+  const columnResize = useResizableColumns('finance.profit-leak.outliers.v5', outlierColumns)
+  const [sortKey, setSortKey] = useState<OutlierColumnKey | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  const handleSort = (key: OutlierColumnKey) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDirection('asc')
+    }
+  }
+
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+    return [...rows].sort((a, b) => {
+      const aVal = a[sortKey]
+      const bVal = b[sortKey]
+
+      if (aVal === undefined || aVal === null) return 1
+      if (bVal === undefined || bVal === null) return -1
+
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return sortDirection === 'asc'
+          ? aVal.localeCompare(bVal, 'th')
+          : bVal.localeCompare(aVal, 'th')
+      }
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortDirection === 'asc' ? aVal - bVal : bVal - aVal
+      }
+      return 0
+    })
+  }, [rows, sortKey, sortDirection])
+
   return (
     <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
-      <div className="border-b border-orange-100 bg-orange-50/50 px-4 py-3 font-bold text-orange-700 text-sm">⚠ ค่าใช้จ่ายผิดปกติ ({rows.length}) — สูงเกิน mean + 1.5×stddev</div>
+      <div className="flex justify-between items-center border-b border-orange-100 bg-orange-50/50 px-4 py-3 font-bold text-orange-700 text-sm">
+        <span>⚠ ค่าใช้จ่ายผิดปกติ ({rows.length}) — สูงเกิน mean + 1.5×stddev</span>
+        {columnResize.hasCustomWidths && (
+          <button
+            className="hidden lg:inline-flex items-center gap-1 h-7 rounded bg-white border border-orange-200 px-2.5 text-xs text-orange-700 hover:bg-orange-50 font-normal transition outline-none"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            <RotateCcw className="h-3 w-3" /> คืนค่าเดิมตาราง
+          </button>
+        )}
+      </div>
       <div className="overflow-x-auto">
         {/* Desktop View */}
-        <table className="hidden lg:table w-full text-xs">
+        <table className="hidden lg:table w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <colgroup>
+            {outlierColumns.map((column) => (
+              <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+            ))}
+          </colgroup>
           <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
             <tr>
-              <Th>วันที่</Th><Th>หมวด</Th><Th>เลขที่</Th><Th>ผู้รับ</Th>
-              <Th align="right">จำนวน</Th><Th align="right">ค่าเฉลี่ย</Th><Th align="right">เกินกว่าปกติ</Th>
+              <ResizableTableHead label="วันที่" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
+              <ResizableTableHead label="หมวด" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="category" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('category', 'หมวด')} />
+              <ResizableTableHead label="เลขที่" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="docNo" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
+              <ResizableTableHead label="ผู้รับ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="payee" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('payee', 'ผู้รับ')} />
+              <ResizableTableHead align="right" label="จำนวน" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="amount" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวน')} />
+              <ResizableTableHead align="right" label="ค่าเฉลี่ย" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="mean" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('mean', 'ค่าเฉลี่ย')} />
+              <ResizableTableHead align="right" label="เกินกว่าปกติ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="over" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('over', 'เกินกว่าปกติ')} />
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {sortedRows.map((row) => (
               <tr className="border-t border-slate-100 hover:bg-slate-50/50 transition" key={row.id}>
                 <Td>{row.date}</Td><Td>{row.category}</Td><Td mono className="font-semibold text-slate-800">{row.docNo}</Td><Td>{row.payee}</Td>
                 <Td align="right" className="font-bold text-slate-900">{money(row.amount)}</Td>
@@ -728,16 +1192,16 @@ function OutlierTable({ rows }: { rows: ProfitPayload['outliers'] }) {
                 <Td align="right" className="font-bold text-red-700">{money(row.over)}</Td>
               </tr>
             ))}
-            {!rows.length ? <tr><td className="py-4 text-center text-slate-400" colSpan={7}>ไม่มี ✓</td></tr> : null}
+            {!sortedRows.length ? <tr><td className="py-4 text-center text-slate-400" colSpan={7}>ไม่มี ✓</td></tr> : null}
           </tbody>
         </table>
 
         {/* Mobile View */}
         <div className="block lg:hidden divide-y divide-slate-100">
-          {!rows.length ? (
+          {!sortedRows.length ? (
             <div className="py-4 text-center text-slate-400 text-xs">ไม่มี ✓</div>
           ) : (
-            rows.map((row) => (
+            sortedRows.map((row) => (
               <div key={row.id} className="p-4 space-y-2 text-xs hover:bg-slate-50/50 transition">
                 <div className="flex justify-between items-start">
                   <div>

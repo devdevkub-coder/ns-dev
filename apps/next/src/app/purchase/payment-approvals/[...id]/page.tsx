@@ -179,7 +179,7 @@ export default async function PaymentApprovalDetailPage({ params }: PageProps) {
       </div>
 
       <div className="overflow-hidden rounded-md bg-white shadow">
-        <div className="border-b px-4 py-3">
+        <div className="border-b border-slate-100 px-4 py-3">
           <h2 className="font-semibold text-slate-900">PMT ที่ใช้ PMA นี้</h2>
         </div>
         <div className="overflow-x-auto">

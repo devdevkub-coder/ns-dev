@@ -43,7 +43,7 @@ export default async function SalesBillDetailPage({ params }: PageProps) {
     <div className="min-h-full bg-slate-100 px-2 py-4 sm:px-4">
       <PageTitleOverride breadcrumbLabel={bill.docNo} title={`รายละเอียดบิลขาย - ${bill.docNo}`} />
       <div className="mx-auto max-w-6xl rounded-md bg-white shadow-xl">
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b px-4 py-3">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-4 py-3">
           <div>
             <h1 className="text-base font-bold text-slate-900">รายละเอียดบิลขาย {bill.docNo}</h1>
             <p className="mt-1 text-sm text-slate-500">{bill.customerName}</p>

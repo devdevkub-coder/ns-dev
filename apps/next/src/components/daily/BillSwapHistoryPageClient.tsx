@@ -50,12 +50,12 @@ const billSwapColumns: Array<ResizableColumnDefinition<BillSwapColumnKey>> = [
   { defaultWidth: 220, key: 'beforeSupplier', minWidth: 140 },
   { defaultWidth: 220, key: 'afterSupplier', minWidth: 140 },
   { defaultWidth: 180, key: 'product', minWidth: 120 },
-  { defaultWidth: 85, key: 'weight', minWidth: 80 },
-  { defaultWidth: 80, key: 'beforePrice', minWidth: 70 },
-  { defaultWidth: 80, key: 'afterPrice', minWidth: 70 },
-  { defaultWidth: 90, key: 'beforeAmount', minWidth: 80 },
-  { defaultWidth: 90, key: 'afterAmount', minWidth: 80 },
-  { defaultWidth: 90, key: 'diff', minWidth: 80 },
+  { defaultWidth: 110, key: 'weight', minWidth: 90 },
+  { defaultWidth: 100, key: 'beforePrice', minWidth: 80 },
+  { defaultWidth: 100, key: 'afterPrice', minWidth: 80 },
+  { defaultWidth: 120, key: 'beforeAmount', minWidth: 95 },
+  { defaultWidth: 120, key: 'afterAmount', minWidth: 95 },
+  { defaultWidth: 120, key: 'diff', minWidth: 95 },
   { defaultWidth: 220, key: 'reason', minWidth: 160 },
 ]
 
@@ -84,7 +84,7 @@ function getDiffTextColors(diff: number) {
   }
 }
 
-export function BillSwapHistoryPageClient({ tableKey = 'daily.bill-swap-history' }: { tableKey?: string }) {
+export function BillSwapHistoryPageClient({ tableKey = 'daily.bill-swap-history.v5' }: { tableKey?: string }) {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [error, setError] = useState<string | null>(null)

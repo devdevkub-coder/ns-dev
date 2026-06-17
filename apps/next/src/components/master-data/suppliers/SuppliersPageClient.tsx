@@ -35,7 +35,7 @@ type SupplierBankAccountForm = SupplierFormValues['bankAccounts'][number]
 
 const supplierColumns: Array<ResizableColumnDefinition<SupplierColumnKey>> = [
   { key: 'code', defaultWidth: 100, minWidth: 80 },
-  { key: 'name', defaultWidth: 320, minWidth: 180 },
+  { key: 'name', defaultWidth: 260, minWidth: 180 },
   { key: 'taxId', defaultWidth: 130, minWidth: 110 },
   { key: 'type', defaultWidth: 95, minWidth: 80 },
   { key: 'phone', defaultWidth: 110, minWidth: 90 },
@@ -43,7 +43,7 @@ const supplierColumns: Array<ResizableColumnDefinition<SupplierColumnKey>> = [
   { key: 'accountNo', defaultWidth: 180, minWidth: 130 },
   { key: 'salesName', defaultWidth: 120, minWidth: 100 },
   { key: 'active', defaultWidth: 110, minWidth: 90 },
-  { key: 'action', defaultWidth: 80, minWidth: 70 },
+  { key: 'action', defaultWidth: 110, minWidth: 90 },
 ]
 
 const emptyBankAccount: SupplierBankAccountForm = {
@@ -235,7 +235,7 @@ export function SuppliersPageClient() {
   const [sortKey, setSortKey] = useState<SortKey>('code')
   const [subdistricts, setSubdistricts] = useState<ThaiSubdistrict[]>([])
   const [showMobileFilters, setShowMobileFilters] = useState(false)
-  const columnResize = useResizableColumns('master-data.suppliers', supplierColumns)
+  const columnResize = useResizableColumns('master-data.suppliers.v5', supplierColumns)
 
   const loadData = useCallback(async () => {
     setError(null)

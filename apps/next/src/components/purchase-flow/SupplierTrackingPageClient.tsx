@@ -313,7 +313,7 @@ export function SupplierTrackingPageClient() {
 
           {/* Mobile Card list for Product breakdown */}
           <div className="block lg:hidden space-y-3">
-            <div className="border-b bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-700 rounded-t-md">Product breakdown จากบิลรับซื้อ (มือถือ)</div>
+            <div className="border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-700 rounded-t-md">Product breakdown จากบิลรับซื้อ (มือถือ)</div>
             {(data?.byProduct ?? []).slice(0, 20).map((row) => (
               <div key={row.productName} className="rounded-md border border-slate-100 bg-white p-4 shadow-sm space-y-2">
                 <span className="font-bold text-slate-800 text-sm block">{row.productName}</span>
@@ -348,7 +348,7 @@ export function SupplierTrackingPageClient() {
           </div>
 
           <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
-            <div className="border-b bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">Product breakdown จากบิลรับซื้อ</div>
+            <div className="border-b border-slate-100 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">Product breakdown จากบิลรับซื้อ</div>
             <table className="w-full min-w-[760px] text-sm">
               <thead className="bg-slate-50 border-b border-slate-100 text-slate-500"><tr><th className="p-2 text-left">สินค้า</th><th className="p-2 text-right">Supplier</th><th className="p-2 text-right">บิล</th><th className="p-2 text-right">น้ำหนัก</th><th className="p-2 text-right">ยอดซื้อ</th><th className="p-2 text-right">ราคาเฉลี่ย</th></tr></thead>
               <tbody>
@@ -581,7 +581,7 @@ function Tab({ active, label, onClick }: { active: boolean; label: string; onCli
 }
 
 function TopPanel({ rows, title }: { rows: { label: string; value: number }[]; title: string }) {
-  return <div className="overflow-hidden rounded-md bg-white shadow"><div className="border-b bg-blue-50 p-3 font-bold text-blue-700">{title}</div><table className="w-full text-sm"><tbody>{rows.map((row, index) => <tr key={row.label} className="border-t"><td className="p-2 font-bold">{index + 1}</td><td className="p-2">{row.label}</td><td className="p-2 text-right font-semibold">{formatMoney(row.value)}</td></tr>)}</tbody></table></div>
+  return <div className="overflow-hidden rounded-md bg-white shadow"><div className="border-b border-blue-100 bg-blue-50 p-3 font-bold text-blue-700">{title}</div><table className="w-full text-sm"><tbody>{rows.map((row, index) => <tr key={row.label} className="border-t"><td className="p-2 font-bold">{index + 1}</td><td className="p-2">{row.label}</td><td className="p-2 text-right font-semibold">{formatMoney(row.value)}</td></tr>)}</tbody></table></div>
 }
 
 function YearCompare({ monthly }: { monthly: SupplierTrackingPayload['monthly'] }) {

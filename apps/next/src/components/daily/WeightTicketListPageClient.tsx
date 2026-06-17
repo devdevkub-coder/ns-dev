@@ -42,15 +42,15 @@ const weightTicketColumns: Array<ResizableColumnDefinition<WeightTicketColumnKey
   { key: 'index', defaultWidth: 70, minWidth: 50 },
   { key: 'documentNo', defaultWidth: 150, minWidth: 120 },
   { key: 'createdAt', defaultWidth: 170, minWidth: 130 },
-  { key: 'partyName', defaultWidth: 210, minWidth: 150 },
+  { key: 'partyName', defaultWidth: 200, minWidth: 150 },
   { key: 'branch', defaultWidth: 140, minWidth: 110 },
   { key: 'vehicleNo', defaultWidth: 130, minWidth: 110 },
-  { key: 'netWeight', defaultWidth: 150, minWidth: 120 },
-  { key: 'deductionWeight', defaultWidth: 150, minWidth: 125 },
-  { key: 'impurityDeduction', defaultWidth: 170, minWidth: 130 },
+  { key: 'netWeight', defaultWidth: 130, minWidth: 100 },
+  { key: 'deductionWeight', defaultWidth: 130, minWidth: 100 },
+  { key: 'impurityDeduction', defaultWidth: 140, minWidth: 110 },
   { key: 'status', defaultWidth: 160, minWidth: 130 },
   { key: 'updatedAt', defaultWidth: 170, minWidth: 130 },
-  { key: 'action', defaultWidth: 300, minWidth: 240 },
+  { key: 'action', defaultWidth: 320, minWidth: 260 },
 ]
 
 const statusOptionsByType: Record<WeightTicketType, Array<{ label: string; values: StatusFilter[] }>> = {
@@ -173,7 +173,7 @@ export function WeightTicketListPageClient() {
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [cancelTicket, setCancelTicket] = useState<WeightTicketRecord | null>(null)
-  const columnResize = useResizableColumns('daily.weight-ticket-list', weightTicketColumns)
+  const columnResize = useResizableColumns('daily.weight-ticket-list.v5', weightTicketColumns)
   const [cancelNote, setCancelNote] = useState('')
   const [cancelError, setCancelError] = useState('')
   const [isCanceling, setIsCanceling] = useState(false)

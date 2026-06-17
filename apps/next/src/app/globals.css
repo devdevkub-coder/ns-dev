@@ -8,6 +8,7 @@
   --color-scrap-line: #d9e2ec;
   --color-scrap-panel: #f8fafc;
   --color-scrap-accent: #0f766e;
+  --font-mono: "Noto Sans Thai", sans-serif;
 }
 
 :root {
@@ -218,6 +219,12 @@ textarea {
   font-family: "Noto Sans Thai", sans-serif;
 }
 
+.font-mono,
+pre,
+code {
+  font-family: "Noto Sans Thai", sans-serif !important;
+}
+
 /* Legacy form baseline: plain Tailwind `border` controls should render light slate, and text color should match theme. */
 input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
 select,
@@ -235,6 +242,11 @@ tr,
 th,
 td {
   border-color: var(--color-scrap-line) !important;
+}
+
+/* Fix browser-specific sticky table header borders by applying soft border-bottom to th cells */
+thead th {
+  border-bottom: 1px solid var(--color-scrap-line) !important;
 }
 
 input.border:not([class*="bg-"]),

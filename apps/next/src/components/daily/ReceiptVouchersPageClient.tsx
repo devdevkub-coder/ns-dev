@@ -124,14 +124,14 @@ type ReceiptVoucherCompanyProfile = {
 const receiptVoucherColumns: Array<ResizableColumnDefinition<ReceiptVoucherColumnKey>> = [
   { key: 'docNo', defaultWidth: 110, minWidth: 90 },
   { key: 'date', defaultWidth: 90, minWidth: 80 },
-  { key: 'sellerName', defaultWidth: 320, minWidth: 140 },
+  { key: 'sellerName', defaultWidth: 260, minWidth: 140 },
   { key: 'sellerTaxId', defaultWidth: 130, minWidth: 110 },
   { key: 'purchaseBillDocNo', defaultWidth: 110, minWidth: 90 },
   { key: 'licensePlate', defaultWidth: 100, minWidth: 80 },
   { key: 'status', defaultWidth: 96, minWidth: 80 },
-  { key: 'totalQty', defaultWidth: 85, minWidth: 70 },
-  { key: 'totalAmount', defaultWidth: 85, minWidth: 70 },
-  { key: 'action', defaultWidth: 180, minWidth: 150 },
+  { key: 'totalQty', defaultWidth: 110, minWidth: 90 },
+  { key: 'totalAmount', defaultWidth: 110, minWidth: 90 },
+  { key: 'action', defaultWidth: 210, minWidth: 180 },
 ]
 
 function dateInputToday() {
@@ -269,7 +269,7 @@ export function ReceiptVouchersPageClient() {
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [supplierOptions, setSupplierOptions] = useState<SupplierOption[]>([])
   const [currentActorName, setCurrentActorName] = useState('')
-  const columnResize = useResizableColumns('daily.receipt-vouchers', receiptVoucherColumns)
+  const columnResize = useResizableColumns('daily.receipt-vouchers.v5', receiptVoucherColumns)
 
   const [sortKey, setSortKey] = useState<ReceiptVoucherColumnKey>('date')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')

@@ -1,7 +1,25 @@
 'use client'
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { RotateCcw } from 'lucide-react'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+
+type TaxColumnKey = 'date' | 'no' | 'party' | 'base' | 'value' | 'hasDoc'
+
+type CalendarColumnKey = 'periodLabel' | 'vOut' | 'vIn' | 'vatPayable' | 'vatDue' | 'wC' | 'wW' | 'whtDue'
+
+const calendarColumns: Array<ResizableColumnDefinition<CalendarColumnKey>> = [
+  { defaultWidth: 100, key: 'periodLabel', minWidth: 80 },
+  { defaultWidth: 110, key: 'vOut', minWidth: 80 },
+  { defaultWidth: 110, key: 'vIn', minWidth: 80 },
+  { defaultWidth: 120, key: 'vatPayable', minWidth: 90 },
+  { defaultWidth: 130, key: 'vatDue', minWidth: 100 },
+  { defaultWidth: 110, key: 'wC', minWidth: 80 },
+  { defaultWidth: 110, key: 'wW', minWidth: 80 },
+  { defaultWidth: 130, key: 'whtDue', minWidth: 100 },
+]
 
 type BranchRow = { code: string; id: string; name: string }
 type TaxItem = { base: number; date: string; hasDoc?: boolean; no: string; party: string; source: string; vat?: number; wht?: number }
@@ -105,11 +123,11 @@ export function TaxVatWhtPageClient() {
         <StatCard label="เอกสารภาษีไม่ครบ" value={String(data?.summary.missingCount ?? 0)} tone="red" />
       </div>
 
-      <TaxTable isLoading={isLoading} rows={data?.vatOutput.items ?? []} title={`📤 VAT ขาย (Output) — ${year}-${month}`} tone="emerald" valueKey="vat" />
-      <TaxTable hasDoc isLoading={isLoading} rows={data?.vatInput.items ?? []} title={`📥 VAT ซื้อ (Input) — ${year}-${month}`} tone="blue" valueKey="vat" />
+      <TaxTable isLoading={isLoading} rows={data?.vatOutput.items ?? []} title={`📤 VAT ขาย (Output) — ${year}-${month}`} tone="emerald" valueKey="vat" tableKey="finance.tax.vat-output.v5" />
+      <TaxTable hasDoc isLoading={isLoading} rows={data?.vatInput.items ?? []} title={`📥 VAT ซื้อ (Input) — ${year}-${month}`} tone="blue" valueKey="vat" tableKey="finance.tax.vat-input.v5" />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <TaxTable isLoading={isLoading} rows={data?.whtCharged.items ?? []} title="🪙 WHT เราหักไว้ (ต้องนำส่ง ภงด.3/53)" tone="amber" valueKey="wht" />
-        <TaxTable isLoading={isLoading} rows={data?.whtWithheld.items ?? []} title="💰 WHT ลูกค้าหักจากเรา (ใช้เครดิต)" tone="purple" valueKey="wht" />
+        <TaxTable isLoading={isLoading} rows={data?.whtCharged.items ?? []} title="🪙 WHT เราหักไว้ (ต้องนำส่ง ภงด.3/53)" tone="amber" valueKey="wht" tableKey="finance.tax.wht-charged.v5" />
+        <TaxTable isLoading={isLoading} rows={data?.whtWithheld.items ?? []} title="💰 WHT ลูกค้าหักจากเรา (ใช้เครดิต)" tone="purple" valueKey="wht" tableKey="finance.tax.wht-withheld.v5" />
       </div>
       <CalendarTable rows={data?.taxCalendar ?? []} />
     </section>
@@ -259,7 +277,7 @@ function StatCard({ label, sub, tone, value }: { label: string; sub?: string; to
   )
 }
 
-function TaxTable({ hasDoc = false, isLoading, rows, title, tone, valueKey }: { hasDoc?: boolean; isLoading: boolean; rows: TaxItem[]; title: string; tone: 'amber' | 'blue' | 'emerald' | 'purple'; valueKey: 'vat' | 'wht' }) {
+function TaxTable({ hasDoc = false, isLoading, rows, title, tone, valueKey, tableKey }: { hasDoc?: boolean; isLoading: boolean; rows: TaxItem[]; title: string; tone: 'amber' | 'blue' | 'emerald' | 'purple'; valueKey: 'vat' | 'wht'; tableKey: string }) {
   const heading = { 
     amber: 'bg-amber-50/50 text-amber-700 border-amber-100', 
     blue: 'bg-blue-50/50 text-blue-700 border-blue-100', 
@@ -267,15 +285,82 @@ function TaxTable({ hasDoc = false, isLoading, rows, title, tone, valueKey }: { 
     purple: 'bg-purple-50/50 text-purple-700 border-purple-100' 
   }[tone]
   const valueColor = { amber: 'text-amber-700', blue: 'text-blue-700', emerald: 'text-emerald-700', purple: 'text-purple-700' }[tone]
+
+  const columns = useMemo<Array<ResizableColumnDefinition<TaxColumnKey>>>(() => {
+    const list: Array<ResizableColumnDefinition<TaxColumnKey>> = [
+      { defaultWidth: 95, key: 'date', minWidth: 80 },
+      { defaultWidth: 120, key: 'no', minWidth: 90 },
+      { defaultWidth: 200, key: 'party', minWidth: 120 },
+      { defaultWidth: 110, key: 'base', minWidth: 80 },
+      { defaultWidth: 110, key: 'value', minWidth: 80 },
+    ]
+    if (hasDoc) {
+      list.push({ defaultWidth: 80, key: 'hasDoc', minWidth: 60 })
+    }
+    return list
+  }, [hasDoc])
+
+  const columnResize = useResizableColumns(tableKey, columns)
+  const [sortKey, setSortKey] = useState<TaxColumnKey | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  const handleSort = (key: TaxColumnKey) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDirection('asc')
+    }
+  }
+
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+    return [...rows].sort((a, b) => {
+      let aVal: string | number = ''
+      let bVal: string | number = ''
+
+      if (sortKey === 'value') {
+        aVal = a[valueKey] ?? 0
+        bVal = b[valueKey] ?? 0
+      } else if (sortKey === 'hasDoc') {
+        aVal = a.hasDoc ? 1 : 0
+        bVal = b.hasDoc ? 1 : 0
+      } else {
+        aVal = a[sortKey] ?? ''
+        bVal = b[sortKey] ?? ''
+      }
+
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return sortDirection === 'asc'
+          ? aVal.localeCompare(bVal, 'th')
+          : bVal.localeCompare(aVal, 'th')
+      }
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortDirection === 'asc' ? aVal - bVal : bVal - aVal
+      }
+      return 0
+    })
+  }, [rows, sortKey, sortDirection, valueKey])
   
   return (
     <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
-      <div className={`border-b p-3.5 font-semibold text-sm ${heading}`}>{title}</div>
+      <div className={`flex justify-between items-center border-b p-3.5 font-semibold text-sm ${heading}`}>
+        <span>{title}</span>
+        {columnResize.hasCustomWidths && (
+          <button
+            className="inline-flex items-center gap-1 h-5 rounded bg-white border border-slate-200 px-1.5 text-[10px] text-slate-700 hover:bg-slate-50 font-normal transition outline-none"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            <RotateCcw className="h-2.5 w-2.5" /> รีเซ็ต
+          </button>
+        )}
+      </div>
       
       {/* Mobile View */}
       <div className="block lg:hidden divide-y divide-slate-100">
-        <LoadingOrEmpty colSpan={1} isLoading={isLoading} rows={rows.length} />
-        {!isLoading && rows.map((item) => (
+        <LoadingOrEmpty colSpan={1} isLoading={isLoading} rows={sortedRows.length} />
+        {!isLoading && sortedRows.map((item) => (
           <div key={`${item.source}-${item.no}`} className="p-3.5 space-y-2 text-xs">
             <div className="flex justify-between items-center">
               <span className="font-semibold text-slate-900">{item.party}</span>
@@ -298,21 +383,26 @@ function TaxTable({ hasDoc = false, isLoading, rows, title, tone, valueKey }: { 
       </div>
 
       {/* Desktop View */}
-      <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
-        <table className="w-full text-sm">
+      <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-100 bg-white shadow-sm">
+        <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <colgroup>
+            {columns.map((column) => (
+              <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+            ))}
+          </colgroup>
           <thead className="bg-slate-50 border-b border-slate-100 text-slate-600 font-medium">
             <tr>
-              <Th>วันที่</Th>
-              <Th>เลขที่</Th>
-              <Th>คู่ค้า</Th>
-              <Th align="right">ฐาน</Th>
-              <Th align="right">{valueKey === 'vat' ? 'VAT' : 'WHT'}</Th>
-              {hasDoc ? <Th align="center">เอกสาร</Th> : null}
+              <ResizableTableHead label="วันที่" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="date" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
+              <ResizableTableHead label="เลขที่" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="no" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('no', 'เลขที่')} />
+              <ResizableTableHead label="คู่ค้า" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="party" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('party', 'คู่ค้า')} />
+              <ResizableTableHead align="right" label="ฐาน" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="base" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('base', 'ฐาน')} />
+              <ResizableTableHead align="right" label={valueKey === 'vat' ? 'VAT' : 'WHT'} activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="value" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('value', valueKey === 'vat' ? 'VAT' : 'WHT')} />
+              {hasDoc ? <ResizableTableHead align="center" label="เอกสาร" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="hasDoc" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('hasDoc', 'เอกสาร')} /> : null}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-slate-700">
-            <LoadingOrEmpty colSpan={hasDoc ? 6 : 5} isLoading={isLoading} rows={rows.length} />
-            {!isLoading && rows.map((item) => (
+            <LoadingOrEmpty colSpan={hasDoc ? 6 : 5} isLoading={isLoading} rows={sortedRows.length} />
+            {!isLoading && sortedRows.map((item) => (
               <tr key={`${item.source}-${item.no}`} className="hover:bg-slate-50/50 transition-colors">
                 <Td>{item.date}</Td>
                 <Td><span className="font-mono text-xs text-slate-600">{item.no}</span></Td>
@@ -330,16 +420,61 @@ function TaxTable({ hasDoc = false, isLoading, rows, title, tone, valueKey }: { 
 }
 
 function CalendarTable({ rows }: { rows: TaxPayload['taxCalendar'] }) {
+  const columnResize = useResizableColumns('finance.tax.calendar.v5', calendarColumns)
+  const [sortKey, setSortKey] = useState<CalendarColumnKey | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  const handleSort = (key: CalendarColumnKey) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDirection('asc')
+    }
+  }
+
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows
+    return [...rows].sort((a, b) => {
+      const aVal = a[sortKey]
+      const bVal = b[sortKey]
+
+      if (aVal === undefined || aVal === null) return 1
+      if (bVal === undefined || bVal === null) return -1
+
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return sortDirection === 'asc'
+          ? aVal.localeCompare(bVal, 'th')
+          : bVal.localeCompare(aVal, 'th')
+      }
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortDirection === 'asc' ? aVal - bVal : bVal - aVal
+      }
+      return 0
+    })
+  }, [rows, sortKey, sortDirection])
+
   return (
     <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
-      <div className="border-b bg-slate-50/80 px-4 py-3.5 font-semibold text-slate-700 border-slate-100 text-sm">📅 Tax Calendar — 6 เดือนล่าสุด</div>
+      <div className="flex justify-between items-center border-b bg-slate-50/80 px-4 py-3.5 font-semibold text-slate-700 border-slate-100 text-sm">
+        <span>📅 Tax Calendar — 6 เดือนล่าสุด</span>
+        {columnResize.hasCustomWidths && (
+          <button
+            className="hidden lg:inline-flex items-center gap-1 h-7 rounded bg-white border border-slate-200 px-2.5 text-xs text-slate-700 hover:bg-slate-50 font-normal transition outline-none"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            <RotateCcw className="h-3 w-3" /> คืนค่าเดิมตาราง
+          </button>
+        )}
+      </div>
       
       {/* Mobile View */}
       <div className="block lg:hidden divide-y divide-slate-100">
-        {rows.length === 0 ? (
+        {sortedRows.length === 0 ? (
           <div className="py-8 text-center text-slate-400 text-xs">ยังไม่มีข้อมูล</div>
         ) : (
-          rows.map((row) => (
+          sortedRows.map((row) => (
             <div key={row.periodLabel} className="p-3.5 space-y-2 text-xs">
               <div className="flex justify-between items-center">
                 <span className="font-bold text-slate-900">{row.periodLabel}</span>
@@ -373,22 +508,27 @@ function CalendarTable({ rows }: { rows: TaxPayload['taxCalendar'] }) {
       </div>
 
       {/* Desktop View */}
-      <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
-        <table className="w-full text-sm">
+      <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-100 bg-white shadow-sm">
+        <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <colgroup>
+            {calendarColumns.map((column) => (
+              <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+            ))}
+          </colgroup>
           <thead className="bg-slate-50 text-slate-600 border-b border-slate-100 font-medium">
             <tr>
-              <Th>งวด</Th>
-              <Th align="right">VAT ขาย</Th>
-              <Th align="right">VAT ซื้อ</Th>
-              <Th align="right">VAT Payable</Th>
-              <Th>VAT Due (PP30)</Th>
-              <Th align="right">WHT หักไว้</Th>
-              <Th align="right">WHT ถูกหัก</Th>
-              <Th>WHT Due (ภงด.)</Th>
+              <ResizableTableHead label="งวด" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="periodLabel" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('periodLabel', 'งวด')} />
+              <ResizableTableHead align="right" label="VAT ขาย" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="vOut" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('vOut', 'VAT ขาย')} />
+              <ResizableTableHead align="right" label="VAT ซื้อ" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="vIn" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('vIn', 'VAT ซื้อ')} />
+              <ResizableTableHead align="right" label="VAT Payable" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="vatPayable" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('vatPayable', 'VAT Payable')} />
+              <ResizableTableHead label="VAT Due (PP30)" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="vatDue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('vatDue', 'VAT Due (PP30)')} />
+              <ResizableTableHead align="right" label="WHT หักไว้" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="wC" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('wC', 'WHT หักไว้')} />
+              <ResizableTableHead align="right" label="WHT ถูกหัก" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="wW" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('wW', 'WHT ถูกหัก')} />
+              <ResizableTableHead label="WHT Due (ภงด.)" activeSortKey={sortKey || undefined} direction={sortDirection} sortKey="whtDue" onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('whtDue', 'WHT Due (ภงด.)')} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-slate-700">
-            {rows.map((row) => (
+            {sortedRows.map((row) => (
               <tr key={row.periodLabel} className="hover:bg-slate-50/50 transition-colors">
                 <Td><b>{row.periodLabel}</b></Td>
                 <Td align="right"><span className="text-emerald-600">{money(row.vOut)}</span></Td>

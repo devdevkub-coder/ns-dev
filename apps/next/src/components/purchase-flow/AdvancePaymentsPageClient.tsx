@@ -138,16 +138,16 @@ type UploadedImageFile = {
 const advancePaymentColumns: Array<ResizableColumnDefinition<AdvancePaymentColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'advanceDate', defaultWidth: 120, minWidth: 100 },
-  { key: 'supplierName', defaultWidth: 320, minWidth: 140 },
+  { key: 'supplierName', defaultWidth: 260, minWidth: 140 },
   { key: 'largeScaleDocNo', defaultWidth: 150, minWidth: 120 },
   { key: 'plateNo', defaultWidth: 130, minWidth: 110 },
-  { key: 'productName', defaultWidth: 240, minWidth: 130 },
-  { key: 'netWeight', defaultWidth: 85, minWidth: 80 },
-  { key: 'amount', defaultWidth: 85, minWidth: 80 },
-  { key: 'allocatedAmount', defaultWidth: 85, minWidth: 80 },
-  { key: 'remainingAmount', defaultWidth: 85, minWidth: 80 },
+  { key: 'productName', defaultWidth: 200, minWidth: 130 },
+  { key: 'netWeight', defaultWidth: 110, minWidth: 90 },
+  { key: 'amount', defaultWidth: 110, minWidth: 90 },
+  { key: 'allocatedAmount', defaultWidth: 110, minWidth: 90 },
+  { key: 'remainingAmount', defaultWidth: 110, minWidth: 90 },
   { key: 'status', defaultWidth: 140, minWidth: 120 },
-  { key: 'action', defaultWidth: 150, minWidth: 140 },
+  { key: 'action', defaultWidth: 180, minWidth: 150 },
 ]
 
 const emptyForm = (): FormState => ({
@@ -207,7 +207,7 @@ export function AdvancePaymentsPageClient() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
-  const columnResize = useResizableColumns('daily.advance-payments', advancePaymentColumns)
+  const columnResize = useResizableColumns('daily.advance-payments.v5', advancePaymentColumns)
   const queryString = useMemo(() => {
     const params = new URLSearchParams({
       page: String(page),

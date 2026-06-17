@@ -341,7 +341,7 @@ function ChartPanel({ rows, title, variant }: { rows: BankRow[]; title: string; 
 function DetailTable({ isLoading, onOpen, rows, totalRows }: { isLoading: boolean; onOpen: (row: BankRow) => void; rows: BankRow[]; totalRows: number }) {
   return (
     <div className="overflow-hidden rounded-md bg-white shadow-lg">
-      <div className="flex items-center justify-between border-b bg-slate-50 p-3">
+      <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 p-3">
         <h3 className="font-bold text-slate-700">📋 รายการเดินบัญชี ({totalRows} รายการ)</h3>
       </div>
       <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">

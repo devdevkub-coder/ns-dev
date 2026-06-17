@@ -100,11 +100,11 @@ const productionOrderColumns: Array<ResizableColumnDefinition<ProductionOrderCol
   { key: 'date', defaultWidth: 100, minWidth: 80 },
   { key: 'docNo', defaultWidth: 130, minWidth: 100 },
   { key: 'branch', defaultWidth: 120, minWidth: 90 },
-  { key: 'productName', defaultWidth: 200, minWidth: 130 },
+  { key: 'productName', defaultWidth: 180, minWidth: 130 },
   { key: 'machine', defaultWidth: 140, minWidth: 100 },
   { key: 'warehouseName', defaultWidth: 140, minWidth: 100 },
   { key: 'inputQty', defaultWidth: 120, minWidth: 95 },
-  { key: 'wipQty', defaultWidth: 110, minWidth: 85 },
+  { key: 'wipQty', defaultWidth: 120, minWidth: 95 },
   { key: 'outputQty', defaultWidth: 120, minWidth: 95 },
   { key: 'yield', defaultWidth: 80, minWidth: 60 },
   { key: 'status', defaultWidth: 110, minWidth: 90 },
@@ -153,7 +153,7 @@ export function ProductionOrdersPageClient() {
   const [sort, setSort] = useState('date')
   const [status, setStatus] = useState('Open')
 
-  const columnResize = useResizableColumns('production.orders', productionOrderColumns)
+  const columnResize = useResizableColumns('production.orders.v5', productionOrderColumns)
 
   function toggleSort(nextSortBy: string) {
     setPage(1)
@@ -1110,7 +1110,7 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
           ) : null}
 
           {!isCreate ? (
-            <div className="flex overflow-x-auto rounded-t-md border-b bg-white shadow">
+            <div className="flex overflow-x-auto rounded-t-md border-b border-slate-100 bg-white shadow">
               {[
                 ['header', 'Header'],
                 ['input', `Input (${row?.inputCount ?? 0})`],
@@ -1314,7 +1314,7 @@ function MovementPanel({
   const formRef = useRef<HTMLFormElement | null>(null)
   return (
     <div className="rounded-md bg-white p-5 shadow space-y-4">
-      <div className="border-b pb-2">
+      <div className="border-b border-slate-100 pb-2">
         <h4 className="text-base font-bold text-slate-800">{title}</h4>
       </div>
 
