@@ -18,6 +18,22 @@ export async function GET() {
     requirePermission(context, 'finance.cash.view')
 
     const salesBillSelect = {
+      customer_receipt_allocations: {
+        orderBy: [{ created_at: 'desc' }],
+        select: {
+          customer_receipts: {
+            select: {
+              doc_no: true,
+              status: true,
+            },
+          },
+          status: true,
+        },
+        where: {
+          customer_receipts: { status: { notIn: ['cancelled', 'canceled'] } },
+          status: 'active',
+        },
+      },
       customers: { select: { code: true } },
       date: true,
       doc_no: true,
@@ -86,6 +102,12 @@ export async function GET() {
     return NextResponse.json({
       accounts,
       bills: bills.map((bill) => ({
+        activeReceiptDocNos: [...new Set(bill.customer_receipt_allocations
+          .filter((allocation) => {
+            const receiptStatus = allocation.customer_receipts.status.toLowerCase()
+            return allocation.status === 'active' && receiptStatus !== 'cancelled' && receiptStatus !== 'canceled'
+          })
+          .map((allocation) => allocation.customer_receipts.doc_no))],
         customerId: requireBusinessCode(bill.customers?.code, `ลูกค้าบิลขาย ${bill.id}`),
         date: toDateOnly(bill.date),
         docNo: bill.doc_no,

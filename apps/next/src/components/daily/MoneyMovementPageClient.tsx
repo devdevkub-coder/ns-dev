@@ -30,6 +30,7 @@ type PartyBankAccount = {
 }
 type Party = { active: boolean | null; bankAccount?: string | null; bankAccounts?: PartyBankAccount[]; id: string; name: string }
 type Bill = {
+  activeReceiptDocNos?: string[]
   approvalAccountNo?: string
   approvalBankName?: string
   approvalId?: string
@@ -1263,13 +1264,44 @@ export function MoneyMovementPageClient({
 
   function findActiveReceiptForBill(bill: Bill) {
     const billDocNo = bill.docNo
-    return data.rows.find((row) => {
+    const activeReceiptDocNos = bill.activeReceiptDocNos ?? []
+    const matchedRow = data.rows.find((row) => {
       const status = String(row.status ?? '').toLowerCase()
       if (status === 'cancelled' || status === 'canceled') return false
+      if (activeReceiptDocNos.includes(row.docNo)) return true
       if (row.billId === billDocNo || row.billDocNo === billDocNo) return true
       if (row.billDocNos?.includes(billDocNo)) return true
       return row.receiptLines?.some((line) => line.salesBillDocNo === billDocNo) ?? false
-    }) ?? null
+    })
+    if (matchedRow) return matchedRow
+    const receiptDocNo = activeReceiptDocNos[0]
+    if (!receiptDocNo) return null
+    const customerName = partyMap.get(bill.customerId ?? '') ?? bill.customerId ?? '-'
+    const amount = bill.paidAmount ?? Math.max(0, (bill.totalAmount ?? 0) - (bill.receivableBalance ?? 0))
+    return {
+      accountName: '-',
+      amount,
+      billDocNos: [billDocNo],
+      billId: billDocNo,
+      customerId: bill.customerId ?? undefined,
+      date: bill.date ?? todayDateInput(),
+      docNo: receiptDocNo,
+      fee: 0,
+      id: receiptDocNo,
+      method: '-',
+      netAmount: amount,
+      notes: '',
+      partyName: customerName,
+      receiptLines: [{
+        discountAmount: 0,
+        lineNo: 1,
+        receiptAmount: amount,
+        salesBillDocNo: billDocNo,
+        withholdingTaxAmount: 0,
+      }],
+      status: 'active',
+      withholdingTax: 0,
+    } satisfies MoneyRow
   }
 
   async function copyAccountNo(accountKey: string, accountNo: string) {
