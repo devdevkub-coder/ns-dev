@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, Copy, X, Plus } from 'lucide-react'
+import { Check, Copy, X, Plus, Printer } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes } from 'react'
 import { z } from 'zod'
 import { paymentMethodGroupFromValue, type PaymentMethodGroup } from '@/lib/account-payment-method'
@@ -586,6 +586,92 @@ function buildCustomerReceiptPrintHtml(row: MoneyRow) {
   </body></html>`
 }
 
+function buildBatchReceiptPrintHtml(rows: MoneyRow[]) {
+  const pagesHtml = rows.map((row) => {
+    const billDocNos = row.billDocNos?.length ? row.billDocNos : [row.billDocNo || row.billId || '-']
+    const accountSummaries = row.accountSummaries?.length ? row.accountSummaries : [row.accountName || '-']
+    const lineRows = (row.receiptLines?.length ? row.receiptLines : billDocNos.map((docNo, index) => ({
+      discountAmount: index === 0 ? row.discount ?? 0 : 0,
+      lineNo: index + 1,
+      receiptAmount: index === 0 ? row.amount : 0,
+      salesBillDocNo: docNo,
+      withholdingTaxAmount: index === 0 ? row.withholdingTax ?? 0 : 0,
+    }))).map((line, index) => `<tr>
+      <td class="c">${index + 1}</td>
+      <td class="mono">${escapeHtml(line.salesBillDocNo || '-')}</td>
+      <td class="r">${escapeHtml(formatMoney(line.receiptAmount))}</td>
+      <td class="r">${escapeHtml(formatMoney(line.withholdingTaxAmount))}</td>
+      <td class="r">${escapeHtml(formatMoney(line.discountAmount))}</td>
+    </tr>`).join('')
+
+    return `<div class="page">
+      <div class="header">
+        <div>
+          <h1>Receipt Voucher</h1>
+          <div class="muted">ใบสำคัญรับเงิน Customer</div>
+        </div>
+        <div style="text-align:right">
+          <div class="label">เลขที่เอกสาร</div>
+          <div class="value mono">${escapeHtml(row.docNo)}</div>
+          <div class="label" style="margin-top:6px">วันที่</div>
+          <div class="value">${escapeHtml(formatDateDisplay(row.date))}</div>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="box"><div class="label">ลูกค้า</div><div class="value">${escapeHtml(row.partyName || '-')}</div></div>
+        <div class="box"><div class="label">บัญชีรับเงิน</div><div class="value">${accountSummaries.map(escapeHtml).join('<br>')}</div></div>
+        <div class="box"><div class="label">วิธีรับเงิน</div><div class="value">${escapeHtml(row.method || '-')}</div></div>
+        <div class="box"><div class="label">สถานะ</div><div class="value">${escapeHtml(row.status === 'cancelled' ? 'ยกเลิก' : 'รับเงินแล้ว')}</div></div>
+      </div>
+      <table>
+        <thead><tr><th class="c">#</th><th>บิลขาย</th><th class="r">ยอดรับ</th><th class="r">WHT</th><th class="r">ส่วนลด</th></tr></thead>
+        <tbody>${lineRows}</tbody>
+      </table>
+      <div class="summary">
+        <div class="box"><div class="label">ยอดรับ</div><div class="value">${escapeHtml(formatMoney(row.amount))}</div></div>
+        <div class="box"><div class="label">WHT</div><div class="value">${escapeHtml(formatMoney(row.withholdingTax ?? 0))}</div></div>
+        <div class="box"><div class="label">Bank Fee</div><div class="value">${escapeHtml(formatMoney(row.fee ?? 0))}</div></div>
+        <div class="box"><div class="label">ยอดสุทธิ</div><div class="value green">${escapeHtml(formatMoney(row.netAmount))}</div></div>
+      </div>
+      <div class="box" style="margin-top:12px"><div class="label">หมายเหตุ</div><div>${escapeHtml(row.notes || '-')}</div></div>
+    </div>`
+  }).join('')
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>พิมพ์ใบเสร็จรับเงินหลายรายการ</title>
+    <style>
+      @page { size: A4; margin: 12mm; }
+      body { font-family: 'Noto Sans Thai', Arial, sans-serif; color: #0f172a; font-size: 12px; margin: 0; }
+      .toolbar { background: #f1f5f9; border-bottom: 1px solid #cbd5e1; padding: 8px; text-align: center; }
+      .toolbar button { background: #0f172a; border: 0; border-radius: 6px; color: white; cursor: pointer; font-size: 13px; margin: 0 4px; padding: 7px 14px; }
+      .page { padding: 10px; page-break-after: always; }
+      .page:last-child { page-break-after: avoid; }
+      h1 { font-size: 22px; margin: 0 0 4px; }
+      .muted { color: #64748b; }
+      .header { border-bottom: 2px solid #0f172a; display: flex; justify-content: space-between; gap: 16px; padding-bottom: 12px; }
+      .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 16px; margin: 14px 0; }
+      .box { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; }
+      .label { color: #64748b; font-size: 10px; }
+      .value { font-weight: 800; margin-top: 2px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+      th { background: #334155; color: white; padding: 7px; text-align: left; }
+      td { border-bottom: 1px solid #e2e8f0; padding: 7px; vertical-align: top; }
+      .r { text-align: right; }
+      .c { text-align: center; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
+      .green { color: #047857; }
+      @media print { .toolbar { display: none; } .page { padding: 0; } }
+    </style>
+  </head>
+  <body>
+    <div class="toolbar">
+      <button onclick="window.print()">พิมพ์ / Save as PDF</button>
+      <button onclick="window.close()">ปิดหน้าต่าง</button>
+    </div>
+    ${pagesHtml}
+  </body></html>`
+}
+
 function receiptQueueDocNo(bill: Bill) {
   return bill.activeReceiptDocNos?.[0] ?? '-'
 }
@@ -739,6 +825,7 @@ export function MoneyMovementPageClient({
   const [historySortField, setHistorySortField] = useState<HistorySortField>(mode === 'payment' ? 'date' : 'docNo')
   const [historySortDirection, setHistorySortDirection] = useState<'asc' | 'desc'>('desc')
   const [paymentHistoryStatusFilter, setPaymentHistoryStatusFilter] = useState<PaymentHistoryStatusFilter>('all')
+  const [selectedReceiptIds, setSelectedReceiptIds] = useState<string[]>([])
   const [moneyTab, setMoneyTab] = useState<ReceiptTab>(initialTab)
   const [form, setForm] = useState<MoneyForm>(() => initialForm(mode))
   const [isBillLocked, setIsBillLocked] = useState(false)
@@ -1046,6 +1133,36 @@ export function MoneyMovementPageClient({
     if (historyPage > historyTotalPages) setHistoryPage(historyTotalPages)
   }, [historyPage, historyTotalPages])
 
+  useEffect(() => {
+    setSelectedReceiptIds([])
+  }, [paymentHistoryStatusFilter, moneyTab, mode, dateFrom, dateTo, search, accountFilter])
+
+  const isAllPageSelected = useMemo(() => {
+    return historyPageRows.length > 0 && historyPageRows.every((row) => selectedReceiptIds.includes(row.id))
+  }, [historyPageRows, selectedReceiptIds])
+
+  const toggleAllPageRows = useCallback(() => {
+    if (isAllPageSelected) {
+      setSelectedReceiptIds((prev) => prev.filter((id) => !historyPageRows.some((row) => row.id === id)))
+    } else {
+      setSelectedReceiptIds((prev) => {
+        const next = [...prev]
+        historyPageRows.forEach((row) => {
+          if (!next.includes(row.id)) {
+            next.push(row.id)
+          }
+        })
+        return next
+      })
+    }
+  }, [isAllPageSelected, historyPageRows])
+
+  const toggleRowSelection = useCallback((rowId: string) => {
+    setSelectedReceiptIds((prev) =>
+      prev.includes(rowId) ? prev.filter((id) => id !== rowId) : [...prev, rowId]
+    )
+  }, [])
+
   function openForm() {
     setForm(initialForm(mode))
     setMoneyDrafts({})
@@ -1301,6 +1418,20 @@ export function MoneyMovementPageClient({
     } finally {
       setIsPrintingDailyReport(false)
     }
+  }
+
+  function printSelectedReceipts() {
+    const rowsToPrint = rows.filter((row) => selectedReceiptIds.includes(row.id))
+    if (rowsToPrint.length === 0) return
+    const printWindow = window.open('', '_blank', 'width=960,height=900,scrollbars=yes')
+    if (!printWindow) {
+      setError('Browser block popup — กรุณาอนุญาต popup สำหรับเว็บนี้')
+      return
+    }
+    printWindow.document.open()
+    printWindow.document.write(buildBatchReceiptPrintHtml(rowsToPrint))
+    printWindow.document.close()
+    printWindow.focus()
   }
 
   function openReceiptDetail(row: MoneyRow) {
@@ -2426,16 +2557,6 @@ export function MoneyMovementPageClient({
                         value={partyValue}
                         onChange={changeReceiptCustomer}
                       />
-                      <label className="block">
-                        <span className="mb-1 block text-xs font-medium text-slate-600">วิธีจ่าย/รับเงิน</span>
-                        <UiSelect disabled={Boolean(form.id)} className="h-9 w-full rounded-md border border-slate-300 disabled:bg-slate-100 disabled:opacity-80 px-2 py-1.5 text-sm" value={form.method ?? ''} onChange={(event) => setForm({ ...form, method: event.target.value })}>
-                          <option value="">ไม่ระบุ</option>
-                          {paymentMethods.map((method) => (
-                            <option key={method.name} value={method.name}>{method.name}</option>
-                          ))}
-                        </UiSelect>
-                      </label>
-
                     </div>
                   </section>
 
@@ -2819,6 +2940,17 @@ export function MoneyMovementPageClient({
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
               <div>พบทั้งหมด <span className="font-semibold text-slate-900">{historyTotalRows}</span> รายการ</div>
               <div className="flex flex-wrap items-center gap-2">
+                {selectedReceiptIds.length > 0 && (
+                  <UiButton
+                    className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs py-1 h-9 gap-1 flex items-center border-0"
+                    size="sm"
+                    type="button"
+                    onClick={printSelectedReceipts}
+                  >
+                    <Printer className="h-4 w-4 mr-1" />
+                    พิมพ์ใบเสร็จที่เลือก ({selectedReceiptIds.length})
+                  </UiButton>
+                )}
                 {historyColumnResize.hasCustomWidths ? <UiButton className="font-normal" size="sm" type="button" variant="outline" onClick={historyColumnResize.resetColumnWidths}>คืนค่าเดิมตาราง</UiButton> : null}
                 <UiSelect
                   aria-label="จำนวนรายการต่อหน้าประวัติ"
@@ -2843,50 +2975,63 @@ export function MoneyMovementPageClient({
                 const billDocNos = row.billDocNos?.length ? row.billDocNos : [row.billId ? (billMap.get(row.billId)?.docNo ?? row.billDocNo ?? row.billId) : (row.billDocNo ?? '-')]
                 const accountSummaries = row.accountSummaries?.length ? row.accountSummaries : [row.accountName]
                 const clickable = mode === 'payment' || mode === 'receipt'
+                const isCheckboxVisible = mode === 'receipt' && paymentHistoryStatusFilter === 'active'
                 return (
                   <div
                     key={row.id}
-                    className={`rounded-md border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 transition-colors ${clickable ? 'cursor-pointer' : ''}`}
+                    className={`rounded-md border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 transition-colors flex gap-3 items-start ${clickable ? 'cursor-pointer' : ''}`}
                     onClick={clickable ? () => {
                       if (mode === 'payment') void openPaymentHistoryRow(row)
                       else openReceiptDetail(row)
                     } : undefined}
                   >
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
-                      <span className="text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
-                    </div>
-                    <div className="text-xs text-slate-600 mb-3 space-y-1">
-                      <div>
-                        <span className="font-semibold text-slate-500">{partyLabel}: </span>
-                        <span className="text-slate-800">{row.partyName}</span>
+                    {isCheckboxVisible ? (
+                      <div className="pt-0.5" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="rounded border-slate-300 text-blue-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                          checked={selectedReceiptIds.includes(row.id)}
+                          onChange={() => toggleRowSelection(row.id)}
+                        />
                       </div>
-                      <div className="text-[11px] text-slate-500">
-                        อ้างอิง: {billDocNos.join(', ')}
+                    ) : null}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
+                        <span className="text-xs text-slate-500">{formatDateDisplay(row.date)}</span>
                       </div>
-                      <div className="text-[11px] text-slate-500">
-                        บัญชี: {accountSummaries.join(', ')}
-                      </div>
-                      {row.notes ? (
-                        <div className="text-[11px] text-slate-400 italic truncate">
-                          หมายเหตุ: {row.notes}
+                      <div className="text-xs text-slate-600 mb-3 space-y-1">
+                        <div>
+                          <span className="font-semibold text-slate-500">{partyLabel}: </span>
+                          <span className="text-slate-800">{row.partyName}</span>
                         </div>
-                      ) : null}
-                    </div>
-                    <div className="flex justify-between items-end pt-2 border-t border-slate-100">
-                      <div>
-                        {mode === 'payment' ? (
-                          <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${paymentHistoryStatusTone(row.status)}`}>
-                            <span className={`size-1.5 rounded-full ${paymentHistoryStatusDot(row.status)}`} />
-                            {paymentHistoryStatusLabel(row.status)}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-slate-400">เสร็จสิ้น</span>
-                        )}
+                        <div className="text-[11px] text-slate-500">
+                          อ้างอิง: {billDocNos.join(', ')}
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          บัญชี: {accountSummaries.join(', ')}
+                        </div>
+                        {row.notes ? (
+                          <div className="text-[11px] text-slate-400 italic truncate">
+                            หมายเหตุ: {row.notes}
+                          </div>
+                        ) : null}
                       </div>
-                      <div className="text-right">
-                        <span className="text-[10px] text-slate-400 block">ยอดสุทธิ</span>
-                        <span className={`font-bold text-sm tabular-nums ${theme.strong}`}>{formatMoney(row.netAmount)}</span>
+                      <div className="flex justify-between items-end pt-2 border-t border-slate-100">
+                        <div>
+                          {mode === 'payment' ? (
+                            <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${paymentHistoryStatusTone(row.status)}`}>
+                              <span className={`size-1.5 rounded-full ${paymentHistoryStatusDot(row.status)}`} />
+                              {paymentHistoryStatusLabel(row.status)}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-400">เสร็จสิ้น</span>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] text-slate-400 block">ยอดสุทธิ</span>
+                          <span className={`font-bold text-sm tabular-nums ${theme.strong}`}>{formatMoney(row.netAmount)}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2901,6 +3046,9 @@ export function MoneyMovementPageClient({
             <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm mt-3">
               <Table className="text-xs" style={{ minWidth: historyColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
                 <colgroup>
+                  {mode === 'receipt' && paymentHistoryStatusFilter === 'active' ? (
+                    <col style={{ width: '40px' }} />
+                  ) : null}
                   {historyColumns.map((column) => {
                     const style = historyColumnResize.getColumnStyle(column.key);
                     return <col key={column.key} style={style} />;
@@ -2908,8 +3056,18 @@ export function MoneyMovementPageClient({
                 </colgroup>
                 <TableHeader className="text-slate-700">
                   <tr>
+                    {mode === 'receipt' && paymentHistoryStatusFilter === 'active' ? (
+                      <th className="p-2 text-center w-10">
+                        <input
+                          type="checkbox"
+                          className="rounded border-slate-300 text-blue-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                          checked={isAllPageSelected}
+                          onChange={toggleAllPageRows}
+                        />
+                      </th>
+                    ) : null}
                     <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label="เลขที่รายการ" resizeProps={historyColumnResize.getResizeHandleProps('docNo', 'เลขที่รายการ')} sortKey="docNo" onSort={toggleHistorySort} />
-                    <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label="วันที่สร้างรายการ" resizeProps={historyColumnResize.getResizeHandleProps('date', 'วันที่สร้างรายการ')} sortKey="date" onSort={toggleHistorySort} />
+                    <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label={mode === 'receipt' ? 'วันที่รับเงิน' : 'วันที่สร้างรายการ'} resizeProps={historyColumnResize.getResizeHandleProps('date', mode === 'receipt' ? 'วันที่รับเงิน' : 'วันที่สร้างรายการ')} sortKey="date" onSort={toggleHistorySort} />
                     <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label={partyLabel} resizeProps={historyColumnResize.getResizeHandleProps('partyName', partyLabel)} sortKey="partyName" onSort={toggleHistorySort} />
                     <ResizableTableHead label="บิลอ้างอิง" resizeProps={historyColumnResize.getResizeHandleProps('billRefs', 'บิลอ้างอิง')} />
                     <TableSortHeader activeKey={historySortField} align="left" direction={historySortDirection} label="บัญชีที่ใช้ทำจ่าย" resizeProps={historyColumnResize.getResizeHandleProps('accountName', 'บัญชีที่ใช้ทำจ่าย')} sortKey="accountName" onSort={toggleHistorySort} />
@@ -2922,60 +3080,77 @@ export function MoneyMovementPageClient({
                   </tr>
                 </TableHeader>
                 <TableBody className="divide-y divide-slate-100">
-                  {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={mode === 'payment' ? 11 : 10}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
-                    {!isLoading && historyPageRows.map((row) => {
-                      const billDocNos = row.billDocNos?.length ? row.billDocNos : [row.billId ? (billMap.get(row.billId)?.docNo ?? row.billDocNo ?? row.billId) : (row.billDocNo ?? '-')]
-                      const accountSummaries = row.accountSummaries?.length ? row.accountSummaries : [row.accountName]
-                      const clickable = mode === 'payment' || mode === 'receipt'
-                      return (
-                        <TableRow
-                          key={row.id}
-                          className={`hover:bg-slate-50 ${clickable ? 'cursor-pointer' : ''}`}
-                          onClick={clickable ? () => {
-                            if (mode === 'payment') void openPaymentHistoryRow(row)
-                            else openReceiptDetail(row)
-                          } : undefined}
-                        >
-                          <TableCell className="text-xs font-semibold text-slate-700">{row.docNo}</TableCell>
-                          <TableCell className="text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</TableCell>
-                          <TableCell className="text-xs font-semibold text-slate-700">{row.partyName}</TableCell>
-                          <TableCell className="text-xs font-semibold text-slate-700">
-                            <div className="space-y-1">
-                              <CollapsedList items={billDocNos} />
-                              {mode === 'payment' && row.approvalIds?.length ? (
-                                <div className="pt-1 text-[11px] text-slate-500">
-                                  PMA: {row.approvalIds.map((approvalId, index) => (
-                                    <span key={`${row.id}-approval-${approvalId}`}>
-                                      {index > 0 ? ', ' : ''}
-                                      <span className="text-slate-700">{approvalId}</span>
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : null}
-                            </div>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell className="p-8 text-center text-slate-500" colSpan={(mode === 'payment' ? 11 : 10) + (mode === 'receipt' && paymentHistoryStatusFilter === 'active' ? 1 : 0)}>
+                        กำลังโหลดข้อมูล
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                  {!isLoading && historyPageRows.map((row) => {
+                    const billDocNos = row.billDocNos?.length ? row.billDocNos : [row.billId ? (billMap.get(row.billId)?.docNo ?? row.billDocNo ?? row.billId) : (row.billDocNo ?? '-')]
+                    const accountSummaries = row.accountSummaries?.length ? row.accountSummaries : [row.accountName]
+                    const clickable = mode === 'payment' || mode === 'receipt'
+                    const isRowSelected = selectedReceiptIds.includes(row.id)
+                    return (
+                      <TableRow
+                        key={row.id}
+                        className={`hover:bg-slate-50 ${clickable ? 'cursor-pointer' : ''}`}
+                        onClick={clickable ? () => {
+                          if (mode === 'payment') void openPaymentHistoryRow(row)
+                          else openReceiptDetail(row)
+                        } : undefined}
+                      >
+                        {mode === 'receipt' && paymentHistoryStatusFilter === 'active' ? (
+                          <TableCell className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              className="rounded border-slate-300 text-blue-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                              checked={isRowSelected}
+                              onChange={() => toggleRowSelection(row.id)}
+                            />
                           </TableCell>
-                          <TableCell className="text-xs font-semibold text-slate-700">
-                            <div className="space-y-1">
-                              <CollapsedList items={accountSummaries} />
-                            </div>
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap text-right pr-4 text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(row.amount)}</TableCell>
-                          <TableCell className="whitespace-nowrap text-right pr-4 text-xs font-semibold text-amber-700 tabular-nums">{formatMoney(row.withholdingTax)}</TableCell>
-                          <TableCell className="whitespace-nowrap text-right pr-4 text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(row.fee)}</TableCell>
-                          <TableCell className={`whitespace-nowrap text-right pr-4 text-xs font-semibold tabular-nums ${theme.strong}`}>{formatMoney(row.netAmount)}</TableCell>
-                          {mode === 'payment' ? (
-                            <TableCell>
-                              <div className={`inline-flex items-center gap-1.5 text-xs font-semibold ${paymentHistoryStatusTone(row.status)}`}>
-                                <span className={`size-1.5 rounded-full ${paymentHistoryStatusDot(row.status)}`} />
-                                <span>{paymentHistoryStatusLabel(row.status)}</span>
+                        ) : null}
+                        <TableCell className="text-xs font-semibold text-slate-700">{row.docNo}</TableCell>
+                        <TableCell className="text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</TableCell>
+                        <TableCell className="text-xs font-semibold text-slate-700">{row.partyName}</TableCell>
+                        <TableCell className="text-xs font-semibold text-slate-700">
+                          <div className="space-y-1">
+                            <CollapsedList items={billDocNos} />
+                            {mode === 'payment' && row.approvalIds?.length ? (
+                              <div className="pt-1 text-[11px] text-slate-500">
+                                PMA: {row.approvalIds.map((approvalId, index) => (
+                                  <span key={`${row.id}-approval-${approvalId}`}>
+                                    {index > 0 ? ', ' : ''}
+                                    <span className="text-slate-700">{approvalId}</span>
+                                  </span>
+                                ))}
                               </div>
-                            </TableCell>
-                          ) : null}
-                          <TableCell className="max-w-56 truncate text-xs font-semibold text-slate-700">{row.notes || '-'}</TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  {!isLoading && historyPageRows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={mode === 'payment' ? 11 : 10}>ยังไม่มีรายการ</TableCell></TableRow> : null}
+                            ) : null}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs font-semibold text-slate-700">
+                          <div className="space-y-1">
+                            <CollapsedList items={accountSummaries} />
+                          </div>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-right pr-4 text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(row.amount)}</TableCell>
+                        <TableCell className="whitespace-nowrap text-right pr-4 text-xs font-semibold text-amber-700 tabular-nums">{formatMoney(row.withholdingTax)}</TableCell>
+                        <TableCell className="whitespace-nowrap text-right pr-4 text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(row.fee)}</TableCell>
+                        <TableCell className={`whitespace-nowrap text-right pr-4 text-xs font-semibold tabular-nums ${theme.strong}`}>{formatMoney(row.netAmount)}</TableCell>
+                        {mode === 'payment' ? (
+                          <TableCell>
+                            <div className={`inline-flex items-center gap-1.5 text-xs font-semibold ${paymentHistoryStatusTone(row.status)}`}>
+                              <span className={`size-1.5 rounded-full ${paymentHistoryStatusDot(row.status)}`} />
+                              <span>{paymentHistoryStatusLabel(row.status)}</span>
+                            </div>
+                          </TableCell>
+                        ) : null}
+                        <TableCell className="max-w-56 truncate text-xs font-semibold text-slate-700">{row.notes || '-'}</TableCell>
+                      </TableRow>
+                    )
+                  })}
+                  {!isLoading && historyPageRows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={(mode === 'payment' ? 11 : 10) + (mode === 'receipt' && paymentHistoryStatusFilter === 'active' ? 1 : 0)}>ยังไม่มีรายการ</TableCell></TableRow> : null}
                 </TableBody>
               </Table>
             </div>
