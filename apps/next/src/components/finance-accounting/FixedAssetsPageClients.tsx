@@ -747,10 +747,12 @@ export function DepreciationPageClient() {
         <span className="flex-1" />
         <ActionButton disabled={isSaving || month === 'all' || filteredPendingAssets.length === 0} strong onClick={runPreview}>Preview ค่าเสื่อมงวดนี้</ActionButton>
       </FilterPanel>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
         <StatCard label="สินทรัพย์รอประมวลผล" value={filteredPendingAssets.length} tone="amber" icon="⏳" />
         <StatCard label="ประวัติประมวลผลค่าเสื่อม" value={data?.period.postedRuns ?? 0} tone="blue" icon="📊" />
-        <StatCard label="ค่าเสื่อมราคารวมงวดนี้" value={formatMoney(totalDepreciationAmount)} tone="red" icon="💰" />
+        <div className="col-span-2 lg:col-span-1">
+          <StatCard label="ค่าเสื่อมราคารวมงวดนี้" value={formatMoney(totalDepreciationAmount)} tone="red" icon="💰" />
+        </div>
       </div>
       <Panel title="สินทรัพย์รอประมวลผลค่าเสื่อม">
         <MiniAssetTable isLoading={isLoading} rows={filteredPendingAssets} />
@@ -879,10 +881,12 @@ export function DepreciationPageClient() {
 
       {preview ? (
         <Modal title={`Preview ค่าเสื่อมงวด ${preview.periodKey}`}>
-          <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-3">
             <StatCard label="จำนวนรายการ" value={preview.summary.count} />
             <StatCard label="ค่าเสื่อมรวม" value={formatMoney(preview.summary.totalDepreciation)} tone="red" />
-            <StatCard label="จะ Fully Depreciated" value={preview.summary.willFullyDepreciate} tone="amber" />
+            <div className="col-span-2 md:col-span-1">
+              <StatCard label="จะ Fully Depreciated" value={preview.summary.willFullyDepreciate} tone="amber" />
+            </div>
           </div>
           <TableShell>
             <table className="w-full text-xs">
@@ -1019,10 +1023,12 @@ export function AssetDisposalPageClient() {
         <span className="flex-1" />
         <ActionButton strong onClick={openCreate}>+ Disposal</ActionButton>
       </FilterPanel>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
         <StatCard label="ยอดขายรวม (Proceeds)" value={formatMoney(data?.summary.proceeds)} tone="blue" icon="💵" />
         <StatCard label="กำไร/(ขาดทุน) สุทธิ" value={formatMoney(data?.summary.gainLoss)} tone={(data?.summary.gainLoss ?? 0) >= 0 ? 'emerald' : 'red'} icon="📈" />
-        <StatCard label="สินทรัพย์พร้อมจำหน่าย" value={data?.summary.activeAssets ?? 0} tone="amber" icon="📦" />
+        <div className="col-span-2 md:col-span-1">
+          <StatCard label="สินทรัพย์พร้อมจำหน่าย" value={data?.summary.activeAssets ?? 0} tone="amber" icon="📦" />
+        </div>
       </div>
       <TableShell title="ประวัติการจำหน่ายสินทรัพย์ (Asset Disposal History)">
         {/* Desktop view */}

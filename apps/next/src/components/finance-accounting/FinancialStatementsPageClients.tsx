@@ -129,7 +129,9 @@ export function BalanceSheetPageClient() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <StatCard label="Working Capital" value={money(data?.ratios.workingCapital)} tone="blue" />
         <StatCard label="Current Ratio" value={(data?.ratios.currentRatio ?? 0).toFixed(2)} tone="cyan" />
-        <StatCard label="Debt / Equity" value={(data?.ratios.debtToEquity ?? 0).toFixed(2)} tone="purple" />
+        <div className="col-span-2 md:col-span-1">
+          <StatCard label="Debt / Equity" value={(data?.ratios.debtToEquity ?? 0).toFixed(2)} tone="purple" />
+        </div>
       </div>
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
         <StatementTable isLoading={isLoading} rows={data?.sections.assets ?? []} title="Assets" onDrill={(line) => line.details?.length ? setDrill({ rows: line.details, title: line.label }) : undefined} />
