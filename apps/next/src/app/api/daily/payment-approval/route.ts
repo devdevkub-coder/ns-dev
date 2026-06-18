@@ -67,6 +67,13 @@ function normalizeSupplierBankAccounts(params: {
     .filter((option) => option.paymentMethod.trim() || option.accountNo.trim())
 }
 
+function pettyReturnDisplayDocNo(entry: { date: Date; doc_no: string | null; id: bigint } | null | undefined, fallback: string) {
+  const docNo = entry?.doc_no?.trim()
+  if (docNo?.startsWith('PRET')) return docNo
+  if (!entry) return fallback
+  return `PRET${toDateOnly(entry.date).slice(2, 7).replace('-', '')}-${entry.id.toString().padStart(4, '0')}`
+}
+
 export async function GET() {
   try {
     const context = await getCurrentAuthContext()
@@ -470,7 +477,7 @@ export async function GET() {
           date: toDateOnly(entry.date),
           destinationLabel,
           destinationOptions: dailyAccountOptions,
-          docNo: entry.doc_no,
+          docNo: pettyReturnDisplayDocNo(entry, entry.petty_advances.doc_no),
           dueDate: toDateOnly(entry.date),
           id: `petty_advance_return:${entry.id.toString()}`,
           payee: entry.petty_advances.recipient_name ?? '-',
@@ -500,7 +507,7 @@ export async function GET() {
           date: toDateOnly(approval.approved_at ?? approval.source_date_snapshot ?? approval.created_at),
           destinationLabel,
           destinationOptions: matchingOption ? [matchingOption] : dailyAccountOptions,
-          docNo: entry?.doc_no ?? approvalDocNo,
+          docNo: pettyReturnDisplayDocNo(entry, approvalDocNo),
           dueDate: toDateOnly(entry?.date ?? approval.source_date_snapshot),
           id: `petty_advance_return:${approval.id.toString()}`,
           payee: approval.party_name_snapshot ?? entry?.petty_advances.recipient_name ?? '-',
