@@ -190,6 +190,8 @@ const receiptHistoryColumns: Array<ResizableColumnDefinition<MoneyHistoryColumnK
   { key: 'wht', defaultWidth: 100, minWidth: 80 },
   { key: 'bankFee', defaultWidth: 100, minWidth: 80 },
   { key: 'netAmount', defaultWidth: 110, minWidth: 90 },
+  { key: 'status', defaultWidth: 130, minWidth: 110 },
+  { key: 'action', defaultWidth: 160, minWidth: 140 },
   { key: 'notes', defaultWidth: 180, minWidth: 130 },
 ]
 
@@ -322,8 +324,9 @@ function initialForm(mode: 'payment' | 'receipt'): MoneyForm {
   } as MoneyForm
 }
 
-function paymentHistoryStatusLabel(status: string | undefined) {
-  return status === 'cancelled' ? 'ยกเลิก' : 'จ่ายแล้ว'
+function paymentHistoryStatusLabel(status: string | undefined, mode?: 'payment' | 'receipt') {
+  if (status === 'cancelled') return 'ยกเลิก'
+  return mode === 'receipt' ? 'รับเงินแล้ว' : 'จ่ายแล้ว'
 }
 
 function paymentHistoryStatusTone(status: string | undefined) {
@@ -2145,7 +2148,7 @@ export function MoneyMovementPageClient({
                         openFormForBill(bill)
                       }}
                     >
-                      แก้ไข
+                      รับเงิน
                     </UiButton>
                     <UiButton
                       className="font-normal border-red-200 text-red-700"
@@ -2223,7 +2226,7 @@ export function MoneyMovementPageClient({
                             openFormForBill(bill)
                           }}
                         >
-                          แก้ไข
+                          รับเงิน
                         </UiButton>
                         <UiButton
                           className="font-normal border-red-200 text-red-700"
@@ -3067,28 +3070,43 @@ export function MoneyMovementPageClient({
                         ) : null}
                       </div>
                       <div className="flex justify-between items-end pt-2 border-t border-slate-100">
-                        <div className="flex items-center gap-2">
-                          {mode === 'payment' ? (
-                            <>
-                              <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${paymentHistoryStatusTone(row.status)}`}>
-                                <span className={`size-1.5 rounded-full ${paymentHistoryStatusDot(row.status)}`} />
-                                {paymentHistoryStatusLabel(row.status)}
-                              </span>
-                              {row.status !== 'cancelled' ? (
+                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                          <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${paymentHistoryStatusTone(row.status)}`}>
+                            <span className={`size-1.5 rounded-full ${paymentHistoryStatusDot(row.status)}`} />
+                            {paymentHistoryStatusLabel(row.status, mode)}
+                          </span>
+                          {row.status !== 'cancelled' && (
+                            <div className="flex items-center gap-1 ml-1 bg-transparent">
+                              {mode === 'receipt' ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="text-[11px] text-slate-700 hover:text-slate-900 hover:bg-slate-50 font-semibold px-2 py-0.5 rounded border border-slate-200 bg-white cursor-pointer"
+                                    onClick={() => openFormForReceipt(row)}
+                                  >
+                                    แก้ไข
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="text-[11px] text-red-600 hover:text-red-700 hover:bg-red-50 font-semibold px-2 py-0.5 rounded border border-red-200 bg-white cursor-pointer"
+                                    onClick={() => {
+                                      setCancelReceiptTarget(row)
+                                      setCancelReceiptReason('')
+                                    }}
+                                  >
+                                    ยกเลิก
+                                  </button>
+                                </>
+                              ) : (
                                 <button
                                   type="button"
-                                  className="text-[11px] text-red-600 hover:text-red-700 font-semibold px-2 py-0.5 rounded border border-red-200 hover:bg-red-50 bg-white cursor-pointer ml-1"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setCancelPaymentTarget(row)
-                                  }}
+                                  className="text-[11px] text-red-600 hover:text-red-700 hover:bg-red-50 font-semibold px-2 py-0.5 rounded border border-red-200 bg-white cursor-pointer"
+                                  onClick={() => setCancelPaymentTarget(row)}
                                 >
                                   ยกเลิก
                                 </button>
-                              ) : null}
-                            </>
-                          ) : (
-                            <span className="text-xs text-slate-400">เสร็จสิ้น</span>
+                              )}
+                            </div>
                           )}
                         </div>
                         <div className="text-right">
@@ -3138,15 +3156,15 @@ export function MoneyMovementPageClient({
                     <ResizableTableHead align="right" label="WHT" resizeProps={historyColumnResize.getResizeHandleProps('wht', 'WHT')} />
                     <ResizableTableHead align="right" label="Bank Fee" resizeProps={historyColumnResize.getResizeHandleProps('bankFee', 'Bank Fee')} />
                     <TableSortHeader activeKey={historySortField} align="right" direction={historySortDirection} label="สุทธิ" resizeProps={historyColumnResize.getResizeHandleProps('netAmount', 'สุทธิ')} sortKey="netAmount" onSort={toggleHistorySort} />
-                    {mode === 'payment' ? <ResizableTableHead label="สถานะ" resizeProps={historyColumnResize.getResizeHandleProps('status', 'สถานะ')} /> : null}
-                    {mode === 'payment' ? <ResizableTableHead label="จัดการ" resizeProps={historyColumnResize.getResizeHandleProps('action', 'จัดการ')} /> : null}
+                    <ResizableTableHead label="สถานะ" resizeProps={historyColumnResize.getResizeHandleProps('status', 'สถานะ')} />
+                    <ResizableTableHead label="จัดการ" resizeProps={historyColumnResize.getResizeHandleProps('action', 'จัดการ')} />
                     <ResizableTableHead label="หมายเหตุ" resizeProps={historyColumnResize.getResizeHandleProps('notes', 'หมายเหตุ')} />
                   </tr>
                 </TableHeader>
                 <TableBody className="divide-y divide-slate-100">
                   {isLoading ? (
                     <TableRow>
-                      <TableCell className="p-8 text-center text-slate-500" colSpan={(mode === 'payment' ? 12 : 10) + (mode === 'receipt' && paymentHistoryStatusFilter === 'active' ? 1 : 0)}>
+                      <TableCell className="p-8 text-center text-slate-500" colSpan={12 + (mode === 'receipt' && paymentHistoryStatusFilter === 'active' ? 1 : 0)}>
                         กำลังโหลดข้อมูล
                       </TableCell>
                     </TableRow>
@@ -3202,32 +3220,56 @@ export function MoneyMovementPageClient({
                         <TableCell className="whitespace-nowrap text-right pr-4 text-xs font-semibold text-amber-700 tabular-nums">{formatMoney(row.withholdingTax)}</TableCell>
                         <TableCell className="whitespace-nowrap text-right pr-4 text-xs font-semibold text-slate-700 tabular-nums">{formatMoney(row.fee)}</TableCell>
                         <TableCell className={`whitespace-nowrap text-right pr-4 text-xs font-semibold tabular-nums ${theme.strong}`}>{formatMoney(row.netAmount)}</TableCell>
-                        {mode === 'payment' ? (
-                          <TableCell>
-                            <div className={`inline-flex items-center gap-1.5 text-xs font-semibold ${paymentHistoryStatusTone(row.status)}`}>
-                              <span className={`size-1.5 rounded-full ${paymentHistoryStatusDot(row.status)}`} />
-                              <span>{paymentHistoryStatusLabel(row.status)}</span>
-                            </div>
-                          </TableCell>
-                        ) : null}
-                        {mode === 'payment' ? (
-                          <TableCell className="p-2" onClick={(e) => e.stopPropagation()}>
-                            <UiButton
-                              disabled={row.status === 'cancelled'}
-                              className="text-xs h-7 px-2 font-semibold bg-red-600 hover:bg-red-700 text-white border-0"
-                              size="sm"
-                              type="button"
-                              onClick={() => setCancelPaymentTarget(row)}
-                            >
-                              ยกเลิก
-                            </UiButton>
-                          </TableCell>
-                        ) : null}
+                        <TableCell>
+                          <div className={`inline-flex items-center gap-1.5 text-xs font-semibold ${paymentHistoryStatusTone(row.status)}`}>
+                            <span className={`size-1.5 rounded-full ${paymentHistoryStatusDot(row.status)}`} />
+                            <span>{paymentHistoryStatusLabel(row.status, mode)}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="p-2" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center gap-1 bg-transparent justify-start">
+                            {mode === 'receipt' ? (
+                              <>
+                                <UiButton
+                                  disabled={row.status === 'cancelled'}
+                                  className="text-xs h-7 px-2 font-semibold bg-slate-900 hover:bg-slate-800 text-white border-0"
+                                  size="sm"
+                                  type="button"
+                                  onClick={() => openFormForReceipt(row)}
+                                >
+                                  แก้ไข
+                                </UiButton>
+                                <UiButton
+                                  disabled={row.status === 'cancelled'}
+                                  className="text-xs h-7 px-2 font-semibold bg-red-600 hover:bg-red-700 text-white border-0"
+                                  size="sm"
+                                  type="button"
+                                  onClick={() => {
+                                    setCancelReceiptTarget(row)
+                                    setCancelReceiptReason('')
+                                  }}
+                                >
+                                  ยกเลิก
+                                </UiButton>
+                              </>
+                            ) : (
+                              <UiButton
+                                disabled={row.status === 'cancelled'}
+                                className="text-xs h-7 px-2 font-semibold bg-red-600 hover:bg-red-700 text-white border-0"
+                                size="sm"
+                                type="button"
+                                onClick={() => setCancelPaymentTarget(row)}
+                              >
+                                ยกเลิก
+                              </UiButton>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="max-w-56 truncate text-xs font-semibold text-slate-700">{row.notes || '-'}</TableCell>
                       </TableRow>
                     )
                   })}
-                  {!isLoading && historyPageRows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={(mode === 'payment' ? 12 : 10) + (mode === 'receipt' && paymentHistoryStatusFilter === 'active' ? 1 : 0)}>ยังไม่มีรายการ</TableCell></TableRow> : null}
+                  {!isLoading && historyPageRows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={12 + (mode === 'receipt' && paymentHistoryStatusFilter === 'active' ? 1 : 0)}>ยังไม่มีรายการ</TableCell></TableRow> : null}
                 </TableBody>
               </Table>
             </div>

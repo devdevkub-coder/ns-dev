@@ -215,7 +215,8 @@ export function DailyPettyAdvancePageClient() {
   function openReturnForm(row: PettyAdvanceRow) {
     setDetailRow(null)
     setReturningRow(row)
-    setReturnForm({ accountId: row.accountId ?? '', amount: String(Math.max(0, row.remaining)), date: todayDateInput(), notes: '' })
+    const defaultAccountId = row.accountId ?? activeAccounts[0]?.id ?? ''
+    setReturnForm({ accountId: defaultAccountId, amount: String(Math.max(0, row.remaining)), date: todayDateInput(), notes: '' })
   }
 
   async function saveForm(event: React.FormEvent<HTMLFormElement>) {
@@ -547,9 +548,6 @@ export function DailyPettyAdvancePageClient() {
               </div>
               <div className="col-span-2 sm:col-span-1">
                 <MoneyField label="จำนวนเงินคืน" required value={Number(returnForm.amount) || 0} onChange={(value) => setReturnForm({ ...returnForm, amount: String(value) })} />
-              </div>
-              <div className="col-span-2">
-                <SelectField label="บัญชีรับคืนของบริษัท" required value={returnForm.accountId} onChange={(value) => setReturnForm({ ...returnForm, accountId: value })} options={activeAccounts} />
               </div>
               <div className="col-span-2">
                 <TextAreaField label="หมายเหตุ" value={returnForm.notes} onChange={(value) => setReturnForm({ ...returnForm, notes: value })} />

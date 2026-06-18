@@ -836,6 +836,7 @@ function ReceiptVoucherFormModal({
             <div className="grid grid-cols-2 gap-2 md:grid-cols-[1.2fr_1fr_180px] md:gap-3">
               <div className="col-span-2 md:col-span-1">
                 <SearchCombobox
+                  disabled={mode === 'edit'}
                   inputClassName="h-9 bg-white"
                   inputId="rv-supplier"
                   label="Supplier"
@@ -848,6 +849,7 @@ function ReceiptVoucherFormModal({
               </div>
               <div className="col-span-1">
                 <SearchCombobox
+                  disabled={mode === 'edit'}
                   inputClassName="h-9 bg-white"
                   inputId="rv-purchase-bill"
                   label="อ้างอิงบิลซื้อ"
@@ -860,7 +862,12 @@ function ReceiptVoucherFormModal({
               </div>
               <div className="col-span-1">
                 <FormField label="วันที่ออกเอกสาร">
-                  <DatePickerInput id="rv-date" value={form.date} onChange={(value) => onUpdateForm({ date: value })} />
+                  <DatePickerInput
+                    disabled={mode === 'edit'}
+                    id="rv-date"
+                    value={form.date}
+                    onChange={(value) => onUpdateForm({ date: value })}
+                  />
                 </FormField>
               </div>
             </div>

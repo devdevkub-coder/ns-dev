@@ -260,6 +260,20 @@ export async function GET() {
     requirePermission(context, 'finance.cash.view')
     const actor = currentActor(context)
 
+    // Find all referenced purchase bill doc numbers in active (non-cancelled) receipt vouchers
+    const activeReceiptVouchers = await prisma.receipt_vouchers.findMany({
+      where: {
+        status: { not: 'cancelled' },
+        purchase_bill_doc_no: { not: null },
+      },
+      select: {
+        purchase_bill_doc_no: true,
+      },
+    })
+    const referencedBillDocNos = activeReceiptVouchers
+      .map((rv) => rv.purchase_bill_doc_no)
+      .filter((docNo): docNo is string => docNo !== null)
+
     const [suppliers, purchaseBills, rows, companyProfile] = await Promise.all([
       prisma.suppliers.findMany({
         orderBy: [{ code: 'asc' }, { name: 'asc' }],
@@ -311,7 +325,10 @@ export async function GET() {
           total_amount: true,
         },
         take: 5000,
-        where: { status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] } },
+        where: {
+          status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] },
+          doc_no: { notIn: referencedBillDocNos },
+        },
       }),
       prisma.receipt_vouchers.findMany({
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],

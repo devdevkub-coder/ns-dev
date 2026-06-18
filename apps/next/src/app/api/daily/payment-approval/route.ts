@@ -500,7 +500,7 @@ export async function GET() {
         }
       })
     const approvedPettyReturnRows = approvals
-      .filter((approval) => approval.source_type === 'petty_advance_return')
+      .filter((approval) => approval.source_type === 'petty_advance_return' && approval.status !== 'paid')
       .map((approval) => {
         const entry = pettyReturnById.get(approval.source_id)
         const approvalDocNo = requireDocumentNo(approval.doc_no, `อนุมัติคืนเงิน ${approval.id}`)
