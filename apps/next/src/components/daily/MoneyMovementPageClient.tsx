@@ -368,7 +368,23 @@ function paymentDailyReportDateRangeLabel(dateFrom: string, dateTo: string) {
   return from === to ? formatDateDisplay(from) : `${formatDateDisplay(from)} - ${formatDateDisplay(to)}`
 }
 
-function buildPaymentDailyReportHtml(rows: MoneyRow[], profile: CompanyProfilePrintValues, params: { dateFrom: string; dateTo: string; printedAt: Date }) {
+function buildPaymentDailyReportHtml(rows: MoneyRow[], profile: CompanyProfilePrintValues, params: { dateFrom: string; dateTo: string; kind: 'payment' | 'receipt'; printedAt: Date }) {
+  const isReceipt = params.kind === 'receipt'
+  const reportTitle = isReceipt ? 'รายงานประวัติการรับเงิน Customer ประจำวัน' : 'รายงานประวัติการจ่ายเงินประจำวัน'
+  const docLabel = isReceipt ? 'RCP' : 'PMT'
+  const partyLabel = isReceipt ? 'ลูกค้า' : 'ผู้รับเงิน'
+  const accountLabel = isReceipt ? 'บัญชีที่รับเงิน' : 'บัญชีที่จ่าย'
+  const amountLabel = isReceipt ? 'ยอดรับ' : 'ยอดจ่าย'
+  const netLabel = isReceipt ? 'เงินเข้าสุทธิ' : 'เงินออกสุทธิ'
+  const activeLabel = isReceipt ? 'รับเงินแล้ว' : 'จ่ายแล้ว'
+  const grossSummaryLabel = isReceipt ? 'ยอดรับแล้วก่อน fee' : 'ยอดจ่ายแล้วก่อน fee'
+  const feeSummaryLabel = isReceipt ? 'Bank Fee ของรายการรับเงินแล้ว' : 'Bank Fee ของรายการจ่ายแล้ว'
+  const noteText = isReceipt ? 'เงินเข้าสุทธินับเฉพาะ RCP รับเงินแล้ว' : 'เงินออกสุทธินับเฉพาะ PMT จ่ายแล้ว'
+  const emptyText = isReceipt ? 'ไม่พบรายการรับเงิน RCP ในวันที่เลือก' : 'ไม่พบรายการจ่าย PMT ในวันที่เลือก'
+  const cancelledSummaryLabel = isReceipt ? 'ยอดรายการยกเลิก ไม่รวมเงินเข้า' : 'ยอดรายการยกเลิก ไม่รวมเงินออก'
+  const footerText = isReceipt
+    ? 'รายงานนี้เป็นเอกสารตรวจรายการรับเงินประจำวันจาก RCP history เท่านั้น ไม่รวมบิลขายที่ยังไม่เกิด RCP'
+    : 'รายงานนี้เป็นเอกสารตรวจรายการจ่ายประจำวันจาก PMT history เท่านั้น ไม่รวม PMA ที่ยังไม่เกิด PMT'
   const paidRows = rows.filter((row) => row.status !== 'cancelled')
   const cancelledRows = rows.filter((row) => row.status === 'cancelled')
   const paidAmount = paidRows.reduce((sum, row) => sum + row.amount, 0)
@@ -394,8 +410,8 @@ function buildPaymentDailyReportHtml(rows: MoneyRow[], profile: CompanyProfilePr
       <td>${escapeHtml(row.notes || '-')}</td>
     </tr>`
   }).join('')
-  const emptyRow = '<tr><td class="empty" colspan="11">ไม่พบรายการจ่าย PMT ในวันที่เลือก</td></tr>'
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>รายงานประวัติการจ่ายเงินประจำวัน</title>
+  const emptyRow = `<tr><td class="empty" colspan="11">${escapeHtml(emptyText)}</td></tr>`
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(reportTitle)}</title>
     <style>
       @page { size: A4 landscape; margin: 10mm; }
       body { font-family: 'Noto Sans Thai', Arial, sans-serif; color: #0f172a; font-size: 11px; margin: 0; }
@@ -443,42 +459,42 @@ function buildPaymentDailyReportHtml(rows: MoneyRow[], profile: CompanyProfilePr
           <div class="co-info">${companyInfoForPrint(profile)}</div>
         </div>
         <div class="doc-title">
-          <h1>รายงานประวัติการจ่ายเงินประจำวัน</h1>
+          <h1>${escapeHtml(reportTitle)}</h1>
           <div class="range">${escapeHtml(paymentDailyReportDateRangeLabel(params.dateFrom, params.dateTo))}</div>
           <div>พิมพ์เมื่อ ${escapeHtml(params.printedAt.toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }))}</div>
         </div>
       </div>
       <div class="summary">
-        <div class="card"><div class="label">รายการ PMT ทั้งหมด</div><div class="value">${rows.length.toLocaleString('th-TH')}</div></div>
-        <div class="card"><div class="label">จ่ายแล้ว</div><div class="value green">${paidRows.length.toLocaleString('th-TH')}</div></div>
+        <div class="card"><div class="label">รายการ ${escapeHtml(docLabel)} ทั้งหมด</div><div class="value">${rows.length.toLocaleString('th-TH')}</div></div>
+        <div class="card"><div class="label">${escapeHtml(activeLabel)}</div><div class="value green">${paidRows.length.toLocaleString('th-TH')}</div></div>
         <div class="card"><div class="label">ยกเลิก</div><div class="value rose">${cancelledRows.length.toLocaleString('th-TH')}</div></div>
-        <div class="card"><div class="label">ยอดจ่ายแล้วก่อน fee</div><div class="value">${escapeHtml(formatMoney(paidAmount))}</div></div>
-        <div class="card"><div class="label">เงินออกสุทธิ</div><div class="value green">${escapeHtml(formatMoney(paidNet))}</div></div>
+        <div class="card"><div class="label">${escapeHtml(grossSummaryLabel)}</div><div class="value">${escapeHtml(formatMoney(paidAmount))}</div></div>
+        <div class="card"><div class="label">${escapeHtml(netLabel)}</div><div class="value green">${escapeHtml(formatMoney(paidNet))}</div></div>
       </div>
       <div class="summary" style="grid-template-columns: repeat(3, 1fr);">
-        <div class="card"><div class="label">Bank Fee ของรายการจ่ายแล้ว</div><div class="value">${escapeHtml(formatMoney(paidFee))}</div></div>
-        <div class="card"><div class="label">ยอดรายการยกเลิก ไม่รวมเงินออก</div><div class="value rose">${escapeHtml(formatMoney(cancelledAmount))}</div></div>
-        <div class="card"><div class="label">หมายเหตุการนับยอด</div><div class="value" style="font-size:12px">เงินออกสุทธินับเฉพาะ PMT จ่ายแล้ว</div></div>
+        <div class="card"><div class="label">${escapeHtml(feeSummaryLabel)}</div><div class="value">${escapeHtml(formatMoney(paidFee))}</div></div>
+        <div class="card"><div class="label">${escapeHtml(cancelledSummaryLabel)}</div><div class="value rose">${escapeHtml(formatMoney(cancelledAmount))}</div></div>
+        <div class="card"><div class="label">หมายเหตุการนับยอด</div><div class="value" style="font-size:12px">${escapeHtml(noteText)}</div></div>
       </div>
       <table>
         <thead>
           <tr>
             <th class="c">#</th>
-            <th>PMT</th>
+            <th>${escapeHtml(docLabel)}</th>
             <th>วันที่</th>
-            <th>ผู้รับเงิน</th>
+            <th>${escapeHtml(partyLabel)}</th>
             <th>เอกสารอ้างอิง</th>
-            <th>บัญชีที่จ่าย</th>
-            <th class="r">ยอดจ่าย</th>
+            <th>${escapeHtml(accountLabel)}</th>
+            <th class="r">${escapeHtml(amountLabel)}</th>
             <th class="r">Bank Fee</th>
-            <th class="r">เงินออกสุทธิ</th>
+            <th class="r">${escapeHtml(netLabel)}</th>
             <th>สถานะ</th>
             <th>หมายเหตุ</th>
           </tr>
         </thead>
         <tbody>${rowHtml || emptyRow}</tbody>
       </table>
-      <div class="footer">รายงานนี้เป็นเอกสารตรวจรายการจ่ายประจำวันจาก PMT history เท่านั้น ไม่รวม PMA ที่ยังไม่เกิด PMT</div>
+      <div class="footer">${escapeHtml(footerText)}</div>
     </div>
   </body></html>`
 }
@@ -1214,12 +1230,13 @@ export function MoneyMovementPageClient({
     }
   }
 
-  function getDailyPaymentPrintRows() {
+  function getDailyMoneyPrintRows() {
     const query = search.trim().toLowerCase()
     const printDateFrom = dateFrom || todayDateInput()
     const printDateTo = dateTo || dateFrom || todayDateInput()
+    const docPrefix = mode === 'receipt' ? 'RCP' : 'PMT'
     return data.rows
-      .filter((row) => row.docNo.startsWith('PMT'))
+      .filter((row) => row.docNo.startsWith(docPrefix))
       .filter((row) => {
         const searchHaystack = [
           row.id,
@@ -1244,15 +1261,15 @@ export function MoneyMovementPageClient({
       .sort((left, right) => `${left.date}-${left.docNo}`.localeCompare(`${right.date}-${right.docNo}`, 'th'))
   }
 
-  async function printDailyPaymentReport() {
-    if (mode !== 'payment') return
+  async function printDailyMoneyReport() {
+    const reportTitle = mode === 'receipt' ? 'รายงานประวัติการรับเงิน Customer ประจำวัน' : 'รายงานประวัติการจ่ายเงินประจำวัน'
     const printWindow = window.open('', '_blank', 'width=1200,height=900,scrollbars=yes')
     if (!printWindow) {
       setError('Browser block popup — กรุณาอนุญาต popup สำหรับเว็บนี้')
       return
     }
     printWindow.document.open()
-    printWindow.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>กำลังเตรียมรายงาน</title></head><body style="font-family:'Noto Sans Thai',Arial,sans-serif;margin:32px;color:#0f172a">กำลังเตรียมรายงานประวัติการจ่ายเงินประจำวัน...</body></html>`)
+    printWindow.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>กำลังเตรียมรายงาน</title></head><body style="font-family:'Noto Sans Thai',Arial,sans-serif;margin:32px;color:#0f172a">กำลังเตรียม${escapeHtml(reportTitle)}...</body></html>`)
     printWindow.document.close()
     printWindow.focus()
     setIsPrintingDailyReport(true)
@@ -1261,11 +1278,12 @@ export function MoneyMovementPageClient({
       const response = await fetch('/api/admin/company-profile', { cache: 'no-store' })
       const payload = await readJsonResponse(response, companyProfilePayloadSchema, 'โหลดข้อมูลบริษัทไม่สำเร็จ')
       const profile = companyProfileForPrint(payload)
-      const printRows = getDailyPaymentPrintRows()
+      const printRows = getDailyMoneyPrintRows()
       printWindow.document.open()
       printWindow.document.write(buildPaymentDailyReportHtml(printRows, profile, {
         dateFrom: dateFrom || todayDateInput(),
         dateTo: dateTo || dateFrom || todayDateInput(),
+        kind: mode,
         printedAt: new Date(),
       }))
       printWindow.document.close()
@@ -2542,18 +2560,16 @@ export function MoneyMovementPageClient({
                 <option value="">ทุกบัญชี</option>
                 {activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
               </UiSelect>
-              {mode === 'payment' ? (
-                <UiButton
-                  className="h-9 font-semibold"
-                  disabled={isPrintingDailyReport}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                  onClick={() => void printDailyPaymentReport()}
-                >
-                  {isPrintingDailyReport ? 'กำลังเตรียมรายงาน...' : 'พิมพ์รายงานประจำวัน'}
-                </UiButton>
-              ) : null}
+              <UiButton
+                className="h-9 font-semibold"
+                disabled={isPrintingDailyReport}
+                size="sm"
+                type="button"
+                variant="outline"
+                onClick={() => void printDailyMoneyReport()}
+              >
+                {isPrintingDailyReport ? 'กำลังเตรียมรายงาน...' : 'พิมพ์รายงานประจำวัน'}
+              </UiButton>
               {hasActiveHistoryFilters ? (
                 <UiButton className="h-9 font-normal" size="sm" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</UiButton>
               ) : null}
@@ -2662,22 +2678,20 @@ export function MoneyMovementPageClient({
                     </div>
                   ) : null}
 
-                  {mode === 'payment' ? (
-                    <div className="pt-2">
-                      <UiButton
-                        className="w-full h-11 font-semibold"
-                        disabled={isPrintingDailyReport}
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          setShowMobileFilters(false)
-                          void printDailyPaymentReport()
-                        }}
-                      >
-                        {isPrintingDailyReport ? 'กำลังเตรียมรายงาน...' : 'พิมพ์รายงานประจำวัน'}
-                      </UiButton>
-                    </div>
-                  ) : null}
+                  <div className="pt-2">
+                    <UiButton
+                      className="w-full h-11 font-semibold"
+                      disabled={isPrintingDailyReport}
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setShowMobileFilters(false)
+                        void printDailyMoneyReport()
+                      }}
+                    >
+                      {isPrintingDailyReport ? 'กำลังเตรียมรายงาน...' : 'พิมพ์รายงานประจำวัน'}
+                    </UiButton>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 mt-6 pt-3 border-t border-slate-100">
