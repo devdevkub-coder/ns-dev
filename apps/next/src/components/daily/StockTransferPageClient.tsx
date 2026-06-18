@@ -332,7 +332,7 @@ export function StockTransferPageClient() {
           {hasFilters ? (
             <Button size="sm" type="button" variant="secondary" className="h-9" onClick={clearFilters}>✕ ล้าง</Button>
           ) : null}
-          <Button size="sm" type="button" className="h-9 ml-auto bg-slate-900 text-white hover:bg-slate-800" onClick={openCreateForm}>
+          <Button size="sm" type="button" className="h-9 ml-auto bg-blue-600 text-white hover:bg-blue-700" onClick={openCreateForm}>
             <Plus className="mr-1 h-4 w-4" />โอนใหม่
           </Button>
         </div>

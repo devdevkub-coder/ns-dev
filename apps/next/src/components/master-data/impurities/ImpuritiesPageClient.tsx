@@ -212,7 +212,7 @@ export function ImpuritiesPageClient() {
             </button>
           ) : null}
           <button
-            className="ml-auto rounded-md bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60 h-9 flex items-center justify-center font-normal"
+            className="ml-auto rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-60 h-9 flex items-center justify-center font-semibold shadow-sm transition"
             type="button"
             onClick={openCreateForm}
           >

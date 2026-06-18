@@ -68,22 +68,149 @@ export function PlStatementPageClient() {
   const url = useMemo(() => `/api/finance-accounting/pl-statement?from=${from}&to=${to}${branchId ? `&branchId=${branchId}` : ''}&transactionMode=${mode}`, [branchId, from, mode, to])
   const { data, error, isLoading } = useApi<PlPayload>(url)
   const [drill, setDrill] = useState<{ rows: DetailRow[]; title: string } | null>(null)
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
 
   return (
     <section className="space-y-4">
       <BaselineNotice sourceState={data?.sourceState} />
       {error ? <ErrorBox message={error} /> : null}
-      <FilterPanel>
+      {/* Desktop Filter Panel */}
+      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm border border-slate-200">
         <Segment active>📅 ช่วงวันที่</Segment><Segment>📆 รายเดือน</Segment><Segment>📊 ตารางรายปี (12 เดือน)</Segment>
         <QuickButton onClick={() => { const now = new Date(); setFrom(new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10)); setTo(today()) }}>📊 ปีนี้</QuickButton>
         <QuickButton onClick={() => setFrom(monthStart())}>เดือนนี้</QuickButton>
         <DateInput label="จาก" value={from} onChange={setFrom} /><DateInput label="ถึง" value={to} onChange={setTo} />
         <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} />
-        <select className="rounded-lg border border-slate-100 bg-white px-3 py-1.5 text-xs outline-none focus:outline-none focus:border-slate-400 transition cursor-pointer" value={mode} onChange={(event) => setMode(event.target.value)}>
+        <select className="h-9 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:outline-none focus:border-slate-400 transition cursor-pointer" value={mode} onChange={(event) => setMode(event.target.value)}>
           <option value="ALL">All (Stock+Trading)</option><option value="STOCK">Stock Only</option><option value="TRADING">Trading Only</option>
         </select>
         <DisabledButton>📥 Excel</DisabledButton>
-      </FilterPanel>
+      </div>
+
+      {/* Mobile Toolbar (Hidden on Desktop) */}
+      <div className="mb-4 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden space-y-3">
+        <div className="flex gap-2">
+          <button 
+            type="button" 
+            onClick={() => setFrom(monthStart())}
+            className="flex-1 h-9 rounded-lg border border-slate-200 text-xs font-semibold hover:bg-slate-50 text-slate-700 outline-none"
+          >
+            เดือนนี้
+          </button>
+          <button 
+            type="button" 
+            onClick={() => { const now = new Date(); setFrom(new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10)); setTo(today()) }}
+            className="flex-1 h-9 rounded-lg border border-slate-200 text-xs font-semibold hover:bg-slate-50 text-slate-700 outline-none"
+          >
+            ปีนี้
+          </button>
+          <button
+            type="button"
+            className="flex-1 h-9 items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none"
+            onClick={() => setShowMobileFilters(true)}
+          >
+            ตัวกรอง {(branchId || mode !== 'ALL') ? '(มี)' : ''}
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <span className="text-[10px] font-semibold text-slate-500 block">จาก</span>
+            <input
+              type="date"
+              className="w-full h-9 rounded-lg border border-slate-300 px-3 text-xs outline-none bg-white"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <span className="text-[10px] font-semibold text-slate-500 block">ถึง</span>
+            <input
+              type="date"
+              className="w-full h-9 rounded-lg border border-slate-300 px-3 text-xs outline-none bg-white"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Sheet Filter for Mobile */}
+      {showMobileFilters ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 lg:hidden">
+          <div className="w-full rounded-t-2xl bg-white p-5 shadow-xl border-t border-slate-200 max-h-[85vh] overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h4 className="font-bold text-slate-800 text-sm">ตัวกรองเพิ่มเติม</h4>
+              <button
+                className="p-1 text-slate-400 hover:text-slate-600 text-2xl font-bold focus:outline-none"
+                onClick={() => setShowMobileFilters(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block font-semibold text-slate-600 text-xs">สาขา</label>
+                <select
+                  aria-label="Branch select"
+                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+                  value={branchId}
+                  onChange={(event) => setBranchId(event.target.value)}
+                >
+                  <option value="">ทุกสาขา</option>
+                  {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block font-semibold text-slate-600 text-xs">ประเภทรายการ</label>
+                <select
+                  aria-label="Mode select"
+                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+                  value={mode}
+                  onChange={(event) => setMode(event.target.value)}
+                >
+                  <option value="ALL">All (Stock+Trading)</option>
+                  <option value="STOCK">Stock Only</option>
+                  <option value="TRADING">Trading Only</option>
+                </select>
+              </div>
+
+              <div className="border-t border-slate-100 pt-3">
+                <button
+                  type="button"
+                  disabled
+                  className="w-full h-10 rounded-lg bg-slate-100 text-slate-400 font-semibold text-sm cursor-not-allowed flex items-center justify-center gap-1.5 opacity-60"
+                >
+                  📥 Export Excel
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setBranchId('')
+                  setMode('ALL')
+                }}
+                className="flex-1 h-10 rounded-lg border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+              >
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowMobileFilters(false)}
+                className="flex-1 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
+              >
+                ตกลง
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
         <MegaCard footer={`Gross ${money(data?.summary.grossProfit)} · OPEX ${money((data?.summary.expenses ?? 0) + (data?.summary.depreciation ?? 0))}`} label="Net Profit Before Tax" tone="pl" value={money(data?.summary.netProfitBeforeTax)} />
         <Panel title="🌊 Waterfall"><Waterfall rows={[['Revenue', data?.summary.revenue ?? 0], ['COGS', -(data?.summary.cogs ?? 0)], ['OPEX', -(data?.summary.expenses ?? 0)], ['Dep', -(data?.summary.depreciation ?? 0)], ['Interest', -(data?.summary.interest ?? 0)], ['FX', data?.summary.fxNet ?? 0]]} /></Panel>
@@ -110,17 +237,104 @@ export function BalanceSheetPageClient() {
   const url = useMemo(() => `/api/finance-accounting/balance-sheet?asOf=${asOf}${branchId ? `&branchId=${branchId}` : ''}`, [asOf, branchId])
   const { data, error, isLoading } = useApi<BalancePayload>(url)
   const [drill, setDrill] = useState<{ rows: DetailRow[]; title: string } | null>(null)
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
 
   return (
     <section className="space-y-4">
       <BaselineNotice sourceState={data?.sourceState} />
       {error ? <ErrorBox message={error} /> : null}
-      <FilterPanel>
+      
+      {/* Desktop Filter Panel */}
+      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm border border-slate-200">
         <DateInput label="As of" value={asOf} onChange={setAsOf} />
         <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} />
         <span className={`rounded-full px-3 py-1.5 text-xs font-bold ${data?.balanceCheck.balanced ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{data?.balanceCheck.balanced ? 'BALANCED' : `OFF BY ${money(data?.balanceCheck.difference)}`}</span>
         <DisabledButton>📥 Excel</DisabledButton>
-      </FilterPanel>
+      </div>
+
+      {/* Mobile Toolbar (Hidden on Desktop) */}
+      <div className="mb-4 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden space-y-3">
+        <div className="flex gap-2 items-center">
+          <div className="flex-1 flex items-center gap-2">
+            <span className="text-xs text-slate-500 font-semibold shrink-0">As of</span>
+            <DatePickerInput className="w-full" value={asOf} onChange={setAsOf} />
+          </div>
+          <button
+            type="button"
+            className="h-9 items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none"
+            onClick={() => setShowMobileFilters(true)}
+          >
+            ตัวกรอง {branchId ? '(มี)' : ''}
+          </button>
+        </div>
+      </div>
+
+      {/* Bottom Sheet Filter for Mobile */}
+      {showMobileFilters ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 lg:hidden">
+          <div className="w-full rounded-t-2xl bg-white p-5 shadow-xl border-t border-slate-200 max-h-[85vh] overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h4 className="font-bold text-slate-800 text-sm">ตัวกรองเพิ่มเติม</h4>
+              <button
+                className="p-1 text-slate-400 hover:text-slate-600 text-2xl font-bold focus:outline-none"
+                onClick={() => setShowMobileFilters(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block font-semibold text-slate-600 text-xs">สาขา</label>
+                <select
+                  aria-label="Branch select"
+                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+                  value={branchId}
+                  onChange={(event) => setBranchId(event.target.value)}
+                >
+                  <option value="">ทุกสาขา</option>
+                  {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+                </select>
+              </div>
+
+              <div className="pt-2 flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-600">สถานะงบแสดงฐานะการเงิน</span>
+                <span className={`rounded-full px-3 py-1.5 text-xs font-bold ${data?.balanceCheck.balanced ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{data?.balanceCheck.balanced ? 'BALANCED' : `OFF BY ${money(data?.balanceCheck.difference)}`}</span>
+              </div>
+
+              <div className="border-t border-slate-100 pt-3">
+                <button
+                  type="button"
+                  disabled
+                  className="w-full h-10 rounded-lg bg-slate-100 text-slate-400 font-semibold text-sm cursor-not-allowed flex items-center justify-center gap-1.5 opacity-60"
+                >
+                  📥 Export Excel
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setBranchId('')
+                }}
+                className="flex-1 h-10 rounded-lg border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+              >
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowMobileFilters(false)}
+                className="flex-1 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
+              >
+                ตกลง
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
         <MegaCard footer={`Liabilities + Equity ${money(data?.summary.liabilitiesAndEquity)}`} label="Total Assets" tone="bs" value={money(data?.summary.totalAssets)} />
         <Panel title="🥧 Assets Breakdown"><Waterfall rows={[['Cash', data?.summary.cash ?? 0], ['AR', data?.summary.ar ?? 0], ['Inventory', data?.summary.inventory ?? 0], ['Fixed Asset', data?.summary.fixedAssetNet ?? 0]]} /></Panel>
@@ -149,16 +363,129 @@ export function CashFlowStatementPageClient() {
   const url = useMemo(() => `/api/finance-accounting/cash-flow-statement?from=${from}&to=${to}${branchId ? `&branchId=${branchId}` : ''}`, [branchId, from, to])
   const { data, error, isLoading } = useApi<CashPayload>(url)
   const [drill, setDrill] = useState<{ rows: DetailRow[]; title: string } | null>(null)
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
 
   return (
     <section className="space-y-4">
       <BaselineNotice sourceState={data?.sourceState} />
       {error ? <ErrorBox message={error} /> : null}
-      <FilterPanel>
+      
+      {/* Desktop Filter Panel */}
+      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm border border-slate-200">
         <DateInput label="จาก" value={from} onChange={setFrom} /><DateInput label="ถึง" value={to} onChange={setTo} />
         <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} />
         <DisabledButton>📥 Excel</DisabledButton>
-      </FilterPanel>
+      </div>
+
+      {/* Mobile Toolbar (Hidden on Desktop) */}
+      <div className="mb-4 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden space-y-3">
+        <div className="flex gap-2">
+          <button 
+            type="button" 
+            onClick={() => setFrom(monthStart())}
+            className="flex-1 h-9 rounded-lg border border-slate-200 text-xs font-semibold hover:bg-slate-50 text-slate-700 outline-none"
+          >
+            เดือนนี้
+          </button>
+          <button 
+            type="button" 
+            onClick={() => { const now = new Date(); setFrom(new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10)); setTo(today()) }}
+            className="flex-1 h-9 rounded-lg border border-slate-200 text-xs font-semibold hover:bg-slate-50 text-slate-700 outline-none"
+          >
+            ปีนี้
+          </button>
+          <button
+            type="button"
+            className="flex-1 h-9 items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none"
+            onClick={() => setShowMobileFilters(true)}
+          >
+            ตัวกรอง {branchId ? '(มี)' : ''}
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <span className="text-[10px] font-semibold text-slate-500 block">จาก</span>
+            <input
+              type="date"
+              className="w-full h-9 rounded-lg border border-slate-300 px-3 text-xs outline-none bg-white text-slate-900"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <span className="text-[10px] font-semibold text-slate-500 block">ถึง</span>
+            <input
+              type="date"
+              className="w-full h-9 rounded-lg border border-slate-300 px-3 text-xs outline-none bg-white text-slate-900"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Sheet Filter for Mobile */}
+      {showMobileFilters ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 lg:hidden">
+          <div className="w-full rounded-t-2xl bg-white p-5 shadow-xl border-t border-slate-200 max-h-[85vh] overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h4 className="font-bold text-slate-800 text-sm">ตัวกรองเพิ่มเติม</h4>
+              <button
+                className="p-1 text-slate-400 hover:text-slate-600 text-2xl font-bold focus:outline-none"
+                onClick={() => setShowMobileFilters(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block font-semibold text-slate-600 text-xs">สาขา</label>
+                <select
+                  aria-label="Branch select"
+                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+                  value={branchId}
+                  onChange={(event) => setBranchId(event.target.value)}
+                >
+                  <option value="">ทุกสาขา</option>
+                  {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+                </select>
+              </div>
+
+              <div className="border-t border-slate-100 pt-3">
+                <button
+                  type="button"
+                  disabled
+                  className="w-full h-10 rounded-lg bg-slate-100 text-slate-400 font-semibold text-sm cursor-not-allowed flex items-center justify-center gap-1.5 opacity-60"
+                >
+                  📥 Export Excel
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setBranchId('')
+                }}
+                className="flex-1 h-10 rounded-lg border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+              >
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowMobileFilters(false)}
+                className="flex-1 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
+              >
+                ตกลง
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
         <MegaCard footer={`Beginning ${money(data?.summary.openingCash)} · Ending ${money(data?.summary.endingCash)}`} label="Net Change in Cash" tone="cf" value={money(data?.summary.netChange)} />
         <Panel title="🥧 Activity Inflow"><Waterfall rows={[['Operating', data?.activities.operating.inflow ?? 0], ['Investing', data?.activities.investing.inflow ?? 0], ['Financing', data?.activities.financing.inflow ?? 0]]} /></Panel>

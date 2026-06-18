@@ -227,7 +227,7 @@ export function IntlTransferPageClient() {
             <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4">
               <button className="rounded-md px-4 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/50" type="button" onClick={() => setShowForm(false)}>ยกเลิก</button>
               <button className="rounded-md bg-slate-600 px-4 py-2 text-sm text-white opacity-60 transition-colors" disabled type="button">บันทึกร่าง</button>
-              <button className="rounded-md bg-[#0F172A] hover:bg-[#1E293B] px-5 py-2 text-sm font-semibold text-white opacity-60 transition-colors" disabled type="button">ส่งธนาคาร + ลด Cash/Bank</button>
+              <button className="rounded-md bg-blue-600 hover:bg-blue-700 px-5 py-2 text-sm font-semibold text-white opacity-60 transition-colors" disabled type="button">ส่งธนาคาร + ลด Cash/Bank</button>
             </div>
           </div>
         </div>

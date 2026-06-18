@@ -507,7 +507,7 @@ function CostSourceModal({
               </div>
               {error ? <div className="col-span-2 rounded-xl border border-red-200 bg-red-50 p-2 text-sm text-red-700">{error}</div> : null}
               <button
-                className="col-span-2 h-10 rounded-xl bg-slate-900 hover:bg-slate-800 px-4 text-sm font-semibold text-white transition-colors outline-none focus:outline-none focus:ring-0 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 cursor-pointer"
+                className="col-span-2 h-10 rounded-xl bg-blue-600 hover:bg-blue-700 px-4 text-sm font-semibold text-white transition-colors outline-none focus:outline-none focus:ring-0 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 cursor-pointer"
                 disabled={!canSubmit || isSaving}
                 type="button"
                 onClick={onSubmit}

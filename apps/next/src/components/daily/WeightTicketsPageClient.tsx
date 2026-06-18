@@ -1569,7 +1569,7 @@ function ProductImagePicker({
         }}
         className={cn(
           "w-full text-white flex items-center justify-center gap-1.5 h-10 rounded-md text-xs font-semibold",
-          buttonClassName || "bg-slate-900 hover:bg-slate-800"
+          buttonClassName || "bg-blue-600 hover:bg-blue-700"
         )}
       >
         <Plus className="h-4 w-4" />
@@ -1708,7 +1708,7 @@ function ProductImagePicker({
               onClick={handleConfirmSelection}
               className={cn(
                 "h-10 px-5 font-semibold text-white transition",
-                tempSelectedId ? "bg-slate-900 hover:bg-slate-800" : "bg-slate-300 cursor-not-allowed"
+                tempSelectedId ? "bg-blue-600 hover:bg-blue-700" : "bg-slate-300 cursor-not-allowed"
               )}
             >
               + เพิ่ม

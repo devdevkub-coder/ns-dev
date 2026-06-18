@@ -232,7 +232,7 @@ export function FxRatePageClient() {
             <button className="rounded-md bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition-colors" type="button" onClick={() => { setFromDate(''); setToDate(''); setFromCurrency('all'); setActive('true') }}>✕ ล้าง</button>
           )}
 
-          <button className="rounded-md bg-slate-900 hover:bg-slate-800 px-4 py-2 text-sm font-semibold text-white transition-colors flex items-center justify-center" type="button" onClick={openCreate}>+ เพิ่ม FX Rate</button>
+          <button className="rounded-md bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition-colors flex items-center justify-center" type="button" onClick={openCreate}>+ เพิ่ม FX Rate</button>
         </div>
 
         {/* Mobile View */}
@@ -247,7 +247,7 @@ export function FxRatePageClient() {
             >
               🔍 ตัวกรอง {hasFilters ? '(มี)' : ''}
             </button>
-            <button className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white flex items-center justify-center" type="button" onClick={openCreate}>+ เพิ่ม</button>
+            <button className="rounded-md bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-semibold text-white flex items-center justify-center" type="button" onClick={openCreate}>+ เพิ่ม</button>
           </div>
 
           {showMobileFilters && (

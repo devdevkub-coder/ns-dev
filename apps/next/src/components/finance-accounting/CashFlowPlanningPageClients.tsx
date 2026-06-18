@@ -74,16 +74,94 @@ export function CashFlowAnalysisPageClient() {
   const url = useMemo(() => `/api/finance-accounting/cash-flow-analysis?from=${from}&to=${to}${branchId ? `&branchId=${branchId}` : ''}`, [branchId, from, to])
   const { data, error, isLoading } = useApi<AnalysisPayload>(url)
   const maxProfit = Math.max(Math.abs(data?.summary.netProfit ?? 0), Math.abs(data?.summary.operatingCashFlow ?? 0), 1)
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
 
   return (
     <section className="space-y-4">
       <BaselineNotice sourceState={data?.sourceState} />
       {error ? <ErrorBox message={error} /> : null}
-      <FilterPanel>
+      
+      {/* Desktop Filter Panel */}
+      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm border border-slate-200">
         <DateInput label="From" value={from} onChange={setFrom} />
         <DateInput label="To" value={to} onChange={setTo} />
         <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} />
-      </FilterPanel>
+      </div>
+
+      {/* Mobile Toolbar (Hidden on Desktop) */}
+      <div className="mb-4 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden space-y-3">
+        <div className="flex gap-2 items-center">
+          <div className="flex-1 grid grid-cols-2 gap-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-slate-500 font-semibold shrink-0">From</span>
+              <DatePickerInput className="w-full text-xs" value={from} onChange={setFrom} />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-slate-500 font-semibold shrink-0">To</span>
+              <DatePickerInput className="w-full text-xs" value={to} onChange={setTo} />
+            </div>
+          </div>
+          <button
+            type="button"
+            className="h-9 items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none"
+            onClick={() => setShowMobileFilters(true)}
+          >
+            ตัวกรอง {branchId ? '(มี)' : ''}
+          </button>
+        </div>
+      </div>
+
+      {/* Bottom Sheet Filter for Mobile */}
+      {showMobileFilters ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 lg:hidden">
+          <div className="w-full rounded-t-2xl bg-white p-5 shadow-xl border-t border-slate-200 max-h-[85vh] overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h4 className="font-bold text-slate-800 text-sm">ตัวกรองเพิ่มเติม</h4>
+              <button
+                className="p-1 text-slate-400 hover:text-slate-600 text-2xl font-bold focus:outline-none"
+                onClick={() => setShowMobileFilters(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block font-semibold text-slate-600 text-xs">สาขา</label>
+                <select
+                  aria-label="Branch select"
+                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+                  value={branchId}
+                  onChange={(event) => setBranchId(event.target.value)}
+                >
+                  <option value="">ทุกสาขา</option>
+                  {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setBranchId('')
+                }}
+                className="flex-1 h-10 rounded-lg border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+              >
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowMobileFilters(false)}
+                className="flex-1 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
+              >
+                ตกลง
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Panel title="📊 กำไร vs เงินสดจริง">
           <Bar label="Net Profit (Accrual)" max={maxProfit} tone="emerald" value={data?.summary.netProfit ?? 0} />
@@ -113,18 +191,107 @@ export function CashFlowForecastCalendarPageClient() {
   const [modal, setModal] = useState<ProjectionDay | null>(null)
   const url = useMemo(() => `/api/finance-accounting/cf-forecast-calendar?startDate=${startDate}&horizon=${horizon}${branchId ? `&branchId=${branchId}` : ''}`, [branchId, horizon, startDate])
   const { data, error, isLoading } = useApi<ForecastPayload>(url)
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
 
   return (
     <section className="space-y-4">
       <BaselineNotice sourceState={data?.sourceState} />
       {error ? <ErrorBox message={error} /> : null}
-      <FilterPanel>
+      
+      {/* Desktop Filter Panel */}
+      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm border border-slate-200">
         <span className="text-sm font-bold">Forecast:</span>
-        {[7, 30, 90].map((item) => <button key={item} className={`rounded-md px-3 py-1.5 text-sm font-medium ${horizon === item ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`} type="button" onClick={() => setHorizon(item)}>{item} วัน</button>)}
+        {[7, 30, 90].map((item) => <button key={item} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${horizon === item ? 'bg-[#0F172A] text-white' : 'bg-slate-50 border border-slate-100 text-slate-600 hover:bg-slate-100'}`} type="button" onClick={() => setHorizon(item)}>{item} วัน</button>)}
         <DateInput label="เริ่ม" value={startDate} onChange={setStartDate} />
         <BranchSelect branches={data?.branches ?? []} value={branchId} onChange={setBranchId} />
         <span className="text-xs text-slate-500">เริ่มจาก {money(data?.summary.startCash)} → จบที่ {money(data?.summary.endCash)}</span>
-      </FilterPanel>
+      </div>
+
+      {/* Mobile Toolbar (Hidden on Desktop) */}
+      <div className="mb-4 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden space-y-3">
+        <div className="flex gap-2 items-center justify-between">
+          <div className="flex gap-1.5 overflow-x-auto">
+            {[7, 30, 90].map((item) => (
+              <button
+                key={item}
+                className={`h-9 px-3 rounded-lg text-xs font-semibold ${horizon === item ? 'bg-[#0F172A] text-white' : 'bg-slate-50 border border-slate-200 text-slate-600'}`}
+                type="button"
+                onClick={() => setHorizon(item)}
+              >
+                {item} วัน
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            className="h-9 items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none shrink-0"
+            onClick={() => setShowMobileFilters(true)}
+          >
+            ตัวกรอง {branchId ? '(มี)' : ''}
+          </button>
+        </div>
+      </div>
+
+      {/* Bottom Sheet Filter for Mobile */}
+      {showMobileFilters ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 lg:hidden">
+          <div className="w-full rounded-t-2xl bg-white p-5 shadow-xl border-t border-slate-200 max-h-[85vh] overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h4 className="font-bold text-slate-800 text-sm">ตัวกรองเพิ่มเติม</h4>
+              <button
+                className="p-1 text-slate-400 hover:text-slate-600 text-2xl font-bold focus:outline-none"
+                onClick={() => setShowMobileFilters(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block font-semibold text-slate-600 text-xs">เริ่มวันที่</label>
+                <DatePickerInput className="w-full text-sm" value={startDate} onChange={setStartDate} />
+              </div>
+
+              <div>
+                <label className="mb-1 block font-semibold text-slate-600 text-xs">สาขา</label>
+                <select
+                  aria-label="Branch select"
+                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+                  value={branchId}
+                  onChange={(event) => setBranchId(event.target.value)}
+                >
+                  <option value="">ทุกสาขา</option>
+                  {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+                </select>
+              </div>
+
+              <div className="pt-2 text-xs text-slate-500 border-t border-slate-100">
+                เริ่มจาก <span className="font-bold text-slate-700">{money(data?.summary.startCash)}</span> → จบที่ <span className="font-bold text-slate-700">{money(data?.summary.endCash)}</span>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setBranchId('')
+                }}
+                className="flex-1 h-10 rounded-lg border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+              >
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowMobileFilters(false)}
+                className="flex-1 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
+              >
+                ตกลง
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <ForecastMega summary={data?.summary} horizon={horizon} />
         <div className="col-span-1 rounded-md bg-white p-4 shadow md:col-span-2"><div className="mb-3 text-sm font-bold text-slate-700">📈 พยากรณ์เงินสดรายวัน ({horizon} วันข้างหน้า)</div><ProjectionSvg days={data?.dailyProjection ?? []} /></div>

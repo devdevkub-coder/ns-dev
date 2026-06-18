@@ -450,7 +450,7 @@ export function MasterDataPageClient({ config }: MasterDataPageClientProps) {
             </button>
           ) : null}
           <button
-            className="ml-auto rounded-md bg-slate-900 hover:bg-slate-800 px-4 py-2 text-sm text-white disabled:opacity-60 h-9 flex items-center justify-center font-normal focus:outline-none"
+            className="ml-auto rounded-md bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm text-white disabled:opacity-60 h-9 flex items-center justify-center font-semibold shadow-sm focus:outline-none transition"
             type="button"
             onClick={openCreateForm}
           >

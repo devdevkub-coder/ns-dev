@@ -171,6 +171,7 @@ export function AssetRegisterPageClient() {
   const [modal, setModal] = useState<'asset' | 'import' | null>(null)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
 
   const supplierOptions = useMemo(() => {
     return (data?.options.suppliers ?? []).map((row) => ({
@@ -331,7 +332,7 @@ export function AssetRegisterPageClient() {
 
   return (
     <section className="space-y-4 text-slate-800">
-      <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm border border-slate-100">
+      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm border border-slate-100">
         <LinkButton href="/api/finance-accounting/asset-register?template=csv">📄 Template</LinkButton>
         <button
           type="button"
@@ -344,7 +345,7 @@ export function AssetRegisterPageClient() {
         <button
           type="button"
           onClick={openCreate}
-          className="ml-auto rounded-lg bg-[#0F172A] hover:bg-slate-800 text-white px-4 py-1.5 text-xs font-bold transition shadow-sm outline-none focus:ring-0"
+          className="ml-auto hidden lg:inline-flex items-center rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 text-xs font-bold transition shadow-sm outline-none focus:ring-0"
         >
           + เพิ่มทรัพย์สิน
         </button>
@@ -390,17 +391,18 @@ export function AssetRegisterPageClient() {
         <StatCard label="NBV สุทธิรวม" value={formatMoney(data?.summary.nbv)} tone="emerald" icon="🏢" />
       </div>
 
-      <div className="flex flex-col gap-2 md:flex-row md:items-center rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+      {/* Desktop Toolbar */}
+      <div className="hidden lg:flex flex-col gap-2 md:flex-row md:items-center rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
         <input
-          className="w-full md:flex-1 rounded-lg border border-slate-100 px-3 py-1.5 text-xs outline-none focus:ring-0 focus:outline-none focus:border-slate-400 transition"
+          className="w-full md:flex-1 h-9 rounded-lg border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-slate-400 transition"
           placeholder="ค้นหา รหัส / ชื่อ / สถานที่ / สาขา"
           type="search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
-        <div className="grid grid-cols-2 gap-2 lg:flex md:items-center md:gap-2 w-full md:w-auto">
+        <div className="flex md:items-center gap-2 w-full md:w-auto">
           <select
-            className="w-full md:w-auto rounded-lg border border-slate-100 bg-white px-3 py-1.5 text-xs outline-none focus:ring-0 focus:outline-none focus:border-slate-400 transition cursor-pointer"
+            className="w-full md:w-auto h-9 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
             value={category}
             onChange={(event) => setCategory(event.target.value)}
           >
@@ -408,7 +410,7 @@ export function AssetRegisterPageClient() {
             {(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
           <select
-            className="w-full md:w-auto rounded-lg border border-slate-100 bg-white px-3 py-1.5 text-xs outline-none focus:ring-0 focus:outline-none focus:border-slate-400 transition cursor-pointer"
+            className="w-full md:w-auto h-9 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
             value={status}
             onChange={(event) => setStatus(event.target.value)}
           >
@@ -417,6 +419,117 @@ export function AssetRegisterPageClient() {
           </select>
         </div>
       </div>
+
+      {/* Mobile Toolbar (Hidden on Desktop) */}
+      <div className="mb-4 space-y-2 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden">
+        <div className="flex gap-2 items-center">
+          <input
+            className="flex-1 rounded-lg border border-slate-300 px-3 py-1 text-sm h-9 outline-none focus:border-slate-400 transition"
+            placeholder="ค้นหา..."
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+          <button
+            type="button"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
+            onClick={() => setShowMobileFilters(true)}
+          >
+            ตัวกรอง {(category !== 'all' || status !== 'all') ? '(มี)' : ''}
+          </button>
+        </div>
+      </div>
+
+      {/* Bottom Sheet Filter for Mobile */}
+      {showMobileFilters ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 lg:hidden">
+          <div className="w-full rounded-t-2xl bg-white p-5 shadow-xl border-t border-slate-200 max-h-[85vh] overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h4 className="font-bold text-slate-800 text-sm">ตัวกรองเพิ่มเติม</h4>
+              <button
+                className="p-1 text-slate-400 hover:text-slate-600 text-2xl font-bold focus:outline-none"
+                onClick={() => setShowMobileFilters(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block font-semibold text-slate-600 text-xs">หมวดหมู่</label>
+                <select
+                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+                  value={category}
+                  onChange={(event) => setCategory(event.target.value)}
+                >
+                  <option value="all">ทุกหมวด</option>
+                  {(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block font-semibold text-slate-600 text-xs">สถานะ</label>
+                <select
+                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+                  value={status}
+                  onChange={(event) => setStatus(event.target.value)}
+                >
+                  <option value="all">ทุกสถานะ</option>
+                  {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </div>
+
+              <div className="border-t border-slate-100 pt-3 space-y-2">
+                <label className="block font-semibold text-slate-600 text-xs">จัดการไฟล์และระบบนำเข้า</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+                  <a
+                    href="/api/finance-accounting/asset-register?template=csv"
+                    className="flex h-10 items-center justify-center rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                  >
+                    📄 Template
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => { setShowMobileFilters(false); setError(null); setImportRows([]); setImportPreview(null); setModal('import') }}
+                    className="flex h-10 items-center justify-center rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                  >
+                    📥 Import
+                  </button>
+                  <a
+                    href={exportHref}
+                    onClick={() => setShowMobileFilters(false)}
+                    className="col-span-2 flex h-10 items-center justify-center rounded-lg bg-slate-100 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition"
+                  >
+                    📤 Export CSV
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setCategory('all')
+                  setStatus('all')
+                }}
+                className="flex-1 h-10 rounded-lg border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+              >
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowMobileFilters(false)}
+                className="flex-1 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
+              >
+                ตกลง
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Desktop View Table */}
       <div className="hidden lg:block">
@@ -634,6 +747,7 @@ export function DepreciationPageClient() {
 
   const [filterCategory, setFilterCategory] = useState('all')
   const [filterDepartment, setFilterDepartment] = useState('all')
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
 
   const loadData = useCallback(() => {
     setIsLoading(true)
@@ -736,29 +850,153 @@ export function DepreciationPageClient() {
   return (
     <section className="space-y-4">
       {error ? <ErrorBox message={error} /> : null}
-      <FilterPanel>
-        <select aria-label="Depreciation month" className="rounded-lg border border-slate-100 bg-white px-3 py-1.5 text-xs outline-none focus:outline-none focus:border-slate-400 transition cursor-pointer" value={month} onChange={(event) => setMonth(event.target.value)}>
+      {/* Desktop Filter Panel */}
+      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm border border-slate-200">
+        <select aria-label="Depreciation month" className="h-9 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={month} onChange={(event) => setMonth(event.target.value)}>
           <option value="all">ดูรายปี (ทุกเดือน)</option>
           {Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0')).map((item) => <option key={item} value={item}>เดือน {item}</option>)}
         </select>
-        <input aria-label="Depreciation year" className="w-24 rounded-lg border border-slate-100 px-3 py-1.5 text-xs outline-none focus:outline-none focus:border-slate-400 transition" value={year} onChange={(event) => setYear(event.target.value)} />
-        <input aria-label="Depreciation period date" className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-1.5 text-xs outline-none focus:outline-none focus:border-slate-400 transition" readOnly value={periodDate} />
+        <input aria-label="Depreciation year" className="w-24 h-9 rounded-lg border border-slate-300 px-3 py-1 text-sm outline-none focus:border-slate-400 transition text-center" value={year} onChange={(event) => setYear(event.target.value)} />
+        <input aria-label="Depreciation period date" className="h-9 rounded-lg border border-slate-300 bg-slate-50 px-3 py-1 text-sm outline-none cursor-default" readOnly value={periodDate} />
         
-        <select aria-label="Filter category" className="rounded-lg border border-slate-100 bg-white px-3 py-1.5 text-xs outline-none focus:outline-none focus:border-slate-400 transition cursor-pointer" value={filterCategory} onChange={(event) => setFilterCategory(event.target.value)}>
+        <select aria-label="Filter category" className="h-9 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={filterCategory} onChange={(event) => setFilterCategory(event.target.value)}>
           <option value="all">ทุกหมวด</option>
           {categoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
-        <select aria-label="Filter department" className="rounded-lg border border-slate-100 bg-white px-3 py-1.5 text-xs outline-none focus:outline-none focus:border-slate-400 transition cursor-pointer" value={filterDepartment} onChange={(event) => setFilterDepartment(event.target.value)}>
+        <select aria-label="Filter department" className="h-9 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={filterDepartment} onChange={(event) => setFilterDepartment(event.target.value)}>
           <option value="all">ทุกแผนก</option>
           {departmentOptions.map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
 
-        <Chip tone="blue">Asset ที่คิดค่าเสื่อม {filteredPendingAssets.length}</Chip>
-        <Chip tone="emerald">Run แล้วงวดนี้ {data?.period.postedRuns ?? 0}</Chip>
+        <Chip tone="blue">คิดค่าเสื่อม {filteredPendingAssets.length}</Chip>
+        <Chip tone="emerald">Run แล้ว {data?.period.postedRuns ?? 0}</Chip>
         <Chip tone="amber">รอ Run {filteredPendingAssets.length}</Chip>
         <span className="flex-1" />
         <ActionButton disabled={isSaving || month === 'all' || filteredPendingAssets.length === 0} strong onClick={runPreview}>Preview ค่าเสื่อมงวดนี้</ActionButton>
-      </FilterPanel>
+      </div>
+
+      {/* Mobile Toolbar (Hidden on Desktop) */}
+      <div className="rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden space-y-3">
+        <div className="flex gap-2 items-center">
+          <select 
+            aria-label="Depreciation month" 
+            className="flex-1 h-9 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer" 
+            value={month} 
+            onChange={(event) => setMonth(event.target.value)}
+          >
+            <option value="all">ดูรายปี (ทุกเดือน)</option>
+            {Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0')).map((item) => <option key={item} value={item}>เดือน {item}</option>)}
+          </select>
+          <input 
+            aria-label="Depreciation year" 
+            className="w-20 h-9 rounded-lg border border-slate-300 px-3 py-1 text-sm outline-none focus:border-slate-400 transition text-center" 
+            value={year} 
+            onChange={(event) => setYear(event.target.value)} 
+          />
+          <button
+            type="button"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
+            onClick={() => setShowMobileFilters(true)}
+          >
+            ตัวกรอง
+          </button>
+        </div>
+        
+        <div className="flex flex-wrap gap-2 pt-1">
+          <Chip tone="blue">คิดค่าเสื่อม {filteredPendingAssets.length}</Chip>
+          <Chip tone="emerald">Run แล้ว {data?.period.postedRuns ?? 0}</Chip>
+          <Chip tone="amber">รอ Run {filteredPendingAssets.length}</Chip>
+        </div>
+
+        <button
+          type="button"
+          disabled={isSaving || month === 'all' || filteredPendingAssets.length === 0}
+          onClick={runPreview}
+          className={`w-full h-10 rounded-lg text-sm font-bold transition shadow-sm outline-none focus:ring-0 flex items-center justify-center ${
+            isSaving || month === 'all' || filteredPendingAssets.length === 0
+              ? 'bg-slate-100 text-slate-400 cursor-not-allowed opacity-60'
+              : 'bg-blue-600 hover:bg-blue-700 text-white active:scale-95 transition-transform'
+          }`}
+        >
+          Preview ค่าเสื่อมงวดนี้
+        </button>
+      </div>
+
+      {/* Bottom Sheet Filter for Mobile */}
+      {showMobileFilters ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 lg:hidden">
+          <div className="w-full rounded-t-2xl bg-white p-5 shadow-xl border-t border-slate-200 max-h-[85vh] overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h4 className="font-bold text-slate-800 text-sm">ตัวกรองเพิ่มเติม</h4>
+              <button
+                className="p-1 text-slate-400 hover:text-slate-600 text-2xl font-bold focus:outline-none"
+                onClick={() => setShowMobileFilters(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block font-semibold text-slate-600 text-xs">หมวดหมู่ทรัพย์สิน</label>
+                <select 
+                  aria-label="Filter category" 
+                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer" 
+                  value={filterCategory} 
+                  onChange={(event) => setFilterCategory(event.target.value)}
+                >
+                  <option value="all">ทุกหมวด</option>
+                  {categoryOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block font-semibold text-slate-600 text-xs">แผนก</label>
+                <select 
+                  aria-label="Filter department" 
+                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer" 
+                  value={filterDepartment} 
+                  onChange={(event) => setFilterDepartment(event.target.value)}
+                >
+                  <option value="all">ทุกแผนก</option>
+                  {departmentOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block font-semibold text-slate-600 text-xs">วันสิ้นสุดงวด (Period End Date)</label>
+                <input 
+                  aria-label="Depreciation period date" 
+                  className="w-full h-10 rounded-lg border border-slate-300 bg-slate-50 px-3 py-1 text-sm outline-none cursor-default" 
+                  readOnly 
+                  value={periodDate} 
+                />
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex gap-2">
+              <button 
+                type="button" 
+                onClick={() => {
+                  setFilterCategory('all')
+                  setFilterDepartment('all')
+                }}
+                className="flex-1 h-10 rounded-lg border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+              >
+                ล้างตัวกรอง
+              </button>
+              <button 
+                type="button" 
+                onClick={() => setShowMobileFilters(false)}
+                className="flex-1 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
+              >
+                ตกลง
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
         <StatCard label="สินทรัพย์รอประมวลผล" value={filteredPendingAssets.length} tone="amber" icon="⏳" />
         <StatCard label="ประวัติประมวลผลค่าเสื่อม" value={data?.period.postedRuns ?? 0} tone="blue" icon="📊" />
@@ -1028,13 +1266,39 @@ export function AssetDisposalPageClient() {
   return (
     <section className="space-y-4">
       {error ? <ErrorBox message={error} /> : null}
-      <FilterPanel>
+      {/* Desktop Toolbar */}
+      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm border border-slate-200">
         <Chip tone="blue">Asset ที่จำหน่ายได้ {data?.summary.activeAssets ?? 0}</Chip>
         <Chip tone="emerald">รายการ approved {data?.summary.disposedRows ?? 0}</Chip>
         <Chip tone="amber">Reverse {data?.summary.reversedRows ?? 0}</Chip>
-        <span className="flex-1" />
-        <ActionButton strong onClick={openCreate}>+ Disposal</ActionButton>
-      </FilterPanel>
+        <div className="ml-auto">
+          <button 
+            type="button" 
+            onClick={openCreate} 
+            className="h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition outline-none"
+          >
+            + Disposal
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile Toolbar (Hidden on Desktop) */}
+      <div className="mb-4 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden">
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-lg bg-blue-50 border border-blue-100 p-1.5">
+            <div className="text-[10px] text-slate-500 font-semibold">จำหน่ายได้</div>
+            <div className="text-xs font-bold text-blue-700">{data?.summary.activeAssets ?? 0}</div>
+          </div>
+          <div className="rounded-lg bg-emerald-50 border border-emerald-100 p-1.5">
+            <div className="text-[10px] text-slate-500 font-semibold">Approved</div>
+            <div className="text-xs font-bold text-emerald-700">{data?.summary.disposedRows ?? 0}</div>
+          </div>
+          <div className="rounded-lg bg-amber-50 border border-amber-100 p-1.5">
+            <div className="text-[10px] text-slate-500 font-semibold">Reverse</div>
+            <div className="text-xs font-bold text-amber-700">{data?.summary.reversedRows ?? 0}</div>
+          </div>
+        </div>
+      </div>
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
         <StatCard label="ยอดขายรวม (Proceeds)" value={formatMoney(data?.summary.proceeds)} tone="blue" icon="💵" />
         <StatCard label="กำไร/(ขาดทุน) สุทธิ" value={formatMoney(data?.summary.gainLoss)} tone={(data?.summary.gainLoss ?? 0) >= 0 ? 'emerald' : 'red'} icon="📈" />

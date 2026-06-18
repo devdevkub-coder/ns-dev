@@ -351,7 +351,7 @@ export function DailyPettyAdvancePageClient() {
       {/* Floating Action Button (FAB) for Mobile */}
       <div className="fixed bottom-6 right-6 z-40 lg:hidden">
         <button
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-800 text-white shadow-lg active:scale-95 transition-transform"
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg active:scale-95 transition-transform hover:bg-blue-700"
           onClick={openCreateForm}
           type="button"
           aria-label="ยืมเงินใหม่"

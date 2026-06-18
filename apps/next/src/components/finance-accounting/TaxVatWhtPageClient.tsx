@@ -45,6 +45,7 @@ export function TaxVatWhtPageClient() {
   const [month, setMonth] = useState(String(now.getMonth() + 1).padStart(2, '0'))
   const [year, setYear] = useState(String(now.getFullYear()))
   const [branchId, setBranchId] = useState('')
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
   const url = useMemo(() => `/api/finance-accounting/tax-vat-wht?month=${month}&year=${year}${branchId ? `&branchId=${branchId}` : ''}`, [branchId, month, year])
   const { data, error, isLoading } = useApi<TaxPayload>(url)
   const maxCalendar = Math.max(...(data?.taxCalendar ?? []).flatMap((row) => [row.vOut, row.vIn, Math.abs(row.vatPayable)]), 1)
@@ -54,18 +55,19 @@ export function TaxVatWhtPageClient() {
       <BaselineNotice sourceState={data?.sourceState} />
       {error ? <ErrorBox message={error} /> : null}
       
-      <FilterPanel>
+      {/* Desktop Filter Panel */}
+      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm border border-slate-200">
         <div className="flex items-center gap-2">
           <label className="text-sm text-slate-600 font-medium">งวด</label>
           <select 
-            className="rounded-lg border border-slate-300 px-3 py-1 bg-white text-sm outline-none focus:ring-0 focus:border-slate-400 transition-colors h-9" 
+            className="rounded-lg border border-slate-300 px-3 py-1 bg-white text-sm outline-none focus:ring-0 focus:border-slate-400 transition-colors h-9 cursor-pointer" 
             value={month} 
             onChange={(event) => setMonth(event.target.value)}
           >
             {MONTHS.map((item) => <option key={item} value={item}>เดือน {item}</option>)}
           </select>
           <select 
-            className="rounded-lg border border-slate-300 px-3 py-1 bg-white text-sm outline-none focus:ring-0 focus:border-slate-400 transition-colors h-9" 
+            className="rounded-lg border border-slate-300 px-3 py-1 bg-white text-sm outline-none focus:ring-0 focus:border-slate-400 transition-colors h-9 cursor-pointer" 
             value={year} 
             onChange={(event) => setYear(event.target.value)}
           >
@@ -77,7 +79,104 @@ export function TaxVatWhtPageClient() {
           <span className="text-xs text-slate-500">ช่วง {data?.filters.periodStart ?? `${year}-${month}-01`} ถึง {data?.filters.periodEnd ?? '-'}</span>
           <DisabledButton>📥 Excel</DisabledButton>
         </div>
-      </FilterPanel>
+      </div>
+
+      {/* Mobile Toolbar (Hidden on Desktop) */}
+      <div className="mb-4 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden space-y-3">
+        <div className="flex gap-2 items-center">
+          <div className="flex-1 grid grid-cols-2 gap-2">
+            <select 
+              aria-label="Month select"
+              className="w-full h-9 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs outline-none focus:border-slate-400 transition cursor-pointer" 
+              value={month} 
+              onChange={(event) => setMonth(event.target.value)}
+            >
+              {MONTHS.map((item) => <option key={item} value={item}>เดือน {item}</option>)}
+            </select>
+            <select 
+              aria-label="Year select"
+              className="w-full h-9 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs outline-none focus:border-slate-400 transition cursor-pointer" 
+              value={year} 
+              onChange={(event) => setYear(event.target.value)}
+            >
+              {YEARS.map((item) => <option key={item} value={String(item)}>ปี {item}</option>)}
+            </select>
+          </div>
+          <button
+            type="button"
+            className="h-9 items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none"
+            onClick={() => setShowMobileFilters(true)}
+          >
+            ตัวกรอง {branchId ? '(มี)' : ''}
+          </button>
+        </div>
+      </div>
+
+      {/* Bottom Sheet Filter for Mobile */}
+      {showMobileFilters ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 lg:hidden">
+          <div className="w-full rounded-t-2xl bg-white p-5 shadow-xl border-t border-slate-200 max-h-[85vh] overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h4 className="font-bold text-slate-800 text-sm">ตัวกรองเพิ่มเติม</h4>
+              <button
+                className="p-1 text-slate-400 hover:text-slate-600 text-2xl font-bold focus:outline-none"
+                onClick={() => setShowMobileFilters(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block font-semibold text-slate-600 text-xs">สาขา</label>
+                <select
+                  aria-label="Branch select"
+                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+                  value={branchId}
+                  onChange={(event) => setBranchId(event.target.value)}
+                >
+                  <option value="">ทุกสาขา</option>
+                  {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+                </select>
+              </div>
+
+              <div className="pt-2 text-xs text-slate-500 border-t border-slate-100">
+                ช่วงเวลา: <span className="font-semibold">{data?.filters.periodStart ?? `${year}-${month}-01`} ถึง {data?.filters.periodEnd ?? '-'}</span>
+              </div>
+
+              <div className="border-t border-slate-100 pt-3">
+                <button
+                  type="button"
+                  disabled
+                  className="w-full h-10 rounded-lg bg-slate-100 text-slate-400 font-semibold text-sm cursor-not-allowed flex items-center justify-center gap-1.5 opacity-60"
+                >
+                  📥 Export Excel
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setBranchId('')
+                }}
+                className="flex-1 h-10 rounded-lg border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+              >
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowMobileFilters(false)}
+                className="flex-1 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
+              >
+                ตกลง
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* VAT Payable Premium Box */}

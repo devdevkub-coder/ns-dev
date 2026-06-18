@@ -404,7 +404,7 @@ export function CustomersPageClient() {
               <Download aria-hidden="true" className="h-4 w-4" />
               <span className="text-xs sm:text-sm">{isExporting ? 'กำลัง Export...' : 'Export Excel'}</span>
             </button>
-            <button className="inline-flex h-9 items-center gap-1 rounded-md bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60" type="button" onClick={() => void openCreateForm()}>
+            <button className="inline-flex h-9 items-center gap-1 rounded-md bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60" type="button" onClick={() => void openCreateForm()}>
               <Plus aria-hidden="true" className="h-4 w-4" />
               เพิ่มรายการ
             </button>

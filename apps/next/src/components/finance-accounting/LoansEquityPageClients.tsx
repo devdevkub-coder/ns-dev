@@ -68,6 +68,7 @@ export function LoanContractsPageClient() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [type, setType] = useState('all')
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
   const rows = useMemo(() => {
     const needle = search.trim().toLowerCase()
     return (data?.rows ?? []).filter((row) => {
@@ -78,10 +79,19 @@ export function LoanContractsPageClient() {
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap gap-2 rounded-md bg-white p-3 shadow">
+      {/* Desktop Actions */}
+      <div className="hidden lg:flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
         <DisabledButton>📥 Template</DisabledButton>
         <DisabledButton>📤 Import Excel</DisabledButton>
-        <DisabledButton strong>+ เพิ่มสัญญา</DisabledButton>
+        <div className="ml-auto">
+          <button 
+            type="button" 
+            disabled
+            className="h-9 px-4 rounded-lg bg-blue-600/50 text-white text-sm font-semibold opacity-60 cursor-not-allowed outline-none"
+          >
+            + เพิ่มสัญญา
+          </button>
+        </div>
       </div>
       {error ? <ErrorBox message={error} /> : null}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -90,17 +100,122 @@ export function LoanContractsPageClient() {
         <StatCard label="หนี้คงเหลือ" value={formatMoney(data?.summary.outstanding)} tone="cyan" />
         <StatCard label="เกินกำหนด" value={formatMoney(data?.summary.overdue)} tone="red" />
       </div>
-      <FilterPanel>
-        <input className="min-w-0 flex-1 rounded-md border border-slate-100 px-3 py-2 text-sm" placeholder="ค้นหา loanNo/contractNo/lender..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-        <select className="rounded-md border border-slate-100 bg-white px-3 py-2 text-sm" value={type} onChange={(event) => setType(event.target.value)}>
+
+      {/* Desktop Filter Panel */}
+      <div className="hidden lg:flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm border border-slate-200">
+        <input className="min-w-0 flex-1 h-9 rounded-lg border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-slate-400 transition" placeholder="ค้นหา loanNo/contractNo/lender..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+        <select className="h-9 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={type} onChange={(event) => setType(event.target.value)}>
           <option value="all">Type: ทั้งหมด</option>
           {(data?.filters.types ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
-        <select className="rounded-md border border-slate-100 bg-white px-3 py-2 text-sm" value={status} onChange={(event) => setStatus(event.target.value)}>
+        <select className="h-9 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-slate-400 transition cursor-pointer" value={status} onChange={(event) => setStatus(event.target.value)}>
           <option value="all">Status: ทั้งหมด</option>
           {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
-      </FilterPanel>
+      </div>
+
+      {/* Mobile Toolbar (Hidden on Desktop) */}
+      <div className="mb-4 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden space-y-3">
+        <div className="flex gap-2 items-center">
+          <input 
+            className="flex-1 h-9 rounded-lg border border-slate-300 px-3 text-xs outline-none bg-white placeholder-slate-400 focus:border-slate-400 transition" 
+            placeholder="ค้นหา loanNo/contractNo/lender..." 
+            type="search" 
+            value={search} 
+            onChange={(event) => setSearch(event.target.value)} 
+          />
+          <button
+            type="button"
+            className="h-9 items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition outline-none"
+            onClick={() => setShowMobileFilters(true)}
+          >
+            ตัวกรอง {(type !== 'all' || status !== 'all') ? '(มี)' : ''}
+          </button>
+        </div>
+      </div>
+
+      {/* Bottom Sheet Filter for Mobile */}
+      {showMobileFilters ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 lg:hidden">
+          <div className="w-full rounded-t-2xl bg-white p-5 shadow-xl border-t border-slate-200 max-h-[85vh] overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h4 className="font-bold text-slate-800 text-sm">ตัวกรองเพิ่มเติม</h4>
+              <button
+                className="p-1 text-slate-400 hover:text-slate-600 text-2xl font-bold focus:outline-none"
+                onClick={() => setShowMobileFilters(false)}
+                type="button"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block font-semibold text-slate-600 text-xs">ประเภทสัญญา</label>
+                <select
+                  aria-label="Type select"
+                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+                  value={type}
+                  onChange={(event) => setType(event.target.value)}
+                >
+                  <option value="all">Type: ทั้งหมด</option>
+                  {(data?.filters.types ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block font-semibold text-slate-600 text-xs">สถานะสัญญา</label>
+                <select
+                  aria-label="Status select"
+                  className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm outline-none focus:border-slate-400 transition cursor-pointer"
+                  value={status}
+                  onChange={(event) => setStatus(event.target.value)}
+                >
+                  <option value="all">Status: ทั้งหมด</option>
+                  {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </div>
+
+              <div className="border-t border-slate-100 pt-3 flex flex-col gap-2">
+                <button
+                  type="button"
+                  disabled
+                  className="w-full h-10 rounded-lg bg-slate-100 text-slate-400 font-semibold text-xs cursor-not-allowed flex items-center justify-center gap-1.5 opacity-60"
+                >
+                  📥 Template
+                </button>
+                <button
+                  type="button"
+                  disabled
+                  className="w-full h-10 rounded-lg bg-slate-100 text-slate-400 font-semibold text-xs cursor-not-allowed flex items-center justify-center gap-1.5 opacity-60"
+                >
+                  📤 Import Excel
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setType('all')
+                  setStatus('all')
+                }}
+                className="flex-1 h-10 rounded-lg border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition"
+              >
+                ล้างตัวกรอง
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowMobileFilters(false)}
+                className="flex-1 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition"
+              >
+                ตกลง
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {/* Desktop Table View */}
       <div className="hidden lg:block">
         <TableShell>
