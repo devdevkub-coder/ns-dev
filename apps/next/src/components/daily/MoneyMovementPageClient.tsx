@@ -426,13 +426,13 @@ function buildPaymentDailyReportHtml(rows: MoneyRow[], profile: CompanyProfilePr
       .toolbar { background: #f1f5f9; border-bottom: 1px solid #cbd5e1; padding: 8px; text-align: center; }
       .toolbar button { background: #0f172a; border: 0; border-radius: 6px; color: white; cursor: pointer; font-size: 13px; margin: 0 4px; padding: 7px 14px; }
       .page { padding: 10px; }
-      .header { display: grid; grid-template-columns: 1fr 280px; gap: 16px; border-bottom: 2px solid #0f172a; padding-bottom: 10px; }
+      .header { display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 16px; border-bottom: 2px solid #0f172a; padding-bottom: 10px; }
       .logo { max-height: 52px; max-width: 180px; object-fit: contain; margin-bottom: 4px; }
       .no-logo { display: flex; align-items: center; justify-content: center; width: 120px; height: 52px; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-size: 10px; font-weight: 800; text-align: center; }
       .co-name { font-size: 18px; font-weight: 800; }
       .co-info { color: #475569; line-height: 1.45; margin-top: 3px; }
       .doc-title { text-align: right; }
-      .doc-title h1 { font-size: 20px; margin: 0 0 4px; }
+      .doc-title h1 { font-size: 20px; margin: 0 0 4px; white-space: nowrap; }
       .doc-title .range { color: #be123c; font-size: 15px; font-weight: 800; }
       .summary { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 12px 0; }
       .card { border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; background: #fff; }
