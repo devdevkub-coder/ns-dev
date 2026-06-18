@@ -1875,7 +1875,7 @@ export function MoneyMovementPageClient({
           onValueChange={(value) => switchMoneyTab(value as ReceiptTab)}
         >
           <TabsList className="w-full" variant="line">
-            <TabsTrigger value="entry" variant="line">{mode === 'payment' ? 'จ่ายเงิน Supplier' : 'รับเงิน Customer'}</TabsTrigger>
+            <TabsTrigger value="entry" variant="line">{mode === 'payment' ? 'จ่ายเงิน' : 'รับเงิน Customer'}</TabsTrigger>
             <TabsTrigger value="history" variant="line">{mode === 'payment' ? 'ประวัติ' : 'ประวัติการรับเงิน'}</TabsTrigger>
           </TabsList>
         </Tabs>

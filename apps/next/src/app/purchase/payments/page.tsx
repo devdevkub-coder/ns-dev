@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { MoneyMovementPageClient } from '@/components/daily/MoneyMovementPageClient'
 
 export const metadata: Metadata = {
-  title: 'จ่ายเงิน Supplier | NS Scrap ERP',
+  title: 'จ่ายเงิน | NS Scrap ERP',
 }
 
 type PurchasePaymentsPageProps = {
