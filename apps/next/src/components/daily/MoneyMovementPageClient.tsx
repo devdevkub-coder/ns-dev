@@ -370,7 +370,7 @@ function paymentDailyReportDateRangeLabel(dateFrom: string, dateTo: string) {
 
 function buildPaymentDailyReportHtml(rows: MoneyRow[], profile: CompanyProfilePrintValues, params: { dateFrom: string; dateTo: string; kind: 'payment' | 'receipt'; printedAt: Date }) {
   const isReceipt = params.kind === 'receipt'
-  const reportTitle = isReceipt ? 'รายงานประวัติการรับเงิน Customer ประจำวัน' : 'รายงานประวัติการจ่ายเงินประจำวัน'
+  const reportTitle = isReceipt ? 'รายงานประวัติการรับเงินประจำวัน' : 'รายงานประวัติการจ่ายเงินประจำวัน'
   const docLabel = isReceipt ? 'RCP' : 'PMT'
   const partyLabel = isReceipt ? 'ลูกค้า' : 'ผู้รับเงิน'
   const accountLabel = isReceipt ? 'บัญชีที่รับเงิน' : 'บัญชีที่จ่าย'
@@ -1262,7 +1262,7 @@ export function MoneyMovementPageClient({
   }
 
   async function printDailyMoneyReport() {
-    const reportTitle = mode === 'receipt' ? 'รายงานประวัติการรับเงิน Customer ประจำวัน' : 'รายงานประวัติการจ่ายเงินประจำวัน'
+    const reportTitle = mode === 'receipt' ? 'รายงานประวัติการรับเงินประจำวัน' : 'รายงานประวัติการจ่ายเงินประจำวัน'
     const printWindow = window.open('', '_blank', 'width=1200,height=900,scrollbars=yes')
     if (!printWindow) {
       setError('Browser block popup — กรุณาอนุญาต popup สำหรับเว็บนี้')
