@@ -4,7 +4,7 @@ import { Check, Copy, X, Plus, Printer } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes } from 'react'
 import { z } from 'zod'
 import { paymentMethodGroupFromValue, type PaymentMethodGroup } from '@/lib/account-payment-method'
-import { Field, SelectField, SummaryPill } from '@/components/daily/MoneyMovementFieldHelpers'
+import { Field, SelectField } from '@/components/daily/MoneyMovementFieldHelpers'
 import { PaymentLinesSection, PaymentSplitsSection } from '@/components/daily/MoneyMovementFormSections'
 import { Button as UiButton } from '@/components/ui/Button'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
@@ -2038,14 +2038,14 @@ export function MoneyMovementPageClient({
                   ล้าง
                 </UiButton>
               ) : null}
-              <UiButton className="h-9 font-bold shadow" size="sm" type="button" variant="default" onClick={openForm}>
+              <UiButton className="h-9 font-bold shadow hidden lg:inline-flex" size="sm" type="button" variant="default" onClick={openForm}>
                 + รับเงินเอง
               </UiButton>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
-            <div>พบใบรับเงินรอดำเนินการ <span className="font-semibold text-slate-900">{receiptBillTotalRows}</span> รายการ</div>
+            <div>พบ <span className="font-semibold text-slate-900">{receiptBillTotalRows}</span> รายการ</div>
             <div className="flex flex-wrap items-center gap-2">
               {paymentQueueColumnResize.hasCustomWidths ? <UiButton className="h-9 font-normal" size="sm" type="button" variant="outline" onClick={paymentQueueColumnResize.resetColumnWidths}>คืนค่าเดิมตาราง</UiButton> : null}
               <UiSelect
@@ -2729,13 +2729,28 @@ export function MoneyMovementPageClient({
                     </div>
                   </section>
 
-                  <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
-                    <SummaryPill label={amountLabel} value={formatMoney(form.amount)} />
-                    <SummaryPill label="WHT" value={formatMoney(form.withholdingTax)} />
-                    <SummaryPill label="ตัดหนี้ AR" value={formatMoney(form.amount + form.withholdingTax + form.discount)} />
-                    <SummaryPill label="Fee / Discount" value={`${formatMoney(form.fee)} / ${formatMoney(form.discount)}`} />
-                    <div className="col-span-2 md:col-span-1">
-                      <SummaryPill label="Net" value={formatMoney(formNetAmount)} />
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                    <div className="grid grid-cols-2 gap-4 md:grid-cols-5 text-xs">
+                      <div>
+                        <span className="text-slate-500 block mb-1 font-semibold">{amountLabel}</span>
+                        <span className="font-bold text-slate-800 text-sm tabular-nums">{formatMoney(form.amount)}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block mb-1 font-semibold">WHT</span>
+                        <span className="font-bold text-slate-800 text-sm tabular-nums">{formatMoney(form.withholdingTax)}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block mb-1 font-semibold">ตัดหนี้ AR</span>
+                        <span className="font-bold text-slate-800 text-sm tabular-nums">{formatMoney(form.amount + form.withholdingTax + form.discount)}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block mb-1 font-semibold">Fee / Discount</span>
+                        <span className="font-bold text-slate-800 text-sm tabular-nums">{formatMoney(form.fee)} / {formatMoney(form.discount)}</span>
+                      </div>
+                      <div className="col-span-2 md:col-span-1">
+                        <span className="text-slate-500 block mb-1 font-semibold">Net (สุทธิ)</span>
+                        <span className={`font-extrabold text-sm tabular-nums ${theme.strong}`}>{formatMoney(formNetAmount)}</span>
+                      </div>
                     </div>
                   </div>
 
