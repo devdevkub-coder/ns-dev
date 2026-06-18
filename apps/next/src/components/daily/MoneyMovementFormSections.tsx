@@ -1,5 +1,7 @@
 'use client'
 
+import { useMemo } from 'react'
+import { paymentMethodGroupFromValue, type PaymentMethodGroup } from '@/lib/account-payment-method'
 import { Button as UiButton } from '@/components/ui/Button'
 import { Input as UiInput } from '@/components/ui/Input'
 import { Select as UiSelect } from '@/components/ui/Select'
@@ -41,6 +43,7 @@ type PaymentSplitLike = {
   accountId: string
   amount: number
   id: string | null
+  method?: string
 }
 
 export function PaymentSplitsSection({
@@ -65,6 +68,10 @@ export function PaymentSplitsSection({
   onStartMoneyInput,
   onUpdatePaymentForm,
   onUpdatePaymentSplit,
+  paymentMethods,
+  methodValue,
+  onMethodChange,
+  methodDisabled,
 }: {
   activeAccounts: DailyAccountOption[]
   addButtonLabel?: string
@@ -87,15 +94,30 @@ export function PaymentSplitsSection({
   onStartMoneyInput: (key: string, value: number) => void
   onUpdatePaymentForm: (patch: Partial<MoneyFormLike>) => void
   onUpdatePaymentSplit: (index: number, patch: Partial<PaymentSplitLike>) => void
+  paymentMethods?: Array<{ name: string; type: PaymentMethodGroup }>
+  methodValue?: string
+  onMethodChange?: (value: string) => void
+  methodDisabled?: boolean
 }) {
   const formDiscountKey = 'payment-form-discount'
   const formFeeKey = 'payment-form-fee'
+
   return (
     <div className="order-3 rounded-md border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h4 className="font-medium text-blue-900">{sectionTitle} <span className="text-xs font-normal text-slate-600">({sectionHelp})</span></h4>
-        <UiButton className="bg-blue-600 font-semibold hover:bg-blue-700" size="xs" type="button" variant="default" onClick={onAddPaymentSplit}>{addButtonLabel}</UiButton>
+        <UiButton
+          className="bg-blue-600 font-semibold hover:bg-blue-700 disabled:opacity-50"
+          disabled={methodDisabled}
+          size="xs"
+          type="button"
+          variant="default"
+          onClick={onAddPaymentSplit}
+        >
+          {addButtonLabel}
+        </UiButton>
       </div>
+
       <div className="space-y-2">
         {paymentSplits.map((split, splitIndex) => {
           const splitAccount = activeAccounts.find((account) => account.id === split.accountId)
@@ -103,36 +125,106 @@ export function PaymentSplitsSection({
           const splitAmount = Number(split.amount) || 0
           const balanceAfter = balanceMode === 'add' ? splitBalance + splitAmount : splitBalance - splitAmount
           const splitAmountKey = `split-${split.id ?? splitIndex}-amount`
+
+          const splitMethodGroup = split.method && paymentMethods ? paymentMethodGroupFromValue(split.method, paymentMethods) : null
+          const rowFilteredAccounts = !paymentMethods
+            ? activeAccounts
+            : !split.method || !splitMethodGroup
+            ? []
+            : activeAccounts.filter((account) => {
+                const accountGroup = paymentMethodGroupFromValue(account.type, paymentMethods) ??
+                  (String(account.type ?? '').toLowerCase().includes('cash') || String(account.type ?? '').includes('เงินสด') ? 'cash' : 'bank')
+                return accountGroup === splitMethodGroup
+              })
+
           return (
             <div key={split.id ?? splitIndex} className="grid grid-cols-12 items-center gap-2 rounded-md border border-slate-200 bg-white p-2">
               <div className="col-span-1 text-center text-xs font-bold text-slate-500">#{splitIndex + 1}</div>
-              <div className="col-span-6">
-                <UiSelect
-                  className="h-9 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-                  required
-                  value={split.accountId}
-                  onChange={(event) => onUpdatePaymentSplit(splitIndex, { accountId: event.target.value })}
-                >
-                  <option disabled value="">-- เลือกบัญชี --</option>
-                  {activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name} (คงเหลือ {formatMoney(account.balance ?? 0)})</option>)}
-                </UiSelect>
-              </div>
-              <div className="col-span-4">
-                <UiInput
-                  className="h-9 w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"
-                  inputMode="decimal"
-                  placeholder={paymentSplits.length === 1 ? formatMoney(formNetAmount) : 'จำนวนเงิน'}
-                  type="text"
-                  value={moneyInputValue(splitAmountKey, splitAmount)}
-                  onBlur={() => onFinishMoneyInput(splitAmountKey)}
-                  onChange={(event) => onChangeMoneyInput(splitAmountKey, event.target.value, (amount) => onUpdatePaymentSplit(splitIndex, { amount }))}
-                  onFocus={() => onStartMoneyInput(splitAmountKey, splitAmount)}
-                />
-              </div>
+
+              {paymentMethods ? (
+                <>
+                  <div className="col-span-3">
+                    <UiSelect
+                      disabled={methodDisabled}
+                      className="h-9 w-full rounded-md border border-slate-300 disabled:bg-slate-100 disabled:opacity-80 px-2 py-1.5 text-sm bg-white"
+                      required
+                      value={split.method ?? ''}
+                      onChange={(event) => onUpdatePaymentSplit(splitIndex, { method: event.target.value })}
+                    >
+                      <option disabled value="">วิธีรับเงิน</option>
+                      {paymentMethods.map((method) => (
+                        <option key={method.name} value={method.name}>{method.name}</option>
+                      ))}
+                    </UiSelect>
+                  </div>
+                  <div className="col-span-4">
+                    <UiSelect
+                      disabled={!split.method || methodDisabled}
+                      className="h-9 w-full rounded-md border border-slate-300 disabled:bg-slate-100 disabled:opacity-80 px-2 py-1.5 text-sm bg-white"
+                      required
+                      value={split.accountId}
+                      onChange={(event) => onUpdatePaymentSplit(splitIndex, { accountId: event.target.value })}
+                    >
+                      <option disabled value="">-- เลือกบัญชี --</option>
+                      {rowFilteredAccounts.map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.name} (คงเหลือ {formatMoney(account.balance ?? 0)})
+                        </option>
+                      ))}
+                    </UiSelect>
+                  </div>
+                  <div className="col-span-3">
+                    <UiInput
+                      disabled={methodDisabled}
+                      className="h-9 w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"
+                      inputMode="decimal"
+                      placeholder={paymentSplits.length === 1 ? formatMoney(formNetAmount) : 'จำนวนเงิน'}
+                      type="text"
+                      value={moneyInputValue(splitAmountKey, splitAmount)}
+                      onBlur={() => onFinishMoneyInput(splitAmountKey)}
+                      onChange={(event) => onChangeMoneyInput(splitAmountKey, event.target.value, (amount) => onUpdatePaymentSplit(splitIndex, { amount }))}
+                      onFocus={() => onStartMoneyInput(splitAmountKey, splitAmount)}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="col-span-6">
+                    <UiSelect
+                      disabled={methodDisabled}
+                      className="h-9 w-full rounded-md border border-slate-300 disabled:bg-slate-100 disabled:opacity-80 px-2 py-1.5 text-sm bg-white"
+                      required
+                      value={split.accountId}
+                      onChange={(event) => onUpdatePaymentSplit(splitIndex, { accountId: event.target.value })}
+                    >
+                      <option disabled value="">-- เลือกบัญชี --</option>
+                      {activeAccounts.map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.name} (คงเหลือ {formatMoney(account.balance ?? 0)})
+                        </option>
+                      ))}
+                    </UiSelect>
+                  </div>
+                  <div className="col-span-4">
+                    <UiInput
+                      disabled={methodDisabled}
+                      className="h-9 w-full rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm"
+                      inputMode="decimal"
+                      placeholder={paymentSplits.length === 1 ? formatMoney(formNetAmount) : 'จำนวนเงิน'}
+                      type="text"
+                      value={moneyInputValue(splitAmountKey, splitAmount)}
+                      onBlur={() => onFinishMoneyInput(splitAmountKey)}
+                      onChange={(event) => onChangeMoneyInput(splitAmountKey, event.target.value, (amount) => onUpdatePaymentSplit(splitIndex, { amount }))}
+                      onFocus={() => onStartMoneyInput(splitAmountKey, splitAmount)}
+                    />
+                  </div>
+                </>
+              )}
+
               <div className="col-span-1 text-center">
                 <UiButton
                   className="h-8 w-8 px-0 font-bold text-red-500 hover:text-red-700 disabled:text-slate-300"
-                  disabled={paymentSplits.length <= 1}
+                  disabled={paymentSplits.length <= 1 || methodDisabled}
                   size="icon"
                   type="button"
                   variant="ghost"
@@ -165,6 +257,7 @@ export function PaymentSplitsSection({
         <label className="block min-w-32 text-left text-xs font-medium text-slate-600">
           <span>Discount</span>
           <UiInput
+            disabled={methodDisabled}
             className="mt-1 h-8 w-full px-2 py-1 text-right"
             inputMode="decimal"
             type="text"
@@ -177,6 +270,7 @@ export function PaymentSplitsSection({
         <label className="block min-w-32 text-left text-xs font-medium text-slate-600">
           <span>Bank Fee</span>
           <UiInput
+            disabled={methodDisabled}
             className="mt-1 h-8 w-full px-2 py-1 text-right"
             inputMode="decimal"
             type="text"

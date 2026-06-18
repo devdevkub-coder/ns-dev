@@ -36,6 +36,9 @@ description: "Peach: AcexPOS UI Standard, Git & Scope Rules"
 - **No Black Borders/Outlines:** Use soft pastel borders (`border-slate-100` or `border-slate-200/60` for tables, `border-slate-300` for inputs/filters). Remove focus outlines.
 - **Font & Controls:** Use `Noto Sans Thai` for all UI controls (`button`, `input`, `select`, etc.) matching the body font. Never use `font-sans`.
 - **Control Sizing:** Height should be `h-9` to `h-10` with `text-sm` for desktop filters. Mobile card list text must not be smaller than `text-xs`.
+- **Batch Print Button Style:** Action buttons for printing multiple selected documents (Batch Print) must use a premium orange/amber style (`bg-amber-600 hover:bg-amber-700 text-white`) and be placed in the table header bar next to pagination controls.
+- **Prevent Form Editing Standard:** For financial documents (such as Receipt Vouchers), once a document has been created, fields like "วิธีจ่าย/รับเงิน", "วันที่" and the referenced lines table (add line, delete line, choose bills dropdowns) must be disabled in Edit Mode to prevent accidental modification of saved data.
+- **Spin Buttons Removal:** Remove default spin buttons (up/down arrow controls) from numeric inputs in tables (amount, withholding tax, discounts) using Tailwind utility classes (`[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`).
 
 ---
 

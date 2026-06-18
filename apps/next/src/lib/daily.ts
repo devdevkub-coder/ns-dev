@@ -201,6 +201,7 @@ export const customerReceiptFormSchema = z.object({
   notes: optionalGeneralText('หมายเหตุ', 500),
   lines: z.array(customerReceiptLineFormSchema).optional(),
   splits: z.array(z.object({
+    method: z.string().trim().min(1, 'เลือกวิธีรับเงิน').max(80, 'วิธีรับเงินยาวเกินไป').regex(businessTextPattern, 'วิธีรับเงินมีรูปแบบไม่ถูกต้อง'),
     accountId: z.string().trim().min(1, 'เลือกบัญชีรับเงิน').max(80, 'บัญชีรับเงินยาวเกินไป').regex(/^[A-Za-z0-9_.:-]+$/, 'บัญชีรับเงินมีรูปแบบไม่ถูกต้อง'),
     amount: positiveMoney('ยอดแยกบัญชีรับเงิน'),
     id: optionalSafeId('รหัสแยกบัญชีรับเงิน'),

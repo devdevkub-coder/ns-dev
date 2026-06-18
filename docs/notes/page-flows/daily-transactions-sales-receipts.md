@@ -144,9 +144,8 @@ RCP รับเงินจาก SB/customer advance และเขียน 
 
 | Field | วิธีกรอก / การทำงาน | Validation |
 |---|---|---|
-| วันที่ | วันที่รับเงิน สามารถเลือกจาก date picker | ต้องมีค่า |
+| วันที่รับเงิน | วันที่รับเงิน สามารถเลือกจาก date picker | ต้องมีค่า |
 | ลูกค้า | ดึงจากบิลขาย/RCP ถ้าเป็น RCP ที่สร้างจากบิลขายแล้วต้องล็อก ไม่ให้เปลี่ยนลูกค้า | ต้องตรงกับลูกค้าของบิลขายที่เลือก |
-| วิธีจ่าย/รับเงิน | เลือกจาก master payment methods | ต้องเป็นรายการ active |
 | หมายเหตุ | กรอกข้อความเพิ่มเติมได้ | ไม่บังคับ |
 
 หมายเหตุเรื่อง `ลูกค้า`:
@@ -191,14 +190,18 @@ RCP รับเงินจาก SB/customer advance และเขียน 
 
 #### Section: บัญชีรับเงิน
 
-ใช้ระบุบัญชีบริษัทที่เงินจริงเข้า รองรับมากกว่า 1 บัญชี
+ใช้ระบุวิธีชำระเงินและบัญชีบริษัทที่เงินจริงเข้า โดยรองรับการระบุตัวเลือกบัญชีรับเงินได้มากกว่า 1 บัญชี (Split / Lots) โดยแต่ละแถวสามารถเลือกวิธีชำระเงินและบัญชีรับเงินแยกกันได้อิสระ
 
 | Field | วิธีกรอก / การทำงาน | Validation |
 |---|---|---|
-| บัญชีรับเงิน | เลือกบัญชีบริษัทจาก master accounts | ต้องเป็นบัญชี active |
-| ยอดรับเข้าบัญชี | กรอกยอดเงินที่เข้าแต่ละบัญชี | รวมทุกบัญชีต้องเท่ากับเงินเข้าสุทธิ |
+| วิธีจ่าย/รับเงิน * | ย้ายไปเป็นช่องกรอกแต่ละแถว (Lot-level) เพื่อรองรับการผสมช่องทางรับชำระเงิน (เช่น แถว 1 เงินสด แถว 2 เงินโอน) | ต้องเลือกวิธีก่อนจึงจะเลือกบัญชีรับเงินในแถวนั้นๆ ได้ |
+| บัญชีรับเงิน | เลือกบัญชีบริษัทจากตัวเลือกที่ถูกกรองตาม "วิธีจ่าย/รับเงิน" ประจำแถว | หากแถวนั้นเลือกเป็น "เงินสด" จะเลือกได้เฉพาะบัญชีประเภทเงินสด หากเลือก "เงินโอน" จะเลือกได้เฉพาะบัญชีธนาคาร |
+| ยอดรับเข้าบัญชี | กรอกยอดเงินที่เข้าแต่ละบัญชี | รวมทุกแถวต้องเท่ากับเงินเข้าสุทธิ |
 | เพิ่มบัญชี | เพิ่มแถวกรณีลูกค้าโอนหลายบัญชี / รับเงินสดร่วมกับโอน | ต้องไม่ซ้ำแบบทำให้ตรวจสอบไม่ได้ |
 | ลบ | ลบแถวบัญชีรับเงิน | ต้องเหลืออย่างน้อย 1 บัญชี |
+
+> [!NOTE]
+> เมื่อเปลี่ยนตัวเลือก **วิธีจ่าย/รับเงิน** ในแต่ละแถว ระบบจะล้างค่าบัญชีรับเงิน (`accountId`) ของแถวนั้นทันที เพื่อป้องกันข้อมูลบัญชีและวิธีการรับเงินไม่สัมพันธ์กัน
 
 ตัวอย่างการ split บัญชี:
 
@@ -528,4 +531,8 @@ Multi-bill receipt allocation DB/API create path, UI picker, cancel/reversal pat
 - [x] Add migration/backfill plan for old `receipts` history into `customer_receipts`
 - [x] Implement approved edit policy as cancel-and-reissue replacement in one transaction
 - [x] Optimize Customer Receipt API read payloads and DB indexes for outstanding queue, active allocation lookup, and RCP history order
+- [x] Refactor Customer Receipt Modals and forms to follow AcexPOS UI standard (seamless header-body, borderless dark modals, summary cards relocated above payment accounts)
+- [x] Disable "วิธีจ่าย/รับเงิน", "วันที่" and bill allocations in Edit Mode to lock created receipt state
+- [x] Convert Sales Bills lines grid to mobile-responsive vertical card view to prevent horizontal scrolling
+- [x] Implement Batch Print feature in history tab (Active status only) with table and card selection checkboxes and orange action button
 - [ ] Add browser QA checklist for create partial/full/multi-bill and over-receipt blocking

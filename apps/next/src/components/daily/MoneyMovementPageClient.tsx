@@ -201,7 +201,7 @@ function newPaymentSplit(): PaymentSplit {
 }
 
 function newReceiptSplit(): ReceiptSplit {
-  return { accountId: '', amount: 0, id: `RS-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` }
+  return { accountId: '', amount: 0, method: '', id: `RS-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` }
 }
 
 function newReceiptLine(): ReceiptLine {
@@ -2369,6 +2369,7 @@ export function MoneyMovementPageClient({
                   onStartMoneyInput={startMoneyInput}
                   onUpdatePaymentForm={updatePaymentForm}
                   onUpdatePaymentSplit={updatePaymentSplit}
+                  methodDisabled={Boolean(form.id)}
                 />
 
                 <PaymentLinesSection
@@ -2387,7 +2388,15 @@ export function MoneyMovementPageClient({
                 />
 
                 <div className="order-4">
-                  <Field label="หมายเหตุ" value={form.notes ?? ''} onChange={(value) => setForm({ ...form, notes: value })} />
+                  <label className="block text-sm font-medium">
+                    <span className="mb-1 block text-xs font-medium text-slate-600">หมายเหตุ</span>
+                    <textarea
+                      className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none text-slate-900"
+                      rows={2}
+                      value={form.notes ?? ''}
+                      onChange={(event) => setForm({ ...form, notes: event.target.value })}
+                    />
+                  </label>
                 </div>
               </div>
             ) : (
@@ -2426,14 +2435,7 @@ export function MoneyMovementPageClient({
                           ))}
                         </UiSelect>
                       </label>
-                      <label className="block">
-                        <span className="mb-1 block text-xs font-medium text-slate-600">หมายเหตุ</span>
-                        <UiInput
-                          className="h-9 w-full text-sm border-slate-300"
-                          value={form.notes ?? ''}
-                          onChange={(event) => setForm({ ...form, notes: event.target.value })}
-                        />
-                      </label>
+
                     </div>
                   </section>
 
@@ -2484,7 +2486,7 @@ export function MoneyMovementPageClient({
                                     min="0"
                                     step="0.01"
                                     type="number"
-                                    value={String(line.receiptAmount)}
+                                    disabled={Boolean(form.id)} value={String(line.receiptAmount)}
                                     onChange={(event) => updateReceiptLine(index, { receiptAmount: Number(event.target.value) })}
                                   />
                                 </td>
@@ -2494,7 +2496,7 @@ export function MoneyMovementPageClient({
                                     min="0"
                                     step="0.01"
                                     type="number"
-                                    value={String(line.withholdingTaxAmount)}
+                                    disabled={Boolean(form.id)} value={String(line.withholdingTaxAmount)}
                                     onChange={(event) => updateReceiptLine(index, { withholdingTaxAmount: Number(event.target.value) })}
                                   />
                                 </td>
@@ -2504,7 +2506,7 @@ export function MoneyMovementPageClient({
                                     min="0"
                                     step="0.01"
                                     type="number"
-                                    value={String(line.discountAmount)}
+                                    disabled={Boolean(form.id)} value={String(line.discountAmount)}
                                     onChange={(event) => updateReceiptLine(index, { discountAmount: Number(event.target.value) })}
                                   />
                                 </td>
@@ -2570,7 +2572,7 @@ export function MoneyMovementPageClient({
                                   min="0"
                                   step="0.01"
                                   type="number"
-                                  value={String(line.receiptAmount)}
+                                  disabled={Boolean(form.id)} value={String(line.receiptAmount)}
                                   onChange={(event) => updateReceiptLine(index, { receiptAmount: Number(event.target.value) })}
                                 />
                               </div>
@@ -2584,7 +2586,7 @@ export function MoneyMovementPageClient({
                                   min="0"
                                   step="0.01"
                                   type="number"
-                                  value={String(line.withholdingTaxAmount)}
+                                  disabled={Boolean(form.id)} value={String(line.withholdingTaxAmount)}
                                   onChange={(event) => updateReceiptLine(index, { withholdingTaxAmount: Number(event.target.value) })}
                                 />
                               </div>
@@ -2595,7 +2597,7 @@ export function MoneyMovementPageClient({
                                   min="0"
                                   step="0.01"
                                   type="number"
-                                  value={String(line.discountAmount)}
+                                  disabled={Boolean(form.id)} value={String(line.discountAmount)}
                                   onChange={(event) => updateReceiptLine(index, { discountAmount: Number(event.target.value) })}
                                 />
                               </div>
@@ -2638,7 +2640,22 @@ export function MoneyMovementPageClient({
                     onStartMoneyInput={startMoneyInput}
                     onUpdatePaymentForm={updateReceiptForm}
                     onUpdatePaymentSplit={updateReceiptSplit}
+                    paymentMethods={paymentMethods}
+                    methodValue={form.method}
+                    onMethodChange={(value) => updateReceiptForm({ method: value })}
+                    methodDisabled={Boolean(form.id)}
                   />
+                  <div>
+                    <label className="block text-sm font-medium mt-4">
+                      <span className="mb-1 block text-xs font-medium text-slate-600">หมายเหตุ</span>
+                      <textarea
+                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none text-slate-900"
+                        rows={2}
+                        value={form.notes ?? ''}
+                        onChange={(event) => setForm({ ...form, notes: event.target.value })}
+                      />
+                    </label>
+                  </div>
                 </div>
               </>
             )}
@@ -2677,16 +2694,7 @@ export function MoneyMovementPageClient({
                 <option value="">ทุกบัญชี</option>
                 {activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
               </UiSelect>
-              <UiButton
-                className="h-9 font-semibold"
-                disabled={isPrintingDailyReport}
-                size="sm"
-                type="button"
-                variant="outline"
-                onClick={() => void printDailyMoneyReport()}
-              >
-                {isPrintingDailyReport ? 'กำลังเตรียมรายงาน...' : 'พิมพ์รายงานประจำวัน'}
-              </UiButton>
+
               {hasActiveHistoryFilters ? (
                 <UiButton className="h-9 font-normal" size="sm" type="button" variant="secondary" onClick={clearFilters}>✕ ล้าง</UiButton>
               ) : null}
@@ -2781,20 +2789,7 @@ export function MoneyMovementPageClient({
                     </div>
                   </div>
 
-                  <div className="pt-2">
-                    <UiButton
-                      className="w-full h-11 font-semibold"
-                      disabled={isPrintingDailyReport}
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        setShowMobileFilters(false)
-                        void printDailyMoneyReport()
-                      }}
-                    >
-                      {isPrintingDailyReport ? 'กำลังเตรียมรายงาน...' : 'พิมพ์รายงานประจำวัน'}
-                    </UiButton>
-                  </div>
+
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 mt-6 pt-3 border-t border-slate-100">
@@ -2946,7 +2941,6 @@ export function MoneyMovementPageClient({
                           <TableCell className="text-xs font-semibold text-slate-700">{row.partyName}</TableCell>
                           <TableCell className="text-xs font-semibold text-slate-700">
                             <div className="space-y-1">
-                              <div className="font-semibold text-slate-700">{billDocNos.length.toLocaleString('th-TH')} บิล</div>
                               <CollapsedList items={billDocNos} />
                               {mode === 'payment' && row.approvalIds?.length ? (
                                 <div className="pt-1 text-[11px] text-slate-500">
@@ -2962,7 +2956,6 @@ export function MoneyMovementPageClient({
                           </TableCell>
                           <TableCell className="text-xs font-semibold text-slate-700">
                             <div className="space-y-1">
-                              <div className="font-semibold text-slate-700">{accountSummaries.length.toLocaleString('th-TH')} บัญชี</div>
                               <CollapsedList items={accountSummaries} />
                             </div>
                           </TableCell>
@@ -3200,7 +3193,7 @@ function PaymentHistoryDetailDialog({
           {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-red-800">{error}</div> : null}
           {!isLoading && !error && detail && summary ? (
             <>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 <div className="rounded-md bg-white p-3 shadow">
                   <div className="text-xs text-slate-500">{detail.type === 'approval' ? 'ยอดอนุมัติ' : 'ยอดจ่าย'}</div>
                   <div className="text-lg font-bold text-slate-900">{formatMoney(summary.amount)}</div>
@@ -3234,14 +3227,10 @@ function PaymentHistoryDetailDialog({
                 )}
               </div>
 
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                {detail.detailCards.map((card) => (
-                  <div key={`${card.label}-${card.value}`} className="rounded-md border border-slate-200 bg-white p-3">
-                    <div className="text-xs text-slate-500">{card.label}</div>
-                    <div className="mt-1 text-sm font-medium text-slate-900">{card.value}</div>
-                  </div>
-                ))}
-              </div>
+              <DetailSection
+                title="ข้อมูลรายละเอียด"
+                rows={detail.detailCards.map((card) => [card.label, card.value])}
+              />
 
               <div className="overflow-hidden rounded-md bg-white shadow">
                 <div className="border-b border-slate-200 px-4 py-3">
@@ -3495,7 +3484,7 @@ function ReceiptDetailDialog({
         <div className="flex-1 overflow-y-auto space-y-4 bg-slate-50 p-5 text-sm">
           {!row ? <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow">ไม่พบข้อมูล</div> : (
             <>
-              <div className="grid gap-3 md:grid-cols-4">
+              <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
                 <div className="rounded-md bg-white p-3 shadow">
                   <div className="text-xs text-slate-500">ยอดรับ</div>
                   <div className="text-lg font-bold text-emerald-700">{formatMoney(row.amount)}</div>
@@ -3514,14 +3503,23 @@ function ReceiptDetailDialog({
                 </div>
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2">
-                <DetailCard label="เลขที่เอกสาร" value={row.docNo} />
-                <DetailCard label="วันที่รับเงิน" value={formatDateDisplay(row.date)} />
-                <DetailCard label="ลูกค้า" value={row.partyName || '-'} />
-                <DetailCard label="วิธีรับเงิน" value={row.method || '-'} />
-                <DetailCard label="บัญชีรับเงิน" value={accountSummaries.join('\n')} multiline />
-                <DetailCard label="หมายเหตุ" value={row.notes || '-'} multiline />
-              </div>
+              <DetailSection
+                title="ข้อมูลใบรับเงิน"
+                rows={[
+                  ['เลขที่เอกสาร', row.docNo],
+                  ['วันที่รับเงิน', formatDateDisplay(row.date)],
+                  ['ลูกค้า', row.partyName || '-'],
+                  ['วิธีรับเงิน', row.method || '-'],
+                ]}
+              />
+
+              <DetailSection
+                title="ช่องทางรับเงินและหมายเหตุ"
+                rows={[
+                  ['บัญชีรับเงิน', accountSummaries.join('\n')],
+                  ['หมายเหตุ', row.notes || '-'],
+                ]}
+              />
 
               <div className="overflow-hidden rounded-md bg-white shadow">
                 <div className="border-b border-slate-200 px-4 py-3">
@@ -3587,7 +3585,7 @@ function DetailSection({ rows, title }: { rows: Array<[string, string]>; title: 
         {rows.map(([label, value]) => (
           <div key={label} className="border-b border-slate-100 px-4 py-3 last:border-b-0 md:[&:nth-last-child(-n+2)]:border-b-0">
             <dt className="text-xs font-medium text-slate-500">{label}</dt>
-            <dd className="mt-1 break-words text-sm font-semibold text-slate-900">{value}</dd>
+            <dd className="mt-1 break-words text-sm font-semibold text-slate-900 whitespace-pre-line">{value}</dd>
           </div>
         ))}
       </dl>

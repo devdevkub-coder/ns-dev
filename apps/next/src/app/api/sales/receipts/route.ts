@@ -250,7 +250,7 @@ export async function GET() {
       ? await prisma.bank_statement.findMany({
         orderBy: [{ doc_no: 'asc' }],
         select: {
-          accounts: { select: { code: true, name: true } },
+          accounts: { select: { code: true, name: true, type: true } },
           amount_in: true,
           ref_id: true,
         },
@@ -306,14 +306,20 @@ export async function GET() {
             ? receiptStatements.map((statement) => statement.accounts?.name ?? '-')
             : [receipt.account_name_snapshot],
           accountSplits: receiptStatements.length > 0
-            ? receiptStatements.map((statement, index) => ({
-              accountId: statement.accounts?.code ?? receipt.account_code_snapshot,
-              amount: toNumber(statement.amount_in),
-              id: `${receipt.doc_no}-split-${index + 1}`,
-            })).filter((split) => split.accountId && split.amount > 0)
+            ? receiptStatements.map((statement, index) => {
+              const accountType = statement.accounts?.type ?? ''
+              const method = (accountType.toLowerCase().includes('cash') || accountType.includes('เงินสด')) ? 'เงินสด' : 'เงินโอน'
+              return {
+                accountId: statement.accounts?.code ?? receipt.account_code_snapshot,
+                amount: toNumber(statement.amount_in),
+                method,
+                id: `${receipt.doc_no}-split-${index + 1}`,
+              }
+            }).filter((split) => split.accountId && split.amount > 0)
             : [{
               accountId: receipt.account_code_snapshot,
               amount: toNumber(receipt.net_cash_in),
+              method: receipt.payment_method_name_snapshot,
               id: `${receipt.doc_no}-split-1`,
             }],
           accountSummaries,
