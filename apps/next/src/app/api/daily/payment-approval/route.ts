@@ -477,7 +477,7 @@ export async function GET() {
           date: toDateOnly(entry.date),
           destinationLabel,
           destinationOptions: dailyAccountOptions,
-          docNo: pettyReturnDisplayDocNo(entry, entry.petty_advances.doc_no),
+          docNo: entry.petty_advances.doc_no,
           dueDate: toDateOnly(entry.date),
           id: `petty_advance_return:${entry.id.toString()}`,
           payee: entry.petty_advances.recipient_name ?? '-',
