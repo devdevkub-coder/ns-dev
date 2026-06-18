@@ -500,7 +500,7 @@ export async function GET() {
           date: toDateOnly(approval.approved_at ?? approval.source_date_snapshot ?? approval.created_at),
           destinationLabel,
           destinationOptions: matchingOption ? [matchingOption] : dailyAccountOptions,
-          docNo: approvalDocNo,
+          docNo: entry?.doc_no ?? approvalDocNo,
           dueDate: toDateOnly(entry?.date ?? approval.source_date_snapshot),
           id: `petty_advance_return:${approval.id.toString()}`,
           payee: approval.party_name_snapshot ?? entry?.petty_advances.recipient_name ?? '-',

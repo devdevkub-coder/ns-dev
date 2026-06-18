@@ -1070,7 +1070,7 @@ export function PaymentApprovalPageClient() {
                       onChange={toggleAllPageRows}
                     />
                   </th>
-                  <SortableHead align="left" currentKey={sortKey} direction={sortDirection} label="เลขที่/วันที่" resizeProps={expenseColumnResize.getResizeHandleProps('docNo', 'เลขที่/วันที่')} sortKey="docNo" onSort={changeSort} />
+                  <SortableHead align="left" currentKey={sortKey} direction={sortDirection} label={tab === 'pettyReturn' ? 'เลขที่เอกสาร' : 'เลขที่/วันที่'} resizeProps={expenseColumnResize.getResizeHandleProps('docNo', tab === 'pettyReturn' ? 'เลขที่เอกสาร' : 'เลขที่/วันที่')} sortKey="docNo" onSort={changeSort} />
                   <ResizableTableHead label="เอกสารอ้างอิง" resizeProps={expenseColumnResize.getResizeHandleProps('sourceDocNo', 'เอกสารอ้างอิง')} />
                   <SortableHead align="left" currentKey={sortKey} direction={sortDirection} label="ครบกำหนด" resizeProps={expenseColumnResize.getResizeHandleProps('dueDate', 'ครบกำหนด')} sortKey="dueDate" onSort={changeSort} />
                   <SortableHead align="left" currentKey={sortKey} direction={sortDirection} label={tab === 'pettyReturn' ? 'ผู้คืนเงิน' : 'ผู้รับเงิน'} resizeProps={expenseColumnResize.getResizeHandleProps('partyName', tab === 'pettyReturn' ? 'ผู้คืนเงิน' : 'ผู้รับเงิน')} sortKey="partyName" onSort={changeSort} />
