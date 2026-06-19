@@ -2781,6 +2781,7 @@ model weight_tickets {
   party_name                        String
   vehicle_no                        String
   remark                            String?
+  warehouse_name                    String?
   entered_by                        String?
   image_count                       Int                                 @default(0)
   vehicle_image_count               Int                                 @default(0)

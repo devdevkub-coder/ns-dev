@@ -1243,7 +1243,7 @@ function Metric({
   className?: string
 }) {
   if (cardClassName) {
-    return <div className={cardClassName}><div className="text-xs text-slate-500">{label}</div><div className={`mt-1 text-lg font-bold ${valueClassName}`}>{value}</div></div>
+    return <div className={cardClassName}><div className="text-xs text-slate-500">{label}</div><div className={`mt-1 font-mono text-lg sm:text-2xl font-bold ${valueClassName}`}>{value}</div></div>
   }
 
   return (
@@ -1253,7 +1253,7 @@ function Metric({
       </div>
       <div className="flex-1 min-w-0">
         <div className={`text-xs font-semibold ${labelClassName} truncate`}>{label}</div>
-        <div className={`font-bold ${valueClassName} mt-0.5`}>{value}</div>
+        <div className={`font-mono text-lg sm:text-2xl font-bold ${valueClassName} mt-0.5`}>{value}</div>
       </div>
     </div>
   )

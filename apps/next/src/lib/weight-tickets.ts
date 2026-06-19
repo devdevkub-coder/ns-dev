@@ -102,6 +102,7 @@ export type WeightTicketRecord = {
   vehicleImageCount: number
   vehicleImageNames: string[]
   vehicleNo: string
+  warehouseName?: string | null
 }
 
 export type OptionItem = {
@@ -115,7 +116,7 @@ export type OptionItem = {
   searchText?: string
 }
 
-export type WeightTicketSortBy = 'createdAt' | 'documentNo' | 'partyName' | 'netWeight' | 'branchName' | 'vehicleNo' | 'deductionWeight' | 'impurityDeduction' | 'status' | 'updatedAt'
+export type WeightTicketSortBy = 'createdAt' | 'documentNo' | 'partyName' | 'netWeight' | 'branchName' | 'vehicleNo' | 'warehouseName' | 'deductionWeight' | 'impurityDeduction' | 'status' | 'updatedAt'
 export type WeightTicketSortDir = 'asc' | 'desc'
 
 export type StoredImageAsset = {
@@ -391,6 +392,7 @@ export const weightTicketRecordSchema = z.object({
   vehicleImageCount: z.number().int().nonnegative(),
   vehicleImageNames: z.array(z.string()),
   vehicleNo: z.string(),
+  warehouseName: z.string().optional().nullable(),
 })
 
 const weightTicketListResultSchema = z.object({

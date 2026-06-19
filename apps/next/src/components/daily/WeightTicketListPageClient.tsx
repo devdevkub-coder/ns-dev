@@ -35,7 +35,7 @@ import {
 
 type TypeFilter = WeightTicketType
 type StatusFilter = WeightTicketStatus
-type WeightTicketColumnKey = 'index' | 'action' | 'branch' | 'createdAt' | 'deductionWeight' | 'documentNo' | 'impurityDeduction' | 'netWeight' | 'partyName' | 'status' | 'updatedAt' | 'vehicleNo'
+type WeightTicketColumnKey = 'index' | 'action' | 'branch' | 'createdAt' | 'deductionWeight' | 'documentNo' | 'impurityDeduction' | 'netWeight' | 'partyName' | 'status' | 'updatedAt' | 'vehicleNo' | 'warehouseName'
 
 const pageSize = 10
 const weightTicketColumns: Array<ResizableColumnDefinition<WeightTicketColumnKey>> = [
@@ -45,6 +45,7 @@ const weightTicketColumns: Array<ResizableColumnDefinition<WeightTicketColumnKey
   { key: 'partyName', defaultWidth: 200, minWidth: 150 },
   { key: 'branch', defaultWidth: 140, minWidth: 110 },
   { key: 'vehicleNo', defaultWidth: 130, minWidth: 110 },
+  { key: 'warehouseName', defaultWidth: 150, minWidth: 110 },
   { key: 'netWeight', defaultWidth: 130, minWidth: 100 },
   { key: 'deductionWeight', defaultWidth: 130, minWidth: 100 },
   { key: 'impurityDeduction', defaultWidth: 140, minWidth: 110 },
@@ -560,7 +561,10 @@ export function WeightTicketListPageClient() {
                 </div>
                 <div>
                   <span className="font-semibold text-slate-500">ทะเบียนรถ: </span>
-                  <span className="text-slate-800">{ticket.vehicleNo}</span>
+                  <span className="text-slate-800">
+                    {ticket.vehicleNo}
+                    {ticket.type === 'WTO' && ticket.warehouseName ? ` (${ticket.warehouseName})` : ''}
+                  </span>
                 </div>
                 <div>
                   <span className="font-semibold text-slate-500">สาขา: </span>
@@ -660,6 +664,7 @@ export function WeightTicketListPageClient() {
                 <SortHeader activeKey={sortBy} align="left" direction={sortDir} label={typeFilter === 'WTI' ? 'ผู้ขาย' : 'ลูกค้า'} resizeProps={columnResize.getResizeHandleProps('partyName', typeFilter === 'WTI' ? 'ผู้ขาย' : 'ลูกค้า')} onSort={toggleSort} sortKey="partyName" />
                 <SortHeader activeKey={sortBy} align="left" direction={sortDir} label="สาขา" resizeProps={columnResize.getResizeHandleProps('branch', 'สาขา')} onSort={toggleSort} sortKey="branchName" />
                 <SortHeader activeKey={sortBy} align="left" direction={sortDir} label="ทะเบียนรถ" resizeProps={columnResize.getResizeHandleProps('vehicleNo', 'ทะเบียนรถ')} onSort={toggleSort} sortKey="vehicleNo" />
+                <SortHeader activeKey={sortBy} align="left" direction={sortDir} label="คลังสินค้า" resizeProps={columnResize.getResizeHandleProps('warehouseName', 'คลังสินค้า')} onSort={toggleSort} sortKey="warehouseName" />
                 <SortHeader activeKey={sortBy} align="right" direction={sortDir} label="น้ำหนักสุทธิ" resizeProps={columnResize.getResizeHandleProps('netWeight', 'น้ำหนักสุทธิ')} onSort={toggleSort} sortKey="netWeight" />
                 <SortHeader activeKey={sortBy} align="right" direction={sortDir} label="หักภาชนะ(กก.)" resizeProps={columnResize.getResizeHandleProps('deductionWeight', 'หักภาชนะ(กก.)')} onSort={toggleSort} sortKey="deductionWeight" />
                 <SortHeader activeKey={sortBy} align="left" direction={sortDir} label="หักสิ่งเจือปน" resizeProps={columnResize.getResizeHandleProps('impurityDeduction', 'หักสิ่งเจือปน')} onSort={toggleSort} sortKey="impurityDeduction" />
@@ -671,15 +676,15 @@ export function WeightTicketListPageClient() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td className="px-3 py-10 text-center text-slate-500" colSpan={11}>กำลังโหลดข้อมูล</td>
+                  <td className="px-3 py-10 text-center text-slate-500" colSpan={weightTicketColumns.length}>กำลังโหลดข้อมูล</td>
                 </tr>
               ) : loadError ? (
                 <tr>
-                  <td className="px-3 py-10 text-center text-red-600" colSpan={11}>{loadError}</td>
+                  <td className="px-3 py-10 text-center text-red-600" colSpan={weightTicketColumns.length}>{loadError}</td>
                 </tr>
               ) : tickets.length === 0 ? (
                 <tr>
-                  <td className="px-3 py-10 text-center text-slate-500" colSpan={11}>ยังไม่มีรายการตามเงื่อนไข</td>
+                  <td className="px-3 py-10 text-center text-slate-500" colSpan={weightTicketColumns.length}>ยังไม่มีรายการตามเงื่อนไข</td>
                 </tr>
               ) : tickets.map((ticket, index) => {
                 const isCancelled = ticket.status === 'cancelled'
@@ -698,6 +703,7 @@ export function WeightTicketListPageClient() {
                   <td className="px-3 py-3 text-slate-900">{ticket.partyName}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-slate-600">{ticket.branchName}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-slate-600">{ticket.vehicleNo}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-slate-600">{ticket.warehouseName || '-'}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-slate-900">{formatWeight(ticket.totals.netWeight)} กก.</td>
                   <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-amber-700">{formatContainerDeduction(ticket)}</td>
                   <td className="px-3 py-3 text-slate-600">

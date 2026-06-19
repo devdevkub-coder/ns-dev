@@ -743,7 +743,7 @@ function SummaryCard({ className = '', icon, label, tone, value }: { className?:
       <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl sm:h-11 sm:w-11 ${colors.split(' ')[0]}`}>{icon}</div>
       <div className="min-w-0">
         <div className={`text-xs ${colors.split(' ')[1]}`}>{label}</div>
-        <div className="truncate font-mono font-bold text-slate-900">{value}</div>
+        <div className="truncate font-mono text-lg sm:text-2xl font-bold text-slate-900">{value}</div>
       </div>
     </div>
   )

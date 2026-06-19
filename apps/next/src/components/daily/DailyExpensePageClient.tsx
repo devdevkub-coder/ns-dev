@@ -1383,8 +1383,8 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
               </div>
               <div>
                 <div className="text-xs text-slate-500">ค่าใช้จ่ายเดือนนี้</div>
-                <div className="font-bold text-slate-900">{formatMoney(summary.monthlyTotal)}</div>
-                <div className="text-[10px] text-slate-400 font-medium mt-0.5">{summary.monthlyCount} รายการ</div>
+                <div className="font-mono text-lg sm:text-2xl font-bold text-slate-900">{formatMoney(summary.monthlyTotal)}</div>
+                <div className="text-xs text-slate-400 font-medium mt-0.5">{summary.monthlyCount} รายการ</div>
               </div>
             </div>
             <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
@@ -1393,8 +1393,8 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
               </div>
               <div>
                 <div className="text-xs text-amber-600">รอจ่าย</div>
-                <div className="font-bold text-amber-700">{formatMoney(summary.pendingTotal)}</div>
-                <div className="text-[10px] text-slate-400 font-medium mt-0.5">ตามสถานะเอกสาร</div>
+                <div className="font-mono text-lg sm:text-2xl font-bold text-amber-700">{formatMoney(summary.pendingTotal)}</div>
+                <div className="text-xs text-slate-400 font-medium mt-0.5">ตามสถานะเอกสาร</div>
               </div>
             </div>
             <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
@@ -1403,8 +1403,8 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
               </div>
               <div>
                 <div className="text-xs text-emerald-600">เสร็จสิ้น</div>
-                <div className="font-bold text-emerald-700">{formatMoney(summary.paidTotal)}</div>
-                <div className="text-[10px] text-slate-400 font-medium mt-0.5">รวมทั้งระบบ</div>
+                <div className="font-mono text-lg sm:text-2xl font-bold text-emerald-700">{formatMoney(summary.paidTotal)}</div>
+                <div className="text-xs text-slate-400 font-medium mt-0.5">รวมทั้งระบบ</div>
               </div>
             </div>
             <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
@@ -1413,8 +1413,8 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
               </div>
               <div>
                 <div className="text-xs text-blue-600">ตามเงื่อนไขที่กรอง</div>
-                <div className="font-bold text-blue-700">{formatMoney(filteredSummary.netAmount)}</div>
-                <div className="text-[10px] text-slate-400 font-medium mt-0.5">{filteredSummary.count} รายการ</div>
+                <div className="font-mono text-lg sm:text-2xl font-bold text-blue-700">{formatMoney(filteredSummary.netAmount)}</div>
+                <div className="text-xs text-slate-400 font-medium mt-0.5">{filteredSummary.count} รายการ</div>
               </div>
             </div>
           </div>

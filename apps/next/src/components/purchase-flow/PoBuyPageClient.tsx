@@ -1238,8 +1238,8 @@ function SummaryCard({
       </div>
       <div>
         <div className={`text-xs ${config.labelColor}`}>{label}</div>
-        <div className={`font-bold ${config.valueColor}`}>{value}</div>
-        {sublabel ? <div className="text-[10px] text-slate-400 font-medium mt-0.5">{sublabel}</div> : null}
+        <div className={`font-mono text-lg sm:text-2xl font-bold ${config.valueColor}`}>{value}</div>
+        {sublabel ? <div className="text-xs text-slate-400 font-medium mt-0.5">{sublabel}</div> : null}
       </div>
     </div>
   )

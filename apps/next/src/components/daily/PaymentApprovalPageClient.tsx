@@ -636,7 +636,7 @@ export function PaymentApprovalPageClient() {
           </div>
           <div>
             <div className="text-xs text-slate-500">รายการทั้งหมด</div>
-            <div className="font-bold text-slate-900">{filteredRows.length}</div>
+            <div className="font-mono text-lg sm:text-2xl font-bold text-slate-900">{filteredRows.length}</div>
           </div>
         </div>
         <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
@@ -645,7 +645,7 @@ export function PaymentApprovalPageClient() {
           </div>
           <div>
             <div className="text-xs text-blue-600">ยอดเต็ม</div>
-            <div className="font-bold text-blue-700">{formatMoney(summary.totalFull)}</div>
+            <div className="font-mono text-lg sm:text-2xl font-bold text-blue-700">{formatMoney(summary.totalFull)}</div>
           </div>
         </div>
         <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
@@ -654,7 +654,7 @@ export function PaymentApprovalPageClient() {
           </div>
           <div>
             <div className="text-xs text-emerald-600">ชำระแล้ว</div>
-            <div className="font-bold text-emerald-700">{formatMoney(summary.totalPaid)}</div>
+            <div className="font-mono text-lg sm:text-2xl font-bold text-emerald-700">{formatMoney(summary.totalPaid)}</div>
           </div>
         </div>
         <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
@@ -663,7 +663,7 @@ export function PaymentApprovalPageClient() {
           </div>
           <div>
             <div className="text-xs text-red-600">คงเหลือ</div>
-            <div className="font-bold text-red-700">{formatMoney(summary.totalRemain)}</div>
+            <div className="font-mono text-lg sm:text-2xl font-bold text-red-700">{formatMoney(summary.totalRemain)}</div>
           </div>
         </div>
         <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4 col-span-2 lg:col-span-1">
@@ -672,7 +672,7 @@ export function PaymentApprovalPageClient() {
           </div>
           <div>
             <div className="text-xs text-amber-600">อนุมัติ / รอ / ยกเลิก</div>
-            <div className="font-bold text-amber-700">
+            <div className="font-mono text-lg sm:text-2xl font-bold text-amber-700">
               {summary.approvedCount} / {summary.pendingCount} / {summary.voidedCount}
             </div>
           </div>

@@ -848,7 +848,7 @@ function SummaryCard({ label, tone, value, className = '' }: { label: string; to
       </div>
       <div>
         <div className={`text-xs ${config.labelColor}`}>{label}</div>
-        <div className={`font-bold ${config.valueColor}`}>{value}</div>
+        <div className={`font-mono text-lg sm:text-2xl font-bold ${config.valueColor}`}>{value}</div>
       </div>
     </div>
   )
