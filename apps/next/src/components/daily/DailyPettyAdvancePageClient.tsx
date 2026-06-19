@@ -550,6 +550,15 @@ export function DailyPettyAdvancePageClient() {
                 <MoneyField label="จำนวนเงินคืน" required value={Number(returnForm.amount) || 0} onChange={(value) => setReturnForm({ ...returnForm, amount: String(value) })} />
               </div>
               <div className="col-span-2">
+                <SelectField
+                  label="บัญชีรับคืน"
+                  required
+                  options={activeAccounts}
+                  value={returnForm.accountId}
+                  onChange={(value) => setReturnForm({ ...returnForm, accountId: value })}
+                />
+              </div>
+              <div className="col-span-2">
                 <TextAreaField label="หมายเหตุ" value={returnForm.notes} onChange={(value) => setReturnForm({ ...returnForm, notes: value })} />
               </div>
             </div>
