@@ -1917,6 +1917,20 @@ export function MoneyMovementPageClient({
       setError('รวมยอดแยกบัญชีต้องเท่ากับยอดสุทธิที่ต้องจ่าย')
       return
     }
+    if (mode === 'payment') {
+      const paymentPayload = payload as SupplierPaymentFormValues
+      for (const split of paymentPayload.splits) {
+        const account = activeAccounts.find((a) => a.id === split.accountId)
+        if (account) {
+          const splitAmount = Number(split.amount) || 0
+          const available = (account.balance ?? 0) + (account.subtype === 'current' ? (account.odLimit ?? 0) : 0)
+          if (splitAmount > available + 0.01) {
+            setError('ยอดจ่ายเกินยอดเงินคงเหลือและวงเงิน OD ที่ใช้ได้ กรุณาลดจำนวนหรือเพิ่มบัญชีจ่าย')
+            return
+          }
+        }
+      }
+    }
     if (mode === 'receipt' && Math.abs(receiptSplitTotal - formNetAmount) > 0.01) {
       setError('รวมยอดแยกบัญชีรับเงินต้องเท่ากับยอดสุทธิที่ต้องรับ')
       return

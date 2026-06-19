@@ -84,13 +84,23 @@ function validateAccountBusinessRules(values: {
     throw new Error('บัญชีประเภทนี้ต้องใช้สกุลเงิน THB')
   }
 
-  if (values.subtype === 'od' && (!values.odLimit || values.odLimit <= 0)) {
-    throw new Error('กรอกวงเงิน OD มากกว่า 0')
+  if (values.subtype !== 'current' && values.odLimit && values.odLimit > 0) {
+    throw new Error('เฉพาะบัญชีกระแสรายวันเท่านั้นที่สามารถมีวงเงิน OD ได้')
   }
 }
 
-function mapAccount(row: AccountRow, paymentMethodTypes: Map<string, 'cash' | 'bank'>) {
+function mapAccount(
+  row: AccountRow,
+  paymentMethodTypes: Map<string, 'cash' | 'bank'>,
+  statementTotalByAccountId: Map<string, number>
+) {
   const outwardId = requireBusinessCode(row.code, `บัญชีเงิน ${row.id}`)
+  const realBalance = (toNumber(row.opening_balance) ?? 0) + (statementTotalByAccountId.get(row.id.toString()) ?? 0)
+  const odLimit = toNumber(row.od_limit) ?? 0
+  const odUsed = Math.max(0, -realBalance)
+  const odRemaining = Math.max(0, odLimit - odUsed)
+  const availableToPay = realBalance + odLimit
+
   return {
     id: outwardId,
     code: outwardId,
@@ -112,7 +122,11 @@ function mapAccount(row: AccountRow, paymentMethodTypes: Map<string, 'cash' | 'b
     accountNo: row.account_no,
     currency: row.currency,
     openingBalance: toNumber(row.opening_balance),
-    odLimit: toNumber(row.od_limit),
+    odLimit,
+    realBalance,
+    odUsed,
+    odRemaining,
+    availableToPay,
     ...outwardBranchReference(row.branches, row.branch_id),
     address: null,
     commissionPct: null,
@@ -188,8 +202,22 @@ export async function GET() {
     requirePermission(context, 'master.reference.view')
 
     const paymentMethodTypes = await getPaymentMethodTypes()
-    const rows = await prisma.accounts.findMany({ include: { branches: true }, orderBy: [{ code: 'asc' }, { name: 'asc' }, { account_no: 'asc' }] })
-    return masterDataListJson(rows.map((row) => mapAccount(row, paymentMethodTypes)))
+    const [rows, statementTotals] = await Promise.all([
+      prisma.accounts.findMany({ include: { branches: true }, orderBy: [{ code: 'asc' }, { name: 'asc' }, { account_no: 'asc' }] }),
+      prisma.bank_statement.groupBy({
+        by: ['account_id'],
+        _sum: {
+          amount_in: true,
+          amount_out: true,
+        },
+        where: { account_id: { not: null } },
+      }),
+    ])
+    const statementTotalByAccountId = new Map(statementTotals.map((total) => [
+      total.account_id?.toString() ?? '',
+      ((toNumber(total._sum?.amount_in) ?? 0) - (toNumber(total._sum?.amount_out) ?? 0)),
+    ] as const))
+    return masterDataListJson(rows.map((row) => mapAccount(row, paymentMethodTypes, statementTotalByAccountId)))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return errorJson(caught, 'โหลดข้อมูลบัญชีเงินไม่ได้', 500)
@@ -257,8 +285,21 @@ export async function POST(request: Request) {
         data,
         include: { branches: true },
       })
-    const paymentMethodTypes = await getPaymentMethodTypes()
-    return masterDataJson(mapAccount(row, paymentMethodTypes))
+    const [paymentMethodTypes, statementSum] = await Promise.all([
+      getPaymentMethodTypes(),
+      prisma.bank_statement.aggregate({
+        _sum: {
+          amount_in: true,
+          amount_out: true,
+        },
+        where: { account_id: row.id },
+      }),
+    ])
+    const statementTotalByAccountId = new Map([[
+      row.id.toString(),
+      ((toNumber(statementSum._sum?.amount_in) ?? 0) - (toNumber(statementSum._sum?.amount_out) ?? 0)),
+    ]])
+    return masterDataJson(mapAccount(row, paymentMethodTypes, statementTotalByAccountId))
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return errorJson(caught, 'บันทึกข้อมูลบัญชีเงินไม่ได้')

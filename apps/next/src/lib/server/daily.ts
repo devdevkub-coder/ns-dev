@@ -114,6 +114,8 @@ export async function listDailyAccounts() {
         name: true,
         opening_balance: true,
         type: true,
+        subtype: true,
+        od_limit: true,
       },
     }),
     prisma.bank_statement.groupBy({
@@ -130,14 +132,27 @@ export async function listDailyAccounts() {
     toNumber(total._sum.amount_in) - toNumber(total._sum.amount_out),
   ] as const))
 
-  return accounts.map((account) => ({
-    active: account.active ?? true,
-    balance: toNumber(account.opening_balance) + (statementTotalByAccountId.get(account.id.toString()) ?? 0),
-    code: account.account_no,
-    id: requireBusinessCode(account.code, `บัญชีเงิน ${account.id}`),
-    name: account.name,
-    type: account.type,
-  }))
+  return accounts.map((account) => {
+    const realBalance = toNumber(account.opening_balance) + (statementTotalByAccountId.get(account.id.toString()) ?? 0)
+    const odLimit = toNumber(account.od_limit)
+    const odUsed = Math.max(0, -realBalance)
+    const odRemaining = Math.max(0, odLimit - odUsed)
+    const availableToPay = realBalance + odLimit
+
+    return {
+      active: account.active ?? true,
+      balance: realBalance,
+      code: account.account_no,
+      id: requireBusinessCode(account.code, `บัญชีเงิน ${account.id}`),
+      name: account.name,
+      type: account.type,
+      subtype: account.subtype,
+      odLimit,
+      odUsed,
+      odRemaining,
+      availableToPay,
+    }
+  })
 }
 
 export function bankStatementTransferRows(values: {

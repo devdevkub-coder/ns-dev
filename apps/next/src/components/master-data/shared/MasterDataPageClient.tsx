@@ -786,14 +786,14 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
           }
         }
         if (key === 'subtype' && nextPaymentMethodGroup === 'bank') {
-          if (value === 'savings' || value === 'current' || value === 'fcd' || value === 'od') {
-            if (value === 'savings' || value === 'current' || value === 'od') {
+          if (value === 'savings' || value === 'current' || value === 'fcd') {
+            if (value === 'savings' || value === 'current') {
               typedNext.currency = 'THB'
             }
             if (value === 'fcd' && typedNext.currency === 'THB') {
               typedNext.currency = null
             }
-            if (value !== 'od') {
+            if (value !== 'current') {
               typedNext.odLimit = null
             }
           }
@@ -827,7 +827,7 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
       if (accountTypeGroup === 'cash' && ['subtype', 'bankName', 'bankBranch', 'accountNo', 'odLimit'].includes(String(field.key))) {
         return false
       }
-      if (accountTypeGroup === 'bank' && field.key === 'odLimit' && form.subtype !== 'od') {
+      if (accountTypeGroup === 'bank' && field.key === 'odLimit' && form.subtype !== 'current') {
         return false
       }
     }
@@ -873,7 +873,7 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
         {supportsActive ? <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-slate-200" onChange={(checked) => update('active', checked)} /> : null}
       </div>
 
-      <div className="max-h-[76vh] overflow-y-auto bg-slate-50 px-5 py-5 flex-1">
+      <div className="max-h-[76vh] overflow-y-auto bg-slate-50 px-5 py-5 flex-1 space-y-5">
         {hasFieldSections ? (
           <div className="space-y-5">
             {fieldSections.map((section, index) => (
@@ -881,6 +881,17 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
                 {section.title ? <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">{section.title}</h4> : null}
                 <div className="grid gap-4 md:grid-cols-3">
                   {section.fields.map(renderField)}
+                  {section.title === 'ยอดตั้งต้นและวงเงิน OD' && form.subtype === 'current' && (
+                    <label className="block">
+                      <span className="mb-1.5 block text-xs font-semibold text-slate-600">เงื่อนไขการใช้ OD</span>
+                      <input
+                        className="w-full h-10 rounded-md border px-3 py-2 text-sm outline-none bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed"
+                        disabled
+                        type="text"
+                        value="ใช้เงินคงเหลือปกติก่อน แล้วค่อยใช้ OD"
+                      />
+                    </label>
+                  )}
                 </div>
               </section>
             ))}
@@ -891,6 +902,45 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
               {visibleFields.map(renderField)}
             </div>
           </div>
+        )}
+
+        {config.apiPath === '/api/master-data/accounts' && record && (
+          <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">ข้อมูลคำนวณจาก Bank Statement (อ่านอย่างเดียว)</h4>
+            <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+              <div className="rounded-lg border border-emerald-100 bg-emerald-50/50 p-4">
+                <div className="text-xs text-emerald-800 font-semibold mb-1">ยอดคงเหลือจริง</div>
+                <div className="text-lg font-bold text-emerald-900 tabular-nums">
+                  {formatNumber(typeof (record as any).realBalance === 'number' ? (record as any).realBalance : null)}
+                </div>
+              </div>
+              {form.subtype === 'current' && (
+                <>
+                  <div className="rounded-lg border border-orange-100 bg-orange-50/50 p-4">
+                    <div className="text-xs text-orange-800 font-semibold mb-1">OD ใช้ไป</div>
+                    <div className="text-lg font-bold text-orange-900 tabular-nums">
+                      {formatNumber(typeof (record as any).odUsed === 'number' ? (record as any).odUsed : null)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-emerald-100 bg-emerald-50/50 p-4">
+                    <div className="text-xs text-emerald-800 font-semibold mb-1">OD คงเหลือ</div>
+                    <div className="text-lg font-bold text-emerald-900 tabular-nums">
+                      {formatNumber(typeof (record as any).odRemaining === 'number' ? (record as any).odRemaining : null)}
+                    </div>
+                  </div>
+                </>
+              )}
+              <div className="rounded-lg border border-emerald-100 bg-emerald-50/50 p-4">
+                <div className="text-xs text-emerald-800 font-semibold mb-1">ยอดที่ใช้จ่ายได้</div>
+                <div className="text-lg font-bold text-emerald-900 tabular-nums">
+                  {formatNumber(form.subtype === 'current' ? (typeof (record as any).availableToPay === 'number' ? (record as any).availableToPay : null) : (typeof (record as any).realBalance === 'number' ? (record as any).realBalance : null))}
+                </div>
+              </div>
+            </div>
+            <div className="text-xs text-slate-500 italic mt-1.5">
+              สูตร: ยอดที่ใช้จ่ายได้ = ยอดคงเหลือจริง + วงเงิน OD
+            </div>
+          </section>
         )}
       </div>
 

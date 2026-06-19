@@ -46,10 +46,57 @@ export async function PATCH(request: Request, { params }: MasterDataRouteProps) 
       } as any,
     })
     if (!resolved) throw new Error('ไม่พบบัญชีเงินที่ต้องการอัปเดต')
-    const row = await prisma.accounts.update({ where: { id: resolved.id }, data: { active: values.active }, include: { branches: true } })
+    const [row, statementSum] = await Promise.all([
+      prisma.accounts.update({ where: { id: resolved.id }, data: { active: values.active }, include: { branches: true } }),
+      prisma.bank_statement.aggregate({
+        _sum: {
+          amount_in: true,
+          amount_out: true,
+        },
+        where: { account_id: resolved.id },
+      }),
+    ])
     const branch = outwardBranchReference(row.branches, row.branch_id)
     const outwardId = requireBusinessCode(row.code, `บัญชีเงิน ${row.id}`)
-    return masterDataJson({ id: outwardId, code: outwardId, name: row.name, active: row.active ?? true, type: row.type, subtype: normalizeSubtype(row, paymentMethodTypes), phone: null, email: null, note: null, symbol: null, rateToThb: null, parentId: null, channelType: null, bankName: row.bank_name ?? row.bank, bankBranch: row.bank_branch, accountNo: row.account_no, currency: row.currency, openingBalance: toNumber(row.opening_balance), odLimit: toNumber(row.od_limit), branchId: branch.branchId, branchName: branch.branchName, address: null, commissionPct: null, baseSalary: null, createdAt: toIso(row.created_at), updatedAt: toIso(row.updated_at) })
+
+    const realBalance = (toNumber(row.opening_balance) ?? 0) + ((toNumber(statementSum._sum?.amount_in) ?? 0) - (toNumber(statementSum._sum?.amount_out) ?? 0))
+    const odLimit = toNumber(row.od_limit) ?? 0
+    const odUsed = Math.max(0, -realBalance)
+    const odRemaining = Math.max(0, odLimit - odUsed)
+    const availableToPay = realBalance + odLimit
+
+    return masterDataJson({
+      id: outwardId,
+      code: outwardId,
+      name: row.name,
+      active: row.active ?? true,
+      type: row.type,
+      subtype: normalizeSubtype(row, paymentMethodTypes),
+      phone: null,
+      email: null,
+      note: null,
+      symbol: null,
+      rateToThb: null,
+      parentId: null,
+      channelType: null,
+      bankName: row.bank_name ?? row.bank,
+      bankBranch: row.bank_branch,
+      accountNo: row.account_no,
+      currency: row.currency,
+      openingBalance: toNumber(row.opening_balance),
+      odLimit,
+      realBalance,
+      odUsed,
+      odRemaining,
+      availableToPay,
+      branchId: branch.branchId,
+      branchName: branch.branchName,
+      address: null,
+      commissionPct: null,
+      baseSalary: null,
+      createdAt: toIso(row.created_at),
+      updatedAt: toIso(row.updated_at),
+    })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return errorJson(caught, 'อัปเดตสถานะบัญชีเงินไม่ได้')

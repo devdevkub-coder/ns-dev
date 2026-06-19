@@ -85,6 +85,26 @@ export async function POST(request: Request) {
       throw new Error('บัญชีต้นทางหรือปลายทางไม่ถูกต้อง')
     }
 
+    const allAccounts = await listDailyAccounts()
+    const fromAcc = allAccounts.find((a) => a.id === values.fromAccountId)
+    if (fromAcc) {
+      let oldAmountAndFee = 0
+      if (values.id) {
+        const prevTransfer = await prisma.transfers.findFirst({
+          select: { amount: true, fee: true, bank_fee: true },
+          where: { doc_no: values.id },
+        })
+        if (prevTransfer) {
+          oldAmountAndFee = toNumber(prevTransfer.amount) + toNumber(prevTransfer.fee ?? prevTransfer.bank_fee)
+        }
+      }
+      const transferCost = values.amount + values.fee
+      const available = (fromAcc.balance ?? 0) + oldAmountAndFee + (fromAcc.subtype === 'current' ? (fromAcc.odLimit ?? 0) : 0)
+      if (transferCost > available + 0.01) {
+        throw new Error('ยอดจ่ายเกินยอดเงินคงเหลือและวงเงิน OD ที่ใช้ได้ กรุณาลดจำนวนหรือเพิ่มบัญชีจ่าย')
+      }
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const existingTransfer = values.id
         ? await findTransferByDocNo(tx, values.id, {

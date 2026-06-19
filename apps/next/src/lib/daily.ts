@@ -246,6 +246,11 @@ export type DailyAccountOption = {
   id: string
   name: string
   type: string
+  subtype?: string | null
+  odLimit?: number | null
+  odUsed?: number | null
+  odRemaining?: number | null
+  availableToPay?: number | null
 }
 
 export async function dailyFetchJson<T>(url: string, init?: RequestInit): Promise<T> {

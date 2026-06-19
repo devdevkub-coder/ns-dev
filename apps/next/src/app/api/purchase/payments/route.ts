@@ -491,6 +491,17 @@ export async function POST(request: Request) {
     if (Math.abs(splitTotal - netAmount) > 0.01) {
       throw new Error('รวมยอดแยกบัญชีต้องเท่ากับยอดสุทธิที่ต้องจ่าย')
     }
+    const allAccounts = await listDailyAccounts()
+    for (const split of paymentSplits) {
+      const account = allAccounts.find((a) => a.id === split.accountId)
+      if (account) {
+        const splitAmount = toNumber(split.amount)
+        const available = (account.balance ?? 0) + (account.subtype === 'current' ? (account.odLimit ?? 0) : 0)
+        if (splitAmount > available + 0.01) {
+          throw new Error('ยอดจ่ายเกินยอดเงินคงเหลือและวงเงิน OD ที่ใช้ได้ กรุณาลดจำนวนหรือเพิ่มบัญชีจ่าย')
+        }
+      }
+    }
     const splitAccountCodes = [...new Set(paymentSplits.map((split) => split.accountId).filter(Boolean))]
     const splitAccountReferences = await Promise.all(splitAccountCodes.map(async (code) => [code, await findActiveAccountReferenceByCode(code)] as const))
     const splitAccountByCode = new Map(splitAccountReferences)
