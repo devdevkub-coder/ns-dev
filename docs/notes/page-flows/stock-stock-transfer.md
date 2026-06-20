@@ -126,6 +126,7 @@ Requirement จาก customer screenshots:
 - ทำแล้ว: posted cancel/reversal ไม่เปิดตาม business policy; correction ใช้ transfer ใหม่กลับทิศทางเท่านั้น
 - ทำแล้ว: design alignment 2026-06-21 ให้หน้า list แสดง `รายการทั้งหมด`, `น้ำหนักรวม`, และ `มูลค่ารวม` เป็น KPI cards ด้านบนแทนการยัด metric ใน pagination row; pagination row เหลือ count/page-size/navigation ตาม `docs/design.md`
 - ทำแล้ว: modal create/edit ใช้ radius `rounded-md`, dark header/footer ตาม baseline, ซ่อนปุ่ม X ใน header, ปุ่มหลักใช้ `slate-900`, และ status ใน list ใช้ dot + text ไม่ใช้ badge background
+- ทำแล้ว: modal create/edit กำหนด combobox portal root เป็น positioned container เพื่อให้ dropdown ของช่องสินค้าอยู่ใต้ input ภายใน modal ไม่หลุดไปทับหน้ารายการด้านหลัง
 - ทำแล้ว: table header/row wording ใช้ `วันที่เอกสาร` และ `วันที่สร้างรายการ`, font scale ใน body เป็น `text-xs font-semibold`, action column ใช้ปุ่มข้อความ outline ขนาดเล็กตาม table action pattern
 
 ## Implementation Checklist
