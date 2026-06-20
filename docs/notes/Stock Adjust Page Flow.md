@@ -67,7 +67,7 @@ Requirement update 2026-06-13:
 - แก้ไขล่าสุดโดย / เวลาแก้ไขล่าสุด
 - สร้างโดย
 
-Design checkpoint 2026-06-21: หน้า list ต้องไม่มีปุ่ม `โหลดใหม่` และไม่มีกล่องคำอธิบายยาวในหน้าหลัก; ใช้ KPI cards + filter card + pagination row + table ตาม `docs/design.md`, modal/card ใช้ `rounded-md`, table desktop breakpoint ใช้ `lg`, header ใช้ `bg-slate-100`, body cell ใช้ `text-xs font-semibold`, header table ต้อง sort ได้, action ใช้ outline button และ wording หลักใช้ `วันที่เอกสาร`, `ยอดในระบบ`, `ส่วนต่าง`, `มูลค่ารวม (บาท)`
+Design checkpoint 2026-06-21: หน้า list ต้องไม่มีปุ่ม `โหลดใหม่` และไม่มีกล่องคำอธิบายยาวในหน้าหลัก; ใช้ KPI cards + filter card + pagination row + table ตาม `docs/design.md`, modal/card ใช้ `rounded-md`, table desktop breakpoint ใช้ `lg`, header ใช้ `bg-slate-100`, body cell ใช้ `text-xs font-semibold`, header table ต้อง sort ได้, คลิก row/card เพื่อเปิด detail modal, action ใช้ outline button และ wording หลักใช้ `วันที่เอกสาร`, `ยอดในระบบ`, `ส่วนต่าง`, `มูลค่ารวม (บาท)`
 
 ### Filters
 

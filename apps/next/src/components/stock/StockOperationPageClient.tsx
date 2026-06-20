@@ -138,6 +138,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
   const [statusConvertSortDirection, setStatusConvertSortDirection] = useState<SortDirection>('desc')
   const [statusConvertSortKey, setStatusConvertSortKey] = useState<StatusConvertSortKey>('date')
   const [convertDetail, setConvertDetail] = useState<StockConvertDetail | null>(null)
+  const [adjustDetail, setAdjustDetail] = useState<Record<string, string | number | boolean | null> | null>(null)
   const [isConvertDetailLoading, setIsConvertDetailLoading] = useState(false)
 
   const loadData = useCallback(async () => {
@@ -335,6 +336,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
     setIsSaving(true)
     try {
       await dailyFetchJson(meta.api, { body: JSON.stringify({ countedQty, docNo, reason, remark }), method: 'PATCH' })
+      setAdjustDetail(null)
       await loadData()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'แก้ไขปรับสต๊อกไม่สำเร็จ')
@@ -648,6 +650,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
         sortDirection={mode === 'status-convert' ? statusConvertSortDirection : operationSortDirection}
         sortKey={mode === 'status-convert' ? statusConvertSortKey : operationSortKey}
         onConvertDetail={mode === 'convert' ? openConvertDetail : undefined}
+        onAdjustDetail={mode === 'adjust' ? setAdjustDetail : undefined}
         onAdjustCorrect={mode === 'adjust' ? correctAdjust : undefined}
         onSortChange={mode === 'status-convert' ? (key) => toggleStatusConvertSort(key as StatusConvertSortKey) : mode === 'adjust' || mode === 'convert' ? toggleOperationSort : undefined}
         onConvertReverse={mode === 'convert' ? reverseConvert : undefined}
@@ -659,6 +662,13 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
           isLoading={isConvertDetailLoading}
           onClose={() => setConvertDetail(null)}
           onExport={() => exportConvertDetail(convertDetail.refNo)}
+        />
+      ) : null}
+      {adjustDetail ? (
+        <AdjustDetailModal
+          detail={adjustDetail}
+          onClose={() => setAdjustDetail(null)}
+          onCorrect={mode === 'adjust' ? correctAdjust : undefined}
         />
       ) : null}
     </section>
@@ -724,6 +734,7 @@ function OperationTable({
   isLoading,
   mode,
   onAdjustCorrect,
+  onAdjustDetail,
   onConvertDetail,
   onConvertReverse,
   onStatusConvertReverse,
@@ -735,6 +746,7 @@ function OperationTable({
   isLoading: boolean
   mode: Mode
   onAdjustCorrect?: (row: Record<string, string | number | boolean | null>) => void
+  onAdjustDetail?: (row: Record<string, string | number | boolean | null>) => void
   onConvertDetail?: (refNo: string) => void
   onConvertReverse?: (refNo: string) => void
   onStatusConvertReverse?: (refNo: string) => void
@@ -762,7 +774,16 @@ function OperationTable({
             const systemQty = Number(row.systemQty ?? 0)
 
             return (
-              <div key={id} className="rounded-md border border-slate-200 bg-white p-4 shadow-sm hover:bg-slate-50">
+              <div
+                key={id}
+                className="cursor-pointer rounded-md border border-slate-200 bg-white p-4 shadow-sm hover:bg-slate-50"
+                role="button"
+                tabIndex={0}
+                onClick={() => onAdjustDetail?.(row)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') onAdjustDetail?.(row)
+                }}
+              >
                 <div className="mb-2 flex items-start justify-between">
                   <span className="font-bold text-slate-800">{refNo}</span>
                   <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold ${adjustType === 'LOSS' ? 'bg-red-100 text-red-700' : adjustType === 'GAIN' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
@@ -800,7 +821,10 @@ function OperationTable({
                     disabled={!row.canEdit || !onAdjustCorrect}
                     className="rounded-md border border-slate-300 px-3 py-1.5 text-xs hover:bg-slate-50 disabled:opacity-50"
                     type="button"
-                    onClick={() => onAdjustCorrect?.(row)}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onAdjustCorrect?.(row)
+                    }}
                   >
                     แก้ไข
                   </button>
@@ -951,7 +975,7 @@ function OperationTable({
           </thead>
           <tbody className="divide-y divide-slate-100">
             {isLoading ? <tr><td className="p-8 text-center text-slate-500" colSpan={columns.length}>กำลังโหลดข้อมูล</td></tr> : null}
-            {!isLoading && rows.map((row, index) => <tr key={String(row.id ?? index)} className="hover:bg-slate-50">{columns.map((column) => <td key={column.key} className={`p-2 align-top text-xs font-semibold text-slate-700 ${column.cellClassName ?? ''}`}>{formatOperationCell(mode, row, column.key, onConvertReverse, onConvertDetail, onStatusConvertReverse, onAdjustCorrect)}</td>)}</tr>)}
+            {!isLoading && rows.map((row, index) => <tr key={String(row.id ?? index)} className={`hover:bg-slate-50 ${mode === 'adjust' ? 'cursor-pointer' : ''}`} onClick={mode === 'adjust' ? () => onAdjustDetail?.(row) : undefined}>{columns.map((column) => <td key={column.key} className={`p-2 align-top text-xs font-semibold text-slate-700 ${column.cellClassName ?? ''}`}>{formatOperationCell(mode, row, column.key, onConvertReverse, onConvertDetail, onStatusConvertReverse, onAdjustCorrect)}</td>)}</tr>)}
             {!isLoading && !rows.length ? <tr><td className="p-8 text-center text-slate-400" colSpan={columns.length}>{emptyTextFor(mode)}</td></tr> : null}
           </tbody>
         </table>
@@ -1185,7 +1209,7 @@ function formatOperationCell(mode: Mode, row: Record<string, string | number | b
   }
   if (mode === 'adjust') {
     if (key === 'action') {
-      return <button className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60" disabled={!row.canEdit || !onAdjustCorrect} title={row.canEdit ? 'แก้ไขได้ภายใน 7 วัน' : 'หมดช่วงแก้ไข 7 วันแล้ว'} type="button" onClick={() => onAdjustCorrect?.(row)}>แก้ไข</button>
+      return <button className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60" disabled={!row.canEdit || !onAdjustCorrect} title={row.canEdit ? 'แก้ไขได้ภายใน 7 วัน' : 'หมดช่วงแก้ไข 7 วันแล้ว'} type="button" onClick={(event) => { event.stopPropagation(); onAdjustCorrect?.(row) }}>แก้ไข</button>
     }
     if (key === 'createdAt') return formatDateTime(row.createdAt)
     if (key === 'adjustType') {
@@ -1218,6 +1242,98 @@ function signedAdjustValue(row: Record<string, string | number | boolean | null>
   const rawValue = Number(row.totalValue ?? row.valueNote ?? 0)
   if (String(row.adjustType ?? '') === 'LOSS' && rawValue > 0) return rawValue * -1
   return rawValue
+}
+
+function AdjustDetailModal({
+  detail,
+  onClose,
+  onCorrect,
+}: {
+  detail: Record<string, string | number | boolean | null>
+  onClose: () => void
+  onCorrect?: (row: Record<string, string | number | boolean | null>) => void
+}) {
+  const adjustType = String(detail.adjustType ?? '')
+  const diffQty = Number(detail.diffQty ?? 0)
+  const totalValue = signedAdjustValue(detail)
+  const canEdit = Boolean(detail.canEdit)
+  const statusLabel = adjustType === 'LOSS' ? 'นับขาด' : adjustType === 'GAIN' ? 'นับเกิน' : 'ไม่มีส่วนต่าง'
+  const statusClass = adjustType === 'LOSS' ? 'bg-red-100 text-red-700' : adjustType === 'GAIN' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
+  const dotClass = adjustType === 'LOSS' ? 'bg-red-500' : adjustType === 'GAIN' ? 'bg-emerald-500' : 'bg-slate-400'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-10">
+      <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-md bg-white shadow-2xl">
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900 px-5 py-4 text-white">
+          <div>
+            <h3 className="text-base font-bold text-white">รายละเอียดปรับสต๊อก · {formatCell(detail.docNo)}</h3>
+            <div className="mt-1 text-xs text-slate-400">{formatDateDisplay(String(detail.date ?? ''))} · {formatCell(detail.branchWarehouse)} · {formatCell(detail.status)}</div>
+          </div>
+          <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${statusClass}`}>
+            <span className={`size-1.5 rounded-full ${dotClass}`} />
+            {statusLabel}
+          </span>
+        </div>
+        <div className="overflow-y-auto bg-slate-50 p-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Metric cardClassName="rounded-md border border-slate-200 bg-white p-3 shadow-sm" label="ยอดในระบบ" value={`${formatMoney(Number(detail.systemQty ?? 0))} กก.`} />
+            <Metric cardClassName="rounded-md border border-slate-200 bg-white p-3 shadow-sm" label="นับจริง" value={`${formatMoney(Number(detail.countedQty ?? 0))} กก.`} />
+            <Metric cardClassName="rounded-md border border-slate-200 bg-white p-3 shadow-sm" label="ส่วนต่าง" value={`${formatMoney(diffQty)} กก.`} valueClassName={diffQty < 0 ? 'text-red-600' : diffQty > 0 ? 'text-emerald-700' : 'text-slate-900'} />
+            <Metric cardClassName="rounded-md border border-slate-200 bg-white p-3 shadow-sm" label="มูลค่ารวม (บาท)" value={formatMoney(totalValue)} valueClassName={totalValue < 0 ? 'text-red-600' : totalValue > 0 ? 'text-emerald-700' : 'text-slate-900'} />
+            <Metric cardClassName="rounded-md border border-slate-200 bg-white p-3 shadow-sm" label="จองไว้" value={`${formatMoney(Number(detail.onHoldQty ?? 0))} กก.`} valueClassName="text-amber-700" />
+            <Metric cardClassName="rounded-md border border-slate-200 bg-white p-3 shadow-sm" label="พร้อมใช้" value={`${formatMoney(Number(detail.readyQty ?? 0))} กก.`} valueClassName="text-emerald-700" />
+            <Metric cardClassName="rounded-md border border-slate-200 bg-white p-3 shadow-sm" label="ราคา/กก." value={formatMoney(Number(detail.unitPricePerKg ?? 0))} />
+            <Metric cardClassName="rounded-md border border-slate-200 bg-white p-3 shadow-sm" label="ประเภทคลัง" value={formatCell(detail.outputCategory)} />
+          </div>
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+              <h4 className="mb-3 text-sm font-bold text-slate-800">สินค้าและคลัง</h4>
+              <div className="grid gap-3 text-sm sm:grid-cols-2">
+                <DetailField label="สินค้า" value={`${formatCell(detail.productCode)} ${formatCell(detail.productName)}`} />
+                <DetailField label="Lot" value={formatCell(detail.lotNo)} />
+                <DetailField label="สาขา" value={formatCell(detail.branchName)} />
+                <DetailField label="คลัง" value={formatCell(detail.warehouseName)} />
+              </div>
+            </div>
+            <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+              <h4 className="mb-3 text-sm font-bold text-slate-800">เหตุผลและ audit</h4>
+              <div className="grid gap-3 text-sm sm:grid-cols-2">
+                <DetailField label="เหตุผล" value={formatCell(detail.reason)} />
+                <DetailField label="หมายเหตุ" value={formatCell(detail.remark)} />
+                <DetailField label="สร้างโดย" value={formatCell(detail.createdBy)} />
+                <DetailField label="วันที่สร้างรายการ" value={formatDateTime(detail.createdAt)} />
+                <DetailField label="แก้ไขโดย" value={formatCell(detail.updatedBy)} />
+                <DetailField label="แก้ไขล่าสุด" value={formatDateTime(detail.updatedAt)} />
+                <DetailField label="แก้ไขได้ถึง" value={formatDateTime(detail.editableUntil)} />
+                <DetailField label="นโยบายบัญชี" value={formatCell(detail.policy)} />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 bg-white px-5 py-4">
+          <button className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" type="button" onClick={onClose}>ปิด</button>
+          <button
+            className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+            disabled={!canEdit || !onCorrect}
+            title={canEdit ? 'แก้ไขได้ภายใน 7 วัน' : 'หมดช่วงแก้ไข 7 วันแล้ว'}
+            type="button"
+            onClick={() => onCorrect?.(detail)}
+          >
+            แก้ไข
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DetailField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-xs font-semibold text-slate-500">{label}</div>
+      <div className="mt-1 whitespace-pre-wrap text-sm font-semibold text-slate-800">{value || '-'}</div>
+    </div>
+  )
 }
 
 function ConvertDetailModal({ detail, isLoading, onClose, onExport }: { detail: StockConvertDetail; isLoading: boolean; onClose: () => void; onExport: () => void }) {
