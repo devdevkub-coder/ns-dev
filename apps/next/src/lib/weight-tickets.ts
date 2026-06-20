@@ -510,7 +510,7 @@ export function calculateLineTotals(line: Pick<WeightTicketLine, 'containerDeduc
   }
 }
 
-export function calculateTicketTotals(lines: Array<Pick<WeightTicketLine, 'containerDeductionWeight' | 'deductionMode' | 'deductionValue' | 'grossWeight' | 'id'> & { parentId?: string; impurityId?: string }>) {
+export function calculateTicketTotals(lines: Array<Pick<WeightTicketLine, 'containerDeductionWeight' | 'deductionMode' | 'deductionValue' | 'grossWeight' | 'id'> & { parentId?: string; impurityId?: string; impuritySourceLineId?: string }>) {
   const totalsMap = new Map(lines.map(line => [line.id, calculateLineTotals(line)]))
   
   lines.forEach((line) => {
@@ -521,9 +521,12 @@ export function calculateTicketTotals(lines: Array<Pick<WeightTicketLine, 'conta
         const parentTotals = totalsMap.get(line.parentId)
         const childTotals = totalsMap.get(line.id)
         if (parent && parentTotals && childTotals) {
-          const parentGross = parentTotals.grossWeight
+          const siblingLotsGross = lines
+            .filter(l => l.parentId === line.parentId && !l.impuritySourceLineId && (toNumber(l.grossWeight) > 0 || !l.impurityId))
+            .reduce((sum, lot) => sum + toNumber(lot.grossWeight), 0)
+          const productGross = parentTotals.grossWeight + siblingLotsGross
           const rawDeduction = line.deductionMode === 'percent'
-            ? parentGross * Math.max(0, toNumber(line.deductionValue)) / 100
+            ? productGross * Math.max(0, toNumber(line.deductionValue)) / 100
             : line.deductionMode === 'kg'
               ? Math.max(0, toNumber(line.deductionValue))
               : 0
