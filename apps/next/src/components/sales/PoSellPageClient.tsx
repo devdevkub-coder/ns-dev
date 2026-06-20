@@ -78,6 +78,11 @@ type PoSellRow = {
   updatedAt: string
   updatedBy: string
   createdBy: string
+  hasVat: boolean
+  vatRatePercent: number
+  vatAmount: number
+  vatType: string
+  subtotal: number
 }
 
 type StatusFilterOption = {
@@ -127,6 +132,7 @@ const initialPoSellForm = (): PoSellFormValues => ({
   channelId: null,
   customerId: '',
   expectedDelivery: '',
+  hasVat: false,
   items: [blankPoSellItem()],
   note: null,
 })
@@ -302,6 +308,9 @@ export function PoSellPageClient() {
   const activeProducts = (data?.options.products ?? []).filter((option) => option.active !== false)
   const formSubtotal = form.items.reduce((sum, item) => sum + Math.max(0, item.qty * item.price - item.discount), 0)
   const formQty = form.items.reduce((sum, item) => sum + item.qty, 0)
+  const vatRatePercent = 7
+  const vatAmount = form.hasVat ? Math.round((formSubtotal * vatRatePercent / 100 + Number.EPSILON) * 100) / 100 : 0
+  const formTotalCost = formSubtotal + vatAmount
 
   const exportHref = useMemo(() => {
     const params = new URLSearchParams({ format: 'xlsx' })
@@ -341,6 +350,7 @@ export function PoSellPageClient() {
       channelId: row.channelId ?? null,
       customerId: row.customerId ?? '',
       expectedDelivery: row.expectedDelivery,
+      hasVat: row.hasVat,
       items: row.items.length ? row.items.map((item) => ({
         ...blankPoSellItem(),
         discount: item.discount,
@@ -779,6 +789,9 @@ export function PoSellPageClient() {
           submitLabel={editingDocNo ? 'บันทึกการแก้ไข' : 'บันทึก PO Sell'}
           title={editingDocNo ? `แก้ไข PO Sell ${editingDocNo}` : 'สร้าง PO Sell (จองขาย)'}
           totalQty={formQty}
+          vatAmount={vatAmount}
+          vatRatePercent={vatRatePercent}
+          totalCost={formTotalCost}
           onAddItem={() => setForm((current) => ({ ...current, items: [...current.items, blankPoSellItem()] }))}
           onClose={() => {
             setEditingDocNo(null)
@@ -1022,6 +1035,9 @@ function PoSellFormModal({
   subtotal,
   title,
   totalQty,
+  vatAmount,
+  vatRatePercent,
+  totalCost,
   onAddItem,
   onClose,
   onRemoveItem,
@@ -1040,6 +1056,9 @@ function PoSellFormModal({
   subtotal: number
   title: string
   totalQty: number
+  vatAmount: number
+  vatRatePercent: number
+  totalCost: number
   onAddItem: () => void
   onClose: () => void
   onRemoveItem: (index: number) => void
@@ -1160,16 +1179,29 @@ function PoSellFormModal({
            </div>
  
            <div className="grid gap-3 grid-cols-1 md:grid-cols-[minmax(0,1fr)_320px]">
-             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-               <label className="mb-1 block text-xs font-medium text-slate-600">หมายเหตุ</label>
-               <textarea className="min-h-16 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus-visible:outline-none focus:border-slate-400 focus:ring-0 outline-none transition-colors" rows={2} value={form.note ?? ''} onChange={(event) => onUpdate('note', event.target.value || null)} />
-               {fieldError('note')}
-             </div>
-             <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 shadow-sm flex flex-col justify-center">
-               <SummaryLine label="จำนวนรวม" value={`${formatMoney(totalQty)} กก.`} />
-               <SummaryLine label="มูลค่ารวม" strong value={formatMoney(subtotal)} />
-             </div>
-           </div>
+              <div className="flex flex-col gap-3">
+                <label className={`flex items-center gap-3 rounded-xl border p-3 cursor-pointer select-none transition-colors ${form.hasVat ? 'border-amber-500 bg-amber-50/50' : 'border-slate-300 bg-white'}`}>
+                  <input
+                    checked={form.hasVat}
+                    className="h-5 w-5 rounded border-slate-300 text-amber-600 focus:ring-0 outline-none"
+                    type="checkbox"
+                    onChange={(event) => onUpdate('hasVat', event.target.checked)}
+                  />
+                  <span className="font-bold text-slate-700">มี VAT</span>
+                </label>
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex-1 flex flex-col">
+                  <label className="mb-1 block text-xs font-medium text-slate-600">หมายเหตุ</label>
+                  <textarea className="min-h-16 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus-visible:outline-none focus:border-slate-400 focus:ring-0 outline-none transition-colors flex-1" rows={2} value={form.note ?? ''} onChange={(event) => onUpdate('note', event.target.value || null)} />
+                  {fieldError('note')}
+                </div>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 shadow-sm flex flex-col justify-center">
+                <SummaryLine label="จำนวนรวม" value={`${formatMoney(totalQty)} กก.`} />
+                <SummaryLine label="ยอดก่อน VAT" value={formatMoney(subtotal)} />
+                <SummaryLine label={`VAT ${formatMoney(vatRatePercent)}%`} value={formatMoney(vatAmount)} />
+                <SummaryLine label="ยอดรวมสุทธิ" strong value={formatMoney(totalCost)} />
+              </div>
+            </div>
          </div>
  
          <DialogFooter className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2 shrink-0 rounded-b-2xl">
@@ -1302,9 +1334,14 @@ function PoSellDetailModal({
             <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">จำนวนและรายได้</h4>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-5">
               <DetailItem label="จำนวนจองรวม" value={`${formatMoney(row.qty)} กก.`} />
-              <DetailItem label="รายได้รวม" value={`${formatMoney(row.totalAmount)} บาท`} />
               <DetailItem label="จำนวน Matched" value={`${formatMoney(row.matchedQty)} กก.`} />
               <DetailItem label="จำนวนรอส่ง" value={`${formatMoney(row.remainingQty)} กก.`} />
+              <DetailItem label="ยอดก่อน VAT" value={`${formatMoney(row.subtotal)} บาท`} />
+              <DetailItem label={`VAT ${formatMoney(row.vatRatePercent)}%`} value={`${formatMoney(row.vatAmount)} บาท`} />
+              <div>
+                <div className="text-xs font-medium text-slate-500 mb-0.5">ยอดรวมสุทธิ</div>
+                <div className="text-sm font-bold text-blue-700">{formatMoney(row.totalAmount)} บาท</div>
+              </div>
             </div>
           </div>
 

@@ -2010,22 +2010,8 @@ async function rowsPayload(
   }
 }
 
-function buildWorkbook(rows: Array<{
-  createdAt?: string
-  createdBy?: string
-  date: string
-  docNo: string
-  itemCount: number
-  payableBalance?: number
-  paymentDocNos?: string[]
-  paymentWorkflowStatus?: string
-  receiptDocNos?: string[]
-  status: string
-  supplierName?: string
-  totalAmount?: number
-  transactionMode?: string
-}>) {
-  const dataRows = rows.map((row) => ({
+function buildWorkbook(rows: Array<any>) {
+  const summaryData = rows.map((row) => ({
     'เลขที่': row.docNo,
     'เลขที่ใบรับของ': row.receiptDocNos?.join(', ') || '-',
     'วันที่': row.date,
@@ -2039,14 +2025,48 @@ function buildWorkbook(rows: Array<{
     'สร้างโดย': row.createdBy,
     'สร้างเมื่อ': row.createdAt,
   }))
+
+  const detailData: any[] = []
+  rows.forEach((row) => {
+    const items = row.items || []
+    items.forEach((item: any) => {
+      detailData.push({
+        'Doc No': row.docNo,
+        'Date': row.date,
+        'Partner': row.supplierName,
+        'Product Code': item.productCode,
+        'Product Name': item.productName,
+        'Lot No': item.lotNo || '-',
+        'Gross Wt': item.grossWeight,
+        'Deduct Wt': item.deductWeight,
+        'Net Wt': item.qty,
+        'Unit Price': item.price,
+        'Amount': item.qty * item.price,
+        'Discount': item.discount,
+        'Net Amount': item.amount,
+        'PO Ref / No': item.poBuyId || '-',
+      })
+    })
+  })
+
   const workbook = XLSX.utils.book_new()
-  const sheet = XLSX.utils.json_to_sheet(dataRows)
-  sheet['!cols'] = [
+  const sheet1 = XLSX.utils.json_to_sheet(summaryData)
+  sheet1['!cols'] = [
     { wch: 16 }, { wch: 22 }, { wch: 12 }, { wch: 28 }, { wch: 12 }, { wch: 14 },
     { wch: 20 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 22 },
   ]
-  applyWorksheetTableLayout(sheet, 12, dataRows.length + 1)
-  XLSX.utils.book_append_sheet(workbook, sheet, 'บิลรับซื้อ')
+  applyWorksheetTableLayout(sheet1, 12, summaryData.length + 1)
+  XLSX.utils.book_append_sheet(workbook, sheet1, 'บิลรับซื้อ')
+
+  const sheet2 = XLSX.utils.json_to_sheet(detailData)
+  sheet2['!cols'] = [
+    { wch: 16 }, { wch: 12 }, { wch: 28 }, { wch: 14 }, { wch: 28 }, { wch: 12 },
+    { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 12 },
+    { wch: 14 }, { wch: 16 },
+  ]
+  applyWorksheetTableLayout(sheet2, 14, detailData.length + 1)
+  XLSX.utils.book_append_sheet(workbook, sheet2, 'รายละเอียดสินค้า')
+
   return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer
 }
 

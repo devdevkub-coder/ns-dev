@@ -11,6 +11,7 @@ import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/
 import { prisma } from '@/lib/server/prisma'
 import { findActiveSalesChannelReferenceByCode } from '@/lib/server/sales-channel-reference'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
+import { activeVatRatePercent } from '@/lib/server/tax-settings'
 import { Prisma } from '../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
@@ -449,6 +450,11 @@ export async function GET(request: Request) {
         updatedAt: po.updated_at?.toISOString() ?? po.created_at?.toISOString() ?? po.date.toISOString(),
         updatedBy: po.updated_by ?? po.created_by ?? '',
         createdBy: po.created_by ?? '',
+        hasVat: Boolean(po.has_vat),
+        vatRatePercent: toNumber(po.vat_rate_percent) || 7,
+        vatAmount: toNumber(po.vat_amount),
+        vatType: po.vat_type ?? 'NONE',
+        subtotal: toNumber(po.subtotal) || totalAmount,
       }
     })
       .filter((row) => !activeStatusFilter || row.documentStatus === activeStatusFilter)
@@ -551,7 +557,10 @@ export async function POST(request: Request) {
 
     const items = poSellItems(values, parsedProductIds as bigint[], productById)
     const qty = items.reduce((sum, item) => sum + item.qty, 0)
-    const totalAmount = items.reduce((sum, item) => sum + item.totalRevenue, 0)
+    const subtotal = items.reduce((sum, item) => sum + item.totalRevenue, 0)
+    const vatRatePercent = await activeVatRatePercent(createdAt)
+    const vatAmount = values.hasVat ? Math.round((subtotal * vatRatePercent / 100 + Number.EPSILON) * 100) / 100 : 0
+    const totalAmount = subtotal + vatAmount
     const docNo = await nextPoSellDocNo(createdAt)
     const created = await prisma.po_sells.create({
       data: {
@@ -569,6 +578,11 @@ export async function POST(request: Request) {
         notes: values.note,
         product_id: parsedProductIds[0] ?? null,
         qty,
+        subtotal,
+        has_vat: values.hasVat,
+        vat_rate_percent: vatRatePercent,
+        vat_amount: vatAmount,
+        vat_type: values.hasVat ? 'EXCLUDE' : 'NONE',
         remaining_amount: totalAmount,
         remaining_qty: qty,
         require_delivery: true,
@@ -672,7 +686,10 @@ export async function PATCH(request: Request) {
     const productById = new Map(products.map((product) => [product.id, product]))
     const items = poSellItems(values, parsedProductIds as bigint[], productById)
     const qty = items.reduce((sum, item) => sum + item.qty, 0)
-    const totalAmount = items.reduce((sum, item) => sum + item.totalRevenue, 0)
+    const subtotal = items.reduce((sum, item) => sum + item.totalRevenue, 0)
+    const vatRatePercent = await activeVatRatePercent(updatedAt)
+    const vatAmount = values.hasVat ? Math.round((subtotal * vatRatePercent / 100 + Number.EPSILON) * 100) / 100 : 0
+    const totalAmount = subtotal + vatAmount
 
     await prisma.po_sells.update({
       data: {
@@ -686,6 +703,11 @@ export async function PATCH(request: Request) {
         notes: values.note,
         product_id: parsedProductIds[0] ?? null,
         qty,
+        subtotal,
+        has_vat: values.hasVat,
+        vat_rate_percent: vatRatePercent,
+        vat_amount: vatAmount,
+        vat_type: values.hasVat ? 'EXCLUDE' : 'NONE',
         remaining_amount: totalAmount,
         remaining_qty: qty,
         require_delivery: true,

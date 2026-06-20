@@ -24,6 +24,13 @@ function formatPrintableNumber(value: number) {
   return value.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+function formatPrintableWeight(value: number) {
+  if (value % 1 === 0) {
+    return value.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+  }
+  return value.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 function formatDateTime(value?: string | null) {
   if (!value) return '-'
   const date = new Date(value)
@@ -43,7 +50,7 @@ function missing(value: string | null | undefined) {
 
 export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: CompanyProfilePrintValues) {
   const isReceipt = ticket.type === 'WTI'
-  const docTitle = isReceipt ? 'ใบรับสินค้า' : 'ใบส่งของ'
+  const docTitle = isReceipt ? 'ใบชั่งน้ำหนัก/ใบรับสินค้า' : 'ใบชั่งน้ำหนัก/ใบส่งของ'
   const partyLabel = isReceipt ? 'ผู้ขาย/ผู้ส่งของ' : 'ลูกค้า/ผู้รับสินค้า'
   const signatureLeft = isReceipt ? 'ผู้ส่งสินค้า' : 'ผู้ส่งของ'
   const signatureMiddle = isReceipt ? 'ผู้รับเข้าคลัง' : 'ผู้รับของ'
@@ -88,10 +95,10 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
             <div class="muted">${escapeHtml(line.impurityName || 'หักสิ่งเจือปน')}</div>
             <div class="muted">${escapeHtml(line.note || '-')}</div>
           </td>
-          <td class="r">${formatPrintableNumber(parent.grossWeightValue)}</td>
-          <td class="r">- ${formatPrintableNumber(parent.containerDeductionWeightValue)}</td>
-          <td class="r">- ${formatPrintableNumber(line.deductionWeight)}</td>
-          <td class="r strong">= ${formatPrintableNumber(netWeight)}</td>
+          <td class="r">${formatPrintableWeight(parent.grossWeightValue)}</td>
+          <td class="r">- ${formatPrintableWeight(parent.containerDeductionWeightValue)}</td>
+          <td class="r">- ${formatPrintableWeight(line.deductionWeight)}</td>
+          <td class="r strong">= ${formatPrintableWeight(netWeight)}</td>
         </tr>
       `
     }
@@ -101,7 +108,6 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
         <td class="c rank-cell">${index + 1}</td>
         <td>
           <div class="item-name">${escapeHtml(line.productName)}</div>
-          ${!isReceipt && line.warehouseName ? `<div class="muted">คลัง: ${escapeHtml(line.warehouseName)}${line.warehouseId ? ` · ${escapeHtml(line.warehouseId)}` : ''}${line.warehouseType ? ` · ${escapeHtml(line.warehouseType)}` : ''}</div>` : ''}
           <div class="muted">${escapeHtml(line.note || '-')}</div>
         </td>
         <td class="r">${formatPrintableNumber(line.grossWeightValue)}</td>
@@ -165,6 +171,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
               <div><div class="field-label">ชื่อ</div><div class="field-value">${escapeHtml(ticket.partyName || '-')}</div></div>
               <div><div class="field-label">ทะเบียนรถ</div><div class="field-value">${escapeHtml(ticket.vehicleNo || '-')}</div></div>
               <div><div class="field-label">สาขา</div><div class="field-value">${escapeHtml(ticket.branchName || '-')}</div></div>
+              <div><div class="field-label">โกดัง</div><div class="field-value">${escapeHtml(ticket.warehouseName || '-')}</div></div>
               <div><div class="field-label">พนักงานชั่ง</div><div class="field-value">${escapeHtml(ticket.enteredBy || '-')}</div></div>
             </div>
           </div>

@@ -290,11 +290,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       if (bridgeRows.length) {
         await tx.weight_ticket_product_summary_lines.createMany({ data: bridgeRows })
       }
-      const firstLineWarehouseId = values.lines[0]?.warehouseId
-      const normalizedFirstWarehouseId = String(firstLineWarehouseId ?? '').trim().toLowerCase()
-      const warehouseName = values.type === 'WTO' && normalizedFirstWarehouseId
-        ? (warehouseByCode.get(normalizedFirstWarehouseId)?.name ?? null)
-        : null
+      const warehouseName = values.warehouseName || null
 
       await tx.weight_tickets.update({
         data: { 

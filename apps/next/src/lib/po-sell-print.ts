@@ -44,6 +44,11 @@ export type PoSellPrintDocument = {
   customerPhone?: string | null
   totalAmount: number
   channelName?: string | null
+  hasVat?: boolean
+  vatRatePercent?: number
+  vatAmount?: number
+  vatType?: string
+  subtotal?: number
 }
 
 function escapeHtml(value: unknown) {

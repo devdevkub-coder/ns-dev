@@ -1,6 +1,6 @@
 'use client'
 
-import { Download, Plus } from 'lucide-react'
+import { Download, Plus, Printer } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
@@ -11,6 +11,7 @@ import { useResizableColumns, type ResizableColumnDefinition } from '@/component
 import { paymentMethodGroupFromValue, type PaymentMethodGroup } from '@/lib/account-payment-method'
 import { dailyFetchJson, expenseFormSchema, formatMoney, todayDateInput, type DailyAccountOption, type ExpenseFormValues, type ExpenseLineFormValues } from '@/lib/daily'
 import { formatDateDisplay, formatDecimalDisplay, formatDecimalDraft, sanitizeDecimalInput } from '@/lib/format'
+import { openExpenseReceiptPrint } from '@/lib/expense-print'
 import { listMasterDataRecords, type MasterDataRecord } from '@/lib/master-data'
 
 type CategoryOption = { active: boolean | null; id: string; name: string; typeId?: string | null; typeName?: string | null }
@@ -1988,6 +1989,18 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
 function ExpenseDetailModal({ onClose, onEdit, row }: { onClose: () => void; onEdit: (row: ExpenseRow) => void; row: ExpenseRow }) {
   const lines = normalizeExpenseLines(row.lines, row)
   const canEdit = canMutateExpense(row.status)
+  const [isPrinting, setIsPrinting] = useState(false)
+
+  const handlePrint = async () => {
+    setIsPrinting(true)
+    try {
+      await openExpenseReceiptPrint({ ...row, lines })
+    } catch (caught) {
+      window.alert(caught instanceof Error ? caught.message : 'เปิดใบสำคัญจ่ายไม่สำเร็จ')
+    } finally {
+      setIsPrinting(false)
+    }
+  }
 
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) onClose() }}>
@@ -2103,6 +2116,10 @@ function ExpenseDetailModal({ onClose, onEdit, row }: { onClose: () => void; onE
         </div>
 
         <DialogFooter className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 shrink-0 rounded-b-2xl">
+          <Button className="gap-2 h-9 font-normal border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors outline-none focus:ring-0 px-5 rounded-xl" disabled={isPrinting} type="button" variant="outline" onClick={handlePrint}>
+            <Printer className="size-4" />
+            {isPrinting ? 'กำลังเตรียม...' : 'พิมพ์'}
+          </Button>
           <Button className="h-9 font-normal border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors outline-none focus:ring-0 px-5 rounded-xl" type="button" variant="outline" onClick={onClose}>ปิด</Button>
           {canEdit ? <Button className="h-9 rounded-xl bg-slate-900 hover:bg-slate-850 text-white font-medium transition-colors outline-none focus:ring-0 px-5" type="button" onClick={() => onEdit(row)}>แก้ไข</Button> : null}
         </DialogFooter>

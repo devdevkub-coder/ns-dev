@@ -1099,43 +1099,72 @@ async function salesOptionsPayload(scope: Awaited<ReturnType<typeof salesBranchS
   }
 }
 
-function buildLineWorkbook(rows: SalesBillLineFactRow[]) {
-  const dataRows = rows.map((row) => ({
+function salesBillStatusLabel(status?: string | null) {
+  if (!status) return '-'
+  const labels: Record<string, string> = {
+    open: 'เปิด',
+    closed: 'ปิด',
+    paid: 'ชำระแล้ว',
+    cancelled: 'ยกเลิก',
+  }
+  return labels[status.toLowerCase()] ?? status
+}
+
+function buildWorkbook(summaryRows: any[], lineRows: SalesBillLineFactRow[]) {
+  const summaryData = summaryRows.map((row) => ({
     'เลขที่': row.docNo,
-    'วันที่': row.dateText,
+    'อ้างอิง': row.refNo || '-',
+    'วันที่': row.date,
     'ลูกค้า': row.customerName,
-    'สาขา': row.branchName,
-    'คลัง': row.warehouseName,
     'ประเภท': row.transactionMode,
-    'สถานะบิล': row.status,
-    'บรรทัด': row.lineNo,
-    'สถานะบรรทัด': row.lineStatus,
-    'รหัสสินค้า': row.productCode,
-    'สินค้า': row.productName,
-    'หน่วย': row.unit,
-    'Gross': row.grossWeight,
-    'Net/Qty': row.qty,
-    'ราคา/หน่วย': row.unitPrice,
-    'ส่วนลด': row.discountAmount,
-    'ยอดขาย': row.lineAmount,
-    'Matched COGS': row.matchedCogs,
-    'GP': row.gp,
-    'Source Type': row.sourceType,
-    'Source Doc': row.sourceDocNo,
-    'PO Sell': row.poSellDocNo,
-    'Allocation': row.allocationType,
+    'สถานะ': salesBillStatusLabel(row.status),
+    'จำนวนรายการ': row.itemCount,
+    'ยอดรวม': row.totalAmount,
+    'รับชำระแล้ว': row.receivedAmount,
+    'ลูกหนี้คงเหลือ': row.receivableBalance,
+    'คลัง': row.warehouseName,
+    'สาขา': row.branchName,
+    'ช่องทางขาย': row.channelName,
+    'สร้างโดย': row.createdBy,
+    'สร้างเมื่อ': row.createdAt,
   }))
+
+  const detailData = lineRows.map((row) => ({
+    'Doc No': row.docNo,
+    'Date': row.dateText,
+    'Partner': row.customerName,
+    'Product Code': row.productCode,
+    'Product Name': row.productName,
+    'Lot No': '-',
+    'Gross Wt': row.grossWeight,
+    'Deduct Wt': Math.max(0, row.grossWeight - row.qty),
+    'Net Wt': row.qty,
+    'Unit Price': row.unitPrice,
+    'Amount': row.qty * row.unitPrice,
+    'Discount': row.discountAmount,
+    'Net Amount': row.lineAmount,
+    'PO Ref / No': row.poSellDocNo || '-',
+  }))
+
   const workbook = XLSX.utils.book_new()
-  const sheet = XLSX.utils.json_to_sheet(dataRows)
-  sheet['!cols'] = [
-    { wch: 16 }, { wch: 12 }, { wch: 28 }, { wch: 18 }, { wch: 18 },
-    { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 14 }, { wch: 14 },
-    { wch: 28 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
-    { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 },
-    { wch: 18 }, { wch: 18 }, { wch: 14 },
+  const sheet1 = XLSX.utils.json_to_sheet(summaryData)
+  sheet1['!cols'] = [
+    { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 28 }, { wch: 12 }, { wch: 12 },
+    { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 },
+    { wch: 16 }, { wch: 16 }, { wch: 22 },
   ]
-  applyWorksheetTableLayout(sheet, 23, dataRows.length + 1)
-  XLSX.utils.book_append_sheet(workbook, sheet, 'บิลขายรายบรรทัด')
+  applyWorksheetTableLayout(sheet1, 15, summaryData.length + 1)
+  XLSX.utils.book_append_sheet(workbook, sheet1, 'บิลขาย')
+
+  const sheet2 = XLSX.utils.json_to_sheet(detailData)
+  sheet2['!cols'] = [
+    { wch: 16 }, { wch: 12 }, { wch: 28 }, { wch: 14 }, { wch: 28 }, { wch: 12 },
+    { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 12 },
+    { wch: 14 }, { wch: 16 },
+  ]
+  applyWorksheetTableLayout(sheet2, 14, detailData.length + 1)
+  XLSX.utils.book_append_sheet(workbook, sheet2, 'รายละเอียดสินค้า')
+
   return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer
 }
 
@@ -1173,7 +1202,7 @@ export async function GET(request: Request) {
     const jsonRows = rows.map((row) => billJson(row, activeReceiptCountByBillId.get(row.id) ?? 0, lineCountByBillId.get(row.id)))
 
     if (url.searchParams.get('format') === 'xlsx') {
-      const body = buildLineWorkbook(await salesBillLineFactsForBills(billIds, { lineStatuses: ['active', 'cancelled'], tradingStatuses: ['active', 'cancelled'] }))
+      const body = buildWorkbook(jsonRows, await salesBillLineFactsForBills(billIds, { lineStatuses: ['active', 'cancelled'], tradingStatuses: ['active', 'cancelled'] }))
       const filename = `sales_bills_${new Date().toISOString().slice(0, 10)}.xlsx`
 
       return new NextResponse(new Uint8Array(body), {

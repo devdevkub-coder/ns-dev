@@ -304,6 +304,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
               <div className="grid gap-4 md:grid-cols-2">
                 <DetailItem label={ticket.type === 'WTI' ? 'ผู้ขาย' : 'ลูกค้า'} value={ticket.partyName} />
                 <DetailItem label="ทะเบียนรถ" value={ticket.vehicleNo} />
+                <DetailItem label="โกดัง" value={ticket.warehouseName || '-'} />
               </div>
               <div>
                 <div className="mb-2 text-xs text-slate-500">รูปภาพรถส่งของ</div>

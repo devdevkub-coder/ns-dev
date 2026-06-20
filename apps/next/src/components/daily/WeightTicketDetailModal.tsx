@@ -282,6 +282,7 @@ export function WeightTicketDetailModal({
                   <div className="grid grid-cols-2 gap-4">
                     <DetailItem label={ticket.type === 'WTI' ? 'ผู้ขาย' : 'ลูกค้า'} value={ticket.partyName} />
                     <DetailItem label="ทะเบียนรถ" value={ticket.vehicleNo} />
+                    <DetailItem label="โกดัง" value={ticket.warehouseName || '-'} />
                   </div>
                   <div>
                     <div className="mb-2 text-xs text-slate-500">รูปภาพรถส่งของ</div>

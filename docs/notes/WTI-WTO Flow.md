@@ -578,6 +578,17 @@ handoff rule:
 - [ ] ทำ reconciliation/report สำหรับ `WTI/WTO ค้างออกบิล`, aging bucket, legacy partial-billed debt, และ `status ไม่ตรง usage`
 - [ ] harden print/share wording, signature labels, และ header company info
 - [ ] ทำ browser QA จริงทั้ง desktop/mobile ครบ flow create/edit/cancel/detail/print/share และ handoff ไป `PB/SB`
+## การจัดเรียงและการแสดงผลตามมาตรฐาน AcexPOS (Sorting & Table Styling)
+
+หน้าจอรายการใบรับ-ส่งของ (`/daily/weight-ticket-list`) ได้รับการปรับปรุงตามมาตรฐาน AcexPOS UI:
+1. **การเรียงลำดับข้อมูล (Sorting)**:
+   - **ความจำเป็นทางธุรกิจ**: ผู้ใช้จำเป็นต้องสามารถจัดเรียงลำดับใบรับ-ส่งสินค้าจำนวนมากตามมิติต่างๆ เช่น วันที่, เลขที่เอกสาร, น้ำหนัก, คู่ค้า หรือสถานะ เพื่อให้ค้นหา ตรวจสอบ และจับคู่บิลได้สะดวกรวดเร็ว
+   - **การทำงานร่วมกันระหว่าง Client และ Server**:
+     - ฝั่ง Client (ใน `WeightTicketListPageClient.tsx`): ใช้คอมโพเนนต์ `<SortHeader>` ครบถ้วนทุกคอลัมน์หลักบน Desktop พร้อมส่งคำขอ `sortBy` และ `sortDir` ไปยัง API
+     - ฝั่ง Server (ใน `src/lib/server/weight-tickets.ts`): ฟังก์ชัน `weightTicketOrderBy` จะแปลงฟิลด์เรียงลำดับที่มาจาก Client ไปเป็นคิวรีเรียงลำดับระดับฐานข้อมูลผ่าน Prisma โดยตรง (เช่น จัดเรียงตาม `doc_no`, `party_name`, `net_weight`, `container_deduction_weight`, `deduct_weight`, `branches.name` ฯลฯ)
+2. **การแสดงผลแบบตารางและขอบตาราง (Table Borders)**:
+   - ใช้ขอบตารางบางเบา `border-slate-200` ครอบรอบตาราง Desktop และแบ่งแถวด้วย `divide-y divide-slate-100` ร่วมกับเอฟเฟกต์โฮเวอร์ `hover:bg-slate-50` เพื่อความสวยงามและสบายตาตามข้อกำหนด AcexPOS (หลีกเลี่ยงขอบเส้นสีดำเข้มหรือสีเด่นชัด)
+   - หน้าจอเดสก์ท็อปรองรับคอลัมน์แบบยืดหดได้ (Resizable Columns) และแสดงผลปุ่ม "คืนค่าเดิมตาราง" (Reset Widths) เมื่อผู้ใช้เริ่มลากเส้นปรับแต่งขนาด
 
 ## เมนูที่ใช้ใน flow นี้
 
