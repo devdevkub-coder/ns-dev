@@ -95,7 +95,7 @@ ADJ ปรับยอดจากการนับจริง พร้อม
 - approval/reconciliation boundary ทำแล้วในระดับ runtime policy: direct post ถูก block ถ้า counted qty ต่ำกว่า active hold และต้องปลด hold/ทำ approval policy แยกก่อน
 - current runtime สำหรับ row ใหม่ใช้ `STOCK_CORRECTION`: ADJ ledger เขียน qty และ value ตามส่วนต่าง, `value_note` เป็น signed total value, และ server reject non-zero correction ถ้าไม่พบราคาต่อกก.
 - UI/API เพิ่ม server snapshot preview, fixed reason options, unit price/kg, signed `มูลค่ารวม`, `updated_by/updated_at`, และ edit/correction ภายใน 7 วัน
-- UI checkpoint 2026-06-21: หน้า `/stock/adjust` ปรับตาม `docs/design.md` โดยเอาปุ่ม `โหลดใหม่` และกล่องคำอธิบายยาวออก, ใช้ modal/card `rounded-md`, desktop table breakpoint `lg`, table header `bg-slate-100`, body cell `text-xs font-semibold`, pagination row ตาม list pattern, wording `วันที่เอกสาร` / `ยอดในระบบ` / `ส่วนต่าง` / `มูลค่ารวม (บาท)`, และ action เป็น outline button
+- UI checkpoint 2026-06-21: หน้า `/stock/adjust` ปรับตาม `docs/design.md` โดยเอาปุ่ม `โหลดใหม่` และกล่องคำอธิบายยาวออก, ใช้ modal/card `rounded-md`, desktop table breakpoint `lg`, table header `bg-slate-100`, body cell `text-xs font-semibold`, pagination row ตาม list pattern, sortable table headers, wording `วันที่เอกสาร` / `ยอดในระบบ` / `ส่วนต่าง` / `มูลค่ารวม (บาท)`, และ action เป็น outline button
 - remaining: approval flow หลัง 7 วันและ CSV/export ยังเป็น future policy/delivery แยกจาก quick count adjust
 
 ## Implementation Checklist

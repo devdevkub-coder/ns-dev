@@ -74,7 +74,7 @@ updated: 2026-06-21
 
 Toolbar ของหน้า list ไม่แสดงปุ่ม `โหลดใหม่`; ให้ใช้ search/filter และ action `+ ปรับเกรดใหม่` เป็นหลัก ส่วน runtime reload หลัง save/reverse/detail ยังทำงานตาม flow เดิม
 
-Design checkpoint 2026-06-21: หน้า list/table/form/detail modal ต้องยึด `docs/design.md` โดยใช้ modal `rounded-md`, breakpoint ตาราง desktop ที่ `lg`, table header สี `bg-slate-100`, table body `text-xs font-semibold`, ปุ่ม action แบบ outline และ detail modal ปิดด้วย footer action แทนปุ่ม X บน header
+Design checkpoint 2026-06-21: หน้า list/table/form/detail modal ต้องยึด `docs/design.md` โดยใช้ modal `rounded-md`, breakpoint ตาราง desktop ที่ `lg`, table header สี `bg-slate-100`, header table ต้อง sort ได้, table body `text-xs font-semibold`, ปุ่ม action แบบ outline และ detail modal ปิดด้วย footer action แทนปุ่ม X บน header
 
 ### Filters
 

@@ -133,6 +133,8 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
   const [statusConvertPageSize, setStatusConvertPageSize] = useState(20)
   const [adjustPage, setAdjustPage] = useState(1)
   const [adjustPageSize, setAdjustPageSize] = useState(20)
+  const [operationSortDirection, setOperationSortDirection] = useState<SortDirection>('desc')
+  const [operationSortKey, setOperationSortKey] = useState('date')
   const [statusConvertSortDirection, setStatusConvertSortDirection] = useState<SortDirection>('desc')
   const [statusConvertSortKey, setStatusConvertSortKey] = useState<StatusConvertSortKey>('date')
   const [convertDetail, setConvertDetail] = useState<StockConvertDetail | null>(null)
@@ -180,6 +182,11 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
     return [...rows].sort((left, right) => compareStatusConvertRows(left, right, statusConvertSortKey, statusConvertSortDirection))
   }, [mode, rows, statusConvertSortDirection, statusConvertSortKey])
 
+  const operationSortedRows = useMemo(() => {
+    if (mode === 'status-convert') return rows
+    return [...rows].sort((left, right) => compareOperationRows(left, right, operationSortKey, operationSortDirection))
+  }, [mode, operationSortDirection, operationSortKey, rows])
+
   const statusConvertTotalPages = useMemo(() => {
     if (mode !== 'status-convert') return 1
     return Math.max(1, Math.ceil(statusConvertSortedRows.length / statusConvertPageSize))
@@ -187,8 +194,8 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
 
   const adjustTotalPages = useMemo(() => {
     if (mode !== 'adjust') return 1
-    return Math.max(1, Math.ceil(rows.length / adjustPageSize))
-  }, [adjustPageSize, mode, rows.length])
+    return Math.max(1, Math.ceil(operationSortedRows.length / adjustPageSize))
+  }, [adjustPageSize, mode, operationSortedRows.length])
 
   useEffect(() => {
     if (mode !== 'status-convert') return
@@ -203,12 +210,12 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
   const visibleRows = useMemo(() => {
     if (mode === 'adjust') {
       const startIndex = (adjustPage - 1) * adjustPageSize
-      return rows.slice(startIndex, startIndex + adjustPageSize)
+      return operationSortedRows.slice(startIndex, startIndex + adjustPageSize)
     }
-    if (mode !== 'status-convert') return rows
+    if (mode !== 'status-convert') return operationSortedRows
     const startIndex = (statusConvertPage - 1) * statusConvertPageSize
     return statusConvertSortedRows.slice(startIndex, startIndex + statusConvertPageSize)
-  }, [adjustPage, adjustPageSize, mode, rows, statusConvertPage, statusConvertPageSize, statusConvertSortedRows])
+  }, [adjustPage, adjustPageSize, mode, operationSortedRows, statusConvertPage, statusConvertPageSize, statusConvertSortedRows])
 
   const hasFilters = useMemo(() => {
     if (mode === 'convert') return Boolean(search.trim() || sourceTypeFilter || costStatusFilter)
@@ -233,6 +240,15 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
     }
     setStatusConvertSortKey(nextKey)
     setStatusConvertSortDirection(nextKey === 'date' ? 'desc' : 'asc')
+  }
+
+  function toggleOperationSort(nextKey: string) {
+    if (operationSortKey === nextKey) {
+      setOperationSortDirection((currentDirection) => (currentDirection === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+    setOperationSortKey(nextKey)
+    setOperationSortDirection(nextKey === 'date' || nextKey === 'createdAt' ? 'desc' : 'asc')
   }
 
   async function submit(values: StatusConvertFormValues | StockConvertFormValues | StockAdjustFormValues) {
@@ -629,11 +645,11 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
         isLoading={isLoading}
         mode={mode}
         rows={visibleRows}
-        sortDirection={mode === 'status-convert' ? statusConvertSortDirection : undefined}
-        sortKey={mode === 'status-convert' ? statusConvertSortKey : undefined}
+        sortDirection={mode === 'status-convert' ? statusConvertSortDirection : operationSortDirection}
+        sortKey={mode === 'status-convert' ? statusConvertSortKey : operationSortKey}
         onConvertDetail={mode === 'convert' ? openConvertDetail : undefined}
         onAdjustCorrect={mode === 'adjust' ? correctAdjust : undefined}
-        onSortChange={mode === 'status-convert' ? toggleStatusConvertSort : undefined}
+        onSortChange={mode === 'status-convert' ? (key) => toggleStatusConvertSort(key as StatusConvertSortKey) : mode === 'adjust' || mode === 'convert' ? toggleOperationSort : undefined}
         onConvertReverse={mode === 'convert' ? reverseConvert : undefined}
         onStatusConvertReverse={mode === 'status-convert' ? reverseStatusConvert : undefined}
       />
@@ -722,10 +738,10 @@ function OperationTable({
   onConvertDetail?: (refNo: string) => void
   onConvertReverse?: (refNo: string) => void
   onStatusConvertReverse?: (refNo: string) => void
-  onSortChange?: (key: StatusConvertSortKey) => void
+  onSortChange?: (key: string) => void
   rows: Payload['rows']
   sortDirection?: SortDirection
-  sortKey?: StatusConvertSortKey
+  sortKey?: string
 }) {
   const columns = columnsFor(mode)
   return (
@@ -917,11 +933,11 @@ function OperationTable({
             <tr>
               {columns.map((column) => (
                 <th key={column.key} className={`p-2 text-xs font-semibold ${column.headerClassName?.includes('text-') ? '' : 'text-left'} ${column.headerClassName ?? ''}`}>
-                  {mode === 'status-convert' && column.sortable && onSortChange ? (
+                  {column.sortable && onSortChange ? (
                     <button
                       className={`inline-flex w-full items-center gap-1 text-xs font-semibold text-slate-700 hover:text-slate-900 ${column.headerClassName?.includes('text-right') ? 'justify-end' : ''}`}
                       type="button"
-                      onClick={() => onSortChange(column.key as StatusConvertSortKey)}
+                      onClick={() => onSortChange(column.key)}
                     >
                       <span>{column.label}</span>
                       <span className="text-xs text-slate-400">{sortKey === column.key ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}</span>
@@ -990,39 +1006,39 @@ function columnsFor(mode: Mode): OperationColumn[] {
     { key: 'action', label: 'จัดการ', cellClassName: 'text-center', headerClassName: 'text-center' },
   ]
   if (mode === 'convert') return [
-    { key: 'sourceType', label: 'Source Type' },
-    { key: 'refNo', label: 'เลขที่ / Ref' },
-    { key: 'date', label: 'วันที่เอกสาร' },
-    { key: 'branchWarehouse', label: 'สาขา / คลัง' },
-    { key: 'sourceProduct', label: 'Source (ออก)' },
-    { key: 'sourceQty', label: 'Qty', cellClassName: 'text-right font-mono text-red-700', headerClassName: 'text-right' },
-    { key: 'unitCost', label: '฿/กก.', cellClassName: 'text-right font-mono', headerClassName: 'text-right' },
-    { key: 'targetProduct', label: 'Target (เข้า)' },
-    { key: 'targetQty', label: 'Qty', cellClassName: 'text-right font-mono text-emerald-700', headerClassName: 'text-right' },
-    { key: 'targetUnitCost', label: '฿/กก.', cellClassName: 'text-right font-mono', headerClassName: 'text-right' },
-    { key: 'lossQty', label: 'Loss', cellClassName: 'text-right font-mono' },
-    { key: 'costStatus', label: 'Cost Status', cellClassName: 'text-center' },
-    { key: 'status', label: 'สถานะ', cellClassName: 'text-center' },
+    { key: 'sourceType', label: 'Source Type', sortable: true },
+    { key: 'refNo', label: 'เลขที่ / Ref', sortable: true },
+    { key: 'date', label: 'วันที่เอกสาร', sortable: true },
+    { key: 'branchWarehouse', label: 'สาขา / คลัง', sortable: true },
+    { key: 'sourceProduct', label: 'Source (ออก)', sortable: true },
+    { key: 'sourceQty', label: 'Qty', cellClassName: 'text-right font-mono text-red-700', headerClassName: 'text-right', sortable: true },
+    { key: 'unitCost', label: '฿/กก.', cellClassName: 'text-right font-mono', headerClassName: 'text-right', sortable: true },
+    { key: 'targetProduct', label: 'Target (เข้า)', sortable: true },
+    { key: 'targetQty', label: 'Qty', cellClassName: 'text-right font-mono text-emerald-700', headerClassName: 'text-right', sortable: true },
+    { key: 'targetUnitCost', label: '฿/กก.', cellClassName: 'text-right font-mono', headerClassName: 'text-right', sortable: true },
+    { key: 'lossQty', label: 'Loss', cellClassName: 'text-right font-mono', sortable: true },
+    { key: 'costStatus', label: 'Cost Status', cellClassName: 'text-center', sortable: true },
+    { key: 'status', label: 'สถานะ', cellClassName: 'text-center', sortable: true },
     { key: 'action', label: '' },
   ]
   if (mode === 'adjust') return [
-    { key: 'docNo', label: 'เลขที่เอกสาร' },
-    { key: 'date', label: 'วันที่เอกสาร' },
-    { key: 'branchWarehouse', label: 'สาขา/คลัง' },
-    { key: 'productName', label: 'สินค้า' },
-    { key: 'lotNo', label: 'Lot' },
-    { key: 'outputCategory', label: 'ประเภทคลัง' },
-    { key: 'systemQty', label: 'ยอดในระบบ', cellClassName: 'text-right font-mono', headerClassName: 'text-right' },
-    { key: 'onHoldQty', label: 'จองไว้', cellClassName: 'text-right font-mono text-amber-700', headerClassName: 'text-right' },
-    { key: 'readyQty', label: 'พร้อมใช้', cellClassName: 'text-right font-mono text-emerald-700', headerClassName: 'text-right' },
-    { key: 'countedQty', label: 'นับจริง', cellClassName: 'text-right font-mono', headerClassName: 'text-right' },
-    { key: 'diffQty', label: 'ส่วนต่าง', cellClassName: 'text-right font-mono', headerClassName: 'text-right' },
-    { key: 'adjustType', label: 'ประเภท' },
-    { key: 'unitPricePerKg', label: 'ราคา/กก.', cellClassName: 'text-right font-mono', headerClassName: 'text-right' },
-    { key: 'totalValue', label: 'มูลค่ารวม (บาท)', cellClassName: 'text-right font-mono', headerClassName: 'text-right' },
-    { key: 'reason', label: 'เหตุผล' },
-    { key: 'createdAt', label: 'วันที่สร้างรายการ' },
-    { key: 'updatedBy', label: 'แก้ไขโดย' },
+    { key: 'docNo', label: 'เลขที่เอกสาร', sortable: true },
+    { key: 'date', label: 'วันที่เอกสาร', sortable: true },
+    { key: 'branchWarehouse', label: 'สาขา/คลัง', sortable: true },
+    { key: 'productName', label: 'สินค้า', sortable: true },
+    { key: 'lotNo', label: 'Lot', sortable: true },
+    { key: 'outputCategory', label: 'ประเภทคลัง', sortable: true },
+    { key: 'systemQty', label: 'ยอดในระบบ', cellClassName: 'text-right font-mono', headerClassName: 'text-right', sortable: true },
+    { key: 'onHoldQty', label: 'จองไว้', cellClassName: 'text-right font-mono text-amber-700', headerClassName: 'text-right', sortable: true },
+    { key: 'readyQty', label: 'พร้อมใช้', cellClassName: 'text-right font-mono text-emerald-700', headerClassName: 'text-right', sortable: true },
+    { key: 'countedQty', label: 'นับจริง', cellClassName: 'text-right font-mono', headerClassName: 'text-right', sortable: true },
+    { key: 'diffQty', label: 'ส่วนต่าง', cellClassName: 'text-right font-mono', headerClassName: 'text-right', sortable: true },
+    { key: 'adjustType', label: 'ประเภท', sortable: true },
+    { key: 'unitPricePerKg', label: 'ราคา/กก.', cellClassName: 'text-right font-mono', headerClassName: 'text-right', sortable: true },
+    { key: 'totalValue', label: 'มูลค่ารวม (บาท)', cellClassName: 'text-right font-mono', headerClassName: 'text-right', sortable: true },
+    { key: 'reason', label: 'เหตุผล', sortable: true },
+    { key: 'createdAt', label: 'วันที่สร้างรายการ', sortable: true },
+    { key: 'updatedBy', label: 'แก้ไขโดย', sortable: true },
     { key: 'action', label: 'แก้ไข', cellClassName: 'text-center', headerClassName: 'text-center' },
   ]
   return []
@@ -1071,6 +1087,31 @@ function compareStatusConvertRows(
   }
   if (result === 0) {
     result = String(left.id ?? '').localeCompare(String(right.id ?? ''), 'th')
+  }
+  return direction === 'asc' ? result : result * -1
+}
+
+function operationSortValue(row: Record<string, string | number | boolean | null>, key: string) {
+  if (key === 'totalValue') return signedAdjustValue(row)
+  return normalizeSortValue(row[key])
+}
+
+function compareOperationRows(
+  left: Record<string, string | number | boolean | null>,
+  right: Record<string, string | number | boolean | null>,
+  key: string,
+  direction: SortDirection,
+) {
+  const leftValue = operationSortValue(left, key)
+  const rightValue = operationSortValue(right, key)
+  let result = 0
+  if (typeof leftValue === 'number' && typeof rightValue === 'number') {
+    result = leftValue - rightValue
+  } else {
+    result = String(leftValue).localeCompare(String(rightValue), 'th')
+  }
+  if (result === 0) {
+    result = String(left.id ?? left.docNo ?? left.refNo ?? '').localeCompare(String(right.id ?? right.docNo ?? right.refNo ?? ''), 'th')
   }
   return direction === 'asc' ? result : result * -1
 }
