@@ -11,6 +11,7 @@ import { Card } from '@/components/ui/Card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { PageTitleOverride } from '@/components/layout/PageTitleOverride'
+import { WeightTicketProductBreakdownTable } from '@/components/daily/WeightTicketProductBreakdownTable'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import { cn } from '@/lib/utils'
 import { cancelWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, type WeightTicketRecord, type WeightTicketStatus, typeLabels, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
@@ -294,7 +295,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
             <MetricCard
               icon={<Package2 className="size-4" />}
               label="สินค้าหลังรวม"
-              value={`${ticket.productSummaries.length} สินค้า / ${ticket.lines.length} lot`}
+              value={`${ticket.productSummaries.length} สินค้า / ${ticket.lines.length} เต๋า`}
             />
           </div>
 
@@ -317,131 +318,14 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
             <div className="space-y-4">
               <Card className="overflow-hidden p-0">
                 <div className="border-b border-slate-100 px-5 py-4">
-                  <SectionTitle subtitle="รองรับเอกสารยาวหลายสิบรายการ" title="รายการสินค้าแยกตาม lot" />
+                  <SectionTitle subtitle="เรียงตามสินค้า รวมเต๋าจริง สิ่งเจือปน และรายการซื้อเพิ่มไว้ในกลุ่มเดียว" title="รายละเอียดสินค้าและที่มา" />
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-slate-100 text-sm">
-                    <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold text-xs">
-                      <tr>
-	                        <th className="px-3 py-3 text-left">ลำดับ</th>
-	                        <th className="px-3 py-3 text-left">สินค้า</th>
-	                        {ticket.type === 'WTO' ? <th className="px-3 py-3 text-left">คลัง</th> : null}
-	                        <th className="px-3 py-3 text-left">หมายเหตุ</th>
-                        <th className="px-3 py-3 text-right">Gross</th>
-                        <th className="px-3 py-3 text-right">หัก</th>
-                        <th className="px-3 py-3 text-right">Net</th>
-                        <th className="px-3 py-3 text-left">สิ่งเจือปน</th>
-                        <th className="px-3 py-3 text-left">รูป</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {ticket.lines.map((line, index) => (
-                        <tr key={line.id}>
-	                          <td className="whitespace-nowrap px-3 py-3 text-slate-500">{index + 1}</td>
-	                          <td className="px-3 py-3 font-medium text-slate-900">{line.productName}</td>
-	                          {ticket.type === 'WTO' ? (
-	                            <td className="px-3 py-3 text-slate-600">
-	                              {line.warehouseName ? (
-	                                <div>
-	                                  <div className="font-medium text-slate-800">{line.warehouseName}</div>
-	                                  <div className="mt-0.5 text-xs text-slate-500">{[line.warehouseId, line.warehouseType].filter(Boolean).join(' · ')}</div>
-	                                </div>
-	                              ) : '-'}
-	                            </td>
-	                          ) : null}
-	                          <td className="px-3 py-3 text-slate-600">{line.note || '-'}</td>
-                          <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(line.grossWeightValue)}</td>
-                          <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(line.deductionWeight)}</td>
-                          <td className="whitespace-nowrap px-3 py-3 text-right font-semibold tabular-nums text-slate-900">{formatWeight(line.netWeight)}</td>
-                          <td className="px-3 py-3 text-slate-600">{line.impurityName || '-'}</td>
-                          <td className="px-3 py-3">
-                            {line.imageCount > 0 ? (
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="whitespace-nowrap text-slate-500">{line.imageCount} รูป</span>
-                                {line.imageNames.map(decodeStoredImageAsset).filter((image) => image.url).length > 0 ? (
-                                  <button
-                                    className="text-sm font-medium text-blue-700 hover:underline"
-                                    type="button"
-                                    onClick={() => {
-                                      const previewableImages = line.imageNames
-                                        .map(decodeStoredImageAsset)
-                                        .filter((image): image is { fileName: string; rawValue: string; url: string } => Boolean(image.url))
-                                        .map((image) => ({
-                                          fileName: image.fileName,
-                                          url: image.url,
-                                        }))
-                                      if (previewableImages.length > 0) {
-                                        setLineGallery({
-                                          activeIndex: 0,
-                                          images: previewableImages,
-                                          title: line.productName,
-                                        })
-                                      }
-                                    }}
-                                  >
-                                    ดูรูป
-                                  </button>
-                                ) : null}
-                              </div>
-                            ) : (
-                              <span className="text-slate-400">-</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
-
-              <Card className="overflow-hidden p-0">
-                <div className="border-b border-slate-100 px-5 py-4">
-                  <SectionTitle subtitle="รวมสินค้าชนิดเดียวกันในเอกสารเดียวกันก่อนนำไปใช้ออกบิล" title="สรุปต่อสินค้า" />
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-slate-100 text-sm">
-                    <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold text-xs">
-                      <tr>
-                        <th className="px-3 py-3 text-left">ลำดับ</th>
-                        <th className="px-3 py-3 text-left">สินค้า</th>
-                        <th className="px-3 py-3 text-left">จำนวน lot</th>
-                        <th className="px-3 py-3 text-right">Gross รวม</th>
-                        <th className="px-3 py-3 text-right">หักรวม</th>
-                        <th className="px-3 py-3 text-right">Net รวม</th>
-                        <th className="px-3 py-3 text-right">ออกบิลแล้ว</th>
-                        <th className="px-3 py-3 text-right">คงเหลือ</th>
-                        <th className="px-3 py-3 text-left">เอกสารปลายทาง</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {ticket.productSummaries.map((summary, index) => (
-                        <tr key={summary.id}>
-                          <td className="whitespace-nowrap px-3 py-3 text-slate-500">{index + 1}</td>
-                          <td className="px-3 py-3 font-medium text-slate-900">{summary.productName}</td>
-                          <td className="px-3 py-3 text-slate-600">{summary.lineCount} lot</td>
-                          <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(summary.grossWeight)}</td>
-                          <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(summary.deductWeight)}</td>
-                          <td className="whitespace-nowrap px-3 py-3 text-right font-semibold tabular-nums text-slate-900">{formatWeight(summary.netWeight)}</td>
-                          <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-blue-700">{formatWeight(summary.billedWeight)}</td>
-                          <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-emerald-700">{formatWeight(summary.remainingWeight)}</td>
-                          <td className="px-3 py-3 text-slate-600">
-                            {summaryTargetDocNos.get(summary.id)?.length ? (
-                              <div className="flex flex-wrap gap-1.5">
-                                {summaryTargetDocNos.get(summary.id)?.map((docNo) => (
-                                  <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-700" key={`${summary.id}-${docNo}`}>
-                                    {docNo}
-                                  </span>
-                                ))}
-                              </div>
-                            ) : (
-                              '-'
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <WeightTicketProductBreakdownTable
+                  showBillingColumns
+                  summaryTargetDocNos={summaryTargetDocNos}
+                  ticket={ticket}
+                  onOpenLineGallery={({ images, title }) => setLineGallery({ activeIndex: 0, images, title })}
+                />
               </Card>
             </div>
 
@@ -688,10 +572,10 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
       </div>
 
       <Dialog open={Boolean(previewImage)} onOpenChange={(open) => setPreviewImage(open ? previewImage : null)}>
-        <DialogContent className="max-w-4xl !p-0 overflow-hidden bg-slate-900 border-0 flex flex-col">
+        <DialogContent className="max-w-4xl rounded-md !p-0 overflow-hidden bg-slate-900 border-0 flex flex-col">
           {previewImage ? (
             <>
-              <DialogHeader>
+              <DialogHeader className="rounded-t-md">
                 <DialogTitle>รูปภาพแนบ</DialogTitle>
                 <DialogDescription>{previewImage.fileName}</DialogDescription>
               </DialogHeader>
@@ -711,10 +595,10 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
       </Dialog>
 
       <Dialog open={Boolean(lineGallery)} onOpenChange={(open) => setLineGallery(open ? lineGallery : null)}>
-        <DialogContent className="max-w-5xl !p-0 overflow-hidden bg-slate-900 border-0 flex flex-col">
+        <DialogContent className="max-w-5xl rounded-md !p-0 overflow-hidden bg-slate-900 border-0 flex flex-col">
           {lineGallery && activeGalleryImage ? (
             <>
-              <DialogHeader>
+              <DialogHeader className="rounded-t-md">
                 <DialogTitle>{lineGallery.title}</DialogTitle>
                 <DialogDescription>
                   {activeGalleryImage.fileName} · รูป {lineGallery.activeIndex + 1} / {lineGallery.images.length}
@@ -851,4 +735,3 @@ function ImageGrid({
     </div>
   )
 }
-

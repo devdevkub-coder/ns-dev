@@ -795,8 +795,8 @@ export function WeightTicketListPageClient() {
         }
       }}
       >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
+        <DialogContent className="max-w-lg rounded-md">
+          <DialogHeader className="rounded-t-md">
             <DialogTitle>ยกเลิกใบรับ-ส่งของ</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 px-4 pb-4">
@@ -853,8 +853,8 @@ export function WeightTicketListPageClient() {
         <Dialog open onOpenChange={(open) => {
           if (!open) setActiveForm(null)
         }}>
-          <DialogContent aria-labelledby="weight-ticket-form-title" className="max-h-[95vh] max-w-7xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" data-combobox-portal-root="true" hideClose>
-            <DialogHeader className="px-5 py-3 bg-slate-900 text-white shrink-0">
+          <DialogContent aria-labelledby="weight-ticket-form-title" className="max-h-[95vh] max-w-7xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" data-combobox-portal-root="true" hideClose>
+            <DialogHeader className="px-5 py-3 bg-slate-900 text-white shrink-0 rounded-t-md">
               <DialogTitle id="weight-ticket-form-title">
                 {activeForm.id ? 'แก้ไขใบรับ-ส่งของ' : activeForm.type === 'WTI' ? 'สร้างใบรับของ WTI' : 'สร้างใบส่งของ WTO'}
               </DialogTitle>

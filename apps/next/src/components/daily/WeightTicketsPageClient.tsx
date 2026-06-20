@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/Input'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { getErrorMessage } from '@/lib/api-client'
+import { ApiError, getErrorMessage } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 import {
   calculateLineTotals,
@@ -123,7 +123,8 @@ function getLineImpurityId(line: FormWeightTicketLine) {
 
 function isOtherProductImpurityOption(impurities: Array<{ id: string; label: string }>, impurityId: string) {
   const impurity = impurities.find((entry) => entry.id === impurityId)
-  return impurity?.label.trim() === 'สินค้าอื่น'
+  const label = impurity?.label.trim()
+  return label === 'สินค้าอื่น' || label === 'อื่นๆ' || label === 'อย่างอื่น'
 }
 
 function isImpurityPurchaseLine(line: FormWeightTicketLine) {
@@ -218,9 +219,9 @@ function calculateAdjustedLineTotals(line: FormWeightTicketLine, allLines: FormW
     const parentLine = allLines.find(l => l.id === line.parentId)
     const realLotSummary = parentLine
       ? calculateRealLotSummary(parentLine, allLines)
-      : { grossWeight: 0 }
+      : { netBeforeImpurityWeight: 0 }
     const deductionWeight = line.deductionMode === 'percent'
-      ? realLotSummary.grossWeight * Math.max(0, Number(line.deductionValue || 0)) / 100
+      ? realLotSummary.netBeforeImpurityWeight * Math.max(0, Number(line.deductionValue || 0)) / 100
       : line.deductionMode === 'kg'
         ? Math.max(0, Number(line.deductionValue || 0))
         : 0
@@ -262,7 +263,7 @@ function calculateAdjustedLineTotals(line: FormWeightTicketLine, allLines: FormW
   let childrenDeduction = 0
   impurities.forEach(child => {
     const childDeduction = child.deductionMode === 'percent'
-      ? realLotSummary.grossWeight * Math.max(0, Number(child.deductionValue || 0)) / 100
+      ? realLotSummary.netBeforeImpurityWeight * Math.max(0, Number(child.deductionValue || 0)) / 100
       : child.deductionMode === 'kg'
         ? Math.max(0, Number(child.deductionValue || 0))
         : 0
@@ -863,6 +864,7 @@ export function WeightTicketsPageClient({
         nextLine.containerDeductionWeight = '0'
         nextLine.impuritySourceLineId = currentSourceLine.id
         nextLine.parentId = existingTargetParentLine?.id
+        nextLine.imageFiles = getLineImages(currentSourceLine)
         nextLine.note = `มาจากสิ่งเจือปน (${impurityLabel} ${deductionWeight} กก.) ของรายการที่ ${parentIndex}: ${parentProductLabel}`
 
         return [
@@ -934,6 +936,7 @@ export function WeightTicketsPageClient({
           id: line.id,
           imageNames: getLineEvidenceImages(line).map((file) => file.rawValue),
           impurityId: getLineImpurityId(line),
+          impuritySourceLineId: line.impuritySourceLineId,
           note: line.note,
           productId: line.productId,
           warehouseId: line.warehouseId,
@@ -956,6 +959,9 @@ export function WeightTicketsPageClient({
         router.push(`/daily/weight-ticket-list?type=${ticket.type}`)
       }
     } catch (caught) {
+      if (caught instanceof ApiError && Object.keys(caught.fieldErrors).length > 0) {
+        setTouched((current) => ({ ...current, ...nextTouched }))
+      }
       setLoadError(getErrorMessage(caught, editingTicketId ? 'แก้ไขใบรับ-ส่งของไม่ได้' : 'บันทึกใบรับ-ส่งของไม่ได้'))
     } finally {
       setIsSaving(false)
@@ -1538,8 +1544,12 @@ export function WeightTicketsPageClient({
                                 <div>{hasOtherProductImpurity ? 'ซื้อ/ไม่ซื้อ' : ''}</div>
                               </div>
                               {childLines.map((child) => {
-                                const isOtherProductImpurity = isOtherProductImpurityOption(impurities, getLineImpurityId(child))
+                                const selectedImpurityId = getLineImpurityId(child)
+                                const hasSelectedImpurity = Boolean(selectedImpurityId)
+                                const isOtherProductImpurity = isOtherProductImpurityOption(impurities, selectedImpurityId)
                                 const impurityPurchaseProducts = normalProducts.filter((product) => product.id !== line.productId)
+                                const mustSelectImpurityProductFirst = isOtherProductImpurity && !child.impurityProductId
+                                const canEditImpurityDeduction = hasSelectedProduct && hasSelectedImpurity && !mustSelectImpurityProductFirst
                                 const calculatedDeductionWeight = calculateAdjustedLineTotals(child, form.lines).deductionWeight
                                 return (
                                   <div key={child.id} className="bg-white p-2 rounded-lg border border-slate-200/60">
@@ -1556,13 +1566,14 @@ export function WeightTicketsPageClient({
                                           label="สิ่งเจือปน*"
                                           options={impurities}
                                           placeholder={impurities.length > 0 ? 'เลือกสิ่งเจือปน' : 'ยังไม่มีสิ่งเจือปนที่ใช้งาน'}
-                                          value={getLineImpurityId(child)}
+                                          value={selectedImpurityId}
                                           onChange={(value) => {
                                             markTouched(`line-${child.id}-impurity`)
                                             updateLine(child.id, (current) => ({
                                               ...current,
                                               impurityId: value,
                                               impurityPurchaseAction: 'none',
+                                              deductionValue: isOtherProductImpurityOption(impurities, value) && !current.impurityProductId ? '' : current.deductionValue,
                                               impurityProductId: isOtherProductImpurityOption(impurities, value) ? current.impurityProductId ?? '' : '',
                                             }))
                                           }}
@@ -1590,7 +1601,7 @@ export function WeightTicketsPageClient({
                                       ) : null}
                                       <FieldBlock label="ประเภทการหัก*" labelClassName="md:hidden">
                                         <SimpleDropdown
-                                          disabled={!hasSelectedProduct}
+                                          disabled={!canEditImpurityDeduction}
                                           options={[
                                             { label: 'หัก (กก.)', value: 'kg' },
                                             { label: 'หัก %', value: 'percent' },
@@ -1610,10 +1621,10 @@ export function WeightTicketsPageClient({
                                       <FieldBlock error={showError(`line-${child.id}-deduction`)} label={child.deductionMode === 'percent' ? 'ค่าหัก % *' : 'น้ำหนักหักสิ่งเจือปน(กก.) *'} labelClassName="md:hidden">
                                         <Input
                                           className="md:w-[76px]"
-                                          disabled={!hasSelectedProduct}
+                                          disabled={!canEditImpurityDeduction}
                                           inputMode="decimal"
                                           maxLength={5}
-                                          placeholder="0.00"
+                                          placeholder={mustSelectImpurityProductFirst ? "เลือกสินค้า" : "0.00"}
                                           value={child.deductionValue}
                                           onBlur={() => markTouched(`line-${child.id}-deduction`)}
                                           onChange={(event) => updateLine(child.id, (current) => ({ ...current, deductionValue: normalizeDecimalInput(event.target.value), impurityPurchaseAction: 'none' }))}
@@ -1633,13 +1644,14 @@ export function WeightTicketsPageClient({
                                         {isOtherProductImpurity ? (
                                           <div className="w-[76px]">
                                             <SimpleDropdown
-                                              disabled={!hasSelectedProduct}
+                                              disabled={!canEditImpurityDeduction}
                                               options={[
                                                 { label: 'ไม่ซื้อ', value: 'none' },
                                                 { label: 'ซื้อ', value: 'buy' },
                                               ]}
                                               value={child.impurityPurchaseAction ?? 'none'}
                                               onChange={(value) => {
+                                                if (mustSelectImpurityProductFirst) return
                                                 const action = value as 'none' | 'buy'
                                                 updateLine(child.id, (current) => ({ ...current, impurityPurchaseAction: action }))
                                                 if (action === 'buy' && child.impurityProductId && Number(child.deductionValue || 0) > 0) {
@@ -1662,6 +1674,30 @@ export function WeightTicketsPageClient({
                                         </Button>
                                       </div>
                                     </div>
+                                    {mustSelectImpurityProductFirst ? (
+                                      <div className="mt-1 px-1 text-[11px] font-medium text-amber-700">
+                                        เลือกสินค้าที่ปนมาก่อน จึงจะกรอกน้ำหนักหักและเลือกซื้อ/ไม่ซื้อได้
+                                      </div>
+                                    ) : null}
+                                    {isOtherProductImpurity ? (
+                                      <div className="mt-2 border-t border-slate-100 pt-2">
+                                        <FieldBlock label="รูปสินค้าที่ปนมา">
+                                          <AttachmentProfileGrid
+                                            addLabel="เพิ่มรูป"
+                                            emptyLabel="เพิ่มรูป"
+                                            files={getLineImages(child)}
+                                            disabled={!hasSelectedProduct}
+                                            onAppend={(files) => void appendLineImages(child.id, files)}
+                                            onPreview={setPreviewImage}
+                                            onRemove={(fileId) => updateLine(child.id, (current) => ({
+                                              ...current,
+                                              imageFiles: getLineImages(current).filter((entry) => entry.id !== fileId),
+                                            }))}
+                                            noWrapper
+                                          />
+                                        </FieldBlock>
+                                      </div>
+                                    ) : null}
                                   </div>
                                 )
                               })}

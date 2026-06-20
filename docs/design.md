@@ -640,6 +640,7 @@ Override ต้อง:
 ### Shared Base & Structure (AcexPOS Dark Header Style)
 
 - **Dialog Content Layout**: ใช้โครงสร้าง **Sticky Header & Scrollable Body Layout** เพื่อไม่ให้หัวข้อและปุ่มด้านล่างเลื่อนหายไปตอน scroll
+- **Modal Radius (บังคับใช้เสมอ)**: `DialogContent` ของ Modal/Dialog ทุกตัวต้องใช้ `rounded-md` เป็น baseline เสมอ และ `DialogHeader` ที่เป็นหัวสีเข้มต้องใช้ `rounded-t-md` ให้เข้าคู่กัน ห้ามใช้ `rounded-lg`, `rounded-xl`, หรือ `rounded-2xl` กับ Modal/Dialog เพราะจะทำให้ความโค้ง drift ระหว่างหน้า; ยกเว้นเฉพาะ mobile bottom sheet ที่เป็นแผงเลื่อนจากขอบล่างซึ่งระบุไว้ในหัวข้อ mobile เท่านั้น
 - **Header**: ใช้สไตล์ **Dark Header** ด้วย `bg-slate-900 text-white shrink-0` มีกฎเฉพาะสำหรับการแสดงรายละเอียดเอกสาร (Detail Modal):
   - **หัวข้อหลัก (Title)**: ให้ระบุรหัสเอกสารโดยตรงในหัวข้อหลักเสมอ เช่น `รายละเอียด {row.docNo}` (ใช้ `<DialogTitle className="text-white">`)
   - **คำอธิบายย่อย (Subtitle)**: ให้ระบุชื่อคู่ค้าหลัก (ชื่อลูกค้าหรือผู้ขาย) เป็นคำอธิบายใต้หัวข้อหลักเสมอ เช่น `{row.customerName}` หรือ `{row.supplierName}` (ใช้ `<DialogDescription className="text-slate-300">`)

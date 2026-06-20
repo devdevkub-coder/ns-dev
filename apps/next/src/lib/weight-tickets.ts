@@ -173,19 +173,22 @@ const weightTicketLinePayloadSchema = z.object({
   id: z.string().trim().min(1).max(80),
   imageNames: z.array(attachmentValueSchema).default([]),
   impurityId: z.preprocess(blankToEmpty, z.string().max(80).default('')),
+  impuritySourceLineId: z.string().trim().optional(),
   note: z.preprocess(blankToEmpty, z.string().max(160, 'หมายเหตุรายการยาวเกินไป').default('')),
   productId: z.string().trim().min(1, 'เลือกสินค้า'),
   warehouseId: z.preprocess(blankToEmpty, z.string().max(80).default('')),
   parentId: z.string().trim().optional(),
 }).superRefine((value, ctx) => {
   const containerDeductionWeight = Math.min(value.containerDeductionWeight, value.grossWeight)
+  const netBeforeImpurityWeight = Math.max(0, value.grossWeight - containerDeductionWeight)
   const impurityDeductionWeight = value.deductionMode === 'percent'
-    ? value.grossWeight * value.deductionValue / 100
+    ? netBeforeImpurityWeight * value.deductionValue / 100
     : value.deductionMode === 'kg'
       ? value.deductionValue
       : 0
 
   const isImpurityOnly = value.grossWeight === 0
+  const isImpurityPurchase = Boolean(value.impuritySourceLineId)
 
   if (!isImpurityOnly) {
     if (value.containerDeductionWeight > value.grossWeight) {
@@ -209,7 +212,7 @@ const weightTicketLinePayloadSchema = z.object({
         path: ['deductionValue'],
       })
     }
-    if (value.imageNames.length === 0) {
+    if (!isImpurityPurchase && value.imageNames.length === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'รูปภาพสินค้าอย่างน้อย 1 รูป',
@@ -226,7 +229,7 @@ const weightTicketLinePayloadSchema = z.object({
     }
   }
 
-  if (value.deductionMode !== 'none' && !value.impurityId) {
+  if (value.deductionMode !== 'none' && value.deductionValue > 0 && !value.impurityId) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'เลือกสิ่งเจือปน',
@@ -497,12 +500,13 @@ export function decodeStoredImageAsset(rawValue: string): StoredImageAsset {
 export function calculateLineTotals(line: Pick<WeightTicketLine, 'containerDeductionWeight' | 'deductionMode' | 'deductionValue' | 'grossWeight'>) {
   const grossWeight = Math.max(0, toNumber(line.grossWeight))
   const containerDeductionWeight = Math.min(Math.max(0, toNumber(line.containerDeductionWeight)), grossWeight)
+  const netBeforeImpurityWeight = Math.max(0, grossWeight - containerDeductionWeight)
   const rawDeduction = line.deductionMode === 'percent'
-    ? grossWeight * Math.max(0, toNumber(line.deductionValue)) / 100
+    ? netBeforeImpurityWeight * Math.max(0, toNumber(line.deductionValue)) / 100
     : line.deductionMode === 'kg'
       ? Math.max(0, toNumber(line.deductionValue))
       : 0
-  const deductionWeight = Math.min(rawDeduction, Math.max(0, grossWeight - containerDeductionWeight))
+  const deductionWeight = Math.min(rawDeduction, netBeforeImpurityWeight)
   return {
     containerDeductionWeight,
     deductionWeight,
@@ -522,12 +526,19 @@ export function calculateTicketTotals(lines: Array<Pick<WeightTicketLine, 'conta
         const parentTotals = totalsMap.get(line.parentId)
         const childTotals = totalsMap.get(line.id)
         if (parent && parentTotals && childTotals) {
-          const siblingLotsGross = lines
+          const siblingLotTotals = lines
             .filter(l => l.parentId === line.parentId && !l.impuritySourceLineId && (toNumber(l.grossWeight) > 0 || !l.impurityId))
-            .reduce((sum, lot) => sum + toNumber(lot.grossWeight), 0)
-          const productGross = parentTotals.grossWeight + siblingLotsGross
+            .reduce((summary, lot) => {
+              const grossWeight = Math.max(0, toNumber(lot.grossWeight))
+              const containerDeductionWeight = Math.min(Math.max(0, toNumber(lot.containerDeductionWeight)), grossWeight)
+              return {
+                containerDeductionWeight: summary.containerDeductionWeight + containerDeductionWeight,
+                grossWeight: summary.grossWeight + grossWeight,
+              }
+            }, { containerDeductionWeight: 0, grossWeight: 0 })
+          const productNetBeforeImpurity = Math.max(0, parentTotals.grossWeight + siblingLotTotals.grossWeight - parentTotals.containerDeductionWeight - siblingLotTotals.containerDeductionWeight)
           const rawDeduction = line.deductionMode === 'percent'
-            ? productGross * Math.max(0, toNumber(line.deductionValue)) / 100
+            ? productNetBeforeImpurity * Math.max(0, toNumber(line.deductionValue)) / 100
             : line.deductionMode === 'kg'
               ? Math.max(0, toNumber(line.deductionValue))
               : 0

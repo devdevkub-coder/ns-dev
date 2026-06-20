@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight, ClipboardList, Package2, Printer, Scale, Squ
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
+import { WeightTicketProductBreakdownTable } from '@/components/daily/WeightTicketProductBreakdownTable'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import { cn } from '@/lib/utils'
 import { cancelWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, type WeightTicketRecord, type WeightTicketStatus, type WeightTicketType, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
@@ -170,7 +171,7 @@ export function WeightTicketDetailModal({
       if (!open) onClose()
     }}>
       <DialogContent aria-labelledby="weight-ticket-detail-title" className="max-h-[90vh] max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" hideClose>
-        <DialogHeader className="p-4 bg-slate-900 text-white shrink-0">
+        <DialogHeader className="p-4 bg-slate-900 text-white shrink-0 rounded-t-md">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <DialogTitle id="weight-ticket-detail-title" className="text-white">
@@ -272,7 +273,7 @@ export function WeightTicketDetailModal({
                   className="col-span-2 md:col-span-4"
                   icon={<Package2 className="size-4" />}
                   label="สินค้าหลังรวม"
-                  value={`${ticket.productSummaries.length} สินค้า / ${ticket.lines.length} lot`}
+                  value={`${ticket.productSummaries.length} สินค้า / ${ticket.lines.length} เต๋า`}
                 />
               </div>
 
@@ -295,197 +296,12 @@ export function WeightTicketDetailModal({
                 <div className="space-y-4">
                   <Card className="overflow-hidden p-0">
                     <div className="border-b border-slate-200 px-5 py-4">
-                      <SectionTitle subtitle="รองรับเอกสารยาวหลายสิบรายการ" title="รายการสินค้าแยกตาม lot" />
+                      <SectionTitle subtitle="เรียงตามสินค้า รวมเต๋าจริง สิ่งเจือปน และรายการซื้อเพิ่มไว้ในกลุ่มเดียว" title="รายละเอียดสินค้าและที่มา" />
                     </div>
-                    <div className="overflow-x-auto">
-                      <table className="hidden lg:table min-w-full divide-y divide-slate-100 text-sm">
-                        <thead className="bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-500">
-                          <tr>
-                            <th className="px-3 py-3 text-left">ลำดับ</th>
-                            <th className="px-3 py-3 text-left">สินค้า</th>
-                            <th className="px-3 py-3 text-left">หมายเหตุ</th>
-                            <th className="px-3 py-3 text-right">Gross</th>
-                            <th className="px-3 py-3 text-right">หักภาชนะ</th>
-                            <th className="px-3 py-3 text-right">หักสิ่งเจือปน</th>
-                            <th className="px-3 py-3 text-right">Net</th>
-                            <th className="px-3 py-3 text-left">สิ่งเจือปน</th>
-                            <th className="px-3 py-3 text-left">รูป</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {ticket.lines.map((line, index) => (
-                            <tr key={line.id}>
-                              <td className="whitespace-nowrap px-3 py-3 text-slate-500">{index + 1}</td>
-                              <td className="px-3 py-3 font-medium text-slate-900">{line.productName}</td>
-                              <td className="px-3 py-3 text-slate-600">{line.note || '-'}</td>
-                              <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(line.grossWeightValue)}</td>
-                              <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(line.containerDeductionWeightValue)}</td>
-                              <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(line.deductionWeight)}</td>
-                              <td className="whitespace-nowrap px-3 py-3 text-right font-semibold tabular-nums text-slate-900">{formatWeight(line.netWeight)}</td>
-                              <td className="px-3 py-3 text-slate-600">{line.impurityName || '-'}</td>
-                              <td className="px-3 py-3">
-                                {line.imageCount > 0 ? (
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span className="whitespace-nowrap text-slate-500">{line.imageCount} รูป</span>
-                                    {line.imageNames.map(decodeStoredImageAsset).filter((image) => image.url).length > 0 ? (
-                                      <button
-                                        className="text-sm font-medium text-blue-700 hover:underline"
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          const previewableImages = line.imageNames
-                                            .map(decodeStoredImageAsset)
-                                            .filter((image): image is { fileName: string; rawValue: string; url: string } => Boolean(image.url))
-                                            .map((image) => ({
-                                              fileName: image.fileName,
-                                              url: image.url,
-                                            }))
-                                          if (previewableImages.length > 0) {
-                                            setLineGallery({
-                                              activeIndex: 0,
-                                              images: previewableImages,
-                                              title: line.productName,
-                                            })
-                                          }
-                                        }}
-                                      >
-                                        ดูรูป
-                                      </button>
-                                    ) : null}
-                                  </div>
-                                ) : (
-                                  <span className="text-slate-400">-</span>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-
-                      <div className="block lg:hidden divide-y divide-slate-100 bg-white">
-                        {ticket.lines.map((line, index) => (
-                          <div key={line.id} className="p-4 space-y-2">
-                            <div className="flex justify-between items-start gap-2">
-                              <div className="font-semibold text-slate-800 text-sm">{index + 1}. {line.productName}</div>
-                              {line.imageCount > 0 ? (
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="whitespace-nowrap text-slate-400 text-xs">{line.imageCount} รูป</span>
-                                  {line.imageNames.map(decodeStoredImageAsset).filter((image) => image.url).length > 0 ? (
-                                    <button
-                                      className="text-xs font-semibold text-blue-700 hover:underline"
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        const previewableImages = line.imageNames
-                                          .map(decodeStoredImageAsset)
-                                          .filter((image): image is { fileName: string; rawValue: string; url: string } => Boolean(image.url))
-                                          .map((image) => ({
-                                            fileName: image.fileName,
-                                            url: image.url,
-                                          }))
-                                        if (previewableImages.length > 0) {
-                                          setLineGallery({
-                                            activeIndex: 0,
-                                            images: previewableImages,
-                                            title: line.productName,
-                                          })
-                                        }
-                                      }}
-                                    >
-                                      ดูรูป
-                                    </button>
-                                  ) : null}
-                                </div>
-                              ) : (
-                                <span className="text-slate-400 text-xs">-</span>
-                              )}
-                            </div>
-                            {line.note && <div className="text-xs text-slate-500">หมายเหตุ: {line.note}</div>}
-                            <div className="grid grid-cols-2 gap-2 text-center text-xs py-2 bg-slate-50 rounded-md sm:grid-cols-4">
-                              <div>
-                                <span className="text-[10px] text-slate-400 block">Gross</span>
-                                <span className="font-medium text-slate-700">{formatWeight(line.grossWeightValue)}</span>
-                              </div>
-                              <div>
-                                <span className="text-[10px] text-slate-400 block">ภาชนะ</span>
-                                <span className="font-medium text-slate-700">{formatWeight(line.containerDeductionWeightValue)}</span>
-                              </div>
-                              <div>
-                                <span className="text-[10px] text-slate-400 block">สิ่งเจือปน {line.impurityName ? `(${line.impurityName})` : ''}</span>
-                                <span className="font-medium text-slate-700">{formatWeight(line.deductionWeight)}</span>
-                              </div>
-                              <div>
-                                <span className="text-[10px] text-slate-400 block">Net</span>
-                                <span className="font-semibold text-slate-900">{formatWeight(line.netWeight)}</span>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </Card>
-
-                  <Card className="overflow-hidden p-0">
-                    <div className="border-b border-slate-200 px-5 py-4">
-                      <SectionTitle subtitle="รวมสินค้าชนิดเดียวกันในเอกสารเดียวกันก่อนนำไปใช้ออกบิล" title="สรุปต่อสินค้า" />
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="hidden lg:table min-w-full divide-y divide-slate-100 text-sm">
-                        <thead className="bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-500">
-                          <tr>
-                            <th className="px-3 py-3 text-left">ลำดับ</th>
-                            <th className="px-3 py-3 text-left">สินค้า</th>
-                            <th className="px-3 py-3 text-left">จำนวน lot</th>
-                            <th className="px-3 py-3 text-right">Gross รวม</th>
-                            <th className="px-3 py-3 text-right">หักภาชนะรวม</th>
-                            <th className="px-3 py-3 text-right">หักสิ่งเจือปนรวม</th>
-                            <th className="px-3 py-3 text-right">Net รวม</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {ticket.productSummaries.map((summary, index) => (
-                            <tr key={summary.id}>
-                              <td className="whitespace-nowrap px-3 py-3 text-slate-500">{index + 1}</td>
-                              <td className="px-3 py-3 font-medium text-slate-900">{summary.productName}</td>
-                              <td className="px-3 py-3 text-slate-600">{summary.lineCount} lot</td>
-                              <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(summary.grossWeight)}</td>
-                              <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(summary.containerDeductionWeight)}</td>
-                              <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-slate-700">{formatWeight(summary.deductWeight)}</td>
-                              <td className="whitespace-nowrap px-3 py-3 text-right font-semibold tabular-nums text-slate-900">{formatWeight(summary.netWeight)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-
-                      <div className="block lg:hidden divide-y divide-slate-100 bg-white">
-                        {ticket.productSummaries.map((summary, index) => (
-                          <div key={summary.id} className="p-4 space-y-2">
-                            <div className="flex justify-between items-center">
-                              <div className="font-semibold text-slate-800 text-sm">{index + 1}. {summary.productName}</div>
-                              <span className="text-xs text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded">{summary.lineCount} lot</span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 text-center text-xs py-2 bg-slate-50 rounded-md sm:grid-cols-4">
-                              <div>
-                                <span className="text-[10px] text-slate-400 block">Gross รวม</span>
-                                <span className="font-medium text-slate-700">{formatWeight(summary.grossWeight)}</span>
-                              </div>
-                              <div>
-                                <span className="text-[10px] text-slate-400 block">ภาชนะรวม</span>
-                                <span className="font-medium text-slate-700">{formatWeight(summary.containerDeductionWeight)}</span>
-                              </div>
-                              <div>
-                                <span className="text-[10px] text-slate-400 block">สิ่งเจือปนรวม</span>
-                                <span className="font-medium text-slate-700">{formatWeight(summary.deductWeight)}</span>
-                              </div>
-                              <div>
-                                <span className="text-[10px] text-slate-400 block">Net รวม</span>
-                                <span className="font-semibold text-slate-900">{formatWeight(summary.netWeight)}</span>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    <WeightTicketProductBreakdownTable
+                      ticket={ticket}
+                      onOpenLineGallery={({ images, title }) => setLineGallery({ activeIndex: 0, images, title })}
+                    />
                   </Card>
                 </div>
 
@@ -741,8 +557,8 @@ export function WeightTicketDetailModal({
           <Dialog open onOpenChange={(open) => {
             if (!open) setPreviewImage(null)
           }}>
-            <DialogContent className="max-w-4xl !p-0 overflow-hidden bg-slate-900 border-0 flex flex-col">
-              <DialogHeader>
+            <DialogContent className="max-w-4xl rounded-md !p-0 overflow-hidden bg-slate-900 border-0 flex flex-col">
+              <DialogHeader className="rounded-t-md">
                 <DialogTitle>รูปภาพแนบ</DialogTitle>
                 <DialogDescription>{previewImage.fileName}</DialogDescription>
               </DialogHeader>
@@ -764,8 +580,8 @@ export function WeightTicketDetailModal({
           <Dialog open onOpenChange={(open) => {
             if (!open) setLineGallery(null)
           }}>
-            <DialogContent className="max-w-5xl !p-0 overflow-hidden bg-slate-900 border-0 flex flex-col">
-              <DialogHeader>
+            <DialogContent className="max-w-5xl rounded-md !p-0 overflow-hidden bg-slate-900 border-0 flex flex-col">
+              <DialogHeader className="rounded-t-md">
                 <DialogTitle>{lineGallery.title}</DialogTitle>
                 <DialogDescription>
                   {activeGalleryImage.fileName} · รูป {lineGallery.activeIndex + 1} / {lineGallery.images.length}

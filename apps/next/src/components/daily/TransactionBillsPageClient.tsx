@@ -3305,7 +3305,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                       <div className="font-medium text-slate-900">{sourceSummary?.productName ?? activeProducts.find((product) => product.id === item.productId)?.name ?? item.productId}</div>
                                       <div className="mt-1 text-[11px] text-slate-500">
                                         WTI {selectedReceipt.documentNo}
-                                        {sourceSummary ? ` · รวม ${sourceSummary.lineCount} lot` : ''}
+                                        {sourceSummary ? ` · รวม ${sourceSummary.lineCount} เต๋า` : ''}
                                       </div>
                                       {sourceSummary && summaryVariance ? (
                                         <div className={`mt-1 text-[11px] font-semibold ${summaryVariance.className}`}>
@@ -3883,7 +3883,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                                    <>
 	                                      <div className="font-medium text-slate-900">{sourceSummary?.productName ?? productName}</div>
 	                                      <div className="mt-1 text-[11px] text-slate-500">{item.productId}</div>
-	                                      {sourceSummary ? <div className="mt-1 text-[11px] text-slate-500">รวม {sourceSummary.lineCount} lot</div> : null}
+	                                      {sourceSummary ? <div className="mt-1 text-[11px] text-slate-500">รวม {sourceSummary.lineCount} เต๋า</div> : null}
 	                                      {sourceSummary && summaryVariance ? (
 	                                        <div className={`mt-1 text-[11px] font-semibold ${summaryVariance.className}`}>
 	                                          {summaryVariance.text}

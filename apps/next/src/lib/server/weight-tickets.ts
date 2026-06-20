@@ -308,9 +308,19 @@ export function buildWeightTicketLineRows(
         const parentTotals = totalsById.get(line.parentId)
         const childTotals = totalsById.get(line.id)
         if (parent && parentTotals && childTotals) {
-          const parentGross = parentTotals.grossWeight
+          const siblingLotTotals = values.lines
+            .filter((entry) => entry.parentId === line.parentId && !entry.impuritySourceLineId && (toNumber(entry.grossWeight) > 0 || !entry.impurityId))
+            .reduce((summary, lot) => {
+              const grossWeight = Math.max(0, toNumber(lot.grossWeight))
+              const containerDeductionWeight = Math.min(Math.max(0, toNumber(lot.containerDeductionWeight)), grossWeight)
+              return {
+                containerDeductionWeight: summary.containerDeductionWeight + containerDeductionWeight,
+                grossWeight: summary.grossWeight + grossWeight,
+              }
+            }, { containerDeductionWeight: 0, grossWeight: 0 })
+          const productNetBeforeImpurity = Math.max(0, parentTotals.grossWeight + siblingLotTotals.grossWeight - parentTotals.containerDeductionWeight - siblingLotTotals.containerDeductionWeight)
           const rawDeduction = line.deductionMode === 'percent'
-            ? parentGross * Math.max(0, toNumber(line.deductionValue)) / 100
+            ? productNetBeforeImpurity * Math.max(0, toNumber(line.deductionValue)) / 100
             : line.deductionMode === 'kg'
               ? Math.max(0, toNumber(line.deductionValue))
               : 0
