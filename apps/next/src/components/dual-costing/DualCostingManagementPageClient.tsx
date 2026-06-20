@@ -9,6 +9,8 @@ import { Select } from '@/components/ui/Select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import {
   DualCostingCountRow,
   DualCostingErrorBox,
@@ -63,9 +65,16 @@ type LedgerRow = {
   totalCost: number
 }
 
+type TabPayload = {
+  rows: WaitingRow[]
+  count: number
+}
+
 type WaitingPayload = {
   filters: { categories: string[]; statuses: string[] }
-  rows: WaitingRow[]
+  po: TabPayload
+  bill: TabPayload
+  production: TabPayload
   summary: { byCategory: { count: number; name: string; qty: number; revenue: number }[]; count: number; fullyPending: number; partial: number; totalQty: number; totalRevenue: number }
 }
 
@@ -94,6 +103,7 @@ export function DualCostingManagementPageClient({ mode }: { mode: Mode }) {
 }
 
 function WaitingAllocationsView() {
+  const [activeTab, setActiveTab] = useState<'po' | 'bill' | 'production'>('po')
   const [category, setCategory] = useState('all')
   const [data, setData] = useState<WaitingPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -101,6 +111,92 @@ function WaitingAllocationsView() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const [sortKey, setSortKey] = useState<string>('date')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+
+  const poColumns = useMemo<Array<ResizableColumnDefinition<string> & { label: string; align?: 'left' | 'right' | 'center' }>>(() => [
+    { key: 'docNo', label: 'PO ขาย', defaultWidth: 140 },
+    { key: 'date', label: 'วันที่', defaultWidth: 100 },
+    { key: 'customerName', label: 'ลูกค้า', defaultWidth: 180 },
+    { key: 'productName', label: 'สินค้า', defaultWidth: 220 },
+    { key: 'metalGroup', label: 'หมวด', defaultWidth: 90, align: 'center' },
+    { key: 'qty', label: 'ขาย (กก.)', defaultWidth: 110, align: 'right' },
+    { key: 'allocatedQty', label: 'Allocate แล้ว', defaultWidth: 110, align: 'right' },
+    { key: 'remainingQty', label: 'รอจัดสรร (กก.)', defaultWidth: 115, align: 'right' },
+    { key: 'unitPrice', label: 'ราคา/กก.', defaultWidth: 100, align: 'right' },
+    { key: 'revenuePending', label: 'มูลค่ารอจัดสรร', defaultWidth: 120, align: 'right' },
+    { key: 'allocationStatus', label: 'สถานะ', defaultWidth: 90, align: 'center' },
+    { key: 'action', label: 'Action', defaultWidth: 90, align: 'center' },
+  ], [])
+
+  const billColumns = useMemo<Array<ResizableColumnDefinition<string> & { label: string; align?: 'left' | 'right' | 'center' }>>(() => [
+    { key: 'docNo', label: 'บิลขาย', defaultWidth: 140 },
+    { key: 'date', label: 'วันที่', defaultWidth: 100 },
+    { key: 'customerName', label: 'ลูกค้า', defaultWidth: 180 },
+    { key: 'productName', label: 'สินค้า', defaultWidth: 220 },
+    { key: 'metalGroup', label: 'หมวด', defaultWidth: 90, align: 'center' },
+    { key: 'qty', label: 'ขาย (กก.)', defaultWidth: 110, align: 'right' },
+    { key: 'allocatedQty', label: 'Allocate แล้ว', defaultWidth: 110, align: 'right' },
+    { key: 'remainingQty', label: 'รอจัดสรร (กก.)', defaultWidth: 115, align: 'right' },
+    { key: 'unitPrice', label: 'ราคา/กก.', defaultWidth: 100, align: 'right' },
+    { key: 'revenuePending', label: 'มูลค่ารอจัดสรร', defaultWidth: 120, align: 'right' },
+    { key: 'allocationStatus', label: 'สถานะ', defaultWidth: 90, align: 'center' },
+    { key: 'action', label: 'Action', defaultWidth: 90, align: 'center' },
+  ], [])
+
+  const productionColumns = useMemo<Array<ResizableColumnDefinition<string> & { label: string; align?: 'left' | 'right' | 'center' }>>(() => [
+    { key: 'docNo', label: 'ใบสั่งผลิต', defaultWidth: 140 },
+    { key: 'date', label: 'วันที่เบิกวัตถุดิบ', defaultWidth: 120 },
+    { key: 'customerName', label: 'ผู้ผลิต', defaultWidth: 180 },
+    { key: 'productName', label: 'สินค้า', defaultWidth: 220 },
+    { key: 'metalGroup', label: 'หมวด', defaultWidth: 90, align: 'center' },
+    { key: 'qty', label: 'ผลิต (กก.)', defaultWidth: 110, align: 'right' },
+    { key: 'allocatedQty', label: 'Allocate แล้ว', defaultWidth: 110, align: 'right' },
+    { key: 'remainingQty', label: 'รอจัดสรร (กก.)', defaultWidth: 115, align: 'right' },
+    { key: 'unitPrice', label: 'ต้นทุน/กก.', defaultWidth: 100, align: 'right' },
+    { key: 'revenuePending', label: 'มูลค่ารอจัดสรร', defaultWidth: 120, align: 'right' },
+    { key: 'allocationStatus', label: 'สถานะ', defaultWidth: 90, align: 'center' },
+    { key: 'action', label: 'Action', defaultWidth: 90, align: 'center' },
+  ], [])
+
+  const poResize = useResizableColumns('dual-costing.waiting.po.v2', poColumns)
+  const billResize = useResizableColumns('dual-costing.waiting.bill.v2', billColumns)
+  const prodResize = useResizableColumns('dual-costing.waiting.production.v2', productionColumns)
+
+  const columnResize = activeTab === 'po' ? poResize : activeTab === 'bill' ? billResize : prodResize
+  const currentColumns = activeTab === 'po' ? poColumns : activeTab === 'bill' ? billColumns : productionColumns
+  const tabData = data ? (activeTab === 'po' ? data.po : activeTab === 'bill' ? data.bill : data.production) : null
+  const rows = useMemo(() => tabData?.rows ?? [], [tabData])
+
+  const sortedRows = useMemo(() => {
+    const nextRows = [...rows]
+    if (!sortKey) return nextRows
+
+    nextRows.sort((left: any, right: any) => {
+      let lVal = left[sortKey]
+      let rVal = right[sortKey]
+
+      if (typeof lVal === 'string') {
+        return sortDirection === 'asc'
+          ? lVal.localeCompare(rVal)
+          : rVal.localeCompare(lVal)
+      }
+
+      lVal = Number(lVal) || 0
+      rVal = Number(rVal) || 0
+      return sortDirection === 'asc' ? lVal - rVal : rVal - lVal
+    })
+    return nextRows
+  }, [rows, sortKey, sortDirection])
+
+  const changeSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDirection('desc')
+    }
+  }
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams()
@@ -127,17 +223,19 @@ function WaitingAllocationsView() {
   return (
     <DualCostingPageSection>
       <DualCostingHint tone="amber">
-        Waiting Allocation Queue ใช้ติดตามบิลขายไม่มี PO ของทองแดง/ทองเหลืองที่ยังไม่ได้ allocate ต้นทุนจาก Cost Pool เพื่อการบริหารเท่านั้น และยังไม่ใช่ตัวเลขปิดงบ
+        Waiting Allocation Queue ใช้ดึงข้อมูลทองแดง/ทองเหลืองจาก PO ขาย, บิลขาย และ Production มาแยกเป็น tab เพื่อให้ผู้ใช้เลือกเอกสารแล้วส่งต่อไปหน้า Cost Allocator
       </DualCostingHint>
       <DualCostingErrorBox error={error} />
       <DualCostingWorkflowStrip active="waiting" />
       
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <DualCostingStatCard icon="⏳" label="รวมรายการรอ" tone="amber" value={String(data?.summary.count ?? 0)} />
-        <DualCostingStatCard icon="❌" label="ยังไม่เริ่ม allocate" tone="red" value={String(data?.summary.fullyPending ?? 0)} />
+        <DualCostingStatCard icon="⏳" label="รายการที่รอส่งต่อ" tone="amber" value={String(data?.summary.count ?? 0)} />
+        <DualCostingStatCard icon="❌" label="ยังไม่ส่งจัดสรร" tone="red" value={String(data?.summary.fullyPending ?? 0)} />
         <DualCostingStatCard icon="🔗" label="บางส่วน" tone="amber" value={String(data?.summary.partial ?? 0)} />
-        <DualCostingStatCard icon="⚖️" label="น้ำหนักรอ allocate" tone="blue" value={`${formatMoney(data?.summary.totalQty ?? 0)} กก.`} />
-        <DualCostingStatCard icon="💰" label="มูลค่าขายรอ Match" tone="emerald" value={formatMoney(data?.summary.totalRevenue ?? 0)} />
+        <DualCostingStatCard icon="⚖️" label="น้ำหนักรอจัดสรร" tone="blue" value={`${formatMoney(data?.summary.totalQty ?? 0)} กก.`} />
+        <div className="col-span-2 md:col-span-1">
+          <DualCostingStatCard icon="💰" label="มูลค่ารอจัดสรร" tone="emerald" value={formatMoney(data?.summary.totalRevenue ?? 0)} />
+        </div>
       </div>
 
       <DualCostingPanel title="สรุปตามหมวด">
@@ -197,8 +295,17 @@ function WaitingAllocationsView() {
         <div className="hidden lg:block">
           <div className="flex flex-wrap items-center gap-2">
             <Input className="min-w-[240px] flex-1 rounded-md border-slate-300 focus-visible:ring-emerald-100" placeholder="ค้นหา doc no / สินค้า / ลูกค้า..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-            <Select className="w-auto min-w-[160px] h-9 border-slate-300 focus-visible:ring-emerald-100" value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">ทุกสถานะ</option>{(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
-            <Select className="w-auto min-w-[160px] h-9 border-slate-300 focus-visible:ring-emerald-100" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">ทุกหมวด</option>{(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
+            <Select className="w-auto min-w-[160px] h-9 border-slate-300 focus-visible:ring-emerald-100 font-sans" value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">ทุกสถานะ</option>{(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item === 'pending_allocation' ? 'pending' : item === 'partially_allocated' ? 'partial' : item}</option>)}</Select>
+            <Select className="w-auto min-w-[160px] h-9 border-slate-300 focus-visible:ring-emerald-100 font-sans" value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">ทุกหมวด</option>{(data?.filters.categories ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
+            <Button
+              className="ml-auto rounded-lg h-9 px-3 text-xs font-semibold focus-visible:ring-slate-100 font-sans"
+              size="sm"
+              type="button"
+              variant="secondary"
+              onClick={() => columnResize.resetColumnWidths()}
+            >
+              คืนค่าเดิมตาราง
+            </Button>
           </div>
         </div>
 
@@ -221,11 +328,11 @@ function WaitingAllocationsView() {
             <div className="grid grid-cols-1 gap-2.5 pt-2 border-t border-slate-100 animate-in slide-in-from-top-2 duration-100">
               <label className="text-xs text-slate-500 font-semibold">
                 สถานะ
-                <Select className="mt-1 w-full h-9 border-slate-300 focus-visible:ring-emerald-100 text-sm" value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">ทุกสถานะ</option>{(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item}</option>)}</Select>
+                <Select className="mt-1 w-full h-9 border-slate-300 focus-visible:ring-emerald-100 text-sm font-sans" value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">ทุกสถานะ</option>{(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item === 'pending_allocation' ? 'pending' : item === 'partially_allocated' ? 'partial' : item}</option>)}</Select>
               </label>
               <label className="text-xs text-slate-500 font-semibold">
                 หมวดสินค้า
-                <Select className="mt-1 w-full h-9 border-slate-300 focus-visible:ring-emerald-100 text-sm" value={category} onChange={(event) => setCategory(event.target.value)}>
+                <Select className="mt-1 w-full h-9 border-slate-300 focus-visible:ring-emerald-100 text-sm font-sans" value={category} onChange={(event) => setCategory(event.target.value)}>
                   <option value="all">ทุกหมวด</option>
                   {(data?.filters.categories ?? []).map((item) => (
                     <option key={item} value={item}>{item}</option>
@@ -252,62 +359,152 @@ function WaitingAllocationsView() {
         </div>
       </DualCostingFilterCard>
 
-      {/* Desktop View */}
-      <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm">
-        <Table className="text-xs">
-          <TableHeader className="bg-slate-50 border-b border-slate-100 font-semibold text-slate-600">
-            <tr>
-              <TableHead className="p-3 pl-4">บิลขาย</TableHead>
-              <TableHead className="p-3">วันที่</TableHead>
-              <TableHead className="p-3">ลูกค้า</TableHead>
-              <TableHead className="p-3">สินค้า</TableHead>
-              <TableHead className="p-3 text-center">หมวด</TableHead>
-              <TableHead className="p-3 text-right">ขาย (กก.)</TableHead>
-              <TableHead className="p-3 text-right">Allocate แล้ว</TableHead>
-              <TableHead className="p-3 text-right">ค้าง (กก.)</TableHead>
-              <TableHead className="p-3 text-right">ราคา/กก.</TableHead>
-              <TableHead className="p-3 text-right">มูลค่ารอ</TableHead>
-              <TableHead className="p-3 text-center">สถานะ</TableHead>
-              <TableHead className="p-3 pr-4 text-center">Action</TableHead>
-            </tr>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? <TableRow><TableCell className="py-8 text-center text-slate-500" colSpan={12}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
-            {!isLoading && (data?.rows.length ?? 0) === 0 ? <TableRow><TableCell className="py-8 text-center text-emerald-700" colSpan={12}>ไม่มีรายการค้าง allocate ตามตัวกรอง</TableCell></TableRow> : null}
-            {(data?.rows ?? []).map((row) => {
-              const allocatorHref = `/dual-costing/cost-allocator?sourceType=spot-sell&productId=${encodeURIComponent(row.productId)}&poSellId=${encodeURIComponent(`${row.salesBillId}:${row.itemId}`)}`
-              return (
-                <TableRow key={row.id} className="border-t border-slate-100 hover:bg-amber-50/20 transition-colors">
-                  <TableCell className="p-3 pl-4 font-mono text-slate-700">{row.docNo}</TableCell>
-                  <TableCell className="p-3 whitespace-nowrap text-slate-600">{formatDateDisplay(row.date)}</TableCell>
-                  <TableCell className="p-3 text-slate-800 font-medium">{row.customerName}</TableCell>
-                  <TableCell className="p-3 text-xs text-slate-700">{row.productName}</TableCell>
-                  <TableCell className="p-3 text-center"><span className="rounded border border-amber-255 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">{row.metalGroup}</span></TableCell>
-                  <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(row.qty)}</TableCell>
-                  <TableCell className="p-3 text-right font-mono text-emerald-700 font-semibold">{formatMoney(row.allocatedQty)}</TableCell>
-                  <TableCell className="p-3 text-right font-mono font-bold text-amber-700">{formatMoney(row.remainingQty)}</TableCell>
-                  <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(row.unitPrice)}</TableCell>
-                  <TableCell className="p-3 text-right font-mono text-emerald-700 font-medium">{formatMoney(row.revenuePending)}</TableCell>
-                  <TableCell className="p-3 text-center"><StatusPill status={row.allocationStatus} /></TableCell>
-                  <TableCell className="p-3 pr-4 text-center"><Button asChild size="xs" type="button" className="rounded-lg font-semibold focus-visible:ring-2 focus-visible:ring-emerald-100"><Link href={allocatorHref}>จัดสรร</Link></Button></TableCell>
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
+      {/* Tabs */}
+      <div className="flex border-b border-slate-200">
+        <button
+          className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors focus-visible:outline-none ${
+            activeTab === 'po'
+              ? 'border-slate-900 text-slate-900 font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+          onClick={() => {
+            setActiveTab('po')
+            setSortKey('date')
+            setSortDirection('desc')
+          }}
+        >
+          PO ขาย <span className="ml-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600 font-medium">{data?.po.count ?? 0}</span>
+        </button>
+        <button
+          className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors focus-visible:outline-none ${
+            activeTab === 'bill'
+              ? 'border-slate-900 text-slate-900 font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+          onClick={() => {
+            setActiveTab('bill')
+            setSortKey('date')
+            setSortDirection('desc')
+          }}
+        >
+          บิลขาย <span className="ml-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600 font-medium">{data?.bill.count ?? 0}</span>
+        </button>
+        <button
+          className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors focus-visible:outline-none ${
+            activeTab === 'production'
+              ? 'border-slate-900 text-slate-900 font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+          onClick={() => {
+            setActiveTab('production')
+            setSortKey('date')
+            setSortDirection('desc')
+          }}
+        >
+          Production <span className="ml-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600 font-medium">{data?.production.count ?? 0}</span>
+        </button>
       </div>
 
+      {/* Desktop View */}
+      <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm" style={{ width: '100%', overflowX: 'auto' }}>
+        <table className="text-xs divide-y divide-slate-100 w-full" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <colgroup>
+            {currentColumns.map((col) => (
+              <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
+            ))}
+          </colgroup>
+          <thead className="bg-slate-50 border-b border-slate-100 font-semibold text-slate-600">
+            <tr className="divide-x divide-transparent">
+              {currentColumns.map((col) => (
+                <ResizableTableHead
+                  key={col.key}
+                  activeSortKey={sortKey}
+                  direction={sortDirection}
+                  label={col.label}
+                  align={col.align}
+                  resizeProps={columnResize.getResizeHandleProps(col.key, col.label)}
+                  sortKey={col.key}
+                  onSort={changeSort}
+                />
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 bg-white">
+            {isLoading ? (
+              <tr>
+                <td className="py-8 text-center text-slate-500" colSpan={currentColumns.length}>
+                  กำลังโหลดข้อมูล
+                </td>
+              </tr>
+            ) : null}
+            {!isLoading && sortedRows.length === 0 ? (
+              <tr>
+                <td className="py-8 text-center text-emerald-700 font-semibold" colSpan={currentColumns.length}>
+                  ไม่มีรายการค้าง allocate ตามตัวกรอง
+                </td>
+              </tr>
+            ) : null}
+            {!isLoading && sortedRows.map((row) => {
+              let allocatorHref = ''
+              if (activeTab === 'po') {
+                allocatorHref = `/dual-costing/cost-allocator?sourceType=po-sell&productId=${encodeURIComponent(row.productId)}&poSellId=${encodeURIComponent(row.id)}`
+              } else if (activeTab === 'bill') {
+                allocatorHref = `/dual-costing/cost-allocator?sourceType=spot-sell&productId=${encodeURIComponent(row.productId)}&poSellId=${encodeURIComponent(`${row.salesBillId}:${row.itemId}`)}`
+              } else {
+                allocatorHref = `/dual-costing/cost-allocator?sourceType=production&productId=${encodeURIComponent(row.productId)}&poSellId=${encodeURIComponent(row.docNo)}`
+              }
+
+              return (
+                <tr key={row.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="p-3 pl-4 font-mono text-slate-700">{row.docNo}</td>
+                  <td className="p-3 whitespace-nowrap text-slate-600">{formatDateDisplay(row.date)}</td>
+                  <td className="p-3 text-slate-800 font-medium">{row.customerName === '-' ? 'ภายในโรงงาน' : row.customerName}</td>
+                  <td className="p-3 text-xs text-slate-700">{row.productName}</td>
+                  <td className="p-3 text-center">
+                    <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                      {row.metalGroup}
+                    </span>
+                  </td>
+                  <td className="p-3 text-right font-mono text-slate-700">{formatMoney(row.qty)}</td>
+                  <td className="p-3 text-right font-mono text-emerald-700 font-semibold">{formatMoney(row.allocatedQty)}</td>
+                  <td className="p-3 text-right font-mono font-bold text-amber-700">{formatMoney(row.remainingQty)}</td>
+                  <td className="p-3 text-right font-mono text-slate-700">{formatMoney(row.unitPrice)}</td>
+                  <td className="p-3 text-right font-mono text-emerald-700 font-medium">{formatMoney(row.revenuePending)}</td>
+                  <td className="p-3 text-center">
+                    <StatusPill status={row.allocationStatus} />
+                  </td>
+                  <td className="p-3 pr-4 text-center">
+                    <Button asChild size="xs" type="button" className="rounded-lg font-semibold focus-visible:ring-2 focus-visible:ring-emerald-100 font-sans">
+                      <Link href={allocatorHref}>
+                        {row.allocatedQty > 0 ? 'จัดสรรต่อ' : 'จัดสรร'}
+                      </Link>
+                    </Button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
 
       {/* Mobile Card List */}
       <div className="block lg:hidden space-y-3">
         {isLoading ? (
           <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm">กำลังโหลดข้อมูล</div>
         ) : null}
-        {!isLoading && (data?.rows.length ?? 0) === 0 ? (
+        {!isLoading && sortedRows.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-emerald-700 shadow-sm">ไม่มีรายการค้าง allocate ตามตัวกรอง</div>
         ) : null}
-        {!isLoading && (data?.rows ?? []).map((row) => {
-          const allocatorHref = `/dual-costing/cost-allocator?sourceType=spot-sell&productId=${encodeURIComponent(row.productId)}&poSellId=${encodeURIComponent(`${row.salesBillId}:${row.itemId}`)}`
+        {!isLoading && sortedRows.map((row) => {
+          let allocatorHref = ''
+          if (activeTab === 'po') {
+            allocatorHref = `/dual-costing/cost-allocator?sourceType=po-sell&productId=${encodeURIComponent(row.productId)}&poSellId=${encodeURIComponent(row.id)}`
+          } else if (activeTab === 'bill') {
+            allocatorHref = `/dual-costing/cost-allocator?sourceType=spot-sell&productId=${encodeURIComponent(row.productId)}&poSellId=${encodeURIComponent(`${row.salesBillId}:${row.itemId}`)}`
+          } else {
+            allocatorHref = `/dual-costing/cost-allocator?sourceType=production&productId=${encodeURIComponent(row.productId)}&poSellId=${encodeURIComponent(row.docNo)}`
+          }
+
           return (
             <div key={row.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
               <div className="flex justify-between items-start">
@@ -318,7 +515,7 @@ function WaitingAllocationsView() {
                 <StatusPill status={row.allocationStatus} />
               </div>
               <div>
-                <div className="text-sm font-bold text-slate-800">{row.customerName}</div>
+                <div className="text-sm font-bold text-slate-800">{row.customerName === '-' ? 'ภายในโรงงาน' : row.customerName}</div>
                 <div className="text-xs text-slate-600 mt-1">{row.productName}</div>
                 <div className="mt-1"><span className="rounded border border-amber-250 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">{row.metalGroup}</span></div>
               </div>
@@ -332,7 +529,7 @@ function WaitingAllocationsView() {
                   <span className="font-mono font-bold text-amber-700">{formatMoney(row.remainingQty)} กก.</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block">ราคา/กก.</span>
+                  <span className="text-slate-500 block">{activeTab === 'production' ? 'ต้นทุน/กก.' : 'ราคา/กก.'}</span>
                   <span className="font-mono text-slate-700">{formatMoney(row.unitPrice)}</span>
                 </div>
                 <div className="text-right">
@@ -341,8 +538,10 @@ function WaitingAllocationsView() {
                 </div>
               </div>
               <div className="pt-1">
-                <Button asChild size="sm" type="button" className="w-full rounded-lg font-semibold focus-visible:ring-2 focus-visible:ring-emerald-100">
-                  <Link href={allocatorHref}>จัดสรร</Link>
+                <Button asChild size="sm" type="button" className="w-full rounded-lg font-semibold focus-visible:ring-2 focus-visible:ring-emerald-100 font-sans">
+                  <Link href={allocatorHref}>
+                    {row.allocatedQty > 0 ? 'จัดสรรต่อ' : 'จัดสรร'}
+                  </Link>
                 </Button>
               </div>
             </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
@@ -96,6 +97,8 @@ export function CostAllocatorPageClient() {
   const [selectedProductId, setSelectedProductId] = useState(initialParams.get('productId') ?? '')
   const [showPreview, setShowPreview] = useState(false)
   const [sourceType, setSourceType] = useState(initialParams.get('sourceType') ?? 'spot-sell')
+  const [targetCost, setTargetCost] = useState(0)
+  const [targetCostInput, setTargetCostInput] = useState('0')
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams()
@@ -103,8 +106,9 @@ export function CostAllocatorPageClient() {
     params.set('sourceType', sourceType)
     if (selectedProductId) params.set('productId', selectedProductId)
     if (selectedPoSellId) params.set('poSellId', selectedPoSellId)
+    if (allocationMode === 'Manual') params.set('targetCost', String(targetCost))
     return params.toString()
-  }, [allocationMode, selectedPoSellId, selectedProductId, sourceType])
+  }, [allocationMode, selectedPoSellId, selectedProductId, sourceType, targetCost])
 
   useEffect(() => {
     let mounted = true
@@ -137,12 +141,25 @@ export function CostAllocatorPageClient() {
   const hasPoSell = Boolean(data?.selectedPoSell)
   const hasCandidates = (data?.candidates.length ?? 0) > 0
   const sourceTypeButtons = data?.filters.sourceTypes ?? ['po-sell', 'spot-sell']
-  const sourceTypeLabel = sourceType === 'po-sell' ? 'PO Sell' : 'Spot Sell / บิลขายไม่มี PO'
+  const sourceTypeLabel = sourceType === 'po-sell' ? 'PO Sell' : sourceType === 'production' ? 'Production' : 'Spot Sell / บิลขายไม่มี PO'
   const allocationModes = data?.filters.modes?.length ? data.filters.modes : ['FIFO', 'LIFO', 'Cheap', 'Expensive']
 
   function resetSale() {
     setSelectedPoSellId('')
     setShowPreview(false)
+  }
+
+  const minUnitCost = data?.pool && data.pool.length > 0 ? Math.min(...data.pool.map((row) => row.unitCost)) : 0
+  const maxUnitCost = data?.pool && data.pool.length > 0 ? Math.max(...data.pool.map((row) => row.unitCost)) : 0
+
+  const handleCalculateManualMatch = () => {
+    const parsed = Number(targetCostInput)
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      setTargetCost(parsed)
+      setShowPreview(true)
+    } else {
+      setError('กรุณากรอกราคาต้นทุนเป้าหมายที่ถูกต้อง')
+    }
   }
 
   return (
@@ -173,7 +190,7 @@ export function CostAllocatorPageClient() {
                   resetSale()
                 }}
               >
-                {item === 'po-sell' ? 'PO Sell' : 'Spot Sell / ไม่มี PO'}
+                {item === 'po-sell' ? 'PO Sell' : item === 'production' ? 'Production' : 'Spot Sell / ไม่มี PO'}
               </button>
             )
           })}
@@ -222,8 +239,8 @@ export function CostAllocatorPageClient() {
                   setShowPreview(false)
                 }}
               >
-                <option value="">{sourceType === 'po-sell' ? '-- เลือก PO ขาย --' : '-- เลือกบิลขายไม่มี PO --'}</option>
-                {(data?.poSells ?? []).map((po) => <option key={po.id} value={po.id}>{po.docNo} | {po.customerName} | ขาย {formatMoney(po.qty)} กก. · เหลือต้อง match {formatMoney(po.remainingQty)} กก. · ฿{formatMoney(po.unitPrice)}/กก.</option>)}
+                <option value="">{sourceType === 'po-sell' ? '-- เลือก PO ขาย --' : sourceType === 'production' ? '-- เลือกใบสั่งผลิต --' : '-- เลือกบิลขายไม่มี PO --'}</option>
+                {(data?.poSells ?? []).map((po) => <option key={po.id} value={po.id}>{po.docNo} | {po.customerName === '-' ? 'ภายในโรงงาน' : po.customerName} | {sourceType === 'production' ? 'ผลิต' : 'ขาย'} {formatMoney(po.qty)} กก. · เหลือต้อง match {formatMoney(po.remainingQty)} กก. · ฿{formatMoney(po.unitPrice)}/กก.</option>)}
               </Select>
               {!isLoading && (data?.poSells.length ?? 0) === 0 ? <div className="mt-1.5 text-xs text-amber-700 font-medium">ไม่มี {sourceTypeLabel} ของสินค้านี้ที่ยังไม่ match</div> : null}
             </div>
@@ -235,18 +252,55 @@ export function CostAllocatorPageClient() {
             </div>
           </div>
 
+          {allocationMode === 'Manual' && (
+            <div className="mt-3 rounded-xl border border-amber-200/60 bg-amber-50/20 p-4 space-y-3">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800">
+                <span>⚙️</span>
+                <span>Manual Mode – ตั้งราคาต้นทุนเป้าหมาย</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-slate-500">
+                ระบบจะเลือก lot ผลผลิต (หรือผัน inventory เก่า) และ/หรือ lot ซื้อล่าสุด ให้ weighted average ได้ ราคาเป้าหมายที่ตั้ง (หลีกเลี่ยงลอทเกินจำเป็น)
+              </p>
+              <div className="flex flex-wrap items-end gap-2.5">
+                <div className="flex-1 min-w-[200px]">
+                  <label className="mb-1 block text-xs font-semibold text-slate-500">ราคาต้นทุนเป้าหมาย (บาท/กก.) *</label>
+                  <Input
+                    className="h-10 rounded-md border-slate-300 focus-visible:ring-emerald-100 text-sm font-mono [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                    type="number"
+                    placeholder="0.00"
+                    value={targetCostInput}
+                    onChange={(event) => setTargetCostInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') handleCalculateManualMatch()
+                    }}
+                  />
+                </div>
+                <Button
+                  className="rounded-lg h-10 px-4 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white transition-colors focus-visible:outline-none font-sans"
+                  type="button"
+                  onClick={handleCalculateManualMatch}
+                >
+                  ⚡ คำนวณ Match อัตโนมัติ
+                </Button>
+              </div>
+              <div className="text-[11px] font-medium text-amber-800/80">
+                💡 Pool WAC ปัจจุบัน = {formatMoney(data?.summary.poolAvgCost ?? 0)} บาท/กก. · ช่วง {formatMoney(minUnitCost)} - {formatMoney(maxUnitCost)}
+              </div>
+            </div>
+          )}
+
           <div className="mt-4 overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm">
             <Table className="text-xs">
               <TableHeader className="bg-slate-50 border-b border-slate-100 font-semibold text-slate-600">
                 <tr>
-                  <TableHead className="p-3 pl-4">เอกสารขาย</TableHead>
+                  <TableHead className="p-3 pl-4">{sourceType === 'production' ? 'ใบสั่งผลิต' : 'เอกสารขาย'}</TableHead>
                   <TableHead className="p-3">วันที่</TableHead>
-                  <TableHead className="p-3">Customer</TableHead>
+                  <TableHead className="p-3">{sourceType === 'production' ? 'ผู้ผลิต' : 'Customer'}</TableHead>
                   <TableHead className="p-3">สินค้า</TableHead>
-                  <TableHead className="p-3 text-right">ขาย</TableHead>
+                  <TableHead className="p-3 text-right">{sourceType === 'production' ? 'ผลิต (กก.)' : 'ขาย (กก.)'}</TableHead>
                   <TableHead className="p-3 text-right">Matched</TableHead>
                   <TableHead className="p-3 text-right">ค้าง Match</TableHead>
-                  <TableHead className="p-3 text-right">ราคา/หน่วย</TableHead>
+                  <TableHead className="p-3 text-right">{sourceType === 'production' ? 'ต้นทุน/กก.' : 'ราคา/หน่วย'}</TableHead>
                   <TableHead className="p-3 pr-4 text-center">เลือก</TableHead>
                 </tr>
               </TableHeader>
@@ -259,7 +313,7 @@ export function CostAllocatorPageClient() {
                     <TableRow key={target.id} className={active ? 'bg-purple-50/50 border-t border-slate-100 hover:bg-purple-50/60 transition-colors' : 'border-t border-slate-100 hover:bg-slate-50/30 transition-colors'}>
                       <TableCell className="p-3 pl-4 font-mono text-xs text-slate-700">{target.docNo}</TableCell>
                       <TableCell className="p-3 whitespace-nowrap text-xs text-slate-600">{target.date}</TableCell>
-                      <TableCell className="p-3 text-slate-800 font-medium">{target.customerName}</TableCell>
+                      <TableCell className="p-3 text-slate-800 font-medium">{target.customerName === '-' ? 'ภายในโรงงาน' : target.customerName}</TableCell>
                       <TableCell className="p-3 text-xs text-slate-700">{target.productName}</TableCell>
                       <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(target.qty)}</TableCell>
                       <TableCell className="p-3 text-right font-mono text-emerald-700 font-semibold">{formatMoney(target.matchedQty)}</TableCell>
@@ -288,10 +342,10 @@ export function CostAllocatorPageClient() {
 
           {hasPoSell ? (
             <div className="grid grid-cols-2 gap-3 md:grid-cols-5 mt-3">
-              <DualCostingStatCard icon="👥" label="Customer" tone="slate" value={data?.selectedPoSell?.customerName ?? '-'} />
+              <DualCostingStatCard icon="👥" label={sourceType === 'production' ? 'ผู้ผลิต' : 'Customer'} tone="slate" value={data?.selectedPoSell?.customerName === '-' ? 'ภายในโรงงาน' : (data?.selectedPoSell?.customerName ?? '-')} />
               <DualCostingStatCard icon="📦" label="สินค้า" tone="slate" value={selectedProduct?.name ?? data?.selectedPoSell?.productName ?? '-'} />
               <DualCostingStatCard icon="⚖️" label="จำนวนรวม" tone="slate" value={`${formatMoney(data?.selectedPoSell?.qty ?? 0)} กก.`} />
-              <DualCostingStatCard icon="💰" label="ราคาขาย" tone="emerald" value={formatMoney(data?.selectedPoSell?.unitPrice ?? 0)} />
+              <DualCostingStatCard icon="💰" label={sourceType === 'production' ? 'ต้นทุน/กก.' : 'ราคาขาย'} tone="emerald" value={formatMoney(data?.selectedPoSell?.unitPrice ?? 0)} />
               <DualCostingStatCard icon="⏳" label="ต้อง Match อีก" tone="amber" value={`${formatMoney(data?.selectedPoSell?.remainingQty ?? 0)} กก.`} />
             </div>
           ) : null}
@@ -324,7 +378,7 @@ export function CostAllocatorPageClient() {
                 {!isLoading && (data?.pool.length ?? 0) === 0 ? <TableRow><TableCell className="py-6 text-center text-amber-700" colSpan={7}>ยังไม่มี Cost Pool lot สำหรับสินค้านี้</TableCell></TableRow> : null}
                 {(data?.pool ?? []).slice(0, 12).map((row) => (
                   <TableRow key={row.costPoolId} className="hover:bg-slate-50/30 transition-colors border-t border-slate-100">
-                    <TableCell className="p-3 pl-4"><span className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">{row.sourceType}</span></TableCell>
+                    <TableCell className="p-3 pl-4"><span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${sourceBadgeClass(row.sourceType)}`}>{row.sourceType}</span></TableCell>
                     <TableCell className="p-3 font-mono text-xs text-slate-700">{row.sourceNo}</TableCell>
                     <TableCell className="p-3 whitespace-nowrap text-xs text-slate-600">{row.date}</TableCell>
                     <TableCell className="p-3 text-xs text-slate-800 font-medium">{row.counterparty}</TableCell>
@@ -358,7 +412,7 @@ export function CostAllocatorPageClient() {
               <TableBody>
                 {(data?.candidates ?? []).map((row) => (
                   <TableRow key={row.costPoolId} className="hover:bg-slate-50/30 transition-colors border-t border-slate-100">
-                    <TableCell className="p-3 pl-4"><span className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">{row.sourceType}</span></TableCell>
+                    <TableCell className="p-3 pl-4"><span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${sourceBadgeClass(row.sourceType)}`}>{row.sourceType}</span></TableCell>
                     <TableCell className="p-3 font-mono text-xs text-slate-700">{row.sourceNo}</TableCell>
                     <TableCell className="p-3 text-slate-800 font-medium">{row.counterparty}</TableCell>
                     <TableCell className="p-3 text-right font-mono text-slate-600">{formatMoney(row.availableQty)}</TableCell>
@@ -391,5 +445,13 @@ function allocationModeLabel(mode: string) {
   if (mode === 'LIFO') return 'LIFO - ต้นทุนใหม่ก่อน'
   if (mode === 'Cheap') return 'Cheap First - ต้นทุนถูกก่อน'
   if (mode === 'Expensive') return 'Expensive First - ต้นทุนแพงก่อน'
+  if (mode === 'Manual') return 'Manual - เลือกเอง'
   return 'FIFO - ต้นทุนเก่าก่อน'
+}
+
+function sourceBadgeClass(type: string) {
+  if (type === 'Production') return 'bg-orange-50 text-orange-700 border border-orange-200/50'
+  if (type === 'Regrade' || type === 'Grade Adjustment') return 'bg-purple-50 text-purple-700 border border-purple-200/50'
+  if (type === 'PO_Buy') return 'bg-cyan-50 text-cyan-700 border border-cyan-200/50'
+  return 'bg-blue-50 text-blue-700 border border-blue-200/50'
 }

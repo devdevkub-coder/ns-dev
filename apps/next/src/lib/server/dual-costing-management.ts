@@ -120,7 +120,7 @@ function pct(grossProfit: number, revenue: number) {
 }
 
 export async function buildDualCostingManagement() {
-  const [salesBills, tradingDeals, products] = await Promise.all([
+  const [salesBills, tradingDeals, products, poSells, productionOrders] = await Promise.all([
     prisma.sales_bills.findMany({
       include: {
         branches: true,
@@ -144,6 +144,34 @@ export async function buildDualCostingManagement() {
       take: 10000,
     }),
     prisma.products.findMany({ select: { code: true, id: true, metal_group: true, name: true } }),
+    prisma.po_sells.findMany({
+      include: { customers: true },
+      orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
+      take: 5000,
+      where: {
+        NOT: {
+          status: {
+            in: [
+              'Cancelled', 'cancelled', 'Canceled', 'canceled',
+              'Closed', 'closed', 'Completed', 'completed',
+              'Fully Matched', 'fully matched', 'Received', 'received'
+            ]
+          }
+        }
+      }
+    }),
+    prisma.production_orders.findMany({
+      include: {
+        products: true,
+        production_inputs: { include: { products: true }, where: { status: 'active' } },
+        production_outputs: { include: { products: true }, where: { status: 'active' } }
+      },
+      orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
+      take: 5000,
+      where: {
+        NOT: { status: 'Cancelled' }
+      }
+    })
   ])
 
   const productById = new Map(products.map((product) => [String(product.id), { ...product, code: product.code }]))
@@ -245,6 +273,150 @@ export async function buildDualCostingManagement() {
     })
   })
 
+  // Map PO Sells to waitingPoSellRows
+  const salesBillIdsByPoSellId = new Map<bigint, Set<bigint>>()
+  salesBills.forEach((bill) => {
+    if (!bill.po_sell_id) return
+    const current = salesBillIdsByPoSellId.get(bill.po_sell_id) ?? new Set<bigint>()
+    current.add(bill.id)
+    salesBillIdsByPoSellId.set(bill.po_sell_id, current)
+  })
+
+  const matchedQtyByPoSellId = new Map<bigint, number>()
+  poSells.forEach((po) => {
+    const billIds = salesBillIdsByPoSellId.get(po.id) ?? new Set<bigint>()
+    let matchedQty = 0
+    tradingDeals.forEach((deal) => {
+      if (deal.sales_bill_id && billIds.has(deal.sales_bill_id) && !isCancelled(deal.status)) {
+        matchedQty += toNumber(deal.matched_qty)
+      }
+    })
+    matchedQtyByPoSellId.set(po.id, matchedQty)
+  })
+
+  const waitingPoSellRows: WaitingAllocationRow[] = []
+  poSells.forEach((po) => {
+    const fallbackProduct = po.product_id ? productById.get(String(po.product_id)) ?? null : null
+    
+    let items: Array<{
+      lineId: string
+      productId: string
+      productName: string
+      qty: number
+      remainingQty: number
+      unitPrice: number
+      metalGroup: string
+    }> = []
+
+    const poItems = po.items as unknown
+    if (Array.isArray(poItems) && poItems.length) {
+      items = poItems
+        .filter((item): item is JsonItem => typeof item === 'object' && item !== null)
+        .map((item, index) => {
+          const rawProdId = jsonString(item.productCode, item.code, item.productId)
+          let resolvedCode = ''
+          if (rawProdId) {
+            if (/^\d+$/.test(rawProdId)) {
+              resolvedCode = productById.get(rawProdId)?.code ?? ''
+            } else {
+              resolvedCode = rawProdId
+            }
+          } else {
+            resolvedCode = fallbackProduct?.code ?? ''
+          }
+
+          const product = productByCode.get(resolvedCode)
+          const name = jsonString(item.productName, item.displayName, item.name) || fallbackProduct?.name || '-'
+
+          return {
+            lineId: `${resolvedCode || 'line'}-${index}`,
+            productId: resolvedCode,
+            productName: resolvedCode ? `${resolvedCode} - ${name}` : name,
+            qty: jsonNumber(item.qty),
+            remainingQty: jsonNumber(item.remainingQty ?? item.qty),
+            unitPrice: jsonNumber(item.unitPrice ?? po.unit_price),
+            metalGroup: product?.metal_group ?? fallbackProduct?.metal_group ?? '',
+          }
+        })
+    } else {
+      items = [{
+        lineId: fallbackProduct?.code || 'header',
+        productId: fallbackProduct?.code ?? '',
+        productName: fallbackProduct ? `${fallbackProduct.code} - ${fallbackProduct.name}` : '-',
+        qty: jsonNumber(po.qty),
+        remainingQty: jsonNumber(po.remaining_qty ?? po.qty),
+        unitPrice: jsonNumber(po.unit_price),
+        metalGroup: fallbackProduct?.metal_group ?? '',
+      }]
+    }
+
+    const matchedQty = matchedQtyByPoSellId.get(po.id) ?? 0
+
+    items.forEach((item) => {
+      if (!isDualCostingGroup(item.metalGroup)) return
+
+      const qty = item.qty
+      const allocatedQty = Math.min(qty, matchedQty)
+      const remainingQty = Math.max(0, item.remainingQty - allocatedQty)
+      if (remainingQty <= 0.001) return
+
+      waitingPoSellRows.push({
+        allocatedQty,
+        allocationStatus: allocatedQty > 0 ? 'partially_allocated' : 'pending_allocation',
+        branchName: '-',
+        customerName: po.customers?.name ?? '-',
+        date: toDateOnly(po.date),
+        docNo: po.doc_no,
+        id: `${po.id.toString()}-${item.lineId}`,
+        itemId: item.lineId,
+        metalGroup: item.metalGroup ?? '-',
+        productId: item.productId,
+        productName: item.productName,
+        qty,
+        remainingQty,
+        revenuePending: remainingQty * item.unitPrice,
+        salesBillId: po.doc_no,
+        unitPrice: item.unitPrice,
+      })
+    })
+  })
+
+  // Map Production Orders to waitingProductionRows
+  const waitingProductionRows: WaitingAllocationRow[] = []
+  productionOrders.forEach((order) => {
+    const product = order.products
+    if (!product || !isDualCostingGroup(product.metal_group)) return
+
+    const inputQty = order.production_inputs.reduce((sum, input) => sum + toNumber(input.qty), 0)
+    const inputCost = order.production_inputs.reduce((sum, input) => sum + toNumber(input.total_cost), 0)
+
+    const qty = inputQty > 0 ? inputQty : (toNumber(order.planned_input_qty) || toNumber(order.qty_planned) || 0)
+    if (qty <= 0) return
+
+    const unitPrice = inputQty > 0 ? inputCost / inputQty : 0
+    const allocatedQty = 0
+    const remainingQty = qty
+
+    waitingProductionRows.push({
+      allocatedQty,
+      allocationStatus: 'pending_allocation',
+      branchName: '-',
+      customerName: '-',
+      date: order.production_inputs.length > 0 ? toDateOnly(order.production_inputs[0].date) : toDateOnly(order.date),
+      docNo: order.doc_no,
+      id: `production-${order.id.toString()}`,
+      itemId: '0',
+      metalGroup: product.metal_group ?? '-',
+      productId: product.code,
+      productName: `${product.code} - ${product.name}`,
+      qty,
+      remainingQty,
+      revenuePending: remainingQty * unitPrice,
+      salesBillId: order.doc_no,
+      unitPrice,
+    })
+  })
+
   const ledgerRows: CostAllocationLedgerRow[] = tradingDeals.map((deal, index) => {
     const qty = toNumber(deal.matched_qty)
     const totalCost = toNumber(deal.matched_purchase_amount)
@@ -326,5 +498,7 @@ export async function buildDualCostingManagement() {
       },
     },
     waitingRows,
+    waitingPoSellRows,
+    waitingProductionRows,
   }
 }

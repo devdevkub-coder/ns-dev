@@ -97,13 +97,8 @@ function formatImpurityPurchaseSourceDetail(line: WeightTicketRecord['lines'][nu
   const match = /^มาจากสิ่งเจือปน \(([^)]+)\) ของรายการที่ ([^:]+):\s*(.+)$/.exec(line.note.trim())
   if (!match) return line.note || 'ซื้อเพิ่มจากสิ่งเจือปนที่เป็นสินค้า'
 
-  const [, impurityInfo, sourceIndex, sourceProduct] = match
-  const sourceLines = [
-    `มาจาก: ${sourceProduct}`,
-    `สิ่งเจือปน: ${impurityInfo}`,
-  ]
-  if (sourceIndex !== '0') sourceLines.push(`เต๋า/รายการที่: ${sourceIndex}`)
-  return sourceLines.join('\n')
+  const [, , , sourceProduct] = match
+  return `มาจาก: ${sourceProduct}`
 }
 
 function findPurchaseLineForImpurity(

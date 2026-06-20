@@ -195,7 +195,7 @@ export function CostPoolPageClient() {
             </Select>
             <Select aria-label="สถานะ" className="w-auto min-w-[130px] h-9 border-slate-300 focus-visible:ring-emerald-100" value={status} onChange={(event) => setStatus(event.target.value)}>
               <option value="all">ทุกสถานะ</option>
-              {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
+              {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{statusLabel(item)}</option>)}
             </Select>
             <Select aria-label="เรียงลำดับ" className="w-auto min-w-[130px] h-9 border-slate-300 focus-visible:ring-emerald-100" value={sort} onChange={(event) => setSort(event.target.value)}>
               <option value="FIFO">FIFO</option>
@@ -284,7 +284,7 @@ export function CostPoolPageClient() {
                   สถานะ
                   <Select aria-label="สถานะ" className="mt-1 w-full h-9 border-slate-300" value={status} onChange={(event) => setStatus(event.target.value)}>
                     <option value="all">ทุกสถานะ</option>
-                    {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
+                    {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{statusLabel(item)}</option>)}
                   </Select>
                 </label>
                 <label className="text-[11px] text-slate-500 font-semibold">
@@ -407,7 +407,7 @@ function CostTypeCard({
 function StatusIndicator({ status }: { status: string }) {
   const tones = status === 'Available'
     ? 'bg-emerald-500'
-    : status === 'Partially Used'
+    : status === 'Partial'
       ? 'bg-amber-500'
       : 'bg-slate-400'
 
@@ -419,6 +419,13 @@ function StatusIndicator({ status }: { status: string }) {
   )
 }
 
+function statusLabel(status: string) {
+  if (status === 'Available') return 'Available (พร้อม)'
+  if (status === 'Partial') return 'Partial (Match บางส่วน)'
+  if (status === 'Fully') return 'Fully (Match ครบแล้ว)'
+  return status
+}
+
 function costTypeBadgeClass(type: string) {
   if (type === 'Production') return 'bg-orange-50 text-orange-700 border border-orange-200/50'
   if (type === 'Regrade') return 'bg-purple-50 text-purple-700 border border-purple-200/50'
@@ -427,7 +434,7 @@ function costTypeBadgeClass(type: string) {
 
 function sourceBadgeClass(type: string) {
   if (type === 'Production') return 'bg-orange-50 text-orange-700 border border-orange-200/50'
-  if (type === 'Regrade') return 'bg-purple-50 text-purple-700 border border-purple-200/50'
+  if (type === 'Regrade' || type === 'Grade Adjustment') return 'bg-purple-50 text-purple-700 border border-purple-200/50'
   if (type === 'PO_Buy') return 'bg-cyan-50 text-cyan-700 border border-cyan-200/50'
   return 'bg-blue-50 text-blue-700 border border-blue-200/50'
 }

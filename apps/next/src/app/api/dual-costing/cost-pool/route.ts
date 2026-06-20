@@ -24,8 +24,8 @@ type CostPoolRow = {
   sourceId: string
   sourceLineId: string
   sourceNo: string
-  sourceType: 'PO_Buy' | 'Production' | 'Regrade' | 'Spot_Buy'
-  status: 'Available' | 'Fully Used' | 'Partially Used'
+  sourceType: 'PO_Buy' | 'Production' | 'Grade Adjustment' | 'Spot_Buy'
+  status: 'Available' | 'Fully' | 'Partial'
   totalCost: number
   unitCost: number
   usedQty: number
@@ -127,8 +127,8 @@ function itemsFromPo(row: {
 }
 
 function statusFromQty(qty: number, usedQty: number): CostPoolRow['status'] {
-  if (qty <= 0 || usedQty >= qty - 0.001) return 'Fully Used'
-  if (usedQty > 0) return 'Partially Used'
+  if (qty <= 0 || usedQty >= qty - 0.001) return 'Fully'
+  if (usedQty > 0) return 'Partial'
   return 'Available'
 }
 
@@ -362,7 +362,7 @@ export async function GET(request: Request) {
         sourceId: entry.source_ref_id ?? stringifyBusinessValue(entry.id),
         sourceLineId: entry.source_line_id ?? stringifyBusinessValue(entry.id),
         sourceNo: entry.source_ref_no ?? entry.pool_key,
-        sourceType: costTypeValue,
+        sourceType: costTypeValue === 'Regrade' ? 'Grade Adjustment' : costTypeValue,
         status: statusFromQty(qty, usedQty),
         totalCost: jsonNumber(entry.original_value) || qty * unitCost,
         unitCost,

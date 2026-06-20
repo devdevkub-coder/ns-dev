@@ -14,17 +14,17 @@ const COST_EPSILON = 0.000001
 
 type CostPoolEntry = {
   available_qty: Prisma.Decimal
-  branch_code: string | null
+  branch_id: bigint | null
   date: Date
   id: bigint
   lot_no: string | null
   original_qty: Prisma.Decimal
-  product_code: string
+  product_id: bigint
   source_ref_no: string | null
   source_type: string
   status: string
   unit_cost: Prisma.Decimal
-  warehouse_code: string | null
+  warehouse_id: bigint | null
 }
 
 type LockedCostPoolEntry = CostPoolEntry & {
@@ -163,16 +163,13 @@ async function loadCostPoolOptions() {
       e.unit_cost,
       e.status,
       e.original_qty - e.allocated_qty - e.released_qty as available_qty,
-      p.code as product_code,
-      b.code as branch_code,
-      w.code as warehouse_code
+      e.product_id,
+      e.branch_id,
+      e.warehouse_id
     from public.stock_cost_pool_entries e
-    join public.products p on p.id = e.product_id
-    left join public.branches b on b.id = e.branch_id
-    left join public.warehouses w on w.id = e.warehouse_id
     where e.status in ('Available', 'Partially Used')
       and e.original_qty - e.allocated_qty - e.released_qty > ${COST_EPSILON}
-    order by p.code asc, e.date asc, e.id asc
+    order by e.date asc, e.id asc
   `
 
   return rows.map((row) => {
@@ -180,17 +177,17 @@ async function loadCostPoolOptions() {
     return {
       availableQty,
       availableValue: availableQty * toNumber(row.unit_cost),
-      branchId: row.branch_code,
+      branchId: row.branch_id ? String(row.branch_id) : '',
       date: toDateOnly(row.date),
       id: String(row.id),
       lotNo: row.lot_no,
       originalQty: toNumber(row.original_qty),
-      productId: row.product_code,
+      productId: row.product_id ? String(row.product_id) : '',
       sourceRefNo: row.source_ref_no,
       sourceType: row.source_type,
       status: row.status,
       unitCost: toNumber(row.unit_cost),
-      warehouseId: row.warehouse_code,
+      warehouseId: row.warehouse_id ? String(row.warehouse_id) : '',
     }
   })
 }

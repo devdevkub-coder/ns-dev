@@ -129,11 +129,12 @@ function isDualCostingGroup(group?: string | null) {
   return ['ทองแดง', 'ทองเหลือง', 'copper', 'brass'].some((key) => normalized.includes(key))
 }
 
-function sortPool(rows: CostPoolRow[], mode: string) {
+function sortPool(rows: CostPoolRow[], mode: string, targetCost: number) {
   const nextRows = [...rows]
   if (mode === 'Cheap') return nextRows.sort((left, right) => left.unitCost - right.unitCost)
   if (mode === 'Expensive') return nextRows.sort((left, right) => right.unitCost - left.unitCost)
   if (mode === 'LIFO') return nextRows.sort((left, right) => right.date.localeCompare(left.date))
+  if (mode === 'Manual') return nextRows.sort((left, right) => Math.abs(left.unitCost - targetCost) - Math.abs(right.unitCost - targetCost))
   return nextRows.sort((left, right) => left.date.localeCompare(right.date))
 }
 
@@ -160,8 +161,9 @@ export async function GET(request: Request) {
     const poSellId = url.searchParams.get('poSellId')
     const mode = url.searchParams.get('mode') ?? 'FIFO'
     const sourceType = url.searchParams.get('sourceType') ?? 'spot-sell'
+    const targetCost = Number(url.searchParams.get('targetCost')) || 0
 
-    const [costPool, poSells, salesBills, spotSalesBills, tradingDeals, products] = await Promise.all([
+    const [costPool, poSells, salesBills, spotSalesBills, tradingDeals, products, productionOrders] = await Promise.all([
       readCostPool(request),
       prisma.po_sells.findMany({
         include: { customers: true },
@@ -202,6 +204,17 @@ export async function GET(request: Request) {
         where: { NOT: { status: { in: ['Cancelled', 'cancelled'] } } },
       }),
       prisma.products.findMany({ select: { code: true, id: true, metal_group: true, name: true } }),
+      prisma.production_orders.findMany({
+        include: {
+          products: true,
+          production_inputs: { include: { products: true }, where: { status: 'active' } },
+        },
+        orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
+        take: 5000,
+        where: {
+          NOT: { status: 'Cancelled' }
+        }
+      })
     ])
 
     const productById = new Map(products.map((product) => [product.id, { ...product, code: requireBusinessCode(product.code, `สินค้า ${product.id}`) }]))
@@ -280,7 +293,40 @@ export async function GET(request: Request) {
       }]
     }))
 
-    const targetRows = sourceType === 'po-sell' ? salesRows : spotSalesRows
+    const productionRows: SaleRow[] = productionOrders.flatMap((order) => {
+      const product = order.products
+      if (!product || !isDualCostingGroup(product.metal_group)) return []
+
+      const inputQty = order.production_inputs.reduce((sum, input) => sum + toNumber(input.qty), 0)
+      const inputCost = order.production_inputs.reduce((sum, input) => sum + toNumber(input.total_cost), 0)
+
+      const qty = inputQty > 0 ? inputQty : (toNumber(order.planned_input_qty) || toNumber(order.qty_planned) || 0)
+      if (qty <= 0) return []
+
+      const matchedQty = 0
+      const remainingQty = qty
+      const unitPrice = inputQty > 0 ? inputCost / inputQty : 0
+      const productCode = requireBusinessCode(product.code, `สินค้า ${product.id}`)
+
+      return [{
+        customerName: '-',
+        date: order.production_inputs.length > 0 ? toDateOnly(order.production_inputs[0].date) : toDateOnly(order.date),
+        docNo: order.doc_no,
+        id: order.doc_no,
+        matchedQty,
+        productId: productCode,
+        productName: product.name,
+        qty,
+        remainingQty,
+        unitPrice,
+      }]
+    })
+
+    const targetRows = sourceType === 'po-sell'
+      ? salesRows
+      : sourceType === 'production'
+      ? productionRows
+      : spotSalesRows
 
     const poolRows = costPool.rows.filter((row) => row.productId && row.availableQty > 0)
     const productIds = new Set([...targetRows.map((row) => row.productId), ...poolRows.map((row) => row.productId)])
@@ -302,7 +348,7 @@ export async function GET(request: Request) {
     const filteredPool = productId ? poolRows.filter((row) => row.productId === productId) : []
     const filteredSales = productId ? targetRows.filter((row) => row.productId === productId) : []
     const selectedSale = poSellId ? filteredSales.find((row) => row.id === poSellId) ?? null : null
-    const selectedPool = sortPool(filteredPool, mode)
+    const selectedPool = sortPool(filteredPool, mode, targetCost)
 
     let need = selectedSale?.remainingQty ?? 0
     const candidates = selectedPool.flatMap((row) => {
@@ -326,9 +372,9 @@ export async function GET(request: Request) {
     return NextResponse.json({
       candidates,
       filters: {
-        modes: ['FIFO', 'LIFO', 'Cheap', 'Expensive'],
+        modes: ['FIFO', 'LIFO', 'Cheap', 'Expensive', 'Manual'],
         products: productOptions,
-        sourceTypes: ['po-sell', 'spot-sell'],
+        sourceTypes: ['po-sell', 'spot-sell', 'production'],
       },
       pool: filteredPool,
       poSells: filteredSales,

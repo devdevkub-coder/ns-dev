@@ -239,7 +239,7 @@ function sourceTypeClass(type: string) {
   if (type === 'PO_Buy') return 'bg-cyan-100 text-cyan-700'
   if (type === 'Spot_Buy') return 'bg-blue-100 text-blue-700'
   if (type === 'Production') return 'bg-orange-100 text-orange-700'
-  if (type === 'Regrade') return 'bg-purple-100 text-purple-700'
+  if (type === 'Regrade' || type === 'Grade Adjustment') return 'bg-purple-100 text-purple-700'
   if (type === 'Trading_Deal') return 'bg-fuchsia-100 text-fuchsia-700'
   return 'bg-slate-200 text-slate-700'
 }
