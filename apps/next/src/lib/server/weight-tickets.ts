@@ -299,6 +299,7 @@ export function buildWeightTicketLineRows(
   }))
 
   const totalsById = new Map(values.lines.map((line, i) => [line.id, lineTotalsList[i]!]))
+  const lineNoById = new Map(values.lines.map((line, index) => [line.id, index + 1] as const))
 
   values.lines.forEach((line) => {
     if (line.parentId) {
@@ -360,9 +361,11 @@ export function buildWeightTicketLineRows(
       image_names: line.imageNames,
       impurity_id: impurityId ?? null,
       impurity_name: impurity?.name ?? null,
+      impurity_source_line_no: line.impuritySourceLineId ? lineNoById.get(line.impuritySourceLineId) ?? null : null,
       line_no: index + 1,
       net_weight: lineTotals.netWeight,
       note: line.note || null,
+      parent_line_no: line.parentId ? lineNoById.get(line.parentId) ?? null : null,
       product_id: product.id,
       product_name: product.name,
       warehouse_id: warehouse?.id ?? null,
@@ -720,9 +723,12 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
     imageCount: line.image_count ?? 0,
     imageNames: line.image_names ?? [],
     impurityId: line.impurity_id == null ? '' : String(line.impurity_id),
+    impuritySourceLineNo: line.impurity_source_line_no ?? null,
     impurityName: line.impurity_name ?? '',
+    lineNo: line.line_no,
     netWeight: toNumber(line.net_weight),
     note: line.note ?? '',
+    parentLineNo: line.parent_line_no ?? null,
     productId: requireBusinessCode(line.products.code, `สินค้า ${line.products.id}`),
     productName: line.product_name,
     warehouseId: line.warehouses?.code ?? '',

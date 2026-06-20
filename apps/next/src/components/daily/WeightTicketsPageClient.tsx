@@ -312,14 +312,19 @@ function isStoredPurchaseFromImpurityLine(line: WeightTicketRecord['lines'][numb
 }
 
 function ticketToFormState(ticket: WeightTicketRecord): FormState {
+  const lineIdByLineNo = new Map(ticket.lines.map((line) => [line.lineNo, line.id] as const))
   const productParentMap = new Map<string, string>()
   let lastParentId: string | undefined = undefined
   const lines: FormWeightTicketLine[] = ticket.lines.map((line) => {
     const isImpurity = Number(line.grossWeight || 0) === 0 && !!line.impurityId
-    const isPurchaseFromImpurity = isStoredPurchaseFromImpurityLine(line)
+    const relationSourceLineId = line.impuritySourceLineNo ? lineIdByLineNo.get(line.impuritySourceLineNo) : undefined
+    const relationParentId = line.parentLineNo ? lineIdByLineNo.get(line.parentLineNo) : undefined
+    const isPurchaseFromImpurity = Boolean(relationSourceLineId) || isStoredPurchaseFromImpurityLine(line)
     let parentId: string | undefined = undefined
 
-    if (isImpurity) {
+    if (relationParentId) {
+      parentId = relationParentId
+    } else if (isImpurity) {
       parentId = lastParentId
     } else {
       const existingParentId = !isPurchaseFromImpurity ? productParentMap.get(line.productId) : undefined
@@ -339,7 +344,7 @@ function ticketToFormState(ticket: WeightTicketRecord): FormState {
       imageNames: line.imageNames,
       imageFiles: line.imageNames.map(createAttachmentPreview),
       impurityId: line.impurityId,
-      impuritySourceLineId: isPurchaseFromImpurity ? '' : undefined,
+      impuritySourceLineId: relationSourceLineId ?? (isPurchaseFromImpurity ? '' : undefined),
       impurityPurchaseAction: 'none',
       impurityProductId: '',
       note: line.note,
@@ -352,7 +357,7 @@ function ticketToFormState(ticket: WeightTicketRecord): FormState {
   const assignedSourceIds = new Set<string>()
   const purchaseLineIds = new Set(
     ticket.lines
-      .filter(isStoredPurchaseFromImpurityLine)
+      .filter((line) => Boolean(line.impuritySourceLineNo) || isStoredPurchaseFromImpurityLine(line))
       .map((line) => line.id),
   )
 
@@ -360,6 +365,30 @@ function ticketToFormState(ticket: WeightTicketRecord): FormState {
     const purchaseLine = lines.find((line) => line.id === purchaseLineId)
     const purchaseSource = ticket.lines.find((line) => line.id === purchaseLineId)
     if (!purchaseLine || !purchaseSource) return
+
+    if (purchaseSource.impuritySourceLineNo) {
+      const sourceLineId = lineIdByLineNo.get(purchaseSource.impuritySourceLineNo)
+      const sourceLine = sourceLineId ? lines.find((candidate) => candidate.id === sourceLineId) : undefined
+      if (!sourceLine) return
+
+      assignedSourceIds.add(sourceLine.id)
+      sourceLine.impurityPurchaseAction = 'buy'
+      sourceLine.impurityProductId = purchaseLine.productId
+      purchaseLine.impuritySourceLineId = sourceLine.id
+
+      const existingTargetParentLine = lines.find((line) =>
+        line.id !== purchaseLine.id
+        && !line.parentId
+        && !line.impuritySourceLineId
+        && line.productId === purchaseLine.productId
+      )
+      purchaseLine.parentId = purchaseLine.parentId ?? existingTargetParentLine?.id
+      if (purchaseLine.imageFiles.length === 0) {
+        purchaseLine.imageFiles = sourceLine.imageFiles
+        purchaseLine.imageNames = sourceLine.imageNames
+      }
+      return
+    }
 
     const purchaseWeight = Number(purchaseLine.grossWeight || 0)
     const sourceLine = lines.find((candidate) => {

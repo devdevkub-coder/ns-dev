@@ -2840,6 +2840,8 @@ model weight_ticket_lines {
   created_at                          DateTime                             @default(now()) @db.Timestamptz(6)
   id                                  BigInt                               @id @default(autoincrement())
   impurity_id                         BigInt?
+  impurity_source_line_no             Int?
+  parent_line_no                      Int?
   product_id                          BigInt
   weight_ticket_id                    BigInt
   warehouse_id                        BigInt?
@@ -2851,6 +2853,8 @@ model weight_ticket_lines {
   weight_ticket_product_summary_lines weight_ticket_product_summary_lines?
 
   @@unique([weight_ticket_id, line_no], map: "uq_weight_ticket_lines_ticket_line")
+  @@index([weight_ticket_id, impurity_source_line_no], map: "idx_weight_ticket_lines_impurity_source_line")
+  @@index([weight_ticket_id, parent_line_no], map: "idx_weight_ticket_lines_parent_line")
   @@index([impurity_id], map: "idx_weight_ticket_lines_impurity")
   @@index([product_id], map: "idx_weight_ticket_lines_product")
   @@index([warehouse_id], map: "idx_weight_ticket_lines_warehouse")

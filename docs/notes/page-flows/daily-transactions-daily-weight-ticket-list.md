@@ -45,6 +45,7 @@ list/detail/create link สำหรับ WTI/WTO; WTI/WTO เป็น evidenc
 - ใบพิมพ์ WTI ต้องเรียงเป็นกลุ่มสินค้าเดียวกับหน้ารายละเอียด โดยแจกแจงราย `เต๋าที่ ...` ก่อนแถว `สรุปรวมจากเต๋า`; แถว `สรุปรวมจากเต๋า` ต้องรวมยอดหักสิ่งเจือปนไว้ในช่อง `หักสิ่งเจือปน` และแสดงรายละเอียดว่าหักอะไร/ซื้อหรือไม่ซื้อในช่องรายการสินค้าโดยไม่ซ้ำชื่อสินค้าหลัก; แถว `ซื้อเพิ่มจากสิ่งเจือปน` แสดงเฉพาะในกลุ่มสินค้าปลายทาง และบอกสั้นๆ ว่ามาจากสินค้าไหนกับสิ่งเจือปนอะไร; ปิดด้วย `รวมสินค้า`; หัวคอลัมน์ต้องใช้คำไทย `น้ำหนักรวม` และ `น้ำหนักสุทธิ`
 - รายละเอียดสิ่งเจือปนที่เป็นสินค้าในใบพิมพ์ต้องแสดงในแถว `สรุปรวมจากเต๋า` ของสินค้าต้นทาง โดยแจกแจงเป็นหลายบรรทัด เช่น `1. สินค้าอื่น 10 กก. ซื้อเป็น กระป๋องอลูมิเนียม` และ `2. สินค้าอื่น 20 กก. ไม่ซื้อ`; ไม่ต้องมีแถวสีเหลือง/แถว `หักสิ่งเจือปน` แยก
 - เมื่อกดแก้ไขเอกสาร ต้องโหลดโครงสร้างกลับมาเหมือนตอนสร้าง: เต๋าจริงต้องยังเป็นเต๋า, รายการซื้อเพิ่มจากสิ่งเจือปนต้องไม่กลายเป็นเต๋าปลอม, และแถว `สินค้าอื่น` ต้องจำ `ซื้อ/ไม่ซื้อ` กับสินค้าที่ปนมาได้
+- Runtime update 2026-06-20: `weight_ticket_lines.parent_line_no` และ `weight_ticket_lines.impurity_source_line_no` เป็น source of truth สำหรับโหลดโครงสร้าง edit กลับมา ไม่เดาจากลำดับสินค้า/หมายเหตุเป็นหลักอีกต่อไป
 
 ## Page Responsibilities
 
@@ -143,13 +144,17 @@ list/detail/create link สำหรับ WTI/WTO; WTI/WTO เป็น evidenc
 | `สินค้าอื่น` ซื้อและมีสินค้าหลักอยู่แล้ว | เลือก `สินค้าอื่น`, เลือกสินค้าที่ปนมา, เลือก `ซื้อ`, กรอกน้ำหนักหัก | หักน้ำหนักจากเต๋าต้นทาง และรวมเข้ากับ summary ของสินค้านั้น พร้อมแสดงใน table ซื้อเพิ่มจากสิ่งปนมา |
 | `สินค้าอื่น` ซื้อแต่ยังไม่มีสินค้าหลัก | เลือก `สินค้าอื่น`, เลือกสินค้าที่ปนมา, เลือก `ซื้อ`, กรอกน้ำหนักหัก | สร้างรายการสินค้าหลักใหม่ในเอกสาร แล้วรวมเข้า summary พร้อม source trace |
 
-### Proposed Schema / API Contract
+### Schema / API Contract
 
 - `weight_ticket_lines` หรือ relation ใหม่ต้องรองรับข้อมูลอย่างน้อย:
   - `impurity_purchase_action`: `none | buy`
   - `impurity_purchase_product_id`: product ที่เลือกเมื่อ impurity เป็น `สินค้าอื่น`
   - `impurity_purchase_source_line_id`: line สิ่งเจือปนต้นทาง ถ้าแยกเป็น target purchase line
   - `impurity_purchase_target_line_id`: line สินค้าหลักที่ถูกสร้าง/รวมจากสิ่งปนมา
+- Current durable line relation:
+  - `weight_ticket_lines.parent_line_no` เก็บ line แม่ของเต๋าย่อยและแถวหักสิ่งเจือปนภายในเอกสารเดียวกัน
+  - `weight_ticket_lines.impurity_source_line_no` เก็บ source impurity line เมื่อ line นั้นเป็นรายการสินค้าที่ซื้อเพิ่มจากสิ่งเจือปน
+  - API read model ส่ง `lineNo`, `parentLineNo`, และ `impuritySourceLineNo` กลับให้ modal edit เพื่อ restore card/เต๋า/source ได้ตรงกับตอนสร้าง
 - API create/edit ต้อง validate ว่า:
   - ถ้า impurity ไม่ใช่ `สินค้าอื่น`, `impurity_purchase_action` ต้องเป็น `none`
   - ถ้า impurity เป็น `สินค้าอื่น`, ต้องเลือก target product เสมอ
@@ -186,7 +191,7 @@ list/detail/create link สำหรับ WTI/WTO; WTI/WTO เป็น evidenc
 - stock balance ยังไม่มี drilldown UI ให้เห็นว่า `on hold` มาจาก `WTO` ใบไหน/line ไหน
 - ต้องทำ browser QA เต็ม flow create/edit/cancel/detail/print/share และ handoff ไป `PB/SB`
 - ต้องทำ report/reconciliation สำหรับ `WTI/WTO ค้างออกบิล`, aging bucket, legacy partial-billed debt, และ `status ไม่ตรง usage`
-- WTI impurity purchase flow ปัจจุบันยังไม่ครบ target: UI จำกัด action `ซื้อ/ไม่ซื้อ` ไว้เฉพาะ `สินค้าอื่น` แล้ว สร้าง/รวมรายการหลักใน modal เมื่อเลือก `ซื้อ` โดยไม่แสดงเป็นเต๋าปลอม และแสดง source table ใน card ของสินค้าที่ซื้อเพิ่ม แต่ DB/API ยังไม่มี field/relation สำหรับ buy decision + target product + source/target line trace
+- WTI impurity purchase flow ปัจจุบันยังไม่ครบ target ทั้งหมด: UI จำกัด action `ซื้อ/ไม่ซื้อ` ไว้เฉพาะ `สินค้าอื่น` แล้ว สร้าง/รวมรายการหลักใน modal เมื่อเลือก `ซื้อ` โดยไม่แสดงเป็นเต๋าปลอม และแสดง source table ใน card ของสินค้าที่ซื้อเพิ่ม; DB/API มี line-level source/parent relation แล้วผ่าน `parent_line_no` และ `impurity_source_line_no` แต่ยังไม่มี field แยกสำหรับ buy decision/target product แบบ normalized เต็มรูป
 
 ## Implementation Checklist
 
@@ -196,7 +201,7 @@ list/detail/create link สำหรับ WTI/WTO; WTI/WTO เป็น evidenc
 - [x] Add hold-aware stock-options API for branch+product warehouse availability
 - [x] Add stock hold table/service and integrate WTO save/edit/cancel + SB create consume
 - [x] Lock WTI/WTO document type in create context and edit API
-- [ ] Add `สินค้าอื่น` impurity purchase contract to schema/API/read model
+- [x] Add durable line relation for `สินค้าอื่น` impurity purchase to schema/API/read model (`parent_line_no`, `impurity_source_line_no`)
 - [x] Add per-te๋า table `รายการสินค้าซื้อเพิ่มจากสิ่งปนมา` before impurity deduction section
 - [x] Hide buy action for normal impurities and show product + buy/not-buy controls only for `สินค้าอื่น`
 - [x] Ensure bought impurity product creates or merges into main product card in current UI with source trace
@@ -205,7 +210,7 @@ list/detail/create link สำหรับ WTI/WTO; WTI/WTO เป็น evidenc
 - [x] Keep real-lot card when changing impurity purchase from `ซื้อ` to `ไม่ซื้อ`
 - [x] Add collapse/expand for each เต๋า
 - [x] Disable adding impurity rows when the product card has no real lots
-- [ ] Persist impurity purchase source/target relation through schema/API/read model
+- [x] Persist impurity purchase source/target relation through schema/API/read model
 - [ ] Verify legacy behavior for remaining SB edit/cancel/reversal gap before implementing runtime change
 - [ ] Add/adjust tests or browser QA checklist before changing runtime
 - [ ] Update this file and canonical reference if contract changes

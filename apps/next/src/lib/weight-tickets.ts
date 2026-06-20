@@ -13,7 +13,10 @@ export type WeightTicketLine = {
   id: string
   imageNames: string[]
   impurityId: string
+  impuritySourceLineNo?: number | null
+  lineNo?: number
   note: string
+  parentLineNo?: number | null
   productId: string
   warehouseId: string
   parentId?: string
@@ -285,9 +288,12 @@ const weightTicketRecordLineSchema = z.object({
   imageCount: z.number().int().nonnegative(),
   imageNames: z.array(z.string()),
   impurityId: z.string(),
+  impuritySourceLineNo: z.number().int().positive().nullable().default(null),
   impurityName: z.string(),
+  lineNo: z.number().int().positive(),
   netWeight: z.number(),
   note: z.string(),
+  parentLineNo: z.number().int().positive().nullable().default(null),
   productId: z.string(),
   productName: z.string(),
   warehouseId: z.string(),
