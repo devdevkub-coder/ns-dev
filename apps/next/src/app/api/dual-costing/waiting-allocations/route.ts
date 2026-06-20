@@ -16,13 +16,22 @@ export async function GET(request: Request) {
     const category = url.searchParams.get('category')
 
     const payload = await buildDualCostingManagement()
-    const rows = payload.waitingRows
-      .filter((row) => !status || status === 'all' || row.allocationStatus === status)
-      .filter((row) => !category || category === 'all' || row.metalGroup === category)
-      .filter((row) => !q || `${row.docNo} ${row.customerName} ${row.productName} ${row.metalGroup}`.toLowerCase().includes(q))
+
+    const filterRow = (row: any) => {
+      const matchStatus = !status || status === 'all' || row.allocationStatus === status
+      const matchCategory = !category || category === 'all' || row.metalGroup === category
+      const matchSearch = !q || `${row.docNo} ${row.customerName} ${row.productName} ${row.metalGroup}`.toLowerCase().includes(q)
+      return matchStatus && matchCategory && matchSearch
+    }
+
+    const filteredBillRows = (payload.waitingRows || []).filter(filterRow)
+    const filteredPoRows = (payload.waitingPoSellRows || []).filter(filterRow)
+    const filteredProductionRows = (payload.waitingProductionRows || []).filter(filterRow)
+
+    const allFilteredRows = [...filteredPoRows, ...filteredBillRows, ...filteredProductionRows]
 
     const byCategory = new Map<string, { count: number; qty: number; revenue: number }>()
-    rows.forEach((row) => {
+    allFilteredRows.forEach((row) => {
       const current = byCategory.get(row.metalGroup) ?? { count: 0, qty: 0, revenue: 0 }
       current.count += 1
       current.qty += row.remainingQty
@@ -30,19 +39,36 @@ export async function GET(request: Request) {
       byCategory.set(row.metalGroup, current)
     })
 
+    const categoriesList = Array.from(new Set([
+      ...(payload.waitingRows || []).map((row) => row.metalGroup),
+      ...(payload.waitingPoSellRows || []).map((row) => row.metalGroup),
+      ...(payload.waitingProductionRows || []).map((row) => row.metalGroup)
+    ])).sort()
+
     return NextResponse.json({
       filters: {
-        categories: Array.from(new Set(payload.waitingRows.map((row) => row.metalGroup))).sort(),
+        categories: categoriesList,
         statuses: ['pending_allocation', 'partially_allocated'],
       },
-      rows,
+      po: {
+        rows: filteredPoRows,
+        count: filteredPoRows.length,
+      },
+      bill: {
+        rows: filteredBillRows,
+        count: filteredBillRows.length,
+      },
+      production: {
+        rows: filteredProductionRows,
+        count: filteredProductionRows.length,
+      },
       summary: {
         byCategory: Array.from(byCategory.entries()).map(([name, values]) => ({ name, ...values })),
-        count: rows.length,
-        fullyPending: rows.filter((row) => row.allocationStatus === 'pending_allocation').length,
-        partial: rows.filter((row) => row.allocationStatus === 'partially_allocated').length,
-        totalQty: rows.reduce((sum, row) => sum + row.remainingQty, 0),
-        totalRevenue: rows.reduce((sum, row) => sum + row.revenuePending, 0),
+        count: allFilteredRows.length,
+        fullyPending: allFilteredRows.filter((row) => row.allocationStatus === 'pending_allocation').length,
+        partial: allFilteredRows.filter((row) => row.allocationStatus === 'partially_allocated').length,
+        totalQty: allFilteredRows.reduce((sum, row) => sum + row.remainingQty, 0),
+        totalRevenue: allFilteredRows.reduce((sum, row) => sum + row.revenuePending, 0),
       },
       writeDeferred: true,
     })
