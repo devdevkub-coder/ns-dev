@@ -180,7 +180,6 @@ export function StockBalancePageClient() {
       const groupKey = [
         row.productId,
         row.branchId,
-        row.warehouseId,
         row.status,
         row.notAvailable ? 'not-available' : 'available',
       ].join('|')

@@ -95,7 +95,7 @@ WTO created state is represented here as `pending_out / รอออก`. It is 
 - ตาราง/การ์ดรายการเปิด detail modal ด้วยการกดที่ row/card โดยตรง ไม่แสดงคอลัมน์ `Action` หรือปุ่ม `Detail` ซ้ำ
 - detail modal ใช้ responsive width: mobile ใช้เกือบเต็ม viewport, desktop ค่อยใช้ `lg:min-w-[900px]` และ `max-w-5xl`; section `ข้อมูลสินค้า` และ `จำนวนและมูลค่าสต๊อก` ต้องเป็น compact grid ส่วน `Drilldown` แสดง pending_out/movement แบบสองคอลัมน์เมื่อพื้นที่พอ เพื่อลดความยาวแนวตั้งของ modal
 - ตารางหลักต้องมี pagination ตาม design convention: ซ้าย `พบทั้งหมด X รายการ`, ขวา selector `X / หน้า`, ปุ่ม `ก่อนหน้า/ถัดไป`, และ state `หน้า X / Y`
-- ตาราง `รายสินค้า` รวมแถวเพื่อการแสดงผลฝั่ง UI เท่านั้นเมื่อเป็นสินค้า + สาขา + คลัง + ประเภทคลังเดียวกัน เพื่อให้ `คงเหลือ`, `รอออก`, และ `รอเข้า` อยู่ใน row เดียวกัน; ไม่เปลี่ยน `GET /api/stock/balance` snapshot contract เพราะ snapshot ยังถูกใช้โดย export/helper อื่น
+- ตาราง `รายสินค้า` รวมแถวเพื่อการแสดงผลฝั่ง UI เท่านั้นเมื่อเป็นสินค้า + สาขา + ประเภทคลังเดียวกัน เพื่อให้ `คงเหลือ`, `รอออก`, และ `รอเข้า` อยู่ใน row เดียวกัน; ไม่เปลี่ยน `GET /api/stock/balance` snapshot contract เพราะ snapshot ยังถูกใช้โดย export/helper อื่น
 - แยกหน่วยสินค้าและ warehouse เสมอ
 - as-of/cutoff ต้องระบุถ้ามี report ย้อนหลัง
 
