@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-06-21
+updated: 2026-06-22
 route: /stock/adjust
 ---
 
@@ -96,6 +96,7 @@ ADJ ปรับยอดจากการนับจริง พร้อม
 - current runtime สำหรับ row ใหม่ใช้ `STOCK_CORRECTION`: ADJ ledger เขียน qty และ value ตามส่วนต่าง, `value_note` เป็น signed total value, และ server reject non-zero correction ถ้าไม่พบราคาต่อกก.
 - UI/API เพิ่ม server snapshot preview, fixed reason options, unit price/kg, signed `มูลค่ารวม`, `updated_by/updated_at`, และ edit/correction ภายใน 7 วัน
 - UI checkpoint 2026-06-21: หน้า `/stock/adjust` ปรับตาม `docs/design.md` โดยเอาปุ่ม `โหลดใหม่` และกล่องคำอธิบายยาวออก, ใช้ modal/card `rounded-md`, desktop table breakpoint `lg`, table header `bg-slate-100`, body cell `text-xs font-semibold`, pagination row ตาม list pattern, sortable table headers, คลิก row/card เพื่อเปิด detail modal, wording `วันที่เอกสาร` / `ยอดในระบบ` / `ส่วนต่าง` / `มูลค่ารวม (บาท)`, และ action เป็น outline button
+- UI checkpoint 2026-06-22: create modal `/stock/adjust?new=1` ใช้ shared `Dialog` แบบ no outer border, dark header, no header close X, footer ปุ่มยกเลิก text-only + ปุ่มบันทึก slate-900, form control height `h-9`, stock snapshot ถูกจัดเป็น grouped panel พร้อม diff badge, เหตุผลเป็น fixed select, หมายเหตุเป็น textarea, และลบกล่องคำอธิบายยาวใน modal ออกเพื่อให้ตรง design token
 - remaining: approval flow หลัง 7 วันและ CSV/export ยังเป็น future policy/delivery แยกจาก quick count adjust
 
 ## Implementation Checklist

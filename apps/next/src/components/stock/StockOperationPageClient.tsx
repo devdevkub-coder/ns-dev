@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Plus } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import type { SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
@@ -234,6 +235,11 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
     setToDateFilter('')
   }, [])
 
+  const closeForm = useCallback(() => {
+    setFormOpen(false)
+    if (window.location.search.includes('new=1')) window.history.replaceState(null, '', pathname)
+  }, [pathname])
+
   function toggleStatusConvertSort(nextKey: StatusConvertSortKey) {
     if (statusConvertSortKey === nextKey) {
       setStatusConvertSortDirection((currentDirection) => (currentDirection === 'asc' ? 'desc' : 'asc'))
@@ -265,7 +271,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
       }
 
       await dailyFetchJson(meta.api, { body: JSON.stringify(values), method: 'POST' })
-      setFormOpen(false)
+      closeForm()
       await loadData()
     } catch (caught) {
       if (caught instanceof z.ZodError) {
@@ -630,19 +636,29 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
           </div>
         </div>
       ) : null}
-      {formOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-4 pt-8 animate-fade-in">
-          <div className={`flex max-h-[90vh] w-full flex-col overflow-hidden rounded-md bg-white shadow-xl ${mode === 'convert' || mode === 'adjust' ? 'max-w-5xl' : 'max-w-3xl'}`}>
-            <div className="shrink-0 bg-slate-900 px-5 py-4 text-white">
-              <h3 className="font-bold text-slate-100">{meta.title}</h3>
-              <p className="mt-1 text-xs text-slate-300">{descriptionFor(mode)}</p>
-            </div>
-            {mode === 'status-convert' ? <StatusConvertForm cancelHref={pathname} isSaving={isSaving} error={error} reference={data.reference} onSubmit={submit} /> : null}
-            {mode === 'convert' ? <ConvertForm cancelHref={pathname} isSaving={isSaving} error={error} reference={data.reference} onSubmit={submit} /> : null}
-            {mode === 'adjust' ? <AdjustForm cancelHref={pathname} isSaving={isSaving} error={error} reference={data.reference} onSubmit={submit} /> : null}
-          </div>
-        </div>
-      ) : null}
+      <Dialog
+        open={formOpen}
+        onOpenChange={(open) => {
+          if (!open && isSaving) return
+          if (!open) closeForm()
+          else setFormOpen(true)
+        }}
+      >
+        <DialogContent
+          className={`flex max-h-[92vh] flex-col overflow-hidden rounded-md bg-white !p-0 shadow-2xl ${mode === 'convert' || mode === 'adjust' ? 'max-w-5xl' : 'max-w-3xl'}`}
+          data-combobox-portal-root="true"
+          fallbackTitle={meta.title}
+          hideClose
+        >
+          <DialogHeader className="shrink-0 rounded-t-md bg-slate-900 px-5 py-4 text-white">
+            <DialogTitle className="text-base font-bold text-white">{meta.title}</DialogTitle>
+            <DialogDescription className="mt-1 text-xs text-slate-300">{descriptionFor(mode)}</DialogDescription>
+          </DialogHeader>
+          {mode === 'status-convert' ? <StatusConvertForm isSaving={isSaving} error={error} reference={data.reference} onCancel={closeForm} onSubmit={submit} /> : null}
+          {mode === 'convert' ? <ConvertForm isSaving={isSaving} error={error} reference={data.reference} onCancel={closeForm} onSubmit={submit} /> : null}
+          {mode === 'adjust' ? <AdjustForm isSaving={isSaving} error={error} reference={data.reference} onCancel={closeForm} onSubmit={submit} /> : null}
+        </DialogContent>
+      </Dialog>
       <OperationTable
         isLoading={isLoading}
         mode={mode}
@@ -1456,10 +1472,10 @@ function Field(props: { disabled?: boolean; label: string; onChange: (value: str
     <label className="block text-xs font-semibold text-slate-600">
       {props.label}
       {props.type === 'date' ? (
-        <DatePickerInput className="mt-1.5 w-full font-normal" value={props.value} onChange={props.onChange} />
+        <DatePickerInput className="mt-1 h-9 w-full font-normal" value={props.value} onChange={props.onChange} />
       ) : (
         <input
-          className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+          className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
           disabled={props.disabled}
           inputMode={props.type === 'number' ? 'decimal' : undefined}
           min={props.type === 'number' ? 0 : undefined}
@@ -1484,7 +1500,7 @@ function Select(props: { disabled?: boolean; label: string; onChange: (value: st
     <label className="block text-xs font-semibold text-slate-600">
       {props.label}
       <select
-        className="mt-1.5 h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+        className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
         disabled={props.disabled}
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}
@@ -1503,7 +1519,7 @@ function BranchWarehouseFields({ branchId, reference, setBranchId, setWarehouseI
     <label className="block text-xs font-semibold text-slate-600">
       สาขา
       <select
-        className="mt-1.5 h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+        className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
         disabled={!activeBranches.length}
         value={branchId}
         onChange={(event) => setBranchId(event.target.value)}
@@ -1515,7 +1531,7 @@ function BranchWarehouseFields({ branchId, reference, setBranchId, setWarehouseI
     <label className="block text-xs font-semibold text-slate-600">
       คลัง
       <select
-        className="mt-1.5 h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+        className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800 outline-none focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
         disabled={!branchId}
         value={warehouseId}
         onChange={(event) => setWarehouseId(event.target.value)}
@@ -1527,7 +1543,7 @@ function BranchWarehouseFields({ branchId, reference, setBranchId, setWarehouseI
   </>
 }
 
-function StatusConvertForm(props: { cancelHref: string; isSaving: boolean; error?: string | null; onSubmit: (values: StatusConvertFormValues) => void; reference: Payload['reference'] }) {
+function StatusConvertForm(props: { isSaving: boolean; error?: string | null; onCancel: () => void; onSubmit: (values: StatusConvertFormValues) => void; reference: Payload['reference'] }) {
   const [values, setValues] = useState<StatusConvertFormValues>({ branchId: '', date: todayDateInput(), docNo: null, fromStatus: 'RM', lotNo: null, notes: null, productId: '', qty: 0, reason: '', toStatus: 'FG', warehouseId: '', targetWarehouseId: '' })
   const activeBranches = props.reference.branches.filter((option) => option.active !== false)
   const activeWarehouses = props.reference.warehouses.filter((option) => option.active !== false && (!values.branchId || option.branchId === values.branchId))
@@ -1581,7 +1597,7 @@ function StatusConvertForm(props: { cancelHref: string; isSaving: boolean; error
       }))
   }, [props.reference.products])
 
-  return <FormShell cancelHref={props.cancelHref} isSaving={props.isSaving} error={props.error} onSubmit={() => props.onSubmit(values)}>
+  return <FormShell isSaving={props.isSaving} error={props.error} onCancel={props.onCancel} onSubmit={() => props.onSubmit(values)}>
     <div className="md:col-span-2 grid gap-4 rounded-md border border-slate-200 bg-white p-4 shadow-sm sm:p-5 md:grid-cols-2">
       <div className="w-full">
         <SearchCombobox
@@ -1772,7 +1788,7 @@ function CostPoolPreview({
   )
 }
 
-function ConvertForm(props: { cancelHref: string; isSaving: boolean; error?: string | null; onSubmit: (values: StockConvertFormValues) => void; reference: Payload['reference'] }) {
+function ConvertForm(props: { isSaving: boolean; error?: string | null; onCancel: () => void; onSubmit: (values: StockConvertFormValues) => void; reference: Payload['reference'] }) {
   const [values, setValues] = useState<StockConvertFormValues>({
     allocationMethod: 'FIFO',
     branchId: '',
@@ -1837,7 +1853,7 @@ function ConvertForm(props: { cancelHref: string; isSaving: boolean; error?: str
       }))
   }, [props.reference.products])
 
-  return <FormShell cancelHref={props.cancelHref} isSaving={props.isSaving} error={props.error} onSubmit={() => props.onSubmit(values)}>
+  return <FormShell isSaving={props.isSaving} error={props.error} onCancel={props.onCancel} onSubmit={() => props.onSubmit(values)}>
     <div className="md:col-span-2 rounded-md border border-slate-200 bg-white p-5 shadow-sm grid gap-4 md:grid-cols-2 animate-fade-in">
       <BaseDateDoc values={values} setValues={setValues} />
       <BranchWarehouseFields branchId={values.branchId} reference={props.reference} setBranchId={(branchId) => setValues({ ...values, branchId, warehouseId: '' })} setWarehouseId={(warehouseId) => setValues({ ...values, warehouseId })} warehouseId={values.warehouseId} />
@@ -1936,7 +1952,7 @@ function ConvertForm(props: { cancelHref: string; isSaving: boolean; error?: str
   </FormShell>
 }
 
-function AdjustForm(props: { cancelHref: string; isSaving: boolean; error?: string | null; onSubmit: (values: StockAdjustFormValues) => void; reference: Payload['reference'] }) {
+function AdjustForm(props: { isSaving: boolean; error?: string | null; onCancel: () => void; onSubmit: (values: StockAdjustFormValues) => void; reference: Payload['reference'] }) {
   const [values, setValues] = useState<StockAdjustFormValues>({ branchId: '', countedQty: 0, date: todayDateInput(), docNo: null, lotNo: null, productId: '', reason: stockAdjustReasonOptions[0], remark: null, status: 'RM', systemQty: 0, warehouseId: '' })
   const [snapshot, setSnapshot] = useState<StockAdjustSnapshot | null>(null)
   const [snapshotError, setSnapshotError] = useState<string | null>(null)
@@ -1989,8 +2005,14 @@ function AdjustForm(props: { cancelHref: string; isSaving: boolean; error?: stri
       }))
   }, [props.reference.products])
 
-  return <FormShell cancelHref={props.cancelHref} isSaving={props.isSaving} error={props.error} onSubmit={() => props.onSubmit(values)}>
-    <div className="md:col-span-2 rounded-md border border-slate-200 bg-white p-5 shadow-sm grid gap-4 md:grid-cols-2">
+  const totalValue = snapshot?.totalValue ?? values.totalValue ?? 0
+  const diffQty = snapshot?.diffQty ?? 0
+
+  return <FormShell isSaving={props.isSaving} error={props.error} onCancel={props.onCancel} onSubmit={() => props.onSubmit(values)}>
+    <div className="md:col-span-2 grid gap-3 rounded-md bg-white p-4 shadow md:grid-cols-2">
+      <div className="md:col-span-2 border-b border-slate-100 pb-2">
+        <h4 className="text-sm font-bold text-slate-800">ข้อมูลการนับจริง</h4>
+      </div>
       <BaseDateDoc values={values} setValues={setValues} />
       <div className="w-full">
         <SearchCombobox
@@ -2004,56 +2026,79 @@ function AdjustForm(props: { cancelHref: string; isSaving: boolean; error?: stri
       </div>
       <BranchWarehouseFields branchId={values.branchId} reference={props.reference} setBranchId={(branchId) => setValues({ ...values, branchId, warehouseId: '' })} setWarehouseId={(warehouseId) => setValues({ ...values, warehouseId })} warehouseId={values.warehouseId} />
       <Field label="นับจริง" type="number" value={String(values.countedQty)} onChange={(countedQty) => setValues({ ...values, countedQty: Number(countedQty) })} />
-      <div className="md:col-span-2 grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs md:grid-cols-5">
-        <ReadOnlyBox label="ยอดในระบบ" value={isSnapshotLoading ? 'กำลังโหลด' : `${formatMoney(snapshot?.systemQty ?? values.systemQty)} กก.`} />
-        <ReadOnlyBox label="จองไว้" value={`${formatMoney(snapshot?.onHoldQty ?? 0)} กก.`} />
-        <ReadOnlyBox label="พร้อมใช้" value={`${formatMoney(snapshot?.readyQty ?? 0)} กก.`} />
-        <ReadOnlyBox label="ราคา/กก." value={formatMoney(snapshot?.unitPricePerKg ?? values.unitPricePerKg ?? 0)} />
-        <ReadOnlyBox label="มูลค่ารวม" value={formatMoney(snapshot?.totalValue ?? values.totalValue ?? 0)} valueClassName={(snapshot?.totalValue ?? values.totalValue ?? 0) < 0 ? 'text-red-600' : 'text-emerald-700'} />
-        <div className="md:col-span-5 text-slate-600">
-          {snapshotError ? <span className="text-red-700">{snapshotError}</span> : <>ส่วนต่าง: <b className={(snapshot?.diffQty ?? 0) < 0 ? 'text-red-600' : 'text-emerald-700'}>{formatMoney(snapshot?.diffQty ?? 0)} กก.</b> · แหล่งราคา: {snapshot?.priceSource ?? '-'}</>}
+
+      <div className="md:col-span-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="text-xs font-bold text-slate-700">Stock Snapshot</div>
+          <div className={`rounded-md px-2 py-1 text-xs font-semibold ${diffQty < 0 ? 'bg-red-50 text-red-700' : diffQty > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+            ส่วนต่าง {formatMoney(diffQty)} กก.
+          </div>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          <ReadOnlyBox label="ยอดในระบบ" value={isSnapshotLoading ? 'กำลังโหลด' : `${formatMoney(snapshot?.systemQty ?? values.systemQty)} กก.`} />
+          <ReadOnlyBox label="จองไว้" value={`${formatMoney(snapshot?.onHoldQty ?? 0)} กก.`} />
+          <ReadOnlyBox label="พร้อมใช้" value={`${formatMoney(snapshot?.readyQty ?? 0)} กก.`} />
+          <ReadOnlyBox label="ราคา/กก." value={formatMoney(snapshot?.unitPricePerKg ?? values.unitPricePerKg ?? 0)} />
+          <ReadOnlyBox label="มูลค่ารวม" value={formatMoney(totalValue)} valueClassName={totalValue < 0 ? 'text-red-600' : totalValue > 0 ? 'text-emerald-700' : 'text-slate-800'} />
+        </div>
+        <div className="mt-2 text-xs text-slate-500">
+          {snapshotError ? <span className="font-semibold text-red-700">{snapshotError}</span> : <>แหล่งราคา: {snapshot?.priceSource ?? '-'}</>}
         </div>
       </div>
-      <div className="md:col-span-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-        ระบบจะใช้ยอดจาก Stock Ledger จริงตาม bucket/วันที่ที่เลือก และ block ถ้านับจริงต่ำกว่า active hold เพื่อไม่ให้พร้อมใช้ติดลบ
+      <div className="md:col-span-2">
+        <label className="block text-xs font-semibold text-slate-600">
+          เหตุผล <span className="text-red-600">*</span>
+          <select className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800 outline-none focus:border-slate-900" value={values.reason} onChange={(event) => setValues({ ...values, reason: event.target.value as StockAdjustFormValues['reason'] })}>
+            {reasonOptions.map((reason) => <option key={reason} value={reason}>{reason}</option>)}
+          </select>
+        </label>
       </div>
       <div className="md:col-span-2">
-        <label className="block text-xs font-semibold text-slate-600">เหตุผล *<select className="mt-1.5 h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-800 outline-none focus:border-slate-900" value={values.reason} onChange={(event) => setValues({ ...values, reason: event.target.value as StockAdjustFormValues['reason'] })}>{reasonOptions.map((reason) => <option key={reason} value={reason}>{reason}</option>)}</select></label>
-      </div>
-      <div className="md:col-span-2">
-        <Field label="หมายเหตุ" value={values.remark ?? ''} onChange={(remark) => setValues({ ...values, remark })} />
+        <label className="block text-xs font-semibold text-slate-600">
+          หมายเหตุ
+          <textarea
+            className="mt-1 min-h-20 w-full resize-y rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-800 outline-none focus:border-slate-900"
+            value={values.remark ?? ''}
+            onChange={(event) => setValues({ ...values, remark: event.target.value })}
+          />
+        </label>
       </div>
     </div>
   </FormShell>
 }
 
 function ReadOnlyBox({ label, value, valueClassName = 'text-slate-800' }: { label: string; value: string; valueClassName?: string }) {
-  return <div className="rounded-md border border-white/70 bg-white/80 px-3 py-2"><div className="text-xs text-slate-500">{label}</div><div className={`mt-1 text-sm font-semibold ${valueClassName}`}>{value}</div></div>
+  return <div className="rounded-md border border-slate-200 bg-white px-3 py-2"><div className="text-xs text-slate-500">{label}</div><div className={`mt-1 text-sm font-semibold ${valueClassName}`}>{value}</div></div>
 }
 
-function FormShell({ cancelHref, children, isSaving, error, onSubmit }: { cancelHref: string; children: React.ReactNode; isSaving: boolean; error?: string | null; onSubmit: () => void }) {
+function FormShell({ children, isSaving, error, onCancel, onSubmit }: { children: React.ReactNode; isSaving: boolean; error?: string | null; onCancel: () => void; onSubmit: () => void }) {
   return (
     <form className="flex-1 flex flex-col overflow-hidden" onSubmit={(event) => { event.preventDefault(); onSubmit() }}>
-      <div className="flex-1 overflow-y-auto bg-slate-50 p-4 sm:p-5 space-y-4">
+      <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-4 sm:p-5">
         {error ? (
           <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800 whitespace-pre-line">
             {error}
           </div>
         ) : null}
-        <div className="grid gap-4 md:grid-cols-2">{children}</div>
+        <div className="grid gap-3 md:grid-cols-2">{children}</div>
       </div>
-      <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 shrink-0">
-        <a className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-normal text-slate-700 hover:bg-slate-50 flex items-center justify-center" href={cancelHref}>
-          ยกเลิก
-        </a>
+      <DialogFooter className="shrink-0 rounded-b-md border-t border-slate-100 bg-slate-50 px-5 py-4">
         <button
-          className="rounded-md bg-slate-900 px-5 py-2 text-sm font-normal text-white hover:bg-slate-800 disabled:opacity-60"
+          className="h-9 rounded-md px-4 text-sm font-normal text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={isSaving}
+          type="button"
+          onClick={onCancel}
+        >
+          ยกเลิก
+        </button>
+        <button
+          className="h-9 rounded-md bg-slate-900 px-5 text-sm font-normal text-white hover:bg-slate-800 disabled:opacity-60"
           disabled={isSaving}
           type="submit"
         >
           บันทึก
         </button>
-      </div>
+      </DialogFooter>
     </form>
   )
 }

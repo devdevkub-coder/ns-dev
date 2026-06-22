@@ -13,7 +13,7 @@ tags:
   - stock-adjust
 status: draft
 created: 2026-06-11
-updated: 2026-06-21
+updated: 2026-06-22
 ---
 
 # Stock Adjust Page Flow / Flow หน้านับสต๊อกและปรับยอด
@@ -68,6 +68,8 @@ Requirement update 2026-06-13:
 - สร้างโดย
 
 Design checkpoint 2026-06-21: หน้า list ต้องไม่มีปุ่ม `โหลดใหม่` และไม่มีกล่องคำอธิบายยาวในหน้าหลัก; ใช้ KPI cards + filter card + pagination row + table ตาม `docs/design.md`, modal/card ใช้ `rounded-md`, table desktop breakpoint ใช้ `lg`, header ใช้ `bg-slate-100`, body cell ใช้ `text-xs font-semibold`, header table ต้อง sort ได้, คลิก row/card เพื่อเปิด detail modal, action ใช้ outline button และ wording หลักใช้ `วันที่เอกสาร`, `ยอดในระบบ`, `ส่วนต่าง`, `มูลค่ารวม (บาท)`
+
+Design checkpoint 2026-06-22: create modal (`/stock/adjust?new=1`) ต้องใช้ shared `Dialog` แบบไม่มีกรอบนอก, dark header, ไม่มีปุ่ม X บนหัว modal, footer จัดปุ่มยกเลิกแบบ text-only และปุ่มบันทึกสี slate-900 ชิดขวา, control height target `h-9`, snapshot preview รวมเป็น panel เดียวพร้อม diff badge, เหตุผลเป็น fixed select, หมายเหตุเป็น textarea, และไม่แสดงกล่องคำอธิบายยาวใน modal
 
 ### Filters
 
