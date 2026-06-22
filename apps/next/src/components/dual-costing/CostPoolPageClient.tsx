@@ -151,11 +151,11 @@ export function CostPoolPageClient() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <DualCostingStatCard icon="⚖️" label="Original Qty" tone="slate" value={formatMoney(data?.summary.originalQty ?? 0)} />
-        <DualCostingStatCard icon="🔗" label="Matched Qty" tone="amber" value={formatMoney(data?.summary.usedQty ?? 0)} />
-        <DualCostingStatCard icon="✅" label="Available Qty" tone="emerald" value={formatMoney(data?.summary.availableQty ?? 0)} />
+        <DualCostingStatCard icon="⚖️" label="ปริมาณต้นทุนตั้งต้น" tone="slate" value={formatMoney(data?.summary.originalQty ?? 0)} />
+        <DualCostingStatCard icon="🔗" label="ปริมาณที่จับคู่แล้ว" tone="amber" value={formatMoney(data?.summary.usedQty ?? 0)} />
+        <DualCostingStatCard icon="✅" label="ปริมาณคงเหลือ" tone="emerald" value={formatMoney(data?.summary.availableQty ?? 0)} />
         <DualCostingStatCard icon="💰" label="มูลค่าต้นทุนรวม" tone="slate" value={formatMoney(data?.summary.originalValue ?? 0)} />
-        <DualCostingStatCard icon="📈" label="Available Value" tone="emerald" value={formatMoney(data?.summary.availableValue ?? 0)} />
+        <DualCostingStatCard icon="📈" label="มูลค่าคงเหลือ" tone="emerald" value={formatMoney(data?.summary.availableValue ?? 0)} />
       </div>
 
       <DualCostingFilterCard>
@@ -323,11 +323,11 @@ export function CostPoolPageClient() {
               <TableHead className="p-3">วันที่</TableHead>
               <TableHead className="p-3">คู่ค้า</TableHead>
               <TableHead className="p-3">สินค้า</TableHead>
-              <TableHead className="p-3 text-right">Original</TableHead>
-              <TableHead className="p-3 text-right">Matched</TableHead>
-              <TableHead className="p-3 bg-emerald-50/50 text-right">Available</TableHead>
+              <TableHead className="p-3 text-right">ปริมาณตั้งต้น</TableHead>
+              <TableHead className="p-3 text-right">จับคู่แล้ว</TableHead>
+              <TableHead className="p-3 bg-emerald-50/50 text-right">คงเหลือ</TableHead>
               <TableHead className="p-3 text-right">฿/หน่วย</TableHead>
-              <TableHead className="p-3 bg-emerald-50/50 text-right">Available Value</TableHead>
+              <TableHead className="p-3 bg-emerald-50/50 text-right">มูลค่าคงเหลือ</TableHead>
               <TableHead className="p-3 pr-4 text-center">สถานะ</TableHead>
             </tr>
           </TableHeader>
@@ -358,9 +358,9 @@ export function CostPoolPageClient() {
 }
 
 const costTypeCards = [
-  { costType: 'Purchase', label: 'Purchase Cost (PO/Spot Buy)', tone: 'blue' },
-  { costType: 'Production', label: 'Production Cost', tone: 'orange' },
-  { costType: 'Regrade', label: 'Regrade / Conversion Cost', tone: 'purple' },
+  { costType: 'Purchase', label: 'ต้นทุนการจัดซื้อ (PO/Spot Buy)', tone: 'blue' },
+  { costType: 'Production', label: 'ต้นทุนจากการผลิต', tone: 'orange' },
+  { costType: 'Regrade', label: 'ต้นทุนปรับเกรด / แปรสภาพ', tone: 'purple' },
 ] as const
 
 function CostTypeCard({
