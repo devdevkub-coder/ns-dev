@@ -219,6 +219,13 @@ Current source of truth:
 | `created_at` | timestamptz | yes | เวลาสร้างรายการ | backfill ใช้เวลาจากหัวบิล |
 | `updated_at` | timestamptz | yes | เวลาแก้ล่าสุด | trigger `app_set_updated_at()` |
 
+### Purchase Bill Weight Display Rule
+
+- ค่า `purchase_bill_items.gross_weight` และ `purchase_bill_receipt_allocations.allocated_gross_weight` เก็บน้ำหนัก gross จากใบรับ/summary เพื่อ audit source
+- สำหรับ read model, detail และ print ของ Stock PB ที่มาจาก WTI ช่อง `นน.ก่อนหัก` ต้องแสดงน้ำหนักหลังหักภาชนะแล้ว ไม่ใช่ gross ดิบ
+- สูตรแสดงผลคือ `allocated gross weight - (WTI container_deduction_weight * allocated_qty / WTI net_weight)` เมื่อเป็น partial allocation; ถ้าเป็น full allocation จะเท่ากับ `gross_weight - container_deduction_weight`
+- ช่อง `นน.หัก` ใช้ `allocated_deduct_weight` และช่อง `นน.สุทธิ` ใช้ `allocated_qty`; สูตรตัวอย่าง 970 - 36 = 934 แล้ว 934 - 37 = 897
+
 ## Form Behavior Notes
 
 - Section `ข้อมูลบิล` แสดงเฉพาะ field ที่ user ต้องกรอกจริง เช่น สาขา/คลัง, ผู้ขาย, ทะเบียนรถ

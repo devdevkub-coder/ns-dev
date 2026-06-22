@@ -110,6 +110,8 @@ type PurchaseBillDetailRow = Prisma.purchase_billsGetPayload<{
             weight_ticket_product_summaries: {
               select: {
                 line_count: true
+                container_deduction_weight: true
+                net_weight: true
                 product_name: true
                 weight_ticket_product_summary_lines: {
                   include: {
@@ -256,6 +258,8 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
               weight_ticket_product_summaries: {
                 select: {
                   line_count: true,
+                  container_deduction_weight: true,
+                  net_weight: true,
                   product_name: true,
                   weight_ticket_product_summary_lines: {
                     include: {
@@ -311,6 +315,13 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     const allocatedGrossWeight = receiptAllocation ? toNumber(receiptAllocation.allocated_gross_weight) : toNumber(item.gross_weight)
     const allocatedDeductWeight = receiptAllocation ? toNumber(receiptAllocation.allocated_deduct_weight) : toNumber(item.deduct_weight)
     const allocatedQty = receiptAllocation ? toNumber(receiptAllocation.allocated_qty) : toNumber(item.qty)
+    const receiptSummary = receiptAllocation?.weight_ticket_product_summaries ?? null
+    const receiptSummaryNetWeight = toNumber(receiptSummary?.net_weight)
+    const allocationRatio = receiptSummary && receiptSummaryNetWeight > 0 ? allocatedQty / receiptSummaryNetWeight : 0
+    const allocatedContainerDeductionWeight = receiptSummary && allocationRatio > 0
+      ? toNumber(receiptSummary.container_deduction_weight) * allocationRatio
+      : 0
+    const billGrossWeight = Math.max(0, allocatedGrossWeight - allocatedContainerDeductionWeight)
     const receiptTicketDocNo = receiptAllocation?.weight_tickets.doc_no
       ?? sourceSnapshotValue(item.source_snapshot, 'receiptTicketDocNo')
       ?? '-'
@@ -328,7 +339,7 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     return {
       amount: toNumber(item.amount),
       deductWeight: allocatedDeductWeight,
-      grossWeight: allocatedGrossWeight,
+      grossWeight: billGrossWeight,
       lineId: `${bill.doc_no}:${lineNo}`,
       lineNo,
       note: receiptAllocation ? remark ?? '' : item.note ?? '',
