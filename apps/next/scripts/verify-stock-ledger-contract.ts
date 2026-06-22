@@ -1,6 +1,8 @@
 import { prisma } from '../src/lib/server/prisma'
 import { buildProductionReconciliationReport } from '../src/lib/server/production-reconciliation'
-import { buildStockReconciliationReport } from '../src/lib/server/stock-reconciliation'
+
+type ProductionReconciliationReport = Awaited<ReturnType<typeof buildProductionReconciliationReport>>
+type ProductionIssueRow = ProductionReconciliationReport['issues'][number]
 
 type IssueRow = {
   doc_no: string | null
@@ -14,26 +16,17 @@ function assertNoRows(label: string, rows: IssueRow[]) {
   throw new Error(`${label} failed with ${rows.length} issue(s): ${preview}`)
 }
 
-function assertNoProductionIssues(report: Awaited<ReturnType<typeof buildProductionReconciliationReport>>) {
+function assertNoProductionIssues(report: ProductionReconciliationReport) {
   if (!report.summary.hasIssues) return
   const preview = report.issues
     .slice(0, 10)
-    .map((row) => `${row.issue}:${row.refType}:${row.docNo || '-'}:${row.orderDocNo || '-'}`)
+    .map((row: ProductionIssueRow) => `${row.issue}:${row.refType}:${row.docNo || '-'}:${row.orderDocNo || '-'}`)
     .join(', ')
   throw new Error(`production reconciliation failed with ${report.summary.issueCount} issue(s): ${preview}`)
 }
 
 async function main() {
-  const [report, productionReport] = await Promise.all([
-    buildStockReconciliationReport(),
-    buildProductionReconciliationReport(),
-  ])
-  const reportIssues = Object.entries(report.groups).flatMap(([group, rows]) => rows.map((row) => ({
-    doc_no: row.docNo ?? row.refNo ?? null,
-    issue: `${group}.${row.issue}`,
-    ref_no: row.refNo ?? null,
-  })))
-  assertNoRows('stock reconciliation report', reportIssues)
+  const productionReport = await buildProductionReconciliationReport()
   assertNoProductionIssues(productionReport)
 
   const duplicateOrMissingReversals = await prisma.$queryRaw<IssueRow[]>`
@@ -189,10 +182,15 @@ async function main() {
   assertNoRows('production reversal doc number uniqueness', duplicateProductionReversalDocNo)
 
   console.log(JSON.stringify({
-    generatedAt: report.generatedAt,
+    generatedAt: new Date().toISOString(),
     ok: true,
     production: productionReport.summary,
-    totals: report.totals,
+    stockChecks: {
+      cancelledPsaleReversalParity: 'ok',
+      consumedHoldsAfterReversal: 'ok',
+      duplicateProductionReversalDocNo: 'ok',
+      sbFromPsaleDuplicateStockLedger: 'ok',
+    },
   }, null, 2))
 }
 

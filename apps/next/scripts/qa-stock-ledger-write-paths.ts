@@ -12,7 +12,6 @@ import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '../src
 import { nextDailyDocNo, normalizeDate, toNumber } from '../src/lib/server/daily'
 import { prisma } from '../src/lib/server/prisma'
 import { buildProductionReconciliationReport } from '../src/lib/server/production-reconciliation'
-import { buildStockReconciliationReport } from '../src/lib/server/stock-reconciliation'
 import type { Prisma } from '../generated/prisma/client'
 
 const actor = 'codex-qa'
@@ -38,12 +37,7 @@ function assert(condition: unknown, message: string): asserts condition {
 }
 
 async function assertNoReconciliationIssues() {
-  const [stockReport, productionReport] = await Promise.all([
-    buildStockReconciliationReport(),
-    buildProductionReconciliationReport(),
-  ])
-  const stockIssueCount = Object.values(stockReport.totals).reduce((sum, value) => sum + Number(value), 0)
-  assert(stockIssueCount === 0, `stock reconciliation still has ${stockIssueCount} issue(s)`)
+  const productionReport = await buildProductionReconciliationReport()
   assert(!productionReport.summary.hasIssues, `production reconciliation still has ${productionReport.summary.issueCount} issue(s)`)
 }
 

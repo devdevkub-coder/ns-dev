@@ -206,7 +206,7 @@ Browser QA checkpoint:
   - `WTO012606-0005` returned to `delivered`.
   - Related `stock_holds` row returned to `active` with no consumed-by reference.
   - `POS6906-0009` returned to `Open`, `remaining_qty = 10`, `remaining_amount = 10`, `cut_amount = 0`, and `items[].remainingQty = 10`.
-  - `/api/stock/reconciliation` returned HTTP 200.
+  - Historical pre-removal check: `/api/stock/reconciliation` returned HTTP 200 at that time.
 
 Runtime bug fixes from QA:
 
@@ -246,36 +246,20 @@ Implementation owner:
 - migration `supabase/migrations/20260612153000_stock_ledger_append_reversal_indexes.sql`
 - migration `supabase/migrations/20260612231500_harden_purchase_bill_allocation_lifecycle.sql`
 
-## Reconciliation API Contract
+## Stock Reconciliation Removal
 
-Endpoint:
+`/stock/reconciliation`, `GET /api/stock/reconciliation`, และ shared helper `stock-reconciliation.ts` ถูกถอดออกจาก active app แล้วตาม requirement ล่าสุด เพราะระบบตรวจความถูกต้องของ stock ผ่าน cross-check ใน flow ยกเลิก/แก้ไขของแต่ละเอกสารอยู่แล้ว
 
-```http
-GET /api/stock/reconciliation
-```
+ผลของ decision นี้:
 
-Permission: `stock.ledger.view`
-
-Report groups:
-
-- `orphanLedger`: ledger refs ที่ไม่มี source document (`PB/PB-CANCEL/PB-EDIT-REV`, `SB/SB-CANCEL`, `PSALE`, `PI/PI-REV`, `PO2/PO2-REV`)
-- `missingSourceLedger`: source docs ที่ควรมี ledger แต่ไม่มี rows ตาม ref contract
-- `cancelledDocumentNet`: cancelled PB/SB ที่ net ledger ไม่กลับศูนย์
-- `cancelledSalesHolds`: `stock_holds` ที่ยัง `consumed` โดย SB ที่ถูก cancel แล้ว
-- `pendingSaleIntegrity`: PSALE ที่ missing reversal, duplicate SB stock-out, converted-without-SB, cancelled hold ยัง consumed, หรือ active PSALE ไม่มี consumed hold
-- `statusConvertIntegrity`: `SC`/`SC-REV` ต้องเป็น paired rows และ net เป็นศูนย์; `SC-REV` ต้องชี้กลับ source `SC`
-- `stockAdjustmentIntegrity`: `ADJ` header ต้องมี ledger ที่ net qty ตรงกับ `diff_qty` และ ledger value ต้องเป็นศูนย์ตาม `NOTE_ONLY`
-- `negativeStockBalance`: aggregate `available = stock_ledger - active stock_holds` ตาม full stock bucket ที่ติดลบ
-
-UI report:
-
-- `/stock/reconciliation` เป็น read-only report surface ของ API นี้
-- ใช้ permission family เดียวกับ stock ledger (`stock.ledger.view`)
-- UI แสดง grouped count, filter/search, และ detail rows เท่านั้น; reconciliation logic อยู่ใน server helper
+- ไม่มีหน้า read-only stock reconciliation สำหรับ user/admin แล้ว
+- ไม่มี API กลางที่ scan orphan/missing ledger รวมทั้งระบบ
+- การตรวจ stock ต้องอยู่ใน write/cancel/edit flow ของ source document เช่น PB, SB, PSALE, SC, ST, ADJ และ production movement
+- contract automation ที่เหลือควรตรวจเฉพาะ flow ที่เป็นเจ้าของ side effect นั้น ไม่พึ่ง helper กลาง
 
 Automation:
 
-- `npm run verify:stock-ledger --workspace @ns-scrap-erp/next` runs the server reconciliation helper plus additional invariant checks for PSALE reversal parity, SB-from-PSALE duplicate stock ledger rows, consumed holds after PSALE reversal, production reconciliation issues, PI/PO2 reversal parity, and duplicate production reversal doc numbers reused across different source documents.
+- `npm run verify:stock-ledger --workspace @ns-scrap-erp/next` runs invariant checks for PSALE reversal parity, SB-from-PSALE duplicate stock ledger rows, consumed holds after PSALE reversal, production reconciliation issues, PI/PO2 reversal parity, and duplicate production reversal doc numbers reused across different source documents.
 - The command requires the active dev-target `DATABASE_URL`; it must fail on source/ledger mismatch instead of skipping rows or inventing defaults.
 - `npm run verify:psale-sales-bill-lifecycle --workspace @ns-scrap-erp/next` runs a transaction-rollback lifecycle fixture for PSALE create -> convert to Stock SB -> cancel SB from PSALE.
 - `npm run verify:sales-bill-psale-cancel --workspace @ns-scrap-erp/next` runs an isolated fixture contract for the converted PSALE -> Stock SB -> cancel path. It verifies that the Sales Bill does not write duplicate `SB/SB-CANCEL` ledger rows, cancellation reverses the original `PSALE` rows with `PSALE-CANCEL`, the WTO hold is active again, and Sales Bill line/source allocation facts are cancelled.
@@ -295,9 +279,7 @@ Production reversal doc-number policy:
 | SB create/cancel API | `apps/next/src/app/api/sales/bills/route.ts`, `apps/next/src/app/api/sales/bills/[id]/route.ts` |
 | PSALE create/cancel/reversal helper | `apps/next/src/app/api/sales/stock-issue/route.ts`, `apps/next/src/lib/server/stock-holds.ts` |
 | PB append/reversal helper | `apps/next/src/lib/server/stock-ledger-reversal.ts` |
-| stock reconciliation helper/API | `apps/next/src/lib/server/stock-reconciliation.ts`, `apps/next/src/app/api/stock/reconciliation/route.ts` |
-| stock reconciliation UI | `apps/next/src/app/stock/reconciliation/page.tsx`, `apps/next/src/components/stock/StockReconciliationPageClient.tsx` |
-| stock reconciliation automation | `apps/next/scripts/verify-stock-ledger-contract.ts` |
+| stock write-path verification automation | `apps/next/scripts/verify-stock-ledger-contract.ts` |
 | PSALE -> SB lifecycle rollback automation | `apps/next/scripts/verify-psale-sales-bill-lifecycle.ts` |
 | SB-from-PSALE cancel contract automation | `apps/next/scripts/verify-sales-bill-psale-cancel-contract.ts` |
 | stock write-path QA automation | `apps/next/scripts/qa-stock-ledger-write-paths.ts` |

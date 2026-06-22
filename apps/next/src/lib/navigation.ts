@@ -206,7 +206,6 @@ export const navigationItems: NavigationItem[] = [
   { href: '/daily/petty-advance', icon: '🏦', label: 'เงินสำรองจ่าย / กู้กรรมการ', pageSubtitle: 'ติดตามยอดยืมของกรรมการ/พนักงาน รายละเอียดบิลที่ใช้เงินแต่ละก้อน และการคืนเงิน', section: 'finance-debt' },
   { href: '/stock/balance', icon: '📦', label: 'สต๊อกคงเหลือ', pageTitle: 'สต๊อกคงเหลือ / Stock Balance', pageSubtitle: 'แยกตามหมวดสินค้า (ทองแดง/ทองเหลือง/เหล็ก) และสถานะ RM/WIP/FG', section: 'stock' },
   { href: '/stock/ledger', icon: '📋', label: 'Stock Ledger', section: 'stock' },
-  { href: '/stock/reconciliation', icon: '✅', label: 'Stock Reconciliation', pageTitle: 'Stock Reconciliation', pageSubtitle: 'ตรวจ ledger กับ source documents, reversal, stock holds และ orphan rows ก่อนปิดงวด', section: 'stock' },
   { href: '/stock/status-convert', icon: '🔄', label: 'ปรับสถานะสินค้า (RM→FG)', pageSubtitle: 'แปลง stock bucket RM ↔ FG ของสินค้าเดิม · ลดต้นทางเพิ่มปลายทางทันที · ใช้ source WAC และบันทึก Stock Ledger 2 ฝั่ง', section: 'stock' },
   { href: '/stock/convert', icon: '🔀', label: 'Grade Adjustment / ปรับเกรด', pageSubtitle: 'ตัด source cost pool และสร้าง target cost พร้อม variance audit', section: 'stock' },
   { href: '/stock/adjust', icon: '🔢', label: 'นับสต๊อก / Stock Count Adjust', pageSubtitle: 'หาของไม่เจอ · สต๊อกตัด 0 แล้ว แต่ในระบบยังมี · นับเกินระบบ — Quick Adjust ทีละ row · Note-only ไม่ลง P&L', section: 'stock' },

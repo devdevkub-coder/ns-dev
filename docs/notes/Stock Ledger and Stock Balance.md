@@ -166,7 +166,7 @@ API read contract ปัจจุบัน:
 | `POST/PATCH /api/purchase/bills` | ตรง target หลักสำหรับ PB Stock ledger | create เขียน `PB`; cancel/supplier swap append `PB-CANCEL`; edit append `PB-EDIT-REV` แล้ว append `PB` state ใหม่ โดยไม่ delete/rebuild ledger เดิม |
 | `POST /api/sales/bills` | ตรง target create flow | validate ให้ WTO ที่เลือก allocate ครบใน SB เดียว, consume active hold, เขียน `stock_ledger.ref_type = SB`, update WTO usage/status log และ status เป็น `billed` |
 | `PATCH /api/sales/bills/{docNo}` | เพิ่มแล้วและ browser QA แล้วสำหรับ cancel | action `cancel` block เมื่อมี active RCP, เขียน `stock_ledger.ref_type = SB-CANCEL`, reopen consumed WTO hold, append `released_from_sales_bill`, คืน WTO เป็น `delivered`, reverse PO Sell header + item outstanding, และ append `sales_bill_status_logs` |
-| `GET /api/stock/reconciliation` | เพิ่มแล้ว | ตรวจ orphan ledger, source docs ที่ไม่มี ledger, cancelled PB/SB net ไม่กลับศูนย์, cancelled SB hold ที่ยัง consumed, และ aggregate stock balance ติดลบ |
+| `GET /api/stock/reconciliation` | ถอดออกแล้ว | ไม่เป็น active API/page แล้ว; การตรวจ stock ใช้ cross-check ใน flow ยกเลิก/แก้ไขของแต่ละเอกสารและ contract automation เฉพาะ flow |
 
 สรุป: read API ของ stock ตรง target แล้ว และ target write model กลับมาเป็น bill-driven ตาม legacy:
 

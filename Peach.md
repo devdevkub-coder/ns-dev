@@ -59,7 +59,6 @@
    * [StockOperationPageClient.tsx](file:///c:/new-ns-scrap-erp/apps/next/src/components/stock/StockOperationPageClient.tsx)
    * [StockBalancePageClient.tsx](file:///c:/new-ns-scrap-erp/apps/next/src/components/stock/StockBalancePageClient.tsx)
    * [StockTransferPageClient.tsx](file:///c:/new-ns-scrap-erp/apps/next/src/components/daily/StockTransferPageClient.tsx)
-   * [StockReconciliationPageClient.tsx](file:///c:/new-ns-scrap-erp/apps/next/src/components/stock/StockReconciliationPageClient.tsx)
    * [StockLedgerPageClient.tsx](file:///c:/new-ns-scrap-erp/apps/next/src/components/purchase-flow/StockLedgerPageClient.tsx)
 
 2. **ระบบข้อมูลหลัก (Master Data):**
