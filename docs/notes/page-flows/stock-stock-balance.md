@@ -51,7 +51,7 @@ WTO created state is represented here as `pending_out / รอออก`. It is 
 | Step | User action | System result |
 |---|---|---|
 | 1 | เปิดหน้า | GET aggregated balance |
-| 2 | filter/group | product search combobox, branch, ประเภทคลัง(RM/WIP/FG), lot, สถานะสินค้า(`คงเหลือ/รอเข้า/รอออก`); ไม่ใช้ warehouse เป็น filter หลัก เพราะ branch + ประเภทคลังครอบคลุม workflow หน้านี้แล้ว; `รอออก` ใช้ active `pending_out` หลังคำนวณ balance |
+| 2 | filter/group | product search combobox, branch, ประเภทคลัง(RM/WIP/FG), lot; ไม่ใช้ warehouse และสถานะสินค้าเป็น filter หลัก เพราะ branch + ประเภทคลัง + คอลัมน์ตัวเลขครอบคลุม workflow หน้านี้แล้ว; `รอออก` ใช้ active `pending_out` หลังคำนวณ balance |
 | 3 | switch view tab | มี tab แยกสำหรับ `Matrix` และ `รายสินค้า` เพราะเป็นคนละมุมมองงาน ไม่อยู่รวมกับ filter |
 | 4 | drilldown | ไป ledger/source document |
 | 5 | pagination | ตาราง `Matrix` และ `รายสินค้า` ต้องมีแถว pagination เหนือ table ตาม `docs/design.md`: ซ้าย `พบทั้งหมด X ...`, ขวา selector จำนวนต่อหน้าและปุ่มก่อนหน้า/ถัดไป; footer ตารางรายสินค้าเป็นยอดรวมเฉพาะหน้าปัจจุบัน ส่วน summary cards เป็นยอดรวมตาม filter ทั้งหมด |
@@ -81,7 +81,7 @@ WTO created state is represented here as `pending_out / รอออก`. It is 
 - สถานะสินค้า user-facing ต้องใช้ `คงเหลือ`, `รอเข้า`, `รอออก` ไม่ใช้ `RM/WIP/FG`
 - technical `status` หลักของ row ยังเป็น `RM/WIP/FG`; label ในหน้าใช้ `ประเภทคลัง`
 - ตารางหลักต้องแสดงคอลัมน์ `ประเภทคลัง` (`RM/WIP/FG`) แต่ไม่แสดงคอลัมน์ `สถานะสินค้า` ซ้ำ เพราะคอลัมน์ตัวเลข `คงเหลือ`, `รอเข้า`, `รอออก`, และ `พร้อมส่ง` สื่อ business stock state โดยตรงแล้ว
-- filter และ detail modal ยังใช้คำว่า `สถานะสินค้า` ได้ เพื่อให้ผู้ใช้กรองหรืออ่านสถานะรวมของ bucket ที่เปิดดูได้
+- detail modal ยังใช้คำว่า `สถานะสินค้า` ได้ เพื่อให้อ่านสถานะรวมของ bucket ที่เปิดดูได้ แต่ตารางหลักและ filter ไม่แสดง field นี้
 - `รอออก` ยังถือว่าอยู่ใน stock และอยู่ในยอดคงเหลือ แต่สื่อกับผู้ใช้ว่าคงเหลือนี้มีบางส่วนถูกจองออกไว้แล้ว; ยอดที่ใช้งานได้จริงต้องดู `พร้อมส่ง`
 - `รอออก` จาก WTO ไม่มี ledger stock-out ในตัวเอง; เมื่อ Sales Bill ใช้ WTO แล้วจึงเกิด `stock_ledger.ref_type = SB` และ `pending_out` ถูก consume
 - เมื่อยกเลิก Sales Bill ที่ใช้ WTO ต้อง reverse ledger ด้วย `SB-CANCEL` และคืน `pending_out` เพื่อให้ยอดกลับมาเป็น `รอออก`
@@ -108,7 +108,7 @@ WTO created state is represented here as `pending_out / รอออก`. It is 
 
 - เป้าหมายถัดไปคือให้ summary/KPI ของหน้า `/stock/balance` มาจาก API/DB aggregation โดยตรง ไม่ให้ React reduce จาก rows ทุกครั้ง เพื่อช่วยลดโหลดและทำให้หน้าแสดงผลเร็วขึ้น
 - API ควรส่ง `summary` ตาม filter ปัจจุบันจาก server/database พร้อม `rows` เช่น `SUM(qty)`, `SUM(value)`, `SUM(awaiting_bill_qty)`, `SUM(on_hold_qty)`, `SUM(ready_qty)`, และ `COUNT(*) FILTER (...)` สำหรับจำนวนรายการ `คงเหลือ`, `รอเข้า`, `รอออก`
-- จำนวนรายการยังไม่ควรเก็บเป็น field คงที่แยกใน DB เพราะขึ้นกับ filter ปัจจุบัน เช่น สาขา, ประเภทคลัง, สินค้า, สถานะสินค้า, หมวดสินค้า; ให้ DB aggregate ตอน query ตาม filter แทน
+- จำนวนรายการยังไม่ควรเก็บเป็น field คงที่แยกใน DB เพราะขึ้นกับ filter ปัจจุบัน เช่น สาขา, ประเภทคลัง, สินค้า, หมวดสินค้า; ให้ DB aggregate ตอน query ตาม filter แทน
 - ถ้า query จาก `stock_ledger` หนักขึ้น ให้พิจารณา `stock_balance` view/materialized view หรือ summary table ต่อ key หลัก (`product + branch + warehouse + ประเภทคลัง + lot`) แล้วให้ API aggregate จากชั้นนั้น
 - frontend ควรใช้ `payload.summary` เป็น source หลักของ KPI และ count bar; การ reduce ฝั่ง client เหลือเฉพาะกรณี display ย่อยในหน้าปัจจุบันหรือ fallback ชั่วคราวที่บันทึกไว้ชัดเจนเท่านั้น
 
@@ -122,7 +122,7 @@ WTO created state is represented here as `pending_out / รอออก`. It is 
 ## Current Gap
 
 - pending_out-aware drilldown ทำแล้ว: detail modal แสดง active WTO pending_out และ movement ล่าสุดของ bucket ที่เลือก
-- export รองรับ filter สถานะสินค้า `stockState=on_hand|pending_in|pending_out`
+- export ใช้ filter หน้า UI ปัจจุบัน เช่น สินค้า, สาขา, และประเภทคลัง; ไม่ส่ง filter `สถานะสินค้า`
 - remaining: logged-in browser QA กับข้อมูลจริงหลาย bucket/source link
 
 ## Implementation Checklist

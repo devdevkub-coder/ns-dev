@@ -69,15 +69,6 @@ type BalanceDetail = {
   }>
 }
 
-type StockStateFilter = '' | 'on_hand' | 'pending_in' | 'pending_out'
-
-const STOCK_STATE_OPTIONS: Array<{ label: string; value: StockStateFilter }> = [
-  { label: 'ทุกสถานะ', value: '' },
-  { label: 'คงเหลือ', value: 'on_hand' },
-  { label: 'รอเข้า', value: 'pending_in' },
-  { label: 'รอออก', value: 'pending_out' },
-]
-
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
 
 export function StockBalancePageClient() {
@@ -98,7 +89,6 @@ export function StockBalancePageClient() {
   }, [])
   const [isLoading, setIsLoading] = useState(true)
   const [productId, setProductId] = useState('')
-  const [stockState, setStockState] = useState<StockStateFilter>('')
   const [stockType, setStockType] = useState('')
   const [viewMode, setViewMode] = useState<'detail' | 'summary'>('summary')
   const [detailPage, setDetailPage] = useState(1)
@@ -115,14 +105,13 @@ export function StockBalancePageClient() {
       if (branchId) params.set('branchId', branchId)
       if (productId) params.set('productId', productId)
       if (stockType) params.set('status', stockType)
-      if (stockState) params.set('stockState', stockState)
       setData(await dailyFetchJson<BalancePayload>(`/api/stock/balance?${params.toString()}`))
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'โหลดสต๊อกคงเหลือไม่ได้')
     } finally {
       setIsLoading(false)
     }
-  }, [branchId, productId, stockState, stockType])
+  }, [branchId, productId, stockType])
 
   useEffect(() => {
     void loadData()
@@ -168,10 +157,7 @@ export function StockBalancePageClient() {
     return (data?.rows ?? [])
       .filter((row) => !group || row.productMetalGroup === group)
       .filter((row) => selectedGroups.length === 0 || selectedGroups.includes(row.productMetalGroup))
-      .filter((row) => stockState !== 'on_hand' || row.qty > 0)
-      .filter((row) => stockState !== 'pending_in' || row.awaitingBillQty > 0)
-      .filter((row) => stockState !== 'pending_out' || row.onHoldQty > 0)
-  }, [data?.rows, group, selectedGroups, stockState])
+  }, [data?.rows, group, selectedGroups])
 
   const displayRows = useMemo<DisplayBalanceRow[]>(() => {
     const grouped = new Map<string, DisplayBalanceRow>()
@@ -271,7 +257,7 @@ export function StockBalancePageClient() {
   useEffect(() => {
     setDetailPage(1)
     setMatrixPage(1)
-  }, [branchId, group, productId, selectedGroups, stockState, stockType])
+  }, [branchId, group, productId, selectedGroups, stockType])
 
   useEffect(() => {
     if (detailPage > detailTotalPages) setDetailPage(detailTotalPages)
@@ -315,7 +301,6 @@ export function StockBalancePageClient() {
     if (branchId) params.set('branchId', branchId)
     if (productId) params.set('productId', productId)
     if (stockType) params.set('status', stockType)
-    if (stockState) params.set('stockState', stockState)
     window.location.href = `/api/stock/balance?${params.toString()}`
   }
 
@@ -334,15 +319,14 @@ export function StockBalancePageClient() {
   const resetFilters = useCallback(() => {
     setBranchId('')
     setProductId('')
-    setStockState('')
     setStockType('')
     setGroup('')
     setSelectedGroups([])
   }, [])
 
   const hasFilters = useMemo(() => {
-    return Boolean(branchId || productId || stockState || stockType || group || selectedGroups.length > 0)
-  }, [branchId, productId, stockState, stockType, group, selectedGroups])
+    return Boolean(branchId || productId || stockType || group || selectedGroups.length > 0)
+  }, [branchId, productId, stockType, group, selectedGroups])
 
   return (
     <section className="space-y-4">
@@ -411,13 +395,6 @@ export function StockBalancePageClient() {
             <select className="h-9 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400 focus:ring-0" value={group} onChange={(event) => setGroup(event.target.value)}>
               <option value="">ทุกหมวด</option>
               {groupOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
-
-            <span className="ml-4 text-xs text-slate-500">สถานะสินค้า:</span>
-            <select className="h-9 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400 focus:ring-0" value={stockState} onChange={(event) => setStockState(event.target.value as StockStateFilter)}>
-              {STOCK_STATE_OPTIONS.map((option) => (
-                <option key={option.value || 'all'} value={option.value}>{option.label}</option>
-              ))}
             </select>
 
             <span className="ml-4 text-xs text-slate-500">ประเภทคลัง:</span>
@@ -514,15 +491,6 @@ export function StockBalancePageClient() {
                 <select className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800" value={group} onChange={(event) => setGroup(event.target.value)}>
                   <option value="">ทุกหมวด</option>
                   {groupOptions.map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="mb-1 block text-xs text-slate-500">สถานะสินค้า</span>
-                <select className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800" value={stockState} onChange={(event) => setStockState(event.target.value as StockStateFilter)}>
-                  {STOCK_STATE_OPTIONS.map((option) => (
-                    <option key={option.value || 'all'} value={option.value}>{option.label}</option>
-                  ))}
                 </select>
               </label>
 
