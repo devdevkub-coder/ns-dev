@@ -29,6 +29,10 @@ type BalanceRow = {
   awaitingBillQty: number
 }
 
+type DisplayBalanceRow = BalanceRow & {
+  sourceRows?: BalanceRow[]
+}
+
 type BalancePayload = {
   byStatus: Array<{ count: number; qty: number; status: string; value: number }>
   reference: { branches: StockOption[]; products: StockOption[]; warehouses: StockOption[] }
@@ -169,6 +173,38 @@ export function StockBalancePageClient() {
       .filter((row) => stockState !== 'pending_out' || row.onHoldQty > 0)
   }, [data?.rows, group, selectedGroups, stockState])
 
+  const displayRows = useMemo<DisplayBalanceRow[]>(() => {
+    const grouped = new Map<string, DisplayBalanceRow>()
+
+    for (const row of filteredRows) {
+      const groupKey = [
+        row.productId,
+        row.branchId,
+        row.warehouseId,
+        row.status,
+        row.notAvailable ? 'not-available' : 'available',
+      ].join('|')
+      const existing = grouped.get(groupKey)
+
+      if (!existing) {
+        grouped.set(groupKey, { ...row, sourceRows: [row] })
+        continue
+      }
+
+      existing.qty += row.qty
+      existing.value += row.value
+      existing.awaitingBillQty += row.awaitingBillQty
+      existing.onHoldQty += row.onHoldQty
+      existing.readyQty += row.readyQty
+      existing.avgCost = existing.qty > 0 ? existing.value / existing.qty : 0
+      existing.lastDate = latestDateOnly(existing.lastDate, row.lastDate)
+      existing.lotNo = existing.lotNo && row.lotNo && existing.lotNo === row.lotNo ? existing.lotNo : ''
+      existing.sourceRows?.push(row)
+    }
+
+    return Array.from(grouped.values())
+  }, [filteredRows])
+
   const summary = useMemo(() => filteredRows.reduce((acc, row) => {
     acc.qty += row.qty
     acc.value += row.value
@@ -219,12 +255,12 @@ export function StockBalancePageClient() {
     return Array.from(groups.values()).sort((a, b) => (b.rmVal + b.wipVal + b.fgVal) - (a.rmVal + a.wipVal + a.fgVal))
   }, [filteredRows])
 
-  const detailTotalPages = Math.max(1, Math.ceil(filteredRows.length / detailPageSize))
+  const detailTotalPages = Math.max(1, Math.ceil(displayRows.length / detailPageSize))
   const detailCurrentPage = Math.min(detailPage, detailTotalPages)
   const pagedDetailRows = useMemo(() => {
     const start = (detailCurrentPage - 1) * detailPageSize
-    return filteredRows.slice(start, start + detailPageSize)
-  }, [detailCurrentPage, detailPageSize, filteredRows])
+    return displayRows.slice(start, start + detailPageSize)
+  }, [detailCurrentPage, detailPageSize, displayRows])
 
   const matrixTotalPages = Math.max(1, Math.ceil(matrixRows.length / matrixPageSize))
   const matrixCurrentPage = Math.min(matrixPage, matrixTotalPages)
@@ -259,8 +295,8 @@ export function StockBalancePageClient() {
 
   const selectedProductRows = useMemo(() => {
     if (!productId) return []
-    return filteredRows.filter((row) => row.productId === productId)
-  }, [filteredRows, productId])
+    return displayRows.filter((row) => row.productId === productId)
+  }, [displayRows, productId])
 
   const selectedProduct = data?.reference.products.find((item) => item.id === productId) ?? null
   const selectedProductInfo = selectedProduct && selectedProductRows.length
@@ -333,7 +369,7 @@ export function StockBalancePageClient() {
 
       <div className="overflow-hidden rounded-md bg-white shadow">
         <StockViewTabs
-          detailCount={filteredRows.length}
+          detailCount={displayRows.length}
           matrixCount={matrixRows.length}
           value={viewMode}
           onChange={setViewMode}
@@ -560,7 +596,7 @@ export function StockBalancePageClient() {
             currentPage={detailCurrentPage}
             label="รายการ"
             pageSize={detailPageSize}
-            totalItems={filteredRows.length}
+            totalItems={displayRows.length}
             totalPages={detailTotalPages}
             onPageChange={setDetailPage}
             onPageSizeChange={(size) => {
@@ -680,6 +716,16 @@ function formatDateTime(value: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })
+}
+
+function latestDateOnly(current: string, next: string) {
+  if (!current) return next
+  if (!next) return current
+  return next > current ? next : current
+}
+
+function primarySourceRow(row: DisplayBalanceRow) {
+  return row.sourceRows?.[0] ?? row
 }
 
 type StatusSummary = { count: number; qty: number; status: string; value: number }
@@ -820,7 +866,7 @@ function ProductPanel({ averageCost, info, onClose, onOpen, rows }: {
   info: { available: number; onHold: number; product: StockOption; qty: number; ready: number; value: number }
   onClose: () => void
   onOpen: (row: BalanceRow) => void
-  rows: BalanceRow[]
+  rows: DisplayBalanceRow[]
 }) {
   return (
     <div className="mb-4 rounded-xl border border-indigo-200 bg-indigo-50/10 p-5 shadow-sm space-y-4">
@@ -887,11 +933,11 @@ function ProductPanel({ averageCost, info, onClose, onOpen, rows }: {
                   className="cursor-pointer transition-colors hover:bg-slate-50/50 focus-visible:bg-slate-50 focus-visible:outline-none"
                   role="button"
                   tabIndex={0}
-                  onClick={() => onOpen(row)}
+                  onClick={() => onOpen(primarySourceRow(row))}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault()
-                      onOpen(row)
+                      onOpen(primarySourceRow(row))
                     }
                   }}
                 >
@@ -1104,7 +1150,7 @@ function MatrixTable({ byStatus, isLoading, matrixRows, totalMatrixRows, totalQt
   )
 }
 
-function DetailTable({ isLoading, onOpen, rows }: { isLoading: boolean; onOpen: (row: BalanceRow) => void; rows: BalanceRow[] }) {
+function DetailTable({ isLoading, onOpen, rows }: { isLoading: boolean; onOpen: (row: BalanceRow) => void; rows: DisplayBalanceRow[] }) {
   return (
     <>
       {/* Mobile View */}
@@ -1118,11 +1164,11 @@ function DetailTable({ isLoading, onOpen, rows }: { isLoading: boolean; onOpen: 
             className={`space-y-3 rounded-xl border p-4 shadow-sm cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 ${row.qty < 0 ? 'border-red-200 bg-red-50/10' : 'border-slate-200 bg-white'}`}
             role="button"
             tabIndex={0}
-            onClick={() => onOpen(row)}
+            onClick={() => onOpen(primarySourceRow(row))}
             onKeyDown={(event) => {
               if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault()
-                onOpen(row)
+                onOpen(primarySourceRow(row))
               }
             }}
           >
@@ -1209,11 +1255,11 @@ function DetailTable({ isLoading, onOpen, rows }: { isLoading: boolean; onOpen: 
                 className={`cursor-pointer transition-colors focus-visible:outline-none ${row.qty < 0 ? 'bg-red-50/30 hover:bg-red-50/60 focus-visible:bg-red-50/60' : 'hover:bg-slate-50/50 focus-visible:bg-slate-50'}`}
                 role="button"
                 tabIndex={0}
-                onClick={() => onOpen(row)}
+                onClick={() => onOpen(primarySourceRow(row))}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault()
-                    onOpen(row)
+                    onOpen(primarySourceRow(row))
                   }
                 }}
               >
@@ -1341,11 +1387,11 @@ function StockStatusCell({ row }: { row: BalanceRow }) {
 }
 
 function StockStateCell({ className = '', row }: { className?: string; row: BalanceRow }) {
-  const state = stockStateForRow(row)
-  if (!state) return <span className="text-xs text-slate-400">-</span>
+  const states = stockStatesForRow(row)
+  if (!states.length) return <span className="text-xs text-slate-400">-</span>
   return (
-    <div className={`flex flex-wrap gap-1 ${className}`}>
-      <StockStateIndicator state={state} />
+    <div className={`flex flex-wrap gap-x-2 gap-y-1 ${className}`}>
+      {states.map((state) => <StockStateIndicator key={state} state={state} />)}
     </div>
   )
 }
@@ -1355,15 +1401,15 @@ function stockStatusText(row: BalanceRow) {
 }
 
 function stockStateText(row: BalanceRow) {
-  const state = stockStateForRow(row)
-  if (!state) return '-'
-  return state === 'pending_out' ? 'รอออก' : state === 'pending_in' ? 'รอเข้า' : 'คงเหลือ'
+  const states = stockStatesForRow(row)
+  if (!states.length) return '-'
+  return states.map((state) => state === 'pending_out' ? 'รอออก' : state === 'pending_in' ? 'รอเข้า' : 'คงเหลือ').join(' / ')
 }
 
-function stockStateForRow(row: BalanceRow): 'on_hand' | 'pending_in' | 'pending_out' | null {
-  if (row.onHoldQty > 0) return 'pending_out'
-  if (row.awaitingBillQty > 0 && row.qty <= 0) return 'pending_in'
-  if (row.qty > 0) return 'on_hand'
-  if (row.awaitingBillQty > 0) return 'pending_in'
-  return null
+function stockStatesForRow(row: BalanceRow): Array<'on_hand' | 'pending_in' | 'pending_out'> {
+  const states: Array<'on_hand' | 'pending_in' | 'pending_out'> = []
+  if (row.qty > 0) states.push('on_hand')
+  if (row.onHoldQty > 0) states.push('pending_out')
+  if (row.awaitingBillQty > 0) states.push('pending_in')
+  return states
 }

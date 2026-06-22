@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-06-21
+updated: 2026-06-22
 route: /stock/balance
 ---
 
@@ -25,23 +25,25 @@ route: /stock/balance
 
 ## Flow Baseline
 
-derived balance จาก stock_ledger + stock hold/reservation
+derived balance จาก stock_ledger + `pending_out`
+
+WTO created state is represented here as `pending_out / รอออก`. It is not a stock ledger sale until a Sales Bill consumes the `pending_out`.
 
 ## Page Responsibilities
 
 - แสดง stock balance ตาม product/branch/warehouse/lot/ประเภทคลัง (`RM/WIP/FG`)
-- แสดง `คงเหลือจริง`, `รอเข้า`, `รอออก`, `พร้อมใช้/พร้อมส่ง` ตาม target hold model
+- แสดง `คงเหลือจริง`, `รอเข้า`, `รอออก`, `พร้อมใช้/พร้อมส่ง` ตาม target `pending_out` model
 - หน้า UI ใช้คำว่า `สถานะสินค้า` สำหรับ business stock state: `on_hand = คงเหลือ`, `pending_in = รอเข้า`, `pending_out = รอออก`
 - technical `status/output_category` ยังหมายถึง `RM/WIP/FG` และต้องแสดงแยกเป็น `ประเภทคลัง`
 - `สาขา/คลัง` ยังหมายถึง branch + warehouse จัดเก็บจริง
-- drilldown ไป stock ledger และ hold/source documents
+- drilldown ไป stock ledger และ source documents
 - รองรับ filter/search/sort/export ตาม report baseline
 
 ## Non-Responsibilities
 
 - ไม่เป็น fact table ของ movement
 - ไม่แก้ stock โดยตรง
-- ไม่แสดง hold เป็น ledger row
+- ไม่แสดง `pending_out` เป็น ledger row
 - ไม่คำนวณยอดจาก PB/SB line โดยตรง
 
 ## Lifecycle / Operation Flow
@@ -49,9 +51,9 @@ derived balance จาก stock_ledger + stock hold/reservation
 | Step | User action | System result |
 |---|---|---|
 | 1 | เปิดหน้า | GET aggregated balance |
-| 2 | filter/group | product search combobox, branch, ประเภทคลัง(RM/WIP/FG), lot, สถานะสินค้า(`คงเหลือ/รอเข้า/รอออก`); ไม่ใช้ warehouse เป็น filter หลัก เพราะ branch + ประเภทคลังครอบคลุม workflow หน้านี้แล้ว; `รอออก` ใช้ `stock_holds` active หลังคำนวณ balance |
+| 2 | filter/group | product search combobox, branch, ประเภทคลัง(RM/WIP/FG), lot, สถานะสินค้า(`คงเหลือ/รอเข้า/รอออก`); ไม่ใช้ warehouse เป็น filter หลัก เพราะ branch + ประเภทคลังครอบคลุม workflow หน้านี้แล้ว; `รอออก` ใช้ active `pending_out` หลังคำนวณ balance |
 | 3 | switch view tab | มี tab แยกสำหรับ `Matrix` และ `รายสินค้า` เพราะเป็นคนละมุมมองงาน ไม่อยู่รวมกับ filter |
-| 4 | drilldown | ไป ledger/hold/source document |
+| 4 | drilldown | ไป ledger/source document |
 | 5 | pagination | ตาราง `Matrix` และ `รายสินค้า` ต้องมีแถว pagination เหนือ table ตาม `docs/design.md`: ซ้าย `พบทั้งหมด X ...`, ขวา selector จำนวนต่อหน้าและปุ่มก่อนหน้า/ถัดไป; footer ตารางรายสินค้าเป็นยอดรวมเฉพาะหน้าปัจจุบัน ส่วน summary cards เป็นยอดรวมตาม filter ทั้งหมด |
 | 6 | export | ส่งออกตาม filter ทั้งหมด ไม่จำกัดเฉพาะหน้าปัจจุบัน |
 
@@ -62,7 +64,7 @@ derived balance จาก stock_ledger + stock hold/reservation
 - `GET /api/stock/balance - aggregate จาก stock_ledger ผ่าน server stock helper`
 - `GET /api/stock/balance?stockState=on_hand - แสดงเฉพาะ row ที่มีคงเหลือจริง`
 - `GET /api/stock/balance?stockState=pending_in - แสดงเฉพาะ row ที่มียอดรอเข้า`
-- `GET /api/stock/balance?stockState=pending_out - แสดงเฉพาะ row ที่มี active hold/รอออก`
+- `GET /api/stock/balance?stockState=pending_out - แสดงเฉพาะ row ที่มี active pending_out/รอออก`
 - `GET /api/stock/balance?onHold=1 - compatibility alias ของ pending_out`
 
 ### Data Contract
@@ -75,12 +77,14 @@ derived balance จาก stock_ledger + stock hold/reservation
 ## Validation / Status Rules
 
 - balance ต้อง derive จาก ledger ไม่ใช้ cached stale header
-- available = on_hand - active hold
+- available = on_hand - active `pending_out`
 - สถานะสินค้า user-facing ต้องใช้ `คงเหลือ`, `รอเข้า`, `รอออก` ไม่ใช้ `RM/WIP/FG`
 - technical `status` หลักของ row ยังเป็น `RM/WIP/FG`; label ในหน้าใช้ `ประเภทคลัง`
 - ตารางต้องแสดงคอลัมน์ `ประเภทคลัง` (`RM/WIP/FG`) แยกจากคอลัมน์ `สถานะสินค้า`
 - คอลัมน์ `สถานะสินค้า` แสดง badge เดียวต่อ row ตามลำดับ: `รอออก` เมื่อ `onHoldQty > 0`, `รอเข้า` เมื่อมี `awaitingBillQty > 0` แต่ยังไม่มี stock จริง, ไม่เช่นนั้น `คงเหลือ` เมื่อ `qty > 0`
 - `รอออก` ยังถือว่าอยู่ใน stock และอยู่ในยอดคงเหลือ แต่สื่อกับผู้ใช้ว่าคงเหลือนี้มีบางส่วนถูกจองออกไว้แล้ว; ยอดที่ใช้งานได้จริงต้องดู `พร้อมส่ง`
+- `รอออก` จาก WTO ไม่มี ledger stock-out ในตัวเอง; เมื่อ Sales Bill ใช้ WTO แล้วจึงเกิด `stock_ledger.ref_type = SB` และ `pending_out` ถูก consume
+- เมื่อยกเลิก Sales Bill ที่ใช้ WTO ต้อง reverse ledger ด้วย `SB-CANCEL` และคืน `pending_out` เพื่อให้ยอดกลับมาเป็น `รอออก`
 - ไม่แสดงคอลัมน์หรือ metric `ไม่พร้อมขาย` ในหน้า stock balance แล้ว เพราะ target state ใช้ `pending_in/รอเข้า` และ `pending_out/รอออก` แทน
 - KPI ด้านบนไม่แสดง `ราคา/กก. เฉลี่ย` รวมทั้งหน้า เพราะค่าเฉลี่ยข้ามสินค้าคนละชนิดสื่อสารยาก; ใช้ card `รอเข้า` แทนเพื่อเห็น pending in คู่กับ `รอออก`
 - KPI `คงเหลือ`, `รอเข้า`, `รอออก` แสดงจำนวนรายการประกอบ โดยนับจาก stock balance rows หลัง filter ปัจจุบัน (`qty > 0`, `awaitingBillQty > 0`, `onHoldQty > 0`)
@@ -89,8 +93,9 @@ derived balance จาก stock_ledger + stock hold/reservation
 - filter typography/sizing ต้องตาม `docs/design.md`: label `text-xs text-slate-500`, control height `h-9`, shape `rounded-md`, quick filter/segment `text-xs font-medium`
 - ช่องค้นหาหลักของหน้านี้ใช้ product search combobox เพียงช่องเดียว (`ค้นหารหัสหรือชื่อสินค้า`); ไม่แสดง text search อีกช่องที่ซ้ำกับสินค้า/หมวด/สาขา/filter อื่น
 - ตาราง/การ์ดรายการเปิด detail modal ด้วยการกดที่ row/card โดยตรง ไม่แสดงคอลัมน์ `Action` หรือปุ่ม `Detail` ซ้ำ
-- detail modal ใช้ responsive width: mobile ใช้เกือบเต็ม viewport, desktop ค่อยใช้ `lg:min-w-[900px]` และ `max-w-5xl`; section `ข้อมูลสินค้า` และ `จำนวนและมูลค่าสต๊อก` ต้องเป็น compact grid ส่วน `Drilldown` แสดง hold/movement แบบสองคอลัมน์เมื่อพื้นที่พอ เพื่อลดความยาวแนวตั้งของ modal
+- detail modal ใช้ responsive width: mobile ใช้เกือบเต็ม viewport, desktop ค่อยใช้ `lg:min-w-[900px]` และ `max-w-5xl`; section `ข้อมูลสินค้า` และ `จำนวนและมูลค่าสต๊อก` ต้องเป็น compact grid ส่วน `Drilldown` แสดง pending_out/movement แบบสองคอลัมน์เมื่อพื้นที่พอ เพื่อลดความยาวแนวตั้งของ modal
 - ตารางหลักต้องมี pagination ตาม design convention: ซ้าย `พบทั้งหมด X รายการ`, ขวา selector `X / หน้า`, ปุ่ม `ก่อนหน้า/ถัดไป`, และ state `หน้า X / Y`
+- ตาราง `รายสินค้า` รวมแถวเพื่อการแสดงผลฝั่ง UI เท่านั้นเมื่อเป็นสินค้า + สาขา + คลัง + ประเภทคลังเดียวกัน เพื่อให้ `คงเหลือ`, `รอออก`, และ `รอเข้า` อยู่ใน row เดียวกัน; ไม่เปลี่ยน `GET /api/stock/balance` snapshot contract เพราะ snapshot ยังถูกใช้โดย export/helper อื่น
 - แยกหน่วยสินค้าและ warehouse เสมอ
 - as-of/cutoff ต้องระบุถ้ามี report ย้อนหลัง
 
@@ -116,7 +121,7 @@ derived balance จาก stock_ledger + stock hold/reservation
 
 ## Current Gap
 
-- hold-aware drilldown ทำแล้ว: detail modal แสดง active WTO hold และ movement ล่าสุดของ bucket ที่เลือก
+- pending_out-aware drilldown ทำแล้ว: detail modal แสดง active WTO pending_out และ movement ล่าสุดของ bucket ที่เลือก
 - export รองรับ filter สถานะสินค้า `stockState=on_hand|pending_in|pending_out`
 - remaining: logged-in browser QA กับข้อมูลจริงหลาย bucket/source link
 
