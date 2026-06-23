@@ -32,6 +32,7 @@ const exactPathPermissions: Record<string, string> = {
   '/admin/audit': 'system.audit.view',
   '/admin/company-profile': 'system.settings.manage',
   '/admin/migration-tools': 'system.backup.manage',
+  '/admin/system-manual/po-sell': 'system.settings.manage',
   '/admin/system-settings': 'system.settings.manage',
   '/admin/transaction-ledger': 'finance.cash.view',
   '/admin/users-permissions': 'system.users.manage',
@@ -345,6 +346,7 @@ export const navigationItems: NavigationItem[] = [
     children: [
       { href: '/admin/system-settings', icon: '🧾', label: 'VAT / WHT', pageTitle: 'ตั้งค่าระบบ', section: 'admin' },
       { href: '/admin/company-profile', icon: '🏢', label: 'ข้อมูลบริษัท (สำหรับใบพิมพ์)', section: 'admin' },
+      { href: '/admin/system-manual/po-sell', icon: '📘', label: 'คู่มือระบบ', pageTitle: 'คู่มือระบบ', pageSubtitle: 'คู่มือการใช้งานแยกตาม Module และ Flow การทำงาน', section: 'admin' },
     ],
   },
   { href: '/admin/transaction-ledger', icon: '📒', label: 'Transaction Ledger (เช็คเงินเข้า-ออก)', section: 'admin' },
