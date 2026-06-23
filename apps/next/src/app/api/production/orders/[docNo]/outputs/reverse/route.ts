@@ -18,7 +18,7 @@ type ProductionOutputReverseRouteContext = {
 export async function POST(request: Request, context: ProductionOutputReverseRouteContext) {
   try {
     const auth = await getCurrentAuthContext()
-    requirePermission(auth, 'production.operations.view')
+    requirePermission(auth, 'production.orders.view')
     const { docNo } = await context.params
     const { outputDocNo, ...values } = reverseOutputRequestSchema.parse(await request.json())
     return NextResponse.json(await reverseProductionOutput(docNo, outputDocNo, values, currentActor(auth)))

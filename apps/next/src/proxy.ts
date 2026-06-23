@@ -74,6 +74,9 @@ export async function proxy(request: NextRequest) {
     .eq('auth_user_id', user.id)
     .eq('active', true)
     .maybeSingle<{ id: number; must_change_password: boolean }>()
+  const { data: currentAppUserId } = currentAppUser?.id == null
+    ? await supabase.rpc('current_app_user_id')
+    : { data: currentAppUser.id }
 
   if (currentAppUser?.must_change_password === true && !isPasswordChangeAllowedPath(pathname)) {
     if (pathname.startsWith('/api/')) {
@@ -101,7 +104,7 @@ export async function proxy(request: NextRequest) {
       return response
     }
   } else {
-    if (currentAppUser?.id != null) {
+    if (currentAppUser?.id != null || currentAppUserId != null) {
       return response
     }
   }

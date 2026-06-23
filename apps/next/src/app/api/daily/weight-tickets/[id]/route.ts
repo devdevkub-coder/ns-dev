@@ -75,7 +75,7 @@ async function findScopedTicket(documentNo: string, scopedBranchIds: string[]) {
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const auth = await getCurrentAuthContext()
-    requirePermission(auth, 'finance.cash.view')
+    requirePermission(auth, 'daily.weight_tickets.view')
 
     const { id } = await context.params
     const ticket = await findScopedTicket(id, branchScopeIds(auth))
@@ -103,7 +103,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const auth = await getCurrentAuthContext()
-    requirePermission(auth, 'finance.cash.view')
+    requirePermission(auth, 'daily.weight_tickets.view')
 
     const { id } = await context.params
     const values = weightTicketFormSchema.parse(await request.json())
@@ -360,7 +360,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const auth = await getCurrentAuthContext()
-    requirePermission(auth, 'finance.cash.view')
+    requirePermission(auth, 'daily.weight_tickets.view')
 
     const { id } = await context.params
     const values = weightTicketCancelSchema.parse(await request.json())

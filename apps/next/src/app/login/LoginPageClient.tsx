@@ -2,7 +2,7 @@
 
 import { FormEvent, KeyboardEvent, useState } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { isEmailIdentifier, loginSchema } from '@/lib/auth'
 import { getSupabaseClient } from '@/lib/supabase'
 
@@ -27,7 +27,6 @@ function safeRedirectPath(value: string | null) {
 }
 
 export function LoginPageClient({ devLogin }: LoginPageClientProps) {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const [identifier, setIdentifier] = useState(devLogin?.identifier ?? '')
   const [password, setPassword] = useState(devLogin?.password ?? '')
@@ -99,8 +98,7 @@ export function LoginPageClient({ devLogin }: LoginPageClientProps) {
     }
 
     setPassword('')
-    router.push(safeRedirectPath(searchParams.get('redirect')))
-    router.refresh()
+    window.location.assign(safeRedirectPath(searchParams.get('redirect')))
   }
 
   function submitOnPasswordEnter(event: KeyboardEvent<HTMLInputElement>) {

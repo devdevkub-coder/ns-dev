@@ -30,7 +30,7 @@ function orderBy(sort: string, direction: 'asc' | 'desc'): Prisma.production_ord
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'production.operations.view')
+    requirePermission(context, 'production.orders.view')
 
     const url = new URL(request.url)
     const page = Math.max(1, Number(url.searchParams.get('page') ?? 1) || 1)
@@ -189,7 +189,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'production.operations.view')
+    requirePermission(context, 'production.orders.view')
     const values = createProductionOrderSchema.parse(await request.json())
     const created = await createProductionOrder(values, currentActor(context))
     return NextResponse.json(created, { status: 201 })

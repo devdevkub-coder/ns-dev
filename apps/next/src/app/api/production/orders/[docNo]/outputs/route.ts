@@ -13,7 +13,7 @@ type ProductionOrderRouteContext = {
 export async function POST(request: Request, context: ProductionOrderRouteContext) {
   try {
     const auth = await getCurrentAuthContext()
-    requirePermission(auth, 'production.operations.view')
+    requirePermission(auth, 'production.orders.view')
     const { docNo } = await context.params
     const values = createProductionOutputSchema.parse(await request.json())
     return NextResponse.json(await createProductionOutput(docNo, values, currentActor(auth)), { status: 201 })

@@ -12,7 +12,7 @@ type ProductionOrderRouteContext = {
 export async function GET(_request: Request, context: ProductionOrderRouteContext) {
   try {
     const auth = await getCurrentAuthContext()
-    requirePermission(auth, 'production.operations.view')
+    requirePermission(auth, 'production.orders.view')
     const { docNo } = await context.params
     return NextResponse.json(await readProductionWip(docNo))
   } catch (caught) {

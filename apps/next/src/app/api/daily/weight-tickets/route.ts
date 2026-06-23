@@ -64,7 +64,7 @@ const ticketInclude = {
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, 'daily.weight_tickets.view')
 
     const query = parseWeightTicketQuery(new URL(request.url))
     const scopedBranchIds = branchScopeIds(context)
@@ -97,7 +97,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, 'daily.weight_tickets.view')
 
     const values = weightTicketFormSchema.parse(await request.json())
     const scopedBranchIds = branchScopeIds(context)

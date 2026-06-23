@@ -8,7 +8,7 @@ export const runtime = 'nodejs'
 export async function GET() {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'production.operations.view')
+    requirePermission(context, 'production.orders.view')
     return NextResponse.json(await productionOrderOptions())
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)

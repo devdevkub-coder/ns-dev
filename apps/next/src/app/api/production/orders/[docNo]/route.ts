@@ -13,7 +13,7 @@ type ProductionOrderRouteContext = {
 export async function PATCH(request: Request, context: ProductionOrderRouteContext) {
   try {
     const auth = await getCurrentAuthContext()
-    requirePermission(auth, 'production.operations.view')
+    requirePermission(auth, 'production.orders.view')
     const { docNo } = await context.params
     const values = updateProductionOrderActionSchema.parse(await request.json())
     const actor = currentActor(auth)

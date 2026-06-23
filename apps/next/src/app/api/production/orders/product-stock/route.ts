@@ -8,7 +8,7 @@ export const runtime = 'nodejs'
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'production.operations.view')
+    requirePermission(context, 'production.orders.view')
     const url = new URL(request.url)
     const branchCode = url.searchParams.get('branchCode') ?? ''
     const productCode = url.searchParams.get('productCode') ?? ''

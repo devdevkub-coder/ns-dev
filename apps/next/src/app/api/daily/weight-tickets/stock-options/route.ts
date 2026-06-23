@@ -15,7 +15,7 @@ const stockOptionsQuerySchema = z.object({
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, 'daily.weight_tickets.view')
 
     const query = stockOptionsQuerySchema.parse(Object.fromEntries(new URL(request.url).searchParams))
     const payload = await loadWtoStockOptions({

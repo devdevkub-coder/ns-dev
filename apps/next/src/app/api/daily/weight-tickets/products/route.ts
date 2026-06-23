@@ -10,7 +10,7 @@ export const runtime = 'nodejs'
 export async function GET() {
   try {
     const context = await getCurrentAuthContext()
-    requirePermission(context, 'finance.cash.view')
+    requirePermission(context, 'daily.weight_tickets.view')
 
     const products = await prisma.products.findMany({
       orderBy: [{ code: 'asc' }, { id: 'asc' }],
