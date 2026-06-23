@@ -13,6 +13,8 @@ const settingsSchema = z.object({
   lineDefaultTargetId: z.string().trim().nullable().or(z.literal('')),
   pdfBucket: z.string().trim().min(1, 'ระบุชื่อ Storage Bucket'),
   appUrl: z.string().trim().url('URL ไม่ถูกต้อง').or(z.literal('')),
+  lineAutoSend: z.boolean().default(false),
+  googleSheetsWebhookUrl: z.string().trim().url('URL ไม่ถูกต้อง').or(z.literal('')).nullable().or(z.literal('')),
 })
 
 export async function GET() {
@@ -29,6 +31,8 @@ export async function GET() {
             'LINE_DEFAULT_TARGET_ID',
             'WEIGHT_TICKET_PDF_BUCKET',
             'NEXT_PUBLIC_APP_URL',
+            'LINE_AUTO_SEND',
+            'GOOGLE_SHEETS_WEBHOOK_URL',
           ],
         },
       },
@@ -42,6 +46,8 @@ export async function GET() {
       lineDefaultTargetId: configMap.LINE_DEFAULT_TARGET_ID || '',
       pdfBucket: configMap.WEIGHT_TICKET_PDF_BUCKET || 'weight-ticket-pdfs',
       appUrl: configMap.NEXT_PUBLIC_APP_URL || '',
+      lineAutoSend: configMap.LINE_AUTO_SEND === 'true',
+      googleSheetsWebhookUrl: configMap.GOOGLE_SHEETS_WEBHOOK_URL || '',
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
@@ -64,6 +70,8 @@ export async function POST(request: Request) {
       { key: 'LINE_DEFAULT_TARGET_ID', value: values.lineDefaultTargetId || null },
       { key: 'WEIGHT_TICKET_PDF_BUCKET', value: values.pdfBucket },
       { key: 'NEXT_PUBLIC_APP_URL', value: values.appUrl || null },
+      { key: 'LINE_AUTO_SEND', value: values.lineAutoSend ? 'true' : 'false' },
+      { key: 'GOOGLE_SHEETS_WEBHOOK_URL', value: values.googleSheetsWebhookUrl || null },
     ]
 
     await prisma.$transaction(

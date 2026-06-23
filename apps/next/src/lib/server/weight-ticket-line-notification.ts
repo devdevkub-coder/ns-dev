@@ -12,6 +12,7 @@ import {
   mapWeightTicketRow,
   type WeightTicketRow,
 } from '@/lib/server/weight-tickets'
+import { syncWeightTicketToGoogleSheets } from '@/lib/server/google-sheets-sync'
 
 type CompanyPrintProfile = {
   address: string
@@ -393,6 +394,13 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
       status: 'sent',
       targetId,
       ticketId: loaded.id,
+    })
+    // Sync to Google Sheets with the generated PDF URL
+    await syncWeightTicketToGoogleSheets('update', {
+      ...loaded.record,
+      pdfUrl: uploaded.pdfUrl,
+    } as any).catch((err) => {
+      console.error('[line-notification] failed to sync to google sheets:', err)
     })
     return {
       code: 'SENT' as const,

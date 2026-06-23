@@ -10,6 +10,8 @@ const settingsSchema = z.object({
   lineDefaultTargetId: z.string().trim().nullable().or(z.literal('')),
   pdfBucket: z.string().trim().min(1, 'กรุณาระบุชื่อ Storage Bucket'),
   appUrl: z.string().trim().url('รูปแบบ URL ไม่ถูกต้อง').or(z.literal('')),
+  lineAutoSend: z.boolean().default(false),
+  googleSheetsWebhookUrl: z.string().trim().url('รูปแบบ URL ไม่ถูกต้อง').or(z.literal('')).nullable().or(z.literal('')),
 })
 
 type SettingsFormValues = z.infer<typeof settingsSchema>
@@ -27,6 +29,8 @@ const emptySettings: SettingsFormValues = {
   lineDefaultTargetId: '',
   pdfBucket: 'weight-ticket-pdfs',
   appUrl: '',
+  lineAutoSend: false,
+  googleSheetsWebhookUrl: '',
 }
 
 export function LineSettingsPageClient() {
@@ -380,6 +384,56 @@ export function LineSettingsPageClient() {
                   ) : null}
                   <p className="text-xs text-slate-400">
                     URL ของหน้าเว็บแอพนี้ เพื่อใช้ประกอบเป็น Link ส่งไปในข้อความ LINE ให้กดเปิดดูใบ PDF ชั่งน้ำหนัก
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 3: Notification Automation & Data Streams */}
+            <div className="space-y-4">
+              <h2 className="text-base font-bold text-slate-900 pb-2 border-b border-slate-100 flex items-center gap-2">
+                <span className="text-lg">🤖</span> Automation & Data Streams
+              </h2>
+              
+              <div className="space-y-4">
+                {/* Auto Send Toggle */}
+                <div className="flex items-start gap-3">
+                  <div className="flex h-5 items-center">
+                    <input
+                      id="lineAutoSend"
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-slate-305 text-[#0F172A] focus:ring-0 cursor-pointer"
+                      checked={form.lineAutoSend}
+                      onChange={(e) => update('lineAutoSend', e.target.checked)}
+                    />
+                  </div>
+                  <div className="text-sm">
+                    <label htmlFor="lineAutoSend" className="font-bold text-slate-700 cursor-pointer">
+                      เปิดระบบส่งแจ้งเตือนเข้า LINE อัตโนมัติ (Auto-Send Notification)
+                    </label>
+                    <p className="text-xs text-slate-400">
+                      เมื่อสร้างใบชั่งน้ำหนัก WTI หรือ WTO สำเร็จ ระบบจะส่งใบแจ้งน้ำหนักพร้อมไฟล์ PDF เข้า LINE Group อัตโนมัติในเบื้องหลังทันที
+                    </p>
+                  </div>
+                </div>
+
+                {/* Google Sheets Webhook URL */}
+                <div className="space-y-1">
+                  <label className="block text-sm font-bold text-slate-700">
+                    Google Sheets Webhook URL (การเชื่อมต่อสตรีมข้อมูล)
+                  </label>
+                  <input
+                    className="w-full rounded-lg border border-slate-350 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-slate-700 focus:outline-none focus:ring-0 h-10"
+                    type="url"
+                    placeholder="เช่น https://script.google.com/macros/s/AKfycb.../exec"
+                    value={form.googleSheetsWebhookUrl ?? ''}
+                    onChange={(e) => update('googleSheetsWebhookUrl', e.target.value)}
+                  />
+                  {fieldErrors.googleSheetsWebhookUrl ? (
+                    <p className="text-xs text-red-600">{fieldErrors.googleSheetsWebhookUrl}</p>
+                  ) : null}
+                  <p className="text-xs text-slate-400">
+                    ลิงก์ Webhook URL สำหรับส่งข้อมูลผลสรุปใบชั่งไปบันทึกบน Google Sheets อัตโนมัติเมื่อส่งแจ้งเตือน LINE สำเร็จ (เว้นว่างไว้หากไม่เปิดใช้งาน)
                   </p>
                 </div>
               </div>
