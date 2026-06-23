@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import fontkit from '@pdf-lib/fontkit'
@@ -160,7 +161,11 @@ async function drawImageTile(pdfDoc: PDFDocument, page: PDFPage, rawValue: strin
 export async function generateWeightTicketPdf(ticket: WeightTicketRecord, profile: CompanyPrintProfile | null) {
   const pdfDoc = await PDFDocument.create()
   pdfDoc.registerFontkit(fontkit)
-  const fontBytes = await readFile(join(process.cwd(), 'src/assets/fonts/NotoSansThai-Regular.ttf'))
+  let fontPath = join(process.cwd(), 'src/assets/fonts/NotoSansThai-Regular.ttf')
+  if (!existsSync(fontPath)) {
+    fontPath = join(process.cwd(), 'apps/next/src/assets/fonts/NotoSansThai-Regular.ttf')
+  }
+  const fontBytes = await readFile(fontPath)
   const font = await pdfDoc.embedFont(fontBytes, { subset: true })
   const green = rgb(0, 0.48, 0.34)
   const slate = rgb(0.13, 0.18, 0.27)
