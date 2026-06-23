@@ -34,6 +34,7 @@ import {
   weightTicketAuditSnapshot,
 } from '@/lib/server/weight-tickets'
 import { syncWeightTicketToGoogleSheets } from '@/lib/server/google-sheets-sync'
+import { notifyWeightTicketLine } from '@/lib/server/weight-ticket-line-notification'
 
 export const runtime = 'nodejs'
 
@@ -343,6 +344,30 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       targetLabel: updated.doc_no,
       targetType: 'weight_ticket',
     })
+
+    // Trigger auto-send to LINE if enabled on edit
+    const autoSendConfig = await prisma.system_settings.findUnique({
+      where: { key: 'LINE_AUTO_SEND' },
+    })
+    if (autoSendConfig?.value === 'true') {
+      const requestOrigin = (req: Request) => {
+        const forwardedProto = req.headers.get('x-forwarded-proto') || 'https'
+        const forwardedHost = req.headers.get('x-forwarded-host') || req.headers.get('host')
+        const configured = process.env.NEXT_PUBLIC_APP_URL
+        if (configured) return configured.replace(/\/$/, '')
+        if (forwardedHost) return `${forwardedProto}://${forwardedHost}`
+        return new URL(req.url).origin
+      }
+
+      void notifyWeightTicketLine(mapped.documentNo, {
+        origin: requestOrigin(request),
+        requestedBy: actor,
+        scopedBranchIds,
+      }).catch((err) => {
+        console.error('[weight-ticket-auto-send] failed to auto send LINE notification on update:', err)
+      })
+    }
+
     const timeline = await getWeightTicketTimeline(prisma, updated.id)
     return NextResponse.json({
       ...mapped,
