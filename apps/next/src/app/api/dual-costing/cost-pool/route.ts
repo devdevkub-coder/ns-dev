@@ -10,7 +10,7 @@ import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
 
-type CostPoolRow = {
+export type CostPoolRow = {
   availableQty: number
   availableValue: number
   branchName: string
@@ -210,6 +210,211 @@ function xlsxResponse(body: Buffer, filename: string) {
   })
 }
 
+export async function getCostPoolRowsData(options: {
+  showAvailableOnly?: boolean
+  costType?: string | null
+  sourceType?: string | null
+  status?: string | null
+  productId?: string | null
+  from?: string | null
+  to?: string | null
+  q?: string | null
+  sort?: string | null
+}) {
+  const {
+    showAvailableOnly = true,
+    costType,
+    sourceType,
+    status,
+    productId,
+    from,
+    to,
+    q,
+    sort = 'FIFO',
+  } = options
+
+  const [poBuys, purchaseBills, stockPoolEntries, tradingDeals, products, branches] = await Promise.all([
+    prisma.po_buys.findMany({
+      include: { suppliers: true },
+      orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
+      take: 5000,
+      where: { cost_deducted: { not: true }, NOT: { status: { in: ['cancelled', 'Cancelled'] } } },
+    }),
+    prisma.purchase_bills.findMany({
+      include: { branches: true, purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } }, suppliers: true },
+      orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
+      take: 5000,
+      where: { NOT: { status: { in: ['cancelled', 'Cancelled'] } } },
+    }),
+    prisma.stock_cost_pool_entries.findMany({
+      include: { branches: true, products: true },
+      orderBy: [{ date: 'desc' }, { id: 'desc' }],
+      take: 5000,
+      where: {
+        OR: [
+          { source_type: { contains: 'Production', mode: 'insensitive' } },
+          { source_type: { contains: 'Regrade', mode: 'insensitive' } },
+          { source_ref_type: { contains: 'Production', mode: 'insensitive' } },
+          { source_ref_type: { contains: 'Regrade', mode: 'insensitive' } },
+          { source_ref_type: { contains: 'Grade', mode: 'insensitive' } },
+        ],
+        NOT: { status: { in: ['Cancelled', 'cancelled', 'Reversed', 'reversed', 'Void', 'void'] } },
+      },
+    }),
+    prisma.trading_deals.findMany({
+      orderBy: [{ date: 'desc' }],
+      take: 10000,
+      where: { NOT: { status: { in: ['cancelled', 'Cancelled'] } } },
+    }),
+    prisma.products.findMany({ select: { code: true, id: true, metal_group: true, name: true } }),
+    prisma.branches.findMany({ select: { id: true, name: true } }),
+  ])
+
+  const productById = new Map(products.map((product) => [product.id, { ...product, code: requireBusinessCode(product.code, `สินค้า ${product.id}`) }]))
+  const productByCode = new Map(Array.from(productById.values()).map((product) => [product.code, product]))
+  const branchById = new Map(branches.map((branch) => [branch.id, branch.name]))
+  const sourceIdByPoolId = new Map<string, string>()
+
+  const rows: CostPoolRow[] = []
+
+  poBuys.forEach((po) => {
+    const poItems = itemsFromPo(po, productByCode, productById)
+    poItems.forEach((item) => {
+      const productRef = item.productId ? productByCode.get(item.productId) : null
+      if (!isCostPoolEligibleProduct(productRef?.metal_group)) return
+      const qty = item.qty
+      const unitCost = item.unitCost
+      if (qty <= 0 || unitCost <= 0) return
+      const costPoolId = `CP-POB-${po.doc_no}-${item.lineId}`
+      sourceIdByPoolId.set(costPoolId, stringifyBusinessValue(po.id))
+      rows.push({
+        availableQty: qty,
+        availableValue: qty * unitCost,
+        branchName: po.branch_id ? branchById.get(po.branch_id) ?? '-' : '-',
+        costPoolId,
+        costType: 'Purchase',
+        counterparty: po.suppliers?.name ?? '-',
+        date: toDateOnly(po.date),
+        productId: item.productId,
+        productName: item.productName,
+        qty,
+        sourceId: stringifyBusinessValue(po.id),
+        sourceLineId: item.lineId,
+        sourceNo: po.doc_no,
+        sourceType: 'PO_Buy',
+        status: 'Available',
+        totalCost: qty * unitCost,
+        unitCost,
+        usedQty: 0,
+      })
+    })
+  })
+
+  purchaseBills.forEach((bill) => {
+    const items = purchaseBillItemRows(bill) as PurchaseItem[]
+    items.forEach((item, index) => {
+      const qty = jsonNumber(item.netWeight ?? item.qty)
+      const totalCost = jsonNumber(item.netAmount ?? item.amount) || qty * jsonNumber(item.price)
+      const unitCost = qty > 0 ? totalCost / qty : 0
+      if (qty <= 0 || unitCost <= 0) return
+      const product = resolveProductCode(item.productId, productById)
+      const productRef = product ? productByCode.get(product) : null
+      if (!isCostPoolEligibleProduct(productRef?.metal_group)) return
+      const costPoolId = `CP-SPT-${bill.doc_no}-${index}-${product || 'line'}`
+      sourceIdByPoolId.set(costPoolId, stringifyBusinessValue(bill.id))
+      rows.push({
+        availableQty: qty,
+        availableValue: qty * unitCost,
+        branchName: bill.branches?.name ?? '-',
+        costPoolId,
+        costType: 'Purchase',
+        counterparty: bill.suppliers?.name ?? '-',
+        date: toDateOnly(bill.date),
+        productId: product,
+        productName: product ? productByCode.get(product)?.name ?? item.productName ?? item.displayName ?? '-' : item.productName ?? item.displayName ?? '-',
+        qty,
+        sourceId: stringifyBusinessValue(bill.id),
+        sourceLineId: String(index),
+        sourceNo: bill.doc_no,
+        sourceType: 'Spot_Buy',
+        status: 'Available',
+        totalCost,
+        unitCost,
+        usedQty: 0,
+      })
+    })
+  })
+
+  stockPoolEntries.forEach((entry) => {
+    const costTypeValue = stockPoolCostType(entry.source_type, entry.source_ref_type)
+    if (!costTypeValue) return
+    if (!isCostPoolEligibleProduct(entry.products.metal_group)) return
+    const qty = jsonNumber(entry.original_qty)
+    const usedQty = Math.max(0, jsonNumber(entry.allocated_qty) + jsonNumber(entry.released_qty))
+    const unitCost = jsonNumber(entry.unit_cost)
+    if (qty <= 0 || unitCost <= 0) return
+    const productCode = requireBusinessCode(entry.products.code, `สินค้า ${entry.products.id}`)
+    const availableQty = Math.max(0, qty - usedQty)
+    rows.push({
+      availableQty,
+      availableValue: availableQty * unitCost,
+      branchName: entry.branches?.name ?? '-',
+      costPoolId: entry.pool_key,
+      costType: costTypeValue,
+      counterparty: costTypeValue === 'Production' ? 'Production Output' : 'Regrade / Conversion',
+      date: toDateOnly(entry.date),
+      productId: productCode,
+      productName: entry.products.name,
+      qty,
+      sourceId: entry.source_ref_id ?? stringifyBusinessValue(entry.id),
+      sourceLineId: entry.source_line_id ?? stringifyBusinessValue(entry.id),
+      sourceNo: entry.source_ref_no ?? entry.pool_key,
+      sourceType: costTypeValue === 'Regrade' ? 'Grade Adjustment' : costTypeValue,
+      status: statusFromQty(qty, usedQty),
+      totalCost: jsonNumber(entry.original_value) || qty * unitCost,
+      unitCost,
+      usedQty,
+    })
+  })
+
+  const usedValueByPurchaseBillId = new Map<string, number>()
+  tradingDeals.forEach((deal) => {
+    if (!deal.purchase_bill_id || isCancelled(deal.status)) return
+    const purchaseBillId = stringifyBusinessValue(deal.purchase_bill_id)
+    usedValueByPurchaseBillId.set(purchaseBillId, (usedValueByPurchaseBillId.get(purchaseBillId) ?? 0) + toNumber(deal.matched_purchase_amount))
+  })
+
+  const rowsWithUsage = applyUsedValue(rows, usedValueByPurchaseBillId, sourceIdByPoolId)
+  const withUsage = rowsWithUsage
+    .filter((row) => !showAvailableOnly || row.availableQty > 0)
+    .filter((row) => !costType || costType === 'all' || row.costType === costType)
+    .filter((row) => !sourceType || sourceType === 'all' || row.sourceType === sourceType)
+    .filter((row) => !status || status === 'all' || row.status === status)
+    .filter((row) => !productId || productId === 'all' || row.productId === productId)
+    .filter((row) => !from || row.date >= from)
+    .filter((row) => !to || row.date <= to)
+    .filter((row) => !q || `${row.sourceNo} ${row.counterparty} ${row.productName} ${row.sourceType} ${row.costType} ${row.status}`.toLowerCase().includes(q))
+
+  const filteredRows = sortRows(withUsage, sort)
+
+  const summaryByCostType = ['Purchase', 'Production', 'Regrade'].map((type) => {
+    const costRows = withUsage.filter((row) => row.costType === type)
+    return {
+      availableQty: costRows.reduce((sum, row) => sum + row.availableQty, 0),
+      availableValue: costRows.reduce((sum, row) => sum + row.availableValue, 0),
+      count: costRows.length,
+      costType: type,
+    }
+  })
+
+  return {
+    rows: filteredRows,
+    summaryByCostType,
+    rowsWithUsage,
+    productByCode,
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
@@ -226,182 +431,21 @@ export async function GET(request: Request) {
     const from = url.searchParams.get('from')
     const to = url.searchParams.get('to')
 
-    const [poBuys, purchaseBills, stockPoolEntries, tradingDeals, products, branches] = await Promise.all([
-      prisma.po_buys.findMany({
-        include: { suppliers: true },
-        orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
-        take: 5000,
-        where: { cost_deducted: { not: true }, NOT: { status: { in: ['cancelled', 'Cancelled'] } } },
-      }),
-      prisma.purchase_bills.findMany({
-        include: { branches: true, purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } }, suppliers: true },
-        orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
-        take: 5000,
-        where: { NOT: { status: { in: ['cancelled', 'Cancelled'] } } },
-      }),
-      prisma.stock_cost_pool_entries.findMany({
-        include: { branches: true, products: true },
-        orderBy: [{ date: 'desc' }, { id: 'desc' }],
-        take: 5000,
-        where: {
-          OR: [
-            { source_type: { contains: 'Production', mode: 'insensitive' } },
-            { source_type: { contains: 'Regrade', mode: 'insensitive' } },
-            { source_ref_type: { contains: 'Production', mode: 'insensitive' } },
-            { source_ref_type: { contains: 'Regrade', mode: 'insensitive' } },
-            { source_ref_type: { contains: 'Grade', mode: 'insensitive' } },
-          ],
-          NOT: { status: { in: ['Cancelled', 'cancelled', 'Reversed', 'reversed', 'Void', 'void'] } },
-        },
-      }),
-      prisma.trading_deals.findMany({
-        orderBy: [{ date: 'desc' }],
-        take: 10000,
-        where: { NOT: { status: { in: ['cancelled', 'Cancelled'] } } },
-      }),
-      prisma.products.findMany({ select: { code: true, id: true, metal_group: true, name: true } }),
-      prisma.branches.findMany({ select: { id: true, name: true } }),
-    ])
-
-    const productById = new Map(products.map((product) => [product.id, { ...product, code: requireBusinessCode(product.code, `สินค้า ${product.id}`) }]))
-    const productByCode = new Map(Array.from(productById.values()).map((product) => [product.code, product]))
-    const branchById = new Map(branches.map((branch) => [branch.id, branch.name]))
-    const sourceIdByPoolId = new Map<string, string>()
-
-    const rows: CostPoolRow[] = []
-
-    poBuys.forEach((po) => {
-      const poItems = itemsFromPo(po, productByCode, productById)
-      poItems.forEach((item) => {
-        const productRef = item.productId ? productByCode.get(item.productId) : null
-        if (!isCostPoolEligibleProduct(productRef?.metal_group)) return
-        const qty = item.qty
-        const unitCost = item.unitCost
-        if (qty <= 0 || unitCost <= 0) return
-        const costPoolId = `CP-POB-${po.doc_no}-${item.lineId}`
-        sourceIdByPoolId.set(costPoolId, stringifyBusinessValue(po.id))
-        rows.push({
-          availableQty: qty,
-          availableValue: qty * unitCost,
-          branchName: po.branch_id ? branchById.get(po.branch_id) ?? '-' : '-',
-          costPoolId,
-          costType: 'Purchase',
-          counterparty: po.suppliers?.name ?? '-',
-          date: toDateOnly(po.date),
-          productId: item.productId,
-          productName: item.productName,
-          qty,
-          sourceId: stringifyBusinessValue(po.id),
-          sourceLineId: item.lineId,
-          sourceNo: po.doc_no,
-          sourceType: 'PO_Buy',
-          status: 'Available',
-          totalCost: qty * unitCost,
-          unitCost,
-          usedQty: 0,
-        })
-      })
+    const { rows: filteredRows, summaryByCostType, rowsWithUsage } = await getCostPoolRowsData({
+      showAvailableOnly,
+      costType,
+      sourceType,
+      status,
+      productId,
+      from,
+      to,
+      q,
+      sort,
     })
-
-    purchaseBills.forEach((bill) => {
-      const items = purchaseBillItemRows(bill) as PurchaseItem[]
-      items.forEach((item, index) => {
-        const qty = jsonNumber(item.netWeight ?? item.qty)
-        const totalCost = jsonNumber(item.netAmount ?? item.amount) || qty * jsonNumber(item.price)
-        const unitCost = qty > 0 ? totalCost / qty : 0
-        if (qty <= 0 || unitCost <= 0) return
-        const product = resolveProductCode(item.productId, productById)
-        const productRef = product ? productByCode.get(product) : null
-        if (!isCostPoolEligibleProduct(productRef?.metal_group)) return
-        const costPoolId = `CP-SPT-${bill.doc_no}-${index}-${product || 'line'}`
-        sourceIdByPoolId.set(costPoolId, stringifyBusinessValue(bill.id))
-        rows.push({
-          availableQty: qty,
-          availableValue: qty * unitCost,
-          branchName: bill.branches?.name ?? '-',
-          costPoolId,
-          costType: 'Purchase',
-          counterparty: bill.suppliers?.name ?? '-',
-          date: toDateOnly(bill.date),
-          productId: product,
-          productName: product ? productByCode.get(product)?.name ?? item.productName ?? item.displayName ?? '-' : item.productName ?? item.displayName ?? '-',
-          qty,
-          sourceId: stringifyBusinessValue(bill.id),
-          sourceLineId: String(index),
-          sourceNo: bill.doc_no,
-          sourceType: 'Spot_Buy',
-          status: 'Available',
-          totalCost,
-          unitCost,
-          usedQty: 0,
-        })
-      })
-    })
-
-    stockPoolEntries.forEach((entry) => {
-      const costTypeValue = stockPoolCostType(entry.source_type, entry.source_ref_type)
-      if (!costTypeValue) return
-      if (!isCostPoolEligibleProduct(entry.products.metal_group)) return
-      const qty = jsonNumber(entry.original_qty)
-      const usedQty = Math.max(0, jsonNumber(entry.allocated_qty) + jsonNumber(entry.released_qty))
-      const unitCost = jsonNumber(entry.unit_cost)
-      if (qty <= 0 || unitCost <= 0) return
-      const productCode = requireBusinessCode(entry.products.code, `สินค้า ${entry.products.id}`)
-      const availableQty = Math.max(0, qty - usedQty)
-      rows.push({
-        availableQty,
-        availableValue: availableQty * unitCost,
-        branchName: entry.branches?.name ?? '-',
-        costPoolId: entry.pool_key,
-        costType: costTypeValue,
-        counterparty: costTypeValue === 'Production' ? 'Production Output' : 'Regrade / Conversion',
-        date: toDateOnly(entry.date),
-        productId: productCode,
-        productName: entry.products.name,
-        qty,
-        sourceId: entry.source_ref_id ?? stringifyBusinessValue(entry.id),
-        sourceLineId: entry.source_line_id ?? stringifyBusinessValue(entry.id),
-        sourceNo: entry.source_ref_no ?? entry.pool_key,
-        sourceType: costTypeValue === 'Regrade' ? 'Grade Adjustment' : costTypeValue,
-        status: statusFromQty(qty, usedQty),
-        totalCost: jsonNumber(entry.original_value) || qty * unitCost,
-        unitCost,
-        usedQty,
-      })
-    })
-
-    const usedValueByPurchaseBillId = new Map<string, number>()
-    tradingDeals.forEach((deal) => {
-      if (!deal.purchase_bill_id || isCancelled(deal.status)) return
-      const purchaseBillId = stringifyBusinessValue(deal.purchase_bill_id)
-      usedValueByPurchaseBillId.set(purchaseBillId, (usedValueByPurchaseBillId.get(purchaseBillId) ?? 0) + toNumber(deal.matched_purchase_amount))
-    })
-
-    const rowsWithUsage = applyUsedValue(rows, usedValueByPurchaseBillId, sourceIdByPoolId)
-    const withUsage = rowsWithUsage
-      .filter((row) => !showAvailableOnly || row.availableQty > 0)
-      .filter((row) => !costType || costType === 'all' || row.costType === costType)
-      .filter((row) => !sourceType || sourceType === 'all' || row.sourceType === sourceType)
-      .filter((row) => !status || status === 'all' || row.status === status)
-      .filter((row) => !productId || productId === 'all' || row.productId === productId)
-      .filter((row) => !from || row.date >= from)
-      .filter((row) => !to || row.date <= to)
-      .filter((row) => !q || `${row.sourceNo} ${row.counterparty} ${row.productName} ${row.sourceType} ${row.costType} ${row.status}`.toLowerCase().includes(q))
-
-    const filteredRows = sortRows(withUsage, sort)
 
     if (url.searchParams.get('format') === 'xlsx') {
       return xlsxResponse(buildWorkbook(filteredRows), 'cost_pool.xlsx')
     }
-    const summaryByCostType = ['Purchase', 'Production', 'Regrade'].map((type) => {
-      const costRows = withUsage.filter((row) => row.costType === type)
-      return {
-        availableQty: costRows.reduce((sum, row) => sum + row.availableQty, 0),
-        availableValue: costRows.reduce((sum, row) => sum + row.availableValue, 0),
-        count: costRows.length,
-        costType: type,
-      }
-    })
 
     return NextResponse.json({
       filters: {

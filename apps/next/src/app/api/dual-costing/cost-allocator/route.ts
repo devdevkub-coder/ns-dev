@@ -4,6 +4,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { getCostPoolRowsData } from '../cost-pool/route'
 
 export const runtime = 'nodejs'
 
@@ -138,19 +139,6 @@ function sortPool(rows: CostPoolRow[], mode: string, targetCost: number) {
   return nextRows.sort((left, right) => left.date.localeCompare(right.date))
 }
 
-async function readCostPool(request: Request) {
-  const url = new URL(request.url)
-  const poolUrl = new URL('/api/dual-costing/cost-pool?availableOnly=true', url.origin)
-  const response = await fetch(poolUrl, {
-    headers: {
-      authorization: request.headers.get('authorization') ?? '',
-      cookie: request.headers.get('cookie') ?? '',
-    },
-  })
-  if (!response.ok) throw new Error(`Cost Pool API failed with ${response.status}`)
-  return response.json() as Promise<CostPoolPayload>
-}
-
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
@@ -164,7 +152,7 @@ export async function GET(request: Request) {
     const targetCost = Number(url.searchParams.get('targetCost')) || 0
 
     const [costPool, poSells, salesBills, spotSalesBills, tradingDeals, products, productionOrders] = await Promise.all([
-      readCostPool(request),
+      getCostPoolRowsData({ showAvailableOnly: true }),
       prisma.po_sells.findMany({
         include: { customers: true },
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
