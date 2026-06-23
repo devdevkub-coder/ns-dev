@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-06-20
+updated: 2026-06-22
 route: /daily/weight-ticket-list
 ---
 
@@ -25,7 +25,7 @@ route: /daily/weight-ticket-list
 
 ## Flow Baseline
 
-list/detail/create link สำหรับ WTI/WTO; WTI/WTO เป็น evidence/usage control ไม่ใช่ movement owner
+list/detail/create link สำหรับ WTI/WTO; WTI/WTO เป็น evidence/usage control ไม่ใช่ stock ledger movement owner
 
 ## Current UI Behavior Summary
 
@@ -55,6 +55,7 @@ list/detail/create link สำหรับ WTI/WTO; WTI/WTO เป็น evidenc
 - เมื่อเข้าหน้า create จาก tab `WTI` หรือ `WTO` ต้องล็อกประเภทเอกสารและซ่อน tab ของอีกประเภท; edit เอกสารเดิมก็ต้องล็อกประเภทเช่นกัน
 - WTI ใช้เป็น source PB: 1 WTI ต่อ 1 PB และต้องถูกใช้ครบใน PB เดียว
 - WTO ใช้เป็น source SB: 1 WTO ต่อ 1 SB และต้องถูกใช้ครบใน SB เดียว
+- WTO เป็น `pending_out` source โดยตรง: เมื่อสร้าง WTO ต้องกัน stock เป็น `pending_out` และแสดงใน Stock Balance เป็น `รอออก`
 - แสดง product thumbnail, เต๋า/summary, vehicle/image evidence และ downstream usage lock
 - WTI create/edit ต้องแยกข้อมูลในแต่ละเต๋าเป็น `ข้อมูลเต๋า` -> `ซื้อเพิ่มจากสิ่งเจือปน` -> `รายการหักสิ่งเจือปน`
 - ในแต่ละรายการต้องเลือกสินค้าก่อนกรอกข้อมูลเต๋า/น้ำหนัก/รูป/สิ่งเจือปน และเมื่อเปลี่ยนสินค้าต้องล้างข้อมูลเต๋า รูป สิ่งเจือปน และรายการซื้อเพิ่มที่ผูกกับสินค้าเดิม
@@ -66,7 +67,7 @@ list/detail/create link สำหรับ WTI/WTO; WTI/WTO เป็น evidenc
 ## Non-Responsibilities
 
 - WTI ไม่เขียน stock-in เอง; PB เป็น owner ของ stock-in
-- WTO ไม่เขียน stock-out เอง; target WTO สร้าง hold และ SB เป็น owner ของ stock-out
+- WTO ไม่เขียน stock-out เอง; target WTO สร้าง `pending_out` และ SB เป็น owner ของ stock-out
 - ไม่ตั้ง AP/AR และไม่รับ/จ่ายเงิน
 
 ## Lifecycle / Operation Flow
@@ -77,7 +78,7 @@ list/detail/create link สำหรับ WTI/WTO; WTI/WTO เป็น evidenc
 | 2 | สร้าง/แก้ | ไป `/daily/weight-tickets?type=WTI|WTO` หรือ edit พร้อม type context และใช้ options/products APIs |
 | 3 | detail | GET by id/doc no แสดง summary/timeline/images |
 | 4 | PB/SB ใช้งาน | update usage/status/lock |
-| 5 | cancel/edit | ถ้าถูก bill ใช้แล้วต้อง lock; ถ้ายังไม่ใช้ให้ release/rebuild hold สำหรับ WTO |
+| 5 | cancel/edit | ถ้าถูก bill ใช้แล้วต้อง lock; ถ้ายังไม่ใช้ให้ release/rebuild `pending_out` สำหรับ WTO |
 
 ## API / Data Contract
 
@@ -94,15 +95,16 @@ list/detail/create link สำหรับ WTI/WTO; WTI/WTO เป็น evidenc
   - returns active warehouses in the selected branch where `type in (RM, FG)`
   - returns `onHandQty`, `onHoldQty`, and `availableQty` per warehouse
   - derives `onHandQty` from `stock_ledger`
-  - derives `onHoldQty` from active stock holds
+  - derives `onHoldQty` from active `pending_out`
 - `POST /api/daily/weight-tickets`
   - for `WTO`, must require `warehouseId` per line
   - must validate requested qty/net weight against server-side `availableQty`
-  - must create active hold rows in the same transaction as the WTO document
+  - must create `pending_out` in the same transaction as the WTO document
+  - must not write `stock_ledger`; ledger stock-out is owned by Sales Bill when it consumes the WTO `pending_out`
 - `PUT /api/daily/weight-tickets/[id]`
-  - for editable unused `WTO`, must rebuild hold rows to match latest lines
+  - for editable unused `WTO`, must rebuild `pending_out` to match latest lines
 - `PATCH /api/daily/weight-tickets/[id]`
-  - for cancel `WTO`, must release active hold rows
+  - for cancel `WTO`, must release active `pending_out`
 
 ### Data Contract
 
@@ -175,7 +177,7 @@ list/detail/create link สำหรับ WTI/WTO; WTI/WTO เป็น evidenc
 ## Side Effects
 
 - WTI save สร้าง evidence/summary แต่ไม่ stock ledger
-- WTO target save สร้าง active stock hold/reservation แต่ไม่ stock ledger
+- WTO target save สร้าง `pending_out` แต่ไม่ stock ledger
 - PB/SB เป็นผู้ consume source และเขียน ledger
 
 ## Current Code Baseline
@@ -187,8 +189,8 @@ list/detail/create link สำหรับ WTI/WTO; WTI/WTO เป็น evidenc
 
 ## Current Gap
 
-- SB edit/cancel ยังไม่มี write path ที่ release/reopen/reverse stock hold และ stock ledger หลัง `WTO` ถูกใช้แล้ว
-- stock balance ยังไม่มี drilldown UI ให้เห็นว่า `on hold` มาจาก `WTO` ใบไหน/line ไหน
+- SB cancel write path must reverse stock ledger with `SB-CANCEL` and restore the consumed WTO `pending_out`; WTO remains the source document and can be billed again after cancellation
+- stock balance ยังไม่มี drilldown UI ให้เห็นว่า `pending_out` มาจาก `WTO` ใบไหน/line ไหน
 - ต้องทำ browser QA เต็ม flow create/edit/cancel/detail/print/share และ handoff ไป `PB/SB`
 - ต้องทำ report/reconciliation สำหรับ `WTI/WTO ค้างออกบิล`, aging bucket, legacy partial-billed debt, และ `status ไม่ตรง usage`
 - WTI impurity purchase flow ปัจจุบันยังไม่ครบ target ทั้งหมด: UI จำกัด action `ซื้อ/ไม่ซื้อ` ไว้เฉพาะ `สินค้าอื่น` แล้ว สร้าง/รวมรายการหลักใน modal เมื่อเลือก `ซื้อ` โดยไม่แสดงเป็นเต๋าปลอม และแสดง source table ใน card ของสินค้าที่ซื้อเพิ่ม; DB/API มี line-level source/parent relation แล้วผ่าน `parent_line_no` และ `impurity_source_line_no` แต่ยังไม่มี field แยกสำหรับ buy decision/target product แบบ normalized เต็มรูป
@@ -198,8 +200,8 @@ list/detail/create link สำหรับ WTI/WTO; WTI/WTO เป็น evidenc
 - [x] Verify current Next page/component against this page-flow
 - [x] Verify API route handlers match Current API and status rules above
 - [x] Add `warehouse_id` to WTO lines and expose it in form/detail/read models
-- [x] Add hold-aware stock-options API for branch+product warehouse availability
-- [x] Add stock hold table/service and integrate WTO save/edit/cancel + SB create consume
+- [x] Add pending_out-aware stock-options API for branch+product warehouse availability
+- [x] Add pending_out service and integrate WTO save/edit/cancel + SB create consume
 - [x] Lock WTI/WTO document type in create context and edit API
 - [x] Add durable line relation for `สินค้าอื่น` impurity purchase to schema/API/read model (`parent_line_no`, `impurity_source_line_no`)
 - [x] Add per-te๋า table `รายการสินค้าซื้อเพิ่มจากสิ่งปนมา` before impurity deduction section

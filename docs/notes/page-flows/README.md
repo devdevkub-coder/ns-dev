@@ -30,7 +30,6 @@ updated: 2026-06-11
   - `/sales/po-sell`
   - `/sales/bills`
   - `/sales/receipts`
-  - `/sales/stock-issue`
   - `/pending-sales`
   - `/daily/weight-ticket-list`
   - `/stock/balance`
@@ -83,7 +82,7 @@ updated: 2026-06-11
 | `/tracking/product` | Product Tracking | [tracking-360-tracking-product.md](tracking-360-tracking-product.md) | [[Tracking 360 Flow]] |
 | `/purchase/bills` | บิลรับซื้อ | [daily-transactions-purchase-bills.md](daily-transactions-purchase-bills.md) | [[Purchase Bills Page Flow]], [[Purchase Flow]] |
 | `/sales/bills` | บิลขาย | [daily-transactions-sales-bills.md](daily-transactions-sales-bills.md) | [[Sales Bills Page Flow]], [[Sales Flow]] |
-| `/sales/stock-issue` | เบิกออกรอบิล | [daily-transactions-sales-stock-issue.md](daily-transactions-sales-stock-issue.md) | [[Pending Sale Page Flow]] |
+| `/sales/stock-issue` | เบิกออกรอบิล | [daily-transactions-sales-stock-issue.md](daily-transactions-sales-stock-issue.md) | Removed target flow; legacy reference only |
 | `/daily/payment-approval` | อนุมัติจ่ายเงิน | [daily-transactions-daily-payment-approval.md](daily-transactions-daily-payment-approval.md) | [[Payment Flow]] |
 | `/purchase/advance-payments` | เงินล่วงหน้า/มัดจำ | [daily-transactions-purchase-advance-payments.md](daily-transactions-purchase-advance-payments.md) | [[Supplier Advance Payment Flow]], [[Customer Advance Page Flow]] |
 | `/purchase/payments` | จ่ายเงิน Supplier | [daily-transactions-purchase-payments.md](daily-transactions-purchase-payments.md) | [[Payment Flow]] |

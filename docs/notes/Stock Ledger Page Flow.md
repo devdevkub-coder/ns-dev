@@ -32,7 +32,7 @@ updated: 2026-06-11
 - อ่านจาก `stock_ledger`
 - row identity ฝั่ง UI/API ต้องใช้ `ledger_key` หรือ outward stable key ที่ไม่เปิดเผย internal id
 - `stock balance` ต้อง aggregate จาก ledger rows นี้
-- `stock hold` จาก `WTO` ห้ามแสดงเป็น ledger row เพราะยังไม่ใช่ stock-in/out movement
+- `pending_out` จาก `WTO` ห้ามแสดงเป็น ledger row เพราะยังไม่ใช่ stock-in/out movement
 
 ## What Appears In Ledger
 
@@ -40,7 +40,7 @@ updated: 2026-06-11
 |---|---|---|
 | `PB` | บิลรับซื้อ Stock | stock in |
 | `SB` | บิลขาย Stock | stock out |
-| `PSALE` | เบิกออกรอบิลที่ของออกจากคลังจริงก่อนเปิดบิล | stock out |
+| `PSALE` | legacy only: เบิกออกรอบิลที่เคยตัด stock ก่อนเปิดบิล; target runtime ห้ามสร้างใหม่ | stock out legacy |
 | `ST` | โอนสินค้าระหว่างสาขา/คลัง | paired out/in |
 | `SC` | ปรับสถานะสินค้า | paired out/in |
 | `GA` | ปรับเกรด/แปลงสินค้า | paired out/in |
@@ -51,7 +51,7 @@ updated: 2026-06-11
 ## What Must Not Appear
 
 - `WTI` save เพราะใบรับของเป็น source evidence ก่อนสร้าง `PB`
-- `WTO` save เพราะเป็น source evidence + stock hold ก่อนสร้าง `SB`
+- `WTO` save เพราะเป็น source evidence + pending_out ก่อนสร้าง `SB`
 - PO Buy / PO Sell reservation
 - PMA / PMT / RCP / bank statement money movement
 - hold/reservation row จาก `stock_holds`
@@ -154,9 +154,9 @@ Export `.xlsx` ต้องใช้ filter เดียวกับหน้า
 
 - มี read/export baseline และ row detail modal แล้ว
 - API ใช้ server-side `q` search, pagination count, aggregate summary, distinct movement types, และ SQL window running balance ต่อ page แทนการโหลดทุก row เข้า Node
-- row detail มี source document links สำหรับ ref type หลักที่ active app มี route: `PB/SB/PSALE/ST/SC/SC-REV/GA/ADJ/PI/PI-REV/PO2/PO2-REV`
+- row detail มี source document links สำหรับ ref type หลักที่ active app มี route: `PB/SB/ST/SC/SC-REV/GA/ADJ/PI/PI-REV/PO2/PO2-REV`; `PSALE` เป็น legacy ref type เท่านั้น
 - list/detail/export แสดง business date และ detail แสดง created context ของ row
-- ต้องคง rule ว่า hold ไม่แสดงเป็น ledger row หลังเพิ่ม stock hold layer
+- ต้องคง rule ว่า pending_out ไม่แสดงเป็น ledger row หลังเพิ่ม reservation layer
 - cleanup tools ยังเป็น follow-up/design-dependent และต้องเป็น admin-only flow แยก
 
 ## Related Notes

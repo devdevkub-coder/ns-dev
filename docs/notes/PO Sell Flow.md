@@ -33,7 +33,7 @@ Legacy behavior to preserve unless a later requirement explicitly changes it:
 | Match Log / Deal Margin | `/dual-costing/match-log`, `/dual-costing/deal-margin` | PO Sell match status and cost allocation history after matching |
 | PO Outstanding | `/po-reports/outstanding` | Open PO Sell remaining delivery quantity and value |
 | Sales Bill | `/sales/bills` / `POST /api/sales/bills` | Target create flow should select `WTO`, show WTO product lines, allocate each line to PO Sell where possible, and split any quantity over PO Sell remaining into Spot Sale |
-| Stock Issue / Pending Sale | `/sales/stock-issue` | Target flow says stock issue from PO Sell should create `PSALE...` and reduce delivery commitment; implementation parity must be verified separately |
+| WTO / Sales Bill handoff | `/daily/weight-ticket-list`, `/sales/bills` | Target fulfillment creates WTO pending_out first, then Sales Bill allocates WTO lines to PO Sell or Spot Sale; `/sales/stock-issue` is removed from target runtime |
 
 ## Create Flow
 
@@ -110,8 +110,8 @@ If the PO Sell appears only on `/sales/po-sell` but not on the downstream read m
 | Business Status | Raw / Current Status | Meaning | Should Be Active In Downstream Lists |
 |---|---|---|---|
 | `เปิดอยู่` | `Open` | Created, not cancelled/closed, still available for delivery/billing/matching | Yes |
-| `เบิกบางส่วน รอออกบิล` | target follow-up | Some `PSALE` issued, not fully billed | Yes |
-| `เบิกครบ รอออกบิล` | target follow-up | Full quantity issued, not fully billed | Yes, but no further stock issue beyond remaining |
+| `รอออก/รอเปิดบิลบางส่วน` | target follow-up | Some WTO pending_out exists, not fully billed | Yes |
+| `รอออก/รอเปิดบิลครบ` | target follow-up | Full quantity has WTO pending_out, not fully billed | Yes, but no further WTO beyond remaining |
 | `ออกบิลบางส่วน` | target follow-up | Some sales bill quantity posted | Yes for remaining quantity |
 | `ออกบิลแล้ว` | target follow-up | Fully billed | No active outstanding |
 | `ปิดส่งไม่ครบ` | target follow-up | Manually closed short with reason | No active outstanding |
@@ -152,7 +152,7 @@ PO Outstanding should show remaining sell commitment while `remainingQty > 0`, e
 
 PO Sell aging follows [[Document Aging Policy]] as `operational_pending_aging`: active PO Sell rows with remaining quantity/amount should expose age from delivery/expected date when available, otherwise from document date. Short-close, cancel, or fully billed status stops the active aging clock.
 
-### Sales Bill / Stock Issue
+### Sales Bill / WTO Pending Out
 
 Target Sales Flow now says the primary operational fulfillment should proceed through:
 
@@ -180,7 +180,7 @@ Current implemented behavior:
 - Current Next PO Sell page displays normalized document status plus derived `matchStatus`; Thai business status lifecycle is not fully implemented.
 - Current `/sales/bills` has bill-level PO Sell consumption; Sales Flow target still requires line-level PO Sell allocation for mixed-source sales bills.
 - Current `/sales/bills` must be reworked to make `WTO` the create source before PO Sell allocation, per `docs/notes/Sales Bills Page Flow.md`.
-- Current `/sales/stock-issue` / Pending Sale write integration with PO Sell needs a separate click-path audit before changing status behavior.
+- Removed `/sales/stock-issue` / Pending Sale write integration must not be used for PO Sell status behavior; use WTO pending_out and Sales Bill allocation facts instead.
 - `remaining_qty` / item-level `remainingQty` must be updated by actual billing/issue/matching facts, not by table-only UI state.
 
 ## Validation Checklist

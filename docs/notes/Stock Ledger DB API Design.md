@@ -11,17 +11,17 @@ tags:
   - ledger
 status: draft
 created: 2026-06-12
-updated: 2026-06-13
+updated: 2026-06-23
 ---
 
 # Stock Ledger DB API Design
 
-เอกสารนี้เป็น design contract สำหรับ stock ledger / stock hold / reversal API ของ active Next app (`apps/next`) หลังเริ่ม runtime hardening รอบ 2026-06-12
+เอกสารนี้เป็น design contract สำหรับ stock ledger / pending_out / reversal API ของ active Next app (`apps/next`) หลังเริ่ม runtime hardening รอบ 2026-06-12
 
 ## Design Goals
 
 - `stock_ledger` เป็น movement source of truth และต้อง trace กลับเอกสารต้นทางได้
-- `stock_holds` เป็น reservation source of truth สำหรับ outbound stock ก่อนเกิด movement จริง
+- `stock_holds` เป็น technical table ของ business state `pending_out / รอออก` สำหรับ outbound stock ก่อนเกิด movement จริง
 - cancellation/reversal ต้องไม่ลบ movement row เดิม ถ้าเป็น flow ที่ออกจากระบบแล้ว เช่น `SB`
 - business document ที่มีเลขเอกสารต้องมี status/timeline log แยกจาก current-state header table
 - API write ที่กระทบ stock ต้องทำใน database transaction เดียวกับ source status/allocation update
@@ -31,7 +31,7 @@ updated: 2026-06-13
 | Table | Role | Notes |
 |---|---|---|
 | `stock_ledger` | movement fact | ใช้ aggregate เป็น stock balance; row เดิมไม่ควรถูกแก้จากหน้า ledger |
-| `stock_holds` | reservation fact | `WTO` สร้าง active hold, `SB` consume hold, `SB cancel` reopen hold |
+| `stock_holds` | pending_out reservation fact | `WTO` สร้าง active pending_out, `SB` consume pending_out, `SB cancel` reopen pending_out |
 | `weight_ticket_status_logs` | WTI/WTO lifecycle | บันทึก created/edited/cancelled/usage status change |
 | `weight_ticket_usage_logs` | WTI/WTO usage fact | บันทึก `WTI -> PB` และ `WTO -> SB` allocation/release |
 | `sales_bill_status_logs` | SB lifecycle | เพิ่มใน migration `20260612120000_add_sales_bill_status_logs.sql`; บันทึก create/cancel/status sync |
@@ -50,25 +50,25 @@ updated: 2026-06-13
 | `SC-REV` | Status convert reverse | paired out/in | append-only reverse rows; `ref_id` points to original `SC.ref_no` |
 | `GA` | Grade adjustment | paired out/in | future cancel ต้อง paired reversal |
 | `ADJ` | Stock adjustment | one-sided gain/loss | future correction ต้องเป็น adjustment/reversal row ใหม่ |
-| `PSALE` | Pending sale / stock issue after outbound weighing | stock out | `PSALE-CANCEL` |
-| `PSALE-CANCEL` | Pending sale cancel or SB-from-PSALE cancel | stock in | append-only reversal ของ `PSALE`; ห้ามลบ `PSALE` row เดิม |
+| `PSALE` | Legacy pending sale / stock issue | legacy only | no new target write |
+| `PSALE-CANCEL` | Legacy pending sale reversal | legacy only | no new target write |
 | `PI`, `PI-REV`, `PO2`, `PO2-REV` | Production | production input/output/reverse | append-only production movement/reversal; WIP-side rows use production order product bucket |
 
-## Stock Hold Contract
+## Pending Out / Stock Hold Contract
 
-`stock_holds` เป็น reservation fact กลางสำหรับ stock ที่ถูกกันไว้แต่ยังไม่เกิด movement จริง ปัจจุบัน runtime ใช้กับ `WTO`. สำหรับ flow เบิกออกรอบิล target ล่าสุดให้ PSALE เกิดหลังมี WTO/ใบชั่ง OUT และต้องตัด stock ทันที ดังนั้น PSALE ไม่สร้าง reservation hold ของตัวเอง
+`stock_holds` เป็นชื่อ technical table ส่วน business contract ให้เรียกว่า `pending_out / รอออก`. ปัจจุบัน runtime ใช้กับ `WTO`: สร้างเมื่อ WTO ถูกบันทึก, consume เมื่อสร้าง SB, และ reopen เมื่อ cancel SB
 
 | Source | Meaning | Ledger timing |
 |---|---|---|
-| `WTO` | ใบส่งของ/ชั่งออกกัน stock ไว้ก่อนเปิด SB | ledger เขียนตอน SB |
+| `WTO` | ใบส่งของ/ชั่งออกสร้าง pending_out ไว้ก่อนเปิด SB | ledger เขียนตอน SB |
 
 Availability rule:
 
 ```text
-available = onHandFromStockLedger - activeStockHolds
+available = onHandFromStockLedger - activePendingOut
 ```
 
-ทุก write path ที่สร้าง hold หรือ stock-out จาก stock ปกติต้อง validate ด้วย branch + warehouse + product เดียวกัน เพื่อป้องกัน over selling
+ทุก write path ที่สร้าง pending_out หรือ stock-out จาก stock ปกติต้อง validate ด้วย branch + warehouse + product เดียวกัน เพื่อป้องกัน over selling
 
 ## Stock Balance Read Model
 
@@ -83,9 +83,9 @@ product_id + branch_id + warehouse_id + output_category + lot_no + not_available
 Read policy:
 
 - on-hand/value มาจาก `stock_ledger` aggregate ต่อ bucket
-- active hold overlay มาจาก `stock_holds.status = active` aggregate ต่อ bucket เดียวกัน
-- ready qty = positive on-hand - active hold เฉพาะ bucket ที่ขายได้
-- detail drilldown จำกัด latest movement/active hold rows ต่อ bucket
+- active pending_out overlay มาจาก `stock_holds.status = active` aggregate ต่อ bucket เดียวกัน
+- ready qty = positive on-hand - active pending_out เฉพาะ bucket ที่ขายได้
+- detail drilldown จำกัด latest movement/active pending_out rows ต่อ bucket
 
 Supporting indexes:
 
@@ -93,53 +93,38 @@ Supporting indexes:
 - `idx_stock_ledger_bucket_detail`
 - `idx_stock_holds_active_bucket_detail`
 
-## WTO Hold Contract
+## WTO Pending Out Contract
 
-`WTO` ไม่เขียน `stock_ledger` เอง แต่ต้องสร้าง `stock_holds.status = active`
+`WTO` ไม่เขียน `stock_ledger` เอง แต่ต้องสร้าง `stock_holds.status = active` ซึ่ง user-facing คือ `pending_out / รอออก`
 
 Lifecycle:
 
-| Event | `stock_holds` | `stock_ledger` | WTI/WTO status |
+| Event | `stock_holds` / pending_out | `stock_ledger` | WTI/WTO status |
 |---|---|---|---|
-| Create WTO | create `active` hold | no row | `delivered` |
-| Edit unused WTO | old hold `released`, new hold `active` | no row | stays `delivered` |
-| Cancel unused WTO | active hold `cancelled` | no row | `cancelled` |
-| Create SB from WTO | hold `consumed` | create `SB` stock-out row | `billed` |
-| Cancel SB from WTO | consumed hold reopened to `active` | create `SB-CANCEL` stock-in row | `delivered` |
+| Create WTO | create `active` pending_out | no row | `delivered` |
+| Edit unused WTO | old pending_out `released`, new pending_out `active` | no row | stays `delivered` |
+| Cancel unused WTO | active pending_out `cancelled` | no row | `cancelled` |
+| Create SB from WTO | pending_out `consumed` | create `SB` stock-out row | `billed` |
+| Cancel SB from WTO | consumed pending_out reopened to `active` | create `SB-CANCEL` stock-in row | `delivered` |
 
-## PSALE Issue Contract
+## Removed PSALE Issue Contract
 
-`Pending Sale Release / เบิกออกรอบิล` ใช้เมื่อมีใบชั่งขาออกแล้วและต้องเบิกของจาก Stock ให้ลูกค้าก่อนสร้างบิลขายจริง
+`Pending Sale Release / เบิกออกรอบิล` ถูกถอดออกจาก target runtime แล้ว หลังตัดสินใจใช้ `WTO -> pending_out -> SB` เป็น flow เดียวสำหรับ stock sale
 
-| State | `stock_holds` | `stock_ledger` | Convert to SB |
-|---|---|---|---|
-| `pending` | WTO hold must be consumed/released by PSALE policy to avoid double reservation | `PSALE` stock-out | create SB without duplicate stock-out |
-| `converted` | no active hold for the same stock | existing `PSALE` movement linked | locked |
-| `cancelled` before SB | WTO hold reopened to `active` | append `PSALE-CANCEL` reversal | not allowed |
-| `cancelled` after SB | WTO hold reopened to `active`; SB remains cancelled | append `PSALE-CANCEL` reversal of the original PSALE movement; no `SB-CANCEL` stock row | not allowed |
-
-Target APIs:
+Removed runtime APIs:
 
 ```http
-POST /api/sales/stock-issue
-PATCH /api/sales/stock-issue/{docNo}
-POST /api/sales/stock-issue/{docNo}/convert-to-sales-bill
+GET /api/sales/stock-issue  -> 410 GONE
+POST /api/sales/stock-issue -> 410 GONE
+PATCH /api/sales/stock-issue -> 410 GONE
 ```
 
-Required behavior:
+Target behavior:
 
-- create requires a WTO / outbound weighing source
-- create validates `available`, snapshots WAC, creates `stock_issues.status = pending`, and writes `stock_ledger.ref_type = PSALE`
-- create must consume/release the related WTO hold in the same transaction so the same quantity is not counted as both reserved and issued
-- edit is allowed only while `stock_issues.status = pending` and `converted_to_bill_id` is empty
-- edit keeps the same PSALE doc no and same WTO source; changing WTO source requires cancel/recreate
-- edit must append `PSALE-CANCEL` for the currently unreversed `PSALE` movement, reopen the WTO hold, then append a new `PSALE` movement and consume the hold again in the same transaction
-- repeated edit must reverse only unreversed `PSALE` ledger rows by source `ledger_key`; it must not reverse historical rows that already have a `PSALE-CANCEL` row
-- edit appends `stock_issue_status_logs.action = edited`
-- convert creates SB with `from_p_sale_no/from_p_sale_id`, updates stock issue status to `converted`, and must not write duplicate `SB` stock-out for PSALE-sourced lines
-- cancel before SB appends `PSALE-CANCEL`, reopens the consumed WTO hold to `active`, returns the WTO to `delivered`, and updates stock issue status to `cancelled`
-- cancel SB from converted PSALE must reverse the original `PSALE` movement with `PSALE-CANCEL`; it must not invent `SB-CANCEL` stock rows because the SB did not own the stock-out movement
-- every state-changing action appends a dedicated PSALE status/timeline log
+- New stock sale writes must select WTO in Sales Bill.
+- `POST /api/sales/bills` rejects `pendingStockIssueId/fromPsale...`.
+- No new `stock_ledger.ref_type = PSALE` or `PSALE-CANCEL` rows should be written.
+- Existing legacy PSALE rows must be handled by data repair/legacy migration, not normal runtime.
 
 ## SB Cancel API Contract
 
@@ -162,15 +147,14 @@ Validation:
 - target `SB` must not already be cancelled/void/reversed
 - active receipt linked to the SB must not exist, including legacy `receipts.bill_id = sales_bills.id` and active `customer_receipt_allocations.sales_bill_id` whose parent `customer_receipts` is not cancelled
 - for direct WTO-backed `STOCK` SB, consumed `stock_holds` and existing `stock_ledger.ref_type = SB` must exist
-- for PSALE-backed `STOCK` SB, converted `stock_issues` and existing `stock_ledger.ref_type = PSALE` must exist; `SB` stock ledger rows must not be required
+- PSALE-backed `STOCK` SB is legacy only and not a target runtime cancel path
 - duplicate `stock_ledger.ref_type = SB-CANCEL` for same direct-WTO `SB` is rejected
-- duplicate `stock_ledger.ref_type = PSALE-CANCEL` for the converted PSALE is rejected
 
 Transactional side effects:
 
 Direct WTO-backed SB:
 
-1. Reopen consumed `stock_holds` for the `SB` back to `active`
+1. Reopen consumed pending_out rows (`stock_holds`) for the `SB` back to `active`
 2. Create `stock_ledger.ref_type = SB-CANCEL` rows that reverse the original `SB` stock-out rows
 3. Append `weight_ticket_usage_logs.action = released_from_sales_bill`
 4. Increment `weight_ticket_product_summaries.remaining_weight` and decrement `billed_weight`
@@ -180,14 +164,10 @@ Direct WTO-backed SB:
 8. Mark `sales_bills.status = cancelled`, set `cancel_note`, `cancelled_at`, `cancelled_by`, and zero `receivable_balance`
 9. Append `sales_bill_status_logs.action = cancelled`
 
-PSALE-backed SB:
+Legacy PSALE-backed SB:
 
-1. Append `stock_ledger.ref_type = PSALE-CANCEL` rows that reverse the original `PSALE` stock-out rows
-2. Reopen the original WTO hold to `active`
-3. Update the original WTO status to `delivered` and append status logs
-4. Mark the converted `stock_issues` row as `cancelled` and append stock-issue status log
-5. Mark `sales_bills.status = cancelled`, set `cancel_note`, `cancelled_at`, `cancelled_by`, and zero `receivable_balance`
-6. Append `sales_bill_status_logs.action = cancelled`
+- Not part of the target runtime path.
+- If legacy data exists, handle through explicit data repair/migration before normal cancellation.
 
 Response:
 
@@ -204,7 +184,7 @@ Browser QA checkpoint:
 - Verified DB side effects:
   - `stock_ledger` has both `SB` (`qty_out = 10`) and `SB-CANCEL` (`qty_in = 10`) for the document.
   - `WTO012606-0005` returned to `delivered`.
-  - Related `stock_holds` row returned to `active` with no consumed-by reference.
+  - Related pending_out row (`stock_holds`) returned to `active` with no consumed-by reference.
   - `POS6906-0009` returned to `Open`, `remaining_qty = 10`, `remaining_amount = 10`, `cut_amount = 0`, and `items[].remainingQty = 10`.
   - `/api/stock/reconciliation` returned HTTP 200.
 
@@ -254,14 +234,13 @@ Implementation owner:
 
 - ไม่มีหน้า read-only stock reconciliation สำหรับ user/admin แล้ว
 - ไม่มี API กลางที่ scan orphan/missing ledger รวมทั้งระบบ
-- การตรวจ stock ต้องอยู่ใน write/cancel/edit flow ของ source document เช่น PB, SB, PSALE, SC, ST, ADJ และ production movement
+- การตรวจ stock ต้องอยู่ใน write/cancel/edit flow ของ source document เช่น PB, SB, SC, ST, ADJ และ production movement
 - contract automation ที่เหลือควรตรวจเฉพาะ flow ที่เป็นเจ้าของ side effect นั้น ไม่พึ่ง helper กลาง
 
 Automation:
 
-- `npm run verify:psale-sales-bill-lifecycle --workspace @ns-scrap-erp/next` runs a transaction-rollback lifecycle fixture for PSALE create -> convert to Stock SB -> cancel SB from PSALE.
-- `npm run verify:sales-bill-psale-cancel --workspace @ns-scrap-erp/next` runs an isolated fixture contract for the converted PSALE -> Stock SB -> cancel path. It verifies that the Sales Bill does not write duplicate `SB/SB-CANCEL` ledger rows, cancellation reverses the original `PSALE` rows with `PSALE-CANCEL`, the WTO hold is active again, and Sales Bill line/source allocation facts are cancelled.
-- `npm run qa:stock-ledger-write-paths --workspace @ns-scrap-erp/next` executes real dev-target write-path QA for PSALE create/cancel and production PI/PO2 create/reverse. The script resolves QA source data from current stock/master data and fails if a required branch/product/warehouse reference is missing.
+- Legacy PSALE verification scripts are historical proof only and should be removed/replaced with WTO-backed SB verification when test contracts are cleaned up.
+- `npm run qa:stock-ledger-write-paths --workspace @ns-scrap-erp/next` should no longer create/cancel PSALE in target QA; update it to cover WTO-backed SB and production PI/PO2 create/reverse.
 
 Production reversal doc-number policy:
 
@@ -275,14 +254,13 @@ Production reversal doc-number policy:
 | Concern | File |
 |---|---|
 | SB create/cancel API | `apps/next/src/app/api/sales/bills/route.ts`, `apps/next/src/app/api/sales/bills/[id]/route.ts` |
-| PSALE create/cancel/reversal helper | `apps/next/src/app/api/sales/stock-issue/route.ts`, `apps/next/src/lib/server/stock-holds.ts` |
+| removed PSALE runtime entry | `apps/next/src/app/api/sales/stock-issue/route.ts` returns `410 GONE` |
 | PB append/reversal helper | `apps/next/src/lib/server/stock-ledger-reversal.ts` |
-| PSALE -> SB lifecycle rollback automation | `apps/next/scripts/verify-psale-sales-bill-lifecycle.ts` |
-| SB-from-PSALE cancel contract automation | `apps/next/scripts/verify-sales-bill-psale-cancel-contract.ts` |
+| legacy PSALE rollback automation | `apps/next/scripts/verify-psale-sales-bill-lifecycle.ts`, `apps/next/scripts/verify-sales-bill-psale-cancel-contract.ts` historical only |
 | stock write-path QA automation | `apps/next/scripts/qa-stock-ledger-write-paths.ts` |
 | production movement/reversal service | `apps/next/src/lib/server/production-orders.ts` |
 | production reconciliation helper/API | `apps/next/src/lib/server/production-reconciliation.ts`, `apps/next/src/app/api/production/reconciliation/route.ts` |
-| stock hold availability/consume/reopen | `apps/next/src/lib/server/stock-holds.ts` |
+| pending_out availability/consume/reopen | `apps/next/src/lib/server/stock-holds.ts` |
 | stock balance aggregate | `apps/next/src/lib/server/stock.ts` |
 | SB status timeline helper | `apps/next/src/lib/server/sales-bill-history.ts` |
 | WTI/WTO status timeline helper | `apps/next/src/lib/server/weight-ticket-status-history.ts` |
@@ -293,6 +271,5 @@ Production reversal doc-number policy:
 
 - Dedicated durable allocation tables for `SB -> PO Sell`, `SB -> Spot Sale`, and `Customer advance -> SB` are still future work; current runtime uses `sales_bills.items` snapshot plus usage logs.
 - PB edit/cancel/supplier-swap still needs logged-in browser QA even though the API has been hardened to append/reversal policy.
-- PSALE create/edit/cancel and production PI/PO2 create/reverse now have repeatable service-level QA against dev-target.
-- PSALE create/cancel/convert and SB-from-PSALE cancel still need logged-in browser QA from the UI.
+- Replace legacy PSALE automation/browser QA with WTO-backed SB create/cancel QA.
 - Production order create/input/output/reverse has prior browser QA coverage, but the new stock write-path QA script is service-level; rerun logged-in browser QA if UI evidence is required for this exact batch.

@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-06-21
+updated: 2026-06-22
 route: /stock/ledger
 ---
 
@@ -27,16 +27,18 @@ route: /stock/ledger
 
 movement history ของ stock_ledger เท่านั้น
 
+WTO `pending_out` is not a ledger row. Creating WTO writes `pending_out` only; the ledger row is created when Sales Bill consumes that `pending_out`.
+
 ## Page Responsibilities
 
 - แสดงรายการ movement เข้า/ออกพร้อม source ref
 - filter ตาม date/product/branch/warehouse/ref type/status
-- drilldown ไป source doc เช่น PB/SB/PSALE/ST/SC/GA/ADJ/Production
+- drilldown ไป source doc เช่น PB/SB/ST/SC/GA/ADJ/Production
 - ใช้ reconcile กับ stock balance และ audit
 
 ## Non-Responsibilities
 
-- ไม่แสดง stock hold เป็น row
+- ไม่แสดง `pending_out` เป็น row
 - ไม่แก้หรือสร้าง movement จากหน้า ledger
 - ไม่เป็นหน้า stock balance summary หลัก
 
@@ -66,8 +68,11 @@ movement history ของ stock_ledger เท่านั้น
 
 - ทุก row ต้องมี source ref/movement type/product/warehouse/qty direction
 - reversal ต้องแสดงเป็น movement/audit ไม่ลบประวัติแบบเงียบ
-- hold/reservation ไม่ใช่ movement
+- `pending_out` ไม่ใช่ movement
 - list/export `ต้นทุน/น.` แสดง running WAC หลังแต่ละ movement โดยคำนวณจากยอดสะสม `sum(value_in - value_out) / sum(qty_in - qty_out)` ตามมุมมองคงเหลือสะสมที่เลือก ส่วน `stock_ledger.unit_cost` ในฐานข้อมูลยังเป็นต้นทุน audit ของ movement จากเอกสารต้นทาง
+- Sales Bill stock-out from WTO uses `movement_type = ขายออก`, `ref_type = SB`, `qty_out > 0`, and carries `output_category` as the technical stock bucket (`RM/WIP/FG`)
+- Sales Bill cancellation for WTO-backed stock uses `movement_type = ยกเลิกขายคืนสต๊อก`, `ref_type = SB-CANCEL`, and `qty_in > 0`
+- Newly designed WTO-to-SB transactions must not create any intermediate stock issue ledger movement before the Sales Bill
 
 ## Side Effects
 
@@ -86,6 +91,7 @@ movement history ของ stock_ledger เท่านั้น
 - API query/pagination/running balance ปรับเป็น server-side แล้ว
 - UI design alignment 2026-06-21: list toolbar ของ `/stock/ledger` ไม่แสดงปุ่ม `Refresh`, filter/action shell ใช้ `rounded-md bg-white p-3 shadow`, export Excel เป็นปุ่มเขียวขนาด `h-9`, running-balance mode (`คงเหลือสะสมต่อสินค้า` / `คงเหลือสะสมต่อคลัง`) แยกเป็น tab เหนือ filter เพราะเป็นคนละมุมมอง ไม่ใช่เงื่อนไขค้นหา, filter `ประเภทคลัง` กรองจาก `warehouses.type` แยกจากประเภท movement, table header ใช้ `bg-slate-100`, column labels แยก `วันที่เอกสาร` / `เลขที่เอกสาร`, table หลักต้องแสดงคอลัมน์ `คลัง/สาขา` เพราะ movement แต่ละรายการผูกกับสินค้าในคลังและสาขา, detail modal ใช้ dark header `rounded-md` และไม่แสดงปุ่ม X ใน header โดยใช้ปุ่ม `ปิด` ที่ footer
 - Detail modal layout alignment 2026-06-21: modal ขยายเป็น `max-w-5xl` และแยก section เป็น summary metrics ด้านบน (`เข้า`, `ออก`, `สุทธิ`, `คงเหลือสะสม`), `เอกสารและที่มา`, `สินค้าและคลัง`, `มูลค่าและต้นทุน`, และ `หมายเหตุ` เพื่อให้ trace movement ได้ชัดโดยไม่ต้องอ่านการ์ดกระจายหลายชุด
+- WTO-to-SB target alignment 2026-06-22: stock ledger must show only actual movement. WTO `pending_out` stays in Stock Balance; `SB` writes stock-out and `SB-CANCEL` writes reversal.
 - remaining: cleanup/admin tooling ยังเป็น policy แยก ไม่ใช่หน้าปกติของ ledger
 
 ## Implementation Checklist

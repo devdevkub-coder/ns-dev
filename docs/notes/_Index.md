@@ -34,7 +34,7 @@ created: 2026-05-16
 - [[WTI-WTO Flow]] - canonical flow ของหน้า `ชั่งสินค้า / รับ-ส่งของ` และ `รายการใบรับ-ส่งของ`: create/edit/list/detail/timeline, รูปสินค้า/รูปรถ, print/share, product thumbnail preload, และจุดตัด `WTI -> PB` / `WTO -> SB`
 - [[Stock Ledger and Stock Balance]] - canonical note แยกความหมาย `stock_ledger` (movement fact) ออกจาก `stock คงเหลือ` (derived balance), รวม ownership ของ movement, key ที่ใช้ aggregate, และผลกระทบกับ `WTI/WTO/PB/SB`
 - [[Stock Balance Page Flow]] - contract หน้า `/stock/balance`: derived balance, `คงเหลือจริง / จองไว้ / พร้อมใช้`, filter, drilldown และ hold-aware gap
-- [[Stock Ledger Page Flow]] - contract หน้า `/stock/ledger`: movement history, source document links, reconciliation และ rule ว่า stock hold ไม่ใช่ ledger row
+- [[Stock Ledger Page Flow]] - contract หน้า `/stock/ledger`: movement history, source document links, reconciliation และ rule ว่า pending_out ไม่ใช่ ledger row
 - [[Stock Transfer Page Flow]] - contract หน้า `/stock/transfer`: paired `ST` out/in ledger movement, no-revenue transfer, source/destination validation, source available/cost preview, doc/date/weight filters, total value และ draft-only edit/cancel policy
 - [[Stock Status Convert Page Flow]] - contract หน้า `/stock/status-convert`: paired `SC` RM/FG status out/in movement, ready-stock validation, RM<->FG validation, source WAC carry-forward และ reverse/reconciliation gap
 - [[Stock Convert Page Flow]] - contract หน้า `/stock/convert`: grade/product conversion `GA`, source-target cost/yield policy และ deferred confirm/reverse flow
@@ -65,8 +65,8 @@ created: 2026-05-16
 - [[Page Flow Proof Tracker]] - tracker ว่าไม่เหลือหน้า missing page-flow แล้ว; P0/P1/P2/P3 ทำ current-code proof baseline แล้ว เหลือ runtime hardening หลักใน P0 transaction/stock/payment gaps
 - [[PO Buy Page Flow]] - contract หน้า `/purchase/po-buy`: `POB` เป็น commitment เท่านั้น ไม่สร้าง stock/AP เอง, มี close-short, allocation boundary ไป PB, print, aging และ runtime checklist
 - [[Printable Documents]] - source of truth ของเอกสารที่ต้องพิมพ์/Save as PDF: POB, PB, SB, WTI/WTO, PMA, PMT, RV, RCP และสถานะที่พิมพ์ได้ใน payment history
-- [[Sales Flow]] - flow ขายแบบละเอียด: PO Sell, Pending Sale/PSALE, ใบส่งของ/WTO, บิลขาย Trading จากหลายบิลซื้อหรือรายการ Trading ที่ไม่ตัด stock, Sales Bill, Receipt, เลขเอกสาร, สถานะ, stock/AR effect
-- [[Pending Sale Page Flow]] - contract หน้า `/sales/stock-issue`: เบิกสินค้าออกจริงก่อนเปิดบิล, `PSALE` stock-out, convert เป็น `SB` โดยไม่ตัด stock ซ้ำ, และ gap ที่ Next ยังมีแค่ read/list baseline
+- [[Sales Flow]] - flow ขายแบบละเอียด: PO Sell, ใบส่งของ/WTO พร้อม pending_out, บิลขาย Trading จากหลายบิลซื้อหรือรายการ Trading ที่ไม่ตัด stock, Sales Bill, Receipt, เลขเอกสาร, สถานะ, stock/AR effect
+- [[Pending Sale Page Flow]] - removed target-flow note ของหน้า `/sales/stock-issue`: legacy `PSALE` เก็บไว้เป็น reference เท่านั้น; target runtime ใช้ `WTO -> pending_out -> Sales Bill`
 - [[Sales Bills Page Flow]] - contract หน้า `/sales/bills`: สร้าง SB จาก WTO, allocate เข้า PO Sell รายบรรทัด, แยกยอดเกินเป็น Spot Sale, VAT/totals แบบ PB, และหักมัดจำ Customer
 - [[Production Flow]] - canonical flow หมวด `การผลิต`: production order, input, output, process cost, WIP, yield/loss, ref type `PI/PO2`, และสถานะ implementation read baseline
 - [[Daily Cash Flow]] - flow เงินสด/ธนาคารรายวัน โดยเริ่มจาก `/daily/transfer`: field ที่ระบบจัดการเอง, validation, และ paired bank statement side effect

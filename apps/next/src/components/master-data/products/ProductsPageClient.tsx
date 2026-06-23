@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Image from 'next/image'
 import { Download, ImagePlus, Plus, Trash2, Upload } from 'lucide-react'
 import { ActiveToggle } from '@/components/ui/ActiveToggle'
 import { Button } from '@/components/ui/Button'
@@ -729,9 +730,16 @@ export function ProductsPageClient() {
               >
                 <div className="flex gap-3 items-start">
                   {/* Product Thumbnail on the Left */}
-                  <div className="h-14 w-14 shrink-0 rounded-lg overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center">
+                  <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center">
                     {product.thumbnailUrl ? (
-                      <img src={product.thumbnailUrl} alt={product.name} className="h-full w-full object-cover" />
+                      <Image
+                        fill
+                        unoptimized
+                        alt={product.name}
+                        className="object-cover"
+                        sizes="56px"
+                        src={product.thumbnailUrl}
+                      />
                     ) : (
                       <span className="text-slate-400 text-lg">📦</span>
                     )}
@@ -1015,4 +1023,3 @@ function MatchButton({ active, label, onClick, tone = 'dark' }: { active: boolea
   const idleClass = tone === 'amber' ? 'border-slate-300 bg-white hover:bg-amber-50' : tone === 'emerald' ? 'border-slate-300 bg-white hover:bg-emerald-50' : tone === 'red' ? 'border-slate-300 bg-white hover:bg-red-50' : 'border-slate-300 bg-white hover:bg-slate-100'
   return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
 }
-

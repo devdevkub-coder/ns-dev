@@ -56,7 +56,7 @@ updated: 2026-06-11
 These pages must not write:
 
 - `purchase_bills`, `sales_bills`, `po_buys`, `po_sells`, `weight_tickets`
-- `stock_ledger`, stock holds, WAC/cost facts
+- `stock_ledger`, pending_out/reservation facts, WAC/cost facts
 - `bank_statement`, payment/receipt allocation, PMA/PMT/RCP states
 - production input/output ledger
 - master data cleanup or duplicate merge

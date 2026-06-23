@@ -1230,7 +1230,14 @@ export async function POST(request: Request) {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'finance.cash.view')
 
-    const values = salesBillFormSchema.parse(await request.json())
+    const rawPayload = await request.json()
+    if (rawPayload?.pendingStockIssueId || rawPayload?.fromPsaleNo || rawPayload?.fromPsaleId) {
+      return NextResponse.json({
+        code: 'GONE',
+        error: 'ยกเลิก flow เบิกออกรอบิลแล้ว ให้เปิดบิลขายจากใบส่งของ WTO โดยตรง',
+      }, { status: 410 })
+    }
+    const values = salesBillFormSchema.parse(rawPayload)
     const actor = currentActor(context)
     const createdAt = new Date()
     const billDate = createdAt.toISOString().slice(0, 10)

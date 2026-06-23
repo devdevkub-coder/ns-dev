@@ -34,18 +34,18 @@ updated: 2026-06-11
 | Field | Source | Rule |
 |---|---|---|
 | `คงเหลือจริง` / `on_hand_qty` | `stock_ledger` | `sum(qty_in - qty_out)` ตาม product/branch/warehouse/lot/status/not-available |
-| `จองไว้` / `on_hold_qty` | active stock hold/reservation | sum active WTO holds ที่ยังไม่ consumed/released/cancelled |
-| `พร้อมใช้` / `available_qty` | derived | `on_hand_qty - on_hold_qty` |
-| มูลค่าสต๊อก | `stock_ledger` | คำนวณจาก ledger value/cost policy เท่านั้น ไม่รวม hold |
+| `รอออก` / `pending_out_qty` | active pending_out reservation | sum active WTO holds ที่ยังไม่ consumed/released/cancelled |
+| `พร้อมใช้` / `available_qty` | derived | `on_hand_qty - pending_out_qty` |
+| มูลค่าสต๊อก | `stock_ledger` | คำนวณจาก ledger value/cost policy เท่านั้น ไม่รวม pending_out |
 
-ถ้ามี summary/cache/materialized view ในอนาคต ต้อง rebuild ได้จาก `stock_ledger` และ stock hold facts เสมอ
+ถ้ามี summary/cache/materialized view ในอนาคต ต้อง rebuild ได้จาก `stock_ledger` และ pending_out facts เสมอ
 
 ## Page Meaning
 
 ใช้สำหรับ:
 
 - ดู stock คงเหลือแยกสินค้า สาขา คลัง Lot สถานะ และ not-available flag
-- ดู stock ที่ถูกจองไว้โดยใบส่งของ `WTO`
+- ดู stock ที่อยู่สถานะ `pending_out / รอออก` โดยใบส่งของ `WTO`
 - ดู stock ที่พร้อมใช้/พร้อมส่งก่อนสร้าง outbound flow ใหม่
 - ตรวจ negative balance หรือ stock ที่ผิดปกติ
 - drilldown ไปดู movement ที่ `/stock/ledger`
@@ -55,7 +55,7 @@ updated: 2026-06-11
 - แก้จำนวน stock โดยตรง
 - ยกเลิก stock movement
 - สร้างรายการโอน/ปรับสถานะ/ปรับเกรด/นับสต๊อก
-- แสดง stock hold เป็น ledger row
+- แสดง pending_out เป็น ledger row
 
 ## Main UI Contract
 

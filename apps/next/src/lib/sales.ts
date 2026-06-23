@@ -78,8 +78,11 @@ export const salesBillFormSchema = z.object({
 }).refine((value) => !value.vatInvoiceIssued || Boolean(value.vatInvoiceDate), {
   message: 'กรอกวันที่ใบกำกับภาษีเมื่อระบุว่าออกแล้ว',
   path: ['vatInvoiceDate'],
-}).refine((value) => value.transactionMode !== 'STOCK' || Boolean(value.deliveryTicketId) || Boolean(value.pendingStockIssueId) || Boolean(value.fromPsaleNo), {
-  message: 'เลือกใบส่งของ WTO หรือระบุใบเบิกออก PSALE',
+}).refine((value) => !value.pendingStockIssueId && !value.fromPsaleNo && !value.fromPsaleId, {
+  message: 'ยกเลิก flow เบิกออกรอบิลแล้ว ให้เปิดบิลขายจากใบส่งของ WTO โดยตรง',
+  path: ['deliveryTicketId'],
+}).refine((value) => value.transactionMode !== 'STOCK' || Boolean(value.deliveryTicketId), {
+  message: 'เลือกใบส่งของ WTO',
   path: ['deliveryTicketId'],
 }).refine((value) => value.transactionMode !== 'TRADING' || value.items.every((item) => Boolean(item.deliveryTicketId) || Boolean(item.tradingCostSourceId)), {
   message: 'บิลขาย Trading ต้องเลือกบิลซื้อ Trading/Cost Source ให้ครบทุกแถวที่ไม่ใช่ WTO',

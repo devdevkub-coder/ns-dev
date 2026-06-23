@@ -156,7 +156,7 @@ Target detail payload fields:
 - Sales source reads durable `sales_bill_lines` through `salesBillLineFactsForBills`.
 - Purchase amount uses `netAmount`, `amount`, `totalAmount`, `total`; fallback qty x price.
 - Sales revenue uses `sales_bill_lines.line_amount`.
-- Sales COGS uses the same sales-line read model as Sales/Tracking owner pages: active `trading_allocation_facts.matched_cogs` for Trading cost source, active direct WTO stock-out cost prorated from `stock_ledger.value_out` for `ref_type = SB`, and active PSALE cost prorated from `stock_issues.total_cost`.
+- Sales COGS uses the same sales-line read model as Sales/Tracking owner pages: active `trading_allocation_facts.matched_cogs` for Trading cost source and active direct WTO-backed SB stock-out cost prorated from `stock_ledger.value_out` for `ref_type = SB`. PSALE cost is legacy-only data repair/migration input, not a new target runtime source.
 - Mixed Trading + WTO Sales Bills combine Trading matched COGS and WTO stock COGS at line level.
 - Sales GP = line revenue - line COGS.
 - Production input comes from active `production_inputs.qty`.

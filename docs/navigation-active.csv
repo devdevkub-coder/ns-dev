@@ -14,7 +14,7 @@
 "active","Tracking 360°","Product Tracking","/tracking/product","",""
 "active","รายการประจำวัน","บิลรับซื้อ","/purchase/bills","",""
 "active","รายการประจำวัน","บิลขาย","/sales/bills","",""
-"active","รายการประจำวัน","เบิกออกรอบิล (Pending Sale)","/sales/stock-issue","",""
+"removed-target","รายการประจำวัน","เบิกออกรอบิล","/sales/stock-issue","deprecated","WTO pending-out replaces this route"
 "active","รายการประจำวัน","อนุมัติโอนเงิน (Payment Approval)","/daily/payment-approval","",""
 "active","รายการประจำวัน","เงินล่วงหน้า/มัดจำ","/purchase/advance-payments","","2 tabs: Supplier ADV and Customer CADV"
 "active","รายการประจำวัน","จ่ายเงิน Supplier","/purchase/payments","",""

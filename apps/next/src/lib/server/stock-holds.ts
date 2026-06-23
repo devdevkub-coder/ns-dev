@@ -533,7 +533,7 @@ export async function consumeActiveWtoStockHolds(tx: TxClient, input: {
     },
   })
   if (!holds.length) {
-    throw new WtoStockHoldError('ไม่พบ stock hold ที่พร้อมใช้สำหรับใบส่งของนี้')
+    throw new WtoStockHoldError('ไม่พบ pending_out ที่พร้อมใช้สำหรับใบส่งของนี้')
   }
 
   const productIds = [...new Set(holds.map((hold) => hold.product_id))]
@@ -592,7 +592,7 @@ export async function consumeActiveWtoStockHolds(tx: TxClient, input: {
       lot_no: line.lotNo,
       movement_type: 'ขายออก',
       note: `WTO ${line.sourceDocNo}${line.sourceLineNo ? ` / รายการ ${line.sourceLineNo}` : ''}`,
-      notes: `ตัด stock จาก hold ${line.holdKey}`,
+      notes: `ตัด stock จาก pending_out ${line.holdKey}`,
       not_available_for_sale: line.notAvailableForSale,
       output_category: line.outputCategory,
       product_id: line.productId,
@@ -625,7 +625,7 @@ export async function consumeActiveWtoStockHolds(tx: TxClient, input: {
     },
   })
   if (consumed.count !== holds.length) {
-    throw new WtoStockHoldError('stock hold ของใบส่งของนี้ถูกใช้งานไปแล้ว กรุณาโหลดข้อมูลใหม่')
+    throw new WtoStockHoldError('pending_out ของใบส่งของนี้ถูกใช้งานไปแล้ว กรุณาโหลดข้อมูลใหม่')
   }
 
   return consumedLines
@@ -646,7 +646,7 @@ export async function consumeActiveWtoStockHoldsForPendingSale(tx: TxClient, inp
     },
   })
   if (!holds.length) {
-    throw new WtoStockHoldError('ไม่พบ stock hold ที่พร้อมใช้สำหรับใบส่งของนี้')
+    throw new WtoStockHoldError('ไม่พบ pending_out ที่พร้อมใช้สำหรับใบส่งของนี้')
   }
 
   const productIds = [...new Set(holds.map((hold) => hold.product_id))]
@@ -737,7 +737,7 @@ export async function consumeActiveWtoStockHoldsForPendingSale(tx: TxClient, inp
     },
   })
   if (consumed.count !== holds.length) {
-    throw new WtoStockHoldError('stock hold ของใบส่งของนี้ถูกใช้งานไปแล้ว กรุณาโหลดข้อมูลใหม่')
+    throw new WtoStockHoldError('pending_out ของใบส่งของนี้ถูกใช้งานไปแล้ว กรุณาโหลดข้อมูลใหม่')
   }
 
   return consumedLines
@@ -814,7 +814,7 @@ export async function reopenConsumedWtoStockHoldsForSalesBill(tx: TxClient, inpu
     },
   })
   if (!holds.length) {
-    throw new WtoStockHoldError('ไม่พบ stock hold ที่ถูกใช้โดยบิลขายนี้')
+    throw new WtoStockHoldError('ไม่พบ pending_out ที่ถูกใช้โดยบิลขายนี้')
   }
 
   const activeHold = await tx.stock_holds.findFirst({
@@ -825,7 +825,7 @@ export async function reopenConsumedWtoStockHoldsForSalesBill(tx: TxClient, inpu
     },
   })
   if (activeHold) {
-    throw new WtoStockHoldError('ใบส่งของนี้มี stock hold active อยู่แล้ว กรุณาตรวจสอบก่อนยกเลิกซ้ำ')
+    throw new WtoStockHoldError('ใบส่งของนี้มี pending_out active อยู่แล้ว กรุณาตรวจสอบก่อนยกเลิกซ้ำ')
   }
 
   const reopened = await tx.stock_holds.updateMany({
@@ -845,7 +845,7 @@ export async function reopenConsumedWtoStockHoldsForSalesBill(tx: TxClient, inpu
     },
   })
   if (reopened.count !== holds.length) {
-    throw new WtoStockHoldError('stock hold ของบิลขายนี้ถูกเปลี่ยนสถานะไปแล้ว กรุณาโหลดข้อมูลใหม่')
+    throw new WtoStockHoldError('pending_out ของบิลขายนี้ถูกเปลี่ยนสถานะไปแล้ว กรุณาโหลดข้อมูลใหม่')
   }
 
   return holds
@@ -930,7 +930,7 @@ export async function reversePendingSaleStockIssue(tx: TxClient, input: {
     },
   })
   if (!holds.length) {
-    throw new WtoStockHoldError('ไม่พบ stock hold ที่ถูกใช้โดยรายการเบิกออกรอบิลนี้')
+    throw new WtoStockHoldError('ไม่พบ pending_out ที่ถูกใช้โดยรายการเบิกออกรอบิลนี้')
   }
 
   const activeHold = await tx.stock_holds.findFirst({
@@ -941,7 +941,7 @@ export async function reversePendingSaleStockIssue(tx: TxClient, input: {
     },
   })
   if (activeHold) {
-    throw new WtoStockHoldError('ใบส่งของนี้มี stock hold active อยู่แล้ว กรุณาตรวจสอบก่อนยกเลิกซ้ำ')
+    throw new WtoStockHoldError('ใบส่งของนี้มี pending_out active อยู่แล้ว กรุณาตรวจสอบก่อนยกเลิกซ้ำ')
   }
 
   const reopened = await tx.stock_holds.updateMany({
@@ -964,7 +964,7 @@ export async function reversePendingSaleStockIssue(tx: TxClient, input: {
     },
   })
   if (reopened.count !== holds.length) {
-    throw new WtoStockHoldError('stock hold ของรายการเบิกออกรอบิลนี้ถูกเปลี่ยนสถานะไปแล้ว กรุณาโหลดข้อมูลใหม่')
+    throw new WtoStockHoldError('pending_out ของรายการเบิกออกรอบิลนี้ถูกเปลี่ยนสถานะไปแล้ว กรุณาโหลดข้อมูลใหม่')
   }
 
   return holds

@@ -13,7 +13,7 @@ tags:
   - decision
 status: draft
 created: 2026-06-11
-updated: 2026-06-12
+updated: 2026-06-23
 ---
 
 # Stock Ledger and Stock Balance
@@ -29,7 +29,7 @@ updated: 2026-06-12
 - `WTO`
 - `PB`
 - `SB`
-- `PSALE` / Pending Sale
+- `WTO pending_out` / รอออก
 - `Stock Transfer`
 - `Stock Adjust`
 - `Status Convert`
@@ -100,8 +100,8 @@ stock value   = sum(value_in) - sum(value_out)
 
 ```text
 on_hand_qty   = sum(stock_ledger.qty_in - stock_ledger.qty_out)
-on_hold_qty   = sum(active stock_holds.qty)
-available_qty = on_hand_qty - on_hold_qty
+pending_out_qty = sum(active stock_holds.qty)
+available_qty   = on_hand_qty - pending_out_qty
 ```
 
 ดังนั้น:
@@ -111,7 +111,7 @@ available_qty = on_hand_qty - on_hold_qty
 - `คลัง` ในหน้า balance ยังหมายถึง warehouse ตาม ledger key
 - technical `status / output category` ยังหมายถึง `RM/WIP/FG`
 - ในหน้า `/stock/balance` ให้ label user-facing ของ `status / output category` เป็น `คลัง` ตามภาษาหน้างาน
-- `On Hold` เป็น reservation overlay จาก active `stock_holds` เมื่อ `on_hold_qty > 0`; ไม่ใช่ ledger movement และไม่แทน `RM/WIP/FG`
+- `pending_out / รอออก` เป็น reservation overlay จาก active `stock_holds`; ไม่ใช่ ledger movement และไม่แทน `RM/WIP/FG`
 
 ## Source Of Truth Rule
 
@@ -156,7 +156,7 @@ API read contract ปัจจุบัน:
 | API / module | สถานะ | หมายเหตุ |
 |---|---|---|
 | `GET /api/stock/ledger` | ตรง target | อ่าน movement rows จาก `stock_ledger` |
-| `GET /api/stock/balance` | ตรง target หลัก | aggregate จาก `stock_ledger` และแสดง derived `จองไว้ / พร้อมส่ง` จาก active `stock_holds`; hold ไม่ถูกแสดงเป็น ledger row |
+| `GET /api/stock/balance` | ตรง target หลัก | aggregate จาก `stock_ledger` และแสดง derived `รอออก / พร้อมส่ง` จาก active `stock_holds`; pending_out ไม่ถูกแสดงเป็น ledger row |
 | `GET /api/daily/weight-tickets/options` | ตรง target | เป็น page-scoped options สำหรับ branch/supplier/customer/impurity; warehouse options แยกตาม branch + product |
 | `GET /api/daily/weight-tickets/stock-options` | เพิ่มแล้ว | ส่งคลัง `RM/FG` ของสาขาและ `onHand/onHold/available` ตาม product ที่เลือก ใช้ใน WTO create/edit |
 | `GET /api/daily/weight-tickets/products` | ตรงบางส่วน | ส่ง product options พร้อม `thumbnailUrl` แล้ว; ไม่ควรส่ง stock ทุกคลังมากับ route นี้ เพราะจะหนักและขึ้นกับ branch/warehouse |
@@ -173,8 +173,8 @@ API read contract ปัจจุบัน:
 - `PB Stock` เป็น owner ของ stock-in
 - `SB Stock` เป็น owner ของ stock-out
 - `WTI/WTO` เป็น source evidence และ usage control ไม่ใช่ movement owner
-- `WTO` ต้องสร้าง stock hold/reservation เพื่อกันยอดสินค้าก่อนออก `SB`
-- implementation gap หลักที่เหลือหลัง PB/SB/PSALE hardening รอบ 2026-06-12 คือ durable allocation tables บางชนิด, PB edit/cancel browser QA และ PSALE/SB-from-PSALE browser QA; หน้า stock reconciliation ถูกถอดออกจาก active surface แล้ว
+- `WTO` ต้องสร้าง `pending_out` เพื่อกันยอดสินค้าก่อนออก `SB`
+- implementation gap หลักหลังตัด PSALE ออกจาก target คือทำให้เอกสาร/QA/report ใช้ `WTO -> pending_out -> SB` เป็น flow เดียวกันทั้งหมด; หน้า stock reconciliation ถูกถอดออกจาก active surface แล้ว
 
 ## Business Keys For Balance
 
@@ -213,33 +213,33 @@ stock balance key  = branch + warehouse + product + lot/status flags
 - stock คงเหลือจะรู้จริงหลังมีทั้ง `product + branch + warehouse`
 - ก่อน save ต้อง validate ว่า line-level warehouse เป็นคลัง `RM` หรือ `FG` ที่ active และอยู่ในสาขาเดียวกัน
 - `WTO` ต้อง validate จาก `available_qty` ไม่ใช่ `on_hand_qty`
-- เมื่อ save `WTO` ต้องสร้าง active hold/reservation ตาม `สินค้า + สาขา + คลัง + จำนวน`
+- เมื่อ save `WTO` ต้องสร้าง active `pending_out` ตาม `สินค้า + สาขา + คลัง + จำนวน`
 - movement จริงยังเกิดตอนบันทึก `SB`
 - `SB` ต้อง validate active hold ซ้ำใน transaction, consume hold, แล้วเขียน stock-out ledger
 
-## Stock Hold / Reservation Layer
+## Pending Out / Reservation Layer
 
-`stock hold` คือ reservation fact ไม่ใช่ stock movement
+`pending_out` คือ reservation fact ไม่ใช่ stock movement
 
-หน้าที่ของ hold:
+หน้าที่ของ pending_out:
 
 - กันไม่ให้เอกสารขาออกหลายใบจองสินค้าเดียวกันเกิน stock จริง
 - ลด `available_qty` แต่ไม่ลด `on_hand_qty`
-- ทำให้ user เห็นว่า stock ยังอยู่ในระบบ แต่ถูกจองไว้แล้ว
+- ทำให้ user เห็นว่า stock ยังอยู่ในระบบ แต่รอออกแล้ว
 
 กติกา:
 
-- `WTO save` ต้องสร้าง active hold
-- `WTO edit` ที่ยังไม่ถูกใช้ ต้อง rebuild hold ให้ตรงข้อมูลใหม่
-- `WTO cancel` ที่ยังไม่ถูกใช้ ต้อง release hold
-- `SB save from WTO` ต้อง consume hold แล้วสร้าง `stock_ledger.ref_type = SB`
-- `SB cancel` ต้อง reverse `SB` ledger และ reopen/recreate hold ของ WTO ที่กลับไปรอออกบิล ถ้า WTO ยัง active
+- `WTO save` ต้องสร้าง active `pending_out`
+- `WTO edit` ที่ยังไม่ถูกใช้ ต้อง rebuild `pending_out` ให้ตรงข้อมูลใหม่
+- `WTO cancel` ที่ยังไม่ถูกใช้ ต้อง release `pending_out`
+- `SB save from WTO` ต้อง consume `pending_out` แล้วสร้าง `stock_ledger.ref_type = SB`
+- `SB cancel` ต้อง reverse `SB` ledger และ reopen/recreate `pending_out` ของ WTO ที่กลับไปรอออกบิล ถ้า WTO ยัง active
 
-สถานะ hold target:
+สถานะ pending_out target:
 
 | status | ความหมาย |
 |---|---|
-| `active` | จอง stock ไว้แล้ว ยังไม่ออก SB |
+| `active` | รอออกไว้แล้ว ยังไม่ออก SB |
 | `consumed` | ถูกใช้ตอนบันทึก SB แล้ว |
 | `released` | ปล่อยคืนเพราะ WTO ถูกยกเลิกหรือแก้ไข |
 | `cancelled` | ปิด hold จากการยกเลิก/reversal ที่ไม่ควรนำกลับมาใช้ |
@@ -260,22 +260,22 @@ target table/read model ควรเก็บอย่างน้อย:
 user-facing label:
 
 - `คงเหลือจริง` = on hand
-- `จองไว้` = on hold
+- `รอออก` = pending_out
 - `พร้อมใช้` หรือ `พร้อมส่ง` = available
 
-จุดที่ต้องแสดง hold:
+จุดที่ต้องแสดง pending_out:
 
-- หน้า `/stock/balance`: แสดง `คงเหลือจริง`, `จองไว้`, `พร้อมใช้`
+- หน้า `/stock/balance`: แสดง `คงเหลือจริง`, `รอออก`, `พร้อมใช้`
 - หน้า create/edit `WTO`: หลังเลือกสินค้า + คลัง ให้แสดง 3 ค่านี้ และ validate จาก `พร้อมส่ง`
-- detail ของสินค้า/คลัง: แสดงว่า hold มาจาก `WTO` ใด ลูกค้าใด จำนวนเท่าไร
-- detail ของ `WTO`: แสดงรายการ hold ต่อสินค้า/คลัง
-- หน้า create `SB` จาก `WTO`: แสดงว่า hold นี้จะถูก consume แล้วตัด stock จริงเมื่อ save
+- detail ของสินค้า/คลัง: แสดงว่า pending_out มาจาก `WTO` ใด ลูกค้าใด จำนวนเท่าไร
+- detail ของ `WTO`: แสดงรายการ pending_out ต่อสินค้า/คลัง
+- หน้า create `SB` จาก `WTO`: แสดงว่า pending_out นี้จะถูก consume แล้วตัด stock จริงเมื่อ save
 
 ข้อห้าม:
 
-- ห้ามแสดง hold เป็น row ใน `/stock/ledger`
-- ห้ามใช้ hold คำนวณ WAC หรือ stock value โดยตรง
-- ห้ามให้ `SB` ตัด stock จาก warehouse อื่นโดยไม่มี release/recreate hold และ audit ชัดเจน
+- ห้ามแสดง pending_out เป็น row ใน `/stock/ledger`
+- ห้ามใช้ pending_out คำนวณ WAC หรือ stock value โดยตรง
+- ห้ามให้ `SB` ตัด stock จาก warehouse อื่นโดยไม่มี release/recreate pending_out และ audit ชัดเจน
 
 ## Movement Ownership By Document
 
@@ -285,7 +285,6 @@ user-facing label:
 |---|---|
 | `PB Stock` | รับซื้อเข้า / stock in จาก `WTI` source |
 | `SB Stock` | ขายออก / stock out จาก `WTO` source |
-| `Pending Sale / PSALE` | เบิกสินค้าออกจากคลังจริงก่อนเปิด `SB`; `SB` ที่สร้างจาก `PSALE` ห้ามตัด stock ซ้ำ |
 | `Stock Transfer` | ออกจากคลังต้นทาง + เข้าคลังปลายทาง |
 | `Stock Adjust` | เพิ่มหรือลดตามผลตรวจนับ |
 | `Status Convert` | ออกจาก status เดิม + เข้าสถานะใหม่ |
@@ -305,7 +304,7 @@ user-facing label:
 
 - `WTI/WTO` เป็นเอกสารหน้างานและควบคุมการใช้ซ้ำ แต่ไม่เขียน stock movement
 - `PB/SB` เป็นจุด post stock movement เพราะเป็นเอกสารที่ล็อก billing, ราคา, costing, และ AP/AR พร้อมกันตาม legacy
-- `PSALE` เป็นข้อยกเว้นที่ถูกต้องเมื่อ stock ออกจากคลังจริงก่อน billing; target ต้องเก็บ `PSALE` ledger ไว้เป็น fact และ link ไป `SB` แทนการลบ `PSALE` แล้วสร้าง `SB` stock-out ใหม่แบบ legacy
+- `Pending Sale / PSALE` เป็น legacy flow ที่ถอดออกจาก target runtime แล้ว; flow ใหม่ต้องใช้ `WTO -> pending_out -> SB` เท่านั้น
 
 ## WTI / WTO Contract
 
@@ -313,8 +312,8 @@ user-facing label:
 
 - `WTI save` = บันทึกหลักฐานรับของจริง แต่ยังไม่เขียน stock ledger
 - `PB Stock save` = รับ stock เข้า โดยอ้าง `WTI`
-- `WTO save` = บันทึกหลักฐานส่งของจริง / intended warehouse และสร้าง active stock hold แต่ยังไม่เขียน stock ledger
-- `SB Stock save` = consume stock hold แล้วตัด stock ออกโดยอ้าง `WTO`
+- `WTO save` = บันทึกหลักฐานส่งของจริง / intended warehouse และสร้าง active `pending_out` แต่ยังไม่เขียน stock ledger
+- `SB Stock save` = consume `pending_out` แล้วตัด stock ออกโดยอ้าง `WTO`
 - `WTI/WTO` ต้องถูกใช้ครบทั้งใบใน `PB/SB` เดียว และถูก lock หลังถูกใช้
 
 ### Current state ณ 2026-06-11
@@ -333,21 +332,20 @@ user-facing label:
 - `WTI/WTO` ไม่ใช่ stock movement source of truth
 - ยังต้องตรวจ/เติมให้ `SB Stock` เป็น `sales-bill-driven stock-out` ให้ครบเหมือน legacy
 
-## Pending Sale / PSALE Contract
+## Removed Pending Sale / PSALE Contract
 
-`Pending Sale` ใช้เมื่อของถูกเบิกออกจากคลังจริงก่อนเปิดบิลขาย
+`Pending Sale / PSALE / เบิกออกรอบิล` ถูกถอดออกจาก target runtime หลังตัดสินใจให้ `WTO` เป็น pending_out source โดยตรง
 
-กติกา target:
+กติกา target ใหม่:
 
-- `PSALE save` = เขียน `stock_ledger.ref_type = PSALE`, `movement_type = PENDING_SALE_OUT`
-- `PSALE pending` = on hand ลดแล้ว แต่ยังไม่เกิด AR
-- `SB from PSALE` = สร้างลูกหนี้/AR แต่ไม่เขียน stock-out ซ้ำ
-- `PSALE converted` = เก็บ link ไป `SB` และห้ามใช้ซ้ำ
-- `PSALE cancel before SB` = append `PSALE-CANCEL`, reopen WTO hold เป็น `active`, คืน WTO เป็น `delivered`
-- `SB cancel from PSALE` = cancel `SB` แต่ reverse stock ที่เจ้าของ movement เดิม (`PSALE`) ด้วย `PSALE-CANCEL`; ห้ามเขียน `SB-CANCEL` stock row ซ้ำ
-- ห้ามลบ `PSALE` ledger ตอน convert เป็น `SB`; legacy ทำแบบนั้นและถือเป็นจุดที่ต้องปรับ
+- ห้ามสร้าง `stock_ledger.ref_type = PSALE` สำหรับเอกสารใหม่
+- ห้ามสร้าง `stock_ledger.ref_type = PSALE-CANCEL` สำหรับเอกสารใหม่
+- `/sales/stock-issue` และ `/api/sales/stock-issue` เป็น removed runtime entry point
+- `POST /api/sales/bills` ต้อง reject `pendingStockIssueId/fromPsale...`
+- ถ้าของออกก่อนเปิดบิล ให้สร้าง `WTO` ซึ่งทำให้ stock balance แสดง `รอออก`
+- เมื่อนำ WTO ไปออก Sales Bill แล้วจึงเขียน `SB` stock-out และตอนยกเลิกเขียน `SB-CANCEL`
 
-ดูรายละเอียดที่ [[Pending Sale Page Flow]]
+ดูรายละเอียด legacy ที่ [[Pending Sale Page Flow]]
 
 ## Edit And Cancel Rules
 
@@ -371,8 +369,7 @@ user-facing label:
 - ถ้า `WTO` ถูกใช้ใน active `SB` แล้ว ต้อง lock edit/cancel ของ `WTO`
 - ถ้า `PB/SB` ถูกแก้หรือยกเลิก ต้อง reverse/rebuild movement ของ `PB/SB` และ release/recalc usage ของ `WTI/WTO`
 - การแก้หรือยกเลิก `WTI/WTO` ที่ยังไม่ถูกใช้ ไม่ต้อง reverse stock เพราะยังไม่มี stock movement ที่เอกสารนั้นสร้าง
-- ถ้า `PSALE` ยังไม่ converted แล้วถูกแก้/ยกเลิก ต้อง reverse/rebuild `PSALE` movement ใน transaction
-- ถ้า `PSALE` converted เป็น `SB` แล้ว ต้อง lock edit/cancel ของ `PSALE`; การยกเลิก `SB` ต้อง reverse `PSALE` ด้วย `PSALE-CANCEL`, reopen WTO hold, และไม่สร้าง `SB-CANCEL` stock row
+- PSALE legacy rows ที่ยังมีในฐานข้อมูลต้องถูกจัดการเป็น data repair/legacy migration แยก ไม่ใช่ runtime flow ปกติ
 
 ## Ref Type / Movement Type Principle
 
@@ -386,7 +383,7 @@ user-facing label:
 - `WTO`
 - `PB`
 - `SB`
-- `PSALE`
+- `PSALE` (legacy ref type only; no new target write)
 - `ST`
 - `SA`
 - `SC`
@@ -439,7 +436,7 @@ user-facing label:
 ใช้ตอบคำถาม:
 
 - ตอนนี้เหลือเท่าไร
-- ถูกจองไว้เท่าไร
+- รอออกเท่าไร
 - พร้อมใช้/พร้อมส่งเท่าไร
 - เหลือที่สาขาไหน
 - เหลือที่คลังไหน
@@ -459,8 +456,8 @@ user-facing label:
 
 - dedicated allocation tables ของ SB/PO Sell/Spot Sale/Customer advance ต้องแยกจาก JSON snapshot อย่างไร
 - reconciliation UI/report ที่เพิ่มแล้วต้องมี browser QA และ test dataset สำหรับ:
-  - WTI/WTO holds
-  - PB/SB/PSALE/PI/PO2 source docs
+  - WTI/WTO pending_out
+  - PB/SB/PI/PO2 source docs
   - stock_ledger
   - stock balance
 

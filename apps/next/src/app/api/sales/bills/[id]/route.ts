@@ -8,8 +8,7 @@ import { appendSalesBillStatusLog, SALES_BILL_STATUS_ACTION } from '@/lib/server
 import { getSalesBillDetail } from '@/lib/server/sales-bill-detail'
 import { activeSalesReceiptCount, isSalesBillActiveForCancel } from '@/lib/server/sales-bill-cancel-policy'
 import { reversePoSellUsage } from '@/lib/server/sales-bill-po-sell-reversal'
-import { appendStockIssueStatusLog, STOCK_ISSUE_STATUS_ACTION } from '@/lib/server/stock-issue-history'
-import { reopenConsumedWtoStockHoldsForSalesBill, reversePendingSaleStockIssue, WtoStockHoldError } from '@/lib/server/stock-holds'
+import { reopenConsumedWtoStockHoldsForSalesBill, WtoStockHoldError } from '@/lib/server/stock-holds'
 import {
   correctTradingAllocationsSchema as tradingCorrectionSchema,
   correctTradingSalesBillAllocations as runTradingSalesBillAllocationCorrection,
@@ -126,56 +125,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       })
 
       if (convertedStockIssue) {
-        const holds = await reversePendingSaleStockIssue(tx, {
-          actor,
-          cancelDate: normalizeDate(cancelledAt.toISOString().slice(0, 10)),
-          note: values.note,
-          stockIssueDocNo: convertedStockIssue.doc_no,
-        })
-        const ticketIds = [...new Set(holds.map((hold) => hold.weight_ticket_id))]
-        await Promise.all(ticketIds.map(async (ticketId) => {
-          const ticket = await tx.weight_tickets.findUnique({ select: { status: true }, where: { id: ticketId } })
-          if (!ticket) return
-          await tx.weight_tickets.update({
-            data: {
-              status: 'delivered',
-              updated_at: cancelledAt,
-              updated_by: actor,
-            },
-            where: { id: ticketId },
-          })
-          await appendWeightTicketStatusLog(tx, {
-            action: WEIGHT_TICKET_STATUS_ACTION.USAGE_STATUS_CHANGED,
-            actor,
-            createdAt: cancelledAt,
-            fromStatus: ticket.status,
-            meta: { reason: 'sales_bill_cancel_from_pending_sale', salesBillDocNo: bill.doc_no, stockIssueDocNo: convertedStockIssue.doc_no },
-            note: values.note,
-            toStatus: 'delivered',
-            weightTicketId: ticketId,
-          })
-        }))
-        await tx.stock_issues.update({
-          data: {
-            notes: values.note,
-            status: 'cancelled',
-          },
-          where: { id: convertedStockIssue.id },
-        })
-        await appendStockIssueStatusLog(tx, {
-          action: STOCK_ISSUE_STATUS_ACTION.CANCELLED,
-          actor,
-          createdAt: cancelledAt,
-          fromStatus: convertedStockIssue.status,
-          meta: {
-            reason: 'sales_bill_cancel_from_pending_sale',
-            reverseRefType: 'PSALE-CANCEL',
-            salesBillDocNo: bill.doc_no,
-          },
-          note: values.note,
-          stockIssueId: convertedStockIssue.id,
-          toStatus: 'cancelled',
-        })
+        throw new Error(`บิลขายนี้อ้างอิง flow เบิกออกรอบิลเดิม (${convertedStockIssue.doc_no}) ซึ่งถูกยกเลิกแล้ว ต้องแก้ข้อมูล legacy ก่อนยกเลิก`)
       } else {
         const usageLogs = await tx.weight_ticket_usage_logs.findMany({
           where: {

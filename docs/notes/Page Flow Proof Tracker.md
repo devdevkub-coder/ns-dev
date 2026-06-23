@@ -61,12 +61,12 @@ P0 ทำ proof กับ current code/API แล้ว ดู [[P0 Transaction 
 | `/daily/expense` | ค่าใช้จ่าย | EXP approval/direct payment, VAT/WHT | [[page-flows/daily-transactions-daily-expense]] |
 | `/daily/transfer` | โอนเงินระหว่างบัญชี | paired bank statement movements | [[page-flows/daily-transactions-daily-transfer]] |
 | `/daily/petty-advance` | เงินสำรองจ่าย / กู้กรรมการ | PADV/PRET/BST timing | [[page-flows/finance-debt-daily-petty-advance]] |
-| `/daily/weight-ticket-list` | รายการใบรับ-ส่งของ | WTI/WTO usage lock, evidence, hold gap | [[page-flows/daily-transactions-daily-weight-ticket-list]] |
+| `/daily/weight-ticket-list` | รายการใบรับ-ส่งของ | WTI/WTO usage lock, evidence, pending_out gap | [[page-flows/daily-transactions-daily-weight-ticket-list]] |
 | `/sales/po-sell` | PO Sell | POS commitment/allocation | [[page-flows/daily-transactions-sales-po-sell]] |
-| `/sales/bills` | บิลขาย | SB owns AR + stock-out + POS/WTO/PSALE usage | [[page-flows/daily-transactions-sales-bills]] |
+| `/sales/bills` | บิลขาย | SB owns AR + stock-out + POS/WTO usage | [[page-flows/daily-transactions-sales-bills]] |
 | `/sales/receipts` | รับเงิน Customer | RCP, bank statement, AR settlement | [[page-flows/daily-transactions-sales-receipts]] |
-| `/sales/stock-issue` | เบิกออกรอบิล | PSALE stock-out before SB | [[page-flows/daily-transactions-sales-stock-issue]] |
-| `/stock/balance` | สต๊อกคงเหลือ | on hand / hold / available model | [[page-flows/stock-stock-balance]] |
+| `/sales/stock-issue` | เบิกออกรอบิล | removed target flow; legacy PSALE reference only | [[page-flows/daily-transactions-sales-stock-issue]] |
+| `/stock/balance` | สต๊อกคงเหลือ | on hand / pending_out / available model | [[page-flows/stock-stock-balance]] |
 | `/stock/ledger` | Stock Ledger | stock movement source of truth | [[page-flows/stock-stock-ledger]] |
 | `/stock/transfer` | โอนสินค้าระหว่างสาขา | paired stock movement | [[page-flows/stock-stock-transfer]] |
 | `/stock/status-convert` | ปรับสถานะสินค้า | status bucket movement | [[page-flows/stock-stock-status-convert]] |
@@ -147,8 +147,8 @@ Admin/System proof notes:
 Proof coverage ครบทุกกลุ่มแล้ว รอบถัดไปควรเริ่ม runtime hardening จาก P0 ตามลำดับนี้:
 
 1. `/sales/bills` stock-out + WTO usage/lock reconciliation
-2. `/sales/stock-issue` PSALE write/convert/reversal contract
-3. `/stock/balance` hold-aware availability source
+2. replace legacy `/sales/stock-issue` PSALE QA/report references with WTO-backed SB coverage
+3. `/stock/balance` pending_out-aware availability source
 4. `/purchase/bills` append/reversal hardening review
 5. `/daily/payment-approval` + `/purchase/payments` cancellation/payment-cycle lock review
 

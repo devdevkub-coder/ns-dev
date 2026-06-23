@@ -1,10 +1,10 @@
 import type { Metadata } from 'next'
-import { TransactionBillsPageClient } from '@/components/daily/TransactionBillsPageClient'
+import { notFound } from 'next/navigation'
 
 export const metadata: Metadata = {
-  title: 'เบิกออกรอบิล | NS Scrap ERP',
+  title: 'ไม่พบหน้า | NS Scrap ERP',
 }
 
 export default function SalesStockIssuePage() {
-  return <TransactionBillsPageClient mode="stock-issue" />
+  notFound()
 }
