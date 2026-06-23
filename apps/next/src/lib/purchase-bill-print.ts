@@ -93,7 +93,7 @@ function totalsByUnit(bill: PurchaseBillDetail) {
 export function buildPurchaseBillPrintHtml(bill: PurchaseBillDetail, profile: CompanyProfilePrintValues) {
   const logoHtml = profile.logoUrl ? `<img class="logo" src="${escapeHtml(profile.logoUrl)}" alt="Company logo">` : '<div class="logo no-logo">ไม่มีข้อมูล</div>'
   const cancelled = ['cancelled', 'cancelled_supplier_swap'].includes(bill.status)
-  const title = 'ใบรับสินค้า / บิลรับซื้อ'
+  const title = 'บิลรับซื้อ'
   const totals = totalsByUnit(bill)
   const totalSummaryText = totals.map((item) => `${money(item.qty)} ${item.unit}`).join(' / ') || '-'
   const grossSummaryText = totals.map((item) => `${money(item.grossWeight)} ${item.unit}`).join(' / ') || '-'

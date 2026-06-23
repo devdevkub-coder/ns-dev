@@ -120,7 +120,7 @@ function pct(grossProfit: number, revenue: number) {
 }
 
 export async function buildDualCostingManagement() {
-  const [salesBills, tradingDeals, products, poSells, productionOrders] = await Promise.all([
+  const [salesBills, tradingDeals, products, poSells, productionOrders, tradingAllocationFacts] = await Promise.all([
     prisma.sales_bills.findMany({
       include: {
         branches: true,
@@ -171,13 +171,41 @@ export async function buildDualCostingManagement() {
       where: {
         NOT: { status: 'Cancelled' }
       }
+    }),
+    prisma.trading_allocation_facts.findMany({
+      where: { status: 'active' },
+      take: 10000,
     })
   ])
 
   const productById = new Map(products.map((product) => [String(product.id), { ...product, code: product.code }]))
   const productByCode = new Map(Array.from(productById.values()).map((product) => [product.code, product]))
   const matchedBySaleProduct = new Map<string, { cost: number; qty: number; revenue: number }>()
-  tradingDeals.filter((deal) => !isCancelled(deal.status)).forEach((deal) => {
+
+  // Process active allocation facts first
+  tradingAllocationFacts.forEach((fact) => {
+    if (fact.status !== 'active') return
+    if (!fact.sales_bill_id || !fact.product_id) return
+    const key = `${fact.sales_bill_id}|${fact.product_id}`
+    const current = matchedBySaleProduct.get(key) ?? { cost: 0, qty: 0, revenue: 0 }
+    current.cost += toNumber(fact.matched_cogs)
+    current.qty += toNumber(fact.qty)
+    current.revenue += toNumber(fact.sales_amount)
+    matchedBySaleProduct.set(key, current)
+  })
+
+  // Track deal IDs covered by active facts
+  const accountedDealIds = new Set<bigint>()
+  tradingAllocationFacts.forEach((fact) => {
+    if (fact.status === 'active' && fact.trading_deal_id) {
+      accountedDealIds.add(fact.trading_deal_id)
+    }
+  })
+
+  // Process active deals not covered by facts
+  tradingDeals.forEach((deal) => {
+    if (isCancelled(deal.status)) return
+    if (accountedDealIds.has(deal.id)) return
     if (!deal.sales_bill_id || !deal.product_id) return
     const key = `${deal.sales_bill_id}|${deal.product_id}`
     const current = matchedBySaleProduct.get(key) ?? { cost: 0, qty: 0, revenue: 0 }
@@ -274,25 +302,24 @@ export async function buildDualCostingManagement() {
   })
 
   // Map PO Sells to waitingPoSellRows
-  const salesBillIdsByPoSellId = new Map<bigint, Set<bigint>>()
+  const salesBillIdToPoSellId = new Map<bigint, bigint>()
   salesBills.forEach((bill) => {
-    if (!bill.po_sell_id) return
-    const current = salesBillIdsByPoSellId.get(bill.po_sell_id) ?? new Set<bigint>()
-    current.add(bill.id)
-    salesBillIdsByPoSellId.set(bill.po_sell_id, current)
+    if (bill.po_sell_id) {
+      salesBillIdToPoSellId.set(bill.id, bill.po_sell_id)
+    }
   })
 
-  const matchedQtyByPoSellId = new Map<bigint, number>()
-  poSells.forEach((po) => {
-    const billIds = salesBillIdsByPoSellId.get(po.id) ?? new Set<bigint>()
-    let matchedQty = 0
-    tradingDeals.forEach((deal) => {
-      if (deal.sales_bill_id && billIds.has(deal.sales_bill_id) && !isCancelled(deal.status)) {
-        matchedQty += toNumber(deal.matched_qty)
-      }
-    })
-    matchedQtyByPoSellId.set(po.id, matchedQty)
-  })
+  // Group matched quantities by po_sell_id AND product_id
+  const matchedQtyByPoSellProduct = new Map<string, number>() // key: `${po_sell_id}|${product_id}`
+  for (const [saleProductKey, val] of matchedBySaleProduct.entries()) {
+    const [salesBillIdStr, productIdStr] = saleProductKey.split('|')
+    const salesBillId = BigInt(salesBillIdStr)
+    const poSellId = salesBillIdToPoSellId.get(salesBillId)
+    if (poSellId) {
+      const key = `${poSellId}|${productIdStr}`
+      matchedQtyByPoSellProduct.set(key, (matchedQtyByPoSellProduct.get(key) ?? 0) + val.qty)
+    }
+  }
 
   const waitingPoSellRows: WaitingAllocationRow[] = []
   poSells.forEach((po) => {
@@ -303,7 +330,6 @@ export async function buildDualCostingManagement() {
       productId: string
       productName: string
       qty: number
-      remainingQty: number
       unitPrice: number
       metalGroup: string
     }> = []
@@ -333,7 +359,6 @@ export async function buildDualCostingManagement() {
             productId: resolvedCode,
             productName: resolvedCode ? `${resolvedCode} - ${name}` : name,
             qty: jsonNumber(item.qty),
-            remainingQty: jsonNumber(item.remainingQty ?? item.qty),
             unitPrice: jsonNumber(item.unitPrice ?? po.unit_price),
             metalGroup: product?.metal_group ?? fallbackProduct?.metal_group ?? '',
           }
@@ -344,20 +369,25 @@ export async function buildDualCostingManagement() {
         productId: fallbackProduct?.code ?? '',
         productName: fallbackProduct ? `${fallbackProduct.code} - ${fallbackProduct.name}` : '-',
         qty: jsonNumber(po.qty),
-        remainingQty: jsonNumber(po.remaining_qty ?? po.qty),
         unitPrice: jsonNumber(po.unit_price),
         metalGroup: fallbackProduct?.metal_group ?? '',
       }]
     }
 
-    const matchedQty = matchedQtyByPoSellId.get(po.id) ?? 0
-
     items.forEach((item) => {
       if (!isDualCostingGroup(item.metalGroup)) return
 
       const qty = item.qty
+      const productObj = productByCode.get(item.productId) ?? fallbackProduct
+      const productIdBigInt = productObj?.id ?? null
+
+      let matchedQty = 0
+      if (productIdBigInt) {
+        matchedQty = matchedQtyByPoSellProduct.get(`${po.id}|${productIdBigInt}`) ?? 0
+      }
+
       const allocatedQty = Math.min(qty, matchedQty)
-      const remainingQty = Math.max(0, item.remainingQty - allocatedQty)
+      const remainingQty = Math.max(0, qty - allocatedQty)
       if (remainingQty <= 0.001) return
 
       waitingPoSellRows.push({
