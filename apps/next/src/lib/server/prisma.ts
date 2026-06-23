@@ -41,6 +41,16 @@ function hasExpectedDelegates(client: PrismaClient) {
   const hasPaymentMethodTypeField = paymentMethodFields.includes('type')
   const companyProfileFields = runtimeModels?.company_profiles?.fields?.map((field) => field.name) ?? []
   const hasCompanyProfileBranchIdField = companyProfileFields.includes('branch_id')
+  const appUserFields = runtimeModels?.app_users?.fields?.map((field) => field.name) ?? []
+  const hasAppUserProfileFields = [
+    'name_prefix',
+    'first_name',
+    'last_name',
+    'profile_image_url',
+    'contact_phone',
+    'contact_line_id',
+    'contact_note',
+  ].every((field) => appUserFields.includes(field))
 
   return typeof clientRecord.weight_ticket_product_summaries?.createMany === 'function'
     && typeof clientRecord.weight_ticket_product_summary_lines?.createMany === 'function'
@@ -62,7 +72,10 @@ function hasExpectedDelegates(client: PrismaClient) {
     && typeof clientRecord.receipt_voucher_status_logs?.createMany === 'function'
     && typeof clientRecord.stock_holds?.findMany === 'function'
     && typeof clientRecord.stock_issue_status_logs?.createMany === 'function'
+    && typeof clientRecord.system_settings?.findMany === 'function'
+    && typeof clientRecord.line_groups?.findMany === 'function'
     && hasAccountSubtypeField
+    && hasAppUserProfileFields
     && hasCompanyProfileBranchIdField
     && hasPaymentMethodTypeField
 }
