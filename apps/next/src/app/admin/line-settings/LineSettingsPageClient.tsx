@@ -41,6 +41,7 @@ export function LineSettingsPageClient() {
   const [isSaving, setIsSaving] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
   const [isTestingOA, setIsTestingOA] = useState(false)
+  const [isTestingWebhook, setIsTestingWebhook] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [message, setMessage] = useState<string | null>(null)
@@ -207,6 +208,35 @@ export function LineSettingsPageClient() {
     }
   }
 
+  async function testWebhookSimulation() {
+    setError(null)
+    setMessage(null)
+
+    if (!form.lineChannelSecret) {
+      setError('กรุณากรอก LINE Channel Secret ก่อนทดสอบ')
+      return
+    }
+
+    setIsTestingWebhook(true)
+    try {
+      const res = await fetch('/api/admin/line-settings/test-webhook', {
+        method: 'POST',
+      })
+
+      const body = await res.json().catch(() => ({}))
+
+      if (!res.ok || body.ok === false) {
+        throw new Error(body.message || body.error || 'การตอบสนองจากเซิร์ฟเวอร์ผิดพลาด')
+      }
+
+      setMessage(`✅ ${body.message}`)
+    } catch (caught) {
+      setError(getErrorMessage(caught, 'ทดสอบจำลอง Webhook ล้มเหลว'))
+    } finally {
+      setIsTestingWebhook(false)
+    }
+  }
+
   const handleGroupSelect = (val: string) => {
     setMessage(null)
     if (val === 'manual') {
@@ -335,6 +365,26 @@ export function LineSettingsPageClient() {
                       {showSecret ? '🐵' : '🙈'}
                     </button>
                   </div>
+                  
+                  {/* ปุ่มทดสอบจำลอง Webhook */}
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      className="px-3 py-1.5 text-xs font-semibold text-[#0284c7] border border-[#bae6fd] hover:bg-[#f0f9ff] rounded-lg transition focus:outline-none h-8 flex items-center gap-1 disabled:opacity-60"
+                      onClick={() => void testWebhookSimulation()}
+                      disabled={isLoading || isSaving || isTesting || isTestingOA || isTestingWebhook}
+                    >
+                      {isTestingWebhook ? (
+                        <>
+                          <div className="h-3 w-3 animate-spin rounded-full border-2 border-[#7dd3fc] border-t-[#0284c7]" />
+                          <span>กำลังจำลองส่ง...</span>
+                        </>
+                      ) : (
+                        <span>🔌 ทดสอบจำลอง Webhook (ขารับ)</span>
+                      )}
+                    </button>
+                  </div>
+
                   {fieldErrors.lineChannelSecret ? (
                     <p className="text-xs text-red-600">{fieldErrors.lineChannelSecret}</p>
                   ) : null}
@@ -496,7 +546,7 @@ export function LineSettingsPageClient() {
                 type="button"
                 className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition focus:outline-none h-10"
                 onClick={() => void loadData()}
-                disabled={isLoading || isSaving || isTesting || isTestingOA}
+                disabled={isLoading || isSaving || isTesting || isTestingOA || isTestingWebhook}
               >
                 โหลดใหม่
               </button>
@@ -505,7 +555,7 @@ export function LineSettingsPageClient() {
                 type="button"
                 className="px-4 py-2 text-sm font-semibold text-emerald-600 border border-emerald-600 hover:bg-emerald-50 rounded-lg transition focus:outline-none h-10 flex items-center justify-center disabled:opacity-60"
                 onClick={() => void handleTestSend()}
-                disabled={isLoading || isSaving || isTesting || isTestingOA}
+                disabled={isLoading || isSaving || isTesting || isTestingOA || isTestingWebhook}
               >
                 {isTesting ? (
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600" />
@@ -518,7 +568,7 @@ export function LineSettingsPageClient() {
                 type="button"
                 className="px-6 py-2 text-sm font-bold text-white bg-[#0F172A] hover:bg-[#1E293B] rounded-lg transition disabled:opacity-60 focus:outline-none h-10 flex items-center justify-center min-w-[100px]"
                 onClick={() => void save()}
-                disabled={isLoading || isSaving || isTesting || isTestingOA}
+                disabled={isLoading || isSaving || isTesting || isTestingOA || isTestingWebhook}
               >
                 {isSaving ? (
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-white" />
