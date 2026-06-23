@@ -27,7 +27,9 @@ export function AppNavigation({ compact = false, onNavigate }: AppNavigationProp
   const activePathname = sidebarNavigationPath(pathname)
   const navRef = useRef<HTMLElement | null>(null)
   const hasRestoredScrollRef = useRef(false)
+  const manualSectionSelectionRef = useRef(false)
   const suppressScrollSaveRef = useRef(false)
+  const lastActivePathnameRef = useRef(activePathname)
   const [authContext, setAuthContext] = useState<{ isAdmin: boolean; permissions: string[] } | null>(null)
   const [expandedMenu, setExpandedMenu] = useState<string | null>(null)
   const [expandedSection, setExpandedSection] = useState<NavigationSectionKey | null>(null)
@@ -72,6 +74,13 @@ export function AppNavigation({ compact = false, onNavigate }: AppNavigationProp
       .filter((item) => canAccessPath(item.href, authContext) || Boolean(item.children?.length))
   }, [authContext])
   useEffect(() => {
+    if (lastActivePathnameRef.current !== activePathname) {
+      lastActivePathnameRef.current = activePathname
+      manualSectionSelectionRef.current = false
+    }
+
+    if (manualSectionSelectionRef.current) return
+
     const activeItem = visibleItems.find((item) => {
       if (isNavigationPathActive(activePathname, item.href)) return true
       return item.children?.some((child) => isNavigationPathActive(activePathname, child.href)) ?? false
@@ -144,6 +153,7 @@ export function AppNavigation({ compact = false, onNavigate }: AppNavigationProp
   }
 
   function toggleSection(sectionKey: NavigationSectionKey) {
+    manualSectionSelectionRef.current = true
     setExpandedSection((current) => current === sectionKey ? null : sectionKey)
     setExpandedMenu(null)
   }
