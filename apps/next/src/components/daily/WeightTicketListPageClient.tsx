@@ -191,7 +191,7 @@ export function WeightTicketListPageClient() {
 
     async function loadBranches() {
       try {
-        const response = await fetch('/api/branches', { cache: 'no-store' })
+        const response = await fetch('/api/daily/weight-tickets/options', { cache: 'no-store' })
         if (!response.ok) return
         const data = await response.json() as { branches?: Array<{ code?: string | null; id: string; name: string }> }
         const nextBranches = (data.branches ?? []).map((branch) => ({
