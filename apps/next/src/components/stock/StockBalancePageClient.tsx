@@ -151,9 +151,6 @@ export function StockBalancePageClient() {
   const filteredRows = useMemo(() => {
     return (data?.rows ?? [])
       .filter((row) => !group || row.productMetalGroup === group)
-  const filteredRows = useMemo(() => {
-    return (data?.rows ?? [])
-      .filter((row) => !group || row.productMetalGroup === group)
   }, [data?.rows, group])
 
   const displayRows = useMemo<DisplayBalanceRow[]>(() => {
@@ -446,13 +443,6 @@ export function StockBalancePageClient() {
               <option value="">ทุกสาขา</option>
               {data?.reference.branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
-          </div>              />
-            </div>
-            {group ? (
-              <button className="flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 outline-none transition-colors hover:bg-slate-50 focus:ring-0" type="button" onClick={() => setGroup('')}>
-                ✕
-              </button>
-            ) : null}
           </div>
         </div>
 
@@ -1103,7 +1093,6 @@ function MatrixTable({ byStatus, isLoading, matrixRows, totalMatrixRows, totalQt
           <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-700">
             {isLoading ? <tr><td className="p-8 text-center text-slate-400" colSpan={9}>กำลังโหลดข้อมูล</td></tr> : null}
             {!isLoading && matrixRows.map((row) => (
-            {!isLoading && matrixRows.map((row) => (
               <Fragment key={row.group}>
                 <tr className="bg-slate-50/70 transition-colors hover:bg-slate-100/70">
                   <td className="p-3.5 text-slate-850">
@@ -1197,7 +1186,7 @@ function MatrixTable({ byStatus, isLoading, matrixRows, totalMatrixRows, totalQt
                   </tr>
                 ))}
               </Fragment>
-            ))            ))}
+            ))}
             {!isLoading && matrixRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={9}>ไม่มีสต๊อก</td></tr> : null}
           </tbody>
           {matrixRows.length ? (
@@ -1385,7 +1374,8 @@ const detailColumns: Array<ResizableColumnDefinition<string>> = [
 ]
 
 function DetailTable({ isLoading, onOpen, rows }: { isLoading: boolean; onOpen: (row: BalanceRow) => void; rows: DisplayBalanceRow[] }) {
-  const columnResize = useResizableColumns('stock.balance.detail.v5', detailColumns)  return (
+  const columnResize = useResizableColumns('stock.balance.detail.v5', detailColumns)
+  return (
     <>
       {/* Mobile View */}
       <div className="block lg:hidden space-y-3">
