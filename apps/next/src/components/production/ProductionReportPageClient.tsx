@@ -138,6 +138,8 @@ const machineColumns: Array<ResizableColumnDefinition<string>> = [
   { key: 'totalCost', defaultWidth: 120 },
 ]
 
+const emptyColumns: Array<ResizableColumnDefinition<string>> = []
+
 export function ProductionReportPageClient({ mode }: { mode: keyof typeof configs }) {
   const config = configs[mode]
   const wipResize = useResizableColumns('production.report.wip.v5', wipColumns)
@@ -145,7 +147,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
   const costResize = useResizableColumns('production.report.cost.v5', costColumns)
   const yieldLossResize = useResizableColumns('production.report.yieldLoss.v5', yieldLossColumns)
   const machineResize = useResizableColumns('production.report.machine.v5', machineColumns)
-  const dummyResize = useResizableColumns('production.report.dummy.v5', [])
+  const dummyResize = useResizableColumns('production.report.dummy.v5', emptyColumns)
   const columnResize = mode === 'wip' ? wipResize : mode === 'report' ? reportResize : mode === 'cost' ? costResize : mode === 'yieldLoss' ? yieldLossResize : mode === 'machine' ? machineResize : dummyResize
   const [data, setData] = useState<Payload | null>(null)
   const [dateFrom, setDateFrom] = useState('')

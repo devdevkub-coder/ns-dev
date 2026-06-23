@@ -411,19 +411,19 @@ export function WeightTicketDetailModal({
                       <div key={event.id} className="p-4 space-y-2">
                         <div className="flex justify-between items-start gap-2">
                           <div>
-                            <div className="font-semibold text-slate-800 text-sm">{usageActionLabel(event.action)}</div>
-                            <div className="text-[10px] text-slate-400">{formatDateTime(event.createdAt)}</div>
+                            <div className="font-bold text-slate-800 text-base">{usageActionLabel(event.action)}</div>
+                            <div className="text-xs text-slate-400">{formatDateTime(event.createdAt)}</div>
                           </div>
                           <div className="text-right">
-                            <span className={cn('text-xs font-semibold block', usageWeightClass(event.action))}>
+                            <span className={cn('text-sm font-bold block', usageWeightClass(event.action))}>
                               {usageWeightLabel(event.action, event.allocatedNetWeight)}
                             </span>
                             {event.toRemainingWeight != null && (
-                              <span className="text-[10px] text-slate-400">คงเหลือ: {formatWeight(event.toRemainingWeight)} กก.</span>
+                              <span className="text-xs text-slate-500 font-medium">คงเหลือ: {formatWeight(event.toRemainingWeight)} กก.</span>
                             )}
                           </div>
                         </div>
-                        <div className="text-xs text-slate-600 space-y-1 pt-1.5 border-t border-slate-100/50">
+                        <div className="text-sm text-slate-700 space-y-1.5 pt-1.5 border-t border-slate-100/50">
                           <div><span className="text-slate-400">สินค้า:</span> {event.productName} {event.productCode ? `(${event.productCode})` : ''}</div>
                           {event.targetDocNo && (
                             <div>
@@ -435,7 +435,7 @@ export function WeightTicketDetailModal({
                             </div>
                           )}
                           <div><span className="text-slate-400">ผู้ทำรายการ:</span> {event.createdBy || '-'}</div>
-                          {event.note && <div className="text-xs text-slate-500 bg-slate-50 p-2 rounded mt-1">หมายเหตุ: {event.note}</div>}
+                          {event.note && <div className="text-sm text-slate-600 bg-slate-50 p-2.5 rounded mt-1">หมายเหตุ: {event.note}</div>}
                         </div>
                       </div>
                     ))}
@@ -469,12 +469,12 @@ export function WeightTicketDetailModal({
                     <div key={event.id} className="grid grid-cols-[88px_1fr] gap-3 sm:grid-cols-[128px_1fr]">
                       <div className="pt-1 text-right text-xs text-slate-500">
                         <div>{formatDateTime(event.occurredAt)}</div>
-                        <div className="mt-1 truncate text-[11px]">{event.actorName}</div>
+                        <div className="mt-1 truncate text-xs font-medium text-slate-600">{event.actorName}</div>
                       </div>
                       <div className="relative border-l border-slate-200 pb-4 pl-4 last:pb-0">
                         <span className={`absolute -left-1.5 top-1 h-3 w-3 rounded-full border-2 border-white ${timelineDotClass(event.action, isLatest)}`} />
                         <div className="flex flex-wrap items-center gap-2">
-                          <div className="text-sm font-medium text-slate-800">{timelineLabel(event.eventKey, event.action)}</div>
+                          <div className="text-base font-bold text-slate-800">{timelineLabel(event.eventKey, event.action)}</div>
                           {toStatus ? (
                             <span className={cn('inline-flex items-center gap-1.5 text-xs font-semibold', weightTicketStatusBadgeClass(ticket.type, toStatus as WeightTicketStatus))}>
                               <span className="size-1.5 rounded-full bg-current" />
@@ -483,11 +483,11 @@ export function WeightTicketDetailModal({
                           ) : null}
                         </div>
                         {fromStatus && fromStatus !== toStatus ? (
-                          <div className="mt-1 text-xs text-slate-500">
+                          <div className="mt-1 text-sm text-slate-500">
                             เปลี่ยนสถานะจาก {timelineStatusLabel(ticket.type, fromStatus)}
                           </div>
                         ) : null}
-                        <div className="mt-2 grid gap-1 rounded-md bg-white px-3 py-2 text-xs text-slate-600 shadow-sm border border-slate-100">
+                        <div className="mt-2 grid gap-1.5 rounded-md bg-white px-3 py-2.5 text-sm text-slate-600 shadow-sm border border-slate-100">
                           {targetDocNo || productName || allocatedNetWeight != null ? (
                             <div className="flex flex-wrap gap-x-4 gap-y-1">
                               {targetDocNo ? (
@@ -653,7 +653,7 @@ export function WeightTicketDetailModal({
 function SectionTitle({ subtitle, title }: { subtitle: string; title: string }) {
   return (
     <div>
-      <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+      <h2 className="text-lg font-bold text-slate-900">{title}</h2>
       <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
     </div>
   )
@@ -662,8 +662,8 @@ function SectionTitle({ subtitle, title }: { subtitle: string; title: string }) 
 function MetricCard({ className, icon, label, value }: { className?: string; icon: ReactNode; label: string; value: string }) {
   return (
     <div className={cn("rounded-md border border-slate-200 bg-white px-4 py-4 shadow-sm", className)}>
-      <div className="flex items-center gap-2 text-xs uppercase text-slate-500">{icon}{label}</div>
-      <div className="mt-2 text-lg font-semibold tabular-nums text-slate-950">{value}</div>
+      <div className="flex items-center gap-2 text-sm font-semibold uppercase text-slate-500">{icon}{label}</div>
+      <div className="mt-2 text-lg font-bold tabular-nums text-slate-950">{value}</div>
     </div>
   )
 }
@@ -671,8 +671,8 @@ function MetricCard({ className, icon, label, value }: { className?: string; ico
 function DetailItem({ label, value, valueClassName }: { label: string; value: string; valueClassName?: string }) {
   return (
     <div>
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className={cn('mt-1 text-sm font-medium text-slate-900', valueClassName)}>{value}</div>
+      <div className="text-sm font-medium text-slate-500">{label}</div>
+      <div className={cn('mt-1 text-base font-semibold text-slate-900', valueClassName)}>{value}</div>
     </div>
   )
 }

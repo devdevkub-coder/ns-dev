@@ -159,8 +159,8 @@ export function parseWeightTicketQuery(url: URL): WeightTicketQuery {
     page: Math.max(1, Number(url.searchParams.get('page') ?? 1) || 1),
     pageSize: Math.min(100, Math.max(10, Number(url.searchParams.get('pageSize') ?? 10) || 10)),
     search: url.searchParams.get('search')?.trim() || undefined,
-    sortBy: validSortBys.includes(sortBy ?? '') ? (sortBy as WeightTicketQuery['sortBy']) : 'createdAt',
-    sortDir: sortDir === 'asc' ? 'asc' : 'desc',
+    sortBy: validSortBys.includes(sortBy ?? '') ? (sortBy as WeightTicketQuery['sortBy']) : 'documentNo',
+    sortDir: sortDir === 'desc' ? 'desc' : 'asc',
     statuses: (url.searchParams.get('status') ?? '')
       .split(',')
       .map((value) => value.trim())
