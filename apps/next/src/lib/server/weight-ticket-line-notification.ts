@@ -302,12 +302,48 @@ function buildFlexMessage(ticket: WeightTicketRecord, pdfUrl: string, detailUrl:
   }
 }
 
-async function sendLinePush(targetId: string, message: ReturnType<typeof buildFlexMessage>, token: string) {
+function buildTextMessageContent(ticket: WeightTicketRecord, pdfUrl: string) {
+  const partyLabel = ticket.type === 'WTI' ? 'ผู้ขาย' : 'ลูกค้า'
+  const typeLabel = typeLabels[ticket.type] || (ticket.type === 'WTI' ? 'ใบรับของ' : 'ใบส่งของ')
+  
+  let docDateStr = ''
+  try {
+    const date = ticket.createdAt ? new Date(ticket.createdAt) : new Date()
+    const parts = new Intl.DateTimeFormat('en-US', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'Asia/Bangkok'
+    }).formatToParts(date)
+    const byType = Object.fromEntries(parts.map(p => [p.type, p.value]))
+    const yearBE = parseInt(byType.year, 10) + 543
+    docDateStr = `${byType.day}/${byType.month}/${yearBE} ${byType.hour}:${byType.minute}`
+  } catch {
+    docDateStr = formatDateDisplay(ticket.documentDate)
+  }
+
+  return `${typeLabel} ${ticket.type} ${ticket.documentNo}
+━━━━━━━━━━━━━━━
+${partyLabel}: ${ticket.partyName}
+สาขา: ${ticket.branchName}
+วันที่/เวลาเอกสาร: ${docDateStr}
+หักภาชนะ: ${formatWeight(ticket.totals.containerDeductionWeight)} กก.
+หักสิ่งเจือปน: ${formatWeight(ticket.totals.deductionWeight)} กก.
+น้ำหนักสุทธิ: ${formatWeight(ticket.totals.netWeight)} กก.
+━━━━━━━━━━━━━━━
+ลิงค์โหลด pdf:
+${pdfUrl}`
+}
+
+async function sendLinePush(targetId: string, messages: any[], token: string) {
   if (!token) throw new Error('ยังไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN')
 
   const response = await fetch('https://api.line.me/v2/bot/message/push', {
     body: JSON.stringify({
-      messages: [message],
+      messages,
       to: targetId,
     }),
     headers: {
@@ -394,7 +430,11 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
     const uploaded = await uploadPdf(loaded.record, pdfBuffer, configs.pdfBucket)
     const detailUrl = buildDetailUrl(options.origin || configs.appUrl, loaded.record.documentNo)
     const flexMessage = buildFlexMessage(loaded.record, uploaded.pdfUrl, detailUrl, options.customMessage)
-    const lineRequestId = await sendLinePush(targetId, flexMessage, configs.lineChannelAccessToken)
+    const textMessage = {
+      type: 'text',
+      text: buildTextMessageContent(loaded.record, uploaded.pdfUrl)
+    }
+    const lineRequestId = await sendLinePush(targetId, [textMessage, flexMessage], configs.lineChannelAccessToken)
     await recordNotificationLog({
       customMessage: options.customMessage,
       lineRequestId,
