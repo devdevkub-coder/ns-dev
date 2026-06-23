@@ -51,23 +51,38 @@ export async function POST(request: Request) {
     })
     
     // Attempt local direct connection first to bypass external proxies/WAFs
-    const localPort = process.env.PORT || '3000'
-    let webhookUrl = `http://127.0.0.1:${localPort}/api/line/webhook`
-    
-    console.info('[test-webhook] Attempting local test request to:', webhookUrl)
-    
-    let response: Response
-    try {
-      response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-line-signature': signature,
-        },
-        body: rawBody,
-      })
-    } catch (localErr) {
-      console.warn('[test-webhook] Local test failed, falling back to public URL:', localErr)
+    const portsToTry = []
+    if (process.env.PORT) portsToTry.push(process.env.PORT)
+    portsToTry.push('3000', '6100') // Try default 3000 and Devkub's 6100 port
+
+    let response: Response | null = null
+    let webhookUrl = ''
+    let lastError: any = null
+
+    for (const port of portsToTry) {
+      const url = `http://127.0.0.1:${port}/api/line/webhook`
+      console.info(`[test-webhook] Attempting local test request to: ${url}`)
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-line-signature': signature,
+          },
+          body: rawBody,
+        })
+        response = res
+        webhookUrl = url
+        console.info(`[test-webhook] Local connection succeeded on port ${port} with status ${res.status}`)
+        break // Succeeded to connect (even if status is 401/400)
+      } catch (err) {
+        console.warn(`[test-webhook] Local test failed on port ${port}:`, err)
+        lastError = err
+      }
+    }
+
+    if (!response) {
+      console.warn('[test-webhook] All local port attempts failed, falling back to public URL. Error:', lastError)
       // Fallback to public URL
       let appUrl = hostConfig?.value || process.env.NEXT_PUBLIC_APP_URL || ''
       if (!appUrl) {
@@ -102,7 +117,7 @@ export async function POST(request: Request) {
     } else {
       return NextResponse.json({
         ok: false,
-        message: `ระบบตรวจสอบลายเซ็นล้มเหลว (ตอบกลับเป็น HTTP ${status})`,
+        message: `ระบบตรวจสอบลายเซ็นล้มเหลว (ตอบกลับเป็น HTTP ${status} จาก URL: ${webhookUrl}) - ลายเซ็นไม่ถูกต้องหรือ Secret ผิดพลาด`,
         webhookUrl,
         status,
         response: text,
