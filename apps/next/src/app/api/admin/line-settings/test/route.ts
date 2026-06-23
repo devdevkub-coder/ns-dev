@@ -40,6 +40,86 @@ export async function POST(request: Request) {
       throw new Error('ไม่พบข้อมูลกลุ่มไลน์ปลายทาง กรุณาเชิญบอทเข้ากลุ่มก่อนทดสอบ หรือตั้งค่า Target ID ด้วยตนเอง')
     }
 
+    const mockFlexMessage = {
+      type: 'flex',
+      altText: 'ใบรับของ WTI012606-0001 | ผู้ขาย: ร้านค้าทดสอบ (LINE Test) | สุทธิ 14,500 กก.',
+      contents: {
+        type: 'bubble',
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            { type: 'text', text: 'WTI (ใบรับของ)', weight: 'bold', size: 'sm', color: '#0f766e' },
+            { type: 'text', text: 'WTI012606-0001', weight: 'bold', size: 'lg', color: '#111827', wrap: true },
+            { type: 'text', text: '🔔 ทดสอบระบบแจ้งเตือน LINE Official Account สำเร็จ!', margin: 'sm', size: 'sm', color: '#475569', wrap: true },
+            { type: 'separator', margin: 'md' },
+            {
+              type: 'box',
+              layout: 'baseline',
+              margin: 'md',
+              contents: [
+                { type: 'text', text: 'ผู้ขาย', color: '#64748b', size: 'sm', flex: 2 },
+                { type: 'text', text: 'ร้านค้าทดสอบ (LINE Test)', color: '#111827', size: 'sm', flex: 5, wrap: true }
+              ]
+            },
+            {
+              type: 'box',
+              layout: 'baseline',
+              margin: 'sm',
+              contents: [
+                { type: 'text', text: 'สาขา', color: '#64748b', size: 'sm', flex: 2 },
+                { type: 'text', text: 'สำนักงานใหญ่ (HQ)', color: '#111827', size: 'sm', flex: 5, wrap: true }
+              ]
+            },
+            {
+              type: 'box',
+              layout: 'baseline',
+              margin: 'sm',
+              contents: [
+                { type: 'text', text: 'ทะเบียนรถ', color: '#64748b', size: 'sm', flex: 2 },
+                { type: 'text', text: 'กข 1234 กรุงเทพ', color: '#111827', size: 'sm', flex: 5, wrap: true }
+              ]
+            },
+            {
+              type: 'box',
+              layout: 'baseline',
+              margin: 'sm',
+              contents: [
+                { type: 'text', text: 'สุทธิ', color: '#64748b', size: 'sm', flex: 2 },
+                { type: 'text', text: '14,500 กก.', color: '#0f766e', size: 'md', flex: 5, weight: 'bold' }
+              ]
+            }
+          ]
+        },
+        footer: {
+          type: 'box',
+          layout: 'vertical',
+          spacing: 'sm',
+          contents: [
+            {
+              type: 'button',
+              style: 'primary',
+              color: '#0f766e',
+              action: {
+                type: 'uri',
+                label: 'เปิด PDF (ตัวอย่าง)',
+                uri: 'https://ns-dev.devkub.com'
+              }
+            },
+            {
+              type: 'button',
+              style: 'secondary',
+              action: {
+                type: 'uri',
+                label: 'เปิดในระบบ',
+                uri: 'https://ns-dev.devkub.com/daily/weight-ticket-list'
+              }
+            }
+          ]
+        }
+      }
+    }
+
     const response = await fetch('https://api.line.me/v2/bot/message/push', {
       method: 'POST',
       headers: {
@@ -48,12 +128,7 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         to: finalTargetId,
-        messages: [
-          {
-            type: 'text',
-            text: `🔔 [ระบบ NS Scrap ERP]\n\nการเชื่อมต่อระบบ LINE Notification สำเร็จเรียบร้อยแล้ว!\n\n📅 วันที่ทดสอบ: ${new Date().toLocaleString('th-TH')}`,
-          },
-        ],
+        messages: [mockFlexMessage],
       }),
     })
 
