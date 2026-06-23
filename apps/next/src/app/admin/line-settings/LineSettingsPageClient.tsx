@@ -115,7 +115,8 @@ export function LineSettingsPageClient() {
       })
       
       if (!response.ok) {
-        throw new Error('การตอบสนองจากเซิร์ฟเวอร์ผิดพลาด')
+        const body = await response.json().catch(() => ({}))
+        throw new Error(body.error || body.message || 'การตอบสนองจากเซิร์ฟเวอร์ผิดพลาด')
       }
 
       setMessage('บันทึกข้อมูลการตั้งค่า LINE สำเร็จ')
@@ -159,8 +160,8 @@ export function LineSettingsPageClient() {
       })
 
       if (!res.ok) {
-        const body = await res.json()
-        throw new Error(body.message || 'การตอบสนองจากเซิร์ฟเวอร์ผิดพลาด')
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || body.message || 'การตอบสนองจากเซิร์ฟเวอร์ผิดพลาด')
       }
 
       setMessage('🚀 ส่งข้อความทดสอบไปยัง LINE สำเร็จแล้ว! กรุณาเช็คในห้องแชทกลุ่ม LINE ของคุณ')
