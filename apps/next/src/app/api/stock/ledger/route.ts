@@ -19,7 +19,7 @@ const stockLedgerInclude = {
 } as const
 
 const ledgerQuerySchema = stockQuerySchema.extend({
-  balanceMode: z.enum(['product', 'warehouse']).default('product'),
+  balanceMode: z.enum(['product', 'warehouse']).default('warehouse'),
   direction: z.enum(['asc', 'desc']).default('desc'),
   movementType: z.preprocess(
     (value) => (typeof value === 'string' && value.trim() === '' ? null : value),

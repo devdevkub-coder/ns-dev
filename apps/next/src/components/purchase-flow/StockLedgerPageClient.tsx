@@ -92,7 +92,7 @@ type StockLedgerRow = {
 
 export function StockLedgerPageClient() {
   const latestLoadRequestRef = useRef(0)
-  const [balanceMode, setBalanceMode] = useState<'product' | 'warehouse'>('product')
+  const [balanceMode, setBalanceMode] = useState<'product' | 'warehouse'>('warehouse')
   const [branchId, setBranchId] = useState('')
   const [data, setData] = useState<StockLedgerPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -141,14 +141,7 @@ export function StockLedgerPageClient() {
     void loadData()
   }, [loadData])
 
-  useEffect(() => {
-    const savedMode = window.localStorage.getItem('ns_erp_sl_balance_mode')
-    if (savedMode === 'product' || savedMode === 'warehouse') setBalanceMode(savedMode)
-  }, [])
 
-  useEffect(() => {
-    window.localStorage.setItem('ns_erp_sl_balance_mode', balanceMode)
-  }, [balanceMode])
 
   const rows = useMemo(() => {
     return (data?.rows ?? [])
@@ -193,10 +186,7 @@ export function StockLedgerPageClient() {
     <section>
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="mb-3 flex border-b border-slate-200">
-        <LedgerViewTab active={balanceMode === 'product'} label="คงเหลือสะสมต่อสินค้า" onClick={() => { setPage(1); setBalanceMode('product') }} />
-        <LedgerViewTab active={balanceMode === 'warehouse'} label="คงเหลือสะสมต่อคลัง" onClick={() => { setPage(1); setBalanceMode('warehouse') }} />
-      </div>
+
       
       {/* Desktop Toolbar (Hidden on Mobile) */}
       <div className="hidden lg:block mb-4 space-y-3 rounded-md bg-white p-3 shadow">

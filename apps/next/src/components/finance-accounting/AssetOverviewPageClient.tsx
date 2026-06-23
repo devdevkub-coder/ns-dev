@@ -83,7 +83,7 @@ export function AssetOverviewPageClient() {
             {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
           </select>
           <button 
-            className="rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-medium text-sm px-3.5 py-1.5 outline-none border border-slate-200/80 transition-colors opacity-50 cursor-not-allowed" 
+            className="rounded-md bg-slate-900 hover:bg-slate-800 text-white font-medium text-sm px-3.5 py-1.5 outline-none border border-slate-200/80 transition-colors opacity-50 cursor-not-allowed" 
             disabled 
             type="button"
           >

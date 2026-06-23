@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { formatDateDisplay } from '@/lib/format'
 
 type AccountOption = { currency: string; id: string; label: string; name: string; type: string }
@@ -81,6 +82,13 @@ export function OverseasReceiptPageClient() {
   useEffect(() => {
     void loadData()
   }, [loadData])
+
+  const customerSearchOptions = useMemo<SearchComboboxOption[]>(() => {
+    return (data?.filters.customers ?? []).map((customer) => ({
+      id: customer.id,
+      label: customer.label || customer.name || customer.id,
+    }))
+  }, [data?.filters.customers])
 
   const selectedAccount = data?.filters.accounts.find((account) => account.id === form.receivedAccountId)
   const receivedCurrency = selectedAccount?.currency ?? form.invoiceCurrency
@@ -190,7 +198,19 @@ export function OverseasReceiptPageClient() {
                 <Field label="วันที่"><DatePickerInput className="w-full" value={form.date} onChange={(value) => setForm({ ...form, date: value })} /></Field>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
-                <Field label="Customer *"><select className="w-full rounded-md border px-2 py-1.5" value={form.customerId} onChange={(event) => setForm({ ...form, billId: '', customerId: event.target.value })}><option value="">--</option>{data?.filters.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.label}</option>)}</select></Field>
+                <Field label="Customer *">
+                  <div className="mt-1">
+                    <SearchCombobox
+                      inputId="overseas-customer-select"
+                      label="Customer"
+                      hideLabel
+                      placeholder="เลือกลูกค้า"
+                      options={customerSearchOptions}
+                      value={form.customerId}
+                      onChange={(value) => setForm({ ...form, billId: '', customerId: value })}
+                    />
+                  </div>
+                </Field>
                 <Field label="ประเทศต้นทาง"><input className="w-full rounded-md border px-2 py-1.5" value={form.payerCountry} onChange={(event) => setForm({ ...form, payerCountry: event.target.value })} /></Field>
               </div>
               <Field label="บัญชีรับเงิน *"><select className="w-full rounded-md border px-2 py-1.5" value={form.receivedAccountId} onChange={(event) => setForm({ ...form, receivedAccountId: event.target.value })}><option value="">--</option>{data?.filters.accounts.map((account) => <option key={account.id} value={account.id}>{account.label}</option>)}</select></Field>

@@ -1092,7 +1092,7 @@ function PoSellFormModal({
         </DialogHeader>
 
         <div className="space-y-4 p-5 text-sm">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="rounded-md border border-slate-200 bg-white p-4 shadow">
             <div className="mb-3 text-sm font-bold text-slate-800">ข้อมูลเอกสาร</div>
             <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
               <div className="col-span-2">
@@ -1128,7 +1128,7 @@ function PoSellFormModal({
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="rounded-md border border-slate-200 bg-white p-4 shadow">
             <div className="mb-2 flex items-center justify-between gap-3">
               <label className="font-medium text-slate-800">📋 รายการสินค้า ({form.items.length})</label>
               <UiButton className="rounded-lg bg-emerald-600 font-normal hover:bg-emerald-700 text-white transition-colors outline-none focus:ring-0" size="xs" type="button" variant="default" onClick={onAddItem}>+ เพิ่มรายการ</UiButton>
@@ -1180,7 +1180,7 @@ function PoSellFormModal({
  
            <div className="grid gap-3 grid-cols-1 md:grid-cols-[minmax(0,1fr)_320px]">
               <div className="flex flex-col gap-3">
-                <label className={`flex items-center gap-3 rounded-xl border p-3 cursor-pointer select-none transition-colors ${form.hasVat ? 'border-amber-500 bg-amber-50/50' : 'border-slate-300 bg-white'}`}>
+                <label className={`flex items-center gap-3 rounded-md border p-3 cursor-pointer select-none transition-colors ${form.hasVat ? 'border-amber-500 bg-amber-50/50' : 'border-slate-300 bg-white'}`}>
                   <input
                     checked={form.hasVat}
                     className="h-5 w-5 rounded border-slate-300 text-amber-600 focus:ring-0 outline-none"
@@ -1189,13 +1189,13 @@ function PoSellFormModal({
                   />
                   <span className="font-bold text-slate-700">มี VAT</span>
                 </label>
-                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex-1 flex flex-col">
+                <div className="rounded-md border border-slate-200 bg-white p-4 shadow flex-1 flex flex-col">
                   <label className="mb-1 block text-xs font-medium text-slate-600">หมายเหตุ</label>
                   <textarea className="min-h-16 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus-visible:outline-none focus:border-slate-400 focus:ring-0 outline-none transition-colors flex-1" rows={2} value={form.note ?? ''} onChange={(event) => onUpdate('note', event.target.value || null)} />
                   {fieldError('note')}
                 </div>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 shadow-sm flex flex-col justify-center">
+              <div className="rounded-md border border-slate-200 bg-slate-50/50 p-4 shadow flex flex-col justify-center">
                 <SummaryLine label="จำนวนรวม" value={`${formatMoney(totalQty)} กก.`} />
                 <SummaryLine label="ยอดก่อน VAT" value={formatMoney(subtotal)} />
                 <SummaryLine label={`VAT ${formatMoney(vatRatePercent)}%`} value={formatMoney(vatAmount)} />
@@ -1206,7 +1206,7 @@ function PoSellFormModal({
  
          <DialogFooter className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2 shrink-0 rounded-b-2xl">
            <UiButton className="font-normal border-0 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors outline-none focus:ring-0" disabled={isSaving} type="button" variant="ghost" onClick={onClose}>ยกเลิก</UiButton>
-           <UiButton className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors outline-none focus:ring-0 px-6" disabled={isSaving} type="button" variant="default" onClick={() => void onSubmit()}>{isSaving ? 'กำลังบันทึก...' : submitLabel}</UiButton>
+           <UiButton className="rounded-md bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors outline-none focus:ring-0 px-6" disabled={isSaving} type="button" variant="default" onClick={() => void onSubmit()}>{isSaving ? 'กำลังบันทึก...' : submitLabel}</UiButton>
          </DialogFooter>
        </DialogContent>
      </Dialog>
@@ -1263,7 +1263,7 @@ function PoSellCancelModal({
         </div>
         <DialogFooter className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2 shrink-0 rounded-b-2xl">
           <UiButton className="font-normal border-0 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors outline-none focus:ring-0" disabled={isSaving} type="button" variant="ghost" onClick={onClose}>ปิด</UiButton>
-          <UiButton className="rounded-xl bg-red-600 hover:bg-red-700 text-white font-medium transition-colors outline-none focus:ring-0 px-5" disabled={isSaving} type="button" variant="default" onClick={onSubmit}>{isSaving ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}</UiButton>
+          <UiButton className="rounded-md bg-red-600 hover:bg-red-700 text-white font-medium transition-colors outline-none focus:ring-0 px-5" disabled={isSaving} type="button" variant="default" onClick={onSubmit}>{isSaving ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}</UiButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1303,7 +1303,7 @@ function PoSellDetailModal({
 
         <div className="flex-1 overflow-y-auto bg-slate-50 p-4 space-y-4 text-sm">
           {/* ข้อมูลเอกสาร */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-md border border-slate-200 bg-white p-5 shadow">
             <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">ข้อมูลเอกสาร</h4>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-5">
               <DetailItem label="วันที่สร้างรายการ" value={formatDateDisplay(row.createdAt)} />
@@ -1315,7 +1315,7 @@ function PoSellDetailModal({
           </div>
 
           {/* สถานะรายการ */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-md border border-slate-200 bg-white p-5 shadow">
             <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">สถานะรายการ</h4>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-5">
               <div>
@@ -1330,7 +1330,7 @@ function PoSellDetailModal({
           </div>
 
           {/* จำนวนและรายได้ */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-md border border-slate-200 bg-white p-5 shadow">
             <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">จำนวนและรายได้</h4>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-5">
               <DetailItem label="จำนวนจองรวม" value={`${formatMoney(row.qty)} กก.`} />
@@ -1346,7 +1346,7 @@ function PoSellDetailModal({
           </div>
 
           {/* Deal Margin */}
-          <div className="rounded-xl border border-slate-200 bg-emerald-50/10 p-5 shadow-sm">
+          <div className="rounded-md border border-slate-200 bg-emerald-50/10 p-5 shadow">
             <h4 className="text-sm font-bold text-emerald-800 border-b border-emerald-100 pb-2 mb-4">Deal Margin</h4>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-5">
               <DetailItem label="Deal Margin" value={`${formatMoney(row.margin)} บาท`} />
@@ -1355,15 +1355,15 @@ function PoSellDetailModal({
           </div>
 
           {/* รายการสินค้า */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-md border border-slate-200 bg-white p-5 shadow">
             <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">รายการสินค้า</h4>
             <div className="text-sm font-semibold text-slate-900 mt-1">{row.productName || '-'}</div>
           </div>
         </div>
         <DialogFooter className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 shrink-0 rounded-b-2xl">
-          <button className="rounded-xl border border-slate-200 bg-white px-5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 outline-none focus:ring-0 transition-colors" type="button" onClick={onClose}>ปิด</button>
+          <button className="rounded-md border border-slate-200 bg-white px-5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 outline-none focus:ring-0 transition-colors" type="button" onClick={onClose}>ปิด</button>
           <button
-            className="rounded-xl border border-slate-200 bg-white px-5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 outline-none focus:ring-0 transition-colors inline-flex items-center gap-1.5"
+            className="rounded-md border border-slate-200 bg-white px-5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 outline-none focus:ring-0 transition-colors inline-flex items-center gap-1.5"
             disabled={isPrinting}
             type="button"
             onClick={() => onPrint(row)}

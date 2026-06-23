@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, CheckCircle2, RefreshCw, Search, SlidersHorizontal } from 'lucide-react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 
 type ProductionReconciliationIssue = {
   actualQty: number
@@ -70,9 +72,22 @@ function detailsText(details: Record<string, unknown>) {
   return entries.map(([key, value]) => `${key}: ${String(value)}`).join(' · ')
 }
 
+const reconciliationColumns: Array<ResizableColumnDefinition<string>> = [
+  { key: 'issue', defaultWidth: 200 },
+  { key: 'refType', defaultWidth: 100 },
+  { key: 'orderDocNo', defaultWidth: 120 },
+  { key: 'docNo', defaultWidth: 120 },
+  { key: 'expectedQty', defaultWidth: 120 },
+  { key: 'actualQty', defaultWidth: 120 },
+  { key: 'expectedValue', defaultWidth: 120 },
+  { key: 'actualValue', defaultWidth: 120 },
+  { key: 'details', defaultWidth: 250 },
+]
+
 export function ProductionReconciliationPageClient() {
   const [data, setData] = useState<ProductionReconciliationPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const columnResize = useResizableColumns('production.reconciliation.main.v5', reconciliationColumns)
   const [isLoading, setIsLoading] = useState(true)
   const [issueFilter, setIssueFilter] = useState('all')
   const [query, setQuery] = useState('')
@@ -264,37 +279,49 @@ export function ProductionReconciliationPageClient() {
 
       {/* Desktop Table View (Hidden on Mobile) */}
       <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
+        <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
+          {columnResize.hasCustomWidths ? (
+            <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
+              คืนค่าเดิมตาราง
+            </button>
+          ) : null}
+        </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1120px] text-xs">
+          <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+            <colgroup>
+              {reconciliationColumns.map((col) => (
+                <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
+              ))}
+            </colgroup>
             <thead className="bg-slate-50 border-b border-slate-100 text-left text-slate-500">
               <tr>
-                <th className="px-3 py-2 font-semibold">ประเภท issue</th>
-                <th className="px-3 py-2 font-semibold">Ref Type</th>
-                <th className="px-3 py-2 font-semibold">Order No</th>
-                <th className="px-3 py-2 font-semibold">Doc No</th>
-                <th className="px-3 py-2 text-right font-semibold">Expected Qty</th>
-                <th className="px-3 py-2 text-right font-semibold">Actual Qty</th>
-                <th className="px-3 py-2 text-right font-semibold">Expected Value</th>
-                <th className="px-3 py-2 text-right font-semibold">Actual Value</th>
-                <th className="px-3 py-2 font-semibold">Details</th>
+                <ResizableTableHead label="ประเภท issue" resizeProps={columnResize.getResizeHandleProps('issue', 'ประเภท issue')} />
+                <ResizableTableHead label="Ref Type" resizeProps={columnResize.getResizeHandleProps('refType', 'Ref Type')} />
+                <ResizableTableHead label="Order No" resizeProps={columnResize.getResizeHandleProps('orderDocNo', 'Order No')} />
+                <ResizableTableHead label="Doc No" resizeProps={columnResize.getResizeHandleProps('docNo', 'Doc No')} />
+                <ResizableTableHead align="right" label="Expected Qty" resizeProps={columnResize.getResizeHandleProps('expectedQty', 'Expected Qty')} />
+                <ResizableTableHead align="right" label="Actual Qty" resizeProps={columnResize.getResizeHandleProps('actualQty', 'Actual Qty')} />
+                <ResizableTableHead align="right" label="Expected Value" resizeProps={columnResize.getResizeHandleProps('expectedValue', 'Expected Value')} />
+                <ResizableTableHead align="right" label="Actual Value" resizeProps={columnResize.getResizeHandleProps('actualValue', 'Actual Value')} />
+                <ResizableTableHead label="Details" resizeProps={columnResize.getResizeHandleProps('details', 'Details')} />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading ? <tr><td className="p-8 text-center text-slate-500" colSpan={9}>กำลังตรวจข้อมูล</td></tr> : null}
               {!isLoading && rows.map((issue, index) => (
                 <tr key={`${issue.issue}-${issue.refType}-${issue.docNo}-${index}`} className="hover:bg-slate-50">
-                  <td className="px-3 py-2 align-top">
+                  <td className="px-3 py-2 align-top overflow-hidden truncate">
                     <div className="font-semibold text-slate-900">{issueLabel(issue.issue)}</div>
-                    <div className="mt-0.5 max-w-64 text-[11px] leading-4 text-slate-500">{issueNote(issue.issue)}</div>
+                    <div className="mt-0.5 text-[11px] leading-4 text-slate-500">{issueNote(issue.issue)}</div>
                   </td>
-                  <td className="px-3 py-2 align-top font-semibold text-slate-700">{issue.refType || '-'}</td>
-                  <td className="px-3 py-2 align-top font-semibold text-slate-900">{issue.orderDocNo || '-'}</td>
-                  <td className="px-3 py-2 align-top font-mono text-slate-700">{issue.docNo || '-'}</td>
-                  <td className="px-3 py-2 text-right align-top tabular-nums text-slate-700">{formatMoney(issue.expectedQty)}</td>
-                  <td className="px-3 py-2 text-right align-top tabular-nums text-slate-700">{formatMoney(issue.actualQty)}</td>
-                  <td className="px-3 py-2 text-right align-top tabular-nums text-slate-700">{formatMoney(issue.expectedValue)}</td>
-                  <td className="px-3 py-2 text-right align-top tabular-nums text-slate-700">{formatMoney(issue.actualValue)}</td>
-                  <td className="max-w-[360px] px-3 py-2 align-top text-slate-600">{detailsText(issue.details)}</td>
+                  <td className="px-3 py-2 align-top font-semibold text-slate-700 overflow-hidden truncate">{issue.refType || '-'}</td>
+                  <td className="px-3 py-2 align-top font-semibold text-slate-900 overflow-hidden truncate">{issue.orderDocNo || '-'}</td>
+                  <td className="px-3 py-2 align-top font-mono text-slate-700 overflow-hidden truncate">{issue.docNo || '-'}</td>
+                  <td className="px-3 py-2 text-right align-top tabular-nums text-slate-700 overflow-hidden truncate">{formatMoney(issue.expectedQty)}</td>
+                  <td className="px-3 py-2 text-right align-top tabular-nums text-slate-700 overflow-hidden truncate">{formatMoney(issue.actualQty)}</td>
+                  <td className="px-3 py-2 text-right align-top tabular-nums text-slate-700 overflow-hidden truncate">{formatMoney(issue.expectedValue)}</td>
+                  <td className="px-3 py-2 text-right align-top tabular-nums text-slate-700 overflow-hidden truncate">{formatMoney(issue.actualValue)}</td>
+                  <td className="px-3 py-2 align-top text-slate-600 overflow-hidden truncate">{detailsText(issue.details)}</td>
                 </tr>
               ))}
               {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-500" colSpan={9}>ไม่พบ issue ตามเงื่อนไข</td></tr> : null}

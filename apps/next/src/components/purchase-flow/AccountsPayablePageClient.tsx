@@ -7,6 +7,8 @@ import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 
 type SelectOption = {
   active: boolean | null
@@ -680,6 +682,18 @@ function Metric({
   )
 }
 
+const summaryColumns: Array<ResizableColumnDefinition<string>> = [
+  { key: 'supplierName', defaultWidth: 200 },
+  { key: 'bills', defaultWidth: 60 },
+  { key: 'current', defaultWidth: 100 },
+  { key: 'b30', defaultWidth: 100 },
+  { key: 'b60', defaultWidth: 100 },
+  { key: 'b90', defaultWidth: 100 },
+  { key: 'gt90', defaultWidth: 100 },
+  { key: 'total', defaultWidth: 120 },
+  { key: 'oldest', defaultWidth: 100 },
+]
+
 function SummaryTable({
   buckets,
   isLoading,
@@ -692,12 +706,35 @@ function SummaryTable({
   summary: ApPayload['summary'] | undefined
 }) {
   const bucketTotal = (bucket: string) => buckets.find((item) => item.bucket === bucket)?.total ?? 0
+  const columnResize = useResizableColumns('finance.ap.summary.v5', summaryColumns)
 
   return (
     <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-200/60 bg-white shadow-sm overflow-hidden">
-      <table className="w-full text-sm">
+      <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
+        {columnResize.hasCustomWidths ? (
+          <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
+            คืนค่าเดิมตาราง
+          </button>
+        ) : null}
+      </div>
+      <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <colgroup>
+          {summaryColumns.map((col) => (
+            <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
+          ))}
+        </colgroup>
         <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
-          <tr><th className="p-2 text-left">Supplier</th><th className="p-2 text-right">บิล</th><th className="p-2 text-right">Current</th><th className="p-2 text-right">1-30 วัน</th><th className="p-2 text-right">31-60</th><th className="p-2 text-right">61-90</th><th className="p-2 text-right">&gt;90</th><th className="p-2 text-right">รวมค้างจ่าย</th><th className="p-2 text-right">เกินกำหนดสุด</th></tr>
+          <tr>
+            <ResizableTableHead label="Supplier" resizeProps={columnResize.getResizeHandleProps('supplierName', 'Supplier')} />
+            <ResizableTableHead align="right" label="บิล" resizeProps={columnResize.getResizeHandleProps('bills', 'บิล')} />
+            <ResizableTableHead align="right" label="Current" resizeProps={columnResize.getResizeHandleProps('current', 'Current')} />
+            <ResizableTableHead align="right" label="1-30 วัน" resizeProps={columnResize.getResizeHandleProps('b30', '1-30 วัน')} />
+            <ResizableTableHead align="right" label="31-60" resizeProps={columnResize.getResizeHandleProps('b60', '31-60')} />
+            <ResizableTableHead align="right" label="61-90" resizeProps={columnResize.getResizeHandleProps('b90', '61-90')} />
+            <ResizableTableHead align="right" label="&gt;90" resizeProps={columnResize.getResizeHandleProps('gt90', '&gt;90')} />
+            <ResizableTableHead align="right" label="รวมค้างจ่าย" resizeProps={columnResize.getResizeHandleProps('total', 'รวมค้างจ่าย')} />
+            <ResizableTableHead align="right" label="เกินกำหนดสุด" resizeProps={columnResize.getResizeHandleProps('oldest', 'เกินกำหนดสุด')} />
+          </tr>
         </thead>
         <tbody>
           {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={9}>กำลังโหลดข้อมูล</td></tr> : null}
@@ -736,6 +773,18 @@ function SummaryTable({
   )
 }
 
+const detailColumns: Array<ResizableColumnDefinition<string>> = [
+  { key: 'supplierName', defaultWidth: 200 },
+  { key: 'docNo', defaultWidth: 120 },
+  { key: 'date', defaultWidth: 100 },
+  { key: 'dueDate', defaultWidth: 100 },
+  { key: 'aging', defaultWidth: 90 },
+  { key: 'totalAmount', defaultWidth: 100 },
+  { key: 'paidAmount', defaultWidth: 100 },
+  { key: 'payableBalance', defaultWidth: 100 },
+  { key: 'channelName', defaultWidth: 100 },
+]
+
 function DetailTable({
   isLoading,
   onOpen,
@@ -753,21 +802,33 @@ function DetailTable({
   sortDirection: 'asc' | 'desc'
   summaryTotal: number
 }) {
-  const sortLabel = (key: SortKey) => selectedSort === key ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : ''
+  const columnResize = useResizableColumns('finance.ap.detail.v5', detailColumns)
   return (
     <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-200/60 bg-white shadow-sm overflow-hidden">
-      <table className="w-full text-sm">
+      <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
+        {columnResize.hasCustomWidths ? (
+          <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
+            คืนค่าเดิมตาราง
+          </button>
+        ) : null}
+      </div>
+      <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+        <colgroup>
+          {detailColumns.map((col) => (
+            <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
+          ))}
+        </colgroup>
         <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
           <tr>
-            <th className="p-2 text-left"><button type="button" onClick={() => onSort('supplierName')}>Supplier{sortLabel('supplierName')}</button></th>
-            <th className="p-2 text-left"><button type="button" onClick={() => onSort('docNo')}>บิล{sortLabel('docNo')}</button></th>
-            <th className="p-2 text-left"><button type="button" onClick={() => onSort('date')}>วันที่{sortLabel('date')}</button></th>
-            <th className="p-2 text-left"><button type="button" onClick={() => onSort('dueDate')}>Due{sortLabel('dueDate')}</button></th>
-            <th className="p-2 text-center"><button type="button" onClick={() => onSort('aging')}>Aging{sortLabel('aging')}</button></th>
-            <th className="p-2 text-right">ยอด</th>
-            <th className="p-2 text-right">จ่ายแล้ว</th>
-            <th className="p-2 text-right"><button type="button" onClick={() => onSort('payableBalance')}>ค้างจ่าย{sortLabel('payableBalance')}</button></th>
-            <th className="p-2 text-left">Channel</th>
+            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="Supplier" resizeProps={columnResize.getResizeHandleProps('supplierName', 'Supplier')} sortKey="supplierName" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="บิล" resizeProps={columnResize.getResizeHandleProps('docNo', 'บิล')} sortKey="docNo" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} sortKey="date" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} direction={sortDirection} label="Due" resizeProps={columnResize.getResizeHandleProps('dueDate', 'Due')} sortKey="dueDate" onSort={onSort} />
+            <ResizableTableHead activeSortKey={selectedSort} align="center" direction={sortDirection} label="Aging" resizeProps={columnResize.getResizeHandleProps('aging', 'Aging')} sortKey="aging" onSort={onSort} />
+            <ResizableTableHead align="right" label="ยอด" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'ยอด')} />
+            <ResizableTableHead align="right" label="จ่ายแล้ว" resizeProps={columnResize.getResizeHandleProps('paidAmount', 'จ่ายแล้ว')} />
+            <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="ค้างจ่าย" resizeProps={columnResize.getResizeHandleProps('payableBalance', 'ค้างจ่าย')} sortKey="payableBalance" onSort={onSort} />
+            <ResizableTableHead label="Channel" resizeProps={columnResize.getResizeHandleProps('channelName', 'Channel')} />
           </tr>
         </thead>
         <tbody>
@@ -775,15 +836,15 @@ function DetailTable({
           {!isLoading && rows.length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={9}>ไม่มีเจ้าหนี้คงค้าง</td></tr> : null}
           {!isLoading && rows.map((row) => (
             <tr key={row.id} className={`border-t border-slate-100 ${row.aging > 30 ? 'bg-red-50/50' : row.aging > 0 ? 'bg-amber-50/30' : ''}`}>
-              <td className="p-2">{row.supplierName}</td>
-              <td className="p-2"><button className="font-mono text-xs text-blue-600" type="button" onClick={() => onOpen(row)}>{row.docNo}</button></td>
-              <td className="p-2">{formatDateDisplay(row.date)}</td>
-              <td className="p-2">{formatDateDisplay(row.dueDate)}</td>
-              <td className="p-2 text-center"><span className={`rounded-md px-2 py-0.5 text-xs ${bucketClass(row.bucket)}`}>{row.bucket} ({row.aging})</span></td>
-              <td className="p-2 text-right">{formatMoney(row.totalAmount)}</td>
-              <td className="p-2 text-right text-emerald-600">{formatMoney(row.paidAmount)}</td>
-              <td className="p-2 text-right font-bold text-red-700">{formatMoney(row.payableBalance)}</td>
-              <td className="p-2">{row.channelName}</td>
+              <td className="p-2 overflow-hidden truncate">{row.supplierName}</td>
+              <td className="p-2 overflow-hidden truncate"><button className="font-mono text-xs text-blue-600" type="button" onClick={() => onOpen(row)}>{row.docNo}</button></td>
+              <td className="p-2 overflow-hidden truncate">{formatDateDisplay(row.date)}</td>
+              <td className="p-2 overflow-hidden truncate">{formatDateDisplay(row.dueDate)}</td>
+              <td className="p-2 text-center overflow-hidden truncate"><span className={`rounded-md px-2 py-0.5 text-xs ${bucketClass(row.bucket)}`}>{row.bucket} ({row.aging})</span></td>
+              <td className="p-2 text-right overflow-hidden truncate">{formatMoney(row.totalAmount)}</td>
+              <td className="p-2 text-right text-emerald-600 overflow-hidden truncate">{formatMoney(row.paidAmount)}</td>
+              <td className="p-2 text-right font-bold text-red-700 overflow-hidden truncate">{formatMoney(row.payableBalance)}</td>
+              <td className="p-2 overflow-hidden truncate">{row.channelName}</td>
             </tr>
           ))}
         </tbody>

@@ -5,6 +5,46 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
+import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+
+type CustomerTrackingColumnKey =
+  | 'code'
+  | 'customerName'
+  | 'billCount'
+  | 'qty'
+  | 'revenue'
+  | 'avgSell'
+  | 'cogs'
+  | 'gp'
+  | 'gpPct'
+  | 'profitPerKg'
+  | 'receivedAmount'
+  | 'receivable'
+  | 'overdueArAmount'
+  | 'oldestArAgeDays'
+  | 'pendingArBillCount'
+  | 'creditUtilizationPct'
+
+const trackingColumns: Array<ResizableColumnDefinition<CustomerTrackingColumnKey>> = [
+  { key: 'code', defaultWidth: 90, minWidth: 80 },
+  { key: 'customerName', defaultWidth: 180, minWidth: 140 },
+  { key: 'billCount', defaultWidth: 70, minWidth: 60 },
+  { key: 'qty', defaultWidth: 110, minWidth: 90 },
+  { key: 'revenue', defaultWidth: 120, minWidth: 100 },
+  { key: 'avgSell', defaultWidth: 100, minWidth: 85 },
+  { key: 'cogs', defaultWidth: 120, minWidth: 100 },
+  { key: 'gp', defaultWidth: 120, minWidth: 100 },
+  { key: 'gpPct', defaultWidth: 80, minWidth: 70 },
+  { key: 'profitPerKg', defaultWidth: 90, minWidth: 80 },
+  { key: 'receivedAmount', defaultWidth: 120, minWidth: 100 },
+  { key: 'receivable', defaultWidth: 120, minWidth: 100 },
+  { key: 'overdueArAmount', defaultWidth: 110, minWidth: 90 },
+  { key: 'oldestArAgeDays', defaultWidth: 90, minWidth: 80 },
+  { key: 'pendingArBillCount', defaultWidth: 90, minWidth: 80 },
+  { key: 'creditUtilizationPct', defaultWidth: 90, minWidth: 80 },
+]
 
 type CustomerTrackingRow = {
   agingBuckets: Array<{ amount: number; bucket: string; count: number }>
@@ -77,6 +117,19 @@ export function CustomerTrackingPageClient() {
   const [search, setSearch] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [year, setYear] = useState(String(new Date().getFullYear()))
+  const [sortKey, setSortKey] = useState<string | undefined>(undefined)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  const columnResize = useResizableColumns('tracking.customer.main.v5', trackingColumns)
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDirection('asc')
+    }
+  }
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams({ year })
@@ -139,10 +192,40 @@ export function CustomerTrackingPageClient() {
   }, [queryString])
 
   const rows = data?.rows ?? []
+
+  const sortedRows = useMemo(() => {
+    const result = [...rows]
+    if (sortKey) {
+      result.sort((a, b) => {
+        const valA = a[sortKey as keyof CustomerTrackingRow]
+        const valB = b[sortKey as keyof CustomerTrackingRow]
+
+        if (valA === undefined || valA === null) return 1
+        if (valB === undefined || valB === null) return -1
+
+        if (typeof valA === 'number' && typeof valB === 'number') {
+          return sortDirection === 'asc' ? valA - valB : valB - valA
+        }
+
+        return sortDirection === 'asc'
+          ? String(valA).localeCompare(String(valB), 'th', { numeric: true })
+          : String(valB).localeCompare(String(valA), 'th', { numeric: true })
+      })
+    }
+    return result
+  }, [rows, sortKey, sortDirection])
+
   const topRevenue = [...rows].sort((left, right) => right.revenue - left.revenue).slice(0, 10)
   const topGp = [...rows].sort((left, right) => right.gp - left.gp).slice(0, 10)
   const topGpPct = [...rows].filter((row) => row.revenue > 0).sort((left, right) => right.gpPct - left.gpPct).slice(0, 10)
   const topReceivable = [...rows].sort((left, right) => right.receivable - left.receivable).slice(0, 10)
+  const customerSearchOptions = useMemo<SearchComboboxOption[]>(() => {
+    return (data?.filters?.customers ?? []).map((customer) => ({
+      id: customer.id,
+      label: customer.code ? `${customer.code} - ${customer.name}` : customer.name,
+    }))
+  }, [data?.filters?.customers])
+
   const [view, setView] = useState<'list' | 'top10' | 'yearCompare'>('list')
   const exportHref = `/api/tracking/customer?${queryString}&format=xlsx`
 
@@ -159,39 +242,38 @@ export function CustomerTrackingPageClient() {
       </div>
 
       {/* Filters Toolbar */}
-      <div className="rounded-xl bg-white p-3 border border-slate-100 shadow-sm">
+      <div className="rounded-xl bg-white p-3 border border-slate-200/60 shadow-sm">
         {/* Desktop View */}
         <div className="hidden lg:block space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <input
-              className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100"
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100"
               type="number"
               placeholder="ปี ค.ศ."
               value={year}
               onChange={(event) => setYear(event.target.value)}
             />
             <select
-              className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100"
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100 outline-none"
               value={month}
               onChange={(event) => setMonth(event.target.value)}
             >
               <option value="">ทั้งปี</option>
               {months.map((value, index) => <option key={value} value={value}>{monthLabels[index]}</option>)}
             </select>
-            <select
-              className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm min-w-[200px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100"
-              value={customerId}
-              onChange={(event) => setCustomerId(event.target.value)}
-            >
-              <option value="">ลูกค้าทั้งหมด</option>
-              {(data?.filters.customers ?? []).map((customer) => (
-                <option key={customer.id} value={customer.id}>
-                  {customer.code ? `${customer.code} - ${customer.name}` : customer.name}
-                </option>
-              ))}
-            </select>
+            <div className="w-64">
+              <SearchCombobox
+                inputId="customer-filter-desktop"
+                label="เลือกลูกค้า"
+                hideLabel={true}
+                options={customerSearchOptions}
+                placeholder="เลือกลูกค้า..."
+                value={customerId}
+                onChange={setCustomerId}
+              />
+            </div>
             <input
-              className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm min-w-[200px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100"
+              className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm min-w-[200px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100"
               placeholder="ค้นหา Customer"
               type="search"
               value={search}
@@ -199,7 +281,7 @@ export function CustomerTrackingPageClient() {
             />
             
             <a
-              className="ml-auto inline-flex h-10 items-center justify-center rounded-md bg-emerald-600 px-4 text-center text-sm font-bold text-white hover:bg-emerald-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100"
+              className="ml-auto inline-flex h-9 items-center justify-center rounded-md bg-emerald-600 px-4 text-center text-sm font-bold text-white hover:bg-emerald-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100"
               href={exportHref}
             >
               📥 Export Excel
@@ -211,14 +293,14 @@ export function CustomerTrackingPageClient() {
         <div className="block lg:hidden space-y-2">
           <div className="flex gap-2">
             <input
-              className="flex-1 h-10 rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100"
+              className="flex-1 h-9 rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100"
               placeholder="ค้นหา Customer..."
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
             <button
-              className={`h-10 rounded-md border px-3 text-sm font-semibold transition-colors flex items-center gap-1 shrink-0 focus-visible:outline-none ${
+              className={`h-9 rounded-md border px-3 text-sm font-semibold transition-colors flex items-center gap-1 shrink-0 focus-visible:outline-none ${
                 showMobileFilters ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-100 text-slate-700 border-slate-100'
               }`}
               type="button"
@@ -227,7 +309,7 @@ export function CustomerTrackingPageClient() {
               🔍 ตัวกรอง
             </button>
             <a
-              className="h-10 inline-flex items-center justify-center rounded-md bg-emerald-600 px-3 text-sm font-bold text-white shrink-0"
+              className="h-9 inline-flex items-center justify-center rounded-md bg-emerald-600 px-3 text-sm font-bold text-white shrink-0"
               href={exportHref}
             >
               📥 XLSX
@@ -258,21 +340,18 @@ export function CustomerTrackingPageClient() {
                   </select>
                 </label>
               </div>
-              <label className="text-[11px] text-slate-500 font-semibold">
-                เลือกลูกค้า
-                <select
-                  className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100"
+              <div className="flex flex-col gap-1.5 w-full">
+                <span className="text-[11px] text-slate-500 font-semibold">เลือกลูกค้า</span>
+                <SearchCombobox
+                  inputId="customer-filter-mobile"
+                  label="เลือกลูกค้า"
+                  hideLabel={true}
+                  options={customerSearchOptions}
+                  placeholder="เลือกลูกค้า..."
                   value={customerId}
-                  onChange={(event) => setCustomerId(event.target.value)}
-                >
-                  <option value="">ลูกค้าทั้งหมด</option>
-                  {(data?.filters.customers ?? []).map((customer) => (
-                    <option key={customer.id} value={customer.id}>
-                      {customer.code ? `${customer.code} - ${customer.name}` : customer.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  onChange={setCustomerId}
+                />
+              </div>
               <div className="flex justify-end pt-1">
                 <button
                   className="rounded-md bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition-colors focus-visible:outline-none"
@@ -292,10 +371,19 @@ export function CustomerTrackingPageClient() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 rounded-xl bg-white p-2 border border-slate-100 shadow-sm">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-2 border border-slate-100 shadow-sm">
         <Tab active={view === 'list'} label="รายการ + สถิติ" onClick={() => setView('list')} />
         <Tab active={view === 'top10'} label="Top 10 + วิเคราะห์" onClick={() => setView('top10')} />
         <Tab active={view === 'yearCompare'} label="รายปี (12 เดือน)" onClick={() => setView('yearCompare')} />
+        {columnResize.hasCustomWidths && (
+          <button
+            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors focus-visible:outline-none ml-auto"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            คืนค่าเดิมตาราง
+          </button>
+        )}
       </div>
 
       {view === 'yearCompare' ? <YearCompare monthly={data?.monthly ?? []} /> : null}
@@ -334,35 +422,40 @@ export function CustomerTrackingPageClient() {
             </div>
           ))}
         </div>
-        <div className="hidden overflow-x-auto rounded-xl bg-white border border-slate-100 shadow-sm lg:block">
-          <table className="w-full min-w-[1180px] text-sm">
-            <thead className="bg-slate-50 border-b border-slate-100 text-slate-600 font-semibold">
+        <div className="hidden overflow-x-auto rounded-xl bg-white border border-slate-200/60 shadow-sm lg:block">
+          <table className="w-full text-sm border-collapse" style={{ minWidth: columnResize.tableMinWidth }}>
+            <colgroup>
+              {trackingColumns.map((col) => (
+                <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
+              ))}
+            </colgroup>
+            <thead className="bg-slate-100/75 text-slate-700 border-b border-slate-200">
               <tr>
-                <th className="p-3 pl-4 text-left">Code</th>
-                <th className="p-3 text-left">Customer</th>
-                <th className="p-3 text-right">บิล</th>
-                <th className="p-3 text-right">น้ำหนัก</th>
-                <th className="p-3 text-right">ยอดขาย</th>
-                <th className="p-3 text-right">ราคาเฉลี่ย</th>
-                <th className="p-3 text-right">COGS</th>
-                <th className="p-3 text-right">GP</th>
-                <th className="p-3 text-right">GP%</th>
-                <th className="p-3 text-right">฿/กก.</th>
-                <th className="p-3 text-right">รับเงิน</th>
-                <th className="p-3 text-right">ลูกหนี้</th>
-                <th className="p-3 text-right">เกินกำหนด</th>
-                <th className="p-3 text-right">เก่าสุด</th>
-                <th className="p-3 text-right">บิลค้าง AR</th>
-                <th className="p-3 pr-4 text-right">ใช้เครดิต</th>
+                <ResizableTableHead activeSortKey={sortKey} align="left" direction={sortDirection} label="Code" resizeProps={columnResize.getResizeHandleProps('code', 'Code')} sortKey="code" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="left" direction={sortDirection} label="Customer" resizeProps={columnResize.getResizeHandleProps('customerName', 'Customer')} sortKey="customerName" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="บิล" resizeProps={columnResize.getResizeHandleProps('billCount', 'บิล')} sortKey="billCount" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="น้ำหนัก" resizeProps={columnResize.getResizeHandleProps('qty', 'น้ำหนัก')} sortKey="qty" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ยอดขาย" resizeProps={columnResize.getResizeHandleProps('revenue', 'ยอดขาย')} sortKey="revenue" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ราคาเฉลี่ย" resizeProps={columnResize.getResizeHandleProps('avgSell', 'ราคาเฉลี่ย')} sortKey="avgSell" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="COGS" resizeProps={columnResize.getResizeHandleProps('cogs', 'COGS')} sortKey="cogs" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="GP" resizeProps={columnResize.getResizeHandleProps('gp', 'GP')} sortKey="gp" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="GP%" resizeProps={columnResize.getResizeHandleProps('gpPct', 'GP%')} sortKey="gpPct" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="฿/กก." resizeProps={columnResize.getResizeHandleProps('profitPerKg', '฿/กก.')} sortKey="profitPerKg" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="รับเงิน" resizeProps={columnResize.getResizeHandleProps('receivedAmount', 'รับเงิน')} sortKey="receivedAmount" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ลูกหนี้" resizeProps={columnResize.getResizeHandleProps('receivable', 'ลูกหนี้')} sortKey="receivable" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="เกินกำหนด" resizeProps={columnResize.getResizeHandleProps('overdueArAmount', 'เกินกำหนด')} sortKey="overdueArAmount" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="เก่าสุด" resizeProps={columnResize.getResizeHandleProps('oldestArAgeDays', 'เก่าสุด')} sortKey="oldestArAgeDays" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="บิลค้าง AR" resizeProps={columnResize.getResizeHandleProps('pendingArBillCount', 'บิลค้าง AR')} sortKey="pendingArBillCount" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ใช้เครดิต" resizeProps={columnResize.getResizeHandleProps('creditUtilizationPct', 'ใช้เครดิต')} sortKey="creditUtilizationPct" onSort={handleSort} />
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100">
               {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={16}>กำลังโหลดข้อมูล</td></tr> : null}
-              {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={16}>ไม่มีข้อมูล Customer Tracking</td></tr> : null}
-              {!isLoading && rows.map((row) => (
-                <tr key={row.id} className="cursor-pointer border-t border-slate-100 hover:bg-emerald-50/30 transition-colors focus-visible:outline-none" onClick={() => void openDetail(row)}>
-                  <td className="p-3 pl-4 font-mono text-xs text-slate-400">{row.code || '-'}</td>
-                  <td className="p-3 font-medium text-slate-800">{row.customerName}</td>
+              {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={16}>ไม่มีข้อมูล Customer Tracking</td></tr> : null}
+              {!isLoading && sortedRows.map((row) => (
+                <tr key={row.id} className="cursor-pointer hover:bg-slate-50 transition-colors focus-visible:outline-none" onClick={() => void openDetail(row)}>
+                  <td className="p-3 pl-4 font-mono text-xs text-slate-400 truncate">{row.code || '-'}</td>
+                  <td className="p-3 font-medium text-slate-800 truncate">{row.customerName}</td>
                   <td className="p-3 text-right text-slate-700">{row.billCount}</td>
                   <td className="p-3 text-right font-mono text-slate-700">{formatMoney(row.qty)}</td>
                   <td className="p-3 text-right font-mono font-semibold text-emerald-700">{formatMoney(row.revenue)}</td>

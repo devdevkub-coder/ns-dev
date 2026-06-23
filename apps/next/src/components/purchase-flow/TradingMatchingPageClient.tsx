@@ -7,6 +7,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 
 type TradingPayload = {
   deals: Array<{ customerName: string; date: string; dealNo: string; grossProfit: number; grossProfitPct: number; id: string; matchedPurchaseAmount: number; matchedQty: number; matchedSalesAmount: number; productName: string; purchaseBillNo: string; salesBillNo: string; status: string; supplierName: string }>
@@ -29,8 +31,24 @@ function isCancelled(status: string) {
   return status.toLowerCase().includes('cancel')
 }
 
+const allocationColumns: Array<ResizableColumnDefinition<string>> = [
+  { key: 'salesBillNo', defaultWidth: 110 },
+  { key: 'date', defaultWidth: 80 },
+  { key: 'purchaseBillNo', defaultWidth: 110 },
+  { key: 'supplierName', defaultWidth: 150 },
+  { key: 'customerName', defaultWidth: 150 },
+  { key: 'productName', defaultWidth: 120 },
+  { key: 'matchedQty', defaultWidth: 70 },
+  { key: 'matchedPurchaseAmount', defaultWidth: 90 },
+  { key: 'matchedSalesAmount', defaultWidth: 90 },
+  { key: 'grossProfit', defaultWidth: 90 },
+  { key: 'grossProfitPct', defaultWidth: 70 },
+  { key: 'action', defaultWidth: 80 },
+]
+
 export function TradingMatchingPageClient() {
   const [data, setData] = useState<TradingPayload | null>(null)
+  const columnResize = useResizableColumns('trading.matching.allocations.v5', allocationColumns)
   const [error, setError] = useState<string | null>(null)
   const [fromDate, setFromDate] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -112,7 +130,7 @@ export function TradingMatchingPageClient() {
 
   return (
     <section className="space-y-4">
-      {error ? <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 shadow-sm">{error}</div> : null}
+      {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800 shadow-sm">{error}</div> : null}
 
       <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
         <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-fuchsia-600 via-purple-700 to-violet-800 p-6 text-white shadow-lg">
@@ -130,7 +148,7 @@ export function TradingMatchingPageClient() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-purple-100 bg-white p-4 shadow-sm flex flex-col justify-between">
+        <div className="rounded-md border border-purple-100 bg-white p-4 shadow-sm flex flex-col justify-between">
           <div>
             <div className="text-sm font-bold text-slate-800">เส้นทางข้อมูล</div>
             <div className="mt-3 space-y-2.5 text-xs text-slate-500 font-semibold leading-relaxed">
@@ -141,7 +159,7 @@ export function TradingMatchingPageClient() {
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             {allocationLinks.map((item) => (
-              <Link key={item.href} className="rounded-xl border border-purple-200 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 text-xs font-bold text-purple-700 transition-colors outline-none focus:outline-none focus:ring-0 shadow-2xs" href={item.href}>
+              <Link key={item.href} className="rounded-md border border-purple-200 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 text-xs font-bold text-purple-700 transition-colors outline-none focus:outline-none focus:ring-0 shadow-2xs" href={item.href}>
                 {item.label}
               </Link>
             ))}
@@ -156,18 +174,18 @@ export function TradingMatchingPageClient() {
         <Metric label="Remaining Cost" tone="amber" value={formatMoney(totals.remainingCost)} />
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="rounded-md border border-slate-200 bg-white p-3 shadow">
         <div className="flex flex-wrap items-center gap-2">
           <DatePickerInput ariaLabel="วันที่เริ่มต้น" className="h-10 text-sm" value={fromDate} onChange={setFromDate} />
           <DatePickerInput ariaLabel="วันที่สิ้นสุด" className="h-10 text-sm" value={toDate} onChange={setToDate} />
-          <input className="min-w-64 flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white font-medium text-slate-750 h-10 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" placeholder="ค้นหา Sales Bill / Purchase Bill / คู่ค้า / สินค้า" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-          {hasFilters ? <button className="rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-655 hover:text-slate-800 hover:bg-slate-50 transition-colors h-10 outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer" type="button" onClick={resetFilters}>ล้าง</button> : null}
-          <button className="rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-655 hover:text-slate-800 hover:bg-slate-50 transition-colors h-10 outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer" type="button" onClick={() => void loadData()}>Refresh</button>
-          <a className="inline-flex items-center justify-center rounded-xl bg-slate-900 hover:bg-slate-800 px-4 h-10 text-sm font-semibold text-white transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer" href={exportHref}>Export XLSX</a>
+          <input className="min-w-64 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm bg-white font-medium text-slate-750 h-10 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" placeholder="ค้นหา Sales Bill / Purchase Bill / คู่ค้า / สินค้า" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          {hasFilters ? <button className="rounded-md border border-slate-300 px-4 text-sm font-semibold text-slate-655 hover:text-slate-800 hover:bg-slate-50 transition-colors h-10 outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer" type="button" onClick={resetFilters}>ล้าง</button> : null}
+          <button className="rounded-md border border-slate-300 px-4 text-sm font-semibold text-slate-655 hover:text-slate-800 hover:bg-slate-50 transition-colors h-10 outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer" type="button" onClick={() => void loadData()}>Refresh</button>
+          <a className="inline-flex items-center justify-center rounded-md bg-slate-900 hover:bg-slate-800 px-4 h-10 text-sm font-semibold text-white transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer" href={exportHref}>Export XLSX</a>
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-md border border-slate-100 bg-white shadow overflow-hidden">
         <div className="flex flex-wrap items-center border-b border-slate-100 bg-slate-50/50">
           <button className={`border-b-2 px-5 py-3.5 text-sm font-semibold outline-none focus:outline-none focus:ring-0 transition-colors ${tab === 'allocations' ? 'border-purple-600 text-purple-700' : 'border-transparent text-slate-500 hover:text-slate-850'}`} type="button" onClick={() => setTab('allocations')}>Allocation ({filteredDeals.length})</button>
           <button className={`border-b-2 px-5 py-3.5 text-sm font-semibold outline-none focus:outline-none focus:ring-0 transition-colors ${tab === 'remaining' ? 'border-purple-600 text-purple-700' : 'border-transparent text-slate-500 hover:text-slate-850'}`} type="button" onClick={() => setTab('remaining')}>ต้นทุนคงเหลือ ({remainingPurchases.length})</button>
@@ -176,9 +194,9 @@ export function TradingMatchingPageClient() {
         {tab === 'allocations' ? (
           <>
             <div className="block space-y-3 p-4 lg:hidden">
-              {isLoading ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-455 font-semibold text-xs shadow-sm">กำลังโหลดข้อมูล</div> : null}
+              {isLoading ? <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-slate-455 font-semibold text-xs shadow-sm">กำลังโหลดข้อมูล</div> : null}
               {!isLoading && filteredDeals.map((row) => (
-                <button key={row.id} className="block w-full rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:bg-slate-50/50 active:bg-slate-100/50 transition-all outline-none focus:outline-none focus:ring-0 cursor-pointer" type="button" onClick={() => setSelectedDeal(row)}>
+                <button key={row.id} className="block w-full rounded-md border border-slate-200 bg-white p-4 text-left shadow-sm hover:bg-slate-50/50 active:bg-slate-100/50 transition-all outline-none focus:outline-none focus:ring-0 cursor-pointer" type="button" onClick={() => setSelectedDeal(row)}>
                   <div className="flex justify-between gap-3 border-b border-slate-100 pb-2 mb-2">
                     <span className="font-bold text-slate-800 text-sm">{row.salesBillNo || '-'}</span>
                     <span className="text-[10px] text-slate-400 font-semibold">{formatDateDisplay(row.date)}</span>
@@ -192,25 +210,37 @@ export function TradingMatchingPageClient() {
                   </div>
                 </button>
               ))}
-              {!isLoading && filteredDeals.length === 0 ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-455 font-semibold text-xs shadow-sm">ยังไม่มี allocation ตามเงื่อนไขที่ค้นหา</div> : null}
+              {!isLoading && filteredDeals.length === 0 ? <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-slate-455 font-semibold text-xs shadow-sm">ยังไม่มี allocation ตามเงื่อนไขที่ค้นหา</div> : null}
             </div>
 
-            <div className="hidden overflow-x-auto p-5 lg:block">
-              <table className="w-full min-w-[1080px] text-xs">
-                <thead className="bg-slate-50 border-b border-slate-100 text-slate-655 font-semibold">
+            <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-200/60 bg-white shadow-sm overflow-hidden">
+              <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
+                {columnResize.hasCustomWidths ? (
+                  <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
+                    คืนค่าเดิมตาราง
+                  </button>
+                ) : null}
+              </div>
+              <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+                <colgroup>
+                  {allocationColumns.map((col) => (
+                    <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
+                  ))}
+                </colgroup>
+                <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
                   <tr>
-                    <th className="p-2.5 text-left font-semibold">Sales Bill</th>
-                    <th className="p-2.5 text-left font-semibold">วันที่</th>
-                    <th className="p-2.5 text-left font-semibold">Cost Source</th>
-                    <th className="p-2.5 text-left font-semibold">Supplier</th>
-                    <th className="p-2.5 text-left font-semibold">Customer</th>
-                    <th className="p-2.5 text-left font-semibold">สินค้า</th>
-                    <th className="p-2.5 text-right font-semibold">Qty</th>
-                    <th className="p-2.5 text-right font-semibold">Cost</th>
-                    <th className="p-2.5 text-right font-semibold">Sales Amt</th>
-                    <th className="p-2.5 text-right font-semibold">Expected GP</th>
-                    <th className="p-2.5 text-right font-semibold">GP%</th>
-                    <th className="p-2.5 text-center font-semibold">Action</th>
+                    <ResizableTableHead label="Sales Bill" resizeProps={columnResize.getResizeHandleProps('salesBillNo', 'Sales Bill')} />
+                    <ResizableTableHead label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
+                    <ResizableTableHead label="Cost Source" resizeProps={columnResize.getResizeHandleProps('purchaseBillNo', 'Cost Source')} />
+                    <ResizableTableHead label="Supplier" resizeProps={columnResize.getResizeHandleProps('supplierName', 'Supplier')} />
+                    <ResizableTableHead label="Customer" resizeProps={columnResize.getResizeHandleProps('customerName', 'Customer')} />
+                    <ResizableTableHead label="สินค้า" resizeProps={columnResize.getResizeHandleProps('productName', 'สินค้า')} />
+                    <ResizableTableHead align="right" label="Qty" resizeProps={columnResize.getResizeHandleProps('matchedQty', 'Qty')} />
+                    <ResizableTableHead align="right" label="Cost" resizeProps={columnResize.getResizeHandleProps('matchedPurchaseAmount', 'Cost')} />
+                    <ResizableTableHead align="right" label="Sales Amt" resizeProps={columnResize.getResizeHandleProps('matchedSalesAmount', 'Sales Amt')} />
+                    <ResizableTableHead align="right" label="Expected GP" resizeProps={columnResize.getResizeHandleProps('grossProfit', 'Expected GP')} />
+                    <ResizableTableHead align="right" label="GP%" resizeProps={columnResize.getResizeHandleProps('grossProfitPct', 'GP%')} />
+                    <ResizableTableHead label="Action" resizeProps={columnResize.getResizeHandleProps('action', 'Action')} />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -218,19 +248,19 @@ export function TradingMatchingPageClient() {
                   {!isLoading && !error && filteredDeals.length === 0 ? <tr><td className="py-8 text-center text-slate-400 font-semibold" colSpan={12}>ยังไม่มี allocation ตามเงื่อนไขที่ค้นหา</td></tr> : null}
                   {!isLoading && filteredDeals.map((row) => (
                     <tr key={row.id} className="hover:bg-slate-50/30 transition-colors">
-                      <td className="p-2.5 font-mono font-semibold text-slate-800">{row.salesBillNo || '-'}</td>
-                      <td className="p-2.5 text-slate-500 font-medium">{formatDateDisplay(row.date)}</td>
-                      <td className="p-2.5 font-mono text-slate-600 font-medium">{row.purchaseBillNo || '-'}</td>
-                      <td className="p-2.5 text-slate-700 font-medium">{row.supplierName}</td>
-                      <td className="p-2.5 text-slate-700 font-medium">{row.customerName}</td>
-                      <td className="p-2.5 text-slate-700 font-medium">{row.productName}</td>
-                      <td className="p-2.5 text-right font-medium">{formatMoney(row.matchedQty)}</td>
-                      <td className="p-2.5 text-right text-red-700 font-semibold">{formatMoney(row.matchedPurchaseAmount)}</td>
-                      <td className="p-2.5 text-right text-emerald-700 font-semibold">{formatMoney(row.matchedSalesAmount)}</td>
-                      <td className={`p-2.5 text-right font-bold ${row.grossProfit >= 0 ? 'text-purple-700' : 'text-red-700'}`}>{formatMoney(row.grossProfit)}</td>
-                      <td className="p-2.5 text-right font-medium text-slate-505">{row.grossProfitPct.toFixed(2)}%</td>
-                      <td className="whitespace-nowrap p-2.5 text-center">
-                        <button className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-655 hover:bg-slate-50 transition-colors outline-none focus:outline-none focus:ring-0 shadow-2xs cursor-pointer" type="button" onClick={() => setSelectedDeal(row)}>
+                      <td className="p-2.5 font-mono font-semibold text-slate-800 overflow-hidden truncate">{row.salesBillNo || '-'}</td>
+                      <td className="p-2.5 text-slate-500 font-medium overflow-hidden truncate">{formatDateDisplay(row.date)}</td>
+                      <td className="p-2.5 font-mono text-slate-600 font-medium overflow-hidden truncate">{row.purchaseBillNo || '-'}</td>
+                      <td className="p-2.5 text-slate-700 font-medium overflow-hidden truncate">{row.supplierName}</td>
+                      <td className="p-2.5 text-slate-700 font-medium overflow-hidden truncate">{row.customerName}</td>
+                      <td className="p-2.5 text-slate-700 font-medium overflow-hidden truncate">{row.productName}</td>
+                      <td className="p-2.5 text-right font-medium overflow-hidden truncate">{formatMoney(row.matchedQty)}</td>
+                      <td className="p-2.5 text-right text-red-700 font-semibold overflow-hidden truncate">{formatMoney(row.matchedPurchaseAmount)}</td>
+                      <td className="p-2.5 text-right text-emerald-700 font-semibold overflow-hidden truncate">{formatMoney(row.matchedSalesAmount)}</td>
+                      <td className={`p-2.5 text-right font-bold overflow-hidden truncate ${row.grossProfit >= 0 ? 'text-purple-700' : 'text-red-700'}`}>{formatMoney(row.grossProfit)}</td>
+                      <td className="p-2.5 text-right font-medium text-slate-505 overflow-hidden truncate">{row.grossProfitPct.toFixed(2)}%</td>
+                      <td className="whitespace-nowrap p-2.5 text-center overflow-hidden truncate">
+                        <button className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-655 hover:bg-slate-50 transition-colors outline-none focus:outline-none focus:ring-0 shadow-2xs cursor-pointer" type="button" onClick={() => setSelectedDeal(row)}>
                           รายละเอียด
                         </button>
                       </td>
@@ -244,7 +274,7 @@ export function TradingMatchingPageClient() {
           <>
             <div className="block space-y-3 p-4 lg:hidden">
               {remainingPurchases.map((row) => <RemainingPurchaseCard key={row.id} row={row} />)}
-              {!isLoading && remainingPurchases.length === 0 ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-455 font-semibold text-xs shadow-sm">ไม่มีต้นทุน Trading คงเหลือ</div> : null}
+              {!isLoading && remainingPurchases.length === 0 ? <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-slate-455 font-semibold text-xs shadow-sm">ไม่มีต้นทุน Trading คงเหลือ</div> : null}
             </div>
 
             <div className="hidden p-5 lg:block">
@@ -273,7 +303,7 @@ function Amount({ label, tone, value }: { label: string; tone: 'emerald' | 'purp
 
 function RemainingPurchaseCard({ row }: { row: TradingPurchaseRow }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 text-xs shadow-sm space-y-2.5">
+    <div className="rounded-md border border-slate-200 bg-white p-4 text-xs shadow space-y-2.5">
       <div className="flex justify-between gap-3 font-bold text-slate-800 border-b border-slate-100 pb-2">
         <span className="font-mono">{row.docNo}</span>
         <span className="text-slate-400 font-semibold">{formatDateDisplay(row.date)}</span>
@@ -287,31 +317,53 @@ function RemainingPurchaseCard({ row }: { row: TradingPurchaseRow }) {
   )
 }
 
+const remainingColumns: Array<ResizableColumnDefinition<string>> = [
+  { key: 'docNo', defaultWidth: 120 },
+  { key: 'date', defaultWidth: 90 },
+  { key: 'supplierName', defaultWidth: 200 },
+  { key: 'totalAmount', defaultWidth: 110 },
+  { key: 'matchedAmount', defaultWidth: 110 },
+  { key: 'remainingAmount', defaultWidth: 120 },
+]
+
 function RemainingPurchaseTable({ rows }: { rows: TradingPurchaseRow[] }) {
+  const columnResize = useResizableColumns('trading.matching.remaining.v5', remainingColumns)
   return (
     <div>
-      <div className="mb-3.5 font-bold text-emerald-755 text-sm">Trading Purchases / Cost Source — ยังไม่ได้จับ Matched</div>
-      <div className="overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-2xs">
-        <table className="w-full text-xs">
-          <thead className="bg-slate-50 border-b border-slate-100 text-slate-655">
+      <div className="flex justify-between items-center mb-3.5">
+        <div className="font-bold text-emerald-755 text-sm">Trading Purchases / Cost Source — ยังไม่ได้จับ Matched</div>
+        {columnResize.hasCustomWidths ? (
+          <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
+            คืนค่าเดิมตาราง
+          </button>
+        ) : null}
+      </div>
+      <div className="overflow-x-auto rounded-md border border-slate-200/60 bg-white shadow-sm overflow-hidden">
+        <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <colgroup>
+            {remainingColumns.map((col) => (
+              <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
+            ))}
+          </colgroup>
+          <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
             <tr>
-              <th className="p-2.5 text-left font-semibold">บิลซื้อ</th>
-              <th className="p-2.5 text-left font-semibold">วันที่</th>
-              <th className="p-2.5 text-left font-semibold">Supplier</th>
-              <th className="p-2.5 text-right font-semibold">มูลค่า</th>
-              <th className="p-2.5 text-right font-semibold">Matched</th>
-              <th className="p-2.5 text-right font-semibold">ต้นทุนคงเหลือ</th>
+              <ResizableTableHead label="บิลซื้อ" resizeProps={columnResize.getResizeHandleProps('docNo', 'บิลซื้อ')} />
+              <ResizableTableHead label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
+              <ResizableTableHead label="Supplier" resizeProps={columnResize.getResizeHandleProps('supplierName', 'Supplier')} />
+              <ResizableTableHead align="right" label="มูลค่า" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'มูลค่า')} />
+              <ResizableTableHead align="right" label="Matched" resizeProps={columnResize.getResizeHandleProps('matchedAmount', 'Matched')} />
+              <ResizableTableHead align="right" label="ต้นทุนคงเหลือ" resizeProps={columnResize.getResizeHandleProps('remainingAmount', 'ต้นทุนคงเหลือ')} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {rows.map((row) => (
               <tr key={row.id} className="hover:bg-slate-50/30 transition-colors">
-                <td className="p-2.5 font-mono font-medium">{row.docNo}</td>
-                <td className="p-2.5 text-slate-500 font-medium">{formatDateDisplay(row.date)}</td>
-                <td className="p-2.5 text-slate-800 font-medium">{row.supplierName}</td>
-                <td className="p-2.5 text-right font-medium">{formatMoney(row.totalAmount)}</td>
-                <td className="p-2.5 text-right text-slate-500 font-medium">{formatMoney(row.matchedAmount)}</td>
-                <td className="p-2.5 text-right font-bold text-amber-700">{formatMoney(row.remainingAmount)}</td>
+                <td className="p-2.5 font-mono font-medium overflow-hidden truncate">{row.docNo}</td>
+                <td className="p-2.5 text-slate-505 font-medium overflow-hidden truncate">{formatDateDisplay(row.date)}</td>
+                <td className="p-2.5 text-slate-800 font-medium overflow-hidden truncate">{row.supplierName}</td>
+                <td className="p-2.5 text-right font-medium overflow-hidden truncate">{formatMoney(row.totalAmount)}</td>
+                <td className="p-2.5 text-right text-slate-500 font-medium overflow-hidden truncate">{formatMoney(row.matchedAmount)}</td>
+                <td className="p-2.5 text-right font-bold text-amber-700 overflow-hidden truncate">{formatMoney(row.remainingAmount)}</td>
               </tr>
             ))}
             {rows.length === 0 ? <tr><td className="py-8 text-center text-slate-400 font-semibold" colSpan={6}>ไม่มีต้นทุน Trading คงเหลือ</td></tr> : null}
@@ -357,12 +409,12 @@ function DealDetailModal({ deal, onClose }: { deal: TradingDealRow; onClose: () 
                 Cost source {deal.purchaseBillNo || '-'} · {deal.productName}
               </DialogDescription>
             </div>
-            <button className="rounded-xl px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-800 hover:text-white transition-colors outline-none focus:outline-none focus:ring-0 cursor-pointer" type="button" onClick={onClose}>✕</button>
+            <button className="rounded-md px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-800 hover:text-white transition-colors outline-none focus:outline-none focus:ring-0 cursor-pointer" type="button" onClick={onClose}>✕</button>
           </div>
         </DialogHeader>
 
         <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-5 text-sm">
-          <div className="grid gap-3 rounded-xl border border-slate-100 bg-white p-5 shadow-sm md:grid-cols-3">
+          <div className="grid gap-3 rounded-md border border-slate-100 bg-white p-5 shadow md:grid-cols-3">
             <Detail label="วันที่" value={deal.date || '-'} />
             <Detail label="Qty" value={formatMoney(deal.matchedQty)} />
             <Detail label="GP %" value={`${formatMoney(deal.grossProfitPct)}%`} />

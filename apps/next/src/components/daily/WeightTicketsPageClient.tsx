@@ -468,6 +468,7 @@ export function WeightTicketsPageClient({
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [activeLineId, setActiveLineId] = useState('')
   const [collapsedLotIds, setCollapsedLotIds] = useState<Record<string, boolean>>({})
+  const [pendingFocusField, setPendingFocusField] = useState<string | null>(null)
 
   const partyOptions = form.type === 'WTI' ? suppliers : customers
   const totals = useMemo(() => calculateTicketTotals(form.lines), [form.lines])
@@ -658,6 +659,65 @@ export function WeightTicketsPageClient({
       setActiveLineId(parentLines[0].id)
     }
   }, [activeLineId, form.lines])
+
+  function getElementId(errorKey: string): string | null {
+    if (errorKey === 'branchId') return 'weight-ticket-branch'
+    if (errorKey === 'partyId') return 'weight-ticket-party'
+    if (errorKey === 'vehicleNo') return 'weight-ticket-vehicleNo'
+
+    const match = errorKey.match(/^line-(.+?)-(product|warehouse|gross|container|images|impurity|impurity-product|deduction)$/)
+    if (match) {
+      const [_, lineId, field] = match
+      if (field === 'product') return `weight-product-${lineId}`
+      if (field === 'warehouse') return `weight-warehouse-${lineId}`
+      if (field === 'gross') return `weight-gross-${lineId}`
+      if (field === 'container') return `weight-container-${lineId}`
+      if (field === 'images') return `weight-images-${lineId}`
+      if (field === 'impurity') return `weight-impurity-${lineId}`
+      if (field === 'impurity-product') return `weight-impurity-product-${lineId}`
+      if (field === 'deduction') return `weight-deduction-${lineId}`
+    }
+    return null
+  }
+
+  useEffect(() => {
+    if (!pendingFocusField) return
+
+    const elementId = getElementId(pendingFocusField)
+    if (!elementId) {
+      setPendingFocusField(null)
+      return
+    }
+
+    let timeoutId: number
+    const tryFocus = () => {
+      const element = document.getElementById(elementId)
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        if (element.tagName === 'INPUT' || element.tagName === 'SELECT' || element.tagName === 'TEXTAREA') {
+          element.focus()
+        }
+        setPendingFocusField(null)
+      } else {
+        timeoutId = window.setTimeout(() => {
+          const secondTry = document.getElementById(elementId)
+          if (secondTry) {
+            secondTry.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            if (secondTry.tagName === 'INPUT' || secondTry.tagName === 'SELECT' || secondTry.tagName === 'TEXTAREA') {
+              secondTry.focus()
+            }
+          }
+          setPendingFocusField(null)
+        }, 50)
+      }
+    }
+
+    tryFocus()
+
+    return () => {
+      if (timeoutId) window.clearTimeout(timeoutId)
+    }
+  }, [activeLineId, pendingFocusField])
 
   const errors = useMemo(() => {
     const next: Record<string, string> = {}
@@ -1002,7 +1062,21 @@ export function WeightTicketsPageClient({
       nextTouched[`line-${line.id}-impurity-product`] = true
     })
     setTouched(nextTouched)
-    if (Object.keys(errors).length > 0) return
+    const errorKeys = Object.keys(errors)
+    if (errorKeys.length > 0) {
+      const firstErrorKey = errorKeys[0]
+      const match = firstErrorKey.match(/^line-(.+?)-(product|warehouse|gross|container|images|impurity|impurity-product|deduction)$/)
+      if (match) {
+        const targetLineId = match[1]
+        const lineInForm = form.lines.find(l => l.id === targetLineId)
+        const parentLineId = lineInForm?.parentId || targetLineId
+        if (activeLineId !== parentLineId) {
+          setActiveLineId(parentLineId)
+        }
+      }
+      setPendingFocusField(firstErrorKey)
+      return
+    }
 
     setIsSaving(true)
     try {
@@ -1124,6 +1198,7 @@ export function WeightTicketsPageClient({
               />
               <FieldBlock error={showError('vehicleNo')} label="ทะเบียนรถ*">
                 <Input
+                  id="weight-ticket-vehicleNo"
                   placeholder="เช่น 83-5476"
                   value={form.vehicleNo}
                   onBlur={() => markTouched('vehicleNo')}
@@ -1140,6 +1215,7 @@ export function WeightTicketsPageClient({
               </FieldBlock>
               <FieldBlock label="รูปภาพรถส่งของ">
                 <AttachmentProfileGrid
+                  id="weight-vehicle-images"
                   addLabel="เพิ่มรูป"
                   emptyLabel="ยังไม่มีรูปภาพรถ"
                   files={form.vehicleImageFiles}
@@ -1436,6 +1512,7 @@ export function WeightTicketsPageClient({
                                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
                                         <FieldBlock error={showError(`line-${lot.id}-gross`)} label="น้ำหนักรวม (กก. / ลัง) *">
                                           <Input
+                                            id={`weight-gross-${lot.id}`}
                                             disabled={!hasSelectedProduct}
                                             inputMode="decimal"
                                             placeholder="0.00"
@@ -1446,6 +1523,7 @@ export function WeightTicketsPageClient({
                                         </FieldBlock>
                                         <FieldBlock error={showError(`line-${lot.id}-container`)} label="หักภาชนะ(กก.)">
                                           <Input
+                                            id={`weight-container-${lot.id}`}
                                             disabled={!hasSelectedProduct}
                                             inputMode="decimal"
                                             placeholder="0.00"
@@ -1463,6 +1541,7 @@ export function WeightTicketsPageClient({
                                       </div>
                                       <FieldBlock error={showError(`line-${lot.id}-images`)} label="รูปภาพประกอบ*">
                                         <AttachmentProfileGrid
+                                          id={`weight-images-${lot.id}`}
                                           addLabel="เพิ่มรูป"
                                           emptyLabel="ยังไม่มีรูปภาพสำหรับเต๋านี้"
                                           files={getLineImages(lot)}
@@ -1704,6 +1783,7 @@ export function WeightTicketsPageClient({
                                       </FieldBlock>
                                       <FieldBlock error={showError(`line-${child.id}-deduction`)} label={child.deductionMode === 'percent' ? 'ค่าหัก % *' : 'น้ำหนักหักสิ่งเจือปน(กก.) *'} labelClassName="md:hidden">
                                         <Input
+                                          id={`weight-deduction-${child.id}`}
                                           className="md:w-[76px]"
                                           disabled={!canEditImpurityDeduction}
                                           inputMode="decimal"
@@ -1767,6 +1847,7 @@ export function WeightTicketsPageClient({
                                       <div className="mt-2 border-t border-slate-100 pt-2">
                                         <FieldBlock label="รูปสินค้าที่ปนมา">
                                           <AttachmentProfileGrid
+                                            id={`weight-images-${child.id}`}
                                             addLabel="เพิ่มรูป"
                                             emptyLabel="เพิ่มรูป"
                                             files={getLineImages(child)}
@@ -2189,6 +2270,7 @@ function ProductImagePicker({
 }
 
 function AttachmentProfileGrid({
+  id,
   addLabel,
   disabled = false,
   emptyLabel,
@@ -2198,6 +2280,7 @@ function AttachmentProfileGrid({
   onRemove,
   noWrapper = false,
 }: {
+  id?: string
   addLabel: string
   disabled?: boolean
   emptyLabel: string
@@ -2208,7 +2291,7 @@ function AttachmentProfileGrid({
   noWrapper?: boolean
 }) {
   const content = (
-    <div className="flex flex-wrap gap-3">
+    <div className="flex flex-wrap gap-3" id={id}>
       {files.map((file) => (
         <div className="w-28 min-w-0" key={file.id}>
           <button

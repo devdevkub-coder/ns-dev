@@ -1835,7 +1835,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                 </div>
                 <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 shrink-0 rounded-b-2xl">
                   <Button className="h-9 font-normal border-0 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors outline-none focus:ring-0" type="button" variant="ghost" onClick={() => setFormOpen(false)}>ยกเลิก</Button>
-                  <Button className="h-9 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors outline-none focus:ring-0 px-5" disabled={isSaving} type="submit">{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</Button>
+                  <Button className="h-9 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors outline-none focus:ring-0 px-5" disabled={isSaving} type="submit">{isSaving ? 'กำลังบันทึก...' : 'บันทึก'}</Button>
                 </div>
               </form>
             </div>
@@ -2116,12 +2116,12 @@ function ExpenseDetailModal({ onClose, onEdit, row }: { onClose: () => void; onE
         </div>
 
         <DialogFooter className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 shrink-0 rounded-b-2xl">
-          <Button className="gap-2 h-9 font-normal border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors outline-none focus:ring-0 px-5 rounded-xl" disabled={isPrinting} type="button" variant="outline" onClick={handlePrint}>
+          <Button className="gap-2 h-9 font-normal border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors outline-none focus:ring-0 px-5 rounded-md" disabled={isPrinting} type="button" variant="outline" onClick={handlePrint}>
             <Printer className="size-4" />
             {isPrinting ? 'กำลังเตรียม...' : 'พิมพ์'}
           </Button>
-          <Button className="h-9 font-normal border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors outline-none focus:ring-0 px-5 rounded-xl" type="button" variant="outline" onClick={onClose}>ปิด</Button>
-          {canEdit ? <Button className="h-9 rounded-xl bg-slate-900 hover:bg-slate-850 text-white font-medium transition-colors outline-none focus:ring-0 px-5" type="button" onClick={() => onEdit(row)}>แก้ไข</Button> : null}
+          <Button className="h-9 font-normal border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors outline-none focus:ring-0 px-5 rounded-md" type="button" variant="outline" onClick={onClose}>ปิด</Button>
+          {canEdit ? <Button className="h-9 rounded-md bg-slate-900 hover:bg-slate-850 text-white font-medium transition-colors outline-none focus:ring-0 px-5" type="button" onClick={() => onEdit(row)}>แก้ไข</Button> : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>

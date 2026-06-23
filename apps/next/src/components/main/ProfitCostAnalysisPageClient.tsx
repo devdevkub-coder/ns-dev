@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { formatDateDisplay } from '@/lib/format'
 
 type Option = { active: boolean; code?: string; creditTerm?: number; id: string; name: string }
@@ -113,6 +114,20 @@ export function ProfitCostAnalysisPageClient() {
       })
   }, [query, selectedMetalGroups.length])
 
+  const supplierSearchOptions = useMemo<SearchComboboxOption[]>(() => {
+    return (data?.filters.suppliers ?? []).map((supplier) => ({
+      id: supplier.id,
+      label: supplier.code ? `${supplier.code} - ${supplier.name}` : supplier.name,
+    }))
+  }, [data?.filters.suppliers])
+
+  const customerSearchOptions = useMemo<SearchComboboxOption[]>(() => {
+    return (data?.filters.customers ?? []).map((customer) => ({
+      id: customer.id,
+      label: customer.code ? `${customer.code} - ${customer.name}` : customer.name,
+    }))
+  }, [data?.filters.customers])
+
   const summary = data?.summary ?? {}
   const metalGroups = data?.filters.metalGroups ?? []
 
@@ -122,15 +137,39 @@ export function ProfitCostAnalysisPageClient() {
 
   return (
     <section className="space-y-4">
-      <div className="rounded-xl bg-white p-4 shadow-sm border border-slate-100">
+      <div className="rounded-md bg-white p-4 shadow border border-slate-100">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
           <Field label="จากวันที่"><DatePickerInput className="w-full" value={from} onChange={setFrom} /></Field>
           <Field label="ถึงวันที่"><DatePickerInput className="w-full" value={to} onChange={setTo} /></Field>
           <Field label="สาขา"><Select options={data?.filters.branches ?? []} value={branchId} onChange={setBranchId} /></Field>
           <Field label="ช่องทางซื้อ"><Select options={data?.filters.purchaseChannels ?? []} value={purchaseChannelId} onChange={setPurchaseChannelId} /></Field>
           <Field label="ช่องทางขาย"><Select options={data?.filters.salesChannels ?? []} value={salesChannelId} onChange={setSalesChannelId} /></Field>
-          <Field label="Supplier"><Select options={data?.filters.suppliers ?? []} value={supplierId} onChange={setSupplierId} /></Field>
-          <Field label="Customer"><Select options={data?.filters.customers ?? []} value={customerId} onChange={setCustomerId} /></Field>
+          <Field label="Supplier">
+            <div className="mt-1">
+              <SearchCombobox
+                inputId="profit-supplier-select"
+                label="Supplier"
+                hideLabel
+                placeholder="ทั้งหมด"
+                options={supplierSearchOptions}
+                value={supplierId}
+                onChange={setSupplierId}
+              />
+            </div>
+          </Field>
+          <Field label="Customer">
+            <div className="mt-1">
+              <SearchCombobox
+                inputId="profit-customer-select"
+                label="Customer"
+                hideLabel
+                placeholder="ทั้งหมด"
+                options={customerSearchOptions}
+                value={customerId}
+                onChange={setCustomerId}
+              />
+            </div>
+          </Field>
         </div>
         <div className="mt-4 border-t border-slate-100 pt-3">
           <div className="mb-2 flex flex-wrap items-center gap-2 text-sm font-bold text-slate-700">

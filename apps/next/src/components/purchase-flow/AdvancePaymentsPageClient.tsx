@@ -970,14 +970,14 @@ export function AdvancePaymentsPageClient() {
         setIsDetailOpen(open)
         if (!open) setDetail(null)
       }}>
-        <DialogContent className="max-h-[90vh] max-w-5xl rounded-2xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" fallbackTitle="รายละเอียด ADV" hideClose>
+        <DialogContent className="max-h-[90vh] max-w-5xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" fallbackTitle="รายละเอียด ADV" hideClose>
           <DialogHeader className="p-4 bg-slate-900 text-white shrink-0">
             <div className="flex items-start justify-between gap-3 w-full">
               <div>
                 <DialogTitle className="text-white">{detail?.docNo ? `รายละเอียด ${detail.docNo}` : 'รายละเอียด ADV'}</DialogTitle>
                 <DialogDescription className="text-slate-300">กดที่รายการเพื่อดูข้อมูลเอกสาร การหักบิลย้อนหลัง และ timeline ของรายการ ADV</DialogDescription>
               </div>
-              <button className="rounded-xl px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-800 hover:text-white transition-colors outline-none focus:outline-none focus:ring-0 cursor-pointer" type="button" onClick={() => setIsDetailOpen(false)}>✕</button>
+              <button className="rounded-md px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-800 hover:text-white transition-colors outline-none focus:outline-none focus:ring-0 cursor-pointer" type="button" onClick={() => setIsDetailOpen(false)}>✕</button>
             </div>
           </DialogHeader>
           {isDetailLoading ? <div className="flex-1 p-8 text-center text-sm text-slate-500 bg-white">กำลังโหลดรายละเอียด...</div> : null}

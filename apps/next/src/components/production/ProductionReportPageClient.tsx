@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { formatDateDisplay } from '@/lib/format'
 
 type Row = Record<string, string | number | boolean | null | undefined | Record<string, number>>
@@ -67,8 +69,84 @@ const configs: Record<string, { apiPath: string; columns: Column[]; metrics: Arr
   },
 }
 
+const wipColumns: Array<ResizableColumnDefinition<string>> = [
+  { key: 'docNo', defaultWidth: 120 },
+  { key: 'date', defaultWidth: 100 },
+  { key: 'ageDays', defaultWidth: 90 },
+  { key: 'branchName', defaultWidth: 120 },
+  { key: 'machineName', defaultWidth: 120 },
+  { key: 'inputQty', defaultWidth: 100 },
+  { key: 'outputQty', defaultWidth: 100 },
+  { key: 'wipQty', defaultWidth: 100 },
+  { key: 'wipValue', defaultWidth: 120 },
+  { key: 'status', defaultWidth: 100 },
+]
+
+const reportColumns: Array<ResizableColumnDefinition<string>> = [
+  { key: 'docNo', defaultWidth: 120 },
+  { key: 'date', defaultWidth: 100 },
+  { key: 'productionType', defaultWidth: 130 },
+  { key: 'inputProducts', defaultWidth: 180 },
+  { key: 'machineName', defaultWidth: 120 },
+  { key: 'inputQty', defaultWidth: 100 },
+  { key: 'outputQty', defaultWidth: 100 },
+  { key: 'wipQty', defaultWidth: 100 },
+  { key: 'lossQty', defaultWidth: 100 },
+  { key: 'yieldPct', defaultWidth: 90 },
+  { key: 'totalCost', defaultWidth: 120 },
+  { key: 'costPerKg', defaultWidth: 100 },
+]
+
+const costColumns: Array<ResizableColumnDefinition<string>> = [
+  { key: 'docNo', defaultWidth: 120 },
+  { key: 'date', defaultWidth: 100 },
+  { key: 'inputCost', defaultWidth: 110 },
+  { key: 'processCost', defaultWidth: 110 },
+  { key: 'totalCost', defaultWidth: 120 },
+  { key: 'outputQty', defaultWidth: 100 },
+  { key: 'costPerKg', defaultWidth: 100 },
+  { key: 'productionType', defaultWidth: 120 },
+]
+
+const yieldLossColumns: Array<ResizableColumnDefinition<string>> = [
+  { key: 'docNo', defaultWidth: 120 },
+  { key: 'date', defaultWidth: 100 },
+  { key: 'inputQty', defaultWidth: 100 },
+  { key: 'outputQty', defaultWidth: 100 },
+  { key: 'lossQty', defaultWidth: 100 },
+  { key: 'yieldPct', defaultWidth: 90 },
+  { key: 'lossPct', defaultWidth: 90 },
+  { key: 'normalLossPercent', defaultWidth: 100 },
+  { key: 'abnormalLossValue', defaultWidth: 110 },
+  { key: 'yieldGainValue', defaultWidth: 110 },
+  { key: 'netPnL', defaultWidth: 120 },
+]
+
+const machineColumns: Array<ResizableColumnDefinition<string>> = [
+  { key: 'name', defaultWidth: 150 },
+  { key: 'type', defaultWidth: 100 },
+  { key: 'branchName', defaultWidth: 120 },
+  { key: 'capacityKgPerHr', defaultWidth: 100 },
+  { key: 'normalYieldPct', defaultWidth: 100 },
+  { key: 'orderCount', defaultWidth: 80 },
+  { key: 'inputQty', defaultWidth: 100 },
+  { key: 'outputQty', defaultWidth: 100 },
+  { key: 'actualYield', defaultWidth: 100 },
+  { key: 'yieldDiff', defaultWidth: 90 },
+  { key: 'estHours', defaultWidth: 100 },
+  { key: 'utilization', defaultWidth: 95 },
+  { key: 'totalCost', defaultWidth: 120 },
+]
+
 export function ProductionReportPageClient({ mode }: { mode: keyof typeof configs }) {
   const config = configs[mode]
+  const wipResize = useResizableColumns('production.report.wip.v5', wipColumns)
+  const reportResize = useResizableColumns('production.report.report.v5', reportColumns)
+  const costResize = useResizableColumns('production.report.cost.v5', costColumns)
+  const yieldLossResize = useResizableColumns('production.report.yieldLoss.v5', yieldLossColumns)
+  const machineResize = useResizableColumns('production.report.machine.v5', machineColumns)
+  const dummyResize = useResizableColumns('production.report.dummy.v5', [])
+  const columnResize = mode === 'wip' ? wipResize : mode === 'report' ? reportResize : mode === 'cost' ? costResize : mode === 'yieldLoss' ? yieldLossResize : mode === 'machine' ? machineResize : dummyResize
   const [data, setData] = useState<Payload | null>(null)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -761,14 +839,29 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
 
       {/* Desktop view for other modes */}
       <div className="overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm hidden lg:block">
+        <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
+          {columnResize.hasCustomWidths ? (
+            <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
+              คืนค่าเดิมตาราง
+            </button>
+          ) : null}
+        </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm table-zebra">
+          <table className="w-full text-sm table-zebra" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+            <colgroup>
+              {config.columns.map((col) => (
+                <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
+              ))}
+            </colgroup>
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr className="border-slate-100">
                 {config.columns.map((column) => (
-                  <th key={column.key} className="whitespace-nowrap p-2 text-left text-xs font-semibold text-slate-500">
-                    {column.label}
-                  </th>
+                  <ResizableTableHead
+                    key={column.key}
+                    label={column.label}
+                    align={column.type === 'number' || column.type === 'money' || column.type === 'percent' ? 'right' : 'left'}
+                    resizeProps={columnResize.getResizeHandleProps(column.key, column.label)}
+                  />
                 ))}
               </tr>
             </thead>
@@ -777,7 +870,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
               {!isLoading && filteredRows.map((row, index) => (
                 <tr key={String(row.id ?? index)} className={`border-t border-slate-100 hover:bg-slate-50 ${mode === 'wip' ? wipAgeClass(Number(row.ageDays ?? 0)) : ''}`}>
                   {config.columns.map((column) => (
-                    <td key={column.key} className={`whitespace-nowrap p-2 text-xs ${cellTone(row[column.key], column, mode)}`}>
+                    <td key={column.key} className={`whitespace-nowrap p-2 text-xs overflow-hidden truncate ${cellTone(row[column.key], column, mode)}`}>
                       {formatCell(row[column.key], column.type)}
                     </td>
                   ))}

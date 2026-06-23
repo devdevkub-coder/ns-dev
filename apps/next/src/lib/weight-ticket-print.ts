@@ -63,6 +63,8 @@ function missing(value: string | null | undefined) {
 function cleanNote(note: string | null | undefined): string {
   if (!note) return '-'
   return note
+    .replace(/\[impurity_product_id:[^\]]+\]/gi, '')
+    .replace(/\[impurity_product_name:[^\]]+\]/gi, '')
     .replace(/\s*\(\s*([^)]+?)\s+\d+(?:\.\d+)?\s*kg\s*\)/gi, ' ($1)')
     .replace(/\s*\([\d.]+\s*kg\)/gi, '')
     .replace(/\s*[\d.]+\s*kg/gi, '')
@@ -267,9 +269,18 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
     .filter(Boolean)
     .join('')
 
+  const isLotLine = (line: WeightTicketRecord['lines'][number]) => {
+    if (!isReceipt) return true
+    return line.grossWeightValue > 0 && !line.note.includes('มาจากสิ่งเจือปน')
+  }
+  const lotLines = ticket.lines.filter(isLotLine)
+  const lotCount = lotLines.length
+  const lotGrossWeight = lotLines.reduce((sum, line) => sum + line.grossWeightValue, 0)
+  const lotContainerWeight = lotLines.reduce((sum, line) => sum + line.containerDeductionWeightValue, 0)
+
   function rowHtml(row: PrintWeightRow) {
     if (row.className === 'product-heading') {
-      const colSpan = isReceipt ? 6 : 4
+      const colSpan = isReceipt ? 7 : 4
       return `
         <tr class="item-row product-heading">
           <td class="c rank-cell">${escapeHtml(row.rank || '')}</td>
@@ -281,6 +292,8 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       `
     }
 
+    const afterContainerWeight = Math.max(0, row.grossWeight - row.containerDeductionWeight)
+
     return `
       <tr class="item-row ${escapeHtml(row.className || '')}">
         <td class="c rank-cell">${escapeHtml(row.rank || '')}</td>
@@ -289,19 +302,20 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
           ${row.label ? `<div class="muted">${escapeHtml(row.label)}</div>` : ''}
           <div class="muted">${detailHtml(row.detail)}</div>
         </td>
-        <td class="r">${formatPrintableWeight(row.grossWeight)}</td>
+        <td class="r">${formatPrintableNumber(row.grossWeight)}</td>
         ${isReceipt ? `
-        <td class="r">${formatPrintableWeight(row.containerDeductionWeight)}</td>
-        <td class="r">${formatPrintableWeight(row.deductionWeight)}</td>
+        <td class="r">${formatPrintableNumber(row.containerDeductionWeight)}</td>
+        <td class="r">${formatPrintableNumber(afterContainerWeight)}</td>
+        <td class="r">${formatPrintableNumber(row.deductionWeight)}</td>
         ` : ''}
-        <td class="r strong">${formatPrintableWeight(row.netWeight)}</td>
+        <td class="r strong">${formatPrintableNumber(row.netWeight)}</td>
       </tr>
     `
   }
 
   function emptyRows(count: number) {
     const tds = isReceipt
-      ? '<td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td>'
+      ? '<td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td>'
       : '<td>&nbsp;</td><td></td><td></td><td></td>'
     return Array.from({ length: Math.max(0, count) }, () => (
       `<tr class="empty">${tds}</tr>`
@@ -325,6 +339,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
     const isLastPage = pageIndex === totalPages - 1
     const rows = page.items.map((row) => rowHtml(row)).join('')
     const fillerRows = emptyRows(page.capacity - page.items.length)
+    const totalAfterContainer = Math.max(0, ticket.totals.grossWeight - ticket.totals.containerDeductionWeight)
 
     return `
       <main class="page">
@@ -369,12 +384,13 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
             <tr>
               <th class="c rank-cell" style="width:7mm">#</th>
               <th>รายการสินค้า</th>
-              <th class="r" style="width:24mm">น้ำหนักรวม</th>
+              <th class="r" style="width:21mm">น้ำหนักรวม</th>
               ${isReceipt ? `
-              <th class="r" style="width:25mm">หักภาชนะ</th>
-              <th class="r" style="width:34mm">หักสิ่งเจือปน</th>
+              <th class="r" style="width:21mm">หักภาชนะ</th>
+              <th class="r" style="width:32mm">น้ำหนักหลังหักภาชนะ</th>
+              <th class="r" style="width:26mm">หักสิ่งเจือปน</th>
               ` : ''}
-              <th class="r" style="width:24mm">น้ำหนักสุทธิ</th>
+              <th class="r" style="width:21mm">น้ำหนักสุทธิ</th>
             </tr>
           </thead>
           <tbody>
@@ -388,6 +404,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
                 <td class="r">${formatPrintableNumber(ticket.totals.grossWeight)}</td>
                 ${isReceipt ? `
                 <td class="r">${formatPrintableNumber(ticket.totals.containerDeductionWeight)} kg</td>
+                <td class="r">${formatPrintableNumber(totalAfterContainer)} kg</td>
                 <td class="r">${formatPrintableNumber(ticket.totals.deductionWeight)} kg</td>
                 ` : ''}
                 <td class="r final-weight">${formatPrintableNumber(ticket.totals.netWeight)}</td>
@@ -405,9 +422,9 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
             <div class="panel">
               <div class="panel-title">ข้อมูลน้ำหนัก / Weight Info</div>
               <div class="panel-body two-col">
-                <div><div class="field-label">จำนวนรายการ</div><div class="field-value">${ticket.lines.length.toLocaleString('th-TH')} รายการ</div></div>
-                <div><div class="field-label">น้ำหนักรวม</div><div class="field-value">${formatPrintableNumber(ticket.totals.grossWeight)} kg</div></div>
-                <div><div class="field-label">หักภาชนะ</div><div class="field-value">${formatPrintableNumber(ticket.totals.containerDeductionWeight)} kg</div></div>
+                <div><div class="field-label">จำนวนรายการ</div><div class="field-value">${lotCount} รายการ</div></div>
+                <div><div class="field-label">น้ำหนักรวม</div><div class="field-value">${formatPrintableNumber(lotGrossWeight)} kg</div></div>
+                <div><div class="field-label">หักภาชนะ</div><div class="field-value">${formatPrintableNumber(lotContainerWeight)} kg</div></div>
                 <div><div class="field-label">หักสิ่งเจือปน</div><div class="field-value">${formatPrintableNumber(ticket.totals.deductionWeight)} kg</div></div>
                 <div><div class="field-label">น้ำหนักสุทธิ</div><div class="field-value strong">${formatPrintableNumber(ticket.totals.netWeight)} kg</div></div>
               </div>
@@ -432,7 +449,11 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
     `
   }).join('')
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(docTitle)} ${escapeHtml(ticket.documentNo)}</title>
+  return `<!DOCTYPE html><html><head><meta charset="utf-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <title>${escapeHtml(docTitle)} ${escapeHtml(ticket.documentNo)}</title>
     <style>
       @page { size: A4 portrait; margin: 10mm; }
       * { box-sizing: border-box; }
@@ -454,15 +475,16 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .doc-title { font-size: 22px; font-weight: 900; color: #14532d; letter-spacing: 0; }
       .doc-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; text-align: left; }
       .kv { border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 7px; background: #f8fafc; }
-      .kv .label, .field-label, .summary-card .label { color: #64748b; font-size: 9px; }
-      .kv .value, .field-value { font-weight: 800; color: #0f172a; margin-top: 1px; overflow-wrap: anywhere; }
+      .kv .label, .field-label, .summary-card .label { color: #475569; font-size: 9.5px; font-weight: 500; }
+      .kv .value, .field-value { font-size: 12.5px; font-weight: 700; color: #0f172a; margin-top: 1px; overflow-wrap: anywhere; }
+      .field-value.strong { font-size: 15.5px; color: #059669; font-weight: 800; }
       .section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; flex: 0 0 auto; }
       .panel { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
       .panel-title { padding: 6px 9px; background: #f1f5f9; color: #334155; font-weight: 900; }
       .panel-body { padding: 8px 9px; }
       .two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 12px; }
       table { width: 100%; border-collapse: collapse; }
-      .items { margin-top: 12px; font-size: 9px; table-layout: fixed; flex: 0 0 auto; }
+      .items { margin-top: 12px; font-size: 11.5px; table-layout: fixed; flex: 0 0 auto; }
       .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 6px 5px; text-align: left; font-weight: 900; }
       .items td { border: 1px solid #dbe3ea; padding: 6px 5px; vertical-align: top; }
       .items .empty td { height: 24px; color: transparent; }
@@ -477,7 +499,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .source-row .detail-line:first-child,
       .purchase-row .detail-line:first-child { color: #334155; font-weight: 800; }
       .rank-cell { padding-left: 2px !important; padding-right: 2px !important; }
-      .final-weight { color: #059669; font-size: 12px; font-weight: 900; }
+      .final-weight { color: #059669; font-size: 13.5px; font-weight: 900; }
       .r { text-align: right; }
       .c { text-align: center; }
       .strong { font-weight: 900; }
@@ -508,11 +530,14 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
         .doc-title { font-size: 19px; }
         .doc-grid { gap: 6px 8px; }
         .kv { padding: 3px 5px; }
+        .kv .label, .field-label, .summary-card .label { font-size: 8px; }
+        .kv .value, .field-value { font-size: 10.5px; }
+        .field-value.strong { font-size: 13.5px; }
         .section-grid { gap: 8px; margin-top: 7px; }
         .panel-title { padding: 4px 7px; }
         .panel-body { padding: 5px 7px; }
         .two-col { gap: 4px 8px; }
-        .items { font-size: 8px; margin-top: 7px; }
+        .items { font-size: 11.5px; margin-top: 7px; }
         .items th, .items td { padding: 3px; }
         .items .empty td { height: 18px; }
         .muted { font-size: 8px; }

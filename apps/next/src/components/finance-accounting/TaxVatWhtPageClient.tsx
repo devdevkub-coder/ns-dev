@@ -282,7 +282,7 @@ function BranchSelect({ branches, onChange, value }: { branches: BranchRow[]; on
 function DisabledButton({ children }: { children: ReactNode }) {
   return (
     <button
-      className="rounded-xl bg-slate-900 px-3.5 py-1.5 text-sm font-medium text-white opacity-50 outline-none border border-slate-100 cursor-not-allowed"
+      className="rounded-md bg-slate-900 px-3.5 py-1.5 text-sm font-medium text-white opacity-50 outline-none border border-slate-100 cursor-not-allowed"
       disabled
       type="button"
     >

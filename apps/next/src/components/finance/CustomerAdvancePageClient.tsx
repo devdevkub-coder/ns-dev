@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 
 type CustomerFilter = {
   active: boolean | null
@@ -55,6 +57,20 @@ type CustomerAdvancePayload = {
   }
 }
 
+const customerAdvanceColumns: Array<ResizableColumnDefinition<string>> = [
+  { key: 'docNo', defaultWidth: 120 },
+  { key: 'date', defaultWidth: 100 },
+  { key: 'customerName', defaultWidth: 200 },
+  { key: 'currency', defaultWidth: 70 },
+  { key: 'fxRate', defaultWidth: 80 },
+  { key: 'amount', defaultWidth: 100 },
+  { key: 'amountThb', defaultWidth: 100 },
+  { key: 'usedAmount', defaultWidth: 100 },
+  { key: 'remainingAmount', defaultWidth: 100 },
+  { key: 'status', defaultWidth: 110 },
+  { key: 'action', defaultWidth: 80 },
+]
+
 export function CustomerAdvancePageClient() {
   const [data, setData] = useState<CustomerAdvancePayload | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -82,6 +98,7 @@ export function CustomerAdvancePageClient() {
   }, [loadData])
 
   const exportHref = `/api/finance/customer-advance?${queryString}&format=xlsx`
+  const columnResize = useResizableColumns('finance.customer.advance.v5', customerAdvanceColumns)
 
   return (
     <section className="space-y-4">
@@ -100,21 +117,33 @@ export function CustomerAdvancePageClient() {
         </div>
       </div>
 
-      <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
-        <table className="w-full text-sm">
+      <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-200/60 bg-white shadow-sm overflow-hidden">
+        <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
+          {columnResize.hasCustomWidths ? (
+            <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
+              คืนค่าเดิมตาราง
+            </button>
+          ) : null}
+        </div>
+        <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <colgroup>
+            {customerAdvanceColumns.map((col) => (
+              <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
+            ))}
+          </colgroup>
           <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
             <tr>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">เลขที่</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">วันที่</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">Customer</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">สกุล</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">Rate</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">จำนวน</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">มูลค่า THB</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">ใช้แล้ว</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">คงเหลือ</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-center">สถานะ</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right"></th>
+              <ResizableTableHead label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
+              <ResizableTableHead label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
+              <ResizableTableHead label="Customer" resizeProps={columnResize.getResizeHandleProps('customerName', 'Customer')} />
+              <ResizableTableHead label="สกุล" resizeProps={columnResize.getResizeHandleProps('currency', 'สกุล')} />
+              <ResizableTableHead align="right" label="Rate" resizeProps={columnResize.getResizeHandleProps('fxRate', 'Rate')} />
+              <ResizableTableHead align="right" label="จำนวน" resizeProps={columnResize.getResizeHandleProps('amount', 'จำนวน')} />
+              <ResizableTableHead align="right" label="มูลค่า THB" resizeProps={columnResize.getResizeHandleProps('amountThb', 'มูลค่า THB')} />
+              <ResizableTableHead align="right" label="ใช้แล้ว" resizeProps={columnResize.getResizeHandleProps('usedAmount', 'ใช้แล้ว')} />
+              <ResizableTableHead align="right" label="คงเหลือ" resizeProps={columnResize.getResizeHandleProps('remainingAmount', 'คงเหลือ')} />
+              <ResizableTableHead align="center" label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
+              <ResizableTableHead label="" resizeProps={columnResize.getResizeHandleProps('action', '')} />
             </tr>
           </thead>
           <tbody>
@@ -122,17 +151,17 @@ export function CustomerAdvancePageClient() {
             {!isLoading && (data?.rows ?? []).length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={11}>ยังไม่มี Customer Advance</td></tr> : null}
             {!isLoading && (data?.rows ?? []).map((row) => (
               <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50/50 transition-colors">
-                <td className="px-4 py-3.5 font-mono text-xs">{row.docNo}</td>
-                <td className="px-4 py-3.5">{row.date}</td>
-                <td className="px-4 py-3.5">{row.customerName}</td>
-                <td className="px-4 py-3.5">{row.currency}</td>
-                <td className="px-4 py-3.5 text-right">{formatMoney(row.fxRate)}</td>
-                <td className="px-4 py-3.5 text-right">{formatMoney(row.amount)}</td>
-                <td className="px-4 py-3.5 text-right font-medium">{formatMoney(row.amountThb)}</td>
-                <td className="px-4 py-3.5 text-right text-slate-600">{formatMoney(row.usedAmount)}</td>
-                <td className="px-4 py-3.5 text-right font-bold text-emerald-700">{formatMoney(row.remainingAmount)}</td>
-                <td className="px-4 py-3.5 text-center"><StatusBadge status={row.status} /></td>
-                <td className="px-4 py-3.5 text-right"><button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" disabled type="button">ยกเลิก</button></td>
+                <td className="px-4 py-3.5 font-mono text-xs overflow-hidden truncate">{row.docNo}</td>
+                <td className="px-4 py-3.5 overflow-hidden truncate">{row.date}</td>
+                <td className="px-4 py-3.5 overflow-hidden truncate">{row.customerName}</td>
+                <td className="px-4 py-3.5 overflow-hidden truncate">{row.currency}</td>
+                <td className="px-4 py-3.5 text-right overflow-hidden truncate">{formatMoney(row.fxRate)}</td>
+                <td className="px-4 py-3.5 text-right overflow-hidden truncate">{formatMoney(row.amount)}</td>
+                <td className="px-4 py-3.5 text-right font-medium overflow-hidden truncate">{formatMoney(row.amountThb)}</td>
+                <td className="px-4 py-3.5 text-right text-slate-600 overflow-hidden truncate">{formatMoney(row.usedAmount)}</td>
+                <td className="px-4 py-3.5 text-right font-bold text-emerald-700 overflow-hidden truncate">{formatMoney(row.remainingAmount)}</td>
+                <td className="px-4 py-3.5 text-center overflow-hidden truncate"><StatusBadge status={row.status} /></td>
+                <td className="px-4 py-3.5 text-right overflow-hidden truncate"><button className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" disabled type="button">ยกเลิก</button></td>
               </tr>
             ))}
           </tbody>

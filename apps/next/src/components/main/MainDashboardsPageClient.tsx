@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 
 type MainPayload = {
   dashboard: {
@@ -162,6 +163,27 @@ function DashboardView(props: {
   setRangeTo: (value: string) => void
 }) {
   const { dashboardBranchId, dashboardCustomerId, dashboardGroup, dashboardProductId, dashboardSupplierId, data, date, rangeFrom, rangeMode, rangeTo, setDashboardBranchId, setDashboardCustomerId, setDashboardGroup, setDashboardProductId, setDashboardSupplierId, setRangeFrom, setRangeMode, setRangeTo } = props
+  
+  const supplierSearchOptions = useMemo<SearchComboboxOption[]>(() => {
+    return (data?.filterOptions.suppliers ?? []).map((row) => ({
+      id: row.id,
+      label: row.name,
+    }))
+  }, [data?.filterOptions.suppliers])
+
+  const customerSearchOptions = useMemo<SearchComboboxOption[]>(() => {
+    return (data?.filterOptions.customers ?? []).map((row) => ({
+      id: row.id,
+      label: row.code ? `${row.code} - ${row.name}` : row.name,
+    }))
+  }, [data?.filterOptions.customers])
+
+  const productSearchOptions = useMemo<SearchComboboxOption[]>(() => {
+    return (data?.filterOptions.products ?? []).slice(0, 300).map((row) => ({
+      id: row.id,
+      label: `${row.code} - ${row.name}`,
+    }))
+  }, [data?.filterOptions.products])
   const k = data?.dashboard.kpi ?? {}
   const section = data?.dashboard.sections
   const analytics = data?.dailyReport.analytics
@@ -234,9 +256,39 @@ function DashboardView(props: {
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <select className="max-w-xs rounded-md border border-white/20 bg-white/10 px-2 py-1 text-white outline-none focus:ring-2 focus:ring-amber-400" value={dashboardBranchId} onChange={(event) => setDashboardBranchId(event.target.value)}><option className="text-slate-900" value="">🏢 ทุกสาขา</option>{(data?.filterOptions.branches ?? []).map((row) => <option className="text-slate-900" key={row.id} value={row.id}>{row.name}</option>)}</select>
           <select className="max-w-xs rounded-md border border-white/20 bg-white/10 px-2 py-1 text-white outline-none focus:ring-2 focus:ring-amber-400" value={dashboardGroup} onChange={(event) => setDashboardGroup(event.target.value)}><option className="text-slate-900" value="">📦 ทุกหมวด</option>{(data?.filterOptions.groups ?? []).map((group) => <option className="text-slate-900" key={group} value={group}>{group}</option>)}</select>
-          <select className="max-w-xs rounded-md border border-white/20 bg-white/10 px-2 py-1 text-white outline-none focus:ring-2 focus:ring-amber-400" value={dashboardSupplierId} onChange={(event) => setDashboardSupplierId(event.target.value)}><option className="text-slate-900" value="">🏭 ทุก Supplier</option>{(data?.filterOptions.suppliers ?? []).map((row) => <option className="text-slate-900" key={row.id} value={row.id}>{row.name}</option>)}</select>
-          <select className="max-w-xs rounded-md border border-white/20 bg-white/10 px-2 py-1 text-white outline-none focus:ring-2 focus:ring-amber-400" value={dashboardCustomerId} onChange={(event) => setDashboardCustomerId(event.target.value)}><option className="text-slate-900" value="">👥 ทุก Customer</option>{(data?.filterOptions.customers ?? []).map((row) => <option className="text-slate-900" key={row.id} value={row.id}>{row.code ? `${row.code} - ${row.name}` : row.name}</option>)}</select>
-          <select className="max-w-xs rounded-md border border-white/20 bg-white/10 px-2 py-1 text-white outline-none focus:ring-2 focus:ring-amber-400" value={dashboardProductId} onChange={(event) => setDashboardProductId(event.target.value)}><option className="text-slate-900" value="">🏷 ทุกสินค้า</option>{(data?.filterOptions.products ?? []).slice(0, 300).map((row) => <option className="text-slate-900" key={`${row.id}-${row.code}`} value={row.id}>{row.code} - {row.name}</option>)}</select>
+          <div className="w-[180px] text-slate-800 text-sm">
+            <SearchCombobox
+              inputId="dashboard-supplier-filter"
+              label="Supplier"
+              hideLabel
+              placeholder="🏭 ทุก Supplier"
+              options={supplierSearchOptions}
+              value={dashboardSupplierId}
+              onChange={setDashboardSupplierId}
+            />
+          </div>
+          <div className="w-[180px] text-slate-800 text-sm">
+            <SearchCombobox
+              inputId="dashboard-customer-filter"
+              label="Customer"
+              hideLabel
+              placeholder="👥 ทุก Customer"
+              options={customerSearchOptions}
+              value={dashboardCustomerId}
+              onChange={setDashboardCustomerId}
+            />
+          </div>
+          <div className="w-[180px] text-slate-800 text-sm">
+            <SearchCombobox
+              inputId="dashboard-product-filter"
+              label="สินค้า"
+              hideLabel
+              placeholder="🏷 ทุกสินค้า"
+              options={productSearchOptions}
+              value={dashboardProductId}
+              onChange={setDashboardProductId}
+            />
+          </div>
           <button className="ml-auto rounded-md bg-amber-500 px-3 py-1 font-bold text-slate-900 hover:bg-amber-600 outline-none focus:ring-2 focus:ring-amber-400" onClick={clearFilters} type="button">✕ ล้าง Filter</button>
         </div>
       </div>
@@ -1265,8 +1317,8 @@ function Panel({ children, title }: { children: ReactNode; title: string }) {
 
 function Section({ children, title }: { children: ReactNode; title: string }) {
   return (
-    <div className="bg-white p-4 shadow-sm border border-slate-100 rounded-xl">
-      <h2 className="mb-3 font-bold text-slate-800 text-sm">{title}</h2>
+    <div className="space-y-3 mt-4">
+      <h2 className="font-bold text-slate-800 text-sm">{title}</h2>
       <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-5">{children}</div>
     </div>
   )

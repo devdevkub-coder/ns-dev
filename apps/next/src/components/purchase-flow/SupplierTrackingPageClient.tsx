@@ -4,7 +4,46 @@ import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { formatDateDisplay } from '@/lib/format'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+import { Download } from 'lucide-react'
+
+type SupplierTrackingColumnKey =
+  | 'code'
+  | 'supplierName'
+  | 'billCount'
+  | 'qty'
+  | 'purchaseAmount'
+  | 'avgBuy'
+  | 'paidAmount'
+  | 'payable'
+  | 'overdueApAmount'
+  | 'oldestApDays'
+  | 'paidPct'
+  | 'wtiCount'
+  | 'deliveryCompletionPct'
+  | 'deductionPct'
+  | 'grade'
+
+const trackingColumns: Array<ResizableColumnDefinition<SupplierTrackingColumnKey>> = [
+  { key: 'code', defaultWidth: 90, minWidth: 80 },
+  { key: 'supplierName', defaultWidth: 180, minWidth: 140 },
+  { key: 'billCount', defaultWidth: 70, minWidth: 60 },
+  { key: 'qty', defaultWidth: 110, minWidth: 90 },
+  { key: 'purchaseAmount', defaultWidth: 120, minWidth: 100 },
+  { key: 'avgBuy', defaultWidth: 100, minWidth: 85 },
+  { key: 'paidAmount', defaultWidth: 120, minWidth: 100 },
+  { key: 'payable', defaultWidth: 120, minWidth: 100 },
+  { key: 'overdueApAmount', defaultWidth: 110, minWidth: 90 },
+  { key: 'oldestApDays', defaultWidth: 90, minWidth: 80 },
+  { key: 'paidPct', defaultWidth: 80, minWidth: 70 },
+  { key: 'wtiCount', defaultWidth: 80, minWidth: 70 },
+  { key: 'deliveryCompletionPct', defaultWidth: 90, minWidth: 80 },
+  { key: 'deductionPct', defaultWidth: 80, minWidth: 70 },
+  { key: 'grade', defaultWidth: 70, minWidth: 60 },
+]
 
 type SupplierTrackingRow = {
   agingBuckets: Array<{ amount: number; bucket: string; count: number }>
@@ -76,6 +115,19 @@ export function SupplierTrackingPageClient() {
   const [supplierId, setSupplierId] = useState('')
   const [view, setView] = useState<'list' | 'top10' | 'yearCompare'>('list')
   const [year, setYear] = useState(String(new Date().getFullYear()))
+  const [sortKey, setSortKey] = useState<string | undefined>(undefined)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  const columnResize = useResizableColumns('tracking.supplier.main.v5', trackingColumns)
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDirection('asc')
+    }
+  }
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams({ year })
@@ -139,11 +191,40 @@ export function SupplierTrackingPageClient() {
 
   const rows = data?.rows ?? []
 
+  const sortedRows = useMemo(() => {
+    const result = [...rows]
+    if (sortKey) {
+      result.sort((a, b) => {
+        const valA = a[sortKey as keyof SupplierTrackingRow]
+        const valB = b[sortKey as keyof SupplierTrackingRow]
+
+        if (valA === undefined || valA === null) return 1
+        if (valB === undefined || valB === null) return -1
+
+        if (typeof valA === 'number' && typeof valB === 'number') {
+          return sortDirection === 'asc' ? valA - valB : valB - valA
+        }
+
+        return sortDirection === 'asc'
+          ? String(valA).localeCompare(String(valB), 'th', { numeric: true })
+          : String(valB).localeCompare(String(valA), 'th', { numeric: true })
+      })
+    }
+    return result
+  }, [rows, sortKey, sortDirection])
+
   const topPurchase = [...rows].sort((left, right) => right.purchaseAmount - left.purchaseAmount).slice(0, 10)
   const topQty = [...rows].sort((left, right) => right.qty - left.qty).slice(0, 10)
   const cheapest = [...rows].filter((row) => row.avgBuy > 0).sort((left, right) => left.avgBuy - right.avgBuy).slice(0, 10)
   const expensive = [...rows].filter((row) => row.avgBuy > 0).sort((left, right) => right.avgBuy - left.avgBuy).slice(0, 10)
   const topPayable = [...rows].sort((left, right) => right.payable - left.payable).slice(0, 10)
+  const supplierSearchOptions = useMemo<SearchComboboxOption[]>(() => {
+    return (data?.filters?.suppliers ?? []).map((supplier) => ({
+      id: supplier.id,
+      label: supplier.code ? `${supplier.code} - ${supplier.name}` : supplier.name,
+    }))
+  }, [data?.filters?.suppliers])
+
   const exportHref = `/api/tracking/supplier?${queryString}&format=xlsx`
   const paidAmount = rows.reduce((sum, row) => sum + row.paidAmount, 0)
   const payable = rows.reduce((sum, row) => sum + row.payable, 0)
@@ -160,26 +241,44 @@ export function SupplierTrackingPageClient() {
         <SummaryCard className="col-span-2 lg:col-span-1" icon="🏦" label="เจ้าหนี้ค้าง" tone="red" value={formatMoney(payable)} />
       </div>
 
-      <div className="rounded-md bg-white p-3 shadow">
+      <div className="rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm">
         <div className="grid gap-2 lg:grid-cols-6">
-          <input className="h-9 rounded-md border px-3 text-sm" type="number" value={year} onChange={(event) => setYear(event.target.value)} />
-          <select className="h-9 rounded-md border px-3 text-sm" value={month} onChange={(event) => setMonth(event.target.value)}>
+          <input className="h-9 rounded-md border border-slate-300 px-3 text-sm outline-none" type="number" value={year} onChange={(event) => setYear(event.target.value)} />
+          <select className="h-9 rounded-md border border-slate-300 px-3 text-sm outline-none" value={month} onChange={(event) => setMonth(event.target.value)}>
             <option value="">ทั้งปี</option>
             {months.map((value, index) => <option key={value} value={value}>{monthLabels[index]}</option>)}
           </select>
-          <select className="h-9 rounded-md border px-3 text-sm lg:col-span-2" value={supplierId} onChange={(event) => setSupplierId(event.target.value)}>
-            <option value="">Supplier ทั้งหมด</option>
-            {(data?.filters?.suppliers ?? []).map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.code ? `${supplier.code} - ${supplier.name}` : supplier.name}</option>)}
-          </select>
-          <input className="h-9 rounded-md border px-3 text-sm" placeholder="ค้นหา Supplier" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <a className="inline-flex h-9 items-center justify-center rounded-md bg-blue-700 px-4 text-center text-sm font-bold text-white" href={exportHref}>📥 XLSX</a>
+          <div className="lg:col-span-2">
+            <SearchCombobox
+              inputId="supplier-filter-combobox"
+              label="Supplier"
+              hideLabel
+              placeholder="Supplier ทั้งหมด"
+              options={supplierSearchOptions}
+              value={supplierId}
+              onChange={setSupplierId}
+            />
+          </div>
+          <input className="h-9 rounded-md border border-slate-300 px-3 text-sm outline-none" placeholder="ค้นหา Supplier" type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <a className="inline-flex h-9 items-center justify-center rounded-md bg-blue-700 px-4 text-center text-sm font-bold text-white transition-colors hover:bg-blue-800" href={exportHref}>📥 XLSX</a>
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 rounded-md bg-white p-2 shadow">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-2 border border-slate-200 shadow-sm">
         <Tab active={view === 'list'} label="รายการ" onClick={() => setView('list')} />
         <Tab active={view === 'top10'} label="Top 10" onClick={() => setView('top10')} />
         <Tab active={view === 'yearCompare'} label="รายปี" onClick={() => setView('yearCompare')} />
+        <div className="ml-auto flex items-center gap-2">
+          {view === 'list' && columnResize.hasCustomWidths && (
+            <button
+              className="hidden h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 outline-none focus:ring-0 lg:inline-flex"
+              type="button"
+              onClick={columnResize.resetColumnWidths}
+            >
+              คืนค่าเดิมตาราง
+            </button>
+          )}
+        </div>
       </div>
 
       {view === 'top10' ? (
@@ -202,7 +301,7 @@ export function SupplierTrackingPageClient() {
               <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-100">กำลังโหลดข้อมูล</div>
             ) : null}
             
-            {!isLoading && rows.map((row) => (
+            {!isLoading && sortedRows.map((row) => (
               <div key={row.id} className="rounded-md border border-slate-100 bg-white p-4 shadow-sm space-y-2" role="button" tabIndex={0} onClick={() => void openDetail(row)} onKeyDown={(event) => { if (event.key === 'Enter') void openDetail(row) }}>
                 <div className="flex justify-between items-start">
                   <span className="font-bold text-slate-800 text-sm">{row.supplierName}</span>
@@ -248,8 +347,8 @@ export function SupplierTrackingPageClient() {
                       <span className="font-semibold text-slate-400 block">หัก: </span>
                       <span className="text-amber-700 font-semibold">{row.deductionPct.toFixed(1)}%</span>
                     </div>
-                    <div>
-                      <span className="font-semibold text-slate-400 block">เกินกำหนด: </span>
+                    <div className="col-span-3">
+                      <span className="font-semibold text-slate-400">เกินกำหนด: </span>
                       <span className="text-red-700 font-semibold">{formatMoney(row.overdueApAmount)}</span>
                     </div>
                   </div>
@@ -257,54 +356,179 @@ export function SupplierTrackingPageClient() {
               </div>
             ))}
 
-            {!isLoading && rows.length === 0 ? (
+            {!isLoading && sortedRows.length === 0 ? (
               <div className="rounded-md bg-white p-8 text-center text-slate-400 shadow-sm border border-slate-100">
                 ไม่มีข้อมูล Supplier Tracking
               </div>
             ) : null}
           </div>
 
-          <div className="hidden lg:block overflow-x-auto rounded-md bg-white shadow mb-4">
-            <table className="w-full min-w-[1180px] text-sm">
+          <div className="hidden lg:block overflow-x-auto rounded-md bg-white border border-slate-200 shadow-sm mb-4">
+            <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+              <colgroup>
+                {trackingColumns.map((column) => (
+                  <col key={column.key} style={columnResize.getColumnStyle(column.key)} />
+                ))}
+              </colgroup>
               <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
                 <tr>
-                  <th className="p-2 text-left">Code</th>
-                  <th className="p-2 text-left">Supplier</th>
-                  <th className="p-2 text-right">บิล</th>
-                  <th className="p-2 text-right">น้ำหนัก</th>
-                  <th className="p-2 text-right">ยอดซื้อ</th>
-                  <th className="p-2 text-right">ราคาเฉลี่ย</th>
-                  <th className="p-2 text-right">จ่ายแล้ว</th>
-                  <th className="p-2 text-right">ค้างจ่าย</th>
-                  <th className="p-2 text-right">เกินกำหนด</th>
-                  <th className="p-2 text-right">เก่าสุด</th>
-                  <th className="p-2 text-right">% จ่าย</th>
-                  <th className="p-2 text-right">WTI</th>
-                  <th className="p-2 text-right">ส่งครบ</th>
-                  <th className="p-2 text-right">หัก%</th>
-                  <th className="p-2 text-right">Grade</th>
+                  <ResizableTableHead
+                    activeSortKey={sortKey}
+                    align="left"
+                    direction={sortDirection}
+                    label="Code"
+                    resizeProps={columnResize.getResizeHandleProps('code', 'Code')}
+                    sortKey="code"
+                    onSort={handleSort}
+                  />
+                  <ResizableTableHead
+                    activeSortKey={sortKey}
+                    align="left"
+                    direction={sortDirection}
+                    label="Supplier"
+                    resizeProps={columnResize.getResizeHandleProps('supplierName', 'Supplier')}
+                    sortKey="supplierName"
+                    onSort={handleSort}
+                  />
+                  <ResizableTableHead
+                    activeSortKey={sortKey}
+                    align="right"
+                    direction={sortDirection}
+                    label="บิล"
+                    resizeProps={columnResize.getResizeHandleProps('billCount', 'บิล')}
+                    sortKey="billCount"
+                    onSort={handleSort}
+                  />
+                  <ResizableTableHead
+                    activeSortKey={sortKey}
+                    align="right"
+                    direction={sortDirection}
+                    label="น้ำหนัก"
+                    resizeProps={columnResize.getResizeHandleProps('qty', 'น้ำหนัก')}
+                    sortKey="qty"
+                    onSort={handleSort}
+                  />
+                  <ResizableTableHead
+                    activeSortKey={sortKey}
+                    align="right"
+                    direction={sortDirection}
+                    label="ยอดซื้อ"
+                    resizeProps={columnResize.getResizeHandleProps('purchaseAmount', 'ยอดซื้อ')}
+                    sortKey="purchaseAmount"
+                    onSort={handleSort}
+                  />
+                  <ResizableTableHead
+                    activeSortKey={sortKey}
+                    align="right"
+                    direction={sortDirection}
+                    label="ราคาเฉลี่ย"
+                    resizeProps={columnResize.getResizeHandleProps('avgBuy', 'ราคาเฉลี่ย')}
+                    sortKey="avgBuy"
+                    onSort={handleSort}
+                  />
+                  <ResizableTableHead
+                    activeSortKey={sortKey}
+                    align="right"
+                    direction={sortDirection}
+                    label="จ่ายแล้ว"
+                    resizeProps={columnResize.getResizeHandleProps('paidAmount', 'จ่ายแล้ว')}
+                    sortKey="paidAmount"
+                    onSort={handleSort}
+                  />
+                  <ResizableTableHead
+                    activeSortKey={sortKey}
+                    align="right"
+                    direction={sortDirection}
+                    label="ค้างจ่าย"
+                    resizeProps={columnResize.getResizeHandleProps('payable', 'ค้างจ่าย')}
+                    sortKey="payable"
+                    onSort={handleSort}
+                  />
+                  <ResizableTableHead
+                    activeSortKey={sortKey}
+                    align="right"
+                    direction={sortDirection}
+                    label="เกินกำหนด"
+                    resizeProps={columnResize.getResizeHandleProps('overdueApAmount', 'เกินกำหนด')}
+                    sortKey="overdueApAmount"
+                    onSort={handleSort}
+                  />
+                  <ResizableTableHead
+                    activeSortKey={sortKey}
+                    align="right"
+                    direction={sortDirection}
+                    label="เก่าสุด"
+                    resizeProps={columnResize.getResizeHandleProps('oldestApDays', 'เก่าสุด')}
+                    sortKey="oldestApDays"
+                    onSort={handleSort}
+                  />
+                  <ResizableTableHead
+                    activeSortKey={sortKey}
+                    align="right"
+                    direction={sortDirection}
+                    label="% จ่าย"
+                    resizeProps={columnResize.getResizeHandleProps('paidPct', '% จ่าย')}
+                    sortKey="paidPct"
+                    onSort={handleSort}
+                  />
+                  <ResizableTableHead
+                    activeSortKey={sortKey}
+                    align="right"
+                    direction={sortDirection}
+                    label="WTI"
+                    resizeProps={columnResize.getResizeHandleProps('wtiCount', 'WTI')}
+                    sortKey="wtiCount"
+                    onSort={handleSort}
+                  />
+                  <ResizableTableHead
+                    activeSortKey={sortKey}
+                    align="right"
+                    direction={sortDirection}
+                    label="ส่งครบ"
+                    resizeProps={columnResize.getResizeHandleProps('deliveryCompletionPct', 'ส่งครบ')}
+                    sortKey="deliveryCompletionPct"
+                    onSort={handleSort}
+                  />
+                  <ResizableTableHead
+                    activeSortKey={sortKey}
+                    align="right"
+                    direction={sortDirection}
+                    label="หัก%"
+                    resizeProps={columnResize.getResizeHandleProps('deductionPct', 'หัก%')}
+                    sortKey="deductionPct"
+                    onSort={handleSort}
+                  />
+                  <ResizableTableHead
+                    activeSortKey={sortKey}
+                    align="right"
+                    direction={sortDirection}
+                    label="Grade"
+                    resizeProps={columnResize.getResizeHandleProps('grade', 'Grade')}
+                    sortKey="grade"
+                    onSort={handleSort}
+                  />
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100">
                 {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={15}>กำลังโหลดข้อมูล</td></tr> : null}
-                {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={15}>ไม่มีข้อมูล Supplier Tracking</td></tr> : null}
-                {!isLoading && rows.map((row) => (
-                  <tr key={row.id} className="cursor-pointer border-t hover:bg-blue-50/40" onClick={() => void openDetail(row)}>
-                    <td className="p-2 font-mono text-xs text-slate-500">{row.code || '-'}</td>
-                    <td className="p-2 font-medium">{row.supplierName}</td>
+                {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={15}>ไม่มีข้อมูล Supplier Tracking</td></tr> : null}
+                {!isLoading && sortedRows.map((row) => (
+                  <tr key={row.id} className="cursor-pointer border-t hover:bg-slate-50/80 transition-colors" onClick={() => void openDetail(row)}>
+                    <td className="p-2 font-mono text-xs text-slate-500 truncate">{row.code || '-'}</td>
+                    <td className="p-2 font-medium truncate">{row.supplierName}</td>
                     <td className="p-2 text-right">{row.billCount}</td>
-                    <td className="p-2 text-right">{formatMoney(row.qty)}</td>
-                    <td className="p-2 text-right font-semibold text-blue-700">{formatMoney(row.purchaseAmount)}</td>
-                    <td className="p-2 text-right">{formatMoney(row.avgBuy)}</td>
-                    <td className="p-2 text-right">{formatMoney(row.paidAmount)}</td>
-                    <td className="p-2 text-right text-red-700">{formatMoney(row.payable)}</td>
-                    <td className="p-2 text-right text-red-700">{formatMoney(row.overdueApAmount)}</td>
-                    <td className={`p-2 text-right ${row.oldestApAgeDays > 30 ? 'font-semibold text-red-700' : ''}`}>{row.oldestApAgeDays}</td>
-                    <td className="p-2 text-right">{row.paidPct.toFixed(1)}%</td>
-                    <td className="p-2 text-right">{row.wtiCount}</td>
-                    <td className="p-2 text-right font-semibold text-emerald-700">{row.deliveryCompletionPct.toFixed(1)}%</td>
-                    <td className="p-2 text-right text-amber-700">{row.deductionPct.toFixed(1)}%</td>
-                    <td className="p-2 text-right">{row.gradeAdjustmentCount}</td>
+                    <td className="p-2 text-right tabular-nums">{formatMoney(row.qty)}</td>
+                    <td className="p-2 text-right font-semibold text-blue-700 tabular-nums">{formatMoney(row.purchaseAmount)}</td>
+                    <td className="p-2 text-right tabular-nums">{formatMoney(row.avgBuy)}</td>
+                    <td className="p-2 text-right tabular-nums">{formatMoney(row.paidAmount)}</td>
+                    <td className="p-2 text-right text-red-700 tabular-nums">{formatMoney(row.payable)}</td>
+                    <td className="p-2 text-right text-red-700 tabular-nums">{formatMoney(row.overdueApAmount)}</td>
+                    <td className={`p-2 text-right tabular-nums ${row.oldestApAgeDays > 30 ? 'font-semibold text-red-700' : ''}`}>{row.oldestApAgeDays}</td>
+                    <td className="p-2 text-right tabular-nums">{row.paidPct.toFixed(1)}%</td>
+                    <td className="p-2 text-right tabular-nums">{row.wtiCount}</td>
+                    <td className="p-2 text-right font-semibold text-emerald-700 tabular-nums">{row.deliveryCompletionPct.toFixed(1)}%</td>
+                    <td className="p-2 text-right text-amber-700 tabular-nums">{row.deductionPct.toFixed(1)}%</td>
+                    <td className="p-2 text-right tabular-nums">{row.gradeAdjustmentCount}</td>
                   </tr>
                 ))}
               </tbody>
@@ -376,7 +600,7 @@ export function SupplierTrackingPageClient() {
 function SupplierDetailDialog({ detail, isLoading, onOpenChange }: { detail: SupplierTrackingDetail | null; isLoading: boolean; onOpenChange: (open: boolean) => void }) {
   return (
     <Dialog open={detail !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-5xl overflow-hidden !p-0" fallbackTitle="Supplier Tracking Detail">
+      <DialogContent className="max-h-[90vh] max-w-5xl overflow-hidden !p-0 shadow-2xl" fallbackTitle="Supplier Tracking Detail">
         <DialogHeader>
           <DialogTitle>{detail?.supplier.name ?? 'รายละเอียด Supplier'}</DialogTitle>
           <DialogDescription>{detail?.supplier.code ?? ''} · Purchase Bills / Payments / WTI / Grade Adjust / Product mix</DialogDescription>
@@ -450,8 +674,8 @@ function SupplierDetailDialog({ detail, isLoading, onOpenChange }: { detail: Sup
 
 function DetailSection({ children, title }: { children: ReactNode; title: string }) {
   return (
-    <section className="rounded-xl border border-slate-100 bg-slate-50 overflow-hidden shadow-sm">
-      <div className="border-b border-slate-100 bg-slate-100/60 px-4 py-2.5 text-sm font-bold text-slate-850">{title}</div>
+    <section className="rounded-xl border border-slate-200/60 bg-slate-50 overflow-hidden shadow-sm">
+      <div className="border-b border-slate-250 bg-slate-100 px-4 py-2.5 text-sm font-bold text-slate-800">{title}</div>
       {children}
     </section>
   )
@@ -465,7 +689,7 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: DetailCell[][
       {/* Desktop Table View */}
       <div className="hidden lg:block overflow-x-auto bg-white">
         <table className="w-full min-w-[760px] text-sm">
-          <thead className="bg-slate-50 border-b border-slate-100">
+          <thead className="bg-slate-50 border-b border-slate-150">
             <tr>
               {headers.map((header, idx) => (
                 <th key={header} className={`p-2.5 text-slate-600 font-semibold text-xs text-left ${idx === 0 ? 'pl-4' : idx === headers.length - 1 ? 'pr-4' : ''}`}>
@@ -477,7 +701,7 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: DetailCell[][
           <tbody>
             {rows.length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={headers.length}>ไม่มีข้อมูล</td></tr> : null}
             {rows.map((row, index) => (
-              <tr key={index} className="border-t border-slate-100 hover:bg-slate-50/30">
+              <tr key={index} className="border-t border-slate-100 hover:bg-slate-50/50">
                 {row.map((cell, cellIndex) => (
                   <td
                     key={`${index}-${headers[cellIndex]}`}
@@ -504,9 +728,9 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: DetailCell[][
 
       {/* Mobile Card List View */}
       <div className="block lg:hidden space-y-3 p-3">
-        {rows.length === 0 ? <div className="text-center text-xs text-slate-400 py-4 bg-white rounded-xl border border-slate-100">ไม่มีข้อมูล</div> : null}
+        {rows.length === 0 ? <div className="text-center text-xs text-slate-400 py-4 bg-white rounded-xl border border-slate-200">ไม่มีข้อมูล</div> : null}
         {rows.map((row, index) => (
-          <div key={index} className="rounded-xl border border-slate-100 bg-white p-3.5 shadow-sm space-y-2 text-xs">
+          <div key={index} className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm space-y-2 text-xs">
             <div className="flex justify-between items-center pb-2 border-b border-slate-100 font-semibold">
               <span className="text-slate-800 font-bold">
                 {typeof row[0] === 'string' ? row[0] : (
@@ -551,17 +775,19 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: DetailCell[][
 
 function SummaryCard({ className = '', icon, label, tone, value }: { className?: string; icon: string; label: string; tone: 'blue' | 'emerald' | 'indigo' | 'red'; value: string }) {
   const colors = {
-    blue: 'bg-blue-100 text-blue-700 border-blue-200/50',
-    emerald: 'bg-emerald-100 text-emerald-700 border-emerald-200/50',
-    indigo: 'bg-indigo-100 text-indigo-700 border-indigo-200/50',
-    red: 'bg-red-100 text-red-700 border-red-200/50',
+    blue: 'bg-blue-100 text-blue-700',
+    emerald: 'bg-emerald-100 text-emerald-700',
+    indigo: 'bg-indigo-100 text-indigo-700',
+    red: 'bg-red-100 text-red-700',
   }[tone]
   return (
-    <div className={`flex items-center gap-2.5 rounded-xl border border-slate-100 bg-white p-3 shadow-sm sm:gap-4 sm:p-5 ${className}`}>
-      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl sm:h-12 sm:w-12 ${colors.split(' ')[0]}`}>{icon}</div>
+    <div className={`flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-5 ${className}`}>
+      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl sm:h-12 sm:w-12 ${colors}`}>
+        {icon}
+      </div>
       <div className="min-w-0">
-        <div className={`text-xs ${colors.split(' ')[1]}`}>{label}</div>
-        <div className="truncate font-mono text-lg sm:text-2xl font-bold text-slate-900">{value}</div>
+        <div className="text-xs text-slate-500">{label}</div>
+        <div className="truncate font-bold text-slate-900 text-sm sm:text-base">{value}</div>
       </div>
     </div>
   )
@@ -569,7 +795,7 @@ function SummaryCard({ className = '', icon, label, tone, value }: { className?:
 
 function SignalMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-slate-100 bg-white p-3.5 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
       <div className="text-xs font-semibold text-slate-500">{label}</div>
       <div className="mt-1.5 text-sm font-bold text-slate-900 font-mono">{value}</div>
     </div>
@@ -577,7 +803,19 @@ function SignalMetric({ label, value }: { label: string; value: string }) {
 }
 
 function Tab({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
-  return <button className={active ? 'rounded-md bg-blue-700 px-4 py-2 text-sm font-bold text-white' : 'rounded-md bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-600'} type="button" onClick={onClick}>{label}</button>
+  return (
+    <button
+      className={`rounded-lg px-5 py-2 text-sm font-semibold transition-colors outline-none focus:ring-0 ${
+        active
+          ? 'bg-[#0F172A] text-white hover:bg-[#1E293B]'
+          : 'bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100'
+      }`}
+      type="button"
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  )
 }
 
 function TopPanel({ rows, title }: { rows: { label: string; value: number }[]; title: string }) {

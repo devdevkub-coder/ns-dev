@@ -4251,7 +4251,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 setCancelNote('')
                 setCancelNoteError('')
               }}>ปิด</Button>
-              <Button className="rounded-xl bg-red-600 hover:bg-red-700 text-white font-medium transition-colors outline-none focus:ring-0 px-5" disabled={isSaving} type="button" onClick={() => void cancelBill()}>{isSaving ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}</Button>
+              <Button className="rounded-md bg-red-600 hover:bg-red-700 text-white font-medium transition-colors outline-none focus:ring-0 px-5" disabled={isSaving} type="button" onClick={() => void cancelBill()}>{isSaving ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -4463,7 +4463,7 @@ function PurchaseBillDetailModal({
 
         <DialogFooter className="flex flex-wrap gap-2 justify-end p-4 border-t bg-slate-50/50 rounded-b-2xl shrink-0">
           {detail ? (
-            <Button className="rounded-xl border border-slate-300 bg-white text-slate-700 font-medium hover:bg-slate-50 transition-colors outline-none focus:ring-0 px-4 py-2 gap-2 flex items-center justify-center font-normal" disabled={isPrinting} type="button" onClick={() => onPrint(detail)}>
+            <Button className="rounded-md border border-slate-300 bg-white text-slate-700 font-medium hover:bg-slate-50 transition-colors outline-none focus:ring-0 px-4 py-2 gap-2 flex items-center justify-center font-normal" disabled={isPrinting} type="button" onClick={() => onPrint(detail)}>
               <Printer className="size-4" />
               {isPrinting ? 'กำลังเตรียม...' : 'พิมพ์'}
             </Button>

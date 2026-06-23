@@ -1352,7 +1352,7 @@ function PoBuyCancelModal({
           <label className="block text-xs font-medium text-slate-655" htmlFor="po-buy-cancel-note">หมายเหตุการยกเลิก *</label>
           <textarea
             id="po-buy-cancel-note"
-            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-750 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
+            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-750 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
             maxLength={500}
             rows={3}
             value={note}
@@ -1362,7 +1362,7 @@ function PoBuyCancelModal({
         </div>
         <DialogFooter className="bg-slate-50 border-t border-slate-100 px-5 py-3.5 flex justify-end gap-2">
           <UiButton className="font-normal" disabled={isSaving} type="button" variant="ghost" onClick={onClose}>ปิด</UiButton>
-          <UiButton className="bg-red-650 font-semibold hover:bg-red-750 text-white h-9 px-4 rounded-xl transition-colors" disabled={isSaving} type="button" variant="default" onClick={onSubmit}>{isSaving ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}</UiButton>
+          <UiButton className="bg-red-650 font-semibold hover:bg-red-750 text-white h-9 px-4 rounded-md transition-colors" disabled={isSaving} type="button" variant="default" onClick={onSubmit}>{isSaving ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}</UiButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1402,7 +1402,7 @@ function PoBuyShortCloseModal({
           <label className="block text-xs font-medium text-slate-655" htmlFor="po-buy-short-close-note">เหตุผลการปิดรับไม่ครบ *</label>
           <textarea
             id="po-buy-short-close-note"
-            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-750 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
+            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-750 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
             maxLength={500}
             rows={3}
             value={note}
@@ -1412,7 +1412,7 @@ function PoBuyShortCloseModal({
         </div>
         <DialogFooter className="bg-slate-50 border-t border-slate-100 px-5 py-3.5 flex justify-end gap-2">
           <UiButton className="font-normal" disabled={isSaving} type="button" variant="ghost" onClick={onClose}>ปิด</UiButton>
-          <UiButton className="bg-amber-600 font-semibold hover:bg-amber-700 text-white h-9 px-4 rounded-xl transition-colors" disabled={isSaving} type="button" variant="default" onClick={onSubmit}>{isSaving ? 'กำลังบันทึก...' : 'ยืนยันปิดรับไม่ครบ'}</UiButton>
+          <UiButton className="bg-amber-600 font-semibold hover:bg-amber-700 text-white h-9 px-4 rounded-md transition-colors" disabled={isSaving} type="button" variant="default" onClick={onSubmit}>{isSaving ? 'กำลังบันทึก...' : 'ยืนยันปิดรับไม่ครบ'}</UiButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1710,7 +1710,7 @@ function PoBuyFormModal({
           <div>
             <div className="mb-2 flex items-center justify-between">
               <label className="font-semibold">📋 รายการสินค้า ({form.items.length})</label>
-              <UiButton className="bg-emerald-600 font-semibold hover:bg-emerald-700 text-white rounded-xl h-8 transition-colors" size="xs" type="button" variant="default" onClick={onAddItem}>+ เพิ่มรายการ</UiButton>
+              <UiButton className="bg-emerald-600 font-semibold hover:bg-emerald-700 text-white rounded-md h-8 transition-colors" size="xs" type="button" variant="default" onClick={onAddItem}>+ เพิ่มรายการ</UiButton>
             </div>
             <div className="overflow-x-auto rounded-xl border border-slate-100">
               <Table className="min-w-[820px] border-0">
@@ -1753,7 +1753,7 @@ function PoBuyFormModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2 lg:col-span-1">
-              <label className={`flex h-full items-center gap-3 rounded-xl border p-3 cursor-pointer ${form.hasVat ? 'border-amber-500 bg-amber-50' : 'border-slate-300 bg-white'}`}>
+              <label className={`flex h-full items-center gap-3 rounded-md border p-3 cursor-pointer ${form.hasVat ? 'border-amber-500 bg-amber-50' : 'border-slate-300 bg-white'}`}>
                 <input
                   checked={form.hasVat}
                   className="size-5"
@@ -1772,13 +1772,13 @@ function PoBuyFormModal({
 
           <div>
             <label className="mb-1 block text-xs">หมายเหตุ</label>
-            <textarea className="min-h-16 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" rows={2} value={form.notes} onChange={(event) => onUpdate('notes', event.target.value)} />
+            <textarea className="min-h-16 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" rows={2} value={form.notes} onChange={(event) => onUpdate('notes', event.target.value)} />
             {fieldError('notes')}
           </div>
         </div>
         <DialogFooter className="px-5 border-t border-slate-100 bg-slate-50 py-3 flex justify-end gap-2 rounded-b-2xl">
           <UiButton className="font-normal" disabled={isSaving} type="button" variant="outline" onClick={onClose}>ยกเลิก</UiButton>
-          <UiButton className="bg-blue-600 font-semibold hover:bg-blue-700 text-white rounded-xl h-9 transition-colors px-4" disabled={isSaving} type="button" variant="default" onClick={onSubmit}>{isSaving ? 'กำลังบันทึก...' : submitLabel}</UiButton>
+          <UiButton className="bg-blue-600 font-semibold hover:bg-blue-700 text-white rounded-md h-9 transition-colors px-4" disabled={isSaving} type="button" variant="default" onClick={onSubmit}>{isSaving ? 'กำลังบันทึก...' : submitLabel}</UiButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>

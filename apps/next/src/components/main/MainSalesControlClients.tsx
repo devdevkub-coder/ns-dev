@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
+import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { formatDateDisplay } from '@/lib/format'
 
 type AnyRow = Record<string, number | string | boolean | null | undefined>
@@ -71,6 +72,14 @@ export function PendingSalesPageClient() {
   const [customerId, setCustomerId] = useState('')
   const [selectedGroups, setSelectedGroups] = useState<string[]>([])
   const [selectedProductId, setSelectedProductId] = useState('')
+  
+  const customerSearchOptions = useMemo<SearchComboboxOption[]>(() => {
+    return (data?.customers ?? []).map((customer) => ({
+      id: customer.id,
+      label: customer.code ? `${customer.code} - ${customer.name}` : customer.name,
+    }))
+  }, [data?.customers])
+
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -94,20 +103,23 @@ export function PendingSalesPageClient() {
   return (
     <section className="space-y-4">
       <LmeCard config={data?.lmeConfig} products={data?.productRows ?? []} />
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white p-4 shadow">
         <Segment active={mode === 'pending'} color="amber" onClick={() => setMode('pending')}>⏳ ยังรอขาย</Segment>
         <Segment active={mode === 'sold'} color="emerald" onClick={() => setMode('sold')}>✅ ขายแล้ว</Segment>
         <Segment active={mode === 'all'} color="blue" onClick={() => setMode('all')}>📋 ทั้งหมด</Segment>
-        <select className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white font-medium text-slate-750 h-10 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
-          <option value="">ทุก Customer</option>
-          {(data?.customers ?? []).map((customer) => (
-            <option key={customer.id} value={customer.id}>
-              {customer.code ? `${customer.code} - ${customer.name}` : customer.name}
-            </option>
-          ))}
-        </select>
+        <div className="w-[180px] text-slate-800 text-sm">
+          <SearchCombobox
+            inputId="sales-customer-filter"
+            label="Customer"
+            hideLabel
+            placeholder="ทุก Customer"
+            options={customerSearchOptions}
+            value={customerId}
+            onChange={setCustomerId}
+          />
+        </div>
         <span className="flex-1" />
-        <button className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs h-10 flex items-center justify-center" type="button" onClick={exportPendingSales}>
+        <button className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs h-10 flex items-center justify-center" type="button" onClick={exportPendingSales}>
           📥 Export CSV
         </button>
       </div>
@@ -164,29 +176,29 @@ export function SalesPlanPageClient() {
 
   return (
     <section className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 rounded-xl border border-slate-200 bg-white p-4 text-sm lg:grid-cols-5 shadow-sm">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5 text-sm">
         <LmeStat label="🥉 ทองแดง LME" value={`${money(data?.lmeConfig.lmeCopperUSD)} USD/MT`} />
         <LmeStat label="🌟 ทองเหลือง LME" value={`${money(data?.lmeConfig.lmeBrassUSD)} USD/MT`} />
         <LmeStat label="💱 USD/THB" value={money(data?.lmeConfig.fxRate)} />
         <LmeStat label="📦 กก./ตู้" value={`${money(data?.lmeConfig.kgPerContainer)} กก.`} />
-        <div className="text-xs text-slate-450 font-medium self-center">แก้ที่หน้า รายการรอขาย — Tab LME Config</div>
+        <div className="text-xs text-slate-450 font-medium self-center px-2">แก้ที่หน้า รายการรอขาย — Tab LME Config</div>
       </div>
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white p-3 shadow-sm">
         <label className="text-xs font-bold text-slate-500">เดือน</label>
-        <input className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white font-medium text-slate-750 h-10 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
-        <select className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white font-medium text-slate-750 h-10 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={filterGroup} onChange={(event) => setFilterGroup(event.target.value)}>
+        <input className="border border-slate-300 rounded-md px-3 py-2 text-sm bg-white font-medium text-slate-750 h-10 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
+        <select className="border border-slate-300 rounded-md px-3 py-2 text-sm bg-white font-medium text-slate-750 h-10 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={filterGroup} onChange={(event) => setFilterGroup(event.target.value)}>
           <option value="">ทุกหมวด (ทองแดง+ทองเหลือง)</option>
           <option value="ทองแดง">🥉 ทองแดง เท่านั้น</option>
           <option value="ทองเหลือง">🌟 ทองเหลือง เท่านั้น</option>
         </select>
-        <select className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white font-medium text-slate-750 h-10 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={filterChannel} onChange={(event) => setFilterChannel(event.target.value)}>
+        <select className="border border-slate-300 rounded-md px-3 py-2 text-sm bg-white font-medium text-slate-750 h-10 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" value={filterChannel} onChange={(event) => setFilterChannel(event.target.value)}>
           <option value="">ทุกช่องทาง</option>
           <option value="export">🌍 ส่งออก</option>
           <option value="domestic">🇹🇭 ในประเทศ</option>
         </select>
         <span className="flex-1" />
-        <button className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-400 outline-none focus:outline-none focus:ring-0 cursor-not-allowed opacity-60 h-10 flex items-center justify-center" disabled type="button">+ เพิ่มรายการ</button>
-        <button className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs h-10 flex items-center justify-center" onClick={exportPlan} type="button">📥 Export CSV</button>
+        <button className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-400 outline-none focus:outline-none focus:ring-0 cursor-not-allowed opacity-60 h-10 flex items-center justify-center" disabled type="button">+ เพิ่มรายการ</button>
+        <button className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs h-10 flex items-center justify-center" onClick={exportPlan} type="button">📥 Export CSV</button>
       </div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 flex items-center gap-3">
@@ -582,8 +594,8 @@ export function SalesCommissionPageClient() {
       </div>
       <Panel title={`🏭 ผูก Supplier กับพนักงานขาย (${data?.suppliers.length ?? 0} ราย)`}>
         <div className="mb-3 flex gap-2">
-          <input className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white font-medium text-slate-750 h-10 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" placeholder="ค้นหา Supplier" readOnly />
-          <select className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white font-medium text-slate-750 h-10 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200">
+          <input className="border border-slate-300 rounded-md px-3 py-2 text-sm bg-white font-medium text-slate-750 h-10 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" placeholder="ค้นหา Supplier" readOnly />
+          <select className="border border-slate-300 rounded-md px-3 py-2 text-sm bg-white font-medium text-slate-750 h-10 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200">
             <option>ทุก Sales</option>
           </select>
         </div>
@@ -1013,10 +1025,17 @@ function MetalChips({ groups, selected, setSelected }: { groups: string[]; selec
 }
 
 function LmeStat({ label, value }: { label: string; value: string }) {
+  const icon = label.slice(0, 2)
+  const cleanLabel = label.slice(2).trim()
   return (
-    <div>
-      <div className="text-xs font-semibold text-slate-400 mb-0.5">{label}</div>
-      <div className="text-sm font-bold text-slate-800">{value}</div>
+    <div className="bg-white p-3 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4 flex-1 w-full">
+      <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-lg shrink-0">
+        {icon}
+      </div>
+      <div>
+        <div className="text-xs text-slate-500 font-semibold mb-0.5">{cleanLabel}</div>
+        <div className="text-sm font-bold text-slate-800">{value}</div>
+      </div>
     </div>
   )
 }

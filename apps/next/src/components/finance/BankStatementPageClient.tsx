@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 
 type AccountOption = {
   accountNo: string | null
@@ -406,6 +408,18 @@ function ChartPanel({ rows, title, variant }: { rows: BankRow[]; title: string; 
   )
 }
 
+const bankColumns: Array<ResizableColumnDefinition<string>> = [
+  { key: 'date', defaultWidth: 100 },
+  { key: 'type', defaultWidth: 100 },
+  { key: 'description', defaultWidth: 250 },
+  { key: 'refNo', defaultWidth: 150 },
+  { key: 'amountIn', defaultWidth: 110 },
+  { key: 'amountOut', defaultWidth: 110 },
+  { key: 'runningBalance', defaultWidth: 140 },
+  { key: 'odUsed', defaultWidth: 110 },
+  { key: 'odRemaining', defaultWidth: 110 },
+]
+
 function DetailTable({
   isLoading,
   onOpen,
@@ -422,26 +436,41 @@ function DetailTable({
   const odLimit = selectedAccount?.odLimit || 0
   const hasOd = selectedAccount?.subtype === 'current' && odLimit > 0
 
+  const columns = useMemo(() => {
+    return hasOd ? bankColumns : bankColumns.slice(0, 7)
+  }, [hasOd])
+  const columnResize = useResizableColumns('finance.bank.statement.v5', columns)
+
   return (
     <div className="overflow-hidden rounded-md bg-white shadow-lg">
       <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 p-3">
         <h3 className="font-bold text-slate-700">📋 รายการเดินบัญชี ({totalRows} รายการ)</h3>
+        {columnResize.hasCustomWidths ? (
+          <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
+            คืนค่าเดิมตาราง
+          </button>
+        ) : null}
       </div>
-      <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 bg-gradient-to-r from-slate-700 to-slate-900 text-white">
+      <div className="hidden lg:block overflow-x-auto rounded-md border border-slate-200/60 bg-white shadow-sm overflow-hidden">
+        <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <colgroup>
+            {columns.map((col) => (
+              <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
+            ))}
+          </colgroup>
+          <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
             <tr>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">วันที่</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">ประเภท</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">รายละเอียด</th>
-              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">อ้างอิง</th>
-              <th className="bg-emerald-700/40 p-2 text-right" style={{ width: '10%' }}>📥 เข้า</th>
-              <th className="bg-rose-700/40 p-2 text-right" style={{ width: '10%' }}>📤 ออก</th>
-              <th className="bg-blue-700/40 p-2 text-right" style={{ width: hasOd ? '12%' : '15%' }}>💰 ยอดคงเหลือจริง</th>
+              <ResizableTableHead label="วันที่" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่')} />
+              <ResizableTableHead label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} />
+              <ResizableTableHead label="รายละเอียด" resizeProps={columnResize.getResizeHandleProps('description', 'รายละเอียด')} />
+              <ResizableTableHead label="อ้างอิง" resizeProps={columnResize.getResizeHandleProps('refNo', 'อ้างอิง')} />
+              <ResizableTableHead align="right" label="📥 เข้า" resizeProps={columnResize.getResizeHandleProps('amountIn', '📥 เข้า')} />
+              <ResizableTableHead align="right" label="📤 ออก" resizeProps={columnResize.getResizeHandleProps('amountOut', '📤 ออก')} />
+              <ResizableTableHead align="right" label="💰 ยอดคงเหลือจริง" resizeProps={columnResize.getResizeHandleProps('runningBalance', '💰 ยอดคงเหลือจริง')} />
               {hasOd && (
                 <>
-                  <th className="bg-amber-700/40 p-2 text-right" style={{ width: '10%' }}>OD ใช้ไป</th>
-                  <th className="bg-emerald-700/40 p-2 text-right" style={{ width: '10%' }}>OD คงเหลือ</th>
+                  <ResizableTableHead align="right" label="OD ใช้ไป" resizeProps={columnResize.getResizeHandleProps('odUsed', 'OD ใช้ไป')} />
+                  <ResizableTableHead align="right" label="OD คงเหลือ" resizeProps={columnResize.getResizeHandleProps('odRemaining', 'OD คงเหลือ')} />
                 </>
               )}
             </tr>
@@ -456,19 +485,19 @@ function DetailTable({
               const odRemaining = Math.max(0, odLimit - odUsed)
               return (
                 <tr key={row.id} className={`border-t border-slate-100 transition hover:bg-yellow-50 ${isOpening ? 'bg-amber-50 font-bold' : ''}`}>
-                  <td className="px-4 py-3.5 font-mono text-xs">{isOpening ? row.date : formatDateDisplay(row.date)}</td>
-                  <td className="px-4 py-3.5 text-xs"><span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${isOpening ? 'bg-amber-200 text-amber-800' : 'bg-slate-200 text-slate-700'}`}>{row.type || row.refType || '-'}</span></td>
-                  <td className="max-w-96 truncate p-2 text-xs">{row.description || row.note || '-'}</td>
-                  <td className="px-4 py-3.5 font-mono text-xs text-blue-600">
+                  <td className="px-4 py-3.5 font-mono text-xs overflow-hidden truncate">{isOpening ? row.date : formatDateDisplay(row.date)}</td>
+                  <td className="px-4 py-3.5 text-xs overflow-hidden truncate"><span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${isOpening ? 'bg-amber-200 text-amber-800' : 'bg-slate-200 text-slate-700'}`}>{row.type || row.refType || '-'}</span></td>
+                  <td className="p-2 text-xs overflow-hidden truncate">{row.description || row.note || '-'}</td>
+                  <td className="px-4 py-3.5 font-mono text-xs text-blue-600 overflow-hidden truncate">
                     {isOpening ? '-' : <button className="underline-offset-2 hover:underline" type="button" onClick={() => onOpen(row)}>{row.refNo || row.refType || '-'}</button>}
                   </td>
-                  <td className={`bg-emerald-50/30 p-2 text-right font-mono ${row.amountIn > 0 ? 'font-bold text-emerald-700' : 'text-slate-300'}`}>{row.amountIn ? formatMoney(row.amountIn) : '-'}</td>
-                  <td className={`bg-rose-50/30 p-2 text-right font-mono ${row.amountOut > 0 ? 'font-bold text-rose-700' : 'text-slate-300'}`}>{row.amountOut ? formatMoney(row.amountOut) : '-'}</td>
-                  <td className={`bg-blue-50/30 p-2 text-right font-mono font-bold ${runningBalance >= 0 ? 'text-blue-700' : 'text-red-650'}`}>{formatMoney(runningBalance)}</td>
+                  <td className={`bg-emerald-50/30 p-2 text-right font-mono overflow-hidden truncate ${row.amountIn > 0 ? 'font-bold text-emerald-700' : 'text-slate-300'}`}>{row.amountIn ? formatMoney(row.amountIn) : '-'}</td>
+                  <td className={`bg-rose-50/30 p-2 text-right font-mono overflow-hidden truncate ${row.amountOut > 0 ? 'font-bold text-rose-700' : 'text-slate-300'}`}>{row.amountOut ? formatMoney(row.amountOut) : '-'}</td>
+                  <td className={`bg-blue-50/30 p-2 text-right font-mono font-bold overflow-hidden truncate ${runningBalance >= 0 ? 'text-blue-700' : 'text-red-650'}`}>{formatMoney(runningBalance)}</td>
                   {hasOd && (
                     <>
-                      <td className="bg-amber-50/30 p-2 text-right font-mono text-amber-700 font-semibold">{formatMoney(odUsed)}</td>
-                      <td className="bg-emerald-50/30 p-2 text-right font-mono text-emerald-700 font-semibold">{formatMoney(odRemaining)}</td>
+                      <td className="bg-amber-50/30 p-2 text-right font-mono text-amber-700 font-semibold overflow-hidden truncate">{formatMoney(odUsed)}</td>
+                      <td className="bg-emerald-50/30 p-2 text-right font-mono text-emerald-700 font-semibold overflow-hidden truncate">{formatMoney(odRemaining)}</td>
                     </>
                   )}
                 </tr>

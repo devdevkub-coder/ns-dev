@@ -8,6 +8,58 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
+
+const costSourceColumns: Array<ResizableColumnDefinition<string>> = [
+  { key: 'source', defaultWidth: 120 },
+  { key: 'date', defaultWidth: 100 },
+  { key: 'product', defaultWidth: 180 },
+  { key: 'supplier', defaultWidth: 120 },
+  { key: 'remainingQty', defaultWidth: 110 },
+  { key: 'remainingAmount', defaultWidth: 110 },
+]
+
+const readinessColumns: Array<ResizableColumnDefinition<string>> = [
+  { key: 'product', defaultWidth: 150 },
+  { key: 'costPoolQty', defaultWidth: 110 },
+  { key: 'costPoolValue', defaultWidth: 120 },
+  { key: 'poBuyAmount', defaultWidth: 120 },
+  { key: 'poSellAmount', defaultWidth: 120 },
+  { key: 'netValue', defaultWidth: 120 },
+  { key: 'status', defaultWidth: 100 },
+]
+
+const productColumns: Array<ResizableColumnDefinition<string>> = [
+  { key: 'product', defaultWidth: 180 },
+  { key: 'qty', defaultWidth: 110 },
+  { key: 'sales', defaultWidth: 120 },
+  { key: 'matchedCogs', defaultWidth: 120 },
+  { key: 'gp', defaultWidth: 120 },
+  { key: 'gpPct', defaultWidth: 100 },
+]
+
+const purchaseColumns: Array<ResizableColumnDefinition<string>> = [
+  { key: 'docNo', defaultWidth: 150 },
+  { key: 'date', defaultWidth: 110 },
+  { key: 'supplier', defaultWidth: 180 },
+  { key: 'totalAmount', defaultWidth: 120 },
+  { key: 'matchedAmount', defaultWidth: 120 },
+  { key: 'remainingAmount', defaultWidth: 120 },
+  { key: 'status', defaultWidth: 110 },
+]
+
+const salesColumns: Array<ResizableColumnDefinition<string>> = [
+  { key: 'docNo', defaultWidth: 150 },
+  { key: 'date', defaultWidth: 110 },
+  { key: 'customer', defaultWidth: 180 },
+  { key: 'totalAmount', defaultWidth: 120 },
+  { key: 'matchedCogs', defaultWidth: 120 },
+  { key: 'gp', defaultWidth: 120 },
+  { key: 'gpPct', defaultWidth: 100 },
+  { key: 'pendingAmount', defaultWidth: 120 },
+  { key: 'status', defaultWidth: 110 },
+]
 
 type Option = {
   code?: string
@@ -431,6 +483,7 @@ function CostSourceModal({
   rows: CostSourceRow[]
   supplierOptions: SearchComboboxOption[]
 }) {
+  const columnResize = useResizableColumns('trading.dashboard.cost-source.v5', costSourceColumns)
   const unitCost = Number(form.unitCost)
   const qty = Number(form.qty)
   const totalAmount = Number(form.totalAmount)
@@ -527,16 +580,28 @@ function CostSourceModal({
                 Refresh
               </button>
             </div>
-            <div className="overflow-x-auto p-4">
-              <table className="w-full min-w-[720px] table-fixed text-sm">
+            <div className="overflow-x-auto p-4 overflow-hidden">
+              <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
+                {columnResize.hasCustomWidths ? (
+                  <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
+                    คืนค่าเดิมตาราง
+                  </button>
+                ) : null}
+              </div>
+              <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+                <colgroup>
+                  {costSourceColumns.map((col) => (
+                    <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
+                  ))}
+                </colgroup>
                 <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium text-xs">
                   <tr>
-                    <th className="w-32 p-2 text-left">Source</th>
-                    <th className="w-24 p-2 text-left">Date</th>
-                    <th className="p-2 text-left">Product</th>
-                    <th className="w-32 p-2 text-left">Supplier</th>
-                    <th className="w-28 p-2 text-right">Remain Qty</th>
-                    <th className="w-28 p-2 text-right">Remain</th>
+                    <ResizableTableHead label="Source" resizeProps={columnResize.getResizeHandleProps('source', 'Source')} />
+                    <ResizableTableHead label="Date" resizeProps={columnResize.getResizeHandleProps('date', 'Date')} />
+                    <ResizableTableHead label="Product" resizeProps={columnResize.getResizeHandleProps('product', 'Product')} />
+                    <ResizableTableHead label="Supplier" resizeProps={columnResize.getResizeHandleProps('supplier', 'Supplier')} />
+                    <ResizableTableHead align="right" label="Remain Qty" resizeProps={columnResize.getResizeHandleProps('remainingQty', 'Remain Qty')} />
+                    <ResizableTableHead align="right" label="Remain" resizeProps={columnResize.getResizeHandleProps('remainingAmount', 'Remain')} />
                   </tr>
                 </thead>
                 <tbody>
@@ -544,12 +609,12 @@ function CostSourceModal({
                   {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={6}>ยังไม่มี Cost Source</td></tr> : null}
                   {rows.map((row) => (
                     <tr key={row.id} className="border-t border-slate-200">
-                      <td className="p-2 font-mono text-xs font-semibold text-slate-800">{row.sourceNo}</td>
-                      <td className="p-2 text-xs">{formatDateDisplay(row.date)}</td>
-                      <td className="p-2">{row.productCode ? `${row.productCode} - ${row.productName}` : row.productName}</td>
-                      <td className="p-2">{row.supplierName}</td>
-                      <td className="p-2 text-right">{formatMoney(row.remainingQty)}</td>
-                      <td className="p-2 text-right font-semibold text-emerald-700">{formatMoney(row.remainingAmount)}</td>
+                      <td className="p-2 font-mono text-xs font-semibold text-slate-800 overflow-hidden truncate">{row.sourceNo}</td>
+                      <td className="p-2 text-xs overflow-hidden truncate">{formatDateDisplay(row.date)}</td>
+                      <td className="p-2 overflow-hidden truncate">{row.productCode ? `${row.productCode} - ${row.productName}` : row.productName}</td>
+                      <td className="p-2 overflow-hidden truncate">{row.supplierName}</td>
+                      <td className="p-2 text-right overflow-hidden truncate">{formatMoney(row.remainingQty)}</td>
+                      <td className="p-2 text-right font-semibold text-emerald-700 overflow-hidden truncate">{formatMoney(row.remainingAmount)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -584,6 +649,7 @@ function NumberField({ id, label, onChange, value }: { id: string; label: string
 }
 
 function ReadinessPanel({ isLoading, rows, summary }: { isLoading: boolean; rows: DashboardPayload['readinessRows']; summary: DashboardPayload['summary'] | null }) {
+  const columnResize = useResizableColumns('trading.dashboard.readiness.v5', readinessColumns)
   const visibleRows = rows.slice(0, 6)
   return (
     <div className="rounded-xl border border-slate-100 bg-white shadow-sm overflow-hidden">
@@ -601,17 +667,29 @@ function ReadinessPanel({ isLoading, rows, summary }: { isLoading: boolean; rows
       </div>
       <div className="p-4">
         {/* Desktop View Table */}
-        <div className="hidden lg:block overflow-x-auto">
-          <table className="w-full min-w-[860px] table-fixed text-xs">
-            <thead className="bg-slate-50 border-b border-slate-200/60 text-slate-600">
+        <div className="hidden lg:block overflow-x-auto overflow-hidden">
+          <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
+            {columnResize.hasCustomWidths ? (
+              <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
+                คืนค่าเดิมตาราง
+              </button>
+            ) : null}
+          </div>
+          <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+            <colgroup>
+              {readinessColumns.map((col) => (
+                <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
+              ))}
+            </colgroup>
+            <thead className="bg-slate-50 border-b border-slate-200/60 text-slate-600 font-semibold">
               <tr>
-                <th className="p-2.5 text-left font-semibold">Product</th>
-                <th className="w-28 p-2.5 text-right font-semibold">Cost Source Qty</th>
-                <th className="w-32 p-2.5 text-right font-semibold">Cost Source</th>
-                <th className="w-32 p-2.5 text-right font-semibold">PO Buy</th>
-                <th className="w-32 p-2.5 text-right font-semibold">PO Sell</th>
-                <th className="w-32 p-2.5 text-right font-semibold">Net</th>
-                <th className="w-24 p-2.5 text-center font-semibold">Status</th>
+                <ResizableTableHead label="Product" resizeProps={columnResize.getResizeHandleProps('product', 'Product')} />
+                <ResizableTableHead align="right" label="Cost Source Qty" resizeProps={columnResize.getResizeHandleProps('costPoolQty', 'Cost Source Qty')} />
+                <ResizableTableHead align="right" label="Cost Source" resizeProps={columnResize.getResizeHandleProps('costPoolValue', 'Cost Source')} />
+                <ResizableTableHead align="right" label="PO Buy" resizeProps={columnResize.getResizeHandleProps('poBuyAmount', 'PO Buy')} />
+                <ResizableTableHead align="right" label="PO Sell" resizeProps={columnResize.getResizeHandleProps('poSellAmount', 'PO Sell')} />
+                <ResizableTableHead align="right" label="Net" resizeProps={columnResize.getResizeHandleProps('netValue', 'Net')} />
+                <ResizableTableHead align="center" label="Status" resizeProps={columnResize.getResizeHandleProps('status', 'Status')} />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -619,13 +697,13 @@ function ReadinessPanel({ isLoading, rows, summary }: { isLoading: boolean; rows
               {!isLoading && visibleRows.length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={7}>ยังไม่มี readiness ตามเงื่อนไข</td></tr> : null}
               {visibleRows.map((row) => (
                 <tr key={row.productId} className="hover:bg-slate-50/30 transition-colors">
-                  <td className="p-2.5 font-semibold text-slate-800">{row.productName}</td>
-                  <td className="p-2.5 text-right font-medium text-slate-700">{formatMoney(row.costPoolQty)} {row.unit}</td>
-                  <td className="p-2.5 text-right text-emerald-700 font-semibold">{formatMoney(row.costPoolValue)}</td>
-                  <td className="p-2.5 text-right text-blue-700 font-semibold">{formatMoney(row.poBuyAmount)}</td>
-                  <td className="p-2.5 text-right text-amber-700 font-semibold">{formatMoney(row.poSellAmount)}</td>
-                  <td className={`p-2.5 text-right font-bold ${row.netValue >= 0 ? 'text-slate-800' : 'text-red-700'}`}>{formatMoney(row.netValue)}</td>
-                  <td className="p-2.5 text-center"><ReadinessStatusPill status={row.status} /></td>
+                  <td className="p-2.5 font-semibold text-slate-800 overflow-hidden truncate">{row.productName}</td>
+                  <td className="p-2.5 text-right font-medium text-slate-700 overflow-hidden truncate">{formatMoney(row.costPoolQty)} {row.unit}</td>
+                  <td className="p-2.5 text-right text-emerald-700 font-semibold overflow-hidden truncate">{formatMoney(row.costPoolValue)}</td>
+                  <td className="p-2.5 text-right text-blue-700 font-semibold overflow-hidden truncate">{formatMoney(row.poBuyAmount)}</td>
+                  <td className="p-2.5 text-right text-amber-700 font-semibold overflow-hidden truncate">{formatMoney(row.poSellAmount)}</td>
+                  <td className={`p-2.5 text-right font-bold overflow-hidden truncate ${row.netValue >= 0 ? 'text-slate-800' : 'text-red-700'}`}>{formatMoney(row.netValue)}</td>
+                  <td className="p-2.5 text-center overflow-hidden truncate"><ReadinessStatusPill status={row.status} /></td>
                 </tr>
               ))}
             </tbody>
@@ -700,6 +778,7 @@ function AgingPanel({ aging, isLoading }: { aging: DashboardPayload['aging'] | n
 }
 
 function ProductTable({ isLoading, rows, totals }: { isLoading: boolean; rows: DashboardPayload['productRows']; totals: { cost: number; gp: number; qty: number; sales: number } }) {
+  const columnResize = useResizableColumns('trading.dashboard.products.v5', productColumns)
   return (
     <div className="p-4">
       {/* Desktop view */}
@@ -779,20 +858,33 @@ function ProductTable({ isLoading, rows, totals }: { isLoading: boolean; rows: D
 }
 
 function PurchaseTable({ isLoading, rows }: { isLoading: boolean; rows: DashboardPayload['purchaseRows'] }) {
+  const columnResize = useResizableColumns('trading.dashboard.purchases.v5', purchaseColumns)
   return (
     <div className="p-4">
       {/* Desktop view */}
-      <div className="hidden lg:block overflow-x-auto">
-        <table className="w-full min-w-[900px] table-fixed text-xs">
-          <thead className="bg-slate-50 border-b border-slate-200/60 text-slate-650">
+      <div className="hidden lg:block overflow-x-auto overflow-hidden">
+        <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
+          {columnResize.hasCustomWidths ? (
+            <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
+              คืนค่าเดิมตาราง
+            </button>
+          ) : null}
+        </div>
+        <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <colgroup>
+            {purchaseColumns.map((col) => (
+              <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
+            ))}
+          </colgroup>
+          <thead className="bg-slate-50 border-b border-slate-200/60 text-slate-655 font-semibold">
             <tr>
-              <th className="w-40 p-2.5 text-left font-semibold">PB / Cost Source</th>
-              <th className="w-28 p-2.5 text-left font-semibold">Date</th>
-              <th className="p-2.5 text-left font-semibold">Supplier</th>
-              <th className="w-32 p-2.5 text-right font-semibold">Buy Amount</th>
-              <th className="w-32 p-2.5 text-right font-semibold">Matched Cost</th>
-              <th className="w-32 p-2.5 text-right font-semibold">Remaining</th>
-              <th className="w-28 p-2.5 text-center font-semibold">Status</th>
+              <ResizableTableHead label="PB / Cost Source" resizeProps={columnResize.getResizeHandleProps('docNo', 'PB / Cost Source')} />
+              <ResizableTableHead label="Date" resizeProps={columnResize.getResizeHandleProps('date', 'Date')} />
+              <ResizableTableHead label="Supplier" resizeProps={columnResize.getResizeHandleProps('supplier', 'Supplier')} />
+              <ResizableTableHead align="right" label="Buy Amount" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'Buy Amount')} />
+              <ResizableTableHead align="right" label="Matched Cost" resizeProps={columnResize.getResizeHandleProps('matchedAmount', 'Matched Cost')} />
+              <ResizableTableHead align="right" label="Remaining" resizeProps={columnResize.getResizeHandleProps('remainingAmount', 'Remaining')} />
+              <ResizableTableHead align="center" label="Status" resizeProps={columnResize.getResizeHandleProps('status', 'Status')} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -800,13 +892,13 @@ function PurchaseTable({ isLoading, rows }: { isLoading: boolean; rows: Dashboar
             {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={7}>ยังไม่มีข้อมูลตามเงื่อนไข</td></tr> : null}
             {rows.map((row) => (
               <tr key={row.id} className="hover:bg-slate-50/30 transition-colors">
-                <td className="p-2.5 font-mono font-semibold"><Link className="text-purple-700 hover:underline" href={row.sourceUrl}>{row.docNo}</Link></td>
-                <td className="p-2.5 text-slate-500 font-medium">{formatDateDisplay(row.date)}</td>
-                <td className="p-2.5 text-slate-800 font-medium">{row.partyName}</td>
-                <td className="p-2.5 text-right font-semibold text-slate-700">{formatMoney(row.totalAmount)}</td>
-                <td className="p-2.5 text-right text-red-700 font-semibold">{formatMoney(row.matchedAmount)}</td>
-                <td className="p-2.5 text-right font-bold text-amber-700">{formatMoney(row.remainingAmount)}</td>
-                <td className="p-2.5 text-center"><StatusPill status={row.allocationStatus} /></td>
+                <td className="p-2.5 font-mono font-semibold overflow-hidden truncate"><Link className="text-purple-700 hover:underline" href={row.sourceUrl}>{row.docNo}</Link></td>
+                <td className="p-2.5 text-slate-500 font-medium overflow-hidden truncate">{formatDateDisplay(row.date)}</td>
+                <td className="p-2.5 text-slate-800 font-medium overflow-hidden truncate">{row.partyName}</td>
+                <td className="p-2.5 text-right font-semibold text-slate-700 overflow-hidden truncate">{formatMoney(row.totalAmount)}</td>
+                <td className="p-2.5 text-right text-red-700 font-semibold overflow-hidden truncate">{formatMoney(row.matchedAmount)}</td>
+                <td className="p-2.5 text-right font-bold text-amber-700 overflow-hidden truncate">{formatMoney(row.remainingAmount)}</td>
+                <td className="p-2.5 text-center overflow-hidden truncate"><StatusPill status={row.allocationStatus} /></td>
               </tr>
             ))}
           </tbody>
@@ -854,22 +946,35 @@ function PurchaseTable({ isLoading, rows }: { isLoading: boolean; rows: Dashboar
 }
 
 function SalesTable({ isLoading, rows }: { isLoading: boolean; rows: DashboardPayload['salesRows'] }) {
+  const columnResize = useResizableColumns('trading.dashboard.sales.v5', salesColumns)
   return (
     <div className="p-4">
       {/* Desktop view */}
-      <div className="hidden lg:block overflow-x-auto">
-        <table className="w-full min-w-[980px] table-fixed text-xs">
-          <thead className="bg-slate-50 border-b border-slate-200/60 text-slate-655">
+      <div className="hidden lg:block overflow-x-auto overflow-hidden">
+        <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
+          {columnResize.hasCustomWidths ? (
+            <button className="text-xs text-blue-600 hover:underline" type="button" onClick={columnResize.resetColumnWidths}>
+              คืนค่าเดิมตาราง
+            </button>
+          ) : null}
+        </div>
+        <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <colgroup>
+            {salesColumns.map((col) => (
+              <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
+            ))}
+          </colgroup>
+          <thead className="bg-slate-50 border-b border-slate-200/60 text-slate-655 font-semibold">
             <tr>
-              <th className="w-40 p-2.5 text-left font-semibold">SB</th>
-              <th className="w-28 p-2.5 text-left font-semibold">Date</th>
-              <th className="p-2.5 text-left font-semibold">Customer</th>
-              <th className="w-32 p-2.5 text-right font-semibold">Sales Amount</th>
-              <th className="w-32 p-2.5 text-right font-semibold">Matched COGS</th>
-              <th className="w-32 p-2.5 text-right font-semibold">GP</th>
-              <th className="w-24 p-2.5 text-right font-semibold">GP%</th>
-              <th className="w-32 p-2.5 text-right font-semibold">Pending</th>
-              <th className="w-28 p-2.5 text-center font-semibold">Status</th>
+              <ResizableTableHead label="SB" resizeProps={columnResize.getResizeHandleProps('docNo', 'SB')} />
+              <ResizableTableHead label="Date" resizeProps={columnResize.getResizeHandleProps('date', 'Date')} />
+              <ResizableTableHead label="Customer" resizeProps={columnResize.getResizeHandleProps('customer', 'Customer')} />
+              <ResizableTableHead align="right" label="Sales Amount" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'Sales Amount')} />
+              <ResizableTableHead align="right" label="Matched COGS" resizeProps={columnResize.getResizeHandleProps('matchedCogs', 'Matched COGS')} />
+              <ResizableTableHead align="right" label="GP" resizeProps={columnResize.getResizeHandleProps('gp', 'GP')} />
+              <ResizableTableHead align="right" label="GP%" resizeProps={columnResize.getResizeHandleProps('gpPct', 'GP%')} />
+              <ResizableTableHead align="right" label="Pending" resizeProps={columnResize.getResizeHandleProps('pendingAmount', 'Pending')} />
+              <ResizableTableHead align="center" label="Status" resizeProps={columnResize.getResizeHandleProps('status', 'Status')} />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -877,15 +982,15 @@ function SalesTable({ isLoading, rows }: { isLoading: boolean; rows: DashboardPa
             {!isLoading && rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={9}>ยังไม่มีข้อมูลตามเงื่อนไข</td></tr> : null}
             {rows.map((row) => (
               <tr key={row.id} className="hover:bg-slate-50/30 transition-colors">
-                <td className="p-2.5 font-mono font-semibold"><Link className="text-purple-700 hover:underline" href={row.sourceUrl}>{row.docNo}</Link></td>
-                <td className="p-2.5 text-slate-500 font-medium">{formatDateDisplay(row.date)}</td>
-                <td className="p-2.5 text-slate-800 font-medium">{row.partyName}</td>
-                <td className="p-2.5 text-right text-emerald-700 font-semibold">{formatMoney(row.totalAmount)}</td>
-                <td className="p-2.5 text-right text-red-700 font-semibold">{formatMoney(row.matchedCogs)}</td>
-                <td className={`p-2.5 text-right font-bold ${row.gp >= 0 ? 'text-purple-700' : 'text-red-700'}`}>{formatMoney(row.gp)}</td>
-                <td className="p-2.5 text-right font-medium text-slate-505">{row.gpPct.toFixed(2)}%</td>
-                <td className="p-2.5 text-right font-semibold text-amber-700">{formatMoney(row.pendingAmount)}</td>
-                <td className="p-2.5 text-center"><StatusPill status={row.allocationStatus} /></td>
+                <td className="p-2.5 font-mono font-semibold overflow-hidden truncate"><Link className="text-purple-700 hover:underline" href={row.sourceUrl}>{row.docNo}</Link></td>
+                <td className="p-2.5 text-slate-500 font-medium overflow-hidden truncate">{formatDateDisplay(row.date)}</td>
+                <td className="p-2.5 text-slate-800 font-medium overflow-hidden truncate">{row.partyName}</td>
+                <td className="p-2.5 text-right text-emerald-700 font-semibold overflow-hidden truncate">{formatMoney(row.totalAmount)}</td>
+                <td className="p-2.5 text-right text-red-700 font-semibold overflow-hidden truncate">{formatMoney(row.matchedCogs)}</td>
+                <td className={`p-2.5 text-right font-bold overflow-hidden truncate ${row.gp >= 0 ? 'text-purple-700' : 'text-red-700'}`}>{formatMoney(row.gp)}</td>
+                <td className="p-2.5 text-right font-medium text-slate-505 overflow-hidden truncate">{row.gpPct.toFixed(2)}%</td>
+                <td className="p-2.5 text-right font-semibold text-amber-700 overflow-hidden truncate">{formatMoney(row.pendingAmount)}</td>
+                <td className="p-2.5 text-center overflow-hidden truncate"><StatusPill status={row.allocationStatus} /></td>
               </tr>
             ))}
           </tbody>
