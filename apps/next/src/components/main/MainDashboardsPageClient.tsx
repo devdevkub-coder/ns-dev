@@ -149,7 +149,7 @@ export function MainDashboardsPageClient({ mode }: { mode: Mode }) {
       {mode === 'daily-report' ? <DailyReportView data={data} date={date} setDate={setDate} /> : null}
       {mode === 'analytics-dashboard' ? <AnalyticsDashboardView data={data} rangeFrom={rangeFrom} rangeMode={rangeMode} rangeTo={rangeTo} setRangeFrom={setRangeFrom} setRangeMode={setRangeMode} setRangeTo={setRangeTo} /> : null}
       <div className="rounded-md border-l-4 border-amber-400 bg-amber-50 p-3 text-sm text-amber-900">
-        <b>Main dashboard read baseline</b><span className="ml-2">{data?.sourceState.limitations[0] ?? 'ไม่มี write action ใน baseline นี้'}</span>
+        <b>Main dashboard read baseline</b><span className="ml-2">{data?.sourceState?.limitations?.[0] ?? 'ไม่มี write action ใน baseline นี้'}</span>
       </div>
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
       {isLoading ? <div className="rounded-md bg-white p-4 text-center text-slate-500 shadow">กำลังโหลดข้อมูล</div> : null}
@@ -892,8 +892,8 @@ function GroupBreakdown({ expandedGroup, groups, setExpandedGroup }: { expandedG
         <div className="py-10 text-center text-slate-400 text-xs">ไม่มีรายการในวันนี้</div>
       ) : (
         <div className="space-y-3">
-          {groups.map((group) => (
-            <div key={group.group} className="overflow-hidden rounded-xl border border-slate-100">
+          {groups.map((group, idx) => (
+            <div key={`${group.group}_${idx}`} className="overflow-hidden rounded-xl border border-slate-100">
               <button className="w-full p-3 text-left hover:bg-slate-50 outline-none" type="button" onClick={() => setExpandedGroup(expandedGroup === group.group ? '' : group.group)}>
                 <div className="mb-2 flex items-center justify-between">
                   <span className="font-bold text-slate-700 text-sm">{expandedGroup === group.group ? '▼' : '▶'} {group.group} <span className="text-xs font-normal text-slate-400">({group.products.length} สินค้า)</span></span>
@@ -950,8 +950,8 @@ function GroupBreakdown({ expandedGroup, groups, setExpandedGroup }: { expandedG
                         </tr>
                       </thead>
                       <tbody>
-                        {group.products.map((row) => (
-                          <tr key={row.productId} className="border-t border-slate-100">
+                        {group.products.map((row, idx) => (
+                          <tr key={`${row.productId}_${idx}`} className="border-t border-slate-100">
                             <td className="p-2 font-mono text-slate-600">{row.productCode}</td>
                             <td className="p-2 text-slate-700">{row.productName}</td>
                             <td className="p-2 text-right">{money(row.buyQty)}</td>
@@ -967,8 +967,8 @@ function GroupBreakdown({ expandedGroup, groups, setExpandedGroup }: { expandedG
 
                   {/* Mobile view */}
                   <div className="block lg:hidden border-t border-slate-100 divide-y divide-slate-100 bg-slate-50/30 p-2">
-                    {group.products.map((row) => (
-                      <div key={row.productId} className="p-2.5 bg-white rounded-lg border border-slate-100 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
+                    {group.products.map((row, idx) => (
+                      <div key={`${row.productId}_${idx}`} className="p-2.5 bg-white rounded-lg border border-slate-100 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
                         <div className="flex justify-between items-start">
                           <span className="font-bold text-slate-800">{row.productName}</span>
                           <span className="font-mono text-[10px] text-slate-400">{row.productCode}</span>
@@ -1081,8 +1081,8 @@ function ExpenseSummary({ rows, total }: { rows: { amount: number; count: number
         <div className="py-8 text-center text-slate-400 text-xs">ไม่มีค่าใช้จ่ายวันนี้</div>
       ) : (
         <div className="space-y-3">
-          {rows.map((row) => (
-            <div key={row.name}>
+          {rows.map((row, idx) => (
+            <div key={`${row.name}_${idx}`}>
               <div className="mb-1 flex justify-between text-xs">
                 <span className="font-medium text-slate-700">📂 {row.name} <span className="text-xs text-slate-400 font-normal">({row.count} รายการ)</span></span>
                 <span className="font-mono font-bold text-red-600">{money(row.amount)}</span>
