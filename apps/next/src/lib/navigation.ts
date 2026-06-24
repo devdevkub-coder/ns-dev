@@ -45,7 +45,6 @@ const exactPathPermissions: Record<string, string> = {
   '/api/admin/auth-events': 'system.audit.view',
   '/api/admin/transaction-ledger': 'finance.cash.view',
   '/api/admin/users': 'system.users.manage',
-  '/api/branches': 'master.reference.view',
   '/api/business-calendar': 'reports.reports.view',
   '/api/cash-others-summary': 'reports.reports.view',
   '/api/cash-flow-calendar': 'reports.reports.view',

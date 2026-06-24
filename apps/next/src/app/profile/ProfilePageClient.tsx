@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent, useEffect, useState, startTransition } from 'react'
-import { Eye, EyeOff, KeyRound, ShieldCheck, UserRound } from 'lucide-react'
+import { Eye, EyeOff, KeyRound, ShieldCheck, UserRound, LogOut } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -51,6 +51,17 @@ export function ProfilePageClient() {
   const [securityError, setSecurityError] = useState<string | null>(null)
   const [securitySuccess, setSecuritySuccess] = useState<string | null>(null)
   const [isSavingPassword, setIsSavingPassword] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  async function handleLogout() {
+    if (!supabase) return
+    setIsLoggingOut(true)
+    try {
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+    } finally {
+      window.location.replace('/login')
+    }
+  }
 
   // Common States
   const [isFetchingUser, setIsFetchingUser] = useState(true)
@@ -362,6 +373,17 @@ export function ProfilePageClient() {
               <div>
                 <span className="font-bold text-slate-500 uppercase tracking-wider block">สาขาที่ดูแล (Branches)</span>
                 <span className="mt-1 block text-slate-700 font-semibold">{isFetchingUser ? '...' : user?.branchNames.join(', ') || 'ไม่มีสาขา'}</span>
+              </div>
+              <div className="mt-4 pt-3.5 border-t border-slate-100">
+                <Button
+                  type="button"
+                  className="w-full h-10 font-semibold bg-[#dc2626] hover:bg-[#b91c1c] text-white flex items-center justify-center gap-2 outline-none border-0"
+                  onClick={handleLogout}
+                  disabled={isLoggingOut}
+                >
+                  <LogOut className="size-4 text-white" />
+                  {isLoggingOut ? 'กำลังออกจากระบบ...' : 'ออกจากระบบ'}
+                </Button>
               </div>
             </div>
           </div>

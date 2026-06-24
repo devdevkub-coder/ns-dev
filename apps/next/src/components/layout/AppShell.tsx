@@ -7,6 +7,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { Search, Sun, Moon } from 'lucide-react'
 import { AppNavigation } from '@/components/layout/AppNavigation'
 import { AuthStatus } from '@/components/layout/AuthStatus'
+import { MobileBottomNavigation } from '@/components/layout/MobileBottomNavigation'
 import { breadcrumbsForPath, canAccessPath, navigationItems, navigationSections, pageSubtitleForPath, pageTitleForPath, type NavigationItem } from '@/lib/navigation'
 
 type AppShellProps = {
@@ -16,6 +17,7 @@ type AppShellProps = {
 type AuthContextSummary = {
   isAdmin: boolean
   permissions: string[]
+  roles: Array<{ code: string; name: string }>
 }
 
 type MenuSearchResult = {
@@ -65,6 +67,11 @@ export function AppShell({ children }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarUserMenuOpen, setSidebarUserMenuOpen] = useState(false)
   const [authContext, setAuthContext] = useState<AuthContextSummary | null>(null)
+  const showMobileBottomNav = useMemo(() => {
+    const isProductionRoute = pathname.startsWith('/production/') || pathname === '/daily/weight-ticket-list' || pathname === '/profile'
+    const isProductionDept = authContext?.roles.some((r) => r.code === 'production_department' || r.code === 'sorting_department')
+    return Boolean(isProductionDept || isProductionRoute)
+  }, [pathname, authContext])
   const [breadcrumbLabelOverride, setBreadcrumbLabelOverride] = useState<string | null>(null)
   const [menuSearch, setMenuSearch] = useState('')
   const [menuSearchFocused, setMenuSearchFocused] = useState(false)
@@ -164,13 +171,14 @@ export function AppShell({ children }: AppShellProps) {
           setAuthContext({
             isAdmin: payload?.isAdmin === true,
             permissions: Array.isArray(payload?.permissions) ? payload.permissions : [],
+            roles: Array.isArray(payload?.roles) ? payload.roles : [],
           })
         } else if (mounted) {
-          setAuthContext({ isAdmin: false, permissions: [] })
+          setAuthContext({ isAdmin: false, permissions: [], roles: [] })
         }
       } catch {
         if (mounted) {
-          setAuthContext({ isAdmin: false, permissions: [] })
+          setAuthContext({ isAdmin: false, permissions: [], roles: [] })
         }
       }
     }
@@ -266,9 +274,11 @@ export function AppShell({ children }: AppShellProps) {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:px-6">
           <div className="flex min-w-0 flex-1 items-center gap-3">
-            <button aria-label="เปิดเมนู" className="text-xl text-slate-600 lg:hidden" type="button" onClick={() => setSidebarOpen(!sidebarOpen)}>
-              ☰
-            </button>
+            {!showMobileBottomNav && (
+              <button aria-label="เปิดเมนู" className="text-xl text-slate-600 lg:hidden" type="button" onClick={() => setSidebarOpen(!sidebarOpen)}>
+                ☰
+              </button>
+            )}
             <div className="min-w-0">
               <h1 className="min-w-0 break-words text-sm font-semibold leading-snug text-slate-800 sm:text-base lg:text-lg">{title}</h1>
               {subtitle ? <p className="mt-0.5 min-w-0 break-words text-xs leading-snug text-slate-500 sm:text-sm">{subtitle}</p> : null}
@@ -356,8 +366,9 @@ export function AppShell({ children }: AppShellProps) {
           </nav>
         ) : null}
 
-        <main className="min-h-0 flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
+        <main className={`min-h-0 flex-1 overflow-y-auto p-4 lg:p-6 ${showMobileBottomNav ? 'pb-20 md:pb-6' : ''}`}>{children}</main>
       </div>
+      {showMobileBottomNav && <MobileBottomNavigation onOpenSidebar={() => setSidebarOpen(true)} />}
     </div>
   )
 }

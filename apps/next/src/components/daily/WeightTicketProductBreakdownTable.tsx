@@ -256,50 +256,62 @@ export function WeightTicketProductBreakdownTable({
           const targetDocNos = summaryTargetDocNos?.get(group.summary.id) ?? []
 
           return (
-            <div key={group.summary.id} className="p-4 space-y-3">
+            <div key={group.summary.id} className="p-4 space-y-4">
               {/* Product Title */}
-              <div className="flex justify-between items-start gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+              <div className="flex justify-between items-start gap-2 bg-slate-50 p-3 rounded-lg border border-slate-200/60">
                 <div>
-                  <div className="font-bold text-slate-900 text-sm">
+                  <div className="font-bold text-slate-900 text-base">
                     {groupIndex + 1}. {group.summary.productName}
                   </div>
-                  <div className="text-xs font-semibold text-slate-500 mt-1">
-                    {group.summary.lineCount} รายการ · จากเต๋าจริงและซื้อเพิ่ม
+                  <div className="text-sm font-semibold text-slate-500 mt-1">
+                    {group.summary.lineCount} รายการ · จากเตาจริงและซื้อเพิ่ม
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  <div className="text-[10px] uppercase text-slate-400 font-bold">น้ำหนักสุทธิรวม</div>
-                  <div className="font-bold text-slate-900 text-sm tabular-nums">{formatWeight(group.summary.netWeight)} กก.</div>
+                  <div className="text-sm font-semibold text-slate-500">น้ำหนักสุทธิรวม</div>
+                  <div className="font-bold text-emerald-700 text-lg tabular-nums">{formatWeight(group.summary.netWeight)} กก.</div>
                 </div>
               </div>
 
-              {/* Weight Summaries Grid */}
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs bg-slate-50/50 p-2.5 rounded border border-slate-100/50">
-                <div><span className="text-slate-500 font-medium">Gross:</span> <span className="font-semibold text-slate-800 tabular-nums">{formatWeight(group.summary.grossWeight)} กก.</span></div>
-                <div><span className="text-slate-500 font-medium">หักภาชนะ:</span> <span className="font-semibold text-slate-800 tabular-nums">{formatWeight(group.summary.containerDeductionWeight)} กก.</span></div>
-                <div><span className="text-slate-500 font-medium">หักสิ่งเจือปน:</span> <span className="font-semibold text-slate-800 tabular-nums">{formatWeight(group.summary.deductWeight)} กก.</span></div>
-                <div><span className="text-slate-500 font-medium">Net:</span> <span className="font-semibold text-slate-900 tabular-nums">{formatWeight(group.summary.netWeight)} กก.</span></div>
+              {/* Weight Summaries Layout */}
+              <div className="space-y-2 text-sm bg-slate-50/60 p-3.5 rounded-lg border border-slate-200/50">
+                <div className="flex justify-between items-center pb-1.5 border-b border-slate-100">
+                  <span className="text-slate-500 font-medium">Gross (น้ำหนักรวม):</span>
+                  <span className="font-semibold text-slate-800 tabular-nums">{formatWeight(group.summary.grossWeight)} กก.</span>
+                </div>
+                <div className="flex justify-between items-center pb-1.5 border-b border-slate-100">
+                  <span className="text-slate-500 font-medium">หักภาชนะ:</span>
+                  <span className="font-semibold text-slate-700 tabular-nums">-{formatWeight(group.summary.containerDeductionWeight)} กก.</span>
+                </div>
+                <div className="flex justify-between items-center pb-1.5 border-b border-slate-100">
+                  <span className="text-slate-500 font-medium">หักสิ่งเจือปน:</span>
+                  <span className="font-semibold text-slate-700 tabular-nums">-{formatWeight(group.summary.deductWeight)} กก.</span>
+                </div>
+                <div className="flex justify-between items-center pt-1.5 font-bold text-slate-900">
+                  <span className="text-slate-700">Net (น้ำหนักสุทธิ):</span>
+                  <span className="text-emerald-700 text-base tabular-nums">{formatWeight(group.summary.netWeight)} กก.</span>
+                </div>
               </div>
 
               {/* Sections: Real Lot, Impurities, Purchases */}
-              <div className="space-y-3 pl-2 border-l-2 border-slate-200">
+              <div className="space-y-4 pl-3 border-l-2 border-slate-200">
                 {/* Real lot lines */}
                 {group.realLotLines.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded inline-block">
-                      จากเต๋าจริง ({group.realLotLines.length} เต๋า)
+                  <div className="space-y-3">
+                    <div className="text-sm font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-md inline-block">
+                      จากเตาจริง ({group.realLotLines.length} เตา)
                     </div>
                     {group.realLotLines.map((line, idx) => (
-                      <div key={line.id} className="text-xs bg-white p-2.5 rounded border border-slate-100 shadow-sm space-y-1">
+                      <div key={line.id} className="text-sm bg-white p-3.5 rounded-lg border border-slate-200/80 shadow-sm space-y-2">
                         <div className="flex justify-between items-center">
-                          <span className="font-semibold text-slate-800">เต๋าที่ {idx + 1}</span>
+                          <span className="font-bold text-slate-800">เตาที่ {idx + 1}</span>
                           <div className="text-right">
                             <span className="font-bold text-slate-900 tabular-nums">{formatWeight(line.netWeight)} กก.</span>
                           </div>
                         </div>
-                        {line.note && <div className="text-[11px] text-slate-500 bg-slate-50 p-1.5 rounded mt-1">หมายเหตุ: {line.note}</div>}
-                        <div className="flex justify-between items-center text-[11px] text-slate-500 pt-1.5 border-t border-slate-50 mt-1">
-                          <span>Gross {formatWeight(line.grossWeightValue)} | หัก {formatWeight(line.containerDeductionWeightValue)}</span>
+                        {line.note && <div className="text-sm text-slate-600 bg-slate-50 p-2.5 rounded mt-1">หมายเหตุ: {line.note}</div>}
+                        <div className="flex justify-between items-center text-sm font-medium text-slate-500 pt-2 border-t border-slate-100/60 mt-1.5">
+                          <span>Gross: {formatWeight(line.grossWeightValue)} | หัก: {formatWeight(line.containerDeductionWeightValue)}</span>
                           <LineImagesButton line={line} onOpenLineGallery={onOpenLineGallery} />
                         </div>
                       </div>
@@ -309,17 +321,17 @@ export function WeightTicketProductBreakdownTable({
 
                 {/* Impurities */}
                 {group.impurityLines.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded inline-block">
+                  <div className="space-y-3">
+                    <div className="text-sm font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-md inline-block">
                       หักสิ่งเจือปนของสินค้านี้ ({group.impurityLines.length} รายการ)
                     </div>
                     {group.impurityLines.map((line) => (
-                      <div key={line.id} className="text-xs bg-white p-2.5 rounded border border-slate-100 shadow-sm space-y-1">
+                      <div key={line.id} className="text-sm bg-white p-3.5 rounded-lg border border-slate-200/80 shadow-sm space-y-2">
                         <div className="flex justify-between items-center">
-                          <span className="font-semibold text-slate-800">{line.impurityName || 'สิ่งเจือปน'}</span>
+                          <span className="font-bold text-slate-800">{line.impurityName || 'สิ่งเจือปน'}</span>
                           <span className="font-semibold text-red-600 tabular-nums">หัก {formatWeight(line.deductionWeight)} กก.</span>
                         </div>
-                        {line.note && <div className="text-[11px] text-slate-500">หมายเหตุ: {line.note}</div>}
+                        {line.note && <div className="text-sm text-slate-600 bg-slate-50 p-2.5 rounded mt-1">หมายเหตุ: {line.note}</div>}
                       </div>
                     ))}
                   </div>
@@ -327,19 +339,19 @@ export function WeightTicketProductBreakdownTable({
 
                 {/* Purchase from Impurities */}
                 {group.purchaseLines.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="text-[11px] font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded inline-block">
+                  <div className="space-y-3">
+                    <div className="text-sm font-bold text-blue-800 bg-blue-50 px-2.5 py-1 rounded-md inline-block">
                       ซื้อเพิ่มจากสิ่งเจือปน ({group.purchaseLines.length} รายการ)
                     </div>
                     {group.purchaseLines.map((line) => (
-                      <div key={line.id} className="text-xs bg-white p-2.5 rounded border border-slate-100 shadow-sm space-y-1">
+                      <div key={line.id} className="text-sm bg-white p-3.5 rounded-lg border border-slate-200/80 shadow-sm space-y-2">
                         <div className="flex justify-between items-center">
-                          <span className="font-semibold text-slate-800">สิ่งเจือปนที่ซื้อ</span>
+                          <span className="font-bold text-slate-800">สิ่งเจือปนที่ซื้อ</span>
                           <span className="font-bold text-slate-900 tabular-nums">{formatWeight(line.netWeight)} กก.</span>
                         </div>
-                        {line.note && <div className="text-[11px] text-slate-500">หมายเหตุ: {line.note}</div>}
-                        <div className="flex justify-between items-center text-[11px] text-slate-500 pt-1.5 border-t border-slate-50 mt-1">
-                          <span>Gross {formatWeight(line.grossWeightValue)} | หัก {formatWeight(line.containerDeductionWeightValue)}</span>
+                        {line.note && <div className="text-sm text-slate-600 bg-slate-50 p-2.5 rounded mt-1">หมายเหตุ: {line.note}</div>}
+                        <div className="flex justify-between items-center text-sm font-medium text-slate-500 pt-2 border-t border-slate-100/60 mt-1.5">
+                          <span>Gross: {formatWeight(line.grossWeightValue)} | หัก: {formatWeight(line.containerDeductionWeightValue)}</span>
                           <LineImagesButton line={line} onOpenLineGallery={onOpenLineGallery} />
                         </div>
                       </div>
@@ -350,21 +362,21 @@ export function WeightTicketProductBreakdownTable({
 
               {/* Billed & Remaining Columns */}
               {showBillingColumns && (
-                <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-100/60">
+                <div className="grid grid-cols-2 gap-3 text-sm pt-2.5 border-t border-slate-200/60">
                   <div>
-                    <span className="text-slate-500">ออกบิลแล้ว:</span>{' '}
+                    <span className="text-slate-500 font-medium">ออกบิลแล้ว:</span>{' '}
                     <span className="font-semibold text-blue-700 tabular-nums">{formatWeight(group.summary.billedWeight)} กก.</span>
                   </div>
                   <div>
-                    <span className="text-slate-500">คงเหลือ:</span>{' '}
+                    <span className="text-slate-500 font-medium">คงเหลือ:</span>{' '}
                     <span className="font-semibold text-emerald-700 tabular-nums">{formatWeight(group.summary.remainingWeight)} กก.</span>
                   </div>
                   {targetDocNos.length > 0 && (
-                    <div className="col-span-2 text-[11px] mt-1">
-                      <span className="text-slate-500">เอกสารปลายทาง:</span>{' '}
-                      <div className="flex flex-wrap gap-1 mt-1">
+                    <div className="col-span-2 text-sm mt-1.5">
+                      <span className="text-slate-500 font-semibold">เอกสารปลายทาง:</span>{' '}
+                      <div className="flex flex-wrap gap-1.5 mt-1.5">
                         {targetDocNos.map((docNo) => (
-                          <span className="rounded bg-slate-100 px-2 py-0.5 text-slate-700 shadow-sm" key={docNo}>
+                          <span className="rounded-md bg-slate-100 px-2.5 py-1 text-sm font-semibold text-slate-700 shadow-sm" key={docNo}>
                             {docNo}
                           </span>
                         ))}

@@ -609,7 +609,7 @@ export function ProductionOrdersPageClient() {
       </div>
 
       {/* Floating Action Button (FAB) for Mobile */}
-      <div className="fixed bottom-6 right-6 z-40 lg:hidden">
+      <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-6 z-40 lg:hidden">
         <button
           className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 active:scale-95 transition-transform"
           onClick={() => setModalMode('create')}
@@ -629,30 +629,30 @@ function OrderCard({ onOpen, row }: { onOpen: () => void; row: ProductionOrderRo
   const yieldPct = row.inputQty > 0 ? (row.outputQty / row.inputQty) * 100 : 0
   const wipQty = Math.max(0, row.wipQty ?? 0)
   return (
-    <div className={`relative cursor-pointer overflow-hidden rounded-md border-2 p-4 shadow-md transition hover:shadow-xl ${cardClass(row.status)}`} onClick={onOpen}>
-      <div className="absolute right-2 top-2"><StatusBadge status={row.status} /></div>
-      <div className="mb-1 font-mono text-xs text-slate-400">{row.docNo}</div>
-      <div className="mb-3 text-xs text-slate-500">{formatDateDisplay(row.date)} · {row.branchName}</div>
-      <div className="mb-3 rounded-md border border-slate-200 bg-white/80 p-3">
-        <div className="mb-1 text-xs text-slate-500">สินค้าที่ผลิต</div>
+    <div className={`relative cursor-pointer overflow-hidden rounded-lg border-2 p-4 shadow-md transition hover:shadow-xl ${cardClass(row.status)}`} onClick={onOpen}>
+      <div className="absolute right-2.5 top-2.5"><StatusBadge status={row.status} /></div>
+      <div className="mb-1 font-mono text-sm text-slate-500">{row.docNo}</div>
+      <div className="mb-3 text-sm text-slate-600">{formatDateDisplay(row.date)} · {row.branchName}</div>
+      <div className="mb-3 rounded-lg border border-slate-200 bg-white/80 p-3.5">
+        <div className="mb-1 text-xs font-semibold text-slate-500 uppercase tracking-wide">สินค้าที่ผลิต</div>
         <div className="text-base font-bold leading-tight text-amber-700 truncate">{row.productName || 'ยังไม่ได้กำหนดสินค้า'}</div>
-        <div className="mt-1 text-xs text-slate-500 truncate">{row.productCode || row.productId || '-'} · {row.warehouseName}</div>
+        <div className="mt-1 text-sm text-slate-600 truncate">{row.productCode || row.productId || '-'} · {row.warehouseName}</div>
       </div>
-      <div className="mb-3 grid grid-cols-3 gap-2 text-center">
+      <div className="mb-3 grid grid-cols-3 gap-2.5 text-center">
         <MiniMetric label="เบิก" tone="red" value={row.inputQty} />
         <MiniMetric label="WIP" tone="amber" value={wipQty} />
         <MiniMetric label="ผลิต" tone="emerald" value={row.outputQty} />
       </div>
       {row.inputQty > 0 ? (
-        <div className="mb-2">
-          <div className="mb-0.5 flex justify-between text-xs"><span className="text-slate-500">Yield</span><span className={`font-bold ${yieldPct >= 90 ? 'text-emerald-700' : yieldPct >= 70 ? 'text-blue-700' : 'text-amber-700'}`}>{yieldPct.toFixed(1)}%</span></div>
-          <div className="h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full bg-blue-500" style={{ width: `${Math.min(100, yieldPct)}%` }} /></div>
+        <div className="mb-3 bg-white/40 p-2 rounded-lg border border-slate-200/50">
+          <div className="mb-1 flex justify-between text-sm"><span className="text-slate-600 font-medium">Yield (สัดส่วนผลิต)</span><span className={`font-bold ${yieldPct >= 90 ? 'text-emerald-700' : yieldPct >= 70 ? 'text-blue-700' : 'text-amber-700'}`}>{yieldPct.toFixed(1)}%</span></div>
+          <div className="h-2.5 overflow-hidden rounded-full bg-slate-200"><div className="h-full bg-blue-500" style={{ width: `${Math.min(100, yieldPct)}%` }} /></div>
         </div>
       ) : null}
       {row.status === 'Completed' ? <CountdownTimer closedAt={row.closedAt} /> : null}
-      <div className="flex items-center justify-between border-t border-slate-200/60 pt-2">
-        <div className="text-xs"><span className="text-slate-500">ต้นทุน:</span><b className="ml-1 text-slate-700">{formatMoney(row.inputCost)}</b></div>
-        <button className="rounded-md bg-blue-600 px-3 py-1 text-xs font-bold text-white hover:bg-blue-700" type="button">เปิด</button>
+      <div className="flex items-center justify-between border-t border-slate-200/60 pt-3">
+        <div className="text-sm"><span className="text-slate-500">ต้นทุนเบิก:</span><b className="ml-1 text-slate-800 font-bold">{formatMoney(row.inputCost)}</b></div>
+        <button className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-bold text-white hover:bg-blue-700" type="button">เปิด</button>
       </div>
     </div>
   )
@@ -1367,24 +1367,24 @@ function MovementPanel({
                   <td className="p-2 font-mono">{row.docNo}</td>
                   <td className="p-2">
                     <span className="font-semibold">{row.productName}</span>
-                    <div className="text-[10px] text-slate-400 font-mono">{row.productCode}</div>
+                    <div className="text-xs text-slate-400 font-mono">{row.productCode}</div>
                   </td>
                   <td className="p-2">
                     {row.warehouseName}
-                    {row.stockStatus ? <span className="ml-1 text-[10px] text-slate-400 font-semibold">[{row.stockStatus}]</span> : null}
+                    {row.stockStatus ? <span className="ml-1 text-xs text-slate-400 font-semibold">[{row.stockStatus}]</span> : null}
                   </td>
                   <td className="p-2 font-mono">{row.lotNo || '-'}</td>
                   <td className="p-2 text-right font-medium tabular-nums">{formatMoney(row.qty)}</td>
                   <td className="p-2 text-right text-slate-500 tabular-nums">{formatMoney(row.unitCost)}</td>
                   <td className="p-2 text-right font-semibold text-blue-700 tabular-nums">{formatMoney(row.totalCost)}</td>
                   <td className="p-2 text-center">
-                    <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${isRowActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                    <span className={`rounded-md px-1.5 py-0.5 text-xs font-bold ${isRowActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
                       {isRowActive ? 'Active' : 'Reversed'}
                     </span>
                   </td>
                   <td className="p-2 text-center">
                     <button
-                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
                       disabled={!canWrite || !isRowActive}
                       type="button"
                       onClick={() => onReverse(row.docNo)}
@@ -1410,43 +1410,43 @@ function MovementPanel({
             const isRowActive = row.status?.toLowerCase() === 'active'
             const isRowReversed = row.status?.toLowerCase() === 'reversed'
             return (
-              <div key={index} className={`p-4 space-y-2 text-xs ${isRowReversed ? 'bg-slate-50/50 text-slate-400 line-through' : ''}`}>
+              <div key={index} className={`p-4 space-y-3 text-base ${isRowReversed ? 'bg-slate-50/50 text-slate-400 line-through' : ''}`}>
                 <div className="flex justify-between items-start gap-2">
                   <div>
-                    <span className="font-semibold text-slate-900 text-sm leading-tight block">{index + 1}. {row.productName}</span>
-                    <span className="text-[10px] text-slate-400 font-mono block">{row.productCode}</span>
+                    <span className="font-bold text-slate-900 text-lg leading-tight block">{index + 1}. {row.productName}</span>
+                    <span className="text-sm text-slate-500 font-mono block mt-0.5">{row.productCode}</span>
                   </div>
-                  <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${isRowActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                  <span className={`rounded-md px-2 py-0.5 text-xs font-bold ${isRowActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
                     {isRowActive ? 'Active' : 'Reversed'}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 py-1.5 border-t border-b border-slate-100/50 text-slate-600">
-                  <div><span className="text-slate-400 font-medium">วันที่:</span> {formatDateDisplay(row.date)}</div>
-                  <div><span className="text-slate-400 font-medium">เลขที่:</span> <span className="font-mono">{row.docNo}</span></div>
-                  <div><span className="text-slate-400 font-medium">คลัง:</span> {row.warehouseName} {row.stockStatus ? `[${row.stockStatus}]` : ''}</div>
-                  <div><span className="text-slate-400 font-medium">Lot No.:</span> <span className="font-mono">{row.lotNo || '-'}</span></div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 py-2 border-t border-b border-slate-100/50 text-slate-600 text-sm">
+                  <div><span className="text-slate-500 font-medium">วันที่:</span> {formatDateDisplay(row.date)}</div>
+                  <div><span className="text-slate-500 font-medium">เลขที่:</span> <span className="font-mono">{row.docNo}</span></div>
+                  <div><span className="text-slate-500 font-medium">คลัง:</span> {row.warehouseName} {row.stockStatus ? `[${row.stockStatus}]` : ''}</div>
+                  <div><span className="text-slate-500 font-medium">Lot No.:</span> <span className="font-mono">{row.lotNo || '-'}</span></div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 text-center py-2 bg-slate-50 rounded-md">
+                <div className="grid grid-cols-3 gap-2 text-center py-2.5 bg-slate-50 rounded-md">
                   <div>
-                    <span className="text-[9px] text-slate-400 block">น้ำหนัก (กก.)</span>
-                    <span className="font-bold text-slate-700 tabular-nums">{formatMoney(row.qty)}</span>
+                    <span className="text-xs font-semibold text-slate-500 block mb-0.5">น้ำหนัก (กก.)</span>
+                    <span className="font-bold text-slate-950 text-sm tabular-nums">{formatMoney(row.qty)}</span>
                   </div>
                   <div>
-                    <span className="text-[9px] text-slate-400 block">ราคา/กก.</span>
-                    <span className="font-medium text-slate-500 tabular-nums">{formatMoney(row.unitCost)}</span>
+                    <span className="text-xs font-semibold text-slate-500 block mb-0.5">ราคา/กก.</span>
+                    <span className="font-semibold text-slate-700 text-sm tabular-nums">{formatMoney(row.unitCost)}</span>
                   </div>
                   <div>
-                    <span className="text-[9px] text-slate-400 block">รวมมูลค่า</span>
-                    <span className="font-bold text-blue-700 tabular-nums">{formatMoney(row.totalCost)}</span>
+                    <span className="text-xs font-semibold text-slate-500 block mb-0.5">รวมมูลค่า</span>
+                    <span className="font-bold text-blue-700 text-sm tabular-nums">{formatMoney(row.totalCost)}</span>
                   </div>
                 </div>
 
                 {canWrite && isRowActive && (
                   <div className="flex justify-end pt-1">
                     <button
-                      className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-50"
+                      className="rounded-md border border-slate-300 bg-white px-3 py-1.5 h-9 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                       type="button"
                       onClick={() => onReverse(row.docNo)}
                     >
@@ -1526,29 +1526,29 @@ function ProductStockPreview({
       {/* Mobile Card List View */}
       <div className="block lg:hidden divide-y divide-indigo-100/60 bg-white rounded-md border border-indigo-100 overflow-hidden shadow-sm">
         {stock.rows.map((row, index) => (
-          <div key={index} className="p-3 space-y-2 text-xs">
+          <div key={index} className="p-3.5 space-y-3 text-sm border-b border-indigo-50/50 last:border-b-0">
             <div className="flex justify-between items-center">
-              <span className="font-semibold text-slate-700">{stock.branchCode} / {row.warehouseCode || destinationWarehouseName}</span>
-              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">{row.status}</span>
+              <span className="font-bold text-slate-800 text-sm">{stock.branchCode} / {row.warehouseCode || destinationWarehouseName}</span>
+              <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">{row.status}</span>
             </div>
-            <div className="grid grid-cols-3 gap-2 text-center py-1.5 bg-indigo-50/30 rounded-md">
+            <div className="grid grid-cols-3 gap-2 text-center py-2 bg-indigo-50/30 rounded-md">
               <div>
-                <span className="text-[9px] text-slate-400 block">คงเหลือ (กก.)</span>
-                <span className="font-bold text-slate-900 tabular-nums">{formatMoney(row.qty)}</span>
+                <span className="text-xs font-semibold text-slate-500 block mb-0.5">คงเหลือ (กก.)</span>
+                <span className="font-bold text-slate-950 text-sm tabular-nums">{formatMoney(row.qty)}</span>
               </div>
               <div>
-                <span className="text-[9px] text-slate-400 block">เฉลี่ย/กก.</span>
-                <span className="font-medium text-slate-500 tabular-nums">{formatMoney(row.avgCost)}</span>
+                <span className="text-xs font-semibold text-slate-500 block mb-0.5">เฉลี่ย/กก.</span>
+                <span className="font-semibold text-slate-700 text-sm tabular-nums">{formatMoney(row.avgCost)}</span>
               </div>
               <div>
-                <span className="text-[9px] text-slate-400 block">รวมมูลค่า</span>
-                <span className="font-bold text-indigo-700 tabular-nums">{formatMoney(row.value)}</span>
+                <span className="text-xs font-semibold text-slate-500 block mb-0.5">รวมมูลค่า</span>
+                <span className="font-bold text-indigo-700 text-sm tabular-nums">{formatMoney(row.value)}</span>
               </div>
             </div>
           </div>
         ))}
         {stock.rows.length === 0 ? (
-          <div className="p-4 text-center text-slate-400 font-semibold text-xs">
+          <div className="p-4 text-center text-slate-400 font-semibold text-sm">
             ไม่มีของในคลังนี้ (เป็นศูนย์)
           </div>
         ) : null}
@@ -1599,13 +1599,13 @@ function SelectField({ allowBlank = false, disabled = false, error, helperText, 
 
 function MiniMetric({ label, tone, value }: { label: string; tone: 'amber' | 'emerald' | 'red'; value: number }) {
   const color = tone === 'red' ? 'text-red-700' : tone === 'emerald' ? 'text-emerald-700' : 'text-amber-700'
-  return <div className="rounded-md bg-white/70 p-2"><div className={`text-[10px] ${color}`}>{label}</div><div className={`text-sm font-bold ${color}`}>{formatMoney(value)}</div></div>
+  return <div className="rounded-md bg-white/70 p-2"><div className={`text-xs font-medium ${color}`}>{label}</div><div className={`text-base font-bold ${color}`}>{formatMoney(value)}</div></div>
 }
 
 function Metric({ label, value, tone = 'normal' }: { label: string; tone?: 'normal' | 'danger'; value: string }) {
   return (
     <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-3">
-      <div className="text-xs text-slate-500 font-semibold">{label}</div>
+      <div className="text-sm text-slate-500 font-semibold">{label}</div>
       <div className={`mt-1 text-lg font-bold ${tone === 'danger' ? 'text-red-700' : 'text-slate-900'}`}>{value}</div>
     </div>
   )
@@ -1614,7 +1614,7 @@ function Metric({ label, value, tone = 'normal' }: { label: string; tone?: 'norm
 function ReadField({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-xs text-slate-500 font-semibold">{label}</div>
+      <div className="text-sm text-slate-500 font-semibold">{label}</div>
       <div className="mt-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">{value}</div>
     </div>
   )
@@ -1641,6 +1641,6 @@ function statusClass(status: string) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  return <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${statusClass(status)}`}>{statusLabel(status)}</span>
+  return <span className={`rounded-full px-3 py-1 text-sm font-bold ${statusClass(status)}`}>{statusLabel(status)}</span>
 }
 

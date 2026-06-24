@@ -247,10 +247,10 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
             </div>
             {ticket.type === 'WTI' && ticket.usedInPurchaseBillDocNos.length > 0 ? (
               <div className="mt-4 rounded-md bg-slate-50 px-4 py-3">
-                <div className="text-xs font-medium text-slate-500">เลขที่บิลซื้อที่อ้างอิง</div>
+                <div className="text-sm font-semibold text-slate-500">เลขที่บิลซื้อที่อ้างอิง</div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {ticket.usedInPurchaseBillDocNos.map((docNo) => (
-                    <span className="rounded-md bg-white px-2.5 py-1 text-xs text-slate-700 shadow-sm" key={docNo}>
+                    <span className="rounded-md bg-white px-2.5 py-1 text-sm font-medium text-slate-700 shadow-sm" key={docNo}>
                       {docNo}
                     </span>
                   ))}
@@ -259,10 +259,10 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
             ) : null}
             {ticket.type === 'WTO' && ticket.usedInSalesBillDocNos.length > 0 ? (
               <div className="mt-4 rounded-md bg-slate-50 px-4 py-3">
-                <div className="text-xs font-medium text-slate-500">เลขที่บิลขายที่อ้างอิง</div>
+                <div className="text-sm font-semibold text-slate-500">เลขที่บิลขายที่อ้างอิง</div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {ticket.usedInSalesBillDocNos.map((docNo) => (
-                    <span className="rounded-md bg-white px-2.5 py-1 text-xs text-slate-700 shadow-sm" key={docNo}>
+                    <span className="rounded-md bg-white px-2.5 py-1 text-sm font-medium text-slate-700 shadow-sm" key={docNo}>
                       {docNo}
                     </span>
                   ))}
@@ -271,7 +271,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
             ) : null}
             {ticket.remark ? (
               <div className="mt-4 rounded-md bg-slate-50 px-4 py-3">
-                <div className="text-xs font-medium text-slate-500">
+                <div className="text-sm font-semibold text-slate-500">
                   {ticket.type === 'WTI' ? 'หมายเหตุใบรับของ' : 'หมายเหตุใบส่งของ'}
                 </div>
                 <div className="mt-1 text-sm text-slate-600">{ticket.remark}</div>
@@ -308,7 +308,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                 <DetailItem label="โกดัง" value={ticket.warehouseName || '-'} />
               </div>
               <div>
-                <div className="mb-2 text-xs text-slate-500">รูปภาพรถส่งของ</div>
+                <div className="mb-2 text-sm font-semibold text-slate-500">รูปภาพรถส่งของ</div>
                 <ImageGrid images={vehicleImages} onOpen={(image) => setPreviewImage(image)} />
               </div>
             </div>
@@ -333,10 +333,10 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
               <SectionTitle subtitle="สถานะปัจจุบันของเอกสาร" title="สถานะ" />
               <div className="mt-4 space-y-3">
                 <div className="rounded-md bg-slate-50 px-4 py-3">
-                  <div className="text-xs text-slate-500">สถานะเอกสาร</div>
+                  <div className="text-sm font-semibold text-slate-500">สถานะเอกสาร</div>
                   <div className="mt-1">
                     <span className={cn(
-                      'inline-flex items-center gap-1.5 text-xs font-medium',
+                      'inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded',
                       weightTicketStatusBadgeClass(ticket.type, ticket.status),
                     )}
                     >
@@ -346,21 +346,21 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                   </div>
                 </div>
                 <div className="rounded-md bg-slate-50 px-4 py-3">
-                  <div className="text-xs text-slate-500">การอ้างอิงเอกสาร</div>
+                  <div className="text-sm font-semibold text-slate-500">การอ้างอิงเอกสาร</div>
                   <div className="mt-1 text-sm font-medium text-slate-900">
                     {ticket.type === 'WTI'
                       ? `บิลซื้อ ${ticket.usedInPurchaseBillCount} รายการ`
                       : `บิลขาย ${ticket.usedInSalesBillCount} รายการ`}
                   </div>
                   {ticket.type === 'WTI' && ticket.usedInPurchaseBillDocNos.length > 0 ? (
-                    <div className="mt-2 space-y-1 text-xs text-slate-600">
+                    <div className="mt-2 space-y-1 text-sm text-slate-600">
                       {ticket.usedInPurchaseBillDocNos.map((docNo) => (
                         <div key={docNo}>{docNo}</div>
                       ))}
                     </div>
                   ) : null}
                   {ticket.type === 'WTO' && ticket.usedInSalesBillDocNos.length > 0 ? (
-                    <div className="mt-2 space-y-1 text-xs text-slate-600">
+                    <div className="mt-2 space-y-1 text-sm text-slate-600">
                       {ticket.usedInSalesBillDocNos.map((docNo) => (
                         <div key={docNo}>{docNo}</div>
                       ))}
@@ -369,7 +369,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                 </div>
                 {ticket.cancelledAt ? (
                   <div className="rounded-md bg-slate-50 px-4 py-3">
-                    <div className="text-xs text-slate-500">ยกเลิกเมื่อ</div>
+                    <div className="text-sm font-semibold text-slate-500">ยกเลิกเมื่อ</div>
                     <div className="mt-1 text-sm font-medium text-slate-900">{formatDateTime(ticket.cancelledAt)}</div>
                   </div>
                 ) : null}
@@ -513,7 +513,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
                   <div className="rounded-md border border-slate-100 bg-white px-3 py-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="font-medium text-slate-900">{timelineLabel(event.eventKey, event.action)}</div>
-                      <div className="text-xs text-slate-400">{formatDateTime(event.occurredAt)}</div>
+                      <div className="text-sm text-slate-500 font-medium">{formatDateTime(event.occurredAt)}</div>
                     </div>
                     <div className="mt-1 text-sm text-slate-600">{event.actorName}</div>
                     {toStatus ? (
@@ -551,7 +551,7 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
             <SectionTitle subtitle="ยกเลิกได้จนกว่าจะถูกนำไปใช้ออกบิล" title="ยกเลิกเอกสาร" />
             <div className="mt-4 space-y-3 px-1">
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">
+                <label className="mb-1 block text-sm font-semibold text-slate-600">
                   เหตุผลการยกเลิก<span className="ml-1 text-red-600">*</span>
                 </label>
                 <textarea

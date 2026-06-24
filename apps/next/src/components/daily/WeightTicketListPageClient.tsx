@@ -361,7 +361,7 @@ export function WeightTicketListPageClient() {
   return (
     <div className="space-y-5">
       {/* Floating Action Button (Mobile Only) */}
-      <div className="fixed bottom-6 right-6 z-40 md:hidden">
+      <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-6 z-40 md:hidden">
         <button
           className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg active:scale-95 transition-transform"
           onClick={() => setActiveForm({ type: typeFilter })}
@@ -580,33 +580,33 @@ export function WeightTicketListPageClient() {
           tickets.map((ticket) => (
             <div
               key={ticket.id}
-              className="rounded-md border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 cursor-pointer transition-colors"
+              className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm active:bg-slate-50 cursor-pointer transition-colors space-y-3"
               onClick={() => setActiveDetailId(ticket.id)}
             >
-              <div className="flex justify-between items-start mb-2">
-                <span className="font-bold text-slate-800 text-sm">{ticket.documentNo}</span>
-                <span className="text-xs text-slate-500">{formatDateTime(ticket.createdAt)}</span>
+              <div className="flex justify-between items-start">
+                <span className="font-bold text-slate-900 text-base">{ticket.documentNo}</span>
+                <span className="text-sm text-slate-500">{formatDateTime(ticket.createdAt)}</span>
               </div>
 
-              <div className="text-xs text-slate-600 mb-3 space-y-1">
+              <div className="text-sm text-slate-700 space-y-1.5 bg-slate-50 p-3 rounded-lg border border-slate-100">
                 <div>
                   <span className="font-semibold text-slate-500">{typeFilter === 'WTI' ? 'ผู้ขาย: ' : 'ลูกค้า: '}</span>
-                  <span className="text-slate-800">{ticket.partyName}</span>
+                  <span className="text-slate-900">{ticket.partyName}</span>
                 </div>
                 <div>
                   <span className="font-semibold text-slate-500">ทะเบียนรถ: </span>
-                  <span className="text-slate-800">{ticket.vehicleNo}</span>
+                  <span className="text-slate-900">{ticket.vehicleNo}</span>
                 </div>
                 <div>
                   <span className="font-semibold text-slate-500">สาขา: </span>
-                  <span className="text-slate-800">{ticket.branchName}</span>
+                  <span className="text-slate-900">{ticket.branchName}</span>
                 </div>
               </div>
 
-              <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+              <div className="flex justify-between items-center pt-2.5 border-t border-slate-100">
                 <div>
                   <span className={cn(
-                    'inline-flex items-center gap-1.5 text-xs font-semibold',
+                    'inline-flex items-center gap-1.5 text-sm font-semibold px-2 py-0.5 rounded',
                     weightTicketStatusBadgeClass(ticket.type, ticket.status),
                   )}
                   >
@@ -615,41 +615,41 @@ export function WeightTicketListPageClient() {
                   </span>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] text-slate-400 block">น้ำหนักสุทธิ</span>
-                  <span className="font-bold text-slate-900 text-sm tabular-nums">{formatWeight(ticket.totals.netWeight)} กก.</span>
+                  <span className="text-xs text-slate-500 block">น้ำหนักสุทธิ</span>
+                  <span className="font-bold text-emerald-700 text-base tabular-nums">{formatWeight(ticket.totals.netWeight)} กก.</span>
                 </div>
               </div>
 
-              <div className="flex justify-end items-center gap-1.5 mt-3 pt-2 border-t border-slate-100/50" onClick={(e) => e.stopPropagation()}>
+              <div className="flex flex-wrap justify-end items-center gap-2 mt-3 pt-2.5 border-t border-slate-100/50" onClick={(e) => e.stopPropagation()}>
                 <button
-                  className="inline-flex items-center gap-1 rounded-md border border-emerald-200 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60"
+                  className="inline-flex items-center gap-1 rounded-md border border-emerald-200 px-3 py-1.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60"
                   type="button"
                   onClick={() => void handlePrintTicket(ticket)}
                 >
-                  <Printer className="size-3" />
+                  <Printer className="size-3.5" />
                   {printingTicketId === ticket.id ? 'เตรียม...' : 'พิมพ์'}
                 </button>
                 <button
-                  className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50"
+                  className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
                   type="button"
                   onClick={() => openShareDialog(ticket)}
                 >
-                  <Share2 className="size-3" />
+                  <Share2 className="size-3.5" />
                   แชร์
                 </button>
                 {ticket.canEdit ? (
                   <button
-                    className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50"
+                    className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
                     onClick={() => setActiveForm({ id: ticket.id, type: ticket.type })}
                     type="button"
                   >
-                    <SquarePen className="size-3" />
+                    <SquarePen className="size-3.5" />
                     แก้ไข
                   </button>
                 ) : null}
                 {ticket.canCancel ? (
                   <button
-                    className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+                    className="inline-flex items-center gap-1 rounded-md border border-red-200 px-3 py-1.5 text-sm font-semibold text-red-700 hover:bg-red-50"
                     type="button"
                     onClick={() => {
                       setCancelTicket(ticket)
@@ -657,7 +657,7 @@ export function WeightTicketListPageClient() {
                       setCancelNote(ticket.cancelNote ?? '')
                     }}
                   >
-                    <XCircle className="size-3" />
+                    <XCircle className="size-3.5" />
                     ยกเลิก
                   </button>
                 ) : null}
@@ -912,7 +912,7 @@ export function WeightTicketListPageClient() {
         <Dialog open onOpenChange={(open) => {
           if (!open) setActiveForm(null)
         }}>
-          <DialogContent aria-labelledby="weight-ticket-form-title" className="max-h-[95vh] max-w-7xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" data-combobox-portal-root="true" hideClose>
+          <DialogContent aria-labelledby="weight-ticket-form-title" className="max-h-[95vh] max-w-7xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" data-combobox-portal-root="true">
             <DialogHeader className="px-5 py-3 bg-slate-900 text-white shrink-0">
               <DialogTitle id="weight-ticket-form-title">
                 {activeForm.id ? 'แก้ไขใบรับ-ส่งของ' : activeForm.type === 'WTI' ? 'สร้างใบรับของ WTI' : 'สร้างใบส่งของ WTO'}

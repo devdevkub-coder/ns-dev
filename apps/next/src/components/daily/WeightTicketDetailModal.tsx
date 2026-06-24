@@ -199,7 +199,7 @@ export function WeightTicketDetailModal({
     <Dialog open onOpenChange={(open) => {
       if (!open) onClose()
     }}>
-      <DialogContent aria-labelledby="weight-ticket-detail-title" className="max-h-[90vh] max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" hideClose>
+      <DialogContent aria-labelledby="weight-ticket-detail-title" className="max-h-[90vh] max-w-6xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0">
         <DialogHeader className="p-4 bg-slate-900 text-white shrink-0 rounded-t-md">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -263,10 +263,10 @@ export function WeightTicketDetailModal({
                 </div>
                 {ticket.type === 'WTI' && ticket.usedInPurchaseBillDocNos.length > 0 ? (
                   <div className="mt-4 rounded-md bg-slate-50 px-4 py-3">
-                    <div className="text-xs font-medium text-slate-500">เลขที่บิลซื้อที่อ้างอิง</div>
+                    <div className="text-sm font-semibold text-slate-500">เลขที่บิลซื้อที่อ้างอิง</div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {ticket.usedInPurchaseBillDocNos.map((docNo) => (
-                        <span className="rounded-md bg-white px-2.5 py-1 text-xs text-slate-700 shadow-sm" key={docNo}>
+                        <span className="rounded-md bg-white px-2.5 py-1 text-sm font-medium text-slate-700 shadow-sm" key={docNo}>
                           {docNo}
                         </span>
                       ))}
@@ -275,7 +275,7 @@ export function WeightTicketDetailModal({
                 ) : null}
                 {ticket.remark ? (
                   <div className="mt-4 rounded-md bg-slate-50 px-4 py-3">
-                    <div className="text-xs font-medium text-slate-500">
+                    <div className="text-sm font-semibold text-slate-500">
                       {ticket.type === 'WTI' ? 'หมายเหตุใบรับของ' : 'หมายเหตุใบส่งของ'}
                     </div>
                     <div className="mt-1 text-sm text-slate-600">{ticket.remark}</div>
@@ -315,7 +315,7 @@ export function WeightTicketDetailModal({
                     <DetailItem label="โกดัง" value={ticket.warehouseName || '-'} />
                   </div>
                   <div>
-                    <div className="mb-2 text-xs text-slate-500">รูปภาพรถส่งของ</div>
+                    <div className="mb-2 text-sm font-semibold text-slate-500">รูปภาพรถส่งของ</div>
                     <ImageGrid images={vehicleImages} onOpen={(image) => setPreviewImage(image)} />
                   </div>
                 </div>
@@ -338,10 +338,10 @@ export function WeightTicketDetailModal({
                   <SectionTitle subtitle="สถานะปัจจุบันของเอกสาร" title="สถานะ" />
                   <div className="mt-4 space-y-3">
                     <div className="rounded-md bg-slate-50 px-4 py-3">
-                      <div className="text-xs text-slate-500">สถานะเอกสาร</div>
+                      <div className="text-sm font-semibold text-slate-500">สถานะเอกสาร</div>
                       <div className="mt-1">
                         <span className={cn(
-                          'inline-flex items-center gap-1.5 text-xs font-medium',
+                          'inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded',
                           weightTicketStatusBadgeClass(ticket.type, ticket.status),
                         )}
                         >
@@ -351,14 +351,14 @@ export function WeightTicketDetailModal({
                       </div>
                     </div>
                     <div className="rounded-md bg-slate-50 px-4 py-3">
-                      <div className="text-xs text-slate-500">การอ้างอิงเอกสาร</div>
+                      <div className="text-sm font-semibold text-slate-500">การอ้างอิงเอกสาร</div>
                       <div className="mt-1 text-sm font-medium text-slate-900">
                         {ticket.type === 'WTI'
                           ? `บิลซื้อ ${ticket.usedInPurchaseBillCount} รายการ`
                           : `บิลขาย ${ticket.usedInSalesBillCount} รายการ`}
                       </div>
                       {ticket.type === 'WTI' && ticket.usedInPurchaseBillDocNos.length > 0 ? (
-                        <div className="mt-2 space-y-1 text-xs text-slate-600">
+                        <div className="mt-2 space-y-1 text-sm text-slate-600">
                           {ticket.usedInPurchaseBillDocNos.map((docNo) => (
                             <div key={docNo}>{docNo}</div>
                           ))}
@@ -367,7 +367,7 @@ export function WeightTicketDetailModal({
                     </div>
                     {ticket.cancelledAt ? (
                       <div className="rounded-md bg-slate-50 px-4 py-3">
-                        <div className="text-xs text-slate-500">ยกเลิกเมื่อ</div>
+                        <div className="text-sm font-semibold text-slate-500">ยกเลิกเมื่อ</div>
                         <div className="mt-1 text-sm font-medium text-slate-900">{formatDateTime(ticket.cancelledAt)}</div>
                       </div>
                     ) : null}
@@ -441,29 +441,29 @@ export function WeightTicketDetailModal({
                         <div className="flex justify-between items-start gap-2">
                           <div>
                             <div className="font-bold text-slate-800 text-base">{usageActionLabel(event.action)}</div>
-                            <div className="text-xs text-slate-400">{formatDateTime(event.createdAt)}</div>
+                            <div className="text-sm text-slate-500 font-medium">{formatDateTime(event.createdAt)}</div>
                           </div>
                           <div className="text-right">
                             <span className={cn('text-sm font-bold block', usageWeightClass(event.action))}>
                               {usageWeightLabel(event.action, event.allocatedNetWeight)}
                             </span>
                             {event.toRemainingWeight != null && (
-                              <span className="text-xs text-slate-500 font-medium">คงเหลือ: {formatWeight(event.toRemainingWeight)} กก.</span>
+                              <span className="text-sm text-slate-600 font-semibold">คงเหลือ: {formatWeight(event.toRemainingWeight)} กก.</span>
                             )}
                           </div>
                         </div>
                         <div className="text-sm text-slate-700 space-y-1.5 pt-1.5 border-t border-slate-100/50">
-                          <div><span className="text-slate-400">สินค้า:</span> {event.productName} {event.productCode ? `(${event.productCode})` : ''}</div>
+                          <div><span className="font-semibold text-slate-500">สินค้า:</span> {event.productName} {event.productCode ? `(${event.productCode})` : ''}</div>
                           {event.targetDocNo && (
                             <div>
-                              <span className="text-slate-400">เอกสารปลายทาง:</span>{' '}
+                              <span className="font-semibold text-slate-500">เอกสารปลายทาง:</span>{' '}
                               <Link className="font-medium text-blue-700 hover:underline" href={`/purchase/bills/${encodeURIComponent(event.targetDocNo)}`}>
                                 {event.targetDocNo}
                               </Link>
                               {event.targetLineNo ? ` (รายการ ${event.targetLineNo})` : ''}
                             </div>
                           )}
-                          <div><span className="text-slate-400">ผู้ทำรายการ:</span> {event.createdBy || '-'}</div>
+                          <div><span className="font-semibold text-slate-500">ผู้ทำรายการ:</span> {event.createdBy || '-'}</div>
                           {event.note && <div className="text-sm text-slate-600 bg-slate-50 p-2.5 rounded mt-1">หมายเหตุ: {event.note}</div>}
                         </div>
                       </div>
@@ -496,16 +496,16 @@ export function WeightTicketDetailModal({
 
                   return (
                     <div key={event.id} className="grid grid-cols-[88px_1fr] gap-3 sm:grid-cols-[128px_1fr]">
-                      <div className="pt-1 text-right text-xs text-slate-500">
+                      <div className="pt-1 text-right text-sm text-slate-500 font-medium">
                         <div>{formatDateTime(event.occurredAt)}</div>
-                        <div className="mt-1 truncate text-xs font-medium text-slate-600">{event.actorName}</div>
+                        <div className="mt-1 truncate text-sm font-semibold text-slate-600">{event.actorName}</div>
                       </div>
                       <div className="relative border-l border-slate-200 pb-4 pl-4 last:pb-0">
                         <span className={`absolute -left-1.5 top-1 h-3 w-3 rounded-full border-2 border-white ${timelineDotClass(event.action, isLatest)}`} />
                         <div className="flex flex-wrap items-center gap-2">
                           <div className="text-base font-bold text-slate-800">{timelineLabel(event.eventKey, event.action)}</div>
                           {toStatus ? (
-                            <span className={cn('inline-flex items-center gap-1.5 text-xs font-semibold', weightTicketStatusBadgeClass(ticket.type, toStatus as WeightTicketStatus))}>
+                            <span className={cn('inline-flex items-center gap-1.5 text-xs font-bold px-2 py-0.5 rounded', weightTicketStatusBadgeClass(ticket.type, toStatus as WeightTicketStatus))}>
                               <span className="size-1.5 rounded-full bg-current" />
                               {timelineStatusLabel(ticket.type, toStatus)}
                             </span>

@@ -1,284 +1,351 @@
-import { randomUUID } from 'node:crypto'
-import { Prisma } from '../../../generated/prisma/client'
-import { prisma } from '@/lib/server/prisma'
-import { notifyWeightTicketLine } from '@/lib/server/weight-ticket-line-notification'
+import { prisma } from './prisma'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+import { notifyWeightTicketLine } from './weight-ticket-line-notification'
+import { findScopedWeightTicket, getWeightTicketUsageCounts, mapWeightTicketRow, type WeightTicketRow } from './weight-tickets'
+import { resolveLineTargetsForWeightTicket } from './line-notification-routing'
+
+export type JobStatus = 'pending' | 'sent' | 'failed' | 'skipped' | 'processing'
 
 type EnqueueOptions = {
   customMessage?: string
-  force?: boolean
   requestedBy: string
   targetId?: string
-}
-
-type ExecuteOptions = {
   force?: boolean
 }
 
-type JobRef = {
-  id: bigint
+// Check font files path options helper
+export function checkFontsAvailability(): { available: boolean; triedPaths: string[] } {
+  const triedPaths = [
+    join(/*turbopackIgnore: true*/ process.cwd(), 'public/fonts/Sarabun-Regular.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/public/fonts/Sarabun-Regular.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'src/assets/fonts/Sarabun-Regular.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/src/assets/fonts/Sarabun-Regular.ttf'),
+  ]
+  const available = triedPaths.some(p => existsSync(p))
+  return { available, triedPaths }
 }
 
-function toBigIntId(value: bigint | number | string) {
-  if (typeof value === 'bigint') return value
-  if (typeof value === 'number') return BigInt(value)
-  return BigInt(value.trim())
-}
-
-async function resolveWeightTicket(documentNoOrId: string) {
-  const trimmed = documentNoOrId.trim()
-  const numericId = /^\d+$/.test(trimmed) ? BigInt(trimmed) : null
-  return prisma.weight_tickets.findFirst({
-    select: {
-      branches: { select: { code: true } },
-      doc_no: true,
-      doc_type: true,
-      id: true,
-    },
-    where: numericId != null
-      ? { OR: [{ id: numericId }, { doc_no: trimmed }] }
-      : { doc_no: trimmed },
-  })
-}
-
-async function resolveTargets(ticket: Awaited<ReturnType<typeof resolveWeightTicket>>, targetId?: string) {
-  if (!ticket) return []
-  const requestedTargetId = targetId?.trim()
-  if (requestedTargetId && requestedTargetId !== 'routing') {
-    const existing = await prisma.line_targets.findUnique({
-      select: { target_id: true, target_type: true },
-      where: { target_id: requestedTargetId },
-    })
-    return [{
-      target_id: requestedTargetId,
-      target_type: existing?.target_type ?? 'unknown',
-    }]
-  }
-
-  const isWti = ticket.doc_type === 'WTI'
-  const targets = await prisma.line_targets.findMany({
-    orderBy: [{ is_default: 'desc' }, { display_name: 'asc' }],
-    select: { target_id: true, target_type: true },
-    where: {
-      is_active: true,
-      notify_wti: isWti ? true : undefined,
-      notify_wto: isWti ? undefined : true,
-      OR: [
-        { branch_code: null },
-        { branch_code: '' },
-        { branch_code: ticket.branches?.code ?? '' },
-      ],
-    },
-  })
-
-  return targets
-}
-
-async function upsertPendingJob(input: {
-  customMessage?: string
-  documentNo: string
-  documentType: string
-  force?: boolean
-  requestedBy: string
-  sourceId: bigint
-  targetId: string
-  targetType: string
-}) {
-  const existing = await prisma.line_notification_jobs.findFirst({
-    select: { id: true },
-    where: {
-      source_type: 'weight_ticket',
-      source_id: input.sourceId,
-      target_id: input.targetId,
-      status: { in: ['pending', 'processing'] },
-    },
-  })
-
-  if (existing) {
-    if (input.force) {
-      return prisma.line_notification_jobs.update({
-        select: { id: true },
-        where: { id: existing.id },
-        data: {
-          attempt_count: 0,
-          custom_message: input.customMessage ?? null,
-          last_error_code: null,
-          last_error_message: null,
-          locked_at: null,
-          locked_by: null,
-          next_retry_at: new Date(),
-          requested_by: input.requestedBy,
-          retry_key: randomUUID(),
-          status: 'pending',
-          updated_at: new Date(),
-        },
-      })
-    }
-    return existing
-  }
-
-  try {
-    return await prisma.line_notification_jobs.create({
-      select: { id: true },
-      data: {
-        custom_message: input.customMessage ?? null,
-        document_no: input.documentNo,
-        document_type: input.documentType,
-        next_retry_at: new Date(),
-        requested_by: input.requestedBy,
-        retry_key: randomUUID(),
-        source_id: input.sourceId,
-        source_type: 'weight_ticket',
-        status: 'pending',
-        target_id: input.targetId,
-        target_type: input.targetType,
-      },
-    })
-  } catch (caught) {
-    if (caught instanceof Prisma.PrismaClientKnownRequestError && caught.code === 'P2002') {
-      const pending = await prisma.line_notification_jobs.findFirst({
-        select: { id: true },
-        where: {
-          source_type: 'weight_ticket',
-          source_id: input.sourceId,
-          target_id: input.targetId,
-          status: { in: ['pending', 'processing'] },
-        },
-      })
-      if (pending) return pending
-    }
-    throw caught
+async function loadWeightTicket(documentNo: string) {
+  const ticket = await findScopedWeightTicket(documentNo, [])
+  if (!ticket) return null
+  const usage = await getWeightTicketUsageCounts(prisma, ticket.id)
+  return {
+    id: ticket.id,
+    record: mapWeightTicketRow(ticket as WeightTicketRow, usage),
   }
 }
 
-export async function enqueueNotificationJob(documentNoOrId: string, options: EnqueueOptions) {
-  const ticket = await resolveWeightTicket(documentNoOrId)
-  if (!ticket) {
-    return {
-      status: 'no_targets' as const,
-      message: `ไม่พบใบรับ-ส่งของ ${documentNoOrId}`,
-      jobs: [] as JobRef[],
-    }
+/**
+ * Enqueue a new notification job into line_notification_jobs table.
+ */
+export async function enqueueNotificationJob(documentNo: string, options: EnqueueOptions) {
+  const loaded = await loadWeightTicket(documentNo)
+  if (!loaded) {
+    throw new Error(`ไม่พบเอกสารใบชั่งน้ำหนักเลขที่ ${documentNo}`)
   }
 
-  const targets = await resolveTargets(ticket, options.targetId)
+  // Resolve Targets
+  let targets: Array<{ targetId: string; targetType: string }> = []
+
+  if (options.targetId && options.targetId !== 'routing') {
+    // Detect target type
+    const targetType = options.targetId.startsWith('U') 
+      ? 'user' 
+      : options.targetId.startsWith('C') 
+      ? 'group' 
+      : options.targetId.startsWith('R') 
+      ? 'room' 
+      : 'unknown'
+    targets = [{ targetId: options.targetId, targetType }]
+  } else {
+    // Call our newly created Routing Engine
+    const decisions = await resolveLineTargetsForWeightTicket(loaded.record)
+    targets = decisions.map(d => ({ targetId: d.targetId, targetType: d.targetType }))
+  }
+
   if (targets.length === 0) {
     return {
       status: 'no_targets' as const,
-      message: 'ไม่พบ LINE target ที่ active และตรงกับสาขา/ประเภทเอกสาร',
-      jobs: [] as JobRef[],
+      message: 'ไม่มีเป้าหมายผู้รับสำหรับแจ้งเตือนนี้',
+      jobs: []
     }
   }
 
-  const jobs = await Promise.all(targets.map((target) => upsertPendingJob({
-    customMessage: options.customMessage,
-    documentNo: ticket.doc_no,
-    documentType: ticket.doc_type,
-    force: options.force,
-    requestedBy: options.requestedBy,
-    sourceId: ticket.id,
-    targetId: target.target_id,
-    targetType: target.target_type,
-  })))
+  const jobsCreated = []
+
+  for (const target of targets) {
+    // Avoid duplicate enqueues for the same target and ticket within pending/processing/sent status
+    if (!options.force) {
+      const existingJob = await prisma.line_notification_jobs.findFirst({
+        where: {
+          source_type: 'weight_ticket',
+          source_id: loaded.id,
+          target_id: target.targetId,
+          status: { in: ['pending', 'sent', 'processing'] }
+        }
+      })
+
+      if (existingJob) {
+        jobsCreated.push(existingJob)
+        continue
+      }
+    }
+
+    try {
+      const job = await prisma.line_notification_jobs.create({
+        data: {
+          source_type: 'weight_ticket',
+          source_id: loaded.id,
+          document_no: documentNo,
+          document_type: loaded.record.type,
+          target_id: target.targetId,
+          target_type: target.targetType,
+          custom_message: options.customMessage || null,
+          status: 'pending',
+          priority: 100,
+          requested_by: options.requestedBy || 'system',
+          next_retry_at: new Date()
+        }
+      })
+      jobsCreated.push(job)
+    } catch (caught: any) {
+      // Handle potential race-condition unique constraint violation by fetching the existing job
+      if (caught?.code === 'P2002' || String(caught).includes('unique constraint') || String(caught).includes('duplicate key')) {
+        // Query for active pending/processing job first
+        let existingJob = await prisma.line_notification_jobs.findFirst({
+          where: {
+            source_type: 'weight_ticket',
+            source_id: loaded.id,
+            target_id: target.targetId,
+            status: { in: ['pending', 'processing'] }
+          },
+          orderBy: { id: 'desc' }
+        })
+        
+        // If not found (e.g. it was just sent), fall back to looking for sent status
+        if (!existingJob) {
+          existingJob = await prisma.line_notification_jobs.findFirst({
+            where: {
+              source_type: 'weight_ticket',
+              source_id: loaded.id,
+              target_id: target.targetId,
+              status: 'sent'
+            },
+            orderBy: { id: 'desc' }
+          })
+        }
+
+        if (existingJob) {
+          jobsCreated.push(existingJob)
+          continue
+        }
+      }
+      throw caught
+    }
+  }
 
   return {
-    status: 'queued' as const,
-    jobs,
+    status: 'enqueued' as const,
+    jobs: jobsCreated.map(j => ({ ...j, id: String(j.id), source_id: String(j.source_id) }))
   }
 }
 
-export async function executeNotificationJob(jobId: bigint | number | string, options: ExecuteOptions = {}) {
-  const id = toBigIntId(jobId)
-  const lockedAt = new Date()
-  const lockedBy = 'next-api'
-  const job = await prisma.line_notification_jobs.update({
-    where: { id },
-    data: {
-      locked_at: lockedAt,
-      locked_by: lockedBy,
-      status: 'processing',
-      updated_at: lockedAt,
-    },
+/**
+ * Execute a single line notification job by ID.
+ * Uses notifyWeightTicketLine helper to run actual PDF and LINE push logic.
+ */
+export async function executeNotificationJob(jobId: string, options?: { force?: boolean; lockedBy?: string }) {
+  const startTime = Date.now()
+  const jobBigInt = BigInt(jobId)
+
+  const job = await prisma.line_notification_jobs.findUnique({
+    where: { id: jobBigInt }
   })
 
-  const startedAt = Date.now()
-  const attemptNo = job.attempt_count + 1
+  if (!job) {
+    return { status: 'not_found' as const, error: 'ไม่พบงานแจ้งเตือนนี้' }
+  }
+
+  if (job.status === 'sent' && !(options?.force || job.attempt_count === 0)) {
+    return { status: 'already_sent' as const, message: 'บิลนี้ถูกส่งไปไลน์กลุ่มนี้เรียบร้อยแล้ว' }
+  }
+
+  // Update status to processing and increase attempt if not pre-locked
+  let attemptNo = job.attempt_count
+  if (options?.lockedBy && job.status === 'processing' && job.locked_by === options.lockedBy) {
+    const updated = await prisma.line_notification_jobs.update({
+      where: { id: jobBigInt },
+      data: {
+        attempt_count: { increment: 1 }
+      }
+    })
+    attemptNo = updated.attempt_count
+  } else {
+    const updated = await prisma.line_notification_jobs.update({
+      where: { id: jobBigInt },
+      data: {
+        status: 'processing',
+        attempt_count: { increment: 1 },
+        locked_at: new Date(),
+        locked_by: options?.lockedBy || ('worker-' + process.pid)
+      }
+    })
+    attemptNo = updated.attempt_count
+  }
 
   try {
+    // 2. Fetch app URL for origin
+    const appUrlConfig = await prisma.system_settings.findUnique({
+      where: { key: 'NEXT_PUBLIC_APP_URL' }
+    })
+    const appUrl = appUrlConfig?.value || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+
+    // Check fonts availability first
+    const fonts = checkFontsAvailability()
+    if (!fonts.available) {
+      throw new Error(`ไม่พบไฟล์ฟอนต์ภาษาไทยสำหรับสร้างเอกสาร PDF (Tried paths: ${fonts.triedPaths.join(', ')})`)
+    }
+
+    // 3. Delegate execution to notifyWeightTicketLine
     const result = await notifyWeightTicketLine(job.document_no, {
-      customMessage: job.custom_message ?? undefined,
-      force: options.force,
-      origin: process.env.NEXT_PUBLIC_APP_URL || '',
-      requestedBy: job.requested_by ?? 'line_notification_job',
-      retryKey: String(job.retry_key),
-      scopedBranchIds: [],
+      force: true, // We bypass log check inside notifyWeightTicketLine because we control it here
       targetId: job.target_id,
+      customMessage: job.custom_message || undefined,
+      requestedBy: job.requested_by || 'system',
+      origin: appUrl,
+      scopedBranchIds: [],
+      retryKey: String(job.retry_key)
     })
 
-    const sent = result.code === 'SENT'
-    const skipped = result.code === 'ALREADY_SENT'
-    const nextStatus = sent ? 'sent' : skipped ? 'skipped' : 'failed'
-    const finishedAt = new Date()
-    const errorMessage = sent || skipped ? null : result.error ?? 'ส่ง LINE ไม่สำเร็จ'
+    if (result.status !== 200 && result.status !== 201 && result.status !== 409) {
+      throw new Error(result.error || 'ส่ง LINE Notification ไม่สำเร็จ')
+    }
 
+    const isConflict = result.status === 409
+    const lineRequestId = result.lineRequestId || result.sentResults?.[0]?.lineRequestId || null
+
+    // 4. Record success
     await prisma.line_notification_jobs.update({
-      where: { id },
+      where: { id: jobBigInt },
       data: {
-        attempt_count: attemptNo,
-        last_error_code: errorMessage ? result.code : null,
-        last_error_message: errorMessage,
-        line_request_id: result.lineRequestId ?? null,
-        pdf_url: result.pdfUrl ?? null,
-        sent_at: sent || skipped ? finishedAt : null,
-        status: nextStatus,
-        updated_at: finishedAt,
-      },
+        status: isConflict ? 'skipped' : 'sent',
+        locked_at: null,
+        locked_by: null,
+        pdf_url: result.pdfUrl || null,
+        line_request_id: isConflict ? null : lineRequestId,
+        accepted_request_id: isConflict ? lineRequestId : null,
+        sent_at: new Date(),
+        last_error_code: null,
+        last_error_message: null
+      }
     })
 
+    // Write attempt log
     await prisma.line_notification_attempts.create({
       data: {
+        job_id: jobBigInt,
         attempt_no: attemptNo,
-        duration_ms: Date.now() - startedAt,
-        error_code: errorMessage ? result.code : null,
-        error_message: errorMessage,
-        job_id: id,
-        line_request_id: result.lineRequestId ?? null,
-        status: nextStatus,
-      },
+        status: isConflict ? 'skipped' : 'success',
+        http_status: isConflict ? 409 : 200,
+        line_request_id: isConflict ? null : lineRequestId,
+        accepted_request_id: isConflict ? lineRequestId : null,
+        duration_ms: Date.now() - startTime
+      }
     })
 
-    return {
-      status: nextStatus as 'sent' | 'skipped' | 'failed',
-      error: errorMessage ?? undefined,
-      lineRequestId: result.lineRequestId ?? undefined,
-      pdfUrl: result.pdfUrl ?? undefined,
-    }
-  } catch (caught) {
-    const error = caught instanceof Error ? caught.message : 'ส่ง LINE ไม่สำเร็จ'
-    const finishedAt = new Date()
+    return { status: (isConflict ? 'skipped' : 'sent') as any, lineRequestId, pdfUrl: result.pdfUrl }
+
+  } catch (caught: any) {
+    const errorMsg = caught instanceof Error ? caught.message : String(caught)
+    console.error(`[Job ${jobId}] Failed:`, errorMsg)
+
+    // Check if error is permanent (e.g. invalid target group id, token expired)
+    const isPermanent = errorMsg.includes('400') || errorMsg.includes('401') || errorMsg.includes('403') || errorMsg.includes('404')
+    const hasReachedMax = attemptNo >= job.max_attempts
+    const finalStatus = (isPermanent || hasReachedMax) ? 'failed' : 'pending'
+
+    // Calculate next retry time with exponential backoff (30s, 5m, 15m, 1h)
+    const backoffSeconds = attemptNo === 1 ? 30 : attemptNo === 2 ? 300 : attemptNo === 3 ? 900 : 3600
+    const nextRetry = new Date(Date.now() + backoffSeconds * 1000)
+
     await prisma.line_notification_jobs.update({
-      where: { id },
+      where: { id: jobBigInt },
       data: {
-        attempt_count: attemptNo,
-        last_error_code: 'EXECUTE_FAILED',
-        last_error_message: error,
-        next_retry_at: new Date(Date.now() + 60_000),
-        status: attemptNo >= job.max_attempts ? 'failed' : 'pending',
-        updated_at: finishedAt,
-      },
+        status: finalStatus,
+        locked_at: null,
+        locked_by: null,
+        last_error_code: isPermanent ? 'PERMANENT_ERROR' : 'TRANSIENT_ERROR',
+        last_error_message: errorMsg.slice(0, 500),
+        next_retry_at: finalStatus === 'pending' ? nextRetry : job.next_retry_at
+      }
     })
+
+    // Write attempt log
     await prisma.line_notification_attempts.create({
       data: {
+        job_id: jobBigInt,
         attempt_no: attemptNo,
-        duration_ms: Date.now() - startedAt,
-        error_code: 'EXECUTE_FAILED',
-        error_message: error,
-        job_id: id,
-        status: 'failed',
-      },
+        status: finalStatus,
+        error_code: isPermanent ? 'PERMANENT_ERROR' : 'TRANSIENT_ERROR',
+        error_message: errorMsg.slice(0, 500),
+        duration_ms: Date.now() - startTime
+      }
     })
-    return {
-      status: 'failed' as const,
-      error,
-    }
+
+    return { status: finalStatus as any, error: errorMsg }
+  }
+}
+
+/**
+ * Worker process function that locking pending jobs and process them.
+ */
+export async function processPendingNotificationJobs() {
+  const now = new Date()
+  const workerId = 'worker-' + process.pid + '-' + Math.random().toString(36).slice(2, 9)
+
+  // Use select inside transaction with FOR UPDATE SKIP LOCKED and update status to processing immediately
+  const lockedJobs = await prisma.$transaction(async (tx) => {
+    const jobs = await tx.$queryRaw<Array<{ id: bigint }>>`
+      SELECT id FROM public.line_notification_jobs
+      WHERE status = 'pending'
+        AND next_retry_at <= ${now}
+        AND attempt_count < max_attempts
+        AND (locked_at IS NULL OR locked_at < ${new Date(Date.now() - 5 * 60 * 1000)})
+      ORDER BY priority DESC, created_at ASC
+      LIMIT 5
+      FOR UPDATE SKIP LOCKED;
+    `
+    if (jobs.length === 0) return []
+
+    const jobIds = jobs.map(j => j.id)
+
+    await tx.line_notification_jobs.updateMany({
+      where: { id: { in: jobIds } },
+      data: {
+        status: 'processing',
+        locked_at: new Date(),
+        locked_by: workerId
+      }
+    })
+
+    return jobIds
+  })
+
+  if (lockedJobs.length === 0) {
+    return { processedCount: 0, results: [] }
+  }
+
+  const results = []
+
+  for (const jobId of lockedJobs) {
+    const jobIdStr = String(jobId)
+    const result = await executeNotificationJob(jobIdStr, { lockedBy: workerId })
+    results.push({ jobId: jobIdStr, ...result })
+  }
+
+  return {
+    processedCount: results.length,
+    results
   }
 }

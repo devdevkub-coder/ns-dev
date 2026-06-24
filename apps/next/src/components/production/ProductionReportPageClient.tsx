@@ -324,14 +324,14 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full">
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <DatePickerInput className="flex-1 sm:flex-none sm:w-[130px]" value={dateFrom} onChange={setDateFrom} />
-            <span className="text-slate-400 text-xs shrink-0">-</span>
+            <span className="text-slate-400 text-sm shrink-0">-</span>
             <DatePickerInput className="flex-1 sm:flex-none sm:w-[130px]" value={dateTo} onChange={setDateTo} />
-            <button className="rounded-md border border-slate-200 px-2.5 py-2 text-xs sm:text-sm hover:bg-slate-50 focus:outline-none shrink-0" type="button" onClick={() => { setDateFrom(''); setDateTo('') }}>
+            <button className="rounded-md border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 focus:outline-none shrink-0" type="button" onClick={() => { setDateFrom(''); setDateTo('') }}>
               <span className="hidden xs:inline">ล้างวันที่</span>
               <span className="xs:hidden">ล้าง</span>
             </button>
           </div>
-          <button className="rounded-md bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-xs sm:text-sm font-semibold text-white focus:outline-none sm:ml-auto w-full sm:w-auto text-center shrink-0" type="button" onClick={exportCostCsv}>
+          <button className="rounded-md bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-sm font-semibold text-white focus:outline-none sm:ml-auto w-full sm:w-auto text-center shrink-0" type="button" onClick={exportCostCsv}>
             Export CSV
           </button>
         </div>
@@ -347,9 +347,9 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
               💰
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-semibold text-slate-500 truncate">Total / Cost per Kg</div>
-              <div className="text-sm font-bold text-emerald-700 mt-0.5 tabular-nums">{formatMoney(costTotals.total)}</div>
-              <div className="text-[10px] text-slate-400 mt-0.5 truncate">{formatMoney(costTotals.outputQty > 0 ? costTotals.total / costTotals.outputQty : 0)} ฿/กก.</div>
+              <div className="text-sm font-semibold text-slate-500 truncate">Total / Cost per Kg</div>
+              <div className="text-base font-bold text-emerald-700 mt-0.5 tabular-nums">{formatMoney(costTotals.total)}</div>
+              <div className="text-xs text-slate-500 font-medium mt-0.5 truncate">{formatMoney(costTotals.outputQty > 0 ? costTotals.total / costTotals.outputQty : 0)} ฿/กก.</div>
             </div>
           </div>
         </div>
@@ -378,39 +378,39 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
               <div key={String(row.id ?? index)} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                   <span className="font-mono text-sm font-bold text-slate-800">{String(row.docNo ?? '')}</span>
-                  <span className="text-xs text-slate-500 font-medium">{formatDateDisplay(String(row.date ?? ''))}</span>
+                  <span className="text-sm text-slate-600 font-medium">{formatDateDisplay(String(row.date ?? ''))}</span>
                 </div>
-                <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-xs">
+                <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
                   <div>
-                    <span className="text-slate-500 block text-xs font-semibold">RM Cost</span>
-                    <span className="text-sm font-semibold text-slate-800">{formatMoney(Number(row.inputCost ?? 0))} ฿</span>
+                    <span className="text-slate-500 block text-sm font-semibold">RM Cost</span>
+                    <span className="text-sm font-bold text-slate-900">{formatMoney(Number(row.inputCost ?? 0))} ฿</span>
                   </div>
                   <div>
-                    <span className="text-slate-500 block text-xs font-semibold">Labor Cost</span>
-                    <span className="text-sm font-semibold text-slate-800">{formatMoney(costs.labor)} ฿</span>
+                    <span className="text-slate-500 block text-sm font-semibold">Labor Cost</span>
+                    <span className="text-sm font-bold text-slate-900">{formatMoney(costs.labor)} ฿</span>
                   </div>
                   <div>
-                    <span className="text-slate-500 block text-xs font-semibold">Electricity</span>
-                    <span className="text-sm font-semibold text-slate-800">{formatMoney(costs.electricity)} ฿</span>
+                    <span className="text-slate-500 block text-sm font-semibold">Electricity</span>
+                    <span className="text-sm font-bold text-slate-900">{formatMoney(costs.electricity)} ฿</span>
                   </div>
                   <div>
-                    <span className="text-slate-500 block text-xs font-semibold">Machine / Fuel</span>
-                    <span className="text-sm font-semibold text-slate-800">{formatMoney(costs.machine + costs.fuel)} ฿</span>
+                    <span className="text-slate-500 block text-sm font-semibold">Machine / Fuel</span>
+                    <span className="text-sm font-bold text-slate-900">{formatMoney(costs.machine + costs.fuel)} ฿</span>
                   </div>
                   <div>
-                    <span className="text-slate-500 block text-xs font-semibold">Output (kg)</span>
-                    <span className="text-sm font-bold text-emerald-700">{formatMoney(Number(row.outputQty ?? 0))} กก.</span>
+                    <span className="text-slate-500 block text-sm font-semibold">Output (kg)</span>
+                    <span className="text-base font-bold text-emerald-700">{formatMoney(Number(row.outputQty ?? 0))} กก.</span>
                   </div>
                   <div>
-                    <span className="text-slate-500 block text-xs font-semibold">Allocation Method</span>
-                    <span className="text-sm font-semibold text-slate-700">{String(row.costAllocationMethod ?? row.productionType ?? '-')}</span>
+                    <span className="text-slate-500 block text-sm font-semibold">Allocation Method</span>
+                    <span className="text-sm font-bold text-slate-700">{String(row.costAllocationMethod ?? row.productionType ?? '-')}</span>
                   </div>
                 </div>
                 <div className="flex items-center justify-between border-t border-slate-100 pt-2 mt-1">
-                  <span className="text-xs font-semibold text-slate-500">Total Cost / ฿/kg</span>
+                  <span className="text-sm font-semibold text-slate-500">Total Cost / ฿/kg</span>
                   <div className="text-right">
                     <div className="text-base font-bold text-blue-700">{formatMoney(Number(row.totalCost ?? 0))} ฿</div>
-                    <div className="text-xs text-slate-500 font-medium">{formatMoney(Number(row.costPerKg ?? 0))} ฿/กก.</div>
+                    <div className="text-sm text-slate-600 font-medium">{formatMoney(Number(row.costPerKg ?? 0))} ฿/กก.</div>
                   </div>
                 </div>
               </div>
@@ -447,9 +447,9 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                 ['last90', '90 วัน'],
                 ['month', 'เดือนนี้'],
                 ['year', 'ปีนี้'],
-              ].map(([value, label]) => <button key={value} className="rounded-md bg-white/20 px-3 py-1.5 text-xs hover:bg-white/30" type="button" onClick={() => applyDashboardRange(value as Parameters<typeof applyDashboardRange>[0])}>{label}</button>)}
+              ].map(([value, label]) => <button key={value} className="rounded-md bg-white/20 px-3 py-1.5 text-sm hover:bg-white/30" type="button" onClick={() => applyDashboardRange(value as Parameters<typeof applyDashboardRange>[0])}>{label}</button>)}
               <DatePickerInput className="w-[130px] bg-white text-slate-900" value={dateFrom} onChange={setDateFrom} />
-              <span className="text-xs">→</span>
+              <span className="text-sm">→</span>
               <DatePickerInput className="w-[130px] bg-white text-slate-900" value={dateTo} onChange={setDateTo} />
             </div>
           </div>
@@ -512,39 +512,39 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             {/* Mobile View */}
             <div className="lg:hidden p-3 space-y-3 bg-slate-50/30 flex-1">
               {topProducts.map((item, index) => (
-                <div key={item.name} className="bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm space-y-2">
-                  <div className="border-b border-slate-100 pb-1.5 flex justify-between items-center">
+                <div key={item.name} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                  <div className="border-b border-slate-100 pb-2 flex justify-between items-center">
                     <div className="flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold shrink-0">
+                      <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold shrink-0">
                         {index + 1}
                       </span>
-                      <span className="font-semibold text-slate-800 text-sm">{item.name}</span>
+                      <span className="font-bold text-slate-900 text-base">{item.name}</span>
                     </div>
-                    <span className="font-mono text-xs text-slate-400">{item.code || '-'}</span>
+                    <span className="font-mono text-sm text-slate-500">{item.code || '-'}</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-y-2 gap-x-4">
+                  <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
                     <div>
-                      <span className="text-slate-500 block text-xs font-semibold">รอบการผลิต</span>
-                      <span className="text-sm font-semibold text-slate-800">{item.batches} รอบ</span>
+                      <span className="text-slate-500 block text-sm font-semibold">รอบการผลิต</span>
+                      <span className="text-sm font-bold text-slate-900 mt-0.5 block">{item.batches} รอบ</span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block text-xs font-semibold">น้ำหนักรวม</span>
-                      <span className="text-sm font-bold text-emerald-700">{formatMoney(item.qty)} กก.</span>
+                      <span className="text-slate-500 block text-sm font-semibold">น้ำหนักรวม</span>
+                      <span className="text-base font-bold text-emerald-700 mt-0.5 block">{formatMoney(item.qty)} กก.</span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block text-xs font-semibold">ต้นทุนรวม</span>
-                      <span className="text-sm font-semibold text-slate-800">{formatMoney(item.cost)} ฿</span>
+                      <span className="text-slate-500 block text-sm font-semibold">ต้นทุนรวม</span>
+                      <span className="text-sm font-bold text-slate-900 mt-0.5 block">{formatMoney(item.cost)} ฿</span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block text-xs font-semibold">ต้นทุนเฉลี่ย</span>
-                      <span className="text-sm font-semibold text-slate-600">
+                      <span className="text-slate-500 block text-sm font-semibold">ต้นทุนเฉลี่ย</span>
+                      <span className="text-sm font-bold text-slate-800 mt-0.5 block">
                         {formatMoney(item.avgCost ?? (item.qty > 0 ? item.cost / item.qty : 0))} ฿/กก.
                       </span>
                     </div>
                   </div>
                 </div>
               ))}
-              {!topProducts.length ? <div className="py-4 text-center text-xs text-slate-400">ยังไม่มีข้อมูลในช่วงนี้</div> : null}
+              {!topProducts.length ? <div className="py-4 text-center text-sm text-slate-400 bg-white rounded-xl border border-slate-200">ยังไม่มีข้อมูลในช่วงนี้</div> : null}
             </div>
           </div>
         </div>
@@ -578,20 +578,20 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
           {/* Mobile View */}
           <div className="lg:hidden p-3 space-y-3 bg-slate-50/30">
             {machineUtil.map((item) => (
-              <div key={item.name} className="bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm space-y-2">
-                <div className="border-b border-slate-100 pb-1.5 flex justify-between items-center">
-                  <span className="font-semibold text-slate-800 text-sm">{item.name}</span>
-                  <span className="text-sm font-bold text-indigo-700">{formatMoney(item.qty)} กก.</span>
+              <div key={item.name} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                <div className="border-b border-slate-100 pb-2 flex justify-between items-center">
+                  <span className="font-bold text-slate-900 text-base">{item.name}</span>
+                  <span className="text-base font-bold text-indigo-700">{formatMoney(item.qty)} กก.</span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500 text-xs font-semibold">รอบที่ใช้งาน</span>
-                  <span className="text-sm font-semibold text-slate-800 bg-slate-50 px-2.5 py-0.5 rounded-md border border-slate-100">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-500 font-semibold">รอบที่ใช้งาน</span>
+                  <span className="text-sm font-bold text-slate-800 bg-slate-50 px-2.5 py-0.5 rounded-md border border-slate-200">
                     {item.batches} รอบ
                   </span>
                 </div>
               </div>
             ))}
-            {!machineUtil.length ? <div className="py-4 text-center text-xs text-slate-400">ยังไม่มีข้อมูล</div> : null}
+            {!machineUtil.length ? <div className="py-4 text-center text-sm text-slate-400 bg-white rounded-xl border border-slate-200">ยังไม่มีข้อมูล</div> : null}
           </div>
         </div>
 
@@ -607,9 +607,9 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full">
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <DatePickerInput className="flex-1 sm:flex-none sm:w-[130px]" value={dateFrom} onChange={setDateFrom} />
-            <span className="text-slate-400 text-xs shrink-0">-</span>
+            <span className="text-slate-400 text-sm shrink-0">-</span>
             <DatePickerInput className="flex-1 sm:flex-none sm:w-[130px]" value={dateTo} onChange={setDateTo} />
-            <button className="rounded-md border border-slate-200 px-2.5 py-2 text-xs sm:text-sm hover:bg-slate-50 focus:outline-none shrink-0" type="button" onClick={() => { setDateFrom(''); setDateTo(''); setProductSearch('') }}>
+            <button className="rounded-md border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 focus:outline-none shrink-0" type="button" onClick={() => { setDateFrom(''); setDateTo(''); setProductSearch('') }}>
               <span className="hidden xs:inline">ล้างวันที่</span>
               <span className="xs:hidden">ล้าง</span>
             </button>
@@ -618,7 +618,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             <input
               type="text"
               placeholder="ค้นหาสินค้า"
-              className="w-full rounded-md border border-slate-200 px-3 py-2 text-xs sm:text-sm outline-none focus:border-slate-350 h-[38px]"
+              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-350 h-[38px]"
               value={productSearch}
               onChange={(e) => setProductSearch(e.target.value)}
             />
@@ -633,7 +633,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             ) : null}
           </div>
           {config.exportable ? (
-            <button className="rounded-md bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-xs sm:text-sm font-semibold text-white focus:outline-none sm:ml-auto w-full sm:w-auto text-center shrink-0" type="button" onClick={exportCsv}>
+            <button className="rounded-md bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-sm font-semibold text-white focus:outline-none sm:ml-auto w-full sm:w-auto text-center shrink-0" type="button" onClick={exportCsv}>
               ส่งออก CSV
             </button>
           ) : null}
@@ -738,34 +738,38 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                   {wipRows.map((row, index) => {
                     const ageDays = Math.max(0, Math.floor((new Date().getTime() - new Date(String(row.date ?? '')).getTime()) / (1000 * 60 * 60 * 24)))
                     return (
-                      <div key={String(row.id ?? index)} className={`bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm space-y-3 ${wipAgeClass(ageDays)}`}>
+                      <div key={String(row.id ?? index)} className={`bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3 ${wipAgeClass(ageDays)}`}>
                         <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                          <span className="font-mono text-sm font-bold text-slate-800">{String(row.docNo ?? '')}</span>
-                          <span className="text-xs text-slate-500 font-medium">{formatDateDisplay(String(row.date ?? ''))}</span>
+                          <span className="font-mono text-base font-bold text-slate-900">{String(row.docNo ?? '')}</span>
+                          <span className="text-sm text-slate-600 font-medium">{formatDateDisplay(String(row.date ?? ''))}</span>
                         </div>
-                        <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-xs">
+                        <div className="grid grid-cols-2 gap-y-3 gap-x-4">
                           <div>
-                            <span className="text-slate-500 block text-xs font-semibold">อายุ (วัน)</span>
-                            <span className={`text-sm font-semibold ${cellTone(ageDays, { key: 'ageDays', label: 'อายุ (วัน)' }, 'wip')}`}>{ageDays} วัน</span>
+                            <span className="text-slate-500 block text-sm font-semibold">อายุ (วัน)</span>
+                            <span className={`text-sm font-bold mt-0.5 block ${cellTone(ageDays, { key: 'ageDays', label: 'อายุ (วัน)' }, 'wip')}`}>{ageDays} วัน</span>
                           </div>
                           <div>
-                            <span className="text-slate-500 block text-xs font-semibold">สาขา / เครื่องจักร</span>
-                            <span className="text-sm font-semibold text-slate-800 truncate block mt-0.5">{String(row.branchName ?? '')} / {String(row.machineName ?? '-')}</span>
+                            <span className="text-slate-500 block text-sm font-semibold">สาขา / เครื่องจักร</span>
+                            <span className="text-sm font-bold text-slate-900 truncate block mt-0.5">{String(row.branchName ?? '')} / {String(row.machineName ?? '-')}</span>
                           </div>
                           <div>
-                            <span className="text-slate-500 block text-xs font-semibold">Input / Output</span>
-                            <span className="text-sm font-semibold text-slate-800 mt-0.5">{formatMoney(Number(row.inputQty ?? 0))} / {formatMoney(Number(row.outputQty ?? 0))} กก.</span>
+                            <span className="text-slate-500 block text-sm font-semibold">Input / Output</span>
+                            <span className="text-sm font-bold text-slate-900 mt-0.5 block">{formatMoney(Number(row.inputQty ?? 0))} / {formatMoney(Number(row.outputQty ?? 0))} กก.</span>
                           </div>
                           <div>
-                            <span className="text-slate-500 block text-xs font-semibold">สถานะ</span>
-                            <span className="text-sm font-semibold text-slate-800 mt-0.5">{String(row.status ?? '')}</span>
+                            <span className="text-slate-500 block text-sm font-semibold">สถานะ</span>
+                            <span className="mt-0.5 block">
+                              <span className={`rounded-md px-2 py-0.5 text-xs font-bold ${row.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
+                                {String(row.status ?? '')}
+                              </span>
+                            </span>
                           </div>
                         </div>
                         <div className="flex items-center justify-between border-t border-slate-100 pt-2 mt-1">
-                          <span className="text-xs font-semibold text-slate-500">WIP Qty / Value</span>
+                          <span className="text-sm font-semibold text-slate-500">WIP Qty / Value</span>
                           <div className="text-right">
-                            <div className="text-sm font-bold text-amber-700">{formatMoney(Number(row.wipQty ?? 0))} กก.</div>
-                            <div className="text-xs text-slate-500 font-medium">{formatMoney(Number(row.wipValue ?? 0))} ฿</div>
+                            <div className="text-base font-bold text-amber-700">{formatMoney(Number(row.wipQty ?? 0))} กก.</div>
+                            <div className="text-sm font-medium text-slate-600">{formatMoney(Number(row.wipValue ?? 0))} ฿</div>
                           </div>
                         </div>
                       </div>
@@ -810,30 +814,30 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             {/* Mobile View */}
             <div className="lg:hidden p-3 space-y-3 bg-slate-50/30">
               {productSummary.map((item) => (
-                <div key={item.name} className="bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm space-y-2">
-                  <div className="border-b border-slate-100 pb-1.5 flex justify-between items-center">
-                    <span className="font-semibold text-slate-800 text-sm">{item.name}</span>
-                    <span className="text-xs font-semibold bg-slate-100 px-2 py-0.5 rounded text-slate-600 shrink-0">
+                <div key={item.name} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                  <div className="border-b border-slate-100 pb-2 flex justify-between items-center">
+                    <span className="font-bold text-slate-900 text-base">{item.name}</span>
+                    <span className="text-sm font-semibold bg-slate-100 px-2.5 py-0.5 rounded text-slate-700 shrink-0">
                       {item.count} รอบ
                     </span>
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <span className="text-slate-500 block text-xs font-semibold">น้ำหนักรวม</span>
-                      <span className="text-sm font-bold text-emerald-700">{formatMoney(item.qty)} กก.</span>
+                  <div className="divide-y divide-slate-100 text-sm">
+                    <div className="flex justify-between items-center py-2">
+                      <span className="text-slate-500 font-semibold">น้ำหนักรวม</span>
+                      <span className="text-base font-bold text-emerald-700">{formatMoney(item.qty)} กก.</span>
                     </div>
-                    <div>
-                      <span className="text-slate-500 block text-xs font-semibold">ต้นทุนรวม</span>
-                      <span className="text-sm font-semibold text-slate-800">{formatMoney(item.cost)} ฿</span>
+                    <div className="flex justify-between items-center py-2">
+                      <span className="text-slate-500 font-semibold">ต้นทุนรวม</span>
+                      <span className="text-sm font-bold text-slate-800">{formatMoney(item.cost)} ฿</span>
                     </div>
-                    <div>
-                      <span className="text-slate-500 block text-xs font-semibold">ต้นทุน/กก.</span>
-                      <span className="text-sm font-semibold text-slate-800">{formatMoney(item.unitCost)} ฿/กก.</span>
+                    <div className="flex justify-between items-center py-2">
+                      <span className="text-slate-500 font-semibold">ต้นทุน/กก.</span>
+                      <span className="text-base font-bold text-slate-900">{formatMoney(item.unitCost)} ฿/กก.</span>
                     </div>
                   </div>
                 </div>
               ))}
-              {!productSummary.length ? <div className="py-4 text-center text-xs text-slate-400">ไม่มีข้อมูล</div> : null}
+              {!productSummary.length ? <div className="py-4 text-center text-sm text-slate-400 bg-white rounded-xl border border-slate-200">ไม่มีข้อมูล</div> : null}
             </div>
           </div>
         </div>
@@ -903,17 +907,18 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
               className={`bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3 ${mode === 'wip' ? wipAgeClass(Number(row.ageDays ?? 0)) : ''}`}
             >
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <span className="font-mono text-sm font-bold text-slate-800">{titleValue}</span>
-                {subTitleValue && <span className="text-xs text-slate-500 font-medium">{subTitleValue}</span>}
+                <span className="font-mono text-base font-bold text-slate-900">{titleValue}</span>
+                {subTitleValue && <span className="text-sm text-slate-600 font-medium">{subTitleValue}</span>}
               </div>
               <div className="grid grid-cols-2 gap-y-3 gap-x-4">
                 {restColumns.map((col) => {
                    const val = row[col.key]
                    const toneClass = cellTone(val, col, mode)
+                   const isLongText = col.key === 'inputProducts'
                    return (
-                     <div key={col.key} className="min-w-0">
-                       <span className="text-slate-500 block text-xs font-semibold">{col.label}</span>
-                       <span className={`text-sm font-semibold text-slate-800 truncate block mt-0.5 ${toneClass}`}>
+                     <div key={col.key} className={`min-w-0 ${isLongText ? 'col-span-2' : 'col-span-1'}`}>
+                       <span className="text-slate-500 block text-sm font-semibold">{col.label}</span>
+                       <span className={`text-sm font-bold text-slate-900 block mt-0.5 ${isLongText ? 'whitespace-pre-wrap break-all' : 'truncate'} ${toneClass}`}>
                          {formatCell(val, col.type)}
                        </span>
                      </div>
@@ -1000,8 +1005,8 @@ function Metric({
         {emoji}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-xs font-semibold text-slate-500 truncate">{label}</div>
-        <div className={`text-sm font-bold ${color} mt-0.5 tabular-nums`}>{formatCell(value, type)}</div>
+        <div className="text-sm font-semibold text-slate-500 truncate">{label}</div>
+        <div className={`text-base font-bold ${color} mt-0.5 tabular-nums`}>{formatCell(value, type)}</div>
       </div>
     </div>
   )
@@ -1031,8 +1036,8 @@ function ImpactCard({ label, tone, value }: { label: string; tone: 'gain' | 'los
         {emoji}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-xs font-semibold text-slate-500 truncate">{label}</div>
-        <div className={`text-sm font-bold ${color} mt-0.5 tabular-nums`}>
+        <div className="text-sm font-semibold text-slate-500 truncate">{label}</div>
+        <div className={`text-base font-bold ${color} mt-0.5 tabular-nums`}>
           {prefix}{formatMoney(Math.abs(value))} ฿
         </div>
       </div>
@@ -1075,9 +1080,9 @@ function DashboardKpi({
         {emoji}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-xs font-semibold text-slate-500 truncate">{label}</div>
-        <div className={`text-sm font-bold ${color} mt-0.5 tabular-nums`}>{value}</div>
-        <div className="text-[10px] text-slate-400 mt-0.5 truncate">{note}</div>
+        <div className="text-sm font-semibold text-slate-500 truncate">{label}</div>
+        <div className={`text-base font-bold ${color} mt-0.5 tabular-nums`}>{value}</div>
+        <div className="text-xs text-slate-500 font-medium mt-0.5 truncate">{note}</div>
       </div>
     </div>
   )
@@ -1133,8 +1138,8 @@ function CostCard({
         {emoji}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-xs font-semibold text-slate-500 truncate">{label}</div>
-        <div className={`text-sm font-bold ${color} mt-0.5 tabular-nums`}>{formatMoney(value)}</div>
+        <div className="text-sm font-semibold text-slate-500 truncate">{label}</div>
+        <div className={`text-base font-bold ${color} mt-0.5 tabular-nums`}>{formatMoney(value)}</div>
       </div>
     </div>
   )
