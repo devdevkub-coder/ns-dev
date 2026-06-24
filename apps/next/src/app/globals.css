@@ -272,6 +272,50 @@ textarea.border:not([class*="bg-"]):read-only {
   background-color: var(--color-slate-50);
 }
 
+/* LINE Settings readability override: keep this page at a consistent 14px baseline. */
+.line-settings-page,
+.line-settings-page * {
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+}
+
+.line-settings-page :where(h1, h2, h3, h4, h5, h6),
+.line-settings-page :where(.font-bold, .font-semibold) {
+  font-size: 14px !important;
+  line-height: 1.45 !important;
+}
+
+.line-settings-page :where(input, select, textarea, button) {
+  min-height: 42px;
+}
+
+.line-settings-page :where(.bg-white.rounded-xl) {
+  padding: 28px !important;
+}
+
+.line-settings-page :where(table) {
+  border-spacing: 0;
+}
+
+.line-settings-page :where(th, td) {
+  padding-top: 14px !important;
+  padding-bottom: 14px !important;
+}
+
+.line-settings-page :where(.h-7, .h-8, .h-9, .h-10) {
+  height: auto !important;
+  min-height: 42px !important;
+}
+
+.line-settings-page :where(.px-2, .px-2\.5, .px-3, .px-3\.5) {
+  padding-left: 14px !important;
+  padding-right: 14px !important;
+}
+
+.line-settings-page :where(.font-mono) {
+  word-break: break-word;
+}
+
 input[type="search"] {
   -webkit-appearance: none;
   appearance: none;

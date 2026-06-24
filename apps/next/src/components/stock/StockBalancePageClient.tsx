@@ -35,6 +35,20 @@ type DisplayBalanceRow = BalanceRow & {
   sourceRows?: BalanceRow[]
 }
 
+function SegmentedButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+  return (
+    <button
+      className={`rounded-md border px-3 py-1 text-xs font-semibold ${
+        active ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+      } outline-none focus:outline-none`}
+      type="button"
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  )
+}
+
 type BalancePayload = {
   byStatus: Array<{ count: number; qty: number; status: string; value: number }>
   reference: { branches: StockOption[]; products: StockOption[]; warehouses: StockOption[] }
@@ -593,13 +607,13 @@ export function StockBalancePageClient() {
               </button>
             ) : null}
 
-            <span className="ml-4 text-xs text-slate-500">ประเภทคลัง:</span>
-            <select className="h-9 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400 focus:ring-0" value={stockType} onChange={(event) => setStockType(event.target.value)}>
-              <option value="">ทุกประเภท</option>
-              <option value="RM">📦 RM</option>
-              <option value="WIP">⚙️ WIP</option>
-              <option value="FG">✅ FG</option>
-            </select>
+            <span className="ml-4 text-xs text-slate-500 mr-2">ประเภทคลัง:</span>
+            <div className="flex items-center gap-1.5">
+              <SegmentedButton active={!stockType} label="ทั้งหมด" onClick={() => setStockType('')} />
+              <SegmentedButton active={stockType === 'RM'} label="📦 RM" onClick={() => setStockType('RM')} />
+              <SegmentedButton active={stockType === 'WIP'} label="⚙️ WIP" onClick={() => setStockType('WIP')} />
+              <SegmentedButton active={stockType === 'FG'} label="✅ FG" onClick={() => setStockType('FG')} />
+            </div>
 
             <span className="ml-4 text-xs text-slate-500">สาขา:</span>
             <select className="h-9 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400 focus:ring-0" value={branchId} onChange={(event) => setBranchId(event.target.value)}>
@@ -665,15 +679,15 @@ export function StockBalancePageClient() {
                 />
               </div>
 
-              <label className="block">
-                <span className="mb-1 block text-xs text-slate-500">ประเภทคลัง</span>
-                <select className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800" value={stockType} onChange={(event) => setStockType(event.target.value)}>
-                  <option value="">ทุกประเภท</option>
-                  <option value="RM">📦 RM</option>
-                  <option value="WIP">⚙️ WIP</option>
-                  <option value="FG">✅ FG</option>
-                </select>
-              </label>
+              <div className="block">
+                <span className="mb-1.5 block text-xs text-slate-500">ประเภทคลัง</span>
+                <div className="flex flex-wrap gap-1.5">
+                  <SegmentedButton active={!stockType} label="ทั้งหมด" onClick={() => setStockType('')} />
+                  <SegmentedButton active={stockType === 'RM'} label="📦 RM" onClick={() => setStockType('RM')} />
+                  <SegmentedButton active={stockType === 'WIP'} label="⚙️ WIP" onClick={() => setStockType('WIP')} />
+                  <SegmentedButton active={stockType === 'FG'} label="✅ FG" onClick={() => setStockType('FG')} />
+                </div>
+              </div>
 
               <label className="block">
                 <span className="mb-1 block text-xs text-slate-500">สาขา</span>

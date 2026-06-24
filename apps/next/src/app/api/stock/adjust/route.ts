@@ -236,11 +236,11 @@ export async function GET(request: Request) {
         where: { id: { in: [...new Set(adjustments.map((row) => row.branch_id).filter((id): id is bigint => id !== null))] } },
       }),
       prisma.warehouses.findMany({
-        select: { id: true, name: true },
+        select: { id: true, name: true, code: true },
         where: { id: { in: [...new Set(adjustments.map((row) => row.warehouse_id).filter((id): id is bigint => id !== null))] } },
       }),
       prisma.products.findMany({
-        select: { code: true, id: true, name: true },
+        select: { code: true, id: true, name: true, metal_group: true },
         where: { id: { in: [...new Set(adjustments.map((row) => row.product_id).filter((id): id is bigint => id !== null))] } },
       }),
     ])
@@ -254,6 +254,7 @@ export async function GET(request: Request) {
       reference,
       rows: adjustments.map((row) => {
         const product = row.product_id ? productById.get(row.product_id) : null
+        const warehouse = row.warehouse_id ? warehouseById.get(row.warehouse_id) : null
         const unitPricePerKg = toNumber(row.unit_cost_used)
         const rawTotalValue = toNumber(row.value_note)
         const totalValue = row.adjust_type === 'LOSS' && rawTotalValue > 0 ? -rawTotalValue : rawTotalValue
@@ -276,6 +277,7 @@ export async function GET(request: Request) {
           policy: row.accounting_impact_policy ?? 'NOTE_ONLY',
           productCode: product?.code ?? '',
           productName: product?.name ?? '-',
+          metalGroup: product?.metal_group ?? '',
           readyQty: toNumber(row.ready_qty_snapshot),
           reason: row.reason ?? '',
           remark: row.remark ?? '',
@@ -287,7 +289,8 @@ export async function GET(request: Request) {
           updatedBy: row.updated_by ?? '',
           editableUntil: correctionDeadline(row.date)?.toISOString() ?? null,
           valueNote: totalValue,
-          warehouseName: row.warehouse_id ? warehouseById.get(row.warehouse_id)?.name ?? '-' : '-',
+          warehouseName: warehouse?.name ?? '-',
+          warehouseId: warehouse?.code ?? '',
         }
       }),
     })

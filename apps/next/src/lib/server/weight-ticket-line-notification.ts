@@ -1,8 +1,9 @@
 import { existsSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import fontkit from '@pdf-lib/fontkit'
-import { PDFDocument, rgb, type PDFFont, type PDFPage } from 'pdf-lib'
+import { chromium } from 'playwright'
+import { buildReceiptPrintHtml } from '@/lib/weight-ticket-print'
+import { type CompanyProfilePrintValues } from '@/lib/company-profile'
 import type { Prisma } from '../../../generated/prisma/client'
 import { decodeStoredImageAsset, formatDateDisplay, formatWeight, type WeightTicketRecord, typeLabels, type StoredImageAsset } from '@/lib/weight-tickets'
 import { prisma } from '@/lib/server/prisma'
@@ -15,17 +16,6 @@ import {
 } from '@/lib/server/weight-tickets'
 import { syncWeightTicketToGoogleSheets } from '@/lib/server/google-sheets-sync'
 
-type CompanyPrintProfile = {
-  address: string
-  branchCode: string | null
-  name: string
-  nameEn: string | null
-  phone: string
-  taxId: string | null
-  logoUrl: string | null
-  footerNote: string | null
-}
-
 type NotifyOptions = {
   customMessage?: string
   origin: string
@@ -33,6 +23,7 @@ type NotifyOptions = {
   scopedBranchIds: string[]
   targetId?: string
   force?: boolean
+  retryKey?: string
 }
 
 type NotificationLogStatus = 'failed' | 'sent'
@@ -47,6 +38,11 @@ async function resolveNotificationConfigs() {
           'LINE_DEFAULT_TARGET_ID',
           'WEIGHT_TICKET_PDF_BUCKET',
           'NEXT_PUBLIC_APP_URL',
+          'LINE_NOTIFY_TEXT_TEMPLATE_WTI',
+          'LINE_NOTIFY_TEXT_TEMPLATE_WTO',
+          'LINE_ALBUM_SHOW_BADGES',
+          'LINE_ALBUM_SHOW_TIMESTAMPS',
+          'LINE_ALBUM_QUALITY',
         ],
       },
     },
@@ -54,12 +50,21 @@ async function resolveNotificationConfigs() {
 
   const configMap = Object.fromEntries(dbSettings.map((s) => [s.key, s.value]))
 
+  const wtiDefaultTemplate = `ใบรับของ WTI [DocumentNo]\n━━━━━━━━━━━━━━━\nผู้ขาย: [PartyName]\nสาขา: [BranchName]\nวันที่/เวลาเอกสาร: [DocDateTime]\nหักภาชนะ: [ContainerWeight] กก.\nหักสิ่งเจือปน: [DeductionWeight] กก.\nน้ำหนักสุทธิ: [NetWeight] กก.\n━━━━━━━━━━━━━━━\nลิงค์โหลด pdf:\n[PdfUrl]`
+
+  const wtoDefaultTemplate = `ใบส่งของ WTO [DocumentNo]\n━━━━━━━━━━━━━━━\nลูกค้า: [PartyName]\nสาขา: [BranchName]\nวันที่/เวลาเอกสาร: [DocDateTime]\nหักภาชนะ: [ContainerWeight] กก.\nหักสิ่งเจือปน: [DeductionWeight] กก.\nน้ำหนักสุทธิ: [NetWeight] กก.\n━━━━━━━━━━━━━━━\nลิงค์โหลด pdf:\n[PdfUrl]`
+
   return {
     lineChannelAccessToken: configMap.LINE_CHANNEL_ACCESS_TOKEN || process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
     lineChannelSecret: configMap.LINE_CHANNEL_SECRET || process.env.LINE_CHANNEL_SECRET || '',
     lineDefaultTargetId: configMap.LINE_DEFAULT_TARGET_ID || process.env.LINE_DEFAULT_TARGET_ID || '',
     pdfBucket: configMap.WEIGHT_TICKET_PDF_BUCKET || process.env.WEIGHT_TICKET_PDF_BUCKET || 'weight-ticket-pdfs',
     appUrl: configMap.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_URL || '',
+    wtiTemplate: configMap.LINE_NOTIFY_TEXT_TEMPLATE_WTI || wtiDefaultTemplate,
+    wtoTemplate: configMap.LINE_NOTIFY_TEXT_TEMPLATE_WTO || wtoDefaultTemplate,
+    albumShowBadges: configMap.LINE_ALBUM_SHOW_BADGES !== 'false',
+    albumShowTimestamps: configMap.LINE_ALBUM_SHOW_TIMESTAMPS !== 'false',
+    albumQuality: configMap.LINE_ALBUM_QUALITY ? parseInt(configMap.LINE_ALBUM_QUALITY, 10) : 90,
   }
 }
 
@@ -72,33 +77,6 @@ function safeStorageSegment(value: string) {
   return value.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '')
 }
 
-function wrapText(text: string, font: PDFFont, size: number, maxWidth: number) {
-  const chars = [...text]
-  const lines: string[] = []
-  let line = ''
-  chars.forEach((char) => {
-    const next = `${line}${char}`
-    if (line && font.widthOfTextAtSize(next, size) > maxWidth) {
-      lines.push(line)
-      line = char.trimStart()
-      return
-    }
-    line = next
-  })
-  if (line) lines.push(line)
-  return lines.length ? lines : ['']
-}
-
-function drawText(page: PDFPage, text: string, x: number, y: number, font: PDFFont, size: number, color = rgb(0.13, 0.18, 0.27)) {
-  page.drawText(text, { color, font, size, x, y })
-}
-
-function drawWrappedText(page: PDFPage, text: string, x: number, y: number, font: PDFFont, size: number, maxWidth: number, lineHeight = size + 4) {
-  const lines = wrapText(text, font, size, maxWidth)
-  lines.forEach((line, index) => drawText(page, line, x, y - (index * lineHeight), font, size))
-  return y - (lines.length * lineHeight)
-}
-
 function imageFromDataUrl(value: string) {
   const match = value.match(/^data:image\/(png|jpe?g);base64,(.+)$/i)
   if (!match) return null
@@ -108,22 +86,7 @@ function imageFromDataUrl(value: string) {
   }
 }
 
-function resolveThaiFontPath() {
-  const cwd = process.cwd()
-  const candidates = [
-    join(cwd, 'public/fonts/NotoSansThai-Regular.ttf'),
-    join(cwd, 'src/assets/fonts/NotoSansThai-Regular.ttf'),
-    join(cwd, 'apps/next/public/fonts/NotoSansThai-Regular.ttf'),
-    join(cwd, 'apps/next/src/assets/fonts/NotoSansThai-Regular.ttf'),
-  ]
-  const fontPath = candidates.find((candidate) => existsSync(candidate))
-  if (!fontPath) {
-    throw new Error(`ไม่พบไฟล์ฟอนต์ไทย NotoSansThai-Regular.ttf ใน path ที่รองรับ: ${candidates.join(', ')}`)
-  }
-  return fontPath
-}
-
-async function loadCompanyPrintProfile(branchId: string): Promise<CompanyPrintProfile | null> {
+async function loadCompanyPrintProfile(branchId: string): Promise<CompanyProfilePrintValues | null> {
   const branch = await prisma.branches.findFirst({
     select: { id: true },
     where: { code: branchId },
@@ -135,13 +98,17 @@ async function loadCompanyPrintProfile(branchId: string): Promise<CompanyPrintPr
   if (!profile) return null
   return {
     address: profile.address,
-    branchCode: profile.branch_code,
+    bankInfo: profile.bank_info,
+    branchCode: profile.branch_code ?? '00000',
+    email: profile.email,
+    fax: profile.fax,
+    footerNote: profile.footer_note,
+    logoUrl: profile.logo_url,
     name: profile.name,
     nameEn: profile.name_en,
     phone: profile.phone,
     taxId: profile.tax_id,
-    logoUrl: profile.logo_url,
-    footerNote: profile.footer_note,
+    website: profile.website,
   }
 }
 
@@ -155,103 +122,6 @@ async function loadWeightTicketRecord(documentNo: string, scopedBranchIds: strin
   }
 }
 
-// --- PDF Layout & Text Alignment Drawing Helpers ---
-
-function drawRightAlignedXText(
-  page: PDFPage,
-  text: string,
-  rightX: number,
-  y: number,
-  font: PDFFont,
-  size: number,
-  color = rgb(0.13, 0.18, 0.27)
-) {
-  const width = font.widthOfTextAtSize(text, size)
-  page.drawText(text, {
-    x: rightX - width,
-    y,
-    font,
-    size,
-    color
-  })
-}
-
-function drawCenterAlignedXText(
-  page: PDFPage,
-  text: string,
-  centerX: number,
-  y: number,
-  font: PDFFont,
-  size: number,
-  color = rgb(0.13, 0.18, 0.27)
-) {
-  const width = font.widthOfTextAtSize(text, size)
-  page.drawText(text, {
-    x: centerX - width / 2,
-    y,
-    font,
-    size,
-    color
-  })
-}
-
-function drawPanel(
-  page: PDFPage,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  title: string,
-  font: PDFFont
-) {
-  page.drawRectangle({
-    x,
-    y,
-    width,
-    height,
-    borderColor: rgb(0.82, 0.85, 0.9),
-    borderWidth: 0.8,
-    color: rgb(1, 1, 1)
-  })
-  page.drawRectangle({
-    x: x + 0.4,
-    y: y + height - 16.4,
-    width: width - 0.8,
-    height: 16,
-    color: rgb(0.94, 0.96, 0.98)
-  })
-  page.drawText(title, {
-    x: x + 8,
-    y: y + height - 12,
-    font,
-    size: 8.5,
-    color: rgb(0.2, 0.25, 0.35)
-  })
-}
-
-function drawPanelField(
-  page: PDFPage,
-  label: string,
-  value: string,
-  x: number,
-  y: number,
-  font: PDFFont
-) {
-  page.drawText(label, {
-    x,
-    y: y + 11,
-    font,
-    size: 7.5,
-    color: rgb(0.47, 0.52, 0.60)
-  })
-  page.drawText(value, {
-    x,
-    y,
-    font,
-    size: 9.5,
-    color: rgb(0.09, 0.13, 0.22)
-  })
-}
 
 function formatDateTime(value?: string | null) {
   if (!value) return '-'
@@ -264,204 +134,6 @@ function formatDateTime(value?: string | null) {
     month: '2-digit',
     year: 'numeric',
   })
-}
-
-// --- Printable Row Parsing Helpers (Parity with weight-ticket-print.ts) ---
-
-type PrintWeightRow = {
-  className?: string
-  containerDeductionWeight: number
-  detail: string
-  deductionWeight: number
-  grossWeight: number
-  label: string
-  netWeight: number
-  productName: string
-  rank?: string
-}
-
-function formatPrintableWeight(value: number) {
-  if (value % 1 === 0) {
-    return value.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-  }
-  return value.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-
-function cleanNote(note: string | null | undefined): string {
-  if (!note) return '-'
-  return note
-    .replace(/\[impurity_product_id:[^\]]+\]/gi, '')
-    .replace(/\[impurity_product_name:[^\]]+\]/gi, '')
-    .replace(/\s*\(\s*([^)]+?)\s+\d+(?:\.\d+)?\s*kg\s*\)/gi, ' ($1)')
-    .replace(/\s*\([\d.]+\s*kg\)/gi, '')
-    .replace(/\s*[\d.]+\s*kg/gi, '')
-    .trim()
-}
-
-function cleanImpurityName(name: string | null | undefined): string {
-  if (!name) return ''
-  return name
-    .replace(/\s*\([\d.]+\s*kg\)/gi, '')
-    .replace(/\s*[\d.]+\s*kg/gi, '')
-    .trim()
-}
-
-function isImpurityLine(line: WeightTicketRecord['lines'][number]) {
-  return line.grossWeightValue === 0 && Boolean(line.impurityName || line.impurityId)
-}
-
-function isPurchaseFromImpurityLine(line: WeightTicketRecord['lines'][number]) {
-  return line.grossWeightValue > 0 && line.note.includes('มาจากสิ่งเจือปน')
-}
-
-function formatImpurityPurchaseSourceDetail(line: WeightTicketRecord['lines'][number]) {
-  const match = /^มาจากสิ่งเจือปน \(([^)]+)\) ของรายการที่ ([^:]+):\s*(.+)$/.exec(line.note.trim())
-  if (!match) return line.note || 'ซื้อเพิ่มจากสิ่งเจือปนที่เป็นสินค้า'
-
-  const [, , , sourceProduct] = match
-  return `มาจาก: ${sourceProduct}`
-}
-
-function findPurchaseLineForImpurity(
-  impurityLine: WeightTicketRecord['lines'][number],
-  sourceProductName: string,
-  purchaseLines: WeightTicketRecord['lines'],
-) {
-  return purchaseLines.find((purchaseLine) => {
-    if (!purchaseLine.note.includes(sourceProductName) && !purchaseLine.note.includes(impurityLine.productId)) return false
-    return Math.abs(purchaseLine.grossWeightValue - impurityLine.deductionWeight) < 0.001
-  })
-}
-
-function formatImpuritySummaryDetail(
-  impurityLines: WeightTicketRecord['lines'],
-  sourceProductName: string,
-  purchaseLines: WeightTicketRecord['lines'],
-) {
-  if (impurityLines.length === 0) return 'ไม่มีหักสิ่งเจือปน'
-
-  const details = impurityLines.map((line, index) => {
-    const purchaseLine = findPurchaseLineForImpurity(line, sourceProductName, purchaseLines)
-    const impurityName = cleanImpurityName(line.impurityName) || 'สิ่งเจือปน'
-    const deductionText = `${formatPrintableWeight(line.deductionWeight)} กก.`
-    const prefix = `- ${index + 1}. ${impurityName} ${deductionText}`
-    if (purchaseLine) {
-      return `${prefix} ซื้อเป็น ${purchaseLine.productName}`
-    }
-
-    const isOtherProductImpurity = impurityName === 'สินค้าอื่น' || impurityName === 'อื่นๆ' || impurityName === 'อย่างอื่น'
-    if (isOtherProductImpurity) return `${prefix} ไม่ซื้อ`
-    return prefix
-  })
-
-  return ['หักสิ่งเจือปน:', ...details].join('\n')
-}
-
-function sumPrintLines(lines: WeightTicketRecord['lines']) {
-  return lines.reduce(
-    (summary, line) => ({
-      containerDeductionWeight: summary.containerDeductionWeight + line.containerDeductionWeightValue,
-      deductionWeight: summary.deductionWeight + line.deductionWeight,
-      grossWeight: summary.grossWeight + line.grossWeightValue,
-      netBeforeImpurityWeight: summary.netBeforeImpurityWeight + Math.max(0, line.grossWeightValue - line.containerDeductionWeightValue),
-      netWeight: summary.netWeight + line.netWeight,
-    }),
-    { containerDeductionWeight: 0, deductionWeight: 0, grossWeight: 0, netBeforeImpurityWeight: 0, netWeight: 0 },
-  )
-}
-
-function buildPrintWeightRows(ticket: WeightTicketRecord, isReceipt: boolean): PrintWeightRow[] {
-  if (!isReceipt) {
-    return ticket.lines.map((line, index) => ({
-      containerDeductionWeight: line.containerDeductionWeightValue,
-      deductionWeight: line.deductionWeight,
-      detail: line.note || '-',
-      grossWeight: line.grossWeightValue,
-      label: 'จากสินค้า',
-      netWeight: line.netWeight,
-      productName: line.productName,
-      rank: String(index + 1),
-    }))
-  }
-
-  const rows: PrintWeightRow[] = []
-  const allPurchaseLines = ticket.lines.filter(isPurchaseFromImpurityLine)
-  ticket.productSummaries.forEach((summary, groupIndex) => {
-    const productLines = ticket.lines.filter((line) => line.productId === summary.productId)
-    const realLotLines = productLines.filter((line) => !isImpurityLine(line) && !isPurchaseFromImpurityLine(line))
-    const impurityLines = productLines.filter(isImpurityLine)
-    const purchaseLines = productLines.filter(isPurchaseFromImpurityLine)
-    const realLotTotals = sumPrintLines(realLotLines)
-    const impurityTotals = sumPrintLines(impurityLines)
-    const realLotNetAfterImpurity = Math.max(0, realLotTotals.netBeforeImpurityWeight - impurityTotals.deductionWeight)
-
-    rows.push({
-      className: 'product-heading',
-      containerDeductionWeight: 0,
-      deductionWeight: 0,
-      detail: `${realLotLines.length.toLocaleString('th-TH')} เต๋า · หักสิ่งเจือปน ${impurityLines.length.toLocaleString('th-TH')} รายการ · ซื้อเพิ่ม ${purchaseLines.length.toLocaleString('th-TH')} รายการ`,
-      grossWeight: 0,
-      label: 'กลุ่มสินค้า',
-      netWeight: 0,
-      productName: summary.productName,
-      rank: String(groupIndex + 1),
-    })
-
-    if (realLotLines.length > 0) {
-      realLotLines.forEach((line, lotIndex) => {
-        rows.push({
-          className: 'lot-row',
-          containerDeductionWeight: line.containerDeductionWeightValue,
-          deductionWeight: line.deductionWeight,
-          detail: cleanNote(line.note),
-          grossWeight: line.grossWeightValue,
-          label: `เต๋าที่ ${lotIndex + 1}`,
-          netWeight: Math.max(0, line.grossWeightValue - line.containerDeductionWeightValue - line.deductionWeight),
-          productName: summary.productName,
-        })
-      })
-
-      rows.push({
-        className: 'source-row',
-        containerDeductionWeight: realLotTotals.containerDeductionWeight,
-        deductionWeight: impurityTotals.deductionWeight,
-        detail: [
-          `${realLotLines.length.toLocaleString('th-TH')} เต๋า`,
-          formatImpuritySummaryDetail(impurityLines, summary.productName, allPurchaseLines),
-        ].join('\n'),
-        grossWeight: realLotTotals.grossWeight,
-        label: '',
-        netWeight: realLotNetAfterImpurity,
-        productName: 'สรุปรวมจากเต๋า',
-      })
-    }
-
-    purchaseLines.forEach((line) => {
-      rows.push({
-        className: 'purchase-row',
-        containerDeductionWeight: line.containerDeductionWeightValue,
-        deductionWeight: 0,
-        detail: formatImpurityPurchaseSourceDetail(line),
-        grossWeight: line.grossWeightValue,
-        label: 'ซื้อเพิ่มจากสิ่งเจือปน',
-        netWeight: Math.max(0, line.grossWeightValue - line.containerDeductionWeightValue),
-        productName: summary.productName,
-      })
-    })
-
-    rows.push({
-      className: 'product-total',
-      containerDeductionWeight: summary.containerDeductionWeight,
-      deductionWeight: summary.deductWeight,
-      detail: `รวมจากเต๋าหลังหักสิ่งเจือปน${purchaseLines.length > 0 ? ' และรายการซื้อเพิ่มจากสิ่งเจือปน' : ''}`,
-      grossWeight: summary.grossWeight,
-      label: 'รวมสินค้า',
-      netWeight: summary.netWeight,
-      productName: summary.productName,
-    })
-  })
-
-  return rows
 }
 
 // --- Image Metadata Timestamp Helpers ---
@@ -503,556 +175,457 @@ function formatTime(date: Date): string {
 
 // --- Main PDF Generation Function ---
 
-export async function generateWeightTicketPdf(ticket: WeightTicketRecord, profile: CompanyPrintProfile | null) {
-  const pdfDoc = await PDFDocument.create()
-  pdfDoc.registerFontkit(fontkit)
-  const fontBytes = await readFile(resolveThaiFontPath())
-  const font = await pdfDoc.embedFont(fontBytes, { subset: true })
-
-  const isReceipt = ticket.type === 'WTI'
-  const printRows = buildPrintWeightRows(ticket, isReceipt)
-
-  // 1. Pagination calculation for ticket rows
-  const FIRST_PAGE_LIMIT = 12
-  const CONTINUATION_PAGE_LIMIT = 17
-
-  const pagesData: PrintWeightRow[][] = []
-  let cursor = 0
-  while (cursor < printRows.length || pagesData.length === 0) {
-    const limit = pagesData.length === 0 ? FIRST_PAGE_LIMIT : CONTINUATION_PAGE_LIMIT
-    pagesData.push(printRows.slice(cursor, cursor + limit))
-    cursor += limit
+export async function generateWeightTicketPdf(
+  ticket: WeightTicketRecord,
+  profile: CompanyProfilePrintValues | null,
+  options?: {
+    showBadges?: boolean
+    showTimestamps?: boolean
+    quality?: number
+  }
+): Promise<{ pdfBuffer: Buffer; albumImages: Array<{ pageIdx: number; buffer: Buffer }> }> {
+  const configs = await resolveNotificationConfigs()
+  const showBadges = options?.showBadges ?? configs.albumShowBadges
+  const showTimestamps = options?.showTimestamps ?? configs.albumShowTimestamps
+  const quality = options?.quality ?? configs.albumQuality
+  const defaultProfile: CompanyProfilePrintValues = {
+    address: '-',
+    bankInfo: null,
+    branchCode: '00000',
+    email: null,
+    fax: null,
+    footerNote: null,
+    logoUrl: null,
+    name: 'NS SCRAP',
+    nameEn: null,
+    phone: '-',
+    taxId: null,
+    website: null,
   }
 
-  const totalTicketPages = pagesData.length
-  const totalPhotos = ticket.imageNames.length
-  const totalPages = totalTicketPages + (totalPhotos > 0 ? 1 : 0)
+  const activeProfile = profile || defaultProfile
 
-  // Load logo image if present
-  let logoImage: any = null
-  if (profile?.logoUrl) {
-    try {
-      if (profile.logoUrl.startsWith('data:')) {
-        const logoData = imageFromDataUrl(profile.logoUrl)
-        if (logoData) {
-          logoImage = logoData.type === 'png'
-            ? await pdfDoc.embedPng(logoData.bytes)
-            : await pdfDoc.embedJpg(logoData.bytes)
-        }
-      } else {
-        const res = await fetch(profile.logoUrl)
-        if (res.ok) {
-          const buffer = Buffer.from(await res.arrayBuffer())
-          logoImage = profile.logoUrl.toLowerCase().endsWith('.png')
-            ? await pdfDoc.embedPng(buffer)
-            : await pdfDoc.embedJpg(buffer)
-        }
-      }
-    } catch (err) {
-      console.warn('Failed to embed company logo in PDF:', err)
-    }
-  }
+  // 2. Generate original ticket HTML page
+  const ticketHtml = buildReceiptPrintHtml(ticket, activeProfile)
 
-  // --- DRAW TICKET PAGES ---
-  for (let pageIdx = 0; pageIdx < totalTicketPages; pageIdx++) {
-    const page = pdfDoc.addPage([595.28, 841.89])
-    const currentRows = pagesData[pageIdx]
-    const isLastTicketPage = pageIdx === totalTicketPages - 1
+  // 3. Extract original HTML and inject page break + photo album page (Page 2)
+  const isWti = ticket.type === 'WTI'
+  const images = ticket.imageNames || []
+  const decodedImages = images
+    .map((img) => decodeStoredImageAsset(img))
+    .filter((asset) => asset.url && (asset.url.startsWith('http') || asset.url.startsWith('data:')))
 
-    // A. Decorative Top accent line
-    page.drawRectangle({
-      x: 30,
-      y: 805,
-      width: 535.28,
-      height: 4,
-      color: rgb(0.06, 0.40, 0.20)
-    })
-
-    // B. Draw Company Logo & Profile (Left)
-    if (logoImage) {
-      const scaled = logoImage.scale(Math.min(60 / logoImage.width, 60 / logoImage.height))
-      const imageX = 30 + ((60 - scaled.width) / 2)
-      const imageY = 730 + ((60 - scaled.height) / 2)
-      page.drawImage(logoImage, {
-        x: imageX,
-        y: imageY,
-        width: scaled.width,
-        height: scaled.height
-      })
-    } else {
-      page.drawRectangle({
-        x: 30,
-        y: 730,
-        width: 60,
-        height: 60,
-        borderColor: rgb(0.8, 0.82, 0.85),
-        borderWidth: 0.8,
-        color: rgb(0.97, 0.98, 0.99)
-      })
-      page.drawText('ไม่มีโลโก้', {
-        x: 42,
-        y: 755,
-        font,
-        size: 7.5,
-        color: rgb(0.5, 0.55, 0.6)
-      })
-    }
-
-    // Company profile texts
-    page.drawText(profile?.name ?? 'NS SCRAP', { x: 100, y: 780, font, size: 14, color: rgb(0.06, 0.09, 0.16) })
-    if (profile?.nameEn) {
-      page.drawText(profile.nameEn, { x: 100, y: 769, font, size: 8, color: rgb(0.28, 0.33, 0.43) })
-    }
-    const cleanAddress = (profile?.address || '-').trim()
-    drawWrappedText(page, cleanAddress, 100, 758, font, 7.5, 230, 9)
-
-    const branchLabel = profile?.branchCode ? `สาขา ${profile.branchCode}` : ''
-    const contactLine = [
-      profile?.phone ? `โทร ${profile.phone}` : null,
-      profile?.taxId ? `เลขประจำตัวผู้เสียภาษี: ${profile.taxId}` : null,
-      branchLabel || null
-    ].filter(Boolean).join(' · ')
-    page.drawText(contactLine, { x: 100, y: 730, font, size: 7.5, color: rgb(0.28, 0.33, 0.43) })
-
-    // C. Document Title (Right)
-    const docTitle = isReceipt ? 'ใบชั่งน้ำหนัก / ใบรับสินค้า' : 'ใบชั่งน้ำหนัก / ใบส่งของ'
-    const titleColor = isReceipt ? rgb(0.06, 0.40, 0.20) : rgb(0.02, 0.52, 0.78)
-    drawRightAlignedXText(page, docTitle, 565.28, 775, font, 18, titleColor)
-
-    // D. Section panels (Customer and Doc Info)
-    const partyLabel = isReceipt ? 'ผู้ขาย/ผู้ส่งของ' : 'ลูกค้า/ผู้รับสินค้า'
-    // Left Box
-    drawPanel(page, 30, 650, 260, 64, partyLabel, font)
-    drawPanelField(page, 'ชื่อ', ticket.partyName || '-', 38, 680, font)
-    drawPanelField(page, 'สาขา', ticket.branchName || '-', 165, 680, font)
-    drawPanelField(page, 'ทะเบียนรถ', ticket.vehicleNo || '-', 38, 656, font)
-    drawPanelField(page, 'พนักงานชั่ง', ticket.enteredBy || '-', 165, 656, font)
-
-    // Right Box
-    drawPanel(page, 305, 650, 260, 64, 'ข้อมูลเอกสาร / Document Info', font)
-    drawPanelField(page, 'เลขที่เอกสาร', ticket.documentNo, 313, 680, font)
-    drawPanelField(page, 'วันที่เอกสาร', formatDateDisplay(ticket.documentDate) || '-', 440, 680, font)
-    drawPanelField(page, 'เวลาสร้าง', formatDateTime(ticket.createdAt), 313, 656, font)
-    drawPanelField(page, 'โกดัง', ticket.warehouseName || '-', 440, 656, font)
-
-    // E. Draw Table Headers
-    const headersY = 622
-    const headerH = 18
-    page.drawRectangle({
-      x: 30,
-      y: headersY,
-      width: 535.28,
-      height: headerH,
-      color: rgb(0.88, 0.91, 0.94)
-    })
-    page.drawRectangle({
-      x: 30,
-      y: headersY,
-      width: 535.28,
-      height: headerH,
-      borderColor: rgb(0.8, 0.82, 0.85),
-      borderWidth: 0.8
-    })
-
-    const colX = isReceipt
-      ? [30, 50, 260, 315, 370, 440, 505]
-      : [30, 50, 390, 475]
-    const colW = isReceipt
-      ? [20, 210, 55, 55, 70, 65, 60.28]
-      : [20, 340, 85, 90.28]
-    const tableHeaders = isReceipt
-      ? ['#', 'รายการสินค้า', 'น้ำหนักรวม', 'หักภาชนะ', 'น้ำหนักหลังหัก', 'หักสิ่งเจือปน', 'น้ำหนักสุทธิ']
-      : ['#', 'รายการสินค้า', 'น้ำหนักรวม', 'น้ำหนักสุทธิ']
-
-    tableHeaders.forEach((lbl, idx) => {
-      const x = colX[idx]
-      const w = colW[idx]
-      // Draw grid vertical header lines
-      if (idx > 0) {
-        page.drawLine({
-          start: { x, y: headersY },
-          end: { x, y: headersY + headerH },
-          color: rgb(0.8, 0.82, 0.85),
-          thickness: 0.8
-        })
-      }
-      // Print header text
-      if (idx === 0) {
-        drawCenterAlignedXText(page, lbl, x + w / 2, headersY + 5.5, font, 7.5, rgb(0.12, 0.16, 0.24))
-      } else if (idx === 1) {
-        page.drawText(lbl, { x: x + 4, y: headersY + 5.5, font, size: 7.5, color: rgb(0.12, 0.16, 0.24) })
-      } else {
-        drawRightAlignedXText(page, lbl, x + w - 4, headersY + 5.5, font, 7.5, rgb(0.12, 0.16, 0.24))
-      }
-    })
-
-    // F. Draw Table Rows
-    let rowY = headersY
-    currentRows.forEach((row) => {
-      const detailLines = (row.detail || '').split('\n').filter(line => line.trim() && line.trim() !== '-')
-      const extraLines = Math.max(0, detailLines.length - 1)
-      const rowHeight = 22 + extraLines * 8
-
-      rowY -= rowHeight
-
-      // Background styling matching web print layout
-      let bgColor = rgb(1, 1, 1)
-      if (row.className === 'product-heading') bgColor = rgb(0.94, 0.96, 0.98)
-      else if (row.className === 'source-row') bgColor = rgb(0.97, 0.98, 0.99)
-      else if (row.className === 'purchase-row') bgColor = rgb(0.93, 0.96, 1.0)
-      else if (row.className === 'product-total') bgColor = rgb(0.92, 0.99, 0.95)
-
-      page.drawRectangle({
-        x: 30,
-        y: rowY,
-        width: 535.28,
-        height: rowHeight,
-        color: bgColor
-      })
-
-      // Box borders for table cells
-      page.drawRectangle({
-        x: 30,
-        y: rowY,
-        width: 535.28,
-        height: rowHeight,
-        borderColor: rgb(0.86, 0.89, 0.92),
-        borderWidth: 0.5
-      })
-
-      // Vertical separators for rows
-      colX.forEach((cx, idx) => {
-        if (idx > 0) {
-          page.drawLine({
-            start: { x: cx, y: rowY },
-            end: { x: cx, y: rowY + rowHeight },
-            color: rgb(0.86, 0.89, 0.92),
-            thickness: 0.5
-          })
-        }
-      })
-
-      // Row values drawing
-      const cellColor = row.className === 'product-total' || row.className === 'product-heading'
-        ? rgb(0.05, 0.1, 0.2)
-        : rgb(0.13, 0.18, 0.27)
-
-      // # column
-      if (row.rank) {
-        drawCenterAlignedXText(page, row.rank, colX[0] + colW[0] / 2, rowY + rowHeight - 14, font, 8, cellColor)
-      }
-
-      // Items column
-      page.drawText(row.productName, {
-        x: colX[1] + 4,
-        y: rowY + rowHeight - 14,
-        font,
-        size: 8,
-        color: cellColor
-      })
-      if (row.label && row.className !== 'product-total' && row.className !== 'product-heading') {
-        page.drawText(row.label, {
-          x: colX[1] + 4,
-          y: rowY + rowHeight - 22,
-          font,
-          size: 7,
-          color: rgb(0.45, 0.5, 0.55)
-        })
-      }
-
-      detailLines.forEach((line, lineIdx) => {
-        const textOffset = row.label ? 29 + lineIdx * 8 : 21 + lineIdx * 8
-        page.drawText(line, {
-          x: colX[1] + 4,
-          y: rowY + rowHeight - textOffset,
-          font,
-          size: 6.8,
-          color: rgb(0.45, 0.5, 0.55)
-        })
-      })
-
-      // Weights drawing
-      if (row.className !== 'product-heading') {
-        if (isReceipt) {
-          const grossWeightStr = formatPrintableWeight(row.grossWeight)
-          const containerWeightStr = formatPrintableWeight(row.containerDeductionWeight)
-          const afterContainerVal = Math.max(0, row.grossWeight - row.containerDeductionWeight)
-          const afterContainerStr = formatPrintableWeight(afterContainerVal)
-          const deductionWeightStr = formatPrintableWeight(row.deductionWeight)
-          const netWeightStr = formatPrintableWeight(row.netWeight)
-
-          drawRightAlignedXText(page, grossWeightStr, colX[2] + colW[2] - 4, rowY + rowHeight - 14, font, 8, cellColor)
-          drawRightAlignedXText(page, containerWeightStr, colX[3] + colW[3] - 4, rowY + rowHeight - 14, font, 8, cellColor)
-          drawRightAlignedXText(page, afterContainerStr, colX[4] + colW[4] - 4, rowY + rowHeight - 14, font, 8, cellColor)
-          drawRightAlignedXText(page, deductionWeightStr, colX[5] + colW[5] - 4, rowY + rowHeight - 14, font, 8, cellColor)
-          drawRightAlignedXText(page, netWeightStr, colX[6] + colW[6] - 4, rowY + rowHeight - 14, font, 8, cellColor)
-        } else {
-          const grossWeightStr = formatPrintableWeight(row.grossWeight)
-          const netWeightStr = formatPrintableWeight(row.netWeight)
-
-          drawRightAlignedXText(page, grossWeightStr, colX[2] + colW[2] - 4, rowY + rowHeight - 14, font, 8, cellColor)
-          drawRightAlignedXText(page, netWeightStr, colX[3] + colW[3] - 4, rowY + rowHeight - 14, font, 8, cellColor)
-        }
-      }
-    })
-
-    // G. Draw Table Footer Summary Row
-    if (isLastTicketPage) {
-      rowY -= 22
-      page.drawRectangle({
-        x: 30,
-        y: rowY,
-        width: 535.28,
-        height: 22,
-        color: rgb(0.93, 0.95, 0.97)
-      })
-      page.drawRectangle({
-        x: 30,
-        y: rowY,
-        width: 535.28,
-        height: 22,
-        borderColor: rgb(0.7, 0.73, 0.76),
-        borderWidth: 0.8
-      })
-
-      // Vertical separators for footer
-      colX.forEach((cx, idx) => {
-        if (idx > 0) {
-          page.drawLine({
-            start: { x: cx, y: rowY },
-            end: { x: cx, y: rowY + 22 },
-            color: rgb(0.7, 0.73, 0.76),
-            thickness: 0.8
-          })
-        }
-      })
-
-      // 'รวมทั้งสิ้น' Label
-      page.drawText('รวมทั้งสิ้น', {
-        x: colX[1] + 4,
-        y: rowY + 7,
-        font,
-        size: 8.5,
-        color: rgb(0.09, 0.13, 0.22)
-      })
-
-      // Draw footer totals values
-      if (isReceipt) {
-        const totalAfterContainerVal = Math.max(0, ticket.totals.grossWeight - ticket.totals.containerDeductionWeight)
-        drawRightAlignedXText(page, formatPrintableWeight(ticket.totals.grossWeight), colX[2] + colW[2] - 4, rowY + 7, font, 8.5, rgb(0.09, 0.13, 0.22))
-        drawRightAlignedXText(page, formatPrintableWeight(ticket.totals.containerDeductionWeight), colX[3] + colW[3] - 4, rowY + 7, font, 8.5, rgb(0.09, 0.13, 0.22))
-        drawRightAlignedXText(page, formatPrintableWeight(totalAfterContainerVal), colX[4] + colW[4] - 4, rowY + 7, font, 8.5, rgb(0.09, 0.13, 0.22))
-        drawRightAlignedXText(page, formatPrintableWeight(ticket.totals.deductionWeight), colX[5] + colW[5] - 4, rowY + 7, font, 8.5, rgb(0.09, 0.13, 0.22))
-        drawRightAlignedXText(page, formatPrintableWeight(ticket.totals.netWeight), colX[6] + colW[6] - 4, rowY + 7, font, 9.5, rgb(0.05, 0.45, 0.25))
-      } else {
-        drawRightAlignedXText(page, formatPrintableWeight(ticket.totals.grossWeight), colX[2] + colW[2] - 4, rowY + 7, font, 8.5, rgb(0.09, 0.13, 0.22))
-        drawRightAlignedXText(page, formatPrintableWeight(ticket.totals.netWeight), colX[3] + colW[3] - 4, rowY + 7, font, 9.5, rgb(0.05, 0.45, 0.25))
-      }
-    }
-
-    // H. Draw bottom section (only on last page)
-    if (isLastTicketPage) {
-      // 1. Remark
-      drawPanel(page, 30, 150, 260, 60, 'หมายเหตุ', font)
-      drawWrappedText(page, ticket.remark || '-', 38, 192, font, 7.8, 244, 9.5)
-
-      // 2. Weights Summary
-      const lotLines = ticket.lines.filter(l => !isImpurityLine(l) && !isPurchaseFromImpurityLine(l))
-      const lotCount = lotLines.length
-      const lotGrossWeight = lotLines.reduce((sum, l) => sum + l.grossWeightValue, 0)
-      const lotContainerWeight = lotLines.reduce((sum, l) => sum + l.containerDeductionWeightValue, 0)
-
-      drawPanel(page, 305, 142, 260, 68, 'ข้อมูลน้ำหนัก / Weight Info', font)
-      const linesData = [
-        ['จำนวนรายการ', `${lotCount} รายการ`],
-        ['น้ำหนักรวม', `${formatPrintableWeight(lotGrossWeight)} กก.`],
-        ['หักภาชนะ', `${formatPrintableWeight(lotContainerWeight)} กก.`],
-        ['หักสิ่งเจือปน', `${formatPrintableWeight(ticket.totals.deductionWeight)} กก.`],
-        ['น้ำหนักสุทธิ', `${formatPrintableWeight(ticket.totals.netWeight)} กก.`]
-      ]
-      linesData.forEach(([lbl, val], idx) => {
-        const textY = 142 + 68 - 25 - idx * 9
-        page.drawText(lbl, { x: 313, y: textY, font, size: 7.5, color: rgb(0.4, 0.45, 0.5) })
-        const valColor = idx === 4 ? rgb(0.05, 0.45, 0.25) : rgb(0.1, 0.15, 0.25)
-        const valSize = idx === 4 ? 8.5 : 7.5
-        drawRightAlignedXText(page, val, 305 + 260 - 8, textY, font, valSize, valColor)
-      })
-
-      // 3. Signatures
-      const sigLeft = isReceipt ? 'ผู้ส่งสินค้า' : 'ผู้ส่งของ'
-      const sigMiddle = isReceipt ? 'ผู้รับเข้าคลัง' : 'ผู้รับของ'
-      const signatureLabels = [sigLeft, 'พนักงานชั่ง', sigMiddle, 'ผู้อนุมัติ']
-
-      const sigColsX = [
-        30 + 66.9,
-        30 + 133.8 + 66.9,
-        30 + 267.6 + 66.9,
-        30 + 401.4 + 66.9
-      ]
-
-      signatureLabels.forEach((label, idx) => {
-        const centerX = sigColsX[idx]
-        // Signature Line
-        drawCenterAlignedXText(page, '___________________', centerX, 68, font, 8.5, rgb(0.58, 0.62, 0.68))
-        // Name / Title
-        drawCenterAlignedXText(page, label, centerX, 56, font, 8, rgb(0.12, 0.16, 0.24))
-        // Date placeholder
-        drawCenterAlignedXText(page, 'วันที่ ____ / ____ / ______', centerX, 44, font, 7.5, rgb(0.4, 0.45, 0.5))
-
-        // Print employee name for พนักงานชั่ง
-        if (idx === 1) {
-          drawCenterAlignedXText(page, ticket.enteredBy || '-', centerX, 76, font, 8, rgb(0.12, 0.16, 0.24))
-        }
-      })
-    } else {
-      drawRightAlignedXText(page, 'ต่อหน้าถัดไป / Continued...', 565.28, 40, font, 9, rgb(0.4, 0.45, 0.5))
-    }
-
-    // I. Draw Page Footer
-    page.drawLine({
-      start: { x: 30, y: 25 },
-      end: { x: 565.28, y: 25 },
-      color: rgb(0.85, 0.88, 0.91),
-      thickness: 0.5
-    })
-    const footerText = (profile?.footerNote || '').trim()
-    page.drawText(footerText, { x: 30, y: 14, font, size: 7.5, color: rgb(0.47, 0.52, 0.60) })
-    drawRightAlignedXText(page, `หน้า ${pageIdx + 1} / ${totalPages}`, 565.28, 14, font, 7.5, rgb(0.47, 0.52, 0.60))
-  }
-
-  // --- DRAW PHOTO ALBUM PAGE (Page 2 / Last Page) ---
-  if (totalPhotos > 0) {
-    const bannerHeight = 60
-    const rowHeight = 120
-    const timestampHeight = 18
-    const gapY = 16
-    const paddingBottom = 40
-
-    const rowsCount = Math.ceil(totalPhotos / 4)
-    const albumPageHeight = 90 + rowsCount * rowHeight + rowsCount * (timestampHeight + gapY) + paddingBottom
-
-    const imagePage = pdfDoc.addPage([595.28, albumPageHeight])
-
-    // A. Top Banner
-    const bannerColor = isReceipt ? rgb(0.09, 0.63, 0.89) : rgb(0.09, 0.70, 0.40)
-    imagePage.drawRectangle({
-      x: 0,
-      y: albumPageHeight - bannerHeight,
-      width: 595.28,
-      height: bannerHeight,
-      color: bannerColor
-    })
-
-    const titleStr = isReceipt ? '📥 รับสินค้า' : '📤 ส่งสินค้า'
-    imagePage.drawText(titleStr, { x: 20, y: albumPageHeight - 22, font, size: 14, color: rgb(1, 1, 1) })
-    imagePage.drawText(ticket.partyName || '-', { x: 20, y: albumPageHeight - 37, font, size: 10, color: rgb(1, 1, 1) })
-
-    const metaStr = `#${ticket.documentNo} · โกดัง ${ticket.warehouseName || '-'} · 📷 ${totalPhotos} รูป · ${formatDateDisplay(ticket.documentDate)}`
-    imagePage.drawText(metaStr, { x: 20, y: albumPageHeight - 50, font, size: 7.5, color: rgb(1, 1, 1) })
-
-    // B. Draw Grid
-    const colWidth = 130
-    const colHeight = 120
-    const gapX = 12
-    const startX = 20
-
-    for (let idx = 0; idx < totalPhotos; idx++) {
-      const c = idx % 4
-      const r = Math.floor(idx / 4)
-      const x = startX + c * (colWidth + gapX)
-      const y = albumPageHeight - 90 - r * (colHeight + timestampHeight + gapY) - colHeight
-
-      const rawImg = ticket.imageNames[idx]
-      const asset = decodeStoredImageAsset(rawImg)
-
-      // Background card box
-      imagePage.drawRectangle({
-        x,
-        y,
-        width: colWidth,
-        height: colHeight,
-        color: rgb(1, 1, 1),
-        borderColor: rgb(0.85, 0.88, 0.92),
-        borderWidth: 0.5
-      })
-
-      let loadedImageObj: any = null
-      if (asset.url) {
-        try {
-          const imgData = imageFromDataUrl(asset.url)
-          if (imgData) {
-            loadedImageObj = imgData.type === 'png'
-              ? await pdfDoc.embedPng(imgData.bytes)
-              : await pdfDoc.embedJpg(imgData.bytes)
-          }
-        } catch (err) {
-          console.warn('Failed to embed photo inside album grid:', err)
-        }
-      }
-
-      if (loadedImageObj) {
-        const scaled = loadedImageObj.scale(Math.min(colWidth / loadedImageObj.width, colHeight / loadedImageObj.height))
-        const drawX = x + (colWidth - scaled.width) / 2
-        const drawY = y + (colHeight - scaled.height) / 2
-        imagePage.drawImage(loadedImageObj, {
-          x: drawX,
-          y: drawY,
-          width: scaled.width,
-          height: scaled.height
-        })
-      } else {
-        // Fallback for missing/broken photos
-        imagePage.drawRectangle({
-          x: x + 1,
-          y: y + 1,
-          width: colWidth - 2,
-          height: colHeight - 2,
-          color: rgb(0.97, 0.98, 0.99)
-        })
-        const brokenName = asset.fileName || `รูปที่ ${idx + 1}`
-        drawCenterAlignedXText(imagePage, 'ไม่มีรูปภาพ / โหลดไม่ได้', x + colWidth / 2, y + 62, font, 7, rgb(0.5, 0.55, 0.6))
-        drawCenterAlignedXText(imagePage, brokenName.substring(0, 20), x + colWidth / 2, y + 50, font, 6, rgb(0.6, 0.65, 0.7))
-      }
-
-      // Draw Top-Left Badge (📥 รับเข้า / 📤 ขาออก)
+  let photoAlbumHtml = ''
+  if (decodedImages.length > 0) {
+    const photoTiles = decodedImages.map((asset, idx) => {
       const isOut = asset.fileName.toLowerCase().includes('out') ||
                     asset.fileName.toLowerCase().includes('exit') ||
                     asset.fileName.includes('ขาออก')
-      const badgeText = isOut ? 'ขาออก' : (isReceipt ? 'รับเข้า' : 'ขาออก')
-      const badgeColor = isOut ? rgb(0.09, 0.70, 0.40) : (isReceipt ? rgb(0.09, 0.63, 0.89) : rgb(0.09, 0.70, 0.40))
+      const badgeText = isOut ? 'ขาออก' : (isWti ? 'รับเข้า' : 'ขาออก')
+      const badgeColor = isOut ? '#10b981' : '#0ea5e9'
+      const photoTime = getPhotoTimestamp(asset.fileName, ticket.createdAt)
 
-      imagePage.drawRectangle({
-        x: x + 4,
-        y: y + colHeight - 16,
-        width: 32,
-        height: 12,
-        color: badgeColor
-      })
-      imagePage.drawText(badgeText, {
-        x: x + 8,
-        y: y + colHeight - 12.5,
-        font,
-        size: 6.5,
-        color: rgb(1, 1, 1)
-      })
+      return `
+        <div style="position: relative; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; page-break-inside: avoid; break-inside: avoid; background: #f8fafc;">
+          <img src="${asset.url}" style="width: 100%; height: 160px; object-fit: cover; display: block;" />
+          <div style="position: absolute; top: 8px; left: 8px; background: ${badgeColor}; color: white; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px;">
+            ${badgeText}
+          </div>
+          <div style="position: absolute; bottom: 8px; right: 8px; background: rgba(15, 23, 42, 0.75); color: white; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px;">
+            #${idx + 1} &middot; ${photoTime}
+          </div>
+          <div style="padding: 6px 8px; font-size: 9px; color: #64748b; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">
+            ${asset.fileName}
+          </div>
+        </div>
+      `
+    }).join('')
 
-      // Draw timestamp text below photo
-      const timeStr = getPhotoTimestamp(asset.fileName, ticket.createdAt)
-      drawCenterAlignedXText(imagePage, timeStr, x + colWidth / 2, y - 12, font, 7.5, rgb(0.45, 0.5, 0.55))
-    }
-
-    // C. Draw Photo Page Footer
-    imagePage.drawLine({
-      start: { x: 20, y: 25 },
-      end: { x: 575.28, y: 25 },
-      color: rgb(0.85, 0.88, 0.91),
-      thickness: 0.5
-    })
-    imagePage.drawText('NS Scrap Production · NS Solutions Thailand', { x: 20, y: 14, font, size: 7.5, color: rgb(0.5, 0.55, 0.6) })
-    drawRightAlignedXText(imagePage, `หน้า ${totalTicketPages + 1} / ${totalPages}`, 575.28, 14, font, 7.5, rgb(0.5, 0.55, 0.6))
+    photoAlbumHtml = `
+      <div class="page" style="page-break-before: always; break-before: page; min-height: 277mm; display: flex; flex-direction: column; background: white; padding: 7mm; box-sizing: border-box;">
+        <div class="accent"></div>
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #cbd5e1; padding-bottom: 12px; margin-bottom: 16px; flex: 0 0 auto;">
+          <div>
+            <div style="font-size: 18px; font-weight: 900; color: ${isWti ? '#14532d' : '#0369a1'};">
+              ${isWti ? '📥 ใบรับสินค้า (รูปถ่ายแนบ)' : '📤 ใบส่งของ (รูปถ่ายแนบ)'}
+            </div>
+            <div style="font-size: 10px; color: #475569; margin-top: 4px;">
+              เลขที่เอกสาร: ${ticket.documentNo} &middot; คู่ค้า: ${ticket.partyName || '-'} &middot; วันที่: ${formatDateDisplay(ticket.documentDate)}
+            </div>
+          </div>
+          <div style="text-align: right; font-size: 10px; color: #64748b;">
+            NS PRODUCTION &middot; หน้า 2 / 2
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; flex: 1 1 auto; align-content: start;">
+          ${photoTiles}
+        </div>
+        <div class="footer" style="margin-top: auto; padding-top: 8px; display: flex; justify-content: space-between; gap: 12px; border-top: 1px dashed #cbd5e1; color: #64748b; font-size: 9px; flex: 0 0 auto;">
+          <div>ขอขอบคุณที่ใช้บริการค่ะ/ครับ</div>
+          <div>NS Scrap Production &middot; NS Solutions Thailand</div>
+        </div>
+      </div>
+    `
   }
 
-  return Buffer.from(await pdfDoc.save())
+  // Load local font to base64 inline styles
+  const regFontPaths = [
+    join(/*turbopackIgnore: true*/ process.cwd(), 'public/fonts/Sarabun-Regular.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/public/fonts/Sarabun-Regular.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'src/assets/fonts/Sarabun-Regular.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/src/assets/fonts/Sarabun-Regular.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'public/fonts/NotoSansThai-Regular.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/public/fonts/NotoSansThai-Regular.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'src/assets/fonts/NotoSansThai-Regular.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/src/assets/fonts/NotoSansThai-Regular.ttf'),
+  ]
+  const boldFontPaths = [
+    join(/*turbopackIgnore: true*/ process.cwd(), 'public/fonts/Sarabun-Bold.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/public/fonts/Sarabun-Bold.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'src/assets/fonts/Sarabun-Bold.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/src/assets/fonts/Sarabun-Bold.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'public/fonts/NotoSansThai-Bold.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/public/fonts/NotoSansThai-Bold.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'src/assets/fonts/NotoSansThai-Bold.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/src/assets/fonts/NotoSansThai-Bold.ttf'),
+  ]
+
+  let regBase64 = ''
+  for (const fontPath of regFontPaths) {
+    if (existsSync(fontPath)) {
+      try {
+        regBase64 = await readFile(fontPath, 'base64')
+        break
+      } catch (err) {
+        console.warn('Failed to read regular font file at', fontPath, err)
+      }
+    }
+  }
+
+  let boldBase64 = ''
+  for (const fontPath of boldFontPaths) {
+    if (existsSync(fontPath)) {
+      try {
+        boldBase64 = await readFile(fontPath, 'base64')
+        break
+      } catch (err) {
+        console.warn('Failed to read bold font file at', fontPath, err)
+      }
+    }
+  }
+
+  if (!regBase64) {
+    throw new Error('ไม่พบไฟล์ฟอนต์ภาษาไทยสำหรับสร้างเอกสาร PDF (Tried paths: ' + regFontPaths.join(', ') + ')')
+  }
+
+  let fontStyleBlock = ''
+  if (regBase64) {
+    fontStyleBlock += `
+    <style>
+      @font-face {
+        font-family: 'Sarabun';
+        src: url('data:font/ttf;charset=utf-8;base64,${regBase64}') format('truetype');
+        font-weight: normal;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Sarabun';
+        src: url('data:font/ttf;charset=utf-8;base64,${regBase64}') format('truetype');
+        font-weight: 300;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Sarabun';
+        src: url('data:font/ttf;charset=utf-8;base64,${regBase64}') format('truetype');
+        font-weight: 400;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Sarabun';
+        src: url('data:font/ttf;charset=utf-8;base64,${regBase64}') format('truetype');
+        font-weight: 500;
+        font-style: normal;
+      }
+    `
+    if (boldBase64) {
+      fontStyleBlock += `
+      @font-face {
+        font-family: 'Sarabun';
+        src: url('data:font/ttf;charset=utf-8;base64,${boldBase64}') format('truetype');
+        font-weight: bold;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Sarabun';
+        src: url('data:font/ttf;charset=utf-8;base64,${boldBase64}') format('truetype');
+        font-weight: 600;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Sarabun';
+        src: url('data:font/ttf;charset=utf-8;base64,${boldBase64}') format('truetype');
+        font-weight: 700;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Sarabun';
+        src: url('data:font/ttf;charset=utf-8;base64,${boldBase64}') format('truetype');
+        font-weight: 800;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Sarabun';
+        src: url('data:font/ttf;charset=utf-8;base64,${boldBase64}') format('truetype');
+        font-weight: 900;
+        font-style: normal;
+      }
+      `
+    }
+    fontStyleBlock += `
+      * {
+        font-family: 'Sarabun', sans-serif !important;
+        font-synthesis: none !important;
+      }
+    </style>
+    `
+  }
+
+  // 4. Inject Page 2 and Font Face styles
+  let finalHtml = ticketHtml
+    .replace(/<link[^>]*fonts\.googleapis\.com[^>]*>/g, '')
+    .replace(/<link[^>]*fonts\.gstatic\.com[^>]*>/g, '')
+
+  if (fontStyleBlock) {
+    const headCloseIdx = finalHtml.indexOf('</head>')
+    if (headCloseIdx !== -1) {
+      finalHtml = finalHtml.substring(0, headCloseIdx) + fontStyleBlock + finalHtml.substring(headCloseIdx)
+    }
+  }
+
+  if (photoAlbumHtml) {
+    const bodyCloseIdx = finalHtml.lastIndexOf('</body>')
+    if (bodyCloseIdx !== -1) {
+      finalHtml = finalHtml.substring(0, bodyCloseIdx) + photoAlbumHtml + finalHtml.substring(bodyCloseIdx)
+    }
+  }
+
+  // 5. Use Playwright to launch Chromium in headless mode and render HTML to PDF
+  const browser = await chromium.launch({
+    headless: true,
+    args: [
+      '--font-render-hinting=none',
+      '--disable-font-subpixel-positioning',
+      '--disable-gpu',
+    ]
+  })
+  const context = await browser.newContext()
+  const page = await context.newPage()
+
+  // Emulate print media type
+  await page.emulateMedia({ media: 'print' })
+
+  if (process.env.NODE_ENV === 'development' || process.env.MOCK_PDF_UPLOAD === 'false') {
+    await writeFile(join(/*turbopackIgnore: true*/ process.cwd(), 'scratch/generated_test.html'), finalHtml, 'utf8').catch((err: any) => console.warn('Failed to save generated_test.html:', err))
+  }
+
+  await page.setContent(finalHtml, { waitUntil: 'load' })
+
+  // Wait for font faces to be ready
+  await page.evaluate(() => document.fonts.ready)
+
+  // Print page to PDF with standard A4 settings
+  const pdfBuffer = await page.pdf({
+    format: 'A4',
+    printBackground: true,
+    margin: {
+      top: '0mm',
+      bottom: '0mm',
+      left: '0mm',
+      right: '0mm'
+    }
+  })
+
+  // --- Generate Album screenshots ---
+  const albumImages: Array<{ pageIdx: number; buffer: Buffer }> = []
+  if (decodedImages.length > 0) {
+    const chunkSize = 8
+    const totalPages = Math.ceil(decodedImages.length / chunkSize)
+    const headerBgColor = isWti ? '#064e3b' : '#0c4a6e'
+
+    for (let pageIdx = 0; pageIdx < totalPages; pageIdx++) {
+      const chunk = decodedImages.slice(pageIdx * chunkSize, (pageIdx + 1) * chunkSize)
+      const tilesHtml = chunk.map((asset, rIdx) => {
+        const isOut = asset.fileName.toLowerCase().includes('out') ||
+                      asset.fileName.toLowerCase().includes('exit') ||
+                      asset.fileName.includes('ขาออก')
+        const badgeText = isOut ? 'ขาออก' : (isWti ? 'รับเข้า' : 'ขาออก')
+        const badgeColor = isOut ? '#10b981' : '#0ea5e9'
+        const photoTime = getPhotoTimestamp(asset.fileName, ticket.createdAt)
+        const displayIndex = pageIdx * chunkSize + rIdx + 1
+
+        const badgeHtml = showBadges
+          ? `<div class="badge-top-left" style="background: ${badgeColor};">${badgeText}</div>`
+          : ''
+
+        const timestampHtml = showTimestamps
+          ? `<span>🕒 ${photoTime}</span>`
+          : '<span></span>'
+
+        return `
+          <div class="tile">
+            <img src="${asset.url}" />
+            ${badgeHtml}
+            <div class="tile-footer">
+              ${timestampHtml}
+              <span>#${displayIndex}</span>
+            </div>
+          </div>
+        `
+      }).join('')
+
+      const albumCardHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            @font-face {
+              font-family: 'Sarabun';
+              src: url('data:font/ttf;charset=utf-8;base64,${regBase64}') format('truetype');
+              font-weight: normal;
+              font-style: normal;
+            }
+            @font-face {
+              font-family: 'Sarabun';
+              src: url('data:font/ttf;charset=utf-8;base64,${boldBase64}') format('truetype');
+              font-weight: bold;
+              font-style: normal;
+            }
+            * {
+              box-sizing: border-box;
+              font-family: 'Sarabun', sans-serif !important;
+              font-synthesis: none !important;
+            }
+            body {
+              margin: 0;
+              padding: 0;
+              background: transparent;
+            }
+            #album-card {
+              width: 600px;
+              background: #0f172a;
+              overflow: hidden;
+              display: flex;
+              flex-direction: column;
+            }
+            .header {
+              background-color: ${headerBgColor};
+              padding: 20px 24px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              color: white;
+            }
+            .header-left {
+              display: flex;
+              flex-direction: column;
+              gap: 4px;
+            }
+            .header-title {
+              font-size: 20px;
+              font-weight: bold;
+            }
+            .header-subtitle {
+              font-size: 13px;
+              color: #cbd5e1;
+            }
+            .header-right {
+              font-size: 13px;
+              color: #cbd5e1;
+              font-weight: 500;
+            }
+            .grid {
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              gap: 12px;
+              padding: 16px;
+              background: #0f172a;
+            }
+            .tile {
+              position: relative;
+              border-radius: 8px;
+              overflow: hidden;
+              aspect-ratio: 4/3;
+              background: #1e293b;
+            }
+            .tile img {
+              width: 100%;
+              height: 100%;
+              object-fit: cover;
+              display: block;
+            }
+            .badge-top-left {
+              position: absolute;
+              top: 10px;
+              left: 10px;
+              color: white;
+              font-size: 12px;
+              font-weight: bold;
+              padding: 3px 8px;
+              border-radius: 4px;
+            }
+            .tile-footer {
+              position: absolute;
+              bottom: 0;
+              left: 0;
+              right: 0;
+              background: rgba(15, 23, 42, 0.75);
+              color: white;
+              font-size: 12px;
+              padding: 6px 10px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            }
+          </style>
+        </head>
+        <body>
+          <div id="album-card">
+            <div class="header">
+              <div class="header-left">
+                <div class="header-title">${isWti ? '📥 รับสินค้า' : '📤 ส่งสินค้า'} &middot; ${pageIdx + 1}/${totalPages}</div>
+                <div class="header-subtitle">${ticket.partyName || '-'} &middot; ${ticket.documentNo}</div>
+              </div>
+              <div class="header-right">NS PRODUCTION</div>
+            </div>
+            <div class="grid">
+              ${tilesHtml}
+            </div>
+          </div>
+        </body>
+        </html>
+      `
+
+      const imgPage = await context.newPage()
+      await imgPage.setContent(albumCardHtml, { waitUntil: 'load' })
+      await imgPage.evaluate(() => document.fonts.ready)
+
+      const cardElement = imgPage.locator('#album-card')
+      const imgBuffer = await cardElement.screenshot({
+        type: 'jpeg',
+        quality: quality
+      })
+      await imgPage.close()
+
+      albumImages.push({
+        pageIdx,
+        buffer: Buffer.from(imgBuffer)
+      })
+    }
+  }
+
+  await browser.close()
+  return { pdfBuffer: Buffer.from(pdfBuffer), albumImages }
 }
 
 async function uploadPdf(ticket: WeightTicketRecord, pdfBuffer: Buffer, bucketName: string) {
@@ -1064,6 +637,13 @@ async function uploadPdf(ticket: WeightTicketRecord, pdfBuffer: Buffer, bucketNa
   }
   const supabase = getSupabaseAdminClient()
   if (!supabase) {
+    if (process.env.NODE_ENV === 'development' || process.env.MOCK_PDF_UPLOAD_FALLBACK === 'true') {
+      console.warn('[uploadPdf] SUPABASE_SERVICE_ROLE_KEY missing, falling back to dummy url in development')
+      return {
+        pdfUrl: `https://${process.env.NEXT_PUBLIC_SUPABASE_URL ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname : 'fhglqymcdmrgbsbadnwr.supabase.co'}/storage/v1/object/public/${bucketName}/dummy-test-ticket.pdf`,
+        storageKey: 'dummy-test-ticket.pdf'
+      }
+    }
     throw new Error('ยังไม่ได้ตั้งค่า SUPABASE_SERVICE_ROLE_KEY สำหรับอัปโหลด PDF')
   }
   const storageKey = `${safeStorageSegment(ticket.documentNo)}/${Date.now()}-${safeStorageSegment(ticket.documentNo)}.pdf`
@@ -1085,11 +665,45 @@ async function uploadPdf(ticket: WeightTicketRecord, pdfBuffer: Buffer, bucketNa
   return { pdfUrl: data.publicUrl, storageKey }
 }
 
+async function uploadAlbumImage(ticket: WeightTicketRecord, buffer: Buffer, pageIdx: number, bucketName: string) {
+  if (process.env.MOCK_PDF_UPLOAD === 'true') {
+    return `https://${process.env.NEXT_PUBLIC_SUPABASE_URL ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname : 'fhglqymcdmrgbsbadnwr.supabase.co'}/storage/v1/object/public/${bucketName}/dummy-album-${pageIdx + 1}.jpg`
+  }
+  const supabase = getSupabaseAdminClient()
+  if (!supabase) {
+    if (process.env.NODE_ENV === 'development' || process.env.MOCK_PDF_UPLOAD_FALLBACK === 'true') {
+      return `https://${process.env.NEXT_PUBLIC_SUPABASE_URL ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname : 'fhglqymcdmrgbsbadnwr.supabase.co'}/storage/v1/object/public/${bucketName}/dummy-album-${pageIdx + 1}.jpg`
+    }
+    throw new Error('ยังไม่ได้ตั้งค่า SUPABASE_SERVICE_ROLE_KEY สำหรับอัปโหลดรูปภาพอัลบั้ม')
+  }
+  const storageKey = `${safeStorageSegment(ticket.documentNo)}/album/finish-${Date.now()}-${pageIdx + 1}.jpg`
+  const { error } = await supabase.storage.from(bucketName).upload(storageKey, buffer, {
+    contentType: 'image/jpeg',
+    upsert: true,
+  })
+  if (error) {
+    if (process.env.MOCK_PDF_UPLOAD_FALLBACK === 'true') {
+      console.warn('[uploadAlbumImage] upload failed, falling back to dummy url:', error.message)
+      return `https://${process.env.NEXT_PUBLIC_SUPABASE_URL ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname : 'fhglqymcdmrgbsbadnwr.supabase.co'}/storage/v1/object/public/${bucketName}/dummy-album-${pageIdx + 1}.jpg`
+    }
+    throw new Error(`อัปโหลดรูปภาพอัลบั้มไป Supabase Storage ไม่สำเร็จ: ${error.message}`)
+  }
+  const { data } = supabase.storage.from(bucketName).getPublicUrl(storageKey)
+  return data.publicUrl
+}
+
 function buildDetailUrl(origin: string, documentNo: string) {
   return new URL(`/daily/weight-ticket-list/${encodeURIComponent(documentNo)}`, origin).toString()
 }
 
-function buildFlexMessage(ticket: WeightTicketRecord, pdfUrl: string, detailUrl: string, imagePublicUrls: string[], customMessage?: string) {
+function buildFlexMessage(
+  ticket: WeightTicketRecord,
+  pdfUrl: string,
+  detailUrl: string,
+  imagePublicUrls: string[],
+  albumImageUrls: string[],
+  customMessage?: string
+) {
   const isWti = ticket.type === 'WTI'
   const partyLabel = isWti ? 'ผู้ขาย' : 'ลูกค้า'
   const typeLabel = isWti ? '📥 รับสินค้า' : '📤 ส่งสินค้า'
@@ -1287,6 +901,7 @@ function buildFlexMessage(ticket: WeightTicketRecord, pdfUrl: string, detailUrl:
       const chunk = decodedImages.slice(pageIdx * chunkSize, (pageIdx + 1) * chunkSize)
       const gridRows: any[] = []
       const rowCount = Math.ceil(chunk.length / 2)
+      const albumUrl = albumImageUrls[pageIdx] || pdfUrl
 
       for (let r = 0; r < rowCount; r++) {
         const img1 = chunk[r * 2]
@@ -1295,12 +910,12 @@ function buildFlexMessage(ticket: WeightTicketRecord, pdfUrl: string, detailUrl:
 
         // Column 1
         const idx1 = pageIdx * chunkSize + r * 2 + 1
-        rowContents.push(buildPhotoTile(img1, idx1, ticket.createdAt, isWti))
+        rowContents.push(buildPhotoTile(img1, idx1, ticket.createdAt, isWti, albumUrl))
 
         // Column 2
         if (img2) {
           const idx2 = pageIdx * chunkSize + r * 2 + 2
-          rowContents.push(buildPhotoTile(img2, idx2, ticket.createdAt, isWti))
+          rowContents.push(buildPhotoTile(img2, idx2, ticket.createdAt, isWti, albumUrl))
         } else {
           rowContents.push({
             type: 'box' as const,
@@ -1320,6 +935,11 @@ function buildFlexMessage(ticket: WeightTicketRecord, pdfUrl: string, detailUrl:
 
       const photoBubble = {
         type: 'bubble' as const,
+        action: {
+          type: 'uri' as const,
+          label: 'ดูรูปทั้งหมด',
+          uri: albumUrl
+        },
         header: {
           type: 'box' as const,
           layout: 'vertical' as const,
@@ -1442,7 +1062,13 @@ function buildFlexMessage(ticket: WeightTicketRecord, pdfUrl: string, detailUrl:
   }
 }
 
-function buildPhotoTile(asset: { fileName: string; url: string }, index: number, ticketCreatedAt: string, isWti: boolean) {
+function buildPhotoTile(
+  asset: { fileName: string; url: string },
+  index: number,
+  ticketCreatedAt: string,
+  isWti: boolean,
+  albumUrl: string
+) {
   const isOut = asset.fileName.toLowerCase().includes('out') ||
                 asset.fileName.toLowerCase().includes('exit') ||
                 asset.fileName.includes('ขาออก')
@@ -1468,8 +1094,8 @@ function buildPhotoTile(asset: { fileName: string; url: string }, index: number,
             size: 'full' as const,
             action: {
               type: 'uri' as const,
-              label: `รูปที่ ${index}`,
-              uri: asset.url || ''
+              label: `ดูรูป`,
+              uri: albumUrl
             }
           },
           {
@@ -1520,10 +1146,41 @@ function buildPhotoTile(asset: { fileName: string; url: string }, index: number,
   }
 }
 
+function formatCustomTemplate(template: string, ticket: WeightTicketRecord, pdfUrl: string) {
+  let docDateStr = ''
+  try {
+    const date = ticket.createdAt ? new Date(ticket.createdAt) : new Date()
+    const parts = new Intl.DateTimeFormat('en-US', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'Asia/Bangkok'
+    }).formatToParts(date)
+    const byType = Object.fromEntries(parts.map(p => [p.type, p.value]))
+    const yearBE = parseInt(byType.year, 10) + 543
+    docDateStr = `${byType.day}/${byType.month}/${yearBE} ${byType.hour}:${byType.minute}`
+  } catch {
+    docDateStr = formatDateDisplay(ticket.documentDate)
+  }
+
+  return template
+    .replace(/\[DocumentNo\]/g, ticket.documentNo || '-')
+    .replace(/\[PartyName\]/g, ticket.partyName || '-')
+    .replace(/\[BranchName\]/g, ticket.branchName || '-')
+    .replace(/\[DocDateTime\]/g, docDateStr)
+    .replace(/\[ContainerWeight\]/g, formatWeight(ticket.totals.containerDeductionWeight))
+    .replace(/\[DeductionWeight\]/g, formatWeight(ticket.totals.deductionWeight))
+    .replace(/\[NetWeight\]/g, formatWeight(ticket.totals.netWeight))
+    .replace(/\[PdfUrl\]/g, pdfUrl || '-')
+}
+
 function buildTextMessageContent(ticket: WeightTicketRecord, pdfUrl: string) {
   const partyLabel = ticket.type === 'WTI' ? 'ผู้ขาย' : 'ลูกค้า'
   const typeLabel = typeLabels[ticket.type] || (ticket.type === 'WTI' ? 'ใบรับของ' : 'ใบส่งของ')
-  
+
   let docDateStr = ''
   try {
     const date = ticket.createdAt ? new Date(ticket.createdAt) : new Date()
@@ -1556,25 +1213,42 @@ ${partyLabel}: ${ticket.partyName}
 ${pdfUrl}`
 }
 
-async function sendLinePush(targetId: string, messages: any[], token: string) {
+export async function sendLinePush(targetId: string, messages: any[], token: string, retryKey?: string) {
   if (!token) throw new Error('ยังไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN')
+
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+  }
+  if (retryKey) {
+    headers['X-Line-Retry-Key'] = retryKey
+  }
 
   const response = await fetch('https://api.line.me/v2/bot/message/push', {
     body: JSON.stringify({
       messages,
       to: targetId,
     }),
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
+    headers,
     method: 'POST',
   })
+
+  if (response.status === 409 && retryKey) {
+    const acceptedRequestId = response.headers.get('x-line-accepted-request-id') || response.headers.get('x-line-request-id')
+    return {
+      lineRequestId: acceptedRequestId || null,
+      isConflict: true
+    }
+  }
+
   if (!response.ok) {
     const body = await response.text()
     throw new Error(`LINE Push Message ไม่สำเร็จ (${response.status}): ${body}`)
   }
-  return response.headers.get('x-line-request-id')
+  return {
+    lineRequestId: response.headers.get('x-line-request-id') || null,
+    isConflict: false
+  }
 }
 
 async function recordNotificationLog(values: {
@@ -1685,9 +1359,9 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
   const configs = await resolveNotificationConfigs()
 
   let targets: string[] = []
-  if (options.targetId) {
+  if (options.targetId && options.targetId !== 'routing') {
     targets = [options.targetId]
-  } else if (configs.lineDefaultTargetId) {
+  } else if (configs.lineDefaultTargetId && options.targetId !== 'routing') {
     targets = [configs.lineDefaultTargetId]
   } else {
     // Multi-target & Branch Routing
@@ -1717,14 +1391,27 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
 
   try {
     const profile = await loadCompanyPrintProfile(loaded.record.branchId)
-    const pdfBuffer = await generateWeightTicketPdf(loaded.record, profile)
+    const { pdfBuffer, albumImages } = await generateWeightTicketPdf(loaded.record, profile, {
+      showBadges: configs.albumShowBadges,
+      showTimestamps: configs.albumShowTimestamps,
+      quality: configs.albumQuality,
+    })
     const uploaded = await uploadPdf(loaded.record, pdfBuffer, configs.pdfBucket)
+
+    // Upload album images
+    const albumImageUrls: string[] = []
+    for (const albumImg of albumImages) {
+      const url = await uploadAlbumImage(loaded.record, albumImg.buffer, albumImg.pageIdx, configs.pdfBucket)
+      albumImageUrls.push(url)
+    }
+
     const detailUrl = buildDetailUrl(options.origin || configs.appUrl, loaded.record.documentNo)
     const imagePublicUrls = await resolveImagePublicUrls(loaded.record, configs.pdfBucket)
-    const flexMessage = buildFlexMessage(loaded.record, uploaded.pdfUrl, detailUrl, imagePublicUrls, options.customMessage)
+    const flexMessage = buildFlexMessage(loaded.record, uploaded.pdfUrl, detailUrl, imagePublicUrls, albumImageUrls, options.customMessage)
+    const customTemplate = loaded.record.type === 'WTI' ? configs.wtiTemplate : configs.wtoTemplate
     const textMessage = {
       type: 'text',
-      text: buildTextMessageContent(loaded.record, uploaded.pdfUrl)
+      text: formatCustomTemplate(customTemplate, loaded.record, uploaded.pdfUrl)
     }
 
     const sentResults: Array<{ targetId: string; status: 'sent' | 'failed' | 'skipped'; lineRequestId?: string; error?: string }> = []
@@ -1749,7 +1436,8 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
 
       // 2. Send Line Push
       try {
-        const lineRequestId = await sendLinePush(target, [textMessage, flexMessage], configs.lineChannelAccessToken)
+        const pushResult = await sendLinePush(target, [textMessage, flexMessage], configs.lineChannelAccessToken, options.retryKey)
+        const lineRequestId = pushResult.lineRequestId
         lastSentRequestId = lineRequestId || null
         await recordNotificationLog({
           customMessage: options.customMessage,
@@ -1762,7 +1450,11 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
           targetId: target,
           ticketId: loaded.id,
         })
-        sentResults.push({ targetId: target, status: 'sent', lineRequestId: lineRequestId || undefined })
+        sentResults.push({
+          targetId: target,
+          status: pushResult.isConflict ? 'skipped' : 'sent',
+          lineRequestId: lineRequestId || undefined
+        })
       } catch (err: any) {
         const errMsg = err instanceof Error ? err.message : String(err)
         await recordNotificationLog({

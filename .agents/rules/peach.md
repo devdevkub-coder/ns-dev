@@ -52,3 +52,9 @@ description: "Peach: AcexPOS UI Standard, Git & Scope Rules"
 - **Daily Checklist:** Always create/update a daily task checklist (e.g. `task17-06-26.md`) before making edits.
 - **Final Flow Summary:** Write/update flow docs in `docs/notes/` describing entities and rationale when business flows are completed or UAT tested.
 - **Workspace Cleanliness:** Run `git status` to clean temporary files and only stage related code changes before proposing commits.
+- **Plane Workflow Standard (ขั้นตอนการทำงานบน Plane):**
+  For tasks tracked on Plane (https://plane.devkub.com/), follow this workflow:
+  1. **Backlog -> Todo**: If a ticket assigned to us is in **Backlog**, move it to **Todo**.
+  2. **Todo -> In Progress**: When starting development/coding, move it to **In Progress**.
+  3. **In Progress -> Wait for test**: Once coding and local testing/validation are complete, move the ticket to **Wait for test**, write a Thai summary comment explaining the changes, and attach a UAT screenshot showing the result.
+

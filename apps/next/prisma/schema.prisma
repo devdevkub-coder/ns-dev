@@ -540,38 +540,38 @@ model accounts {
 }
 
 model assets {
-  code                 String          @unique
+  code                 String            @unique
   name                 String
   category             String?
   department           String?
   location             String?
   responsible_person   String?
-  purchase_date        DateTime?       @db.Date
+  purchase_date        DateTime?         @db.Date
   acquisition_type     String?
-  original_cost        Decimal?        @default(0) @db.Decimal
-  vat_amount           Decimal?        @default(0) @db.Decimal
-  net_asset_cost       Decimal?        @default(0) @db.Decimal
-  salvage_value        Decimal?        @default(0) @db.Decimal
-  useful_life_months   Int?            @default(60)
-  depreciation_method  String?         @default("Straight Line")
-  asset_status         String?         @default("Active")
+  original_cost        Decimal?          @default(0) @db.Decimal
+  vat_amount           Decimal?          @default(0) @db.Decimal
+  net_asset_cost       Decimal?          @default(0) @db.Decimal
+  salvage_value        Decimal?          @default(0) @db.Decimal
+  useful_life_months   Int?              @default(60)
+  depreciation_method  String?           @default("Straight Line")
+  asset_status         String?           @default("Active")
   serial_no            String?
   license_plate        String?
   chassis_no           String?
   engine_no            String?
   insurance_policy_no  String?
-  warranty_expire_date DateTime?       @db.Date
+  warranty_expire_date DateTime?         @db.Date
   notes                String?
   created_by           String?
-  created_at           DateTime?       @default(now()) @db.Timestamptz(6)
+  created_at           DateTime?         @default(now()) @db.Timestamptz(6)
   branch_id            BigInt?
   supplier_id          BigInt?
-  id                   BigInt          @id @default(autoincrement())
+  id                   BigInt            @id @default(autoincrement())
   purchase_bill_id     BigInt?
-  branches             branches?       @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  suppliers            suppliers?      @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  depreciations        depreciations[]
   asset_disposals      asset_disposals[]
+  branches             branches?         @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  suppliers            suppliers?        @relation(fields: [supplier_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  depreciations        depreciations[]
 
   @@schema("public")
 }
@@ -597,7 +597,6 @@ model departments {
 
   @@schema("public")
 }
-
 
 model audit_logs {
   user_id     String?     @db.Uuid
@@ -832,11 +831,11 @@ model customers {
   po_sells                 po_sells[]
   receipts                 receipts[]
   sales_bill_customer_advance_allocations sales_bill_customer_advance_allocations[]
-  sales_bills              sales_bills[]
-  stock_issues             stock_issues[]
-  trading_allocation_facts trading_allocation_facts[]
-  trading_deals            trading_deals[]
-  weight_tickets           weight_tickets[]
+  sales_bills                             sales_bills[]
+  stock_issues                            stock_issues[]
+  trading_allocation_facts                trading_allocation_facts[]
+  trading_deals                           trading_deals[]
+  weight_tickets                          weight_tickets[]
 
   @@index([name], map: "idx_customers_name")
   @@index([active], map: "idx_customers_active")
@@ -920,7 +919,7 @@ model asset_disposals {
   reversed_at            DateTime?          @db.Timestamptz(6)
   reversed_by            String?
   reversal_reason        String?
-  assets                 assets             @relation(fields: [asset_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  assets                 assets             @relation(fields: [asset_id], references: [id], onUpdate: NoAction)
   customers              customers?         @relation(fields: [customer_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   customer_receipts      customer_receipts? @relation(fields: [customer_receipt_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
@@ -1588,12 +1587,6 @@ model petty_advance_returns {
   date           DateTime       @db.Date
   amount         Decimal        @default(0) @db.Decimal
   notes          String?
-  status         String         @default("approved")
-  approved_at    DateTime?      @db.Timestamptz(6)
-  approved_by    String?
-  voided_at      DateTime?      @db.Timestamptz(6)
-  voided_by      String?
-  void_reason    String?
   created_by     String?
   created_at     DateTime       @default(now()) @db.Timestamptz(6)
   updated_by     String?
@@ -1603,6 +1596,12 @@ model petty_advance_returns {
   account_id     BigInt?
   advance_id     BigInt
   doc_no         String         @unique(map: "uq_petty_advance_returns_doc_no")
+  status         String         @default("approved")
+  approved_at    DateTime?      @db.Timestamptz(6)
+  approved_by    String?
+  voided_at      DateTime?      @db.Timestamptz(6)
+  voided_by      String?
+  void_reason    String?
   accounts       accounts?      @relation(fields: [account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   petty_advances petty_advances @relation(fields: [advance_id], references: [id], onUpdate: NoAction)
 
@@ -2403,9 +2402,9 @@ model customer_receipts {
   branch_id                    BigInt?
   payment_method_id            BigInt
   bank_statement_id            BigInt?                        @unique
+  asset_disposals              asset_disposals[]
   customer_receipt_allocations customer_receipt_allocations[]
   customer_receipt_status_logs customer_receipt_status_logs[]
-  asset_disposals              asset_disposals[]
   accounts                     accounts                       @relation(fields: [account_id], references: [id], onUpdate: NoAction)
   bank_statement               bank_statement?                @relation(fields: [bank_statement_id], references: [id], onUpdate: NoAction)
   branches                     branches?                      @relation(fields: [branch_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
@@ -2507,64 +2506,64 @@ model roles_config {
 }
 
 model sales_bills {
-  doc_no                       String                         @unique(map: "uq_sales_bills_doc_no")
-  date                         DateTime                       @db.Date
-  ref_no                       String?
-  transaction_mode             String?                        @default("STOCK")
-  vat_type                     String?                        @default("EXCLUDE")
-  credit_term                  Int?                           @default(0)
-  subtotal                     Decimal?                       @default(0) @db.Decimal
-  discount                     Decimal?                       @default(0) @db.Decimal
-  vat_amount                   Decimal?                       @default(0) @db.Decimal
-  total_amount                 Decimal                        @db.Decimal
-  received_amount              Decimal?                       @default(0) @db.Decimal
-  receivable_balance           Decimal?                       @default(0) @db.Decimal
-  cogs_amount                  Decimal?                       @default(0) @db.Decimal
-  gross_profit                 Decimal?                       @default(0) @db.Decimal
-  status                       String?                        @default("open")
-  items                        Json?
-  notes                        String?
-  created_by                   String?
-  created_at                   DateTime?                      @default(now()) @db.Timestamptz(6)
-  updated_at                   DateTime?                      @default(now()) @db.Timestamptz(6)
-  license_plate                String?
-  contact_phone                String?
-  contact_name                 String?
-  trading_from_purchase_ids    Json?
-  sales_source                 String?
-  vat_invoice_issued           Boolean?                       @default(false)
-  vat_invoice_no               String?
-  vat_invoice_date             DateTime?                      @db.Date
-  discount_total               Decimal?                       @default(0) @db.Decimal
-  has_vat                      Boolean?                       @default(false)
-  salesman                     String?
-  note                         String?
-  from_p_sale_no               String?
-  has_wht                      Boolean?                       @default(false)
-  wht_amount                   Decimal?                       @default(0) @db.Decimal
-  paid_amount                  Decimal?                       @default(0) @db.Decimal
-  total_cost                   Decimal?                       @db.Decimal
-  updated_by                   String?
-  total_commission             Decimal?                       @default(0) @db.Decimal
-  commission_pct               Decimal?                       @default(0) @db.Decimal
-  version                      Int?                           @default(1)
-  due_date                     DateTime?                      @db.Date
-  bill_date                    DateTime?                      @db.Date
-  payment_type                 String?
-  is_opening                   Boolean?                       @default(false)
-  customer_id                  BigInt?
-  branch_id                    BigInt?
-  warehouse_id                 BigInt?
-  sales_id                     BigInt?
-  id                           BigInt                         @id @default(autoincrement())
-  channel_id                   BigInt?
-  from_p_sale_id               BigInt?
-  po_sell_id                   BigInt?
-  trading_from_purchase_id     BigInt?
-  cancel_note                  String?
-  cancelled_at                 DateTime?                      @db.Timestamptz(6)
-  cancelled_by                 String?
-  customer_receipt_allocations customer_receipt_allocations[]
+  doc_no                                  String                                    @unique(map: "uq_sales_bills_doc_no")
+  date                                    DateTime                                  @db.Date
+  ref_no                                  String?
+  transaction_mode                        String?                                   @default("STOCK")
+  vat_type                                String?                                   @default("EXCLUDE")
+  credit_term                             Int?                                      @default(0)
+  subtotal                                Decimal?                                  @default(0) @db.Decimal
+  discount                                Decimal?                                  @default(0) @db.Decimal
+  vat_amount                              Decimal?                                  @default(0) @db.Decimal
+  total_amount                            Decimal                                   @db.Decimal
+  received_amount                         Decimal?                                  @default(0) @db.Decimal
+  receivable_balance                      Decimal?                                  @default(0) @db.Decimal
+  cogs_amount                             Decimal?                                  @default(0) @db.Decimal
+  gross_profit                            Decimal?                                  @default(0) @db.Decimal
+  status                                  String?                                   @default("open")
+  items                                   Json?
+  notes                                   String?
+  created_by                              String?
+  created_at                              DateTime?                                 @default(now()) @db.Timestamptz(6)
+  updated_at                              DateTime?                                 @default(now()) @db.Timestamptz(6)
+  license_plate                           String?
+  contact_phone                           String?
+  contact_name                            String?
+  trading_from_purchase_ids               Json?
+  sales_source                            String?
+  vat_invoice_issued                      Boolean?                                  @default(false)
+  vat_invoice_no                          String?
+  vat_invoice_date                        DateTime?                                 @db.Date
+  discount_total                          Decimal?                                  @default(0) @db.Decimal
+  has_vat                                 Boolean?                                  @default(false)
+  salesman                                String?
+  note                                    String?
+  from_p_sale_no                          String?
+  has_wht                                 Boolean?                                  @default(false)
+  wht_amount                              Decimal?                                  @default(0) @db.Decimal
+  paid_amount                             Decimal?                                  @default(0) @db.Decimal
+  total_cost                              Decimal?                                  @db.Decimal
+  updated_by                              String?
+  total_commission                        Decimal?                                  @default(0) @db.Decimal
+  commission_pct                          Decimal?                                  @default(0) @db.Decimal
+  version                                 Int?                                      @default(1)
+  due_date                                DateTime?                                 @db.Date
+  bill_date                               DateTime?                                 @db.Date
+  payment_type                            String?
+  is_opening                              Boolean?                                  @default(false)
+  customer_id                             BigInt?
+  branch_id                               BigInt?
+  warehouse_id                            BigInt?
+  sales_id                                BigInt?
+  id                                      BigInt                                    @id @default(autoincrement())
+  channel_id                              BigInt?
+  from_p_sale_id                          BigInt?
+  po_sell_id                              BigInt?
+  trading_from_purchase_id                BigInt?
+  cancel_note                             String?
+  cancelled_at                            DateTime?                                 @db.Timestamptz(6)
+  cancelled_by                            String?
+  customer_receipt_allocations            customer_receipt_allocations[]
   sales_bill_customer_advance_allocations sales_bill_customer_advance_allocations[]
   sales_bill_lines             sales_bill_lines[]
   po_sell_allocation_logs      po_sell_allocation_logs[]
@@ -2650,38 +2649,38 @@ model sales_bill_lines {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model sales_bill_source_allocations {
-  id                       BigInt            @id @default(autoincrement())
-  sales_bill_id            BigInt
-  sales_bill_line_id       BigInt?
-  sales_line_no            Int
-  source_type              String
-  source_doc_no            String
-  source_line_no           Int?
-  source_id                BigInt?
-  weight_ticket_id         BigInt?
-  stock_issue_id           BigInt?
-  product_id               BigInt?
-  product_code_snapshot    String
-  product_name_snapshot    String
-  allocated_qty            Decimal           @default(0) @db.Decimal
-  allocated_gross_weight   Decimal           @default(0) @db.Decimal
-  allocated_deduct_weight  Decimal           @default(0) @db.Decimal
-  allocated_net_weight     Decimal           @default(0) @db.Decimal
-  movement_owner           String
-  stock_ledger_ref_type    String?
-  status                   String            @default("active")
-  notes                    String?
-  meta                     Json?
-  created_at               DateTime          @default(now()) @db.Timestamptz(6)
-  created_by               String?
-  updated_at               DateTime          @default(now()) @db.Timestamptz(6)
-  updated_by               String?
-  version                  Int               @default(1)
-  products                 products?         @relation(fields: [product_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  sales_bill_lines         sales_bill_lines? @relation(fields: [sales_bill_line_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  sales_bills              sales_bills       @relation(fields: [sales_bill_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  stock_issues             stock_issues?     @relation(fields: [stock_issue_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  weight_tickets           weight_tickets?   @relation(fields: [weight_ticket_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  id                      BigInt            @id @default(autoincrement())
+  sales_bill_id           BigInt
+  sales_bill_line_id      BigInt?
+  sales_line_no           Int
+  source_type             String
+  source_doc_no           String
+  source_line_no          Int?
+  source_id               BigInt?
+  weight_ticket_id        BigInt?
+  stock_issue_id          BigInt?
+  product_id              BigInt?
+  product_code_snapshot   String
+  product_name_snapshot   String
+  allocated_qty           Decimal           @default(0) @db.Decimal
+  allocated_gross_weight  Decimal           @default(0) @db.Decimal
+  allocated_deduct_weight Decimal           @default(0) @db.Decimal
+  allocated_net_weight    Decimal           @default(0) @db.Decimal
+  movement_owner          String
+  stock_ledger_ref_type   String?
+  status                  String            @default("active")
+  notes                   String?
+  meta                    Json?
+  created_at              DateTime          @default(now()) @db.Timestamptz(6)
+  created_by              String?
+  updated_at              DateTime          @default(now()) @db.Timestamptz(6)
+  updated_by              String?
+  version                 Int               @default(1)
+  products                products?         @relation(fields: [product_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  sales_bills             sales_bills       @relation(fields: [sales_bill_id], references: [id], onUpdate: NoAction)
+  sales_bill_lines        sales_bill_lines? @relation(fields: [sales_bill_line_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  stock_issues            stock_issues?     @relation(fields: [stock_issue_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  weight_tickets          weight_tickets?   @relation(fields: [weight_ticket_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
   @@index([sales_bill_id, sales_line_no, status], map: "idx_sales_bill_source_allocations_bill_line_status")
   @@index([source_type, source_doc_no, status], map: "idx_sales_bill_source_allocations_source_status")
@@ -2716,8 +2715,8 @@ model sales_bill_po_sell_allocations {
   version               Int               @default(1)
   po_sells              po_sells?         @relation(fields: [po_sell_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   products              products?         @relation(fields: [product_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  sales_bills           sales_bills       @relation(fields: [sales_bill_id], references: [id], onUpdate: NoAction)
   sales_bill_lines      sales_bill_lines? @relation(fields: [sales_bill_line_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  sales_bills           sales_bills       @relation(fields: [sales_bill_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
   @@index([sales_bill_id, sales_line_no, status], map: "idx_sales_bill_po_sell_allocations_bill_line_status")
   @@index([po_sell_id, status], map: "idx_sales_bill_po_sell_allocations_po_status", where: raw("(po_sell_id IS NOT NULL)"))
@@ -2760,25 +2759,25 @@ model po_sell_allocation_logs {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model sales_bill_customer_advance_allocations {
-  id                       BigInt      @id @default(autoincrement())
-  sales_bill_id            BigInt
-  customer_advance_doc_no  String
-  customer_id              BigInt?
-  customer_code_snapshot   String
-  customer_name_snapshot   String
-  allocated_amount         Decimal     @default(0) @db.Decimal
-  outstanding_before       Decimal     @default(0) @db.Decimal
-  outstanding_after        Decimal     @default(0) @db.Decimal
-  status                   String      @default("active")
-  notes                    String?
-  meta                     Json?
-  created_at               DateTime    @default(now()) @db.Timestamptz(6)
-  created_by               String?
-  updated_at               DateTime    @default(now()) @db.Timestamptz(6)
-  updated_by               String?
-  version                  Int         @default(1)
-  customers                customers?  @relation(fields: [customer_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  sales_bills              sales_bills @relation(fields: [sales_bill_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  id                      BigInt      @id @default(autoincrement())
+  sales_bill_id           BigInt
+  customer_advance_doc_no String
+  customer_id             BigInt?
+  customer_code_snapshot  String
+  customer_name_snapshot  String
+  allocated_amount        Decimal     @default(0) @db.Decimal
+  outstanding_before      Decimal     @default(0) @db.Decimal
+  outstanding_after       Decimal     @default(0) @db.Decimal
+  status                  String      @default("active")
+  notes                   String?
+  meta                    Json?
+  created_at              DateTime    @default(now()) @db.Timestamptz(6)
+  created_by              String?
+  updated_at              DateTime    @default(now()) @db.Timestamptz(6)
+  updated_by              String?
+  version                 Int         @default(1)
+  customers               customers?  @relation(fields: [customer_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  sales_bills             sales_bills @relation(fields: [sales_bill_id], references: [id], onUpdate: NoAction)
 
   @@index([sales_bill_id, status], map: "idx_sales_bill_customer_advance_allocations_bill_status")
   @@index([customer_advance_doc_no, status], map: "idx_sales_bill_customer_advance_allocations_advance_status")
@@ -2819,13 +2818,11 @@ model weight_tickets {
   party_name                        String
   vehicle_no                        String
   remark                            String?
-  warehouse_name                    String?
   entered_by                        String?
   image_count                       Int                                 @default(0)
   vehicle_image_count               Int                                 @default(0)
   vehicle_image_names               String[]                            @default([])
   gross_weight                      Decimal                             @default(0) @db.Decimal
-  container_deduction_weight        Decimal                             @default(0) @db.Decimal
   deduct_weight                     Decimal                             @default(0) @db.Decimal
   net_weight                        Decimal                             @default(0) @db.Decimal
   cancel_note                       String?
@@ -2839,10 +2836,13 @@ model weight_tickets {
   supplier_id                       BigInt?
   customer_id                       BigInt?
   id                                BigInt                              @id @default(autoincrement())
+  container_deduction_weight        Decimal                             @default(0) @db.Decimal
+  warehouse_name                    String?
   purchase_bill_receipt_allocations purchase_bill_receipt_allocations[]
   sales_bill_source_allocations     sales_bill_source_allocations[]
   stock_holds                       stock_holds[]
   weight_ticket_lines               weight_ticket_lines[]
+  weight_ticket_notification_logs   weight_ticket_notification_logs[]
   weight_ticket_product_summaries   weight_ticket_product_summaries[]
   weight_ticket_status_logs         weight_ticket_status_logs[]
   weight_ticket_usage_logs          weight_ticket_usage_logs[]
@@ -2866,7 +2866,6 @@ model weight_ticket_lines {
   line_no                             Int
   product_name                        String
   gross_weight                        Decimal                              @default(0) @db.Decimal
-  container_deduction_weight          Decimal                              @default(0) @db.Decimal
   deduct_weight                       Decimal                              @default(0) @db.Decimal
   net_weight                          Decimal                              @default(0) @db.Decimal
   deduction_mode                      String
@@ -2878,11 +2877,12 @@ model weight_ticket_lines {
   created_at                          DateTime                             @default(now()) @db.Timestamptz(6)
   id                                  BigInt                               @id @default(autoincrement())
   impurity_id                         BigInt?
-  impurity_source_line_no             Int?
-  parent_line_no                      Int?
   product_id                          BigInt
   weight_ticket_id                    BigInt
   warehouse_id                        BigInt?
+  container_deduction_weight          Decimal                              @default(0) @db.Decimal
+  parent_line_no                      Int?
+  impurity_source_line_no             Int?
   stock_holds                         stock_holds[]
   impurities                          impurities?                          @relation(fields: [impurity_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   products                            products                             @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -2904,7 +2904,6 @@ model weight_ticket_product_summaries {
   product_name                        String
   line_count                          Int                                   @default(0)
   gross_weight                        Decimal                               @default(0) @db.Decimal
-  container_deduction_weight          Decimal                               @default(0) @db.Decimal
   deduct_weight                       Decimal                               @default(0) @db.Decimal
   net_weight                          Decimal                               @default(0) @db.Decimal
   billed_weight                       Decimal                               @default(0) @db.Decimal
@@ -2915,6 +2914,7 @@ model weight_ticket_product_summaries {
   id                                  BigInt                                @id @default(autoincrement())
   product_id                          BigInt
   weight_ticket_id                    BigInt
+  container_deduction_weight          Decimal                               @default(0) @db.Decimal
   purchase_bill_receipt_allocations   purchase_bill_receipt_allocations[]
   products                            products                              @relation(fields: [product_id], references: [id], onUpdate: NoAction)
   weight_tickets                      weight_tickets                        @relation(fields: [weight_ticket_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -3049,25 +3049,25 @@ model stock_adjustments {
 }
 
 model stock_issues {
-  doc_no                  String
-  date                    DateTime                  @db.Date
-  total_cost              Decimal?                  @default(0) @db.Decimal
-  total_est_amount        Decimal?                  @default(0) @db.Decimal
-  status                  String?                   @default("pending")
-  items                   Json?
-  notes                   String?
-  created_by              String?
-  created_at              DateTime?                 @default(now()) @db.Timestamptz(6)
-  customer_id             BigInt?
-  branch_id               BigInt?
-  warehouse_id            BigInt?
-  id                      BigInt                    @id @default(autoincrement())
-  converted_to_bill_id    BigInt?
+  doc_no                        String
+  date                          DateTime                        @db.Date
+  total_cost                    Decimal?                        @default(0) @db.Decimal
+  total_est_amount              Decimal?                        @default(0) @db.Decimal
+  status                        String?                         @default("pending")
+  items                         Json?
+  notes                         String?
+  created_by                    String?
+  created_at                    DateTime?                       @default(now()) @db.Timestamptz(6)
+  customer_id                   BigInt?
+  branch_id                     BigInt?
+  warehouse_id                  BigInt?
+  id                            BigInt                          @id @default(autoincrement())
+  converted_to_bill_id          BigInt?
   sales_bill_source_allocations sales_bill_source_allocations[]
-  stock_issue_status_logs stock_issue_status_logs[]
-  branches                branches?                 @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  customers               customers?                @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  warehouses              warehouses?               @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  stock_issue_status_logs       stock_issue_status_logs[]
+  branches                      branches?                       @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customers                     customers?                      @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  warehouses                    warehouses?                     @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([converted_to_bill_id, status], map: "idx_stock_issues_converted_bill", where: raw("(converted_to_bill_id IS NOT NULL)"))
   @@index([date(sort: Desc), doc_no(sort: Desc)], map: "idx_stock_issues_date_doc")
@@ -3169,6 +3169,7 @@ model stock_transfers {
   id                   BigInt                 @id @default(autoincrement())
   doc_no               String                 @unique
   date                 DateTime               @db.Date
+  transfer_date        DateTime?              @db.Date
   from_branch_id       BigInt
   from_warehouse_id    BigInt
   to_branch_id         BigInt
@@ -3835,13 +3836,6 @@ model app_users {
   username                                                      String
   display_name                                                  String?
   email                                                         String?
-  name_prefix                                                   String?
-  first_name                                                    String?
-  last_name                                                     String?
-  profile_image_url                                             String?
-  contact_phone                                                 String?
-  contact_line_id                                               String?
-  contact_note                                                  String?
   active                                                        Boolean                  @default(true)
   must_change_password                                          Boolean                  @default(false)
   last_login_at                                                 DateTime?                @db.Timestamptz(6)
@@ -3850,6 +3844,13 @@ model app_users {
   created_by                                                    String?
   updated_by                                                    String?
   id                                                            BigInt                   @id @default(autoincrement())
+  name_prefix                                                   String?
+  first_name                                                    String?
+  last_name                                                     String?
+  profile_image_url                                             String?
+  contact_phone                                                 String?
+  contact_line_id                                               String?
+  contact_note                                                  String?
   app_activity_logs                                             app_activity_logs[]
   app_audit_logs                                                app_audit_logs[]
   app_auth_events_app_auth_events_actor_app_user_idToapp_users  app_auth_events[]        @relation("app_auth_events_actor_app_user_idToapp_users")
@@ -3987,15 +3988,165 @@ model line_groups {
   group_id    String   @unique
   name        String
   picture_url String?
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
   branch_code String?
   notify_wti  Boolean  @default(true)
   notify_wto  Boolean  @default(true)
   is_active   Boolean  @default(true)
-  updated_at  DateTime @default(now()) @db.Timestamptz(6)
 
   @@schema("public")
 }
 
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model line_command_permissions {
+  id         BigInt   @id @default(autoincrement())
+  target_id  String
+  user_id    String?
+  command    String
+  is_allowed Boolean  @default(true)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model line_message_templates {
+  id             BigInt   @id @default(autoincrement())
+  name           String
+  template_type  String   @default("weight_ticket")
+  is_default_wti Boolean  @default(false)
+  is_default_wto Boolean  @default(false)
+  is_active      Boolean  @default(true)
+  config         Json
+  created_by     String?
+  updated_by     String?
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime @default(now()) @db.Timestamptz(6)
+
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model line_notification_attempts {
+  id                     BigInt                 @id @default(autoincrement())
+  job_id                 BigInt
+  attempt_no             Int
+  status                 String
+  http_status            Int?
+  line_request_id        String?
+  accepted_request_id    String?
+  error_code             String?
+  error_message          String?
+  duration_ms            Int?
+  created_at             DateTime               @default(now()) @db.Timestamptz(6)
+  line_notification_jobs line_notification_jobs @relation(fields: [job_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model line_notification_jobs {
+  id                         BigInt                       @id @default(autoincrement())
+  source_type                String                       @default("weight_ticket")
+  source_id                  BigInt
+  document_no                String
+  document_type              String
+  target_id                  String
+  target_type                String                       @default("unknown")
+  template_id                BigInt?
+  custom_message             String?
+  status                     String                       @default("pending")
+  priority                   Int                          @default(100)
+  attempt_count              Int                          @default(0)
+  max_attempts               Int                          @default(5)
+  next_retry_at              DateTime                     @default(now()) @db.Timestamptz(6)
+  locked_at                  DateTime?                    @db.Timestamptz(6)
+  locked_by                  String?
+  retry_key                  String                       @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pdf_storage_bucket         String?
+  pdf_storage_key            String?
+  pdf_url                    String?
+  line_request_id            String?
+  accepted_request_id        String?
+  last_error_code            String?
+  last_error_message         String?
+  requested_by               String?
+  created_at                 DateTime                     @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime                     @default(now()) @db.Timestamptz(6)
+  sent_at                    DateTime?                    @db.Timestamptz(6)
+  line_notification_attempts line_notification_attempts[]
+
+  @@unique([source_type, source_id, target_id], map: "line_notification_jobs_uniq_pending_idx", where: raw("(status IN ('pending'::text, 'processing'::text))"))
+  @@index([source_type, source_id], map: "line_notification_jobs_source_idx")
+  @@index([status, next_retry_at], map: "line_notification_jobs_status_retry_idx")
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model line_notification_rules {
+  id               BigInt   @id @default(autoincrement())
+  name             String
+  description      String?
+  priority         Int      @default(100)
+  is_active        Boolean  @default(true)
+  target_id        String
+  template_id      BigInt?
+  stop_after_match Boolean  @default(false)
+  conditions       Json     @default("{}")
+  created_by       String?
+  updated_by       String?
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([is_active, priority], map: "line_notification_rules_active_priority_idx")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model line_targets {
+  id              BigInt    @id @default(autoincrement())
+  target_id       String    @unique
+  target_type     String
+  display_name    String
+  picture_url     String?
+  branch_code     String?
+  is_default      Boolean   @unique(map: "line_targets_one_default_idx", where: raw("(is_default = true)")) @default(false)
+  is_active       Boolean   @default(true)
+  notify_wti      Boolean   @default(true)
+  notify_wto      Boolean   @default(true)
+  last_seen_at    DateTime? @db.Timestamptz(6)
+  last_event_type String?
+  registered_by   String?
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model weight_ticket_notification_logs {
+  id                 BigInt         @id @default(autoincrement())
+  weight_ticket_id   BigInt
+  delivery_channel   String         @default("line")
+  target_id          String?
+  status             String
+  pdf_storage_bucket String?
+  pdf_storage_key    String?
+  pdf_url            String?
+  line_request_id    String?
+  custom_message     String?
+  error_message      String?
+  requested_by       String?
+  sent_at            DateTime?      @db.Timestamptz(6)
+  created_at         DateTime       @default(now()) @db.Timestamptz(6)
+  weight_tickets     weight_tickets @relation(fields: [weight_ticket_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([status, created_at(sort: Desc)], map: "idx_weight_ticket_notification_logs_status")
+  @@index([weight_ticket_id, created_at(sort: Desc)], map: "idx_weight_ticket_notification_logs_ticket")
+  @@schema("public")
+}
 
 enum aal_level {
   aal1

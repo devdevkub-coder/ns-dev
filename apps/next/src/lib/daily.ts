@@ -221,6 +221,7 @@ export type CustomerReceiptFormValues = z.infer<typeof customerReceiptFormSchema
 
 export const stockTransferFormSchema = z.object({
   date: requiredDate,
+  transferDate: z.string().trim().optional().nullable(),
   docNo: optionalDocNo,
   fromBranchId: z.string().trim().min(1, 'เลือกสาขาต้นทาง'),
   fromWarehouseId: z.string().trim().min(1, 'เลือกคลังต้นทาง'),

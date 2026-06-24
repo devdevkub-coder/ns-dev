@@ -33,7 +33,7 @@ import {
   weightTicketWhere,
 } from '@/lib/server/weight-tickets'
 import { syncWeightTicketToGoogleSheets } from '@/lib/server/google-sheets-sync'
-import { notifyWeightTicketLine } from '@/lib/server/weight-ticket-line-notification'
+import { enqueueNotificationJob, executeNotificationJob } from '@/lib/server/line-notification-jobs'
 
 export const runtime = 'nodejs'
 
@@ -309,23 +309,14 @@ export async function POST(request: Request) {
       where: { key: autoSendKey },
     })
     if (autoSendConfig?.value === 'true') {
-      const requestOrigin = (req: Request) => {
-        const forwardedProto = req.headers.get('x-forwarded-proto') || 'https'
-        const forwardedHost = req.headers.get('x-forwarded-host') || req.headers.get('host')
-        const configured = process.env.NEXT_PUBLIC_APP_URL
-        if (configured) return configured.replace(/\/$/, '')
-        if (forwardedHost) return `${forwardedProto}://${forwardedHost}`
-        return new URL(req.url).origin
+      try {
+        await enqueueNotificationJob(mapped.documentNo, {
+          requestedBy: enteredBy,
+          force: false,
+        })
+      } catch (err) {
+        console.error('[weight-ticket-auto-send] failed to enqueue LINE notification:', err)
       }
-
-      void notifyWeightTicketLine(mapped.documentNo, {
-        origin: requestOrigin(request),
-        requestedBy: enteredBy,
-        scopedBranchIds,
-        force: false,
-      }).catch((err) => {
-        console.error('[weight-ticket-auto-send] failed to auto send LINE notification:', err)
-      })
     }
 
     await recordAuditLog({

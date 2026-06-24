@@ -502,6 +502,20 @@ export function decodeStoredImageAsset(rawValue: string): StoredImageAsset {
     }
   }
 
+  // Support pipe separator: "filename|dataUrl" or "filename|https://..."
+  const pipeIndex = trimmed.indexOf('|')
+  if (pipeIndex > 0) {
+    const fileName = trimmed.slice(0, pipeIndex)
+    const url = trimmed.slice(pipeIndex + 1)
+    if (url.startsWith('data:image/') || url.startsWith('http://') || url.startsWith('https://')) {
+      return {
+        fileName,
+        rawValue,
+        url,
+      }
+    }
+  }
+
   try {
     const parsed = JSON.parse(trimmed) as { dataUrl?: unknown; fileName?: unknown }
     if (typeof parsed.fileName === 'string' && typeof parsed.dataUrl === 'string' && parsed.dataUrl.startsWith('data:image/')) {

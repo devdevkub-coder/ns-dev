@@ -203,6 +203,43 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
   const [statusConvertPageSize, setStatusConvertPageSize] = useState(20)
   const [adjustPage, setAdjustPage] = useState(1)
   const [adjustPageSize, setAdjustPageSize] = useState(20)
+
+  // States for Stock Adjust (NSERP-66)
+  const [adjustProductFilter, setAdjustProductFilter] = useState('')
+  const [adjustCategoryFilter, setAdjustCategoryFilter] = useState('')
+  const [adjustWarehouseFilter, setAdjustWarehouseFilter] = useState('')
+  const [adjustReasonFilter, setAdjustReasonFilter] = useState('')
+
+  // States for Status Convert (NSERP-65)
+  const [statusProductFilter, setStatusProductFilter] = useState('')
+  const [statusCategoryFilter, setStatusCategoryFilter] = useState('')
+  const [statusWarehouseFilter, setStatusWarehouseFilter] = useState('')
+  const [statusFromDateFilter, setStatusFromDateFilter] = useState('')
+  const [statusToDateFilter, setStatusToDateFilter] = useState('')
+  const [statusFlowFilter, setStatusFlowFilter] = useState('')
+
+  const adjustProductSearchOptions = useMemo<SearchComboboxOption[]>(() => {
+    return (data.reference?.products ?? [])
+      .filter((option) => option.active !== false)
+      .map((option) => ({
+        id: option.code || option.id,
+        label: option.code ? `${option.code} - ${option.name}` : option.name,
+        searchText: `${option.code ?? ''} ${option.name}`.toLowerCase(),
+      }))
+  }, [data.reference?.products])
+
+  const categoryOptions = useMemo(() => {
+    const groups = (data.reference?.products ?? []).map(p => p.metalGroup).filter(Boolean) as string[]
+    return [...new Set(groups)]
+  }, [data.reference?.products])
+
+  const warehouseOptions = useMemo(() => {
+    return data.reference?.warehouses ?? []
+  }, [data.reference?.warehouses])
+
+  const reasonOptions = useMemo(() => {
+    return data.reasonOptions ?? stockAdjustReasonOptions
+  }, [data.reasonOptions])
   const [operationSortDirection, setOperationSortDirection] = useState<SortDirection>('desc')
   const [operationSortKey, setOperationSortKey] = useState('date')
   const [statusConvertSortDirection, setStatusConvertSortDirection] = useState<SortDirection>('desc')
@@ -237,16 +274,73 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
       .filter((row) => !query || Object.values(row).join(' ').toLowerCase().includes(query))
       .filter((row) => mode !== 'convert' || !sourceTypeFilter || row.sourceType === sourceTypeFilter)
       .filter((row) => mode !== 'convert' || !costStatusFilter || row.costStatus === costStatusFilter)
+      // Stock Adjust Filters (NSERP-66)
       .filter((row) => mode !== 'adjust' || !adjustBranchFilter || row.branchId === adjustBranchFilter)
       .filter((row) => mode !== 'adjust' || !adjustTypeFilter || row.adjustType === adjustTypeFilter)
       .filter((row) => mode !== 'adjust' || !fromDateFilter || String(row.date ?? '') >= fromDateFilter)
       .filter((row) => mode !== 'adjust' || !toDateFilter || String(row.date ?? '') <= toDateFilter)
-  }, [adjustBranchFilter, adjustTypeFilter, costStatusFilter, data.rows, fromDateFilter, mode, search, sourceTypeFilter, toDateFilter])
+      .filter((row) => mode !== 'adjust' || !adjustProductFilter || row.productId === adjustProductFilter || row.productCode === adjustProductFilter)
+      .filter((row) => mode !== 'adjust' || !adjustCategoryFilter || row.metalGroup === adjustCategoryFilter)
+      .filter((row) => mode !== 'adjust' || !adjustWarehouseFilter || row.warehouseId === adjustWarehouseFilter)
+      .filter((row) => mode !== 'adjust' || !adjustReasonFilter || row.reason === adjustReasonFilter)
+      // Status Convert Filters (NSERP-65)
+      .filter((row) => mode !== 'status-convert' || !statusProductFilter || row.productId === statusProductFilter || row.productCode === statusProductFilter)
+      .filter((row) => mode !== 'status-convert' || !statusCategoryFilter || row.metalGroup === statusCategoryFilter)
+      .filter((row) => mode !== 'status-convert' || !statusWarehouseFilter || row.warehouseId === statusWarehouseFilter)
+      .filter((row) => mode !== 'status-convert' || !statusFromDateFilter || String(row.date ?? '') >= statusFromDateFilter)
+      .filter((row) => mode !== 'status-convert' || !statusToDateFilter || String(row.date ?? '') <= statusToDateFilter)
+      .filter((row) => {
+        if (mode !== 'status-convert' || !statusFlowFilter) return true
+        if (statusFlowFilter === 'RM-FG') return row.statusFrom === 'RM' && row.statusTo === 'FG'
+        if (statusFlowFilter === 'FG-RM') return row.statusFrom === 'FG' && row.statusTo === 'RM'
+        if (statusFlowFilter === 'RM-WIP') return row.statusFrom === 'RM' && row.statusTo === 'WIP'
+        if (statusFlowFilter === 'WIP-FG') return row.statusFrom === 'WIP' && row.statusTo === 'FG'
+        return true
+      })
+  }, [
+    adjustBranchFilter,
+    adjustTypeFilter,
+    costStatusFilter,
+    data.rows,
+    fromDateFilter,
+    mode,
+    search,
+    sourceTypeFilter,
+    toDateFilter,
+    adjustProductFilter,
+    adjustCategoryFilter,
+    adjustWarehouseFilter,
+    adjustReasonFilter,
+    statusProductFilter,
+    statusCategoryFilter,
+    statusWarehouseFilter,
+    statusFromDateFilter,
+    statusToDateFilter,
+    statusFlowFilter,
+  ])
 
   useEffect(() => {
     if (mode === 'status-convert') setStatusConvertPage(1)
     if (mode === 'adjust') setAdjustPage(1)
-  }, [mode, rows.length, search, adjustBranchFilter, adjustTypeFilter, fromDateFilter, toDateFilter])
+  }, [
+    mode,
+    rows.length,
+    search,
+    adjustBranchFilter,
+    adjustTypeFilter,
+    fromDateFilter,
+    toDateFilter,
+    adjustProductFilter,
+    adjustCategoryFilter,
+    adjustWarehouseFilter,
+    adjustReasonFilter,
+    statusProductFilter,
+    statusCategoryFilter,
+    statusWarehouseFilter,
+    statusFromDateFilter,
+    statusToDateFilter,
+    statusFlowFilter,
+  ])
 
   const statusConvertSortedRows = useMemo(() => {
     if (mode !== 'status-convert') return rows
@@ -290,9 +384,29 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
 
   const hasFilters = useMemo(() => {
     if (mode === 'convert') return Boolean(search.trim() || sourceTypeFilter || costStatusFilter)
-    if (mode === 'adjust') return Boolean(search.trim() || adjustBranchFilter || adjustTypeFilter || fromDateFilter || toDateFilter)
+    if (mode === 'adjust') return Boolean(search.trim() || adjustBranchFilter || adjustTypeFilter || fromDateFilter || toDateFilter || adjustProductFilter || adjustCategoryFilter || adjustWarehouseFilter || adjustReasonFilter)
+    if (mode === 'status-convert') return Boolean(search.trim() || statusProductFilter || statusCategoryFilter || statusWarehouseFilter || statusFromDateFilter || statusToDateFilter || statusFlowFilter)
     return Boolean(search.trim())
-  }, [mode, search, sourceTypeFilter, costStatusFilter, adjustBranchFilter, adjustTypeFilter, fromDateFilter, toDateFilter])
+  }, [
+    mode,
+    search,
+    sourceTypeFilter,
+    costStatusFilter,
+    adjustBranchFilter,
+    adjustTypeFilter,
+    fromDateFilter,
+    toDateFilter,
+    adjustProductFilter,
+    adjustCategoryFilter,
+    adjustWarehouseFilter,
+    adjustReasonFilter,
+    statusProductFilter,
+    statusCategoryFilter,
+    statusWarehouseFilter,
+    statusFromDateFilter,
+    statusToDateFilter,
+    statusFlowFilter,
+  ])
 
   const resetFilters = useCallback(() => {
     setSearch('')
@@ -302,6 +416,16 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
     setAdjustTypeFilter('')
     setFromDateFilter('')
     setToDateFilter('')
+    setAdjustProductFilter('')
+    setAdjustCategoryFilter('')
+    setAdjustWarehouseFilter('')
+    setAdjustReasonFilter('')
+    setStatusProductFilter('')
+    setStatusCategoryFilter('')
+    setStatusWarehouseFilter('')
+    setStatusFromDateFilter('')
+    setStatusToDateFilter('')
+    setStatusFlowFilter('')
   }, [])
 
   const closeForm = useCallback(() => {
@@ -476,13 +600,60 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
             </>
           ) : mode === 'adjust' ? (
             <>
-              <select className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
+              <select className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
                 <option value="">ทุกสาขา</option>
                 {data.reference.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+              </select>
+              <div className="w-[200px]">
+                <SearchCombobox
+                  inputId="adjust-product-filter"
+                  label="สินค้า"
+                  hideLabel={true}
+                  placeholder="เลือกสินค้า..."
+                  options={adjustProductSearchOptions}
+                  value={adjustProductFilter}
+                  onChange={setAdjustProductFilter}
+                />
+              </div>
+              <select className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none" value={adjustCategoryFilter} onChange={(event) => setAdjustCategoryFilter(event.target.value)}>
+                <option value="">ทุกหมวด</option>
+                {categoryOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+              </select>
+              <select className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none" value={adjustWarehouseFilter} onChange={(event) => setAdjustWarehouseFilter(event.target.value)}>
+                <option value="">ทุกคลัง</option>
+                {warehouseOptions.map(wh => <option key={wh.code ?? ''} value={wh.code ?? ''}>{wh.name}</option>)}
+              </select>
+              <select className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none" value={adjustReasonFilter} onChange={(event) => setAdjustReasonFilter(event.target.value)}>
+                <option value="">ทุกเหตุผล</option>
+                {reasonOptions.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
               <DatePickerInput className="w-[130px] h-9" title="จากวันที่" value={fromDateFilter} onChange={setFromDateFilter} />
               <DatePickerInput className="w-[130px] h-9" title="ถึงวันที่" value={toDateFilter} onChange={setToDateFilter} />
               <button className="h-9 rounded-md bg-slate-100 px-3 py-2 text-sm text-slate-500 opacity-60 flex items-center justify-center border border-slate-200" disabled title="รอ export contract สำหรับ stock adjustment" type="button">📥 CSV</button>
+            </>
+          ) : mode === 'status-convert' ? (
+            <>
+              <div className="w-[200px]">
+                <SearchCombobox
+                  inputId="status-product-filter"
+                  label="สินค้า"
+                  hideLabel={true}
+                  placeholder="เลือกสินค้า..."
+                  options={adjustProductSearchOptions}
+                  value={statusProductFilter}
+                  onChange={setStatusProductFilter}
+                />
+              </div>
+              <select className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none" value={statusCategoryFilter} onChange={(event) => setStatusCategoryFilter(event.target.value)}>
+                <option value="">ทุกหมวด</option>
+                {categoryOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+              </select>
+              <select className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none" value={statusWarehouseFilter} onChange={(event) => setStatusWarehouseFilter(event.target.value)}>
+                <option value="">ทุกคลัง</option>
+                {warehouseOptions.map(wh => <option key={wh.code ?? ''} value={wh.code ?? ''}>{wh.name}</option>)}
+              </select>
+              <DatePickerInput className="w-[130px] h-9" title="จากวันที่" value={statusFromDateFilter} onChange={setStatusFromDateFilter} />
+              <DatePickerInput className="w-[130px] h-9" title="ถึงวันที่" value={statusToDateFilter} onChange={setStatusToDateFilter} />
             </>
           ) : null}
 
@@ -502,6 +673,16 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
             <SegmentedButton active={!adjustTypeFilter} label="ทั้งหมด" onClick={() => setAdjustTypeFilter('')} />
             <SegmentedButton active={adjustTypeFilter === 'LOSS'} label="นับขาด" onClick={() => setAdjustTypeFilter('LOSS')} />
             <SegmentedButton active={adjustTypeFilter === 'GAIN'} label="นับเกิน" onClick={() => setAdjustTypeFilter('GAIN')} />
+          </div>
+        ) : null}
+        {mode === 'status-convert' ? (
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+            <span className="text-xs text-slate-500 font-medium">เส้นทางสถานะ:</span>
+            <SegmentedButton active={!statusFlowFilter} label="ทั้งหมด" onClick={() => setStatusFlowFilter('')} />
+            <SegmentedButton active={statusFlowFilter === 'RM-FG'} label="RM → FG" onClick={() => setStatusFlowFilter('RM-FG')} />
+            <SegmentedButton active={statusFlowFilter === 'FG-RM'} label="FG → RM" onClick={() => setStatusFlowFilter('FG-RM')} />
+            <SegmentedButton active={statusFlowFilter === 'RM-WIP'} label="RM → WIP" onClick={() => setStatusFlowFilter('RM-WIP')} />
+            <SegmentedButton active={statusFlowFilter === 'WIP-FG'} label="WIP → FG" onClick={() => setStatusFlowFilter('WIP-FG')} />
           </div>
         ) : null}
       </div>
@@ -530,6 +711,16 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
             <SegmentedButton active={!adjustTypeFilter} label="ทั้งหมด" onClick={() => setAdjustTypeFilter('')} />
             <SegmentedButton active={adjustTypeFilter === 'LOSS'} label="นับขาด" onClick={() => setAdjustTypeFilter('LOSS')} />
             <SegmentedButton active={adjustTypeFilter === 'GAIN'} label="นับเกิน" onClick={() => setAdjustTypeFilter('GAIN')} />
+          </div>
+        ) : null}
+        {mode === 'status-convert' ? (
+          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 overflow-x-auto">
+            <span className="text-[11px] text-slate-500 shrink-0">เส้นทาง:</span>
+            <SegmentedButton active={!statusFlowFilter} label="ทั้งหมด" onClick={() => setStatusFlowFilter('')} />
+            <SegmentedButton active={statusFlowFilter === 'RM-FG'} label="RM→FG" onClick={() => setStatusFlowFilter('RM-FG')} />
+            <SegmentedButton active={statusFlowFilter === 'FG-RM'} label="FG→RM" onClick={() => setStatusFlowFilter('FG-RM')} />
+            <SegmentedButton active={statusFlowFilter === 'RM-WIP'} label="RM→WIP" onClick={() => setStatusFlowFilter('RM-WIP')} />
+            <SegmentedButton active={statusFlowFilter === 'WIP-FG'} label="WIP→FG" onClick={() => setStatusFlowFilter('WIP-FG')} />
           </div>
         ) : null}
       </div>
@@ -578,9 +769,37 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
                 <>
                   <label className="block">
                     <span className="mb-1 block text-xs font-semibold text-slate-600">สาขา</span>
-                    <select className="h-10 w-full rounded-md border border-slate-300 px-3 bg-white text-slate-800" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
+                    <select className="h-10 w-full rounded-md border border-slate-300 px-3 bg-white text-slate-800 outline-none" value={adjustBranchFilter} onChange={(event) => setAdjustBranchFilter(event.target.value)}>
                       <option value="">ทุกสาขา</option>
                       {data.reference.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">สินค้า</span>
+                    <select className="h-10 w-full rounded-md border border-slate-300 px-3 bg-white text-slate-800 outline-none" value={adjustProductFilter} onChange={(event) => setAdjustProductFilter(event.target.value)}>
+                      <option value="">ทุกสินค้า</option>
+                      {data.reference.products.filter(p => p.active !== false).map((p) => <option key={p.id} value={p.code || p.id}>{p.code ? `${p.code} - ${p.name}` : p.name}</option>)}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">หมวดสินค้า</span>
+                    <select className="h-10 w-full rounded-md border border-slate-300 px-3 bg-white text-slate-800 outline-none" value={adjustCategoryFilter} onChange={(event) => setAdjustCategoryFilter(event.target.value)}>
+                      <option value="">ทุกหมวด</option>
+                      {categoryOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">คลังสินค้า</span>
+                    <select className="h-10 w-full rounded-md border border-slate-300 px-3 bg-white text-slate-800 outline-none" value={adjustWarehouseFilter} onChange={(event) => setAdjustWarehouseFilter(event.target.value)}>
+                      <option value="">ทุกคลัง</option>
+                      {warehouseOptions.map(wh => <option key={wh.code ?? ''} value={wh.code ?? ''}>{wh.name}</option>)}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">เหตุผล</span>
+                    <select className="h-10 w-full rounded-md border border-slate-300 px-3 bg-white text-slate-800 outline-none" value={adjustReasonFilter} onChange={(event) => setAdjustReasonFilter(event.target.value)}>
+                      <option value="">ทุกเหตุผล</option>
+                      {reasonOptions.map(r => <option key={r} value={r}>{r}</option>)}
                     </select>
                   </label>
                   <div>
@@ -589,6 +808,38 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
                       <DatePickerInput className="flex-1" value={fromDateFilter} onChange={setFromDateFilter} />
                       <span className="text-slate-400">→</span>
                       <DatePickerInput className="flex-1" value={toDateFilter} onChange={setToDateFilter} />
+                    </div>
+                  </div>
+                </>
+              ) : mode === 'status-convert' ? (
+                <>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">สินค้า</span>
+                    <select className="h-10 w-full rounded-md border border-slate-300 px-3 bg-white text-slate-800 outline-none" value={statusProductFilter} onChange={(event) => setStatusProductFilter(event.target.value)}>
+                      <option value="">ทุกสินค้า</option>
+                      {data.reference.products.filter(p => p.active !== false).map((p) => <option key={p.id} value={p.code || p.id}>{p.code ? `${p.code} - ${p.name}` : p.name}</option>)}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">หมวดสินค้า</span>
+                    <select className="h-10 w-full rounded-md border border-slate-300 px-3 bg-white text-slate-800 outline-none" value={statusCategoryFilter} onChange={(event) => setStatusCategoryFilter(event.target.value)}>
+                      <option value="">ทุกหมวด</option>
+                      {categoryOptions.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">คลังสินค้า</span>
+                    <select className="h-10 w-full rounded-md border border-slate-300 px-3 bg-white text-slate-800 outline-none" value={statusWarehouseFilter} onChange={(event) => setStatusWarehouseFilter(event.target.value)}>
+                      <option value="">ทุกคลัง</option>
+                      {warehouseOptions.map(wh => <option key={wh.code ?? ''} value={wh.code ?? ''}>{wh.name}</option>)}
+                    </select>
+                  </label>
+                  <div>
+                    <span className="mb-1 block text-xs font-semibold text-slate-600">ช่วงวันที่</span>
+                    <div className="flex items-center gap-2">
+                      <DatePickerInput className="flex-1" value={statusFromDateFilter} onChange={setStatusFromDateFilter} />
+                      <span className="text-slate-400">→</span>
+                      <DatePickerInput className="flex-1" value={statusToDateFilter} onChange={setStatusToDateFilter} />
                     </div>
                   </div>
                 </>

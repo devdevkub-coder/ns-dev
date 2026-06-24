@@ -20,6 +20,7 @@ type Row = {
   canEdit: boolean
   canPost: boolean
   date: string
+  transferDate: string
   docNo: string
   from: string
   fromBranchId: string
@@ -48,12 +49,13 @@ type Payload = {
   totalRows: number
   warehouses: Option[]
 }
-type StockTransferColumnKey = 'action' | 'date' | 'docNo' | 'from' | 'itemCount' | 'status' | 'to' | 'totalQty' | 'totalValue' | 'updated'
+type StockTransferColumnKey = 'action' | 'date' | 'transferDate' | 'docNo' | 'from' | 'itemCount' | 'status' | 'to' | 'totalQty' | 'totalValue' | 'updated'
 
 const numberInputClass = '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
 const stockTransferColumns: Array<ResizableColumnDefinition<StockTransferColumnKey>> = [
   { key: 'docNo', defaultWidth: 150, minWidth: 120 },
   { key: 'date', defaultWidth: 120, minWidth: 100 },
+  { key: 'transferDate', defaultWidth: 120, minWidth: 100 },
   { key: 'from', defaultWidth: 220, minWidth: 160 },
   { key: 'to', defaultWidth: 220, minWidth: 160 },
   { key: 'itemCount', defaultWidth: 80, minWidth: 70 },
@@ -66,6 +68,7 @@ const stockTransferColumns: Array<ResizableColumnDefinition<StockTransferColumnK
 
 const emptyForm: StockTransferFormValues = {
   date: todayDateInput(),
+  transferDate: todayDateInput(),
   docNo: null,
   fromBranchId: '',
   fromWarehouseId: '',
@@ -149,6 +152,9 @@ export function StockTransferPageClient() {
   }, [form.fromBranchId, form.fromWarehouseId, formOpen])
 
   const branchOptions = useMemo(() => data.branches.filter((item) => item.active !== false), [data.branches])
+  const destinationBranchOptions = useMemo(() => {
+    return branchOptions.filter((branch) => branch.id !== form.fromBranchId)
+  }, [branchOptions, form.fromBranchId])
   const productOptions = useMemo(() => data.products.filter((product) => product.active !== false), [data.products])
   const sourceWarehouseOptions = form.fromBranchId
     ? data.warehouses.filter((item) => item.active !== false && item.branch_id === form.fromBranchId)
@@ -190,7 +196,7 @@ export function StockTransferPageClient() {
 
   function openCreateForm() {
     setEditingDocNo(null)
-    setForm({ ...emptyForm, date: todayDateInput(), items: [{ productId: '', qty: 0 }] })
+    setForm({ ...emptyForm, date: todayDateInput(), transferDate: todayDateInput(), items: [{ productId: '', qty: 0 }] })
     setFieldErrors({})
     setError(null)
     setFormOpen(true)
@@ -200,6 +206,7 @@ export function StockTransferPageClient() {
     setEditingDocNo(row.docNo)
     setForm({
       date: row.date,
+      transferDate: row.transferDate || '',
       docNo: row.docNo,
       fromBranchId: row.fromBranchId,
       fromWarehouseId: row.fromWarehouseId,
@@ -270,6 +277,7 @@ export function StockTransferPageClient() {
         body: JSON.stringify({
           action: 'post',
           date: row.date,
+          transferDate: row.transferDate || row.date,
           docNo: row.docNo,
           fromBranchId: row.fromBranchId,
           fromWarehouseId: row.fromWarehouseId,
@@ -474,6 +482,15 @@ export function StockTransferPageClient() {
             </div>
 
             <div className="max-h-[76vh] overflow-y-auto bg-slate-50 p-4 sm:p-5 space-y-4 text-sm flex-1">
+              <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm grid grid-cols-2 gap-4">
+                <FormField error={fieldErrors.date} errorKey="date" label="วันที่เอกสาร *">
+                  <DatePickerInput className="w-full h-9" value={form.date} onChange={(value) => updateForm('date', value)} />
+                </FormField>
+                <FormField error={fieldErrors.transferDate} errorKey="transferDate" label="วันที่โอนย้าย *">
+                  <DatePickerInput className="w-full h-9" value={form.transferDate ?? ''} onChange={(value) => updateForm('transferDate', value)} />
+                </FormField>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm col-span-2 md:col-span-1">
                   <h4 className="mb-3 font-bold text-slate-700">1. ต้นทาง</h4>
@@ -496,7 +513,7 @@ export function StockTransferPageClient() {
                 <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm col-span-2 md:col-span-1">
                   <h4 className="mb-3 font-bold text-slate-700">2. ปลายทาง</h4>
                   <div className="grid gap-3">
-                    <SelectField displayMode="name" error={fieldErrors.toBranchId} errorKey="toBranchId" label="สาขาปลายทาง *" options={branchOptions} placeholder="เลือกสาขาปลายทาง" value={form.toBranchId} onChange={(value) => updateForm('toBranchId', value)} />
+                    <SelectField displayMode="name" error={fieldErrors.toBranchId} errorKey="toBranchId" label="สาขาปลายทาง *" options={destinationBranchOptions} placeholder="เลือกสาขาปลายทาง" value={form.toBranchId} onChange={(value) => updateForm('toBranchId', value)} />
                     <SelectField
                       disabled={!form.toBranchId}
                       displayMode="name"
@@ -683,6 +700,54 @@ export function StockTransferPageClient() {
                   />
                 </FormField>
               </div>
+
+              {form.fromBranchId && form.fromWarehouseId && form.items.some(item => item.productId) ? (
+                <div className="rounded-lg border border-indigo-100 bg-indigo-50/50 p-5 shadow-sm">
+                  <h5 className="mb-3 font-bold text-indigo-800 text-xs flex items-center gap-1.5">
+                    📦 ข้อมูล Stock ปัจจุบันของสินค้าที่จะโอนย้าย
+                  </h5>
+                  {sourceStockLoading ? (
+                    <div className="text-center py-4 text-xs text-slate-500">กำลังโหลด stock ต้นทาง...</div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-md border border-indigo-100 bg-white">
+                      <table className="w-full text-xs">
+                        <thead className="bg-indigo-50 text-indigo-700">
+                          <tr>
+                            <th className="p-2 text-left">สินค้า</th>
+                            <th className="p-2 text-right">จำนวนคงเหลือ (กก.)</th>
+                            <th className="p-2 text-right">ราคาเฉลี่ย/กก.</th>
+                            <th className="p-2 text-right">รวมมูลค่า</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-indigo-50/50">
+                          {Array.from(new Set(form.items.map(item => item.productId).filter(Boolean))).map((productId, index) => {
+                            const stockItem = sourceStockByProductId.get(productId)
+                            const prod = productOptions.find(p => p.id === productId)
+                            const name = prod?.name ?? stockItem?.productName ?? 'ไม่ระบุสินค้า'
+                            const code = prod?.code ?? stockItem?.productCode ?? ''
+                            return (
+                              <tr key={index} className="hover:bg-indigo-50/10">
+                                <td className="p-2 font-medium text-slate-700">
+                                  {code ? `${code} - ${name}` : name}
+                                </td>
+                                <td className="p-2 text-right font-bold text-slate-900 tabular-nums">
+                                  {stockItem ? `${formatMoney(stockItem.readyQty)} กก.` : '0 กก.'}
+                                </td>
+                                <td className="p-2 text-right text-slate-500 tabular-nums">
+                                  {stockItem ? `${formatMoney(stockItem.sourceUnitCost)} บ.` : '-'}
+                                </td>
+                                <td className="p-2 text-right font-bold text-indigo-700 tabular-nums">
+                                  {stockItem ? `${formatMoney(stockItem.sourceValue)} บ.` : '-'}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              ) : null}
             </div>
 
             <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 shrink-0 rounded-b-md">
@@ -702,7 +767,10 @@ export function StockTransferPageClient() {
               <span className="font-bold text-slate-800">{row.docNo}</span>
               <StatusBadge status={row.status} />
             </div>
-            <div className="text-xs text-slate-500">{formatDateDisplay(row.date)}</div>
+            <div className="text-xs text-slate-500">
+              วันที่เอกสาร: {formatDateDisplay(row.date)}
+              {row.transferDate ? ` · วันที่โอน: ${formatDateDisplay(row.transferDate)}` : ''}
+            </div>
             <div className="my-3 text-xs text-slate-600">
               <span className="font-semibold text-red-600">{row.from}</span>
               <span className="mx-1 text-slate-400">→</span>
@@ -736,6 +804,7 @@ export function StockTransferPageClient() {
             <tr>
               <ResizableTableHead label="เลขที่" resizeProps={columnResize.getResizeHandleProps('docNo', 'เลขที่')} />
               <ResizableTableHead label="วันที่เอกสาร" resizeProps={columnResize.getResizeHandleProps('date', 'วันที่เอกสาร')} />
+              <ResizableTableHead label="วันที่โอนย้าย" resizeProps={columnResize.getResizeHandleProps('transferDate', 'วันที่โอนย้าย')} />
               <ResizableTableHead label="จาก" resizeProps={columnResize.getResizeHandleProps('from', 'จาก')} />
               <ResizableTableHead label="ไป" resizeProps={columnResize.getResizeHandleProps('to', 'ไป')} />
               <ResizableTableHead align="right" label="รายการ" resizeProps={columnResize.getResizeHandleProps('itemCount', 'รายการ')} />
@@ -747,11 +816,12 @@ export function StockTransferPageClient() {
             </tr>
           </TableHeader>
           <TableBody>
-            {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={10}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
+            {isLoading ? <TableRow><TableCell className="p-8 text-center text-slate-500" colSpan={11}>กำลังโหลดข้อมูล</TableCell></TableRow> : null}
             {!isLoading && data.rows.map((row) => (
               <TableRow key={row.id} className="hover:bg-slate-50">
                 <TableCell className="font-mono text-xs font-semibold text-slate-700">{row.docNo}</TableCell>
                 <TableCell className="whitespace-nowrap text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</TableCell>
+                <TableCell className="whitespace-nowrap text-xs font-semibold text-slate-700">{row.transferDate ? formatDateDisplay(row.transferDate) : '-'}</TableCell>
                 <TableCell className="text-xs font-semibold text-red-600">{row.from}</TableCell>
                 <TableCell className="text-xs font-semibold text-emerald-700">{row.to}</TableCell>
                 <TableCell className="whitespace-nowrap pr-4 text-right text-xs font-semibold tabular-nums text-slate-700">{row.itemCount.toLocaleString('th-TH')}</TableCell>
@@ -771,7 +841,7 @@ export function StockTransferPageClient() {
                 </TableCell>
               </TableRow>
             ))}
-            {!isLoading && data.rows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-400" colSpan={10}>ยังไม่มีรายการ</TableCell></TableRow> : null}
+            {!isLoading && data.rows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-400" colSpan={11}>ยังไม่มีรายการ</TableCell></TableRow> : null}
           </TableBody>
         </Table>
       </div>

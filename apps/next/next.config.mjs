@@ -11,6 +11,10 @@ const nextConfig = {
   reactStrictMode: true,
   turbopack: {
     root: workspaceRoot,
+    ignoreIssue: [
+      { path: '**/next.config.mjs' },
+      { path: '**/weight-ticket-line-notification.ts' },
+    ],
   },
 }
 

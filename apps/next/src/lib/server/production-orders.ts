@@ -129,7 +129,7 @@ async function findActiveWarehouseByCode(tx: DbClient, code: string, branchId?: 
 }
 
 async function findActiveProductByCode(tx: DbClient, code: string) {
-  const product = await tx.products.findFirst({ select: { code: true, id: true, name: true }, where: { active: true, code } })
+  const product = await tx.products.findFirst({ select: { code: true, id: true, name: true, metal_group: true }, where: { active: true, code } })
   if (!product) throw new ProductionOrderError(`ไม่พบสินค้า ${code}`)
   requireBusinessCode(product.code, `สินค้า ${product.id}`)
   return product
@@ -540,6 +540,27 @@ export async function createProductionOutput(orderDocNo: string, values: CreateP
           updated_by: actor,
         },
       })
+      if (product.metal_group === 'ทองแดง' || product.metal_group === 'ทองเหลือง') {
+        await tx.stock_cost_pool_entries.create({
+          data: {
+            source_type: 'PRODUCTION',
+            source_ref_type: 'PO2',
+            source_ref_id: created.id.toString(),
+            source_ref_no: outputDocNo,
+            date: normalizeDate(values.date),
+            branch_id: order.branch_id,
+            warehouse_id: destinationWarehouse.id,
+            product_id: product.id,
+            lot_no: line.lotNo ?? null,
+            original_qty: line.netQty,
+            unit_cost: averageWipCost,
+            original_value: lineCost,
+            status: 'Available',
+            created_by: actor,
+            notes: values.notes ?? null,
+          },
+        })
+      }
       ledgerRows.push(
         {
           branch_id: order.branch_id,
@@ -663,6 +684,25 @@ export async function reverseProductionOutput(orderDocNo: string, outputDocNo: s
 
     for (const output of outputs) {
       if (!output.product_id) throw new ProductionOrderError(`รายการ ${outputDocNo} ไม่มีข้อมูลสินค้า ไม่สามารถ reverse ได้`)
+      const poolEntry = await tx.stock_cost_pool_entries.findFirst({
+        where: {
+          source_ref_id: output.id.toString(),
+          source_ref_type: 'PO2',
+        },
+      })
+      if (poolEntry) {
+        if (toNumber(poolEntry.allocated_qty) > 0) {
+          throw new ProductionOrderError(`ไม่สามารถ reverse ได้เนื่องจากผลผลิตทองแดง/ทองเหลืองบางส่วนถูกขายหรือจัดสรรต้นทุนแล้ว (${outputDocNo})`)
+        }
+        await tx.stock_cost_pool_entries.update({
+          data: {
+            status: 'Reversed',
+            updated_by: actor,
+            updated_at: new Date(),
+          },
+          where: { id: poolEntry.id },
+        })
+      }
       const qty = toNumber(output.qty)
       const unitCost = toNumber(output.unit_cost)
       const totalCost = toNumber(output.total_cost) || qty * unitCost

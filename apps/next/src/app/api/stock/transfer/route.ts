@@ -63,6 +63,7 @@ function toTransferRow(row: TransferWithRelations) {
     canEdit: row.status === 'draft',
     canPost: row.status === 'draft',
     date: toDateOnly(row.date),
+    transferDate: row.transfer_date ? toDateOnly(row.transfer_date) : '',
     docNo: requireDocumentNo(row.doc_no, `stock_transfer ${row.id}`),
     from: `${row.branches_from.name} / ${row.warehouses_from.name}`,
     fromBranchId: requireBusinessCode(row.branches_from.code, `สาขาต้นทาง ${row.id}`),
@@ -247,6 +248,7 @@ function consumeAllocations(allocationPool: TransferItemInput['allocations'], re
 
 async function createPostedLedger(tx: Prisma.TransactionClient, transfer: {
   date: Date
+  transfer_date: Date | null
   doc_no: string
   from_branch_id: bigint
   from_warehouse_id: bigint
@@ -260,6 +262,8 @@ async function createPostedLedger(tx: Prisma.TransactionClient, transfer: {
   })
   if (existingLedger > 0) throw new Error(`เอกสาร ${transfer.doc_no} ส่งเข้าสต๊อกแล้ว`)
 
+  const ledgerDate = transfer.transfer_date ?? transfer.date
+
   for (const item of items) {
     for (const allocation of item.allocations) {
       await tx.stock_ledger.createMany({
@@ -267,7 +271,7 @@ async function createPostedLedger(tx: Prisma.TransactionClient, transfer: {
         {
           branch_id: transfer.from_branch_id,
           created_by: actor,
-          date: transfer.date,
+          date: ledgerDate,
           lot_no: allocation.lotNo,
           movement_type: 'โอนระหว่างสาขา-ออก',
           not_available_for_sale: allocation.notAvailableForSale,
@@ -287,7 +291,7 @@ async function createPostedLedger(tx: Prisma.TransactionClient, transfer: {
         {
           branch_id: transfer.to_branch_id,
           created_by: actor,
-          date: transfer.date,
+          date: ledgerDate,
           lot_no: allocation.lotNo,
           movement_type: 'โอนระหว่างสาขา-เข้า',
           not_available_for_sale: allocation.notAvailableForSale,
@@ -472,6 +476,7 @@ export async function POST(request: Request) {
         data: {
           created_by: actor,
           date: normalizeDate(values.date),
+          transfer_date: values.transferDate ? normalizeDate(values.transferDate) : null,
           doc_no: docNo,
           from_branch_id: refs.fromBranch.id,
           from_warehouse_id: refs.fromWarehouse.id,
@@ -565,6 +570,7 @@ export async function PATCH(request: Request) {
         const transfer = await tx.stock_transfers.update({
           data: {
             date: normalizeDate(values.date),
+            transfer_date: values.transferDate ? normalizeDate(values.transferDate) : null,
             from_branch_id: refs.fromBranch.id,
             from_warehouse_id: refs.fromWarehouse.id,
             notes: values.notes,

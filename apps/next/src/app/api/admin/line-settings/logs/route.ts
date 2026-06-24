@@ -11,9 +11,21 @@ export async function GET(request: Request) {
 
     // Query logs directly since it may not be in schema.prisma
     const logs = await prisma.$queryRaw`
-      SELECT id, weight_ticket_id::text as weight_ticket_id, delivery_channel, target_id, status, error_message, sent_at, requested_by
-      FROM public.weight_ticket_notification_logs
-      ORDER BY id DESC
+      SELECT
+        l.id,
+        l.weight_ticket_id::text as weight_ticket_id,
+        l.delivery_channel,
+        l.target_id,
+        l.status,
+        l.error_message,
+        l.sent_at,
+        l.requested_by,
+        l.pdf_url,
+        t.doc_no as document_no,
+        t.doc_type as ticket_type
+      FROM public.weight_ticket_notification_logs l
+      LEFT JOIN public.weight_tickets t ON l.weight_ticket_id = t.id
+      ORDER BY l.id DESC
       LIMIT 20
     `
 

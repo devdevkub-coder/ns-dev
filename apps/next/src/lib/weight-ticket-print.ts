@@ -452,12 +452,12 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
   return `<!DOCTYPE html><html><head><meta charset="utf-8">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800&display=swap" rel="stylesheet">
     <title>${escapeHtml(docTitle)} ${escapeHtml(ticket.documentNo)}</title>
     <style>
       @page { size: A4 portrait; margin: 10mm; }
       * { box-sizing: border-box; }
-      body { margin: 0; color: #0f172a; font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 11px; line-height: 1.35; background: #f8fafc; }
+      body { margin: 0; color: #0f172a; font-family: 'Sarabun', Arial, sans-serif; font-size: 11px; line-height: 1.35; background: #f8fafc; }
       .toolbar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; background: #0f172a; color: white; }
       .toolbar button { border: 0; border-radius: 6px; padding: 7px 14px; background: #15803d; color: white; font: inherit; cursor: pointer; }
       .toolbar button.secondary { background: #475569; }
@@ -563,7 +563,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
 
 function writeLoading(printWindow: Window, ticket: WeightTicketRecord) {
   printWindow.document.open()
-  printWindow.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>กำลังเตรียมใบพิมพ์</title></head><body style="font-family:'Noto Sans Thai',Arial,sans-serif;margin:32px;color:#0f172a">กำลังเตรียมใบพิมพ์${ticket.type === 'WTI' ? 'ใบรับสินค้า' : 'ใบส่งของ'}...</body></html>`)
+  printWindow.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>กำลังเตรียมใบพิมพ์</title></head><body style="font-family:'Sarabun',Arial,sans-serif;margin:32px;color:#0f172a">กำลังเตรียมใบพิมพ์${ticket.type === 'WTI' ? 'ใบรับสินค้า' : 'ใบส่งของ'}...</body></html>`)
   printWindow.document.close()
 }
 

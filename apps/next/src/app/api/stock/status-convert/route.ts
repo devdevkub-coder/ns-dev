@@ -14,8 +14,8 @@ export const runtime = 'nodejs'
 
 const stockLedgerInclude = {
   branches: { select: { name: true } },
-  products: { select: { code: true, name: true } },
-  warehouses: { select: { name: true } },
+  products: { select: { code: true, name: true, metal_group: true } },
+  warehouses: { select: { name: true, code: true } },
 } as const
 
 async function nextDocNo() {
@@ -138,6 +138,7 @@ export async function GET(request: NextRequest) {
           note: row.notes ?? '',
           productCode: row.products?.code ?? '',
           productName: row.products?.name ?? '-',
+          metalGroup: row.products?.metal_group ?? '',
           qty: toNumber(row.qty_out),
           refNo: row.ref_no ?? '',
           status: reversedRefSet.has(row.ref_no ?? '') ? 'reversed' : 'posted',
@@ -147,6 +148,7 @@ export async function GET(request: NextRequest) {
           value: toNumber(row.value_out),
           createdBy: row.created_by ?? '',
           warehouseName: row.warehouses?.name ?? '-',
+          warehouseId: row.warehouses?.code ?? '',
           targetWarehouseName: target?.name ?? '-',
         }
       }),

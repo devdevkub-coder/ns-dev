@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { branchScopeIds, enteredByLabel } from '@/lib/server/weight-tickets'
-import { notifyWeightTicketLine } from '@/lib/server/weight-ticket-line-notification'
+import { enqueueNotificationJob, executeNotificationJob } from '@/lib/server/line-notification-jobs'
 
 export const runtime = 'nodejs'
 
@@ -12,15 +12,6 @@ const notifySchema = z.object({
   targetId: z.string().trim().max(160).optional().default(''),
 })
 
-function requestOrigin(request: Request) {
-  const forwardedProto = request.headers.get('x-forwarded-proto') || 'https'
-  const forwardedHost = request.headers.get('x-forwarded-host') || request.headers.get('host')
-  const configured = process.env.NEXT_PUBLIC_APP_URL
-  if (configured) return configured.replace(/\/$/, '')
-  if (forwardedHost) return `${forwardedProto}://${forwardedHost}`
-  return new URL(request.url).origin
-}
-
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const auth = await getCurrentAuthContext()
@@ -28,20 +19,40 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     const { id } = await context.params
     const body = notifySchema.parse(await request.json().catch(() => ({})))
-    const result = await notifyWeightTicketLine(id, {
+
+    // Manual triggers always force: true
+    const enqueueResult = await enqueueNotificationJob(id, {
       customMessage: body.customMessage || undefined,
-      origin: requestOrigin(request),
       requestedBy: enteredByLabel(auth),
-      scopedBranchIds: branchScopeIds(auth),
       targetId: body.targetId || undefined,
       force: true,
     })
 
-    if (result.status !== 200) {
-      return NextResponse.json({ code: result.code, error: result.error }, { status: result.status })
+    if (enqueueResult.status === 'no_targets') {
+      return NextResponse.json({ code: 'NO_TARGETS_ROUTED', error: enqueueResult.message }, { status: 400 })
     }
 
-    return NextResponse.json(result)
+    const results = []
+    for (const job of enqueueResult.jobs) {
+      const result = await executeNotificationJob(job.id, { force: true })
+      results.push(result)
+    }
+
+    const firstSuccess = results.find(r => r.status === 'sent' || r.status === 'skipped')
+    if (firstSuccess) {
+      return NextResponse.json({
+        status: 200,
+        code: firstSuccess.status === 'skipped' ? 'SKIPPED_DUPLICATE' : 'SENT',
+        pdfUrl: firstSuccess.pdfUrl,
+        lineRequestId: firstSuccess.lineRequestId
+      })
+    } else {
+      const firstFail = results.find(r => r.status === 'failed')
+      return NextResponse.json({
+        code: 'LINE_PUSH_FAILED',
+        error: firstFail?.error || 'ส่ง LINE ไม่สำเร็จ'
+      }, { status: 502 })
+    }
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'ส่ง LINE ใบรับ-ส่งของไม่สำเร็จ', 500)

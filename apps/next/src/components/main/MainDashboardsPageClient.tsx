@@ -452,11 +452,10 @@ function OwnerDailyView({ data }: { data: MainPayload | null }) {
       {(pending.tradingPending ?? 0) > 0 ? <PendingBlock color="purple" cta="→ ไป Trading Matching" title="🔄 Trading Pending รับเงิน — จ่ายซื้อ Trading แล้ว แต่ยังไม่เปิดบิลขาย" cards={[['📋 บิลซื้อ Trading', String(pending.tradingPending)], ['💸 จ่ายไปแล้ว', money(pending.tradingPaidTotal)], ['✓ Match แล้ว', money(pending.tradingMatchedTotal)], ['⏳ Pending รับเงิน', money(pending.tradingPendingValue)]]} /> : null}
       <div className="rounded-xl bg-white p-4 shadow-sm border border-slate-100">
         <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">📊 ที่เกิดขึ้นจริงวันนี้แล้ว</h3>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
           <Tile tone="emerald" label="📥 รับเงินจริง" value={`+${money(actual?.cashIn)}`} />
           <Tile tone="red" label="📤 จ่าย Supplier" value={`-${money(actual?.paymentOut)}`} />
-          <Tile tone="orange" label="💰 ค่าใช้จ่าย" value={`-${money(actual?.expenseOut)}`} />
-          <Tile tone="amber" label="📦 FG พร้อมขาย" sub={`${money(actual?.fgQty)} กก.`} value={money(actual?.fgValue)} />
+          <Tile tone="orange" label="💰 ค่าใช้จ่าย" value={`-${money(actual?.expenseOut)}`} className="col-span-2 md:col-span-1" />
         </div>
       </div>
       <div className="grid gap-3 lg:grid-cols-2"><OwnerDueTable rows={data?.ownerDaily.due.ar ?? []} title="📥 ลูกหนี้ที่ควรเก็บวันนี้" type="ar" /><OwnerDueTable rows={data?.ownerDaily.due.ap ?? []} title="📤 เจ้าหนี้ที่ต้องจ่ายวันนี้" type="ap" /></div>
@@ -606,7 +605,7 @@ function PendingBlock({ cards, color, cta, title }: { cards: [string, string][];
   )
 }
 
-function Tile({ label, sub, tone, value }: { label: string; sub?: string; tone: string; value: string }) {
+function Tile({ label, sub, tone, value, className }: { label: string; sub?: string; tone: string; value: string; className?: string }) {
   const toneMap: Record<string, string> = {
     amber: 'bg-amber-50 text-amber-700 border-amber-100',
     blue: 'bg-blue-50 text-blue-700 border-blue-100',
@@ -619,7 +618,7 @@ function Tile({ label, sub, tone, value }: { label: string; sub?: string; tone: 
   }
   const cls = toneMap[tone] || toneMap.slate
   return (
-    <div className={`rounded-xl border p-3 text-center ${cls}`}>
+    <div className={`rounded-xl border p-3 text-center ${cls} ${className || ''}`}>
       <div className="text-xs font-semibold">{label}</div>
       <div className="font-mono text-lg font-bold mt-1">{value}</div>
       {sub ? <div className="text-[10px] opacity-85 mt-0.5">{sub}</div> : null}

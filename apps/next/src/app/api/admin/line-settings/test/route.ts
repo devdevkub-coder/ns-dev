@@ -3,12 +3,16 @@ import { z } from 'zod'
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
+import { notifyWeightTicketLine } from '@/lib/server/weight-ticket-line-notification'
+import { currentActor } from '@/lib/server/daily'
 
 export const runtime = 'nodejs'
 
 const testSchema = z.object({
-  token: z.string().trim().min(1, 'กรุณาระบุ Channel Access Token'),
+  token: z.string().trim().optional().nullable().or(z.literal('')),
   targetId: z.string().trim().optional().nullable().or(z.literal('')),
+  documentNo: z.string().trim().optional().nullable().or(z.literal('')),
+  customMessage: z.string().trim().optional().nullable().or(z.literal('')),
 })
 
 export async function POST(request: Request) {
@@ -17,10 +21,10 @@ export async function POST(request: Request) {
     requirePermission(context, 'system.settings.manage')
 
     const body = await request.json()
-    const { token, targetId } = testSchema.parse(body)
+    const { token, targetId, documentNo, customMessage } = testSchema.parse(body)
 
     let finalToken = token
-    if (token === '••••••••••••••••' || token.includes('••')) {
+    if (!finalToken || finalToken === '••••••••••••••••' || finalToken.includes('••')) {
       const config = await prisma.system_settings.findUnique({
         where: { key: 'LINE_CHANNEL_ACCESS_TOKEN' },
       })
@@ -44,8 +48,30 @@ export async function POST(request: Request) {
       }
     }
 
+    if (documentNo) {
+      const actor = currentActor(context)
+      const res = await notifyWeightTicketLine(documentNo, {
+        force: true,
+        targetId: finalTargetId || undefined,
+        customMessage: customMessage || undefined,
+        requestedBy: actor,
+        origin: request.headers.get('origin') || '',
+        scopedBranchIds: [],
+      })
+
+      if (res.status !== 200 && res.status !== 201) {
+        throw new Error(res.error || 'ส่ง LINE Notification ไม่สำเร็จ')
+      }
+
+      return NextResponse.json({ ok: true })
+    }
+
     if (!finalTargetId) {
       throw new Error('ไม่พบข้อมูลกลุ่มไลน์ปลายทาง กรุณาเชิญบอทเข้ากลุ่มก่อนทดสอบ หรือตั้งค่า Target ID ด้วยตนเอง')
+    }
+
+    if (!finalToken) {
+      throw new Error('กรุณากรอก LINE Channel Access Token หรือบันทึกในระบบก่อนทดสอบ')
     }
 
     const mockFlexMessage = {

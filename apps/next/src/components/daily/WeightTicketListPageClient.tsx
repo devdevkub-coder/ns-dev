@@ -82,6 +82,22 @@ function formatDateTime(value?: string | null) {
   })
 }
 
+function formatDateTimeSplit(value?: string | null) {
+  if (!value) return { date: '-', time: '' }
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return { date: value, time: '' }
+  const dateStr = d.toLocaleDateString('th-TH', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
+  const timeStr = d.toLocaleTimeString('th-TH', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+  return { date: dateStr, time: timeStr }
+}
+
 function SortHeader({
   activeKey,
   align,
@@ -680,100 +696,106 @@ export function WeightTicketListPageClient() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td className="px-3 py-10 text-center text-slate-500" colSpan={10}>กำลังโหลดข้อมูล</td>
+                  <td className="px-3 py-10 text-center text-slate-500" colSpan={9}>กำลังโหลดข้อมูล</td>
                 </tr>
               ) : loadError ? (
                 <tr>
-                  <td className="px-3 py-10 text-center text-red-600" colSpan={10}>{loadError}</td>
+                  <td className="px-3 py-10 text-center text-red-600" colSpan={9}>{loadError}</td>
                 </tr>
               ) : tickets.length === 0 ? (
                 <tr>
-                  <td className="px-3 py-10 text-center text-slate-500" colSpan={10}>ยังไม่มีรายการตามเงื่อนไข</td>
+                  <td className="px-3 py-10 text-center text-slate-500" colSpan={9}>ยังไม่มีรายการตามเงื่อนไข</td>
                 </tr>
-              ) : tickets.map((ticket) => (
-                <tr
-                  className="cursor-pointer hover:bg-slate-50"
-                  key={ticket.id}
-                  onClick={() => setActiveDetailId(ticket.id)}
-                >
-                  <td className="whitespace-nowrap px-3 py-3 text-slate-900">{ticket.documentNo}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-slate-600">{formatDateTime(ticket.createdAt)}</td>
-                  <td className="px-3 py-3 text-slate-900">{ticket.partyName}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-slate-600">{ticket.branchName}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-slate-600">{ticket.vehicleNo}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-slate-900">{formatWeight(ticket.totals.netWeight)} กก.</td>
-                  <td className="box-border h-[39px] w-[140px] px-3 py-2">
-                    <div className="flex min-h-[23px] flex-col items-start justify-center">
-                      <span className={cn(
-                        'inline-flex items-center gap-1.5 text-xs font-medium',
-                        weightTicketStatusBadgeClass(ticket.type, ticket.status),
-                      )}
-                      >
-                        <span className="size-1.5 rounded-full bg-current" />
-                        {displayWeightTicketStatus(ticket.type, ticket.status)}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-3 text-slate-600">
-                    <div className="truncate">{ticket.updatedBy}</div>
-                    <div className="text-[11px] text-slate-400">{formatDateTime(ticket.updatedAt || ticket.createdAt)}</div>
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-3 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        className="inline-flex items-center gap-1 rounded-md border border-emerald-200 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60"
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          void handlePrintTicket(ticket)
-                        }}
-                      >
-                        <Printer className="size-3" />
-                        {printingTicketId === ticket.id ? 'เตรียม...' : 'พิมพ์'}
-                      </button>
-                      <button
-                        className={rowActionButtonClass}
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          openShareDialog(ticket)
-                        }}
-                      >
-                        <Share2 className="size-3" />
-                        แชร์
-                      </button>
-                      {ticket.canEdit ? (
+              ) : tickets.map((ticket) => {
+                const { date: ticketDate, time: ticketTime } = formatDateTimeSplit(ticket.createdAt)
+                return (
+                  <tr
+                    className="cursor-pointer hover:bg-slate-50"
+                    key={ticket.id}
+                    onClick={() => setActiveDetailId(ticket.id)}
+                  >
+                    <td className="whitespace-nowrap px-3 py-3 text-slate-900">{ticket.documentNo}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-slate-600">
+                      <div>{ticketDate}</div>
+                      {ticketTime ? <div className="text-[11px] text-slate-400 mt-0.5">{ticketTime}</div> : null}
+                    </td>
+                    <td className="px-3 py-3 text-slate-900">{ticket.partyName}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-slate-600">{ticket.branchName}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-slate-600">{ticket.vehicleNo}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-slate-900">{formatWeight(ticket.totals.netWeight)} กก.</td>
+                    <td className="box-border h-[39px] w-[140px] px-3 py-2">
+                      <div className="flex min-h-[23px] flex-col items-start justify-center">
+                        <span className={cn(
+                          'inline-flex items-center gap-1.5 text-xs font-medium',
+                          weightTicketStatusBadgeClass(ticket.type, ticket.status),
+                        )}
+                        >
+                          <span className="size-1.5 rounded-full bg-current" />
+                          {displayWeightTicketStatus(ticket.type, ticket.status)}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 text-slate-600">
+                      <div className="truncate">{ticket.updatedBy}</div>
+                      <div className="text-[11px] text-slate-400">{formatDateTime(ticket.updatedAt || ticket.createdAt)}</div>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          className="inline-flex items-center gap-1 rounded-md border border-emerald-200 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60"
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            void handlePrintTicket(ticket)
+                          }}
+                        >
+                          <Printer className="size-3" />
+                          {printingTicketId === ticket.id ? 'เตรียม...' : 'พิมพ์'}
+                        </button>
                         <button
                           className={rowActionButtonClass}
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            setActiveForm({ id: ticket.id, type: ticket.type })
-                          }}
-                          type="button"
-                        >
-                          <SquarePen className="size-3" />
-                          แก้ไข
-                        </button>
-                      ) : null}
-                      {ticket.canCancel ? (
-                        <button
-                          className={rowDestructiveActionButtonClass}
                           type="button"
                           onClick={(event) => {
                             event.stopPropagation()
-                            setCancelTicket(ticket)
-                            setCancelError('')
-                            setCancelNote(ticket.cancelNote ?? '')
+                            openShareDialog(ticket)
                           }}
                         >
-                          <XCircle className="size-3" />
-                          ยกเลิก
+                          <Share2 className="size-3" />
+                          แชร์
                         </button>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        {ticket.canEdit ? (
+                          <button
+                            className={rowActionButtonClass}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setActiveForm({ id: ticket.id, type: ticket.type })
+                            }}
+                            type="button"
+                          >
+                            <SquarePen className="size-3" />
+                            แก้ไข
+                          </button>
+                        ) : null}
+                        {ticket.canCancel ? (
+                          <button
+                            className={rowDestructiveActionButtonClass}
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setCancelTicket(ticket)
+                              setCancelError('')
+                              setCancelNote(ticket.cancelNote ?? '')
+                            }}
+                          >
+                            <XCircle className="size-3" />
+                            ยกเลิก
+                          </button>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

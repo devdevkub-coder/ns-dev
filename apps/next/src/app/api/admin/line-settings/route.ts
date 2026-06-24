@@ -17,6 +17,11 @@ const settingsSchema = z.object({
   lineAutoSendWti: z.boolean().default(false),
   lineAutoSendWto: z.boolean().default(false),
   googleSheetsWebhookUrl: z.string().trim().url('URL ไม่ถูกต้อง').or(z.literal('')).nullable().or(z.literal('')),
+  lineNotifyTextTemplateWti: z.string().trim().nullable().or(z.literal('')),
+  lineNotifyTextTemplateWto: z.string().trim().nullable().or(z.literal('')),
+  lineAlbumShowBadges: z.boolean().default(true),
+  lineAlbumShowTimestamps: z.boolean().default(true),
+  lineAlbumQuality: z.number().int().min(10).max(100).default(90),
 })
 
 export async function GET() {
@@ -37,6 +42,11 @@ export async function GET() {
             'LINE_AUTO_SEND_WTI',
             'LINE_AUTO_SEND_WTO',
             'GOOGLE_SHEETS_WEBHOOK_URL',
+            'LINE_NOTIFY_TEXT_TEMPLATE_WTI',
+            'LINE_NOTIFY_TEXT_TEMPLATE_WTO',
+            'LINE_ALBUM_SHOW_BADGES',
+            'LINE_ALBUM_SHOW_TIMESTAMPS',
+            'LINE_ALBUM_QUALITY',
           ],
         },
       },
@@ -46,6 +56,12 @@ export async function GET() {
     const legacyAutoSend = configMap.LINE_AUTO_SEND === 'true'
     const lineAutoSendWti = configMap.LINE_AUTO_SEND_WTI ? configMap.LINE_AUTO_SEND_WTI === 'true' : legacyAutoSend
     const lineAutoSendWto = configMap.LINE_AUTO_SEND_WTO ? configMap.LINE_AUTO_SEND_WTO === 'true' : legacyAutoSend
+
+    const lineNotifyTextTemplateWti = configMap.LINE_NOTIFY_TEXT_TEMPLATE_WTI || ''
+    const lineNotifyTextTemplateWto = configMap.LINE_NOTIFY_TEXT_TEMPLATE_WTO || ''
+    const lineAlbumShowBadges = configMap.LINE_ALBUM_SHOW_BADGES !== 'false'
+    const lineAlbumShowTimestamps = configMap.LINE_ALBUM_SHOW_TIMESTAMPS !== 'false'
+    const lineAlbumQuality = configMap.LINE_ALBUM_QUALITY ? parseInt(configMap.LINE_ALBUM_QUALITY, 10) : 90
 
     const maskSecret = (val: string | null | undefined) => {
       if (!val) return ''
@@ -62,6 +78,11 @@ export async function GET() {
       lineAutoSendWti,
       lineAutoSendWto,
       googleSheetsWebhookUrl: configMap.GOOGLE_SHEETS_WEBHOOK_URL || '',
+      lineNotifyTextTemplateWti,
+      lineNotifyTextTemplateWto,
+      lineAlbumShowBadges,
+      lineAlbumShowTimestamps,
+      lineAlbumQuality,
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
@@ -95,6 +116,11 @@ export async function POST(request: Request) {
       { key: 'LINE_AUTO_SEND_WTI', value: lineAutoSendWti ? 'true' : 'false' },
       { key: 'LINE_AUTO_SEND_WTO', value: lineAutoSendWto ? 'true' : 'false' },
       { key: 'GOOGLE_SHEETS_WEBHOOK_URL', value: values.googleSheetsWebhookUrl || null },
+      { key: 'LINE_NOTIFY_TEXT_TEMPLATE_WTI', value: values.lineNotifyTextTemplateWti || null },
+      { key: 'LINE_NOTIFY_TEXT_TEMPLATE_WTO', value: values.lineNotifyTextTemplateWto || null },
+      { key: 'LINE_ALBUM_SHOW_BADGES', value: values.lineAlbumShowBadges ? 'true' : 'false' },
+      { key: 'LINE_ALBUM_SHOW_TIMESTAMPS', value: values.lineAlbumShowTimestamps ? 'true' : 'false' },
+      { key: 'LINE_ALBUM_QUALITY', value: String(values.lineAlbumQuality) },
     ]
 
     if (!isMasked(values.lineChannelAccessToken)) {
