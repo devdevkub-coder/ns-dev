@@ -110,10 +110,15 @@ export function SystemManualPage({ manual }: SystemManualPageProps) {
 
             <section id="fields" className="scroll-mt-6">
               <h3 className="text-xl font-bold">ความหมายของ Field</h3>
-              <div className="mt-4 space-y-6">
-                {manual.fieldGroups.map((group) => (
-                  <div key={group.title} className="overflow-hidden rounded-lg border border-slate-200">
-                    <div className="bg-slate-100 px-4 py-3 font-bold">{group.title}</div>
+              <p className="mt-2 text-sm text-slate-500">เลือกเปิดดูความหมายของ Field ตามกลุ่มข้อมูล</p>
+              <div className="mt-4 space-y-3">
+                {manual.fieldGroups.map((group, index) => (
+                  <details key={group.title} className="group overflow-hidden rounded-lg border border-slate-200 bg-white" open={index === 0}>
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-slate-100 px-4 py-3 font-bold text-slate-800 transition hover:bg-slate-200">
+                      <span>{group.title}</span>
+                      <span className="text-xs font-semibold text-slate-500 group-open:hidden">แสดงรายละเอียด</span>
+                      <span className="hidden text-xs font-semibold text-blue-600 group-open:inline">ซ่อนรายละเอียด</span>
+                    </summary>
                     <table className="w-full text-left text-sm">
                       <tbody>
                         {group.rows.map(([field, description]) => (
@@ -124,7 +129,7 @@ export function SystemManualPage({ manual }: SystemManualPageProps) {
                         ))}
                       </tbody>
                     </table>
-                  </div>
+                  </details>
                 ))}
               </div>
             </section>
