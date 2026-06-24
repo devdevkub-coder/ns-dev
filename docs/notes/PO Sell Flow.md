@@ -39,8 +39,8 @@ Legacy behavior to preserve unless a later requirement explicitly changes it:
 
 | Step | Actor | Action | Result |
 |---|---|---|---|
-| 1 | User | Opens `/sales/po-sell` and clicks create | Form opens with empty customer/channel/branch, one item row, and delivery date |
-| 2 | User | Selects customer, optional branch/channel, delivery date, products, quantities, prices, and note | Client auto-selects sales channel from `Customer.marketScope` (`ในประเทศ`/`ต่างประเทศ`) and validates required customer, delivery date, at least one item, product, qty, and price |
+| 1 | User | Opens `/sales/po-sell` and clicks create | Form opens with empty branch/customer/channel, one item row, and delivery date |
+| 2 | User | Selects branch first, then selects customer from customers mapped to that branch, delivery date, products, quantities, prices, and note | Client keeps Customer disabled until branch is selected, filters customer options by active `customer_branches`, auto-selects sales channel from `Customer.marketScope` (`ในประเทศ`/`ต่างประเทศ`), and validates required branch, customer, delivery date, at least one item, product, qty, and price |
 | 3 | System | Saves through `POST /api/sales/po-sell` | Creates `po_sells` row with generated `POS...` doc no |
 | 4 | System | Stores item snapshot and totals | `items`, `qty`, `total_amount`, `remaining_qty`, and `remaining_amount` are initialized from submitted lines |
 | 5 | System | Sets initial status | `status = Open`, match status derives as `Not Matched` |

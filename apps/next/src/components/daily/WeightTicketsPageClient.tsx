@@ -1209,6 +1209,7 @@ export function WeightTicketsPageClient({
 	                }}
               />
               <SearchCombobox
+                disabled={!form.branchId}
                 error={showError('partyId')}
                 inputId="weight-ticket-party"
                 label={form.type === 'WTI' ? 'ผู้ขาย*' : 'ลูกค้า*'}

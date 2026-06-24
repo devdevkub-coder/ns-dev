@@ -2829,7 +2829,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                             <Input className="mt-1 w-full cursor-not-allowed bg-slate-100 text-slate-700" readOnly value={selectedSupplier ? `${selectedSupplier.code ? `${selectedSupplier.code} — ` : ''}${selectedSupplier.name}` : '-'} />
                           </label>
                         ) : (
-                          <SupplierSearchCombobox className="w-full" disabled={supplierLockedByReceipt} error={fieldErrors.supplierId} errorKey="supplierId" options={activeSuppliers} value={form.supplierId} onChange={(value) => updateForm('supplierId', value)} />
+                          <SupplierSearchCombobox className="w-full" disabled={supplierLockedByReceipt || !form.branchId} error={fieldErrors.supplierId} errorKey="supplierId" options={activeSuppliers} placeholder={form.branchId ? 'ค้นหาชื่อหรือรหัสผู้ขาย' : 'เลือกสาขาก่อน'} value={form.supplierId} onChange={(value) => updateForm('supplierId', value)} />
                         )}
                       </div>
                       {editingBillId && stockReceiptLocked && !supplierSwapMode ? (
@@ -3236,8 +3236,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="blue">2</StepBadge>ข้อมูลบิล</h4>
                 <div className="grid gap-3 md:grid-cols-4">
-                  <CustomerSearchCombobox className="md:col-span-2" disabled={customerLockedByDelivery} error={salesFieldErrors.customerId} errorKey="customerId" options={activeCustomers} value={salesForm.customerId} onChange={(value) => updateSalesForm('customerId', value)} />
                   <BranchSelectCombobox branches={activeBranches} disabled={stockDeliveryLocked} error={salesFieldErrors.branchId} errorKey="branchId" inputId="sales-bill-branch-search" label="สาขา/คลัง *" placeholder="เลือกสาขา/คลัง" value={salesForm.branchId} onChange={(branchId) => updateSalesForm('branchId', branchId ?? '')} />
+                  <CustomerSearchCombobox className="md:col-span-2" disabled={customerLockedByDelivery || !salesForm.branchId} error={salesFieldErrors.customerId} errorKey="customerId" options={activeCustomers} placeholder={salesForm.branchId ? 'ค้นหารหัสหรือชื่อลูกค้า' : 'เลือกสาขา/คลังก่อน'} value={salesForm.customerId} onChange={(value) => updateSalesForm('customerId', value)} />
                   <Field className="block" error={salesFieldErrors.channelId} label="ช่องทางขาย *">
                     <Input
                       data-error-key="channelId"

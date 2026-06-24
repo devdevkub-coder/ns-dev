@@ -980,18 +980,23 @@ function formatDecimalInput(value: number) {
 }
 
 function CustomerSearchCombobox({
+  disabled = false,
   error,
   options,
+  placeholder = 'พิมพ์ชื่อ Customer...',
   value,
   onChange,
 }: {
+  disabled?: boolean
   error?: string
   options: Option[]
+  placeholder?: string
   value: string
   onChange: (customerId: string) => void
 }) {
   return (
     <SearchCombobox
+      disabled={disabled}
       error={error}
       inputId="po-sell-customer-search"
       inputClassName="!h-9 px-2 py-1.5"
@@ -1002,7 +1007,7 @@ function CustomerSearchCombobox({
         searchText: searchableText(customer),
       }))}
       optionsPanelClassName="max-h-[280px]"
-      placeholder="พิมพ์ชื่อ Customer..."
+      placeholder={placeholder}
       value={value}
       onChange={onChange}
     />
@@ -1149,15 +1154,6 @@ function PoSellFormModal({
           <div className="rounded-md border border-slate-200 bg-white p-4 shadow">
             <div className="mb-3 text-sm font-bold text-slate-800">ข้อมูลเอกสาร</div>
             <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-              <div className="col-span-2">
-                <CustomerSearchCombobox
-                  error={errors.customerId}
-                  options={customers}
-                  value={form.customerId}
-                  onChange={(customerId) => onUpdate('customerId', customerId)}
-                />
-                {fieldError('customerId')}
-              </div>
               <div className="col-span-1">
                 <label className="mb-1 block text-xs font-medium text-slate-600">สาขา/คลัง <span className="text-red-600">*</span></label>
                 <UiSelect className={`!h-9 w-full px-2 py-1.5 text-sm ${form.branchId ? '' : 'text-slate-400'} rounded-lg border-slate-300 focus:border-slate-400 focus:ring-0 outline-none`} value={form.branchId ?? ''} onChange={(event) => onUpdate('branchId', event.target.value || null)}>
@@ -1165,6 +1161,17 @@ function PoSellFormModal({
                   {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
                 </UiSelect>
                 {fieldError('branchId')}
+              </div>
+              <div className="col-span-2">
+                <CustomerSearchCombobox
+                  disabled={!form.branchId}
+                  error={errors.customerId}
+                  options={customers}
+                  placeholder={form.branchId ? 'พิมพ์ชื่อ Customer...' : 'เลือกสาขา/คลังก่อน'}
+                  value={form.customerId}
+                  onChange={(customerId) => onUpdate('customerId', customerId)}
+                />
+                {fieldError('customerId')}
               </div>
               <div className="col-span-1">
                 <label className="mb-1 block text-xs font-medium text-slate-600">วันส่งมอบ <span className="text-red-600">*</span></label>

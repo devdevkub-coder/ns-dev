@@ -544,15 +544,15 @@ export function AdvancePaymentsPageClient() {
               >
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                   <div className="col-span-2 sm:col-span-1">
-                    <SearchCombobox error={fieldErrors.supplierId} errorKey="supplierId" inputId="advance-supplier" label="ผู้ขาย *" options={supplierOptions} value={form.supplierId} onChange={(value) => updateForm('supplierId', value)} />
-                  </div>
-                  <div className="col-span-2 sm:col-span-1">
                     <Field error={fieldErrors.branchId} label="สาขา *">
                       <Select className={`h-9 w-full px-2 py-1.5 ${form.branchId ? '' : 'text-slate-400'}`} value={form.branchId} onChange={(event) => updateForm('branchId', event.target.value)}>
                         <option disabled value="">เลือกสาขา</option>
                         {(data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
                       </Select>
                     </Field>
+                  </div>
+                  <div className="col-span-2 sm:col-span-1">
+                    <SearchCombobox disabled={!form.branchId} error={fieldErrors.supplierId} errorKey="supplierId" inputId="advance-supplier" label="ผู้ขาย *" options={supplierOptions} placeholder={form.branchId ? 'ค้นหาชื่อหรือรหัสผู้ขาย' : 'เลือกสาขาก่อน'} value={form.supplierId} onChange={(value) => updateForm('supplierId', value)} />
                   </div>
                   <div className="col-span-2 lg:col-span-1">
                     <MoneyInputField error={fieldErrors.amount} label="ยอดมัดจำ *" value={form.amount} onChange={(value) => updateForm('amount', value)} />

@@ -65,6 +65,7 @@ POB เป็น commitment/reservation ฝั่งซื้อ ไม่สร
 
 - UI ใช้ outward business document/code เป็นหลัก และให้ server resolve internal id
 - list/detail/print/export ต้องอ่าน source contract เดียวกันเพื่อลด drift
+- modal PO Buy ต้องบังคับเลือก `สาขา` ก่อน `ผู้ขาย`; Supplier selector ต้อง disabled จนกว่าจะเลือกสาขา
 - supplier options ต้องกรองตามสาขาเอกสารจาก active `supplier_branches`; ถ้าเปลี่ยนสาขาแล้วผู้ขายที่เลือกอยู่ไม่ผูกกับสาขาใหม่ ต้อง clear supplier และให้ผู้ใช้เลือกใหม่
 - VAT payload ใช้ `hasVat`, `vatType`, `vatRatePercent`, `vatAmount`, `subtotal`, `totalAmount`; `PB` ยังเป็น source สำหรับ AP/VAT จริง
 - transaction write ต้องทำใน server transaction และ append timeline/status/audit ตาม document policy
@@ -105,5 +106,5 @@ VAT runtime as of 2026-06-12 is implemented for create/edit/list/detail/export/r
 - [x] Verify API route handlers match Current API and status rules above
 - [ ] Verify legacy behavior for any gap before implementing runtime change
 - [ ] Add/adjust tests or browser QA checklist before changing runtime
-- [ ] Filter/validate Supplier selector by `supplier_branches` for PO Buy create/edit
-- [ ] Update this file and canonical reference if contract changes
+- [x] Filter/validate Supplier selector by `supplier_branches` for PO Buy create/edit
+- [x] Update this file and canonical reference if contract changes

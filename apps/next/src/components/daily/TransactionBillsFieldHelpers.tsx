@@ -204,6 +204,7 @@ export function SupplierSearchCombobox({
   error,
   errorKey,
   options,
+  placeholder = 'ค้นหาชื่อหรือรหัสผู้ขาย',
   value,
   onChange,
 }: {
@@ -212,6 +213,7 @@ export function SupplierSearchCombobox({
   error?: string
   errorKey?: string
   options: Option[]
+  placeholder?: string
   value: string
   onChange: (supplierId: string) => void
 }) {
@@ -228,7 +230,7 @@ export function SupplierSearchCombobox({
           label: optionLabel(supplier),
           searchText: searchableOptionText(supplier),
         }))}
-        placeholder="ค้นหาชื่อหรือรหัสผู้ขาย"
+        placeholder={placeholder}
         value={value}
         onChange={onChange}
       />
@@ -242,6 +244,7 @@ export function CustomerSearchCombobox({
   error,
   errorKey,
   options,
+  placeholder = 'ค้นหารหัสหรือชื่อลูกค้า',
   value,
   onChange,
 }: {
@@ -250,6 +253,7 @@ export function CustomerSearchCombobox({
   error?: string
   errorKey?: string
   options: Option[]
+  placeholder?: string
   value: string
   onChange: (customerId: string) => void
 }) {
@@ -266,7 +270,7 @@ export function CustomerSearchCombobox({
           label: optionLabel(customer),
           searchText: searchableOptionText(customer),
         }))}
-        placeholder="ค้นหารหัสหรือชื่อลูกค้า"
+        placeholder={placeholder}
         value={value}
         onChange={onChange}
       />

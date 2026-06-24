@@ -1518,18 +1518,23 @@ function statusBadge(status: string) {
 }
 
 function SupplierSearchCombobox({
+  disabled = false,
   error,
   options,
+  placeholder = 'พิมพ์ชื่อผู้ขาย...',
   value,
   onChange,
 }: {
+  disabled?: boolean
   error?: string
   options: Option[]
+  placeholder?: string
   value: string
   onChange: (supplierId: string) => void
 }) {
   return (
     <SearchCombobox
+      disabled={disabled}
       error={error}
       inputId="po-buy-supplier-search"
       label="ผู้ขาย *"
@@ -1540,7 +1545,7 @@ function SupplierSearchCombobox({
         searchText: searchableText(supplier),
       }))}
       optionsPanelClassName="max-h-[280px]"
-      placeholder="พิมพ์ชื่อผู้ขาย..."
+      placeholder={placeholder}
       value={value}
       onChange={onChange}
     />
@@ -1697,21 +1702,23 @@ function PoBuyFormModal({
         <div className="space-y-4 p-5 text-sm">
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             <div className="col-span-2 sm:col-span-1">
-              <SupplierSearchCombobox
-                error={errors.supplierId}
-                options={activeSuppliers}
-                value={form.supplierId}
-                onChange={(supplierId) => onUpdate('supplierId', supplierId)}
-              />
-              {fieldError('supplierId')}
-            </div>
-            <div className="col-span-2 sm:col-span-1">
               <label className="mb-1 block text-xs">สาขา <span className="text-red-600">*</span></label>
               <UiSelect className={`!h-9 w-full px-2 py-1.5 text-sm ${form.branchId ? '' : 'text-slate-400'}`} value={form.branchId} onChange={(event) => onUpdate('branchId', event.target.value)}>
                 <option disabled value="">เลือกสาขา</option>
                 {activeBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
               </UiSelect>
               {fieldError('branchId')}
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              <SupplierSearchCombobox
+                disabled={!form.branchId}
+                error={errors.supplierId}
+                options={activeSuppliers}
+                placeholder={form.branchId ? 'พิมพ์ชื่อผู้ขาย...' : 'เลือกสาขาก่อน'}
+                value={form.supplierId}
+                onChange={(supplierId) => onUpdate('supplierId', supplierId)}
+              />
+              {fieldError('supplierId')}
             </div>
             <div className="col-span-2 lg:col-span-1">
               <label className="mb-1 block text-xs">วันส่งมอบ <span className="text-red-600">*</span></label>

@@ -55,6 +55,7 @@ list/detail/create link สำหรับ WTI/WTO; WTI/WTO เป็น evidenc
 - เมื่อเข้าหน้า create จาก tab `WTI` หรือ `WTO` ต้องล็อกประเภทเอกสารและซ่อน tab ของอีกประเภท; edit เอกสารเดิมก็ต้องล็อกประเภทเช่นกัน
 - WTI ใช้เป็น source PB: 1 WTI ต่อ 1 PB และต้องถูกใช้ครบใน PB เดียว
 - WTO ใช้เป็น source SB: 1 WTO ต่อ 1 SB และต้องถูกใช้ครบใน SB เดียว
+- WTI/WTO create/edit ต้องบังคับเลือก `สาขา` ก่อน `ผู้ขาย/ลูกค้า`; party selector ต้อง disabled จนกว่าจะเลือกสาขา
 - WTI supplier selector ต้องกรองจาก active `supplier_branches` ของสาขาเอกสาร และ WTO customer selector ต้องกรองจาก active `customer_branches` ของสาขาเอกสาร; เปลี่ยนสาขาแล้วคู่ค้าที่ไม่ตรง mapping ต้องถูก clear
 - WTO เป็น `pending_out` source โดยตรง: เมื่อสร้าง WTO ต้องกัน stock เป็น `pending_out` และแสดงใน Stock Balance เป็น `รอออก`
 - แสดง product thumbnail, เต๋า/summary, vehicle/image evidence และ downstream usage lock
