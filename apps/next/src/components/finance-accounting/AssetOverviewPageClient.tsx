@@ -11,7 +11,6 @@ type Payload = {
   branches: { code: string; id: string; name: string }[]
   charts: { arAging: Record<string, number>; assetComp: Array<{ color: string; name: string; val: number }>; debtComp: Array<{ color: string; name: string; val: number }> }
   filters: { asOf: string; branchId: string; monthStart: string }
-  pendingIssueSummary: Record<string, number>
   rows: { cashAccounts: AnyRow[]; debt: Record<string, number>; receivable: Record<string, number>; stock: Record<string, number> }
   sourceState: { limitations: string[] }
   summary: Record<string, number>
@@ -114,7 +113,6 @@ export function AssetOverviewPageClient() {
 
       <div className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
         <div className="space-y-4">
-          {num(data?.pendingIssueSummary.count) > 0 ? <PendingOutBlock summary={data?.pendingIssueSummary ?? {}} /> : null}
           {num(data?.tradingPending.billCount) > 0 ? <TradingPendingBlock summary={data?.tradingPending ?? {}} /> : null}
           
           <div className="grid gap-4 md:grid-cols-2">
@@ -177,30 +175,6 @@ function DarkKpi({ danger = false, label, up = false, value }: { danger?: boolea
         <div className="text-[10px] text-slate-400 font-medium mt-0.5">
           {toneStyles.sub}
         </div>
-      </div>
-    </div>
-  )
-}
-
-function PendingOutBlock({ summary }: { summary: Record<string, number> }) {
-  return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50/10 p-4 shadow-sm">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="flex items-center gap-2 text-sm font-semibold text-amber-800">
-          <span className="text-xl">📦</span> ต้นทุนรอเปิดบิล (WTO pending out) - ใบส่งของที่ยังไม่เปิดบิลขาย
-        </h3>
-        <Link 
-          className="rounded-lg bg-amber-700 hover:bg-amber-800 transition-colors px-3 py-1.5 text-xs font-semibold text-white outline-none" 
-          href="/sales/bills"
-        >
-          ดูทั้งหมด
-        </Link>
-      </div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Mini label="⏰ จำนวนใบ" tone="amber" value={money(summary.count)} />
-        <Mini label="⚖ น้ำหนัก" tone="blue" value={`${money(summary.qty)} กก.`} />
-        <Mini label="💰 ต้นทุน (เงินค้าง)" tone="red" value={money(summary.cost)} />
-        <Mini label="📈 ยอดขายคาด" tone="emerald" value={money(summary.est)} />
       </div>
     </div>
   )

@@ -109,7 +109,7 @@ export async function GET(request: Request) {
         })
       : null
 
-    const [bills, receipts, customers, branches, channels, pendingIssues] = await Promise.all([
+    const [bills, receipts, customers, branches, channels] = await Promise.all([
       prisma.sales_bills.findMany({
         include: {
           branches: { select: { code: true, id: true, name: true } },
@@ -145,14 +145,6 @@ export async function GET(request: Request) {
         orderBy: [{ name: 'asc' }],
         select: { active: true, code: true, id: true, name: true },
         where: { active: true },
-      }),
-      prisma.stock_issues.findMany({
-        select: { total_cost: true, total_est_amount: true },
-        take: 10000,
-        where: {
-          ...(branch?.id != null ? { branch_id: branch.id } : {}),
-          status: 'pending',
-        },
       }),
     ])
 
@@ -303,11 +295,6 @@ export async function GET(request: Request) {
         customers: byCustomer.length,
         dueIn7: allRows.filter((row) => row.aging >= -7 && row.aging <= 0).reduce((sum, row) => sum + row.receivableBalance, 0),
         overdue: allRows.filter((row) => row.aging > 0).reduce((sum, row) => sum + row.receivableBalance, 0),
-        pendingIssue: {
-          cost: pendingIssues.reduce((sum, row) => sum + toNumber(row.total_cost), 0),
-          count: pendingIssues.length,
-          est: pendingIssues.reduce((sum, row) => sum + toNumber(row.total_est_amount), 0),
-        },
         total: allRows.reduce((sum, row) => sum + row.receivableBalance, 0),
         domestic: allRows.filter((row) => row.marketScope === 'ในประเทศ').reduce((sum, row) => sum + row.receivableBalance, 0),
         overseas: allRows.filter((row) => row.marketScope === 'ต่างประเทศ').reduce((sum, row) => sum + row.receivableBalance, 0),

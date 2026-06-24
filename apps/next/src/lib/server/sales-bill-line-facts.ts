@@ -20,7 +20,6 @@ type SalesBillLineWithFacts = Prisma.sales_bill_linesGetPayload<{
 
 type TradingAllocationFact = Prisma.trading_allocation_factsGetPayload<Record<string, never>>
 type StockLedgerCostRow = Pick<Prisma.stock_ledgerGetPayload<Record<string, never>>, 'product_id' | 'ref_id' | 'ref_no' | 'value_out'>
-type StockIssueCostRow = Pick<Prisma.stock_issuesGetPayload<Record<string, never>>, 'id' | 'total_cost'>
 
 export type SalesBillLineFactRow = {
   allocationType: string
@@ -84,20 +83,12 @@ function billProductKey(docNo: string, productId: bigint | number | null | undef
   return `${docNo}:${productId?.toString() ?? ''}`
 }
 
-function stockIssueProductKey(stockIssueId: bigint | number | null | undefined, productId: bigint | number | null | undefined) {
-  return `${stockIssueId?.toString() ?? ''}:${productId?.toString() ?? ''}`
-}
-
 function activeSourceAllocations(line: SalesBillLineWithFacts) {
   return line.sales_bill_source_allocations.filter((row) => row.status === 'active')
 }
 
 function activeDirectStockSources(line: SalesBillLineWithFacts) {
   return activeSourceAllocations(line).filter((row) => row.source_type === 'WTO' && row.movement_owner === 'SALES_BILL')
-}
-
-function activePendingSaleSources(line: SalesBillLineWithFacts) {
-  return activeSourceAllocations(line).filter((row) => row.source_type === 'PSALE' && row.stock_issue_id != null)
 }
 
 function sumDirectStockLedgerByBillProduct(rows: StockLedgerCostRow[], salesDocNos: Set<string>) {
@@ -111,55 +102,32 @@ function sumDirectStockLedgerByBillProduct(rows: StockLedgerCostRow[], salesDocN
   return totals
 }
 
-function mapStockIssueTotalCost(rows: StockIssueCostRow[]) {
-  const totals = new Map<string, number>()
-  for (const row of rows) totals.set(row.id.toString(), toNumber(row.total_cost))
-  return totals
-}
-
 async function stockCogsByLine(lines: SalesBillLineWithFacts[]) {
   const totals = new Map<string, number>()
   if (!lines.length) return totals
 
   const salesDocNos = new Set(lines.map((line) => line.sales_bills.doc_no).filter(Boolean))
-  const stockIssueIds = Array.from(new Set(lines
-    .flatMap((line) => activePendingSaleSources(line).map((source) => source.stock_issue_id))
-    .filter((id): id is bigint => id != null)))
 
-  const [directStockLedgerRows, stockIssues] = await Promise.all([
-    salesDocNos.size
-      ? prisma.stock_ledger.findMany({
-        select: { product_id: true, ref_id: true, ref_no: true, value_out: true },
-        where: {
-          ref_type: 'SB',
-          OR: [
-            { ref_no: { in: Array.from(salesDocNos) } },
-            { ref_id: { in: Array.from(salesDocNos) } },
-          ],
-        },
-      })
-      : Promise.resolve([]),
-    stockIssueIds.length
-      ? prisma.stock_issues.findMany({
-        select: { id: true, total_cost: true },
-        where: { id: { in: stockIssueIds } },
-      })
-      : Promise.resolve([]),
-  ])
+  const directStockLedgerRows = salesDocNos.size
+    ? await prisma.stock_ledger.findMany({
+      select: { product_id: true, ref_id: true, ref_no: true, value_out: true },
+      where: {
+        ref_type: 'SB',
+        OR: [
+          { ref_no: { in: Array.from(salesDocNos) } },
+          { ref_id: { in: Array.from(salesDocNos) } },
+        ],
+      },
+    })
+    : []
 
   const directLedgerCostByBillProduct = sumDirectStockLedgerByBillProduct(directStockLedgerRows, salesDocNos)
-  const stockIssueCostById = mapStockIssueTotalCost(stockIssues)
   const directQtyByBillProduct = new Map<string, number>()
-  const psaleQtyByIssueProduct = new Map<string, number>()
 
   for (const line of lines) {
     for (const source of activeDirectStockSources(line)) {
       const key = billProductKey(line.sales_bills.doc_no, source.product_id ?? line.product_id)
       directQtyByBillProduct.set(key, (directQtyByBillProduct.get(key) ?? 0) + stockSourceQty(source))
-    }
-    for (const source of activePendingSaleSources(line)) {
-      const key = stockIssueProductKey(source.stock_issue_id, source.product_id ?? line.product_id)
-      psaleQtyByIssueProduct.set(key, (psaleQtyByIssueProduct.get(key) ?? 0) + stockSourceQty(source))
     }
   }
 
@@ -170,12 +138,6 @@ async function stockCogsByLine(lines: SalesBillLineWithFacts[]) {
       const allocationKey = billProductKey(line.sales_bills.doc_no, source.product_id ?? line.product_id)
       const totalQty = directQtyByBillProduct.get(allocationKey) ?? 0
       const totalCost = directLedgerCostByBillProduct.get(allocationKey) ?? 0
-      if (totalQty > 0 && totalCost > 0) lineCogs += totalCost * (stockSourceQty(source) / totalQty)
-    }
-    for (const source of activePendingSaleSources(line)) {
-      const allocationKey = stockIssueProductKey(source.stock_issue_id, source.product_id ?? line.product_id)
-      const totalQty = psaleQtyByIssueProduct.get(allocationKey) ?? 0
-      const totalCost = stockIssueCostById.get(source.stock_issue_id?.toString() ?? '') ?? 0
       if (totalQty > 0 && totalCost > 0) lineCogs += totalCost * (stockSourceQty(source) / totalQty)
     }
     totals.set(key, lineCogs)

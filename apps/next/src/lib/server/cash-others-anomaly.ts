@@ -1,9 +1,7 @@
-import type { Prisma } from '../../../generated/prisma/client'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { prisma } from '@/lib/server/prisma'
 
-type JsonItem = Prisma.JsonObject
 function endOfDay(date: Date) {
   return new Date(`${toDateOnly(date)}T23:59:59.999Z`)
 }
@@ -14,24 +12,6 @@ function activeStatus(status?: string | null) {
 
 function branchWhere(branchId?: bigint | null) {
   return branchId ? { branch_id: branchId } : {}
-}
-
-function jsonNumber(value: unknown) {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
-  if (typeof value === 'string') {
-    const parsed = Number(value.replace(/,/g, ''))
-    return Number.isFinite(parsed) ? parsed : 0
-  }
-  if (value && typeof value === 'object' && 'toNumber' in value && typeof value.toNumber === 'function') return value.toNumber()
-  return 0
-}
-
-function isJsonItem(value: unknown): value is JsonItem {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function itemQty(item: JsonItem) {
-  return jsonNumber(item.qty ?? item.quantity ?? item.netWeight ?? item.weight)
 }
 
 function daysBetween(from: Date, to: Date) {
@@ -85,12 +65,11 @@ export async function buildCashOthersSummary(asOfValue?: string | null, branchId
   const branchRef = branchIdValue ? await findActiveBranchReferenceByCodeOrId(branchIdValue) : null
   const branchId = branchRef?.id ?? null
   const today = toDateOnly(asOf)
-  const [cashAccounts, salesBills, purchaseBills, stockRows, stockIssues, expenses, tradingDeals] = await Promise.all([
+  const [cashAccounts, salesBills, purchaseBills, stockRows, expenses, tradingDeals] = await Promise.all([
     accountBalances(asOf, branchId),
     prisma.sales_bills.findMany({ include: { customers: true, sales_channels: true }, orderBy: [{ date: 'desc' }], take: 15000, where: { ...branchWhere(branchId), date: { lte: endOfDay(asOf) } } }),
     prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } }, suppliers: true }, orderBy: [{ date: 'desc' }], take: 15000, where: { ...branchWhere(branchId), date: { lte: endOfDay(asOf) } } }),
     prisma.stock_ledger.findMany({ include: { products: true }, orderBy: [{ date: 'desc' }], take: 80000, where: { ...branchWhere(branchId), date: { lte: endOfDay(asOf) } } }),
-    prisma.stock_issues.findMany({ orderBy: [{ date: 'desc' }], take: 5000, where: { ...branchWhere(branchId), date: { lte: endOfDay(asOf) } } }),
     prisma.expenses.findMany({ orderBy: [{ date: 'desc' }], take: 5000, where: { ...branchWhere(branchId), date: new Date(`${today}T00:00:00.000Z`) } }),
     prisma.trading_deals.findMany({ orderBy: [{ date: 'desc' }], take: 10000, where: { date: { lte: endOfDay(asOf) } } }),
   ])
@@ -125,16 +104,6 @@ export async function buildCashOthersSummary(asOfValue?: string | null, branchId
   const totalPurchaseAmount = activePurchases.reduce((sum, row) => sum + toNumber(row.total_amount), 0)
   const paidPurchaseAmount = activePurchases.reduce((sum, row) => sum + toNumber(row.paid_amount), 0)
   const paidRatio = totalPurchaseAmount > 0 ? Math.min(1, paidPurchaseAmount / totalPurchaseAmount) : 1
-  const pendingIssues = stockIssues.filter((issue) => (issue.status ?? '').toLowerCase() === 'pending')
-  const pendingIssueSummary = pendingIssues.reduce((acc, issue) => {
-    const qty = Array.isArray(issue.items) ? issue.items.filter(isJsonItem).reduce((sum, item) => sum + itemQty(item), 0) : 0
-    acc.count += 1
-    acc.cost += toNumber(issue.total_cost)
-    acc.est += toNumber(issue.total_est_amount)
-    acc.qty += qty
-    return acc
-  }, { cost: 0, count: 0, est: 0, qty: 0 })
-
   const matchedByPurchase = new Map<bigint, number>()
   tradingDeals.filter((deal) => activeStatus(deal.status)).forEach((deal) => {
     if (!deal.purchase_bill_id) return
@@ -161,7 +130,7 @@ export async function buildCashOthersSummary(asOfValue?: string | null, branchId
   const cashNeededToday = apOverdue + expenseToday
   const supplierAdvanceTotal = 0
   const customerAdvanceTotal = 0
-  const totalAsset = totalCash + totalAR + stock.value + supplierAdvanceTotal + pendingIssueSummary.cost + tradingPending.pendingAmount
+  const totalAsset = totalCash + totalAR + stock.value + supplierAdvanceTotal + tradingPending.pendingAmount
   const totalDebt = totalAP + customerAdvanceTotal
 
   return {
@@ -172,7 +141,6 @@ export async function buildCashOthersSummary(asOfValue?: string | null, branchId
         { color: '#10b981', name: '💵 เงินสด/ธนาคาร', val: totalCash },
         { color: '#06b6d4', name: '📥 ลูกหนี้ (AR)', val: totalAR },
         { color: '#f59e0b', name: '📦 Stock', val: stock.value },
-        { color: '#fbbf24', name: '📦 WTO pending out (รอเปิดบิล)', val: pendingIssueSummary.cost },
         { color: '#a855f7', name: '🔄 Trading Pending รับเงิน', val: tradingPending.pendingAmount },
         { color: '#8b5cf6', name: '💸 Supplier Advance', val: supplierAdvanceTotal },
       ].filter((row) => row.val > 0),
@@ -181,7 +149,6 @@ export async function buildCashOthersSummary(asOfValue?: string | null, branchId
         { color: '#f97316', name: '💰 Customer Advance', val: customerAdvanceTotal },
       ].filter((row) => row.val > 0),
     },
-    pendingIssueSummary,
     rows: {
       cashAccounts,
       receivable: { arDomestic, arOverdue, arOverseas, customerAdvanceTotal, totalAR },

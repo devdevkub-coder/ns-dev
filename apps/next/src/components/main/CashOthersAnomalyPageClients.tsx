@@ -9,7 +9,6 @@ type AnyRow = Record<string, number | string | boolean | null | undefined>
 type CashOthersPayload = {
   asOf: string
   charts: { arAging: Record<string, number>; assetComp: Array<{ color: string; name: string; val: number }>; debtComp: Array<{ color: string; name: string; val: number }> }
-  pendingIssueSummary: Record<string, number>
   rows: { cashAccounts: AnyRow[]; debt: Record<string, number>; receivable: Record<string, number>; stock: Record<string, number> }
   sourceState: { limitations: string[] }
   summary: Record<string, number>
@@ -69,7 +68,6 @@ export function CashOthersSummaryPageClient() {
         <Grand icon="⚖️" label="Net Worth" value={summary.netWorth} />
         <Grand danger={(summary.cashNeededToday ?? 0) > (summary.totalCash ?? 0)} icon="💸" label="เงินที่ต้องใช้วันนี้" value={summary.cashNeededToday} />
       </div>
-      {num(data?.pendingIssueSummary.count) > 0 ? <PendingOutBlock summary={data?.pendingIssueSummary ?? {}} /> : null}
       <TradingPendingBlock summary={data?.tradingPending ?? {}} />
       <div className="grid gap-4 lg:grid-cols-3">
         <DonutPanel items={data?.charts.assetComp ?? []} title="🥧 องค์ประกอบสินทรัพย์" total={summary.totalAsset ?? 0} tone="emerald" />
@@ -104,27 +102,6 @@ function Grand({ danger = false, icon, label, value }: { danger?: boolean; icon:
   )
 }
 
-
-function PendingOutBlock({ summary }: { summary: Record<string, number> }) {
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="flex items-center gap-2 text-sm font-bold text-slate-850">
-          <span className="text-xl">📦</span> ต้นทุนรอเปิดบิล (WTO pending out) — ใบส่งของที่ยังไม่เปิดบิลขาย
-        </h3>
-        <Link className="rounded-lg bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-bold text-white transition-colors outline-none focus:outline-none" href="/sales/bills">
-          ดูทั้งหมด →
-        </Link>
-      </div>
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
-        <Mini label="⏰ จำนวนใบ" tone="amber" value={money(summary.count)} />
-        <Mini label="⚖ น้ำหนัก" tone="blue" value={`${money(summary.qty)} กก.`} />
-        <Mini label="💰 ต้นทุน (เงินที่ค้าง)" tone="red" value={money(summary.cost)} />
-        <Mini label="📈 ยอดขายคาด" tone="emerald" value={money(summary.est)} />
-      </div>
-    </div>
-  )
-}
 
 function TradingPendingBlock({ summary }: { summary: Record<string, number> }) {
   return (

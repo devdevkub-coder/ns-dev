@@ -61,7 +61,6 @@ Cash & Others Summary เป็น owner/management view ของ cash, AR, AP,
 - `sales_bills`, `customers`
 - `purchase_bills`, `purchase_bill_items`, `suppliers`
 - `stock_ledger`, `products`
-- `stock_issues`
 - `expenses`
 - `trading_deals`
 
@@ -70,7 +69,6 @@ Cash & Others Summary เป็น owner/management view ของ cash, AR, AP,
 - `summary`
 - `charts`
 - `rows`
-- `pendingIssueSummary`
 - `tradingPending`
 - `sourceState`
 

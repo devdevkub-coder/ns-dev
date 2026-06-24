@@ -191,7 +191,7 @@ function poSellItems(row: { items: unknown; product_id: bigint | null; qty: unkn
   }]
 }
 
-export async function buildPendingSales() {
+async function buildSalesPlanningSnapshot() {
   const { byKey, refs } = await productsContext()
   const [poSells, poBuys, stockRows, customers, tradingDeals, purchaseBills] = await Promise.all([
     prisma.po_sells.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000 }),
@@ -430,7 +430,7 @@ export async function buildPendingSales() {
     reconciliation,
     reconTotals,
     sourceState: {
-      basis: 'Pending sales read/design baseline from PO Sell, WTO pending out, PO Buy, purchase bills, trading deals, stock ledger, and product master.',
+      basis: 'Sales planning read/design baseline from PO Sell, WTO pending_out, PO Buy, purchase bills, trading deals, stock ledger, and product master.',
       limitations: ['LME config, LME percent save, export, matching, and sales-plan locks are disabled until target schemas and audit rules are designed.'],
       writeActionsEnabled: false,
     },
@@ -439,7 +439,7 @@ export async function buildPendingSales() {
 }
 
 export async function buildSalesPlan() {
-  const pending = await buildPendingSales()
+  const pending = await buildSalesPlanningSnapshot()
   const config = pending.lmeConfig
   const remainRows = pending.reconciliation.map((row) => {
     const lockedKg = 0
@@ -479,7 +479,7 @@ export async function buildSalesPlan() {
     planRows: [],
     productAnalysis: remainRows,
     sourceState: {
-      basis: 'Sales Plan read/design baseline from current stock/pending sales and LME reference values.',
+      basis: 'Sales Plan read/design baseline from current stock, WTO pending_out, and LME reference values.',
       limitations: ['Add plan, remove plan, lock/unlock price, and export remain disabled until sales-plan persistence, stock reservation, permissions, and audit are designed.'],
       writeActionsEnabled: false,
     },

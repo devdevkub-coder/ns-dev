@@ -30,7 +30,6 @@ updated: 2026-06-11
   - `/sales/po-sell`
   - `/sales/bills`
   - `/sales/receipts`
-  - `/pending-sales`
   - `/daily/weight-ticket-list`
   - `/stock/balance`
   - `/stock/ledger`
@@ -71,7 +70,6 @@ updated: 2026-06-11
 | `/daily-report` | Daily Report | [main-dashboard-reports-daily-report.md](main-dashboard-reports-daily-report.md) | [[Main Dashboard Reports Flow]] |
 | `/dashboard` | Financial Dashboard | [main-dashboard-reports-dashboard.md](main-dashboard-reports-dashboard.md) | [[Main Dashboard Reports Flow]] |
 | `/profit-cost-analysis` | Profit & Cost Analysis | [main-dashboard-reports-profit-cost-analysis.md](main-dashboard-reports-profit-cost-analysis.md) | [[Main Dashboard Reports Flow]] |
-| `/pending-sales` | รายการรอขาย | [main-dashboard-reports-pending-sales.md](main-dashboard-reports-pending-sales.md) | [[Sales Flow]], [[Cost Pool]] |
 | `/sales-plan` | วางแผนการขาย (LME) | [main-dashboard-reports-sales-plan.md](main-dashboard-reports-sales-plan.md) | [[Sales Flow]] |
 | `/sales-commission` | Sales Tracking Dashboard | [main-dashboard-reports-sales-commission.md](main-dashboard-reports-sales-commission.md) | [[Main Dashboard Reports Flow]] |
 | `/cash-flow-calendar` | Cash Flow Calendar | [main-dashboard-reports-cash-flow-calendar.md](main-dashboard-reports-cash-flow-calendar.md) | [[Main Dashboard Reports Flow]] |

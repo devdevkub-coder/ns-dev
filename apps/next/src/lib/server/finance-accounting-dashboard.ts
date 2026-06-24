@@ -172,8 +172,6 @@ export async function buildFinancialDashboard(filter: FinancialDashboardFilter) 
       npPct: monthPl.summary.revenue > 0 ? monthPl.summary.netProfitBeforeTax / monthPl.summary.revenue * 100 : 0,
       odAvailable: split.odAvailable,
       opCF: cashAnalysis.summary.operatingCashFlow,
-      pendingIssueCost: 0,
-      pendingIssueCount: 0,
       rev: monthPl.summary.revenue,
       runway,
       stockCount: stockFinance.summary.itemCount,

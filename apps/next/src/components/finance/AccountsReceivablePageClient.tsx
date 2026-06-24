@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
@@ -42,7 +41,7 @@ type ArPayload = {
   filters: { branches: SelectOption[]; channels: SelectOption[]; customers: SelectOption[]; statuses: string[] }
   pagination: { page: number; pageSize: number; totalPages: number; totalRows: number }
   rows: ArRow[]
-  summary: { bills: number; customers: number; domestic: number; dueIn7: number; overdue: number; overseas: number; pendingIssue: { cost: number; count: number; est: number }; total: number }
+  summary: { bills: number; customers: number; domestic: number; dueIn7: number; overdue: number; overseas: number; total: number }
 }
 
 type SortKey = 'date' | 'docNo' | 'dueDate' | 'receivableBalance' | 'customerName' | 'aging'
@@ -201,27 +200,10 @@ export function AccountsReceivablePageClient() {
   const totalAr = data?.summary.total ?? 0
   const overdueAr = data?.summary.overdue ?? 0
   const overduePercent = totalAr > 0 ? ((overdueAr / totalAr) * 100).toFixed(0) : '0'
-  const pendingIssue = data?.summary.pendingIssue ?? { cost: 0, count: 0, est: 0 }
 
   return (
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
-
-      {pendingIssue.count > 0 ? (
-        <div className="flex items-center justify-between rounded-md border-l-4 border-amber-500 bg-gradient-to-r from-amber-50 to-orange-50 p-3 shadow">
-          <div className="flex flex-1 flex-wrap items-center gap-3">
-            <span className="text-2xl">📦</span>
-            <div>
-              <span className="font-bold text-amber-700">ใบส่งของ WTO รอเปิดบิลขาย (ยังไม่เป็น AR)</span>
-              <span className="ml-2 text-xs text-amber-600">— pending out จากใบส่งของ</span>
-            </div>
-            <span className="text-xs text-slate-600">📦 {pendingIssue.count} ใบ</span>
-            <span className="text-xs">💰 ต้นทุน: <b className="text-base text-red-600">{formatMoney(pendingIssue.cost)}</b></span>
-            <span className="text-xs">📈 ยอดคาด: <b className="text-emerald-700">{formatMoney(pendingIssue.est)}</b></span>
-          </div>
-          <Link className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-bold text-white" href="/sales/bills">→ เปิดบิลขาย</Link>
-        </div>
-      ) : null}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div className="relative overflow-hidden rounded-md bg-gradient-to-br from-blue-500 via-cyan-500 to-teal-600 p-5 text-white shadow-xl flex flex-col justify-between min-h-[180px]">

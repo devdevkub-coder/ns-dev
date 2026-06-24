@@ -142,7 +142,6 @@ export function FinancialDashboardPageClient() {
 
       <Section title="📥📤 ลูกหนี้ & เจ้าหนี้" subtitle="— เงินที่จะรับเข้า/จ่ายออก">
         <Card label="📥 ลูกหนี้รวม (AR)" tone="blue" value={money(s.ar)} />
-        <Card label="📦 ต้นทุนรอเปิดบิล" tone="amber" value={money(s.pendingIssueCost)} note="เบิกแล้ว ยังไม่เปิดบิลขาย" />
         <Card label="🔄 Trading รอจับคู่" tone="purple" value={money(s.tradingPendingValue)} note="จ่ายซื้อแล้ว รอเปิดบิลขาย" />
         <Card label="📤 เจ้าหนี้รวม (AP)" tone="red" value={money(s.ap)} />
       </Section>

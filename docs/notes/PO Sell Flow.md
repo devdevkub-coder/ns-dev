@@ -28,7 +28,6 @@ Legacy behavior to preserve unless a later requirement explicitly changes it:
 | Surface | Route / API | What It Should Show |
 |---|---|---|
 | PO Sell list | `/sales/po-sell` / `GET /api/sales/po-sell` | The created `POS...` row immediately, with `status = Open`, `matchStatus = Not Matched`, full quantity as remaining, and full amount as remaining amount |
-| Pending Sales summary | `/pending-sales` / `GET /api/pending-sales` | PO Sell remaining quantity as `lockedSell` by product, affecting real pending sale calculation |
 | Cost Allocator | `/dual-costing/cost-allocator` | Open PO Sell as a target that can be matched against Cost Pool |
 | Match Log / Deal Margin | `/dual-costing/match-log`, `/dual-costing/deal-margin` | PO Sell match status and cost allocation history after matching |
 | PO Outstanding | `/po-reports/outstanding` | Open PO Sell remaining delivery quantity and value |
@@ -93,12 +92,9 @@ After saving a new PO Sell, the same `POS...` should be visible in these read mo
    - KPI `Not Matched`.
    - Waiting delivery quantity/value.
    - Outstanding delivery block when remaining delivery is greater than zero.
-2. `/pending-sales`
-   - Product-level `lockedSell` should include the open PO Sell remaining quantity.
-   - `realPendingSale = stock + lockedBuy - lockedSell` should decrease by that PO Sell quantity.
-3. `/dual-costing/cost-allocator`
+2. `/dual-costing/cost-allocator`
    - PO Sell dropdown/list should include it as a target for matching if it is still open and has remaining quantity.
-4. `/po-reports/outstanding`
+3. `/po-reports/outstanding`
    - Sell outstanding rows should include the remaining product lines while `remainingQty > 0`.
 5. `/sales/bills`
    - It should be selectable/referenceable for a PO delivery sale or line-level PO Sell allocation, depending on the active sales-bill implementation.
@@ -135,10 +131,6 @@ Match status is separate from delivery/billing status. The API keeps the existin
 Do not use match status as the only business status. A PO can be `Open` while `Not Matched`; that is normal immediately after create.
 
 ## Downstream Effects
-
-### Pending Sales
-
-`/pending-sales` is a read-only planning summary. It should include active PO Sell remaining quantity as `lockedSell` by product. This means a new PO Sell can create or worsen a negative `realPendingSale` when committed sell quantity exceeds available stock and locked buys.
 
 ### Cost Allocator
 
@@ -186,7 +178,6 @@ Current implemented behavior:
 ## Validation Checklist
 
 - Create a PO Sell and confirm it appears on `/sales/po-sell` with `Open`, `Not Matched`, full remaining quantity, and full remaining amount.
-- Confirm `/pending-sales` includes the product quantity in `lockedSell`.
 - Confirm `/dual-costing/cost-allocator` can see the PO Sell as an available target.
 - Confirm `/po-reports/outstanding` shows it while remaining quantity is greater than zero.
 - Confirm cancelled/closed PO Sell rows do not appear in active downstream lists.

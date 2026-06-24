@@ -70,19 +70,6 @@ function activeStatus(status?: string | null) {
   return !['cancelled', 'void', 'reversed'].includes((status ?? '').toLowerCase())
 }
 
-function itemsQty(items: unknown) {
-  if (!Array.isArray(items)) return 0
-  return items.reduce((sum, item) => {
-    if (!item || typeof item !== 'object') return sum
-    const row = item as Record<string, unknown>
-    const value = row.qty ?? row.quantity ?? row.weight ?? row.netWeight
-    if (typeof value === 'number') return sum + value
-    if (typeof value === 'string') return sum + Number(value || 0)
-    if (value && typeof value === 'object' && 'toNumber' in value && typeof value.toNumber === 'function') return sum + value.toNumber()
-    return sum
-  }, 0)
-}
-
 function itemRows(items: unknown) {
   if (!Array.isArray(items)) return []
   return items.flatMap((item) => {
@@ -170,7 +157,7 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
   const todayStart = startOfDay(selectedDate)
   const todayEnd = endOfDay(selectedDate)
 
-  const [purchases, sales, expenses, payments, receipts, stockRows, deals, finance, productionRows, cash, bankToday, bankRange, loanSchedules, stockIssues, products, salespersons, branches, suppliers, customers, historicalRows] = await Promise.all([
+  const [purchases, sales, expenses, payments, receipts, stockRows, deals, finance, productionRows, cash, bankToday, bankRange, loanSchedules, products, salespersons, branches, suppliers, customers, historicalRows] = await Promise.all([
     prisma.purchase_bills.findMany({ include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } }, suppliers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, supplier_id: supplier?.id, date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
     prisma.sales_bills.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 5000, where: { branch_id: branch?.id, customer_id: customer?.id || undefined, date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
     prisma.expenses.findMany({ include: { expense_categories: true }, orderBy: [{ date: 'desc' }, { doc_no: 'desc' }], take: 3000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
@@ -184,7 +171,6 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
     prisma.bank_statement.findMany({ include: { accounts: true }, orderBy: [{ date: 'desc' }], where: { date: { gte: todayStart, lte: todayEnd } } }),
     prisma.bank_statement.findMany({ include: { accounts: true }, orderBy: [{ date: 'asc' }], take: 10000, where: { date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T23:59:59.999Z`) } } }),
     prisma.loan_schedules.findMany({ include: { loans: true }, orderBy: [{ due_date: 'asc' }], take: 1000, where: { due_date: { lte: todayEnd }, payment_status: { notIn: ['Paid', 'paid', 'PAID', 'cancelled', 'Cancelled'] } } }),
-    prisma.stock_issues.findMany({ include: { customers: true }, orderBy: [{ date: 'desc' }], take: 1000, where: { status: { in: ['pending', 'Pending', 'draft', 'Draft', 'open', 'Open'] } } }),
     prisma.products.findMany({ where: { active: { not: false } } }),
     prisma.salespersons.findMany({ where: { active: { not: false } } }),
     prisma.branches.findMany({ orderBy: [{ name: 'asc' }], where: { active: { not: false } } }),
@@ -353,8 +339,6 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
     id: row.loans?.contract_no ? `${row.loans.contract_no}-${row.installment_no ?? 0}` : '',
     installmentNo: row.installment_no ?? 0,
   })).filter((row) => row.amount > 0)
-  const pendingIssues = stockIssues.filter((issue) => ['pending', 'draft', 'open'].includes((issue.status ?? '').toLowerCase()))
-  const pendingIssueQty = pendingIssues.reduce((sum, issue) => sum + itemsQty(issue.items), 0)
   const fgRows = stockRows.filter((row) => (row.output_category ?? '').toUpperCase() === 'FG')
   const fgQty = fgRows.reduce((sum, row) => sum + toNumber(row.qty_in) - toNumber(row.qty_out), 0)
   const fgValue = fgRows.reduce((sum, row) => sum + toNumber(row.value_in) - toNumber(row.value_out), 0)
@@ -558,10 +542,6 @@ export async function buildMainDashboards(filter: MainDashboardFilter) {
       pending: {
         fgQty,
         fgValue,
-        pendingIssueCost: pendingIssues.reduce((sum, row) => sum + toNumber(row.total_cost), 0),
-        pendingIssueCount: pendingIssues.length,
-        pendingIssueEst: pendingIssues.reduce((sum, row) => sum + toNumber(row.total_est_amount), 0),
-        pendingIssueQty,
         pendingPurchaseCount: purchases.filter((row) => ['draft', 'pending'].includes((row.status ?? '').toLowerCase())).length,
         pendingSalesCount: sales.filter((row) => ['draft', 'pending'].includes((row.status ?? '').toLowerCase())).length,
         productionWip: production.wipQty,

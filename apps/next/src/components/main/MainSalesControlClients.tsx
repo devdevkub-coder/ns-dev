@@ -2,24 +2,10 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
-import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
 import { formatDateDisplay } from '@/lib/format'
 
 type AnyRow = Record<string, number | string | boolean | null | undefined>
 type LmeConfig = { fxRate: number; kgPerContainer: number; lmeAluminumUSD: number; lmeBrassUSD: number; lmeCopperUSD: number; updatedAt: string; updatedBy: string }
-type PendingPayload = {
-  customers: { code?: string; id: string; name: string }[]
-  lmeConfig: LmeConfig
-  metalGroups: string[]
-  pendingSaleTable: AnyRow[]
-  pendingSaleTotals: Record<string, number>
-  productDetails: AnyRow[]
-  productRows: AnyRow[]
-  reconciliation: AnyRow[]
-  reconTotals: Record<string, number>
-  sourceState: { limitations: string[] }
-  summary: Record<string, number>
-}
 type SalesPlanPayload = {
   filters: { channels: { id: string; name: string }[]; metalGroups: string[]; month: string }
   lmeConfig: LmeConfig
@@ -66,80 +52,6 @@ function downloadCsv(filename: string, headers: string[], rows: string[][]) {
   URL.revokeObjectURL(url)
 }
 
-export function PendingSalesPageClient() {
-  const [data, setData] = useState<PendingPayload | null>(null)
-  const [mode, setMode] = useState<'all' | 'pending' | 'sold'>('pending')
-  const [customerId, setCustomerId] = useState('')
-  const [selectedGroups, setSelectedGroups] = useState<string[]>([])
-  const [selectedProductId, setSelectedProductId] = useState('')
-  
-  const customerSearchOptions = useMemo<SearchComboboxOption[]>(() => {
-    return (data?.customers ?? []).map((customer) => ({
-      id: customer.id,
-      label: customer.code ? `${customer.code} - ${customer.name}` : customer.name,
-    }))
-  }, [data?.customers])
-
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    dailyFetchJson<PendingPayload>('/api/pending-sales').then(setData).catch((caught) => setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลไม่ได้'))
-  }, [])
-
-  const productRows = useMemo(() => (data?.productRows ?? [])
-    .filter((row) => selectedGroups.length === 0 || selectedGroups.includes(text(row.metalGroup)))
-    .filter((row) => mode === 'all' || (mode === 'pending' ? num(row.remainQty) > 0 : num(row.soldQty) > 0)), [data, mode, selectedGroups])
-  const details = (data?.productDetails ?? []).filter((row) => text(row.productId) === selectedProductId).filter((row) => !customerId || text(row.customerId) === customerId)
-  const selectedProduct = productRows.find((row) => text(row.productId) === selectedProductId)
-  
-  const exportPendingSales = () => {
-    downloadCsv(
-      `pending_sales_summary_${new Date().toISOString().slice(0, 10)}.csv`,
-      ['Product', 'Group', 'PO Count', 'Sold Qty', 'Remain Qty', 'Avg Price', 'WAC', 'LME Target', 'Gain vs WAC', 'Gain vs LME', 'LME %'],
-      productRows.map((row) => [text(row.productName), text(row.metalGroup), money(row.poCount), money(row.soldQty), money(row.remainQty), money(row.avgPriceRemain), money(row.wac), money(row.lmeTarget), money(row.gainVsWac), money(row.gainVsLme), money(row.lmeBuyPercent)]),
-    )
-  }
-
-  return (
-    <section className="space-y-4">
-      <LmeCard config={data?.lmeConfig} products={data?.productRows ?? []} />
-      <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white p-4 shadow">
-        <Segment active={mode === 'pending'} color="amber" onClick={() => setMode('pending')}>⏳ ยังรอขาย</Segment>
-        <Segment active={mode === 'sold'} color="emerald" onClick={() => setMode('sold')}>✅ ขายแล้ว</Segment>
-        <Segment active={mode === 'all'} color="blue" onClick={() => setMode('all')}>📋 ทั้งหมด</Segment>
-        <div className="w-[180px] text-slate-800 text-sm">
-          <SearchCombobox
-            inputId="sales-customer-filter"
-            label="Customer"
-            hideLabel
-            placeholder="ทุก Customer"
-            options={customerSearchOptions}
-            value={customerId}
-            onChange={setCustomerId}
-          />
-        </div>
-        <span className="flex-1" />
-        <button className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs h-10 flex items-center justify-center" type="button" onClick={exportPendingSales}>
-          📥 Export CSV
-        </button>
-      </div>
-      <MetalChips groups={data?.metalGroups ?? []} selected={selectedGroups} setSelected={setSelectedGroups} />
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <Metric label="รายการสินค้า" value={money(productRows.length)} tone="blue" />
-        <Metric label="น้ำหนักรวม" value={`${money(data?.summary.totalRemainQty)} กก.`} tone="amber" />
-        <Metric label="มูลค่ารวม" value={money(data?.summary.totalRemainValue)} tone="amber" />
-        <Metric label="ราคาเฉลี่ย" value={`${money(data?.summary.avgRemainPrice)}/กก.`} tone="slate" />
-        <Metric label="กำไรรวม vs LME" value={money(data?.summary.totalGainVsLme)} tone={(data?.summary.totalGainVsLme ?? 0) >= 0 ? 'emerald' : 'red'} />
-      </div>
-      {!selectedProductId ? <PendingSummary rows={productRows} mode={mode} onSelect={setSelectedProductId} /> : <PendingDetails details={details} name={text(selectedProduct?.productName)} onBack={() => setSelectedProductId('')} />}
-      <PendingSaleInventory rows={data?.pendingSaleTable ?? []} totals={data?.pendingSaleTotals ?? {}} />
-      <PoolStock data={data} />
-      <Notice text={data?.sourceState.limitations[0]} />
-      {error ? <ErrorBox text={error} /> : null}
-    </section>
-  )
-}
-
 export function SalesPlanPageClient() {
   const [data, setData] = useState<SalesPlanPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -181,7 +93,7 @@ export function SalesPlanPageClient() {
         <LmeStat label="🌟 ทองเหลือง LME" value={`${money(data?.lmeConfig.lmeBrassUSD)} USD/MT`} />
         <LmeStat label="💱 USD/THB" value={money(data?.lmeConfig.fxRate)} />
         <LmeStat label="📦 กก./ตู้" value={`${money(data?.lmeConfig.kgPerContainer)} กก.`} />
-        <div className="text-xs text-slate-450 font-medium self-center px-2">แก้ที่หน้า รายการรอขาย — Tab LME Config</div>
+        <div className="text-xs text-slate-450 font-medium self-center px-2">LME Config ยังเป็น read-only จนกว่าจะมีหน้าตั้งค่าเฉพาะ</div>
       </div>
       <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white p-3 shadow-sm">
         <label className="text-xs font-bold text-slate-500">เดือน</label>
@@ -246,7 +158,7 @@ export function SalesPlanPageClient() {
       {/* 1. Sales Plan Section */}
       <div className="rounded-xl border border-slate-100 bg-white shadow-sm overflow-hidden">
         <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-3 text-xs font-semibold text-slate-600">
-          📝 ตารางวางแผน — ปลดล็อก = อยู่ในขั้นเสนอ / ล็อก = ราคายืนยันแล้ว ตู้จะถูกหักจากรอขาย
+          📝 ตารางวางแผน — ปลดล็อก = อยู่ในขั้นเสนอ / ล็อก = ราคายืนยันแล้วและกันยอดตามแผนขาย
         </div>
 
         {/* Desktop view */}
@@ -341,8 +253,8 @@ export function SalesPlanPageClient() {
       <div className="rounded-xl border border-slate-100 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 p-4">
           <div>
-            <h3 className="font-bold text-slate-800 text-sm">📊 วิเคราะห์ขาย vs รายการรอขาย — ผู้บริหารตัดสินใจ</h3>
-            <p className="text-xs text-slate-450 font-semibold mt-0.5">เปรียบเทียบราคาที่เสนอ (จากแผน Pending) vs WAC ของสต๊อกที่ยังว่างให้ขาย</p>
+            <h3 className="font-bold text-slate-800 text-sm">📊 วิเคราะห์แผนขาย vs สต๊อกว่างขาย — ผู้บริหารตัดสินใจ</h3>
+            <p className="text-xs text-slate-450 font-semibold mt-0.5">เปรียบเทียบราคาที่เสนอในแผนขาย vs WAC ของสต๊อกที่ยังว่างให้ขาย</p>
           </div>
         </div>
 
@@ -432,7 +344,7 @@ export function SalesPlanPageClient() {
       {/* 3. Containers Remaining Section */}
       <div className="rounded-xl border border-slate-100 bg-white shadow-sm overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/50 p-4">
-          <h3 className="font-bold text-slate-800 text-sm">📦 ตู้รอขาย คงเหลือหลังหักล็อกราคา — เดือน {(month || data?.filters.month) ?? ''}</h3>
+          <h3 className="font-bold text-slate-800 text-sm">📦 สต๊อกว่างขาย คงเหลือหลังหักล็อกราคา — เดือน {(month || data?.filters.month) ?? ''}</h3>
           <div className="text-xs flex items-center gap-1.5">
             <span className="rounded-xl bg-slate-100 px-2.5 py-1 text-slate-700 font-bold">รวม {money(remainingKgTotal)} กก.</span>
             <span className="rounded-xl bg-emerald-50 px-2.5 py-1 text-emerald-700 font-bold border border-emerald-100">มูลค่า WAC {money(remainingValueTotal)}</span>
@@ -607,306 +519,6 @@ export function SalesCommissionPageClient() {
   )
 }
 
-function LmeCard({ config, products }: { config?: LmeConfig; products: AnyRow[] }) {
-  const lmeProducts = products.filter((row) => text(row.metalGroup).includes('ทองแดง') || text(row.metalGroup).includes('ทองเหลือง') || text(row.metalGroup).toLowerCase().includes('copper') || text(row.metalGroup).toLowerCase().includes('brass'))
-  return (
-    <>
-      <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h3 className="font-bold text-slate-800">📊 LME Reference Pricing</h3>
-          <button className="btn-disabled opacity-60 cursor-not-allowed rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-400 font-semibold h-10 outline-none focus:outline-none" disabled title="รอ schema/audit สำหรับบันทึก LME config" type="button">💾 บันทึก</button>
-        </div>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <LmeInput label="🥉 ทองแดง LME (USD/MT)" value={config?.lmeCopperUSD} />
-          <LmeInput label="🌟 ทองเหลือง LME (USD/MT)" value={config?.lmeBrassUSD} />
-          <LmeInput label="⚪ อลูมิเนียม LME (USD/MT)" value={config?.lmeAluminumUSD} />
-          <LmeInput label="💱 เรท USD/THB" value={config?.fxRate} />
-        </div>
-        <div className="mt-2.5 text-[10px] font-medium text-slate-400">⏰ อัปเดตล่าสุด: {config?.updatedAt ?? '-'} โดย {config?.updatedBy ?? '-'}</div>
-      </div>
-      <details className="group rounded-xl border border-slate-100 bg-white shadow-sm overflow-hidden transition-all">
-        <summary className="flex items-center justify-between cursor-pointer p-4 font-bold text-slate-700 select-none hover:bg-slate-50/50">
-          <span>📋 ตั้งค่าผู้ซื้อซื้อที่ LME กี่ % ต่อสินค้า — เฉพาะ 🥉 ทองแดง / 🌟 ทองเหลือง ({lmeProducts.length} รายการ)</span>
-          <span className="transition-transform group-open:rotate-180 text-slate-400">&darr;</span>
-        </summary>
-        <div className="p-4 border-t border-slate-100">
-          <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-100">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-100">
-                <tr>
-                  <th className="p-2 text-left font-semibold text-slate-600 text-xs">รหัส</th>
-                  <th className="p-2 text-left font-semibold text-slate-600 text-xs">สินค้า</th>
-                  <th className="p-2 text-left font-semibold text-slate-600 text-xs">หมวด</th>
-                  <th className="p-2 text-right font-semibold text-slate-600 text-xs">LME ฐาน (USD/MT)</th>
-                  <th className="p-2 text-right font-semibold text-slate-600 text-xs">% ที่ซื้อ</th>
-                  <th className="p-2 text-right font-semibold text-slate-600 text-xs">ราคาเป้า (THB/กก.)</th>
-                  <th className="p-2 text-right font-semibold text-slate-600 text-xs">WAC ปัจจุบัน</th>
-                  <th className="p-2 text-right font-semibold text-slate-600 text-xs">Diff</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {lmeProducts.map((row) => {
-                  const base = text(row.metalGroup).includes('ทองแดง') || text(row.metalGroup).toLowerCase().includes('copper') ? config?.lmeCopperUSD : config?.lmeBrassUSD
-                  const diff = num(row.wac) - num(row.lmeTarget)
-                  return (
-                    <tr className="hover:bg-slate-50/30 transition-colors" key={text(row.productId)}>
-                      <td className="p-2 font-mono text-xs text-slate-500">{text(row.productCode)}</td>
-                      <td className="p-2 text-slate-800">{text(row.productName)}</td>
-                      <td className="p-2 text-xs text-slate-505">{text(row.metalGroup) || '-'}</td>
-                      <td className="p-2 text-right text-xs text-slate-500">{base ? money(base) : '-'}</td>
-                      <td className="p-2 text-right">
-                        <div className="inline-flex items-center gap-1">
-                          <input className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-right text-xs bg-slate-50 outline-none" disabled type="number" value={num(row.lmeBuyPercent)} readOnly />
-                          <span className="text-xs text-slate-500">%</span>
-                        </div>
-                      </td>
-                      <td className="p-2 text-right font-bold text-blue-600">{num(row.lmeTarget) ? money(row.lmeTarget) : '-'}</td>
-                      <td className="p-2 text-right text-slate-700">{money(row.wac)}</td>
-                      <td className={`p-2 text-right text-xs font-semibold ${diff <= 0 ? 'text-emerald-600' : 'text-red-505'}`}>{num(row.lmeTarget) ? money(diff) : '-'}</td>
-                    </tr>
-                  )
-                })}
-                {!lmeProducts.length ? <tr><td className="py-6 text-center text-slate-400" colSpan={8}>ไม่มีสินค้าหมวดทองแดง/ทองเหลือง</td></tr> : null}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile view for LME percents */}
-          <div className="block lg:hidden space-y-3">
-            {lmeProducts.map((row) => {
-              const base = text(row.metalGroup).includes('ทองแดง') || text(row.metalGroup).toLowerCase().includes('copper') ? config?.lmeCopperUSD : config?.lmeBrassUSD
-              const diff = num(row.wac) - num(row.lmeTarget)
-              return (
-                <div key={text(row.productId)} className="bg-slate-50/50 p-3 rounded-xl border border-slate-200/60 space-y-2 text-xs">
-                  <div className="flex justify-between items-start border-b border-slate-100 pb-1.5">
-                    <div>
-                      <div className="font-semibold text-slate-800">{text(row.productName)}</div>
-                      <div className="font-mono text-[10px] text-slate-400">{text(row.productCode)}</div>
-                    </div>
-                    <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded text-slate-505">{text(row.metalGroup) || '-'}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <span className="text-slate-400 block">LME ฐาน</span>
-                      <span className="font-medium text-slate-700">{base ? `${money(base)} USD` : '-'}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block">% ที่ซื้อ</span>
-                      <span className="font-medium text-slate-700">{num(row.lmeBuyPercent)}%</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block">ราคาเป้า / WAC</span>
-                      <span className="font-bold text-blue-600">{num(row.lmeTarget) ? money(row.lmeTarget) : '-'}</span> / <span className="text-slate-600">{money(row.wac)}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block">Diff</span>
-                      <span className={`font-bold ${diff <= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{num(row.lmeTarget) ? money(diff) : '-'}</span>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-            {!lmeProducts.length ? <div className="text-center text-slate-400 py-4">ไม่มีสินค้าหมวดทองแดง/ทองเหลือง</div> : null}
-          </div>
-        </div>
-      </details>
-    </>
-  )
-}
-
-function PendingSummary({ mode, onSelect, rows }: { mode: string; onSelect: (id: string) => void; rows: AnyRow[] }) {
-  return <SimpleTable headers={['สินค้า', 'หมวด', 'PO', `${mode === 'sold' ? 'ขายแล้ว' : 'รอขาย'} (กก.)`, 'มูลค่า', 'ราคาเฉลี่ย', 'WAC', 'LME Target', 'vs WAC', 'vs LME', '']} rows={rows.map((row) => [text(row.productCode) + ' ' + text(row.productName), text(row.metalGroup), money(row.poCount), money(mode === 'sold' ? row.soldQty : row.remainQty), money(mode === 'sold' ? row.soldValue : row.remainValue), money(row.avgPriceRemain), money(row.wac), money(row.lmeTarget), `${money(row.diffPctWac)}%`, `${money(row.diffPctLme)}%`, '▼ ดูรายละเอียด'])} rowClick={(index) => onSelect(text(rows[index]?.productId))} />
-}
-
-function PendingDetails({ details, name, onBack }: { details: AnyRow[]; name: string; onBack: () => void }) {
-  return (
-    <div className="space-y-3">
-      <div className="flex justify-between items-center rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-        <div>
-          <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">เลือกสินค้า</div>
-          <div className="font-bold text-slate-800 text-base">{name}</div>
-        </div>
-        <button className="text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors border border-slate-200 px-3.5 py-2 rounded-xl shadow-xs outline-none focus:outline-none focus:ring-0 h-10 flex items-center justify-center" type="button" onClick={onBack}>
-          ← กลับสรุปทั้งหมด
-        </button>
-      </div>
-      <SimpleTable headers={['เลขที่ PO', 'วันที่', 'Customer', 'จำนวน', 'ราคา', 'ขายแล้ว', 'รอขาย', 'มูลค่ารอ', 'วันส่ง']} rows={details.map((row) => [text(row.docNo), formatDateDisplay(text(row.date)), text(row.customerName), money(row.itemQty), money(row.itemPrice), money(row.matched), money(row.remaining), money(row.remainValue), formatDateDisplay(text(row.deliveryDate))])} />
-    </div>
-  )
-}
-
-function PendingSaleInventory({ rows, totals }: { rows: AnyRow[]; totals: Record<string, number> }) {
-  const exportRows = () => {
-    downloadCsv(
-      `pending_sale_inventory_${new Date().toISOString().slice(0, 10)}.csv`,
-      ['Product Code', 'Product Name', 'หมวด', 'Status', 'รอขาย', 'มูลค่ารอขาย', 'ราคาเฉลี่ย', 'รอขายจริง', 'ล๊อกขายรอส่ง', 'PO ซื้อรอส่ง', 'STOCK'],
-      rows.map((row) => [text(row.productCode), text(row.productName), text(row.metalGroup), text(row.itemStatus), money(row.pendingSaleQty), money(row.pendingSaleValue), money(row.avgPrice), money(row.realPendingSale), money(row.lockedSell), money(row.lockedBuy), money(row.stock)]),
-    )
-  }
-  return (
-    <div className="space-y-3">
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-850 shadow-sm">
-        <b>📋 ตารางรอขาย</b><span className="ml-2 text-slate-600">เฉพาะ ทองแดง / ทองเหลือง · รอขายจริง = STOCK + PO ซื้อรอส่ง − ล๊อกขายรอส่ง</span>
-      </div>
-      <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3.5 text-xs text-slate-650 shadow-xs">
-        <b>รอขาย</b> = ของใน Cost Pool ที่ยังไม่ถูก Allocate · <b>ล๊อกขายรอส่ง</b> = PO Sell ที่ยังไม่ส่งของ · <b>PO ซื้อรอส่ง</b> = PO Buy ที่ยังไม่ matched · <b>STOCK</b> = ของในคลังตามจริง
-      </div>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg shrink-0">💰</div>
-          <div>
-            <div className="text-xs text-slate-500 font-medium mb-0.5">รอขาย (Cost Pool)</div>
-            <div className="text-base font-bold text-emerald-700 leading-tight">{money(totals.totalPendingSaleQty)} กก.</div>
-            <div className="text-[10px] text-slate-400 mt-0.5">≈ {money(totals.totalPendingSaleValue)} ฿</div>
-          </div>
-        </div>
-        <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-pink-50 text-pink-600 flex items-center justify-center text-lg shrink-0">🔒</div>
-          <div>
-            <div className="text-xs text-slate-500 font-medium mb-0.5">ล๊อกขายรอส่ง</div>
-            <div className="text-base font-bold text-pink-700 leading-tight">{money(totals.totalLockedSell)} กก.</div>
-            <div className="text-[10px] text-slate-400 mt-0.5">PO Sell (Open)</div>
-          </div>
-        </div>
-        <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center text-lg shrink-0">📦</div>
-          <div>
-            <div className="text-xs text-slate-500 font-medium mb-0.5">PO ซื้อรอส่ง</div>
-            <div className="text-base font-bold text-purple-700 leading-tight">{money(totals.totalLockedBuy)} กก.</div>
-            <div className="text-[10px] text-slate-400 mt-0.5">PO Buy (Open)</div>
-          </div>
-        </div>
-        <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-lg shrink-0">🏷️</div>
-          <div>
-            <div className="text-xs text-slate-500 font-medium mb-0.5">STOCK</div>
-            <div className="text-base font-bold text-blue-700 leading-tight">{money(totals.totalStock)} กก.</div>
-            <div className="text-[10px] text-slate-400 mt-0.5">ของจริงในคลัง</div>
-          </div>
-        </div>
-        <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-full ${num(totals.totalRealPending) < 0 ? 'bg-red-50 text-red-650' : 'bg-slate-100 text-slate-600'} flex items-center justify-center text-lg shrink-0`}>
-            {num(totals.totalRealPending) < 0 ? '⚠️' : '⚖️'}
-          </div>
-          <div>
-            <div className="text-xs text-slate-500 font-medium mb-0.5">รอขายจริง (รวม)</div>
-            <div className={`text-base font-bold leading-tight ${num(totals.totalRealPending) < 0 ? 'text-red-650' : 'text-slate-800'}`}>{money(totals.totalRealPending)} กก.</div>
-            <div className={`text-[10px] font-medium mt-0.5 ${num(totals.shortageCount) > 0 ? 'text-red-505 font-semibold' : 'text-slate-450'}`}>{num(totals.shortageCount) > 0 ? `⚠️ ขาด ${money(totals.shortageCount)} รายการ` : '✓ ครบทุกรายการ'}</div>
-          </div>
-        </div>
-      </div>
-      <div className="rounded-xl border border-slate-100 bg-white shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-4 py-3.5">
-          <h3 className="text-sm font-bold text-slate-800">🟡 ตารางรอขาย — ทองแดง / ทองเหลือง ({rows.length} รายการ)</h3>
-          <button className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 active:bg-slate-750 outline-none focus:outline-none focus:ring-0 transition-colors shadow-xs h-10 flex items-center justify-center" type="button" onClick={exportRows}>📥 Export CSV</button>
-        </div>
-
-        {/* Desktop View Table */}
-        <div className="hidden lg:block overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead className="bg-slate-50 border-b border-slate-100">
-              <tr>
-                <th className="p-2.5 text-left font-semibold text-slate-600">รหัส / สินค้า</th>
-                <th className="p-2.5 text-left font-semibold text-slate-600">หมวด</th>
-                <th className="p-2.5 text-right font-semibold text-emerald-700">รอขาย (กก.)</th>
-                <th className="p-2.5 text-right font-semibold text-emerald-700">มูลค่ารอขาย (฿)</th>
-                <th className="p-2.5 text-right font-semibold text-slate-600">ราคาเฉลี่ย (฿/กก.)</th>
-                <th className="p-2.5 text-right font-semibold text-red-700">รอขายจริง (กก.)</th>
-                <th className="p-2.5 text-right font-semibold text-pink-700">ล๊อกขายรอส่ง (กก.)</th>
-                <th className="p-2.5 text-right font-semibold text-purple-700">PO ซื้อรอส่ง (กก.)</th>
-                <th className="p-2.5 text-right font-semibold text-blue-700">STOCK (กก.)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {rows.map((row) => (
-                <tr className={`hover:bg-slate-50/50 transition-colors ${num(row.realPendingSale) < 0 ? 'bg-red-50/20' : ''}`} key={text(row.productId)}>
-                  <td className="p-2.5"><span className="font-mono text-slate-400 font-semibold">{text(row.productCode)}</span> <span className="text-slate-850 font-medium">{text(row.productName)}</span> <span className="ml-1 text-[10px] text-slate-400 font-semibold">[{text(row.itemStatus)}]</span></td>
-                  <td className="p-2.5 text-slate-500 font-medium">{text(row.metalGroup)}</td>
-                  <td className={`p-2.5 text-right font-semibold ${num(row.pendingSaleQty) > 0 ? 'text-emerald-600' : 'text-slate-300'}`}>{money(row.pendingSaleQty)}</td>
-                  <td className={`p-2.5 text-right font-semibold ${num(row.pendingSaleValue) > 0 ? 'text-emerald-600' : 'text-slate-300'}`}>{money(row.pendingSaleValue)}</td>
-                  <td className="p-2.5 text-right text-slate-500 font-medium">{num(row.avgPrice) > 0 ? money(row.avgPrice) : '-'}</td>
-                  <td className={`p-2.5 text-right font-bold ${num(row.realPendingSale) < 0 ? 'bg-red-50 text-red-650' : num(row.realPendingSale) > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>{num(row.realPendingSale) < 0 ? `⚠️ ${money(row.realPendingSale)}` : money(row.realPendingSale)}</td>
-                  <td className={`p-2.5 text-right font-semibold ${num(row.lockedSell) > 0 ? 'text-pink-650' : 'text-slate-300'}`}>{money(row.lockedSell)}</td>
-                  <td className={`p-2.5 text-right font-semibold ${num(row.lockedBuy) > 0 ? 'text-purple-650' : 'text-slate-300'}`}>{money(row.lockedBuy)}</td>
-                  <td className={`p-2.5 text-right font-bold ${num(row.stock) > 0 ? 'text-blue-600' : 'text-slate-300'}`}>{money(row.stock)}</td>
-                </tr>
-              ))}
-              {!rows.length ? <tr><td className="py-8 text-center text-slate-400 font-semibold" colSpan={9}>ยังไม่มีข้อมูลรอขายทองแดง/ทองเหลือง</td></tr> : null}
-            </tbody>
-            {rows.length ? <tfoot className="border-t border-slate-200 bg-slate-50/50 font-bold text-slate-700"><tr><td className="p-3 text-xs" colSpan={2}>รวม ({rows.length} รายการ)</td><td className="p-3 text-right text-emerald-600 text-xs">{money(totals.totalPendingSaleQty)}</td><td className="p-3 text-right text-emerald-600 text-xs">{money(totals.totalPendingSaleValue)}</td><td className="p-3 text-right text-slate-400">-</td><td className={`p-3 text-right text-xs ${num(totals.totalRealPending) < 0 ? 'text-red-655' : 'text-slate-700'}`}>{money(totals.totalRealPending)}</td><td className="p-3 text-right text-pink-650 text-xs">{money(totals.totalLockedSell)}</td><td className="p-3 text-right text-purple-650 text-xs">{money(totals.totalLockedBuy)}</td><td className="p-3 text-right text-blue-600 text-xs">{money(totals.totalStock)}</td></tr></tfoot> : null}
-          </table>
-        </div>
-
-        {/* Mobile View Card List */}
-        <div className="block lg:hidden p-4 space-y-3 bg-slate-50/30 border-t border-slate-100">
-          {rows.map((row) => (
-            <div key={text(row.productId)} className={`bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3 ${num(row.realPendingSale) < 0 ? 'bg-red-50/50 border-red-200' : ''}`}>
-              <div className="flex justify-between items-start border-b border-slate-100 pb-2">
-                <div>
-                  <div className="font-semibold text-slate-900 text-sm">{text(row.productName)}</div>
-                  <div className="flex gap-1.5 mt-0.5 items-center">
-                    <span className="font-mono text-[10px] text-slate-400 font-semibold">{text(row.productCode)}</span>
-                    <span className="text-[10px] bg-slate-100 text-slate-550 px-1.5 rounded font-semibold">[{text(row.itemStatus)}]</span>
-                  </div>
-                </div>
-                <span className="text-xs font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-lg">{text(row.metalGroup)}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-                <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium">รอขาย (Cost Pool)</span>
-                  <span className={`font-bold ${num(row.pendingSaleQty) > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>{money(row.pendingSaleQty)} กก.</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium">มูลค่ารอขาย</span>
-                  <span className={`font-bold ${num(row.pendingSaleValue) > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>{money(row.pendingSaleValue)} ฿</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium">ราคาเฉลี่ย</span>
-                  <span className="text-slate-650 font-semibold">{num(row.avgPrice) > 0 ? `${money(row.avgPrice)} ฿` : '-'}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium">รอขายจริง</span>
-                  <span className={`font-bold text-sm ${num(row.realPendingSale) < 0 ? 'text-red-650' : num(row.realPendingSale) > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>{num(row.realPendingSale) < 0 ? `⚠️ ${money(row.realPendingSale)}` : `${money(row.realPendingSale)}`} กก.</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium">ล๊อกขายรอส่ง</span>
-                  <span className={`font-bold ${num(row.lockedSell) > 0 ? 'text-pink-650' : 'text-slate-400'}`}>{money(row.lockedSell)} กก.</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block mb-0.5 font-medium">PO ซื้อรอส่ง</span>
-                  <span className={`font-bold ${num(row.lockedBuy) > 0 ? 'text-purple-650' : 'text-slate-400'}`}>{money(row.lockedBuy)} กก.</span>
-                </div>
-                <div className="col-span-2 border-t border-slate-50 pt-2 flex justify-between items-center">
-                  <span className="text-slate-450 text-[11px] font-medium">STOCK จริงในคลัง:</span>
-                  <span className={`font-bold ${num(row.stock) > 0 ? 'text-blue-650' : 'text-slate-400'}`}>{money(row.stock)} กก.</span>
-                </div>
-              </div>
-            </div>
-          ))}
-          {!rows.length ? <div className="text-center text-slate-450 py-4 font-medium">ยังไม่มีข้อมูลรอขายทองแดง/ทองเหลือง</div> : null}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function PoolStock({ data }: { data: PendingPayload | null }) {
-  return (
-    <>
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-800 shadow-sm">
-        <b>📦 Pool & Stock Inventory</b><span className="ml-2 text-slate-600">PO On-Order = จองซื้อ · Spot in Pool = บิลรับซื้อจริง − matched · Stock จริง = จาก Stock Ledger · Pool ≠ Stock</span>
-      </div>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Metric label="PO On-Order" value={`${money(data?.reconTotals.totalPoOnOrderQty)} กก.`} tone="purple" />
-        <Metric label="Spot in Pool" value={`${money(data?.reconTotals.totalSpotInPoolQty)} กก.`} tone="emerald" />
-        <Metric label="Stock จริง" value={`${money(data?.reconTotals.totalStockQty)} กก.`} tone="blue" />
-        <Metric label="จำนวนสินค้า" value={money(data?.reconTotals.productCount)} tone="slate" />
-      </div>
-      <SimpleTable headers={['รหัส / สินค้า', 'หมวด · Status', 'PO On-Order', 'Spot in Pool', 'Stock จริง', 'WAC']} rows={(data?.reconciliation ?? []).map((row) => [`${text(row.productCode)} ${text(row.productName)}`, `${text(row.metalGroup)} · ${text(row.itemStatus)}`, money(row.poOnOrderQty), money(row.spotInPoolQty), money(row.stockQty), money(row.stockWAC)])} />
-    </>
-  )
-}
-
 function SimpleTable({ empty = 'ไม่มีข้อมูล', headers, rowClick, rows }: { empty?: string; headers: string[]; rowClick?: (index: number) => void; rows: string[][] }) {
   return (
     <div>
@@ -994,36 +606,6 @@ function Panel({ children, title }: { children: ReactNode; title: string }) {
   )
 }
 
-function Segment({ active, children, color, onClick }: { active: boolean; children: ReactNode; color: 'amber' | 'blue' | 'emerald'; onClick: () => void }) {
-  const activeClass = color === 'amber' ? 'bg-slate-900 text-white border-slate-900 shadow-xs' : color === 'emerald' ? 'bg-slate-900 text-white border-slate-900 shadow-xs' : 'bg-slate-900 text-white border-slate-900 shadow-xs'
-  return (
-    <button className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-all outline-none focus:outline-none focus:ring-0 ${active ? activeClass : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 shadow-xs'}`} type="button" onClick={onClick}>
-      {children}
-    </button>
-  )
-}
-
-function MetalChips({ groups, selected, setSelected }: { groups: string[]; selected: string[]; setSelected: (groups: string[]) => void }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mb-2.5 flex justify-between items-center gap-3">
-        <h4 className="text-sm font-bold text-slate-800">📂 หมวดสินค้า ({selected.length === 0 ? 'แสดงทุกหมวด' : `เลือก ${selected.length} หมวด`})</h4>
-        <div className="flex gap-2">
-          <button className="rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors outline-none focus:outline-none focus:ring-0" type="button" onClick={() => setSelected([])}>เลือกทั้งหมด</button>
-          <button className="rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors outline-none focus:outline-none focus:ring-0" type="button" onClick={() => setSelected(['__NONE__'])}>ไม่เลือก</button>
-        </div>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {groups.map((group) => (
-          <button key={group} className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all outline-none focus:outline-none focus:ring-0 ${selected.includes(group) ? 'border-slate-800 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`} type="button" onClick={() => setSelected(selected.includes(group) ? selected.filter((item) => item !== group) : selected.filter((item) => item !== '__NONE__').concat(group))}>
-            {group}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 function LmeStat({ label, value }: { label: string; value: string }) {
   const icon = label.slice(0, 2)
   const cleanLabel = label.slice(2).trim()
@@ -1037,15 +619,6 @@ function LmeStat({ label, value }: { label: string; value: string }) {
         <div className="text-sm font-bold text-slate-800">{value}</div>
       </div>
     </div>
-  )
-}
-
-function LmeInput({ label, value }: { label: string; value?: number }) {
-  return (
-    <label className="block text-xs font-semibold text-slate-550">
-      {label}
-      <input className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-right text-sm font-bold text-slate-700 outline-none focus:outline-none focus:ring-0 cursor-not-allowed" readOnly value={money(value)} />
-    </label>
   )
 }
 

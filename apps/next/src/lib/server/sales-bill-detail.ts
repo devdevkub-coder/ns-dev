@@ -298,7 +298,6 @@ function buildDurableItems(input: {
       : Array.from(new Set([
         ...sourceAllocations.map((allocation) => {
           if (allocation.source_type === 'WTO') return allocation.movement_owner === 'SALES_BILL' ? 'WTO stock-out source' : 'WTO source'
-          if (allocation.source_type === 'PSALE') return allocation.movement_owner === 'PSALE' ? 'PSALE stock-out source' : 'PSALE source'
           return allocation.source_type
         }),
         ...poAllocations.map((allocation) => allocation.allocation_type === 'PO_SELL' ? 'PO Sell' : 'Spot Sale'),
