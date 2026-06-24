@@ -11,7 +11,7 @@ tags:
   - page-flow
 status: draft
 created: 2026-06-10
-updated: 2026-06-23
+updated: 2026-06-24
 ---
 
 # Sales Bills Page Flow / Flow หน้า `/sales/bills`
@@ -54,6 +54,7 @@ updated: 2026-06-23
 - `TRADING` SB มี row-level Trading Cost Source, `trading_allocation_facts`, allocation-only correction API/UI, และ browser QA ผ่านแล้วสำหรับ multi-line source correction โดยไม่เขียน stock ledger
 - new SB create/cancel write-path now records dedicated allocation facts for `SB line`, `WTO -> SB`, `SB -> PO Sell/Spot Sale`, and `Customer advance -> SB`; Stock SB detail/print/list item-count reads durable line/source/PO facts first, while legacy SBs without facts show a reconciliation warning instead of inventing allocation data from JSON
 - `Pending Sale / PSALE / เบิกออกรอบิล` ถูกถอดออกจาก target runtime แล้ว: `POST /api/sales/bills` ไม่ query/update `stock_issues`, ไม่สร้าง `source_type = PSALE`, และ stock sale ใหม่ต้องเปิดจาก `WTO` เท่านั้น
+- Customer selector/source validation ต้องอิง active `customer_branches` ของสาขาเอกสาร: Stock SB รับ customer/branch จาก WTO แล้ว validate mapping ก่อน save, Trading SB เลือก branch ก่อนแล้วกรอง customer ตาม mapping; ไม่มี mapping ต้อง reject โดยไม่ fallback เป็นทุกสาขา
 
 ## Target Durable Allocation Contract
 
@@ -98,6 +99,7 @@ Index minimum:
 `POST /api/sales/bills`:
 
 - Validate source facts first: `STOCK` ต้องใช้ `WTO` source เท่านั้น; `PSALE`, direct stock, และ Trading mode ห้ามปนกันแบบเงียบ ๆ.
+- Validate Customer branch eligibility from `customer_branches` in the same transaction as SB create/cancel-sensitive source resolution.
 - Create header, line facts, source allocations, PO Sell/Spot allocations, customer advance allocations, stock ledger/hold changes, and status logs in one transaction.
 - For `STOCK`, reject if source allocation does not cover every stock line exactly.
 - For `TRADING`, continue using `trading_allocation_facts`; do not write stock allocation or stock ledger.

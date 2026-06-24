@@ -13,6 +13,48 @@
 - master data และ key basic data ต้องนิ่งก่อน transaction
 - ทุก phase ต้องมี validation และ reconciliation
 
+## Active Batch: Customer/Supplier Branch Eligibility
+
+เป้าหมาย: ทำให้ระบบรู้ชัดว่า Customer/Supplier รายใดใช้งานได้กับสาขาใด เพื่อให้หน้า master data, transaction selector, API validation, report และ audit ใช้ source เดียวกันโดยไม่ fallback เป็นทุกสาขา
+
+### Contract
+
+- Customer branch source of truth คือ `customer_branches`
+- Supplier branch source of truth คือ `supplier_branches`
+- mapping ต้องรองรับหลายสาขาต่อคู่ค้า, active/inactive, primary branch, created/updated timestamp และ audit actor เท่าที่ schema ปัจจุบันรองรับ
+- transaction API ต้อง reject ถ้า Customer/Supplier ไม่ active หรือไม่มี active mapping กับ branch ของเอกสาร
+- UI selector ต้องกรองตามสาขาที่เลือก และ clear คู่ค้าเดิมเมื่อเปลี่ยนสาขาแล้ว mapping ไม่ตรง
+- ห้าม hard-code branch id/name และห้าม runtime fallback ให้ unmapped party เห็นทุกสาขา
+
+### Task Breakdown
+
+- [x] Update target requirements and page-flow docs for Customer/Supplier branch eligibility
+- [x] Update this implementation tasklist before coding
+- [x] Add DB migration for `customer_branches` and `supplier_branches` with FK, active unique constraints, primary-branch constraints, and lookup indexes
+- [x] Update Prisma schema and generate client
+- [x] Add data audit/backfill script/report for existing Customer/Supplier rows; ambiguous/unmapped rows must be fixed as data, not hidden by runtime fallback
+- [x] Expose Customer/Supplier branch mapping fields through domain schemas and master data read/write APIs
+- [x] Update Customer master UI/import/export/detail/table to manage allowed branches and primary branch
+- [x] Update Supplier master UI/import/export/detail/table to manage allowed branches and primary branch
+- [x] Update Purchase selectors/API validation: WTI supplier, PO Buy, Purchase Bill, Supplier Advance, Purchase Bill supplier swap, and AP filters that select Supplier with branch
+- [x] Update Sales selectors/API validation: WTO customer, PO Sell, Sales Bill, and AR filters that select Customer with branch
+- [x] Add focused service checks for branch mapping audit and unmapped reject behavior
+  - Audit command: `npm run audit:party-branch-mappings --workspace @ns-scrap-erp/next`
+  - Current dev-target data has no mapped active Customer/Supplier rows, so mapped-accepted checks are `null` until master mappings are populated.
+  - Unmapped Customer/Supplier reject checks pass; strict runtime intentionally blocks new branch-bound writes for unmapped parties.
+- [x] Run validation proportional to touched code and update checkpoint docs after each batch
+  - Latest completed check: `npm run type-check --workspace @ns-scrap-erp/next -- --pretty false`
+  - Remaining closeout checks for this batch: lint, build, `git diff --check`
+
+### Runtime Coverage Notes
+
+- Write-time strict validation is active for WTI/WTO, PO Buy, Purchase Bill, Supplier Advance, PO Sell, and Sales Bill.
+- UI selectors clear an already selected party when the document branch changes and the party is not mapped to that branch.
+- AP/AR are read/report surfaces, not write surfaces; their Customer/Supplier filters now carry `branchIds` from mapping tables and filter by selected branch.
+- Customer Advance, Supplier Advance finance reports, Sales Receipt, Purchase Payment, and Receipt Voucher surfaces derive party from existing statements/source documents or do not own a branch + party write contract in the current runtime slice. Enforcement remains at the upstream branch-bound document writes.
+- Daily Expense currently has no visible branch selector in the form even though the API schema keeps optional `branchId`; no new branch-party behavior was added there to avoid changing the expense flow outside this batch.
+- Initial operational data task completed on dev-target: `51` active Customers and `1871` active Suppliers were assigned to branch `01` / `สมุทรสาคร` as active primary mappings. Users can correct branch ownership later in Customer/Supplier master data.
+
 ## Phase 0: Baseline and Safety
 
 ### 0.1 Freeze Baseline

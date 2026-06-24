@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-06-12
+updated: 2026-06-24
 route: /purchase/po-buy
 ---
 
@@ -65,6 +65,7 @@ POB เป็น commitment/reservation ฝั่งซื้อ ไม่สร
 
 - UI ใช้ outward business document/code เป็นหลัก และให้ server resolve internal id
 - list/detail/print/export ต้องอ่าน source contract เดียวกันเพื่อลด drift
+- supplier options ต้องกรองตามสาขาเอกสารจาก active `supplier_branches`; ถ้าเปลี่ยนสาขาแล้วผู้ขายที่เลือกอยู่ไม่ผูกกับสาขาใหม่ ต้อง clear supplier และให้ผู้ใช้เลือกใหม่
 - VAT payload ใช้ `hasVat`, `vatType`, `vatRatePercent`, `vatAmount`, `subtotal`, `totalAmount`; `PB` ยังเป็น source สำหรับ AP/VAT จริง
 - transaction write ต้องทำใน server transaction และ append timeline/status/audit ตาม document policy
 - ถ้า field เป็น money/qty/date/business code ให้ validate ตาม `docs/design.md` และ server-side ซ้ำ
@@ -73,6 +74,7 @@ POB เป็น commitment/reservation ฝั่งซื้อ ไม่สร
 
 - server ออกเลขเอกสารเอง ไม่รับเลขจาก form
 - supplier/branch/product/unit/qty/price required ตาม mode
+- supplier ต้อง active และมี active `supplier_branches` กับ branch ของ POB; API ต้อง reject ถ้าไม่ตรง mapping และห้าม fallback เป็นทุกสาขา
 - qty ต้องมากกว่า 0 และแยกหน่วยจริงต่อ line
 - checkbox `มี VAT` คิด VAT แบบ `EXCLUDE` จาก active VAT setting และต้อง snapshot rate ลงเอกสาร
 - ห้ามแก้ field การเงิน/สินค้าเมื่อมี WTI/PB allocation active
@@ -103,4 +105,5 @@ VAT runtime as of 2026-06-12 is implemented for create/edit/list/detail/export/r
 - [x] Verify API route handlers match Current API and status rules above
 - [ ] Verify legacy behavior for any gap before implementing runtime change
 - [ ] Add/adjust tests or browser QA checklist before changing runtime
+- [ ] Filter/validate Supplier selector by `supplier_branches` for PO Buy create/edit
 - [ ] Update this file and canonical reference if contract changes

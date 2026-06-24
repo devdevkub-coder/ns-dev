@@ -10,6 +10,7 @@ import { advancePaymentStatusLabel, mapAdvancePaymentRow, parseBangkokDateTimeIn
 import { findActiveAccountReferenceByCode } from '@/lib/server/account-reference'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor, listDailyAccounts, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { isSupplierEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
@@ -263,7 +264,18 @@ export async function GET(request: Request) {
       }),
       prisma.suppliers.findMany({
         orderBy: [{ active: 'desc' }, { name: 'asc' }],
-        select: { active: true, code: true, id: true, name: true },
+        select: {
+          active: true,
+          code: true,
+          id: true,
+          name: true,
+          supplier_branches: {
+            select: {
+              branches: { select: { code: true } },
+            },
+            where: { active: true },
+          },
+        },
         take: 5000,
       }),
       prisma.supplier_advance_payments.count({ where }),
@@ -349,7 +361,15 @@ export async function GET(request: Request) {
       })),
       rows: mappedRows,
       summary,
-      suppliers: suppliers.map((supplier) => ({ ...supplier, id: requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`) })),
+      suppliers: suppliers.map((supplier) => ({
+        active: supplier.active,
+        branchIds: supplier.supplier_branches
+          .map((mapping) => mapping.branches?.code)
+          .filter((branchCode): branchCode is string => Boolean(branchCode)),
+        code: supplier.code,
+        id: requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`),
+        name: supplier.name,
+      })),
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
@@ -372,6 +392,13 @@ export async function POST(request: Request) {
     }
     if (!supplier) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายไม่ถูกต้องหรือถูกปิดใช้งาน', fieldErrors: { supplierId: ['เลือกผู้ขาย'] } }, { status: 400 })
+    }
+    if (!(await isSupplierEligibleForBranch({ branchId: branch.id, supplierId: supplier.id }))) {
+      return NextResponse.json({
+        code: 'BAD_REQUEST',
+        error: 'ผู้ขายไม่ได้ถูกกำหนดให้ใช้งานกับสาขานี้',
+        fieldErrors: { supplierId: ['ผู้ขายไม่ได้ถูกกำหนดให้ใช้งานกับสาขานี้'] },
+      }, { status: 400 })
     }
     const actor = currentActor(context)
     const createdAt = new Date()

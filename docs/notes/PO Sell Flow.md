@@ -15,6 +15,7 @@ Legacy behavior to preserve unless a later requirement explicitly changes it:
 - New PO Sell starts with `status = Open`.
 - New PO Sell starts with match status `Not Matched` because no Cost Pool / Match Log has been allocated yet.
 - PO Sell supports multiple product lines.
+- Customer options must come from active `customer_branches` for the selected branch. If the selected Customer is not mapped to the branch, the API must reject create/edit instead of falling back to all branches.
 - The PO Sell page shows:
   - KPI summary for total PO, match status counts, waiting delivery quantity, waiting delivery value.
   - Top customer summary.
@@ -51,7 +52,7 @@ PO Sell follows the same operational rule as PO Buy: edit/cancel is allowed only
 
 | Action | Allowed When | System Result |
 |---|---|---|
-| Edit | `status = Open`, full quantity/value still remaining, and no active downstream Sales Bill / PO Sell allocation | Updates customer/branch/channel/delivery date/items/totals and `updated_by` / `updated_at`; keeps the original doc no and created date |
+| Edit | `status = Open`, full quantity/value still remaining, no active downstream Sales Bill / PO Sell allocation, and Customer remains active in the target branch mapping | Updates customer/branch/channel/delivery date/items/totals and `updated_by` / `updated_at`; keeps the original doc no and created date |
 | Cancel | `status = Open`, full quantity/value still remaining, and no active downstream Sales Bill / PO Sell allocation | Requires a cancel note, sets `status = Cancelled`, clears remaining quantity/value, keeps the original document for audit |
 
 The list UI keeps `แก้ไข` and `ยกเลิก` buttons visible on every row, but disables them with a reason when the row is no longer eligible.

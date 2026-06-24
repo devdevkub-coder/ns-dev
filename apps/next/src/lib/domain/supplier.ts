@@ -44,6 +44,11 @@ type PrismaSupplier = {
   created_at: Date | null
   updated_at: Date | null
   branches?: { code: string | null; name: string } | null
+  supplier_branches?: Array<{
+    active: boolean
+    is_primary: boolean
+    branches: { code: string | null; name: string } | null
+  }>
   supplier_bank_accounts?: Array<{
     code: string | null
     id: bigint
@@ -178,6 +183,14 @@ export function mapPrismaSupplier(
 ): Supplier {
   const outwardId = requireBusinessCode(row.code, `ผู้ขาย ${row.id}`)
   const primaryAccount = primarySupplierBankAccount(row)
+  const activeBranches = (row.supplier_branches ?? [])
+    .filter((mapping) => mapping.active && mapping.branches?.code)
+    .map((mapping) => ({
+      code: requireBusinessCode(mapping.branches?.code ?? null, `สาขาผู้ขาย ${row.id}`),
+      isPrimary: mapping.is_primary,
+      name: mapping.branches?.name ?? '',
+    }))
+  const primaryBranch = activeBranches.find((branch) => branch.isPrimary) ?? activeBranches[0] ?? null
   return supplierSchema.parse({
     id: outwardId,
     code: outwardId,
@@ -218,8 +231,12 @@ export function mapPrismaSupplier(
       isPrimary: account.is_primary ?? false,
       active: account.active ?? true,
     })),
-    branchId: row.branches?.code ?? null,
-    branchName: row.branches?.name ?? null,
+    branchId: primaryBranch?.code ?? row.branches?.code ?? null,
+    branchName: primaryBranch?.name ?? row.branches?.name ?? null,
+    branchIds: activeBranches.map((branch) => branch.code),
+    branchNames: activeBranches.map((branch) => branch.name),
+    primaryBranchId: primaryBranch?.code ?? row.branches?.code ?? null,
+    primaryBranchName: primaryBranch?.name ?? row.branches?.name ?? null,
     salesId: overrides?.salesId ?? null,
     salesName: row.sales_rep,
     active: row.active ?? true,

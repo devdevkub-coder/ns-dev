@@ -7,6 +7,7 @@ import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requ
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveSalespersonReferenceByCodeOrId } from '@/lib/server/salesperson-reference'
+import type { Prisma } from '../../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
 
@@ -42,6 +43,8 @@ const headerMap = {
   name: ['ชื่อลูกค้า/บริษัท', 'ชื่อบริษัท', 'name'],
   nameTitle: ['คำนำหน้าชื่อ', 'nameTitle'],
   phone: ['โทรศัพท์', 'โทร', 'phone'],
+  primaryBranchId: ['รหัสสาขาหลัก', 'primaryBranchId', 'primary_branch_id'],
+  branchIds: ['รหัสสาขาที่ใช้ได้', 'branchIds', 'branch_ids'],
   salesId: ['รหัสพนักงานขาย', 'salesId'],
   taxId: ['เลขผู้เสียภาษี', 'taxId'],
   type: ['ประเภทลูกค้า', 'ประเภท', 'type'],
@@ -133,6 +136,70 @@ function normalizeActive(value: string) {
   return true
 }
 
+function splitBranchCodes(value: string) {
+  return Array.from(new Set(value
+    .split(/[;,|]/)
+    .map((part) => part.trim().toUpperCase())
+    .filter(Boolean)))
+}
+
+async function syncCustomerBranches(
+  tx: Prisma.TransactionClient,
+  input: {
+    actor: string | null
+    branchCodes: string[]
+    customerId: bigint
+    primaryBranchCode: string | null
+  },
+) {
+  const branchCodes = Array.from(new Set([
+    ...input.branchCodes.map((code) => code.trim().toUpperCase()).filter(Boolean),
+    ...(input.primaryBranchCode ? [input.primaryBranchCode.trim().toUpperCase()] : []),
+  ]))
+  const primaryBranchCode = input.primaryBranchCode?.trim().toUpperCase() || branchCodes[0] || null
+  const branches = await tx.branches.findMany({
+    select: { code: true, id: true },
+    where: { active: true, code: { in: branchCodes } },
+  })
+  const branchByCode = new Map(branches.map((branch) => [branch.code, branch] as const))
+  const missingCodes = branchCodes.filter((code) => !branchByCode.has(code))
+  if (missingCodes.length) {
+    throw new Error(`สาขาไม่ถูกต้องหรือถูกปิดใช้งาน: ${missingCodes.join(', ')}`)
+  }
+
+  await tx.customer_branches.updateMany({
+    data: { active: false, is_primary: false, updated_at: new Date(), updated_by: input.actor },
+    where: { customer_id: input.customerId },
+  })
+
+  for (const code of branchCodes) {
+    const branch = branchByCode.get(code)
+    if (!branch) continue
+    await tx.customer_branches.upsert({
+      create: {
+        active: true,
+        branch_id: branch.id,
+        created_by: input.actor,
+        customer_id: input.customerId,
+        is_primary: code === primaryBranchCode,
+        updated_by: input.actor,
+      },
+      update: {
+        active: true,
+        is_primary: code === primaryBranchCode,
+        updated_at: new Date(),
+        updated_by: input.actor,
+      },
+      where: {
+        customer_id_branch_id: {
+          branch_id: branch.id,
+          customer_id: input.customerId,
+        },
+      },
+    })
+  }
+}
+
 function findCustomerSheet(workbook: XLSX.WorkBook) {
   const namedSheet = workbook.Sheets['ลูกค้า']
   if (namedSheet) return namedSheet
@@ -204,6 +271,11 @@ export async function POST(request: Request) {
 
     const blankCodeRows = rows.filter((row) => !cellText(row, 'code')).length
     const generatedCodes = await nextCustomerCodeSequence(blankCodeRows)
+    const activeBranches = await prisma.branches.findMany({
+      select: { code: true },
+      where: { active: true },
+    })
+    const activeBranchCodes = new Set(activeBranches.map((branch) => branch.code))
     let generatedCodeIndex = 0
     const issues: string[] = []
     const seenCodes = new Set<string>()
@@ -261,8 +333,18 @@ export async function POST(request: Request) {
         addressPostalCodeIntl: cellText(row, 'addressPostalCodeIntl') || null,
         creditTerm: cellNumber(row, 'creditTerm'),
         creditLimit: cellNumber(row, 'creditLimit'),
+        branchIds: splitBranchCodes(cellText(row, 'branchIds')),
+        primaryBranchId: cellText(row, 'primaryBranchId').trim().toUpperCase() || null,
         salesId: cellText(row, 'salesId') || null,
         active: normalizeActive(cellText(row, 'active')),
+      }
+      if (values.primaryBranchId && !values.branchIds.includes(values.primaryBranchId)) values.branchIds.unshift(values.primaryBranchId)
+      const invalidBranchCodes = values.branchIds.filter((branchCode) => !activeBranchCodes.has(branchCode))
+      if (invalidBranchCodes.length) {
+        issues.push(firstIssueMessage(rowNumber, `รหัสสาขาไม่ถูกต้องหรือถูกปิดใช้งาน: ${invalidBranchCodes.join(', ')}`))
+      }
+      if (values.active && values.branchIds.length === 0) {
+        issues.push(firstIssueMessage(rowNumber, 'ต้องระบุรหัสสาขาที่ใช้ได้สำหรับลูกค้าที่ใช้งาน'))
       }
 
       const parsed = customerFormSchema.safeParse(values)
@@ -295,21 +377,29 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
-    await prisma.$transaction(validRows.map((row, index) => {
-      const payload = toCustomerWriteInput(row, {
-        salesId: salespersonReferences[index]?.id ?? null,
-      })
-      const existing = existingReferences[index]
-      if (existing) {
-        return prisma.customers.update({
-          where: { id: existing.id },
-          data: payload as Parameters<typeof prisma.customers.update>[0]['data'],
+    const actor = context.appUser?.username ?? context.authUser.email ?? null
+    await prisma.$transaction(async (tx) => {
+      for (const [index, row] of validRows.entries()) {
+        const payload = toCustomerWriteInput(row, {
+          salesId: salespersonReferences[index]?.id ?? null,
+        })
+        const existing = existingReferences[index]
+        const savedCustomer = existing
+          ? await tx.customers.update({
+            where: { id: existing.id },
+            data: payload as Parameters<typeof tx.customers.update>[0]['data'],
+          })
+          : await tx.customers.create({
+            data: payload as Parameters<typeof tx.customers.create>[0]['data'],
+          })
+        await syncCustomerBranches(tx, {
+          actor,
+          branchCodes: row.branchIds,
+          customerId: savedCustomer.id,
+          primaryBranchCode: row.primaryBranchId,
         })
       }
-      return prisma.customers.create({
-        data: payload as Parameters<typeof prisma.customers.create>[0]['data'],
-      })
-    }))
+    })
 
     const updated = existingReferences.filter(Boolean).length
     return NextResponse.json({

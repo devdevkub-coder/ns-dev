@@ -14,6 +14,7 @@ import { supplierBankAccountRows, toSupplierWriteInput } from '@/lib/domain/supp
 import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { prisma } from '@/lib/server/prisma'
+import type { Prisma } from '../../../../../../generated/prisma/client'
 
 export const runtime = 'nodejs'
 
@@ -50,6 +51,8 @@ const headerMap = {
   name: ['ชื่อผู้ขาย/บริษัท', 'ชื่อบริษัท/ร้านค้า', 'name'],
   nameTitle: ['คำนำหน้าชื่อ', 'nameTitle'],
   phone: ['โทรศัพท์', 'โทร', 'phone'],
+  primaryBranchId: ['รหัสสาขาหลัก', 'primaryBranchId', 'primary_branch_id'],
+  branchIds: ['รหัสสาขาที่ใช้ได้', 'branchIds', 'branch_ids'],
   salesId: ['รหัสผู้ดูแล', 'salesId', 'sales_id'],
   salesName: ['ผู้ดูแล', 'salesName'],
   taxId: ['เลขผู้เสียภาษี', 'taxId'],
@@ -129,6 +132,70 @@ function normalizeActive(value: string) {
   if (!normalized) return true
   if (['ปิด', 'inactive', 'false', '0', 'no', 'n'].includes(normalized)) return false
   return true
+}
+
+function splitBranchCodes(value: string) {
+  return Array.from(new Set(value
+    .split(/[;,|]/)
+    .map((part) => part.trim().toUpperCase())
+    .filter(Boolean)))
+}
+
+async function syncSupplierBranches(
+  tx: Prisma.TransactionClient,
+  input: {
+    actor: string | null
+    branchCodes: string[]
+    primaryBranchCode: string | null
+    supplierId: bigint
+  },
+) {
+  const branchCodes = Array.from(new Set([
+    ...input.branchCodes.map((code) => code.trim().toUpperCase()).filter(Boolean),
+    ...(input.primaryBranchCode ? [input.primaryBranchCode.trim().toUpperCase()] : []),
+  ]))
+  const primaryBranchCode = input.primaryBranchCode?.trim().toUpperCase() || branchCodes[0] || null
+  const branches = await tx.branches.findMany({
+    select: { code: true, id: true },
+    where: { active: true, code: { in: branchCodes } },
+  })
+  const branchByCode = new Map(branches.map((branch) => [branch.code, branch] as const))
+  const missingCodes = branchCodes.filter((code) => !branchByCode.has(code))
+  if (missingCodes.length) {
+    throw new Error(`สาขาไม่ถูกต้องหรือถูกปิดใช้งาน: ${missingCodes.join(', ')}`)
+  }
+
+  await tx.supplier_branches.updateMany({
+    data: { active: false, is_primary: false, updated_at: new Date(), updated_by: input.actor },
+    where: { supplier_id: input.supplierId },
+  })
+
+  for (const code of branchCodes) {
+    const branch = branchByCode.get(code)
+    if (!branch) continue
+    await tx.supplier_branches.upsert({
+      create: {
+        active: true,
+        branch_id: branch.id,
+        created_by: input.actor,
+        is_primary: code === primaryBranchCode,
+        supplier_id: input.supplierId,
+        updated_by: input.actor,
+      },
+      update: {
+        active: true,
+        is_primary: code === primaryBranchCode,
+        updated_at: new Date(),
+        updated_by: input.actor,
+      },
+      where: {
+        supplier_id_branch_id: {
+          branch_id: branch.id,
+          supplier_id: input.supplierId,
+        },
+      },
+    })
+  }
 }
 
 function stripCashMarker(value: string) {
@@ -309,7 +376,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: `Import ได้สูงสุด ${IMPORT_LIMIT.toLocaleString('th-TH')} แถวต่อครั้ง` }, { status: 400 })
     }
 
-    const [salespersons, paymentMethods, bankNameRows] = await Promise.all([
+    const [salespersons, paymentMethods, bankNameRows, activeBranches] = await Promise.all([
       prisma.salespersons.findMany({
         select: { code: true, id: true, name: true },
         where: { active: { not: false } },
@@ -323,7 +390,12 @@ export async function POST(request: Request) {
         select: { id: true, name: true },
         where: { active: true },
       }),
+      prisma.branches.findMany({
+        select: { code: true },
+        where: { active: true },
+      }),
     ])
+    const activeBranchCodes = new Set(activeBranches.map((branch) => branch.code))
     const bankNamesByName = new Map(bankNameRows.map((row) => [row.name, row] as const))
     const salespersonLookup = new Map<string, { code: string | null; id: bigint; name: string }>()
     for (const salesperson of salespersons) {
@@ -393,10 +465,20 @@ export async function POST(request: Request) {
         accountNo: primaryBankAccount?.accountNo ?? null,
         bankAccount: primaryBankAccount?.bankAccount ?? null,
         bankAccounts,
-        branchId: null,
+        branchId: cellText(row, 'primaryBranchId').trim().toUpperCase() || null,
+        branchIds: splitBranchCodes(cellText(row, 'branchIds')),
+        primaryBranchId: cellText(row, 'primaryBranchId').trim().toUpperCase() || null,
         salesId: salesperson?.code ?? null,
         salesName: salesperson?.name ?? null,
         active: normalizeActive(cellText(row, 'active')),
+      }
+      if (values.primaryBranchId && !values.branchIds.includes(values.primaryBranchId)) values.branchIds.unshift(values.primaryBranchId)
+      const invalidBranchCodes = values.branchIds.filter((branchCode) => !activeBranchCodes.has(branchCode))
+      if (invalidBranchCodes.length) {
+        issues.push(firstIssueMessage(rowNumber, `รหัสสาขาไม่ถูกต้องหรือถูกปิดใช้งาน: ${invalidBranchCodes.join(', ')}`))
+      }
+      if (values.active && values.branchIds.length === 0) {
+        issues.push(firstIssueMessage(rowNumber, 'ต้องระบุรหัสสาขาที่ใช้ได้สำหรับผู้ขายที่ใช้งาน'))
       }
 
       const parsed = supplierFormSchema.safeParse(values)
@@ -432,6 +514,7 @@ export async function POST(request: Request) {
     const existingIds = new Set(existing.map((row) => row.code ?? '').filter(Boolean))
     const existingByCode = new Map(existing.map((row) => [row.code ?? '', row]))
 
+    const actor = context.appUser?.username ?? context.authUser.email ?? null
     await prisma.$transaction(async (tx) => {
       for (const row of validRows) {
         const payload = toSupplierWriteInput(row, paymentMethods)
@@ -448,6 +531,12 @@ export async function POST(request: Request) {
         await tx.supplier_bank_accounts.deleteMany({ where: { supplier_id: savedSupplier.id } })
         const accountRows = supplierBankAccountRows(row, savedSupplier.id, payload.code ?? String(row.id ?? ''), paymentMethods, bankNamesByName)
         if (accountRows.length) await tx.supplier_bank_accounts.createMany({ data: accountRows })
+        await syncSupplierBranches(tx, {
+          actor,
+          branchCodes: row.branchIds,
+          primaryBranchCode: row.primaryBranchId,
+          supplierId: savedSupplier.id,
+        })
       }
     })
 

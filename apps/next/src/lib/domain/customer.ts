@@ -37,6 +37,11 @@ type PrismaCustomer = {
   active: boolean | null
   created_at: Date | null
   updated_at: Date | null
+  customer_branches?: Array<{
+    active: boolean
+    is_primary: boolean
+    branches: { code: string | null; name: string } | null
+  }>
 }
 
 export function mapPrismaCustomer(
@@ -46,6 +51,14 @@ export function mapPrismaCustomer(
   },
 ): Customer {
   const outwardId = requireBusinessCode(row.code, `ลูกค้า ${row.id}`)
+  const activeBranches = (row.customer_branches ?? [])
+    .filter((mapping) => mapping.active && mapping.branches?.code)
+    .map((mapping) => ({
+      code: requireBusinessCode(mapping.branches?.code ?? null, `สาขาลูกค้า ${row.id}`),
+      isPrimary: mapping.is_primary,
+      name: mapping.branches?.name ?? '',
+    }))
+  const primaryBranch = activeBranches.find((branch) => branch.isPrimary) ?? activeBranches[0] ?? null
   return customerSchema.parse({
     id: outwardId,
     code: outwardId,
@@ -77,6 +90,10 @@ export function mapPrismaCustomer(
     addressPostalCodeIntl: row.address_postal_code_intl,
     creditTerm: row.credit_term,
     creditLimit: row.credit_limit === null ? null : row.credit_limit.toNumber(),
+    branchIds: activeBranches.map((branch) => branch.code),
+    branchNames: activeBranches.map((branch) => branch.name),
+    primaryBranchId: primaryBranch?.code ?? null,
+    primaryBranchName: primaryBranch?.name ?? null,
     salesId: overrides?.salesId ?? null,
     active: row.active ?? true,
     createdAt: row.created_at?.toISOString() ?? null,

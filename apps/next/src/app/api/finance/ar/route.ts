@@ -133,7 +133,18 @@ export async function GET(request: Request) {
       }),
       prisma.customers.findMany({
         orderBy: [{ code: 'asc' }, { name: 'asc' }],
-        select: { active: true, code: true, id: true, name: true },
+        select: {
+          active: true,
+          code: true,
+          customer_branches: {
+            select: {
+              branches: { select: { code: true } },
+            },
+            where: { active: true },
+          },
+          id: true,
+          name: true,
+        },
         where: { active: true },
       }),
       prisma.branches.findMany({
@@ -279,7 +290,15 @@ export async function GET(request: Request) {
         }),
         customers: customers.map((row) => {
           const code = requireBusinessCode(row.code, `ลูกค้า ${row.id}`)
-          return { active: row.active, code, id: code, name: row.name }
+          return {
+            active: row.active,
+            branchIds: row.customer_branches
+              .map((mapping) => mapping.branches?.code)
+              .filter((branchCode): branchCode is string => Boolean(branchCode)),
+            code,
+            id: code,
+            name: row.name,
+          }
         }),
         statuses,
       },

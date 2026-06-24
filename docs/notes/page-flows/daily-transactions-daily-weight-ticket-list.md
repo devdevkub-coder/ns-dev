@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-06-22
+updated: 2026-06-24
 route: /daily/weight-ticket-list
 ---
 
@@ -55,6 +55,7 @@ list/detail/create link สำหรับ WTI/WTO; WTI/WTO เป็น evidenc
 - เมื่อเข้าหน้า create จาก tab `WTI` หรือ `WTO` ต้องล็อกประเภทเอกสารและซ่อน tab ของอีกประเภท; edit เอกสารเดิมก็ต้องล็อกประเภทเช่นกัน
 - WTI ใช้เป็น source PB: 1 WTI ต่อ 1 PB และต้องถูกใช้ครบใน PB เดียว
 - WTO ใช้เป็น source SB: 1 WTO ต่อ 1 SB และต้องถูกใช้ครบใน SB เดียว
+- WTI supplier selector ต้องกรองจาก active `supplier_branches` ของสาขาเอกสาร และ WTO customer selector ต้องกรองจาก active `customer_branches` ของสาขาเอกสาร; เปลี่ยนสาขาแล้วคู่ค้าที่ไม่ตรง mapping ต้องถูก clear
 - WTO เป็น `pending_out` source โดยตรง: เมื่อสร้าง WTO ต้องกัน stock เป็น `pending_out` และแสดงใน Stock Balance เป็น `รอออก`
 - แสดง product thumbnail, เต๋า/summary, vehicle/image evidence และ downstream usage lock
 - WTI create/edit ต้องแยกข้อมูลในแต่ละเต๋าเป็น `ข้อมูลเต๋า` -> `ซื้อเพิ่มจากสิ่งเจือปน` -> `รายการหักสิ่งเจือปน`
@@ -90,6 +91,7 @@ list/detail/create link สำหรับ WTI/WTO; WTI/WTO เป็น evidenc
 - `PUT /api/daily/weight-tickets/[id] - edit`
 - `PATCH /api/daily/weight-tickets/[id] - cancel/status action`
 - `GET /api/daily/weight-tickets/options - current branches/suppliers/customers/impurities only`
+  - suppliers/customers must be eligible for the selected branch through active branch mapping when `branchId` is provided
 - `GET /api/daily/weight-tickets/products - product options with thumbnails`
 - `GET /api/daily/weight-tickets/stock-options?branchId={branchCode}&productId={productCode}`
   - returns active warehouses in the selected branch where `type in (RM, FG)`
@@ -171,6 +173,7 @@ list/detail/create link สำหรับ WTI/WTO; WTI/WTO เป็น evidenc
 
 - WTI supplier/branch/product/weight required ตาม receipt mode
 - WTO customer/branch/product/warehouse/qty required และ target validate available qty จาก branch+product+warehouse
+- WTI supplier ต้อง active และมี active `supplier_branches` กับ branch ของ WTI; WTO customer ต้อง active และมี active `customer_branches` กับ branch ของ WTO; API ต้อง reject ถ้าไม่ตรง mapping และห้าม fallback เป็นทุกสาขา
 - WTO warehouse ต้อง active, อยู่ใน branch ที่เลือก, และเป็นคลัง `RM` หรือ `FG`
 - WTI/WTO ไม่มีสถานะ partial ใน target filter/status: `WTI = รับของแล้ว/เสร็จสิ้น/ยกเลิก`, `WTO = ส่งของแล้ว/ออกบิลแล้ว/ยกเลิก`
 - ประเภทเอกสาร (`WTI`/`WTO`) เปลี่ยนไม่ได้หลังเปิดจาก create context เฉพาะประเภทหรือหลังสร้างเอกสารแล้ว; API ต้อง reject payload ที่พยายามเปลี่ยน `type`
@@ -218,4 +221,5 @@ list/detail/create link สำหรับ WTI/WTO; WTI/WTO เป็น evidenc
 - [x] Persist impurity purchase source/target relation through schema/API/read model
 - [ ] Verify legacy behavior for remaining SB edit/cancel/reversal gap before implementing runtime change
 - [ ] Add/adjust tests or browser QA checklist before changing runtime
+- [ ] Filter/validate WTI Supplier and WTO Customer selectors by branch mapping
 - [ ] Update this file and canonical reference if contract changes

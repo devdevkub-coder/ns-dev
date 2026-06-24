@@ -20,6 +20,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 
 type Option = {
   active?: boolean | null
+  branchIds?: string[]
   code?: string | null
   id: string
   marketScope?: string | null
@@ -305,7 +306,11 @@ export function PoSellPageClient() {
   const pageRows = sortedRows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const activeBranches = (data?.options.branches ?? []).filter((option) => option.active !== false)
   const activeChannels = useMemo(() => (data?.options.salesChannels ?? []).filter((option) => option.active !== false), [data?.options.salesChannels])
-  const activeCustomers = useMemo(() => (data?.options.customers ?? []).filter((option) => option.active !== false), [data?.options.customers])
+  const activeCustomers = useMemo(() => (data?.options.customers ?? []).filter((option) => (
+    option.active !== false
+    && Boolean(form.branchId)
+    && option.branchIds?.includes(form.branchId ?? '')
+  )), [data?.options.customers, form.branchId])
   const activeProducts = (data?.options.products ?? []).filter((option) => option.active !== false)
   const defaultSalesChannelForCustomer = useCallback((customerId: string) => {
     const customer = activeCustomers.find((option) => option.id === customerId)
@@ -409,6 +414,18 @@ export function PoSellPageClient() {
       if (key === 'customerId') {
         const nextChannelId = defaultSalesChannelForCustomer(typeof value === 'string' ? value : '')
         next.channelId = nextChannelId ?? null
+      }
+      if (key === 'branchId') {
+        const branchId = typeof value === 'string' ? value : ''
+        const customerStillEligible = (data?.options.customers ?? []).some((customer) => (
+          customer.id === current.customerId
+          && customer.active !== false
+          && customer.branchIds?.includes(branchId)
+        ))
+        if (!customerStillEligible) {
+          next.customerId = ''
+          next.channelId = null
+        }
       }
       return next
     })

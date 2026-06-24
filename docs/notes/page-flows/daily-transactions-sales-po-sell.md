@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-06-16
+updated: 2026-06-24
 route: /sales/po-sell
 ---
 
@@ -70,6 +70,7 @@ POS เป็น customer commitment/reservation ฝั่งขาย ก่อ
 - คอลัมน์ `อัพเดตล่าสุด` ต้องอยู่ถัดจาก `สถานะ Match` และแสดง `updated_by` พร้อม timestamp จาก `updated_at`
 - date filter ของหน้า PO Sell ใช้ `created_at` / `วันที่สร้างรายการ`
 - customer options ต้องส่ง `marketScope` จาก `customers.market_scope`; เมื่อผู้ใช้เลือกลูกค้า ระบบต้อง auto ตั้ง `ช่องทางขาย` เป็น `ในประเทศ` หรือ `ต่างประเทศ` ตามค่า master ลูกค้า และใน modal PO Sell ให้แสดงเป็น read-only เพื่อกันผู้ใช้เลือกช่องทางที่ไม่ตรงกับลูกค้า
+- customer options ต้องกรองตามสาขาเอกสารจาก active `customer_branches`; ถ้าเปลี่ยนสาขาแล้วลูกค้าที่เลือกอยู่ไม่ผูกกับสาขาใหม่ ต้อง clear customer/channel และให้ผู้ใช้เลือกใหม่
 - `สถานะเอกสาร` ใน table/card/detail ใช้ status display ตาม `docs/design.md`: dot + ข้อความสี ไม่ใช้ badge background
 - `สถานะ Match` แสดงเป็นข้อความสีอย่างเดียว ไม่มี dot
 - `สถานะ Match` ใน filter/table/card/detail/export ต้องใช้ label ภาษาไทยชุดเดียวกัน: `ยังไม่จับคู่`, `จับคู่บางส่วน`, `จับคู่ครบ`, `จับคู่เกิน`, `ยกเลิก`
@@ -81,6 +82,7 @@ POS เป็น customer commitment/reservation ฝั่งขาย ก่อ
 ## Validation / Status Rules
 
 - customer/branch/product/qty/price required
+- customer ต้อง active และมี active `customer_branches` กับ branch ของ POS; API ต้อง reject ถ้าไม่ตรง mapping และห้าม fallback เป็นทุกสาขา
 - qty > 0 แยกตามหน่วย
 - SB allocation ต้องไม่เกิน POS remaining
 - แก้ไข/ยกเลิกได้เฉพาะ POS ที่ยังเป็น `Open` และยังไม่มี downstream active Sales Bill / PO Sell allocation
@@ -114,4 +116,5 @@ Branch-scope enforcement now exists for `/api/sales/po-sell`: list/export/option
 - [ ] Verify legacy behavior for any gap before implementing runtime change
 - [ ] Add/adjust tests or browser QA checklist before changing runtime
 - [x] Enforce branch scope for PO Sell list/export/options/create
+- [ ] Filter/validate Customer selector by `customer_branches` for PO Sell create/edit
 - [x] Update this file and canonical reference if contract changes

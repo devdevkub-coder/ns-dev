@@ -19,6 +19,7 @@ import { supplierAdvancePaymentFormSchema } from '@/lib/purchase-advance'
 
 type OptionRow = {
   active: boolean | null
+  branchIds?: string[]
   code?: string | null
   id: string
   name: string
@@ -243,12 +244,14 @@ export function AdvancePaymentsPageClient() {
     void loadData()
   }, [loadData])
 
-  const supplierOptions = useMemo<SearchComboboxOption[]>(() => (data?.suppliers ?? []).map((supplier) => ({
+  const supplierOptions = useMemo<SearchComboboxOption[]>(() => (data?.suppliers ?? [])
+    .filter((supplier) => supplier.active !== false && Boolean(form.branchId) && supplier.branchIds?.includes(form.branchId))
+    .map((supplier) => ({
     description: supplier.code ? `รหัส ${supplier.code}` : undefined,
     id: supplier.id,
     label: supplier.name,
     searchText: `${supplier.code ?? ''} ${supplier.name}`,
-  })), [data?.suppliers])
+  })), [data?.suppliers, form.branchId])
   const activeProducts = useMemo(() => (data?.products ?? []).filter((product) => product.active !== false), [data?.products])
   const productOptions = useMemo<SearchComboboxOption[]>(() => activeProducts.map((product) => ({
     description: product.code ? `รหัส ${product.code}` : undefined,
@@ -387,6 +390,14 @@ export function AdvancePaymentsPageClient() {
       const next = { ...current, [field]: value }
       if (field === 'weightIn' || field === 'weightOut') {
         next.netWeight = calculateNetWeightInputValue(next.weightIn, next.weightOut)
+      }
+      if (field === 'branchId') {
+        const supplierStillEligible = (data?.suppliers ?? []).some((supplier) => (
+          supplier.id === current.supplierId
+          && supplier.active !== false
+          && supplier.branchIds?.includes(value)
+        ))
+        if (!supplierStillEligible) next.supplierId = ''
       }
       return next
     })
@@ -1441,4 +1452,3 @@ function timelineMetadataText(event: AdvancePaymentTimelineEvent) {
     note,
   ].filter(Boolean).join(' · ')
 }
-

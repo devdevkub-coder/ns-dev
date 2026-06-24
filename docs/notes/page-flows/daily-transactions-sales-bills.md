@@ -4,7 +4,7 @@ tags:
   - page-flow
   - menu
 status: accepted-baseline
-updated: 2026-06-22
+updated: 2026-06-24
 route: /sales/bills
 ---
 
@@ -70,12 +70,14 @@ SB ตั้งลูกหนี้, consume WTO `pending_out`, ตัด stock
 - UI ใช้ outward business document/code เป็นหลัก และให้ server resolve internal id
 - list/detail/print/export ต้องอ่าน source contract เดียวกันเพื่อลด drift
 - customer options ต้องส่ง `marketScope` จาก `customers.market_scope`; เมื่อผู้ใช้เลือกลูกค้า ระบบต้อง auto ตั้ง `ช่องทางขาย` เป็น `ในประเทศ` หรือ `ต่างประเทศ` ตามค่า master ลูกค้า และใน modal บิลขายให้แสดงเป็น read-only เพื่อกันผู้ใช้เลือกช่องทางที่ไม่ตรงกับลูกค้า
+- customer options ต้องกรองตามสาขาเอกสารจาก active `customer_branches`; Stock SB ที่มาจาก WTO ต้องใช้ customer/branch จาก WTO และ validate ว่า mapping ยัง active ก่อนบันทึก, Trading SB ต้องกรอง customer ตาม branch ที่เลือก
 - transaction write ต้องทำใน server transaction และ append timeline/status/audit ตาม document policy
 - ถ้า field เป็น money/qty/date/business code ให้ validate ตาม `docs/design.md` และ server-side ซ้ำ
 
 ## Validation / Status Rules
 
 - WTO ต้อง active, same branch/customer context, not billed, allocate ครบใน SB เดียว
+- customer ต้อง active และมี active `customer_branches` กับ branch ของ SB; API ต้อง reject ถ้าไม่ตรง mapping และห้าม fallback เป็นทุกสาขา
 - POS allocation ต้อง product/unit match และไม่เกิน remaining
 - stock sale ต้อง validate available/pending_out ใน transaction
 - Stock SB ต้องตั้ง `total_cost`/`cogs_amount` จากต้นทุนเฉลี่ย stock ของสินค้าที่ตัดออก (`stock_ledger.value_out`) และตั้ง `gross_profit = total_amount - COGS`; ถ้า Trading SB มี WTO line พ่วง ให้ตั้ง COGS รวมจาก `trading_allocation_facts.matched_cogs + stock_ledger.value_out`
@@ -163,6 +165,7 @@ SB ตั้งลูกหนี้, consume WTO `pending_out`, ตัด stock
 - [x] Browser QA Sales Bill list row click opens the detail dialog and `/sales/bills/[docNo]` renders by document number
 - [x] Sales Bill detail/timeline surfaces downstream usage facts from dedicated logs/fact tables
 - [x] Enforce branch scope for Sales Bill list/export/options/detail/create/cancel and Trading allocation correction
+- [ ] Filter/validate Customer selector by `customer_branches` for Sales Bill create/cancel-sensitive source selection
 
 2026-06-14 update:
 - Legacy/test Sales Bills without durable allocation facts do not need a backfill. Test data can be removed later; new reporting/export work must not add more runtime compatibility for malformed legacy snapshots.

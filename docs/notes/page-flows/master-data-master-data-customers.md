@@ -5,7 +5,7 @@ tags:
   - menu
   - master-data
 status: accepted-baseline
-updated: 2026-06-11
+updated: 2026-06-24
 route: /master-data/customers
 ---
 
@@ -36,6 +36,7 @@ customer master used by POS/WTO/SB/RCP/AR
 - แสดง created date/status และใช้งาน active-only ใน transaction pages
 - เก็บ `market_scope` เป็น `ในประเทศ` หรือ `ต่างประเทศ` เพื่อให้ PO Sell และ Sales Bill auto ตั้ง `ช่องทางขาย` ตามลูกค้าได้ โดยไม่ต้องให้ผู้ใช้เลือกซ้ำทุกครั้ง
 - เก็บ `legal_entity_type` สำหรับลูกค้า `นิติบุคคล` เช่น บจก./หจก./บมจ. แยกจาก `type` และ `market_scope`; กระทบเฉพาะตารางลูกค้า, modal รายละเอียด, import และ export ของ master ลูกค้า
+- เก็บสิทธิ์สาขาที่ลูกค้ารายนั้นใช้ได้ผ่าน `customer_branches` ไม่ใช่ field สาขาเดียวบน `customers`; ลูกค้า 1 รายผูกได้หลายสาขา และต้องมี primary branch เพื่อบอกสาขาหลักที่รับผิดชอบ
 - เก็บ snapshot ลง business documents เมื่อ master ถูกนำไปใช้ในเอกสารที่ต้องรักษาประวัติ
 
 ## Non-Responsibilities
@@ -51,8 +52,9 @@ customer master used by POS/WTO/SB/RCP/AR
 | 1 | เปิดหน้า | โหลด list จาก Current API |
 | 2 | สร้าง/แก้ไข | validate code/name/type/status และ required fields |
 | 3 | บันทึก | เขียน master row และ audit/updated timestamp |
-| 4 | ปิดใช้งาน | active=false/status inactive เพื่อกันเลือกในเอกสารใหม่ |
-| 5 | นำไปใช้ | transaction pages เลือกเฉพาะ active และ snapshot ค่าที่ต้อง trace |
+| 4 | ตั้งค่าสาขา | เขียน/แก้ active branch mapping และ primary branch ใน `customer_branches` |
+| 5 | ปิดใช้งาน | active=false/status inactive หรือ inactive mapping เพื่อกันเลือกในเอกสารใหม่ |
+| 6 | นำไปใช้ | transaction pages เลือกเฉพาะ active customer ที่ผูกกับสาขาเอกสาร และ snapshot ค่าที่ต้อง trace |
 
 ## API / Data Contract
 
@@ -66,6 +68,9 @@ customer master used by POS/WTO/SB/RCP/AR
 - UI ใช้ business code/name เป็นหลัก ไม่ expose internal id เป็นเลขธุรกิจ
 - create/update ต้อง validate server-side ตาม field type matrix ใน `docs/design.md`
 - active/inactive ต้องใช้เป็น selection eligibility ใน transaction pages
+- response ของ list/detail/options ต้องมีสาขาที่ผูกใช้งานได้และ primary branch เพื่อให้ table, detail modal, import/export และ transaction selector ใช้ contract เดียวกัน
+- transaction selectors ต้องกรองจาก `customer_branches.active = true` ตาม `branch_id` ของเอกสาร และ API ต้อง validate ซ้ำก่อนบันทึกทุกครั้ง
+- customer ที่ไม่มี active branch mapping ต้องไม่ถูกเสนอเป็น option ในเอกสารใหม่; ห้าม fallback ให้เห็นทุกสาขา
 - import/export ถ้ามี ต้องใช้ validation ชุดเดียวกับ form/API
 
 ## Validation / Status Rules
@@ -73,6 +78,9 @@ customer master used by POS/WTO/SB/RCP/AR
 - required fields ต้องชัดตามหน้าและไม่พึ่ง placeholder เป็น validation
 - code/business id ต้อง unique ตาม scope ที่กำหนด
 - inactive row ต้องยังแสดงในประวัติเอกสารเก่า แต่ห้ามเลือกในเอกสารใหม่
+- active customer ต้องมีอย่างน้อย 1 active branch mapping ก่อนนำไปใช้ใน transaction ใหม่
+- ต้องมี primary branch active ได้เพียง 1 รายการต่อ customer
+- การย้าย/ปิด branch mapping ไม่แก้ snapshot ในเอกสารเก่า แต่มีผลกับการเลือกในเอกสารใหม่ทันที
 - ห้าม normalize/merge ข้อมูล legacy แบบ silent ใน runtime path
 
 ## Side Effects
@@ -99,4 +107,5 @@ Current code is accepted baseline. Remaining work is to keep documentation in sy
 - [ ] Verify required fields and server validation
 - [ ] Verify active/inactive behavior in downstream transaction pages
 - [ ] Verify import/export if present
+- [ ] Add `customer_branches` mapping UI/API/import/export and strict downstream transaction validation
 - [ ] Update this page-flow when master schema changes

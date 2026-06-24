@@ -25,6 +25,17 @@ const sortColumns = {
   type: 'type',
 } as const
 
+const customerInclude = {
+  customer_branches: {
+    include: {
+      branches: {
+        select: { code: true, name: true },
+      },
+    },
+    orderBy: [{ is_primary: 'desc' }, { id: 'asc' }],
+  },
+} satisfies Prisma.customersInclude
+
 function parseListParams(request: Request) {
   const url = new URL(request.url)
   const all = url.searchParams.get('all') === '1'
@@ -110,6 +121,73 @@ async function assertEmailDomainCanReceiveMail(email: string | null) {
   }
 }
 
+function uniqueBranchCodes(values: string[]) {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)))
+}
+
+async function syncCustomerBranches(
+  tx: Prisma.TransactionClient,
+  input: {
+    actor: string | null
+    branchCodes: string[]
+    customerId: bigint
+    primaryBranchCode: string | null
+  },
+) {
+  const branchCodes = uniqueBranchCodes(input.branchCodes)
+  if (input.primaryBranchCode && !branchCodes.includes(input.primaryBranchCode)) {
+    branchCodes.unshift(input.primaryBranchCode)
+  }
+
+  const branches = branchCodes.length
+    ? await tx.branches.findMany({
+      select: { code: true, id: true },
+      where: { active: true, code: { in: branchCodes } },
+    })
+    : []
+  const branchByCode = new Map(branches.map((branch) => [branch.code, branch] as const))
+  const missingCodes = branchCodes.filter((code) => !branchByCode.has(code))
+  if (missingCodes.length) {
+    throw new Error(`สาขาไม่ถูกต้องหรือถูกปิดใช้งาน: ${missingCodes.join(', ')}`)
+  }
+
+  const primaryCode = input.primaryBranchCode && branchByCode.has(input.primaryBranchCode)
+    ? input.primaryBranchCode
+    : branchCodes[0] ?? null
+
+  await tx.customer_branches.updateMany({
+    data: { active: false, is_primary: false, updated_at: new Date(), updated_by: input.actor },
+    where: { customer_id: input.customerId },
+  })
+
+  for (const code of branchCodes) {
+    const branch = branchByCode.get(code)
+    if (!branch) continue
+    await tx.customer_branches.upsert({
+      create: {
+        active: true,
+        branch_id: branch.id,
+        created_by: input.actor,
+        customer_id: input.customerId,
+        is_primary: code === primaryCode,
+        updated_by: input.actor,
+      },
+      update: {
+        active: true,
+        is_primary: code === primaryCode,
+        updated_at: new Date(),
+        updated_by: input.actor,
+      },
+      where: {
+        customer_id_branch_id: {
+          branch_id: branch.id,
+          customer_id: input.customerId,
+        },
+      },
+    })
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
@@ -119,6 +197,7 @@ export async function GET(request: Request) {
     const where = customerSearchWhere(q, customerType, marketScope)
     const [customers, total] = await Promise.all([
       prisma.customers.findMany({
+        include: customerInclude,
         orderBy: [{ [sortColumn]: direction }, { id: 'asc' }],
         skip: all ? undefined : (page - 1) * pageSize,
         take: all ? pageSize : pageSize,
@@ -149,6 +228,8 @@ export async function POST(request: Request) {
     requirePermission(context, 'master.customers.create')
 
     const body = await request.json()
+    const hasBranchMappingPayload = Object.prototype.hasOwnProperty.call(body, 'branchIds')
+      || Object.prototype.hasOwnProperty.call(body, 'primaryBranchId')
     const values = customerFormSchema.parse(body)
     await assertEmailDomainCanReceiveMail(values.email)
     const existingCustomer = values.id
@@ -178,14 +259,31 @@ export async function POST(request: Request) {
       },
     )
 
-    const customer = existingCustomer
-      ? await prisma.customers.update({
-        where: { id: existingCustomer.id },
-        data: payload as Prisma.customersUpdateInput,
+    const actor = context.appUser?.username ?? context.authUser.email ?? null
+    const customer = await prisma.$transaction(async (tx) => {
+      const savedCustomer = existingCustomer
+        ? await tx.customers.update({
+          where: { id: existingCustomer.id },
+          data: payload as Prisma.customersUpdateInput,
+        })
+        : await tx.customers.create({
+          data: payload as Prisma.customersCreateInput,
+        })
+
+      if (hasBranchMappingPayload) {
+        await syncCustomerBranches(tx, {
+          actor,
+          branchCodes: values.branchIds,
+          customerId: savedCustomer.id,
+          primaryBranchCode: values.primaryBranchId,
+        })
+      }
+
+      return tx.customers.findUniqueOrThrow({
+        include: customerInclude,
+        where: { id: savedCustomer.id },
       })
-      : await prisma.customers.create({
-        data: payload as Prisma.customersCreateInput,
-      })
+    })
 
     return NextResponse.json(mapPrismaCustomer(customer as any, {
       salesId: resolvedSalesperson?.code ?? null,

@@ -739,6 +739,7 @@ model branches {
   purchase_bills            purchase_bills[]
   receipts                  receipts[]
   sales_bills               sales_bills[]
+  customer_branches         customer_branches[]
   stock_cost_pool_entries   stock_cost_pool_entries[]
   stock_holds               stock_holds[]
   stock_issues              stock_issues[]
@@ -746,6 +747,7 @@ model branches {
   stock_transfers_from      stock_transfers[]           @relation("stock_transfers_from_branch_idTobranches")
   stock_transfers_to        stock_transfers[]           @relation("stock_transfers_to_branch_idTobranches")
   supplier_advance_payments supplier_advance_payments[]
+  supplier_branches         supplier_branches[]
   suppliers                 suppliers[]
   warehouses                warehouses[]
   weight_tickets            weight_tickets[]
@@ -828,6 +830,7 @@ model customers {
   sales_id                 BigInt?
   customer_receipts        customer_receipts[]
   asset_disposals          asset_disposals[]
+  customer_branches        customer_branches[]
   po_sells                 po_sells[]
   receipts                 receipts[]
   sales_bill_customer_advance_allocations sales_bill_customer_advance_allocations[]
@@ -842,6 +845,26 @@ model customers {
   @@index([country_code], map: "idx_customers_country_code")
   @@index([market_scope], map: "idx_customers_market_scope")
   @@index([type], map: "idx_customers_type")
+  @@schema("public")
+}
+
+model customer_branches {
+  id          BigInt    @id @default(autoincrement())
+  customer_id BigInt
+  branch_id   BigInt
+  active      Boolean   @default(true)
+  is_primary  Boolean   @default(false)
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime  @default(now()) @db.Timestamptz(6)
+  created_by  String?
+  updated_by  String?
+  branches    branches  @relation(fields: [branch_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  customers   customers @relation(fields: [customer_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([customer_id, branch_id], map: "customer_branches_customer_branch_unique")
+  @@unique([customer_id], map: "uq_customer_branches_primary_active", where: raw("((active IS TRUE) AND (is_primary IS TRUE))"))
+  @@index([branch_id, customer_id], map: "idx_customer_branches_branch_active_customer", where: raw("(active IS TRUE)"))
+  @@index([customer_id, branch_id], map: "idx_customer_branches_customer_active_branch", where: raw("(active IS TRUE)"))
   @@schema("public")
 }
 
@@ -3437,6 +3460,7 @@ model suppliers {
   purchase_bills            purchase_bills[]
   supplier_advance_payments supplier_advance_payments[]
   supplier_bank_accounts    supplier_bank_accounts[]
+  supplier_branches         supplier_branches[]
   branches                  branches?                   @relation(fields: [branch_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   trading_allocation_facts  trading_allocation_facts[]
   trading_cost_sources      trading_cost_sources[]
@@ -3451,6 +3475,26 @@ model suppliers {
   @@index([country_code], map: "idx_suppliers_country_code")
   @@index([code, name], map: "idx_suppliers_active_code_name", where: raw("(active IS TRUE)"))
   @@index([active(sort: Desc), name, code, id], map: "idx_suppliers_active_name_cover")
+  @@schema("public")
+}
+
+model supplier_branches {
+  id          BigInt    @id @default(autoincrement())
+  supplier_id BigInt
+  branch_id   BigInt
+  active      Boolean   @default(true)
+  is_primary  Boolean   @default(false)
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime  @default(now()) @db.Timestamptz(6)
+  created_by  String?
+  updated_by  String?
+  branches    branches  @relation(fields: [branch_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  suppliers   suppliers @relation(fields: [supplier_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([supplier_id, branch_id], map: "supplier_branches_supplier_branch_unique")
+  @@unique([supplier_id], map: "uq_supplier_branches_primary_active", where: raw("((active IS TRUE) AND (is_primary IS TRUE))"))
+  @@index([branch_id, supplier_id], map: "idx_supplier_branches_branch_active_supplier", where: raw("(active IS TRUE)"))
+  @@index([supplier_id, branch_id], map: "idx_supplier_branches_supplier_active_branch", where: raw("(active IS TRUE)"))
   @@schema("public")
 }
 

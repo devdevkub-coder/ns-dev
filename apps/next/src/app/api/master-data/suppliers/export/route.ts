@@ -38,6 +38,10 @@ const supplierColumns: Array<{ key: SupplierExportKey; label: string; width: num
   { key: 'lastName', label: 'นามสกุล', width: 140 },
   { key: 'taxId', label: 'เลขผู้เสียภาษี', width: 130 },
   { key: 'phone', label: 'โทรศัพท์', width: 130 },
+  { key: 'branchIds', label: 'รหัสสาขาที่ใช้ได้', width: 180 },
+  { key: 'branchNames', label: 'สาขาที่ใช้ได้', width: 220 },
+  { key: 'primaryBranchId', label: 'รหัสสาขาหลัก', width: 130 },
+  { key: 'primaryBranchName', label: 'สาขาหลัก', width: 160 },
   { key: 'bankName', label: 'ธนาคารรับเงิน', width: 160 },
   { key: 'accountNo', label: 'เลขที่บัญชีรับเงิน', width: 160 },
   { key: 'bankAccount', label: 'ชื่อบัญชีรับเงิน', width: 180 },
@@ -81,6 +85,14 @@ function parseExportParams(request: Request) {
 
 const supplierInclude = {
   branches: true,
+  supplier_branches: {
+    include: {
+      branches: {
+        select: { code: true, name: true },
+      },
+    },
+    orderBy: [{ is_primary: 'desc' }, { id: 'asc' }],
+  },
   supplier_bank_accounts: {
     include: {
       bank_names: {
@@ -168,6 +180,7 @@ function formatCellValue(supplier: Supplier, key: SupplierExportKey, paymentMeth
   if (value === null || value === undefined || value === '') return ''
   if (typeof value === 'boolean') return value ? 'ใช้งาน' : 'ปิด'
   if (typeof value === 'number') return value
+  if (Array.isArray(value)) return value.join(', ')
   if (key === 'phone') return formatPhoneDisplay(value) ?? ''
   if (key === 'accountNo') return formatAccountNoDisplay(value) ?? ''
   return String(value)

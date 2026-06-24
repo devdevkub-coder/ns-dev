@@ -7,6 +7,7 @@ import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requ
 import { currentActor, toDateOnly } from '@/lib/server/daily'
 import { findActiveBranchReferencesByCodes } from '@/lib/server/branch-reference'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
+import { PartyBranchEligibilityError, assertCustomerEligibleForBranch, assertSupplierEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 import {
@@ -157,6 +158,23 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     }
     if (values.type === 'WTO' && !customer) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'ลูกค้าไม่ถูกต้องหรือถูกปิดใช้งาน', fieldErrors: { partyId: ['เลือกลูกค้า'] } }, { status: 400 })
+    }
+    try {
+      if (values.type === 'WTI' && supplier) {
+        await assertSupplierEligibleForBranch({ branchId: branch.id, supplierId: supplier.id })
+      }
+      if (values.type === 'WTO' && customer) {
+        await assertCustomerEligibleForBranch({ branchId: branch.id, customerId: customer.id })
+      }
+    } catch (caught) {
+      if (caught instanceof PartyBranchEligibilityError) {
+        return NextResponse.json({
+          code: 'BAD_REQUEST',
+          error: caught.message,
+          fieldErrors: { partyId: [caught.message] },
+        }, { status: 400 })
+      }
+      throw caught
     }
 
     const productByCode = new Map(products.map((product) => [product.code.trim().toUpperCase(), product] as const))

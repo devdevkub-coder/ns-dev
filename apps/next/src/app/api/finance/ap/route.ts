@@ -124,7 +124,18 @@ export async function GET(request: Request) {
       }),
       prisma.suppliers.findMany({
         orderBy: [{ code: 'asc' }, { name: 'asc' }],
-        select: { active: true, code: true, id: true, name: true },
+        select: {
+          active: true,
+          code: true,
+          id: true,
+          name: true,
+          supplier_branches: {
+            select: {
+              branches: { select: { code: true } },
+            },
+            where: { active: true },
+          },
+        },
         where: { active: true },
       }),
       prisma.branches.findMany({
@@ -260,7 +271,15 @@ export async function GET(request: Request) {
         statuses,
         suppliers: suppliers.map((row) => {
           const code = requireBusinessCode(row.code, `ผู้ขาย ${row.id}`)
-          return { active: row.active, code, id: code, name: row.name }
+          return {
+            active: row.active,
+            branchIds: row.supplier_branches
+              .map((mapping) => mapping.branches?.code)
+              .filter((branchCode): branchCode is string => Boolean(branchCode)),
+            code,
+            id: code,
+            name: row.name,
+          }
         }),
       },
       pagination: {

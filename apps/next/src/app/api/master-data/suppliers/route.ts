@@ -27,6 +27,14 @@ const sortColumns = {
 
 const supplierInclude = {
   branches: true,
+  supplier_branches: {
+    include: {
+      branches: {
+        select: { code: true, name: true },
+      },
+    },
+    orderBy: [{ is_primary: 'desc' }, { id: 'asc' }],
+  },
   supplier_bank_accounts: {
     include: {
       bank_names: {
@@ -145,6 +153,73 @@ function normalizeSupplierCode(value: string | null | undefined, fallback: strin
   return `SU${String(number).padStart(4, '0')}`
 }
 
+function uniqueBranchCodes(values: Array<string | null | undefined>) {
+  return Array.from(new Set(values.map((value) => value?.trim()).filter(Boolean) as string[]))
+}
+
+async function syncSupplierBranches(
+  tx: Prisma.TransactionClient,
+  input: {
+    actor: string | null
+    branchCodes: string[]
+    primaryBranchCode: string | null
+    supplierId: bigint
+  },
+) {
+  const branchCodes = uniqueBranchCodes(input.branchCodes)
+  if (input.primaryBranchCode && !branchCodes.includes(input.primaryBranchCode)) {
+    branchCodes.unshift(input.primaryBranchCode)
+  }
+
+  const branches = branchCodes.length
+    ? await tx.branches.findMany({
+      select: { code: true, id: true },
+      where: { active: true, code: { in: branchCodes } },
+    })
+    : []
+  const branchByCode = new Map(branches.map((branch) => [branch.code, branch] as const))
+  const missingCodes = branchCodes.filter((code) => !branchByCode.has(code))
+  if (missingCodes.length) {
+    throw new z.ZodError([{ code: 'custom', message: `สาขาไม่ถูกต้องหรือถูกปิดใช้งาน: ${missingCodes.join(', ')}`, path: ['branchIds'] }])
+  }
+
+  const primaryCode = input.primaryBranchCode && branchByCode.has(input.primaryBranchCode)
+    ? input.primaryBranchCode
+    : branchCodes[0] ?? null
+
+  await tx.supplier_branches.updateMany({
+    data: { active: false, is_primary: false, updated_at: new Date(), updated_by: input.actor },
+    where: { supplier_id: input.supplierId },
+  })
+
+  for (const code of branchCodes) {
+    const branch = branchByCode.get(code)
+    if (!branch) continue
+    await tx.supplier_branches.upsert({
+      create: {
+        active: true,
+        branch_id: branch.id,
+        created_by: input.actor,
+        is_primary: code === primaryCode,
+        supplier_id: input.supplierId,
+        updated_by: input.actor,
+      },
+      update: {
+        active: true,
+        is_primary: code === primaryCode,
+        updated_at: new Date(),
+        updated_by: input.actor,
+      },
+      where: {
+        supplier_id_branch_id: {
+          branch_id: branch.id,
+          supplier_id: input.supplierId,
+        },
+      },
+    })
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
@@ -247,6 +322,7 @@ export async function POST(request: Request) {
       },
     )
 
+    const actor = context.appUser?.username ?? context.authUser.email ?? null
     const supplier = await prisma.$transaction(async (tx) => {
       const savedSupplier = existingSupplier
         ? await tx.suppliers.update({
@@ -267,6 +343,19 @@ export async function POST(request: Request) {
       )
       if (accountRows.length) {
         await tx.supplier_bank_accounts.createMany({ data: accountRows })
+      }
+      const branchCodes = uniqueBranchCodes([
+        values.branchId,
+        values.primaryBranchId,
+        ...values.branchIds,
+      ])
+      if (branchCodes.length) {
+        await syncSupplierBranches(tx, {
+          actor,
+          branchCodes,
+          primaryBranchCode: values.primaryBranchId ?? values.branchId,
+          supplierId: savedSupplier.id,
+        })
       }
 
       return tx.suppliers.findUniqueOrThrow({

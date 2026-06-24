@@ -65,9 +65,9 @@ type FormState = {
 
 type WeightTicketOptionsPayload = {
   branches?: Array<{ code?: string | null; id: string; name: string }>
-  customers?: Array<{ code?: string | null; id: string; name: string }>
+  customers?: Array<{ branchIds?: string[]; code?: string | null; id: string; name: string }>
   impurities?: Array<{ id: string; label: string }>
-  suppliers?: Array<{ code?: string | null; id: string; name: string }>
+  suppliers?: Array<{ branchIds?: string[]; code?: string | null; id: string; name: string }>
 }
 
 type WeightTicketProductsPayload = {
@@ -472,7 +472,11 @@ export function WeightTicketsPageClient({
   const [collapsedLotIds, setCollapsedLotIds] = useState<Record<string, boolean>>({})
   const [pendingFocusField, setPendingFocusField] = useState<string | null>(null)
 
-  const partyOptions = form.type === 'WTI' ? suppliers : customers
+  const partyOptions = useMemo(() => {
+    const options = form.type === 'WTI' ? suppliers : customers
+    if (!form.branchId) return []
+    return options.filter((option) => option.branchIds?.includes(form.branchId))
+  }, [customers, form.branchId, form.type, suppliers])
   const totals = useMemo(() => calculateTicketTotals(form.lines), [form.lines])
 
   const isImpurityProduct = useCallback((p: OptionItem) => {
@@ -556,6 +560,7 @@ export function WeightTicketsPageClient({
             return {
               code: code || undefined,
               description: code ? `Supplier · ${code}` : 'Supplier',
+              branchIds: supplier.branchIds ?? [],
               id: supplier.id,
               label: supplier.name,
               searchText: [code, supplier.name].filter(Boolean).join(' '),
@@ -566,6 +571,7 @@ export function WeightTicketsPageClient({
             return {
               code: code || undefined,
               description: code ? `Customer · ${code}` : 'Customer',
+              branchIds: customer.branchIds ?? [],
               id: customer.id,
               label: customer.name,
               searchText: [code, customer.name].filter(Boolean).join(' '),
@@ -1195,6 +1201,10 @@ export function WeightTicketsPageClient({
 	                    ...current,
 	                    branchId: value ?? '',
 	                    lines: current.lines.map((line) => ({ ...line, warehouseId: '' })),
+	                    partyId: (current.type === 'WTI' ? suppliers : customers)
+	                      .some((option) => option.id === current.partyId && option.branchIds?.includes(value ?? ''))
+	                      ? current.partyId
+	                      : '',
 	                  }))
 	                }}
               />
@@ -1203,7 +1213,7 @@ export function WeightTicketsPageClient({
                 inputId="weight-ticket-party"
                 label={form.type === 'WTI' ? 'ผู้ขาย*' : 'ลูกค้า*'}
                 options={partyOptions}
-                placeholder={form.type === 'WTI' ? 'ค้นหาชื่อหรือรหัสผู้ขาย' : 'ค้นหารหัสหรือชื่อลูกค้า'}
+                placeholder={!form.branchId ? 'เลือกสาขาก่อน' : form.type === 'WTI' ? 'ค้นหาชื่อหรือรหัสผู้ขาย' : 'ค้นหารหัสหรือชื่อลูกค้า'}
                 value={form.partyId}
                 onChange={(value) => {
                   markTouched('partyId')

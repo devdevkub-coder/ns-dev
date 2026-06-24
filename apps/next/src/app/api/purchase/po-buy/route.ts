@@ -8,6 +8,7 @@ import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/
 import { appendPoBuyStatusLog, createInitialPoBuyStatusLog, PO_BUY_STATUS, reconcilePoBuys } from '@/lib/server/po-buy-reconciliation'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
+import { isSupplierEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 import { activeVatRatePercent } from '@/lib/server/tax-settings'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
@@ -319,7 +320,21 @@ async function optionsPayload(allowedBranchCodes?: string[] | null) {
       select: { active: true, code: true, id: true, name: true },
     }),
     prisma.products.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true, unit: true } }),
-    prisma.suppliers.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
+    prisma.suppliers.findMany({
+      orderBy: [{ active: 'desc' }, { name: 'asc' }],
+      select: {
+        active: true,
+        code: true,
+        id: true,
+        name: true,
+        supplier_branches: {
+          select: {
+            branches: { select: { code: true } },
+          },
+          where: { active: true },
+        },
+      },
+    }),
   ])
 
   return {
@@ -331,7 +346,15 @@ async function optionsPayload(allowedBranchCodes?: string[] | null) {
       name: product.name,
       unit: product.unit,
     })),
-    suppliers: suppliers.map((supplier) => ({ ...supplier, id: requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`) })),
+    suppliers: suppliers.map((supplier) => ({
+      active: supplier.active,
+      branchIds: supplier.supplier_branches
+        .map((mapping) => mapping.branches?.code)
+        .filter((branchCode): branchCode is string => Boolean(branchCode)),
+      code: supplier.code,
+      id: requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`),
+      name: supplier.name,
+    })),
   }
 }
 
@@ -668,6 +691,13 @@ export async function POST(request: Request) {
     }
     if (!/^\d{2}$/.test(branch.code)) return NextResponse.json({ code: 'BAD_REQUEST', error: 'รหัสสาขาต้องเป็นตัวเลข 2 หลักเพื่อออกเลข PO', fieldErrors: { branchId: ['รหัสสาขาต้องเป็นตัวเลข 2 หลัก'] } }, { status: 400 })
     if (!supplier) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายไม่ถูกต้องหรือถูกปิดใช้งาน', fieldErrors: { supplierId: ['เลือกผู้ขาย'] } }, { status: 400 })
+    if (!(await isSupplierEligibleForBranch({ branchId: branch.id, supplierId: supplier.id }))) {
+      return NextResponse.json({
+        code: 'BAD_REQUEST',
+        error: 'ผู้ขายไม่ได้ถูกกำหนดให้ใช้งานกับสาขานี้',
+        fieldErrors: { supplierId: ['ผู้ขายไม่ได้ถูกกำหนดให้ใช้งานกับสาขานี้'] },
+      }, { status: 400 })
+    }
     if (values.expectedDelivery < issuedDate) {
       return NextResponse.json({
         code: 'BAD_REQUEST',
@@ -779,6 +809,13 @@ export async function PUT(request: Request) {
       return NextResponse.json({ code: 'FORBIDDEN', error: 'ไม่มีสิทธิ์ทำรายการในสาขาปลายทางที่เลือก' }, { status: 403 })
     }
     if (!supplier) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายไม่ถูกต้องหรือถูกปิดใช้งาน', fieldErrors: { supplierId: ['เลือกผู้ขาย'] } }, { status: 400 })
+    if (!(await isSupplierEligibleForBranch({ branchId: branch.id, supplierId: supplier.id }))) {
+      return NextResponse.json({
+        code: 'BAD_REQUEST',
+        error: 'ผู้ขายไม่ได้ถูกกำหนดให้ใช้งานกับสาขานี้',
+        fieldErrors: { supplierId: ['ผู้ขายไม่ได้ถูกกำหนดให้ใช้งานกับสาขานี้'] },
+      }, { status: 400 })
+    }
     const [previousBranch, previousSupplier] = await Promise.all([
       existing.branch_id != null ? findActiveBranchReferenceByCodeOrId(stringifyBusinessValue(existing.branch_id)) : Promise.resolve(null),
       existing.supplier_id != null ? findActiveSupplierReferenceByCodeOrId(stringifyBusinessValue(existing.supplier_id)) : Promise.resolve(null),

@@ -23,6 +23,7 @@ updated: 2026-06-23
 - ตัด stock จริงและเขียน `stock_ledger.ref_type = SB` เมื่อสร้าง `Sales Bill` ที่ดึง `WTO` ไปใช้เท่านั้น
 - ต้นทุนขายของ Stock SB ใช้ `ต้นทุนเฉลี่ย ณ เวลาขาย` ตอน `SB` consume `WTO pending_out`; ค่า cost ต้องถูก snapshot ลง `stock_ledger.unit_cost/value_out` ของ `SB` แล้วรายงาน COGS อ่านจาก ledger ที่ posted แล้ว ไม่คำนวณย้อนหลังจาก WAC ปัจจุบัน
 - flow `Pending Sale / PSALE / เบิกออกรอบิล` ถูกถอดจาก target runtime แล้ว ไม่ใช้เป็นเอกสารคั่นกลางระหว่าง WTO กับ SB
+- Customer ใน PO Sell, WTO, Sales Bill, Receipt/AR ต้องเลือกจาก active `customer_branches` ของสาขาเอกสารเท่านั้น; ไม่มี mapping ต้องไม่แสดงเป็น option และ API ต้อง reject โดยไม่ fallback เป็นทุกสาขา
 - ถ้าต้องออกเอกสารส่งของ/น้ำหนักขาออก ให้ใช้ `ใบส่งของ / Weight Ticket Out` เลขเอกสาร `WTO{branchCode}{YYMM}-NNNN`; ไม่มีเลข `WT` เดี่ยวใน target
 - flow หลักของการสร้างบิลขายต้องเป็น `PO Sell -> WTO -> Sales Bill`; หน้า `/sales/bills` เลือก `WTO` แล้วแสดงรายการสินค้าจากใบส่งของเพื่อ allocate เข้า `PO Sell`
 - ถ้าปริมาณจาก `WTO` เกิน remaining ของ `PO Sell` ส่วนเกินต้องถูกแยกเป็น `Spot Sale` ไม่ตัด PO เกินยอด
@@ -35,8 +36,8 @@ updated: 2026-06-23
 
 | เอกสาร | ใช้ทำอะไร | ผู้ใช้กรอกหลัก ๆ | เลขเอกสารที่เกิด | สถานะแรกหลังบันทึก |
 |---|---|---|---|---|
-| PO Sell | รับ order / จองขายจาก Customer | สาขา, Customer, วันส่งมอบ, สินค้า, จำนวน, ราคาขาย | `POS{branchCode}{YYMM}-NNNN` | `เปิดอยู่` |
-| ใบส่งของ / WTO | ยืนยันการส่งของและน้ำหนักขาออก | Customer, สาขา, ทะเบียนรถ, ผู้รับของ, สินค้า, Gross, หัก, Net, รูป/หมายเหตุ | `WTO{branchCode}{YYMM}-NNNN` | `ส่งของแล้ว` |
+| PO Sell | รับ order / จองขายจาก Customer | สาขา, Customer ที่ผูกกับสาขา, วันส่งมอบ, สินค้า, จำนวน, ราคาขาย | `POS{branchCode}{YYMM}-NNNN` | `เปิดอยู่` |
+| ใบส่งของ / WTO | ยืนยันการส่งของและน้ำหนักขาออก | Customer ที่ผูกกับสาขา, สาขา, ทะเบียนรถ, ผู้รับของ, สินค้า, Gross, หัก, Net, รูป/หมายเหตุ | `WTO{branchCode}{YYMM}-NNNN` | `ส่งของแล้ว` |
 | บิลขาย | เปิดบิล / ตั้งลูกหนี้ / ยืนยันยอดขาย | WTO อ้างอิง, allocation เข้า PO Sell/Spot Sale, Customer, ราคา, VAT, เครดิตเทอม, มัดจำ, หมายเหตุ | `SB{branchCode}{YYMM}-NNNN` | `เปิดอยู่` |
 | ใบรับเงิน | รับเงิน Customer / ตัดลูกหนี้ | บิลที่รับเงิน, บัญชีรับ, วิธีรับ, ยอดรับ, ค่าธรรมเนียม, WHT, ส่วนลด | `RCP{branchCode}{YYMM}-NNNN` | `บันทึกรับเงินแล้ว` |
 

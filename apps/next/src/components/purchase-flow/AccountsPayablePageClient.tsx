@@ -12,6 +12,7 @@ import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 
 type SelectOption = {
   active: boolean | null
+  branchIds?: string[]
   code: string | null
   id: string
   name: string
@@ -123,7 +124,7 @@ export function AccountsPayablePageClient() {
   const hasFilters = Boolean(branchId || bucket || channelId || from || q.trim() || status || supplierId || to)
 
   const supplierOptions = useMemo(() => {
-    const list = data?.filters.suppliers ?? []
+    const list = (data?.filters.suppliers ?? []).filter((supplier) => !branchId || (supplier.branchIds ?? []).includes(branchId))
     return [
       { id: '', label: 'ผู้ขายทั้งหมด' },
       ...list.map((s) => ({
@@ -132,7 +133,7 @@ export function AccountsPayablePageClient() {
         searchText: `${s.code ?? ''} ${s.name}`,
       })),
     ]
-  }, [data?.filters.suppliers])
+  }, [branchId, data?.filters.suppliers])
 
 
   const query = useMemo(() => {
@@ -174,6 +175,15 @@ export function AccountsPayablePageClient() {
   useEffect(() => {
     void loadData()
   }, [loadData])
+
+  useEffect(() => {
+    if (!branchId || !supplierId) return
+    const supplier = data?.filters.suppliers.find((row) => row.id === supplierId)
+    if (supplier && !(supplier.branchIds ?? []).includes(branchId)) {
+      setSupplierId('')
+      setPage(1)
+    }
+  }, [branchId, data?.filters.suppliers, supplierId])
 
   function changeSort(nextKey: SortKey) {
     setPage(1)
@@ -920,4 +930,3 @@ function DetailItem({ className = '', label, value }: { className?: string; labe
     </div>
   )
 }
-

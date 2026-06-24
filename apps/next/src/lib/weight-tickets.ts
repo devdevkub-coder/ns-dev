@@ -109,6 +109,7 @@ export type WeightTicketRecord = {
 }
 
 export type OptionItem = {
+  branchIds?: string[]
   category?: string
   code?: string
   description?: string

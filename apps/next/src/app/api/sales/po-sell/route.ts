@@ -8,6 +8,7 @@ import { requireBusinessCode, stringifyBusinessValue } from '@/lib/business-code
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-reference'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
+import { isCustomerEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { prisma } from '@/lib/server/prisma'
 import { findActiveSalesChannelReferenceByCode } from '@/lib/server/sales-channel-reference'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
@@ -237,7 +238,22 @@ async function optionsPayload(scope: { codes: string[] | null }) {
       select: { active: true, code: true, id: true, name: true },
       where: scope.codes === null ? undefined : { code: { in: scope.codes } },
     }),
-    prisma.customers.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, code: true, id: true, market_scope: true, name: true } }),
+    prisma.customers.findMany({
+      orderBy: [{ active: 'desc' }, { name: 'asc' }],
+      select: {
+        active: true,
+        code: true,
+        id: true,
+        market_scope: true,
+        name: true,
+        customer_branches: {
+          select: {
+            branches: { select: { code: true } },
+          },
+          where: { active: true },
+        },
+      },
+    }),
     prisma.products.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true, unit: true } }),
     prisma.sales_channels.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
   ])
@@ -249,6 +265,9 @@ async function optionsPayload(scope: { codes: string[] | null }) {
     customers: customers.map((customer) => ({
       id: requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`),
       active: customer.active,
+      branchIds: customer.customer_branches
+        .map((mapping) => mapping.branches?.code)
+        .filter((branchCode): branchCode is string => Boolean(branchCode)),
       code: customer.code,
       marketScope: customer.market_scope === 'ต่างประเทศ' ? 'ต่างประเทศ' : 'ในประเทศ',
       name: customer.name,
@@ -514,6 +533,13 @@ export async function POST(request: Request) {
 
     if (!customer) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ลูกค้าไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (values.branchId && !branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    if (branch && !(await isCustomerEligibleForBranch({ branchId: branch.id, customerId: customer.id }))) {
+      return NextResponse.json({
+        code: 'BAD_REQUEST',
+        error: 'ลูกค้าไม่ได้ถูกกำหนดให้ใช้งานกับสาขานี้',
+        fieldErrors: { customerId: ['ลูกค้าไม่ได้ถูกกำหนดให้ใช้งานกับสาขานี้'] },
+      }, { status: 400 })
+    }
     if (branch) {
       const requestedBranchScope = await salesBranchScope(context, branch.code)
       if (requestedBranchScope.ids !== null && requestedBranchScope.ids.length === 0) {
@@ -644,6 +670,13 @@ export async function PATCH(request: Request) {
 
     if (!customer) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ลูกค้าไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (values.branchId && !branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    if (branch && !(await isCustomerEligibleForBranch({ branchId: branch.id, customerId: customer.id }))) {
+      return NextResponse.json({
+        code: 'BAD_REQUEST',
+        error: 'ลูกค้าไม่ได้ถูกกำหนดให้ใช้งานกับสาขานี้',
+        fieldErrors: { customerId: ['ลูกค้าไม่ได้ถูกกำหนดให้ใช้งานกับสาขานี้'] },
+      }, { status: 400 })
+    }
     if (branch) {
       const requestedBranchScope = await salesBranchScope(context, branch.code)
       if (requestedBranchScope.ids !== null && requestedBranchScope.ids.length === 0) {

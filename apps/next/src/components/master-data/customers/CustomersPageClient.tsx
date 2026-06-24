@@ -23,10 +23,11 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { getErrorMessage } from '@/lib/api-client'
 import { formatPhoneDisplay, sanitizePhoneInput } from '@/lib/format'
+import { listMasterDataRecords, type MasterDataRecord } from '@/lib/master-data'
 import { listThaiDistricts, listThaiProvinces, listThaiSubdistricts, type ThaiDistrict, type ThaiProvince, type ThaiSubdistrict } from '@/lib/thai-address'
 
 type SortKey = 'code' | 'name' | 'taxId' | 'type' | 'legalEntityType' | 'marketScope' | 'phone' | 'email' | 'creditTerm' | 'creditLimit' | 'active'
-type CustomerColumnKey = SortKey | 'action' | 'address'
+type CustomerColumnKey = SortKey | 'action' | 'address' | 'branches'
 
 const customerColumns: Array<ResizableColumnDefinition<CustomerColumnKey>> = [
   { key: 'code', defaultWidth: 100, minWidth: 80 },
@@ -34,6 +35,7 @@ const customerColumns: Array<ResizableColumnDefinition<CustomerColumnKey>> = [
   { key: 'taxId', defaultWidth: 130, minWidth: 110 },
   { key: 'type', defaultWidth: 95, minWidth: 80 },
   { key: 'legalEntityType', defaultWidth: 140, minWidth: 110 },
+  { key: 'branches', defaultWidth: 180, minWidth: 130 },
   { key: 'marketScope', defaultWidth: 110, minWidth: 90 },
   { key: 'phone', defaultWidth: 110, minWidth: 90 },
   { key: 'email', defaultWidth: 140, minWidth: 100 },
@@ -75,6 +77,8 @@ const emptyCustomerForm: CustomerFormValues = {
   addressPostalCodeIntl: null,
   creditTerm: null,
   creditLimit: null,
+  branchIds: [],
+  primaryBranchId: null,
   marketScope: 'ในประเทศ',
   salesId: null,
   active: true,
@@ -117,6 +121,8 @@ function customerToForm(customer: Customer): CustomerFormValues {
     addressPostalCodeIntl: customer.addressPostalCodeIntl,
     creditTerm: customer.creditTerm,
     creditLimit: customer.creditLimit,
+    branchIds: customer.branchIds,
+    primaryBranchId: customer.primaryBranchId,
     marketScope: customer.marketScope,
     salesId: customer.salesId,
     active: customer.active,
@@ -159,6 +165,7 @@ function compareCustomers(left: Customer, right: Customer, key: SortKey, directi
 export function CustomersPageClient() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [districts, setDistricts] = useState<ThaiDistrict[]>([])
+  const [branches, setBranches] = useState<MasterDataRecord[]>([])
   const [error, setError] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
@@ -234,6 +241,12 @@ export function CustomersPageClient() {
     setSubdistricts(subdistrictRows)
   }
 
+  async function loadBranches() {
+    if (branches.length) return
+    const rows = await listMasterDataRecords('/api/master-data/branches')
+    setBranches(rows.filter((branch) => branch.active))
+  }
+
   useEffect(() => {
     void loadData()
   }, [loadData])
@@ -241,7 +254,7 @@ export function CustomersPageClient() {
   async function openCreateForm() {
     setSelectedCustomer(null)
     try {
-      await loadAddressData()
+      await Promise.all([loadAddressData(), loadBranches()])
     } catch (caught) {
       setError(getErrorMessage(caught, 'โหลดข้อมูลที่อยู่ไทยไม่ได้'))
       return
@@ -252,7 +265,7 @@ export function CustomersPageClient() {
   async function openEditForm(customer: Customer) {
     setSelectedCustomer(customer)
     try {
-      await loadAddressData()
+      await Promise.all([loadAddressData(), loadBranches()])
     } catch (caught) {
       setError(getErrorMessage(caught, 'โหลดข้อมูลที่อยู่ไทยไม่ได้'))
       return
@@ -617,6 +630,7 @@ export function CustomersPageClient() {
             isSaving={isSaving}
             provinces={provinces}
             subdistricts={subdistricts}
+            branches={branches}
             onCancel={() => {
               setFormOpen(false)
               setSelectedCustomer(null)
@@ -646,6 +660,7 @@ export function CustomersPageClient() {
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขผู้เสียภาษี" resizeProps={columnResize.getResizeHandleProps('taxId', 'เลขผู้เสียภาษี')} sortKey="taxId" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} sortKey="type" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="รูปแบบบริษัท" resizeProps={columnResize.getResizeHandleProps('legalEntityType', 'รูปแบบบริษัท')} sortKey="legalEntityType" onSort={setSort} />
+                    <ResizableTableHead direction={sortDirection} label="สาขาที่ใช้ได้" resizeProps={columnResize.getResizeHandleProps('branches', 'สาขาที่ใช้ได้')} />
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ประเทศ/ตลาด" resizeProps={columnResize.getResizeHandleProps('marketScope', 'ประเทศ/ตลาด')} sortKey="marketScope" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="โทร" resizeProps={columnResize.getResizeHandleProps('phone', 'โทร')} sortKey="phone" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="อีเมล" resizeProps={columnResize.getResizeHandleProps('email', 'อีเมล')} sortKey="email" onSort={setSort} />
@@ -676,6 +691,9 @@ export function CustomersPageClient() {
                       <TableCell className="whitespace-nowrap font-mono text-xs font-semibold text-slate-700">{displayValue(customer.taxId)}</TableCell>
                       <TableCell className="text-xs font-semibold text-slate-700">{displayValue(customer.type)}</TableCell>
                       <TableCell className="truncate text-xs font-semibold text-slate-700" title={customer.legalEntityType ?? undefined}>{customer.type === 'นิติบุคคล' ? displayValue(customer.legalEntityType) : '-'}</TableCell>
+                      <TableCell className="truncate text-xs font-semibold text-slate-700" title={customer.branchNames.join(', ') || undefined}>
+                        {customer.branchNames.length ? customer.branchNames.join(', ') : <span className="text-amber-700">ยังไม่กำหนด</span>}
+                      </TableCell>
                       <TableCell className="whitespace-nowrap text-xs font-semibold text-slate-700">{customer.marketScope}</TableCell>
                       <TableCell className="whitespace-nowrap text-xs font-semibold text-slate-700">{displayValue(formatPhoneDisplay(customer.phone))}</TableCell>
                       <TableCell className="truncate text-xs font-semibold text-slate-700" title={customer.email ?? undefined}>{displayValue(customer.email)}</TableCell>
@@ -706,7 +724,7 @@ export function CustomersPageClient() {
                   ))}
                   {paginatedCustomers.length === 0 ? (
                     <TableRow>
-                      <TableCell className="p-4 text-center text-sm text-slate-500" colSpan={13}>ไม่พบข้อมูลที่ค้นหา</TableCell>
+                      <TableCell className="p-4 text-center text-sm text-slate-500" colSpan={14}>ไม่พบข้อมูลที่ค้นหา</TableCell>
                     </TableRow>
                   ) : null}
                 </TableBody>
@@ -750,6 +768,12 @@ export function CustomersPageClient() {
                     <span className="block text-slate-400 font-medium">ประเทศ/ตลาด</span>
                     <span className="font-semibold text-slate-700">{customer.marketScope}</span>
                   </div>
+                  <div className="col-span-2">
+                    <span className="block text-slate-400 font-medium">สาขาที่ใช้ได้</span>
+                    <span className={customer.branchNames.length ? 'font-semibold text-slate-700' : 'font-semibold text-amber-700'}>
+                      {customer.branchNames.length ? customer.branchNames.join(', ') : 'ยังไม่กำหนด'}
+                    </span>
+                  </div>
                   <div>
                     <span className="block text-slate-400 font-medium">รูปแบบบริษัท</span>
                     <span className="font-semibold text-slate-700">{customer.type === 'นิติบุคคล' ? displayValue(customer.legalEntityType) : '-'}</span>
@@ -786,6 +810,7 @@ export function CustomersPageClient() {
 }
 
 type CustomerFormProps = {
+  branches: MasterDataRecord[]
   customer: Customer | null
   districts: ThaiDistrict[]
   isSaving: boolean
@@ -795,7 +820,7 @@ type CustomerFormProps = {
   onSubmit: (values: CustomerFormValues) => Promise<void>
 }
 
-function CustomerForm({ customer, districts, isSaving, provinces, subdistricts, onCancel, onSubmit }: CustomerFormProps) {
+function CustomerForm({ customer, districts, isSaving, provinces, subdistricts, branches, onCancel, onSubmit }: CustomerFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState<CustomerFormState>(() => (customer ? customerToForm(customer) : emptyCustomerForm))
 
@@ -822,6 +847,18 @@ function CustomerForm({ customer, districts, isSaving, provinces, subdistricts, 
 
   function update<K extends keyof CustomerFormState>(key: K, value: CustomerFormState[K]) {
     setForm((current) => ({ ...current, [key]: value }))
+  }
+
+  function updateBranchSelection(branchId: string, checked: boolean) {
+    setForm((current) => {
+      const branchIds = checked
+        ? uniqueValues([...current.branchIds, branchId])
+        : current.branchIds.filter((id) => id !== branchId)
+      const primaryBranchId = current.primaryBranchId && branchIds.includes(current.primaryBranchId)
+        ? current.primaryBranchId
+        : branchIds[0] ?? null
+      return { ...current, branchIds, primaryBranchId }
+    })
   }
 
   function updatePostalCode(value: string) {
@@ -877,6 +914,10 @@ function CustomerForm({ customer, districts, isSaving, provinces, subdistricts, 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const parsed = customerFormSchema.safeParse(form)
+    if (form.branchIds.length === 0) {
+      setErrors({ branchIds: 'เลือกสาขาที่ใช้ได้อย่างน้อย 1 สาขา' })
+      return
+    }
     if (!parsed.success) {
       setErrors(Object.fromEntries(parsed.error.issues.map((issue) => [issue.path.join('.'), issue.message])))
       return
@@ -929,6 +970,41 @@ function CustomerForm({ customer, districts, isSaving, provinces, subdistricts, 
             <TextField error={errors.creditTerm} label="เครดิตเทอม (วัน)" type="number" value={form.creditTerm ?? ''} onChange={(value) => update('creditTerm', value === '' ? null : Number(value))} />
             <TextField error={errors.creditLimit} label="วงเงินเครดิต" type="number" value={form.creditLimit ?? ''} onChange={(value) => update('creditLimit', value === '' ? null : Number(value))} />
           </div>
+        </section>
+
+        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <h4 className="mb-4 text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">สาขาที่ใช้ได้</h4>
+          <div className="grid gap-3 md:grid-cols-2">
+            {branches.map((branch) => {
+              const checked = form.branchIds.includes(branch.id)
+              return (
+                <label key={branch.id} className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm ${checked ? 'border-blue-200 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold text-slate-800">{branch.name}</span>
+                    <span className="block truncate font-mono text-xs text-slate-500">{branch.code ?? branch.id}</span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-3">
+                    <input
+                      checked={form.primaryBranchId === branch.id}
+                      className="h-4 w-4"
+                      disabled={!checked}
+                      name="customer-primary-branch"
+                      type="radio"
+                      onChange={() => update('primaryBranchId', branch.id)}
+                    />
+                    <input
+                      checked={checked}
+                      className="h-4 w-4"
+                      type="checkbox"
+                      onChange={(event) => updateBranchSelection(branch.id, event.target.checked)}
+                    />
+                  </span>
+                </label>
+              )
+            })}
+          </div>
+          <div className="mt-2 text-xs text-slate-500">เลือก checkbox เพื่อกำหนดสาขาที่ใช้ได้ และเลือก radio เป็นสาขาหลัก</div>
+          {errors.branchIds ? <span className="mt-1 block text-xs text-red-700">{errors.branchIds}</span> : null}
         </section>
 
         <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">

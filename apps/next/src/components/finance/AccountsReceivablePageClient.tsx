@@ -10,6 +10,7 @@ import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 
 type SelectOption = {
   active: boolean | null
+  branchIds?: string[]
   code: string | null
   id: string
   name: string
@@ -99,7 +100,7 @@ export function AccountsReceivablePageClient() {
   const [customerId, setCustomerId] = useState('')
 
   const customerOptions = useMemo(() => {
-    const list = data?.filters.customers ?? []
+    const list = (data?.filters.customers ?? []).filter((customer) => !branchId || (customer.branchIds ?? []).includes(branchId))
     return [
       { id: '', label: 'ทุก Customer' },
       ...list.map((c) => ({
@@ -108,7 +109,7 @@ export function AccountsReceivablePageClient() {
         searchText: `${c.code ?? ''} ${c.name}`,
       })),
     ]
-  }, [data?.filters.customers])
+  }, [branchId, data?.filters.customers])
   const [from, setFrom] = useState(currentMonthStart())
   const [page, setPage] = useState(1)
   const [q, setQ] = useState('')
@@ -159,6 +160,15 @@ export function AccountsReceivablePageClient() {
   useEffect(() => {
     void loadData()
   }, [loadData])
+
+  useEffect(() => {
+    if (!branchId || !customerId) return
+    const customer = data?.filters.customers.find((row) => row.id === customerId)
+    if (customer && !(customer.branchIds ?? []).includes(branchId)) {
+      setCustomerId('')
+      setPage(1)
+    }
+  }, [branchId, customerId, data?.filters.customers])
 
   function changeSort(nextKey: SortKey) {
     setPage(1)

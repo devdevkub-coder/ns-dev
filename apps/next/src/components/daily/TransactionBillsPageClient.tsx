@@ -175,6 +175,7 @@ function isSalesBillDetail(row: BillRow | SalesBillDetail): row is SalesBillDeta
 
 type Option = {
   active?: boolean | null
+  branchIds?: string[]
   advanceDate?: string | null
   amount?: number | null
   branch_id?: string | null
@@ -762,7 +763,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     return isSelected || (option.active !== false && (option.remainingAmount ?? 0) > 0.01)
   })
   const inactiveAdvancePayments = matchingAdvancePayments.filter((option) => !activeAdvancePayments.some((activeOption) => activeOption.id === option.id))
-  const activeCustomers = useMemo(() => options.customers.filter((option) => option.active !== false), [options.customers])
+  const activeCustomers = useMemo(() => options.customers.filter((option) => (
+    option.active !== false
+    && Boolean(salesForm.branchId)
+    && option.branchIds?.includes(salesForm.branchId)
+  )), [options.customers, salesForm.branchId])
   const activeSalesChannels = useMemo(() => options.salesChannels.filter((option) => option.active !== false), [options.salesChannels])
   const defaultSalesChannelForCustomer = useCallback((customerId: string) => {
     const customer = activeCustomers.find((option) => option.id === customerId)
@@ -832,7 +837,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   })()
   const selectedTradingPurchaseSourceIds = new Set(tradingPurchaseSelectorIds.filter(Boolean))
   const availableTradingPurchaseSources = activeTradingPurchaseBills.filter((source) => !selectedTradingPurchaseSourceIds.has(source.id))
-  const activeSuppliers = options.suppliers.filter((option) => option.active !== false)
+  const activeSuppliers = options.suppliers.filter((option) => option.active !== false && Boolean(form.branchId) && option.branchIds?.includes(form.branchId))
   const selectedSalesChannel = salesForm.channelId
     ? options.salesChannels.find((channel) => channel.id === salesForm.channelId) ?? null
     : null
@@ -1646,6 +1651,10 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         }
         if (key === 'branchId' && value !== current.branchId) {
           next.advancePaymentId = null
+          if (!options.suppliers.some((supplier) => supplier.id === current.supplierId && supplier.active !== false && supplier.branchIds?.includes(nextBranchId))) {
+            next.supplierId = ''
+            next.salesId = null
+          }
         }
         if (next.transactionMode === 'STOCK') {
           resetStockDependentFields(next)
@@ -1814,6 +1823,14 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 
       if (key === 'branchId' || key === 'customerId' || key === 'transactionMode') {
         next.deliveryTicketId = null
+        if (key === 'branchId') {
+          const nextBranchId = typeof value === 'string' ? value : ''
+          if (!options.customers.some((customer) => customer.id === current.customerId && customer.active !== false && customer.branchIds?.includes(nextBranchId))) {
+            next.customerId = ''
+            next.customerAdvanceId = null
+            next.channelId = ''
+          }
+        }
         if (key === 'customerId') {
           next.customerAdvanceId = null
           next.channelId = defaultSalesChannelForCustomer(typeof value === 'string' ? value : '') ?? ''

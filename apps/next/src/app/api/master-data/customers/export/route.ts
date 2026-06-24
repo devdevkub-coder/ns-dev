@@ -34,6 +34,10 @@ const customerColumns: Array<{ key: keyof Customer; label: string; width: number
   { key: 'type', label: 'ประเภทลูกค้า', width: 110 },
   { key: 'legalEntityType', label: 'รูปแบบบริษัท', width: 150 },
   { key: 'marketScope', label: 'ประเทศ/ตลาด', width: 110 },
+  { key: 'branchIds', label: 'รหัสสาขาที่ใช้ได้', width: 180 },
+  { key: 'branchNames', label: 'สาขาที่ใช้ได้', width: 220 },
+  { key: 'primaryBranchId', label: 'รหัสสาขาหลัก', width: 130 },
+  { key: 'primaryBranchName', label: 'สาขาหลัก', width: 160 },
   { key: 'nameTitle', label: 'คำนำหน้าชื่อ', width: 100 },
   { key: 'firstName', label: 'ชื่อ', width: 140 },
   { key: 'lastName', label: 'นามสกุล', width: 140 },
@@ -107,11 +111,23 @@ function customerSearchWhere(q: string, customerType: string, marketScope: strin
   return where
 }
 
+const customerInclude = {
+  customer_branches: {
+    include: {
+      branches: {
+        select: { code: true, name: true },
+      },
+    },
+    orderBy: [{ is_primary: 'desc' }, { id: 'asc' }],
+  },
+} satisfies Prisma.customersInclude
+
 function formatCellValue(customer: Customer, key: keyof Customer) {
   const value = customer[key]
   if (value === null || value === undefined || value === '') return ''
   if (typeof value === 'boolean') return value ? 'ใช้งาน' : 'ปิด'
   if (typeof value === 'number') return value
+  if (Array.isArray(value)) return value.join(', ')
   if (key === 'phone') return formatPhoneDisplay(value) ?? ''
   return String(value)
 }
@@ -153,6 +169,7 @@ export async function GET(request: Request) {
     const where = customerSearchWhere(q, customerType, marketScope)
     const [rows, total] = await Promise.all([
       prisma.customers.findMany({
+        include: customerInclude,
         orderBy: [{ [sortColumn]: direction }, { id: 'asc' }],
         take: EXPORT_LIMIT,
         where,

@@ -30,7 +30,7 @@ import { listThaiDistricts, listThaiProvinces, listThaiSubdistricts, type ThaiDi
 
 type SortKey = 'code' | 'name' | 'taxId' | 'type' | 'phone' | 'bankName' | 'accountNo' | 'salesName' | 'active'
 type ActiveFilter = '' | 'active' | 'inactive'
-type SupplierColumnKey = SortKey | 'action'
+type SupplierColumnKey = SortKey | 'action' | 'branches'
 type SupplierBankAccountForm = SupplierFormValues['bankAccounts'][number]
 
 const supplierColumns: Array<ResizableColumnDefinition<SupplierColumnKey>> = [
@@ -39,6 +39,7 @@ const supplierColumns: Array<ResizableColumnDefinition<SupplierColumnKey>> = [
   { key: 'taxId', defaultWidth: 130, minWidth: 110 },
   { key: 'type', defaultWidth: 95, minWidth: 80 },
   { key: 'phone', defaultWidth: 110, minWidth: 90 },
+  { key: 'branches', defaultWidth: 180, minWidth: 130 },
   { key: 'bankName', defaultWidth: 180, minWidth: 130 },
   { key: 'accountNo', defaultWidth: 180, minWidth: 130 },
   { key: 'salesName', defaultWidth: 120, minWidth: 100 },
@@ -88,6 +89,8 @@ const emptySupplierForm: SupplierFormValues = {
   bankAccount: null,
   bankAccounts: [emptyBankAccount],
   branchId: null,
+  branchIds: [],
+  primaryBranchId: null,
   salesId: null,
   salesName: null,
   marketScope: 'ในประเทศ',
@@ -152,6 +155,8 @@ function supplierToForm(supplier: Supplier, paymentMethods: MasterDataRecord[]):
     bankAccount: supplier.bankAccount,
     bankAccounts,
     branchId: supplier.branchId,
+    branchIds: supplier.branchIds,
+    primaryBranchId: supplier.primaryBranchId,
     salesId: supplier.salesId,
     salesName: supplier.salesName,
     marketScope: supplier.marketScope,
@@ -226,6 +231,7 @@ export function SuppliersPageClient() {
   const [provinces, setProvinces] = useState<ThaiProvince[]>([])
   const [salespersonFilter, setSalespersonFilter] = useState('')
   const [salespersons, setSalespersons] = useState<MasterDataRecord[]>([])
+  const [branches, setBranches] = useState<MasterDataRecord[]>([])
   const [bankNames, setBankNames] = useState<MasterDataRecord[]>([])
   const [paymentMethods, setPaymentMethods] = useState<MasterDataRecord[]>([])
   const [copiedAccountKey, setCopiedAccountKey] = useState<string | null>(null)
@@ -304,7 +310,7 @@ export function SuppliersPageClient() {
   async function openCreateForm() {
     setSelectedSupplier(null)
     try {
-      await Promise.all([loadAddressData(), loadBankNames(), loadPaymentMethods()])
+      await Promise.all([loadAddressData(), loadBankNames(), loadBranches(), loadPaymentMethods()])
     } catch (caught) {
       setError(getErrorMessage(caught, 'โหลดข้อมูลที่อยู่ไทยไม่ได้'))
       return
@@ -315,7 +321,7 @@ export function SuppliersPageClient() {
   async function openEditForm(supplier: Supplier) {
     setSelectedSupplier(supplier)
     try {
-      await Promise.all([loadAddressData(), loadBankNames(), loadPaymentMethods()])
+      await Promise.all([loadAddressData(), loadBankNames(), loadBranches(), loadPaymentMethods()])
     } catch (caught) {
       setError(getErrorMessage(caught, 'โหลดข้อมูลที่อยู่ไทยไม่ได้'))
       return
@@ -327,6 +333,12 @@ export function SuppliersPageClient() {
     if (bankNames.length) return
     const rows = await listMasterDataRecords('/api/master-data/bank-names')
     setBankNames(rows.filter((bankName) => bankName.active))
+  }
+
+  async function loadBranches() {
+    if (branches.length) return
+    const rows = await listMasterDataRecords('/api/master-data/branches')
+    setBranches(rows.filter((branch) => branch.active))
   }
 
   async function loadPaymentMethods() {
@@ -751,6 +763,7 @@ export function SuppliersPageClient() {
             isSaving={isSaving}
             bankNames={bankNames}
             paymentMethods={paymentMethods}
+            branches={branches}
             provinces={provinces}
             salespersons={salespersons}
             subdistricts={subdistricts}
@@ -783,6 +796,7 @@ export function SuppliersPageClient() {
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขผู้เสียภาษี" resizeProps={columnResize.getResizeHandleProps('taxId', 'เลขผู้เสียภาษี')} sortKey="taxId" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('type', 'ประเภท')} sortKey="type" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="โทร" resizeProps={columnResize.getResizeHandleProps('phone', 'โทร')} sortKey="phone" onSort={setSort} />
+                    <ResizableTableHead direction={sortDirection} label="สาขาที่ใช้ได้" resizeProps={columnResize.getResizeHandleProps('branches', 'สาขาที่ใช้ได้')} />
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ธนาคารรับเงิน" resizeProps={columnResize.getResizeHandleProps('bankName', 'ธนาคารรับเงิน')} sortKey="bankName" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="เลขที่บัญชีรับเงิน" resizeProps={columnResize.getResizeHandleProps('accountNo', 'เลขที่บัญชีรับเงิน')} sortKey="accountNo" onSort={setSort} />
                     <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="ผู้ดูแล" resizeProps={columnResize.getResizeHandleProps('salesName', 'ผู้ดูแล')} sortKey="salesName" onSort={setSort} />
@@ -812,6 +826,9 @@ export function SuppliersPageClient() {
                         <TableCell className="whitespace-nowrap font-mono text-xs font-semibold text-slate-700">{displayValue(supplier.taxId)}</TableCell>
                         <TableCell className="text-xs font-semibold text-slate-700">{displayValue(supplier.type)}</TableCell>
                         <TableCell className="whitespace-nowrap text-xs font-semibold text-slate-700">{displayValue(formatPhoneDisplay(supplier.phone))}</TableCell>
+                        <TableCell className="truncate text-xs font-semibold text-slate-700" title={supplier.branchNames.join(', ') || undefined}>
+                          {supplier.branchNames.length ? supplier.branchNames.join(', ') : <span className="text-amber-700">ยังไม่กำหนด</span>}
+                        </TableCell>
                         <TableCell className="align-top text-xs font-semibold text-slate-700">
                           {receivingLines.length ? (
                             <div className="space-y-1">
@@ -870,7 +887,7 @@ export function SuppliersPageClient() {
                   })}
                   {paginatedSuppliers.length === 0 ? (
                     <TableRow>
-                      <TableCell className="p-8 text-center text-sm text-slate-500" colSpan={10}>ไม่พบข้อมูลที่ค้นหา</TableCell>
+                      <TableCell className="p-8 text-center text-sm text-slate-500" colSpan={11}>ไม่พบข้อมูลที่ค้นหา</TableCell>
                     </TableRow>
                   ) : null}
                 </TableBody>
@@ -915,6 +932,12 @@ export function SuppliersPageClient() {
                     <div>
                       <span className="block text-slate-400 font-medium">โทรศัพท์</span>
                       <span className="font-semibold text-slate-700">{displayValue(formatPhoneDisplay(supplier.phone))}</span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="block text-slate-400 font-medium">สาขาที่ใช้ได้</span>
+                      <span className={supplier.branchNames.length ? 'font-semibold text-slate-700' : 'font-semibold text-amber-700'}>
+                        {supplier.branchNames.length ? supplier.branchNames.join(', ') : 'ยังไม่กำหนด'}
+                      </span>
                     </div>
 
                     <div className="col-span-2 border-t border-slate-50 pt-2 mt-1">
@@ -973,6 +996,7 @@ export function SuppliersPageClient() {
 
 type SupplierFormProps = {
   bankNames: MasterDataRecord[]
+  branches: MasterDataRecord[]
   paymentMethods: MasterDataRecord[]
   supplier: Supplier | null
   districts: ThaiDistrict[]
@@ -1010,7 +1034,7 @@ function CopyAccountButton({ accountKey, accountNo, copied, label, onCopy }: Cop
   )
 }
 
-function SupplierForm({ supplier, bankNames, paymentMethods, districts, isSaving, provinces, salespersons, subdistricts, onCancel, onSubmit }: SupplierFormProps) {
+function SupplierForm({ supplier, bankNames, branches, paymentMethods, districts, isSaving, provinces, salespersons, subdistricts, onCancel, onSubmit }: SupplierFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState<SupplierFormState>(() => (supplier ? supplierToForm(supplier, paymentMethods) : emptySupplierForm))
 
@@ -1058,6 +1082,23 @@ function SupplierForm({ supplier, bankNames, paymentMethods, districts, isSaving
 
   function update<K extends keyof SupplierFormState>(key: K, value: SupplierFormState[K]) {
     setForm((current) => ({ ...current, [key]: value }))
+  }
+
+  function updateBranchSelection(branchId: string, checked: boolean) {
+    setForm((current) => {
+      const branchIds = checked
+        ? uniqueValues([...current.branchIds, branchId])
+        : current.branchIds.filter((id) => id !== branchId)
+      const primaryBranchId = current.primaryBranchId && branchIds.includes(current.primaryBranchId)
+        ? current.primaryBranchId
+        : branchIds[0] ?? null
+      return {
+        ...current,
+        branchId: primaryBranchId,
+        branchIds,
+        primaryBranchId,
+      }
+    })
   }
 
   function updateBankAccount<K extends keyof SupplierBankAccountForm>(index: number, key: K, value: SupplierBankAccountForm[K]) {
@@ -1153,6 +1194,10 @@ function SupplierForm({ supplier, bankNames, paymentMethods, districts, isSaving
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const parsed = supplierFormSchema.safeParse(form)
+    if (form.branchIds.length === 0) {
+      setErrors({ branchIds: 'เลือกสาขาที่ใช้ได้อย่างน้อย 1 สาขา' })
+      return
+    }
     if (!parsed.success) {
       setErrors(Object.fromEntries(parsed.error.issues.map((issue) => [issue.path.join('.'), issue.message])))
       return
@@ -1206,6 +1251,41 @@ function SupplierForm({ supplier, bankNames, paymentMethods, districts, isSaving
               {salespersons.map((salesperson) => <option key={salesperson.id} value={salesperson.id}>{salesperson.name}</option>)}
             </SelectField>
           </div>
+        </section>
+
+        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <h4 className="mb-4 text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">สาขาที่ใช้ได้</h4>
+          <div className="grid gap-3 md:grid-cols-2">
+            {branches.map((branch) => {
+              const checked = form.branchIds.includes(branch.id)
+              return (
+                <label key={branch.id} className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm ${checked ? 'border-blue-200 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold text-slate-800">{branch.name}</span>
+                    <span className="block truncate font-mono text-xs text-slate-500">{branch.code ?? branch.id}</span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-3">
+                    <input
+                      checked={form.primaryBranchId === branch.id}
+                      className="h-4 w-4"
+                      disabled={!checked}
+                      name="supplier-primary-branch"
+                      type="radio"
+                      onChange={() => setForm((current) => ({ ...current, branchId: branch.id, primaryBranchId: branch.id }))}
+                    />
+                    <input
+                      checked={checked}
+                      className="h-4 w-4"
+                      type="checkbox"
+                      onChange={(event) => updateBranchSelection(branch.id, event.target.checked)}
+                    />
+                  </span>
+                </label>
+              )
+            })}
+          </div>
+          <div className="mt-2 text-xs text-slate-500">สาขานี้คือสิทธิ์ใช้งานผู้ขายกับเอกสาร ไม่ใช่รหัสสาขาบัญชีธนาคาร</div>
+          {errors.branchIds ? <span className="mt-1 block text-xs text-red-700">{errors.branchIds}</span> : null}
         </section>
 
         <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
@@ -1397,4 +1477,3 @@ function MatchButton({ active, label, onClick, tone = 'dark' }: { active: boolea
   const idleClass = tone === 'amber' ? 'border-slate-300 bg-white hover:bg-amber-50' : tone === 'emerald' ? 'border-slate-300 bg-white hover:bg-emerald-50' : tone === 'red' ? 'border-slate-300 bg-white hover:bg-red-50' : 'border-slate-300 bg-white hover:bg-slate-100'
   return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
 }
-

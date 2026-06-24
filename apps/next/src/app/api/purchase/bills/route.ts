@@ -19,6 +19,7 @@ import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requ
 import { findActiveBranchReferenceByCodeOrId } from '@/lib/server/branch-reference'
 import { currentActor, normalizeDate, toDateOnly, toNumber } from '@/lib/server/daily'
 import { appendPoBuyAllocationLogs, PO_BUY_ALLOCATION_ACTION, PO_BUY_STATUS, reconcilePoBuys } from '@/lib/server/po-buy-reconciliation'
+import { isSupplierEligibleForBranch } from '@/lib/server/party-branch-eligibility'
 import { appendPurchaseBillStatusLog, createInitialPurchaseBillStatusLog, PURCHASE_BILL_STATUS_ACTION } from '@/lib/server/purchase-bill-history'
 import { prisma } from '@/lib/server/prisma'
 import { refreshPurchaseBillSettlement, refreshSupplierAdvancePaymentAllocation } from '@/lib/server/purchase-bill-settlement'
@@ -1615,7 +1616,23 @@ async function optionsPayload(allowedBranchCodes?: string[] | null) {
     }),
     prisma.products.findMany({ orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true, unit: true } }),
     prisma.salespersons.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true } }),
-    prisma.suppliers.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { active: true, code: true, id: true, name: true, sales_id: true, sales_rep: true } }),
+    prisma.suppliers.findMany({
+      orderBy: [{ active: 'desc' }, { name: 'asc' }],
+      select: {
+        active: true,
+        code: true,
+        id: true,
+        name: true,
+        sales_id: true,
+        sales_rep: true,
+        supplier_branches: {
+          select: {
+            branches: { select: { code: true } },
+          },
+          where: { active: true },
+        },
+      },
+    }),
     prisma.warehouses.findMany({
       orderBy: [{ active: 'desc' }, { code: 'asc' }, { name: 'asc' }],
       select: { active: true, branch_id: true, code: true, id: true, name: true, type: true },
@@ -1707,6 +1724,9 @@ async function optionsPayload(allowedBranchCodes?: string[] | null) {
     })),
     suppliers: suppliers.map((supplier) => ({
       active: supplier.active,
+      branchIds: supplier.supplier_branches
+        .map((mapping) => mapping.branches?.code)
+        .filter((branchCode): branchCode is string => Boolean(branchCode)),
       code: requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`),
       id: requireBusinessCode(supplier.code, `ผู้ขาย ${supplier.id}`),
       name: supplier.name,
@@ -2128,6 +2148,13 @@ export async function POST(request: Request) {
 
     if (!supplier) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+    if (!(await isSupplierEligibleForBranch({ branchId: branch.id, supplierId: supplier.id }))) {
+      return NextResponse.json({
+        code: 'BAD_REQUEST',
+        error: 'ผู้ขายไม่ได้ถูกกำหนดให้ใช้งานกับสาขานี้',
+        fieldErrors: { supplierId: ['ผู้ขายไม่ได้ถูกกำหนดให้ใช้งานกับสาขานี้'] },
+      }, { status: 400 })
+    }
     const allowedBranchCodes = getBranchCodeIntersection(context)
     if (allowedBranchCodes && !allowedBranchCodes.includes(branch.code)) {
       return NextResponse.json({ code: 'FORBIDDEN', error: 'ไม่มีสิทธิ์ทำรายการในสาขานี้' }, { status: 403 })
@@ -2499,6 +2526,13 @@ export async function PATCH(request: Request) {
       }
       if (!supplier) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ผู้ขายใหม่ไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
       if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+      if (!(await isSupplierEligibleForBranch({ branchId: branch.id, supplierId: supplier.id }))) {
+        return NextResponse.json({
+          code: 'BAD_REQUEST',
+          error: 'ผู้ขายใหม่ไม่ได้ถูกกำหนดให้ใช้งานกับสาขานี้',
+          fieldErrors: { supplierId: ['ผู้ขายไม่ได้ถูกกำหนดให้ใช้งานกับสาขานี้'] },
+        }, { status: 400 })
+      }
       if (allowedBranchCodes && !allowedBranchCodes.includes(branch.code)) {
         return NextResponse.json({ code: 'FORBIDDEN', error: 'ไม่มีสิทธิ์ทำรายการในสาขานี้' }, { status: 403 })
       }

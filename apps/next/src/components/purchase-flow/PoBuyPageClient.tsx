@@ -23,6 +23,7 @@ import { openPoBuyPrint, openPoBuyPrintWindow, type PoBuyPrintDocument } from '@
 type Option = {
   active?: boolean | null
   branchId?: string | null
+  branchIds?: string[]
   branchName?: string | null
   code?: string | null
   id: string
@@ -550,7 +551,19 @@ export function PoBuyPageClient() {
   }
 
   const updateForm = <Key extends keyof PoBuyFormState>(key: Key, value: PoBuyFormState[Key]) => {
-    setForm((current) => ({ ...current, [key]: value }))
+    setForm((current) => {
+      const next = { ...current, [key]: value }
+      if (key === 'branchId') {
+        const branchId = typeof value === 'string' ? value : ''
+        const supplierStillEligible = (data?.options.suppliers ?? []).some((supplier) => (
+          supplier.id === current.supplierId
+          && supplier.active !== false
+          && supplier.branchIds?.includes(branchId)
+        ))
+        if (!supplierStillEligible) next.supplierId = ''
+      }
+      return next
+    })
     setFieldErrors((current) => {
       const next = { ...current }
       delete next[key]
@@ -1662,7 +1675,7 @@ function PoBuyFormModal({
   onUpdateItem: <Key extends keyof PoBuyFormItem>(index: number, key: Key, value: PoBuyFormItem[Key]) => void
 }) {
   const activeBranches = branches.filter((branch) => branch.active !== false)
-  const activeSuppliers = suppliers.filter((supplier) => supplier.active !== false)
+  const activeSuppliers = suppliers.filter((supplier) => supplier.active !== false && Boolean(form.branchId) && supplier.branchIds?.includes(form.branchId))
   const activeProducts = products.filter((product) => product.active !== false)
   const productOptions = useMemo<SearchComboboxOption[]>(() => activeProducts.map((product) => ({
     description: undefined,
@@ -1978,4 +1991,3 @@ function SummaryLine({ label, strong = false, value }: { label: string; strong?:
     </div>
   )
 }
-
