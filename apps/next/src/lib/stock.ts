@@ -34,7 +34,7 @@ export const stockQuerySchema = z.object({
   q: z.preprocess(blankToNull, z.string().trim().max(120).nullable().default(null)),
   refType: z.preprocess(blankToNull, z.string().trim().max(20).nullable().default(null)),
   sort: z.string().trim().max(40).default('date'),
-  status: z.preprocess(blankToNull, stockStatusSchema.nullable().default(null)),
+  status: z.preprocess(blankToNull, z.string().trim().nullable().default(null)),
   stockState: z.preprocess(blankToNull, stockStateSchema.nullable().default(null)),
   warehouseId: z.preprocess(blankToNull, z.string().trim().nullable().default(null)),
   from: z.preprocess(blankToNull, requiredDate.nullable().default(null)),

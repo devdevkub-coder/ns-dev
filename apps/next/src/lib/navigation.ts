@@ -10,6 +10,7 @@ export type NavigationSectionKey =
   | 'po-reports'
   | 'reports'
   | 'finance-accounting'
+  | 'company-data'
   | 'master-data'
   | 'admin'
 
@@ -81,6 +82,7 @@ const exactPathPermissions: Record<string, string> = {
   '/daily/weight-ticket-list': 'daily.weight_tickets.view',
   '/daily/weight-tickets': 'daily.weight_tickets.view',
   '/daily-report': 'reports.reports.view',
+  '/analytics-dashboard': 'reports.reports.view',
   '/master-data/customers': 'master.customers.view',
   '/master-data/products': 'master.products.view',
   '/master-data/impurity-products': 'master.products.view',
@@ -174,6 +176,7 @@ export const navigationSections: Array<{ key: NavigationSectionKey; label: strin
   { key: 'po-reports', label: 'PO Reports' },
   { key: 'reports', label: 'รายงาน' },
   { key: 'finance-accounting', label: 'Finance / Accounting' },
+  { key: 'company-data', label: 'ข้อมูลบริษัท' },
   { key: 'master-data', label: 'ข้อมูลหลัก' },
   { key: 'admin', label: 'ระบบ' },
 ]
@@ -181,6 +184,7 @@ export const navigationSections: Array<{ key: NavigationSectionKey; label: strin
 export const navigationItems: NavigationItem[] = [
   { href: '/owner-daily', icon: '☀️', label: 'Owner Daily Control (เปิดทุกเช้า)', pageTitle: 'Owner Daily Control', pageSubtitle: 'เปิดดูทุกเช้า · ตรวจสอบสถานะการเงินครบทุกมุมก่อนเริ่มวัน', section: 'main' },
   { href: '/daily-report', icon: '📰', label: 'Daily Report (รายงานประจำวัน)', pageTitle: 'Daily Report', pageSubtitle: 'รายงานสรุปประจำวัน — ทุกตัวเลขสำคัญในหน้าเดียว', section: 'main' },
+  { href: '/analytics-dashboard', icon: '📈', label: 'Analytics Dashboard (วิเคราะห์ข้อมูล)', pageTitle: 'Analytics Dashboard', pageSubtitle: 'รายงานสรุปแบบช่วงเวลา · วิเคราะห์ยอดซื้อ ยอดขาย อันดับสินค้า และผลงานทีมขาย', section: 'main' },
   { href: '/dashboard', icon: '📊', label: 'Dashboard', pageTitle: 'Financial Dashboard', pageSubtitle: 'ภาพรวมทางการเงิน · Real-time overview', section: 'main' },
   { href: '/profit-cost-analysis', icon: '💎', label: 'Profit & Cost Analysis', pageSubtitle: 'วิเคราะห์ซื้อ ขาย COGS GP และ Stock Value ด้วย WAC/ต้นทุนจากบิลขาย', section: 'main' },
   { href: '/sales-plan', icon: '📋', label: 'วางแผนการขาย (LME)', pageTitle: 'วางแผนการขาย (Sales Plan) — ทองแดง / ทองเหลือง', pageSubtitle: 'เสนอ % LME + ช่องทางขาย → กดล็อกเพื่อยืนยันราคา → ตู้ในรอขายลดลงอัตโนมัติ', section: 'main' },
@@ -256,8 +260,15 @@ export const navigationItems: NavigationItem[] = [
   { href: '/finance-accounting/accounting-periods', icon: '🗓️', label: 'Accounting Periods', pageSubtitle: 'จัดการงวดบัญชี FA5: create, soft close, lock, reopen แบบ policy state ก่อน enforce กับเอกสาร', section: 'finance-accounting' },
   { href: '/finance-accounting/posting-rules', icon: '🧭', label: 'Posting Rules', pageSubtitle: 'ตรวจ readiness และจัดการ source-to-account mapping สำหรับ FA5 โดยยังไม่ post GL อัตโนมัติ', section: 'finance-accounting' },
   { href: '/finance-accounting/historical-data', icon: '📅', label: 'ข้อมูลย้อนหลัง ม.ค.-เม.ย. 2026 (ก่อน Go-Live)', section: 'finance-accounting' },
+  // กลุ่มข้อมูลบริษัท
+  { href: '/master-data/branches', icon: '🏢', label: 'สาขา', section: 'company-data' },
+  { href: '/master-data/warehouses', icon: '🏬', label: 'คลัง', section: 'company-data' },
+  { href: '/master-data/departments', icon: '🏢', label: 'แผนก', section: 'company-data' },
+  { href: '/master-data/salespersons', icon: '👨‍💼', label: 'พนักงานขาย (Sales)', section: 'company-data' },
+  { href: '/master-data/directors', icon: '🧑‍💼', label: 'พนักงาน / กรรมการ', section: 'company-data' },
+
+  // กลุ่มข้อมูลหลัก (Master Data)
   { href: '/master-data/customers', icon: '👥', label: 'ลูกค้า', section: 'master-data' },
-  { href: '/master-data/salespersons', icon: '👨‍💼', label: 'พนักงานขาย (Sales)', section: 'master-data' },
   { href: '/master-data/suppliers', icon: '🏭', label: 'ผู้ขาย', section: 'master-data' },
   {
     href: '/master-data/asset-categories',
@@ -266,7 +277,6 @@ export const navigationItems: NavigationItem[] = [
     section: 'master-data',
     children: [
       { href: '/master-data/asset-categories', icon: '📂', label: 'หมวดหมู่ทรัพย์สิน', section: 'master-data' },
-      { href: '/master-data/departments', icon: '🏢', label: 'แผนก', section: 'master-data' },
     ],
   },
   {
@@ -282,8 +292,6 @@ export const navigationItems: NavigationItem[] = [
     ],
   },
   { href: '/master-data/impurities', icon: '🧪', label: 'รายการสิ่งเจือปน', pageSubtitle: 'กำหนดชื่อสิ่งเจือปนสำหรับใช้ต่อในเอกสารรับ-ส่งของและการหักน้ำหนัก', section: 'master-data' },
-  { href: '/master-data/branches', icon: '🏢', label: 'สาขา', section: 'master-data' },
-  { href: '/master-data/warehouses', icon: '🏬', label: 'คลัง', section: 'master-data' },
   {
     href: '/master-data/accounts',
     icon: '💳',
@@ -325,7 +333,7 @@ export const navigationItems: NavigationItem[] = [
       { href: '/master-data/expense-types', icon: '🧩', label: 'ประเภทค่าใช้จ่าย', section: 'master-data' },
     ],
   },
-  { href: '/master-data/directors', icon: '🧑‍💼', label: 'พนักงาน / กรรมการ', section: 'master-data' },
+
   {
     href: '/master-data/machines',
     icon: '⚙️',

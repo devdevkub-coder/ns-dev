@@ -98,7 +98,7 @@ export function StockBalancePageClient() {
   const [group, setGroup] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [productId, setProductId] = useState('')
-  const [stockType, setStockType] = useState('')
+  const [stockTypes, setStockTypes] = useState<string[]>([])
   const [viewMode, setViewMode] = useState<'detail' | 'summary'>('summary')
   const [detailPage, setDetailPage] = useState(1)
   const [detailPageSize, setDetailPageSize] = useState(25)
@@ -135,14 +135,14 @@ export function StockBalancePageClient() {
       const params = new URLSearchParams()
       if (branchId) params.set('branchId', branchId)
       if (productId) params.set('productId', productId)
-      if (stockType) params.set('status', stockType)
+      if (stockTypes.length > 0) params.set('status', stockTypes.join(','))
       setData(await dailyFetchJson<BalancePayload>(`/api/stock/balance?${params.toString()}`))
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'โหลดสต๊อกคงเหลือไม่ได้')
     } finally {
       setIsLoading(false)
     }
-  }, [branchId, productId, stockType])
+  }, [branchId, productId, stockTypes])
 
   useEffect(() => {
     void loadData()
@@ -452,7 +452,7 @@ export function StockBalancePageClient() {
   useEffect(() => {
     setDetailPage(1)
     setMatrixPage(1)
-  }, [branchId, group, productId, stockType])
+  }, [branchId, group, productId, stockTypes])
   useEffect(() => {
     if (detailPage > detailTotalPages) setDetailPage(detailTotalPages)
   }, [detailPage, detailTotalPages])
@@ -499,7 +499,7 @@ export function StockBalancePageClient() {
     const params = new URLSearchParams({ format: 'xlsx' })
     if (branchId) params.set('branchId', branchId)
     if (productId) params.set('productId', productId)
-    if (stockType) params.set('status', stockType)
+    if (stockTypes.length > 0) params.set('status', stockTypes.join(','))
     window.location.href = `/api/stock/balance?${params.toString()}`
   }
 
@@ -518,13 +518,23 @@ export function StockBalancePageClient() {
   const resetFilters = useCallback(() => {
     setBranchId('')
     setProductId('')
-    setStockType('')
+    setStockTypes([])
     setGroup('')
   }, [])
 
+  const toggleStockType = useCallback((type: string) => {
+    if (type === '') {
+      setStockTypes([])
+    } else {
+      setStockTypes((prev) =>
+        prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
+      )
+    }
+  }, [])
+
   const hasFilters = useMemo(() => {
-    return Boolean(branchId || productId || stockType || group)
-  }, [branchId, productId, stockType, group])
+    return Boolean(branchId || productId || stockTypes.length > 0 || group)
+  }, [branchId, productId, stockTypes, group])
   return (
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
@@ -609,10 +619,10 @@ export function StockBalancePageClient() {
 
             <span className="ml-4 text-xs text-slate-500 mr-2">ประเภทคลัง:</span>
             <div className="flex items-center gap-1.5">
-              <SegmentedButton active={!stockType} label="ทั้งหมด" onClick={() => setStockType('')} />
-              <SegmentedButton active={stockType === 'RM'} label="📦 RM" onClick={() => setStockType('RM')} />
-              <SegmentedButton active={stockType === 'WIP'} label="⚙️ WIP" onClick={() => setStockType('WIP')} />
-              <SegmentedButton active={stockType === 'FG'} label="✅ FG" onClick={() => setStockType('FG')} />
+              <SegmentedButton active={stockTypes.length === 0} label="ทั้งหมด" onClick={() => toggleStockType('')} />
+              <SegmentedButton active={stockTypes.includes('RM')} label="📦 RM" onClick={() => toggleStockType('RM')} />
+              <SegmentedButton active={stockTypes.includes('WIP')} label="⚙️ WIP" onClick={() => toggleStockType('WIP')} />
+              <SegmentedButton active={stockTypes.includes('FG')} label="✅ FG" onClick={() => toggleStockType('FG')} />
             </div>
 
             <span className="ml-4 text-xs text-slate-500">สาขา:</span>
@@ -682,10 +692,10 @@ export function StockBalancePageClient() {
               <div className="block">
                 <span className="mb-1.5 block text-xs text-slate-500">ประเภทคลัง</span>
                 <div className="flex flex-wrap gap-1.5">
-                  <SegmentedButton active={!stockType} label="ทั้งหมด" onClick={() => setStockType('')} />
-                  <SegmentedButton active={stockType === 'RM'} label="📦 RM" onClick={() => setStockType('RM')} />
-                  <SegmentedButton active={stockType === 'WIP'} label="⚙️ WIP" onClick={() => setStockType('WIP')} />
-                  <SegmentedButton active={stockType === 'FG'} label="✅ FG" onClick={() => setStockType('FG')} />
+                  <SegmentedButton active={stockTypes.length === 0} label="ทั้งหมด" onClick={() => toggleStockType('')} />
+                  <SegmentedButton active={stockTypes.includes('RM')} label="📦 RM" onClick={() => toggleStockType('RM')} />
+                  <SegmentedButton active={stockTypes.includes('WIP')} label="⚙️ WIP" onClick={() => toggleStockType('WIP')} />
+                  <SegmentedButton active={stockTypes.includes('FG')} label="✅ FG" onClick={() => toggleStockType('FG')} />
                 </div>
               </div>
 

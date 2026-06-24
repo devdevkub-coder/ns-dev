@@ -120,7 +120,6 @@ const statusConvertColumns: Array<ResizableColumnDefinition<string>> = [
   { key: 'date', defaultWidth: 100 },
   { key: 'refNo', defaultWidth: 120 },
   { key: 'productDisplay', defaultWidth: 180 },
-  { key: 'lotNo', defaultWidth: 90 },
   { key: 'locationDisplay', defaultWidth: 150 },
   { key: 'qty', defaultWidth: 100 },
   { key: 'unitCost', defaultWidth: 110 },
@@ -155,7 +154,6 @@ const adjustColumns: Array<ResizableColumnDefinition<string>> = [
   { key: 'date', defaultWidth: 100 },
   { key: 'branchWarehouse', defaultWidth: 150 },
   { key: 'productName', defaultWidth: 180 },
-  { key: 'lotNo', defaultWidth: 90 },
   { key: 'outputCategory', defaultWidth: 110 },
   { key: 'systemQty', defaultWidth: 100 },
   { key: 'onHoldQty', defaultWidth: 90 },
@@ -1136,7 +1134,6 @@ function OperationTable({
                 <div className="my-3 space-y-1 text-xs text-slate-600">
                   <div><span className="font-semibold">สินค้า:</span> {formatCell(row.productName)}</div>
                   <div><span className="font-semibold">สาขา/คลัง:</span> {formatCell(row.branchWarehouse)}</div>
-                  {row.lotNo ? <div><span className="font-semibold">Lot:</span> <code className="font-mono">{String(row.lotNo)}</code></div> : null}
                   {row.reason ? <div><span className="font-semibold">เหตุผล:</span> {String(row.reason)}</div> : null}
                 </div>
                 <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 text-xs">
@@ -1249,7 +1246,6 @@ function OperationTable({
                 <div className="my-3 space-y-1 text-xs text-slate-600">
                   <div><span className="font-semibold">สินค้า:</span> <b>{formatCell(row.productCode)}</b> - {formatCell(row.productName)}</div>
                   <div><span className="font-semibold">สาขา/คลัง:</span> {formatCell(row.branchName)} / {formatCell(row.warehouseName)} → {formatCell(row.targetWarehouseName)}</div>
-                  {row.lotNo ? <div><span className="font-semibold">Lot:</span> <code className="font-mono">{String(row.lotNo)}</code></div> : null}
                   <div>
                     <span className="font-semibold">การเปลี่ยนสถานะ:</span>{' '}
                     <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700">{formatCell(row.statusFrom)}</span>
@@ -1374,7 +1370,6 @@ function columnsFor(mode: Mode): OperationColumn[] {
     { key: 'date', label: 'วันที่เอกสาร', sortable: true },
     { key: 'refNo', label: 'เลขที่', sortable: true },
     { key: 'productDisplay', label: 'สินค้า', sortable: true },
-    { key: 'lotNo', label: 'Lot', sortable: true },
     { key: 'locationDisplay', label: 'สาขา/คลัง', sortable: true },
     { key: 'qty', label: 'จำนวน (กก.)', cellClassName: 'text-right font-semibold text-purple-700 tabular-nums', headerClassName: 'text-right', sortable: true },
     { key: 'unitCost', label: 'ต้นทุน (บาท/กก.)', cellClassName: 'text-right text-slate-600 tabular-nums', headerClassName: 'text-right', sortable: true },
@@ -1407,7 +1402,6 @@ function columnsFor(mode: Mode): OperationColumn[] {
     { key: 'date', label: 'วันที่เอกสาร', sortable: true },
     { key: 'branchWarehouse', label: 'สาขา/คลัง', sortable: true },
     { key: 'productName', label: 'สินค้า', sortable: true },
-    { key: 'lotNo', label: 'Lot', sortable: true },
     { key: 'outputCategory', label: 'ประเภทคลัง', sortable: true },
     { key: 'systemQty', label: 'ยอดในระบบ', cellClassName: 'text-right font-mono', headerClassName: 'text-right', sortable: true },
     { key: 'onHoldQty', label: 'จองไว้', cellClassName: 'text-right font-mono text-amber-700', headerClassName: 'text-right', sortable: true },

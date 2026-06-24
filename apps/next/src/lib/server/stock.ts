@@ -157,18 +157,23 @@ function stockLedgerSqlWhere(input: {
   if (input.movementType) clauses.push(Prisma.sql`sl.movement_type = ${input.movementType}`)
   if (input.refType) clauses.push(Prisma.sql`sl.ref_type = ${input.refType}`)
   if (input.lotNo) clauses.push(Prisma.sql`sl.lot_no ilike ${`%${input.lotNo}%`}`)
-  if (input.status) clauses.push(Prisma.sql`(
-    sl.output_category = ${input.status}
-    or (
-      sl.output_category is null
-      and exists (
-        select 1
-        from public.warehouses sw
-        where sw.id = sl.warehouse_id
-          and sw.type = ${input.status}
-      )
-    )
-  )`)
+  if (input.status) {
+    const statuses = input.status.split(',').map((s) => s.trim()).filter(Boolean)
+    if (statuses.length > 0) {
+      clauses.push(Prisma.sql`(
+        sl.output_category in (${Prisma.join(statuses)})
+        or (
+          sl.output_category is null
+          and exists (
+            select 1
+            from public.warehouses sw
+            where sw.id = sl.warehouse_id
+              and sw.type in (${Prisma.join(statuses)})
+          )
+        )
+      )`)
+    }
+  }
   if (input.asOf) clauses.push(Prisma.sql`sl.date <= ${normalizeDate(input.asOf)}`)
   if (!input.asOf && input.from) clauses.push(Prisma.sql`sl.date >= ${normalizeDate(input.from)}`)
   if (!input.asOf && input.to) clauses.push(Prisma.sql`sl.date <= ${normalizeDate(input.to)}`)

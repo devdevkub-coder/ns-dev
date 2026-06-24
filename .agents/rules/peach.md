@@ -53,8 +53,38 @@ description: "Peach: AcexPOS UI Standard, Git & Scope Rules"
 - **Final Flow Summary:** Write/update flow docs in `docs/notes/` describing entities and rationale when business flows are completed or UAT tested.
 - **Workspace Cleanliness:** Run `git status` to clean temporary files and only stage related code changes before proposing commits.
 - **Plane Workflow Standard (ขั้นตอนการทำงานบน Plane):**
-  For tasks tracked on Plane (https://plane.devkub.com/), follow this workflow:
-  1. **Backlog -> Todo**: If a ticket assigned to us is in **Backlog**, move it to **Todo**.
-  2. **Todo -> In Progress**: When starting development/coding, move it to **In Progress**.
-  3. **In Progress -> Wait for test**: Once coding and local testing/validation are complete, move the ticket to **Wait for test**, write a Thai summary comment explaining the changes, and attach a UAT screenshot showing the result.
 
+  เมื่อได้รับมอบหมายให้ตรวจสอบ Backlog หรือปฏิบัติภารกิจผ่านระบบ Plane (https://plane.devkub.com/) ให้เอเจนต์ดำเนินงานตามขั้นตอนที่เป็นระบบทั้งหมดดังนี้ โดยไม่ต้องถามซ้ำซาก:
+
+  1. **สแกนและดึงข้อมูลตั๋วงาน (Scan & Check Backlog):**
+     - ตรวจสอบรายการตั๋วงานบนโครงการ `ns-erp` (Project ID: `c6662cdf-4f1e-4ad9-9530-83e472219e5e`) ที่ได้รับมอบหมาย (Assignee: `4859829b-9a17-42b7-a678-fd5027faef59` หรือชื่อผู้ใช้ของเรา)
+     - ตรวจหาตั๋วในคอลัมน์ **Backlog** และดึงข้อมูล `description_html` ผ่าน API หรือ Browser เพื่อดูรายละเอียดโจทย์งาน ข้อกำหนด และ Mockup รูปภาพประกอบที่ผู้ใช้อัปโหลดไว้ในตั๋วโดยละเอียด
+
+  2. **ย้ายตั๋วงานเข้าสู่แผนงาน (Backlog ➔ Todo):**
+     - เปลี่ยนสถานะตั๋วงานที่เกี่ยวข้องจาก `Backlog` (State ID: `1e20dc5e-65e5-4fc1-a4a6-6441345ef324`) ไปยังสถานะ `Todo` (State ID: `35e141a1-73da-4c1a-931c-f00ff10b036c`) เพื่อรับงานเข้าระบบอย่างเป็นทางการ
+
+  3. **วางแผนการทำงาน (Task Checklist Creation):**
+     - จัดทำเช็คลิสต์การทำงานหลัก (Task Checklist) ลงในเอกสารงานประจำวันเสมอ (เช่น `task.md` ในโฟลเดอร์ artifacts) ก่อนเริ่มพิมพ์หรือแก้ไขโค้ด
+
+  4. **เริ่มต้นลงมือทำงาน (Todo ➔ In Progress):**
+     - เมื่อเริ่มเขียนโค้ด ให้แก้ไขสถานะตั๋วงานบน Plane ไปยังช่อง `In Progress`
+     - ดำเนินการแก้ไขโค้ด ปรับแต่ง UI และ Backend ตามสเปก AcexPOS และสไตล์ของแอปพลิเคชันอย่างเข้มงวด
+
+  5. **การตรวจสอบความถูกต้องของระบบพัฒนา (Verification & Local Compile):**
+     - หลังแก้ไขเสร็จสิ้น ให้ตรวจสอบ Type safety และ Syntax ความปลอดภัย และต้องรันผ่าน 100% ไร้ Error เสมอ:
+       - `npm run type-check --workspace @ns-scrap-erp/next`
+       - `npm run lint --workspace @ns-scrap-erp/next`
+       - `npm run build --workspace @ns-scrap-erp/next`
+
+  6. **การจำลองและเปิดดูผลลัพธ์ผ่านเบราว์เซอร์จริง (Browser UAT Screenshot):**
+     - หากมีงานเกี่ยวข้องกับ UI ให้ทำการแคปเจอร์รูปภาพ **UAT Screenshot** แสดงผลลัพธ์ที่ถูกต้องสมบูรณ์แบบ ทั้งในมุมมอง Desktop และ Mobile (ความกว้าง 375px)
+
+  7. **ย้ายสถานะและรายงานผลลัพธ์พร้อมแนบหลักฐาน (In Progress ➔ Wait for Test):**
+     - เมื่อการแก้ไขและทดสอบผ่านเรียบร้อย ให้ดำเนินการสิ่งเหล่านี้บน Plane เพื่อส่งมอบงาน:
+       - **ย้ายสถานะตั๋วบน Plane:** ปรับสถานะของตั๋วงานไปยัง `Wait for test` (State ID: `f992060c-f12b-4f03-b7f8-39e4d6f159e0`)
+       - **แนบรูปภาพ UAT เป็น Attachments:** เรียกใช้ REST API ของ Plane เพื่อทำการอัปโหลดรูปภาพผล UAT (ไฟล์สกุล `.png`/`.jpg`) โดยตรงเข้าสู่ช่อง Attachments ของตั๋วงานนั้น ๆ (โดยลบไฟล์แนบเก่าออกก่อนเพื่อป้องกันรูปซ้ำซ้อน)
+       - **เขียนคอมเมนต์รายงาน:** โพสต์คอมเมนต์ภาษาไทยที่เป็นระเบียบเพื่อสรุปรายละเอียดการแก้ไขและแจ้งผลการ UAT แก่ผู้ใช้
+
+  8. **การขออนุมัติก่อนทำ Git Commit & Push:**
+     - หลังย้ายตั๋วงานไปที่ `Wait for test` เรียบร้อยแล้ว ให้รายงานความสำเร็จต่อผู้ใช้ และถามเพื่อขออนุมัติการทำ Git Commit/Push **(ห้ามคอมมิตหรือพุชโค้ดเองโดยพลการ)**
+     - เมื่อผู้ใช้อนุมัติเรียบร้อย ให้ทำ Git Commit และ Push โค้ดไปยังสาขา `dev` ของ `new-origin` เท่านั้น

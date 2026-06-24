@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { SearchCombobox, type SearchComboboxOption } from '@/components/ui/SearchCombobox'
+import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
+import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 
 type MainPayload = {
   dashboard: {
@@ -73,7 +75,7 @@ type MainPayload = {
   sourceState: { limitations: string[]; writeActionsEnabled: false }
 }
 
-type Mode = 'daily-report' | 'dashboard' | 'owner-daily'
+type Mode = 'daily-report' | 'dashboard' | 'owner-daily' | 'analytics-dashboard'
 
 function today() {
   const date = new Date()
@@ -82,8 +84,20 @@ function today() {
 
 export function MainDashboardsPageClient({ mode }: { mode: Mode }) {
   const [date, setDate] = useState(today())
-  const [rangeFrom, setRangeFrom] = useState(() => mode === 'dashboard' ? `${today().slice(0, 4)}-01-01` : today())
-  const [rangeMode, setRangeMode] = useState(mode === 'dashboard' ? 'year' : 'today')
+  const [rangeFrom, setRangeFrom] = useState(() => {
+    if (mode === 'dashboard') return `${today().slice(0, 4)}-01-01`
+    if (mode === 'analytics-dashboard') {
+      const d = new Date()
+      d.setDate(d.getDate() - 29)
+      return d.toISOString().slice(0, 10)
+    }
+    return today()
+  })
+  const [rangeMode, setRangeMode] = useState(() => {
+    if (mode === 'dashboard') return 'year'
+    if (mode === 'analytics-dashboard') return 'last30'
+    return 'today'
+  })
   const [rangeTo, setRangeTo] = useState(today())
   const [dashboardBranchId, setDashboardBranchId] = useState('')
   const [dashboardCustomerId, setDashboardCustomerId] = useState('')
@@ -100,7 +114,7 @@ export function MainDashboardsPageClient({ mode }: { mode: Mode }) {
     const requestId = latestLoadRequestRef.current + 1
     latestLoadRequestRef.current = requestId
     const params = new URLSearchParams({ date })
-    if (mode === 'daily-report' || mode === 'dashboard') {
+    if (mode === 'daily-report' || mode === 'dashboard' || mode === 'analytics-dashboard') {
       params.set('from', rangeFrom)
       params.set('to', rangeTo)
     }
@@ -132,7 +146,8 @@ export function MainDashboardsPageClient({ mode }: { mode: Mode }) {
     <section className="space-y-4">
       {mode === 'dashboard' ? <DashboardView dashboardBranchId={dashboardBranchId} dashboardCustomerId={dashboardCustomerId} dashboardGroup={dashboardGroup} dashboardProductId={dashboardProductId} dashboardSupplierId={dashboardSupplierId} data={data} date={date} rangeFrom={rangeFrom} rangeMode={rangeMode} rangeTo={rangeTo} setDashboardBranchId={setDashboardBranchId} setDashboardCustomerId={setDashboardCustomerId} setDashboardGroup={setDashboardGroup} setDashboardProductId={setDashboardProductId} setDashboardSupplierId={setDashboardSupplierId} setRangeFrom={setRangeFrom} setRangeMode={setRangeMode} setRangeTo={setRangeTo} /> : null}
       {mode === 'owner-daily' ? <OwnerDailyView data={data} /> : null}
-      {mode === 'daily-report' ? <DailyReportView data={data} date={date} rangeFrom={rangeFrom} rangeMode={rangeMode} rangeTo={rangeTo} setDate={setDate} setRangeFrom={setRangeFrom} setRangeMode={setRangeMode} setRangeTo={setRangeTo} /> : null}
+      {mode === 'daily-report' ? <DailyReportView data={data} date={date} setDate={setDate} /> : null}
+      {mode === 'analytics-dashboard' ? <AnalyticsDashboardView data={data} rangeFrom={rangeFrom} rangeMode={rangeMode} rangeTo={rangeTo} setRangeFrom={setRangeFrom} setRangeMode={setRangeMode} setRangeTo={setRangeTo} /> : null}
       <div className="rounded-md border-l-4 border-amber-400 bg-amber-50 p-3 text-sm text-amber-900">
         <b>Main dashboard read baseline</b><span className="ml-2">{data?.sourceState.limitations[0] ?? 'ไม่มี write action ใน baseline นี้'}</span>
       </div>
@@ -163,7 +178,7 @@ function DashboardView(props: {
   setRangeTo: (value: string) => void
 }) {
   const { dashboardBranchId, dashboardCustomerId, dashboardGroup, dashboardProductId, dashboardSupplierId, data, date, rangeFrom, rangeMode, rangeTo, setDashboardBranchId, setDashboardCustomerId, setDashboardGroup, setDashboardProductId, setDashboardSupplierId, setRangeFrom, setRangeMode, setRangeTo } = props
-  
+
   const supplierSearchOptions = useMemo<SearchComboboxOption[]>(() => {
     return (data?.filterOptions.suppliers ?? []).map((row) => ({
       id: row.id,
@@ -202,6 +217,46 @@ function DashboardView(props: {
   const stockValue = section?.stock.value ?? 0
   const gpPct = salesAmount > 0 ? (gp / salesAmount) * 100 : 0
   const filteredCount = `${money(section?.purchase.count)} ซื้อ · ${money(section?.sales.count)} ขาย`
+
+  const periodTextMap: Record<string, { buySection: string; sellSection: string; buyLabel: string; sellLabel: string }> = {
+    year: {
+      buySection: 'ปีนี้',
+      sellSection: 'ปีนี้',
+      buyLabel: 'ซื้อปีนี้',
+      sellLabel: 'ขายปีนี้',
+    },
+    quarter: {
+      buySection: 'ไตรมาสนี้',
+      sellSection: 'ไตรมาสนี้',
+      buyLabel: 'ซื้อไตรมาสนี้',
+      sellLabel: 'ขายไตรมาสนี้',
+    },
+    month: {
+      buySection: 'เดือนนี้',
+      sellSection: 'เดือนนี้',
+      buyLabel: 'ซื้อเดือนนี้',
+      sellLabel: 'ขายเดือนนี้',
+    },
+    week: {
+      buySection: '7 วันนี้',
+      sellSection: '7 วันนี้',
+      buyLabel: 'ซื้อ 7 วันนี้',
+      sellLabel: 'ขาย 7 วันนี้',
+    },
+    today: {
+      buySection: 'วันนี้',
+      sellSection: 'วันนี้',
+      buyLabel: 'ซื้อวันนี้',
+      sellLabel: 'ขายวันนี้',
+    },
+  }
+  const periodInfo = periodTextMap[rangeMode] || {
+    buySection: 'ตามช่วงเวลา',
+    sellSection: 'ตามช่วงเวลา',
+    buyLabel: 'ซื้อสะสม',
+    sellLabel: 'ขายสะสม',
+  }
+
   const applyPeriod = (nextPeriod: string) => {
     setRangeMode(nextPeriod)
     if (nextPeriod === 'today') {
@@ -355,16 +410,14 @@ function DashboardView(props: {
         </DashboardChartCard>
       </div>
 
-      <Section title="📥 ฝั่งซื้อ (เดือนนี้) — Purchase / Supplier">
-        <Metric label="ซื้อวันนี้" value={money(section?.purchase.today)} />
-        <Metric label="ซื้อเดือนนี้" tone="blue" value={money(section?.purchase.amount)} />
+      <Section title={`📥 ฝั่งซื้อ (${periodInfo.buySection}) — Purchase / Supplier`}>
+        <Metric label={periodInfo.buyLabel} tone="blue" value={money(section?.purchase.amount)} />
         <Metric label="น้ำหนักซื้อ" value={`${money(section?.purchase.qty)} กก.`} />
         <Metric label="ราคาซื้อเฉลี่ย" value={`${money(purchaseWeight > 0 ? purchaseAmount / purchaseWeight : 0)} ฿/กก.`} />
         <Metric label="เจ้าหนี้รวม" tone="red" value={money(k.ap)} />
       </Section>
-      <Section title="📤 ฝั่งขาย (เดือนนี้) — Sales / Customer">
-        <Metric label="ขายวันนี้" value={money(section?.sales.today)} />
-        <Metric label="ขายเดือนนี้" tone="emerald" value={money(section?.sales.amount)} />
+      <Section title={`📤 ฝั่งขาย (${periodInfo.sellSection}) — Sales / Customer`}>
+        <Metric label={periodInfo.sellLabel} tone="emerald" value={money(section?.sales.amount)} />
         <Metric label="น้ำหนักขาย" value={`${money(section?.sales.qty)} กก.`} />
         <Metric label="Gross Profit" tone="emerald" value={money(section?.sales.gp)} />
         <Metric label="Margin %" tone={(gpPct ?? 0) >= 0 ? 'emerald' : 'red'} value={`${money(gpPct)}%`} />
@@ -474,19 +527,42 @@ function OwnerDailyView({ data }: { data: MainPayload | null }) {
   )
 }
 
-function DailyReportView({ data, date, rangeFrom, rangeMode, rangeTo, setDate, setRangeFrom, setRangeMode, setRangeTo }: { data: MainPayload | null; date: string; rangeFrom: string; rangeMode: string; rangeTo: string; setDate: (value: string) => void; setRangeFrom: (value: string) => void; setRangeMode: (value: string) => void; setRangeTo: (value: string) => void }) {
+function DailyReportView({ data, date, setDate }: { data: MainPayload | null; date: string; setDate: (value: string) => void }) {
   const [expandedGroup, setExpandedGroup] = useState('')
   const summary = data?.dailyReport.summary ?? {}
   const purchaseCount = data?.dailyReport.purchaseBills.length ?? 0
   const salesCount = data?.dailyReport.salesBills.length ?? 0
   const analytics = data?.dailyReport.analytics
-  const trendMax = Math.max(1, ...(analytics?.dailyTrend ?? []).flatMap((row) => [row.purchase, row.sales]))
   const isToday = date === today()
   function shiftDate(days: number) {
     const next = new Date(`${date}T00:00:00`)
     next.setDate(next.getDate() + days)
     setDate(next.toISOString().slice(0, 10))
   }
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm border border-slate-100 mb-4">
+        <button className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200 outline-none" type="button" onClick={() => shiftDate(-1)}>← วันก่อน</button>
+        <DatePickerInput className="w-[140px]" value={date} onChange={setDate} />
+        <button className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-30 outline-none" disabled={isToday} type="button" onClick={() => shiftDate(1)}>วันถัดไป →</button>
+        <button className={isToday ? 'rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white outline-none' : 'rounded-lg bg-yellow-300 px-4 py-2 text-sm font-bold text-amber-900 hover:bg-yellow-200 outline-none'} type="button" onClick={() => setDate(today())}>📍 วันนี้</button>
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <DailyBigCard count={purchaseCount} icon="📥" label="ยอดรับซื้อ" sub={`เฉลี่ย ${money((summary.purchaseAmount ?? 0) / Math.max(1, summary.purchaseQty ?? 0))} ฿/กก.`} tone="from-blue-600 to-indigo-700" value={money(summary.purchaseAmount)} weight={money(summary.purchaseQty)} />
+        <DailyBigCard count={salesCount} icon="📤" label="ยอดขาย" sub={`GP ${money(summary.salesAmount - (analytics?.rangeKpi.cogs ?? 0))} (${money(analytics?.rangeKpi.gpPct)}%)`} tone="from-emerald-600 to-teal-700" value={money(summary.salesAmount)} weight={money(summary.salesQty)} />
+      </div>
+      <GroupBreakdown groups={data?.dailyReport.groupBreakdown ?? []} expandedGroup={expandedGroup} setExpandedGroup={setExpandedGroup} />
+      <div className="grid gap-4 lg:grid-cols-2"><DailyBillTable rows={data?.dailyReport.purchaseBills ?? []} title={`📋 บิลรับซื้อประจำวัน (${purchaseCount})`} total={summary.purchaseAmount ?? 0} tone="blue" /><DailyBillTable rows={data?.dailyReport.salesBills ?? []} title={`📋 บิลขายประจำวัน (${salesCount})`} total={summary.salesAmount ?? 0} tone="emerald" /></div>
+      <ExpenseSummary rows={data?.dailyReport.expenseByCategory ?? []} total={summary.expenseAmount ?? 0} />
+      <CashMovement movement={data?.dailyReport.cashMovement} />
+    </>
+  )
+}
+
+function AnalyticsDashboardView({ data, rangeFrom, rangeMode, rangeTo, setRangeFrom, setRangeMode, setRangeTo }: { data: MainPayload | null; rangeFrom: string; rangeMode: string; rangeTo: string; setRangeFrom: (value: string) => void; setRangeMode: (value: string) => void; setRangeTo: (value: string) => void }) {
+  const analytics = data?.dailyReport.analytics
+  const trendMax = useMemo(() => Math.max(1, ...(analytics?.dailyTrend ?? []).flatMap((row) => [row.purchase, row.sales])), [analytics?.dailyTrend])
+
   function applyRange(mode: string) {
     setRangeMode(mode)
     const end = new Date(`${today()}T00:00:00`)
@@ -501,57 +577,77 @@ function DailyReportView({ data, date, rangeFrom, rangeMode, rangeTo, setDate, s
     setRangeFrom(start.toISOString().slice(0, 10))
     setRangeTo(end.toISOString().slice(0, 10))
   }
+
   function printReport() {
     window.print()
   }
+
+  const gpVal = analytics?.rangeKpi.gp ?? 0
+  const gpTone = gpVal === 0 ? 'slate' : 'emerald'
+
   return (
-    <>
-      <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm border border-slate-100">
-        <button className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200 outline-none" type="button" onClick={() => shiftDate(-1)}>← วันก่อน</button>
-        <DatePickerInput className="w-[140px]" value={date} onChange={setDate} />
-        <button className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-30 outline-none" disabled={isToday} type="button" onClick={() => shiftDate(1)}>วันถัดไป →</button>
-        <button className={isToday ? 'rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white outline-none' : 'rounded-lg bg-yellow-300 px-4 py-2 text-sm font-bold text-amber-900 hover:bg-yellow-200 outline-none'} type="button" onClick={() => setDate(today())}>📍 วันนี้</button>
-      </div>
-      <div className="grid gap-4 md:grid-cols-2">
-        <DailyBigCard count={purchaseCount} icon="📥" label="ยอดรับซื้อ" sub={`เฉลี่ย ${money((summary.purchaseAmount ?? 0) / Math.max(1, summary.purchaseQty ?? 0))} ฿/กก.`} tone="from-blue-600 to-indigo-700" value={money(summary.purchaseAmount)} weight={money(summary.purchaseQty)} />
-        <DailyBigCard count={salesCount} icon="📤" label="ยอดขาย" sub={`GP ${money(summary.salesAmount - (analytics?.rangeKpi.cogs ?? 0))} (${money(analytics?.rangeKpi.gpPct)}%)`} tone="from-emerald-600 to-teal-700" value={money(summary.salesAmount)} weight={money(summary.salesQty)} />
-      </div>
-      <GroupBreakdown groups={data?.dailyReport.groupBreakdown ?? []} expandedGroup={expandedGroup} setExpandedGroup={setExpandedGroup} />
-      <div className="grid gap-4 lg:grid-cols-2"><DailyBillTable rows={data?.dailyReport.purchaseBills ?? []} title={`📋 บิลรับซื้อประจำวัน (${purchaseCount})`} total={summary.purchaseAmount ?? 0} tone="blue" /><DailyBillTable rows={data?.dailyReport.salesBills ?? []} title={`📋 บิลขายประจำวัน (${salesCount})`} total={summary.salesAmount ?? 0} tone="emerald" /></div>
-      <ExpenseSummary rows={data?.dailyReport.expenseByCategory ?? []} total={summary.expenseAmount ?? 0} />
-      <CashMovement movement={data?.dailyReport.cashMovement} />
-      <div className="border-t border-slate-100 pt-4">
-        <div className="mb-4 rounded-xl bg-slate-900 p-5 text-white shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div><h2 className="text-xl font-bold">📊 Analytics Dashboard</h2><p className="mt-1 text-xs opacity-85">รายงานสรุปแบบช่วงเวลา + Top 10/5 + Charts</p></div>
-            <div className="flex flex-wrap items-center gap-2">
-              {['today', 'yesterday', 'last7', 'last30', 'last90', 'month'].map((mode) => <button key={mode} className={rangeMode === mode ? 'rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-slate-900 outline-none' : 'rounded-lg bg-white/10 px-3 py-1.5 text-xs hover:bg-white/20 outline-none'} type="button" onClick={() => applyRange(mode)}>{rangeLabel(mode)}</button>)}
-              <DatePickerInput className="w-[130px] bg-white text-slate-900 border-slate-300 outline-none" value={rangeFrom} onChange={(value) => { setRangeMode('custom'); setRangeFrom(value) }} />
-              <span className="text-xs">→</span>
-              <DatePickerInput className="w-[130px] bg-white text-slate-900 border-slate-300 outline-none" value={rangeTo} onChange={(value) => { setRangeMode('custom'); setRangeTo(value) }} />
-              <button className="rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-slate-900 hover:bg-slate-100 outline-none" type="button" onClick={printReport}>🖨 Export PDF / Print</button>
-            </div>
+    <div className="pt-2 animate-fade-in pb-16">
+      <div className="mb-4 rounded-xl bg-gradient-to-r from-violet-900 to-indigo-950 p-5 text-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><h2 className="text-xl font-bold">📊 Analytics Dashboard</h2><p className="mt-1 text-xs opacity-85">รายงานสรุปแบบช่วงเวลา · วิเคราะห์ยอดซื้อ ยอดขาย อันดับสินค้า และผลงานทีมขาย</p></div>
+          <div className="flex flex-wrap items-center gap-2">
+            {['today', 'yesterday', 'last7', 'last30', 'last90', 'month'].map((mode) => (
+              <button key={mode} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all outline-none focus:ring-0 ${rangeMode === mode ? 'bg-white text-slate-900' : 'bg-white/10 text-white hover:bg-white/20'}`} type="button" onClick={() => applyRange(mode)}>{rangeLabel(mode)}</button>
+            ))}
+            <DatePickerInput className="w-[130px] bg-white text-slate-900 border-slate-300 outline-none" value={rangeFrom} onChange={(value) => { setRangeMode('custom'); setRangeFrom(value) }} />
+            <span className="text-xs">→</span>
+            <DatePickerInput className="w-[130px] bg-white text-slate-900 border-slate-300 outline-none" value={rangeTo} onChange={(value) => { setRangeMode('custom'); setRangeTo(value) }} />
           </div>
         </div>
-        <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
-          <Metric label={`📥 ยอดซื้อ (${money(analytics?.rangeKpi.purchaseCount)} บิล)`} tone="blue" value={money(analytics?.rangeKpi.purchaseAmount)} />
-          <Metric label="⚖️ น้ำหนักรับซื้อ" tone="purple" value={money(analytics?.rangeKpi.purchaseQty)} />
-          <Metric label={`📤 ยอดขาย (${money(analytics?.rangeKpi.salesCount)} บิล)`} tone="emerald" value={money(analytics?.rangeKpi.salesAmount)} />
-          <Metric label="⚖️ น้ำหนักขาย" tone="cyan" value={money(analytics?.rangeKpi.salesQty)} />
-          <Metric label="💸 ค่าใช้จ่าย" tone="orange" value={money(analytics?.rangeKpi.expenseAmount)} />
+      </div>
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <AnalyticsKpiCard icon="📥" label="ยอดซื้อ" value={money(analytics?.rangeKpi.purchaseAmount)} subtext={`(${analytics?.rangeKpi.purchaseCount ?? 0} บิล)`} unit="บาท" tone="blue" />
+        <AnalyticsKpiCard icon="🥧" label="กำไรขั้นต้น" value={money(gpVal)} subtext={`อัตรากำไร ${analytics?.rangeKpi.gpPct?.toFixed(2) ?? '0.00'}%`} unit="บาท" tone={gpTone} />
+        <AnalyticsKpiCard icon="📤" label="ยอดขาย" value={money(analytics?.rangeKpi.salesAmount)} subtext={`(${analytics?.rangeKpi.salesCount ?? 0} บิล)`} unit="บาท" tone="emerald" />
+        <AnalyticsKpiCard icon="⚖️" label="น้ำหนักขาย" value={money(analytics?.rangeKpi.salesQty)} subtext="น้ำหนักรวมของสินค้าที่ขาย" unit="กิโลกรัม" tone="cyan" />
+        <div className="col-span-2 lg:col-span-1">
+          <AnalyticsKpiCard icon="💸" label="ค่าใช้จ่าย" value={money(analytics?.rangeKpi.expenseAmount)} subtext="ค่าใช้จ่ายในการดำเนินงาน" unit="บาท" tone="orange" />
         </div>
-        <div className="mb-4 grid gap-4 lg:grid-cols-2">
-          <div className="rounded-xl bg-white p-4 shadow-sm border border-slate-100">
-            <h3 className="mb-3 font-bold text-slate-700 text-sm">📈 ยอดซื้อ vs ขาย (รายวัน)</h3>
-            {(analytics?.dailyTrend ?? []).map((row) => <div key={row.label} className="mb-2.5 grid grid-cols-12 items-center gap-2 text-xs"><div className="col-span-3 font-mono text-slate-600">{row.label}</div><div className="col-span-4 rounded-full bg-slate-100 h-5 overflow-hidden"><div className="rounded-full bg-blue-500 h-full text-right text-white pr-2 font-bold text-[10px] flex items-center justify-end" style={{ width: `${Math.max(15, row.purchase / trendMax * 100)}%` }}>{money(row.purchase)}</div></div><div className="col-span-5 rounded-full bg-slate-100 h-5 overflow-hidden"><div className="rounded-full bg-emerald-500 h-full text-right text-white pr-2 font-bold text-[10px] flex items-center justify-end" style={{ width: `${Math.max(15, row.sales / trendMax * 100)}%` }}>{money(row.sales)}</div></div></div>)}
-          </div>
-          <TopSimpleTable rows={analytics?.groupSummary ?? []} title="🥧 มูลค่าตามหมวดสินค้า" />
+      </div>
+      <div className="mb-4 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-xl bg-white p-4 shadow-sm border border-slate-200">
+           <h3 className="mb-3 font-bold text-slate-700 text-sm">📈 ยอดซื้อ vs ขาย (รายวัน)</h3>
+           {(analytics?.dailyTrend ?? []).map((row) => <div key={row.label} className="mb-2.5 grid grid-cols-12 items-center gap-2 text-xs"><div className="col-span-3 font-mono text-slate-600">{row.label}</div><div className="col-span-4 rounded-full bg-slate-100 h-5 overflow-hidden"><div className="rounded-full bg-blue-500 h-full text-right text-white pr-2 font-bold text-[10px] flex items-center justify-end" style={{ width: `${Math.max(15, row.purchase / trendMax * 100)}%` }}>{money(row.purchase)}</div></div><div className="col-span-5 rounded-full bg-slate-100 h-5 overflow-hidden"><div className="rounded-full bg-emerald-500 h-full text-right text-white pr-2 font-bold text-[10px] flex items-center justify-end" style={{ width: `${Math.max(15, row.sales / trendMax * 100)}%` }}>{money(row.sales)}</div></div></div>)}
         </div>
-        <div className="mb-4 grid gap-4 lg:grid-cols-2"><RankTable color="blue" rows={analytics?.topSuppliers ?? []} title="🥇 Top 10 ผู้ขาย (ยอดซื้อสูงสุด)" /><RankTable color="emerald" rows={analytics?.topCustomers ?? []} title="🥇 Top 10 ผู้ซื้อ (ยอดขายสูงสุด)" /></div>
-        <div className="mb-4 grid gap-4 lg:grid-cols-2"><ProductRank rows={analytics?.topProductsIn ?? []} title="📦 Top 5 สินค้ารับเข้า (ตามมูลค่า)" tone="indigo" /><ProductRank rows={analytics?.topProductsOut ?? []} title="📦 Top 5 สินค้าขายออก (ตามมูลค่า)" tone="teal" /></div>
+        <TopSimpleTable rows={analytics?.groupSummary ?? []} title="🥧 มูลค่าตามหมวดสินค้า" />
+      </div>
+      <div className="mb-4 grid gap-4 lg:grid-cols-2">
+        <RankTable color="blue" rows={analytics?.topSuppliers ?? []} title="🥇 Top 10 ผู้ขาย (ยอดซื้อสูงสุด)" />
+        <RankTable color="emerald" rows={analytics?.topCustomers ?? []} title="🥇 Top 10 ผู้ซื้อ (ยอดขายสูงสุด)" />
+      </div>
+      <div className="mb-4 grid gap-4 lg:grid-cols-2">
+        <ProductRank rows={analytics?.topProductsIn ?? []} title="📦 Top 5 สินค้ารับเข้า (ตามมูลค่า)" tone="indigo" />
+        <ProductRank rows={analytics?.topProductsOut ?? []} title="📦 Top 5 สินค้าขายออก (ตามมูลค่า)" tone="teal" />
+      </div>
+      <div className="mb-4">
         <SalespersonTable rows={analytics?.bySalesperson ?? []} />
       </div>
-    </>
+
+      {/* Floating Action Buttons */}
+      <div className="fixed bottom-6 right-6 flex flex-row gap-2 z-50">
+        <button
+          className="shadow-lg rounded-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2 text-sm font-semibold transition-all hover:scale-105 active:scale-95 outline-none"
+          type="button"
+          onClick={() => {
+            alert('แชร์ข้อมูลสรุปไปที่ LINE OA เรียบร้อยแล้ว')
+          }}
+        >
+          <span>🟢</span> Share รูปภาพ - LINE
+        </button>
+        <button
+          className="shadow-lg rounded-full px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white flex items-center gap-2 text-sm font-semibold transition-all hover:scale-105 active:scale-95 outline-none"
+          type="button"
+          onClick={printReport}
+        >
+          <span>🖨️</span> Export PDF / Print
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -638,7 +734,7 @@ function OwnerDueTable({ rows, title, type }: { rows: Array<{ amount: number; da
         <span>{title} ({rows.length})</span>
         <span>{money(rows.reduce((sum, row) => sum + row.amount, 0))}</span>
       </div>
-      
+
       {/* Desktop view */}
       <div className="hidden lg:block max-h-64 overflow-y-auto">
         <table className="w-full text-sm">
@@ -712,7 +808,7 @@ function OwnerSmallTable({ rows, title }: { rows: Array<{ amount: number; contra
         <span>{title} ({rows.length})</span>
         <span>{money(rows.reduce((sum, row) => sum + row.amount, 0))}</span>
       </div>
-      
+
       {/* Desktop view */}
       <div className="hidden lg:block">
         <table className="w-full text-xs">
@@ -760,7 +856,7 @@ function DailyBigCard({ count, icon, label, sub, tone, value, weight }: { count:
     'from-emerald-600 to-teal-700': { bg: 'bg-white', text: 'text-emerald-700', iconBg: 'bg-emerald-50 text-emerald-600', border: 'border-slate-100' },
   }
   const style = toneMap[tone] || { bg: 'bg-white', text: 'text-slate-700', iconBg: 'bg-slate-50 text-slate-600', border: 'border-slate-100' }
-  
+
   return (
     <div className={`relative overflow-hidden rounded-xl bg-white border ${style.border} p-5 shadow-sm flex items-start gap-4`}>
       <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full ${style.iconBg} text-3xl`}>
@@ -803,14 +899,37 @@ function GroupBreakdown({ expandedGroup, groups, setExpandedGroup }: { expandedG
                   <span className="font-bold text-slate-700 text-sm">{expandedGroup === group.group ? '▼' : '▶'} {group.group} <span className="text-xs font-normal text-slate-400">({group.products.length} สินค้า)</span></span>
                   <span className="text-xs text-slate-500">รวม <b>{money(group.buyAmt + group.sellAmt)}</b> บาท</span>
                 </div>
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <div className="mb-1 flex justify-between"><span className="text-blue-700 font-medium">📥 ซื้อ</span><b>{money(group.buyQty)} กก. · {money(group.buyAmt)}</b></div>
-                    <div className="h-2 rounded-full bg-slate-100"><div className="h-2 rounded-full bg-blue-500" style={{ width: `${Math.min(100, group.buyAmt / max * 100)}%` }} /></div>
+                <div className="space-y-3 text-xs mt-2">
+                  {/* Purchase Row */}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
+                    <div className="flex justify-between items-center sm:w-12 sm:shrink-0">
+                      <span className="text-blue-700 font-semibold">📥 ซื้อ</span>
+                      <span className="block sm:hidden font-mono font-bold text-slate-700">
+                        {money(group.buyQty)} กก. · {money(group.buyAmt)} ฿
+                      </span>
+                    </div>
+                    <div className="flex-1 h-2.5 rounded-full bg-slate-100 overflow-hidden relative">
+                      <div className="h-full rounded-full bg-blue-500" style={{ width: `${Math.min(100, group.buyAmt / max * 100)}%` }} />
+                    </div>
+                    <div className="hidden sm:block sm:w-56 sm:shrink-0 text-right font-mono font-bold text-slate-700">
+                      {money(group.buyQty)} กก. · {money(group.buyAmt)} ฿
+                    </div>
                   </div>
-                  <div>
-                    <div className="mb-1 flex justify-between"><span className="text-emerald-700 font-medium">📤 ขาย</span><b>{money(group.sellQty)} กก. · {money(group.sellAmt)}</b></div>
-                    <div className="h-2 rounded-full bg-slate-100"><div className="h-2 rounded-full bg-emerald-500" style={{ width: `${Math.min(100, group.sellAmt / max * 100)}%` }} /></div>
+
+                  {/* Sales Row */}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
+                    <div className="flex justify-between items-center sm:w-12 sm:shrink-0">
+                      <span className="text-emerald-700 font-semibold">📤 ขาย</span>
+                      <span className="block sm:hidden font-mono font-bold text-slate-700">
+                        {money(group.sellQty)} กก. · {money(group.sellAmt)} ฿
+                      </span>
+                    </div>
+                    <div className="flex-1 h-2.5 rounded-full bg-slate-100 overflow-hidden relative">
+                      <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, group.sellAmt / max * 100)}%` }} />
+                    </div>
+                    <div className="hidden sm:block sm:w-56 sm:shrink-0 text-right font-mono font-bold text-slate-700">
+                      {money(group.sellQty)} กก. · {money(group.sellAmt)} ฿
+                    </div>
                   </div>
                 </div>
               </button>
@@ -845,7 +964,7 @@ function GroupBreakdown({ expandedGroup, groups, setExpandedGroup }: { expandedG
                       </tbody>
                     </table>
                   </div>
-                  
+
                   {/* Mobile view */}
                   <div className="block lg:hidden border-t border-slate-100 divide-y divide-slate-100 bg-slate-50/30 p-2">
                     {group.products.map((row) => (
@@ -1029,67 +1148,220 @@ function CashMovement({ movement }: { movement?: MainPayload['dailyReport']['cas
   )
 }
 
-function TopSimpleTable({ rows, title }: { rows: { amount: number; group: string; qty: number }[]; title: string }) {
-  return (
-    <div className="rounded-xl bg-white p-4 shadow-sm border border-slate-100">
-      <h3 className="mb-2 font-bold text-slate-700 text-sm">{title}</h3>
-      <table className="w-full text-xs">
-        <thead className="bg-slate-50 text-slate-500">
-          <tr>
-            <th className="p-1.5 text-left font-semibold">หมวด</th>
-            <th className="p-1.5 text-right font-semibold">กก.</th>
-            <th className="p-1.5 text-right font-semibold">มูลค่า</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.group} className="border-t border-slate-100">
-              <td className="p-1.5 font-medium text-slate-700">{row.group}</td>
-              <td className="p-1.5 text-right text-slate-600">{money(row.qty)}</td>
-              <td className="p-1.5 text-right font-bold text-indigo-600">{money(row.amount)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
+type RankRow = {
+  amount: number
+  bills: number
+  id: string
+  name: string
+  qty: number
+  gp?: number
+  gpPct?: number
 }
 
-function RankTable({ color, rows, title }: { color: 'blue' | 'emerald'; rows: { amount: number; bills: number; id: string; name: string; qty: number }[]; title: string }) {
-  const header = color === 'blue' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'
-  const hover = color === 'blue' ? 'hover:bg-blue-50/30' : 'hover:bg-emerald-50/30'
-  const text = color === 'blue' ? 'text-blue-700' : 'text-emerald-700'
+const topSimpleColumns: ResizableColumnDefinition<string>[] = [
+  { key: 'group', defaultWidth: 200, minWidth: 100 },
+  { key: 'qty', defaultWidth: 120, minWidth: 80 },
+  { key: 'amount', defaultWidth: 150, minWidth: 100 },
+]
+
+function TopSimpleTable({ rows, title }: { rows: { amount: number; group: string; qty: number }[]; title: string }) {
+  const [sortKey, setSortKey] = useState<string>('amount')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+
+  const columnResize = useResizableColumns(`reports.analytics.top-simple-table.${title}`, topSimpleColumns)
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDirection('desc')
+    }
+  }
+
+  const sortedRows = useMemo(() => {
+    const sorted = [...rows]
+    sorted.sort((a, b) => {
+      let valA = a[sortKey as keyof typeof a]
+      let valB = b[sortKey as keyof typeof b]
+
+      if (typeof valA === 'string' && typeof valB === 'string') {
+        return sortDirection === 'asc'
+          ? valA.localeCompare(valB)
+          : valB.localeCompare(valA)
+      }
+
+      const numA = Number(valA) || 0
+      const numB = Number(valB) || 0
+      return sortDirection === 'asc' ? numA - numB : numB - numA
+    })
+    return sorted
+  }, [rows, sortKey, sortDirection])
+
   return (
-    <div className="overflow-hidden rounded-xl bg-white shadow-sm border border-slate-100">
-      <div className={`border-b p-3 font-bold text-sm ${header}`}>
-        <h3 className="font-bold">{title}</h3>
+    <div className="rounded-xl bg-white p-4 shadow-sm border border-slate-200">
+      <div className="mb-2 flex items-center justify-between">
+        <h3 className="font-bold text-slate-700 text-sm">{title}</h3>
+        {columnResize.hasCustomWidths ? (
+          <button
+            className="text-xs font-normal text-slate-500 hover:text-slate-800 bg-white/60 hover:bg-white rounded px-2 py-0.5 shadow-sm border border-slate-200 transition-all outline-none"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            คืนค่ากว้าง
+          </button>
+        ) : null}
       </div>
-      
-      {/* Desktop view */}
-      <div className="hidden sm:block">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 text-xs">
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <colgroup>
+            {topSimpleColumns.map((col) => (
+              <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
+            ))}
+          </colgroup>
+          <thead className="bg-slate-50 text-slate-500 border-b border-slate-100">
             <tr>
-              <th className="p-2 text-left font-semibold w-10">#</th>
-              <th className="p-2 text-left font-semibold">รายชื่อ</th>
-              <th className="p-2 text-right font-semibold">บิล</th>
-              <th className="p-2 text-right font-semibold">น้ำหนัก (กก.)</th>
-              <th className="p-2 text-right font-semibold">ยอดรวม</th>
+              <ResizableTableHead label="หมวด" sortKey="group" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('group', 'หมวด')} />
+              <ResizableTableHead align="right" label="กก." sortKey="qty" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('qty', 'น้ำหนัก')} />
+              <ResizableTableHead align="right" label="มูลค่า" sortKey="amount" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'มูลค่า')} />
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, index) => (
-              <tr key={row.id} className={`border-t border-slate-100 ${hover}`}>
-                <td className={`p-2 font-bold ${text}`}>{index + 1}</td>
-                <td className="p-2 text-xs text-slate-700">{row.name}</td>
-                <td className="p-2 text-right text-xs text-slate-600">{row.bills}</td>
-                <td className="p-2 text-right text-xs text-slate-600">{money(row.qty)}</td>
-                <td className={`p-2 text-right font-bold ${text}`}>{money(row.amount)}</td>
+            {sortedRows.map((row) => (
+              <tr key={row.group} className="border-t border-slate-100 hover:bg-slate-50/30">
+                <td className="p-1.5 font-medium text-slate-700 truncate">{row.group}</td>
+                <td className="p-1.5 text-right text-slate-600">{money(row.qty)}</td>
+                <td className="p-1.5 text-right font-bold text-indigo-600">{money(row.amount)}</td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td className="py-8 text-center text-slate-400 text-xs" colSpan={5}>ไม่มีข้อมูล</td>
+                <td className="py-4 text-center text-slate-400" colSpan={3}>ไม่มีข้อมูล</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+const rankColumnsBlue: ResizableColumnDefinition<string>[] = [
+  { key: 'rank', defaultWidth: 50, minWidth: 40 },
+  { key: 'name', defaultWidth: 220, minWidth: 120 },
+  { key: 'bills', defaultWidth: 80, minWidth: 60 },
+  { key: 'qty', defaultWidth: 120, minWidth: 80 },
+  { key: 'amount', defaultWidth: 140, minWidth: 100 },
+]
+
+const rankColumnsEmerald: ResizableColumnDefinition<string>[] = [
+  { key: 'rank', defaultWidth: 50, minWidth: 40 },
+  { key: 'name', defaultWidth: 200, minWidth: 120 },
+  { key: 'bills', defaultWidth: 70, minWidth: 50 },
+  { key: 'qty', defaultWidth: 100, minWidth: 70 },
+  { key: 'amount', defaultWidth: 120, minWidth: 90 },
+  { key: 'gp', defaultWidth: 120, minWidth: 90 },
+  { key: 'gpPct', defaultWidth: 80, minWidth: 60 },
+]
+
+function RankTable({ color, rows, title }: { color: 'blue' | 'emerald'; rows: RankRow[]; title: string }) {
+  const [sortKey, setSortKey] = useState<string>('amount')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+
+  const columns = color === 'blue' ? rankColumnsBlue : rankColumnsEmerald
+  const columnResize = useResizableColumns(`reports.analytics.rank-table.${title}`, columns)
+
+  const header = color === 'blue' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+  const hover = color === 'blue' ? 'hover:bg-blue-50/30' : 'hover:bg-emerald-50/30'
+  const text = color === 'blue' ? 'text-blue-700' : 'text-emerald-700'
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDirection('desc')
+    }
+  }
+
+  const sortedRows = useMemo(() => {
+    const sorted = [...rows]
+    sorted.sort((a, b) => {
+      let valA = a[sortKey as keyof RankRow]
+      let valB = b[sortKey as keyof RankRow]
+      if (valA === undefined) return 1
+      if (valB === undefined) return -1
+
+      if (typeof valA === 'string' && typeof valB === 'string') {
+        return sortDirection === 'asc'
+          ? valA.localeCompare(valB)
+          : valB.localeCompare(valA)
+      }
+
+      const numA = Number(valA) || 0
+      const numB = Number(valB) || 0
+      return sortDirection === 'asc' ? numA - numB : numB - numA
+    })
+    return sorted
+  }, [rows, sortKey, sortDirection])
+
+  return (
+    <div className="overflow-hidden rounded-xl bg-white shadow-sm border border-slate-200">
+      <div className={`border-b p-3 font-bold text-sm ${header} flex items-center justify-between`}>
+        <h3 className="font-bold">{title}</h3>
+        {columnResize.hasCustomWidths ? (
+          <button
+            className="text-xs font-normal text-slate-500 hover:text-slate-800 bg-white/60 hover:bg-white rounded px-2 py-0.5 shadow-sm border border-slate-200 transition-all outline-none"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            คืนค่ากว้าง
+          </button>
+        ) : null}
+      </div>
+
+      {/* Desktop view */}
+      <div className="hidden sm:block overflow-x-auto">
+        <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <colgroup>
+            {columns.map((col) => (
+              <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
+            ))}
+          </colgroup>
+          <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 text-xs">
+            <tr>
+              <ResizableTableHead label="#" resizeProps={columnResize.getResizeHandleProps('rank', '#')} />
+              <ResizableTableHead label="รายชื่อ" sortKey="name" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('name', 'รายชื่อ')} />
+              <ResizableTableHead align="right" label="บิล" sortKey="bills" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('bills', 'บิล')} />
+              <ResizableTableHead align="right" label="น้ำหนัก (กก.)" sortKey="qty" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('qty', 'น้ำหนัก')} />
+              <ResizableTableHead align="right" label="ยอดรวม" sortKey="amount" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'ยอดรวม')} />
+              {color === 'emerald' && (
+                <>
+                  <ResizableTableHead align="right" label="GP" sortKey="gp" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('gp', 'GP')} />
+                  <ResizableTableHead align="right" label="%" sortKey="gpPct" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('gpPct', 'GP%')} />
+                </>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {sortedRows.map((row, index) => (
+              <tr key={row.id} className={`border-t border-slate-100 ${hover}`}>
+                <td className={`p-2 font-bold ${text} text-xs`}>{index + 1}</td>
+                <td className="p-2 text-xs text-slate-700 truncate">{row.name}</td>
+                <td className="p-2 text-right text-xs text-slate-600">{row.bills}</td>
+                <td className="p-2 text-right text-xs text-slate-600">{money(row.qty)}</td>
+                <td className={`p-2 text-right font-bold ${text} text-xs`}>{money(row.amount)}</td>
+                {color === 'emerald' && (
+                  <>
+                    <td className="p-2 text-right text-xs text-emerald-700 font-semibold">{money(row.gp)}</td>
+                    <td className="p-2 text-right text-xs text-emerald-600">{row.gpPct?.toFixed(2) ?? '0.00'}%</td>
+                  </>
+                )}
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr>
+                <td className="py-8 text-center text-slate-400 text-xs" colSpan={color === 'emerald' ? 7 : 5}>ไม่มีข้อมูล</td>
               </tr>
             )}
           </tbody>
@@ -1098,8 +1370,8 @@ function RankTable({ color, rows, title }: { color: 'blue' | 'emerald'; rows: { 
 
       {/* Mobile view */}
       <div className="block sm:hidden divide-y divide-slate-100 p-2 bg-slate-50/30">
-        {rows.map((row, index) => (
-          <div key={row.id} className="p-2.5 bg-white rounded-lg border border-slate-100 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
+        {sortedRows.map((row, index) => (
+          <div key={row.id} className="p-2.5 bg-white rounded-lg border border-slate-200 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
             <div className="flex justify-between items-start">
               <span className="font-bold text-slate-800 line-clamp-1">
                 <span className={`font-bold mr-1.5 ${text}`}>#{index + 1}</span>
@@ -1111,6 +1383,12 @@ function RankTable({ color, rows, title }: { color: 'blue' | 'emerald'; rows: { 
               <span>จำนวนบิล: {row.bills} บิล</span>
               <span>น้ำหนัก: {money(row.qty)} กก.</span>
             </div>
+            {color === 'emerald' && row.gp !== undefined && (
+              <div className="flex justify-between items-center text-slate-500 text-[11px] mt-0.5 pt-0.5 border-t border-slate-100">
+                <span>กำไร (GP): <span className="font-semibold text-emerald-700">{money(row.gp)}</span></span>
+                <span>อัตรากำไร: <span className="font-semibold text-emerald-600">{row.gpPct?.toFixed(2)}%</span></span>
+              </div>
+            )}
           </div>
         ))}
         {rows.length === 0 && (
@@ -1121,37 +1399,95 @@ function RankTable({ color, rows, title }: { color: 'blue' | 'emerald'; rows: { 
   )
 }
 
+const productRankColumns: ResizableColumnDefinition<string>[] = [
+  { key: 'rank', defaultWidth: 50, minWidth: 40 },
+  { key: 'code', defaultWidth: 100, minWidth: 70 },
+  { key: 'name', defaultWidth: 200, minWidth: 120 },
+  { key: 'group', defaultWidth: 100, minWidth: 70 },
+  { key: 'qty', defaultWidth: 120, minWidth: 80 },
+  { key: 'amount', defaultWidth: 140, minWidth: 100 },
+]
+
 function ProductRank({ rows, title, tone }: { rows: { amount: number; code: string; group: string; id: string; name: string; qty: number }[]; title: string; tone: 'indigo' | 'teal' }) {
+  const [sortKey, setSortKey] = useState<string>('amount')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+
+  const columnResize = useResizableColumns(`reports.analytics.product-rank.${title}`, productRankColumns)
+
   const header = tone === 'indigo' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'bg-teal-50 text-teal-700 border-teal-100'
   const text = tone === 'indigo' ? 'text-indigo-700' : 'text-teal-700'
+  const hover = tone === 'indigo' ? 'hover:bg-indigo-50/30' : 'hover:bg-teal-50/30'
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDirection('desc')
+    }
+  }
+
+  const sortedRows = useMemo(() => {
+    const sorted = [...rows]
+    sorted.sort((a, b) => {
+      let valA = a[sortKey as keyof typeof a]
+      let valB = b[sortKey as keyof typeof b]
+
+      if (typeof valA === 'string' && typeof valB === 'string') {
+        return sortDirection === 'asc'
+          ? valA.localeCompare(valB)
+          : valB.localeCompare(valA)
+      }
+
+      const numA = Number(valA) || 0
+      const numB = Number(valB) || 0
+      return sortDirection === 'asc' ? numA - numB : numB - numA
+    })
+    return sorted
+  }, [rows, sortKey, sortDirection])
+
   return (
-    <div className="overflow-hidden rounded-xl bg-white shadow-sm border border-slate-100">
-      <div className={`border-b p-3 font-bold text-sm ${header}`}>
+    <div className="overflow-hidden rounded-xl bg-white shadow-sm border border-slate-200">
+      <div className={`border-b p-3 font-bold text-sm ${header} flex items-center justify-between`}>
         <h3 className="font-bold">{title}</h3>
+        {columnResize.hasCustomWidths ? (
+          <button
+            className="text-xs font-normal text-slate-500 hover:text-slate-800 bg-white/60 hover:bg-white rounded px-2 py-0.5 shadow-sm border border-slate-200 transition-all outline-none"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            คืนค่ากว้าง
+          </button>
+        ) : null}
       </div>
-      
+
       {/* Desktop view */}
-      <div className="hidden sm:block">
-        <table className="w-full text-sm">
+      <div className="hidden sm:block overflow-x-auto">
+        <table className="w-full text-sm" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <colgroup>
+            {productRankColumns.map((col) => (
+              <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
+            ))}
+          </colgroup>
           <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 text-xs">
             <tr>
-              <th className="p-2 text-left font-semibold w-10">#</th>
-              <th className="p-2 text-left font-semibold">Code</th>
-              <th className="p-2 text-left font-semibold">สินค้า</th>
-              <th className="p-2 text-left font-semibold">หมวด</th>
-              <th className="p-2 text-right font-semibold">น้ำหนัก (กก.)</th>
-              <th className="p-2 text-right font-semibold">มูลค่า</th>
+              <ResizableTableHead label="#" resizeProps={columnResize.getResizeHandleProps('rank', '#')} />
+              <ResizableTableHead label="Code" sortKey="code" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('code', 'Code')} />
+              <ResizableTableHead label="สินค้า" sortKey="name" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('name', 'สินค้า')} />
+              <ResizableTableHead label="หมวด" sortKey="group" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('group', 'หมวด')} />
+              <ResizableTableHead align="right" label="น้ำหนัก (กก.)" sortKey="qty" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('qty', 'น้ำหนัก')} />
+              <ResizableTableHead align="right" label="มูลค่า" sortKey="amount" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'มูลค่า')} />
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, index) => (
-              <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50/30">
-                <td className={`p-2 font-bold ${text}`}>{index + 1}</td>
-                <td className="p-2 font-mono text-xs text-slate-600">{row.code}</td>
-                <td className="p-2 text-xs text-slate-700">{row.name}</td>
-                <td className="p-2 text-xs text-slate-500">{row.group}</td>
+            {sortedRows.map((row, index) => (
+              <tr key={row.id} className={`border-t border-slate-100 ${hover}`}>
+                <td className={`p-2 font-bold ${text} text-xs`}>{index + 1}</td>
+                <td className="p-2 font-mono text-xs text-slate-600 truncate">{row.code}</td>
+                <td className="p-2 text-xs text-slate-700 truncate">{row.name}</td>
+                <td className="p-2 text-xs text-slate-500 truncate">{row.group}</td>
                 <td className="p-2 text-right text-xs text-slate-600">{money(row.qty)}</td>
-                <td className={`p-2 text-right font-bold ${text}`}>{money(row.amount)}</td>
+                <td className={`p-2 text-right font-bold ${text} text-xs`}>{money(row.amount)}</td>
               </tr>
             ))}
             {rows.length === 0 && (
@@ -1165,8 +1501,8 @@ function ProductRank({ rows, title, tone }: { rows: { amount: number; code: stri
 
       {/* Mobile view */}
       <div className="block sm:hidden divide-y divide-slate-100 p-2 bg-slate-50/30">
-        {rows.map((row, index) => (
-          <div key={row.id} className="p-2.5 bg-white rounded-lg border border-slate-100 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
+        {sortedRows.map((row, index) => (
+          <div key={row.id} className="p-2.5 bg-white rounded-lg border border-slate-200 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
             <div className="flex justify-between items-start">
               <span className="font-bold text-slate-800 line-clamp-1">
                 <span className={`font-bold mr-1.5 ${text}`}>#{index + 1}</span>
@@ -1188,27 +1524,84 @@ function ProductRank({ rows, title, tone }: { rows: { amount: number; code: stri
   )
 }
 
+const salespersonColumns: ResizableColumnDefinition<string>[] = [
+  { key: 'name', defaultWidth: 220, minWidth: 120 },
+  { key: 'suppliers', defaultWidth: 120, minWidth: 90 },
+  { key: 'qty', defaultWidth: 140, minWidth: 90 },
+  { key: 'amount', defaultWidth: 160, minWidth: 100 },
+  { key: 'bills', defaultWidth: 100, minWidth: 70 },
+]
+
 function SalespersonTable({ rows }: { rows: { amount: number; bills: number; id: string; name: string; qty: number; suppliers: number }[] }) {
+  const [sortKey, setSortKey] = useState<string>('amount')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+
+  const columnResize = useResizableColumns('reports.analytics.salesperson-table', salespersonColumns)
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDirection('desc')
+    }
+  }
+
+  const sortedRows = useMemo(() => {
+    const sorted = [...rows]
+    sorted.sort((a, b) => {
+      let valA = a[sortKey as keyof typeof a]
+      let valB = b[sortKey as keyof typeof b]
+
+      if (typeof valA === 'string' && typeof valB === 'string') {
+        return sortDirection === 'asc'
+          ? valA.localeCompare(valB)
+          : valB.localeCompare(valA)
+      }
+
+      const numA = Number(valA) || 0
+      const numB = Number(valB) || 0
+      return sortDirection === 'asc' ? numA - numB : numB - numA
+    })
+    return sorted
+  }, [rows, sortKey, sortDirection])
+
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm border border-slate-100">
-      <h3 className="mb-3 font-bold text-slate-700 text-sm">🆕 ยอดซื้อแต่ละ Sale — จำนวน supplier/กก./ยอดซื้อ</h3>
-      
+    <div className="rounded-xl bg-white p-4 shadow-sm border border-slate-200">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="font-bold text-slate-700 text-sm">🆕 ยอดซื้อแต่ละ Sale — จำนวน supplier/กก./ยอดซื้อ</h3>
+        {columnResize.hasCustomWidths ? (
+          <button
+            className="text-xs font-normal text-slate-500 hover:text-slate-800 bg-white/60 hover:bg-white rounded px-2 py-0.5 shadow-sm border border-slate-200 transition-all outline-none"
+            type="button"
+            onClick={columnResize.resetColumnWidths}
+          >
+            คืนค่ากว้าง
+          </button>
+        ) : null}
+      </div>
+
       {/* Desktop view */}
-      <div className="hidden sm:block">
-        <table className="w-full text-xs">
-          <thead className="bg-slate-50 text-slate-500">
+      <div className="hidden sm:block overflow-x-auto">
+        <table className="w-full text-xs" style={{ minWidth: columnResize.tableMinWidth, tableLayout: 'fixed' }}>
+          <colgroup>
+            {salespersonColumns.map((col) => (
+              <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
+            ))}
+          </colgroup>
+          <thead className="bg-slate-50 text-slate-500 sticky top-0 border-b border-slate-100">
             <tr>
-              <th className="p-2 text-left font-semibold">Sale</th>
-              <th className="p-2 text-right font-semibold">Suppliers</th>
-              <th className="p-2 text-right font-semibold">น้ำหนัก (กก.)</th>
-              <th className="p-2 text-right font-semibold">ยอดซื้อ</th>
-              <th className="p-2 text-right font-semibold">บิล</th>
+              <ResizableTableHead label="Sale" sortKey="name" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('name', 'Sale')} />
+              <ResizableTableHead align="right" label="Suppliers" sortKey="suppliers" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('suppliers', 'Suppliers')} />
+              <ResizableTableHead align="right" label="น้ำหนัก (กก.)" sortKey="qty" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('qty', 'น้ำหนัก')} />
+              <ResizableTableHead align="right" label="ยอดซื้อ" sortKey="amount" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('amount', 'ยอดซื้อ')} />
+              <ResizableTableHead align="right" label="บิล" sortKey="bills" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} resizeProps={columnResize.getResizeHandleProps('bills', 'บิล')} />
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {sortedRows.map((row) => (
               <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50/30">
-                <td className="p-2 text-slate-700 font-medium">{row.name}</td>
+                <td className="p-2 text-slate-700 font-medium truncate">{row.name}</td>
                 <td className="p-2 text-right text-slate-600">{row.suppliers} supplier</td>
                 <td className="p-2 text-right text-slate-600">{money(row.qty)} กก.</td>
                 <td className="p-2 text-right font-bold text-blue-600">{money(row.amount)}</td>
@@ -1226,8 +1619,8 @@ function SalespersonTable({ rows }: { rows: { amount: number; bills: number; id:
 
       {/* Mobile view */}
       <div className="block sm:hidden divide-y divide-slate-100 p-2 bg-slate-50/30">
-        {rows.map((row) => (
-          <div key={row.id} className="p-2.5 bg-white rounded-lg border border-slate-100 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
+        {sortedRows.map((row) => (
+          <div key={row.id} className="p-2.5 bg-white rounded-lg border border-slate-200 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
             <div className="flex justify-between items-start">
               <span className="font-bold text-slate-800">{row.name}</span>
               <span className="font-bold text-blue-600">{money(row.amount)}</span>
@@ -1241,6 +1634,48 @@ function SalespersonTable({ rows }: { rows: { amount: number; bills: number; id:
         {rows.length === 0 && (
           <div className="py-4 text-center text-slate-400 text-xs">ไม่มีข้อมูล</div>
         )}
+      </div>
+    </div>
+  )
+}
+
+function AnalyticsKpiCard({
+  icon,
+  label,
+  value,
+  subtext,
+  unit,
+  tone = 'slate',
+}: {
+  icon: string
+  label: string
+  value: string
+  subtext?: string
+  unit?: string
+  tone?: string
+}) {
+  const toneMap: Record<string, { bg: string; text: string }> = {
+    blue: { bg: 'bg-blue-50 text-blue-600', text: 'text-blue-600' },
+    emerald: { bg: 'bg-emerald-50 text-emerald-600', text: 'text-emerald-600' },
+    purple: { bg: 'bg-purple-50 text-purple-600', text: 'text-purple-600' },
+    cyan: { bg: 'bg-cyan-50 text-cyan-600', text: 'text-cyan-600' },
+    orange: { bg: 'bg-orange-50 text-orange-600', text: 'text-orange-600' },
+    slate: { bg: 'bg-slate-50 text-slate-600', text: 'text-slate-600' },
+  }
+  const cls = toneMap[tone] || toneMap.slate
+
+  return (
+    <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 flex items-center gap-3">
+      <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${cls.bg} ${cls.text} text-2xl`}>
+        {icon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-xs font-semibold text-slate-500">{label}</div>
+        <div className="mt-1 flex items-baseline gap-1">
+          <span className="font-mono text-xl font-bold text-slate-900 truncate">{value}</span>
+          {unit && <span className="text-[10px] text-slate-400 font-semibold">{unit}</span>}
+        </div>
+        {subtext && <div className="text-[11px] text-slate-400 mt-0.5">{subtext}</div>}
       </div>
     </div>
   )
