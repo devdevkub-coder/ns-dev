@@ -364,7 +364,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         origin: requestOrigin(request),
         requestedBy: actor,
         scopedBranchIds,
-        force: false,
+        force: true,
       }).catch((err) => {
         console.error('[weight-ticket-auto-send] failed to auto send LINE notification on update:', err)
       })
