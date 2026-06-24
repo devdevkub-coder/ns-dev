@@ -114,7 +114,7 @@ export function AssetOverviewPageClient() {
 
       <div className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
         <div className="space-y-4">
-          {num(data?.pendingIssueSummary.count) > 0 ? <PendingSaleBlock summary={data?.pendingIssueSummary ?? {}} /> : null}
+          {num(data?.pendingIssueSummary.count) > 0 ? <PendingOutBlock summary={data?.pendingIssueSummary ?? {}} /> : null}
           {num(data?.tradingPending.billCount) > 0 ? <TradingPendingBlock summary={data?.tradingPending ?? {}} /> : null}
           
           <div className="grid gap-4 md:grid-cols-2">
@@ -182,16 +182,16 @@ function DarkKpi({ danger = false, label, up = false, value }: { danger?: boolea
   )
 }
 
-function PendingSaleBlock({ summary }: { summary: Record<string, number> }) {
+function PendingOutBlock({ summary }: { summary: Record<string, number> }) {
   return (
     <div className="rounded-xl border border-amber-200 bg-amber-50/10 p-4 shadow-sm">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-amber-800">
-          <span className="text-xl">📦</span> ต้นทุนรอเปิดบิล (Pending Sale) - เงินค้างใน Stock ที่เบิกออกไปแล้ว
+          <span className="text-xl">📦</span> ต้นทุนรอเปิดบิล (WTO pending out) - ใบส่งของที่ยังไม่เปิดบิลขาย
         </h3>
         <Link 
           className="rounded-lg bg-amber-700 hover:bg-amber-800 transition-colors px-3 py-1.5 text-xs font-semibold text-white outline-none" 
-          href="/sales/stock-issue"
+          href="/sales/bills"
         >
           ดูทั้งหมด
         </Link>

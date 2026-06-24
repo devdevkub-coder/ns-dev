@@ -52,14 +52,11 @@ export const salesBillFormSchema = z.object({
   items: z.array(salesLineItemSchema).min(1, 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ').max(50, 'รายการสินค้ามากเกินไป'),
   licensePlate: optionalGeneralText('ทะเบียนรถ', 40),
   note: optionalGeneralText('หมายเหตุ', 500),
-  pendingStockIssueId: optionalSafeId('เบิกออกรอบิล'),
   poSellId: optionalSafeId('PO Sell'),
   refNo: z.preprocess(
     blankToNull,
     z.string().trim().max(50, 'เลขที่อ้างอิงยาวเกินไป').regex(/^[A-Za-z0-9_-]+$/, 'เลขที่อ้างอิงใช้ได้เฉพาะอังกฤษ ตัวเลข ขีดกลาง และ underscore').nullable().default(null),
   ),
-  fromPsaleNo: optionalSafeId('ใบเบิกออก'),
-  fromPsaleId: optionalSafeId('รหัสใบเบิกออก'),
   transactionMode: z.enum(['STOCK', 'TRADING']).default('STOCK'),
   vatInvoiceDate: z.preprocess(
     blankToNull,
@@ -78,9 +75,6 @@ export const salesBillFormSchema = z.object({
 }).refine((value) => !value.vatInvoiceIssued || Boolean(value.vatInvoiceDate), {
   message: 'กรอกวันที่ใบกำกับภาษีเมื่อระบุว่าออกแล้ว',
   path: ['vatInvoiceDate'],
-}).refine((value) => !value.pendingStockIssueId && !value.fromPsaleNo && !value.fromPsaleId, {
-  message: 'ยกเลิก flow เบิกออกรอบิลแล้ว ให้เปิดบิลขายจากใบส่งของ WTO โดยตรง',
-  path: ['deliveryTicketId'],
 }).refine((value) => value.transactionMode !== 'STOCK' || Boolean(value.deliveryTicketId), {
   message: 'เลือกใบส่งของ WTO',
   path: ['deliveryTicketId'],
@@ -107,23 +101,6 @@ export const poSellFormSchema = z.object({
   note: optionalGeneralText('หมายเหตุ', 500),
 })
 
-export const stockIssueLineItemSchema = z.object({
-  productId: z.string().trim().min(1, 'เลือกสินค้า').max(80, 'รหัสสินค้ายาวเกินไป').regex(safeIdPattern, 'รหัสสินค้ามีรูปแบบไม่ถูกต้อง'),
-  qty: positiveNumber('จำนวน'),
-  price: money('ราคาคาดการณ์').default(0),
-  note: optionalGeneralText('หมายเหตุรายการ', 200),
-})
-
-export const stockIssueFormSchema = z.object({
-  branchId: requiredSafeId('สาขา'),
-  warehouseId: requiredSafeId('คลัง'),
-  customerId: z.string().trim().min(1, 'เลือกลูกค้า').max(80, 'รหัสลูกค้ายาวเกินไป').regex(safeIdPattern, 'รหัสลูกค้ามีรูปแบบไม่ถูกต้อง'),
-  date: requiredDate,
-  notes: optionalGeneralText('หมายเหตุ', 500),
-  items: z.array(stockIssueLineItemSchema).min(1, 'เพิ่มรายการสินค้าอย่างน้อย 1 รายการ').max(50, 'รายการสินค้ามากเกินไป'),
-})
-
 export type SalesBillFormValues = z.infer<typeof salesBillFormSchema>
 export type SalesBillCancelValues = z.infer<typeof salesBillCancelSchema>
 export type PoSellFormValues = z.infer<typeof poSellFormSchema>
-export type StockIssueFormValues = z.infer<typeof stockIssueFormSchema>

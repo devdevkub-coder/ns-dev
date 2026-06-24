@@ -212,14 +212,14 @@ export function AccountsReceivablePageClient() {
           <div className="flex flex-1 flex-wrap items-center gap-3">
             <span className="text-2xl">📦</span>
             <div>
-              <span className="font-bold text-amber-700">เงินค้างใน Pending Sale (ยังไม่เป็น AR)</span>
-              <span className="ml-2 text-xs text-amber-600">— เบิกออกแล้วยังไม่เปิดบิลขาย</span>
+              <span className="font-bold text-amber-700">ใบส่งของ WTO รอเปิดบิลขาย (ยังไม่เป็น AR)</span>
+              <span className="ml-2 text-xs text-amber-600">— pending out จากใบส่งของ</span>
             </div>
             <span className="text-xs text-slate-600">📦 {pendingIssue.count} ใบ</span>
             <span className="text-xs">💰 ต้นทุน: <b className="text-base text-red-600">{formatMoney(pendingIssue.cost)}</b></span>
             <span className="text-xs">📈 ยอดคาด: <b className="text-emerald-700">{formatMoney(pendingIssue.est)}</b></span>
           </div>
-          <Link className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-bold text-white" href="/sales/stock-issue">→ เปิดบิลขาย</Link>
+          <Link className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-bold text-white" href="/sales/bills">→ เปิดบิลขาย</Link>
         </div>
       ) : null}
 

@@ -13,8 +13,7 @@ import { findActiveSalesChannelReferenceByCode } from '@/lib/server/sales-channe
 import { activeSalesReceiptCountByBillId, salesBillCancelState } from '@/lib/server/sales-bill-cancel-policy'
 import { appendSalesBillStatusLog, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
 import { salesBillLineFactsForBills, type SalesBillLineFactRow } from '@/lib/server/sales-bill-line-facts'
-import { appendStockIssueStatusLog, STOCK_ISSUE_STATUS_ACTION } from '@/lib/server/stock-issue-history'
-import { consumeActiveWtoStockHolds, WtoStockHoldError } from '@/lib/server/stock-holds'
+import { consumeActiveWtoStockHolds, reopenConsumedWtoStockHoldsForSalesBill, WtoStockHoldError } from '@/lib/server/stock-holds'
 import { activeVatRatePercent } from '@/lib/server/tax-settings'
 import { findActiveWarehouseReferenceByCodeOrId } from '@/lib/server/warehouse-reference'
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
@@ -347,41 +346,8 @@ function sourceAllocationRows(input: {
   items: SalesItemSnapshot[]
   lineIdByLineNo: Map<number, bigint>
   parsedProductIds: bigint[]
-  sourceStockIssue: { doc_no: string; id: bigint } | null
   stockDeliveryTicket: DeliveryTicketOptionRow | null
 }) {
-  if (input.sourceStockIssue) {
-    return input.items.map((item, index) => {
-      const lineNo = index + 1
-      return {
-        allocated_deduct_weight: item.deductWeight,
-        allocated_gross_weight: item.grossWeight,
-        allocated_net_weight: item.qty,
-        allocated_qty: item.qty,
-        created_at: input.createdAt,
-        created_by: input.actor,
-        meta: { source: 'sales_bill_create_from_psale' },
-        movement_owner: 'PSALE',
-        product_code_snapshot: item.productCode,
-        product_id: input.parsedProductIds[index] ?? null,
-        product_name_snapshot: item.productName,
-        sales_bill_id: input.billId,
-        sales_bill_line_id: input.lineIdByLineNo.get(lineNo) ?? null,
-        sales_line_no: lineNo,
-        source_doc_no: input.sourceStockIssue!.doc_no,
-        source_id: input.sourceStockIssue!.id,
-        source_line_no: null,
-        source_type: 'PSALE',
-        status: 'active',
-        stock_issue_id: input.sourceStockIssue!.id,
-        stock_ledger_ref_type: 'PSALE',
-        updated_at: input.createdAt,
-        updated_by: input.actor,
-        weight_ticket_id: null,
-      }
-    })
-  }
-
   if (!input.stockDeliveryTicket) return []
 
   return input.items.flatMap((item, index) => {
@@ -1231,12 +1197,6 @@ export async function POST(request: Request) {
     requirePermission(context, 'finance.cash.view')
 
     const rawPayload = await request.json()
-    if (rawPayload?.pendingStockIssueId || rawPayload?.fromPsaleNo || rawPayload?.fromPsaleId) {
-      return NextResponse.json({
-        code: 'GONE',
-        error: 'ยกเลิก flow เบิกออกรอบิลแล้ว ให้เปิดบิลขายจากใบส่งของ WTO โดยตรง',
-      }, { status: 410 })
-    }
     const values = salesBillFormSchema.parse(rawPayload)
     const actor = currentActor(context)
     const createdAt = new Date()
@@ -1269,7 +1229,7 @@ export async function POST(request: Request) {
     if (!channel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ช่องทางขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
     if (
       values.transactionMode === 'TRADING'
-      && (values.pendingStockIssueId || values.fromPsaleNo || values.fromPsaleId || values.warehouseId)
+      && values.warehouseId
     ) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: 'บิลขาย Trading ห้ามอ้างอิงคลังหรือใบเบิก Stock; ถ้ามี stock line ให้เลือก WTO เท่านั้น' }, { status: 400 })
     }
@@ -1347,73 +1307,7 @@ export async function POST(request: Request) {
     const productCodeById = new Map(products.map((product) => [product.id, requireBusinessCode(product.code, `สินค้า ${product.id}`)]))
     let deliverySummarySourceMap = new Map<string, DeliverySummarySource>()
     let stockDeliveryTicket: DeliveryTicketOptionRow | null = null
-    const fromPsaleNo = values.fromPsaleNo?.trim()
-    if (values.pendingStockIssueId && fromPsaleNo) {
-      return NextResponse.json({ code: 'BAD_REQUEST', error: 'เลือกต้นทางเบิกออกได้ทีละรายการเท่านั้น' }, { status: 400 })
-    }
-    const pendingStockIssue = values.pendingStockIssueId
-      ? await prisma.stock_issues.findFirst({
-          select: {
-            branch_id: true,
-            customer_id: true,
-            doc_no: true,
-            id: true,
-            items: true,
-            status: true,
-            total_cost: true,
-          },
-          where: { doc_no: values.pendingStockIssueId },
-        })
-      : null
-    if (values.pendingStockIssueId && !pendingStockIssue) {
-      return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่พบรายการเบิกออกรอบิลที่เลือก' }, { status: 400 })
-    }
-    if (pendingStockIssue) {
-      if ((pendingStockIssue.status ?? 'pending') !== 'pending') {
-        return NextResponse.json({ code: 'BAD_REQUEST', error: 'รายการเบิกออกรอบิลนี้ถูกเปิดบิลหรือยกเลิกแล้ว' }, { status: 400 })
-      }
-      if (pendingStockIssue.branch_id && pendingStockIssue.branch_id !== branch.id) {
-        return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาของบิลขายไม่ตรงกับรายการเบิกออกรอบิล' }, { status: 400 })
-      }
-      if (pendingStockIssue.customer_id && pendingStockIssue.customer_id !== customer.id) {
-        return NextResponse.json({ code: 'BAD_REQUEST', error: 'ลูกค้าของบิลขายไม่ตรงกับรายการเบิกออกรอบิล' }, { status: 400 })
-      }
-      const pendingItems = Array.isArray(pendingStockIssue.items) ? pendingStockIssue.items : []
-      const pendingQtyByProduct = new Map<string, number>()
-      pendingItems.forEach((item) => {
-        if (!item || typeof item !== 'object') return
-        const record = item as Record<string, unknown>
-        const productCode = String(record.productCode ?? record.productId ?? '').trim()
-        const qty = typeof record.qty === 'number' ? record.qty : Number(record.qty ?? 0)
-        if (!productCode || !Number.isFinite(qty)) return
-        pendingQtyByProduct.set(productCode, (pendingQtyByProduct.get(productCode) ?? 0) + qty)
-      })
-      const requestedQtyByProduct = new Map<string, number>()
-      values.items.forEach((item) => {
-        requestedQtyByProduct.set(item.productId, (requestedQtyByProduct.get(item.productId) ?? 0) + item.qty)
-      })
-      for (const [productCode, requestedQty] of requestedQtyByProduct) {
-        const pendingQty = pendingQtyByProduct.get(productCode) ?? 0
-        if (requestedQty > pendingQty + 0.0001) {
-          return NextResponse.json({ code: 'BAD_REQUEST', error: `สินค้า ${productCode} มากกว่าจำนวนที่เบิกออกรอบิลไว้` }, { status: 400 })
-        }
-      }
-    }
-    let stockIssue: { doc_no: string; id: bigint; status: string | null; total_cost: Prisma.Decimal | null } | null = null
-    if (fromPsaleNo) {
-      stockIssue = await prisma.stock_issues.findFirst({
-        select: { doc_no: true, id: true, status: true, total_cost: true },
-        where: { doc_no: fromPsaleNo },
-      })
-      if (!stockIssue) {
-        return NextResponse.json({ code: 'BAD_REQUEST', error: `ไม่พบใบเบิกออก ${fromPsaleNo}` }, { status: 400 })
-      }
-      if (stockIssue.status !== 'pending') {
-        return NextResponse.json({ code: 'BAD_REQUEST', error: `ใบเบิกออก ${fromPsaleNo} ไม่ได้อยู่ในสถานะรอเปิดบิล` }, { status: 400 })
-      }
-    }
-
-    if ((values.transactionMode === 'STOCK' && !pendingStockIssue && !stockIssue) || (values.transactionMode === 'TRADING' && Boolean(values.deliveryTicketId))) {
+    if (values.transactionMode === 'STOCK' || (values.transactionMode === 'TRADING' && Boolean(values.deliveryTicketId))) {
       const deliveryValidation = await validateStockDeliverySelection(values, branch?.id ?? null, customer.id, productByCode, productCodeById)
       if ('error' in deliveryValidation) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: deliveryValidation.error }, { status: 400 })
@@ -1421,7 +1315,6 @@ export async function POST(request: Request) {
       deliverySummarySourceMap = deliveryValidation.deliverySummarySourceMap
       stockDeliveryTicket = deliveryValidation.ticket
     }
-    const sourceStockIssue = pendingStockIssue ?? stockIssue
 
     const docNo = await nextDailyDocNo('sales_bills', 'SB', billDate)
     const items = salesItems(values, parsedProductIds as bigint[], productById, deliverySummarySourceMap)
@@ -1631,9 +1524,7 @@ export async function POST(request: Request) {
     }
     const totalCost = values.transactionMode === 'TRADING'
       ? Array.from(tradingMatchedCogsByLineIndex.values()).reduce((sum, amount) => sum + amount, 0)
-      : sourceStockIssue
-        ? toNumber(sourceStockIssue.total_cost)
-        : 0
+      : 0
     const selectedHeaderPoSell = poSells.length === 1 ? poSells[0] : null
 
     const created = await prisma.$transaction(async (tx) => {
@@ -1673,8 +1564,8 @@ export async function POST(request: Request) {
           vat_invoice_no: values.vatInvoiceNo,
           vat_type: values.vatType,
           warehouse_id: values.transactionMode === 'STOCK' ? warehouse?.id ?? null : null,
-          from_p_sale_no: values.transactionMode === 'STOCK' ? sourceStockIssue?.doc_no ?? null : null,
-          from_p_sale_id: values.transactionMode === 'STOCK' ? sourceStockIssue?.id ?? null : null,
+          from_p_sale_no: null,
+          from_p_sale_id: null,
         },
         select: { doc_no: true, id: true },
       })
@@ -1695,7 +1586,7 @@ export async function POST(request: Request) {
       })
       const lineIdByLineNo = new Map(createdLines.map((line) => [line.line_no, line.id] as const))
 
-      if (values.transactionMode === 'STOCK' || stockDeliveryTicket) {
+      if (stockDeliveryTicket) {
         const sourceRows = sourceAllocationRows({
           actor,
           billId: createdBill.id,
@@ -1703,7 +1594,6 @@ export async function POST(request: Request) {
           items,
           lineIdByLineNo,
           parsedProductIds: parsedProductIds as bigint[],
-          sourceStockIssue: sourceStockIssue ? { doc_no: sourceStockIssue.doc_no, id: sourceStockIssue.id } : null,
           stockDeliveryTicket,
         })
         if (sourceRows.length) {
@@ -1817,29 +1707,7 @@ export async function POST(request: Request) {
         }
       }
 
-      if (values.transactionMode === 'STOCK' && pendingStockIssue) {
-        await tx.stock_issues.update({
-          data: {
-            converted_to_bill_id: createdBill.id,
-            status: 'converted',
-          },
-          where: { id: pendingStockIssue.id },
-        })
-        await appendStockIssueStatusLog(tx, {
-          action: STOCK_ISSUE_STATUS_ACTION.CONVERTED,
-          actor,
-          fromStatus: pendingStockIssue.status ?? 'pending',
-          meta: {
-            reason: 'sales_bill_create_from_pending_sale',
-            salesBillDocNo: createdBill.doc_no,
-          },
-          note: values.note || null,
-          stockIssueId: pendingStockIssue.id,
-          toStatus: 'converted',
-        })
-      }
-
-      if (stockDeliveryTicket && !sourceStockIssue) {
+      if (stockDeliveryTicket) {
         const consumedStockLines = await consumeActiveWtoStockHolds(tx, {
           actor,
           billDate: normalizeDate(billDate),
@@ -1920,16 +1788,6 @@ export async function POST(request: Request) {
           },
           toStatus: 'billed',
           weightTicketId: stockDeliveryTicket.id,
-        })
-      }
-
-      if (stockIssue) {
-        await tx.stock_issues.update({
-          data: {
-            status: 'billed',
-            converted_to_bill_id: createdBill.id,
-          },
-          where: { id: stockIssue.id },
         })
       }
 
@@ -2174,107 +2032,79 @@ export async function PATCH(request: Request) {
       })
 
       if (isStockBill) {
-        // 3. Revert stock changes / stock issues depending on origin.
-        if (bill.from_p_sale_id != null) {
-          await tx.stock_issues.update({
-            data: {
-              status: 'pending',
-              converted_to_bill_id: null,
-            },
-            where: { id: bill.from_p_sale_id },
-          })
-        } else {
-          await tx.stock_ledger.deleteMany({
-            where: {
-              ref_type: 'SB',
-              ref_id: bill.doc_no,
-            },
-          })
+        await reopenConsumedWtoStockHoldsForSalesBill(tx, {
+          actor,
+          cancelDate: createdAt,
+          note: reason,
+          salesBillDocNo: bill.doc_no,
+        })
 
-          await tx.stock_holds.updateMany({
-            data: {
-              consumed_at: null,
-              consumed_by: null,
-              consumed_by_ref_no: null,
-              consumed_by_ref_type: null,
-              status: 'active',
-              updated_at: createdAt,
-              updated_by: actor,
-            },
-            where: {
-              consumed_by_ref_no: bill.doc_no,
-              consumed_by_ref_type: 'SB',
-              status: 'consumed',
-            },
-          })
+        const usageLogs = await tx.weight_ticket_usage_logs.findMany({
+          where: {
+            target_id: bill.id,
+            target_type: 'SALES_BILL',
+            action: WEIGHT_TICKET_USAGE_ACTION.ALLOCATED_TO_SALES_BILL,
+          },
+        })
 
-          const usageLogs = await tx.weight_ticket_usage_logs.findMany({
-            where: {
-              target_id: bill.id,
-              target_type: 'SALES_BILL',
-              action: WEIGHT_TICKET_USAGE_ACTION.ALLOCATED_TO_SALES_BILL,
-            },
-          })
+        if (usageLogs.length > 0) {
+          const revertUsageLogs = usageLogs.map((log) => ({
+            action: WEIGHT_TICKET_USAGE_ACTION.RELEASED_FROM_SALES_BILL,
+            actor,
+            allocatedDeductWeight: toNumber(log.allocated_deduct_weight),
+            allocatedGrossWeight: toNumber(log.allocated_gross_weight),
+            allocatedNetWeight: toNumber(log.allocated_net_weight),
+            allocatedQty: toNumber(log.allocated_qty),
+            meta: { reason: 'sales_bill_cancel' },
+            productCodeSnapshot: log.product_code_snapshot,
+            productId: log.product_id,
+            productNameSnapshot: log.product_name_snapshot,
+            targetDocNo: bill.doc_no,
+            targetId: bill.id,
+            targetType: 'SALES_BILL' as const,
+            weightTicketId: log.weight_ticket_id,
+            weightTicketProductSummaryId: log.weight_ticket_product_summary_id!,
+          }))
+          await appendWeightTicketUsageLogs(tx, revertUsageLogs)
 
-          if (usageLogs.length > 0) {
-            const revertUsageLogs = usageLogs.map((log) => ({
-              action: WEIGHT_TICKET_USAGE_ACTION.RELEASED_FROM_SALES_BILL,
-              actor,
-              allocatedDeductWeight: toNumber(log.allocated_deduct_weight),
-              allocatedGrossWeight: toNumber(log.allocated_gross_weight),
-              allocatedNetWeight: toNumber(log.allocated_net_weight),
-              allocatedQty: toNumber(log.allocated_qty),
-              meta: { reason: 'sales_bill_cancel' },
-              productCodeSnapshot: log.product_code_snapshot,
-              productId: log.product_id,
-              productNameSnapshot: log.product_name_snapshot,
-              targetDocNo: bill.doc_no,
-              targetId: bill.id,
-              targetType: 'SALES_BILL' as const,
-              weightTicketId: log.weight_ticket_id,
-              weightTicketProductSummaryId: log.weight_ticket_product_summary_id!,
-            }))
-            await appendWeightTicketUsageLogs(tx, revertUsageLogs)
+          for (const log of usageLogs) {
+            await tx.weight_ticket_product_summaries.update({
+              data: {
+                billed_weight: { decrement: toNumber(log.allocated_qty) },
+                remaining_weight: { increment: toNumber(log.allocated_qty) },
+                updated_at: createdAt,
+              },
+              where: { id: log.weight_ticket_product_summary_id! },
+            })
+          }
 
-            for (const log of usageLogs) {
-              await tx.weight_ticket_product_summaries.update({
+          const uniqueTicketIds = [...new Set(usageLogs.map((log) => log.weight_ticket_id))]
+          for (const ticketId of uniqueTicketIds) {
+            const ticket = await tx.weight_tickets.findUnique({
+              select: { status: true },
+              where: { id: ticketId },
+            })
+            if (ticket) {
+              await tx.weight_tickets.update({
                 data: {
-                  billed_weight: { decrement: toNumber(log.allocated_qty) },
-                  remaining_weight: { increment: toNumber(log.allocated_qty) },
+                  status: 'delivered',
                   updated_at: createdAt,
+                  updated_by: actor,
                 },
-                where: { id: log.weight_ticket_product_summary_id! },
-              })
-            }
-
-            const uniqueTicketIds = [...new Set(usageLogs.map((log) => log.weight_ticket_id))]
-            for (const ticketId of uniqueTicketIds) {
-              const ticket = await tx.weight_tickets.findUnique({
-                select: { status: true },
                 where: { id: ticketId },
               })
-              if (ticket) {
-                await tx.weight_tickets.update({
-                  data: {
-                    status: 'delivered',
-                    updated_at: createdAt,
-                    updated_by: actor,
-                  },
-                  where: { id: ticketId },
-                })
-                await appendWeightTicketStatusLog(tx, {
-                  action: WEIGHT_TICKET_STATUS_ACTION.USAGE_STATUS_CHANGED,
-                  actor,
-                  createdAt,
-                  fromStatus: ticket.status,
-                  meta: {
-                    reason: 'sales_bill_cancel',
-                    salesBillDocNo: bill.doc_no,
-                  },
-                  toStatus: 'delivered',
-                  weightTicketId: ticketId,
-                })
-              }
+              await appendWeightTicketStatusLog(tx, {
+                action: WEIGHT_TICKET_STATUS_ACTION.USAGE_STATUS_CHANGED,
+                actor,
+                createdAt,
+                fromStatus: ticket.status,
+                meta: {
+                  reason: 'sales_bill_cancel',
+                  salesBillDocNo: bill.doc_no,
+                },
+                toStatus: 'delivered',
+                weightTicketId: ticketId,
+              })
             }
           }
         }

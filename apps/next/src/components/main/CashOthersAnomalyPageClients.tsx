@@ -69,7 +69,7 @@ export function CashOthersSummaryPageClient() {
         <Grand icon="⚖️" label="Net Worth" value={summary.netWorth} />
         <Grand danger={(summary.cashNeededToday ?? 0) > (summary.totalCash ?? 0)} icon="💸" label="เงินที่ต้องใช้วันนี้" value={summary.cashNeededToday} />
       </div>
-      {num(data?.pendingIssueSummary.count) > 0 ? <PendingSaleBlock summary={data?.pendingIssueSummary ?? {}} /> : null}
+      {num(data?.pendingIssueSummary.count) > 0 ? <PendingOutBlock summary={data?.pendingIssueSummary ?? {}} /> : null}
       <TradingPendingBlock summary={data?.tradingPending ?? {}} />
       <div className="grid gap-4 lg:grid-cols-3">
         <DonutPanel items={data?.charts.assetComp ?? []} title="🥧 องค์ประกอบสินทรัพย์" total={summary.totalAsset ?? 0} tone="emerald" />
@@ -105,14 +105,14 @@ function Grand({ danger = false, icon, label, value }: { danger?: boolean; icon:
 }
 
 
-function PendingSaleBlock({ summary }: { summary: Record<string, number> }) {
+function PendingOutBlock({ summary }: { summary: Record<string, number> }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-sm font-bold text-slate-850">
-          <span className="text-xl">📦</span> ต้นทุนรอเปิดบิล (Pending Sale) — เงินค้างใน Stock ที่เบิกออกไปแล้ว
+          <span className="text-xl">📦</span> ต้นทุนรอเปิดบิล (WTO pending out) — ใบส่งของที่ยังไม่เปิดบิลขาย
         </h3>
-        <Link className="rounded-lg bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-bold text-white transition-colors outline-none focus:outline-none" href="/sales/stock-issue">
+        <Link className="rounded-lg bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-bold text-white transition-colors outline-none focus:outline-none" href="/sales/bills">
           ดูทั้งหมด →
         </Link>
       </div>

@@ -173,55 +173,6 @@ function isSalesBillDetail(row: BillRow | SalesBillDetail): row is SalesBillDeta
   return typeof (row as SalesBillDetail).customerCode === 'string'
 }
 
-type StockIssueRow = {
-  branchId: string
-  branchName: string
-  convertedToBillId: string
-  customerId: string
-  customerName: string
-  date: string
-  docNo: string
-  id: string
-  items?: StockIssueItem[]
-  itemCount: number
-  note?: string
-  status: string
-  timeline?: StockIssueTimelineEvent[]
-  totalCost: number
-  totalEstAmount: number
-  totalQty?: number
-  warehouseId: string
-  warehouseName: string
-}
-
-type StockIssueTimelineEvent = {
-  action: string
-  createdAt: string
-  createdBy: string
-  eventKey: string
-  fromStatus?: string
-  note?: string
-  toStatus: string
-}
-
-type StockIssueItem = {
-  amount?: number
-  costAmount?: number
-  deliveryTicketDocNo?: string
-  deliveryTicketId?: string
-  lineNo?: number
-  price?: number
-  productCode?: string
-  productId?: string
-  productName?: string
-  qty?: number
-  sourceLineNo?: number | null
-  unitCost?: number
-  warehouseCode?: string
-  warehouseId?: string
-  warehouseName?: string
-}
-
 type Option = {
   active?: boolean | null
   advanceDate?: string | null
@@ -366,7 +317,7 @@ type DeliveryOption = {
 }
 
 type TransactionPayload = {
-  rows: Array<BillRow | StockIssueRow>
+  rows: BillRow[]
   totalAmount?: number
   totalRows?: number
 }
@@ -384,20 +335,13 @@ type SalesPayload = TransactionPayload & {
   warehouses: Option[]
 }
 
-type StockIssueFormValues = {
-  date: string
-  deliveryTicketId: string
-  note: string
-  prices: Record<string, number>
-}
-
 type TransactionBillsPageClientProps = {
-  mode: 'purchase' | 'sales' | 'stock-issue'
+  mode: 'purchase' | 'sales'
 }
 
 type SortKey = 'date' | 'docNo' | 'itemCount' | 'name' | 'outstanding' | 'refNo' | 'status' | 'totalAmount' | 'transactionMode' | 'updatedBy' | 'warehouse'
 type SortDirection = 'asc' | 'desc'
-type TransactionBillColumnKey = 'action' | 'date' | 'docNo' | 'gp' | 'itemCount' | 'outstanding' | 'paidAmount' | 'partyName' | 'paymentDocs' | 'receiptDocs' | 'refNo' | 'status' | 'stockCost' | 'stockQty' | 'totalAmount' | 'transactionMode' | 'updatedBy' | 'vat' | 'warehouse'
+type TransactionBillColumnKey = 'action' | 'date' | 'docNo' | 'gp' | 'itemCount' | 'outstanding' | 'paidAmount' | 'partyName' | 'paymentDocs' | 'receiptDocs' | 'refNo' | 'status' | 'totalAmount' | 'transactionMode' | 'updatedBy' | 'vat' | 'warehouse'
 
 type MultiSegmentOption = {
   label: string
@@ -453,19 +397,6 @@ const salesBillColumns: Array<ResizableColumnDefinition<TransactionBillColumnKey
   { key: 'vat', defaultWidth: 110, minWidth: 90 },
   { key: 'updatedBy', defaultWidth: 170, minWidth: 130 },
   { key: 'action', defaultWidth: 180, minWidth: 150 },
-]
-
-const stockIssueColumns: Array<ResizableColumnDefinition<TransactionBillColumnKey>> = [
-  { key: 'docNo', defaultWidth: 150, minWidth: 120 },
-  { key: 'date', defaultWidth: 120, minWidth: 100 },
-  { key: 'partyName', defaultWidth: 260, minWidth: 140 },
-  { key: 'warehouse', defaultWidth: 160, minWidth: 120 },
-  { key: 'status', defaultWidth: 140, minWidth: 120 },
-  { key: 'itemCount', defaultWidth: 75, minWidth: 60 },
-  { key: 'stockQty', defaultWidth: 110, minWidth: 90 },
-  { key: 'stockCost', defaultWidth: 110, minWidth: 90 },
-  { key: 'totalAmount', defaultWidth: 110, minWidth: 90 },
-  { key: 'action', defaultWidth: 240, minWidth: 215 },
 ]
 
 function formatPercent(value: number) {
@@ -631,14 +562,11 @@ const initialSalesForm = (): SalesBillFormValues => ({
   customerId: '',
   deliveryTicketId: null,
   discountTotal: 0,
-  fromPsaleId: null,
-  fromPsaleNo: null,
   hasVat: false,
   items: [blankSalesItem()],
   licensePlate: null,
   note: null,
   poSellId: null,
-  pendingStockIssueId: null,
   refNo: null,
   transactionMode: 'STOCK',
   vatInvoiceDate: null,
@@ -669,7 +597,7 @@ const salesStatusOptions: MultiSegmentOption[] = [
 export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientProps) {
   const [cancelNote, setCancelNote] = useState('')
   const [cancelNoteError, setCancelNoteError] = useState('')
-  const [cancelingBill, setCancelingBill] = useState<BillRow | StockIssueRow | null>(null)
+  const [cancelingBill, setCancelingBill] = useState<BillRow | null>(null)
   const [detailBill, setDetailBill] = useState<PurchaseBillDetail | null>(null)
   const [salesDetailBill, setSalesDetailBill] = useState<SalesBillDetail | null>(null)
   const [detailBillDocNo, setDetailBillDocNo] = useState<string | null>(null)
@@ -679,10 +607,9 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const [dateTo, setDateTo] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
-  const [filterMode, setFilterMode] = useState(mode === 'stock-issue' ? 'pending' : '')
+  const [filterMode, setFilterMode] = useState('')
   const [form, setForm] = useState<PurchaseBillFormValues>(initialPurchaseForm())
   const [editingBillId, setEditingBillId] = useState<string | null>(null)
-  const [editingStockIssueDocNo, setEditingStockIssueDocNo] = useState<string | null>(null)
   const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -692,17 +619,14 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const [pageSize, setPageSize] = useState(10)
   const [preferredBranchId, setPreferredBranchId] = useState<string | null>(null)
   const [printingBillDocNo, setPrintingBillDocNo] = useState<string | null>(null)
-  const [rows, setRows] = useState<Array<BillRow | StockIssueRow>>([])
+  const [rows, setRows] = useState<BillRow[]>([])
   const [search, setSearch] = useState('')
   const [salesFieldErrors, setSalesFieldErrors] = useState<Record<string, string>>({})
   const [salesForm, setSalesForm] = useState<SalesBillFormValues>(initialSalesForm())
   const [tradingPurchaseSelectorIds, setTradingPurchaseSelectorIds] = useState<string[]>([''])
   const [showSalesForm, setShowSalesForm] = useState(false)
-  const [showStockIssueDetail, setShowStockIssueDetail] = useState<StockIssueRow | null>(null)
-  const [showStockIssueForm, setShowStockIssueForm] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [showMobileFilters, setShowMobileFilters] = useState(false)
-  const [stockIssueForm, setStockIssueForm] = useState<StockIssueFormValues>({ date: new Date().toISOString().slice(0, 10), deliveryTicketId: '', note: '', prices: {} })
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [statusFilter, setStatusFilter] = useState<string[]>([])
@@ -716,11 +640,10 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const latestDetailRequestRef = useRef(0)
   const tableColumns = useMemo(() => {
     if (mode === 'purchase') return purchaseBillColumns
-    if (mode === 'sales') return salesBillColumns
-    return stockIssueColumns
+    return salesBillColumns
   }, [mode])
   const columnResize = useResizableColumns(`daily.transaction-bills.${mode}.v5`, tableColumns)
-  const apiPath = mode === 'purchase' ? '/api/purchase/bills' : mode === 'sales' ? '/api/sales/bills' : '/api/sales/stock-issue'
+  const apiPath = mode === 'purchase' ? '/api/purchase/bills' : '/api/sales/bills'
   const requestPath = useMemo(() => {
     const params = new URLSearchParams({
       page: String(page),
@@ -732,9 +655,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     if (search.trim()) params.set('search', search.trim())
     if (dateFrom) params.set('dateFrom', dateFrom)
     if (dateTo) params.set('dateTo', dateTo)
-    if ((mode === 'purchase' || mode === 'sales') && filterMode) params.set('filterMode', filterMode)
-    if ((mode === 'purchase' || mode === 'sales') && statusFilter.length > 0) params.set('status', statusFilter.join(','))
-    if (mode === 'stock-issue' && filterMode) params.set('status', filterMode)
+    if (filterMode) params.set('filterMode', filterMode)
+    if (statusFilter.length > 0) params.set('status', statusFilter.join(','))
     return `${apiPath}?${params.toString()}`
   }, [apiPath, branchFilter, dateFrom, dateTo, filterMode, mode, page, pageSize, search, sortDirection, sortKey, statusFilter])
 
@@ -743,7 +665,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     branchFilter !== '' ||
     dateFrom !== '' ||
     dateTo !== '' ||
-    filterMode !== (mode === 'stock-issue' ? 'pending' : '') ||
+    filterMode !== '' ||
     statusFilter.length > 0
   )
 
@@ -795,22 +717,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           tradingCostSources: payload.tradingCostSources ?? [],
           warehouses: payload.warehouses,
         }))
-      } else {
-        const payload = await dailyFetchJson<TransactionPayload>(requestPath)
-        if (latestLoadRequestRef.current !== requestId) return
-        setRows(payload.rows)
-        setTotalAmount(payload.totalAmount ?? 0)
-        setTotalRows(payload.totalRows ?? payload.rows.length)
-        setOptions((current) => ({
-          ...current,
-          branches: 'branches' in payload && Array.isArray(payload.branches) ? payload.branches as Option[] : current.branches,
-          customers: 'customers' in payload && Array.isArray(payload.customers) ? payload.customers as Option[] : current.customers,
-          deliveries: 'deliveries' in payload && Array.isArray(payload.deliveries) ? payload.deliveries as DeliveryOption[] : current.deliveries,
-          products: 'products' in payload && Array.isArray(payload.products) ? payload.products as Option[] : current.products,
-          salesChannels: 'salesChannels' in payload && Array.isArray(payload.salesChannels) ? payload.salesChannels as Option[] : current.salesChannels,
-          tradingCostSources: 'tradingCostSources' in payload && Array.isArray(payload.tradingCostSources) ? payload.tradingCostSources as Option[] : current.tradingCostSources,
-          warehouses: 'warehouses' in payload && Array.isArray(payload.warehouses) ? payload.warehouses as Option[] : current.warehouses,
-        }))
       }
     } catch (caught) {
       if (latestLoadRequestRef.current !== requestId) return
@@ -840,7 +746,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const currentPage = Math.min(page, totalPages)
   const pageRows = rows
   const total = totalAmount
-  const title = mode === 'purchase' ? 'บิลรับซื้อ' : mode === 'sales' ? 'บิลขาย' : 'เบิกออกรอบิล'
+  const title = mode === 'purchase' ? 'บิลรับซื้อ' : 'บิลขาย'
   const activeBranches = options.branches.filter((option) => option.active !== false)
   const resolvedPreferredBranchId = preferredBranchId && activeBranches.some((branch) => branch.id === preferredBranchId) ? preferredBranchId : null
   const activePoBuys = options.poBuys.filter((option) => option.active !== false && (!form.supplierId || option.supplier_id === form.supplierId))
@@ -933,7 +839,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     ?? (selectedSupplier?.sales_id
       ? options.salespersons.find((salesperson) => salesperson.id === selectedSupplier.sales_id)?.name ?? null
       : null)
-  const editingBill = editingBillId ? rows.find((row): row is BillRow => !isStockIssueRow(row) && row.id === editingBillId) : null
+  const editingBill = editingBillId ? rows.find((row) => row.id === editingBillId) ?? null : null
   const formVatRatePercent = editingBill?.vatRatePercent ?? vatRatePercent
   const formSubtotal = form.items.reduce((sum, item) => sum + Math.max(0, item.qty * item.price), 0)
   const formTotalWeight = form.items.reduce((sum, item) => sum + item.qty, 0)
@@ -962,24 +868,18 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const salesCustomerAdvanceApplied = selectedCustomerAdvancePayment ? Math.min(salesTotal, selectedCustomerAdvancePayment.remainingAmount ?? 0) : 0
   const salesReceivableBalance = Math.max(0, salesTotal - salesCustomerAdvanceApplied)
   const vatLabel = `VAT ${formatPercent(formVatRatePercent)}%`
-  const visibleBills = pageRows.filter((row): row is BillRow => !isStockIssueRow(row))
-  const visibleTotal = visibleBills.reduce((sum, row) => sum + (row.totalAmount ?? 0), 0)
-  const visibleOutstanding = visibleBills.reduce((sum, row) => sum + (mode === 'purchase' ? row.payableBalance ?? 0 : row.receivableBalance ?? 0), 0)
-  const visiblePaid = visibleBills.reduce((sum, row) => sum + (mode === 'purchase' ? row.paidAmount ?? 0 : row.receivedAmount ?? 0), 0)
-  const visibleGp = visibleBills.reduce((sum, row) => sum + (row.grossProfit ?? 0), 0)
-  const visibleStockCount = visibleBills.filter((row) => (row.transactionMode ?? 'STOCK') === 'STOCK').length
-  const visibleTradingCount = visibleBills.filter((row) => row.transactionMode === 'TRADING').length
+  const visibleTotal = pageRows.reduce((sum, row) => sum + (row.totalAmount ?? 0), 0)
+  const visibleOutstanding = pageRows.reduce((sum, row) => sum + (mode === 'purchase' ? row.payableBalance ?? 0 : row.receivableBalance ?? 0), 0)
+  const visiblePaid = pageRows.reduce((sum, row) => sum + (mode === 'purchase' ? row.paidAmount ?? 0 : row.receivedAmount ?? 0), 0)
+  const visibleGp = pageRows.reduce((sum, row) => sum + (row.grossProfit ?? 0), 0)
+  const visibleStockCount = pageRows.filter((row) => (row.transactionMode ?? 'STOCK') === 'STOCK').length
+  const visibleTradingCount = pageRows.filter((row) => row.transactionMode === 'TRADING').length
   const visibleMarginPct = visibleTotal > 0 ? visibleGp / visibleTotal * 100 : 0
-  const stockIssueRows = pageRows.filter(isStockIssueRow)
-  const stockIssueQty = stockIssueRows.reduce((sum, row) => sum + (row.totalQty ?? 0), 0)
-  const stockIssueCost = stockIssueRows.reduce((sum, row) => sum + row.totalCost, 0)
-  const stockIssueEst = stockIssueRows.reduce((sum, row) => sum + row.totalEstAmount, 0)
   const cancelDialogPartyName = (() => {
     if (!cancelingBill) return '-'
-    if (isStockIssueRow(cancelingBill)) return cancelingBill.customerName
     return mode === 'sales' ? cancelingBill.customerName ?? '-' : cancelingBill.supplierName ?? '-'
   })()
-  const tableColSpan = mode === 'purchase' ? 11 : mode === 'sales' ? 15 : 10
+  const tableColSpan = mode === 'purchase' ? 11 : 15
   const statusOptions = mode === 'purchase' ? purchaseStatusOptions : salesStatusOptions
   const selectedReceipt = (() => {
     if (!form.receiptTicketId) return null
@@ -1046,9 +946,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     : activeReceipts
   const selectedDelivery = salesForm.deliveryTicketId
     ? (options.deliveries ?? []).find((delivery) => delivery.id === salesForm.deliveryTicketId) ?? null
-    : null
-  const selectedStockIssueDelivery = stockIssueForm.deliveryTicketId
-    ? (options.deliveries ?? []).find((delivery) => delivery.id === stockIssueForm.deliveryTicketId) ?? null
     : null
   const stockDeliveryPrerequisiteReady = (salesForm.transactionMode !== 'STOCK' && salesForm.transactionMode !== 'TRADING') || (Boolean(salesForm.branchId) && Boolean(salesForm.customerId))
   const stockDeliveryLocked = salesForm.transactionMode === 'STOCK' && Boolean(salesForm.deliveryTicketId)
@@ -1360,8 +1257,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     setSortDirection(nextKey === 'date' || nextKey === 'totalAmount' || nextKey === 'outstanding' ? 'desc' : 'asc')
   }
 
-  async function openRow(row: BillRow | StockIssueRow) {
-    if ((mode !== 'purchase' && mode !== 'sales') || isStockIssueRow(row)) return
+  async function openRow(row: BillRow) {
     const docNo = row.docNo || row.id
     const requestId = latestDetailRequestRef.current + 1
     latestDetailRequestRef.current = requestId
@@ -1475,116 +1371,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     setSalesFieldErrors({})
     setError(null)
     setShowSalesForm(true)
-  }
-
-  async function openStockIssueForm() {
-    setEditingStockIssueDocNo(null)
-    setStockIssueForm({ date: new Date().toISOString().slice(0, 10), deliveryTicketId: '', note: '', prices: {} })
-    setError(null)
-    await loadData()
-    setShowStockIssueForm(true)
-  }
-
-  function stockIssueToDelivery(row: StockIssueRow): DeliveryOption {
-    const firstDeliveryDocNo = row.items?.find((item) => item.deliveryTicketDocNo || item.deliveryTicketId)?.deliveryTicketDocNo
-      ?? row.items?.find((item) => item.deliveryTicketId)?.deliveryTicketId
-      ?? row.docNo
-    const productSummaries = (row.items ?? []).map((item, index) => {
-      const productId = item.productCode ?? item.productId ?? ''
-      const qty = Number(item.qty ?? 0)
-      return {
-        billedWeight: 0,
-        deductWeight: 0,
-        grossWeight: qty,
-        hasMixedDeductionProfiles: false,
-        id: `${row.docNo}:${productId || index + 1}:${index + 1}`,
-        lineCount: 1,
-        netWeight: qty,
-        productId,
-        productName: item.productName ?? productId,
-        remainingWeight: qty,
-        sourceLineIds: [String(item.sourceLineNo ?? item.lineNo ?? index + 1)],
-      }
-    })
-    return {
-      branchId: row.branchId,
-      branchName: row.branchName,
-      customerId: row.customerId,
-      documentDate: row.date,
-      documentNo: firstDeliveryDocNo,
-      id: firstDeliveryDocNo,
-      lines: productSummaries.map((summary, index) => ({
-        deductWeight: 0,
-        grossWeight: summary.grossWeight,
-        id: summary.sourceLineIds[0] ?? String(index + 1),
-        lineNo: index + 1,
-        netWeight: summary.netWeight,
-        note: '',
-        productId: summary.productId,
-        productName: summary.productName,
-        remainingQty: summary.remainingWeight,
-        usedQty: 0,
-      })),
-      partyName: row.customerName,
-      productSummaries,
-      status: 'pending_sale',
-      vehicleNo: '',
-    }
-  }
-
-  function openSalesFromStockIssue(row: StockIssueRow) {
-    const delivery = stockIssueToDelivery(row)
-    setOptions((current) => ({
-      ...current,
-      deliveries: current.deliveries.some((item) => item.id === delivery.id)
-        ? current.deliveries.map((item) => item.id === delivery.id ? delivery : item)
-        : [delivery, ...current.deliveries],
-    }))
-    setLockedReceiptSnapshot(null)
-    setSalesForm({
-      ...initialSalesForm(),
-      branchId: row.branchId,
-      customerId: row.customerId,
-      deliveryTicketId: delivery.id,
-      items: deliveryToSalesItems(delivery).map((item, index) => ({
-        ...item,
-        price: Number(row.items?.[index]?.price ?? 0),
-      })),
-      pendingStockIssueId: row.docNo,
-      refNo: row.docNo,
-    })
-    setTradingPurchaseSelectorIds([''])
-    setSalesFieldErrors({})
-    setError(null)
-    setShowSalesForm(true)
-  }
-
-  function openEditStockIssue(row: StockIssueRow) {
-    if (row.status !== 'pending' || row.convertedToBillId) {
-      setError('แก้ไขได้เฉพาะรายการที่ยังไม่ถูกดึงไปเปิดบิลขาย')
-      return
-    }
-    const delivery = stockIssueToDelivery(row)
-    const prices = (row.items ?? []).reduce<Record<string, number>>((nextPrices, item) => {
-      const productId = item.productCode ?? item.productId ?? ''
-      if (productId) nextPrices[productId] = Number(item.price ?? 0)
-      return nextPrices
-    }, {})
-    setOptions((current) => ({
-      ...current,
-      deliveries: current.deliveries.some((item) => item.id === delivery.id)
-        ? current.deliveries.map((item) => item.id === delivery.id ? delivery : item)
-        : [delivery, ...current.deliveries],
-    }))
-    setEditingStockIssueDocNo(row.docNo)
-    setStockIssueForm({
-      date: row.date,
-      deliveryTicketId: delivery.id,
-      note: row.note ?? '',
-      prices,
-    })
-    setError(null)
-    setShowStockIssueForm(true)
   }
 
   function purchaseFormFromRow(row: BillRow): PurchaseBillFormValues {
@@ -1712,17 +1498,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   function openCancelPurchaseBill(row: BillRow) {
     if (row.canEdit === false) {
       setError(row.lockedReason ?? 'บิลนี้ยังยกเลิกไม่ได้')
-      return
-    }
-    setCancelingBill(row)
-    setCancelNote('')
-    setCancelNoteError('')
-    setError(null)
-  }
-
-  function openCancelStockIssue(row: StockIssueRow) {
-    if (row.status !== 'pending') {
-      setError('ยกเลิกได้เฉพาะรายการที่ยังรอเปิดบิล')
       return
     }
     setCancelingBill(row)
@@ -2011,7 +1786,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 
       if (key === 'branchId' || key === 'customerId' || key === 'transactionMode') {
         next.deliveryTicketId = null
-        next.pendingStockIssueId = null
         if (key === 'customerId') next.customerAdvanceId = null
         if (key === 'transactionMode' && value === 'STOCK') {
           next.items = [blankSalesItem()]
@@ -2043,7 +1817,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           next.items = delivery ? deliveryToSalesItems(delivery) : [blankSalesItem()]
         }
         next.note = null
-        next.pendingStockIssueId = null
       }
 
       return next
@@ -2414,42 +2187,9 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     }
   }
 
-  async function saveStockIssue() {
-    if (!stockIssueForm.deliveryTicketId) {
-      setError('เลือกใบส่งของ WTO ก่อนบันทึกเบิกออกรอบิล')
-      return
-    }
-    setIsSaving(true)
-    setError(null)
-    try {
-      const created = await dailyFetchJson<{ docNo: string }>('/api/sales/stock-issue', {
-        body: JSON.stringify({
-          ...(editingStockIssueDocNo ? { action: 'edit', docNo: editingStockIssueDocNo } : {}),
-          date: stockIssueForm.date,
-          deliveryTicketId: stockIssueForm.deliveryTicketId,
-          note: stockIssueForm.note || null,
-          prices: stockIssueForm.prices,
-        }),
-        method: editingStockIssueDocNo ? 'PATCH' : 'POST',
-      })
-      setEditingStockIssueDocNo(null)
-      setShowStockIssueForm(false)
-      setSearch(created.docNo)
-      await loadData()
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'บันทึกเบิกออกรอบิลไม่ได้')
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
   async function cancelBill() {
     if (!cancelingBill) return
-    if (mode !== 'stock-issue' && isStockIssueRow(cancelingBill)) {
-      setError('เอกสารที่เลือกไม่ตรงกับหน้าปัจจุบัน')
-      return
-    }
-    const parsed = mode === 'sales' || mode === 'stock-issue'
+    const parsed = mode === 'sales'
       ? salesBillCancelSchema.safeParse({ note: cancelNote })
       : purchaseBillCancelSchema.safeParse({ action: 'cancel', id: cancelingBill.id, note: cancelNote })
     if (!parsed.success) {
@@ -2467,11 +2207,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           body: JSON.stringify(payload),
           method: 'PATCH',
         })
-      } else if (mode === 'stock-issue') {
-        await dailyFetchJson('/api/sales/stock-issue', {
-          body: JSON.stringify({ action: 'cancel', docNo: cancelingBill.docNo, note: (parsed.data as SalesBillCancelValues).note }),
-          method: 'PATCH',
-        })
       } else {
         const payload: PurchaseBillCancelValues & { action: 'cancel' } = { ...(parsed.data as PurchaseBillCancelValues), action: 'cancel' }
         await dailyFetchJson('/api/purchase/bills', {
@@ -2486,7 +2221,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       setCancelNote('')
       await loadData()
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : mode === 'sales' ? 'ยกเลิกบิลขายไม่ได้' : mode === 'stock-issue' ? 'ยกเลิกเบิกออกรอบิลไม่ได้' : 'ยกเลิกบิลรับซื้อไม่ได้')
+      setError(caught instanceof Error ? caught.message : mode === 'sales' ? 'ยกเลิกบิลขายไม่ได้' : 'ยกเลิกบิลรับซื้อไม่ได้')
     } finally {
       setIsSaving(false)
     }
@@ -2526,15 +2261,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 
   return (
     <section className="space-y-4">
-      {mode === 'stock-issue' ? (
-        <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4 text-sm">
-          <TransactionKpi label="⏰ Pending / รายการ" tone="amber" value={`${totalRows.toLocaleString('th-TH')} ใบ`} />
-          <TransactionKpi label="น้ำหนักรวมในหน้า" tone="blue" value={`${formatMoney(stockIssueQty)} กก.`} />
-          <TransactionKpi label="ต้นทุน (WAC)" tone="red" value={formatMoney(stockIssueCost)} />
-          <TransactionKpi label="ยอดขายคาด" tone="emerald" value={formatMoney(stockIssueEst || total)} />
-        </div>
-      ) : null}
-
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       {/* Desktop Toolbar (Hidden on Mobile) */}
@@ -2542,7 +2268,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         <div className="flex flex-wrap items-center gap-2">
           <Input
             className="min-w-[260px] flex-1 rounded-md"
-            placeholder={mode === 'purchase' ? 'ค้นหาเลขบิล / เลขอ้างอิง / ชื่อ Supplier...' : mode === 'sales' ? 'ค้นหาเลขบิล / เลขอ้างอิง / ชื่อลูกค้า...' : 'ค้นหาเลขที่ / ชื่อ / สาขา / คลัง'}
+            placeholder={mode === 'purchase' ? 'ค้นหาเลขบิล / เลขอ้างอิง / ชื่อ Supplier...' : 'ค้นหาเลขบิล / เลขอ้างอิง / ชื่อลูกค้า...'}
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -2569,35 +2295,19 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           {mode === 'purchase' ? <Button type="button" className="hidden lg:inline-flex" onClick={openPurchaseForm}>+ บิลรับซื้อใหม่</Button> : null}
           {mode === 'sales' ? <ExportButton isExporting={isExporting} onClick={() => void exportExcel()} /> : null}
           {mode === 'sales' ? <Button disabled={isSaving} type="button" className="hidden lg:inline-flex" onClick={openSalesForm}>+ บิลขายใหม่</Button> : null}
-          {mode === 'stock-issue' ? (
-            <Button className="hidden lg:inline-flex ml-auto" disabled={isSaving} type="button" onClick={() => void openStockIssueForm()}>+ เบิกออกใหม่</Button>
-          ) : null}
         </div>
-        {mode === 'stock-issue' ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="w-14 shrink-0 text-xs text-slate-500">สถานะ:</span>
-            <Segment value="" current={filterMode} label="ทั้งหมด" onClick={setFilterMode} />
-            <Segment value="pending" current={filterMode} label="⏰ Pending" onClick={setFilterMode} />
-            <Segment value="converted" current={filterMode} label="✓ เปิดบิลแล้ว" onClick={setFilterMode} />
-            <Segment value="cancelled" current={filterMode} label="⊘ ยกเลิก" onClick={setFilterMode} />
-          </div>
-        ) : null}
-        {mode === 'purchase' || mode === 'sales' ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="w-14 shrink-0 text-xs text-slate-500">ประเภท:</span>
-            <Segment value="" current={filterMode} label="ทุกประเภท" onClick={setFilterMode} />
-            <Segment value="STOCK" current={filterMode} label="📦 STOCK" onClick={setFilterMode} />
-            <Segment value="TRADING" current={filterMode} label="🔄 TRADING" onClick={setFilterMode} />
-          </div>
-        ) : null}
-        {mode === 'purchase' || mode === 'sales' ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="w-14 shrink-0 text-xs text-slate-500">สถานะ:</span>
-            {statusOptions.map((option) => (
-              <SegmentMulti key={option.label} current={statusFilter} label={option.label} onClick={setStatusFilter} values={option.values} />
-            ))}
-          </div>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="w-14 shrink-0 text-xs text-slate-500">ประเภท:</span>
+          <Segment value="" current={filterMode} label="ทุกประเภท" onClick={setFilterMode} />
+          <Segment value="STOCK" current={filterMode} label="📦 STOCK" onClick={setFilterMode} />
+          <Segment value="TRADING" current={filterMode} label="🔄 TRADING" onClick={setFilterMode} />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="w-14 shrink-0 text-xs text-slate-500">สถานะ:</span>
+          {statusOptions.map((option) => (
+            <SegmentMulti key={option.label} current={statusFilter} label={option.label} onClick={setStatusFilter} values={option.values} />
+          ))}
+        </div>
       </div>
 
       {/* Mobile Toolbar (Hidden on Desktop) */}
@@ -2605,7 +2315,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         <div className="flex gap-2 items-center">
           <Input
             className="min-w-[200px] flex-1 rounded-md h-9"
-            placeholder={mode === 'purchase' ? 'ค้นหาเลขบิล / ผู้ขาย...' : mode === 'sales' ? 'ค้นหาเลขบิล / ลูกค้า...' : 'ค้นหาเลขที่ / ชื่อ...'}
+            placeholder={mode === 'purchase' ? 'ค้นหาเลขบิล / ผู้ขาย...' : 'ค้นหาเลขบิล / ลูกค้า...'}
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -2662,36 +2372,22 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 </div>
               ) : null}
 
-              {mode === 'purchase' || mode === 'sales' ? (
-                <>
-                  <div>
-                    <span className="mb-1 block text-xs font-semibold text-slate-600">ประเภท</span>
-                    <div className="flex flex-wrap gap-2">
-                      <Segment value="" current={filterMode} label="ทุกประเภท" onClick={setFilterMode} />
-                      <Segment value="STOCK" current={filterMode} label="📦 STOCK" onClick={setFilterMode} />
-                      <Segment value="TRADING" current={filterMode} label="🔄 TRADING" onClick={setFilterMode} />
-                    </div>
+                <div>
+                  <span className="mb-1 block text-xs font-semibold text-slate-600">ประเภท</span>
+                  <div className="flex flex-wrap gap-2">
+                    <Segment value="" current={filterMode} label="ทุกประเภท" onClick={setFilterMode} />
+                    <Segment value="STOCK" current={filterMode} label="📦 STOCK" onClick={setFilterMode} />
+                    <Segment value="TRADING" current={filterMode} label="🔄 TRADING" onClick={setFilterMode} />
                   </div>
-                  <div>
-                    <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะ</span>
-                    <div className="flex flex-wrap gap-2">
-                      {statusOptions.map((option) => (
-                        <SegmentMulti key={option.label} current={statusFilter} label={option.label} onClick={setStatusFilter} values={option.values} />
-                      ))}
-                    </div>
-                  </div>
-                </>
-              ) : (
+                </div>
                 <div>
                   <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะ</span>
                   <div className="flex flex-wrap gap-2">
-                    <Segment value="" current={filterMode} label="ทั้งหมด" onClick={setFilterMode} />
-                    <Segment value="pending" current={filterMode} label="⏰ Pending" onClick={setFilterMode} />
-                    <Segment value="converted" current={filterMode} label="✓ เปิดบิลแล้ว" onClick={setFilterMode} />
-                    <Segment value="cancelled" current={filterMode} label="⊘ ยกเลิก" onClick={setFilterMode} />
+                    {statusOptions.map((option) => (
+                      <SegmentMulti key={option.label} current={statusFilter} label={option.label} onClick={setStatusFilter} values={option.values} />
+                    ))}
                   </div>
                 </div>
-              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3 mt-6 pt-3 border-t border-slate-100">
@@ -2745,16 +2441,15 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         ) : null}
         
         {!isLoading && pageRows.map((row) => {
-          const isStockIssue = isStockIssueRow(row)
-          const name = isStockIssue ? row.customerName : ('supplierName' in row ? row.supplierName : row.customerName)
-          const subValue = isStockIssue ? row.totalCost : ('payableBalance' in row ? (mode === 'purchase' ? row.payableBalance : row.receivableBalance) : 0)
-          const totalVal = isStockIssue ? row.totalEstAmount : (row.totalAmount ?? 0)
-          
+          const name = mode === 'purchase' ? row.supplierName : row.customerName
+          const subValue = mode === 'purchase' ? row.payableBalance : row.receivableBalance
+          const totalVal = row.totalAmount ?? 0
+
           return (
             <div
               key={row.id}
               className={`rounded-md border border-slate-100 p-4 shadow-sm transition-colors ${row.status === 'cancelled' ? 'bg-red-100/60 active:bg-red-200/60 text-slate-400' : 'bg-white active:bg-slate-50'} cursor-pointer`}
-              onClick={() => !isStockIssue && openRow(row)}
+              onClick={() => openRow(row)}
             >
               <div className="flex justify-between items-start mb-2">
                 <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
@@ -2766,60 +2461,40 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                   <span className="font-semibold text-slate-500">{mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า'}: </span>
                   <span className="text-slate-800">{name}</span>
                 </div>
-                {!isStockIssue && (
-                  <div>
-                    <span className="font-semibold text-slate-500">ประเภท: </span>
-                    <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${row.transactionMode === 'TRADING' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>
-                      {row.transactionMode ?? '-'}
-                    </span>
+                <div>
+                  <span className="font-semibold text-slate-500">ประเภท: </span>
+                  <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${row.transactionMode === 'TRADING' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>
+                    {row.transactionMode ?? '-'}
+                  </span>
+                </div>
+                {row.note?.trim() ? (
+                  <div className="text-[11px] text-slate-400 truncate">
+                    หมายเหตุ: {row.note}
                   </div>
-                )}
-                {isStockIssue ? (
-                  <div>
-                    <span className="font-semibold text-slate-500">สาขา/คลัง: </span>
-                    <span className="text-slate-800">{formatBranchWarehouse(row)}</span>
-                  </div>
-                ) : (
-                  row.note?.trim() ? (
-                    <div className="text-[11px] text-slate-400 truncate">
-                      หมายเหตุ: {row.note}
-                    </div>
-                  ) : null
-                )}
+                ) : null}
               </div>
 
               <div className="flex justify-between items-end pt-2 border-t border-slate-100">
                 <div>
-                  <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${isStockIssue ? (row.status === 'cancelled' ? 'text-slate-500' : row.status === 'converted' ? 'text-emerald-700' : 'text-amber-700') : (mode === 'purchase' ? workflowStatusBadgeClass(row.paymentWorkflowStatus ?? 'pending_approval') : statusBadgeClass(row.status))}`}>
+                  <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${mode === 'purchase' ? workflowStatusBadgeClass(row.paymentWorkflowStatus ?? 'pending_approval') : statusBadgeClass(row.status)}`}>
                     <span className="size-1.5 rounded-full bg-current" />
-                    {isStockIssue ? statusText(row.status) : (mode === 'purchase' ? workflowStatusText(row.paymentWorkflowStatus ?? 'pending_approval') : statusText(row.status))}
+                    {mode === 'purchase' ? workflowStatusText(row.paymentWorkflowStatus ?? 'pending_approval') : statusText(row.status)}
                   </span>
                   <div className="mt-1 text-[11px] font-bold text-blue-700">
                     {formatMoney(totalVal)} บาท
                   </div>
                 </div>
                 <div className="text-right">
-                  {isStockIssue ? (
-                    <>
-                      <span className="text-[10px] text-slate-400 block">ต้นทุน (WAC)</span>
-                      <span className="font-bold text-slate-900 text-sm tabular-nums">
-                        {formatMoney(subValue ?? 0)} บาท
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-[10px] text-slate-400 block">ค้างจ่าย/ค้างรับ</span>
-                      <span className="font-bold text-amber-600 text-sm tabular-nums">
-                        {formatMoney(subValue ?? 0)} บาท
-                      </span>
-                    </>
-                  )}
+                  <span className="text-[10px] text-slate-400 block">ค้างจ่าย/ค้างรับ</span>
+                  <span className="font-bold text-amber-600 text-sm tabular-nums">
+                    {formatMoney(subValue ?? 0)} บาท
+                  </span>
                 </div>
               </div>
 
               {/* Mobile Action Buttons (Inline in Card) */}
               <div className="flex justify-end gap-2 mt-3 pt-2 border-t border-slate-100/60" onClick={(e) => e.stopPropagation()}>
-                {mode === 'purchase' && !isStockIssue ? (
+                {mode === 'purchase' ? (
                   <>
                     <button
                       className="inline-flex items-center gap-1 rounded-md border border-emerald-200 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
@@ -2848,7 +2523,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                   </>
                 ) : null}
 
-                {mode === 'sales' && !isStockIssue ? (
+                {mode === 'sales' ? (
                   <>
                     <button
                       className="inline-flex items-center gap-1 rounded-md border border-emerald-200 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
@@ -2889,41 +2564,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                   </>
                 ) : null}
 
-                {mode === 'stock-issue' && isStockIssue ? (
-                  <>
-                    <button
-                      className="rounded-md border border-emerald-200 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
-                      disabled={row.status !== 'pending'}
-                      type="button"
-                      onClick={() => openSalesFromStockIssue(row)}
-                    >
-                      เปิดบิลขาย
-                    </button>
-                    <button
-                      className="rounded-md border border-slate-300 px-2.5 py-1 text-xs hover:bg-slate-50"
-                      type="button"
-                      onClick={() => setShowStockIssueDetail(row)}
-                    >
-                      ประวัติ
-                    </button>
-                    <button
-                      className="rounded-md border border-slate-300 px-2.5 py-1 text-xs hover:bg-slate-50 disabled:opacity-50"
-                      disabled={row.status !== 'pending' || Boolean(row.convertedToBillId)}
-                      type="button"
-                      onClick={() => openEditStockIssue(row)}
-                    >
-                      แก้ไข
-                    </button>
-                    <button
-                      className="rounded-md border border-red-200 px-2.5 py-1 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
-                      disabled={row.status !== 'pending'}
-                      type="button"
-                      onClick={() => openCancelStockIssue(row)}
-                    >
-                      ยกเลิก
-                    </button>
-                  </>
-                ) : null}
               </div>
             </div>
           )
@@ -2953,51 +2593,47 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label={mode === 'purchase' ? 'วันที่สร้างรายการ' : 'วันที่'} resizeProps={columnResize.getResizeHandleProps('date', mode === 'purchase' ? 'วันที่สร้างรายการ' : 'วันที่')} sortKey="date" onSort={changeSort} />
               <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label={mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า'} resizeProps={columnResize.getResizeHandleProps('partyName', mode === 'purchase' ? 'ผู้ขาย' : 'ลูกค้า')} sortKey="name" onSort={changeSort} />
               {mode !== 'purchase' ? <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label="สาขา / คลัง" resizeProps={columnResize.getResizeHandleProps('warehouse', 'สาขา / คลัง')} sortKey="warehouse" onSort={changeSort} /> : null}
-              {mode !== 'stock-issue' ? <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('transactionMode', 'ประเภท')} sortKey="transactionMode" onSort={changeSort} /> : null}
-              <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label={mode === 'purchase' ? 'สถานะเอกสาร' : mode === 'stock-issue' ? 'สถานะ' : 'สถานะรับเงิน'} resizeProps={columnResize.getResizeHandleProps('status', mode === 'purchase' ? 'สถานะเอกสาร' : mode === 'stock-issue' ? 'สถานะ' : 'สถานะรับเงิน')} sortKey="status" onSort={changeSort} />
+              <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label="ประเภท" resizeProps={columnResize.getResizeHandleProps('transactionMode', 'ประเภท')} sortKey="transactionMode" onSort={changeSort} />
+              <SortHeader activeKey={sortKey} align="center" direction={sortDirection} label={mode === 'purchase' ? 'สถานะเอกสาร' : 'สถานะรับเงิน'} resizeProps={columnResize.getResizeHandleProps('status', mode === 'purchase' ? 'สถานะเอกสาร' : 'สถานะรับเงิน')} sortKey="status" onSort={changeSort} />
               {mode === 'purchase' ? <ResizableTableHead label="PMA / PMT" resizeProps={columnResize.getResizeHandleProps('paymentDocs', 'PMA / PMT')} /> : null}
               {mode !== 'purchase' ? <SortHeader activeKey={sortKey} align="right" direction={sortDirection} label="รายการ" resizeProps={columnResize.getResizeHandleProps('itemCount', 'รายการ')} sortKey="itemCount" onSort={changeSort} /> : null}
-              {mode === 'stock-issue' ? <ResizableTableHead align="right" label="น้ำหนัก" resizeProps={columnResize.getResizeHandleProps('stockQty', 'น้ำหนัก')} /> : null}
-              {mode === 'stock-issue' ? <ResizableTableHead align="right" label="ต้นทุน" resizeProps={columnResize.getResizeHandleProps('stockCost', 'ต้นทุน')} /> : null}
-              <SortHeader activeKey={sortKey} align="right" direction={sortDirection} label={mode === 'stock-issue' ? 'ยอดคาด' : 'ยอดรวม'} resizeProps={columnResize.getResizeHandleProps('totalAmount', mode === 'stock-issue' ? 'ยอดคาด' : 'ยอดรวม')} sortKey="totalAmount" onSort={changeSort} />
+              <SortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ยอดรวม" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'ยอดรวม')} sortKey="totalAmount" onSort={changeSort} />
               {mode === 'sales' ? <ResizableTableHead align="right" label="GP / Margin" resizeProps={columnResize.getResizeHandleProps('gp', 'GP / Margin')} /> : null}
               {mode === 'sales' ? <ResizableTableHead align="right" label="รับแล้ว" resizeProps={columnResize.getResizeHandleProps('paidAmount', 'รับแล้ว')} /> : null}
-              {mode !== 'stock-issue' ? <SortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ค้างชำระ" resizeProps={columnResize.getResizeHandleProps('outstanding', 'ค้างชำระ')} sortKey="outstanding" onSort={changeSort} /> : null}
+              <SortHeader activeKey={sortKey} align="right" direction={sortDirection} label="ค้างชำระ" resizeProps={columnResize.getResizeHandleProps('outstanding', 'ค้างชำระ')} sortKey="outstanding" onSort={changeSort} />
               {mode === 'sales' ? <ResizableTableHead align="center" label="VAT" resizeProps={columnResize.getResizeHandleProps('vat', 'VAT')} /> : null}
-              {mode !== 'stock-issue' ? <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label="อัพเดตล่าสุด" resizeProps={columnResize.getResizeHandleProps('updatedBy', 'อัพเดตล่าสุด')} sortKey="updatedBy" onSort={changeSort} /> : null}
+              <SortHeader activeKey={sortKey} align="left" direction={sortDirection} label="อัพเดตล่าสุด" resizeProps={columnResize.getResizeHandleProps('updatedBy', 'อัพเดตล่าสุด')} sortKey="updatedBy" onSort={changeSort} />
               <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
             </tr>
           </TableHeader>
           <TableBody className="divide-y divide-slate-100">
             {isLoading ? <TableRow><td className="p-6 text-center text-slate-500" colSpan={tableColSpan}>กำลังโหลดข้อมูล</td></TableRow> : null}
             {!isLoading && pageRows.map((row) => (
-              <TableRow key={row.id} className={`${row.status === 'cancelled' ? 'bg-red-100/60 hover:bg-red-200/60 text-slate-400' : 'hover:bg-slate-50'} ${(mode === 'purchase' || mode === 'sales') && !isStockIssueRow(row) ? 'cursor-pointer' : ''}`} onClick={() => openRow(row)}>
+              <TableRow key={row.id} className={`${row.status === 'cancelled' ? 'bg-red-100/60 hover:bg-red-200/60 text-slate-400' : 'hover:bg-slate-50'} cursor-pointer`} onClick={() => openRow(row)}>
                 <td className="whitespace-nowrap p-2 text-xs font-semibold text-slate-700">{row.docNo}</td>
-                {mode === 'purchase' && !isStockIssueRow(row) ? (
+                {mode === 'purchase' ? (
                   <td className="p-2 text-xs font-semibold text-slate-700">
                     <CollapsedList items={row.receiptDocNos} splitItems={true} />
                   </td>
                 ) : null}
-                {mode === 'sales' && !isStockIssueRow(row) ? <td className="whitespace-nowrap p-2 text-xs font-semibold text-slate-700">{row.refNo || '-'}</td> : null}
+                {mode === 'sales' ? <td className="whitespace-nowrap p-2 text-xs font-semibold text-slate-700">{row.refNo || '-'}</td> : null}
                 <td className="p-2 text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</td>
                 <td className="p-2 text-xs font-semibold text-slate-700">{'supplierName' in row ? row.supplierName : row.customerName}</td>
                 {mode !== 'purchase' ? <td className="p-2 text-xs font-semibold text-slate-700">{formatBranchWarehouse(row)}</td> : null}
-                {mode !== 'stock-issue' && !isStockIssueRow(row) ? <td className="p-2 text-center"><span className={`rounded-md-full px-2 py-0.5 text-xs font-semibold ${row.transactionMode === 'TRADING' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>{row.transactionMode ?? '-'}</span></td> : null}
+                <td className="p-2 text-center"><span className={`rounded-md-full px-2 py-0.5 text-xs font-semibold ${row.transactionMode === 'TRADING' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>{row.transactionMode ?? '-'}</span></td>
                 <td className="p-2 text-center">
-                  <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${mode === 'purchase' && !isStockIssueRow(row) ? workflowStatusBadgeClass(row.paymentWorkflowStatus ?? 'pending_approval') : statusBadgeClass(row.status)}`}>
+                  <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${mode === 'purchase' ? workflowStatusBadgeClass(row.paymentWorkflowStatus ?? 'pending_approval') : statusBadgeClass(row.status)}`}>
                     <span className="size-1.5 rounded-full bg-current" />
-                    {mode === 'purchase' && !isStockIssueRow(row) ? workflowStatusText(row.paymentWorkflowStatus ?? 'pending_approval') : statusText(row.status)}
+                    {mode === 'purchase' ? workflowStatusText(row.paymentWorkflowStatus ?? 'pending_approval') : statusText(row.status)}
                   </span>
                 </td>
-                {mode === 'purchase' && !isStockIssueRow(row) ? <td className="p-2 text-xs font-semibold text-slate-700"><CollapsedList items={row.paymentDocNos} splitItems={true} /></td> : null}
+                {mode === 'purchase' ? <td className="p-2 text-xs font-semibold text-slate-700"><CollapsedList items={row.paymentDocNos} splitItems={true} /></td> : null}
                 {mode !== 'purchase' ? <td className="p-2 pr-4 text-right text-xs font-semibold text-slate-700 tabular-nums">{row.itemCount}</td> : null}
-                {mode === 'stock-issue' && isStockIssueRow(row) ? <TableNumberCell value={formatMoney(row.totalQty ?? 0)} /> : null}
-                {mode === 'stock-issue' && isStockIssueRow(row) ? <TableNumberCell tone="amber" value={formatMoney(row.totalCost)} /> : null}
-                <TableNumberCell strong value={formatMoney(isStockIssueRow(row) ? row.totalEstAmount : row.totalAmount ?? 0)} />
-                {mode === 'sales' && !isStockIssueRow(row) ? <td className={`p-2 pr-4 text-right font-semibold tabular-nums ${(row.grossProfit ?? 0) >= 0 ? 'text-emerald-700' : 'text-red-700'}`}><div>{formatMoney(row.grossProfit ?? 0)}</div><div className="text-xs text-slate-500">{formatMoney((row.totalAmount ?? 0) > 0 ? (row.grossProfit ?? 0) / (row.totalAmount ?? 1) * 100 : 0)}%</div></td> : null}
-                {mode === 'sales' && !isStockIssueRow(row) ? <TableNumberCell value={formatMoney(row.receivedAmount ?? 0)} /> : null}
-                {mode !== 'stock-issue' && !isStockIssueRow(row) ? <TableNumberCell tone="amber" value={formatMoney(mode === 'purchase' ? row.payableBalance ?? 0 : row.receivableBalance ?? 0)} /> : null}
-                {mode === 'sales' && !isStockIssueRow(row) ? (
+                <TableNumberCell strong value={formatMoney(row.totalAmount ?? 0)} />
+                {mode === 'sales' ? <td className={`p-2 pr-4 text-right font-semibold tabular-nums ${(row.grossProfit ?? 0) >= 0 ? 'text-emerald-700' : 'text-red-700'}`}><div>{formatMoney(row.grossProfit ?? 0)}</div><div className="text-xs text-slate-500">{formatMoney((row.totalAmount ?? 0) > 0 ? (row.grossProfit ?? 0) / (row.totalAmount ?? 1) * 100 : 0)}%</div></td> : null}
+                {mode === 'sales' ? <TableNumberCell value={formatMoney(row.receivedAmount ?? 0)} /> : null}
+                <TableNumberCell tone="amber" value={formatMoney(mode === 'purchase' ? row.payableBalance ?? 0 : row.receivableBalance ?? 0)} />
+                {mode === 'sales' ? (
                   <td className="p-2 text-center">
                     {row.vatInvoiceIssued ? (
                       <span className="font-mono text-xs font-semibold text-slate-700">{row.vatInvoiceNo || '-'}</span>
@@ -3006,8 +2642,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     )}
                   </td>
                 ) : null}
-                {mode !== 'stock-issue' && !isStockIssueRow(row) ? <td className="p-2 text-xs font-semibold text-slate-700"><div>{row.updatedBy || row.createdBy || '-'}</div><div className="text-[10px] font-normal text-slate-400">{formatDateTime(row.updatedAt || row.createdAt)}</div></td> : null}
-                {mode === 'purchase' && !isStockIssueRow(row) ? (
+                <td className="p-2 text-xs font-semibold text-slate-700"><div>{row.updatedBy || row.createdBy || '-'}</div><div className="text-[10px] font-normal text-slate-400">{formatDateTime(row.updatedAt || row.createdAt)}</div></td>
+                {mode === 'purchase' ? (
                   <td className="p-2 text-right">
                     <div className="flex justify-end gap-2">
                       <button
@@ -3039,7 +2675,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     </div>
                   </td>
                 ) : null}
-                {mode === 'sales' && !isStockIssueRow(row) ? (
+                {mode === 'sales' ? (
                   <td className="p-2 text-right">
                     <div className="flex justify-end gap-2">
                       <button
@@ -3075,44 +2711,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     </div>
                   </td>
                 ) : null}
-                {mode === 'stock-issue' && isStockIssueRow(row) ? (
-                  <td className="p-2 text-right">
-                    <div className="flex justify-end gap-2 whitespace-nowrap">
-                      <button
-                        className="rounded-md border border-emerald-200 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={row.status !== 'pending'}
-                        type="button"
-                        onClick={(event) => { event.stopPropagation(); openSalesFromStockIssue(row) }}
-	                      >
-	                        เปิดบิลขาย
-	                      </button>
-	                      <button
-	                        className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50"
-	                        type="button"
-	                        onClick={(event) => { event.stopPropagation(); setShowStockIssueDetail(row) }}
-	                      >
-	                        ประวัติ
-	                      </button>
-	                      <button
-	                        className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-	                        disabled={row.status !== 'pending' || Boolean(row.convertedToBillId)}
-	                        title={row.status !== 'pending' || row.convertedToBillId ? 'แก้ไขได้เฉพาะรายการที่ยังไม่ถูกดึงไปเปิดบิลขาย' : undefined}
-	                        type="button"
-	                        onClick={(event) => { event.stopPropagation(); openEditStockIssue(row) }}
-	                      >
-	                        แก้ไข
-	                      </button>
-                      <button
-                        className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={row.status !== 'pending'}
-                        type="button"
-                        onClick={(event) => { event.stopPropagation(); openCancelStockIssue(row) }}
-                      >
-                        ยกเลิก
-                      </button>
-                    </div>
-                  </td>
-                ) : null}
               </TableRow>
             ))}
             {!isLoading && totalRows === 0 ? <TableRow><td className="p-6 text-center text-slate-500" colSpan={tableColSpan}>ยังไม่มีรายการ</td></TableRow> : null}
@@ -3124,7 +2722,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       <div className="fixed bottom-6 right-6 lg:hidden z-10">
         <button
           className="flex size-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 active:scale-95 transition-transform"
-          onClick={mode === 'stock-issue' ? () => void openStockIssueForm() : mode === 'purchase' ? openPurchaseForm : openSalesForm}
+          onClick={mode === 'purchase' ? openPurchaseForm : openSalesForm}
           type="button"
         >
           <Plus className="size-8" />
@@ -3561,115 +3159,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           </div>
         </div>
       ) : null}
-      {showStockIssueForm && mode === 'stock-issue' ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4">
-          <div className="mx-auto my-4 flex max-h-[94vh] max-w-4xl flex-col rounded-md bg-white shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-md bg-slate-900 px-6 py-4 text-white">
-              <div>
-                <h3 className="text-xl font-bold">{editingStockIssueDocNo ? `แก้ไขเบิกออกรอบิล ${editingStockIssueDocNo}` : 'เบิกออกรอบิล'}</h3>
-                <p className="mt-1 text-xs opacity-80">เลือกใบส่งของ WTO เพื่อบันทึก PSALE และตัด stock ทันที</p>
-              </div>
-              <button className="text-3xl leading-none text-white/80 hover:text-white" type="button" onClick={() => { setEditingStockIssueDocNo(null); setShowStockIssueForm(false) }}>&times;</button>
-            </div>
-            <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-6 text-sm">
-              <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="grid gap-3 md:grid-cols-[160px_1fr]">
-                  <Field label="วันที่เบิกออก">
-                    <DatePickerInput id="stock-issue-date" value={stockIssueForm.date} onChange={(date) => setStockIssueForm((current) => ({ ...current, date }))} />
-                  </Field>
-                  <SearchCombobox
-                    inputId="stock-issue-delivery-search"
-                    label="ใบส่งของ WTO *"
-                    options={(options.deliveries ?? []).map((delivery) => ({
-                      description: `${delivery.partyName} · ${formatDateDisplay(delivery.documentDate)} · ${formatMoney(delivery.productSummaries.reduce((sum, summary) => sum + summary.remainingWeight, 0))} กก.`,
-                      id: delivery.id,
-                      label: delivery.documentNo,
-                      searchText: `${delivery.documentNo} ${delivery.partyName} ${delivery.vehicleNo} ${delivery.branchName}`.toLowerCase(),
-                    }))}
-                    placeholder="ค้นหาเลขที่ใบส่งของ"
-                    value={stockIssueForm.deliveryTicketId}
-                    disabled={Boolean(editingStockIssueDocNo)}
-                    onChange={(value) => setStockIssueForm((current) => ({ ...current, deliveryTicketId: value, prices: {} }))}
-                  />
-                </div>
-                {selectedStockIssueDelivery ? (
-                  <div className="mt-4 grid gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs md:grid-cols-4">
-                    <div><div className="font-semibold text-slate-500">ลูกค้า</div><div className="text-slate-900">{selectedStockIssueDelivery.partyName}</div></div>
-                    <div><div className="font-semibold text-slate-500">สาขา</div><div className="text-slate-900">{selectedStockIssueDelivery.branchName}</div></div>
-                    <div><div className="font-semibold text-slate-500">วันที่ WTO</div><div className="text-slate-900">{formatDateDisplay(selectedStockIssueDelivery.documentDate)}</div></div>
-                    <div><div className="font-semibold text-slate-500">น้ำหนักรวม</div><div className="text-slate-900">{formatMoney(selectedStockIssueDelivery.productSummaries.reduce((sum, summary) => sum + summary.remainingWeight, 0))} กก.</div></div>
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-                <h4 className="mb-3 font-bold text-slate-700">รายการสินค้า</h4>
-                {selectedStockIssueDelivery ? (
-                  <div className="overflow-x-auto rounded-md border border-slate-200/60">
-                    <table className="min-w-full text-xs">
-                      <thead className="bg-slate-50 text-slate-500">
-                        <tr>
-                          <th className="p-2 text-left">สินค้า</th>
-                          <th className="p-2 text-right">On hand</th>
-                          <th className="p-2 text-right">Reserved</th>
-                          <th className="p-2 text-right">Available</th>
-                          <th className="p-2 text-right">เบิกออก</th>
-                          <th className="p-2 text-right">หลังเบิก</th>
-                          <th className="p-2 text-right">ราคาขายคาด/หน่วย</th>
-                          <th className="p-2 text-right">ยอดคาด</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {selectedStockIssueDelivery.productSummaries.map((summary) => {
-                          const price = stockIssueForm.prices[summary.productId] ?? 0
-                          const stockPreview = summary.stockPreview ?? {
-                            afterQty: 0,
-                            availableQty: 0,
-                            issueQty: summary.remainingWeight,
-                            onHandQty: 0,
-                            reservedQty: 0,
-                          }
-                          return (
-                            <tr key={summary.id}>
-                              <td className="p-2 font-semibold text-slate-700">{summary.productName}</td>
-                              <td className="p-2 text-right tabular-nums">{formatMoney(stockPreview.onHandQty)}</td>
-                              <td className="p-2 text-right tabular-nums text-amber-700">{formatMoney(stockPreview.reservedQty)}</td>
-                              <td className="p-2 text-right tabular-nums text-blue-700">{formatMoney(stockPreview.availableQty)}</td>
-                              <td className="p-2 text-right font-semibold tabular-nums text-slate-900">{formatMoney(stockPreview.issueQty)}</td>
-                              <td className="p-2 text-right font-semibold tabular-nums text-emerald-700">{formatMoney(stockPreview.afterQty)}</td>
-                              <td className="w-44 p-2">
-                                <InlineMoneyInput
-                                  value={price}
-                                  onChange={(nextPrice) => setStockIssueForm((current) => ({
-                                    ...current,
-                                    prices: { ...current.prices, [summary.productId]: nextPrice },
-                                  }))}
-                                />
-                              </td>
-                              <td className="p-2 text-right font-semibold tabular-nums text-emerald-700">{formatMoney(summary.remainingWeight * price)}</td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="rounded-md border border-dashed border-slate-300 p-6 text-center text-slate-500">เลือกใบส่งของ WTO เพื่อแสดงรายการ</div>
-                )}
-              </div>
-
-              <Field label="หมายเหตุ">
-                <textarea className="w-full rounded-md border px-3 py-2" rows={2} value={stockIssueForm.note} onChange={(event) => setStockIssueForm((current) => ({ ...current, note: event.target.value }))} />
-              </Field>
-            </div>
-            <div className="sticky bottom-0 flex justify-end gap-3 bg-white px-6 py-4">
-              <Button disabled={isSaving} type="button" variant="secondary" onClick={() => { setEditingStockIssueDocNo(null); setShowStockIssueForm(false) }}>ยกเลิก</Button>
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white" disabled={isSaving || !selectedStockIssueDelivery} type="button" onClick={() => void saveStockIssue()}>{isSaving ? 'กำลังบันทึก...' : editingStockIssueDocNo ? 'บันทึกการแก้ไข' : 'บันทึก + ตัด Stock'}</Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-      {showSalesForm && (mode === 'sales' || mode === 'stock-issue') ? (
+      {showSalesForm && mode === 'sales' ? (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4">
           <div className="relative mx-auto my-4 flex max-h-[94vh] w-full max-w-[1480px] flex-col rounded-md bg-white shadow-2xl" data-combobox-portal-root="true">
             <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-md border-b border-slate-800 bg-slate-900 px-6 py-4 text-white">
@@ -4204,12 +3694,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           onPrint={(detail) => void printSalesBill(detail)}
 	        />
 	      ) : null}
-	      {showStockIssueDetail ? (
-	        <StockIssueDetailModal
-	          row={showStockIssueDetail}
-	          onClose={() => setShowStockIssueDetail(null)}
-	        />
-	      ) : null}
 	      {cancelingBill ? (
         <Dialog open={Boolean(cancelingBill)} onOpenChange={(open) => {
           if (open || isSaving) return
@@ -4220,7 +3704,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           <DialogContent aria-labelledby={`${mode}-bill-cancel-title`} hideClose className="top-auto bottom-0 w-full max-w-lg translate-x-[-50%] translate-y-0 rounded-t-2xl md:top-1/2 md:bottom-auto md:-translate-y-1/2 md:rounded-2xl border-0 shadow-2xl p-0 overflow-hidden">
             <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-2xl flex flex-row items-center justify-between shrink-0">
               <div>
-                <DialogTitle id={`${mode}-bill-cancel-title`} className="text-white">ยกเลิก{mode === 'sales' ? 'บิลขาย' : mode === 'stock-issue' ? 'เบิกออกรอบิล' : 'บิลรับซื้อ'} {cancelingBill.docNo}</DialogTitle>
+                <DialogTitle id={`${mode}-bill-cancel-title`} className="text-white">ยกเลิก{mode === 'sales' ? 'บิลขาย' : 'บิลรับซื้อ'} {cancelingBill.docNo}</DialogTitle>
                 <DialogDescription className="text-slate-350">{cancelDialogPartyName}</DialogDescription>
               </div>
               <button
@@ -4974,148 +4458,6 @@ function SegmentMulti({
   )
 }
 
-function StockIssueDetailModal({ onClose, row }: { onClose: () => void; row: StockIssueRow }) {
-  const timeline = row.timeline ?? []
-  return (
-    <Dialog open onOpenChange={(open) => {
-      if (!open) onClose()
-    }}>
-      <DialogContent aria-labelledby="stock-issue-detail-title" className="max-h-[90vh] max-w-5xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" hideClose>
-        <DialogHeader className="p-4 bg-slate-900 text-white shrink-0">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <DialogTitle id="stock-issue-detail-title">รายละเอียดเบิกออกรอบิล</DialogTitle>
-              <DialogDescription className="font-mono text-xs">{row.docNo}</DialogDescription>
-            </div>
-            <button className="rounded-md border border-slate-700 bg-slate-800 text-white hover:bg-slate-700 px-3 py-1.5 text-xs font-semibold" type="button" onClick={onClose}>ปิด</button>
-          </div>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-y-auto bg-slate-50">
-        <div className="space-y-4 p-4 text-sm">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-            <TransactionKpi label="สถานะ" tone={row.status === 'cancelled' ? 'slate' : row.status === 'converted' ? 'emerald' : 'amber'} value={statusText(row.status)} />
-            <TransactionKpi label="น้ำหนักรวม" tone="blue" value={formatMoney(row.totalQty ?? 0)} />
-            <TransactionKpi label="ต้นทุน" tone="amber" value={formatMoney(row.totalCost)} />
-            <TransactionKpi label="ยอดคาด" tone="emerald" value={formatMoney(row.totalEstAmount)} />
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลเอกสาร</div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
-              <DetailItem label="วันที่เอกสาร" value={formatDateDisplay(row.date)} />
-              <DetailItem label="ลูกค้า" value={row.customerName || '-'} />
-              <DetailItem label="สาขา" value={row.branchName || '-'} />
-              <DetailItem label="คลัง" value={row.warehouseName || '-'} />
-              <DetailItem className="col-span-2 sm:col-span-3" label="หมายเหตุ" value={row.note || '-'} />
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">รายการสินค้า</div>
-            <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
-              <table className="min-w-full text-xs">
-                <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
-                  <tr>
-                    <th className="p-2 text-left">สินค้า</th>
-                    <th className="p-2 text-right">จำนวน</th>
-                    <th className="p-2 text-right">WAC</th>
-                    <th className="p-2 text-right">ต้นทุน</th>
-                    <th className="p-2 text-right">ราคาคาด</th>
-                    <th className="p-2 text-right">ยอดคาด</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(row.items ?? []).map((item, index) => (
-                    <tr key={`${item.productCode ?? item.productId ?? index}-${index}`} className="border-t border-slate-100">
-                      <td className="p-2">
-                        <div className="font-semibold text-slate-800">{item.productName ?? item.productCode ?? '-'}</div>
-                        <div className="text-[10px] text-slate-500">{item.deliveryTicketDocNo || item.deliveryTicketId || row.docNo}</div>
-                      </td>
-                      <td className="p-2 text-right tabular-nums">{formatMoney(Number(item.qty ?? 0))}</td>
-                      <td className="p-2 text-right tabular-nums">{formatMoney(Number(item.unitCost ?? 0))}</td>
-                      <td className="p-2 text-right tabular-nums">{formatMoney(Number(item.costAmount ?? 0))}</td>
-                      <td className="p-2 text-right tabular-nums">{formatMoney(Number(item.price ?? 0))}</td>
-                      <td className="p-2 text-right font-semibold tabular-nums">{formatMoney(Number(item.amount ?? 0))}</td>
-                    </tr>
-                  ))}
-                  {(row.items ?? []).length === 0 ? (
-                    <tr><td className="p-4 text-center text-slate-500" colSpan={6}>ไม่มีรายการสินค้า</td></tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">ประวัติสถานะ</div>
-            <div className="space-y-2">
-              {timeline.map((event) => (
-                <div key={event.eventKey} className="rounded-md border border-slate-200 p-3 bg-slate-50/50">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-xs font-semibold text-slate-800">{stockIssueActionText(event.action)}</div>
-                    <div className="text-[11px] text-slate-500">{formatDateTime(event.createdAt)}</div>
-                  </div>
-                  <div className="mt-1 text-xs text-slate-600">
-                    {(event.fromStatus ? `${statusText(event.fromStatus)} -> ` : '')}{statusText(event.toStatus)}
-                    {event.createdBy ? ` โดย ${event.createdBy}` : ''}
-                  </div>
-                  {event.note ? <div className="mt-1 text-xs text-slate-500">{event.note}</div> : null}
-                </div>
-              ))}
-              {timeline.length === 0 ? <div className="p-4 text-center text-xs text-slate-500">ยังไม่มีประวัติสถานะ</div> : null}
-            </div>
-          </div>
-        </div>
-      </div>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function TransactionKpi({ label, tone, value }: { label: string; tone: 'amber' | 'blue' | 'emerald' | 'red' | 'slate'; value: string }) {
-  let emoji = '📄'
-  const text = label.toLowerCase()
-  if (text.includes('pending') || text.includes('ใบ') || text.includes('จำนวน') || text.includes('รายการ')) {
-    emoji = '📋'
-  } else if (text.includes('น้ำหนัก')) {
-    emoji = '📦'
-  } else if (text.includes('ต้นทุน') || text.includes('wac')) {
-    emoji = '💰'
-  } else if (text.includes('ยอดขาย') || text.includes('ยอดคาด') || text.includes('ยอดรวม')) {
-    emoji = '📈'
-  } else if (text.includes('สถานะ')) {
-    emoji = '⚙️'
-  }
-
-  const numericValue = parseFloat(value.replace(/[^0-9.-]/g, ''))
-  const isZero = isNaN(numericValue) ? false : numericValue === 0
-
-  const config = isZero
-    ? { iconBg: 'bg-slate-100 text-slate-700', color: 'text-slate-900' }
-    : {
-        amber: { iconBg: 'bg-amber-100 text-amber-700', color: 'text-amber-700' },
-        blue: { iconBg: 'bg-blue-100 text-blue-700', color: 'text-blue-700' },
-        emerald: { iconBg: 'bg-emerald-100 text-emerald-700', color: 'text-emerald-700' },
-        red: { iconBg: 'bg-red-100 text-red-700', color: 'text-red-600' },
-        slate: { iconBg: 'bg-slate-100 text-slate-700', color: 'text-slate-900' },
-      }[tone] || { iconBg: 'bg-slate-100 text-slate-700', color: 'text-slate-900' }
-
-  // Clean label from prefix emojis to prevent duplicate symbols on circular icons
-  const cleanLabel = label.replace(/[⏰⚖💰📈⊘✓]/g, '').trim()
-
-  return (
-    <div className="bg-white p-3 sm:p-4 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-3">
-      <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full ${config.iconBg} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
-        {emoji}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-xs font-semibold text-slate-500 truncate">{cleanLabel}</div>
-        <div className={`text-sm font-bold ${config.color} mt-0.5 tabular-nums`}>{value}</div>
-      </div>
-    </div>
-  )
-}
-
 function statusBadgeClass(status: string) {
   const normalized = status.toLowerCase()
   if (['paid', 'received', 'complete', 'completed'].includes(normalized)) return 'text-emerald-700'
@@ -5142,15 +4484,6 @@ function statusText(status: string) {
     unpaid: 'ยังไม่ชำระเงิน',
   }
   return labels[status.toLowerCase()] ?? status
-}
-
-function stockIssueActionText(action: string) {
-  const labels: Record<string, string> = {
-    cancelled: 'ยกเลิกเบิกออกรอบิล',
-    converted: 'เปิดบิลขายแล้ว',
-    created: 'สร้างเบิกออกรอบิล',
-  }
-  return labels[action.toLowerCase()] ?? action
 }
 
 function workflowStatusBadgeClass(status: string) {
@@ -5197,7 +4530,7 @@ function SortHeader({ activeKey, align, direction, label, onSort, resizeProps, s
 
 
 
-function formatBranchWarehouse(row: BillRow | StockIssueRow) {
+function formatBranchWarehouse(row: BillRow) {
   const branch = row.branchName?.trim()
   const warehouse = row.warehouseName?.trim()
 
@@ -5234,10 +4567,6 @@ function RadioCard({ active, disabled = false, label, note, onClick }: { active:
       <div className="text-xs text-slate-500">{note}</div>
     </button>
   )
-}
-
-function isStockIssueRow(row: BillRow | StockIssueRow): row is StockIssueRow {
-  return 'totalEstAmount' in row
 }
 
 function DetailItem({ className = '', label, value }: { className?: string; label: string; value: string }) {

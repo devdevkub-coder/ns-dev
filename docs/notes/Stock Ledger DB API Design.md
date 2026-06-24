@@ -111,19 +111,18 @@ Lifecycle:
 
 `Pending Sale Release / เบิกออกรอบิล` ถูกถอดออกจาก target runtime แล้ว หลังตัดสินใจใช้ `WTO -> pending_out -> SB` เป็น flow เดียวสำหรับ stock sale
 
-Removed runtime APIs:
+Removed runtime API route:
 
 ```http
-GET /api/sales/stock-issue  -> 410 GONE
-POST /api/sales/stock-issue -> 410 GONE
-PATCH /api/sales/stock-issue -> 410 GONE
+/api/sales/stock-issue -> deleted from active app routing
 ```
 
 Target behavior:
 
 - New stock sale writes must select WTO in Sales Bill.
-- `POST /api/sales/bills` rejects `pendingStockIssueId/fromPsale...`.
+- Sales Bill form schema no longer exposes `pendingStockIssueId/fromPsale...`; `POST /api/sales/bills` still rejects those legacy keys at the API boundary with `410 Gone`.
 - No new `stock_ledger.ref_type = PSALE` or `PSALE-CANCEL` rows should be written.
+- Stock Ledger no longer links legacy `PSALE` / `PSALE-CANCEL` rows to `/sales/stock-issue`.
 - Existing legacy PSALE rows must be handled by data repair/legacy migration, not normal runtime.
 
 ## SB Cancel API Contract
@@ -239,8 +238,8 @@ Implementation owner:
 
 Automation:
 
-- Legacy PSALE verification scripts are historical proof only and should be removed/replaced with WTO-backed SB verification when test contracts are cleaned up.
-- `npm run qa:stock-ledger-write-paths --workspace @ns-scrap-erp/next` should no longer create/cancel PSALE in target QA; update it to cover WTO-backed SB and production PI/PO2 create/reverse.
+- Legacy PSALE verification scripts were removed from the target type-check surface on 2026-06-24; historical behavior remains documented only in [[Pending Sale Page Flow]].
+- `npm run qa:stock-ledger-write-paths --workspace @ns-scrap-erp/next` no longer creates/cancels PSALE in target QA; it must not be used to prove Pending Sale runtime.
 
 Production reversal doc-number policy:
 
@@ -254,9 +253,9 @@ Production reversal doc-number policy:
 | Concern | File |
 |---|---|
 | SB create/cancel API | `apps/next/src/app/api/sales/bills/route.ts`, `apps/next/src/app/api/sales/bills/[id]/route.ts` |
-| removed PSALE runtime entry | `apps/next/src/app/api/sales/stock-issue/route.ts` returns `410 GONE` |
+| removed PSALE runtime entry | `apps/next/src/app/api/sales/stock-issue/route.ts` deleted from active app routing |
 | PB append/reversal helper | `apps/next/src/lib/server/stock-ledger-reversal.ts` |
-| legacy PSALE rollback automation | `apps/next/scripts/verify-psale-sales-bill-lifecycle.ts`, `apps/next/scripts/verify-sales-bill-psale-cancel-contract.ts` historical only |
+| legacy PSALE rollback automation | removed from target type-check surface; historical reference only in docs |
 | stock write-path QA automation | `apps/next/scripts/qa-stock-ledger-write-paths.ts` |
 | production movement/reversal service | `apps/next/src/lib/server/production-orders.ts` |
 | production reconciliation helper/API | `apps/next/src/lib/server/production-reconciliation.ts`, `apps/next/src/app/api/production/reconciliation/route.ts` |
@@ -271,5 +270,5 @@ Production reversal doc-number policy:
 
 - Dedicated durable allocation tables for `SB -> PO Sell`, `SB -> Spot Sale`, and `Customer advance -> SB` are still future work; current runtime uses `sales_bills.items` snapshot plus usage logs.
 - PB edit/cancel/supplier-swap still needs logged-in browser QA even though the API has been hardened to append/reversal policy.
-- Replace legacy PSALE automation/browser QA with WTO-backed SB create/cancel QA.
+- Add WTO-backed SB create/cancel QA to cover `WTO -> pending_out -> SB -> SB-CANCEL` without PSALE.
 - Production order create/input/output/reverse has prior browser QA coverage, but the new stock write-path QA script is service-level; rerun logged-in browser QA if UI evidence is required for this exact batch.

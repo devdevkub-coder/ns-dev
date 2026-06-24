@@ -172,7 +172,7 @@ export async function buildCashOthersSummary(asOfValue?: string | null, branchId
         { color: '#10b981', name: '💵 เงินสด/ธนาคาร', val: totalCash },
         { color: '#06b6d4', name: '📥 ลูกหนี้ (AR)', val: totalAR },
         { color: '#f59e0b', name: '📦 Stock', val: stock.value },
-        { color: '#fbbf24', name: '📦 Pending Sale (รอเปิดบิล)', val: pendingIssueSummary.cost },
+        { color: '#fbbf24', name: '📦 WTO pending out (รอเปิดบิล)', val: pendingIssueSummary.cost },
         { color: '#a855f7', name: '🔄 Trading Pending รับเงิน', val: tradingPending.pendingAmount },
         { color: '#8b5cf6', name: '💸 Supplier Advance', val: supplierAdvanceTotal },
       ].filter((row) => row.val > 0),

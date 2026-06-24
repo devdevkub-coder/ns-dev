@@ -116,91 +116,79 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         throw new Error('ยกเลิกบิลขายไม่ได้ เพราะมีรายการรับเงินแล้ว')
       }
 
-      const convertedStockIssue = await tx.stock_issues.findFirst({
-        select: { doc_no: true, id: true, status: true },
+      const usageLogs = await tx.weight_ticket_usage_logs.findMany({
         where: {
-          converted_to_bill_id: bill.id,
-          status: 'converted',
+          action: WEIGHT_TICKET_USAGE_ACTION.ALLOCATED_TO_SALES_BILL,
+          target_doc_no: bill.doc_no,
+          target_type: 'SALES_BILL',
         },
       })
-
-      if (convertedStockIssue) {
-        throw new Error(`บิลขายนี้อ้างอิง flow เบิกออกรอบิลเดิม (${convertedStockIssue.doc_no}) ซึ่งถูกยกเลิกแล้ว ต้องแก้ข้อมูล legacy ก่อนยกเลิก`)
-      } else {
-        const usageLogs = await tx.weight_ticket_usage_logs.findMany({
-          where: {
-            action: WEIGHT_TICKET_USAGE_ACTION.ALLOCATED_TO_SALES_BILL,
-            target_doc_no: bill.doc_no,
-            target_type: 'SALES_BILL',
-          },
+      if (usageLogs.length > 0) {
+        await reopenConsumedWtoStockHoldsForSalesBill(tx, {
+          actor,
+          cancelDate: normalizeDate(cancelledAt.toISOString().slice(0, 10)),
+          note: values.note,
+          salesBillDocNo: bill.doc_no,
         })
-        if (usageLogs.length > 0) {
-          await reopenConsumedWtoStockHoldsForSalesBill(tx, {
-            actor,
-            cancelDate: normalizeDate(cancelledAt.toISOString().slice(0, 10)),
-            note: values.note,
-            salesBillDocNo: bill.doc_no,
-          })
 
-          await appendWeightTicketUsageLogs(tx, usageLogs.map((log) => ({
-            action: WEIGHT_TICKET_USAGE_ACTION.RELEASED_FROM_SALES_BILL,
+        await appendWeightTicketUsageLogs(tx, usageLogs.map((log) => ({
+          action: WEIGHT_TICKET_USAGE_ACTION.RELEASED_FROM_SALES_BILL,
+          actor,
+          allocatedDeductWeight: toNumber(log.allocated_deduct_weight),
+          allocatedGrossWeight: toNumber(log.allocated_gross_weight),
+          allocatedNetWeight: toNumber(log.allocated_net_weight),
+          allocatedQty: toNumber(log.allocated_qty),
+          createdAt: cancelledAt,
+          meta: { reason: 'sales_bill_cancel', salesBillDocNo: bill.doc_no },
+          note: values.note,
+          productCodeSnapshot: log.product_code_snapshot,
+          productId: log.product_id,
+          productNameSnapshot: log.product_name_snapshot,
+          targetDocNo: bill.doc_no,
+          targetId: bill.id,
+          targetLineNo: log.target_line_no,
+          targetType: 'SALES_BILL' as const,
+          weightTicketId: log.weight_ticket_id,
+          weightTicketProductSummaryId: log.weight_ticket_product_summary_id ?? BigInt(0),
+        })).filter((entry) => entry.weightTicketProductSummaryId !== BigInt(0)))
+
+        const usageBySummaryId = new Map<bigint, number>()
+        usageLogs.forEach((log) => {
+          if (!log.weight_ticket_product_summary_id) return
+          usageBySummaryId.set(log.weight_ticket_product_summary_id, (usageBySummaryId.get(log.weight_ticket_product_summary_id) ?? 0) + toNumber(log.allocated_net_weight))
+        })
+        await Promise.all([...usageBySummaryId.entries()].map(([summaryId, qty]) => tx.weight_ticket_product_summaries.update({
+          data: {
+            billed_weight: { decrement: qty },
+            remaining_weight: { increment: qty },
+            updated_at: cancelledAt,
+          },
+          where: { id: summaryId },
+        })))
+
+        const ticketIds = [...new Set(usageLogs.map((log) => log.weight_ticket_id))]
+        await Promise.all(ticketIds.map(async (ticketId) => {
+          const ticket = await tx.weight_tickets.findUnique({ select: { status: true }, where: { id: ticketId } })
+          if (!ticket) return
+          await tx.weight_tickets.update({
+            data: {
+              status: 'delivered',
+              updated_at: cancelledAt,
+              updated_by: actor,
+            },
+            where: { id: ticketId },
+          })
+          await appendWeightTicketStatusLog(tx, {
+            action: WEIGHT_TICKET_STATUS_ACTION.USAGE_STATUS_CHANGED,
             actor,
-            allocatedDeductWeight: toNumber(log.allocated_deduct_weight),
-            allocatedGrossWeight: toNumber(log.allocated_gross_weight),
-            allocatedNetWeight: toNumber(log.allocated_net_weight),
-            allocatedQty: toNumber(log.allocated_qty),
             createdAt: cancelledAt,
+            fromStatus: ticket.status,
             meta: { reason: 'sales_bill_cancel', salesBillDocNo: bill.doc_no },
             note: values.note,
-            productCodeSnapshot: log.product_code_snapshot,
-            productId: log.product_id,
-            productNameSnapshot: log.product_name_snapshot,
-            targetDocNo: bill.doc_no,
-            targetId: bill.id,
-            targetLineNo: log.target_line_no,
-            targetType: 'SALES_BILL' as const,
-            weightTicketId: log.weight_ticket_id,
-            weightTicketProductSummaryId: log.weight_ticket_product_summary_id ?? BigInt(0),
-          })).filter((entry) => entry.weightTicketProductSummaryId !== BigInt(0)))
-
-          const usageBySummaryId = new Map<bigint, number>()
-          usageLogs.forEach((log) => {
-            if (!log.weight_ticket_product_summary_id) return
-            usageBySummaryId.set(log.weight_ticket_product_summary_id, (usageBySummaryId.get(log.weight_ticket_product_summary_id) ?? 0) + toNumber(log.allocated_net_weight))
+            toStatus: 'delivered',
+            weightTicketId: ticketId,
           })
-          await Promise.all([...usageBySummaryId.entries()].map(([summaryId, qty]) => tx.weight_ticket_product_summaries.update({
-            data: {
-              billed_weight: { decrement: qty },
-              remaining_weight: { increment: qty },
-              updated_at: cancelledAt,
-            },
-            where: { id: summaryId },
-          })))
-
-          const ticketIds = [...new Set(usageLogs.map((log) => log.weight_ticket_id))]
-          await Promise.all(ticketIds.map(async (ticketId) => {
-            const ticket = await tx.weight_tickets.findUnique({ select: { status: true }, where: { id: ticketId } })
-            if (!ticket) return
-            await tx.weight_tickets.update({
-              data: {
-                status: 'delivered',
-                updated_at: cancelledAt,
-                updated_by: actor,
-              },
-              where: { id: ticketId },
-            })
-            await appendWeightTicketStatusLog(tx, {
-              action: WEIGHT_TICKET_STATUS_ACTION.USAGE_STATUS_CHANGED,
-              actor,
-              createdAt: cancelledAt,
-              fromStatus: ticket.status,
-              meta: { reason: 'sales_bill_cancel', salesBillDocNo: bill.doc_no },
-              note: values.note,
-              toStatus: 'delivered',
-              weightTicketId: ticketId,
-            })
-          }))
-        }
+        }))
       }
 
       await reversePoSellUsage(tx, bill.items, actor, cancelledAt)

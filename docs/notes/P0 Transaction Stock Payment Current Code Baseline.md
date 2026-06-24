@@ -93,7 +93,7 @@ These gaps are not blockers for baseline acceptance, but they are blockers befor
 Start P0 runtime hardening in this order:
 
 1. `/sales/bills` UI enablement + browser QA for cancel/reversal and receipt-lock behavior
-2. replace legacy `/sales/stock-issue` PSALE QA/report references with WTO-backed SB coverage
+2. add WTO-backed SB QA/report coverage for `WTO -> pending_out -> SB -> SB-CANCEL`; legacy PSALE QA scripts are removed from target type-check surface
 3. `/purchase/bills` append/reversal hardening review
 4. Production `PI/PO2` ledger write/reversal contract
 5. `/daily/payment-approval` + `/purchase/payments` cancellation/payment-cycle lock review

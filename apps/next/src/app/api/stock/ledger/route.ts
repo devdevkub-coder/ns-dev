@@ -37,7 +37,6 @@ function sourcePathFor(row: { refNo: string; refType: string }) {
   const refNo = encodeURIComponent(row.refNo)
   if (row.refType === 'PB' || row.refType === 'PB-CANCEL' || row.refType === 'PB-EDIT-REV') return `/purchase/bills/${refNo}`
   if (row.refType === 'SB' || row.refType === 'SB-CANCEL') return `/sales/bills?docNo=${refNo}`
-  if (row.refType === 'PSALE' || row.refType === 'PSALE-CANCEL') return `/sales/stock-issue?docNo=${refNo}`
   if (row.refType === 'ST') return `/stock/transfer?docNo=${refNo}`
   if (row.refType === 'SC' || row.refType === 'SC-REV') return `/stock/status-convert?docNo=${refNo}`
   if (row.refType === 'GA') return `/stock/convert?docNo=${refNo}`

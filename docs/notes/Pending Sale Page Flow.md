@@ -40,9 +40,11 @@ WTO / ใบส่งของ
 
 | Area | Target behavior |
 |---|---|
-| Route `/sales/stock-issue` | removed runtime page; active app returns `notFound()` |
-| API `/api/sales/stock-issue` | `GET`, `POST`, `PATCH` return `410 Gone` |
-| Sales Bill create | rejects `pendingStockIssueId`, `fromPsale`, `fromStockIssue`, `stockIssueId`, and `sourceType = PSALE` |
+| Route `/sales/stock-issue` | deleted from active app routing; no runtime page exists |
+| API `/api/sales/stock-issue` | deleted from active app routing; no runtime API exists |
+| Sales Bill create | form schema no longer accepts `pendingStockIssueId` / `fromPsale...`; active API flow parses the target Sales Bill schema only and has no PSALE conversion path |
+| UI/report links | must not point to `/sales/stock-issue`; pending-out summaries link to Sales Bill/WTO flow instead |
+| Stock ledger source link | `PSALE` / `PSALE-CANCEL` legacy ledger rows do not link to the removed page |
 | Stock ledger | no new `PSALE` or `PSALE-CANCEL` rows |
 | Stock status before billing | use `pending_out / รอออก` from active WTO hold |
 | Stock cut | happens only when Sales Bill consumes WTO and writes `SB` ledger |
@@ -82,8 +84,9 @@ That legacy behavior is kept here only as historical reference. It must not be u
 ## Implementation Notes
 
 - `stock_issues` และ `stock_issue_status_logs` อาจยังมีอยู่ใน schema เพื่อรองรับ legacy data หรือ migration reference แต่ไม่ใช่ runtime write path
-- verification scripts ที่สร้าง/cancel PSALE ต้องถูกถือเป็น historical proof เท่านั้น และควรถูกแทนด้วย QA ที่ครอบคลุม `WTO -> SB -> SB-CANCEL`
-- read model/report ที่ยังใช้คำว่า Pending Sale ต้องปรับนิยามให้เป็น planning/pending_out จาก WTO ไม่ใช่ PSALE
+- shared Sales Bill validation no longer exposes PSALE form fields; target Sales Bill creation is owned by `WTO -> SB` schema fields only
+- verification scripts ที่สร้าง/cancel PSALE ถูกถอดออกจาก target type-check surface แล้ว; QA ใหม่ต้องครอบคลุม `WTO -> SB -> SB-CANCEL` โดยไม่สร้าง PSALE
+- read model/report wording that used Pending Sale has been moved toward `WTO pending out`; remaining legacy historical docs may still say PSALE only as source-reference context
 
 ## Related Notes
 

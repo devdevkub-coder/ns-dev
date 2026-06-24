@@ -53,7 +53,7 @@ Legacy baseline kept for historical reference only: old legacy stock issue wrote
 
 ### Current API
 
-- Existing `/api/sales/stock-issue` is removed from runtime write/read usage and returns `410 GONE`.
+- Existing `/api/sales/stock-issue` is deleted from active app routing and has no runtime write/read usage.
 - New target work must route through `POST /api/daily/weight-tickets` for WTO `pending_out` creation and `POST/PATCH /api/sales/bills` for SB consume/reversal.
 
 ### Target API
@@ -90,7 +90,7 @@ Legacy baseline kept for historical reference only: old legacy stock issue wrote
 
 ## Current Gap
 
-Route/menu/API runtime usage has been removed for target flow. Keep this file only as historical context for why `/sales/stock-issue` must not be reintroduced.
+Route/menu/API runtime usage has been removed for target flow, and the active route/API files were deleted. Keep this file only as historical context for why `/sales/stock-issue` must not be reintroduced.
 
 ## Implementation Checklist
 

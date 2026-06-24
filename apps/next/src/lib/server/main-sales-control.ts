@@ -430,7 +430,7 @@ export async function buildPendingSales() {
     reconciliation,
     reconTotals,
     sourceState: {
-      basis: 'Pending Sales read/design baseline from PO Sell, PO Buy, purchase bills, trading deals, stock ledger, and product master.',
+      basis: 'Pending sales read/design baseline from PO Sell, WTO pending out, PO Buy, purchase bills, trading deals, stock ledger, and product master.',
       limitations: ['LME config, LME percent save, export, matching, and sales-plan locks are disabled until target schemas and audit rules are designed.'],
       writeActionsEnabled: false,
     },

@@ -6,13 +6,9 @@ import {
   reverseProductionInput,
   reverseProductionOutput,
 } from '../src/lib/server/production-orders'
-import { appendStockIssueStatusLog, STOCK_ISSUE_STATUS_ACTION } from '../src/lib/server/stock-issue-history'
-import { consumeActiveWtoStockHoldsForPendingSale, reversePendingSaleStockIssue } from '../src/lib/server/stock-holds'
-import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '../src/lib/server/weight-ticket-status-history'
-import { nextDailyDocNo, normalizeDate, toNumber } from '../src/lib/server/daily'
+import { toNumber } from '../src/lib/server/daily'
 import { prisma } from '../src/lib/server/prisma'
 import { buildProductionReconciliationReport } from '../src/lib/server/production-reconciliation'
-import type { Prisma } from '../generated/prisma/client'
 
 const actor = 'codex-qa'
 const qaDate = process.env.QA_DATE ?? '2026-06-12'
@@ -39,202 +35,6 @@ function assert(condition: unknown, message: string): asserts condition {
 async function assertNoReconciliationIssues() {
   const productionReport = await buildProductionReconciliationReport()
   assert(!productionReport.summary.hasIssues, `production reconciliation still has ${productionReport.summary.issueCount} issue(s)`)
-}
-
-async function qaPendingSaleCancel(): Promise<QaResult> {
-  const result = await prisma.$transaction(async (tx) => {
-    const ticket = await tx.weight_tickets.findFirst({
-      include: {
-        customers: { select: { code: true, name: true } },
-        stock_holds: {
-          include: {
-            products: { select: { code: true, name: true } },
-            warehouses: { select: { code: true, id: true, name: true } },
-          },
-          orderBy: [{ source_line_no: 'asc' }, { id: 'asc' }],
-          where: { status: 'active' },
-        },
-      },
-      orderBy: [{ document_date: 'desc' }, { doc_no: 'desc' }],
-      where: {
-        cancelled_at: null,
-        doc_type: 'WTO',
-        status: 'delivered',
-        stock_holds: { some: { status: 'active' } },
-      },
-    })
-    assert(ticket, 'ไม่พบ WTO ที่มี active hold สำหรับ QA PSALE')
-    assert(ticket.customer_id, `WTO ${ticket.doc_no} ไม่มี customer_id`)
-
-    const docNo = await nextDailyDocNo('stock_issues', 'PSALE', qaDate, tx)
-    const consumedLines = await consumeActiveWtoStockHoldsForPendingSale(tx, {
-      actor,
-      branchId: ticket.branch_id,
-      issueDate: normalizeDate(qaDate),
-      stockIssueDocNo: docNo,
-      weightTicketId: ticket.id,
-    })
-    const productById = new Map(ticket.stock_holds.map((hold) => [hold.product_id, hold.products]))
-    const warehouseById = new Map(ticket.stock_holds.map((hold) => [hold.warehouse_id, hold.warehouses]))
-    const items = consumedLines.map((line, index) => {
-      const product = productById.get(line.productId)
-      const warehouse = warehouseById.get(line.warehouseId)
-      assert(product?.code, `WTO ${ticket.doc_no} hold line ${line.sourceLineNo} ไม่มี product code`)
-      assert(warehouse?.code, `WTO ${ticket.doc_no} hold line ${line.sourceLineNo} ไม่มี warehouse code`)
-      return {
-        amount: line.qty * 1,
-        costAmount: line.valueOut,
-        deliveryTicketDocNo: ticket.doc_no,
-        deliveryTicketId: ticket.doc_no,
-        lineNo: index + 1,
-        price: 1,
-        productCode: product.code,
-        productId: product.code,
-        productName: product.name,
-        qty: line.qty,
-        sourceLineNo: line.sourceLineNo,
-        unitCost: line.unitCost,
-        warehouseCode: warehouse.code,
-        warehouseId: warehouse.code,
-        warehouseName: warehouse.name,
-      }
-    })
-    const totalCost = items.reduce((sum, item) => sum + item.costAmount, 0)
-    const totalEstAmount = items.reduce((sum, item) => sum + item.amount, 0)
-    const firstWarehouseId = consumedLines[0]?.warehouseId ?? null
-    const stockIssue = await tx.stock_issues.create({
-      data: {
-        branch_id: ticket.branch_id,
-        created_by: actor,
-        customer_id: ticket.customer_id,
-        date: normalizeDate(qaDate),
-        doc_no: docNo,
-        items: items as Prisma.InputJsonValue,
-        notes: 'QA PSALE cancel/reversal',
-        status: 'pending',
-        total_cost: totalCost,
-        total_est_amount: totalEstAmount,
-        warehouse_id: firstWarehouseId,
-      },
-      select: { doc_no: true, id: true },
-    })
-    await appendStockIssueStatusLog(tx, {
-      action: STOCK_ISSUE_STATUS_ACTION.CREATED,
-      actor,
-      meta: { deliveryTicketDocNo: ticket.doc_no, reason: 'qa_pending_sale_create' },
-      note: 'QA PSALE cancel/reversal',
-      stockIssueId: stockIssue.id,
-      toStatus: 'pending',
-    })
-    await tx.weight_tickets.update({
-      data: { status: 'partially_billed', updated_at: new Date(), updated_by: actor },
-      where: { id: ticket.id },
-    })
-
-    await reversePendingSaleStockIssue(tx, {
-      actor,
-      cancelDate: normalizeDate(qaDate),
-      note: 'QA edit pending sale',
-      stockIssueDocNo: stockIssue.doc_no,
-    })
-    const editedLines = await consumeActiveWtoStockHoldsForPendingSale(tx, {
-      actor,
-      branchId: ticket.branch_id,
-      issueDate: normalizeDate(qaDate),
-      stockIssueDocNo: stockIssue.doc_no,
-      weightTicketId: ticket.id,
-    })
-    const editedItems = editedLines.map((line, index) => {
-      const product = productById.get(line.productId)
-      const warehouse = warehouseById.get(line.warehouseId)
-      assert(product?.code, `WTO ${ticket.doc_no} edited hold line ${line.sourceLineNo} ไม่มี product code`)
-      assert(warehouse?.code, `WTO ${ticket.doc_no} edited hold line ${line.sourceLineNo} ไม่มี warehouse code`)
-      return {
-        amount: line.qty * 2,
-        costAmount: line.valueOut,
-        deliveryTicketDocNo: ticket.doc_no,
-        deliveryTicketId: ticket.doc_no,
-        lineNo: index + 1,
-        price: 2,
-        productCode: product.code,
-        productId: product.code,
-        productName: product.name,
-        qty: line.qty,
-        sourceLineNo: line.sourceLineNo,
-        unitCost: line.unitCost,
-        warehouseCode: warehouse.code,
-        warehouseId: warehouse.code,
-        warehouseName: warehouse.name,
-      }
-    })
-    await tx.stock_issues.update({
-      data: {
-        items: editedItems as Prisma.InputJsonValue,
-        notes: 'QA edit pending sale',
-        total_cost: editedItems.reduce((sum, item) => sum + item.costAmount, 0),
-        total_est_amount: editedItems.reduce((sum, item) => sum + item.amount, 0),
-      },
-      where: { id: stockIssue.id },
-    })
-    await appendStockIssueStatusLog(tx, {
-      action: STOCK_ISSUE_STATUS_ACTION.EDITED,
-      actor,
-      fromStatus: 'pending',
-      meta: { deliveryTicketDocNo: ticket.doc_no, reason: 'qa_pending_sale_edit', reverseRefType: 'PSALE-CANCEL' },
-      note: 'QA edit pending sale',
-      stockIssueId: stockIssue.id,
-      toStatus: 'pending',
-    })
-
-    const reversedHolds = await reversePendingSaleStockIssue(tx, {
-      actor,
-      cancelDate: normalizeDate(qaDate),
-      note: 'QA reverse pending sale',
-      stockIssueDocNo: stockIssue.doc_no,
-    })
-    await tx.stock_issues.update({
-      data: { notes: 'QA reverse pending sale', status: 'cancelled' },
-      where: { id: stockIssue.id },
-    })
-    await appendStockIssueStatusLog(tx, {
-      action: STOCK_ISSUE_STATUS_ACTION.CANCELLED,
-      actor,
-      fromStatus: 'pending',
-      meta: { reason: 'qa_pending_sale_cancel', reverseRefType: 'PSALE-CANCEL' },
-      note: 'QA reverse pending sale',
-      stockIssueId: stockIssue.id,
-      toStatus: 'cancelled',
-    })
-
-    await tx.weight_tickets.update({
-      data: { status: 'delivered', updated_at: new Date(), updated_by: actor },
-      where: { id: ticket.id },
-    })
-    await appendWeightTicketStatusLog(tx, {
-      action: WEIGHT_TICKET_STATUS_ACTION.USAGE_STATUS_CHANGED,
-      actor,
-      createdAt: new Date(),
-      fromStatus: 'partially_billed',
-      meta: { reason: 'qa_pending_sale_cancel', stockIssueDocNo: stockIssue.doc_no },
-      note: 'QA reverse pending sale',
-      toStatus: 'delivered',
-      weightTicketId: ticket.id,
-    })
-
-    return { docNo: stockIssue.doc_no, holdCount: reversedHolds.length, ticketDocNo: ticket.doc_no }
-  }, { timeout: 30000 })
-
-  const ledger = await prisma.stock_ledger.groupBy({
-    _sum: { qty_in: true, qty_out: true },
-    by: ['ref_type'],
-    where: { ref_no: result.docNo, ref_type: { in: ['PSALE', 'PSALE-CANCEL'] } },
-  })
-  const refTypes = ledger.map((row) => row.ref_type).sort()
-  assert(refTypes.includes('PSALE') && refTypes.includes('PSALE-CANCEL'), `PSALE QA ${result.docNo} missing ledger/ref reversal`)
-  const net = ledger.reduce((sum, row) => sum + toNumber(row._sum.qty_in) - toNumber(row._sum.qty_out), 0)
-  assert(Math.abs(net) <= 0.000001, `PSALE QA ${result.docNo} net qty is not zero`)
-
-  return { docNo: result.docNo, kind: 'PSALE_EDIT_CANCEL', refs: [result.ticketDocNo, `holds:${result.holdCount}`] }
 }
 
 async function findProductionQaScenario(): Promise<ProductionQaScenario> {
@@ -356,13 +156,12 @@ async function qaProductionInputOutputReverse(): Promise<QaResult> {
 }
 
 async function main() {
-  const psale = await qaPendingSaleCancel()
   const production = await qaProductionInputOutputReverse()
   await assertNoReconciliationIssues()
   console.log(JSON.stringify({
     generatedAt: new Date().toISOString(),
     ok: true,
-    results: [psale, production],
+    results: [production],
   }, null, 2))
 }
 

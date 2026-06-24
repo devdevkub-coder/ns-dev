@@ -153,7 +153,7 @@ export function TradingMatchingPageClient() {
             <div className="text-sm font-bold text-slate-800">เส้นทางข้อมูล</div>
             <div className="mt-3 space-y-2.5 text-xs text-slate-500 font-semibold leading-relaxed">
               <FlowLine label="ฝั่งซื้อ" value="PO Buy / Purchase Bill Trading -> Cost Source" />
-              <FlowLine label="ฝั่งขาย" value="PO Sell -> Pending Sale -> Sales Bill Trading" />
+              <FlowLine label="ฝั่งขาย" value="PO Sell -> WTO -> Sales Bill Trading" />
               <FlowLine label="ผลลัพธ์" value="allocation, expected GP, remaining qty, exposure tracking" />
             </div>
           </div>
