@@ -632,8 +632,10 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const [rows, setRows] = useState<BillRow[]>([])
   const [search, setSearch] = useState('')
   const [salesFieldErrors, setSalesFieldErrors] = useState<Record<string, string>>({})
+  const [editingSalesBillId, setEditingSalesBillId] = useState<string | null>(null)
   const [salesForm, setSalesForm] = useState<SalesBillFormValues>(initialSalesForm())
   const [tradingPurchaseSelectorIds, setTradingPurchaseSelectorIds] = useState<string[]>([''])
+  const [lockedDeliverySnapshot, setLockedDeliverySnapshot] = useState<DeliveryOption | null>(null)
   const [showSalesForm, setShowSalesForm] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [showMobileFilters, setShowMobileFilters] = useState(false)
@@ -977,9 +979,12 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     ? [selectedReceipt, ...activeReceipts]
     : activeReceipts
   const selectedDelivery = salesForm.deliveryTicketId
-    ? (options.deliveries ?? []).find((delivery) => delivery.id === salesForm.deliveryTicketId) ?? null
+    ? (lockedDeliverySnapshot?.id === salesForm.deliveryTicketId
+      ? lockedDeliverySnapshot
+      : (options.deliveries ?? []).find((delivery) => delivery.id === salesForm.deliveryTicketId) ?? null)
     : null
   const stockDeliveryPrerequisiteReady = (salesForm.transactionMode !== 'STOCK' && salesForm.transactionMode !== 'TRADING') || (Boolean(salesForm.branchId) && Boolean(salesForm.customerId))
+  const salesIdentityLocked = Boolean(editingSalesBillId)
   const stockDeliveryLocked = salesForm.transactionMode === 'STOCK' && Boolean(salesForm.deliveryTicketId)
   const customerLockedByDelivery = stockDeliveryLocked
   const deliveryOptionsForSelect = selectedDelivery && !activeDeliveries.some((delivery) => delivery.id === selectedDelivery.id)
@@ -1316,6 +1321,10 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     }
   }
 
+  function openListRow(row: BillRow) {
+    void openRow(row)
+  }
+
   async function reloadSalesDetail(docNo: string) {
     const requestId = latestDetailRequestRef.current + 1
     latestDetailRequestRef.current = requestId
@@ -1342,14 +1351,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         note,
       }),
       method: 'PATCH',
-    })
-    await Promise.all([loadData(), reloadSalesDetail(docNo)])
-  }
-
-  async function returnSalesBillStock(docNo: string, values: { pendingOutKey: string; note?: string | null; reason?: string | null; returnedQty: number }) {
-    await dailyFetchJson(`/api/sales/bills/${encodeURIComponent(docNo)}/stock-return`, {
-      body: JSON.stringify(values),
-      method: 'POST',
     })
     await Promise.all([loadData(), reloadSalesDetail(docNo)])
   }
@@ -1404,12 +1405,143 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   }
 
   function openSalesForm() {
+    setEditingSalesBillId(null)
+    setLockedDeliverySnapshot(null)
     setLockedReceiptSnapshot(null)
     setSalesForm({ ...initialSalesForm(), branchId: resolvedPreferredBranchId ?? '' })
     setTradingPurchaseSelectorIds([''])
     setSalesFieldErrors({})
     setError(null)
     setShowSalesForm(true)
+  }
+
+  function salesEditSummaryId(salesDocNo: string, lineNo: number) {
+    return `${salesDocNo}:edit:${lineNo}`
+  }
+
+  function salesDeliverySnapshotFromDetail(detail: SalesBillDetail): DeliveryOption | null {
+    const deliveryItems = detail.items.filter((item) => item.deliveryTicketDocNo)
+    if (deliveryItems.length === 0) return null
+    const documentNo = detail.deliveryDocNos[0] ?? deliveryItems[0]?.deliveryTicketDocNo ?? ''
+    if (!documentNo) return null
+
+    return {
+      branchId: detail.branchId,
+      branchName: detail.branchName,
+      customerId: detail.customerCode,
+      documentDate: detail.date,
+      documentNo,
+      id: documentNo,
+      lines: deliveryItems.map((item) => ({
+        deductWeight: item.deductWeight,
+        grossWeight: item.grossWeight,
+        id: item.deliveryLineId || `${documentNo}:${item.lineNo}`,
+        lineNo: item.lineNo,
+        netWeight: item.netWeight,
+        note: item.note,
+        productId: item.productCode || item.productId,
+        productName: item.productName,
+        remainingQty: item.netWeight,
+        usedQty: 0,
+      })),
+      partyName: detail.customerName,
+      productSummaries: deliveryItems.map((item) => ({
+        billedWeight: item.netWeight,
+        deductWeight: item.deductWeight,
+        grossWeight: item.grossWeight,
+        hasMixedDeductionProfiles: false,
+        id: salesEditSummaryId(detail.docNo, item.lineNo),
+        lineCount: 1,
+        netWeight: item.netWeight,
+        productId: item.productCode || item.productId,
+        productName: item.productName,
+        remainingWeight: item.netWeight,
+        sourceLineIds: item.deliveryLineId ? [item.deliveryLineId] : [],
+      })),
+      status: '',
+      vehicleNo: deliveryItems[0]?.deliveryVehicleNo ?? '',
+    }
+  }
+
+  function salesFormFromDetail(detail: SalesBillDetail, row: BillRow): SalesBillFormValues {
+    const transactionMode = detail.transactionMode === 'TRADING' ? 'TRADING' : 'STOCK'
+    const channelId = options.salesChannels.find((channel) => (
+      channel.name === detail.channelName ||
+      channel.code === detail.channelName
+    ))?.id ?? ''
+    const warehouseId = options.warehouses.find((warehouse) => warehouse.name === detail.warehouseName)?.id ?? null
+    const deliveryDocNo = detail.deliveryDocNos[0] ?? detail.items.find((item) => item.deliveryTicketDocNo)?.deliveryTicketDocNo ?? null
+    const tradingSourceByDocLine = new Map(
+      options.tradingCostSources.map((source) => {
+        const parts = source.id.split(':')
+        const sourceDocNo = parts[1] ?? ''
+        const parsedLineNo = parts[2] ? Number(parts[2]) : null
+        const sourceLineNo = source.sourceLineNo ?? parsedLineNo ?? ''
+        return [`${sourceDocNo}:${sourceLineNo}`, source.id] as const
+      }),
+    )
+
+    return {
+      branchId: detail.branchId,
+      channelId,
+      customerAdvanceId: null,
+      customerId: detail.customerCode === '-' ? '' : detail.customerCode,
+      deliveryTicketId: transactionMode === 'STOCK' ? deliveryDocNo : null,
+      discountTotal: detail.discount,
+      exportOrderNo: detail.exportOrderNo || null,
+      hasVat: detail.hasVat,
+      items: detail.items.map((item) => ({
+        deliveryLineId: item.deliveryLineId || null,
+        deliverySummaryId: item.deliveryTicketDocNo ? salesEditSummaryId(detail.docNo, item.lineNo) : null,
+        deliveryTicketDocNo: item.deliveryTicketDocNo || null,
+        deliveryTicketId: item.deliveryTicketDocNo || null,
+        deductWeight: item.deductWeight,
+        discount: item.discount,
+        grossWeight: item.grossWeight,
+        netWeight: item.netWeight,
+        note: item.note || null,
+        poSellId: item.poSellDocNo || null,
+        price: item.price,
+        productId: item.productCode || item.productId,
+        qty: item.qty,
+        tradingCostSourceId: item.tradingSourceDocNo
+          ? tradingSourceByDocLine.get(`${item.tradingSourceDocNo}:${item.tradingSourceLineNo ?? ''}`) ?? null
+          : null,
+      })),
+      licensePlate: detail.items.find((item) => item.deliveryVehicleNo)?.deliveryVehicleNo || null,
+      note: detail.note || null,
+      poSellId: null,
+      refNo: row.refNo || null,
+      transactionMode,
+      vatInvoiceDate: detail.vatInvoiceDate || null,
+      vatInvoiceIssued: detail.vatInvoiceIssued,
+      vatInvoiceNo: detail.vatInvoiceNo || null,
+      vatType: detail.vatType === 'EXCLUDE' || detail.vatType === 'INCLUDE' ? detail.vatType : 'NONE',
+      warehouseId,
+    }
+  }
+
+  async function openEditSalesForm(row: BillRow) {
+    if (row.status === 'cancelled') {
+      setError(row.lockedReason ?? 'บิลขายที่ยกเลิกแล้วแก้ไขไม่ได้')
+      return
+    }
+    const docNo = row.docNo || row.id
+    setIsDetailLoading(true)
+    setError(null)
+    try {
+      const detail = await dailyFetchJson<SalesBillDetail>(`/api/sales/bills/${encodeURIComponent(docNo)}`)
+      setEditingSalesBillId(docNo)
+      setLockedDeliverySnapshot(salesDeliverySnapshotFromDetail(detail))
+      setSalesForm(salesFormFromDetail(detail, row))
+      setTradingPurchaseSelectorIds([''])
+      setSalesFieldErrors({})
+      setShowSalesForm(true)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'โหลดข้อมูลบิลขายเพื่อแก้ไขไม่ได้')
+    } finally {
+      setIsDetailLoading(false)
+    }
   }
 
   function purchaseFormFromRow(row: BillRow): PurchaseBillFormValues {
@@ -1806,6 +1938,10 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 
   function updateSalesForm<K extends keyof SalesBillFormValues>(key: K, value: SalesBillFormValues[K]) {
     setSalesForm((current) => {
+      const identityKeys: Array<keyof SalesBillFormValues> = ['branchId', 'customerId', 'deliveryTicketId', 'transactionMode']
+      if (editingSalesBillId && identityKeys.includes(key) && value !== current[key]) {
+        return current
+      }
       const stockContextLocked = current.transactionMode === 'STOCK' && Boolean(current.deliveryTicketId)
       if (
         stockContextLocked
@@ -2049,6 +2185,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   }
 
   function updateTradingPurchaseSelector(selectorIndex: number, sourceId: string) {
+    if (editingSalesBillId) return
     const previousSourceId = tradingPurchaseSelectorIds[selectorIndex] ?? ''
     const source = sourceId ? activeTradingPurchaseBills.find((option) => option.id === sourceId) ?? null : null
     if (sourceId && (!source || (sourceId !== previousSourceId && selectedTradingPurchaseSourceIds.has(sourceId)))) return
@@ -2074,10 +2211,12 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   }
 
   function addTradingPurchaseSelector() {
+    if (editingSalesBillId) return
     setTradingPurchaseSelectorIds((current) => (current.some((sourceId) => !sourceId) ? current : [...current, '']))
   }
 
   function removeTradingPurchaseSelector(selectorIndex: number) {
+    if (editingSalesBillId) return
     const sourceId = tradingPurchaseSelectorIds[selectorIndex] ?? ''
     const lineIds = sourceId
       ? activeTradingPurchaseBills.find((option) => option.id === sourceId)?.lines.map((line) => line.id) ?? []
@@ -2256,12 +2395,13 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     setIsSaving(true)
     setError(null)
     try {
-      const created = await dailyFetchJson<{ docNo: string }>('/api/sales/bills', {
-        body: JSON.stringify(parsed.data),
-        method: 'POST',
+      await dailyFetchJson<{ docNo: string }>('/api/sales/bills', {
+        body: JSON.stringify(editingSalesBillId ? { ...parsed.data, id: editingSalesBillId } : parsed.data),
+        method: editingSalesBillId ? 'PATCH' : 'POST',
       })
+      setEditingSalesBillId(null)
+      setLockedDeliverySnapshot(null)
       setShowSalesForm(false)
-      setSearch(created.docNo)
       await loadData()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'บันทึกบิลขายไม่ได้')
@@ -2532,7 +2672,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
             <div
               key={row.id}
               className={`rounded-md border border-slate-100 p-4 shadow-sm transition-colors ${row.status === 'cancelled' ? 'bg-red-100/60 active:bg-red-200/60 text-slate-400' : 'bg-white active:bg-slate-50'} cursor-pointer`}
-              onClick={() => openRow(row)}
+              onClick={() => openListRow(row)}
             >
               <div className="flex justify-between items-start mb-2">
                 <span className="font-bold text-slate-800 text-sm">{row.docNo}</span>
@@ -2616,26 +2756,15 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     >
                       พิมพ์
                     </button>
-                    {String(row.transactionMode ?? '').toUpperCase() === 'TRADING' ? (
-                      <button
-                        className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={row.status === 'cancelled'}
-                        title={row.status === 'cancelled' ? 'บิลที่ยกเลิกแล้วแก้ Trading allocation ไม่ได้' : 'แก้เฉพาะ Trading allocation'}
-                        type="button"
-                        onClick={() => openRow(row)}
-                      >
-                        แก้ไข
-                      </button>
-                    ) : (
-                      <button
-                        className="rounded-md border border-slate-300 px-2.5 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled
-                        title="รอเปิด flow แก้ไขบิลขาย"
-                        type="button"
-                      >
-                        แก้ไข
-                      </button>
-                    )}
+                    <button
+                      className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={row.status === 'cancelled' || isDetailLoading}
+                      title={row.status === 'cancelled' ? 'บิลขายที่ยกเลิกแล้วแก้ไขไม่ได้' : 'แก้ไขบิลขายด้วยฟอร์มเดิม'}
+                      type="button"
+                      onClick={() => void openEditSalesForm(row)}
+                    >
+                      แก้ไข
+                    </button>
                     <button
                       className="rounded-md border border-red-200 px-2.5 py-1 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
                       disabled={row.canCancel === false}
@@ -2692,7 +2821,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           <TableBody className="divide-y divide-slate-100">
             {isLoading ? <TableRow><td className="p-6 text-center text-slate-500" colSpan={tableColSpan}>กำลังโหลดข้อมูล</td></TableRow> : null}
             {!isLoading && pageRows.map((row) => (
-              <TableRow key={row.id} className={`${row.status === 'cancelled' ? 'bg-red-100/60 hover:bg-red-200/60 text-slate-400' : 'hover:bg-slate-50'} cursor-pointer`} onClick={() => openRow(row)}>
+              <TableRow key={row.id} className={`${row.status === 'cancelled' ? 'bg-red-100/60 hover:bg-red-200/60 text-slate-400' : 'hover:bg-slate-50'} cursor-pointer`} onClick={() => openListRow(row)}>
                 <td className="whitespace-nowrap p-2 text-xs font-semibold text-slate-700">{row.docNo}</td>
                 {mode === 'purchase' ? (
                   <td className="p-2 text-xs font-semibold text-slate-700">
@@ -2769,19 +2898,15 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                       >
                         {printingBillDocNo === row.docNo ? 'เตรียม...' : 'พิมพ์'}
                       </button>
-                      {String(row.transactionMode ?? '').toUpperCase() === 'TRADING' ? (
-                        <button
-                          className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                          disabled={row.status === 'cancelled'}
-                          title={row.status === 'cancelled' ? 'บิลที่ยกเลิกแล้วแก้ Trading allocation ไม่ได้' : 'แก้เฉพาะ Trading allocation'}
-                          type="button"
-                          onClick={(event) => { event.stopPropagation(); void openRow(row) }}
-                        >
-                          แก้ไข
-                        </button>
-                      ) : (
-                        <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50" disabled title="รอเปิด flow แก้ไขบิลขาย" type="button">แก้ไข</button>
-                      )}
+                      <button
+                        className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={row.status === 'cancelled' || isDetailLoading}
+                        title={row.status === 'cancelled' ? 'บิลขายที่ยกเลิกแล้วแก้ไขไม่ได้' : 'แก้ไขบิลขายด้วยฟอร์มเดิม'}
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); void openEditSalesForm(row) }}
+                      >
+                        แก้ไข
+                      </button>
                       <button
                         className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={row.canCancel === false}
@@ -3247,8 +3372,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           <div className="relative mx-auto my-4 flex max-h-[94vh] w-full max-w-[1480px] flex-col rounded-md bg-white shadow-2xl" data-combobox-portal-root="true">
             <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-md border-b border-slate-800 bg-slate-900 px-6 py-4 text-white">
               <div>
-                <h3 className="text-xl font-bold">สร้างบิลขายใหม่</h3>
-                <p className="mt-1 text-xs opacity-80">บันทึกบิลขายแบบ Stock / Trading พร้อม VAT และข้อมูลรับเงิน</p>
+                <h3 className="text-xl font-bold">{editingSalesBillId ? `แก้ไขบิลขาย ${editingSalesBillId}` : 'สร้างบิลขายใหม่'}</h3>
+                <p className="mt-1 text-xs opacity-80">{editingSalesBillId ? 'ตรวจและแก้ข้อมูลด้วยฟอร์มเดียวกับตอนสร้างบิลขาย' : 'บันทึกบิลขายแบบ Stock / Trading พร้อม VAT และข้อมูลรับเงิน'}</p>
               </div>
               <button className="text-3xl leading-none text-white/80 hover:text-white outline-none focus:outline-none" type="button" onClick={() => setShowSalesForm(false)}>&times;</button>
             </div>
@@ -3256,9 +3381,12 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="emerald">1</StepBadge>ประเภทบิล</h4>
                 <div className="grid gap-3 md:grid-cols-2">
-                  <RadioCard active={salesForm.transactionMode === 'STOCK'} disabled={stockDeliveryLocked} label="📦 STOCK" note="ขายจากสต๊อกจริง" onClick={() => updateSalesForm('transactionMode', 'STOCK')} />
-                  <RadioCard active={salesForm.transactionMode === 'TRADING'} disabled={stockDeliveryLocked} label="🔄 TRADING" note="ขายจากบิลซื้อ Trading และพ่วง WTO ได้" onClick={() => updateSalesForm('transactionMode', 'TRADING')} />
+                  <RadioCard active={salesForm.transactionMode === 'STOCK'} disabled={salesIdentityLocked || stockDeliveryLocked} label="📦 STOCK" note="ขายจากสต๊อกจริง" onClick={() => updateSalesForm('transactionMode', 'STOCK')} />
+                  <RadioCard active={salesForm.transactionMode === 'TRADING'} disabled={salesIdentityLocked || stockDeliveryLocked} label="🔄 TRADING" note="ขายจากบิลซื้อ Trading และพ่วง WTO ได้" onClick={() => updateSalesForm('transactionMode', 'TRADING')} />
                 </div>
+                {salesIdentityLocked ? (
+                  <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-600">โหมดแก้ไขจะคงประเภทบิล สาขา ลูกค้า และแหล่งที่มาเดิม เพื่อให้ข้อมูล Stock/Trading และ audit ต่อเนื่อง</div>
+                ) : null}
                 {salesForm.transactionMode === 'TRADING' ? (
                   <div className="mt-3 rounded-md border border-purple-200 bg-purple-50 p-2 text-xs text-purple-700">รายการจากบิลซื้อ Trading จะเข้า Trading Matching และไม่ตัด Stock; ถ้าเลือก WTO พ่วง รายการจาก WTO จะตัด Stock ตาม flow บิลขาย Stock ในบิลเดียวกัน</div>
                 ) : null}
@@ -3267,8 +3395,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
               <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
                 <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-700"><StepBadge tone="blue">2</StepBadge>ข้อมูลบิล</h4>
                 <div className={`grid gap-3 ${isExportSalesBill ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
-                  <BranchSelectCombobox branches={activeBranches} disabled={stockDeliveryLocked} error={salesFieldErrors.branchId} errorKey="branchId" inputId="sales-bill-branch-search" label="สาขา/คลัง *" placeholder="เลือกสาขา/คลัง" value={salesForm.branchId} onChange={(branchId) => updateSalesForm('branchId', branchId ?? '')} />
-                  <CustomerSearchCombobox className="md:col-span-2" disabled={customerLockedByDelivery || !salesForm.branchId} error={salesFieldErrors.customerId} errorKey="customerId" options={activeCustomers} placeholder={salesForm.branchId ? 'ค้นหารหัสหรือชื่อลูกค้า' : 'เลือกสาขา/คลังก่อน'} value={salesForm.customerId} onChange={(value) => updateSalesForm('customerId', value)} />
+                  <BranchSelectCombobox branches={activeBranches} disabled={salesIdentityLocked || stockDeliveryLocked} error={salesFieldErrors.branchId} errorKey="branchId" inputId="sales-bill-branch-search" label="สาขา/คลัง *" placeholder="เลือกสาขา/คลัง" value={salesForm.branchId} onChange={(branchId) => updateSalesForm('branchId', branchId ?? '')} />
+                  <CustomerSearchCombobox className="md:col-span-2" disabled={salesIdentityLocked || customerLockedByDelivery || !salesForm.branchId} error={salesFieldErrors.customerId} errorKey="customerId" options={activeCustomers} placeholder={salesForm.branchId ? 'ค้นหารหัสหรือชื่อลูกค้า' : 'เลือกสาขา/คลังก่อน'} value={salesForm.customerId} onChange={(value) => updateSalesForm('customerId', value)} />
                   <Field className="block" error={salesFieldErrors.channelId} label="ช่องทางขาย *">
                     <Input
                       data-error-key="channelId"
@@ -3301,7 +3429,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 {salesForm.transactionMode === 'STOCK' || salesForm.transactionMode === 'TRADING' ? (
                   <div className="mt-4">
                   <SearchCombobox
-                    disabled={stockDeliveryLocked || (salesForm.transactionMode !== 'STOCK' && salesForm.transactionMode !== 'TRADING') || !stockDeliveryPrerequisiteReady}
+                    disabled={salesIdentityLocked || stockDeliveryLocked || (salesForm.transactionMode !== 'STOCK' && salesForm.transactionMode !== 'TRADING') || !stockDeliveryPrerequisiteReady}
                     error={salesFieldErrors.deliveryTicketId}
                     errorKey="deliveryTicketId"
                     inputId="sales-bill-delivery-search"
@@ -3312,7 +3440,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                       label: delivery.documentNo,
                       searchText: `${delivery.documentNo} ${delivery.partyName} ${delivery.vehicleNo} ${delivery.branchName}`.toLowerCase(),
                     }))}
-                    placeholder={stockDeliveryLocked ? 'ล็อกใบส่งของเดิม' : salesForm.transactionMode === 'TRADING' ? 'เลือก WTO ถ้าต้องพ่วงรายการจาก Stock' : salesForm.transactionMode === 'STOCK' && stockDeliveryPrerequisiteReady ? 'ค้นหาเลขที่ใบส่งของ' : 'เลือกสาขาและลูกค้าก่อน'}
+	                    placeholder={salesForm.transactionMode === 'TRADING' ? 'เลือก WTO ถ้าต้องพ่วงรายการจาก Stock' : salesForm.transactionMode === 'STOCK' && stockDeliveryPrerequisiteReady ? 'ค้นหาเลขที่ใบส่งของ' : 'เลือกสาขาและลูกค้าก่อน'}
                     value={salesForm.deliveryTicketId ?? ''}
                     onChange={(value) => updateSalesForm('deliveryTicketId', value || null)}
                   />
@@ -3344,9 +3472,10 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                               const sourceOptions = activeTradingPurchaseBills.filter((source) => source.id === sourceId || !selectedTradingPurchaseSourceIds.has(source.id))
                               return (
                                 <div key={`trading-purchase-selector-${selectorIndex}`} className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-                                  <SearchCombobox
-                                    hideSelectedOptionFromList
-                                    inputClassName="h-9 text-sm"
+	                                  <SearchCombobox
+	                                    disabled={salesIdentityLocked}
+	                                    hideSelectedOptionFromList
+	                                    inputClassName="h-9 text-sm"
                                     inputId={`sales-bill-trading-purchase-source-search-${selectorIndex}`}
                                     label={`บิลซื้อ Trading ${selectorIndex + 1}`}
                                     options={sourceOptions.map((source) => ({
@@ -3359,9 +3488,9 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                     value={sourceId}
                                     onChange={(nextSourceId) => updateTradingPurchaseSelector(selectorIndex, nextSourceId)}
                                   />
-                                  <Button
-                                    className="h-9 px-3 text-xs font-normal"
-                                    disabled={tradingPurchaseSelectorIds.length <= 1 && !sourceId}
+	                                  <Button
+	                                    className="h-9 px-3 text-xs font-normal"
+	                                    disabled={salesIdentityLocked || (tradingPurchaseSelectorIds.length <= 1 && !sourceId)}
                                     type="button"
                                     variant="ghost"
                                     onClick={() => removeTradingPurchaseSelector(selectorIndex)}
@@ -3371,7 +3500,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                 </div>
                               )
                             })}
-                            <Button className="h-9 gap-2 px-3 text-xs font-normal" disabled={availableTradingPurchaseSources.length === 0} type="button" variant="outline" onClick={addTradingPurchaseSelector}>
+	                            <Button className="h-9 gap-2 px-3 text-xs font-normal" disabled={salesIdentityLocked || availableTradingPurchaseSources.length === 0} type="button" variant="outline" onClick={addTradingPurchaseSelector}>
                               <Plus className="size-4" />
                               เพิ่มบิลซื้อ
                             </Button>
@@ -3384,7 +3513,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3">
                       <div className="mb-2 text-xs font-bold text-emerald-800">ใบส่งของ WTO พ่วงในบิล</div>
                       <SearchCombobox
-                        disabled={!stockDeliveryPrerequisiteReady}
+	                        disabled={salesIdentityLocked || !stockDeliveryPrerequisiteReady}
                         error={salesFieldErrors.deliveryTicketId}
                         errorKey="deliveryTicketId"
                         inputId="sales-bill-trading-delivery-search"
@@ -3742,7 +3871,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
             </div>
             <div className="flex justify-end gap-2 rounded-b-md border-t border-slate-100 bg-white p-4">
               <button className="rounded-md px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-50 outline-none" disabled={isSaving} type="button" onClick={() => setShowSalesForm(false)}>ยกเลิก</button>
-              <button className="rounded-md bg-blue-600 hover:bg-blue-700 px-5 py-2 text-sm font-bold text-white disabled:opacity-60 outline-none" disabled={isSaving} type="button" onClick={() => void saveSalesBill()}>{isSaving ? 'กำลังบันทึก...' : 'บันทึกบิลขาย'}</button>
+              <button className="rounded-md bg-blue-600 hover:bg-blue-700 px-5 py-2 text-sm font-bold text-white disabled:opacity-60 outline-none" disabled={isSaving} type="button" onClick={() => void saveSalesBill()}>{isSaving ? 'กำลังบันทึก...' : editingSalesBillId ? 'บันทึกการแก้ไข' : 'บันทึกบิลขาย'}</button>
             </div>
           </div>
         </div>
@@ -3783,7 +3912,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
           }}
           onCorrectTradingAllocations={correctTradingAllocations}
           onPrint={(detail) => void printSalesBill(detail)}
-          onReturnStock={returnSalesBillStock}
 	        />
 	      ) : null}
 	      {cancelingBill ? (
@@ -4069,7 +4197,6 @@ function SalesBillDetailModal({
   onClose,
   onCorrectTradingAllocations,
   onPrint,
-  onReturnStock,
 }: {
   detail: SalesBillDetail | null
   docNo: string
@@ -4080,17 +4207,11 @@ function SalesBillDetailModal({
   onClose: () => void
   onCorrectTradingAllocations: (docNo: string, allocations: Array<{ salesLineNo: number; tradingCostSourceId: string }>, note: string) => Promise<void>
   onPrint: (detail: SalesBillDetail) => void
-  onReturnStock: (docNo: string, values: { pendingOutKey: string; note?: string | null; reason?: string | null; returnedQty: number }) => Promise<void>
 }) {
   const [correctionError, setCorrectionError] = useState<string | null>(null)
   const [correctionNote, setCorrectionNote] = useState('')
   const [correctionSources, setCorrectionSources] = useState<Record<number, string>>({})
   const [isCorrecting, setIsCorrecting] = useState(false)
-  const [isReturningPendingOutKey, setIsReturningPendingOutKey] = useState<string | null>(null)
-  const [returnError, setReturnError] = useState<string | null>(null)
-  const [returnNoteByPendingOut, setReturnNoteByPendingOut] = useState<Record<string, string>>({})
-  const [returnQtyByPendingOut, setReturnQtyByPendingOut] = useState<Record<string, string>>({})
-  const [returnReasonByPendingOut, setReturnReasonByPendingOut] = useState<Record<string, string>>({})
   const [showCorrection, setShowCorrection] = useState(false)
 
   useEffect(() => {
@@ -4113,22 +4234,6 @@ function SalesBillDetailModal({
       return [item.lineNo, sourceId]
     })))
     setCorrectionError(null)
-  }, [detail])
-
-  useEffect(() => {
-    if (!detail) {
-      setReturnQtyByPendingOut({})
-      setReturnReasonByPendingOut({})
-      setReturnNoteByPendingOut({})
-      setReturnError(null)
-      setIsReturningPendingOutKey(null)
-      return
-    }
-    setReturnQtyByPendingOut(Object.fromEntries(detail.stockReturnOptions.map((option) => [option.pendingOutKey, String(option.pendingQty)])))
-    setReturnReasonByPendingOut({})
-    setReturnNoteByPendingOut({})
-    setReturnError(null)
-    setIsReturningPendingOutKey(null)
   }, [detail])
 
   const submitCorrection = async () => {
@@ -4155,39 +4260,6 @@ function SalesBillDetailModal({
       setCorrectionError(caught instanceof Error ? caught.message : 'แก้ไข Trading allocation ไม่สำเร็จ')
     } finally {
       setIsCorrecting(false)
-    }
-  }
-
-  const submitStockReturn = async (option: SalesBillDetail['stockReturnOptions'][number]) => {
-    if (!detail) return
-    setReturnError(null)
-    const returnedQty = Number(returnQtyByPendingOut[option.pendingOutKey] ?? 0)
-    if (!Number.isFinite(returnedQty) || returnedQty < 0) {
-      setReturnError('กรอกน้ำหนักที่ชั่งคืนเป็นตัวเลขที่ไม่ติดลบ')
-      return
-    }
-    if (returnedQty > option.pendingQty + 0.0001) {
-      setReturnError(`น้ำหนักรับคืนของ ${option.productName} เกิน pending_out ${formatMoney(option.pendingQty)} กก.`)
-      return
-    }
-    const lossQty = Math.max(0, option.pendingQty - returnedQty)
-    const reason = returnReasonByPendingOut[option.pendingOutKey]?.trim() ?? ''
-    if (lossQty > 0.0001 && !reason) {
-      setReturnError(`รับคืน ${option.productName} ขาด ${formatMoney(lossQty)} กก. ต้องกรอกเหตุผลส่วนต่าง`)
-      return
-    }
-    setIsReturningPendingOutKey(option.pendingOutKey)
-    try {
-      await onReturnStock(detail.docNo, {
-        pendingOutKey: option.pendingOutKey,
-        note: returnNoteByPendingOut[option.pendingOutKey]?.trim() || null,
-        reason: reason || null,
-        returnedQty,
-      })
-    } catch (caught) {
-      setReturnError(caught instanceof Error ? caught.message : 'รับของคืนไม่สำเร็จ')
-    } finally {
-      setIsReturningPendingOutKey(null)
     }
   }
 
@@ -4401,89 +4473,6 @@ function SalesBillDetailModal({
             </div>
 
             <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-              {detail.stockReturnOptions.length > 0 ? (
-                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 lg:col-span-2">
-                  <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <div className="text-sm font-semibold text-amber-900">รับของคืนจาก pending_out</div>
-                      <div className="mt-1 text-xs text-amber-800">กรอกน้ำหนักที่ชั่งคืนจริง ถ้าน้อยกว่า pending_out ระบบจะบันทึกส่วนต่างเป็นของขาดและลง Stock Ledger</div>
-                    </div>
-                  </div>
-                  {returnError ? <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700">{returnError}</div> : null}
-                  <div className="overflow-x-auto rounded-md border border-amber-200 bg-white">
-                    <table className="w-full min-w-[860px] text-xs">
-                      <thead className="bg-amber-50 text-amber-900">
-                        <tr>
-                          <th className="px-3 py-2 text-left font-medium">WTO / สินค้า</th>
-                          <th className="px-3 py-2 text-left font-medium">คลัง</th>
-                          <th className="px-3 py-2 text-right font-medium">pending_out</th>
-                          <th className="px-3 py-2 text-right font-medium">น้ำหนักชั่งคืนจริง</th>
-                          <th className="px-3 py-2 text-right font-medium">ส่วนต่างขาด</th>
-                          <th className="px-3 py-2 text-left font-medium">เหตุผลส่วนต่าง</th>
-                          <th className="px-3 py-2 text-left font-medium">หมายเหตุ</th>
-                          <th className="px-3 py-2 text-right font-medium">จัดการ</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {detail.stockReturnOptions.map((option) => {
-                          const returnedQty = Number(returnQtyByPendingOut[option.pendingOutKey] ?? option.pendingQty)
-                          const lossQty = Math.max(0, option.pendingQty - (Number.isFinite(returnedQty) ? returnedQty : 0))
-                          const requiresReason = lossQty > 0.0001
-                          return (
-                            <tr key={option.pendingOutKey} className="border-t border-amber-100 align-top">
-                              <td className="px-3 py-2">
-                                <div className="font-mono text-[11px] text-slate-700">{option.weightTicketDocNo}</div>
-                                <div className="font-medium text-slate-900">{option.productName}</div>
-                                <div className="text-slate-500">{[option.productCode, option.sourceLineNo ? `line ${option.sourceLineNo}` : null].filter(Boolean).join(' · ')}</div>
-                              </td>
-                              <td className="px-3 py-2 text-slate-700">{option.warehouseName || '-'}</td>
-                              <td className="px-3 py-2 text-right font-semibold tabular-nums text-amber-800">{formatMoney(option.pendingQty)}</td>
-                              <td className="px-3 py-2">
-                                <input
-                                  className={`w-full rounded-md border px-2 py-2 text-right tabular-nums ${requiresReason ? 'border-amber-300 bg-amber-50' : 'border-slate-300 bg-white'} ${numberInputClass}`}
-                                  min="0"
-                                  max={option.pendingQty}
-                                  step="0.01"
-                                  type="number"
-                                  value={returnQtyByPendingOut[option.pendingOutKey] ?? ''}
-                                  onChange={(event) => setReturnQtyByPendingOut((current) => ({ ...current, [option.pendingOutKey]: event.target.value }))}
-                                />
-                              </td>
-                              <td className={`px-3 py-2 text-right font-semibold tabular-nums ${requiresReason ? 'text-red-700' : 'text-emerald-700'}`}>{formatMoney(lossQty)}</td>
-                              <td className="px-3 py-2">
-                                <input
-                                  className={`w-full rounded-md border px-2 py-2 ${requiresReason && !returnReasonByPendingOut[option.pendingOutKey]?.trim() ? 'border-red-300 bg-red-50' : 'border-slate-300 bg-white'}`}
-                                  placeholder={requiresReason ? 'ระบุเหตุผลของขาด' : 'ไม่บังคับ'}
-                                  value={returnReasonByPendingOut[option.pendingOutKey] ?? ''}
-                                  onChange={(event) => setReturnReasonByPendingOut((current) => ({ ...current, [option.pendingOutKey]: event.target.value }))}
-                                />
-                              </td>
-                              <td className="px-3 py-2">
-                                <input
-                                  className="w-full rounded-md border border-slate-300 bg-white px-2 py-2"
-                                  placeholder="หมายเหตุ"
-                                  value={returnNoteByPendingOut[option.pendingOutKey] ?? ''}
-                                  onChange={(event) => setReturnNoteByPendingOut((current) => ({ ...current, [option.pendingOutKey]: event.target.value }))}
-                                />
-                              </td>
-                              <td className="px-3 py-2 text-right">
-                                <Button
-                                  className="h-8 px-3 text-xs font-normal"
-                                  disabled={isReturningPendingOutKey === option.pendingOutKey}
-                                  type="button"
-                                  onClick={() => void submitStockReturn(option)}
-                                >
-                                  {isReturningPendingOutKey === option.pendingOutKey ? 'กำลังบันทึก...' : 'บันทึกรับคืน'}
-                                </Button>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ) : null}
               <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <div className="text-sm font-medium text-slate-700">ประวัติสถานะ SB</div>

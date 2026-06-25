@@ -51,6 +51,8 @@ function hasExpectedDelegates(client: PrismaClient) {
     'contact_line_id',
     'contact_note',
   ].every((field) => appUserFields.includes(field))
+  const salesBillFields = runtimeModels?.sales_bills?.fields?.map((field) => field.name) ?? []
+  const hasSalesBillExportOrderField = salesBillFields.includes('export_order_no')
 
   return typeof clientRecord.weight_ticket_product_summaries?.createMany === 'function'
     && typeof clientRecord.weight_ticket_product_summary_lines?.createMany === 'function'
@@ -78,6 +80,7 @@ function hasExpectedDelegates(client: PrismaClient) {
     && hasAppUserProfileFields
     && hasCompanyProfileBranchIdField
     && hasPaymentMethodTypeField
+    && hasSalesBillExportOrderField
 }
 
 function createPrismaClient() {

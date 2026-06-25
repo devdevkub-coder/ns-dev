@@ -101,7 +101,7 @@ export async function GET(request: Request) {
     const branch = query.branchId ? await findActiveBranchReferenceByCodeOrId(query.branchId) : null
     const supplier = query.supplierId ? await findActiveSupplierReferenceByCodeOrId(query.supplierId) : null
 
-    const [bills, payments, suppliers, branches] = await Promise.all([
+    const [bills, suppliers, branches] = await Promise.all([
       prisma.purchase_bills.findMany({
         include: {
           branches: { select: { code: true, id: true, name: true } },
@@ -110,17 +110,6 @@ export async function GET(request: Request) {
         orderBy: [{ date: 'asc' }, { doc_no: 'asc' }],
         take: 10000,
         where: billWhere(query, branch?.id ?? null, supplier?.id ?? null),
-      }),
-      prisma.payments.findMany({
-        select: {
-          amount: true,
-          bill_id: true,
-          discount: true,
-          status: true,
-          withholding_tax: true,
-        },
-        take: 10000,
-        where: { status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] } },
       }),
       prisma.suppliers.findMany({
         orderBy: [{ code: 'asc' }, { name: 'asc' }],
@@ -145,20 +134,13 @@ export async function GET(request: Request) {
       }),
     ])
 
-    const paidMap = new Map<bigint, number>()
-    payments.forEach((payment) => {
-      if (!payment.bill_id) return
-      const total = toNumber(payment.amount) + toNumber(payment.withholding_tax) + toNumber(payment.discount)
-      paidMap.set(payment.bill_id, (paidMap.get(payment.bill_id) ?? 0) + total)
-    })
-
     const today = new Date()
     const search = query.q?.trim().toLowerCase()
     const allRows = bills
       .map((bill) => {
         const totalAmount = toNumber(bill.total_amount)
-        const paidAmount = paidMap.get(bill.id) ?? toNumber(bill.paid_amount)
-        const payableBalance = Math.max(0, totalAmount - paidAmount)
+        const paidAmount = toNumber(bill.paid_amount)
+        const payableBalance = toNumber(bill.payable_balance)
         const creditTerm = 0
         // Current AP policy has no supplier credit term: aging starts from the PB date.
         const due = new Date(bill.date)
@@ -176,6 +158,8 @@ export async function GET(request: Request) {
           id: bill.doc_no,
           paidAmount,
           payableBalance,
+          purchaseBillId: bill.id.toString(),
+          sourceOfTruth: 'purchase_bills',
           status: bill.status ?? 'open',
           supplierCode: bill.suppliers?.code ?? '',
           supplierId: bill.suppliers?.code ?? '',
@@ -259,7 +243,100 @@ export async function GET(request: Request) {
 
     const totalRows = allRows.length
     const start = (query.page - 1) * query.pageSize
-    const rows = allRows.slice(start, start + query.pageSize)
+    const pageRows = allRows.slice(start, start + query.pageSize)
+    const pageBillIds = pageRows.map((row) => BigInt(row.purchaseBillId))
+    const pageBillIdStrings = pageRows.map((row) => row.purchaseBillId)
+    const [paymentApprovals, supplierAdvanceAllocations] = pageRows.length > 0
+      ? await Promise.all([
+          prisma.payment_approvals.findMany({
+            include: {
+              payment_allocations: {
+                include: {
+                  payments: { select: { amount: true, date: true, doc_no: true, net_amount: true, status: true, voucher_id: true } },
+                },
+                orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+                where: { status: 'active' },
+              },
+              payments: {
+                select: { amount: true, date: true, doc_no: true, net_amount: true, status: true, voucher_id: true },
+                where: { status: { not: 'cancelled' } },
+              },
+            },
+            orderBy: [{ approved_at: 'desc' }, { id: 'desc' }],
+            where: {
+              source_id: { in: pageBillIdStrings },
+              source_type: 'purchase_bill',
+              status: { in: ['approved', 'paid'] },
+            },
+          }),
+          prisma.supplier_advance_allocations.findMany({
+            include: {
+              supplier_advance_payments: { select: { advance_date: true, doc_no: true, status: true } },
+            },
+            orderBy: [{ allocated_at: 'desc' }, { id: 'desc' }],
+            where: { purchase_bill_id: { in: pageBillIds }, status: 'active' },
+          }),
+        ])
+      : [[], []]
+    const paymentApprovalsByBillId = new Map<string, typeof paymentApprovals>()
+    paymentApprovals.forEach((approval) => {
+      paymentApprovalsByBillId.set(approval.source_id, [...(paymentApprovalsByBillId.get(approval.source_id) ?? []), approval])
+    })
+    const supplierAdvanceAllocationsByBillId = new Map<string, typeof supplierAdvanceAllocations>()
+    supplierAdvanceAllocations.forEach((allocation) => {
+      const key = allocation.purchase_bill_id.toString()
+      supplierAdvanceAllocationsByBillId.set(key, [...(supplierAdvanceAllocationsByBillId.get(key) ?? []), allocation])
+    })
+    const rows = pageRows.map((row) => {
+      const approvalsForBill = paymentApprovalsByBillId.get(row.purchaseBillId) ?? []
+      const advancesForBill = supplierAdvanceAllocationsByBillId.get(row.purchaseBillId) ?? []
+      return {
+        ...row,
+        drilldown: {
+          payments: approvalsForBill.flatMap((approval) => {
+            const facts = approval.payment_allocations.length > 0
+              ? approval.payment_allocations.map((allocation) => ({
+                  allocatedAmount: toNumber(allocation.allocated_amount),
+                  date: allocation.payments?.date ? toDateOnly(allocation.payments.date) : '',
+                  docNo: allocation.payment_doc_no,
+                  href: `/purchase/payments?q=${encodeURIComponent(allocation.payment_doc_no)}`,
+                  netAmount: toNumber(allocation.payments?.net_amount),
+                  paymentApprovalDocNo: allocation.payment_approval_doc_no,
+                  status: allocation.payments?.status ?? allocation.status,
+                  voucherId: allocation.payment_voucher_id ?? allocation.payments?.voucher_id ?? '',
+                }))
+              : approval.payments.map((payment) => ({
+                  allocatedAmount: toNumber(payment.net_amount ?? payment.amount),
+                  date: toDateOnly(payment.date),
+                  docNo: payment.doc_no,
+                  href: `/purchase/payments?q=${encodeURIComponent(payment.doc_no)}`,
+                  netAmount: toNumber(payment.net_amount),
+                  paymentApprovalDocNo: approval.doc_no ?? '',
+                  status: payment.status ?? '',
+                  voucherId: payment.voucher_id ?? '',
+                }))
+            return facts
+          }),
+          paymentApprovals: approvalsForBill.map((approval) => ({
+            approvedAmount: toNumber(approval.approved_amount),
+            docNo: approval.doc_no ?? '',
+            href: `/purchase/payments?approval=${encodeURIComponent(approval.doc_no ?? '')}`,
+            status: approval.status,
+          })),
+          purchaseBill: {
+            docNo: row.docNo,
+            href: `/purchase/bills?docNo=${encodeURIComponent(row.docNo)}`,
+            sourceOfTruth: 'purchase_bills',
+          },
+          supplierAdvances: advancesForBill.map((allocation) => ({
+            allocatedAmount: toNumber(allocation.allocated_amount),
+            docNo: allocation.supplier_advance_payments.doc_no,
+            href: `/purchase/advance-payments?q=${encodeURIComponent(allocation.supplier_advance_payments.doc_no)}`,
+            status: allocation.supplier_advance_payments.status,
+          })),
+        },
+      }
+    })
     const statuses = Array.from(new Set(bills.map((bill) => bill.status ?? 'open'))).sort()
 
     return NextResponse.json({
@@ -267,7 +344,6 @@ export async function GET(request: Request) {
       bySupplier,
       filters: {
         branches: branches.map((row) => ({ active: row.active, code: row.code, id: row.code, name: row.name })),
-        channels: [],
         statuses,
         suppliers: suppliers.map((row) => {
           const code = requireBusinessCode(row.code, `ผู้ขาย ${row.id}`)

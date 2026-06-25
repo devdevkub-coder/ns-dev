@@ -200,7 +200,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         },
       })
       const nextTicketStatus = toNumber(remainingAfterReturn._sum.remaining_weight) > 0.0001 || activePendingOutCount > 0
-        ? 'delivered'
+        ? 'partially_billed'
         : 'billed'
       const ticket = await tx.weight_tickets.findUnique({
         select: { status: true },

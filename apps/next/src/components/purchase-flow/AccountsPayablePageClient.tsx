@@ -22,9 +22,14 @@ type ApRow = {
   aging: number
   branchName: string
   bucket: string
-  channelName: string
   creditTerm: number
   date: string
+  drilldown?: {
+    paymentApprovals: Array<{ approvedAmount: number; docNo: string; href: string; status: string }>
+    payments: Array<{ allocatedAmount: number; date: string; docNo: string; href: string; netAmount: number; paymentApprovalDocNo: string; status: string; voucherId: string }>
+    purchaseBill: { docNo: string; href: string; sourceOfTruth: string }
+    supplierAdvances: Array<{ allocatedAmount: number; docNo: string; href: string; status: string }>
+  }
   docNo: string
   dueDate: string
   id: string
@@ -40,7 +45,7 @@ type ApRow = {
 type ApPayload = {
   byBucket: Array<{ bucket: string; bills: number; total: number }>
   bySupplier: Array<{ bills: number; current: number; gt90: number; oldest: number; supplierName: string; total: number; b30: number; b60: number; b90: number }>
-  filters: { branches: SelectOption[]; channels: SelectOption[]; statuses: string[]; suppliers: SelectOption[] }
+  filters: { branches: SelectOption[]; statuses: string[]; suppliers: SelectOption[] }
   pagination: { page: number; pageSize: number; totalPages: number; totalRows: number }
   rows: ApRow[]
   summary: { bills: number; dueIn7: number; overdue: number; suppliers: number; total: number }
@@ -111,7 +116,6 @@ export function AccountsPayablePageClient() {
   const [tab, setTab] = useState<'summary' | 'detail'>('summary')
   const [bucket, setBucket] = useState('')
   const [branchId, setBranchId] = useState('')
-  const [channelId, setChannelId] = useState('')
   const [from, setFrom] = useState(currentMonthStart())
   const [page, setPage] = useState(1)
   const [q, setQ] = useState('')
@@ -121,7 +125,7 @@ export function AccountsPayablePageClient() {
   const [supplierId, setSupplierId] = useState('')
   const [to, setTo] = useState(todayDateInput())
   const [showMobileFilters, setShowMobileFilters] = useState(false)
-  const hasFilters = Boolean(branchId || bucket || channelId || from || q.trim() || status || supplierId || to)
+  const hasFilters = Boolean(branchId || bucket || from || q.trim() || status || supplierId || to)
 
   const supplierOptions = useMemo(() => {
     const list = (data?.filters.suppliers ?? []).filter((supplier) => !branchId || (supplier.branchIds ?? []).includes(branchId))
@@ -145,14 +149,13 @@ export function AccountsPayablePageClient() {
     })
     if (branchId) params.set('branchId', branchId)
     if (bucket) params.set('bucket', bucket)
-    if (channelId) params.set('channelId', channelId)
     if (from) params.set('from', from)
     if (q.trim()) params.set('q', q.trim())
     if (status) params.set('status', status)
     if (supplierId) params.set('supplierId', supplierId)
     if (to) params.set('to', to)
     return params
-  }, [branchId, bucket, channelId, from, page, q, sortDirection, sortKey, status, supplierId, to])
+  }, [branchId, bucket, from, page, q, sortDirection, sortKey, status, supplierId, to])
 
   const loadData = useCallback(async () => {
     const requestId = latestLoadRequestRef.current + 1
@@ -358,11 +361,6 @@ export function AccountsPayablePageClient() {
               />
             </div>
             
-            <select className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" value={channelId} onChange={(event) => { setPage(1); setChannelId(event.target.value) }}>
-              <option value="">ทุกช่องทาง</option>
-              {(data?.filters.channels ?? []).map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
-            </select>
-            
             <select className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100" value={bucket} onChange={(event) => { setPage(1); setBucket(event.target.value) }}>
               <option value="">ทุกอายุหนี้</option>
               <option value="Current">Current</option>
@@ -392,7 +390,7 @@ export function AccountsPayablePageClient() {
             <DatePickerInput className="w-[130px]" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
             
             {hasFilters && (
-              <button className="rounded-md bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition-colors" type="button" onClick={() => { setBranchId(''); setBucket(''); setChannelId(''); setFrom(''); setPage(1); setQ(''); setStatus(''); setSupplierId(''); setTo('') }}>✕ ล้าง</button>
+              <button className="rounded-md bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition-colors" type="button" onClick={() => { setBranchId(''); setBucket(''); setFrom(''); setPage(1); setQ(''); setStatus(''); setSupplierId(''); setTo('') }}>✕ ล้าง</button>
             )}
             
             <span className="ml-auto text-xs text-slate-500">พบ {data?.pagination.totalRows ?? 0} รายการ</span>
@@ -467,10 +465,6 @@ export function AccountsPayablePageClient() {
                   setSupplierId(value)
                 }}
               />
-              <select className="w-full rounded-md border px-3 py-2 text-sm" value={channelId} onChange={(event) => { setPage(1); setChannelId(event.target.value) }}>
-                <option value="">ทุกช่องทาง</option>
-                {(data?.filters.channels ?? []).map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
-              </select>
               <select className="w-full rounded-md border px-3 py-2 text-sm" value={bucket} onChange={(event) => { setPage(1); setBucket(event.target.value) }}>
                 <option value="">ทุกอายุหนี้</option>
                 <option value="Current">Current</option>
@@ -499,7 +493,7 @@ export function AccountsPayablePageClient() {
               </div>
               <div className="flex justify-between items-center pt-1">
                 <span className="text-xs text-slate-500">พบ {data?.pagination.totalRows ?? 0} รายการ</span>
-                <button className="rounded-md bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200" type="button" onClick={() => { setBranchId(''); setBucket(''); setChannelId(''); setFrom(''); setPage(1); setQ(''); setStatus(''); setSupplierId(''); setTo('') }}>ล้างตัวกรอง</button>
+                <button className="rounded-md bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200" type="button" onClick={() => { setBranchId(''); setBucket(''); setFrom(''); setPage(1); setQ(''); setStatus(''); setSupplierId(''); setTo('') }}>ล้างตัวกรอง</button>
               </div>
             </div>
           )}
@@ -600,11 +594,6 @@ export function AccountsPayablePageClient() {
                     <span className="text-red-700 font-bold tabular-nums">{formatMoney(row.payableBalance)}</span>
                   </div>
                 </div>
-                {row.channelName && (
-                  <div className="text-[10px] text-slate-400 pt-1.5 border-t border-slate-100 mt-1">
-                    ช่องทาง: {row.channelName}
-                  </div>
-                )}
               </div>
             </div>
           ))}
@@ -792,7 +781,6 @@ const detailColumns: Array<ResizableColumnDefinition<string>> = [
   { key: 'totalAmount', defaultWidth: 100 },
   { key: 'paidAmount', defaultWidth: 100 },
   { key: 'payableBalance', defaultWidth: 100 },
-  { key: 'channelName', defaultWidth: 100 },
 ]
 
 function DetailTable({
@@ -838,12 +826,11 @@ function DetailTable({
             <ResizableTableHead align="right" label="ยอด" resizeProps={columnResize.getResizeHandleProps('totalAmount', 'ยอด')} />
             <ResizableTableHead align="right" label="จ่ายแล้ว" resizeProps={columnResize.getResizeHandleProps('paidAmount', 'จ่ายแล้ว')} />
             <ResizableTableHead activeSortKey={selectedSort} align="right" direction={sortDirection} label="ค้างจ่าย" resizeProps={columnResize.getResizeHandleProps('payableBalance', 'ค้างจ่าย')} sortKey="payableBalance" onSort={onSort} />
-            <ResizableTableHead label="Channel" resizeProps={columnResize.getResizeHandleProps('channelName', 'Channel')} />
           </tr>
         </thead>
         <tbody>
-          {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={9}>กำลังโหลดข้อมูล</td></tr> : null}
-          {!isLoading && rows.length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={9}>ไม่มีเจ้าหนี้คงค้าง</td></tr> : null}
+          {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={8}>กำลังโหลดข้อมูล</td></tr> : null}
+          {!isLoading && rows.length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={8}>ไม่มีเจ้าหนี้คงค้าง</td></tr> : null}
           {!isLoading && rows.map((row) => (
             <tr key={row.id} className={`border-t border-slate-100 ${row.aging > 30 ? 'bg-red-50/50' : row.aging > 0 ? 'bg-amber-50/30' : ''}`}>
               <td className="p-2 overflow-hidden truncate">{row.supplierName}</td>
@@ -854,7 +841,6 @@ function DetailTable({
               <td className="p-2 text-right overflow-hidden truncate">{formatMoney(row.totalAmount)}</td>
               <td className="p-2 text-right text-emerald-600 overflow-hidden truncate">{formatMoney(row.paidAmount)}</td>
               <td className="p-2 text-right font-bold text-red-700 overflow-hidden truncate">{formatMoney(row.payableBalance)}</td>
-              <td className="p-2 overflow-hidden truncate">{row.channelName}</td>
             </tr>
           ))}
         </tbody>
@@ -863,7 +849,6 @@ function DetailTable({
             <tr>
               <td className="p-2 text-right" colSpan={7}>รวมค้างจ่ายทั้งหมด</td>
               <td className="p-2 text-right text-lg text-red-700">{formatMoney(summaryTotal)}</td>
-              <td />
             </tr>
           </tfoot>
         ) : null}
@@ -895,7 +880,6 @@ function DetailModal({ onClose, row }: { onClose: () => void; row: ApRow }) {
               <DetailItem label="วันที่บิล" value={formatDateDisplay(row.date)} />
               <DetailItem label="นับอายุจาก" value={formatDateDisplay(row.dueDate)} />
               <DetailItem label="อายุหนี้" value={`${row.aging} วัน (${row.bucket})`} />
-              <DetailItem label="ช่องทางซื้อ" value={row.channelName || '-'} />
               <DetailItem label="สาขา" value={row.branchName || '-'} />
               <DetailItem label="ประเภท" value={row.transactionMode || '-'} />
             </div>
@@ -911,6 +895,13 @@ function DetailModal({ onClose, row }: { onClose: () => void; row: ApRow }) {
               <DetailItem label="สถานะ" value={row.status || '-'} />
             </div>
           </div>
+
+          <TraceSection
+            paymentApprovals={row.drilldown?.paymentApprovals ?? []}
+            payments={row.drilldown?.payments ?? []}
+            purchaseBill={row.drilldown?.purchaseBill}
+            supplierAdvances={row.drilldown?.supplierAdvances ?? []}
+          />
         </div>
 
         <DialogFooter className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 shrink-0">
@@ -918,6 +909,92 @@ function DetailModal({ onClose, row }: { onClose: () => void; row: ApRow }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function TraceSection({
+  paymentApprovals,
+  payments,
+  purchaseBill,
+  supplierAdvances,
+}: {
+  paymentApprovals: NonNullable<ApRow['drilldown']>['paymentApprovals']
+  payments: NonNullable<ApRow['drilldown']>['payments']
+  purchaseBill?: NonNullable<ApRow['drilldown']>['purchaseBill']
+  supplierAdvances: NonNullable<ApRow['drilldown']>['supplierAdvances']
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">Drilldown / ที่มาของยอด</div>
+      <div className="space-y-3">
+        <TraceLink label="Purchase Bill" href={purchaseBill?.href ?? '#'} docNo={purchaseBill?.docNo ?? '-'} amountLabel="Source" amountValue={purchaseBill?.sourceOfTruth ?? '-'} />
+        <TraceList
+          emptyText="ยังไม่มีรายการอนุมัติจ่ายของบิลนี้"
+          rows={paymentApprovals.map((approval) => ({
+            amount: `${formatMoney(approval.approvedAmount)} บาท`,
+            href: approval.href,
+            meta: approval.status,
+            title: approval.docNo || '-',
+          }))}
+          title="Payment Approval / PMA"
+        />
+        <TraceList
+          emptyText="ยังไม่มีรายการจ่ายเงินจริงของบิลนี้"
+          rows={payments.map((payment) => ({
+            amount: `${formatMoney(payment.allocatedAmount)} บาท`,
+            href: payment.href,
+            meta: `${payment.date ? formatDateDisplay(payment.date) : '-'} · ${payment.status}`,
+            title: payment.docNo || payment.voucherId || '-',
+          }))}
+          title="Payment / PMT"
+        />
+        <TraceList
+          emptyText="ยังไม่มี Supplier Advance ที่ใช้หักบิลนี้"
+          rows={supplierAdvances.map((advance) => ({
+            amount: `${formatMoney(advance.allocatedAmount)} บาท`,
+            href: advance.href,
+            meta: advance.status,
+            title: advance.docNo,
+          }))}
+          title="Supplier Advance"
+        />
+      </div>
+    </div>
+  )
+}
+
+function TraceLink({ amountLabel, amountValue, docNo, href, label }: { amountLabel: string; amountValue: string; docNo: string; href: string; label: string }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
+      <div>
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</div>
+        <a className="font-mono text-xs font-semibold text-blue-700 hover:underline" href={href}>{docNo}</a>
+      </div>
+      <div className="text-right">
+        <div className="text-[10px] text-slate-400">{amountLabel}</div>
+        <div className="text-xs font-semibold text-slate-700">{amountValue}</div>
+      </div>
+    </div>
+  )
+}
+
+function TraceList({ emptyText, rows, title }: { emptyText: string; rows: Array<{ amount: string; href: string; meta: string; title: string }>; title: string }) {
+  return (
+    <div>
+      <div className="mb-1 text-[11px] font-bold text-slate-500">{title}</div>
+      {rows.length === 0 ? <div className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-400">{emptyText}</div> : null}
+      <div className="space-y-1">
+        {rows.map((row) => (
+          <div key={`${title}-${row.title}-${row.amount}`} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-100 px-3 py-2">
+            <div>
+              <a className="font-mono text-xs font-semibold text-blue-700 hover:underline" href={row.href}>{row.title}</a>
+              <div className="text-[11px] text-slate-400">{row.meta}</div>
+            </div>
+            <div className="text-xs font-bold text-slate-800">{row.amount}</div>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 

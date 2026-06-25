@@ -5,13 +5,14 @@ import type { ReactNode } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardList, Package2, Printer, Scale, SquarePen, XCircle } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardList, Package2, Printer, RotateCcw, Scale, SquarePen, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { PageTitleOverride } from '@/components/layout/PageTitleOverride'
 import { WeightTicketProductBreakdownTable } from '@/components/daily/WeightTicketProductBreakdownTable'
+import { WeightTicketStockReturnDialog, type StockReturnPayload } from '@/components/daily/WeightTicketStockReturnDialog'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import { cn } from '@/lib/utils'
 import { cancelWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, type WeightTicketRecord, type WeightTicketStatus, typeLabels, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
@@ -107,11 +108,20 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
   const [isCanceling, setIsCanceling] = useState(false)
   const [previewImage, setPreviewImage] = useState<{ fileName: string; url: string } | null>(null)
   const [isPrinting, setIsPrinting] = useState(false)
+  const [canReturnStock, setCanReturnStock] = useState(false)
   const [lineGallery, setLineGallery] = useState<{
     activeIndex: number
     images: Array<{ fileName: string; url: string }>
     title: string
   } | null>(null)
+  const [showStockReturnDialog, setShowStockReturnDialog] = useState(false)
+
+  async function loadStockReturnAvailability(documentNo: string) {
+    const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(documentNo)}/stock-returns`, { cache: 'no-store' })
+    if (!response.ok) throw new Error(await response.text())
+    const payload = await response.json() as StockReturnPayload
+    setCanReturnStock(payload.options.length > 0)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -139,6 +149,31 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
       cancelled = true
     }
   }, [router, ticketId])
+
+  useEffect(() => {
+    if (ticket?.type !== 'WTO') {
+      setCanReturnStock(false)
+      return
+    }
+
+    const documentNo = ticket.documentNo
+    let cancelled = false
+    async function loadAvailability() {
+      try {
+        const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(documentNo)}/stock-returns`, { cache: 'no-store' })
+        if (!response.ok) throw new Error(await response.text())
+        const payload = await response.json() as StockReturnPayload
+        if (!cancelled) setCanReturnStock(payload.options.length > 0)
+      } catch {
+        if (!cancelled) setCanReturnStock(false)
+      }
+    }
+
+    void loadAvailability()
+    return () => {
+      cancelled = true
+    }
+  }, [ticket?.documentNo, ticket?.type])
 
   const vehicleImages = useMemo(
     () => (ticket?.vehicleImageNames ?? []).map(decodeStoredImageAsset),
@@ -186,6 +221,17 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
     }
   }
 
+  async function reloadTicket() {
+    const nextTicket = await getWeightTicket(ticketId)
+    setTicket(nextTicket)
+    setCancelNote(nextTicket.cancelNote ?? '')
+    if (nextTicket.type === 'WTO') {
+      await loadStockReturnAvailability(nextTicket.documentNo)
+    } else {
+      setCanReturnStock(false)
+    }
+  }
+
   const activeGalleryImage = lineGallery?.images[lineGallery.activeIndex] ?? null
 
   if (isLoading) {
@@ -216,6 +262,12 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
             <Printer className="mr-2 size-4" />
             {isPrinting ? 'กำลังเตรียมใบพิมพ์...' : ticket.type === 'WTI' ? 'พิมพ์ใบรับสินค้า' : 'พิมพ์ใบส่งของ'}
           </Button>
+          {canReturnStock ? (
+            <Button type="button" variant="outline" onClick={() => setShowStockReturnDialog(true)}>
+              <RotateCcw className="mr-2 size-4" />
+              รับของคืน
+            </Button>
+          ) : null}
           {ticket.canEdit ? (
             <Button asChild type="button" variant="outline">
               <Link href={`/daily/weight-tickets?id=${encodeURIComponent(ticket.id)}`}>
@@ -663,6 +715,14 @@ export function WeightTicketDetailPageClient({ ticketId }: { ticketId: string })
           ) : null}
         </DialogContent>
       </Dialog>
+      {ticket.type === 'WTO' ? (
+        <WeightTicketStockReturnDialog
+          open={showStockReturnDialog}
+          ticketDocNo={ticket.documentNo}
+          onClose={() => setShowStockReturnDialog(false)}
+          onCompleted={reloadTicket}
+        />
+      ) : null}
     </div>
   )
 }

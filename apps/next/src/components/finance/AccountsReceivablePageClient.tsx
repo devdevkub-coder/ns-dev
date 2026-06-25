@@ -25,6 +25,11 @@ type ArRow = {
   customerCode: string
   customerName: string
   date: string
+  drilldown?: {
+    customerAdvances: Array<{ allocatedAmount: number; docNo: string; href: string; outstandingAfter: number; outstandingBefore: number; status: string }>
+    receipts: Array<{ allocatedArAmount: number; date: string; docNo: string; href: string; netCashIn: number; outstandingAfter: number; outstandingBefore: number; status: string }>
+    salesBill: { docNo: string; href: string; sourceOfTruth: string }
+  }
   docNo: string
   dueDate: string
   id: string
@@ -679,10 +684,90 @@ function DetailModal({ onClose, row }: { onClose: () => void; row: ArRow }) {
               <DetailItem label="สถานะ" value={row.status || '-'} />
             </div>
           </div>
+
+          <TraceSection
+            customerAdvances={row.drilldown?.customerAdvances ?? []}
+            receipts={row.drilldown?.receipts ?? []}
+            salesBill={row.drilldown?.salesBill}
+          />
         </div>
         <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
           <button className="rounded-md px-4 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100/50" type="button" onClick={onClose}>ปิด</button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function TraceSection({
+  customerAdvances,
+  receipts,
+  salesBill,
+}: {
+  customerAdvances: NonNullable<ArRow['drilldown']>['customerAdvances']
+  receipts: NonNullable<ArRow['drilldown']>['receipts']
+  salesBill?: NonNullable<ArRow['drilldown']>['salesBill']
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1.5 border-b border-slate-100">Drilldown / ที่มาของยอด</div>
+      <div className="space-y-3 text-sm">
+        <TraceLink label="Sales Bill" href={salesBill?.href ?? '#'} docNo={salesBill?.docNo ?? '-'} amountLabel="Source" amountValue={salesBill?.sourceOfTruth ?? '-'} />
+        <TraceList
+          emptyText="ยังไม่มีใบรับเงินที่หักกับบิลนี้"
+          rows={receipts.map((receipt) => ({
+            amount: `${formatMoney(receipt.allocatedArAmount)} บาท`,
+            href: receipt.href,
+            meta: `${formatDateDisplay(receipt.date)} · ${receipt.status}`,
+            title: receipt.docNo,
+          }))}
+          title="Receipt / RCP"
+        />
+        <TraceList
+          emptyText="ยังไม่มี Customer Advance ที่ใช้หักบิลนี้"
+          rows={customerAdvances.map((advance) => ({
+            amount: `${formatMoney(advance.allocatedAmount)} บาท`,
+            href: advance.href,
+            meta: advance.status,
+            title: advance.docNo,
+          }))}
+          title="Customer Advance"
+        />
+      </div>
+    </div>
+  )
+}
+
+function TraceLink({ amountLabel, amountValue, docNo, href, label }: { amountLabel: string; amountValue: string; docNo: string; href: string; label: string }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
+      <div>
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</div>
+        <a className="font-mono text-xs font-semibold text-blue-700 hover:underline" href={href}>{docNo}</a>
+      </div>
+      <div className="text-right">
+        <div className="text-[10px] text-slate-400">{amountLabel}</div>
+        <div className="text-xs font-semibold text-slate-700">{amountValue}</div>
+      </div>
+    </div>
+  )
+}
+
+function TraceList({ emptyText, rows, title }: { emptyText: string; rows: Array<{ amount: string; href: string; meta: string; title: string }>; title: string }) {
+  return (
+    <div>
+      <div className="mb-1 text-[11px] font-bold text-slate-500">{title}</div>
+      {rows.length === 0 ? <div className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-400">{emptyText}</div> : null}
+      <div className="space-y-1">
+        {rows.map((row) => (
+          <div key={`${title}-${row.title}-${row.amount}`} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-100 px-3 py-2">
+            <div>
+              <a className="font-mono text-xs font-semibold text-blue-700 hover:underline" href={row.href}>{row.title}</a>
+              <div className="text-[11px] text-slate-400">{row.meta}</div>
+            </div>
+            <div className="text-xs font-bold text-slate-800">{row.amount}</div>
+          </div>
+        ))}
       </div>
     </div>
   )

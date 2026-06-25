@@ -61,6 +61,7 @@ const statusOptionsByType: Record<WeightTicketType, Array<{ label: string; value
   WTO: [
     { label: 'ทุกสถานะ', values: [] },
     { label: 'ส่งของแล้ว', values: ['delivered'] },
+    { label: 'ออกบิลแล้วบางส่วน', values: ['partially_billed'] },
     { label: 'ออกบิลแล้ว', values: ['billed'] },
     { label: 'ยกเลิก', values: ['cancelled'] },
   ],
@@ -936,4 +937,3 @@ export function WeightTicketListPageClient() {
     </div>
   )
 }
-

@@ -176,7 +176,8 @@ list/detail/create link สำหรับ WTI/WTO; WTI/WTO เป็น evidenc
 - WTO customer/branch/product/warehouse/qty required และ target validate available qty จาก branch+product+warehouse
 - WTI supplier ต้อง active และมี active `supplier_branches` กับ branch ของ WTI; WTO customer ต้อง active และมี active `customer_branches` กับ branch ของ WTO; API ต้อง reject ถ้าไม่ตรง mapping และห้าม fallback เป็นทุกสาขา
 - WTO warehouse ต้อง active, อยู่ใน branch ที่เลือก, และเป็นคลัง `RM` หรือ `FG`
-- WTI/WTO ไม่มีสถานะ partial ใน target filter/status: `WTI = รับของแล้ว/เสร็จสิ้น/ยกเลิก`, `WTO = ส่งของแล้ว/ออกบิลแล้ว/ยกเลิก`
+- WTI/WTO status ใน target filter: `WTI = รับของแล้ว/เสร็จสิ้น/ยกเลิก`, `WTO = ส่งของแล้ว/ออกบิลแล้วบางส่วน/ออกบิลแล้ว/ยกเลิก`
+- `WTO.partially_billed` ใช้เฉพาะกรณีใบส่งของถูกนำไปออก `SB` แล้วบางส่วนและยังมี active `pending_out` เหลือเพื่อรอ action `รับของคืน`; remaining นี้ห้ามนำไปเปิดบิลขายใบอื่นแบบเงียบ ๆ
 - ประเภทเอกสาร (`WTI`/`WTO`) เปลี่ยนไม่ได้หลังเปิดจาก create context เฉพาะประเภทหรือหลังสร้างเอกสารแล้ว; API ต้อง reject payload ที่พยายามเปลี่ยน `type`
 - edit/cancel lock เมื่อ PB/SB active ใช้งานแล้ว
 - product image ต้องมาจาก storage thumbnail key/url ตาม target ไม่ใช้ fallback runtime
@@ -186,6 +187,7 @@ list/detail/create link สำหรับ WTI/WTO; WTI/WTO เป็น evidenc
 - WTI save สร้าง evidence/summary แต่ไม่ stock ledger
 - WTO target save สร้าง `pending_out` แต่ไม่ stock ledger
 - PB/SB เป็นผู้ consume source และเขียน ledger
+- WTO detail แสดงปุ่ม `รับของคืน` เฉพาะเมื่อ `GET /api/daily/weight-tickets/[id]/stock-returns` พบ active `pending_out` ที่ถูกนำไปออก `SB` แล้วบางส่วน; modal ให้กรอกน้ำหนักชั่งคืนจริง และถ้าคืนน้อยกว่ายอดค้างต้องระบุเหตุผลเพื่อให้ระบบบันทึก loss ledger ผ่าน Sales Bill stock-return API
 
 ## Current Code Baseline
 
@@ -209,6 +211,7 @@ list/detail/create link สำหรับ WTI/WTO; WTI/WTO เป็น evidenc
 - [x] Add `warehouse_id` to WTO lines and expose it in form/detail/read models
 - [x] Add pending_out-aware stock-options API for branch+product warehouse availability
 - [x] Add pending_out service and integrate WTO save/edit/cancel + SB create consume
+- [x] Add WTO detail `รับของคืน` entry point for partial-billed pending_out and keep Sales Bill detail free of the return form
 - [x] Lock WTI/WTO document type in create context and edit API
 - [x] Add durable line relation for `สินค้าอื่น` impurity purchase to schema/API/read model (`parent_line_no`, `impurity_source_line_no`)
 - [x] Add per-te๋า table `รายการสินค้าซื้อเพิ่มจากสิ่งปนมา` before impurity deduction section

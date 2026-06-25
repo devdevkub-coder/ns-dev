@@ -1872,7 +1872,7 @@ export async function POST(request: Request) {
           _sum: { remaining_weight: true },
           where: { weight_ticket_id: stockDeliveryTicket.id },
         })
-        const nextTicketStatus = toNumber(remainingAfterBilling._sum.remaining_weight) > 0.0001 ? 'delivered' : 'billed'
+        const nextTicketStatus = toNumber(remainingAfterBilling._sum.remaining_weight) > 0.0001 ? 'partially_billed' : 'billed'
         await tx.weight_tickets.update({
           data: {
             status: nextTicketStatus,
@@ -1966,15 +1966,440 @@ const cancelSalesBillSchema = z.object({
   reason: z.string().trim().min(1, 'ระบุเหตุผลการยกเลิก').max(500, 'เหตุผลยาวเกินไป'),
 })
 
+const editSalesBillSchema = z.object({
+  id: z.string().trim().min(1, 'ระบุรหัสบิลขาย'),
+}).and(salesBillFormSchema)
+
+type ActiveSalesBillPoAllocation = Prisma.sales_bill_po_sell_allocationsGetPayload<Record<string, never>>
+
+function salesBillPoAllocationSnapshot(allocation: ActiveSalesBillPoAllocation): SalesItemSnapshot {
+  return {
+    amount: toNumber(allocation.allocated_amount),
+    customerAdvanceId: null,
+    deliveryLineId: null,
+    deliverySummaryId: null,
+    deliveryTicketDocNo: null,
+    deliveryTicketId: null,
+    deductWeight: 0,
+    discount: 0,
+    grossWeight: toNumber(allocation.allocated_qty),
+    id: String(allocation.sales_line_no),
+    netWeight: toNumber(allocation.allocated_qty),
+    note: null,
+    poSellId: allocation.po_sell_doc_no,
+    productCode: allocation.product_code_snapshot,
+    productId: allocation.product_code_snapshot,
+    productName: allocation.product_name_snapshot,
+    qty: toNumber(allocation.allocated_qty),
+    stockIssueQty: 0,
+    tradingCostSourceId: null,
+    unit: 'กก.',
+    unitPrice: toNumber(allocation.unit_price),
+  }
+}
+
+function poSellRowsByDocNoAfterRelease(
+  poSells: PoSellForAllocation[],
+  activeAllocations: ActiveSalesBillPoAllocation[],
+) {
+  const poSellByDocNo = new Map(poSells.map((poSell) => [String(poSell.doc_no ?? ''), poSell] as const))
+  const allocationsByDocNo = new Map<string, ActiveSalesBillPoAllocation[]>()
+  activeAllocations.forEach((allocation) => {
+    if (!allocation.po_sell_doc_no || allocation.allocation_type !== 'PO_SELL' || allocation.po_sell_id == null) return
+    const current = allocationsByDocNo.get(allocation.po_sell_doc_no) ?? []
+    current.push(allocation)
+    allocationsByDocNo.set(allocation.po_sell_doc_no, current)
+  })
+
+  allocationsByDocNo.forEach((allocations, docNo) => {
+    const poSell = poSellByDocNo.get(docNo)
+    if (!poSell) return
+    const released = deallocatePoSellForSalesBill(poSell, allocations.map(salesBillPoAllocationSnapshot))
+    poSellByDocNo.set(docNo, {
+      ...poSell,
+      items: released.items ?? poSell.items,
+      remaining_amount: released.remainingAmount,
+      remaining_qty: released.remainingQty,
+      status: released.remainingQty <= 0.001 ? poSell.status : 'Open',
+    })
+  })
+
+  return poSellByDocNo
+}
+
+function poSellAllocationLogEntries(input: {
+  action: typeof PO_SELL_ALLOCATION_ACTION[keyof typeof PO_SELL_ALLOCATION_ACTION]
+  actor: string
+  createdAt: Date
+  meta: Prisma.InputJsonValue
+  note?: string | null
+  rows: ReturnType<typeof poSellAllocationRows>
+  salesBillDocNo: string
+}) {
+  return input.rows
+    .filter((row) => row.allocation_type === 'PO_SELL' && row.po_sell_id != null)
+    .map((row) => ({
+      action: input.action,
+      actor: input.actor,
+      allocatedAmount: toNumber(row.allocated_amount),
+      allocatedQty: toNumber(row.allocated_qty),
+      createdAt: input.createdAt,
+      meta: input.meta,
+      note: input.note ?? null,
+      poSellId: row.po_sell_id!,
+      productCodeSnapshot: row.product_code_snapshot,
+      productId: row.product_id,
+      productNameSnapshot: row.product_name_snapshot,
+      salesBillDocNo: input.salesBillDocNo,
+      salesBillId: row.sales_bill_id,
+      salesBillLineId: row.sales_bill_line_id,
+      salesBillLineNo: row.sales_line_no,
+      unitPriceSnapshot: toNumber(row.unit_price),
+    }))
+}
+
 export async function PATCH(request: Request) {
   try {
     const context = await getCurrentAuthContext()
     requirePermission(context, 'finance.cash.view')
 
     const raw = await request.json()
-    const { id, action, reason } = cancelSalesBillSchema.parse(raw)
     const actor = currentActor(context)
     const branchScope = await salesBranchScope(context)
+
+    if (raw?.action !== 'cancel') {
+      const values = editSalesBillSchema.parse(raw)
+      const bill = await prisma.sales_bills.findFirst({
+        include: {
+          sales_bill_customer_advance_allocations: {
+            where: { status: 'active' },
+          },
+          sales_bill_lines: {
+            orderBy: { line_no: 'asc' },
+            where: { status: 'active' },
+          },
+          sales_bill_po_sell_allocations: {
+            where: { status: 'active' },
+          },
+          sales_bill_source_allocations: {
+            where: { status: 'active' },
+          },
+        },
+        where: { doc_no: values.id, ...scopedBranchWhere(branchScope.ids) },
+      })
+      if (!bill) return NextResponse.json({ code: 'NOT_FOUND', error: 'ไม่พบบิลขาย' }, { status: 404 })
+      if (String(bill.status ?? '').toLowerCase().includes('cancel')) {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขไม่ได้ เพราะบิลขายนี้ถูกยกเลิกแล้ว' }, { status: 400 })
+      }
+      const activeReceiptsCount = await prisma.receipts.count({
+        where: {
+          bill_id: bill.id,
+          NOT: { status: { in: ['cancelled', 'void', 'ยกเลิก', 'Void', 'Cancelled'] } },
+        },
+      })
+      if (activeReceiptsCount > 0) {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขไม่ได้ เพราะบิลขายนี้มีการรับชำระเงินแล้ว' }, { status: 400 })
+      }
+      if (values.transactionMode !== String(bill.transaction_mode ?? 'STOCK')) {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขไม่ได้ เพราะต้องคงประเภทบิลขายเดิม' }, { status: 400 })
+      }
+      if (values.customerAdvanceId || bill.sales_bill_customer_advance_allocations.length > 0) {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไข Customer advance ในบิลขายยังไม่เปิดในรอบนี้' }, { status: 400 })
+      }
+      if (bill.sales_bill_lines.length === 0) {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขไม่ได้ เพราะบิลขายนี้ยังไม่มี line facts สำหรับ correction' }, { status: 400 })
+      }
+      if (bill.sales_bill_lines.length !== values.items.length) {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขจำนวนแถวบิลขายยังไม่เปิดในรอบนี้' }, { status: 400 })
+      }
+
+      const branch = await findActiveBranchReferenceByCodeOrId(values.branchId)
+      const customer = await findActiveCustomerReferenceByCodeOrId(values.customerId)
+      const channel = await findActiveSalesChannelReferenceByCode(values.channelId)
+      if (!branch) return NextResponse.json({ code: 'BAD_REQUEST', error: 'สาขาไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+      if (!customer) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ลูกค้าไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+      if (!channel) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ช่องทางขายไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+      if (branchScope.codes && !branchScope.codes.includes(branch.code)) {
+        return NextResponse.json({ code: 'FORBIDDEN', error: 'ไม่มีสิทธิ์ทำรายการในสาขานี้' }, { status: 403 })
+      }
+      if (!(await isCustomerEligibleForBranch({ branchId: branch.id, customerId: customer.id }))) {
+        return NextResponse.json({
+          code: 'BAD_REQUEST',
+          error: 'ลูกค้าไม่ได้ถูกกำหนดให้ใช้งานกับสาขานี้',
+          fieldErrors: { customerId: ['ลูกค้าไม่ได้ถูกกำหนดให้ใช้งานกับสาขานี้'] },
+        }, { status: 400 })
+      }
+      if (bill.branch_id !== branch.id || bill.customer_id !== customer.id) {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขไม่ได้ เพราะต้องคงสาขาและลูกค้าเดิมของบิลขาย' }, { status: 400 })
+      }
+
+      const requestedProductCodes = [...new Set(values.items.map((item) => item.productId).filter(Boolean))]
+      const products = await prisma.products.findMany({
+        select: { active: true, code: true, id: true, name: true, unit: true },
+        where: { code: { in: requestedProductCodes }, active: true },
+      })
+      const productByCode = new Map(products.map((product) => [requireBusinessCode(product.code, `สินค้า ${product.id}`), product]))
+      const parsedProductIds = requestedProductCodes.map((productCode) => productByCode.get(productCode)?.id ?? null)
+      const missingProduct = requestedProductCodes.find((productCode) => !productByCode.has(productCode))
+      if (missingProduct || parsedProductIds.some((productId) => productId == null)) {
+        return NextResponse.json({ code: 'BAD_REQUEST', error: 'สินค้าที่เลือกไม่ถูกต้องหรือถูกปิดใช้งาน' }, { status: 400 })
+      }
+      const parsedProductIdsByLine = values.items.map((item) => productByCode.get(item.productId)?.id ?? null)
+      const productById = new Map(products.map((product) => [product.id, product]))
+
+      for (const [index, item] of values.items.entries()) {
+        const line = bill.sales_bill_lines[index]
+        if (!line || line.line_no !== index + 1) {
+          return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขไม่ได้ เพราะลำดับรายการบิลขายไม่ตรงกับ line facts' }, { status: 400 })
+        }
+        if (line.product_code_snapshot !== item.productId || line.product_id !== parsedProductIdsByLine[index]) {
+          return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขสินค้าในบิลขายยังไม่เปิดในรอบนี้' }, { status: 400 })
+        }
+        if (Math.abs(toNumber(line.qty) - item.qty) > 0.0001
+          || Math.abs(toNumber(line.net_weight) - item.netWeight) > 0.0001
+          || Math.abs(toNumber(line.gross_weight) - item.grossWeight) > 0.0001
+          || Math.abs(toNumber(line.deduct_weight) - item.deductWeight) > 0.0001) {
+          return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขน้ำหนัก/จำนวนขายยังไม่เปิดในรอบนี้ ให้แก้ได้เฉพาะ PO Sell อ้างอิง ราคา ส่วนลด และหมายเหตุ' }, { status: 400 })
+        }
+      }
+
+      if (String(bill.transaction_mode ?? 'STOCK') === 'STOCK') {
+        const existingDeliveryDocNos = [...new Set(bill.sales_bill_source_allocations
+          .filter((allocation) => allocation.source_type === 'WTO')
+          .map((allocation) => allocation.source_doc_no))]
+        const requestedDeliveryDocNos = [...new Set(values.items.map((item) => item.deliveryTicketId || item.deliveryTicketDocNo).filter(Boolean) as string[])]
+        if (existingDeliveryDocNos.length === 0 || requestedDeliveryDocNos.length !== existingDeliveryDocNos.length || requestedDeliveryDocNos.some((docNo) => !existingDeliveryDocNos.includes(docNo))) {
+          return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขใบส่งของ WTO ในบิลขายยังไม่เปิดในรอบนี้' }, { status: 400 })
+        }
+      }
+
+      const requestedPoSellDocNos = Array.from(new Set([
+        ...values.items.map((item) => item.poSellId?.trim() ?? '').filter(Boolean),
+        values.poSellId?.trim() ?? '',
+        ...bill.sales_bill_po_sell_allocations.map((allocation) => allocation.po_sell_doc_no ?? '').filter(Boolean),
+      ].filter(Boolean)))
+      const poSells = requestedPoSellDocNos.length
+        ? await prisma.po_sells.findMany({
+            select: {
+              branch_id: true,
+              customer_id: true,
+              doc_no: true,
+              id: true,
+              items: true,
+              qty: true,
+              remaining_amount: true,
+              remaining_qty: true,
+              status: true,
+              total_amount: true,
+              unit_price: true,
+            },
+            where: { doc_no: { in: requestedPoSellDocNos } },
+          })
+        : []
+      const poSellByDocNoRaw = new Map(poSells.map((poSell) => [poSell.doc_no, poSell] as const))
+      const missingPoSell = requestedPoSellDocNos.find((docNo) => !poSellByDocNoRaw.has(docNo))
+      if (missingPoSell) return NextResponse.json({ code: 'BAD_REQUEST', error: `ไม่พบ PO Sell ${missingPoSell}` }, { status: 400 })
+      for (const poSell of poSells) {
+        if (isInactivePoSellStatus(poSell.status) && !bill.sales_bill_po_sell_allocations.some((allocation) => allocation.po_sell_id === poSell.id)) {
+          return NextResponse.json({ code: 'BAD_REQUEST', error: `PO Sell ${poSell.doc_no} ถูกปิดหรือยกเลิกแล้ว` }, { status: 400 })
+        }
+        if (poSell.customer_id && poSell.customer_id !== customer.id) return NextResponse.json({ code: 'BAD_REQUEST', error: `Customer ของบิลขายไม่ตรงกับ PO Sell ${poSell.doc_no}` }, { status: 400 })
+        if (poSell.branch_id && poSell.branch_id !== branch.id) return NextResponse.json({ code: 'BAD_REQUEST', error: `สาขาของบิลขายไม่ตรงกับ PO Sell ${poSell.doc_no}` }, { status: 400 })
+      }
+
+      const poSellByDocNo = poSellRowsByDocNoAfterRelease(poSells, bill.sales_bill_po_sell_allocations)
+      const billDate = bill.date ? toDateOnly(bill.date) : toDateOnly(new Date())
+      const vatRatePercent = toNumber(bill.vat_amount) > 0 && toNumber(bill.subtotal) > 0
+        ? toNumber(bill.vat_amount) / Math.max(1, toNumber(bill.subtotal) - toNumber(bill.discount_total)) * 100
+        : await activeVatRatePercent(normalizeDate(billDate))
+      const totals = calculateSalesTotals(values, vatRatePercent)
+      const sourceAllocationByLineNo = new Map(bill.sales_bill_source_allocations.map((allocation) => [allocation.sales_line_no, allocation] as const))
+      const items = salesItems(values, parsedProductIdsByLine as bigint[], productById, new Map(), new Map()).map((item, index) => {
+        const lineNo = index + 1
+        const sourceAllocation = sourceAllocationByLineNo.get(lineNo)
+        const activeLine = bill.sales_bill_lines[index]
+        if (!sourceAllocation || !activeLine) return item
+        const sourceMeta = sourceAllocation.meta && typeof sourceAllocation.meta === 'object' && !Array.isArray(sourceAllocation.meta)
+          ? sourceAllocation.meta as Record<string, unknown>
+          : {}
+        return {
+          ...item,
+          deliveryLineId: typeof sourceMeta.deliveryLineId === 'string' ? sourceMeta.deliveryLineId : item.deliveryLineId,
+          deliverySummaryId: typeof sourceMeta.deliverySummaryId === 'string' ? sourceMeta.deliverySummaryId : item.deliverySummaryId,
+          deliveryTicketDocNo: sourceAllocation.source_doc_no,
+          deliveryTicketId: sourceAllocation.source_doc_no,
+          deductWeight: toNumber(activeLine.deduct_weight),
+          grossWeight: toNumber(activeLine.gross_weight),
+          netWeight: toNumber(activeLine.net_weight),
+          qty: toNumber(activeLine.qty),
+          stockIssueQty: toNumber(sourceAllocation.allocated_qty),
+        }
+      })
+      const poSellAllocations = new Map<string, ReturnType<typeof allocatePoSellForSalesBill>>()
+      for (const poSellDocNo of requestedPoSellDocNos) {
+        const poSell = poSellByDocNo.get(poSellDocNo)
+        if (!poSell) continue
+        const poSellItems = items.filter((item) => item.poSellId === poSellDocNo || (!item.poSellId && values.poSellId === poSellDocNo))
+        if (!poSellItems.length) continue
+        const allocation = allocatePoSellForSalesBill(poSell, poSellItems)
+        if ('error' in allocation) {
+          return NextResponse.json({ code: 'BAD_REQUEST', error: `${poSellDocNo}: ${allocation.error}` }, { status: 400 })
+        }
+        poSellAllocations.set(poSellDocNo, allocation)
+      }
+
+      const createdAt = new Date()
+      const totalCost = toNumber(bill.total_cost ?? bill.cogs_amount)
+      const headerPoSellDocNo = values.poSellId?.trim() || undefined
+      await prisma.$transaction(async (tx) => {
+        const activePoSellAllocations = bill.sales_bill_po_sell_allocations.filter((allocation) => allocation.status === 'active')
+        await appendPoSellAllocationLogs(tx, activePoSellAllocations
+          .filter((allocation) => allocation.allocation_type === 'PO_SELL' && allocation.po_sell_id != null)
+          .map((allocation) => ({
+            action: PO_SELL_ALLOCATION_ACTION.RELEASED_FROM_SALES_BILL,
+            actor,
+            allocatedAmount: toNumber(allocation.allocated_amount),
+            allocatedQty: toNumber(allocation.allocated_qty),
+            createdAt,
+            meta: { reason: 'sales_bill_edit_po_sell' },
+            note: 'Sales Bill edit: release old PO Sell allocation',
+            poSellId: allocation.po_sell_id!,
+            productCodeSnapshot: allocation.product_code_snapshot,
+            productId: allocation.product_id,
+            productNameSnapshot: allocation.product_name_snapshot,
+            salesBillDocNo: bill.doc_no,
+            salesBillId: bill.id,
+            salesBillLineId: allocation.sales_bill_line_id,
+            salesBillLineNo: allocation.sales_line_no,
+            unitPriceSnapshot: toNumber(allocation.unit_price),
+          })))
+        for (const poSell of poSells) {
+          const oldRows = activePoSellAllocations.filter((allocation) => allocation.po_sell_id === poSell.id)
+          if (oldRows.length === 0) continue
+          const released = deallocatePoSellForSalesBill(poSell, oldRows.map(salesBillPoAllocationSnapshot))
+          await tx.po_sells.update({
+            data: {
+              ...(released.items ? { items: released.items as Prisma.InputJsonValue } : {}),
+              cut_amount: { decrement: released.restoredAmount },
+              remaining_amount: released.remainingAmount,
+              remaining_qty: released.remainingQty,
+              status: 'Open',
+              updated_at: createdAt,
+              updated_by: actor,
+            },
+            where: { id: poSell.id },
+          })
+        }
+
+        await tx.sales_bill_po_sell_allocations.updateMany({
+          data: {
+            notes: 'Reversed by Sales Bill edit',
+            status: 'reversed',
+            updated_at: createdAt,
+            updated_by: actor,
+          },
+          where: { sales_bill_id: bill.id, status: 'active' },
+        })
+
+        await tx.sales_bills.update({
+          data: {
+            discount: values.discountTotal,
+            discount_total: values.discountTotal,
+            export_order_no: values.exportOrderNo,
+            gross_profit: totals.totalAmount - totalCost,
+            has_vat: values.hasVat,
+            items: items as Prisma.InputJsonValue,
+            note: values.note,
+            notes: values.note,
+            receivable_balance: Math.max(0, totals.totalAmount - toNumber(bill.received_amount)),
+            ref_no: values.refNo,
+            subtotal: totals.subtotal,
+            total_amount: totals.totalAmount,
+            total_cost: totalCost,
+            updated_at: createdAt,
+            updated_by: actor,
+            vat_amount: totals.vatAmount,
+            vat_invoice_date: values.vatInvoiceDate ? normalizeDate(values.vatInvoiceDate) : null,
+            vat_invoice_issued: values.vatInvoiceIssued,
+            vat_invoice_no: values.vatInvoiceNo,
+            vat_type: values.vatType,
+          },
+          where: { id: bill.id },
+        })
+
+        for (const [index, item] of items.entries()) {
+          await tx.sales_bill_lines.update({
+            data: {
+              discount_amount: item.discount,
+              line_amount: item.amount,
+              notes: item.note || null,
+              unit_price: item.unitPrice,
+              updated_at: createdAt,
+              updated_by: actor,
+              vat_amount: totals.subtotal > 0 ? totals.vatAmount * (Math.max(0, item.amount) / totals.subtotal) : 0,
+              version: { increment: 1 },
+            },
+            where: { id: bill.sales_bill_lines[index].id },
+          })
+        }
+
+        const lineIdByLineNo = new Map(bill.sales_bill_lines.map((line) => [line.line_no, line.id] as const))
+        const poSellRows = poSellAllocationRows({
+          actor,
+          billId: bill.id,
+          createdAt,
+          headerPoSellDocNo,
+          items,
+          lineIdByLineNo,
+          parsedProductIds: parsedProductIdsByLine as bigint[],
+          poSellByDocNo,
+        })
+        if (poSellRows.length) {
+          await tx.sales_bill_po_sell_allocations.createMany({ data: poSellRows })
+          await appendPoSellAllocationLogs(tx, poSellAllocationLogEntries({
+            action: PO_SELL_ALLOCATION_ACTION.ALLOCATED_TO_SALES_BILL,
+            actor,
+            createdAt,
+            meta: { reason: 'sales_bill_edit_po_sell' },
+            rows: poSellRows,
+            salesBillDocNo: bill.doc_no,
+          }))
+        }
+        for (const [poSellDocNo, allocation] of poSellAllocations.entries()) {
+          const poSell = poSellByDocNo.get(poSellDocNo)
+          if (!poSell || 'error' in allocation || !poSell.id) continue
+          await tx.po_sells.update({
+            data: {
+              ...(allocation.items ? { items: allocation.items as Prisma.InputJsonValue } : {}),
+              cut_amount: { increment: allocation.usedAmount },
+              remaining_amount: allocation.remainingAmount,
+              remaining_qty: allocation.remainingQty,
+              status: allocation.remainingQty <= 0.001 ? 'Completed' : 'Open',
+              updated_at: createdAt,
+              updated_by: actor,
+            },
+            where: { id: poSell.id },
+          })
+        }
+        await appendSalesBillStatusLog(tx, {
+          action: SALES_BILL_STATUS_ACTION.ALLOCATION_CORRECTED,
+          actor,
+          createdAt,
+          fromStatus: bill.status ?? null,
+          meta: {
+            reason: 'sales_bill_edit_po_sell',
+            supportedScope: 'po_sell_price_discount_note_only',
+          },
+          note: values.note,
+          salesBillId: bill.id,
+          toStatus: bill.status ?? 'unreceived',
+        })
+      }, { timeout: 30000 })
+
+      return NextResponse.json({ docNo: bill.doc_no, id: bill.doc_no, status: 'updated' })
+    }
+
+    const { id, reason } = cancelSalesBillSchema.parse(raw)
 
     const bill = await prisma.sales_bills.findFirst({
       where: { doc_no: id, ...scopedBranchWhere(branchScope.ids) }

@@ -109,7 +109,7 @@ export async function GET(request: Request) {
         })
       : null
 
-    const [bills, receipts, customers, branches, channels] = await Promise.all([
+    const [bills, customers, branches, channels] = await Promise.all([
       prisma.sales_bills.findMany({
         include: {
           branches: { select: { code: true, id: true, name: true } },
@@ -119,17 +119,6 @@ export async function GET(request: Request) {
         orderBy: [{ date: 'asc' }, { doc_no: 'asc' }],
         take: 10000,
         where: billWhere(query, branch?.id ?? null, channel?.id ?? null, customer?.id ?? null),
-      }),
-      prisma.receipts.findMany({
-        select: {
-          amount: true,
-          bill_id: true,
-          discount: true,
-          status: true,
-          withholding_tax: true,
-        },
-        take: 10000,
-        where: { NOT: { status: 'cancelled' } },
       }),
       prisma.customers.findMany({
         orderBy: [{ code: 'asc' }, { name: 'asc' }],
@@ -159,20 +148,13 @@ export async function GET(request: Request) {
       }),
     ])
 
-    const receivedMap = new Map<bigint, number>()
-    receipts.forEach((receipt) => {
-      if (!receipt.bill_id) return
-      const total = toNumber(receipt.amount) + toNumber(receipt.withholding_tax) + toNumber(receipt.discount)
-      receivedMap.set(receipt.bill_id, (receivedMap.get(receipt.bill_id) ?? 0) + total)
-    })
-
     const today = new Date()
     const search = query.q?.trim().toLowerCase()
     const allRows = bills
       .map((bill) => {
         const totalAmount = toNumber(bill.total_amount)
-        const receivedAmount = receivedMap.get(bill.id) ?? toNumber(bill.received_amount)
-        const receivableBalance = Math.max(0, totalAmount - receivedAmount)
+        const receivedAmount = toNumber(bill.received_amount)
+        const receivableBalance = toNumber(bill.receivable_balance)
         const creditTerm = bill.credit_term ?? bill.customers?.credit_term ?? 0
         const due = bill.due_date ? new Date(bill.due_date) : new Date(bill.date)
         if (!bill.due_date) due.setDate(due.getDate() + creditTerm)
@@ -195,6 +177,8 @@ export async function GET(request: Request) {
           marketScope: bill.customers?.market_scope ?? 'ในประเทศ',
           receivableBalance,
           receivedAmount,
+          salesBillId: bill.id.toString(),
+          sourceOfTruth: 'sales_bills',
           status: bill.status ?? 'open',
           totalAmount,
           transactionMode: bill.transaction_mode ?? 'STOCK',
@@ -276,7 +260,67 @@ export async function GET(request: Request) {
 
     const totalRows = allRows.length
     const start = (query.page - 1) * query.pageSize
-    const rows = allRows.slice(start, start + query.pageSize)
+    const pageRows = allRows.slice(start, start + query.pageSize)
+    const pageBillIds = pageRows.map((row) => BigInt(row.salesBillId))
+    const [receiptAllocations, customerAdvanceAllocations] = pageBillIds.length > 0
+      ? await Promise.all([
+          prisma.customer_receipt_allocations.findMany({
+            include: {
+              customer_receipts: {
+                select: { date: true, doc_no: true, net_cash_in: true, status: true },
+              },
+            },
+            orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+            where: { sales_bill_id: { in: pageBillIds }, status: 'active' },
+          }),
+          prisma.sales_bill_customer_advance_allocations.findMany({
+            orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+            where: { sales_bill_id: { in: pageBillIds }, status: 'active' },
+          }),
+        ])
+      : [[], []]
+    const receiptAllocationsByBillId = new Map<string, typeof receiptAllocations>()
+    receiptAllocations.forEach((allocation) => {
+      const key = allocation.sales_bill_id.toString()
+      receiptAllocationsByBillId.set(key, [...(receiptAllocationsByBillId.get(key) ?? []), allocation])
+    })
+    const customerAdvanceAllocationsByBillId = new Map<string, typeof customerAdvanceAllocations>()
+    customerAdvanceAllocations.forEach((allocation) => {
+      const key = allocation.sales_bill_id.toString()
+      customerAdvanceAllocationsByBillId.set(key, [...(customerAdvanceAllocationsByBillId.get(key) ?? []), allocation])
+    })
+    const rows = pageRows.map((row) => {
+      const receiptsForBill = receiptAllocationsByBillId.get(row.salesBillId) ?? []
+      const advancesForBill = customerAdvanceAllocationsByBillId.get(row.salesBillId) ?? []
+      return {
+        ...row,
+        drilldown: {
+          customerAdvances: advancesForBill.map((allocation) => ({
+            allocatedAmount: toNumber(allocation.allocated_amount),
+            docNo: allocation.customer_advance_doc_no,
+            href: `/finance/customer-advance?q=${encodeURIComponent(allocation.customer_advance_doc_no)}`,
+            outstandingAfter: toNumber(allocation.outstanding_after),
+            outstandingBefore: toNumber(allocation.outstanding_before),
+            status: allocation.status,
+          })),
+          receipts: receiptsForBill.map((allocation) => ({
+            allocatedArAmount: toNumber(allocation.allocated_ar_amount),
+            date: toDateOnly(allocation.customer_receipts.date),
+            docNo: allocation.customer_receipts.doc_no,
+            href: `/sales/receipts?q=${encodeURIComponent(allocation.customer_receipts.doc_no)}`,
+            netCashIn: toNumber(allocation.customer_receipts.net_cash_in),
+            outstandingAfter: toNumber(allocation.outstanding_after),
+            outstandingBefore: toNumber(allocation.outstanding_before),
+            status: allocation.customer_receipts.status,
+          })),
+          salesBill: {
+            docNo: row.docNo,
+            href: `/sales/bills?docNo=${encodeURIComponent(row.docNo)}`,
+            sourceOfTruth: 'sales_bills',
+          },
+        },
+      }
+    })
     const statuses = Array.from(new Set(bills.map((bill) => bill.status ?? 'open'))).sort()
 
     return NextResponse.json({

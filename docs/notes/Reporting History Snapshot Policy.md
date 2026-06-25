@@ -13,7 +13,7 @@ tags:
   - read-model
 status: draft
 created: 2026-06-24
-updated: 2026-06-24
+updated: 2026-06-25
 ---
 
 # Reporting History Snapshot Policy
@@ -92,6 +92,36 @@ flowchart LR
 
 สำหรับ stock snapshot ต้องเก็บทั้ง `ending_qty`, `ending_value`, และ `ending_wac` ต่อ bucket (`branch + warehouse + product + lot/status/not_available`) เพราะ Dashboard ต้องตอบย้อนหลังได้ทั้งจำนวนและต้นทุนเฉลี่ย. ถ้ามี transaction ย้อนหลังหรือ reversal เข้าไปในวันเก่า ต้อง rebuild snapshot ตั้งแต่วันนั้นไปจนถึงวันปัจจุบัน ไม่ใช่แก้เฉพาะวันปัจจุบัน
 
+## Target Snapshot Tables / Views
+
+ตาราง snapshot ยังไม่ควรสร้างแบบกระจัดกระจายตาม Dashboard แต่ควรกำหนดเป็น domain read-model กลางก่อน แล้วให้ Dashboard/Tracking/Report อ่านซ้ำจากชุดเดียวกัน
+
+| Snapshot | Grain | Required measures | Source facts | Notes |
+|---|---|---|---|---|
+| `report_bill_daily_snapshot` | `as_of_date + doc_type + branch + customer/supplier + status` | bill count, gross amount, discount, VAT, net amount, received/paid, outstanding, COGS, gross profit | `sales_bills`, `purchase_bills`, line facts, status logs | ใช้ตอบ Bill ย้อนหลังและยอดขาย/ซื้อรายวัน รายเดือน รายปี |
+| `report_po_daily_snapshot` | `as_of_date + po_type + branch + customer/supplier + product` | ordered qty/amount, allocated qty/amount, released qty/amount, remaining qty/amount | `po_buys`, `po_sells`, PO allocation logs | ห้ามใช้ `remaining` ปัจจุบันแทนยอดอดีต |
+| `report_finance_daily_snapshot` | `as_of_date + branch + party + document_family` | AR balance, AP balance, cash/bank balance, advance remaining, received/paid movement | bill balance snapshots, RCP/PMT/advance allocations, bank movements | AR/AP current ใช้ bill snapshot; historical ใช้ allocation facts ถึง cutoff หรือ snapshot |
+| `report_stock_daily_snapshot` | `as_of_date + branch + warehouse + product + lot + output_category + not_available_for_sale` | ending qty, ending value, ending WAC, pending_out qty, available qty, movement in/out qty/value | `stock_ledger`, `stock_holds`, `weight_ticket_usage_logs` | WAC ต้องเป็น as-of WAC จาก ledger cutoff เดียวกัน; pending_out ไม่กระทบ WAC แต่ลด available |
+
+### Stock Real-Time / As-Of API Contract
+
+API stock ที่ใช้ Dashboard หรือ report ย้อนหลังต้องรับ `asOf` ชัดเจน:
+
+```text
+GET /api/stock/balance?asOf=YYYY-MM-DD
+```
+
+Response ระดับ bucket ต้องมีอย่างน้อย:
+
+- `onHandQty`: sum ledger qty ถึง `asOf`
+- `stockValue`: sum ledger value ถึง `asOf`
+- `wac`: `stockValue / onHandQty` เมื่อ `onHandQty > 0`
+- `pendingOutQty`: active/pending_out qty ณ cutoff เดียวกัน
+- `availableQty`: `onHandQty - pendingOutQty`
+- `snapshotStatus`: `live`, `snapshot`, `stale`, หรือ `incomplete`
+
+ถ้า `asOf` เป็นอดีตและยังไม่มี snapshot/backfill ครบ API ต้องตอบ `snapshotStatus = incomplete` หรือ reject ด้วย data gap ที่อ่านได้ ห้ามใช้ current pending_out/current WAC แทนอดีตแบบเงียบ
+
 ## No-Fallback / Data Quality Rule
 
 - ถ้า report ย้อนหลังขาด fact/snapshot ที่จำเป็น ต้องแสดงว่า data incomplete หรือ reconciliation gap; ห้าม fallback ไปใช้ยอด current เพื่อแทนยอดอดีต
@@ -101,9 +131,9 @@ flowchart LR
 
 ## Implementation Checklist
 
-- [ ] กำหนดตารางหรือ view สำหรับ daily reporting snapshot แยกตาม domain: Bill, PO, Finance, Stock
-- [ ] เพิ่ม `asOf` contract ให้ Dashboard/Tracking/Report ที่ต้องดูย้อนหลัง
-- [ ] กำหนด Stock real-time/as-of read model ที่คืน `qty`, `value`, `WAC`, `pending_out`, และ `available` ด้วย cutoff เดียวกัน
+- [x] กำหนดตารางหรือ view สำหรับ daily reporting snapshot แยกตาม domain: Bill, PO, Finance, Stock
+- [x] เพิ่ม `asOf` contract ให้ Dashboard/Tracking/Report ที่ต้องดูย้อนหลัง
+- [x] กำหนด Stock real-time/as-of read model ที่คืน `qty`, `value`, `WAC`, `pending_out`, และ `available` ด้วย cutoff เดียวกัน
 - [ ] ทำ backfill/rebuild script จาก transaction facts สำหรับช่วงวันที่เลือก
 - [ ] เพิ่ม source coverage matrix ว่า card/report แต่ละตัวอ่าน fact/snapshot ใด
 - [ ] เพิ่ม reconciliation check: daily snapshot total เทียบกับ source facts

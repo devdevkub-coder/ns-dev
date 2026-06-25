@@ -76,11 +76,11 @@
 
 - [x] Update AR/AP page flow docs and Purchase/Sales flow docs with source-of-truth and calculation impact matrix
 - [x] Update AR/AP docs before implementation: remove Pending Sale summary from AR, document snapshot-first rows, document AP no-channel-filter policy, document no-credit-term implementation scope, and document detail drilldown targets
-- [ ] Fix `/api/finance/ar` source-of-truth: use `sales_bills.receivable_balance` and `sales_bills.received_amount` as primary balance/read fields; use `customer_receipt_allocations`, `customer_receipts`, and legacy `receipts` mirror only for RCP/Customer Advance drilldown/audit
-- [ ] Fix `/api/finance/ap` source-of-truth: use `purchase_bills.payable_balance` and `purchase_bills.paid_amount` as primary balance/read fields; use `payments`, `payment_allocations`, `payment_approvals`, and `supplier_advance_allocations` only for PMT/ADV drilldown/audit
-- [ ] Add AR detail drilldown from `/finance/ar` to SB/RCP and Customer Advance allocation facts, including cancelled receipt exclusion and created-date display in list/export
-- [ ] Add AP detail drilldown from `/finance/ap` to PB/PMA/PMT and Supplier Advance allocation facts, including cancelled/reversed payment exclusion and created-date display in list/export
-- [ ] Remove/hide AP channel filter and any `channelId` query/UI state from `/finance/ap` until purchase channel exists as a real source
+- [x] Fix `/api/finance/ar` source-of-truth: use `sales_bills.receivable_balance` and `sales_bills.received_amount` as primary balance/read fields; use `customer_receipt_allocations`, `customer_receipts`, and legacy `receipts` mirror only for RCP/Customer Advance drilldown/audit
+- [x] Fix `/api/finance/ap` source-of-truth: use `purchase_bills.payable_balance` and `purchase_bills.paid_amount` as primary balance/read fields; use `payments`, `payment_allocations`, `payment_approvals`, and `supplier_advance_allocations` only for PMT/ADV drilldown/audit
+- [x] Add AR detail drilldown from `/finance/ar` to SB/RCP and Customer Advance allocation facts, including cancelled receipt exclusion and created-date display in list/detail payload
+- [x] Add AP detail drilldown from `/finance/ap` to PB/PMA/PMT and Supplier Advance allocation facts, including cancelled/reversed payment exclusion and created-date display in list/detail payload
+- [x] Remove/hide AP channel filter and any `channelId` query/UI state from `/finance/ap` until purchase channel exists as a real source
 - [ ] Align `/finance/ar` and `/finance/ap` UI with `docs/design.md` / Peach: metric cards on plain grid, desktop lined/resizable/sort table, mobile dense cards, read-only dark-header detail modal
 - [ ] Add focused API/service checks for mixed cases:
   - SB with Customer Advance + RCP returns `receivable_balance` from `sales_bills`, not derived from legacy receipt sum
@@ -118,10 +118,10 @@
 ### Task Breakdown
 
 - [x] Add cross-domain reporting history snapshot policy doc
-- [ ] Define daily snapshot schema/view plan for Bill, PO, Finance, and Stock domains
-- [ ] Define Stock real-time/as-of API contract for quantity, stock value, WAC, pending_out, and available by bucket
+- [x] Define daily snapshot schema/view plan for Bill, PO, Finance, and Stock domains
+- [x] Define Stock real-time/as-of API contract for quantity, stock value, WAC, pending_out, and available by bucket
 - [ ] Add source coverage matrix for each Dashboard/Tracking/Report card
-- [ ] Add `asOf` contract and stale/incomplete snapshot warning for dashboard APIs that support historical view
+- [x] Add `asOf` contract and stale/incomplete snapshot warning for dashboard APIs that support historical view
 - [ ] Add backfill/rebuild scripts from transaction facts for selected date ranges
 - [ ] Add reconciliation checks comparing daily snapshots against source facts
 - [ ] Update monthly/yearly report APIs to use daily snapshots once the snapshot layer exists
@@ -696,7 +696,7 @@ Reporting rule:
 - [ ] Runtime status/usage cleanup after status decision
   - [x] WTI/WTO list filters use canonical target status only
   - [x] WTI has no target partial-billed status in new writes
-  - [x] WTO has no target partial-billed status in new writes
+  - [x] WTO has target `partially_billed / ออกบิลแล้วบางส่วน` status when an active SB consumes only part of the WTO pending_out and the remaining pending_out must be closed by `รับของคืน`
   - [ ] detail/timeline surfaces downstream usage facts instead of inferring from status string only
   - [ ] reconciliation report flags legacy partial-billed/status mismatch rows instead of hiding them
 - [ ] Add sales-bill timeline/log coverage
@@ -732,6 +732,7 @@ Reporting rule:
   - [x] dashboards/reports/AR no longer read `stock_issues` as pending-sale fallback
   - [x] legacy PSALE behavior remains historical/data-repair context only and must not be listed as target-complete runtime work
 - [x] define sales COGS rule: Stock SB uses weighted average cost at the time of sale, captured into `stock_ledger.value_out`/`unit_cost` when `SB` consumes WTO pending_out; downstream COGS reads that posted SB ledger cost, not current/recomputed WAC
+- [x] `/sales/bills` create/edit save UX: after successful save, close the modal and reload the list with the user's current filters; do not auto-fill search with the saved SB doc no because that silently filters the table
 - [ ] define receipt relation
 
 ### 6.3 Payment and Receipt Prep
@@ -746,9 +747,9 @@ Reporting rule:
 - [ ] design customer receipt allocations
 - [ ] define bank statement relation
 - [ ] sync `/finance/ap` and `/finance/ar` with created-date display, source document links, and final allocation facts
-- [ ] Fix `/api/finance/ar` AR source-of-truth: use `sales_bills.receivable_balance` and `sales_bills.received_amount` as the primary balance/read fields; use `customer_receipt_allocations`, `customer_receipts`, and legacy `receipts` only for RCP drilldown/audit. This prevents Customer Advance allocations from being missed when legacy receipt rows are used to derive received amounts.
-- [ ] Add AR detail drilldown from `/finance/ar` to SB and RCP allocation facts, including Customer Advance allocation facts, cancelled receipt exclusion, and created-date display in list/export.
-- [ ] Fix `/api/finance/ap` AP source-of-truth: use `purchase_bills.payable_balance` and `purchase_bills.paid_amount` as the primary balance/read fields; use `payments`, `payment_allocations`, `payment_approvals`, and `supplier_advance_allocations` only for PMT/PMA/ADV drilldown/audit.
+- [x] Fix `/api/finance/ar` AR source-of-truth: use `sales_bills.receivable_balance` and `sales_bills.received_amount` as the primary balance/read fields; use `customer_receipt_allocations`, `customer_receipts`, and legacy `receipts` only for RCP drilldown/audit. This prevents Customer Advance allocations from being missed when legacy receipt rows are used to derive received amounts.
+- [x] Add AR detail drilldown from `/finance/ar` to SB and RCP allocation facts, including Customer Advance allocation facts, cancelled receipt exclusion, and created-date display in list/detail payload.
+- [x] Fix `/api/finance/ap` AP source-of-truth: use `purchase_bills.payable_balance` and `purchase_bills.paid_amount` as the primary balance/read fields; use `payments`, `payment_allocations`, `payment_approvals`, and `supplier_advance_allocations` only for PMT/PMA/ADV drilldown/audit.
 - [ ] Remove `/finance/ap` channel filter until purchase channel exists as a real document source; do not keep an empty dropdown or fallback query.
 - [ ] Keep AP aging on current policy: `purchase_bills.date` is the aging base date. Do not add credit term/due-date schema in this batch.
 - [ ] design dedicated `customer_advances` and `customer_advance_allocations` tables so `/finance/customer-advance` no longer depends on `bank_statement.ref_type = CADV` only

@@ -634,6 +634,7 @@ export function displayWeightTicketStatus(type: WeightTicketType, status: Weight
   if (type === 'WTO') {
     if (status === 'cancelled') return 'ยกเลิก'
     if (status === 'delivered') return 'ส่งของแล้ว'
+    if (status === 'partially_billed') return 'ออกบิลแล้วบางส่วน'
     return 'ออกบิลแล้ว'
   }
 
@@ -649,6 +650,7 @@ export function weightTicketStatusBadgeClass(type: WeightTicketType, status: Wei
   }
   if (type === 'WTO') {
     if (status === 'delivered') return 'text-amber-700'
+    if (status === 'partially_billed') return 'text-orange-700'
     return 'text-blue-700'
   }
   return 'text-slate-700'

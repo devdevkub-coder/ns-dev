@@ -4,11 +4,12 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, ClipboardList, Package2, Printer, Scale, Share2, SquarePen, XCircle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ClipboardList, Package2, Printer, RotateCcw, Scale, Share2, SquarePen, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/Dialog'
 import { WeightTicketProductBreakdownTable } from '@/components/daily/WeightTicketProductBreakdownTable'
+import { WeightTicketStockReturnDialog, type StockReturnPayload } from '@/components/daily/WeightTicketStockReturnDialog'
 import { openWeightTicketPrintWindow, openWeightTicketReceiptPrint } from '@/lib/weight-ticket-print'
 import { cn } from '@/lib/utils'
 import { cancelWeightTicket, decodeStoredImageAsset, displayWeightTicketStatus, formatWeight, getWeightTicket, notifyWeightTicketLine, type WeightTicketRecord, type WeightTicketStatus, type WeightTicketType, weightTicketStatusBadgeClass } from '@/lib/weight-tickets'
@@ -110,6 +111,15 @@ export function WeightTicketDetailModal({
   const [shareNote, setShareNote] = useState('')
   const [shareError, setShareError] = useState('')
   const [isSendingLine, setIsSendingLine] = useState(false)
+  const [showStockReturnDialog, setShowStockReturnDialog] = useState(false)
+  const [canReturnStock, setCanReturnStock] = useState(false)
+
+  async function loadStockReturnAvailability(documentNo: string) {
+    const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(documentNo)}/stock-returns`, { cache: 'no-store' })
+    if (!response.ok) throw new Error(await response.text())
+    const payload = await response.json() as StockReturnPayload
+    setCanReturnStock(payload.options.length > 0)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -134,6 +144,31 @@ export function WeightTicketDetailModal({
       cancelled = true
     }
   }, [ticketId])
+
+  useEffect(() => {
+    if (ticket?.type !== 'WTO') {
+      setCanReturnStock(false)
+      return
+    }
+
+    const documentNo = ticket.documentNo
+    let cancelled = false
+    async function loadAvailability() {
+      try {
+        const response = await fetch(`/api/daily/weight-tickets/${encodeURIComponent(documentNo)}/stock-returns`, { cache: 'no-store' })
+        if (!response.ok) throw new Error(await response.text())
+        const payload = await response.json() as StockReturnPayload
+        if (!cancelled) setCanReturnStock(payload.options.length > 0)
+      } catch {
+        if (!cancelled) setCanReturnStock(false)
+      }
+    }
+
+    void loadAvailability()
+    return () => {
+      cancelled = true
+    }
+  }, [ticket?.documentNo, ticket?.type])
 
   const vehicleImages = useMemo(
     () => (ticket?.vehicleImageNames ?? []).map(decodeStoredImageAsset),
@@ -169,6 +204,17 @@ export function WeightTicketDetailModal({
     }
   }
 
+  async function reloadTicket() {
+    const nextTicket = await getWeightTicket(ticketId)
+    setTicket(nextTicket)
+    setCancelNote(nextTicket.cancelNote ?? '')
+    if (nextTicket.type === 'WTO') {
+      await loadStockReturnAvailability(nextTicket.documentNo)
+    } else {
+      setCanReturnStock(false)
+    }
+  }
+
   async function handleSendLineNotification() {
     if (!ticket) return
     setIsSendingLine(true)
@@ -196,6 +242,7 @@ export function WeightTicketDetailModal({
   const activeGalleryImage = lineGallery?.images[lineGallery.activeIndex] ?? null
 
   return (
+    <>
     <Dialog open onOpenChange={(open) => {
       if (!open) onClose()
     }}>
@@ -208,26 +255,34 @@ export function WeightTicketDetailModal({
               </DialogTitle>
               <DialogDescription className="text-slate-300">{ticket?.partyName ?? (isLoading ? 'กำลังโหลดข้อมูล' : '-')}</DialogDescription>
             </div>
-            {ticket && ticket.canEdit ? (
+            {ticket ? (
               <div className="flex gap-2">
-                {onEdit ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="font-normal border-slate-700 bg-slate-800 text-white hover:bg-slate-700 hover:text-white"
-                    onClick={() => onEdit(ticket.id, ticket.type)}
-                  >
-                    <SquarePen className="mr-2 size-4" />
-                    แก้ไข
+                {canReturnStock ? (
+                  <Button type="button" variant="outline" className="font-normal border-slate-700 bg-slate-800 text-white hover:bg-slate-700 hover:text-white" onClick={() => setShowStockReturnDialog(true)}>
+                    <RotateCcw className="mr-2 size-4" />
+                    รับของคืน
                   </Button>
-                ) : (
-                  <Button asChild type="button" variant="outline" className="font-normal border-slate-700 bg-slate-800 text-white hover:bg-slate-700 hover:text-white">
-                    <Link href={`/daily/weight-tickets?id=${encodeURIComponent(ticket.id)}`}>
+                ) : null}
+                {ticket.canEdit ? (
+                  onEdit ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="font-normal border-slate-700 bg-slate-800 text-white hover:bg-slate-700 hover:text-white"
+                      onClick={() => onEdit(ticket.id, ticket.type)}
+                    >
                       <SquarePen className="mr-2 size-4" />
                       แก้ไข
-                    </Link>
-                  </Button>
-                )}
+                    </Button>
+                  ) : (
+                    <Button asChild type="button" variant="outline" className="font-normal border-slate-700 bg-slate-800 text-white hover:bg-slate-700 hover:text-white">
+                      <Link href={`/daily/weight-tickets?id=${encodeURIComponent(ticket.id)}`}>
+                        <SquarePen className="mr-2 size-4" />
+                        แก้ไข
+                      </Link>
+                    </Button>
+                  )
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -727,6 +782,15 @@ export function WeightTicketDetailModal({
         </Dialog>
       </DialogContent>
     </Dialog>
+    {ticket?.type === 'WTO' ? (
+      <WeightTicketStockReturnDialog
+        open={showStockReturnDialog}
+        ticketDocNo={ticket.documentNo}
+        onClose={() => setShowStockReturnDialog(false)}
+        onCompleted={reloadTicket}
+      />
+    ) : null}
+    </>
   )
 }
 
