@@ -706,6 +706,11 @@ Reporting rule:
   - [x] dedicated `po_sell_allocation_logs` for billed/released quantity from `SB`
   - [x] detail/timeline reads dedicated logs for `WTO`, `PO Sell`, and `SB`
   - [ ] dedicated allocation timeline logs for Customer Advance allocation/release beyond current allocation facts
+- [x] Sales Bill commercial correction slice 2
+  - [x] allow edit of `จำนวนที่ขายได้`, `หักสิ่งเจือปน`, derived `น้ำหนักขายสุทธิ`, price, discount, PO Sell allocation, VAT/header, export order, and Customer Advance allocation when no active RCP exists
+  - [x] keep `transactionMode`, branch, Customer, WTO/source, product, line count, and `stockIssueQty` locked; do not write `stock_ledger`, reopen/consume `pending_out`, or recalc WAC in this slice
+  - [x] release/recreate active `sales_bill_po_sell_allocations` and `sales_bill_customer_advance_allocations` in the same transaction, update `sales_bills.received_amount` / `receivable_balance`, and append status/allocation logs
+  - [ ] leave stock/source quantity correction as a separate append-only stock correction flow after policy/QA
 - [ ] Harden SB detail/print after allocation facts exist
   - [x] detail source labels read line allocation facts instead of snapshot/header fallback
   - [x] print source labels read line allocation facts via shared Sales Bill detail read model

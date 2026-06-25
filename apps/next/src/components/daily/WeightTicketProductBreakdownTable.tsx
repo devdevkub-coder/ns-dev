@@ -1,7 +1,7 @@
 'use client'
 
 import { Fragment } from 'react'
-import { decodeStoredImageAsset, formatWeight, type WeightTicketRecord } from '@/lib/weight-tickets'
+import { decodeStoredImageAsset, formatWeight, type WeightTicketRecord, weightTicketImpurityDisplayName } from '@/lib/weight-tickets'
 
 type PreviewImage = { fileName: string; url: string }
 
@@ -204,7 +204,7 @@ export function WeightTicketProductBreakdownTable({
 
                 {group.impurityLines.map((line) => (
                   <tr key={line.id}>
-                    <td className="px-3 py-3 text-slate-600">{line.impurityName || 'สิ่งเจือปน'}</td>
+                    <td className="px-3 py-3 text-slate-600">{weightTicketImpurityDisplayName(line)}</td>
                     <td className="px-3 py-3 text-slate-600">{line.note || '-'}</td>
                     {ticket.type === 'WTO' ? <td className="px-3 py-3 text-slate-500">-</td> : null}
                     <WeightCells container={0} deduction={line.deductionWeight} gross={0} net={0} />
@@ -328,7 +328,7 @@ export function WeightTicketProductBreakdownTable({
                     {group.impurityLines.map((line) => (
                       <div key={line.id} className="text-sm bg-white p-3.5 rounded-lg border border-slate-200/80 shadow-sm space-y-2">
                         <div className="flex justify-between items-center">
-                          <span className="font-bold text-slate-800">{line.impurityName || 'สิ่งเจือปน'}</span>
+                          <span className="font-bold text-slate-800">{weightTicketImpurityDisplayName(line)}</span>
                           <span className="font-semibold text-red-600 tabular-nums">หัก {formatWeight(line.deductionWeight)} กก.</span>
                         </div>
                         {line.note && <div className="text-sm text-slate-600 bg-slate-50 p-2.5 rounded mt-1">หมายเหตุ: {line.note}</div>}

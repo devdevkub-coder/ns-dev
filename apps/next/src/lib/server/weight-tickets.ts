@@ -1,9 +1,13 @@
 import type { Prisma } from '../../../generated/prisma/client'
 import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
 import {
+  appendImpurityProductMeta,
   calculateLineTotals,
   isOtherProductImpurityId,
+  isOtherProductImpurityLabel,
+  OTHER_PRODUCT_IMPURITY_ID,
   OTHER_PRODUCT_IMPURITY_LABEL,
+  parseImpurityProductMeta,
   type WeightTicketFormValues,
   type WeightTicketStatus,
   type WeightTicketType,
@@ -351,6 +355,8 @@ export function buildWeightTicketLineRows(
     const lineTotals = totalsById.get(line.id)!
     const productCode = line.productId.trim().toUpperCase()
     const product = productByCode.get(productCode)
+    const impurityProductCode = line.impurityProductId?.trim().toUpperCase() ?? ''
+    const impurityProduct = impurityProductCode ? productByCode.get(impurityProductCode) : null
     const warehouseCode = line.warehouseId.trim().toUpperCase()
     const warehouse = warehouseCode ? warehouseByCode.get(warehouseCode) : null
     const isOtherProductImpurity = isOtherProductImpurityId(line.impurityId)
@@ -373,7 +379,10 @@ export function buildWeightTicketLineRows(
       impurity_source_line_no: line.impuritySourceLineId ? lineNoById.get(line.impuritySourceLineId) ?? null : null,
       line_no: index + 1,
       net_weight: lineTotals.netWeight,
-      note: line.note || null,
+      note: appendImpurityProductMeta(line.note, {
+        id: isOtherProductImpurity ? (line.impurityProductId ?? '') : '',
+        name: isOtherProductImpurity ? (impurityProduct?.name ?? '') : '',
+      }) || null,
       parent_line_no: line.parentId ? lineNoById.get(line.parentId) ?? null : null,
       product_id: product.id,
       product_name: product.name,
@@ -721,6 +730,7 @@ export function canMutateWeightTicket(row: { status: string | null }, usage: Wei
 export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsage) {
   const canMutate = canMutateWeightTicket(row, usage)
   const lineRows = row.weight_ticket_lines.map((line: WeightTicketRow['weight_ticket_lines'][number]) => ({
+    ...parseImpurityProductMeta(line.note),
     containerDeductionWeight: toNumber(line.container_deduction_weight).toString(),
     containerDeductionWeightValue: toNumber(line.container_deduction_weight),
     deductionMode: (line.deduction_mode ?? 'none') as 'none' | 'kg' | 'percent',
@@ -731,12 +741,13 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
     id: `${row.doc_no}:${line.line_no}`,
     imageCount: line.image_count ?? 0,
     imageNames: line.image_names ?? [],
-    impurityId: line.impurity_id == null ? '' : String(line.impurity_id),
+    impurityId: line.impurity_id == null
+      ? isOtherProductImpurityLabel(line.impurity_name) ? OTHER_PRODUCT_IMPURITY_ID : ''
+      : String(line.impurity_id),
     impuritySourceLineNo: line.impurity_source_line_no ?? null,
     impurityName: line.impurity_name ?? '',
     lineNo: line.line_no,
     netWeight: toNumber(line.net_weight),
-    note: line.note ?? '',
     parentLineNo: line.parent_line_no ?? null,
     productId: requireBusinessCode(line.products.code, `สินค้า ${line.products.id}`),
     productName: line.product_name,

@@ -41,6 +41,7 @@ type SalesBillRow = Prisma.sales_billsGetPayload<{
   include: {
     branches: true
     customers: true
+    sales_bill_customer_advance_allocations: true
     sales_channels: true
     warehouses: true
   }
@@ -95,6 +96,7 @@ function billJson(row: SalesBillRow, activeReceiptCount = 0, lineCount?: number)
     channelName: row.sales_channels?.name ?? '-',
     createdAt: row.created_at?.toISOString(),
     createdBy: row.created_by ?? '',
+    customerAdvanceDocNo: row.sales_bill_customer_advance_allocations.find((allocation) => allocation.status === 'active')?.customer_advance_doc_no ?? '',
     customerName: row.customers?.name ?? '-',
     date: toDateOnly(row.date),
     docNo: row.doc_no,
@@ -1190,6 +1192,9 @@ export async function GET(request: Request) {
         include: {
           branches: true,
           customers: true,
+          sales_bill_customer_advance_allocations: {
+            where: { status: 'active' },
+          },
           sales_channels: true,
           warehouses: true,
         },
@@ -2091,20 +2096,12 @@ export async function PATCH(request: Request) {
       if (String(bill.status ?? '').toLowerCase().includes('cancel')) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขไม่ได้ เพราะบิลขายนี้ถูกยกเลิกแล้ว' }, { status: 400 })
       }
-      const activeReceiptsCount = await prisma.receipts.count({
-        where: {
-          bill_id: bill.id,
-          NOT: { status: { in: ['cancelled', 'void', 'ยกเลิก', 'Void', 'Cancelled'] } },
-        },
-      })
+      const activeReceiptsCount = (await activeSalesReceiptCountByBillId(prisma, [bill.id])).get(bill.id) ?? 0
       if (activeReceiptsCount > 0) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขไม่ได้ เพราะบิลขายนี้มีการรับชำระเงินแล้ว' }, { status: 400 })
       }
       if (values.transactionMode !== String(bill.transaction_mode ?? 'STOCK')) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขไม่ได้ เพราะต้องคงประเภทบิลขายเดิม' }, { status: 400 })
-      }
-      if (values.customerAdvanceId || bill.sales_bill_customer_advance_allocations.length > 0) {
-        return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไข Customer advance ในบิลขายยังไม่เปิดในรอบนี้' }, { status: 400 })
       }
       if (bill.sales_bill_lines.length === 0) {
         return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขไม่ได้ เพราะบิลขายนี้ยังไม่มี line facts สำหรับ correction' }, { status: 400 })
@@ -2155,11 +2152,30 @@ export async function PATCH(request: Request) {
         if (line.product_code_snapshot !== item.productId || line.product_id !== parsedProductIdsByLine[index]) {
           return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขสินค้าในบิลขายยังไม่เปิดในรอบนี้' }, { status: 400 })
         }
-        if (Math.abs(toNumber(line.qty) - item.qty) > 0.0001
-          || Math.abs(toNumber(line.net_weight) - item.netWeight) > 0.0001
-          || Math.abs(toNumber(line.gross_weight) - item.grossWeight) > 0.0001
-          || Math.abs(toNumber(line.deduct_weight) - item.deductWeight) > 0.0001) {
-          return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขน้ำหนัก/จำนวนขายยังไม่เปิดในรอบนี้ ให้แก้ได้เฉพาะ PO Sell อ้างอิง ราคา ส่วนลด และหมายเหตุ' }, { status: 400 })
+        if (String(bill.transaction_mode ?? 'STOCK') !== 'STOCK'
+          && (Math.abs(toNumber(line.qty) - item.qty) > 0.0001
+            || Math.abs(toNumber(line.net_weight) - item.netWeight) > 0.0001
+            || Math.abs(toNumber(line.gross_weight) - item.grossWeight) > 0.0001
+            || Math.abs(toNumber(line.deduct_weight) - item.deductWeight) > 0.0001)) {
+          return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขน้ำหนัก/จำนวนขายของบิล Trading ยังไม่เปิดในรอบนี้ ให้แก้ได้เฉพาะ PO Sell อ้างอิง ราคา ส่วนลด และหมายเหตุ' }, { status: 400 })
+        }
+        if (String(bill.transaction_mode ?? 'STOCK') === 'STOCK' && Math.abs(toNumber(line.gross_weight) - item.grossWeight) > 0.0001) {
+          return NextResponse.json({ code: 'BAD_REQUEST', error: 'แก้ไขน้ำหนักสุทธิที่ส่งจาก WTO ยังไม่เปิดในรอบนี้' }, { status: 400 })
+        }
+        const expectedQty = Number(Math.max(0, item.netWeight - item.deductWeight).toFixed(2))
+        if (item.deductWeight > item.netWeight + 0.0001) {
+          return NextResponse.json({
+            code: 'BAD_REQUEST',
+            error: `รายการที่ ${index + 1}: หักสิ่งเจือปนต้องไม่เกินจำนวนที่ขายได้`,
+            fieldErrors: { [`items.${index}.deductWeight`]: ['หักสิ่งเจือปนต้องไม่เกินจำนวนที่ขายได้'] },
+          }, { status: 400 })
+        }
+        if (Math.abs(expectedQty - item.qty) > 0.01) {
+          return NextResponse.json({
+            code: 'BAD_REQUEST',
+            error: `รายการที่ ${index + 1}: น้ำหนักขายสุทธิต้องเท่ากับจำนวนที่ขายได้ - หักสิ่งเจือปน`,
+            fieldErrors: { [`items.${index}.qty`]: ['น้ำหนักขายสุทธิต้องเท่ากับจำนวนที่ขายได้ - หักสิ่งเจือปน'] },
+          }, { status: 400 })
         }
       }
 
@@ -2228,10 +2244,7 @@ export async function PATCH(request: Request) {
           deliverySummaryId: typeof sourceMeta.deliverySummaryId === 'string' ? sourceMeta.deliverySummaryId : item.deliverySummaryId,
           deliveryTicketDocNo: sourceAllocation.source_doc_no,
           deliveryTicketId: sourceAllocation.source_doc_no,
-          deductWeight: toNumber(activeLine.deduct_weight),
           grossWeight: toNumber(activeLine.gross_weight),
-          netWeight: toNumber(activeLine.net_weight),
-          qty: toNumber(activeLine.qty),
           stockIssueQty: toNumber(sourceAllocation.allocated_qty),
         }
       })
@@ -2251,6 +2264,41 @@ export async function PATCH(request: Request) {
       const createdAt = new Date()
       const totalCost = toNumber(bill.total_cost ?? bill.cogs_amount)
       const headerPoSellDocNo = values.poSellId?.trim() || undefined
+      const oldCustomerAdvanceAllocations = bill.sales_bill_customer_advance_allocations.filter((allocation) => allocation.status === 'active')
+      const oldCustomerAdvanceAllocatedAmount = oldCustomerAdvanceAllocations.reduce((sum, allocation) => sum + toNumber(allocation.allocated_amount), 0)
+      const requestedCustomerAdvanceDocNo = values.customerAdvanceId?.trim() || ''
+      const selectedCustomerAdvance = requestedCustomerAdvanceDocNo
+        ? await prisma.bank_statement.findUnique({
+            select: {
+              amount_in: true,
+              doc_no: true,
+              ref_id: true,
+              ref_no: true,
+              ref_type: true,
+            },
+            where: { doc_no: requestedCustomerAdvanceDocNo },
+          })
+        : null
+      if (requestedCustomerAdvanceDocNo && !selectedCustomerAdvance) return NextResponse.json({ code: 'BAD_REQUEST', error: 'ไม่พบเอกสารรับเงินล่วงหน้าที่เลือก' }, { status: 400 })
+      if (selectedCustomerAdvance && selectedCustomerAdvance.ref_type !== 'CADV') return NextResponse.json({ code: 'BAD_REQUEST', error: 'เอกสารรับเงินล่วงหน้าไม่ถูกต้อง' }, { status: 400 })
+      if (selectedCustomerAdvance && String(selectedCustomerAdvance.ref_id ?? '').trim() !== customer.code) return NextResponse.json({ code: 'BAD_REQUEST', error: 'เอกสารรับเงินล่วงหน้าต้องเป็นลูกค้าเดียวกับบิลขาย' }, { status: 400 })
+      const selectedCustomerAdvanceUsedAmount = selectedCustomerAdvance
+        ? toNumber((await prisma.sales_bill_customer_advance_allocations.aggregate({
+            _sum: { allocated_amount: true },
+            where: {
+              customer_advance_doc_no: selectedCustomerAdvance.doc_no,
+              sales_bill_id: { not: bill.id },
+              status: 'active',
+            },
+          }))._sum.allocated_amount)
+        : 0
+      const selectedCustomerAdvanceAvailable = selectedCustomerAdvance
+        ? Math.max(0, toNumber(selectedCustomerAdvance.amount_in) - selectedCustomerAdvanceUsedAmount)
+        : 0
+      const customerAdvanceApplied = selectedCustomerAdvance
+        ? Math.min(totals.totalAmount, selectedCustomerAdvanceAvailable)
+        : 0
+      if (selectedCustomerAdvance && customerAdvanceApplied <= 0.01) return NextResponse.json({ code: 'BAD_REQUEST', error: 'เอกสารรับเงินล่วงหน้านี้ไม่มียอดคงเหลือสำหรับใช้หักบิลแล้ว' }, { status: 400 })
       await prisma.$transaction(async (tx) => {
         const activePoSellAllocations = bill.sales_bill_po_sell_allocations.filter((allocation) => allocation.status === 'active')
         await appendPoSellAllocationLogs(tx, activePoSellAllocations
@@ -2300,6 +2348,22 @@ export async function PATCH(request: Request) {
           },
           where: { sales_bill_id: bill.id, status: 'active' },
         })
+        if (oldCustomerAdvanceAllocations.length > 0) {
+          await tx.sales_bill_customer_advance_allocations.updateMany({
+            data: {
+              meta: {
+                reason: 'sales_bill_edit_customer_advance',
+                releasedAt: createdAt.toISOString(),
+                releasedBy: actor,
+              },
+              notes: 'Reversed by Sales Bill edit',
+              status: 'reversed',
+              updated_at: createdAt,
+              updated_by: actor,
+            },
+            where: { sales_bill_id: bill.id, status: 'active' },
+          })
+        }
 
         await tx.sales_bills.update({
           data: {
@@ -2311,8 +2375,10 @@ export async function PATCH(request: Request) {
             items: items as Prisma.InputJsonValue,
             note: values.note,
             notes: values.note,
-            receivable_balance: Math.max(0, totals.totalAmount - toNumber(bill.received_amount)),
+            paid_amount: customerAdvanceApplied,
+            receivable_balance: Math.max(0, totals.totalAmount - customerAdvanceApplied),
             ref_no: values.refNo,
+            received_amount: customerAdvanceApplied,
             subtotal: totals.subtotal,
             total_amount: totals.totalAmount,
             total_cost: totalCost,
@@ -2330,9 +2396,19 @@ export async function PATCH(request: Request) {
         for (const [index, item] of items.entries()) {
           await tx.sales_bill_lines.update({
             data: {
+              deduct_weight: item.deductWeight,
               discount_amount: item.discount,
+              gross_weight: item.grossWeight,
               line_amount: item.amount,
+              meta: {
+                deliveryLineId: item.deliveryLineId ?? null,
+                deliverySummaryId: item.deliverySummaryId ?? null,
+                stockIssueQty: item.stockIssueQty,
+                tradingCostSourceId: item.tradingCostSourceId ?? null,
+              },
+              net_weight: item.netWeight,
               notes: item.note || null,
+              qty: item.qty,
               unit_price: item.unitPrice,
               updated_at: createdAt,
               updated_by: actor,
@@ -2365,6 +2441,30 @@ export async function PATCH(request: Request) {
             salesBillDocNo: bill.doc_no,
           }))
         }
+        if (selectedCustomerAdvance && customerAdvanceApplied > 0) {
+          await tx.sales_bill_customer_advance_allocations.create({
+            data: {
+              allocated_amount: customerAdvanceApplied,
+              created_at: createdAt,
+              created_by: actor,
+              customer_advance_doc_no: selectedCustomerAdvance.doc_no,
+              customer_code_snapshot: customer.code,
+              customer_id: customer.id,
+              customer_name_snapshot: customer.name,
+              meta: {
+                oldAllocatedAmount: oldCustomerAdvanceAllocatedAmount,
+                reason: 'sales_bill_edit_customer_advance',
+                source: 'sales_bill_edit',
+              },
+              outstanding_after: Math.max(0, selectedCustomerAdvanceAvailable - customerAdvanceApplied),
+              outstanding_before: selectedCustomerAdvanceAvailable,
+              sales_bill_id: bill.id,
+              status: 'active',
+              updated_at: createdAt,
+              updated_by: actor,
+            },
+          })
+        }
         for (const [poSellDocNo, allocation] of poSellAllocations.entries()) {
           const poSell = poSellByDocNo.get(poSellDocNo)
           if (!poSell || 'error' in allocation || !poSell.id) continue
@@ -2387,8 +2487,10 @@ export async function PATCH(request: Request) {
           createdAt,
           fromStatus: bill.status ?? null,
           meta: {
-            reason: 'sales_bill_edit_po_sell',
-            supportedScope: 'po_sell_price_discount_note_only',
+            customerAdvanceApplied,
+            oldCustomerAdvanceAllocatedAmount,
+            reason: 'sales_bill_commercial_correction',
+            supportedScope: 'commercial_qty_deduct_po_sell_customer_advance_header_only',
           },
           note: values.note,
           salesBillId: bill.id,

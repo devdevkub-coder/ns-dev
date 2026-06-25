@@ -13,6 +13,8 @@ export type WeightTicketLine = {
   id: string
   imageNames: string[]
   impurityId: string
+  impurityProductId?: string
+  impurityProductName?: string
   impuritySourceLineNo?: number | null
   lineNo?: number
   note: string
@@ -29,6 +31,8 @@ export type WeightTicketRecordLine = WeightTicketLine & {
   imageCount: number
   imageNames: string[]
   impurityName: string
+  impurityProductId?: string
+  impurityProductName?: string
   netWeight: number
   productName: string
   warehouseName: string
@@ -178,6 +182,8 @@ export function isOtherProductImpurityLabel(value: string | null | undefined) {
 }
 
 const blankToEmpty = (value: unknown) => (typeof value === 'string' ? value.trim() : '')
+const impurityProductIdPattern = /\[impurity_product_id:([^\]]+)\]/i
+const impurityProductNamePattern = /\[impurity_product_name:([^\]]+)\]/i
 
 const attachmentValueSchema = z.string().trim().min(1).max(4_000_000, 'ข้อมูลรูปภาพใหญ่เกินไป')
 
@@ -189,6 +195,7 @@ const weightTicketLinePayloadSchema = z.object({
   id: z.string().trim().min(1).max(80),
   imageNames: z.array(attachmentValueSchema).default([]),
   impurityId: z.preprocess(blankToEmpty, z.string().max(80).default('')),
+  impurityProductId: z.preprocess(blankToEmpty, z.string().max(80).default('')),
   impuritySourceLineId: z.string().trim().optional(),
   note: z.preprocess(blankToEmpty, z.string().max(160, 'หมายเหตุรายการยาวเกินไป').default('')),
   productId: z.string().trim().min(1, 'เลือกสินค้า'),
@@ -308,6 +315,8 @@ const weightTicketRecordLineSchema = z.object({
   imageCount: z.number().int().nonnegative(),
   imageNames: z.array(z.string()),
   impurityId: z.string(),
+  impurityProductId: z.string().default(''),
+  impurityProductName: z.string().default(''),
   impuritySourceLineNo: z.number().int().positive().nullable().default(null),
   impurityName: z.string(),
   lineNo: z.number().int().positive(),
@@ -450,10 +459,48 @@ export function createWeightTicketLine(id = crypto.randomUUID()): WeightTicketLi
     id,
     imageNames: [],
     impurityId: '',
+    impurityProductId: '',
+    impurityProductName: '',
     note: '',
     productId: '',
     warehouseId: '',
   }
+}
+
+export function stripImpurityProductMeta(note: string | null | undefined) {
+  return String(note ?? '')
+    .replace(impurityProductIdPattern, '')
+    .replace(impurityProductNamePattern, '')
+    .trim()
+}
+
+export function parseImpurityProductMeta(note: string | null | undefined) {
+  const rawNote = String(note ?? '')
+  const impurityProductId = rawNote.match(impurityProductIdPattern)?.[1]?.trim() ?? ''
+  const impurityProductName = rawNote.match(impurityProductNamePattern)?.[1]?.trim() ?? ''
+  return {
+    impurityProductId,
+    impurityProductName,
+    note: stripImpurityProductMeta(rawNote),
+  }
+}
+
+export function appendImpurityProductMeta(
+  note: string | null | undefined,
+  impurityProduct: { id?: string | null; name?: string | null },
+) {
+  const baseNote = stripImpurityProductMeta(note)
+  const productId = impurityProduct.id?.trim() ?? ''
+  const productName = impurityProduct.name?.trim() ?? ''
+  if (!productId && !productName) return baseNote
+  return `${baseNote}[impurity_product_id:${productId}][impurity_product_name:${productName}]`
+}
+
+export function weightTicketImpurityDisplayName(line: Pick<WeightTicketRecordLine, 'impurityId' | 'impurityName' | 'impurityProductName'>) {
+  if (isOtherProductImpurityId(line.impurityId) && line.impurityProductName?.trim()) {
+    return line.impurityProductName.trim()
+  }
+  return line.impurityName?.trim() || 'สิ่งเจือปน'
 }
 
 export function toNumber(value: string) {

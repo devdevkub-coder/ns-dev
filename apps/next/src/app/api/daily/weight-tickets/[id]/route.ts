@@ -127,7 +127,10 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     const beforeSnapshot = weightTicketAuditSnapshot(mapWeightTicketRow(existing as WeightTicketRow, usage))
 
     const parsedImpurityIds = values.lines.map((line) => parseInternalBigIntId(line.impurityId))
-    const productCodes = [...new Set(values.lines.map((line) => line.productId.trim().toUpperCase()).filter(Boolean))]
+    const productCodes = [...new Set(values.lines.flatMap((line) => [
+      line.productId.trim().toUpperCase(),
+      line.impurityProductId?.trim().toUpperCase() ?? '',
+    ]).filter(Boolean))]
     const impurityIds = [...new Set(parsedImpurityIds.filter((value): value is bigint => value != null))]
     const [scopedBranches, branch, supplier, customer, products, impurities] = await Promise.all([
       findActiveBranchReferencesByCodes(scopedBranchIds),
@@ -187,6 +190,17 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         code: 'BAD_REQUEST',
         error: `รายการที่ ${missingProductIndex + 1}: สินค้าไม่ถูกต้องหรือถูกปิดใช้งาน`,
         fieldErrors: { [`lines.${missingProductIndex}.productId`]: ['สินค้าไม่ถูกต้องหรือถูกปิดใช้งาน'] },
+      }, { status: 400 })
+    }
+    const missingImpurityProductIndex = values.lines.findIndex((line) => {
+      const productCode = line.impurityProductId?.trim().toUpperCase() ?? ''
+      return Boolean(productCode) && !productByCode.has(productCode)
+    })
+    if (missingImpurityProductIndex >= 0) {
+      return NextResponse.json({
+        code: 'BAD_REQUEST',
+        error: `รายการที่ ${missingImpurityProductIndex + 1}: สินค้าที่ปนมาไม่ถูกต้องหรือถูกปิดใช้งาน`,
+        fieldErrors: { [`lines.${missingImpurityProductIndex}.impurityProductId`]: ['สินค้าที่ปนมาไม่ถูกต้องหรือถูกปิดใช้งาน'] },
       }, { status: 400 })
     }
 

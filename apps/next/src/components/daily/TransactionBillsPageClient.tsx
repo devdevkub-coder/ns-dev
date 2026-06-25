@@ -37,6 +37,7 @@ type BillRow = {
   canEdit?: boolean
   createdAt?: string
   createdBy?: string
+  customerAdvanceDocNo?: string
   customerName?: string
   date: string
   discountTotal?: number
@@ -806,10 +807,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     if (salesForm.customerId && delivery.customerId !== salesForm.customerId) return false
     return true
   })
+  const selectedSalesPoSellIds = new Set(salesForm.items.map((item) => item.poSellId).filter((poSellId): poSellId is string => Boolean(poSellId)))
   const activePoSells = (options.poSells ?? []).filter((option) => {
     if (salesForm.customerId && option.customer_id && option.customer_id !== salesForm.customerId) return false
     if (salesForm.branchId && option.branch_id && option.branch_id !== salesForm.branchId) return false
-    return option.active !== false && (option.remainingQty ?? 0) > 0.0001
+    return selectedSalesPoSellIds.has(option.id) || (option.active !== false && (option.remainingQty ?? 0) > 0.0001)
   })
   const activeTradingCostSources = (options.tradingCostSources ?? []).filter((option) => option.active !== false && ((option.remainingQty ?? 0) > 0.0001 || (option.remainingAmount ?? 0) > 0.01))
   const activeTradingPurchaseSources = activeTradingCostSources.filter((option) => option.id.startsWith('PB:'))
@@ -899,7 +901,14 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const selectedCustomerAdvancePayment = salesForm.customerAdvanceId
     ? activeCustomerAdvancePayments.find((option) => option.id === salesForm.customerAdvanceId) ?? null
     : null
-  const salesCustomerAdvanceApplied = selectedCustomerAdvancePayment ? Math.min(salesTotal, selectedCustomerAdvancePayment.remainingAmount ?? 0) : 0
+  const editingSalesBill = editingSalesBillId ? rows.find((row) => row.id === editingSalesBillId || row.docNo === editingSalesBillId) ?? null : null
+  const salesEditingAdvanceCarry = editingSalesBill && salesForm.customerAdvanceId && salesForm.customerAdvanceId === editingSalesBill.customerAdvanceDocNo
+    ? editingSalesBill.receivedAmount ?? 0
+    : 0
+  const salesCustomerAdvanceAvailable = selectedCustomerAdvancePayment
+    ? Math.max(0, (selectedCustomerAdvancePayment.remainingAmount ?? 0) + salesEditingAdvanceCarry)
+    : salesEditingAdvanceCarry
+  const salesCustomerAdvanceApplied = salesForm.customerAdvanceId ? Math.min(salesTotal, salesCustomerAdvanceAvailable) : 0
   const salesReceivableBalance = Math.max(0, salesTotal - salesCustomerAdvanceApplied)
   const vatLabel = `VAT ${formatPercent(formVatRatePercent)}%`
   const visibleTotal = pageRows.reduce((sum, row) => sum + (row.totalAmount ?? 0), 0)
@@ -1437,7 +1446,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
         grossWeight: item.grossWeight,
         id: item.deliveryLineId || `${documentNo}:${item.lineNo}`,
         lineNo: item.lineNo,
-        netWeight: item.netWeight,
+        netWeight: detail.transactionMode === 'STOCK' ? Number(((item.qty ?? item.netWeight) + item.deductWeight).toFixed(2)) : item.netWeight,
         note: item.note,
         productId: item.productCode || item.productId,
         productName: item.productName,
@@ -1484,7 +1493,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     return {
       branchId: detail.branchId,
       channelId,
-      customerAdvanceId: null,
+      customerAdvanceId: detail.customerAdvanceDocNo || null,
       customerId: detail.customerCode === '-' ? '' : detail.customerCode,
       deliveryTicketId: transactionMode === 'STOCK' ? deliveryDocNo : null,
       discountTotal: detail.discount,
@@ -3606,7 +3615,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                                </td>
 	                                <td className="p-2 text-right tabular-nums text-emerald-700">{isFirstRowOfSummary ? formatMoney(sourceSummary?.remainingWeight ?? item.netWeight ?? item.qty) : ''}</td>
 	                                <td className="p-2">
-	                                  <input data-error-key={`items.${index}.netWeight`} className={`w-full rounded-md border bg-slate-50 px-2 py-2 text-right font-bold tabular-nums text-slate-700 ${salesFieldErrors[`items.${index}.netWeight`] || salesFieldErrors[`items.${index}.qty`] ? 'border-red-400 bg-red-50 text-red-700' : ''} ${numberInputClass} ${hasSelectedPoSell ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`} disabled={hasSelectedPoSell} min="0" step="0.01" type="number" value={item.netWeight || ''} onChange={(event) => updateSalesStockSaleWeight(index, 'netWeight', Number(event.target.value || 0))} />
+	                                  <input data-error-key={`items.${index}.netWeight`} className={`w-full rounded-md border bg-slate-50 px-2 py-2 text-right font-bold tabular-nums text-slate-700 ${salesFieldErrors[`items.${index}.netWeight`] || salesFieldErrors[`items.${index}.qty`] ? 'border-red-400 bg-red-50 text-red-700' : ''} ${numberInputClass}`} min="0" step="0.01" type="number" value={item.netWeight || ''} onChange={(event) => updateSalesStockSaleWeight(index, 'netWeight', Number(event.target.value || 0))} />
 	                                  {salesFieldErrors[`items.${index}.netWeight`] ? <div className="mt-1 text-xs text-red-600">{salesFieldErrors[`items.${index}.netWeight`]}</div> : null}
 	                                  {salesFieldErrors[`items.${index}.qty`] ? <div className="mt-1 text-xs text-red-600">{salesFieldErrors[`items.${index}.qty`]}</div> : null}
 	                                </td>

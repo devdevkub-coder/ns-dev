@@ -346,9 +346,9 @@ function ticketToFormState(ticket: WeightTicketRecord): FormState {
       imageNames: line.imageNames,
       imageFiles: line.imageNames.map(createAttachmentPreview),
       impurityId: line.impurityId,
+      impurityProductId: line.impurityProductId || '',
       impuritySourceLineId: relationSourceLineId ?? (isPurchaseFromImpurity ? '' : undefined),
       impurityPurchaseAction: 'none',
-      impurityProductId: '',
       note: line.note,
       productId: line.productId,
       warehouseId: line.warehouseId,
@@ -804,7 +804,7 @@ export function WeightTicketsPageClient({
         if (line.deductionMode !== 'none' && !getLineImpurityId(line)) {
           next[`line-${line.id}-impurity`] = impurityOptions.length > 0 ? 'เลือกสิ่งเจือปน' : 'ยังไม่มีสิ่งเจือปนที่ใช้งานใน master data'
         }
-        if (isOtherProductImpurityOption(getLineImpurityId(line)) && !line.impurityProductId) {
+        if (isOtherProductImpurityOption(getLineImpurityId(line)) && line.impurityPurchaseAction === 'buy' && !line.impurityProductId) {
           next[`line-${line.id}-impurity-product`] = 'เลือกสินค้าที่ปนมา'
         }
         if (line.impurityProductId) {
@@ -1111,6 +1111,7 @@ export function WeightTicketsPageClient({
           id: line.id,
           imageNames: getLineEvidenceImages(line).map((file) => file.rawValue),
           impurityId: getLineImpurityId(line),
+          impurityProductId: line.impurityProductId ?? '',
           impuritySourceLineId: line.impuritySourceLineId,
           note: line.note,
           productId: line.productId,
@@ -1740,8 +1741,8 @@ export function WeightTicketsPageClient({
                                 const hasSelectedImpurity = Boolean(selectedImpurityId)
                                 const isOtherProductImpurity = isOtherProductImpurityOption(selectedImpurityId)
                                 const impurityPurchaseProducts = normalProducts.filter((product) => product.id !== line.productId)
-                                const mustSelectImpurityProductFirst = isOtherProductImpurity && !child.impurityProductId
-                                const canEditImpurityDeduction = hasSelectedProduct && hasSelectedImpurity && !mustSelectImpurityProductFirst
+                                const mustSelectImpurityProductFirst = isOtherProductImpurity && child.impurityPurchaseAction === 'buy' && !child.impurityProductId
+                                const canEditImpurityDeduction = hasSelectedProduct && hasSelectedImpurity
                                 const calculatedDeductionWeight = calculateAdjustedLineTotals(child, form.lines).deductionWeight
                                 return (
                                   <div key={child.id} className="bg-white p-2 rounded-lg border border-slate-200/60">
@@ -1765,22 +1766,21 @@ export function WeightTicketsPageClient({
                                               ...current,
                                               impurityId: value,
                                               impurityPurchaseAction: 'none',
-                                              deductionValue: isOtherProductImpurityOption(value) && !current.impurityProductId ? '' : current.deductionValue,
                                               impurityProductId: isOtherProductImpurityOption(value) ? current.impurityProductId ?? '' : '',
                                             }))
                                           }}
                                         />
                                       </FieldBlock>
                                       {isOtherProductImpurity ? (
-                                        <FieldBlock error={showError(`line-${child.id}-impurity-product`)} label="สินค้าที่ปนมา*" labelClassName="md:hidden">
+                                        <FieldBlock error={showError(`line-${child.id}-impurity-product`)} label="สินค้าที่ปนมา" labelClassName="md:hidden">
                                           <SearchCombobox
                                             disabled={!hasSelectedProduct}
                                             error={showError(`line-${child.id}-impurity-product`)}
                                             hideLabel
                                             inputId={`weight-impurity-product-${child.id}`}
-                                            label="สินค้าที่ปนมา*"
+                                            label="สินค้าที่ปนมา"
                                             options={impurityPurchaseProducts}
-                                            placeholder="เลือกสินค้าที่ปนมา"
+                                            placeholder="เลือกเมื่อต้องซื้อเพิ่ม"
                                             value={child.impurityProductId ?? ''}
                                             onChange={(value) => {
                                               markTouched(`line-${child.id}-impurity-product`)
@@ -1817,7 +1817,7 @@ export function WeightTicketsPageClient({
                                           disabled={!canEditImpurityDeduction}
                                           inputMode="decimal"
                                           maxLength={5}
-                                          placeholder={mustSelectImpurityProductFirst ? "เลือกสินค้า" : "0.00"}
+                                          placeholder="0.00"
                                           value={child.deductionValue}
                                           onBlur={() => markTouched(`line-${child.id}-deduction`)}
                                           onChange={(event) => updateLine(child.id, (current) => ({ ...current, deductionValue: normalizeDecimalInput(event.target.value), impurityPurchaseAction: 'none' }))}
@@ -1844,7 +1844,6 @@ export function WeightTicketsPageClient({
                                               ]}
                                               value={child.impurityPurchaseAction ?? 'none'}
                                               onChange={(value) => {
-                                                if (mustSelectImpurityProductFirst) return
                                                 const action = value as 'none' | 'buy'
                                                 updateLine(child.id, (current) => ({ ...current, impurityPurchaseAction: action }))
                                                 if (action === 'buy' && child.impurityProductId && Number(child.deductionValue || 0) > 0) {

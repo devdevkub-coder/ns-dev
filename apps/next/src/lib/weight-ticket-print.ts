@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { readJsonResponse } from '@/lib/api-client'
 import { companyProfileForPrint, companyProfileResponseSchema, type CompanyProfilePrintValues } from '@/lib/company-profile'
-import { displayWeightTicketStatus, type WeightTicketRecord } from '@/lib/weight-tickets'
+import { displayWeightTicketStatus, stripImpurityProductMeta, type WeightTicketRecord, weightTicketImpurityDisplayName } from '@/lib/weight-tickets'
 
 const companyProfilePayloadSchema = z.object({
   ...companyProfileResponseSchema.shape,
@@ -62,9 +62,7 @@ function missing(value: string | null | undefined) {
 
 function cleanNote(note: string | null | undefined): string {
   if (!note) return '-'
-  return note
-    .replace(/\[impurity_product_id:[^\]]+\]/gi, '')
-    .replace(/\[impurity_product_name:[^\]]+\]/gi, '')
+  return stripImpurityProductMeta(note)
     .replace(/\s*\(\s*([^)]+?)\s+\d+(?:\.\d+)?\s*kg\s*\)/gi, ' ($1)')
     .replace(/\s*\([\d.]+\s*kg\)/gi, '')
     .replace(/\s*[\d.]+\s*kg/gi, '')
@@ -123,7 +121,7 @@ function formatImpuritySummaryDetail(
 
   const details = impurityLines.map((line, index) => {
     const purchaseLine = findPurchaseLineForImpurity(line, sourceProductName, purchaseLines)
-    const impurityName = cleanImpurityName(line.impurityName) || 'สิ่งเจือปน'
+    const impurityName = cleanImpurityName(weightTicketImpurityDisplayName(line))
     const deductionText = `${formatPrintableWeight(line.deductionWeight)} กก.`
     const prefix = `- ${index + 1}. ${impurityName} ${deductionText}`
     if (purchaseLine) {
