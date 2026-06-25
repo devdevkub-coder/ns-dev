@@ -177,6 +177,15 @@ function isSalesBillDetail(row: BillRow | SalesBillDetail): row is SalesBillDeta
 
 type Option = {
   active?: boolean | null
+  bankAccounts?: Array<{
+    accountName: string
+    accountNo: string
+    bankName: string
+    branchCode: string
+    code: string
+    isPrimary: boolean
+    paymentMethod: string
+  }>
   branchIds?: string[]
   advanceDate?: string | null
   amount?: number | null
@@ -3459,6 +3468,45 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                   </div>
                 </div>
               </div>
+
+              {selectedSupplier?.bankAccounts && selectedSupplier.bankAccounts.length > 0 ? (
+                <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="mb-2 text-xs font-semibold text-slate-800">ข้อมูลการชำระเงิน</div>
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                    <Field className="col-span-2 md:col-span-1" label="วิธีชำระเงิน">
+                      <select
+                        className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-100"
+                        value={(() => {
+                          const matched = selectedSupplier.bankAccounts?.find((account) => `${account.paymentMethod} บช.${account.accountNo}` === (form.note ?? ''))
+                          return matched ? `${matched.paymentMethod} บช.${matched.accountNo}` : selectedSupplier.bankAccounts?.[0] ? `${selectedSupplier.bankAccounts[0].paymentMethod} บช.${selectedSupplier.bankAccounts[0].accountNo}` : ''
+                        })()}
+                        disabled={!stockReceiptSelected}
+                        onChange={(event) => {
+                          updateForm('note', event.target.value || null)
+                          updateForm('notes', event.target.value || null)
+                        }}
+                      >
+                        {selectedSupplier.bankAccounts.map((account) => (
+                          <option key={account.code} value={`${account.paymentMethod} บช.${account.accountNo}`}>
+                            {account.paymentMethod}{account.bankName ? ` · ${account.bankName}` : ''}{account.accountNo ? ` · ${account.accountNo}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    {(() => {
+                      const current = selectedSupplier.bankAccounts.find((account) => `${account.paymentMethod} บช.${account.accountNo}` === (form.note ?? '')) ?? selectedSupplier.bankAccounts[0]
+                      return (
+                        <>
+                          <Field label="ธนาคาร"><div className="flex h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-2.5 text-sm text-slate-800">{current?.bankName || '-'}</div></Field>
+                          <Field label="เลขบัญชี"><div className="flex h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-2.5 text-sm font-semibold tabular-nums text-slate-900">{current?.accountNo || '-'}</div></Field>
+                          <Field label="ชื่อบัญชี"><div className="flex h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-2.5 text-sm text-slate-800 truncate">{current?.accountName || '-'}</div></Field>
+                          <Field label="สาขา"><div className="flex h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-2.5 text-sm text-slate-800">{current?.branchCode || '-'}</div></Field>
+                        </>
+                      )
+                    })()}
+                  </div>
+                </div>
+              ) : null}
 
               <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
                 <Field error={fieldErrors.note ?? fieldErrors.notes} label="หมายเหตุ"><textarea data-error-key={fieldErrors.note ? 'note' : fieldErrors.notes ? 'notes' : undefined} className={`w-full rounded-md border px-3 py-2 ${(fieldErrors.note ?? fieldErrors.notes) ? 'border-red-400 bg-red-50 text-red-700' : ''}`} disabled={!stockReceiptSelected} rows={2} value={form.note ?? form.notes ?? ''} onChange={(event) => {

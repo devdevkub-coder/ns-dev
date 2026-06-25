@@ -1625,6 +1625,13 @@ async function optionsPayload(allowedBranchCodes?: string[] | null) {
         name: true,
         sales_id: true,
         sales_rep: true,
+        supplier_bank_accounts: {
+          include: {
+            bank_names: { select: { name: true } },
+          },
+          where: { active: true },
+          orderBy: [{ is_primary: 'desc' }, { code: 'asc' }],
+        },
         supplier_branches: {
           select: {
             branches: { select: { code: true } },
@@ -1724,6 +1731,15 @@ async function optionsPayload(allowedBranchCodes?: string[] | null) {
     })),
     suppliers: suppliers.map((supplier) => ({
       active: supplier.active,
+      bankAccounts: (supplier.supplier_bank_accounts ?? []).map((account) => ({
+        accountName: account.account_name ?? '',
+        accountNo: account.account_no ?? '',
+        bankName: account.bank_names?.name ?? '',
+        branchCode: account.branch_code ?? '',
+        code: account.code,
+        isPrimary: Boolean(account.is_primary),
+        paymentMethod: account.payment_method ?? 'เงินโอน',
+      })),
       branchIds: supplier.supplier_branches
         .map((mapping) => mapping.branches?.code)
         .filter((branchCode): branchCode is string => Boolean(branchCode)),
