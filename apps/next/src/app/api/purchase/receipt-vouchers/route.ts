@@ -284,6 +284,13 @@ export async function GET() {
           name: true,
           phone: true,
           sales_rep: true,
+          supplier_bank_accounts: {
+            include: {
+              bank_names: { select: { name: true } },
+            },
+            where: { active: true },
+            orderBy: [{ is_primary: 'desc' }, { code: 'asc' }],
+          },
           tax_id: true,
         },
         take: 5000,
@@ -368,6 +375,15 @@ export async function GET() {
       currentActor: actor,
       suppliers: suppliers.map((supplier) => ({
         address: supplier.address ?? '',
+        bankAccounts: (supplier.supplier_bank_accounts ?? []).map((account) => ({
+          accountName: account.account_name ?? '',
+          accountNo: account.account_no ?? '',
+          bankName: account.bank_names?.name ?? '',
+          branchCode: account.branch_code ?? '',
+          code: account.code,
+          isPrimary: Boolean(account.is_primary),
+          paymentMethod: account.payment_method ?? 'เงินโอน',
+        })),
         code: supplier.code,
         id: supplier.code,
         name: supplier.name,

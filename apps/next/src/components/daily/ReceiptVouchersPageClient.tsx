@@ -89,6 +89,15 @@ type ReceiptVoucherFormState = {
 }
 type SupplierOption = {
   address: string
+  bankAccounts?: Array<{
+    accountName: string
+    accountNo: string
+    bankName: string
+    branchCode: string
+    code: string
+    isPrimary: boolean
+    paymentMethod: string
+  }>
   code: string
   id: string
   name: string
@@ -749,6 +758,7 @@ export function ReceiptVouchersPageClient() {
           onPickPurchaseBill={pickPurchaseBill}
           onSave={saveForm}
           onUpdateForm={updateForm}
+          supplierBankAccounts={supplierOptions.find((supplier) => supplier.code === form.supplierCode)?.bankAccounts ?? []}
           supplierSearchOptions={supplierSearchOptions}
           purchaseBillSearchOptions={purchaseBillSearchOptions}
         />
@@ -799,6 +809,7 @@ function ReceiptVoucherFormModal({
   onPickPurchaseBill,
   onSave,
   onUpdateForm,
+  supplierBankAccounts,
   supplierSearchOptions,
   purchaseBillSearchOptions,
 }: {
@@ -811,6 +822,7 @@ function ReceiptVoucherFormModal({
   onPickPurchaseBill: (docNo: string) => void
   onSave: () => void
   onUpdateForm: (patch: Partial<ReceiptVoucherFormState>) => void
+  supplierBankAccounts: SupplierOption['bankAccounts']
   supplierSearchOptions: SearchComboboxOption[]
   purchaseBillSearchOptions: SearchComboboxOption[]
 }) {
@@ -938,9 +950,40 @@ function ReceiptVoucherFormModal({
               </table>
             </div>
             <div className="mt-2 md:mt-3 grid grid-cols-1 gap-2 md:grid-cols-[1fr_auto]">
-              <div className="flex min-h-8 md:min-h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-2 md:px-3 text-xs md:text-sm text-slate-800">
-                {form.amountInWords || thaiBahtText(totals.amount) || '-'}
-              </div>
+              {supplierBankAccounts && supplierBankAccounts.length > 0 ? (
+                <div className="grid grid-cols-2 gap-2 rounded-md border border-slate-200 bg-white p-2 md:grid-cols-4">
+                  <FormField className="col-span-2 md:col-span-1" label="วิธีรับเงิน / เลขบัญชี">
+                    <select
+                      className="h-8 md:h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-xs md:text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-100"
+                      value={(() => {
+                        const matched = supplierBankAccounts.find((account) => `${account.paymentMethod} บช.${account.accountNo}` === (form.paymentMethod === 'รับเงินสด' ? '' : form.paymentMethod))
+                        return matched ? `${matched.paymentMethod} บช.${matched.accountNo}` : supplierBankAccounts[0] ? `${supplierBankAccounts[0].paymentMethod} บช.${supplierBankAccounts[0].accountNo}` : ''
+                      })()}
+                      onChange={(event) => onUpdateForm({ paymentMethod: event.target.value })}
+                    >
+                      {supplierBankAccounts.map((account) => (
+                        <option key={account.code} value={`${account.paymentMethod} บช.${account.accountNo}`}>
+                          {account.paymentMethod}{account.bankName ? ` · ${account.bankName}` : ''}{account.accountNo ? ` · ${account.accountNo}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </FormField>
+                  {(() => {
+                    const current = supplierBankAccounts.find((account) => `${account.paymentMethod} บช.${account.accountNo}` === (form.paymentMethod === 'รับเงินสด' ? '' : form.paymentMethod)) ?? supplierBankAccounts[0]
+                    return (
+                      <>
+                        <FormField label="ธนาคาร"><div className="flex h-8 md:h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-2.5 text-xs md:text-sm text-slate-800">{current?.bankName || '-'}</div></FormField>
+                        <FormField label="เลขบัญชี"><div className="flex h-8 md:h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-2.5 text-xs md:text-sm font-semibold tabular-nums text-slate-900">{current?.accountNo || '-'}</div></FormField>
+                        <FormField label="ชื่อบัญชี"><div className="flex h-8 md:h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-2.5 text-xs md:text-sm text-slate-800 truncate">{current?.accountName || '-'}</div></FormField>
+                      </>
+                    )
+                  })()}
+                </div>
+              ) : (
+                <div className="flex min-h-8 md:min-h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-2 md:px-3 text-xs md:text-sm text-slate-800">
+                  {form.amountInWords || thaiBahtText(totals.amount) || '-'}
+                </div>
+              )}
             </div>
           </section>
 
@@ -957,6 +1000,9 @@ function ReceiptVoucherFormModal({
               <FormField label="วิธีรับเงิน">
                 <div className="flex h-8 md:h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-2.5 md:px-3 text-xs md:text-sm font-semibold text-slate-800">
                   รับเงินสด
+                </div>
+                <div className="mt-1 text-[10px] md:text-xs text-slate-500">
+                  {form.amountInWords || thaiBahtText(totals.amount) || '-'}
                 </div>
               </FormField>
               <FormField label="ผู้จ่ายเงิน (ลายเซ็น)">
