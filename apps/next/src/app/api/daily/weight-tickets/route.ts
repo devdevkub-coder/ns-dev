@@ -11,10 +11,10 @@ import { PartyBranchEligibilityError, assertCustomerEligibleForBranch, assertSup
 import { prisma } from '@/lib/server/prisma'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 import {
-  createActiveWtoStockHolds,
+  createActiveWtoPendingOut,
   resolveWtoWarehousesForLines,
   validateWtoStockAvailability,
-  WtoStockHoldError,
+  WtoPendingOutError,
 } from '@/lib/server/stock-holds'
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
 import {
@@ -267,7 +267,7 @@ export async function POST(request: Request) {
       }
       const createdLines = await Promise.all(lineRows.map((data) => tx.weight_ticket_lines.create({ data })))
       if (values.type === 'WTO') {
-        await createActiveWtoStockHolds(tx, {
+        await createActiveWtoPendingOut(tx, {
           actor,
           branchId: branch.id,
           documentNo: docNo,
@@ -363,7 +363,7 @@ export async function POST(request: Request) {
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
-    if (caught instanceof WtoStockHoldError) {
+    if (caught instanceof WtoPendingOutError) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: caught.message, fieldErrors: caught.fieldErrors }, { status: 400 })
     }
     return apiErrorResponse(caught, 'บันทึกใบรับ-ส่งของไม่ได้', 400)

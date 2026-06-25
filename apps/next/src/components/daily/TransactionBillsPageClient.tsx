@@ -1344,7 +1344,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     await Promise.all([loadData(), reloadSalesDetail(docNo)])
   }
 
-  async function returnSalesBillStock(docNo: string, values: { holdKey: string; note?: string | null; reason?: string | null; returnedQty: number }) {
+  async function returnSalesBillStock(docNo: string, values: { pendingOutKey: string; note?: string | null; reason?: string | null; returnedQty: number }) {
     await dailyFetchJson(`/api/sales/bills/${encodeURIComponent(docNo)}/stock-return`, {
       body: JSON.stringify(values),
       method: 'POST',
@@ -4060,17 +4060,17 @@ function SalesBillDetailModal({
   onClose: () => void
   onCorrectTradingAllocations: (docNo: string, allocations: Array<{ salesLineNo: number; tradingCostSourceId: string }>, note: string) => Promise<void>
   onPrint: (detail: SalesBillDetail) => void
-  onReturnStock: (docNo: string, values: { holdKey: string; note?: string | null; reason?: string | null; returnedQty: number }) => Promise<void>
+  onReturnStock: (docNo: string, values: { pendingOutKey: string; note?: string | null; reason?: string | null; returnedQty: number }) => Promise<void>
 }) {
   const [correctionError, setCorrectionError] = useState<string | null>(null)
   const [correctionNote, setCorrectionNote] = useState('')
   const [correctionSources, setCorrectionSources] = useState<Record<number, string>>({})
   const [isCorrecting, setIsCorrecting] = useState(false)
-  const [isReturningHoldKey, setIsReturningHoldKey] = useState<string | null>(null)
+  const [isReturningPendingOutKey, setIsReturningPendingOutKey] = useState<string | null>(null)
   const [returnError, setReturnError] = useState<string | null>(null)
-  const [returnNoteByHold, setReturnNoteByHold] = useState<Record<string, string>>({})
-  const [returnQtyByHold, setReturnQtyByHold] = useState<Record<string, string>>({})
-  const [returnReasonByHold, setReturnReasonByHold] = useState<Record<string, string>>({})
+  const [returnNoteByPendingOut, setReturnNoteByPendingOut] = useState<Record<string, string>>({})
+  const [returnQtyByPendingOut, setReturnQtyByPendingOut] = useState<Record<string, string>>({})
+  const [returnReasonByPendingOut, setReturnReasonByPendingOut] = useState<Record<string, string>>({})
   const [showCorrection, setShowCorrection] = useState(false)
 
   useEffect(() => {
@@ -4097,18 +4097,18 @@ function SalesBillDetailModal({
 
   useEffect(() => {
     if (!detail) {
-      setReturnQtyByHold({})
-      setReturnReasonByHold({})
-      setReturnNoteByHold({})
+      setReturnQtyByPendingOut({})
+      setReturnReasonByPendingOut({})
+      setReturnNoteByPendingOut({})
       setReturnError(null)
-      setIsReturningHoldKey(null)
+      setIsReturningPendingOutKey(null)
       return
     }
-    setReturnQtyByHold(Object.fromEntries(detail.stockReturnOptions.map((option) => [option.holdKey, String(option.pendingQty)])))
-    setReturnReasonByHold({})
-    setReturnNoteByHold({})
+    setReturnQtyByPendingOut(Object.fromEntries(detail.stockReturnOptions.map((option) => [option.pendingOutKey, String(option.pendingQty)])))
+    setReturnReasonByPendingOut({})
+    setReturnNoteByPendingOut({})
     setReturnError(null)
-    setIsReturningHoldKey(null)
+    setIsReturningPendingOutKey(null)
   }, [detail])
 
   const submitCorrection = async () => {
@@ -4141,7 +4141,7 @@ function SalesBillDetailModal({
   const submitStockReturn = async (option: SalesBillDetail['stockReturnOptions'][number]) => {
     if (!detail) return
     setReturnError(null)
-    const returnedQty = Number(returnQtyByHold[option.holdKey] ?? 0)
+    const returnedQty = Number(returnQtyByPendingOut[option.pendingOutKey] ?? 0)
     if (!Number.isFinite(returnedQty) || returnedQty < 0) {
       setReturnError('กรอกน้ำหนักที่ชั่งคืนเป็นตัวเลขที่ไม่ติดลบ')
       return
@@ -4151,23 +4151,23 @@ function SalesBillDetailModal({
       return
     }
     const lossQty = Math.max(0, option.pendingQty - returnedQty)
-    const reason = returnReasonByHold[option.holdKey]?.trim() ?? ''
+    const reason = returnReasonByPendingOut[option.pendingOutKey]?.trim() ?? ''
     if (lossQty > 0.0001 && !reason) {
       setReturnError(`รับคืน ${option.productName} ขาด ${formatMoney(lossQty)} กก. ต้องกรอกเหตุผลส่วนต่าง`)
       return
     }
-    setIsReturningHoldKey(option.holdKey)
+    setIsReturningPendingOutKey(option.pendingOutKey)
     try {
       await onReturnStock(detail.docNo, {
-        holdKey: option.holdKey,
-        note: returnNoteByHold[option.holdKey]?.trim() || null,
+        pendingOutKey: option.pendingOutKey,
+        note: returnNoteByPendingOut[option.pendingOutKey]?.trim() || null,
         reason: reason || null,
         returnedQty,
       })
     } catch (caught) {
       setReturnError(caught instanceof Error ? caught.message : 'รับของคืนไม่สำเร็จ')
     } finally {
-      setIsReturningHoldKey(null)
+      setIsReturningPendingOutKey(null)
     }
   }
 
@@ -4405,11 +4405,11 @@ function SalesBillDetailModal({
                       </thead>
                       <tbody>
                         {detail.stockReturnOptions.map((option) => {
-                          const returnedQty = Number(returnQtyByHold[option.holdKey] ?? option.pendingQty)
+                          const returnedQty = Number(returnQtyByPendingOut[option.pendingOutKey] ?? option.pendingQty)
                           const lossQty = Math.max(0, option.pendingQty - (Number.isFinite(returnedQty) ? returnedQty : 0))
                           const requiresReason = lossQty > 0.0001
                           return (
-                            <tr key={option.holdKey} className="border-t border-amber-100 align-top">
+                            <tr key={option.pendingOutKey} className="border-t border-amber-100 align-top">
                               <td className="px-3 py-2">
                                 <div className="font-mono text-[11px] text-slate-700">{option.weightTicketDocNo}</div>
                                 <div className="font-medium text-slate-900">{option.productName}</div>
@@ -4424,35 +4424,35 @@ function SalesBillDetailModal({
                                   max={option.pendingQty}
                                   step="0.01"
                                   type="number"
-                                  value={returnQtyByHold[option.holdKey] ?? ''}
-                                  onChange={(event) => setReturnQtyByHold((current) => ({ ...current, [option.holdKey]: event.target.value }))}
+                                  value={returnQtyByPendingOut[option.pendingOutKey] ?? ''}
+                                  onChange={(event) => setReturnQtyByPendingOut((current) => ({ ...current, [option.pendingOutKey]: event.target.value }))}
                                 />
                               </td>
                               <td className={`px-3 py-2 text-right font-semibold tabular-nums ${requiresReason ? 'text-red-700' : 'text-emerald-700'}`}>{formatMoney(lossQty)}</td>
                               <td className="px-3 py-2">
                                 <input
-                                  className={`w-full rounded-md border px-2 py-2 ${requiresReason && !returnReasonByHold[option.holdKey]?.trim() ? 'border-red-300 bg-red-50' : 'border-slate-300 bg-white'}`}
+                                  className={`w-full rounded-md border px-2 py-2 ${requiresReason && !returnReasonByPendingOut[option.pendingOutKey]?.trim() ? 'border-red-300 bg-red-50' : 'border-slate-300 bg-white'}`}
                                   placeholder={requiresReason ? 'ระบุเหตุผลของขาด' : 'ไม่บังคับ'}
-                                  value={returnReasonByHold[option.holdKey] ?? ''}
-                                  onChange={(event) => setReturnReasonByHold((current) => ({ ...current, [option.holdKey]: event.target.value }))}
+                                  value={returnReasonByPendingOut[option.pendingOutKey] ?? ''}
+                                  onChange={(event) => setReturnReasonByPendingOut((current) => ({ ...current, [option.pendingOutKey]: event.target.value }))}
                                 />
                               </td>
                               <td className="px-3 py-2">
                                 <input
                                   className="w-full rounded-md border border-slate-300 bg-white px-2 py-2"
                                   placeholder="หมายเหตุ"
-                                  value={returnNoteByHold[option.holdKey] ?? ''}
-                                  onChange={(event) => setReturnNoteByHold((current) => ({ ...current, [option.holdKey]: event.target.value }))}
+                                  value={returnNoteByPendingOut[option.pendingOutKey] ?? ''}
+                                  onChange={(event) => setReturnNoteByPendingOut((current) => ({ ...current, [option.pendingOutKey]: event.target.value }))}
                                 />
                               </td>
                               <td className="px-3 py-2 text-right">
                                 <Button
                                   className="h-8 px-3 text-xs font-normal"
-                                  disabled={isReturningHoldKey === option.holdKey}
+                                  disabled={isReturningPendingOutKey === option.pendingOutKey}
                                   type="button"
                                   onClick={() => void submitStockReturn(option)}
                                 >
-                                  {isReturningHoldKey === option.holdKey ? 'กำลังบันทึก...' : 'บันทึกรับคืน'}
+                                  {isReturningPendingOutKey === option.pendingOutKey ? 'กำลังบันทึก...' : 'บันทึกรับคืน'}
                                 </Button>
                               </td>
                             </tr>

@@ -8,7 +8,7 @@ import { appendSalesBillStatusLog, SALES_BILL_STATUS_ACTION } from '@/lib/server
 import { getSalesBillDetail } from '@/lib/server/sales-bill-detail'
 import { activeSalesReceiptCount, isSalesBillActiveForCancel } from '@/lib/server/sales-bill-cancel-policy'
 import { reversePoSellUsage } from '@/lib/server/sales-bill-po-sell-reversal'
-import { reopenConsumedWtoStockHoldsForSalesBill, WtoStockHoldError } from '@/lib/server/stock-holds'
+import { reopenConsumedWtoPendingOutForSalesBill, WtoPendingOutError } from '@/lib/server/stock-holds'
 import {
   correctTradingAllocationsSchema as tradingCorrectionSchema,
   correctTradingSalesBillAllocations as runTradingSalesBillAllocationCorrection,
@@ -116,7 +116,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         throw new Error('ยกเลิกบิลขายไม่ได้ เพราะมีรายการรับเงินแล้ว')
       }
 
-      const usageLogs = await tx.weight_ticket_usage_logs.findMany({
+      let usageLogs = await tx.weight_ticket_usage_logs.findMany({
         where: {
           action: WEIGHT_TICKET_USAGE_ACTION.ALLOCATED_TO_SALES_BILL,
           target_doc_no: bill.doc_no,
@@ -124,13 +124,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         },
       })
       if (usageLogs.length > 0) {
-        await reopenConsumedWtoStockHoldsForSalesBill(tx, {
+        const reopenedPendingOut = await reopenConsumedWtoPendingOutForSalesBill(tx, {
           actor,
           cancelDate: normalizeDate(cancelledAt.toISOString().slice(0, 10)),
           note: values.note,
           salesBillDocNo: bill.doc_no,
         })
 
+        if (reopenedPendingOut.length === 0) usageLogs = []
+      }
+      if (usageLogs.length > 0) {
         await appendWeightTicketUsageLogs(tx, usageLogs.map((log) => ({
           action: WEIGHT_TICKET_USAGE_ACTION.RELEASED_FROM_SALES_BILL,
           actor,
@@ -287,7 +290,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return NextResponse.json({ docNo: result.doc_no, id: result.doc_no })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
-    if (caught instanceof WtoStockHoldError) {
+    if (caught instanceof WtoPendingOutError) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: caught.message, fieldErrors: caught.fieldErrors }, { status: 400 })
     }
     return apiErrorResponse(caught, 'ยกเลิกบิลขายไม่ได้', 400)

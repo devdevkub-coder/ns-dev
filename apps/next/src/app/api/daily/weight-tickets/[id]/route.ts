@@ -11,11 +11,11 @@ import { PartyBranchEligibilityError, assertCustomerEligibleForBranch, assertSup
 import { prisma } from '@/lib/server/prisma'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 import {
-  closeActiveWtoStockHolds,
-  createActiveWtoStockHolds,
+  releaseActiveWtoPendingOut,
+  createActiveWtoPendingOut,
   resolveWtoWarehousesForLines,
   validateWtoStockAvailability,
-  WtoStockHoldError,
+  WtoPendingOutError,
 } from '@/lib/server/stock-holds'
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
 import {
@@ -282,7 +282,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
           },
         },
       })
-      await closeActiveWtoStockHolds(tx, {
+      await releaseActiveWtoPendingOut(tx, {
         actor,
         reason: 'edit',
         weightTicketId: existing.id,
@@ -307,7 +307,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       }
       const createdLines = await Promise.all(lineRows.map((data) => tx.weight_ticket_lines.create({ data })))
       if (values.type === 'WTO') {
-        await createActiveWtoStockHolds(tx, {
+        await createActiveWtoPendingOut(tx, {
           actor,
           branchId: branch.id,
           documentNo: docNo,
@@ -406,7 +406,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
-    if (caught instanceof WtoStockHoldError) {
+    if (caught instanceof WtoPendingOutError) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: caught.message, fieldErrors: caught.fieldErrors }, { status: 400 })
     }
     return apiErrorResponse(caught, 'แก้ไขใบรับ-ส่งของไม่ได้', 400)
@@ -432,7 +432,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const actor = currentActor(auth)
     const cancelledAt = new Date()
     const updated = await prisma.$transaction(async (tx) => {
-      await closeActiveWtoStockHolds(tx, {
+      await releaseActiveWtoPendingOut(tx, {
         actor,
         reason: 'cancel',
         weightTicketId: existing.id,
@@ -495,7 +495,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
-    if (caught instanceof WtoStockHoldError) {
+    if (caught instanceof WtoPendingOutError) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: caught.message, fieldErrors: caught.fieldErrors }, { status: 400 })
     }
     return apiErrorResponse(caught, 'ยกเลิกใบรับ-ส่งของไม่ได้', 400)

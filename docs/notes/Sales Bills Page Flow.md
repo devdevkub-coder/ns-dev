@@ -46,16 +46,19 @@ updated: 2026-06-25
 ตรวจจาก current code ณ 2026-06-14:
 
 - `GET /api/sales/bills` โหลด list/source options และส่ง `WTO` source เฉพาะสถานะ `delivered` สำหรับบิลขาย STOCK ใหม่
-- `POST /api/sales/bills` create path ทำงานครบสำหรับ `STOCK` baseline: สร้าง `SB`, consume active `WTO` hold ตาม `stockIssueQty`, เขียน `stock_ledger.ref_type = SB`, append `weight_ticket_usage_logs`, update `WTO` เป็น `billed` เฉพาะเมื่อ pending_out หมดทั้งใบ ไม่งั้นคง `delivered` เพื่อรอ `รับของคืน`, และ update `PO Sell` remaining/status
+- `POST /api/sales/bills` create path ทำงานครบสำหรับ `STOCK` baseline: สร้าง `SB`, consume active `WTO` pending_out ตาม `stockIssueQty`, เขียน `stock_ledger.ref_type = SB`, append `weight_ticket_usage_logs`, update `WTO` เป็น `billed` เฉพาะเมื่อ pending_out หมดทั้งใบ ไม่งั้นคง `delivered` เพื่อรอ `รับของคืน`, และ update `PO Sell` remaining/status
 - Stock SB COGS ใช้ต้นทุนเฉลี่ย ณ เวลาขาย: ตอน consume WTO pending_out ระบบ snapshot ต้นทุนลง `stock_ledger.unit_cost/value_out` ของ `SB`; detail/report ต้องอ่าน COGS จาก SB ledger ที่ posted แล้ว ไม่คำนวณใหม่จาก WAC ปัจจุบัน
 - `GET /api/sales/bills/[id]` เป็น detail/read model และแสดง `stockReturnOptions` จาก active `stock_holds` ที่ยังรับคืนได้ของ WTO/SB นั้น
-- `POST /api/sales/bills/[id]/stock-return` ปิด remaining `pending_out` จาก SB partial billing: ถ้ารับคืนครบให้ release hold กลับเป็น available โดยไม่เขียน ledger; ถ้ารับคืนจริงน้อยกว่า pending_out ต้องบังคับเหตุผล, release เฉพาะน้ำหนักที่คืน, ปิดส่วนต่างเป็น `lost`, และเขียน `stock_ledger.ref_type = WTO-RETURN-LOSS` เป็น qty_out/value_out
-- `PATCH /api/sales/bills/[id]` action `cancel` สำหรับ `STOCK` SB ที่ยังไม่มี active receipt: block active `RCP`, append `stock_ledger.ref_type = SB-CANCEL` ด้วย unit cost/value เดิมของ `SB` โดยไม่ลบ `SB`, append `released_from_sales_bill`, append `po_sell_allocation_logs.released_from_sales_bill`, reverse `PO Sell` usage, mark `SB` เป็น `cancelled`, และ append `sales_bill_status_logs`; ถ้า WTO ยังไม่เคยรับของคืนให้ reopen consumed `WTO` hold กลับเป็น `pending_out`, แต่ถ้าเคยรับของคืนแล้วห้าม reopen hold ซ้ำและให้ `SB-CANCEL` คืน stock ตรง
+- Business language ของ source ค้างส่งคือ `pending_out / รอออก` เท่านั้น; `stock_holds` เป็นชื่อ technical table ใน DB ไม่ใช่คำที่ UI/API business contract ควรใช้
+- `POST /api/sales/bills/[id]/stock-return` ปิด remaining `pending_out` จาก SB partial billing: ถ้ารับคืนครบให้ release pending_out กลับเป็น available โดยไม่เขียน ledger; ถ้ารับคืนจริงน้อยกว่า pending_out ต้องบังคับเหตุผล, release เฉพาะน้ำหนักที่คืน, ปิดส่วนต่างเป็น `lost`, และเขียน `stock_ledger.ref_type = WTO-RETURN-LOSS` เป็น qty_out/value_out
+- `PATCH /api/sales/bills/[id]` action `cancel` สำหรับ `STOCK` SB ที่ยังไม่มี active receipt: block active `RCP`, append `stock_ledger.ref_type = SB-CANCEL` ด้วย unit cost/value เดิมของ `SB` โดยไม่ลบ `SB`, append `released_from_sales_bill`, append `po_sell_allocation_logs.released_from_sales_bill`, reverse `PO Sell` usage, mark `SB` เป็น `cancelled`, และ append `sales_bill_status_logs`; ถ้า WTO ยังไม่เคยรับของคืนให้ reopen consumed `WTO` pending_out กลับเป็น `pending_out`, แต่ถ้าเคยรับของคืนแล้วห้าม reopen pending_out ซ้ำและให้ `SB-CANCEL` คืน stock ตรง
+- Cancel-after-return rule เป็น strict fact check: ถ้ามี `weight_ticket_usage_logs.action in (returned_from_sales_bill, loss_from_sales_bill)` ของ SB นั้นแล้ว cancel ห้าม append `released_from_sales_bill` หรือ increment `weight_ticket_product_summaries.remaining_weight` ซ้ำ
 - หลัง `SB-CANCEL` หรือรับคืนแบบมี loss WAC ปัจจุบันอาจเปลี่ยนจาก ledger ที่ posted จริง: `SB-CANCEL` คืน stock ด้วย cost snapshot เดิมของ SB, ส่วน `WTO-RETURN-LOSS` ตัด value ออกจาก stock ด้วย WAC ของ bucket ณ เวลาปิดรับคืน
 - UI ปุ่มยกเลิกของบิลขายเปิดใช้แล้วสำหรับ row ที่ server ส่ง `canCancel = true`; browser QA ผ่านสำหรับ WTO-backed Stock SB cancel และ PO Sell outstanding reversal
 - `TRADING` SB มี row-level Trading Cost Source, `trading_allocation_facts`, allocation-only correction API/UI, และ browser QA ผ่านแล้วสำหรับ multi-line source correction โดยไม่เขียน stock ledger
 - new SB create/cancel write-path now records dedicated allocation facts for `SB line`, `WTO -> SB`, `SB -> PO Sell/Spot Sale`, and `Customer advance -> SB`; Stock SB detail/print/list item-count reads durable line/source/PO facts first, while legacy SBs without facts show a reconciliation warning instead of inventing allocation data from JSON
 - `Pending Sale / PSALE / เบิกออกรอบิล` ถูกถอดออกจาก target runtime แล้ว: `POST /api/sales/bills` ไม่ query/update `stock_issues`, ไม่สร้าง `source_type = PSALE`, และ stock sale ใหม่ต้องเปิดจาก `WTO` เท่านั้น
+- ห้ามทำ runtime fallback จาก `sales_bills.items` หรือชื่อ concept เก่าเพื่อเดา source/correction ถ้า allocation fact หรือ pending_out fact ขาด ต้องแสดง reconciliation gap หรือ reject write
 - Customer selector/source validation ต้องอิง active `customer_branches` ของสาขาเอกสาร: Stock SB รับ customer/branch จาก WTO แล้ว validate mapping ก่อน save, Trading SB เลือก branch ก่อนแล้วกรอง customer ตาม mapping; ไม่มี mapping ต้อง reject โดยไม่ fallback เป็นทุกสาขา
 
 ## Target Durable Allocation Contract
@@ -68,7 +71,7 @@ updated: 2026-06-25
 |---|---|---|
 | SB header / AR | `sales_bills` | เก็บ doc no, customer, branch, totals, receipt balance, status |
 | SB line snapshot | `sales_bill_lines` target | 1 row ต่อ business line; เก็บ product, gross/deduct/net/billed qty, unit price, discount, VAT basis, line total |
-| Physical stock-out | `stock_ledger` + `stock_holds` | `WTO` สร้าง pending_out โดยไม่เข้า ledger; `SB` เป็น movement owner ที่ consume pending_out และเขียน `stock_ledger.ref_type = SB` |
+| Physical stock-out | `stock_ledger` + `stock_holds` technical table | `WTO` สร้าง `pending_out / รอออก` โดยไม่เข้า ledger; `SB` เป็น movement owner ที่ consume pending_out และเขียน `stock_ledger.ref_type = SB` |
 | WTO source usage | `sales_bill_source_allocations` target + `weight_ticket_usage_logs` audit | ระบุว่า SB line ใช้ WTO summary/line ไหน จำนวนเท่าไร และ reversal status |
 | PO Sell commitment | `sales_bill_po_sell_allocations` target + `po_sell_allocation_logs` audit | ระบุ SB line -> PO Sell line หรือ `SPOT_SALE`; ใช้คืน remaining ตอน cancel และ log allocate/release สำหรับ timeline |
 | Customer advance | `sales_bill_customer_advance_allocations` target | ระบุ SB -> customer advance fact; ใช้ release/recalculate ตอน cancel/correction |
@@ -102,7 +105,7 @@ Index minimum:
 
 - Validate source facts first: `STOCK` ต้องใช้ `WTO` source เท่านั้น; `PSALE`, direct stock, และ Trading mode ห้ามปนกันแบบเงียบ ๆ.
 - Validate Customer branch eligibility from `customer_branches` in the same transaction as SB create/cancel-sensitive source resolution.
-- Create header, line facts, source allocations, PO Sell/Spot allocations, customer advance allocations, stock ledger/hold changes, and status logs in one transaction.
+- Create header, line facts, source allocations, PO Sell/Spot allocations, customer advance allocations, stock ledger/pending_out changes, and status logs in one transaction.
 - For `STOCK`, allow partial source allocation when Customer buys less than sent quantity. The remaining source quantity stays as active `pending_out` and must be closed by the explicit `รับของคืน` action; do not silently reuse it in another SB.
 - For `TRADING`, continue using `trading_allocation_facts`; do not write stock allocation or stock ledger.
 
@@ -121,11 +124,11 @@ Index minimum:
 `POST /api/sales/bills/{docNo}/stock-return`:
 
 - ใช้เฉพาะ `STOCK` SB ที่เคย consume WTO และยังมี active `stock_holds.status = active` จาก WTO นั้น
-- Payload ต้องระบุ `holdKey`, `returnedQty`, `reason`, และ `note`; `reason` บังคับเมื่อ `returnedQty < pending_out`
-- ถ้า `returnedQty = pending_out`: update hold เป็น `released`, decrement `weight_ticket_product_summaries.remaining_weight`, append `weight_ticket_usage_logs.action = returned_from_sales_bill`, ไม่เขียน `stock_ledger` เพราะของก้อนนี้ยังไม่เคยถูก stock-out
-- ถ้า `returnedQty < pending_out`: split/close hold เป็น returned + lost, append `returned_from_sales_bill` สำหรับน้ำหนักที่คืน, append `loss_from_sales_bill` สำหรับส่วนต่าง, และเขียน `stock_ledger.ref_type = WTO-RETURN-LOSS` ด้วย `qty_out = lossQty`
+- Payload ต้องระบุ `pendingOutKey`, `returnedQty`, `reason`, และ `note`; `reason` บังคับเมื่อ `returnedQty < pending_out`
+- ถ้า `returnedQty = pending_out`: update pending_out เป็น `released`, decrement `weight_ticket_product_summaries.remaining_weight`, append `weight_ticket_usage_logs.action = returned_from_sales_bill`, ไม่เขียน `stock_ledger` เพราะของก้อนนี้ยังไม่เคยถูก stock-out
+- ถ้า `returnedQty < pending_out`: split/close pending_out เป็น returned + lost, append `returned_from_sales_bill` สำหรับน้ำหนักที่คืน, append `loss_from_sales_bill` สำหรับส่วนต่าง, และเขียน `stock_ledger.ref_type = WTO-RETURN-LOSS` ด้วย `qty_out = lossQty`
 - ถ้า `returnedQty > pending_out`: reject; น้ำหนักเกินจากที่ค้างต้องไปผ่าน stock adjust/flow รับเข้าอื่น ไม่ปนกับ return ของ WTO นี้
-- หลังปิด hold ต้องอัปเดต `WTO.status` เป็น `billed` เฉพาะเมื่อไม่มี remaining weight/active hold แล้ว ไม่งั้นยังเป็น `delivered`
+- หลังปิด pending_out ต้องอัปเดต `WTO.status` เป็น `billed` เฉพาะเมื่อไม่มี remaining weight/active pending_out แล้ว ไม่งั้นยังเป็น `delivered`
 
 ## Canonical Create SB Flow
 
@@ -245,7 +248,7 @@ Validation:
 - Modal ต้องแสดง `น้ำหนักค้างตามระบบ` จาก `WTO pending_out` เป็น read-only เพื่อเทียบกับน้ำหนักคืนจริง
 - คืน stock เข้า available โดยการปลด `stock_holds` เฉพาะน้ำหนักที่ชั่งกลับจริง; ของก้อนนี้ยังไม่เคย stock-out ใน ledger จึงไม่ต้องเขียน stock-in ledger เมื่อคืนครบ
 - ถ้าน้ำหนักคืนจริงน้อยกว่าน้ำหนักค้าง ต้องเก็บส่วนต่างเป็น loss/diff audit และบังคับเหตุผลก่อนบันทึก
-- ส่วน loss ต้องปิด hold เป็น `lost`, append `weight_ticket_usage_logs.action = loss_from_sales_bill`, และเขียน `stock_ledger.ref_type = WTO-RETURN-LOSS` เป็น qty_out/value_out โดย link กลับไปยัง `WTO`, `SB`, product, warehouse, ผู้ยืนยันรายการ, และเหตุผล
+- ส่วน loss ต้องปิด pending_out เป็น `lost`, append `weight_ticket_usage_logs.action = loss_from_sales_bill`, และเขียน `stock_ledger.ref_type = WTO-RETURN-LOSS` เป็น qty_out/value_out โดย link กลับไปยัง `WTO`, `SB`, product, warehouse, ผู้ยืนยันรายการ, และเหตุผล
 - ต้นทุนของ `WTO-RETURN-LOSS` ใช้ WAC ของ stock bucket ณ เวลาปิดรับคืน เพราะเป็นการตัดของที่ยังอยู่ใน on-hand ledger ออกจาก stock จริง; ไม่ใช้ราคาขายและไม่ให้ผู้ใช้กรอกต้นทุนเอง
 - ถ้าน้ำหนักคืนจริงมากกว่าน้ำหนักค้าง ต้อง reject; น้ำหนักเกินต้องผ่าน stock adjust หรือ flow รับเข้าอื่น ไม่ปนกับ return ของ WTO นี้
 - ถ้ามีการรับของคืนจาก `WTO` แล้วภายหลัง `SB` ถูกยกเลิก ห้าม reopen/recreate `pending_out` ของ `WTO` ซ้ำ; ให้ `SB-CANCEL` คืน stock ตรงเฉพาะจำนวนที่ `SB` เคยขาย ด้วย unit cost/value เดิมจาก `SB` และคง return/diff audit เดิมไว้
@@ -301,7 +304,7 @@ Cancel `SB` ต้องเป็น reversal ไม่ใช่ลบ movement:
 | 2 | reject ถ้า `SB` ไม่พบ, ถูกยกเลิกแล้ว, หรือมี active `RCP` ผูกกับ `receipts.bill_id` |
 | 3 | สำหรับ `STOCK` SB ต้องพบ consumed `stock_holds` และ `stock_ledger.ref_type = SB` เดิม |
 | 4 | สร้าง `stock_ledger.ref_type = SB-CANCEL` เป็น stock-in reversal ด้วย unit cost/value เดิมของ `SB` โดยไม่ลบ `SB` stock-out row เดิม |
-| 5 | ถ้า `WTO` ยังไม่เคยรับของคืน ให้เปลี่ยน consumed `stock_holds` กลับเป็น `active` เพื่อให้ stock กลับไปอยู่สถานะจองรอออกบิล; ถ้าเคยรับคืนแล้ว ห้าม reopen hold และให้ `SB-CANCEL` คืน stock ตรง |
+| 5 | ถ้า `WTO` ยังไม่เคยรับของคืน ให้เปลี่ยน consumed `stock_holds` กลับเป็น `active` เพื่อให้ stock กลับไปอยู่สถานะจองรอออกบิล; ถ้าเคยรับคืนแล้ว ห้าม reopen pending_out และให้ `SB-CANCEL` คืน stock ตรง |
 | 6 | append `weight_ticket_usage_logs.action = released_from_sales_bill`; คืน `weight_ticket_product_summaries.remaining_weight` เฉพาะกรณี reopen pending_out ได้จริง |
 | 7 | ถ้ายังไม่มี return ให้เปลี่ยน `WTO.status` จาก `billed` กลับเป็น `delivered`; ถ้ามี return แล้วให้คงสถานะ/timeline เป็นรับคืนแล้วหรือยกเลิกบิลแล้วตาม facts และ append `weight_ticket_status_logs` |
 | 8 | reverse `PO Sell` usage จาก sales-bill item snapshot โดยลด `cut_amount` และเพิ่ม `remaining_qty/remaining_amount` |
@@ -341,12 +344,12 @@ Design/API รายละเอียดอยู่ที่ [[Stock Ledger DB
 #### Batch SB-3: Stock Ledger And Cancel Reversal
 
 - [x] เพิ่ม `sales_bill_status_logs` และ cancel metadata ใน `sales_bills`
-- [x] สร้าง `SB` จาก `WTO` แล้ว consume active hold และเขียน `stock_ledger.ref_type = SB`
+- [x] สร้าง `SB` จาก `WTO` แล้ว consume active pending_out และเขียน `stock_ledger.ref_type = SB`
 - [x] เพิ่ม `PATCH /api/sales/bills/[id]` action `cancel`
 - [x] cancel block เมื่อมี active `RCP`
 - [x] cancel เขียน `stock_ledger.ref_type = SB-CANCEL` แทนการลบ `SB` ledger row
-- [x] cancel reopen consumed `WTO` hold กลับเป็น `active` เฉพาะกรณียังไม่มี return-from-WTO/SB
-- [x] cancel append `released_from_sales_bill`; ถ้ามี return แล้วต้องไม่ reopen hold และต้องคืน stock ตรงด้วย `SB-CANCEL`
+- [x] cancel reopen consumed `WTO` pending_out กลับเป็น `active` เฉพาะกรณียังไม่มี return-from-WTO/SB
+- [x] cancel append `released_from_sales_bill`; ถ้ามี return แล้วต้องไม่ reopen pending_out และต้องคืน stock ตรงด้วย `SB-CANCEL`
 - [x] cancel reverse PO Sell usage จาก item snapshot
 - [ ] เพิ่ม UI enablement/confirmation dialog สำหรับยกเลิก SB
 - [ ] เพิ่ม browser QA สำหรับ cancel SB แล้ว `/stock/balance`, `/stock/ledger`, WTO detail และ PO outstanding ถูกต้อง

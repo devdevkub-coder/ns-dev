@@ -61,8 +61,8 @@ type BalanceDetail = {
     customerCode: string
     customerName: string
     heldAt: string
-    holdKey: string
     lotNo: string
+    pendingOutKey: string
     qty: number
     sourceDocNo: string
     sourceLineNo: number | null
@@ -814,20 +814,20 @@ export function StockBalancePageClient() {
                 {!isDetailLoading && !detailError ? (
                   <div className="grid gap-3 lg:grid-cols-2">
                     <div>
-                      <div className="mb-2 text-xs font-bold text-amber-700">WTO Hold ที่ยัง active ({detailData?.holds.length ?? 0})</div>
+                      <div className="mb-2 text-xs font-bold text-amber-700">pending_out จาก WTO ที่ยัง active ({detailData?.holds.length ?? 0})</div>
                       <div className="max-h-36 overflow-auto rounded-md border border-slate-100">
                         <table className="w-full text-xs">
                           <thead className="bg-amber-50 text-slate-600"><tr><th className="p-1.5 text-left">WTO</th><th className="p-1.5 text-left">ลูกค้า</th><th className="p-1.5 text-right">Qty</th><th className="p-1.5 text-left">Held</th></tr></thead>
                           <tbody>
                             {detailData?.holds.map((hold) => (
-                              <tr key={hold.holdKey} className="border-t">
+                              <tr key={hold.pendingOutKey} className="border-t">
                                 <td className="p-1.5 font-mono">{hold.sourceDocNo}{hold.sourceLineNo ? ` #${hold.sourceLineNo}` : ''}</td>
                                 <td className="p-1.5">{hold.customerCode ? `${hold.customerCode} · ` : ''}{hold.customerName}</td>
                                 <td className="p-1.5 text-right font-semibold text-amber-700">{formatMoney(hold.qty)}</td>
                                 <td className="p-1.5">{formatDateTime(hold.heldAt)}</td>
                               </tr>
                             ))}
-                            {!detailData?.holds.length ? <tr><td className="p-3 text-center text-slate-400" colSpan={4}>ไม่มี active hold ใน bucket นี้</td></tr> : null}
+                            {!detailData?.holds.length ? <tr><td className="p-3 text-center text-slate-400" colSpan={4}>ไม่มี active pending_out ใน bucket นี้</td></tr> : null}
                           </tbody>
                         </table>
                       </div>

@@ -110,7 +110,7 @@
 - Bill ย้อนหลังต้องอ่าน bill header/line snapshots + status/allocation facts ตาม document date และ as-of date
 - PO ย้อนหลังต้องอ่าน PO allocation/release logs หรือ daily PO outstanding snapshot; ห้ามใช้ remaining ปัจจุบันตอบอดีต
 - Finance ย้อนหลังต้องมี AR/AP/cash/bank/advance as-of snapshots; AR/AP current ใช้ bill balance snapshot แต่ historical aging ต้องใช้ allocation facts หรือ daily snapshot ตามวันที่
-- Stock ย้อนหลังต้อง derive จาก `stock_ledger` append-only ถึง as-of date; pending_out/hold ต้องมี usage/hold snapshot ถ้าจะแสดงย้อนหลัง
+- Stock ย้อนหลังต้อง derive จาก `stock_ledger` append-only ถึง as-of date; pending_out ต้องมี usage/pending_out snapshot ถ้าจะแสดงย้อนหลัง
 - Stock real-time และ historical as-of ต้องตอบได้ทั้งจำนวน, มูลค่า, WAC/ต้นทุนเฉลี่ย, pending_out และ available ด้วย cutoff เดียวกัน; ห้ามใช้ WAC ปัจจุบันแทน WAC ย้อนหลัง
 - รายเดือน/รายปีต้อง roll up จาก daily snapshot ที่ตรวจแล้ว: movement metric = sum รายวัน, balance metric = ending balance วันสุดท้ายของช่วง
 - ถ้าขาด snapshot/fact ต้องแสดง data incomplete/reconciliation gap; ห้าม fallback ไปใช้ current balance แบบเงียบ
@@ -624,7 +624,7 @@ Reporting rule:
 
 - [ ] map `purchase_bills.items jsonb`
 - [ ] design `purchase_bill_lines`
-- [ ] define bill-driven stock movement trigger/rule: `PB Stock = stock in`, `WTO = stock hold`, `SB Stock = consume hold + stock out`, `WTI = source evidence`
+- [ ] define bill-driven stock movement trigger/rule: `PB Stock = stock in`, `WTO = pending_out / รอออก`, `SB Stock = consume pending_out + stock out`, `WTI = source evidence`
 - [ ] keep Stock PB as stock-in owner with `WTI 1 ใบ -> PB 1 ใบ`, reverse/rebuild PB ledger on edit/cancel, and release/recalc WTI usage from active facts
 - [ ] enforce `/purchase/bills` canonical status/filter/runtime contract
   - [ ] list filter uses only `ยังไม่อนุมัติ`, `รอจ่าย`, `ชำระบางส่วน`, `เสร็จสิ้น`, `ยกเลิก`
@@ -669,22 +669,22 @@ Reporting rule:
 - [x] Design and implement durable `WTO -> Sales Bill` allocation tables/write rules for new create/cancel, including `sales bill -> source`, `sales bill -> PO Sell`, `sales bill -> Spot Sale`, and Customer advance allocation/release. Legacy `PSALE` / `/sales/stock-issue` is removed from target runtime and must not be treated as a current source.
   - [x] Batch WTO-A schema/API foundation
     - [x] add `weight_ticket_lines.warehouse_id` for WTO intended stock location
-    - [x] add durable `stock_holds` table with `active/consumed/released/cancelled` status
-    - [x] add hold-aware availability helper from `stock_ledger + stock_holds`
+    - [x] add durable `stock_holds` technical table for the business state `pending_out / รอออก` with `active/consumed/released/cancelled` status
+    - [x] add pending_out-aware availability helper from `stock_ledger + stock_holds`
     - [x] add `GET /api/daily/weight-tickets/stock-options?branchId=&productId=` for active branch `RM/FG` warehouses with `onHandQty/onHoldQty/availableQty`
-    - [x] enforce WTO server validation on `POST/PUT/PATCH /api/daily/weight-tickets`: require warehouse, validate available qty, create/rebuild/release holds in transaction
+    - [x] enforce WTO server validation on `POST/PUT/PATCH /api/daily/weight-tickets`: require warehouse, validate available qty, create/rebuild/release pending_outs in transaction
   - [ ] Batch WTO-B create/edit UX
     - [x] update WTO create/edit UX ให้เลือกสินค้าใน line ก่อน แล้วเลือกคลัง `RM/FG` ต่อ line
     - [x] show line availability as `คงเหลือจริง / จองไว้ / พร้อมส่ง`
     - [x] show intended warehouse in WTO detail/print/read models
-    - [x] show hold state in WTO detail where relevant at baseline level
+    - [x] show pending_out state in WTO detail where relevant at baseline level
   - [ ] Batch WTO-C downstream stock-out
-    - [x] add `SB Stock` create flow consume-hold + stock-out ledger write by referencing WTO intended warehouse; WTI/WTO must not write stock ledger rows
+    - [x] add `SB Stock` create flow consume pending_out + stock-out ledger write by referencing WTO intended warehouse; WTI/WTO must not write stock ledger rows
     - [x] split Sales Bill stock quantity from commercial sales quantity: `จำนวนที่ขายได้ - หักสิ่งเจือปน = น้ำหนักขายสุทธิ`, while stock consume is capped by WTO pending_out source quantity
-    - [x] support partial consume of active `stock_holds` so remaining `pending_out` stays active after a partial Sales Bill
-    - [x] add explicit `รับของคืน` UI/API action for remaining WTO pending_out after a partial Sales Bill; user must enter actual returned weight, exact return releases/closes hold without ledger movement, short return requires a reason and posts `WTO-RETURN-LOSS` stock ledger for the loss qty
+    - [x] support partial consume of active pending_out rows in `stock_holds` so remaining `pending_out` stays active after a partial Sales Bill
+    - [x] add explicit `รับของคืน` UI/API action for remaining WTO pending_out after a partial Sales Bill; user must enter actual returned weight, exact return releases/closes pending_out without ledger movement, short return requires a reason and posts `WTO-RETURN-LOSS` stock ledger for the loss qty
     - [x] show stock balance as `คงเหลือจริง / จองไว้ / พร้อมส่ง` in `/stock/balance`
-    - [x] show hold/consume context in SB create from WTO at baseline level
+    - [x] show pending_out consume context in SB create from WTO at baseline level
     - [x] transaction-safe release/cancel on `SB`; full edit/rebuild remains disabled until read-model normalization is complete
   - [x] current allocation table for `WTO -> SB`; legacy `PSALE` columns/indexes are migration/data-repair residue only, not target write path
   - [x] current allocation table for `SB -> PO Sell`
@@ -692,6 +692,7 @@ Reporting rule:
   - [x] current allocation table for `Customer advance -> SB`
   - [x] server-side detail/print and list item-count reads allocation facts/current tables before json snapshots
   - [ ] future line-level export/dashboard/tracking reads allocation facts/current tables, not json snapshots
+  - [x] 2026-06-25 terminology hardening: runtime/business API names should use `pending_out`; `stock_holds` remains only a technical DB table name and must not be presented as the business concept.
 - [ ] Runtime status/usage cleanup after status decision
   - [x] WTI/WTO list filters use canonical target status only
   - [x] WTI has no target partial-billed status in new writes
@@ -760,9 +761,9 @@ Reporting rule:
 - [ ] design inventory transaction header/lines
 - [ ] map stock ledger movement types
 - [ ] define lot/grade/status behavior
-- [ ] sync `/stock/balance` with hold-aware columns/drilldown from `docs/notes/Stock Balance Page Flow.md`
-- [ ] sync `/stock/ledger` with source links, created-date display, and no-hold-row rule from `docs/notes/Stock Ledger Page Flow.md`
-- [ ] harden stock write pages (`transfer`, `status-convert`, `convert`, `adjust`) with hold-aware available checks, reversal policy, and reconciliation queries from their page flow docs
+- [ ] sync `/stock/balance` with pending_out-aware columns/drilldown from `docs/notes/Stock Balance Page Flow.md`
+- [ ] sync `/stock/ledger` with source links, created-date display, and no-pending_out-row rule from `docs/notes/Stock Ledger Page Flow.md`
+- [ ] harden stock write pages (`transfer`, `status-convert`, `convert`, `adjust`) with pending_out-aware available checks, reversal policy, and reconciliation queries from their page flow docs
 
 ### 6.5 Production Prep
 

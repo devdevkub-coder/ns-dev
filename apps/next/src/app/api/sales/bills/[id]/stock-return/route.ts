@@ -5,7 +5,7 @@ import { AuthContextError, authContextErrorResponse, getBranchCodeIntersection, 
 import { currentActor, normalizeDate, toNumber } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
 import { appendSalesBillStatusLog, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
-import { closeActiveWtoStockHoldForSalesBillReturn, WtoStockHoldError } from '@/lib/server/stock-holds'
+import { closeActiveWtoPendingOutForSalesBillReturn, WtoPendingOutError } from '@/lib/server/stock-holds'
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
 import { appendWeightTicketUsageLogs, WEIGHT_TICKET_USAGE_ACTION } from '@/lib/server/weight-ticket-usage-history'
 
@@ -66,13 +66,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           weight_ticket_id: true,
         },
         where: {
-          hold_key: values.holdKey,
+          hold_key: values.pendingOutKey,
           source_type: 'WTO',
           status: 'active',
         },
       })
-      if (!hold) throw new WtoStockHoldError('ไม่พบ pending_out ที่พร้อมรับคืน กรุณาโหลดข้อมูลใหม่')
-      if (hold.branch_id !== bill.branch_id) throw new WtoStockHoldError('pending_out ต้องอยู่สาขาเดียวกับบิลขาย')
+      if (!hold) throw new WtoPendingOutError('ไม่พบ pending_out ที่พร้อมรับคืน กรุณาโหลดข้อมูลใหม่')
+      if (hold.branch_id !== bill.branch_id) throw new WtoPendingOutError('pending_out ต้องอยู่สาขาเดียวกับบิลขาย')
 
       const usageFact = await tx.weight_ticket_usage_logs.findFirst({
         select: { id: true },
@@ -85,21 +85,21 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         },
       })
       if (!usageFact) {
-        throw new WtoStockHoldError('pending_out นี้ไม่ได้ผูกกับบิลขายที่เลือก')
+        throw new WtoPendingOutError('pending_out นี้ไม่ได้ผูกกับบิลขายที่เลือก')
       }
 
       const pendingQty = toNumber(hold.qty)
       const returnedQty = Number(values.returnedQty.toFixed(2))
       const lossQty = Number(Math.max(0, pendingQty - Math.min(pendingQty, Math.max(0, returnedQty))).toFixed(2))
       if (lossQty > 0.0001 && !values.reason?.trim()) {
-        throw new WtoStockHoldError('น้ำหนักรับคืนไม่เท่ากับ pending_out ต้องกรอกเหตุผลส่วนต่างก่อนบันทึก', {
+        throw new WtoPendingOutError('น้ำหนักรับคืนไม่เท่ากับ pending_out ต้องกรอกเหตุผลส่วนต่างก่อนบันทึก', {
           reason: ['กรอกเหตุผลส่วนต่าง'],
         })
       }
 
-      const closed = await closeActiveWtoStockHoldForSalesBillReturn(tx, {
+      const closed = await closeActiveWtoPendingOutForSalesBillReturn(tx, {
         actor,
-        holdKey: values.holdKey,
+        pendingOutKey: values.pendingOutKey,
         note: values.note,
         reason: values.reason,
         returnDate,
@@ -116,10 +116,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         },
       })
       if (!summary) {
-        throw new WtoStockHoldError('ไม่พบ product summary ของ WTO สำหรับบันทึกการรับคืน')
+        throw new WtoPendingOutError('ไม่พบ product summary ของ WTO สำหรับบันทึกการรับคืน')
       }
       if (toNumber(summary.remaining_weight) + 0.0001 < closed.pendingQty) {
-        throw new WtoStockHoldError('จำนวน pending_out ใน product summary ไม่พอสำหรับปิดรับคืน กรุณาโหลดข้อมูลใหม่')
+        throw new WtoPendingOutError('จำนวน pending_out ใน product summary ไม่พอสำหรับปิดรับคืน กรุณาโหลดข้อมูลใหม่')
       }
 
       const usageEntries = []
@@ -133,7 +133,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           allocatedQty: closed.returnedQty,
           createdAt: returnedAt,
           meta: {
-            holdKey: closed.holdKey,
+            pendingOutKey: closed.pendingOutKey,
             pendingQty: closed.pendingQty,
             reason: 'sales_bill_stock_return',
             salesBillDocNo: bill.doc_no,
@@ -160,7 +160,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           allocatedQty: closed.lossQty,
           createdAt: returnedAt,
           meta: {
-            holdKey: closed.holdKey,
+            pendingOutKey: closed.pendingOutKey,
             lossUnitCost: closed.lossUnitCost,
             lossValueOut: closed.lossValueOut,
             pendingQty: closed.pendingQty,
@@ -193,13 +193,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         _sum: { remaining_weight: true },
         where: { weight_ticket_id: closed.weightTicketId },
       })
-      const activeHoldCount = await tx.stock_holds.count({
+      const activePendingOutCount = await tx.stock_holds.count({
         where: {
           status: 'active',
           weight_ticket_id: closed.weightTicketId,
         },
       })
-      const nextTicketStatus = toNumber(remainingAfterReturn._sum.remaining_weight) > 0.0001 || activeHoldCount > 0
+      const nextTicketStatus = toNumber(remainingAfterReturn._sum.remaining_weight) > 0.0001 || activePendingOutCount > 0
         ? 'delivered'
         : 'billed'
       const ticket = await tx.weight_tickets.findUnique({
@@ -221,7 +221,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           createdAt: returnedAt,
           fromStatus: ticket.status,
           meta: {
-            holdKey: closed.holdKey,
+            pendingOutKey: closed.pendingOutKey,
             lossQty: closed.lossQty,
             reason: 'sales_bill_stock_return',
             returnedQty: closed.returnedQty,
@@ -239,7 +239,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         createdAt: returnedAt,
         fromStatus: bill.status,
         meta: {
-          holdKey: closed.holdKey,
+          pendingOutKey: closed.pendingOutKey,
           lossQty: closed.lossQty,
           pendingQty: closed.pendingQty,
           reason: closed.lossQty > 0.0001 ? 'sales_bill_stock_return_loss' : 'sales_bill_stock_return',
@@ -262,7 +262,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json(result)
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
-    if (caught instanceof WtoStockHoldError) {
+    if (caught instanceof WtoPendingOutError) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: caught.message, fieldErrors: caught.fieldErrors }, { status: 400 })
     }
     return apiErrorResponse(caught, 'รับของคืนจากบิลขายไม่ได้', 400)

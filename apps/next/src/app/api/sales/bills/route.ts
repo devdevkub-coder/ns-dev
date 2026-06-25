@@ -15,7 +15,7 @@ import { activeSalesReceiptCountByBillId, salesBillCancelState } from '@/lib/ser
 import { appendSalesBillStatusLog, SALES_BILL_STATUS_ACTION } from '@/lib/server/sales-bill-history'
 import { appendPoSellAllocationLogs, PO_SELL_ALLOCATION_ACTION } from '@/lib/server/po-sell-allocation-history'
 import { salesBillLineFactsForBills, type SalesBillLineFactRow } from '@/lib/server/sales-bill-line-facts'
-import { consumeActiveWtoStockHolds, reopenConsumedWtoStockHoldsForSalesBill, WtoStockHoldError } from '@/lib/server/stock-holds'
+import { consumeActiveWtoPendingOut, reopenConsumedWtoPendingOutForSalesBill, WtoPendingOutError } from '@/lib/server/stock-holds'
 import { activeVatRatePercent } from '@/lib/server/tax-settings'
 import { findActiveWarehouseReferenceByCodeOrId } from '@/lib/server/warehouse-reference'
 import { appendWeightTicketStatusLog, WEIGHT_TICKET_STATUS_ACTION } from '@/lib/server/weight-ticket-status-history'
@@ -352,7 +352,7 @@ function sourceAllocationRows(input: {
 
   return input.items.flatMap((item, index) => {
     if (!isDeliveryBackedSalesItem(item)) return []
-      const lineNo = index + 1
+    const lineNo = index + 1
     const stockIssueQty = Math.max(0, item.stockIssueQty)
     return [{
       allocated_deduct_weight: item.deductWeight,
@@ -1777,7 +1777,7 @@ export async function POST(request: Request) {
       }
 
       if (stockDeliveryTicket) {
-        const consumedStockLines = await consumeActiveWtoStockHolds(tx, {
+        const consumedStockLines = await consumeActiveWtoPendingOut(tx, {
           actor,
           allocations: items
             .filter(isDeliveryBackedSalesItem)
@@ -1882,7 +1882,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ docNo: created.doc_no, id: created.doc_no }, { status: 201 })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
-    if (caught instanceof WtoStockHoldError) {
+    if (caught instanceof WtoPendingOutError) {
       return NextResponse.json({ code: 'BAD_REQUEST', error: caught.message, fieldErrors: caught.fieldErrors }, { status: 400 })
     }
     return apiErrorResponse(caught, 'บันทึกบิลขายไม่ได้', 500)
@@ -2146,22 +2146,21 @@ export async function PATCH(request: Request) {
       })
 
       if (isStockBill) {
-        await reopenConsumedWtoStockHoldsForSalesBill(tx, {
+        const reopenedPendingOut = await reopenConsumedWtoPendingOutForSalesBill(tx, {
           actor,
           cancelDate: createdAt,
           note: reason,
           salesBillDocNo: bill.doc_no,
         })
 
-        const usageLogs = await tx.weight_ticket_usage_logs.findMany({
-          where: {
-            target_id: bill.id,
-            target_type: 'SALES_BILL',
-            action: WEIGHT_TICKET_USAGE_ACTION.ALLOCATED_TO_SALES_BILL,
-          },
-        })
-
-        if (usageLogs.length > 0) {
+        if (reopenedPendingOut.length > 0) {
+          const usageLogs = await tx.weight_ticket_usage_logs.findMany({
+            where: {
+              target_id: bill.id,
+              target_type: 'SALES_BILL',
+              action: WEIGHT_TICKET_USAGE_ACTION.ALLOCATED_TO_SALES_BILL,
+            },
+          })
           const revertUsageLogs = usageLogs.map((log) => ({
             action: WEIGHT_TICKET_USAGE_ACTION.RELEASED_FROM_SALES_BILL,
             actor,

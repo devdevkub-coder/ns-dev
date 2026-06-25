@@ -92,11 +92,11 @@ export const salesBillCancelSchema = z.object({
 })
 
 export const salesBillStockReturnSchema = z.object({
-  holdKey: z.string()
+  pendingOutKey: z.string()
     .trim()
     .min(1, 'เลือก pending_out ที่ต้องรับคืน')
-    .max(120, 'รหัส hold ยาวเกินไป')
-    .regex(safeIdPattern, 'รหัส hold มีรูปแบบไม่ถูกต้อง'),
+    .max(120, 'รหัส pending_out ยาวเกินไป')
+    .regex(safeIdPattern, 'รหัส pending_out มีรูปแบบไม่ถูกต้อง'),
   note: optionalGeneralText('หมายเหตุรับคืน', 500),
   reason: optionalGeneralText('เหตุผลส่วนต่าง', 500),
   returnedQty: z.coerce.number({ invalid_type_error: 'น้ำหนักที่ชั่งคืนต้องเป็นตัวเลข' })

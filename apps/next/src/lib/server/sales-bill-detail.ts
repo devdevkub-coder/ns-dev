@@ -65,7 +65,7 @@ export type SalesBillDetail = {
     unit: string
   }>
   stockReturnOptions: Array<{
-    holdKey: string
+    pendingOutKey: string
     pendingQty: number
     productCode: string
     productName: string
@@ -524,7 +524,7 @@ export async function getSalesBillDetail(
     .filter((log) => log.action === 'allocated_to_sales_bill')
     .map((log) => log.weight_ticket_doc_no)
     .filter(Boolean)))
-  const activeReturnHolds = allocatedWtoDocNos.length
+  const activeReturnPendingOuts = allocatedWtoDocNos.length
     ? await prisma.stock_holds.findMany({
         include: {
           products: { select: { code: true, name: true } },
@@ -695,8 +695,8 @@ export async function getSalesBillDetail(
     status: bill.status ?? '',
     statusLabel: salesBillStatusLabel(bill.status),
     sourceUsageFacts,
-    stockReturnOptions: activeReturnHolds.map((hold) => ({
-      holdKey: hold.hold_key,
+    stockReturnOptions: activeReturnPendingOuts.map((hold) => ({
+      pendingOutKey: hold.hold_key,
       pendingQty: toNumber(hold.qty),
       productCode: hold.products.code ?? '',
       productName: hold.products.name,

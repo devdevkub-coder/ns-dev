@@ -533,7 +533,7 @@ export async function stockBalanceSnapshot(input: {
       row.readyQty = 0
       continue
     }
-    const holdKey = stockBucketInternalKey({
+    const pendingOutBucketKey = stockBucketInternalKey({
       branchId: row.branchInternalId,
       lotNo: row.lotNo || null,
       notAvailable: row.notAvailable,
@@ -541,10 +541,10 @@ export async function stockBalanceSnapshot(input: {
       status: row.status || null,
       warehouseId: row.warehouseInternalId,
     })
-    const remainingHold = holdQtyByStockKey.get(holdKey) ?? 0
+    const remainingHold = holdQtyByStockKey.get(pendingOutBucketKey) ?? 0
     row.onHoldQty = Math.min(row.qty, Math.max(0, remainingHold))
     row.readyQty = Math.max(0, row.qty - row.onHoldQty)
-    holdQtyByStockKey.set(holdKey, Math.max(0, remainingHold - row.onHoldQty))
+    holdQtyByStockKey.set(pendingOutBucketKey, Math.max(0, remainingHold - row.onHoldQty))
   }
 
   const stockState = input.onHold ? 'pending_out' : input.stockState ?? null
@@ -641,8 +641,8 @@ export async function stockBalanceDetail(input: {
       customerCode: row.weight_tickets.customers?.code ?? '',
       customerName: row.weight_tickets.customers?.name ?? '-',
       heldAt: row.held_at.toISOString(),
-      holdKey: row.hold_key,
       lotNo: row.lot_no ?? '',
+      pendingOutKey: row.hold_key,
       qty: toNumber(row.qty),
       sourceDocNo: row.source_doc_no,
       sourceLineNo: row.source_line_no ?? row.weight_ticket_lines?.line_no ?? null,

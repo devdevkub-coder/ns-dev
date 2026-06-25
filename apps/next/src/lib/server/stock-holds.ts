@@ -26,7 +26,7 @@ export class WtoStockOptionError extends Error {
   }
 }
 
-export class WtoStockHoldError extends Error {
+export class WtoPendingOutError extends Error {
   constructor(
     message: string,
     public readonly fieldErrors: Record<string, string[]> = {},
@@ -70,14 +70,14 @@ type WtoStockBucket = {
   warehouseId: bigint
 }
 
-type WtoHoldAllocation = WtoStockBucket & {
+type WtoPendingOutAllocation = WtoStockBucket & {
   qty: number
   sourceLineId: bigint
   sourceLineNo: number
 }
 
-export type ConsumedWtoStockHoldLine = {
-  holdKey: string
+export type ConsumedWtoPendingOutLine = {
+  pendingOutKey: string
   lotNo: string | null
   notAvailableForSale: boolean
   outputCategory: string | null
@@ -91,9 +91,9 @@ export type ConsumedWtoStockHoldLine = {
   weightTicketLineId: bigint | null
 }
 
-export type ReturnedWtoStockHoldResult = {
+export type ReturnedWtoPendingOutResult = {
   branchId: bigint
-  holdKey: string
+  pendingOutKey: string
   lossQty: number
   lossUnitCost: number
   lossValueOut: number
@@ -281,7 +281,7 @@ export async function resolveWtoWarehousesForLines(tx: TxClient, input: {
     return Boolean(code) && !warehouseByCode.has(code)
   })
   if (missingIndex >= 0) {
-    throw new WtoStockHoldError(`รายการที่ ${missingIndex + 1}: คลังไม่ถูกต้องหรือไม่ใช่คลัง RM/FG ของสาขานี้`, {
+    throw new WtoPendingOutError(`รายการที่ ${missingIndex + 1}: คลังไม่ถูกต้องหรือไม่ใช่คลัง RM/FG ของสาขานี้`, {
       [`lines.${missingIndex}.warehouseId`]: ['คลังไม่ถูกต้องหรือไม่ใช่คลัง RM/FG ของสาขานี้'],
     })
   }
@@ -369,12 +369,12 @@ async function loadSaleableBuckets(tx: TxClient, input: {
     ))
 }
 
-async function allocateWtoHoldBuckets(tx: TxClient, input: {
+async function allocateWtoPendingOutBuckets(tx: TxClient, input: {
   branchId: bigint
   lines: WtoCreatedLine[]
 }) {
   const requiredLines = input.lines.filter((line) => line.warehouse_id != null && toNumber(line.net_weight) > 0)
-  if (!requiredLines.length) return [] as WtoHoldAllocation[]
+  if (!requiredLines.length) return [] as WtoPendingOutAllocation[]
 
   const warehouseIds = [...new Set(requiredLines.map((line) => line.warehouse_id as bigint))]
   const warehouseTypes = await tx.warehouses.findMany({
@@ -388,7 +388,7 @@ async function allocateWtoHoldBuckets(tx: TxClient, input: {
     warehouseIds,
   })
   const remainingByBucket = new Map(buckets.map((bucket) => [bucketKey(bucket), bucket.availableQty]))
-  const allocations: WtoHoldAllocation[] = []
+  const allocations: WtoPendingOutAllocation[] = []
 
   for (const line of requiredLines) {
     const warehouseId = line.warehouse_id as bigint
@@ -418,7 +418,7 @@ async function allocateWtoHoldBuckets(tx: TxClient, input: {
     }
 
     if (remainingLineQty > 0.000001) {
-      throw new WtoStockHoldError(`รายการที่ ${line.line_no}: ${line.product_name} มีจำนวนพร้อมส่งไม่พอ`, {
+      throw new WtoPendingOutError(`รายการที่ ${line.line_no}: ${line.product_name} มีจำนวนพร้อมส่งไม่พอ`, {
         [`lines.${line.line_no - 1}.grossWeight`]: [`จำนวนพร้อมส่งไม่พอใน bucket ${warehouseType ?? '-'}`],
         [`lines.${line.line_no - 1}.warehouseId`]: ['คลังนี้มีจำนวนพร้อมส่งไม่พอ'],
       })
@@ -435,7 +435,7 @@ export async function validateWtoStockAvailability(tx: TxClient, input: {
   const required = new Map<string, { indexes: number[]; productId: bigint; productName: string; qty: number; warehouseId: bigint }>()
   for (const line of input.lines) {
     if (!line.warehouseId) {
-      throw new WtoStockHoldError(`รายการที่ ${line.index + 1}: เลือกคลัง`, {
+      throw new WtoPendingOutError(`รายการที่ ${line.index + 1}: เลือกคลัง`, {
         [`lines.${line.index}.warehouseId`]: ['เลือกคลัง'],
       })
     }
@@ -474,7 +474,7 @@ export async function validateWtoStockAvailability(tx: TxClient, input: {
     const available = availableByKey.get(key) ?? 0
     if (row.qty > available + 0.000001) {
       const firstIndex = row.indexes[0] ?? 0
-      throw new WtoStockHoldError(`รายการที่ ${firstIndex + 1}: ${row.productName} มีจำนวนพร้อมส่งไม่พอ`, {
+      throw new WtoPendingOutError(`รายการที่ ${firstIndex + 1}: ${row.productName} มีจำนวนพร้อมส่งไม่พอ`, {
         [`lines.${firstIndex}.grossWeight`]: [`จำนวนพร้อมส่ง ${available.toLocaleString('th-TH', { maximumFractionDigits: 3 })}`],
         [`lines.${firstIndex}.warehouseId`]: ['คลังนี้มีจำนวนพร้อมส่งไม่พอ'],
       })
@@ -482,14 +482,14 @@ export async function validateWtoStockAvailability(tx: TxClient, input: {
   }
 }
 
-export async function createActiveWtoStockHolds(tx: TxClient, input: {
+export async function createActiveWtoPendingOut(tx: TxClient, input: {
   actor: string
   branchId: bigint
   documentNo: string
   lines: WtoCreatedLine[]
   weightTicketId: bigint
 }) {
-  const allocations = await allocateWtoHoldBuckets(tx, { branchId: input.branchId, lines: input.lines })
+  const allocations = await allocateWtoPendingOutBuckets(tx, { branchId: input.branchId, lines: input.lines })
   const rows = input.lines
     .flatMap((line) => allocations
       .filter((allocation) => allocation.sourceLineId === line.id)
@@ -515,7 +515,7 @@ export async function createActiveWtoStockHolds(tx: TxClient, input: {
   await tx.stock_holds.createMany({ data: rows })
 }
 
-export async function closeActiveWtoStockHolds(tx: TxClient, input: {
+export async function releaseActiveWtoPendingOut(tx: TxClient, input: {
   actor: string
   reason: 'cancel' | 'edit'
   weightTicketId: bigint
@@ -535,7 +535,7 @@ export async function closeActiveWtoStockHolds(tx: TxClient, input: {
   })
 }
 
-export async function consumeActiveWtoStockHolds(tx: TxClient, input: {
+export async function consumeActiveWtoPendingOut(tx: TxClient, input: {
   actor: string
   allocations?: Array<{ productId: bigint; qty: number }>
   billDate: Date
@@ -552,7 +552,7 @@ export async function consumeActiveWtoStockHolds(tx: TxClient, input: {
     },
   })
   if (!holds.length) {
-    throw new WtoStockHoldError('ไม่พบ pending_out ที่พร้อมใช้สำหรับใบส่งของนี้')
+    throw new WtoPendingOutError('ไม่พบ pending_out ที่พร้อมใช้สำหรับใบส่งของนี้')
   }
 
   const productIds = [...new Set(holds.map((hold) => hold.product_id))]
@@ -586,7 +586,7 @@ export async function consumeActiveWtoStockHolds(tx: TxClient, input: {
   })
   const shouldLimitByAllocation = requestedByProductId.size > 0
 
-  const consumedLines: ConsumedWtoStockHoldLine[] = []
+  const consumedLines: ConsumedWtoPendingOutLine[] = []
   const holdUpdates: Array<{
     consumedQty: number
     hold: (typeof holds)[number]
@@ -606,7 +606,7 @@ export async function consumeActiveWtoStockHolds(tx: TxClient, input: {
       warehouseId: hold.warehouse_id,
     })) ?? 0
     consumedLines.push({
-      holdKey: hold.hold_key,
+      pendingOutKey: hold.hold_key,
       lotNo: hold.lot_no,
       notAvailableForSale: hold.not_available_for_sale,
       outputCategory: hold.output_category,
@@ -627,10 +627,10 @@ export async function consumeActiveWtoStockHolds(tx: TxClient, input: {
 
   const missingProducts = [...requestedByProductId.entries()].filter(([, qty]) => qty > 0.0001)
   if (missingProducts.length) {
-    throw new WtoStockHoldError('pending_out ไม่พอสำหรับตัด stock กรุณาโหลดข้อมูลใหม่')
+    throw new WtoPendingOutError('pending_out ไม่พอสำหรับตัด stock กรุณาโหลดข้อมูลใหม่')
   }
   if (!consumedLines.length) {
-    throw new WtoStockHoldError('ไม่พบ pending_out ที่พร้อมใช้สำหรับจำนวนที่ออกบิล')
+    throw new WtoPendingOutError('ไม่พบ pending_out ที่พร้อมใช้สำหรับจำนวนที่ออกบิล')
   }
 
   await tx.stock_ledger.createMany({
@@ -641,7 +641,7 @@ export async function consumeActiveWtoStockHolds(tx: TxClient, input: {
       lot_no: line.lotNo,
       movement_type: 'ขายออก',
       note: `WTO ${line.sourceDocNo}${line.sourceLineNo ? ` / รายการ ${line.sourceLineNo}` : ''}`,
-      notes: `ตัด stock จาก pending_out ${line.holdKey}`,
+      notes: `ตัด stock จาก pending_out ${line.pendingOutKey}`,
       not_available_for_sale: line.notAvailableForSale,
       output_category: line.outputCategory,
       product_id: line.productId,
@@ -676,7 +676,7 @@ export async function consumeActiveWtoStockHolds(tx: TxClient, input: {
         },
       })
       if (consumed.count !== 1) {
-        throw new WtoStockHoldError('pending_out ของใบส่งของนี้ถูกใช้งานไปแล้ว กรุณาโหลดข้อมูลใหม่')
+        throw new WtoPendingOutError('pending_out ของใบส่งของนี้ถูกใช้งานไปแล้ว กรุณาโหลดข้อมูลใหม่')
       }
       continue
     }
@@ -693,7 +693,7 @@ export async function consumeActiveWtoStockHolds(tx: TxClient, input: {
       },
     })
     if (reduced.count !== 1) {
-      throw new WtoStockHoldError('pending_out ของใบส่งของนี้ถูกใช้งานไปแล้ว กรุณาโหลดข้อมูลใหม่')
+      throw new WtoPendingOutError('pending_out ของใบส่งของนี้ถูกใช้งานไปแล้ว กรุณาโหลดข้อมูลใหม่')
     }
     await tx.stock_holds.create({
       data: {
@@ -728,7 +728,7 @@ export async function consumeActiveWtoStockHolds(tx: TxClient, input: {
   return consumedLines
 }
 
-export async function reopenConsumedWtoStockHoldsForSalesBill(tx: TxClient, input: {
+export async function reopenConsumedWtoPendingOutForSalesBill(tx: TxClient, input: {
   actor: string
   cancelDate: Date
   note?: string | null
@@ -745,7 +745,7 @@ export async function reopenConsumedWtoStockHoldsForSalesBill(tx: TxClient, inpu
     },
   })
   if (existingReverseRow) {
-    throw new WtoStockHoldError('บิลขายนี้ถูก reverse stock ledger แล้ว')
+    throw new WtoPendingOutError('บิลขายนี้ถูก reverse stock ledger แล้ว')
   }
 
   const ledgerRows = await tx.stock_ledger.findMany({
@@ -759,7 +759,7 @@ export async function reopenConsumedWtoStockHoldsForSalesBill(tx: TxClient, inpu
     },
   })
   if (!ledgerRows.length) {
-    throw new WtoStockHoldError('ไม่พบ stock ledger ของบิลขายนี้สำหรับทำ reversal')
+    throw new WtoPendingOutError('ไม่พบ stock ledger ของบิลขายนี้สำหรับทำ reversal')
   }
 
   await tx.stock_ledger.createMany({
@@ -787,6 +787,18 @@ export async function reopenConsumedWtoStockHoldsForSalesBill(tx: TxClient, inpu
     })),
   })
 
+  const hasReturnFromSalesBill = await tx.weight_ticket_usage_logs.findFirst({
+    select: { id: true },
+    where: {
+      action: { in: ['returned_from_sales_bill', 'loss_from_sales_bill'] },
+      target_doc_no: input.salesBillDocNo,
+      target_type: 'SALES_BILL',
+    },
+  })
+  if (hasReturnFromSalesBill) {
+    return []
+  }
+
   const holds = await tx.stock_holds.findMany({
     select: {
       id: true,
@@ -799,7 +811,7 @@ export async function reopenConsumedWtoStockHoldsForSalesBill(tx: TxClient, inpu
     },
   })
   if (!holds.length) {
-    throw new WtoStockHoldError('ไม่พบ pending_out ที่ถูกใช้โดยบิลขายนี้')
+    throw new WtoPendingOutError('ไม่พบ pending_out ที่ถูกใช้โดยบิลขายนี้')
   }
 
   const reopened = await tx.stock_holds.updateMany({
@@ -819,15 +831,15 @@ export async function reopenConsumedWtoStockHoldsForSalesBill(tx: TxClient, inpu
     },
   })
   if (reopened.count !== holds.length) {
-    throw new WtoStockHoldError('pending_out ของบิลขายนี้ถูกเปลี่ยนสถานะไปแล้ว กรุณาโหลดข้อมูลใหม่')
+    throw new WtoPendingOutError('pending_out ของบิลขายนี้ถูกเปลี่ยนสถานะไปแล้ว กรุณาโหลดข้อมูลใหม่')
   }
 
   return holds
 }
 
-export async function closeActiveWtoStockHoldForSalesBillReturn(tx: TxClient, input: {
+export async function closeActiveWtoPendingOutForSalesBillReturn(tx: TxClient, input: {
   actor: string
-  holdKey: string
+  pendingOutKey: string
   note?: string | null
   reason?: string | null
   returnDate: Date
@@ -841,34 +853,34 @@ export async function closeActiveWtoStockHoldForSalesBillReturn(tx: TxClient, in
       weight_tickets: { select: { doc_no: true, doc_type: true, id: true } },
     },
     where: {
-      hold_key: input.holdKey,
+      hold_key: input.pendingOutKey,
       source_type: 'WTO',
       status: 'active',
     },
   })
   if (!hold) {
-    throw new WtoStockHoldError('ไม่พบ pending_out ที่พร้อมรับคืน กรุณาโหลดข้อมูลใหม่')
+    throw new WtoPendingOutError('ไม่พบ pending_out ที่พร้อมรับคืน กรุณาโหลดข้อมูลใหม่')
   }
   if (hold.weight_tickets.doc_type !== 'WTO') {
-    throw new WtoStockHoldError('รับคืนได้เฉพาะ pending_out จากใบส่งของ WTO')
+    throw new WtoPendingOutError('รับคืนได้เฉพาะ pending_out จากใบส่งของ WTO')
   }
 
   const pendingQty = toNumber(hold.qty)
   const returnedQty = Number(input.returnedQty.toFixed(2))
   if (pendingQty <= 0.0001) {
-    throw new WtoStockHoldError('pending_out นี้ไม่มีจำนวนคงเหลือให้รับคืน')
+    throw new WtoPendingOutError('pending_out นี้ไม่มีจำนวนคงเหลือให้รับคืน')
   }
   if (returnedQty < -0.0001) {
-    throw new WtoStockHoldError('น้ำหนักรับคืนต้องไม่ติดลบ')
+    throw new WtoPendingOutError('น้ำหนักรับคืนต้องไม่ติดลบ')
   }
   if (returnedQty > pendingQty + 0.0001) {
-    throw new WtoStockHoldError(`น้ำหนักรับคืนเกิน pending_out (${pendingQty.toLocaleString('th-TH', { maximumFractionDigits: 2 })} กก.)`)
+    throw new WtoPendingOutError(`น้ำหนักรับคืนเกิน pending_out (${pendingQty.toLocaleString('th-TH', { maximumFractionDigits: 2 })} กก.)`)
   }
 
   const normalizedReturnedQty = Math.max(0, Math.min(pendingQty, returnedQty))
   const lossQty = Number(Math.max(0, pendingQty - normalizedReturnedQty).toFixed(2))
   if (lossQty > 0.0001 && !input.reason?.trim()) {
-    throw new WtoStockHoldError('น้ำหนักรับคืนไม่เท่ากับ pending_out ต้องกรอกเหตุผลส่วนต่างก่อนบันทึก', {
+    throw new WtoPendingOutError('น้ำหนักรับคืนไม่เท่ากับ pending_out ต้องกรอกเหตุผลส่วนต่างก่อนบันทึก', {
       reason: ['กรอกเหตุผลส่วนต่าง'],
     })
   }
@@ -905,7 +917,7 @@ export async function closeActiveWtoStockHoldForSalesBillReturn(tx: TxClient, in
     const bucketQty = toNumber(bucket?._sum.qty_in) - toNumber(bucket?._sum.qty_out)
     const bucketValue = toNumber(bucket?._sum.value_in) - toNumber(bucket?._sum.value_out)
     if (bucketQty <= 0.0001 || bucketValue < 0) {
-      throw new WtoStockHoldError('ไม่พบต้นทุนเฉลี่ยของ stock bucket สำหรับลงของขาด กรุณาตรวจ stock ledger ก่อนบันทึกรับคืน')
+      throw new WtoPendingOutError('ไม่พบต้นทุนเฉลี่ยของ stock bucket สำหรับลงของขาด กรุณาตรวจ stock ledger ก่อนบันทึกรับคืน')
     }
     lossUnitCost = bucketValue / bucketQty
     lossValueOut = lossQty * lossUnitCost
@@ -926,7 +938,7 @@ export async function closeActiveWtoStockHoldForSalesBillReturn(tx: TxClient, in
       where: { id: hold.id, status: 'active' },
     })
     if (released.count !== 1) {
-      throw new WtoStockHoldError('pending_out นี้ถูกเปลี่ยนสถานะไปแล้ว กรุณาโหลดข้อมูลใหม่')
+      throw new WtoPendingOutError('pending_out นี้ถูกเปลี่ยนสถานะไปแล้ว กรุณาโหลดข้อมูลใหม่')
     }
     await tx.stock_holds.create({
       data: {
@@ -970,7 +982,7 @@ export async function closeActiveWtoStockHoldForSalesBillReturn(tx: TxClient, in
       where: { id: hold.id, status: 'active' },
     })
     if (closed.count !== 1) {
-      throw new WtoStockHoldError('pending_out นี้ถูกเปลี่ยนสถานะไปแล้ว กรุณาโหลดข้อมูลใหม่')
+      throw new WtoPendingOutError('pending_out นี้ถูกเปลี่ยนสถานะไปแล้ว กรุณาโหลดข้อมูลใหม่')
     }
   }
 
@@ -1004,7 +1016,7 @@ export async function closeActiveWtoStockHoldForSalesBillReturn(tx: TxClient, in
 
   return {
     branchId: hold.branch_id,
-    holdKey: hold.hold_key,
+    pendingOutKey: hold.hold_key,
     lossQty,
     lossUnitCost,
     lossValueOut,
@@ -1018,5 +1030,5 @@ export async function closeActiveWtoStockHoldForSalesBillReturn(tx: TxClient, in
     warehouseId: hold.warehouse_id,
     weightTicketId: hold.weight_ticket_id,
     weightTicketLineId: hold.weight_ticket_line_id,
-  } satisfies ReturnedWtoStockHoldResult
+  } satisfies ReturnedWtoPendingOutResult
 }
