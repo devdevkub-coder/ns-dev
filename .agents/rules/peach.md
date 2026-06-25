@@ -47,7 +47,7 @@ description: "Peach: AcexPOS UI Standard, Git & Scope Rules"
 - **Strict Scope Control:** Perform only explicitly requested changes. No proactive refactoring or upgrades outside the task scope.
 - **Local Validation Only:** Test compilation locally (`type-check`, `lint`, `build`). Do not run browser UAT unless explicitly requested.
 - **No Self-Commits/Push:** Only modify files locally. Do not run `git commit` or `git push` unless explicitly ordered by the user.
-- **UAT Sync Branch:** Push to `new-origin dev` branch for deployment and QA (no need to push to `uat` or `main`).
+- **UAT Sync Branch:** Normal code pushes go to `new-origin dev`. When explicitly asked to promote UAT, promote `dev` to `new-origin uat`. The old `staging` remote branch has been deleted; do not recreate, push to, or promote through `staging`. Never push to `main` unless explicitly requested.
 - **Fail-Fast Policy:** Stop and ask if there's type conflicts, compilation failures, or database mismatches.
 - **Daily Checklist:** Always create/update a daily task checklist (e.g. `task17-06-26.md`) before making edits.
 - **Final Flow Summary:** Write/update flow docs in `docs/notes/` describing entities and rationale when business flows are completed or UAT tested.

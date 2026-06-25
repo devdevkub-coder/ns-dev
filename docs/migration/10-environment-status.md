@@ -11,6 +11,11 @@ Important account boundary:
 - Do not assume access tokens, Auth users, API keys, Storage buckets, or project settings are shared between them.
 - A future `new-prod` project has not been created yet.
 
+Git branch boundary:
+- UAT deployment/promotion uses `new-origin/uat`.
+- The old remote branch `new-origin/staging` was deleted on 2026-06-25 to avoid confusion and must not be recreated.
+- The `staging-uat` name in this document refers to a future Supabase environment/project, not a Git branch.
+
 ## Supabase Projects
 
 ### Legacy Production / Source
