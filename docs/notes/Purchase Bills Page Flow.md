@@ -32,6 +32,17 @@ updated: 2026-06-12
 
 หน้า `/purchase/bills` ไม่รับผิดชอบการสร้าง `PMA` หรือ `PMT`; เมื่อ `PB.payable_balance > 0` ให้ handoff ไป [[Payment Flow]]
 
+## Open From WTI List
+
+ปุ่ม `เปิดบิลซื้อ` จากตาราง `WTI` ต้องทำงานแบบนี้:
+
+1. แสดงปุ่มเฉพาะ `WTI` ที่เป็นรายการใหม่และยังไม่ถูกนำไปเปิด `PB` (`type = WTI`, `status = received`, `usedInPurchaseBillCount = 0`)
+2. เมื่อกดปุ่ม ให้ redirect ไป `/purchase/bills?new=1&wti={WTI doc no}`
+3. หน้า `/purchase/bills` ต้องเปิด modal create อัตโนมัติใน tab `บิลรับซื้อ`
+4. ระบบต้อง preload `branch`, `supplier`, `receiptTicketId`, `warehouse RM`, และรายการสินค้าจาก `WTI` เหมือนตอนผู้ใช้เลือก `WTI` จาก combobox เอง
+5. หลัง preload สำเร็จ ผู้ใช้กรอกต่อเฉพาะข้อมูลเชิงบิล เช่น ราคา, VAT, ส่วนลด, PO Buy/Spot Buy, และ ADV
+6. ถ้า `WTI` ใบนั้นไม่พร้อมใช้งานแล้ว เช่น ไม่อยู่ใน option list หรือถูกเปิดบิลแล้ว ต้องแจ้ง error ชัดเจนและไม่เปิด form แบบ source ไม่ครบ
+
 ## Status / Filter / Action Contract
 
 หน้า `/purchase/bills` ต้องแยกสถานะเอกสารหลักกับสถานะการจ่าย:

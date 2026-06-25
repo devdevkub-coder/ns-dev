@@ -46,6 +46,7 @@ updated: 2026-06-25
 ตรวจจาก current code ณ 2026-06-14:
 
 - `GET /api/sales/bills` โหลด list/source options และส่ง `WTO` source เฉพาะสถานะ `delivered` สำหรับบิลขาย STOCK ใหม่
+- หน้า `รายการใบรับ-ส่งของ /daily/weight-ticket-list` ต้องมีปุ่ม `เปิดบิลขาย` สำหรับ `WTO` ที่เป็นรายการใหม่และยังไม่ถูกนำไปเปิด `SB` (`type = WTO`, `status = delivered`, `usedInSalesBillCount = 0`). เมื่อกดแล้วต้อง deep link ไป `/sales/bills?new=1&wto={docNo}` และหน้า `/sales/bills` ต้องเปิด modal สร้างบิลขายพร้อม preload source เหมือนผู้ใช้เลือก WTO ใบนั้นเองทุกอย่าง ไม่ใช่แค่เติมเลขเอกสารลง field เฉย ๆ
 - `POST /api/sales/bills` create path ทำงานครบสำหรับ `STOCK` baseline: สร้าง `SB`, consume active `WTO` pending_out ตาม `stockIssueQty`, เขียน `stock_ledger.ref_type = SB`, append `weight_ticket_usage_logs`, update `WTO` เป็น `billed` เฉพาะเมื่อ pending_out หมดทั้งใบ ไม่งั้นเป็น `partially_billed / ออกบิลแล้วบางส่วน` เพื่อรอ `รับของคืน`, และ update `PO Sell` remaining/status
 - Stock SB COGS ใช้ต้นทุนเฉลี่ย ณ เวลาขาย: ตอน consume WTO pending_out ระบบ snapshot ต้นทุนลง `stock_ledger.unit_cost/value_out` ของ `SB`; detail/report ต้องอ่าน COGS จาก SB ledger ที่ posted แล้ว ไม่คำนวณใหม่จาก WAC ปัจจุบัน
 - `GET /api/sales/bills/[id]` เป็น detail/read model ของบิลขายเท่านั้น ไม่แสดงฟอร์มรับของคืน; action รับคืนต้องเริ่มจาก detail ของ `WTO` เพื่อให้ user เห็นว่าเป็นการปิด remaining `pending_out` ของใบส่งของ
@@ -53,6 +54,7 @@ updated: 2026-06-25
 - `POST /api/sales/bills/[id]/stock-return` ปิด remaining `pending_out` จาก SB partial billing: ถ้ารับคืนครบให้ release pending_out กลับเป็น available โดยไม่เขียน ledger; ถ้ารับคืนจริงน้อยกว่า pending_out ต้องบังคับเหตุผล, release เฉพาะน้ำหนักที่คืน, ปิดส่วนต่างเป็น `lost`, และเขียน `stock_ledger.ref_type = WTO-RETURN-LOSS` เป็น qty_out/value_out
 - `GET /api/daily/weight-tickets/[id]/stock-returns` เป็น read model สำหรับปุ่ม `รับของคืน` บน `WTO`: ต้องคืนรายการเฉพาะเมื่อ WTO ถูกนำไปออก `SB` แล้วบางส่วนและยังมี active `pending_out` เหลืออยู่; ถ้าออกบิลครบ, ยังไม่ถูกออกบิล, หรือรับคืนแล้ว ต้องไม่แสดงปุ่ม
 - `PATCH /api/sales/bills/[id]` action `cancel` สำหรับ `STOCK` SB ที่ยังไม่มี active receipt: block active `RCP`, append `stock_ledger.ref_type = SB-CANCEL` ด้วย unit cost/value เดิมของ `SB` โดยไม่ลบ `SB`, append `released_from_sales_bill`, append `po_sell_allocation_logs.released_from_sales_bill`, reverse `PO Sell` usage, mark `SB` เป็น `cancelled`, และ append `sales_bill_status_logs`; ถ้า WTO ยังไม่เคยรับของคืนให้ reopen consumed `WTO` pending_out กลับเป็น `pending_out`, แต่ถ้าเคยรับของคืนแล้วห้าม reopen pending_out ซ้ำและให้ `SB-CANCEL` คืน stock ตรง
+- `PATCH /api/sales/bills/[id]` edit สำหรับ `STOCK` SB ตอนนี้รองรับ stock delta correction บน `WTO` เดิมใบเดิมแล้ว: ยังคง lock branch/customer/source/product/line-count/business identity, แต่แก้ `จำนวนที่ขายได้`, `หักสิ่งเจือปน`, `น้ำหนักขายสุทธิ`, `PO Sell`, ราคา, ส่วนลด, VAT/header, export order, และ Customer advance ได้ใน transaction เดียว เมื่อ `WTO pending_out` ที่ bill นี้ consume ลดลง ระบบจะคืน stock ตาม delta และ release consumed pending_out slice กลับเป็น active; เมื่อเพิ่มขึ้นภายใน `WTO` เดิม ระบบจะ consume pending_out เพิ่มและตัด stock เพิ่มตาม delta; ถ้าเคยมี `returned_from_sales_bill` หรือ `loss_from_sales_bill` แล้ว ระบบจะ reject normal edit และบังคับให้ไปใช้ flow correction เฉพาะทาง
 - Cancel-after-return rule เป็น strict fact check: ถ้ามี `weight_ticket_usage_logs.action in (returned_from_sales_bill, loss_from_sales_bill)` ของ SB นั้นแล้ว cancel ห้าม append `released_from_sales_bill` หรือ increment `weight_ticket_product_summaries.remaining_weight` ซ้ำ
 - หลัง `SB-CANCEL` หรือรับคืนแบบมี loss WAC ปัจจุบันอาจเปลี่ยนจาก ledger ที่ posted จริง: `SB-CANCEL` คืน stock ด้วย cost snapshot เดิมของ SB, ส่วน `WTO-RETURN-LOSS` ตัด value ออกจาก stock ด้วย WAC ของ bucket ณ เวลาปิดรับคืน
 - หลังสร้างหรือแก้ไข `SB` สำเร็จ หน้า list ต้อง reload ด้วย search/filter/page context เดิมของผู้ใช้เท่านั้น ห้าม auto ใส่เลข `SB` ที่เพิ่งบันทึกลง search box เพราะจะทำให้ตารางถูก filter เหลือแค่บิลนั้นโดยไม่ตั้งใจ
@@ -122,9 +124,14 @@ Index minimum:
 
 - `action = cancel`: mark active allocations cancelled/reversed, append `SB-CANCEL` stock reversal, restore PO Sell/customer advance remaining, append status logs; reopen WTO pending_out เฉพาะกรณียังไม่มี return-from-WTO/SB เท่านั้น
 - `action = correct_*`: allowed only after the relevant allocation facts exist; correction must be **diff-only** for quantity/price/deduct changes. Do not reverse the whole SB and repost the whole bill unless the whole source context is cancelled/replaced. Append only the delta fact/ledger rows needed to move from old posted state to new state, because stock value, COGS, WAC, PO Sell remaining, AR, VAT, and customer advance must reflect the real changed portion only.
-- `PATCH /api/sales/bills` edit supports commercial correction without changing source/stock movement: keep `transactionMode`, branch, Customer, WTO source, product, line count, and `stockIssueQty` unchanged; allow changing `จำนวนที่ขายได้`, `หักสิ่งเจือปน`, derived `น้ำหนักขายสุทธิ`, line `PO Sell` reference between `Spot Sale` / `PO Sell`, line price, line discount, notes, VAT/header totals, export order, and Customer Advance allocation when no active RCP exists. This correction updates Sales Bill line/totals/AR and PO Sell/Customer Advance allocation facts, but must not touch `stock_ledger`, `WTO pending_out`, or WAC because the physical source quantity is unchanged.
+- `PATCH /api/sales/bills` edit ของ `STOCK` SB ต้องยึด `WTO pending_out` เป็น source of truth ฝั่ง stock เสมอ: keep `transactionMode`, branch, Customer, WTO source, product, and line count unchanged; allow changing `จำนวนที่ขายได้`, `หักสิ่งเจือปน`, derived `น้ำหนักขายสุทธิ`, line `PO Sell` reference between `Spot Sale` / `PO Sell`, line price, line discount, notes, VAT/header totals, export order, and Customer Advance allocation when no active RCP exists. การแก้ไขนี้ต้องอัปเดต Sales Bill line/totals/AR และ PO Sell/Customer Advance allocation facts ตาม delta จริง และพิจารณา stock ตามกฎ `WTO quantity first`: ถ้าปริมาณที่บิลนี้ consume จาก `WTO` ลดลงจากเดิม ต้องคืน stock ตาม delta; ถ้าเพิ่มขึ้นและยังไม่เกิน `WTO` ต้องตัด stock เพิ่มตาม delta; ถ้าเพิ่มเกิน `WTO` ให้ consume/tัด stock ได้แค่ยอดที่ `WTO pending_out` รองรับ และห้ามสร้าง stock-out เกิน source
 - Customer Advance correction follows the Purchase Bill ADV pattern: release old active `sales_bill_customer_advance_allocations`, validate the newly selected CADV belongs to the same Customer and has enough available amount after releasing the old allocation, create a new active allocation, and recalculate `sales_bills.received_amount` / `sales_bills.receivable_balance` in the same transaction. If an active RCP exists, reject the edit instead of mixing receipt and advance correction.
-- Stock/source correction is a separate future flow. Changing `stockIssueQty`, swapping WTO/source documents, changing product/line count, or editing a bill after return/loss facts exist requires a dedicated append-only stock correction policy and must not be hidden inside normal edit.
+- Stock/source correction ยังเป็น flow เฉพาะแยกจาก commercial edit ปกติ แต่ rule ใหม่ของ `STOCK` SB คืออนุญาต correction เฉพาะบน WTO/source เดิมใบเดิม โดยต้องคิด delta จากยอด `pending_out` เดิมเท่านั้น:
+  - ถ้าแก้แล้วปริมาณที่ consume จาก `WTO` เท่าเดิม: ไม่ต้องแตะ stock movement
+  - ถ้าแก้แล้วปริมาณที่ consume จาก `WTO` ลดลงจากเดิม: ต้องคืนเฉพาะส่วนต่างจาก `pending_out`/stock กลับระบบ และลดภาระค้างของ WTO ตามจริง
+  - ถ้าแก้แล้วปริมาณที่ consume จาก `WTO` เพิ่มขึ้น และยังไม่เกิน `WTO pending_out`: ต้องตัด stock เพิ่มตาม delta และเพิ่ม WTO usage ตาม delta
+  - ถ้าแก้แล้วค่าทางการค้าหรือ qty ใหม่สูงกว่า `WTO pending_out`: อนุญาตเป็นข้อมูลเชิงพาณิชย์ได้ แต่ stock consume ต้องถูก cap ที่ `WTO pending_out` เดิม ห้ามสร้าง stock-out เกิน source
+  - การสลับ WTO/source document, เปลี่ยน product/line count, หรือแก้หลังมี return/loss facts แล้ว ยังต้องใช้ dedicated append-only stock correction policy แยกต่างหาก
 - Edit modal must keep the original business identity locked like Purchase Bill: `transactionMode`, branch, Customer, WTO source, and Trading PB/Cost Source selectors are read-only/disabled. Changing `STOCK` to `TRADING` or swapping source documents is not a normal edit; it requires cancel/reissue or a dedicated correction flow with append-only facts.
 
 `POST /api/sales/bills/{docNo}/stock-return`:
@@ -163,6 +170,17 @@ PO Sell
 | 8 | System | บันทึก `SB` | สร้าง `SB...`, AR, usage/allocation logs, PO Sell billed qty, Customer advance allocation ถ้ามี |
 | 9 | System | อัปเดตสถานะ source | `WTO` เป็น `ออกบิลแล้ว` เมื่อไม่มี pending_out เหลือ; ถ้าออกบิลบางส่วนให้เป็น `ออกบิลแล้วบางส่วน` เพื่อให้ปุ่ม `รับของคืน` บน WTO ปิดยอดค้างก่อน ส่วน `PO Sell` เป็น `ออกบิลบางส่วน` หรือ `ออกบิลแล้ว` ตามยอดจริง |
 | 10 | System | Reload list | กลับไปหน้า list ด้วย search/filter/page เดิม ห้าม auto filter ด้วยเลข `SB` ที่เพิ่งสร้างหรือแก้ไข |
+
+## Open From WTO List
+
+ปุ่ม `เปิดบิลขาย` จากตาราง `WTO` ต้องทำงานแบบนี้:
+
+1. แสดงปุ่มเฉพาะ `WTO` ที่ `status = delivered` และ `usedInSalesBillCount = 0`
+2. เมื่อกดปุ่ม ให้ redirect ไป `/sales/bills?new=1&wto={WTO doc no}`
+3. หน้า `/sales/bills` ต้องเปิด modal create อัตโนมัติ
+4. ระบบต้อง preload `branch`, `customer`, `deliveryTicketId`, และรายการสินค้าเหมือนตอนผู้ใช้เลือก `WTO` จาก combobox เอง
+5. หลัง preload สำเร็จ ผู้ใช้กรอกต่อเฉพาะข้อมูลบิลขาย เช่น `จำนวนที่ขายได้`, `หักสิ่งเจือปน`, `PO Sell`, ราคา, VAT, หมายเหตุ
+6. ถ้า `WTO` ใบนั้นไม่พร้อมใช้งานแล้ว เช่น ไม่อยู่ใน option list หรือถูกเปิดบิลแล้ว ต้องไม่เปิดฟอร์มค้างแบบข้อมูลไม่ครบ แต่ให้แจ้ง error ชัดเจน
 
 ## Fields To Show
 
@@ -204,6 +222,13 @@ PO Sell
 - `หักสิ่งเจือปน` เป็นน้ำหนักที่ Customer ไม่รับซื้อเพราะคุณภาพ/สิ่งเจือปน และใช้เฉพาะกรณี Customer ซื้อครบหรือซื้อเกินน้ำหนักที่ส่ง; `น้ำหนักขายสุทธิ = จำนวนที่ขายได้ - หักสิ่งเจือปน`
 - ถ้า `จำนวนที่ขายได้ < น้ำหนักสุทธิที่ส่ง` ถือเป็นกรณีขายไม่ครบ/ออกบิลบางส่วนของของที่ส่งออก ไม่ใช่กรณีหักสิ่งเจือปน; UI ต้องปิดหรือ clear ช่อง `หักสิ่งเจือปน` สำหรับ line นั้น และให้ process ส่วนที่เหลือผ่านปุ่ม `รับของคืน`
 - ยอดขายและ AR คิดจาก `น้ำหนักขายสุทธิ`; แต่ stock consume/COGS จาก `WTO pending_out` ต้องตัดไม่เกินน้ำหนักที่ส่งออกจาก `WTO` ตาม source ไม่ใช่ตัดตามน้ำหนักชั่งปลายทางที่อาจเกิน
+- Source-of-truth order ของ line `STOCK` คือ:
+  1. `WTO pending_out` = source of truth ฝั่ง stock และเป็น stock cap
+  2. `จำนวนที่ขายได้` = สิ่งที่ลูกค้าชั่ง/ยอมซื้อจริงทางการค้า
+  3. `หักสิ่งเจือปน` = adjustment เชิงคุณภาพของน้ำหนักขาย
+  4. `น้ำหนักขายสุทธิ` = base ของยอดขาย/AR/VAT
+- เพราะฉะนั้น `จำนวนที่ขายได้` มากกว่า `น้ำหนักสุทธิที่ส่ง` ได้ในเชิงเอกสารการค้า แต่ห้ามทำให้ stock movement เกิน `WTO pending_out`
+- `SB` เป็นเอกสารที่ทำ stock movement จริง: create = stock out ตาม qty ที่ consume จาก WTO, edit = ปรับ stock by delta ของ WTO-consumed qty, cancel = reverse stock ตาม posted fact ของ SB
 - แต่ละ line ต้องมี selector `อ้างอิง PO Sell` โดย option แรกคือ `Spot Sale` และ option ถัดไปคือ `PO Sell` ที่ตรง Customer/สาขา/สินค้าและยังมี remaining
 - ถ้า WTO summary เดียวต้องตัดทั้ง `PO Sell` และ `Spot Sale` หรือมีมากกว่า 1 PO Sell ต้อง split เป็นหลาย row ใต้สินค้าเดียวกันแบบเดียวกับบิลซื้อ
 - ระบบต้อง block save เมื่อจำนวนที่ตัดเข้า `PO Sell` เกิน remaining ต่อสินค้า แต่ต้องยอมให้บันทึกบิลขายจาก `WTO` แบบขายไม่ครบได้ โดยคงส่วนต่างไว้เป็น `pending_out` ที่รอ `รับของคืน`
@@ -263,6 +288,67 @@ Validation:
 - ถ้าน้ำหนักคืนจริงมากกว่าน้ำหนักค้าง ต้อง reject; น้ำหนักเกินต้องผ่าน stock adjust หรือ flow รับเข้าอื่น ไม่ปนกับ return ของ WTO นี้
 - ถ้ามีการรับของคืนจาก `WTO` แล้วภายหลัง `SB` ถูกยกเลิก ห้าม reopen/recreate `pending_out` ของ `WTO` ซ้ำ; ให้ `SB-CANCEL` คืน stock ตรงเฉพาะจำนวนที่ `SB` เคยขาย ด้วย unit cost/value เดิมจาก `SB` และคง return/diff audit เดิมไว้
 - ตัวอย่าง: `WTO` ส่ง 100, `SB` ขาย 50, รับของคืนจริง 48 และบันทึก loss/diff 2; ถ้าภายหลังยกเลิก `SB` ให้คืน stock ตรง 50 ผ่าน `SB-CANCEL` ทำให้ stock คืนรวม 98 และ diff 2 ยังคงเป็น audit ไม่กลับไปสร้าง pending_out 100 ใหม่
+
+## Edit Policy For STOCK Sales Bill
+
+ใช้เมื่อแก้ไข `SB` ที่อ้างอิง `WTO` เดิมใบเดิม โดยไม่สลับ source document
+
+### หลักกลาง
+
+- ฝั่ง stock ต้องยึดจำนวนจาก `WTO pending_out` เป็นหลักก่อนเสมอ
+- ฝั่งการค้าจึงค่อยอ่าน `จำนวนที่ขายได้`, `หักสิ่งเจือปน`, และ `น้ำหนักขายสุทธิ`
+- การแก้ไขต้องเป็น append-only / diff-only ไม่ย้อนลบ ledger/fact เดิมทิ้ง
+
+### ผลกระทบตอนแก้ไข
+
+1. ถ้าแก้เฉพาะราคา, ส่วนลด, VAT, หมายเหตุ, PO Sell allocation, Customer Advance allocation:
+   - ไม่มีผลต่อ stock
+   - อัปเดตเฉพาะ AR / allocation / audit facts
+
+2. ถ้าแก้ `จำนวนที่ขายได้` หรือ `หักสิ่งเจือปน` แต่ปริมาณที่ consume จาก `WTO` ยังเท่าเดิม:
+   - ไม่มีผลต่อ `stock_ledger`
+   - ไม่มีผลต่อ `pending_out`
+   - ไม่มีผลต่อ WAC
+   - เปลี่ยนเฉพาะ commercial result ของบิล
+
+3. ถ้าแก้แล้วทำให้ปริมาณที่ consume จาก `WTO` ลดลงจากเดิม:
+   - ต้องคืน stock ตาม delta กลับเข้าระบบ
+   - ต้องลด WTO usage ตาม delta
+   - ต้องอัปเดต `WTO` remaining / status / usage logs
+   - ต้อง append stock fact/ledger/status ตามส่วนต่างจริง
+
+4. ถ้าแก้แล้วทำให้ปริมาณที่ consume จาก `WTO` เพิ่มขึ้น และยังไม่เกิน `WTO pending_out`:
+   - ต้องตัด stock เพิ่มตาม delta
+   - ต้องเพิ่ม WTO usage ตาม delta
+   - ต้อง append stock fact/ledger/status ตามส่วนต่างจริง
+
+5. ถ้าแก้แล้วค่าทางการค้าสูงกว่ายอด `WTO pending_out`:
+   - บิลยังแสดงค่าน้ำหนักขายเชิงการค้าได้
+   - แต่ stock consume ห้ามเกิน `WTO pending_out`
+   - ตัด stock ได้แค่ยอดจาก WTO ที่เหลือรองรับ
+   - ห้าม append stock-out เกิน source
+
+### Example
+
+ตัวอย่าง:
+
+- `WTO pending_out` = 100
+- เดิม `SB` บันทึก `จำนวนที่ขายได้ = 100`, `หักสิ่งเจือปน = 0`, `น้ำหนักขายสุทธิ = 100`
+
+กรณีแก้เป็น:
+
+- `จำนวนที่ขายได้ = 100`, `หักสิ่งเจือปน = 5`, `น้ำหนักขายสุทธิ = 95`
+  - stock ยังอิง 100 จาก WTO เดิม
+  - เปลี่ยนเฉพาะยอดขายสุทธิ/AR
+
+- `จำนวนที่ขายได้ = 80`, `หักสิ่งเจือปน = 0`, `น้ำหนักขายสุทธิ = 80`
+  - WTO-consumed qty ลดลงจาก 100 เหลือ 80
+  - ต้องคืน stock 20 และลด WTO usage 20
+
+- `จำนวนที่ขายได้ = 110`, `หักสิ่งเจือปน = 5`, `น้ำหนักขายสุทธิ = 105`
+  - ฝั่งการค้าแสดง 105 ได้
+  - ถ้า WTO เดิมรองรับเพิ่มได้ถึง 110 ก็ต้องตัด stock เพิ่มตาม delta
+  - แต่ถ้า WTO เดิมรองรับได้แค่ 100 stock consume ยัง capped ที่ 100 จาก WTO เดิม
 
 ## Totals, VAT, And Deposit
 

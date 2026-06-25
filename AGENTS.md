@@ -4,7 +4,7 @@ This project is an existing NS Scrap ERP system that must be rehabilitated and r
 
 ## Must Follow
 
-- **MANDATORY STARTUP CHECK:** Every time you start a new conversation session, before doing any other work, checking files, or proposing changes, you MUST read the root [Peach.md](file:///c:/new-ns-scrap-erp/Peach.md), [.agents/rules/peach.md](file:///c:/new-ns-scrap-erp/.agents/rules/peach.md), and [.agents/rules/ponytail.md](file:///c:/new-ns-scrap-erp/.agents/rules/ponytail.md) using the `view_file` tool to ensure all UI standards, developer guidelines, operation constraints, and Ponytail lazy-mode coding rules are fully loaded into your context.
+- **MANDATORY STARTUP CHECK:** Every time you start a new conversation session, before doing any other work, checking files, or proposing changes, you MUST read the root [Peach.md](file:///c:/new-ns-scrap-erp/Peach.md) and [.agents/rules/peach.md](file:///c:/new-ns-scrap-erp/.agents/rules/peach.md) using the `view_file` tool to ensure all UI standards, developer guidelines, and operation constraints are fully loaded into your context.
 - Use Thai for user-facing explanations unless the user explicitly requests another language.
 - Active implementation/deploy target is the Next.js app under `apps/next/`.
 - Treat `old-apps/legacy/` and `old-apps/vue/` as source material only. Do not route to, import, or execute them from the active app.

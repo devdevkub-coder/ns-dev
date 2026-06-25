@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { Download, Plus, Printer } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { CustomerSearchCombobox, Field, InputField, MoneyInputField, ProductSearchCombobox, SupplierSearchCombobox, SummaryLine } from '@/components/daily/TransactionBillsFieldHelpers'
 import { BranchSelectCombobox } from '@/components/ui/BranchSelectCombobox'
@@ -606,6 +607,8 @@ const salesStatusOptions: MultiSegmentOption[] = [
 ]
 
 export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientProps) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [cancelNote, setCancelNote] = useState('')
   const [cancelNoteError, setCancelNoteError] = useState('')
   const [cancelingBill, setCancelingBill] = useState<BillRow | null>(null)
@@ -651,6 +654,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   const [vatRatePercent, setVatRatePercent] = useState(7)
   const latestLoadRequestRef = useRef(0)
   const latestDetailRequestRef = useRef(0)
+  const handledAutoOpenRef = useRef<string | null>(null)
   const tableColumns = useMemo(() => {
     if (mode === 'purchase') return purchaseBillColumns
     return salesBillColumns
@@ -781,11 +785,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
   )), [options.customers, salesForm.branchId])
   const activeSalesChannels = useMemo(() => options.salesChannels.filter((option) => option.active !== false), [options.salesChannels])
   const defaultSalesChannelForCustomer = useCallback((customerId: string) => {
-    const customer = activeCustomers.find((option) => option.id === customerId)
+    const customer = options.customers.find((option) => option.id === customerId)
     const targetScope = customer?.marketScope === 'ต่างประเทศ' ? 'ต่างประเทศ' : customer?.marketScope === 'ในประเทศ' ? 'ในประเทศ' : null
     if (!targetScope) return null
     return activeSalesChannels.find((channel) => [channel.name, channel.code, channel.id].some((value) => String(value ?? '').trim() === targetScope))?.id ?? null
-  }, [activeCustomers, activeSalesChannels])
+  }, [activeSalesChannels, options.customers])
   const matchingCustomerAdvancePayments = (options.customerAdvancePayments ?? []).filter((option) => {
     if (!salesForm.customerId || option.customer_id !== salesForm.customerId) return false
     return true
@@ -1098,6 +1102,50 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
       return { ...current, items: sourceItems }
     })
   }, [mode, salesForm.items, salesForm.transactionMode])
+
+  useEffect(() => {
+    const shouldOpen = searchParams.get('new') === '1'
+    if (!shouldOpen || isLoading) return
+
+    const targetDocNo = mode === 'purchase'
+      ? searchParams.get('wti')?.trim() ?? ''
+      : searchParams.get('wto')?.trim() ?? ''
+    if (!targetDocNo) return
+
+    const autoOpenKey = `${mode}:${targetDocNo}`
+    if (handledAutoOpenRef.current === autoOpenKey) return
+    handledAutoOpenRef.current = autoOpenKey
+
+    if (mode === 'purchase') {
+      const receipt = options.receipts.find((option) => option.id === targetDocNo || option.documentNo === targetDocNo)
+      if (!receipt) {
+        setError(`ไม่พบ WTI ${targetDocNo} หรือเอกสารถูกนำไปเปิดบิลแล้ว`)
+        clearAutoOpenSearchParams()
+        return
+      }
+      openPurchaseFormFromReceipt(receipt)
+      clearAutoOpenSearchParams()
+      return
+    }
+
+    const delivery = options.deliveries.find((option) => option.id === targetDocNo || option.documentNo === targetDocNo)
+    if (!delivery) {
+      setError(`ไม่พบ WTO ${targetDocNo} หรือเอกสารถูกนำไปเปิดบิลแล้ว`)
+      clearAutoOpenSearchParams()
+      return
+    }
+    openSalesFormFromDelivery(delivery)
+    clearAutoOpenSearchParams()
+  }, [
+    clearAutoOpenSearchParams,
+    isLoading,
+    mode,
+    openPurchaseFormFromReceipt,
+    openSalesFormFromDelivery,
+    options.deliveries,
+    options.receipts,
+    searchParams,
+  ])
 
   function summaryAvailableForRow(summaryId: string | null, index: number) {
     if (!summaryId) return 0
@@ -1418,6 +1466,57 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     setLockedDeliverySnapshot(null)
     setLockedReceiptSnapshot(null)
     setSalesForm({ ...initialSalesForm(), branchId: resolvedPreferredBranchId ?? '' })
+    setTradingPurchaseSelectorIds([''])
+    setSalesFieldErrors({})
+    setError(null)
+    setShowSalesForm(true)
+  }
+
+  function clearAutoOpenSearchParams() {
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete('new')
+    params.delete('wti')
+    params.delete('wto')
+    const nextQuery = params.toString()
+    router.replace(nextQuery ? `?${nextQuery}` : mode === 'purchase' ? '/purchase/bills' : '/sales/bills')
+  }
+
+  function openPurchaseFormFromReceipt(receipt: ReceiptOption) {
+    const branchId = receipt.branchId ?? resolvedPreferredBranchId ?? ''
+    const supplierId = receipt.supplierId ?? ''
+    const supplier = options.suppliers.find((option) => option.id === supplierId) ?? null
+    setEditingBillId(null)
+    setSupplierSwapMode(false)
+    setSupplierSwapSupplierId('')
+    setLockedReceiptSnapshot(receipt)
+    setForm({
+      ...initialPurchaseForm(),
+      branchId,
+      items: receiptToBillItems(receipt),
+      receiptTicketId: receipt.id,
+      salesId: supplier?.sales_id ?? null,
+      supplierId,
+      warehouseId: branchId ? defaultPurchaseWarehouseId(branchId) : null,
+    })
+    setFieldErrors({})
+    setError(null)
+    setShowForm(true)
+  }
+
+  function openSalesFormFromDelivery(delivery: DeliveryOption) {
+    const branchId = delivery.branchId ?? resolvedPreferredBranchId ?? ''
+    const customerId = delivery.customerId ?? ''
+    setEditingSalesBillId(null)
+    setLockedDeliverySnapshot(delivery)
+    setLockedReceiptSnapshot(null)
+    setSalesForm({
+      ...initialSalesForm(),
+      branchId,
+      channelId: defaultSalesChannelForCustomer(customerId) ?? '',
+      customerId,
+      deliveryTicketId: delivery.id,
+      items: deliveryToSalesItems(delivery),
+    })
     setTradingPurchaseSelectorIds([''])
     setSalesFieldErrors({})
     setError(null)

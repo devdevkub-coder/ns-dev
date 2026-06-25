@@ -160,6 +160,14 @@ function SegmentMulti({
   )
 }
 
+function canOpenPurchaseBillFromTicket(ticket: WeightTicketRecord) {
+  return ticket.type === 'WTI' && ticket.status === 'received' && ticket.usedInPurchaseBillCount === 0
+}
+
+function canOpenSalesBillFromTicket(ticket: WeightTicketRecord) {
+  return ticket.type === 'WTO' && ticket.status === 'delivered' && ticket.usedInSalesBillCount === 0
+}
+
 export function WeightTicketListPageClient() {
   const router = useRouter()
   const [tickets, setTickets] = useState<WeightTicketRecord[]>([])
@@ -355,6 +363,16 @@ export function WeightTicketListPageClient() {
     setShareTicket(null)
     setShareNote('')
     setShareError('')
+  }
+
+  function openBillFromTicket(ticket: WeightTicketRecord) {
+    if (canOpenPurchaseBillFromTicket(ticket)) {
+      router.push(`/purchase/bills?new=1&wti=${encodeURIComponent(ticket.documentNo)}`)
+      return
+    }
+    if (canOpenSalesBillFromTicket(ticket)) {
+      router.push(`/sales/bills?new=1&wto=${encodeURIComponent(ticket.documentNo)}`)
+    }
   }
 
   const summaryText = useMemo(() => `พบทั้งหมด ${totalRows.toLocaleString('th-TH')} รายการ`, [totalRows])
@@ -622,6 +640,24 @@ export function WeightTicketListPageClient() {
               </div>
 
               <div className="flex flex-wrap justify-end items-center gap-2 mt-3 pt-2.5 border-t border-slate-100/50" onClick={(e) => e.stopPropagation()}>
+                {canOpenPurchaseBillFromTicket(ticket) ? (
+                  <button
+                    className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+                    type="button"
+                    onClick={() => openBillFromTicket(ticket)}
+                  >
+                    เปิดบิลซื้อ
+                  </button>
+                ) : null}
+                {canOpenSalesBillFromTicket(ticket) ? (
+                  <button
+                    className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+                    type="button"
+                    onClick={() => openBillFromTicket(ticket)}
+                  >
+                    เปิดบิลขาย
+                  </button>
+                ) : null}
                 <button
                   className="inline-flex items-center gap-1 rounded-md border border-emerald-200 px-3 py-1.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60"
                   type="button"
@@ -742,6 +778,30 @@ export function WeightTicketListPageClient() {
                     </td>
                     <td className="whitespace-nowrap px-3 py-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {canOpenPurchaseBillFromTicket(ticket) ? (
+                          <button
+                            className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              openBillFromTicket(ticket)
+                            }}
+                          >
+                            เปิดบิลซื้อ
+                          </button>
+                        ) : null}
+                        {canOpenSalesBillFromTicket(ticket) ? (
+                          <button
+                            className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              openBillFromTicket(ticket)
+                            }}
+                          >
+                            เปิดบิลขาย
+                          </button>
+                        ) : null}
                         <button
                           className="inline-flex items-center gap-1 rounded-md border border-emerald-200 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60"
                           type="button"

@@ -6,7 +6,7 @@ description: "Peach: AcexPOS UI Standard, Git & Scope Rules"
 
 # Peach UI Guidelines & Reference (AcexPOS Style)
 
-- **MANDATORY STARTUP CHECK:** Every time you start a new conversation session, before doing any other work, checking files, or proposing changes, you MUST read the root Peach.md, .agents/rules/peach.md, and .agents/rules/ponytail.md using the view_file tool to ensure all UI standards, developer guidelines, operation constraints, and Ponytail lazy-mode coding rules are fully loaded.
+- **MANDATORY STARTUP CHECK:** Every time you start a new conversation session, before doing any other work, checking files, or proposing changes, you MUST read the root Peach.md and .agents/rules/peach.md using the view_file tool to ensure all UI standards, developer guidelines, and operation constraints are fully loaded.
 
 ## 🎨 AcexPOS UI Standard
 
