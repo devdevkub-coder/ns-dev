@@ -1181,9 +1181,16 @@ export function WeightTicketsPageClient({
         </div>
       ) : null}
 
-      <div>
-        <div className="space-y-5">
-          <Card className={cn(onClose ? "border-0 bg-transparent shadow-none p-0" : "p-5")}>
+      {isLoadingTicket ? (
+        <Card className={cn(onClose ? "border-0 bg-transparent shadow-none p-0" : "p-5")}>
+          <div className="p-16 text-center text-sm font-medium text-slate-500 bg-white rounded-xl border border-slate-200 shadow-sm animate-pulse">
+            กำลังโหลดข้อมูล...
+          </div>
+        </Card>
+      ) : (
+        <div>
+          <div className="space-y-5">
+            <Card className={cn(onClose ? "border-0 bg-transparent shadow-none p-0" : "p-5")}>
             <SectionHeader title="ข้อมูลหัวเอกสาร" subtitle="ผู้ใช้เลือกเฉพาะข้อมูลหน้างาน ส่วนวันที่ เวลา และผู้กรอกเป็นข้อมูลระบบ" />
             <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <BranchSelectCombobox
@@ -1939,6 +1946,7 @@ export function WeightTicketsPageClient({
           </Card>
         </div>
       </div>
+      )}
       </div>
 
       <div className={cn(

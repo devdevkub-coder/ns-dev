@@ -684,7 +684,7 @@ export function WeightTicketListPageClient() {
             <thead className="bg-slate-100 text-xs font-semibold text-slate-600">
               <tr>
                 <SortHeader activeKey={sortBy} align="left" direction={sortDir} label="เลขที่" resizeProps={columnResize.getResizeHandleProps('documentNo', 'เลขที่')} onSort={toggleSort} sortKey="documentNo" />
-                <SortHeader activeKey={sortBy} align="left" direction={sortDir} label="วันที่/เวลา" resizeProps={columnResize.getResizeHandleProps('createdAt', 'วันที่/เวลา')} onSort={toggleSort} sortKey="createdAt" />
+                <SortHeader activeKey={sortBy} align="left" direction={sortDir} label="วันที่สร้าง" resizeProps={columnResize.getResizeHandleProps('createdAt', 'วันที่สร้าง')} onSort={toggleSort} sortKey="createdAt" />
                 <SortHeader activeKey={sortBy} align="left" direction={sortDir} label={typeFilter === 'WTI' ? 'ผู้ขาย' : 'ลูกค้า'} resizeProps={columnResize.getResizeHandleProps('partyName', typeFilter === 'WTI' ? 'ผู้ขาย' : 'ลูกค้า')} onSort={toggleSort} sortKey="partyName" />
                 <ResizableTableHead label="สาขา" resizeProps={columnResize.getResizeHandleProps('branch', 'สาขา')} />
                 <ResizableTableHead label="ทะเบียนรถ" resizeProps={columnResize.getResizeHandleProps('vehicleNo', 'ทะเบียนรถ')} />
