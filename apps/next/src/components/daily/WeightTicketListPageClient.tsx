@@ -36,7 +36,7 @@ import {
 
 type TypeFilter = WeightTicketType
 type StatusFilter = WeightTicketStatus
-type WeightTicketColumnKey = 'action' | 'branch' | 'createdAt' | 'documentNo' | 'netWeight' | 'partyName' | 'status' | 'updatedAt' | 'vehicleNo'
+type WeightTicketColumnKey = 'action' | 'branch' | 'containerDeductionWeight' | 'createdAt' | 'documentNo' | 'netWeight' | 'partyName' | 'status' | 'updatedAt' | 'vehicleNo'
 
 const pageSize = 10
 const weightTicketColumns: Array<ResizableColumnDefinition<WeightTicketColumnKey>> = [
@@ -46,6 +46,7 @@ const weightTicketColumns: Array<ResizableColumnDefinition<WeightTicketColumnKey
   { key: 'branch', defaultWidth: 140, minWidth: 110 },
   { key: 'vehicleNo', defaultWidth: 130, minWidth: 110 },
   { key: 'netWeight', defaultWidth: 150, minWidth: 120 },
+  { key: 'containerDeductionWeight', defaultWidth: 160, minWidth: 130 },
   { key: 'status', defaultWidth: 160, minWidth: 130 },
   { key: 'updatedAt', defaultWidth: 170, minWidth: 130 },
   { key: 'action', defaultWidth: 300, minWidth: 240 },
@@ -636,6 +637,7 @@ export function WeightTicketListPageClient() {
                 <div className="text-right">
                   <span className="text-xs text-slate-500 block">น้ำหนักสุทธิ</span>
                   <span className="font-bold text-emerald-700 text-base tabular-nums">{formatWeight(ticket.totals.netWeight)} กก.</span>
+                  <span className="text-xs text-slate-400 block mt-0.5">หักภาชนะ {formatWeight(ticket.totals.containerDeductionWeight)} กก.</span>
                 </div>
               </div>
 
@@ -725,6 +727,7 @@ export function WeightTicketListPageClient() {
                 <ResizableTableHead label="สาขา" resizeProps={columnResize.getResizeHandleProps('branch', 'สาขา')} />
                 <ResizableTableHead label="ทะเบียนรถ" resizeProps={columnResize.getResizeHandleProps('vehicleNo', 'ทะเบียนรถ')} />
                 <SortHeader activeKey={sortBy} align="right" direction={sortDir} label="น้ำหนักสุทธิ" resizeProps={columnResize.getResizeHandleProps('netWeight', 'น้ำหนักสุทธิ')} onSort={toggleSort} sortKey="netWeight" />
+                <ResizableTableHead align="right" label="น้ำหนักหักภาชนะ" resizeProps={columnResize.getResizeHandleProps('containerDeductionWeight', 'น้ำหนักหักภาชนะ')} />
                 <ResizableTableHead label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} />
                 <ResizableTableHead label="อัปเดตล่าสุด" resizeProps={columnResize.getResizeHandleProps('updatedAt', 'อัปเดตล่าสุด')} />
                 <ResizableTableHead align="right" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'จัดการ')} />
@@ -760,6 +763,7 @@ export function WeightTicketListPageClient() {
                     <td className="whitespace-nowrap px-3 py-3 text-slate-600">{ticket.branchName}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-slate-600">{ticket.vehicleNo}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-slate-900">{formatWeight(ticket.totals.netWeight)} กก.</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-right font-medium tabular-nums text-slate-900">{formatWeight(ticket.totals.containerDeductionWeight)} กก.</td>
                     <td className="box-border h-[39px] w-[140px] px-3 py-2">
                       <div className="flex min-h-[23px] flex-col items-start justify-center">
                         <span className={cn(
