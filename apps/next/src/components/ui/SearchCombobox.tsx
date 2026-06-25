@@ -64,9 +64,14 @@ export function SearchCombobox({
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const isSelectedValueQuery = Boolean(selectedOption) && query.trim().toLowerCase() === selectedLabelQuery
 
+  const lastEmittedValueRef = useRef<string | null>(null)
+
   useEffect(() => {
-    setQuery(selectedLabel)
-  }, [selectedLabel])
+    if (lastEmittedValueRef.current === null || lastEmittedValueRef.current !== value) {
+      setQuery(selectedLabel)
+    }
+    lastEmittedValueRef.current = value
+  }, [value, selectedLabel])
 
   useEffect(() => {
     const input = inputRef.current
@@ -123,6 +128,7 @@ export function SearchCombobox({
 
       const exactMatch = options.find((option) => option.label.toLowerCase() === query.trim().toLowerCase())
       if (exactMatch) {
+        lastEmittedValueRef.current = exactMatch.id
         onChange(exactMatch.id)
         setQuery(exactMatch.label)
       } else if (selectedOption) {
@@ -173,6 +179,7 @@ export function SearchCombobox({
 
   const selectOption = (option: SearchComboboxOption) => {
     if (disabled) return
+    lastEmittedValueRef.current = option.id
     onChange(option.id)
     setQuery(option.label)
     setOpen(false)
@@ -214,7 +221,10 @@ export function SearchCombobox({
           const nextQuery = event.target.value
           setQuery(nextQuery)
           setOpen(true)
-          if (value && nextQuery !== selectedLabel) onChange('')
+          if (value && nextQuery !== selectedLabel) {
+            lastEmittedValueRef.current = ''
+            onChange('')
+          }
         }}
         onFocus={() => {
           if (disabled) return

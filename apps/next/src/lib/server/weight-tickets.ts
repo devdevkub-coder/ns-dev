@@ -770,6 +770,19 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
     remainingWeight: toNumber(summary.remaining_weight),
   }))
 
+  const productOrder = new Map<string, number>()
+  lineRows.forEach((line, index) => {
+    if (line.productId && !productOrder.has(line.productId)) {
+      productOrder.set(line.productId, index)
+    }
+  })
+
+  productSummaries.sort((a, b) => {
+    const orderA = productOrder.has(a.productId) ? productOrder.get(a.productId)! : Infinity
+    const orderB = productOrder.has(b.productId) ? productOrder.get(b.productId)! : Infinity
+    return orderA - orderB
+  })
+
   return {
     branchId: row.branches?.code ?? '',
     branchName: row.branches?.name ?? '-',

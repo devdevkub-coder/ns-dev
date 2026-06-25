@@ -214,8 +214,8 @@ async function createAttachmentPreviewFromFile(file: File): Promise<AttachmentPr
 }
 
 function calculateAdjustedLineTotals(line: FormWeightTicketLine, allLines: FormWeightTicketLine[]) {
-  const isImpurity = !!line.parentId && Number(line.grossWeight || 0) === 0 && !!line.impurityId;
-  const isSecondaryLot = !!line.parentId && (Number(line.grossWeight || 0) > 0 || !line.impurityId);
+  const isImpurity = !!line.parentId && line.deductionMode !== 'none';
+  const isSecondaryLot = !!line.parentId && line.deductionMode === 'none';
 
   if (isImpurity) {
     const parentLine = allLines.find(l => l.id === line.parentId)
@@ -249,8 +249,8 @@ function calculateAdjustedLineTotals(line: FormWeightTicketLine, allLines: FormW
   const parentTotals = calculateLineTotals(line)
   const children = allLines.filter(l => l.parentId === line.id)
   
-  const secondaryLots = children.filter(l => Number(l.grossWeight || 0) > 0 || !l.impurityId)
-  const impurities = children.filter(l => Number(l.grossWeight || 0) === 0 && !!l.impurityId)
+  const secondaryLots = children.filter(l => l.deductionMode === 'none')
+  const impurities = children.filter(l => l.deductionMode !== 'none')
 
   let totalGross = parentTotals.grossWeight
   let totalContainer = parentTotals.containerDeductionWeight
@@ -284,7 +284,7 @@ function calculateRealLotSummary(line: FormWeightTicketLine, allLines: FormWeigh
   const childLots = allLines.filter((entry) => (
     entry.parentId === line.id
     && !isImpurityPurchaseLine(entry)
-    && (Number(entry.grossWeight || 0) > 0 || !entry.impurityId)
+    && entry.deductionMode === 'none'
   ))
   const lots = isImpurityPurchaseLine(line) ? childLots : [line, ...childLots]
 
@@ -749,8 +749,8 @@ export function WeightTicketsPageClient({
 
     form.lines.forEach((line) => {
       if (isImpurityPurchaseLine(line)) return
-      const isImpurity = !!line.parentId && Number(line.grossWeight || 0) === 0 && !!line.impurityId;
-      const isSecondaryLot = !!line.parentId && (Number(line.grossWeight || 0) > 0 || !line.impurityId);
+      const isImpurity = !!line.parentId && line.deductionMode !== 'none';
+      const isSecondaryLot = !!line.parentId && line.deductionMode === 'none';
       const isParent = !line.parentId;
 
       if (!line.productId) {
@@ -787,7 +787,7 @@ export function WeightTicketsPageClient({
         if (isParent) {
           const lineTotals = calculateAdjustedLineTotals(line, form.lines)
           const children = form.lines.filter((l) => l.parentId === line.id)
-          const impurities = children.filter((l) => Number(l.grossWeight || 0) === 0 && !!l.impurityId)
+          const impurities = children.filter((l) => l.deductionMode !== 'none')
           if (lineTotals.containerDeductionWeight + lineTotals.deductionWeight > lineTotals.grossWeight) {
             if (impurities.length > 0) {
               const lastChild = impurities[impurities.length - 1]
@@ -1238,7 +1238,7 @@ export function WeightTicketsPageClient({
                   onChange={(event) => updateForm('vehicleNo', normalizeVehicleNo(event.target.value))}
                 />
               </FieldBlock>
-              <FieldBlock error={showError('warehouseName')} label="โกดัง">
+              <FieldBlock error={showError('warehouseName')} label={form.type === 'WTI' ? "โกดัง*" : "โกดัง"}>
                 <Input
                   placeholder="เช่น โกดัง A"
                   value={form.warehouseName}
@@ -1317,7 +1317,7 @@ export function WeightTicketsPageClient({
                           </div>
 	                          <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-slate-500 font-medium">
 	                            <div>สุทธิ {formatWeight(lineTotals.netWeight)} กก.</div>
-	                            <div className="text-right">{getLineEvidenceImages(line).length} รูป</div>
+	                            <div className="text-right">{calculateRealLotSummary(line, form.lines).lotCount} เต๋า</div>
 	                          </div>
                         </button>
                       )
@@ -1476,7 +1476,7 @@ export function WeightTicketsPageClient({
                         ) : null}
                         <div className="space-y-4">
                           {(() => {
-                            const secondaryLots = form.lines.filter((l) => l.parentId === line.id && !isImpurityPurchaseLine(l) && (Number(l.grossWeight || 0) > 0 || !l.impurityId))
+                            const secondaryLots = form.lines.filter((l) => l.parentId === line.id && !isImpurityPurchaseLine(l) && l.deductionMode === 'none')
                             const lots = isPurchaseOnlyLine ? secondaryLots : [line, ...secondaryLots]
                             if (lots.length === 0) {
                               return (
@@ -1705,7 +1705,7 @@ export function WeightTicketsPageClient({
                         ) : null}
 
                         {(() => {
-                          const childLines = form.lines.filter((l) => l.parentId === line.id && Number(l.grossWeight || 0) === 0 && !!l.impurityId)
+                          const childLines = form.lines.filter((l) => l.parentId === line.id && l.deductionMode !== 'none')
                           if (childLines.length === 0) {
                             return (
                               <div className="text-center py-4 text-sm font-medium text-slate-400 bg-white rounded-lg border border-dashed border-slate-200 mt-2">

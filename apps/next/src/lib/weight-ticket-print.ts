@@ -174,45 +174,63 @@ function buildPrintWeightRows(ticket: WeightTicketRecord, isReceipt: boolean): P
     const impurityTotals = sumPrintLines(impurityLines)
     const realLotNetAfterImpurity = Math.max(0, realLotTotals.netBeforeImpurityWeight - impurityTotals.deductionWeight)
 
-    rows.push({
-      className: 'product-heading',
-      containerDeductionWeight: 0,
-      deductionWeight: 0,
-      detail: `${realLotLines.length.toLocaleString('th-TH')} เต๋า · หักสิ่งเจือปน ${impurityLines.length.toLocaleString('th-TH')} รายการ · ซื้อเพิ่ม ${purchaseLines.length.toLocaleString('th-TH')} รายการ`,
-      grossWeight: 0,
-      label: 'กลุ่มสินค้า',
-      netWeight: 0,
-      productName: summary.productName,
-      rank: String(groupIndex + 1),
-    })
-
-    if (realLotLines.length > 0) {
-      realLotLines.forEach((line, lotIndex) => {
-        rows.push({
-          className: 'lot-row',
-          containerDeductionWeight: line.containerDeductionWeightValue,
-          deductionWeight: line.deductionWeight,
-          detail: cleanNote(line.note),
-          grossWeight: line.grossWeightValue,
-          label: `เต๋าที่ ${lotIndex + 1}`,
-          netWeight: Math.max(0, line.grossWeightValue - line.containerDeductionWeightValue - line.deductionWeight),
-          productName: summary.productName,
-        })
-      })
-
+    if (realLotLines.length === 1) {
+      const line = realLotLines[0]
       rows.push({
-        className: 'source-row',
-        containerDeductionWeight: realLotTotals.containerDeductionWeight,
-        deductionWeight: impurityTotals.deductionWeight,
+        className: 'product-total',
+        containerDeductionWeight: line.containerDeductionWeightValue,
+        deductionWeight: line.deductionWeight,
         detail: [
-          `${realLotLines.length.toLocaleString('th-TH')} เต๋า`,
+          cleanNote(line.note),
           formatImpuritySummaryDetail(impurityLines, summary.productName, allPurchaseLines),
-        ].join('\n'),
-        grossWeight: realLotTotals.grossWeight,
+        ].filter((val) => val && val !== '-').join('\n') || '-',
+        grossWeight: line.grossWeightValue,
         label: '',
-        netWeight: realLotNetAfterImpurity,
-        productName: 'สรุปรวมจากเต๋า',
+        netWeight: summary.netWeight,
+        productName: summary.productName,
+        rank: String(groupIndex + 1),
       })
+    } else {
+      rows.push({
+        className: 'product-heading',
+        containerDeductionWeight: 0,
+        deductionWeight: 0,
+        detail: `${realLotLines.length.toLocaleString('th-TH')} เต๋า · หักสิ่งเจือปน ${impurityLines.length.toLocaleString('th-TH')} รายการ · ซื้อเพิ่ม ${purchaseLines.length.toLocaleString('th-TH')} รายการ`,
+        grossWeight: 0,
+        label: 'กลุ่มสินค้า',
+        netWeight: 0,
+        productName: summary.productName,
+        rank: String(groupIndex + 1),
+      })
+
+      if (realLotLines.length > 0) {
+        realLotLines.forEach((line, lotIndex) => {
+          rows.push({
+            className: 'lot-row',
+            containerDeductionWeight: line.containerDeductionWeightValue,
+            deductionWeight: line.deductionWeight,
+            detail: cleanNote(line.note),
+            grossWeight: line.grossWeightValue,
+            label: `เต๋าที่ ${lotIndex + 1}`,
+            netWeight: Math.max(0, line.grossWeightValue - line.containerDeductionWeightValue - line.deductionWeight),
+            productName: summary.productName,
+          })
+        })
+
+        rows.push({
+          className: 'source-row',
+          containerDeductionWeight: realLotTotals.containerDeductionWeight,
+          deductionWeight: impurityTotals.deductionWeight,
+          detail: [
+            `${realLotLines.length.toLocaleString('th-TH')} เต๋า`,
+            formatImpuritySummaryDetail(impurityLines, summary.productName, allPurchaseLines),
+          ].join('\n'),
+          grossWeight: realLotTotals.grossWeight,
+          label: '',
+          netWeight: realLotNetAfterImpurity,
+          productName: 'สรุปรวมจากเต๋า',
+        })
+      }
     }
 
     purchaseLines.forEach((line) => {
@@ -228,16 +246,18 @@ function buildPrintWeightRows(ticket: WeightTicketRecord, isReceipt: boolean): P
       })
     })
 
-    rows.push({
-      className: 'product-total',
-      containerDeductionWeight: summary.containerDeductionWeight,
-      deductionWeight: summary.deductWeight,
-      detail: `รวมจากเต๋าหลังหักสิ่งเจือปน${purchaseLines.length > 0 ? ' และรายการซื้อเพิ่มจากสิ่งเจือปน' : ''}`,
-      grossWeight: summary.grossWeight,
-      label: 'รวมสินค้า',
-      netWeight: summary.netWeight,
-      productName: summary.productName,
-    })
+    if (realLotLines.length !== 1) {
+      rows.push({
+        className: 'product-total',
+        containerDeductionWeight: summary.containerDeductionWeight,
+        deductionWeight: summary.deductWeight,
+        detail: `รวมจากเต๋าหลังหักสิ่งเจือปน${purchaseLines.length > 0 ? ' และรายการซื้อเพิ่มจากสิ่งเจือปน' : ''}`,
+        grossWeight: summary.grossWeight,
+        label: 'รวมสินค้า',
+        netWeight: summary.netWeight,
+        productName: summary.productName,
+      })
+    }
   })
 
   return rows

@@ -284,6 +284,15 @@ export const weightTicketFormSchema = z.object({
     .regex(/^[\p{L}\p{M}\p{N}\s.-]+$/u, 'ทะเบียนรถมีรูปแบบไม่ถูกต้อง'),
   warehouseName: z.string().trim().max(100, 'ชื่อโกดังยาวเกินไป').optional().nullable(),
 }).superRefine((value, ctx) => {
+  if (value.type === 'WTI') {
+    if (!value.warehouseName || value.warehouseName.trim().length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'กรอกโกดัง',
+        path: ['warehouseName'],
+      })
+    }
+  }
   if (value.type !== 'WTO') return
   value.lines.forEach((line, index) => {
     if (!line.warehouseId) {
