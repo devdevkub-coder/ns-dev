@@ -54,6 +54,7 @@ export function InputField({
   label,
   onChange,
   placeholder,
+  required = false,
   type = 'text',
   value,
   errorKey,
@@ -65,6 +66,7 @@ export function InputField({
   label: string
   onChange: (value: string) => void
   placeholder?: string
+  required?: boolean
   type?: string
   value: string
 }) {
@@ -72,10 +74,10 @@ export function InputField({
     <Field className={className} error={error} label={label}>
       {type === 'date' ? (
         <div data-error-key={errorKey}>
-          <DatePickerInput className={cn('w-full', error ? '[&_input]:border-red-400 [&_input]:bg-red-50 [&_input]:text-red-700 [&_[data-slot=\"input-group\"]]:border-red-400' : '', inputClassName)} value={value} onChange={onChange} />
+          <DatePickerInput className={cn('w-full', error ? '[&_input]:border-red-400 [&_input]:bg-red-50 [&_input]:text-red-700 [&_[data-slot=\"input-group\"]]:border-red-400' : '', inputClassName)} required={required} value={value} onChange={onChange} />
         </div>
       ) : (
-        <Input data-error-key={errorKey} className={cn(error ? 'border-red-400 bg-red-50 text-red-700' : '', inputClassName)} placeholder={placeholder} type={type} value={value} onChange={(event) => onChange(event.target.value)} />
+        <Input data-error-key={errorKey} className={cn(error ? 'border-red-400 bg-red-50 text-red-700' : '', inputClassName)} placeholder={placeholder} required={required} type={type} value={value} onChange={(event) => onChange(event.target.value)} />
       )}
     </Field>
   )

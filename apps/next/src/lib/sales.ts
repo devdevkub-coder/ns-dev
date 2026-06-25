@@ -76,10 +76,10 @@ export const salesBillFormSchema = z.object({
   vatType: z.enum(['NONE', 'EXCLUDE', 'INCLUDE']).default('NONE'),
   warehouseId: optionalSafeId('คลัง'),
 }).refine((value) => !value.vatInvoiceIssued || Boolean(value.vatInvoiceNo), {
-  message: 'กรอกเลขที่ใบกำกับภาษีเมื่อระบุว่าออกแล้ว',
+  message: 'กรอกเลขที่ใบกำกับภาษีเมื่อเลือกออกใบกำกับภาษีแล้ว',
   path: ['vatInvoiceNo'],
 }).refine((value) => !value.vatInvoiceIssued || Boolean(value.vatInvoiceDate), {
-  message: 'กรอกวันที่ใบกำกับภาษีเมื่อระบุว่าออกแล้ว',
+  message: 'กรอกวันที่ใบกำกับภาษีเมื่อเลือกออกใบกำกับภาษีแล้ว',
   path: ['vatInvoiceDate'],
 }).refine((value) => value.transactionMode !== 'STOCK' || Boolean(value.deliveryTicketId), {
   message: 'เลือกใบส่งของ WTO',

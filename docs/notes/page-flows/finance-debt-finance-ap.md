@@ -129,10 +129,10 @@ Permission ปัจจุบัน: `finance.cash.view`.
 
 ## Current Gap
 
-- API still needs to stop deriving visible balance from payment rows and read the `purchase_bills` balance snapshot first.
-- AP channel filter must be removed/hidden until purchase channel exists as a real document source.
+- API visible balance now reads the `purchase_bills` balance snapshot first; payment/supplier-advance facts are drilldown only.
+- AP channel filter is removed/hidden until purchase channel exists as a real document source.
 - PMA/PMT state separation and locks need end-to-end runtime proof.
-- Source links to PB/PMA/PMT need completion in detail.
+- Source links to PB/PMA/PMT/Supplier Advance are available in detail; export/source-link depth can still be expanded later.
 - Need created date in list/detail/export.
 
 ## Implementation Checklist
@@ -140,7 +140,7 @@ Permission ปัจจุบัน: `finance.cash.view`.
 - [x] Verify current Next page/component against this page-flow
 - [x] Verify API route handlers match Current API and status rules above
 - [x] Capture legacy AP baseline
-- [ ] Switch API visible balance to `purchase_bills.payable_balance` / `paid_amount`
-- [ ] Remove AP channel filter until purchase channel exists
-- [ ] Add source document links and workflow state columns
+- [x] Switch API visible balance to `purchase_bills.payable_balance` / `paid_amount`
+- [x] Remove AP channel filter until purchase channel exists
+- [x] Add source document links and workflow state columns
 - [ ] Add created-date display/export

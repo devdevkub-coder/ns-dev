@@ -182,11 +182,11 @@ Response ควรรวม:
 ## Current Implementation / Gap
 
 - มี read/export baseline จาก `sales_bills` และ `receipts`
-- Gap 2026-06-24: `/api/finance/ar` ยัง aggregate legacy `receipts` เป็น `receivedMap` ก่อน แล้วค่อย fallback ไป `sales_bills.received_amount`; ต้องเปลี่ยนให้ `sales_bills.receivable_balance` / `sales_bills.received_amount` เป็น source หลัก และใช้ receipt/allocation rows เป็น drilldown เท่านั้น
+- Implementation checkpoint 2026-06-25: `/api/finance/ar` อ่าน `sales_bills.receivable_balance` / `sales_bills.received_amount` เป็น source หลักแล้ว; `customer_receipt_allocations`, legacy `receipts`, และ Customer Advance allocation facts ใช้เป็น drilldown/audit เท่านั้น
 - AR due date รองรับ `due_date` และ customer credit term แล้ว
 - ต้องเพิ่ม created-date display ใน list/detail/export
-- customer advance allocation มี dedicated Sales Bill allocation facts แล้ว แต่ `/finance/ar` ต้องอ่าน balance จาก `sales_bills` เพื่อไม่ให้คลาดจาก advance allocation
-- ต้องเพิ่ม source links ไป SB/RCP ให้ครบใน detail
+- customer advance allocation มี dedicated Sales Bill allocation facts แล้ว และ `/finance/ar` แสดง drilldown จาก allocation facts โดยไม่ derive balance ทับจาก log
+- source links ไป SB/RCP/Customer Advance แสดงใน detail modal แล้ว; export/source-link เชิงลึกยังเป็นงานต่อยอดถ้าต้องการคลิกทะลุทุกเอกสาร
 - UI ต้องอยู่ตาม `docs/design.md` / Peach: KPI เป็น metric cards บน grid ตรง, toolbar/filter ขนาด `h-9` ถึง `h-10`, ตาราง desktop lined table + resizable/sort, mobile เป็น dense cards, detail modal เป็น read-only dark header
 - [x] **การปรับปรุงตามภารกิจ NSERP-27 (2026-06-20):**
   - เพิ่ม Tab switcher สลับหน้าสรุปตาม Customer (Summary) และหน้ารายบิล (Detail) ทั้งบน Desktop และ Mobile Card view

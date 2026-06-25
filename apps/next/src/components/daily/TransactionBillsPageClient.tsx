@@ -3858,8 +3858,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                   </label>
                   {salesForm.vatInvoiceIssued ? (
                     <div className="mt-2 grid gap-3 md:grid-cols-2">
-                      <InputField error={salesFieldErrors.vatInvoiceNo} errorKey="vatInvoiceNo" label="เลขที่ใบกำกับภาษี" value={salesForm.vatInvoiceNo ?? ''} onChange={(value) => updateSalesForm('vatInvoiceNo', value || null)} />
-                      <InputField error={salesFieldErrors.vatInvoiceDate} errorKey="vatInvoiceDate" label="วันที่ใบกำกับภาษี" type="date" value={salesForm.vatInvoiceDate ?? ''} onChange={(value) => updateSalesForm('vatInvoiceDate', value || null)} />
+                      <InputField error={salesFieldErrors.vatInvoiceNo} errorKey="vatInvoiceNo" label="เลขที่ใบกำกับภาษี *" required value={salesForm.vatInvoiceNo ?? ''} onChange={(value) => updateSalesForm('vatInvoiceNo', value || null)} />
+                      <InputField error={salesFieldErrors.vatInvoiceDate} errorKey="vatInvoiceDate" label="วันที่ใบกำกับภาษี *" required type="date" value={salesForm.vatInvoiceDate ?? ''} onChange={(value) => updateSalesForm('vatInvoiceDate', value || null)} />
                     </div>
                   ) : <div className="mt-1 text-xs text-amber-700">ยังไม่ได้ออกใบกำกับภาษี ต้องติดตามเพื่อใช้เอกสารขาย</div>}
                 </div>

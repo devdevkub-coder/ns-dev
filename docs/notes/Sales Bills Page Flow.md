@@ -56,6 +56,7 @@ updated: 2026-06-25
 - Cancel-after-return rule เป็น strict fact check: ถ้ามี `weight_ticket_usage_logs.action in (returned_from_sales_bill, loss_from_sales_bill)` ของ SB นั้นแล้ว cancel ห้าม append `released_from_sales_bill` หรือ increment `weight_ticket_product_summaries.remaining_weight` ซ้ำ
 - หลัง `SB-CANCEL` หรือรับคืนแบบมี loss WAC ปัจจุบันอาจเปลี่ยนจาก ledger ที่ posted จริง: `SB-CANCEL` คืน stock ด้วย cost snapshot เดิมของ SB, ส่วน `WTO-RETURN-LOSS` ตัด value ออกจาก stock ด้วย WAC ของ bucket ณ เวลาปิดรับคืน
 - หลังสร้างหรือแก้ไข `SB` สำเร็จ หน้า list ต้อง reload ด้วย search/filter/page context เดิมของผู้ใช้เท่านั้น ห้าม auto ใส่เลข `SB` ที่เพิ่งบันทึกลง search box เพราะจะทำให้ตารางถูก filter เหลือแค่บิลนั้นโดยไม่ตั้งใจ
+- ถ้าเลือก `ออกใบกำกับภาษีแล้ว` ใน `SB` form ต้องบังคับกรอกทั้ง `เลขที่ใบกำกับภาษี` และ `วันที่ใบกำกับภาษี`; UI ต้อง mark เป็น required และ API ต้อง reject payload ที่ขาด field ใด field หนึ่ง
 - UI ปุ่มยกเลิกของบิลขายเปิดใช้แล้วสำหรับ row ที่ server ส่ง `canCancel = true`; browser QA ผ่านสำหรับ WTO-backed Stock SB cancel และ PO Sell outstanding reversal
 - `TRADING` SB มี row-level Trading Cost Source, `trading_allocation_facts`, allocation-only correction API/UI, และ browser QA ผ่านแล้วสำหรับ multi-line source correction โดยไม่เขียน stock ledger
 - new SB create/cancel write-path now records dedicated allocation facts for `SB line`, `WTO -> SB`, `SB -> PO Sell/Spot Sale`, and `Customer advance -> SB`; Stock SB detail/print/list item-count reads durable line/source/PO facts first, while legacy SBs without facts show a reconciliation warning instead of inventing allocation data from JSON
@@ -274,6 +275,12 @@ Validation:
 | 5 | ยอดรวมทั้งสิ้น | ยอดหลังหักส่วนลด + VAT หรือ gross ตาม VAT mode |
 | 6 | หักมัดจำ/เงินล่วงหน้า Customer | เลือก Customer advance ที่จ่ายแล้วและยัง available |
 | 7 | ยอดลูกหนี้สุทธิ | grand total - allocated customer advance |
+
+กติกาใบกำกับภาษี:
+
+- ถ้าไม่ได้เลือก `ออกใบกำกับภาษีแล้ว` ให้เก็บ `vatInvoiceNo` และ `vatInvoiceDate` เป็น `null`
+- ถ้าเลือก `ออกใบกำกับภาษีแล้ว` ต้องกรอก `vatInvoiceNo` และ `vatInvoiceDate` ก่อนบันทึก ทั้ง create และ edit
+- `vatInvoiceDate` ต้องเป็นวันที่จริงตาม date picker และส่งเข้า API เป็น `YYYY-MM-DD`
 
 กติกามัดจำ:
 

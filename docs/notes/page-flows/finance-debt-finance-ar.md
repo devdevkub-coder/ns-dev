@@ -130,8 +130,8 @@ Permission ปัจจุบัน: `finance.cash.view`.
 
 ## Current Gap
 
-- API still needs to stop deriving visible balance from legacy receipt rows and read the `sales_bills` balance snapshot first.
-- Source links to SB/RCP/customer advance allocation need to be completed in row detail.
+- API visible balance now reads the `sales_bills` balance snapshot first; receipt/customer-advance facts are drilldown only.
+- Source links to SB/RCP/customer advance allocation are available in row detail; export/source-link depth can still be expanded later.
 - Need created date in list/detail/export.
 
 ## Implementation Checklist
@@ -139,7 +139,7 @@ Permission ปัจจุบัน: `finance.cash.view`.
 - [x] Verify current Next page/component against this page-flow
 - [x] Verify API route handlers match Current API and status rules above
 - [x] Capture legacy AR baseline
-- [ ] Switch API visible balance to `sales_bills.receivable_balance` / `received_amount`
-- [ ] Add source document links
+- [x] Switch API visible balance to `sales_bills.receivable_balance` / `received_amount`
+- [x] Add source document links
 - [ ] Add created-date display/export
-- [ ] Add Customer Advance allocation drilldown
+- [x] Add Customer Advance allocation drilldown

@@ -181,12 +181,12 @@ Response ควรรวม:
 ## Current Implementation / Gap
 
 - มี read/export baseline จาก `purchase_bills` และ `payments`
-- Gap 2026-06-24: `/api/finance/ap` ยัง aggregate `payments` เป็น `paidMap` ก่อน แล้วค่อย fallback ไป `purchase_bills.paid_amount`; ต้องเปลี่ยนให้ `purchase_bills.payable_balance` / `purchase_bills.paid_amount` เป็น source หลัก และใช้ payment/advance allocation rows เป็น drilldown เท่านั้น
+- Implementation checkpoint 2026-06-25: `/api/finance/ap` อ่าน `purchase_bills.payable_balance` / `purchase_bills.paid_amount` เป็น source หลักแล้ว; `payments`, `payment_allocations`, `payment_approvals`, และ `supplier_advance_allocations` ใช้เป็น drilldown/audit เท่านั้น
 - current AP aging policy ตั้งใจใช้ `purchase_bills.date` เป็นวันที่ตั้งต้นนับอายุหนี้; หากอนาคตเพิ่ม due date/credit term ให้เปลี่ยน policy และ schema ตอนนั้น
 - ต้องเพิ่ม created-date display ใน list/detail/export
-- ต้องเพิ่ม AP detail drilldown ให้เห็น PB/PMA/PMT และ Supplier Advance allocation facts โดยตรง
-- ต้องเพิ่ม source links ไป PB/PMA/PMT ให้ครบใน detail
-- ต้องตัด/ซ่อน AP channel filter จนกว่าจะมี purchase channel จริงในเอกสารซื้อ
+- AP detail drilldown เห็น PB/PMA/PMT และ Supplier Advance allocation facts โดยตรงแล้ว
+- source links ไป PB/PMA/PMT/Supplier Advance แสดงใน detail modal แล้ว; export/source-link เชิงลึกยังเป็นงานต่อยอดถ้าต้องการคลิกทะลุทุกเอกสาร
+- AP channel filter ถูกตัดออกจนกว่าจะมี purchase channel จริงในเอกสารซื้อ
 - รอบนี้ไม่เพิ่ม/แก้ credit term หรือ due date schema: AP aging ใช้ `purchase_bills.date` เป็นฐานแจ้งเตือนเท่านั้น
 - UI ต้องอยู่ตาม `docs/design.md` / Peach: KPI เป็น metric cards บน grid ตรง, toolbar/filter ขนาด `h-9` ถึง `h-10`, ตาราง desktop lined table + resizable/sort, mobile เป็น dense cards, detail modal เป็น read-only dark header
 
