@@ -919,7 +919,7 @@ export function WeightTicketListPageClient() {
                 {activeForm.id ? 'แก้ไขใบรับ-ส่งของ' : activeForm.type === 'WTI' ? 'สร้างใบรับของ WTI' : 'สร้างใบส่งของ WTO'}
               </DialogTitle>
             </DialogHeader>
-            <div className="flex-1 overflow-y-auto bg-slate-50 p-0">
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-slate-50 p-0">
               <WeightTicketsPageClient
                 initialType={activeForm.type}
                 lockType={Boolean(activeForm.id)}

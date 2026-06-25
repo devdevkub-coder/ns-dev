@@ -1145,8 +1145,8 @@ export function WeightTicketsPageClient({
   }
 
   return (
-    <div className="min-w-0 overflow-x-hidden">
-      <div className={cn("min-w-0 space-y-5", onClose ? "p-4 sm:p-5 pb-6" : "pb-32")}>
+    <div className={cn("min-w-0", onClose ? "flex flex-col h-full overflow-hidden" : "overflow-x-hidden")}>
+      <div className={cn("min-w-0", onClose ? "flex-1 overflow-y-auto p-4 sm:p-5 space-y-5" : "space-y-5 pb-32")}>
         {!onClose && (
         <div>
           <Button type="button" variant="outline" onClick={backToList}>
@@ -1951,7 +1951,7 @@ export function WeightTicketsPageClient({
 
       <div className={cn(
         onClose
-          ? "sticky bottom-0 z-20 border-t border-slate-100 bg-slate-50 px-4 py-3 shrink-0"
+          ? "border-t border-slate-100 bg-slate-50 px-4 py-3 shrink-0 z-20"
           : "fixed inset-x-0 bottom-0 z-20 border-t border-slate-100 bg-white/95 px-4 py-3 backdrop-blur-sm lg:left-64"
       )}>
         <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
