@@ -3582,21 +3582,21 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     />
                   </div>
                 ) : null}
-                {salesForm.transactionMode === 'STOCK' || salesForm.transactionMode === 'TRADING' ? (
+                {salesForm.transactionMode === 'STOCK' ? (
                   <div className="mt-4">
                   <SearchCombobox
-                    disabled={salesIdentityLocked || stockDeliveryLocked || (salesForm.transactionMode !== 'STOCK' && salesForm.transactionMode !== 'TRADING') || !stockDeliveryPrerequisiteReady}
+                    disabled={salesIdentityLocked || stockDeliveryLocked || !stockDeliveryPrerequisiteReady}
                     error={salesFieldErrors.deliveryTicketId}
                     errorKey="deliveryTicketId"
                     inputId="sales-bill-delivery-search"
-                    label={salesForm.transactionMode === 'TRADING' ? 'ใบส่งของ WTO พ่วงในบิล' : 'ใบส่งของ WTO *'}
+                    label="ใบส่งของ WTO *"
                     options={deliveryOptionsForSelect.map((delivery) => ({
                       description: `${delivery.partyName} · ${delivery.documentDate} · ${delivery.productSummaries.length} รายการ`,
                       id: delivery.id,
                       label: delivery.documentNo,
                       searchText: `${delivery.documentNo} ${delivery.partyName} ${delivery.vehicleNo} ${delivery.branchName}`.toLowerCase(),
                     }))}
-	                    placeholder={salesForm.transactionMode === 'TRADING' ? 'เลือก WTO ถ้าต้องพ่วงรายการจาก Stock' : salesForm.transactionMode === 'STOCK' && stockDeliveryPrerequisiteReady ? 'ค้นหาเลขที่ใบส่งของ' : 'เลือกสาขาและลูกค้าก่อน'}
+		                    placeholder={stockDeliveryPrerequisiteReady ? 'ค้นหาเลขที่ใบส่งของ' : 'เลือกสาขาและลูกค้าก่อน'}
                     value={salesForm.deliveryTicketId ?? ''}
                     onChange={(value) => updateSalesForm('deliveryTicketId', value || null)}
                   />
