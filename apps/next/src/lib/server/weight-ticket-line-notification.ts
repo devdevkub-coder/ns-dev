@@ -434,6 +434,12 @@ export async function generateWeightTicketPdf(
   }
 
   // 5. Use Playwright to launch Chromium in headless mode and render HTML to PDF
+  let browsersPath = join(process.cwd(), '.playwright-browsers')
+  if (!existsSync(browsersPath)) {
+    browsersPath = join(process.cwd(), '..', '.playwright-browsers')
+  }
+  process.env.PLAYWRIGHT_BROWSERS_PATH = browsersPath
+
   const browser = await chromium.launch({
     headless: true,
     args: [
