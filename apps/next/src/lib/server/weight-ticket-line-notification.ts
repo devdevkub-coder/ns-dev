@@ -270,20 +270,12 @@ export async function generateWeightTicketPdf(
 
   // Load local font to base64 inline styles
   const regFontPaths = [
-    join(/*turbopackIgnore: true*/ process.cwd(), 'public/fonts/Sarabun-Regular.ttf'),
-    join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/public/fonts/Sarabun-Regular.ttf'),
-    join(/*turbopackIgnore: true*/ process.cwd(), 'src/assets/fonts/Sarabun-Regular.ttf'),
-    join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/src/assets/fonts/Sarabun-Regular.ttf'),
     join(/*turbopackIgnore: true*/ process.cwd(), 'public/fonts/NotoSansThai-Regular.ttf'),
     join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/public/fonts/NotoSansThai-Regular.ttf'),
     join(/*turbopackIgnore: true*/ process.cwd(), 'src/assets/fonts/NotoSansThai-Regular.ttf'),
     join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/src/assets/fonts/NotoSansThai-Regular.ttf'),
   ]
   const boldFontPaths = [
-    join(/*turbopackIgnore: true*/ process.cwd(), 'public/fonts/Sarabun-Bold.ttf'),
-    join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/public/fonts/Sarabun-Bold.ttf'),
-    join(/*turbopackIgnore: true*/ process.cwd(), 'src/assets/fonts/Sarabun-Bold.ttf'),
-    join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/src/assets/fonts/Sarabun-Bold.ttf'),
     join(/*turbopackIgnore: true*/ process.cwd(), 'public/fonts/NotoSansThai-Bold.ttf'),
     join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/public/fonts/NotoSansThai-Bold.ttf'),
     join(/*turbopackIgnore: true*/ process.cwd(), 'src/assets/fonts/NotoSansThai-Bold.ttf'),
@@ -323,25 +315,25 @@ export async function generateWeightTicketPdf(
     fontStyleBlock += `
     <style>
       @font-face {
-        font-family: 'Sarabun';
+        font-family: 'Noto Sans Thai';
         src: url('data:font/ttf;charset=utf-8;base64,${regBase64}') format('truetype');
         font-weight: normal;
         font-style: normal;
       }
       @font-face {
-        font-family: 'Sarabun';
+        font-family: 'Noto Sans Thai';
         src: url('data:font/ttf;charset=utf-8;base64,${regBase64}') format('truetype');
         font-weight: 300;
         font-style: normal;
       }
       @font-face {
-        font-family: 'Sarabun';
+        font-family: 'Noto Sans Thai';
         src: url('data:font/ttf;charset=utf-8;base64,${regBase64}') format('truetype');
         font-weight: 400;
         font-style: normal;
       }
       @font-face {
-        font-family: 'Sarabun';
+        font-family: 'Noto Sans Thai';
         src: url('data:font/ttf;charset=utf-8;base64,${regBase64}') format('truetype');
         font-weight: 500;
         font-style: normal;
@@ -350,31 +342,31 @@ export async function generateWeightTicketPdf(
     if (boldBase64) {
       fontStyleBlock += `
       @font-face {
-        font-family: 'Sarabun';
+        font-family: 'Noto Sans Thai';
         src: url('data:font/ttf;charset=utf-8;base64,${boldBase64}') format('truetype');
         font-weight: bold;
         font-style: normal;
       }
       @font-face {
-        font-family: 'Sarabun';
+        font-family: 'Noto Sans Thai';
         src: url('data:font/ttf;charset=utf-8;base64,${boldBase64}') format('truetype');
         font-weight: 600;
         font-style: normal;
       }
       @font-face {
-        font-family: 'Sarabun';
+        font-family: 'Noto Sans Thai';
         src: url('data:font/ttf;charset=utf-8;base64,${boldBase64}') format('truetype');
         font-weight: 700;
         font-style: normal;
       }
       @font-face {
-        font-family: 'Sarabun';
+        font-family: 'Noto Sans Thai';
         src: url('data:font/ttf;charset=utf-8;base64,${boldBase64}') format('truetype');
         font-weight: 800;
         font-style: normal;
       }
       @font-face {
-        font-family: 'Sarabun';
+        font-family: 'Noto Sans Thai';
         src: url('data:font/ttf;charset=utf-8;base64,${boldBase64}') format('truetype');
         font-weight: 900;
         font-style: normal;
@@ -383,7 +375,7 @@ export async function generateWeightTicketPdf(
     }
     fontStyleBlock += `
       * {
-        font-family: 'Sarabun', sans-serif !important;
+        font-family: 'Noto Sans Thai', sans-serif !important;
         font-synthesis: none !important;
       }
     </style>
@@ -524,20 +516,20 @@ export async function generateWeightTicketPdf(
           <meta charset="utf-8">
           <style>
             @font-face {
-              font-family: 'Sarabun';
+              font-family: 'Noto Sans Thai';
               src: url('data:font/ttf;charset=utf-8;base64,${regBase64}') format('truetype');
               font-weight: normal;
               font-style: normal;
             }
             @font-face {
-              font-family: 'Sarabun';
+              font-family: 'Noto Sans Thai';
               src: url('data:font/ttf;charset=utf-8;base64,${boldBase64}') format('truetype');
               font-weight: bold;
               font-style: normal;
             }
             * {
               box-sizing: border-box;
-              font-family: 'Sarabun', sans-serif !important;
+              font-family: 'Noto Sans Thai', sans-serif !important;
               font-synthesis: none !important;
             }
             body {

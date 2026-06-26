@@ -17,10 +17,10 @@ type EnqueueOptions = {
 // Check font files path options helper
 export function checkFontsAvailability(): { available: boolean; triedPaths: string[] } {
   const triedPaths = [
-    join(/*turbopackIgnore: true*/ process.cwd(), 'public/fonts/Sarabun-Regular.ttf'),
-    join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/public/fonts/Sarabun-Regular.ttf'),
-    join(/*turbopackIgnore: true*/ process.cwd(), 'src/assets/fonts/Sarabun-Regular.ttf'),
-    join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/src/assets/fonts/Sarabun-Regular.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'public/fonts/NotoSansThai-Regular.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/public/fonts/NotoSansThai-Regular.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'src/assets/fonts/NotoSansThai-Regular.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/src/assets/fonts/NotoSansThai-Regular.ttf'),
   ]
   const available = triedPaths.some(p => existsSync(p))
   return { available, triedPaths }
