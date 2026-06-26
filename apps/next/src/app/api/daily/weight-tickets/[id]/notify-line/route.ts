@@ -15,7 +15,7 @@ const notifySchema = z.object({
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const auth = await getCurrentAuthContext()
-    requirePermission(auth, 'finance.cash.view')
+    requirePermission(auth, 'daily.weight_tickets.view')
 
     const { id } = await context.params
     const body = notifySchema.parse(await request.json().catch(() => ({})))
