@@ -398,7 +398,39 @@ export async function generateWeightTicketPdf(
   if (fontStyleBlock) {
     const headCloseIdx = finalHtml.indexOf('</head>')
     if (headCloseIdx !== -1) {
-      finalHtml = finalHtml.substring(0, headCloseIdx) + fontStyleBlock + finalHtml.substring(headCloseIdx)
+      // Inject ฟอนต์ + CSS override เฉพาะ PDF ที่จะส่ง LINE
+      // ปัญหา: เอกสารที่มีสินค้าน้อย (1-3 รายการ) เนื้อหาจริงสั้น (~150mm) แต่หน้า A4 สูง 297mm
+      // โครงสร้าง flex มีแค่ .footer ที่ margin-top:auto → เกิดช่องว่างใหญ่ครึ่งหน้าระหว่าง
+      // .signatures กับ .footer (เพราะ .signatures ติดเนื้อหาด้านบน)
+      // แก้: (1) ดัน .signatures ไปติด .footer ด้านล่าง (2) ขยายระยะหายใจของแต่ละส่วนให้เต็มหน้า
+      const pdfOverrideCss = `
+    <style>
+      @page { size: A4 portrait; margin: 0; }
+      .page { width: auto; max-width: 210mm; min-height: 297mm; margin: 0; padding: 10mm 11mm; display: flex; flex-direction: column; }
+      body { background: white; }
+      /* ดันกล่องลงชื่อไปติดด้านล่างสุดของหน้า ไม่ว่าเนื้อหาจะน้อยแค่ไหน */
+      .signatures { margin-top: auto !important; }
+      /* ขยายระยะหายใจของเนื้อหาหลักเพื่อเติมพื้นที่หน้า A4 */
+      .accent { margin-bottom: 14px !important; }
+      .header { padding-bottom: 14px !important; }
+      .section-grid { margin-top: 14px !important; }
+      .panel { border-width: 1px !important; }
+      .panel-title { padding: 8px 11px !important; font-size: 12px !important; }
+      .panel-body { padding: 9px 11px !important; }
+      .field-value { font-size: 13px !important; }
+      .items { margin-top: 14px !important; font-size: 12px !important; }
+      .items th { padding: 7px 6px !important; font-size: 11.5px !important; }
+      .items td { padding: 8px 6px !important; }
+      .bottom-grid { margin-top: 14px !important; gap: 12px !important; }
+      .summary-card { padding: 8px !important; }
+      .summary-card .value { font-size: 12.5px !important; }
+      .note { min-height: 40px !important; }
+      /* signatures ปรับให้กระชับขึ้นเพื่อกันล้นไปหน้า 2 */
+      .signatures { gap: 16px !important; margin-top: 26px !important; }
+      .sig-line { margin-top: 22px !important; padding-top: 5px !important; }
+      .footer { display: none !important; }
+    </style>`
+      finalHtml = finalHtml.substring(0, headCloseIdx) + fontStyleBlock + pdfOverrideCss + finalHtml.substring(headCloseIdx)
     }
   }
 
@@ -434,6 +466,8 @@ export async function generateWeightTicketPdf(
   await page.evaluate(() => document.fonts.ready)
 
   // Print page to PDF with standard A4 settings
+  // margin ใช้ 0mm เพราะ @page ใน CSS override (ฝั่ง PDF เท่านั้น) เป็นตัวกำหนดพื้นที่พิมพ์
+  // (ปุ่มพิมพ์ในเบราว์เซอร์ใช้ CSS หลัก @page margin:10mm อยู่แยกกัน)
   const pdfBuffer = await page.pdf({
     format: 'A4',
     printBackground: true,

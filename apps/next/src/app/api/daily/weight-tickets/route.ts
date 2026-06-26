@@ -342,10 +342,18 @@ export async function POST(request: Request) {
     })
     if (autoSendConfig?.value === 'true') {
       try {
-        await enqueueNotificationJob(mapped.documentNo, {
+        // Auto-send: enqueue แล้ว execute ทันที (ไม่รอ worker) ตามแนวทาง A
+        const enqueueResult = await enqueueNotificationJob(mapped.documentNo, {
           requestedBy: enteredBy,
           force: false,
         })
+        for (const job of enqueueResult.jobs) {
+          try {
+            await executeNotificationJob(job.id, { force: false })
+          } catch (err) {
+            console.error('[weight-ticket-auto-send] failed to execute job:', job.id, err)
+          }
+        }
       } catch (err) {
         console.error('[weight-ticket-auto-send] failed to enqueue LINE notification:', err)
       }

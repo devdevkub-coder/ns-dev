@@ -1112,6 +1112,57 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     })
   }, [mode, salesForm.items, salesForm.transactionMode])
 
+  const clearAutoOpenSearchParams = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete('new')
+    params.delete('wti')
+    params.delete('wto')
+    const nextQuery = params.toString()
+    router.replace(nextQuery ? `?${nextQuery}` : mode === 'purchase' ? '/purchase/bills' : '/sales/bills')
+  }, [searchParams, router, mode])
+
+  const openPurchaseFormFromReceipt = useCallback((receipt: ReceiptOption) => {
+    const branchId = receipt.branchId ?? resolvedPreferredBranchId ?? ''
+    const supplierId = receipt.supplierId ?? ''
+    const supplier = options.suppliers.find((option) => option.id === supplierId) ?? null
+    setEditingBillId(null)
+    setSupplierSwapMode(false)
+    setSupplierSwapSupplierId('')
+    setLockedReceiptSnapshot(receipt)
+    setForm({
+      ...initialPurchaseForm(),
+      branchId,
+      items: receiptToBillItems(receipt),
+      receiptTicketId: receipt.id,
+      salesId: supplier?.sales_id ?? null,
+      supplierId,
+      warehouseId: branchId ? defaultPurchaseWarehouseId(branchId) : null,
+    })
+    setFieldErrors({})
+    setError(null)
+    setShowForm(true)
+  }, [resolvedPreferredBranchId, options.suppliers, defaultPurchaseWarehouseId])
+
+  const openSalesFormFromDelivery = useCallback((delivery: DeliveryOption) => {
+    const branchId = delivery.branchId ?? resolvedPreferredBranchId ?? ''
+    const customerId = delivery.customerId ?? ''
+    setEditingSalesBillId(null)
+    setLockedDeliverySnapshot(delivery)
+    setLockedReceiptSnapshot(null)
+    setSalesForm({
+      ...initialSalesForm(),
+      branchId,
+      channelId: defaultSalesChannelForCustomer(customerId) ?? '',
+      customerId,
+      deliveryTicketId: delivery.id,
+      items: deliveryToSalesItems(delivery),
+    })
+    setTradingPurchaseSelectorIds([''])
+    setSalesFieldErrors({})
+    setError(null)
+    setShowSalesForm(true)
+  }, [resolvedPreferredBranchId, defaultSalesChannelForCustomer])
+
   useEffect(() => {
     const shouldOpen = searchParams.get('new') === '1'
     if (!shouldOpen || isLoading) return
@@ -1475,57 +1526,6 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
     setLockedDeliverySnapshot(null)
     setLockedReceiptSnapshot(null)
     setSalesForm({ ...initialSalesForm(), branchId: resolvedPreferredBranchId ?? '' })
-    setTradingPurchaseSelectorIds([''])
-    setSalesFieldErrors({})
-    setError(null)
-    setShowSalesForm(true)
-  }
-
-  function clearAutoOpenSearchParams() {
-    const params = new URLSearchParams(searchParams.toString())
-    params.delete('new')
-    params.delete('wti')
-    params.delete('wto')
-    const nextQuery = params.toString()
-    router.replace(nextQuery ? `?${nextQuery}` : mode === 'purchase' ? '/purchase/bills' : '/sales/bills')
-  }
-
-  function openPurchaseFormFromReceipt(receipt: ReceiptOption) {
-    const branchId = receipt.branchId ?? resolvedPreferredBranchId ?? ''
-    const supplierId = receipt.supplierId ?? ''
-    const supplier = options.suppliers.find((option) => option.id === supplierId) ?? null
-    setEditingBillId(null)
-    setSupplierSwapMode(false)
-    setSupplierSwapSupplierId('')
-    setLockedReceiptSnapshot(receipt)
-    setForm({
-      ...initialPurchaseForm(),
-      branchId,
-      items: receiptToBillItems(receipt),
-      receiptTicketId: receipt.id,
-      salesId: supplier?.sales_id ?? null,
-      supplierId,
-      warehouseId: branchId ? defaultPurchaseWarehouseId(branchId) : null,
-    })
-    setFieldErrors({})
-    setError(null)
-    setShowForm(true)
-  }
-
-  function openSalesFormFromDelivery(delivery: DeliveryOption) {
-    const branchId = delivery.branchId ?? resolvedPreferredBranchId ?? ''
-    const customerId = delivery.customerId ?? ''
-    setEditingSalesBillId(null)
-    setLockedDeliverySnapshot(delivery)
-    setLockedReceiptSnapshot(null)
-    setSalesForm({
-      ...initialSalesForm(),
-      branchId,
-      channelId: defaultSalesChannelForCustomer(customerId) ?? '',
-      customerId,
-      deliveryTicketId: delivery.id,
-      items: deliveryToSalesItems(delivery),
-    })
     setTradingPurchaseSelectorIds([''])
     setSalesFieldErrors({})
     setError(null)

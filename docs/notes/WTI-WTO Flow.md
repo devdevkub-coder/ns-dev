@@ -13,7 +13,7 @@ tags:
   - decision
 status: draft
 created: 2026-06-11
-updated: 2026-06-24
+updated: 2026-06-26
 ---
 
 # WTI/WTO Flow / Flow ใบรับ-ส่งของ
@@ -641,3 +641,127 @@ handoff rule:
 5. **การกำหนดให้ฟิลด์โกดังสินค้าเป็นข้อมูลบังคับกรอกเฉพาะ WTI (NSERP-80)**:
    - **แนวคิดการออกแบบ**: สำหรับใบรับของ (WTI) ซึ่งเป็นการรับซื้อสินค้าเข้าคลัง การระบุโกดังปลายทางเป็นสิ่งสำคัญมากและห้ามเว้นว่างเด็ดขาดเพื่อไม่ให้มีผลกระทบต่อรายงานคลังสินค้า (ส่วนใบส่งของหรือ WTO คลังจะถูกเลือกที่ระดับ Line รายการแทนอยู่แล้ว)
    - **การแก้ไข**: เพิ่มเงื่อนไข validation ในส่วนของ `weightTicketFormSchema` โดยระบุเงื่อนไข `.refine()` ว่าหาก `type === 'WTI'` ฟิลด์ `warehouseName` จะต้องไม่เป็นค่าว่างหรือ `null` และแสดงป้ายชื่อใน UIเป็น `โกดัง*` เพื่อความชัดเจน
+
+## การส่งแจ้งเตือน LINE ของใบรับ-ส่งของ (LINE Notification Workflow)
+
+เอกสารนี้สรุป **สถานะจริงของระบบ** ณ มิถุนายน 2026 หลังจาก implement เสร็จ
+(implementation plan เดิมอยู่ที่ [[WTI-WTO LINE Notification Implementation Plan]])
+
+### เป้าหมาย
+
+เมื่อผู้ใช้สร้าง/บันทึก `WTI` หรือ `WTO` เสร็จ ระบบต้องส่งสรุปเข้า LINE group ที่ตั้งค่าไว้
+พร้อม Flex Message ที่มี:
+
+- ข้อมูลหัวเอกสาร (เลขที่, ผู้ขาย/ลูกค้า, สาขา, น้ำหนักสุทธิ)
+- ปุ่ม `เปิด PDF + รูป` (PDF รวมใบพิมพ์ + รูปหลักฐาน สูงสุด 8 รูปต่อหน้า)
+- ปุ่ม `เปิดในระบบ`
+
+ใช้ **LINE Messaging API + Flex Message** (ไม่ใช้ LINE Notify ที่ปิดบริการแล้ว)
+
+### Trigger Points ทั้ง 3 ทาง
+
+| ทาง | เงื่อนไข | สถานะจริง | ไฟล์ |
+|---|---|---|---|
+| **Manual** ปุ่ม `แชร์ → ส่งเข้ากลุ่มหลัก` | ผูู้ใช้กดเองในหน้า list/detail | ✅ ทำงาน (force=true, execute ทันที) | `api/daily/weight-tickets/[id]/notify-line/route.ts` |
+| **Auto-send หลัง create/edit** | `LINE_AUTO_SEND_WTI`/`LINE_AUTO_SEND_WTO = 'true'` | ✅ ทำงาน (enqueue + execute ทันที) | `api/daily/weight-tickets/route.ts` + `[id]/route.ts` |
+| **Worker drain** | กดปุ่ม `⚙️ เรียกใช้งาน Worker` ในหน้า admin/line-settings | ✅ ใช้สำหรับ retry/pending jobs ที่ execute ล้มเหลว | `api/admin/line-jobs/route.ts` action=process |
+
+### ⚠️ ข้อจำกัดสำคัญที่ต้องเข้าใจ
+
+#### 1. Auto-send ทำงานทันทีหลัง save (แนวทาง A)
+
+ตั้งแต่ 2026-06-26 create/edit path จะ **enqueue แล้ว execute ทันที** (ไม่รอ worker):
+
+```ts
+// api/daily/weight-tickets/route.ts (POST)
+if (autoSendConfig?.value === 'true') {
+  const enqueueResult = await enqueueNotificationJob(mapped.documentNo, { requestedBy, force: false })
+  for (const job of enqueueResult.jobs) {
+    try {
+      await executeNotificationJob(job.id, { force: false })  // ✅ ส่งออกจริงทันที
+    } catch (err) {
+      console.error('[weight-ticket-auto-send] failed to execute job:', job.id, err)
+    }
+  }
+}
+```
+
+ผลทางธุรกิจ:
+- เปิด `LINE_AUTO_SEND_WTI=true` → สร้าง WTI เสร็จแจ้งเตือนเข้า LINE **ทันที**
+- ถ้า execute ล้มเหลว job จะกลายเป็น `status='failed'` และสามารถ retry ผ่าน
+  Worker ในหน้า admin/line-settings หรือปุ่ม `🔄 ยิงใหม่` ในแท็บ Outbox
+- การสร้างเอกสาร **ไม่ rollback** ถ้าแจ้งเตือนล้มเหลว (error ถูก catch เท่านั้น)
+- Worker drain ยังมีประโยชน์สำหรับ retry งานที่ execute ล้มเหลว หรือส่งเข้าคิวจาก
+  แหล่งอื่น (เช่น webhook bot command `/retry`)
+
+#### 2. `line_groups` เป็น dead code ใน jobs path
+
+ระบบมี routing engine 2 ตัวซ้อนทับกัน:
+
+| Engine | อ่านตาราง | ใช้จริงไหม |
+|---|---|---|
+| `resolveLineTargetsForWeightTicket` (ใหม่) | `line_targets` + `line_notification_rules` | ✅ **ใช้จริง** ทุก path (auto + manual routing) |
+| `notifyWeightTicketLine` inline logic (เก่า) | `line_groups` | ❌ **dead code** — จะถูกเรียกก็ต่อเมื่อ `targetId` ว่าง แต่ jobs layer ส่ง `targetId` มาเสมอ |
+
+ผล: การแก้ไข routing ควรแก้ที่ `line_targets` + `line_notification_rules` เท่านั้น
+การแก้ `line_groups` จะไม่มีผลกับการส่งจริง
+
+### Workflow การส่งจริง (เรียงตามลำดับ)
+
+```mermaid
+flowchart TD
+  A["ผู้ใช้บันทึก WTI/WTO"] --> B{auto-send เปิดอยู่ไหม}
+  B -- "ใช่ (LINE_AUTO_SEND=true)" --> C["enqueueNotificationJob<br/>resolveLineTargetsForWeightTicket<br/>→ targets จาก line_targets + rules"]
+  B -- "ไม่" --> D["รอผู้ใช้กด แชร์ → ส่งเข้ากลุ่มหลัก"]
+  C --> F["executeNotificationJob ทันที<br/>(ไม่รอ worker ตามแนวทาง A)"]
+  D --> F2["enqueueNotificationJob force=true<br/>+ executeNotificationJob ทันที"]
+  F --> I["notifyWeightTicketLine<br/>generate PDF → upload Storage<br/>→ sendLinePush Flex Message"]
+  F2 --> I
+  F -- "execute ล้มเหลว" --> R["job status=failed<br/>พร้อม retry ผ่าน Worker หรือปุ่มยิงใหม่"]
+  I --> J{ส่งสำเร็จไหม}
+  J -- "สำเร็จ" --> K["job status=sent<br/>line_request_id บันทึก<br/>+ weight_ticket_notification_logs audit"]
+  J -- "ล้มเหลว" --> L["job status=failed<br/>attempt_count +1<br/>มี retry ได้ตาม max_attempts"]
+```
+
+### หลักการสำคัญ (Fail-Safe)
+
+- **การสร้างเอกสาร WTI/WTO ต้องไม่ rollback** เพียงเพราะ LINE/PDF fail
+  (auto-send error ถูก catch และ log เท่านั้น ไม่ทำลาย transaction เอกสาร)
+- การส่งซ้ำกันได้ด้วย `X-Line-Retry-Key` (dedup ฝั่ง LINE)
+- มี `line_notification_attempts` เก็บประวัติ attempt ทุกครั้ง
+- มี `weight_ticket_notification_logs` เป็น audit ระดับเอกสาร
+
+### การตั้งค่าที่เกี่ยวข้อง
+
+ตั้งในหน้า `/admin/line-settings` แท็บ Credentials:
+
+| Setting key | หน้าที่ |
+|---|---|
+| `LINE_CHANNEL_ACCESS_TOKEN` | token ส่งบอท (DB-first, env-fallback) |
+| `LINE_CHANNEL_SECRET` | verify webhook signature |
+| `LINE_DEFAULT_TARGET_ID` | target สำรองกรณีไม่มี rule ตรง |
+| `LINE_AUTO_SEND_WTI` | เปิด auto-send สำหรับ WTI (enqueue เท่านั้น) |
+| `LINE_AUTO_SEND_WTO` | เปิด auto-send สำหรับ WTO (enqueue เท่านั้น) |
+| `LINE_NOTIFY_TEXT_TEMPLATE_WTI/WTO` | text message template (ใช้จริง ไม่ใช่ Flex template) |
+
+หมายเหตุ: text template ทำงานจริง แต่ Flex Message Template ในแท็บ Templates
+ถูกซ่อนชั่วคราวเพราะยังไม่เชื่อมกับ flow ส่งจริง (ดู [[LINE Notification Control Center Ultimate Plan]])
+
+### การจัดการกลุ่ม/เป้าหมาย
+
+ดูรายละเอียดเต็มที่ [[LINE Notification Control Center Ultimate Plan]] หัวข้อ Target Auto-Sync Flow
+
+สรุปสั้น:
+- กลุ่มใหม่เข้าระบบทาง **webhook** (`/api/line/webhook`) เมื่อบอทถูกเชิญ/ได้รับข้อความ
+- เปลี่ยน token → **auto-sync** รีเฟรชชื่อ/รูป/สถานะกลุ่มเดิมทันที
+- กดปุ่ม `🔄 ซิงค์กลุ่มจาก LINE` ในแท็บ Targets เพื่อ sync ด้วยมือ
+- LINE API ไม่มี endpoint "list ทุกกลุ่ม" → กลุ่มที่บอทยังไม่เคยได้รับ event ดึงมาไม่ได้
+
+### Follow-up ที่ควรทำต่อ (ตามสถานะจริง)
+
+| เรื่อง | เหตุผล |
+|---|---|
+| ทำความสะอาด `line_groups` dead code | เลิกใช้ใน jobs path แล้ว ควร migrate routing ที่เหลือไป `line_targets` แล้วลบตาราง/โค้ดเก่า |
+| เชื่อม Flex Message Template เข้า flow ส่งจริง | ตอนนี้ `buildFlexMessage` แบบ hardcoded ไม่ได้ดึงจาก `line_message_templates` |
+| เพิ่ม webhook handler `memberJoined`/`follow` | ตอนนี้รับแค่ `join`/`message`/`leave` |
+| พิจารณา cron/queue สำหรับงานที่เยอะมาก | auto-send แนว A execute ทันทีใน request — เหมาะกับโหลดปกติ แต่ถ้ามีการบันทึกเอกสารเป็นจำนวนมากพร้อมกันอาจต้องใช้ queue จริง |

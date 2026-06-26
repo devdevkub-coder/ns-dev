@@ -745,3 +745,114 @@ GET    /api/admin/line-analytics/targets
 - ทุกครั้งที่แก้ flow ส่ง LINE ต้องทดสอบทั้ง 2 ทาง:
   - ปุ่มทดสอบจาก settings
   - ส่งจริงจากใบชั่ง WTI/WTO
+
+---
+
+## Target Auto-Sync Flow (เพิ่มเติม 2026-06-26)
+
+### บริบท / ทำไมต้องเป็นแบบนี้
+
+LINE Messaging API **ไม่มี endpoint ลิสต์ทุกกลุ่มที่บอทอยู่** ดังนั้นระบบไม่สามารถ
+ดึงกลุ่มใหม่ทั้งหมดมาแสดงทันทีเมื่อเปลี่ยน token ได้ กลุ่มใหม่จะเข้าระบบได้ก็ต่อเมื่อบอท
+ได้รับ webhook event จากกลุ่มนั้นก่อน (`join`, `message`, `/register`)
+
+ดังนั้นการ "sync" จึงแบ่งเป็น 2 ชั้น:
+
+1. **Reactive (เกิดอัตโนมัติทาง webhook):** เมื่อบอทถูกเชิญเข้ากลุ่มหรือได้รับข้อความ
+   webhook route จะ upsert target ลง `line_targets` พร้อมดึงชื่อ/รูปจาก
+   `/v2/bot/group/{id}/summary` (มีอยู่แล้วก่อนการเปลี่ยนแปลงนี้)
+2. **Proactive sync (เพิ่มใหม่):** เรียก LINE API เพื่อ refresh ชื่อ/รูป/สถานะของกลุ่ม
+   ที่รู้ target_id อยู่แล้วทั้งหมดในตาราง `line_targets`
+
+### Entities และ States
+
+- **ตาราง `line_targets`** เป็นแหล่งข้อมูลหลัก (ไม่ใช้ `line_groups` อีกใน flow นี้)
+- **`is_active` + `last_event_type`** กำหนดสถานะที่แสดงบน UI:
+  - `is_active=true` → badge เขียว **"อยู่ในกลุ่ม"**
+  - `is_active=false && last_event_type='not_found'` → badge เทา **"บอทออกจากกลุ่ม"**
+    (เกิดจาก sync เจอ LINE ตอบ 404/400)
+  - `is_active=false` (กรณีอื่น) → badge แดง **"ปิดใช้งาน"** (ปิดด้วยมือ)
+
+### Trigger Points ที่ทำให้ sync เกิด
+
+1. **บันทึก token ใหม่** (`POST /api/admin/line-settings`):
+   - เฉพาะเมื่อค่าที่ส่งมาไม่ใช่ masked placeholder (`••••••••••••••••`) และไม่ว่าง
+   - เรียก `syncLineTargetsFromAPI(token)` ทันทีหลัง upsert สำเร็จ
+   - ถ้า sync ล้มเหลว → **ไม่ทำให้การบันทึก token ล้มเหลว** แค่คืน `syncWarning`
+     ให้ frontend แสดงเตือน
+2. **กดปุ่ม "🔄 ซิงค์กลุ่มจาก LINE"** บนแท็บ Targets
+   (`PATCH /api/admin/line-targets` action=`sync`):
+   - admin กดได้ด้วยตนเองทุกเมื่อ ใช้ token จาก DB
+
+### Sync Logic (`lib/server/line-target-sync.ts`)
+
+1. ดึงข้อมูลบอทจาก `/v2/bot/info` (เป็นการ validate token ไปในตัว)
+   - ถ้า 401/403 → โยน error ทันที เพราะ token ใช้ไม่ได้ ไม่มีประโยชน์ทำต่อ
+2. ลูปทุก target ใน `line_targets` (เรียงตาม `created_at asc`):
+   - `group` → `GET /v2/bot/group/{id}/summary`
+   - `user` → `GET /v2/bot/profile/{id}`
+   - `room` → เก็บ placeholder (LINE ไม่มี summary endpoint)
+3. แปลงผลตาม HTTP status:
+   - 200 → อัปเดต `display_name`, `picture_url`, `last_event_type='sync'`, `is_active=true`
+   - 404/400 → ตั้ง `last_event_type='not_found'`, `is_active=false` (บอทออกจากกลุ่มแล้ว)
+   - 401/403 → โยน error หยุดทั้งลูป (token ใช้ไม่ได้)
+   - อื่นๆ (5xx, network) → ไม่แตะข้อมูลเดิม นับเป็น `failed`
+4. หน่วงเวลา 120ms ระหว่างแต่ละ target เพื่อเคารพ rate limit
+5. คืนค่า `{ total, refreshed, notFound, failed, bot }`
+
+### ไฟล์ที่เกี่ยวข้อง
+
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `lib/server/line-target-sync.ts` | helper กลาง `syncLineTargetsFromAPI`, `fetchLineBotInfo`, `resolveLineAccessToken`, `isMaskedToken` |
+| `app/api/admin/line-targets/route.ts` | PATCH action=`sync` |
+| `app/api/admin/line-settings/route.ts` | POST auto-sync เมื่อเปลี่ยน token |
+| `app/admin/line-settings/LineSettingsPageClient.tsx` | ปุ่ม sync, การ์ดบอทบน Overview, badge สถานะ |
+
+### ข้อจำกัดที่ต้องจำ
+
+- กลุ่มที่บอท **ไม่เคย** ได้รับ webhook event จะไม่ปรากฏในระบบ แม้จะ sync ก็ตาม
+- การ sync ไม่ได้ลบ target ที่บอทออกแล้ว เพียงแต่ตั้ง `is_active=false` + `not_found`
+  เพื่อให้ admin เห็นประวัติและตัดสินใจลบเอง
+- ไม่มี cron — sync เกิดเฉพาะตอน save token หรือกดปุ่มเท่านั้น
+
+---
+
+## แท็บ Message Templates (ซ่อนชั่วคราว 2026-06-26)
+
+### เหตุผลที่ซ่อน
+
+ตรวจสอบพบว่าฟีเจอร์ Message Templates ทำงาน **ครึ่งเดียว**:
+
+- ✅ หน้า UI สร้าง/แก้/ลบ template ทำงาน บันทึกลง `line_message_templates` ได้
+- ✅ ปุ่ม Preview ดึง `buildFlexMessageFromTemplate` ออกมาดูได้
+- ❌ **ตอนส่งแจ้งเตือนจริงไม่ได้ดึง template ไปใช้** — flow ส่งจริง
+  (`weight-ticket-line-notification.ts` บรรทัด 1410) เรียก `buildFlexMessage`
+  แบบ hardcoded ไม่ได้ query `line_message_templates` เลย
+
+ผล: template ที่ผู้ใช้ตั้งค่าทั้งหมด (สีหัวการ์ด, ฟิลด์ที่แสดง, ปุ่ม PDF/Detail)
+**ไม่มีผลอะไรเลยตอนส่งจริง** ทำให้ผู้ใช้สับสน
+
+### สิ่งที่ทำ
+
+ซ่อนแท็บ Templates ไปก่อน (ทำเหมือน Production Dashboard ที่เคยซ่อน):
+
+1. คอมเมนต์ tab button `{ key: 'templates', label: '📝 Templates' }` ใน tab menu array
+2. คอมเมนต์ content block เปลี่ยน `{activeTab === 'templates' && (` เป็น
+   `{false && activeTab === 'templates' && (` (ใช้วิธี `false &&` แทน JSX comment เพราะ
+   JSX comment ที่ wrap JSX มี `{`/`*/` ข้างในจะ syntax พัง)
+3. คง state/handlers/API route ทั้งหมดไว้ เผื่อเชื่อมต่อทีหลังโดยไม่ต้องเขียนใหม่
+
+### เงื่อนไขที่จะเปิดกลับมา
+
+เมื่อแก้ flow ส่งแจ้งเตือนให้ดึง default template (`is_default_wti`/`is_default_wto`)
+จาก `line_message_templates` มาใช้แทน `buildFlexMessage` แบบ hardcoded แล้ว
+ให้กู้คืน tab button + เปลี่ยน `false &&` กลับเป็นเงื่อนไขเดิม
+
+### ไฟล์ที่เกี่ยวข้อง (เก็บไว้ ไม่ลบ)
+
+| ไฟล์ | สถานะ |
+|---|---|
+| `app/admin/line-settings/LineSettingsPageClient.tsx` | tab + content ถูก disable ด้วย `false &&` |
+| `app/api/admin/line-templates/route.ts` | คงไว้ (GET/POST/PATCH ยังทำงาน เผื่อ API call ตรงๆ) |
+| `lib/server/line-notification-routing.ts` `buildFlexMessageFromTemplate` | คงไว้ (ใช้ใน Preview) |

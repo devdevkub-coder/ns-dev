@@ -4,6 +4,7 @@ import { apiErrorResponse } from '@/lib/server/api-error'
 import { AuthContextError, authContextErrorResponse, getCurrentAuthContext, requirePermission } from '@/lib/server/auth-context'
 import { currentActor } from '@/lib/server/daily'
 import { prisma } from '@/lib/server/prisma'
+import { isMaskedToken, syncLineTargetsFromAPI } from '@/lib/server/line-target-sync'
 
 export const runtime = 'nodejs'
 
@@ -148,7 +149,19 @@ export async function POST(request: Request) {
       )
     )
 
-    return NextResponse.json({ ok: true })
+    // Auto-sync targets เมื่อมีการเปลี่ยน token จริง (ไม่ใช่ masked placeholder)
+    // sync ล้มเหลวไม่ทำให้การบันทึก token ล้มเหลวด้วย — คืน warning ไปแค่นั้น
+    let syncWarning: string | null = null
+    if (!isMaskedToken(values.lineChannelAccessToken) && values.lineChannelAccessToken) {
+      try {
+        await syncLineTargetsFromAPI(values.lineChannelAccessToken)
+      } catch (err) {
+        syncWarning = err instanceof Error ? err.message : 'sync กลุ่ม LINE ล้มเหลว'
+        console.error('[line-settings] auto-sync targets failed', err)
+      }
+    }
+
+    return NextResponse.json({ ok: true, syncWarning })
   } catch (caught) {
     if (caught instanceof AuthContextError) return authContextErrorResponse(caught)
     return apiErrorResponse(caught, 'บันทึกข้อมูลตั้งค่า LINE ไม่สำเร็จ', 400)

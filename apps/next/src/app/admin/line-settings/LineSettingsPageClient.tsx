@@ -156,6 +156,12 @@ type BranchOption = {
   code: string | null
 }
 
+type BotInfo = {
+  botName: string
+  basicId: string
+  pictureUrl: string | null
+}
+
 type WeightTicketOption = {
   id: string
   docNo: string
@@ -219,6 +225,7 @@ export function LineSettingsPageClient() {
   const [recentTickets, setRecentTickets] = useState<WeightTicketOption[]>([])
   const [branches, setBranches] = useState<BranchOption[]>([])
   const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null)
+  const [botInfo, setBotInfo] = useState<BotInfo | null>(null)
 
   // Loading & Action states
   const [isLoading, setIsLoading] = useState(true)
@@ -226,6 +233,7 @@ export function LineSettingsPageClient() {
   const [isTestingOA, setIsTestingOA] = useState(false)
   const [isTestingWebhook, setIsTestingWebhook] = useState(false)
   const [isProcessingJobs, setIsProcessingJobs] = useState(false)
+  const [isSyncingTargets, setIsSyncingTargets] = useState(false)
   const [simulatedDecisions, setSimulatedDecisions] = useState<any[] | null>(null)
   const [simulatingDocNo, setSimulatingDocNo] = useState('')
   const [isSimulating, setIsSimulating] = useState(false)
@@ -405,6 +413,67 @@ export function LineSettingsPageClient() {
     }
   }, [])
 
+  const loadBotInfo = useCallback(async () => {
+    // ดึงข้อมูลบอทผ่าน test-connection route เดิม (reuse ไม่สร้างใหม่)
+    try {
+      const res = await fetch('/api/admin/line-settings/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.ok) {
+          setBotInfo({
+            botName: data.botName,
+            basicId: data.basicId,
+            pictureUrl: data.pictureUrl || null,
+          })
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load bot info', err)
+    }
+  }, [])
+
+  const handleSyncTargets = async () => {
+    setError(null)
+    setMessage(null)
+    setIsSyncingTargets(true)
+    try {
+      const res = await fetch('/api/admin/line-targets', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sync' }),
+      })
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.error || 'ซิงค์กลุ่ม LINE ไม่สำเร็จ')
+
+      // อัปเดต bot info + target list
+      if (body.bot) {
+        setBotInfo({
+          botName: body.bot.botName,
+          basicId: body.bot.basicId,
+          pictureUrl: body.bot.pictureUrl || null,
+        })
+      }
+      void loadTargets()
+
+      const refreshed = body.refreshed ?? 0
+      const notFound = body.notFound ?? 0
+      const failed = body.failed ?? 0
+      const total = body.total ?? 0
+      const parts: string[] = [`รีเฟรช ${refreshed}/${total} รายการ`]
+      if (notFound > 0) parts.push(`${notFound} รายการบอทออกแล้ว`)
+      if (failed > 0) parts.push(`${failed} รายการผิดพลาด`)
+      setMessage(`🔄 ซิงค์กลุ่ม LINE สำเร็จ — ${parts.join(' · ')}`)
+    } catch (caught) {
+      setError(getErrorMessage(caught, 'ซิงค์กลุ่ม LINE ขัดข้อง'))
+    } finally {
+      setIsSyncingTargets(false)
+    }
+  }
+
   const initData = useCallback(async () => {
     setIsLoading(true)
     setError(null)
@@ -417,14 +486,15 @@ export function LineSettingsPageClient() {
         loadTemplates(),
         loadJobs(),
         loadRecentTickets(),
-        loadAnalytics()
+        loadAnalytics(),
+        loadBotInfo()
       ])
     } catch (err) {
       setError('ไม่สามารถโหลดข้อมูลระบบแจ้งเตือน LINE ได้ครบถ้วน')
     } finally {
       setIsLoading(false)
     }
-  }, [loadCredentials, loadBranches, loadTargets, loadRules, loadTemplates, loadJobs, loadRecentTickets, loadAnalytics])
+  }, [loadCredentials, loadBranches, loadTargets, loadRules, loadTemplates, loadJobs, loadRecentTickets, loadAnalytics, loadBotInfo])
 
   useEffect(() => {
     void initData()
@@ -454,8 +524,16 @@ export function LineSettingsPageClient() {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error || 'บันทึกข้อมูลการตั้งค่าล้มเหลว')
       }
-      setMessage('บันทึกข้อมูลการเชื่อมต่อสำเร็จ')
+      const responseBody = await res.json().catch(() => ({}))
+      // sync อัตโนมัติเมื่อเปลี่ยน token: ถ้า sync ล้มเหลวจะคืน warning (แต่ token ยังบันทึกสำเร็จ)
+      if (responseBody.syncWarning) {
+        setMessage(`บันทึกการเชื่อมต่อสำเร็จ แต่ซิงค์กลุ่มล้มเหลว: ${responseBody.syncWarning}`)
+      } else {
+        setMessage('บันทึกข้อมูลการเชื่อมต่อสำเร็จ')
+      }
       void loadCredentials()
+      void loadBotInfo()
+      void loadTargets()
     } catch (caught) {
       setError(getErrorMessage(caught, 'บันทึกข้อมูลไม่สำเร็จ'))
     } finally {
@@ -891,7 +969,7 @@ export function LineSettingsPageClient() {
           { key: 'credentials', label: '🔌 Credentials' },
           { key: 'targets', label: '👥 Targets / Groups' },
           { key: 'rules', label: '🛣️ Routing Rules' },
-          { key: 'templates', label: '📝 Templates' },
+          // { key: 'templates', label: '📝 Templates' }, // ซ่อนชั่วคราว: template config ยังไม่ถูกเชื่อมกับ flow ส่งแจ้งเตือนจริง (buildFlexMessageFromTemplate ใช้แค่ใน Preview)
           { key: 'outbox', label: '📥 Outbox Queue' },
           { key: 'analytics', label: '📈 Analytics' }
         ].map((tab) => (
@@ -962,6 +1040,33 @@ export function LineSettingsPageClient() {
                 </div>
               </div>
             </div>
+
+            {/* Connected Bot Info Card - shows current LINE OA identity */}
+            {botInfo && (
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                <div className="flex items-center gap-4 flex-wrap">
+                  {botInfo.pictureUrl ? (
+                    <img
+                      src={botInfo.pictureUrl}
+                      alt={botInfo.botName}
+                      className="h-14 w-14 rounded-full border border-slate-200 object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="h-14 w-14 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-lg flex-shrink-0">
+                      🤖
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[10px] font-bold text-slate-450 uppercase tracking-wider leading-none">บอทที่เชื่อมต่ออยู่</div>
+                    <div className="text-base font-bold text-slate-900 mt-1 truncate">{botInfo.botName}</div>
+                    <div className="text-xs text-slate-400 font-mono mt-0.5 truncate select-all">{botInfo.basicId}</div>
+                  </div>
+                  <span className="px-2 py-1 rounded bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase select-none tracking-wider flex-shrink-0">
+                    เชื่อมต่อแล้ว
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Health Checklist Section */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-6">
@@ -1188,6 +1293,14 @@ export function LineSettingsPageClient() {
                     </button>
                   )}
                   <button
+                    className="px-3.5 py-1.5 text-xs font-bold text-white bg-[#0284c7] hover:bg-[#0369a1] rounded-md transition focus:outline-none h-8 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1.5"
+                    onClick={() => void handleSyncTargets()}
+                    disabled={isSyncingTargets || !form.lineChannelAccessToken}
+                    title={!form.lineChannelAccessToken ? 'กรุณาตั้งค่า LINE Channel Access Token ก่อน' : ''}
+                  >
+                    {isSyncingTargets ? 'กำลังซิงค์...' : '🔄 ซิงค์กลุ่มจาก LINE'}
+                  </button>
+                  <button
                     className="px-3.5 py-1.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-md transition focus:outline-none h-8"
                     onClick={() => {
                       setEditingTarget({
@@ -1278,9 +1391,21 @@ export function LineSettingsPageClient() {
                             </span>
                           </td>
                           <td className="px-3 py-3">
-                            <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${t.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
-                              {t.is_active ? 'ทำงานอยู่' : 'ปิดการใช้งาน'}
-                            </span>
+                            {(() => {
+                              const isLeft = !t.is_active && t.last_event_type === 'not_found'
+                              const isDisabled = !t.is_active && !isLeft
+                              const cls = isLeft
+                                ? 'bg-slate-100 text-slate-500'
+                                : isDisabled
+                                  ? 'bg-rose-50 text-rose-700'
+                                  : 'bg-emerald-50 text-emerald-700'
+                              const label = isLeft ? 'บอทออกจากกลุ่ม' : isDisabled ? 'ปิดใช้งาน' : 'อยู่ในกลุ่ม'
+                              return (
+                                <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${cls}`}>
+                                  {label}
+                                </span>
+                              )
+                            })()}
                           </td>
                           <td className="px-3 py-3 text-right">
                             <div className="flex justify-end gap-1.5">
@@ -1372,9 +1497,21 @@ export function LineSettingsPageClient() {
                         </div>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${t.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                          {t.is_active ? 'ACTIVE' : 'INACTIVE'}
-                        </span>
+                        {(() => {
+                          const isLeft = !t.is_active && t.last_event_type === 'not_found'
+                          const isDisabled = !t.is_active && !isLeft
+                          const cls = isLeft
+                            ? 'bg-slate-100 text-slate-500'
+                            : isDisabled
+                              ? 'bg-rose-50 text-rose-700'
+                              : 'bg-emerald-50 text-emerald-700'
+                          const label = isLeft ? 'บอทออกจากกลุ่ม' : isDisabled ? 'ปิดใช้งาน' : 'อยู่ในกลุ่ม'
+                          return (
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${cls}`}>
+                              {label}
+                            </span>
+                          )
+                        })()}
                         <div className="flex gap-2">
                           <button
                             type="button"
@@ -1605,8 +1742,12 @@ export function LineSettingsPageClient() {
           </div>
         )}
 
-        {/* Tab 5: Message Templates */}
-        {activeTab === 'templates' && (
+        {/* Tab 5: Message Templates
+            ซ่อนชั่วคราว (2026-06-26): template config ในหน้านี้ยังไม่ถูกเชื่อมกับ flow ส่งแจ้งเตือนจริง
+            (buildFlexMessageFromTemplate ถูกเรียกแค่ใน Preview) ทำให้ผู้ใช้ตั้งค่าแล้วไม่มีผลตอนส่งจริง
+            เมื่อเชื่อม backend ส่งแจ้งเตือนให้ดึง default template จาก line_message_templates แล้ว ให้เปลี่ยน `false &&` กลับเป็นเงื่อนไขเดิม
+        */}
+        {false && activeTab === 'templates' && (
           <div className="space-y-6 animate-fade-in">
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">

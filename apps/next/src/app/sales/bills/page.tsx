@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { TransactionBillsPageClient } from '@/components/daily/TransactionBillsPageClient'
 
@@ -6,5 +7,9 @@ export const metadata: Metadata = {
 }
 
 export default function SalesBillsPage() {
-  return <TransactionBillsPageClient mode="sales" />
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-xs text-slate-500">กำลังโหลด...</div>}>
+      <TransactionBillsPageClient mode="sales" />
+    </Suspense>
+  )
 }
