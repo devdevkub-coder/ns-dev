@@ -506,13 +506,21 @@ export function PoSellPageClient() {
     <section>
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="mb-4 grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-6 text-sm">
-        <Metric emoji="📋" iconBg="bg-slate-100" label="PO ทั้งหมด" subLabel={`รายได้รวม ${formatMoney(data?.summary.totalAmount ?? 0)}`} value={`${data?.summary.totalRows ?? 0}`} />
-        <Metric emoji="⚪" iconBg="bg-slate-100" label="ยังไม่จับคู่" subLabel="รอ Match Cost" value={`${data?.summary.unmatched ?? 0}`} />
-        <Metric emoji="⚙️" iconBg="bg-amber-100 text-amber-700" label="จับคู่บางส่วน" subLabel="จับคู่ต้นทุนบางส่วน" value={`${data?.summary.partiallyMatched ?? 0}`} />
-        <Metric emoji="✓" iconBg="bg-emerald-100 text-emerald-700" label="จับคู่ครบ" subLabel="พร้อมขาย" value={`${data?.summary.fullyMatched ?? 0}`} />
-        <Metric emoji="⏳" iconBg="bg-amber-100 text-amber-700" label="น้ำหนักรอส่ง" subLabel={`จาก ${formatMoney(data?.summary.qty ?? 0)} กก.`} value={formatMoney(data?.summary.remainingQty ?? 0)} />
-        <Metric emoji="💰" iconBg="bg-emerald-100 text-emerald-700" label="มูลค่ารอส่ง" subLabel="รายได้รอรับ" value={formatMoney(data?.summary.remainingAmount ?? 0)} />
+      <div className="mb-4 grid grid-cols-1 gap-2.5 text-sm sm:grid-cols-2 sm:gap-4">
+        <Metric
+          emoji="⏳"
+          iconBg="bg-amber-100 text-amber-700"
+          label="ยอดรอส่ง"
+          subLabel={`มูลค่ารอส่ง ${formatMoney(data?.summary.remainingAmount ?? 0)} บาท`}
+          value={`${formatMoney(data?.summary.remainingQty ?? 0)} กก.`}
+        />
+        <Metric
+          emoji="⚙️"
+          iconBg="bg-emerald-100 text-emerald-700"
+          label="สถานะจับคู่ต้นทุน"
+          subLabel="ยังไม่จับคู่ / บางส่วน / ครบ"
+          value={`${data?.summary.unmatched ?? 0} / ${data?.summary.partiallyMatched ?? 0} / ${data?.summary.fullyMatched ?? 0}`}
+        />
       </div>
 
       {/* Desktop Toolbar (Hidden on Mobile) */}

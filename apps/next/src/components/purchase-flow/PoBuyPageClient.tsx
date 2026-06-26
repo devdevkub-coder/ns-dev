@@ -715,10 +715,6 @@ export function PoBuyPageClient() {
     setPage(1)
   }, [fromDate, pageSize, search, sortDirection, sortKey, statuses, toDate])
 
-  const openRows = (data?.rows ?? []).filter((row) => poBuyStatusKey(row.status) === 'open')
-  const partialRows = (data?.rows ?? []).filter((row) => poBuyStatusKey(row.status) === 'partial')
-  const receivedRows = (data?.rows ?? []).filter((row) => poBuyStatusKey(row.status) === 'received')
-  const shortClosedRows = (data?.rows ?? []).filter((row) => poBuyStatusKey(row.status) === 'shortClosed')
   const exportHref = useMemo(() => {
     const params = new URLSearchParams({ format: 'xlsx' })
     if (search.trim()) params.set('q', search.trim())
@@ -767,25 +763,18 @@ export function PoBuyPageClient() {
     <section className="space-y-4">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-3 text-sm">
+      <div className="grid grid-cols-1 gap-2.5 text-sm sm:grid-cols-2 sm:gap-4">
         <SummaryCard
-          label="ภาพรวม PO"
-          sublabel={`มูลค่ารวม ${formatMoney(data?.summary.totalAmount ?? 0)}`}
-          tone="blue"
-          value={`${data?.summary.totalRows ?? 0}`}
+          label="ยอดรอรับ"
+          sublabel={`มูลค่าคงเหลือ ${formatMoney(data?.summary.remainingAmount ?? 0)} บาท`}
+          tone="amber"
+          value={`${formatMoney(data?.summary.remainingQty ?? 0)} กก.`}
         />
         <SummaryCard
           label="สถานะการรับ"
           sublabel="ยังไม่รับ / บางส่วน / รับครบ / ปิดรับไม่ครบ"
-          tone="amber"
-          value={`${openRows.length || data?.summary.open || 0} / ${partialRows.length} / ${receivedRows.length} / ${shortClosedRows.length || data?.summary.shortClosed || 0}`}
-        />
-        <SummaryCard
-          className="col-span-2 lg:col-span-1"
-          label="ยอดคงเหลือ"
-          sublabel={`น้ำหนักรอรับ ${formatMoney(data?.summary.remainingQty ?? 0)}`}
           tone="emerald"
-          value={formatMoney(data?.summary.remainingAmount ?? 0)}
+          value={`${data?.summary.open ?? 0} / ${data?.summary.partial ?? 0} / ${data?.summary.received ?? 0} / ${data?.summary.shortClosed ?? 0}`}
         />
       </div>
 
@@ -802,7 +791,7 @@ export function PoBuyPageClient() {
           <UiButton type="button" onClick={openCreateForm}>+ PO Buy ใหม่</UiButton>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-slate-500">สถานะ:</span>
+          <span className="text-xs text-slate-500">สถานะเอกสาร:</span>
           <PoBuySegment
             active={statuses.length === 0}
             label="ทุกสถานะ"
@@ -912,7 +901,7 @@ export function PoBuyPageClient() {
               </div>
 
               <div>
-                <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะ</span>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะเอกสาร</span>
                 <div className="flex flex-wrap gap-2">
                   <PoBuySegment
                     active={statuses.length === 0}
