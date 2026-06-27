@@ -1,7 +1,7 @@
 /* eslint-disable jsx-a11y/alt-text */
 import 'server-only'
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer'
-import { type WeightTicketRecord } from '@/lib/weight-tickets'
+import { type WeightTicketRecord, decodeStoredImageAsset, type StoredImageAsset } from '@/lib/weight-tickets'
 import { type CompanyProfilePrintValues } from '@/lib/company-profile'
 import {
   buildPrintWeightRows,
@@ -37,6 +37,32 @@ function nt(value: string | null | undefined): string {
 
 function missing(value: string | null | undefined): string {
   return value && value.trim() ? value : 'ไม่มีข้อมูล'
+}
+
+function getPhotoTimestamp(fileName: string, ticketCreatedAt: string | null | undefined): string {
+  const msMatch = fileName.match(/\b(\d{13})\b/)
+  if (msMatch) {
+    const ms = parseInt(msMatch[1], 10)
+    const date = new Date(ms)
+    if (!isNaN(date.getTime())) return formatTime(date)
+  }
+  const sMatch = fileName.match(/\b(\d{10})\b/)
+  if (sMatch) {
+    const s = parseInt(sMatch[1], 10) * 1000
+    const date = new Date(s)
+    if (!isNaN(date.getTime())) return formatTime(date)
+  }
+  const date = ticketCreatedAt ? new Date(ticketCreatedAt) : new Date()
+  return formatTime(date)
+}
+
+function formatTime(date: Date): string {
+  return date.toLocaleTimeString('th-TH', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Bangkok',
+  })
 }
 
 function formatDateTime(value?: string | null): string {
@@ -283,6 +309,110 @@ const styles = StyleSheet.create({
     color: TEXT_MUTED,
     paddingTop: 12,
   },
+  // Album styles
+  albumHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    marginBottom: 6,
+  },
+  albumTitleBlock: {
+    flex: 1,
+  },
+  albumTitle: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: DOC_TITLE_GREEN,
+  },
+  albumSubtitle: {
+    fontSize: 8.5,
+    color: TEXT_SECONDARY,
+    marginTop: 4,
+  },
+  albumPageBlock: {
+    alignItems: 'flex-end',
+  },
+  albumPageText: {
+    fontSize: 8.5,
+    fontWeight: 700,
+    color: TEXT_MUTED,
+  },
+  albumHeaderSeparator: {
+    height: 1,
+    backgroundColor: BORDER,
+    marginBottom: 12,
+  },
+  albumGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  albumCard: {
+    width: 262.5,
+    borderWidth: 1,
+    borderColor: BORDER_LIGHT,
+    borderRadius: 6,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  albumImageWrapper: {
+    position: 'relative',
+    height: 140,
+    backgroundColor: '#f8fafc',
+    overflow: 'hidden',
+  },
+  albumImage: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+  },
+  albumBadge: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    paddingTop: 2,
+    paddingBottom: 2,
+    paddingLeft: 6,
+    paddingRight: 6,
+    borderRadius: 4,
+  },
+  albumBadgeText: {
+    fontSize: 8,
+    fontWeight: 700,
+    color: '#ffffff',
+  },
+  albumCardBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 4,
+    paddingBottom: 4,
+    paddingLeft: 6,
+    paddingRight: 6,
+    backgroundColor: '#ffffff',
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    height: 22,
+  },
+  albumFileName: {
+    fontSize: 8,
+    color: TEXT_SECONDARY,
+    width: '60%',
+    overflow: 'hidden',
+  },
+  albumIndexBadge: {
+    backgroundColor: '#0f172a',
+    paddingTop: 1.5,
+    paddingBottom: 1.5,
+    paddingLeft: 5,
+    paddingRight: 5,
+    borderRadius: 99,
+  },
+  albumIndexText: {
+    fontSize: 7.5,
+    fontWeight: 700,
+    color: '#ffffff',
+  },
   spacer: {
     flexGrow: 1,
   },
@@ -474,6 +604,18 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
   const lotCount = lotLines.length
   const lotGrossWeight = lotLines.reduce((sum, line) => sum + line.grossWeightValue, 0)
   const lotContainerWeight = lotLines.reduce((sum, line) => sum + line.containerDeductionWeightValue, 0)
+
+  // Photo Album logic
+  const ticketImages = ticket.imageNames || []
+  const decodedImages = ticketImages
+    .map((img) => decodeStoredImageAsset(img))
+    .filter((img) => img.url && (img.url.startsWith('http') || img.url.startsWith('data:')))
+
+  const albumChunks: Array<StoredImageAsset[]> = []
+  const albumChunkSize = 8
+  for (let i = 0; i < decodedImages.length; i += albumChunkSize) {
+    albumChunks.push(decodedImages.slice(i, i + albumChunkSize))
+  }
 
   const companyNameText = missing(profile.name)
   const renderCompanyName = () => {
@@ -673,7 +815,75 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
             {/* Footer */}
             <View style={styles.footer}>
               <Text>{nt(profile.footerNote || '')}</Text>
-              <Text>{nt('หน้า')} {pageIndex + 1} / {totalPages}</Text>
+              <Text render={({ pageNumber, totalPages }) => `${nt('หน้า')} ${pageNumber} / ${totalPages}`} />
+            </View>
+          </Page>
+        )
+      })}
+
+      {/* 2. Photo album pages (if any) */}
+      {albumChunks.map((chunk, chunkIdx) => {
+        return (
+          <Page key={`album-${chunkIdx}`} size="A4" style={styles.page}>
+            {/* Top green accent line */}
+            <View style={styles.accent} />
+
+            {/* Header of Album Page */}
+            <View style={styles.albumHeader}>
+              <View style={styles.albumTitleBlock}>
+                <Text style={styles.albumTitle}>{nt(isReceipt ? 'ใบรับสินค้า (รูปถ่ายแนบ)' : 'ใบส่งของ (รูปถ่ายแนบ)')}</Text>
+                <Text style={styles.albumSubtitle}>
+                  {nt(`เลขที่เอกสาร: ${ticket.documentNo} · คู่ค้า: ${ticket.partyName} · วันที่: ${ticket.documentDate || '-'}`)}
+                </Text>
+              </View>
+              <View style={styles.albumPageBlock}>
+                <Text style={styles.albumPageText}>
+                  {nt(`${profile.nameEn || 'NS Scrap ERP'} · หน้า `)}
+                  <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
+                </Text>
+              </View>
+            </View>
+            <View style={styles.albumHeaderSeparator} />
+
+            {/* Album Grid (4 rows x 2 cols) */}
+            <View style={styles.albumGrid}>
+              {chunk.map((img: any, imgIdx: number) => {
+                const globalIdx = chunkIdx * albumChunkSize + imgIdx + 1
+                const isOut = img.fileName.toLowerCase().includes('out') ||
+                              img.fileName.toLowerCase().includes('exit') ||
+                              img.fileName.includes('ขาออก')
+                const badgeText = isOut ? 'ขาออก' : (isReceipt ? 'รับเข้า' : 'ขาออก')
+                const badgeColor = isOut ? '#10b981' : '#0ea5e9'
+                const photoTime = getPhotoTimestamp(img.fileName, ticket.createdAt)
+
+                return (
+                  <View key={imgIdx} style={styles.albumCard}>
+                    {/* Image Area */}
+                    <View style={styles.albumImageWrapper}>
+                      <Image src={img.url} style={styles.albumImage} />
+                      {/* Top Left Badge */}
+                      <View style={[styles.albumBadge, { backgroundColor: badgeColor }]}>
+                        <Text style={styles.albumBadgeText}>{nt(badgeText)}</Text>
+                      </View>
+                    </View>
+
+                    {/* Bottom Info Bar */}
+                    <View style={styles.albumCardBar}>
+                      <Text style={styles.albumFileName}>{nt(img.fileName)}</Text>
+                      <View style={styles.albumIndexBadge}>
+                        <Text style={styles.albumIndexText}>{nt(`#${globalIdx} · ${photoTime}`)}</Text>
+                      </View>
+                    </View>
+                  </View>
+                )
+              })}
+            </View>
+
+            {/* Bottom Footer */}
+            <View style={{ flexGrow: 1 }} />
+            <View style={styles.footer}>
+              <Text>{nt(profile.footerNote || '')}</Text>
+              <Text render={({ pageNumber, totalPages }) => `${nt('หน้า')} ${pageNumber} / ${totalPages}`} />
             </View>
           </Page>
         )
