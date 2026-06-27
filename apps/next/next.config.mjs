@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { execSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -22,8 +22,35 @@ function readPackageVersion() {
 }
 
 function readShortCommitHash() {
+  // 1) env var ที่ CI/DevOps ตั้งใน build pipeline (ทางที่น่าเชื่อถือที่สุด)
+  if (process.env.NEXT_PUBLIC_BUILD_COMMIT) return process.env.NEXT_PUBLIC_BUILD_COMMIT
+
+  // 2) git rev-parse (ทำงานใน local dev + build stage ที่มี .git/)
   try {
-    return execSync('git rev-parse --short HEAD', { cwd: workspaceRoot, encoding: 'utf8' }).trim()
+    const hash = execSync('git rev-parse --short HEAD', { cwd: workspaceRoot, encoding: 'utf8' }).trim()
+    if (hash) return hash
+  } catch {
+    // ไม่มี .git/ → ไป fallback ถัดไป
+  }
+
+  // 3) marker file จาก install-playwright.js (commit hash ถูกจับตอน build stage
+  //    แล้วเขียนลง marker ก่อนที่ Docker จะ COPY ไป runtime stage ที่ไม่มี .git/)
+  try {
+    const markerPath = path.join(workspaceRoot, '.playwright-browsers', '.installed')
+    if (existsSync(markerPath)) {
+      const marker = JSON.parse(readFileSync(markerPath, 'utf8'))
+      if (marker && typeof marker.commit === 'string' && marker.commit) return marker.commit
+    }
+  } catch {
+    // marker ไม่มี/อ่านไม่ได้ → ไป fallback สุดท้าย
+  }
+
+  // 4) fallback สุดท้าย: build time short stamp (เช่น "0328" = เวลา build)
+  //    เพื่อให้ badge ไม่ว่าง และยังบอกได้ว่า deploy ตัวไหน
+  try {
+    const now = new Date()
+    const stamp = `${String(now.getUTCHours()).padStart(2, '0')}${String(now.getUTCMinutes()).padStart(2, '0')}`
+    return `build-${stamp}`
   } catch {
     return 'unknown'
   }
