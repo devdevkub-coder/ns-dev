@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     marginBottom: 12,
   },
-  companyBlock: { flexDirection: 'row', flex: 1.6 },
+  companyBlock: { flexDirection: 'row', flexGrow: 1, flexShrink: 1 },
   logo: { width: 50, height: 50, marginRight: 10, objectFit: 'contain' },
   logoPlaceholder: {
     width: 50,
@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
   companyName: { fontSize: 14, fontWeight: 700, color: TEXT_DARK },
   companyEn: { fontSize: 9, fontWeight: 700, color: TEXT_SECONDARY, marginTop: 1 },
   companyInfo: { fontSize: 8, color: TEXT_SECONDARY, marginTop: 3 },
-  docHead: { flex: 0.4, alignItems: 'flex-end' },
+  docHead: { flexShrink: 0, alignItems: 'flex-end' },
   docTitle: { fontSize: 16, fontWeight: 700, color: DOC_TITLE_GREEN },
 
   // Section grid (party + doc info)
@@ -132,6 +132,8 @@ const styles = StyleSheet.create({
     color: '#334155',
     fontWeight: 700,
     fontSize: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER,
   },
   panelBody: { padding: 7, flexDirection: 'row', flexWrap: 'wrap' },
   field: { width: '50%', marginBottom: 5, paddingRight: 6 },
@@ -418,15 +420,15 @@ function TableFooter({ ticket, isReceipt }: { ticket: WeightTicketRecord; isRece
         <Text>{formatPrintableNumber(ticket.totals.grossWeight)}</Text>
       </View>
       <View style={[styles.tableCellRight, { width: COL_CONTAINER }]}>
-        <Text>{formatPrintableNumber(ticket.totals.containerDeductionWeight)}</Text>
+        <Text>{formatPrintableNumber(ticket.totals.containerDeductionWeight)}{isReceipt ? ' kg' : ''}</Text>
       </View>
       {isReceipt ? (
         <>
           <View style={[styles.tableCellRight, { width: COL_AFTER_CONTAINER }]}>
-            <Text>{formatPrintableNumber(totalAfterContainer)}</Text>
+            <Text>{formatPrintableNumber(totalAfterContainer)} kg</Text>
           </View>
           <View style={[styles.tableCellRight, { width: COL_DEDUCTION }]}>
-            <Text>{formatPrintableNumber(ticket.totals.deductionWeight)}</Text>
+            <Text>{formatPrintableNumber(ticket.totals.deductionWeight)} kg</Text>
           </View>
         </>
       ) : null}
