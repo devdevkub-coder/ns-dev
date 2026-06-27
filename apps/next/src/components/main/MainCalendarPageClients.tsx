@@ -208,7 +208,6 @@ function RunningBalanceLineChart({ days, maxBalance, minBalance }: { days: CashD
             บาท
           </text>
         </svg>
-        <div className="mt-1 text-center text-xs font-bold text-slate-700">แกน X: วันที่</div>
       </div>
     </div>
   )
@@ -235,10 +234,7 @@ function DailyCashInOutChart({ days }: { days: CashDay[] }) {
         <div className="text-xs font-medium text-slate-500">แสดงเฉพาะวันที่มีเงินเข้า/เงินออก</div>
       </div>
       <div className="rounded-md bg-white p-2">
-        <div className="grid grid-cols-[28px_72px_minmax(0,1fr)] gap-2">
-          <div className="relative h-72">
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-90 whitespace-nowrap text-xs font-bold text-slate-700">แกน Y: จำนวนเงิน (บาท)</div>
-          </div>
+        <div className="grid grid-cols-[80px_minmax(0,1fr)] gap-2">
           <div className="relative h-72 text-[11px] font-medium text-slate-500">
             {ticks.map((tick, index) => (
               <div key={`${tick}-${index}`} className="absolute right-0 -translate-y-1/2 text-right tabular-nums" style={{ top: `${pct(axisMax - tick, axisMax)}%` }}>
@@ -266,7 +262,6 @@ function DailyCashInOutChart({ days }: { days: CashDay[] }) {
             </div>
           </div>
         </div>
-        <div className="mt-8 text-center text-xs font-bold text-slate-700">แกน X: วันที่</div>
       </div>
     </div>
   )
@@ -304,7 +299,7 @@ export function BusinessCalendarPageClient() {
         <Metric label="จ่ายเงิน" value={money(summary.paymentAmount)} tone="red" />
         <Metric label="Net Cash" value={money(summary.netCash)} tone="gradient" />
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 xl:grid-cols-2">
         <Panel title="📈 ซื้อ vs ขาย รายวัน">
           <div className="mb-3 flex gap-4 text-xs text-slate-500"><Legend color="bg-blue-500" text="ซื้อ" /><Legend color="bg-emerald-500" text="ขาย" /></div>
           <div className="flex h-48 items-end gap-1 border-b border-l border-slate-100 px-2 pb-1 bg-slate-50/20 rounded-b-lg">
