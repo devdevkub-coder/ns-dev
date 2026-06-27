@@ -323,11 +323,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 700,
     color: DOC_TITLE_GREEN,
+    lineHeight: 1.25,
   },
   albumSubtitle: {
     fontSize: 8.5,
     color: TEXT_SECONDARY,
-    marginTop: 4,
+    marginTop: 6,
+    lineHeight: 1.25,
   },
   albumPageBlock: {
     alignItems: 'flex-end',
@@ -837,10 +839,10 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
                 </Text>
               </View>
               <View style={styles.albumPageBlock}>
-                <Text style={styles.albumPageText}>
-                  {nt(`${profile.nameEn || 'NS Scrap ERP'} · หน้า `)}
-                  <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
-                </Text>
+                <Text
+                  style={styles.albumPageText}
+                  render={({ pageNumber, totalPages }) => nt(`${profile.nameEn || 'NS Scrap ERP'} · หน้า ${pageNumber} / ${totalPages}`)}
+                />
               </View>
             </View>
             <View style={styles.albumHeaderSeparator} />
