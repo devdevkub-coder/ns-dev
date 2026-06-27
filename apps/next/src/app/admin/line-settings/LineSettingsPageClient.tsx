@@ -938,6 +938,12 @@ export function LineSettingsPageClient() {
           <span className="px-2.5 py-1 rounded bg-[#0284c7] text-white font-bold text-[10px] uppercase select-none tracking-wider">
             {process.env.NODE_ENV === 'development' ? 'Development' : 'Production'}
           </span>
+          <span
+            className="px-2.5 py-1 rounded bg-slate-700 text-slate-300 font-mono text-[10px] select-none tracking-wider"
+            title={`Build: ${process.env.NEXT_PUBLIC_BUILD_TIME || '-'}`}
+          >
+            v{process.env.NEXT_PUBLIC_BUILD_VERSION || '0.0.0'} · {process.env.NEXT_PUBLIC_BUILD_COMMIT || 'unknown'}
+          </span>
           <button
             type="button"
             className="px-3 py-1.5 text-xs text-slate-200 border border-slate-700 bg-slate-800 hover:bg-slate-700 hover:text-white rounded-md transition focus:outline-none h-8 select-none"
