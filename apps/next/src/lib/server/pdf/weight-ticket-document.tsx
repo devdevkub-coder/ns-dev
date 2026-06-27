@@ -1,5 +1,6 @@
+/* eslint-disable jsx-a11y/alt-text */
 import 'server-only'
-import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
+import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer'
 import { type WeightTicketRecord } from '@/lib/weight-tickets'
 import { type CompanyProfilePrintValues } from '@/lib/company-profile'
 import {
@@ -151,6 +152,14 @@ const styles = StyleSheet.create({
     fontSize: 8,
     fontWeight: 700,
     color: '#1e293b',
+    borderRightWidth: 1,
+    borderRightColor: BORDER,
+  },
+  tableHeaderCellLast: {
+    padding: 4,
+    fontSize: 8,
+    fontWeight: 700,
+    color: '#1e293b',
   },
   tableRow: {
     flexDirection: 'row',
@@ -158,9 +167,44 @@ const styles = StyleSheet.create({
     borderTopWidth: 0,
     borderColor: BORDER_LIGHT,
   },
-  tableCell: { padding: 4, fontSize: 9 },
-  tableCellRight: { padding: 4, fontSize: 9, textAlign: 'right' },
-  tableCellStrong: { padding: 4, fontSize: 9, textAlign: 'right', fontWeight: 700, color: FINAL_WEIGHT_GREEN },
+  tableCell: {
+    padding: 4,
+    fontSize: 9,
+    borderRightWidth: 1,
+    borderRightColor: BORDER_LIGHT,
+  },
+  tableCellLast: {
+    padding: 4,
+    fontSize: 9,
+  },
+  tableCellRight: {
+    padding: 4,
+    fontSize: 9,
+    textAlign: 'right',
+    borderRightWidth: 1,
+    borderRightColor: BORDER_LIGHT,
+  },
+  tableCellRightLast: {
+    padding: 4,
+    fontSize: 9,
+    textAlign: 'right',
+  },
+  tableCellStrong: {
+    padding: 4,
+    fontSize: 9,
+    textAlign: 'right',
+    fontWeight: 700,
+    color: FINAL_WEIGHT_GREEN,
+    borderRightWidth: 1,
+    borderRightColor: BORDER_LIGHT,
+  },
+  tableCellStrongLast: {
+    padding: 4,
+    fontSize: 9,
+    textAlign: 'right',
+    fontWeight: 700,
+    color: FINAL_WEIGHT_GREEN,
+  },
   itemName: { fontWeight: 700, color: TEXT_DARK, fontSize: 9 },
   muted: { color: TEXT_MUTED, fontSize: 7, marginTop: 1 },
 
@@ -178,8 +222,21 @@ const styles = StyleSheet.create({
   // Signatures
   signatures: { flexDirection: 'row', gap: 12, marginTop: 20 },
   sig: { flex: 1 },
-  sigLine: { borderTopWidth: 1, borderTopColor: '#94a3b8', paddingTop: 4, fontSize: 9, fontWeight: 700 },
-  sigDate: { fontSize: 8, color: TEXT_MUTED, marginTop: 2 },
+  sigLine: {
+    borderTopWidth: 1,
+    borderTopColor: '#94a3b8',
+    paddingTop: 4,
+    marginTop: 24,
+    fontSize: 9,
+    fontWeight: 700,
+    textAlign: 'center',
+  },
+  sigDate: {
+    fontSize: 8,
+    color: TEXT_MUTED,
+    marginTop: 2,
+    textAlign: 'center',
+  },
 
   // Footer
   footer: {
@@ -237,7 +294,7 @@ function ItemRow({ row, isReceipt }: { row: PrintWeightRow; isReceipt: boolean }
         <View style={[styles.tableCell, { width: COL_RANK, textAlign: 'center' }]}>
           <Text>{nt(row.rank || '')}</Text>
         </View>
-        <View style={[styles.tableCell, { width: isReceipt ? `${100 - 4}%` : `${100 - 4 - 12 - 12 - 26}%` }]}>
+        <View style={[styles.tableCellLast, { width: isReceipt ? `${100 - 4}%` : `${100 - 4 - 12 - 12 - 26}%` }]}>
           <Text style={styles.itemName}>{nt(row.productName)}</Text>
           <Text style={styles.muted}>{nt(row.detail)}</Text>
         </View>
@@ -271,7 +328,7 @@ function ItemRow({ row, isReceipt }: { row: PrintWeightRow; isReceipt: boolean }
           </View>
         </>
       ) : null}
-      <View style={[styles.tableCellStrong, { width: isReceipt ? COL_NET : COL_NET_WTO }]}>
+      <View style={[styles.tableCellStrongLast, { width: isReceipt ? COL_NET : COL_NET_WTO }]}>
         <Text>{formatPrintableNumber(row.netWeight)}</Text>
       </View>
     </View>
@@ -297,7 +354,7 @@ function TableHeader({ isReceipt }: { isReceipt: boolean }) {
           </Text>
         </>
       ) : null}
-      <Text style={[styles.tableHeaderCell, { width: isReceipt ? COL_NET : COL_NET_WTO, textAlign: 'right' }]}>
+      <Text style={[styles.tableHeaderCellLast, { width: isReceipt ? COL_NET : COL_NET_WTO, textAlign: 'right' }]}>
         {nt('น้ำหนักสุทธิ')}
       </Text>
     </View>
@@ -328,7 +385,7 @@ function TableFooter({ ticket, isReceipt }: { ticket: WeightTicketRecord; isRece
           </View>
         </>
       ) : null}
-      <View style={[styles.tableCellStrong, { width: isReceipt ? COL_NET : COL_NET_WTO }]}>
+      <View style={[styles.tableCellStrongLast, { width: isReceipt ? COL_NET : COL_NET_WTO }]}>
         <Text>{formatPrintableNumber(ticket.totals.netWeight)}</Text>
       </View>
     </View>
@@ -394,10 +451,7 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
             <View style={styles.headerRow}>
               <View style={styles.companyBlock}>
                 {profile.logoUrl ? (
-                  // react-pdf Image ต้องการ absolute URL หรือ data URL
-                  <View style={styles.logoPlaceholder}>
-                    <Text>LOGO</Text>
-                  </View>
+                  <Image src={profile.logoUrl} style={styles.logo} />
                 ) : (
                   <View style={styles.logoPlaceholder}>
                     <Text>{nt('ไม่มีข้อมูล')}</Text>
