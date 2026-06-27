@@ -68,10 +68,6 @@ const BUILD_TIME = process.env.NEXT_PUBLIC_BUILD_TIME || readBuildTime()
 const nextConfig = {
   outputFileTracingRoot: workspaceRoot,
   reactStrictMode: true,
-  // Externalize PDF/canvas packages so Turbopack ไม่ bundle Node-native internals
-  // ของ @react-pdf/renderer (PDFKit/fontkit) และ @napi-rs/canvas (native Skia binary)
-  // ป้องกันปัญหา bundling และรักษา performance ตอน runtime
-  serverExternalPackages: ['@react-pdf/renderer', '@napi-rs/canvas'],
   // Inject build metadata เข้าเป็น client-visible env (Next จะ inline ใน bundle)
   env: {
     NEXT_PUBLIC_BUILD_VERSION: BUILD_VERSION,

@@ -1,6 +1,8 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { hostname } from 'node:os'
+import { chromium } from 'playwright'
 import { buildReceiptPrintHtml } from '@/lib/weight-ticket-print'
 import { type CompanyProfilePrintValues } from '@/lib/company-profile'
 import type { Prisma } from '../../../generated/prisma/client'
@@ -14,9 +16,6 @@ import {
   type WeightTicketRow,
 } from '@/lib/server/weight-tickets'
 import { syncWeightTicketToGoogleSheets } from '@/lib/server/google-sheets-sync'
-// module ใหม่ที่ใช้ react-pdf + @napi-rs/canvas แทน Playwright
-// (import เป็น alias เพื่อไม่ให้ชนกับชื่อ function legacy ในไฟล์นี้)
-import { generateWeightTicketPdf as generateWeightTicketPdfReactPdf } from '@/lib/server/pdf/weight-ticket-pdf'
 
 type NotifyOptions = {
   customMessage?: string
@@ -77,6 +76,139 @@ function cleanText(value: string | null | undefined, fallback = '-') {
 
 function safeStorageSegment(value: string) {
   return value.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '')
+}
+
+/**
+ * Resolve ตำแหน่ง Playwright Chromium binary ในขณะรันจริง (runtime) อย่างชัดเจน
+ *
+ * ลำดับการ resolve:
+ *   1. env `PLAYWRIGHT_BROWSERS_PATH` — ทางที่ถูกที่สุด ถ้า container ตั้งไว้ก็ใช้เลย
+ *   2. candidate paths ครอบคลุมทุก layout ที่เป็นไปได้ (workspace root, cwd และ parent levels)
+ *   3. หากไม่พบทั้งหมด → throw error พร้อมคำแนะนำ (แทนที่จะปล่อยให้ Playwright
+ *      fallback ไป default path `/root/.cache/ms-playwright/` ที่ว่างเปล่าแล้วพังเงียบ ๆ)
+ *
+ * เหตุผล: Docker multi-stage build อาจไม่ COPY `.playwright-browsers/` จาก builder
+ * stage เข้าสู่ runtime image. การ throw ที่ชัดเจนช่วยให้ debug ได้ทันทีผ่านข้อความ error
+ * และช่วยให้ทีม infra ตั้ง env var ตัวเดียวก็แก้ได้โดยไม่ต้องแก้โค้ด
+ */
+export function resolvePlaywrightBrowsersPath(): string {
+  // 1) env var ที่ container/DevOps อาจตั้งไว้
+  const envPath = process.env.PLAYWRIGHT_BROWSERS_PATH
+  if (envPath && existsSync(envPath)) {
+    return envPath
+  }
+
+  // 2) candidate paths — ครอบคลุมทุก layout ที่เป็นไปได้
+  const cwd = process.cwd()
+  const candidates = [
+    join(cwd, '.playwright-browsers'),                       // รันจาก workspace root
+    join(cwd, '..', '.playwright-browsers'),                  // รันจาก apps/next (cwd = apps/next)
+    join(cwd, '..', '..', '.playwright-browsers'),            // รันจาก apps/next/src/...
+    join(cwd, 'apps', 'next', '.playwright-browsers'),        // workspace root ที่ binary อยู่ใต้ apps/next
+    join(cwd, 'apps', '.playwright-browsers'),                // รูปแบบอื่น
+  ]
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      return candidate
+    }
+  }
+
+  // 3) หาไม่เจอ — throw พร้อมคำแนะนำที่อ่านง่าย แทนการปล่อยให้ Playwright พังเงียบ
+  const triedList = [envPath, ...candidates].filter(Boolean).map((p) => `  • ${p}`).join('\n')
+  throw new Error(
+    `ไม่พบ Playwright Chromium binary ที่ติดตั้งไว้ (PLAYWRIGHT_BROWSERS_PATH).\n` +
+    `Paths ที่ลองค้นหา:\n${triedList}\n\n` +
+    `วิธีแก้ไข (เลือกอย่างใดอย่างหนึ่ง):\n` +
+    `  1) ตั้ง env var PLAYWRIGHT_BROWSERS_PATH ใน runtime container ให้ชี้ไปยังโฟลเดอร์ที่มี Chromium binary\n` +
+    `  2) ตรวจ Dockerfile ให้มีการ COPY .playwright-browsers/ จาก builder stage เข้าสู่ runner stage\n` +
+    `  3) รัน "npx playwright install --with-deps chromium" ใน runtime image ระหว่าง build\n\n` +
+    `เช็คสถานะปัจจุบันได้ที่ endpoint /api/health (ฟิลด์ playwright)`
+  )
+}
+
+/**
+ * อ่าน marker file ที่เขียนโดย install-playwright.js ตอน build stage
+ * เพื่อเปรียบเทียบระหว่าง "build time" กับ "runtime process" — ถ้า worker เก่า
+ * ค้างอยู่ (warm worker) จะเห็น mismatch ของ marker.commit / installedAt ทันที
+ */
+function readPlaywrightMarker(browsersPath: string): {
+  path?: string
+  commit?: string | null
+  installedAt?: string
+  nodeVersion?: string
+  platform?: string
+} | null {
+  try {
+    const markerFile = join(browsersPath, '.installed')
+    if (!existsSync(markerFile)) return null
+    return JSON.parse(readFileSync(markerFile, 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+/**
+ * จุดเดียวที่ทำการ launch Chromium ของ Playwright (Single source of truth)
+ *
+ * แก้ปัญหาที่ ChatGPT diagnosis ไว้ถูกต้อง:
+ *  - env `PLAYWRIGHT_BROWSERS_PATH` อาจมีตอน build แต่หายตอน runtime
+ *    → เราบังคับ set process.env ทุกครั้งก่อน launch
+ *  - worker process บางตัวอาจใช้ code/env เก่า → log fingerprint เพื่อยืนยัน
+ *
+ * ทุก job (manual + auto + retry) ต้องผ่านจุดนี้เท่านั้น ห้ามเรียก chromium.launch() ตรง ๆ
+ */
+export async function launchManagedChromium(options?: {
+  queueId?: string | number
+  billNo?: string
+}): Promise<import('playwright').Browser> {
+  const resolvedPath = resolvePlaywrightBrowsersPath()
+
+  // บังคับ set env ทุกครั้งก่อน launch — กัน env หายตอน runtime
+  process.env.PLAYWRIGHT_BROWSERS_PATH = resolvedPath
+
+  const marker = readPlaywrightMarker(resolvedPath)
+
+  // Runtime fingerprint log — ถ้า job พังจะเห็นทันทีว่าเป็น process/env ตัวไหน
+  console.log('[LINE_SEND_WORKER_BEFORE_PLAYWRIGHT]', JSON.stringify({
+    queueId: options?.queueId ?? null,
+    billNo: options?.billNo ?? null,
+    pid: process.pid,
+    hostname: hostname(),
+    cwd: process.cwd(),
+    processUptimeSeconds: Math.round(process.uptime()),
+    nodeEnv: process.env.NODE_ENV ?? null,
+    playwrightBrowsersPathEnv: process.env.PLAYWRIGHT_BROWSERS_PATH,
+    resolvedPath,
+    binaryExists: existsSync(resolvedPath),
+    marker,
+  }))
+
+  try {
+    const browser = await chromium.launch({
+      headless: true,
+      args: [
+        '--font-render-hinting=none',
+        '--disable-font-subpixel-positioning',
+        '--disable-gpu',
+      ],
+    })
+    return browser
+  } catch (err) {
+    // ถ้ายังไปเจอ /root/.cache/... แปลว่า Playwright ไม่รับ env ที่เรา set
+    // → throw error ของเราเองพร้อม fingerprint แทน error ปกติของ Playwright
+    const rawErr = err instanceof Error ? err.message : String(err)
+    if (rawErr.includes('/root/.cache/ms-playwright') || rawErr.includes('ms-playwright')) {
+      throw new Error(
+        `Playwright ยังไปหา default path ที่ว่างเปล่าแทน path ที่เราตั้ง แม้จะ set env แล้ว\n` +
+        `→ น่าจะเป็น warm worker/stale process ที่ไม่รับ env ใหม่ (ต้อง restart container)\n` +
+        `fingerprint: resolvedPath=${resolvedPath}, env=${process.env.PLAYWRIGHT_BROWSERS_PATH}, ` +
+        `pid=${process.pid}, hostname=${hostname()}, uptime=${Math.round(process.uptime())}s\n` +
+        `original: ${rawErr}`
+      )
+    }
+    throw err
+  }
 }
 
 function imageFromDataUrl(value: string) {
@@ -175,6 +307,486 @@ function formatTime(date: Date): string {
   })
 }
 
+// --- Main PDF Generation Function ---
+
+export async function generateWeightTicketPdf(
+  ticket: WeightTicketRecord,
+  profile: CompanyProfilePrintValues | null,
+  options?: {
+    showBadges?: boolean
+    showTimestamps?: boolean
+    quality?: number
+  }
+): Promise<{ pdfBuffer: Buffer; albumImages: Array<{ pageIdx: number; buffer: Buffer }> }> {
+  const configs = await resolveNotificationConfigs()
+  const showBadges = options?.showBadges ?? configs.albumShowBadges
+  const showTimestamps = options?.showTimestamps ?? configs.albumShowTimestamps
+  const quality = options?.quality ?? configs.albumQuality
+  const defaultProfile: CompanyProfilePrintValues = {
+    address: '-',
+    bankInfo: null,
+    branchCode: '00000',
+    email: null,
+    fax: null,
+    footerNote: null,
+    logoUrl: null,
+    name: 'NS SCRAP',
+    nameEn: null,
+    phone: '-',
+    taxId: null,
+    website: null,
+  }
+
+  const activeProfile = profile || defaultProfile
+
+  // 2. Generate original ticket HTML page
+  const ticketHtml = buildReceiptPrintHtml(ticket, activeProfile)
+
+  // 3. Extract original HTML and inject page break + photo album page (Page 2)
+  const isWti = ticket.type === 'WTI'
+  const images = ticket.imageNames || []
+  const decodedImages = images
+    .map((img) => decodeStoredImageAsset(img))
+    .filter((asset) => asset.url && (asset.url.startsWith('http') || asset.url.startsWith('data:')))
+
+  let photoAlbumHtml = ''
+  if (decodedImages.length > 0) {
+    const photoTiles = decodedImages.map((asset, idx) => {
+      const isOut = asset.fileName.toLowerCase().includes('out') ||
+                    asset.fileName.toLowerCase().includes('exit') ||
+                    asset.fileName.includes('ขาออก')
+      const badgeText = isOut ? 'ขาออก' : (isWti ? 'รับเข้า' : 'ขาออก')
+      const badgeColor = isOut ? '#10b981' : '#0ea5e9'
+      const photoTime = getPhotoTimestamp(asset.fileName, ticket.createdAt)
+
+      return `
+        <div style="position: relative; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; page-break-inside: avoid; break-inside: avoid; background: #f8fafc;">
+          <img src="${asset.url}" style="width: 100%; height: 160px; object-fit: cover; display: block;" />
+          <div style="position: absolute; top: 8px; left: 8px; background: ${badgeColor}; color: white; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px;">
+            ${badgeText}
+          </div>
+          <div style="position: absolute; bottom: 8px; right: 8px; background: rgba(15, 23, 42, 0.75); color: white; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px;">
+            #${idx + 1} &middot; ${photoTime}
+          </div>
+          <div style="padding: 6px 8px; font-size: 9px; color: #64748b; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">
+            ${asset.fileName}
+          </div>
+        </div>
+      `
+    }).join('')
+
+    photoAlbumHtml = `
+      <div class="page" style="page-break-before: always; break-before: page; min-height: 277mm; display: flex; flex-direction: column; background: white; padding: 7mm; box-sizing: border-box;">
+        <div class="accent"></div>
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #cbd5e1; padding-bottom: 12px; margin-bottom: 16px; flex: 0 0 auto;">
+          <div>
+            <div style="font-size: 18px; font-weight: 900; color: ${isWti ? '#14532d' : '#0369a1'};">
+              ${isWti ? '📥 ใบรับสินค้า (รูปถ่ายแนบ)' : '📤 ใบส่งของ (รูปถ่ายแนบ)'}
+            </div>
+            <div style="font-size: 10px; color: #475569; margin-top: 4px;">
+              เลขที่เอกสาร: ${ticket.documentNo} &middot; คู่ค้า: ${ticket.partyName || '-'} &middot; วันที่: ${formatDateDisplay(ticket.documentDate)}
+            </div>
+          </div>
+          <div style="text-align: right; font-size: 10px; color: #64748b;">
+            NS PRODUCTION &middot; หน้า 2 / 2
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; flex: 1 1 auto; align-content: start;">
+          ${photoTiles}
+        </div>
+        <div class="footer" style="margin-top: auto; padding-top: 8px; display: flex; justify-content: space-between; gap: 12px; border-top: 1px dashed #cbd5e1; color: #64748b; font-size: 9px; flex: 0 0 auto;">
+          <div>ขอขอบคุณที่ใช้บริการค่ะ/ครับ</div>
+          <div>NS Scrap Production &middot; NS Solutions Thailand</div>
+        </div>
+      </div>
+    `
+  }
+
+  // Load local font to base64 inline styles
+  const regFontPaths = [
+    join(/*turbopackIgnore: true*/ process.cwd(), 'public/fonts/NotoSansThai-Regular.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/public/fonts/NotoSansThai-Regular.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'src/assets/fonts/NotoSansThai-Regular.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/src/assets/fonts/NotoSansThai-Regular.ttf'),
+  ]
+  const boldFontPaths = [
+    join(/*turbopackIgnore: true*/ process.cwd(), 'public/fonts/NotoSansThai-Bold.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/public/fonts/NotoSansThai-Bold.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'src/assets/fonts/NotoSansThai-Bold.ttf'),
+    join(/*turbopackIgnore: true*/ process.cwd(), 'apps/next/src/assets/fonts/NotoSansThai-Bold.ttf'),
+  ]
+
+  let regBase64 = ''
+  for (const fontPath of regFontPaths) {
+    if (existsSync(fontPath)) {
+      try {
+        regBase64 = await readFile(fontPath, 'base64')
+        break
+      } catch (err) {
+        console.warn('Failed to read regular font file at', fontPath, err)
+      }
+    }
+  }
+
+  let boldBase64 = ''
+  for (const fontPath of boldFontPaths) {
+    if (existsSync(fontPath)) {
+      try {
+        boldBase64 = await readFile(fontPath, 'base64')
+        break
+      } catch (err) {
+        console.warn('Failed to read bold font file at', fontPath, err)
+      }
+    }
+  }
+
+  if (!regBase64) {
+    throw new Error('ไม่พบไฟล์ฟอนต์ภาษาไทยสำหรับสร้างเอกสาร PDF (Tried paths: ' + regFontPaths.join(', ') + ')')
+  }
+
+  let fontStyleBlock = ''
+  if (regBase64) {
+    fontStyleBlock += `
+    <style>
+      @font-face {
+        font-family: 'Noto Sans Thai';
+        src: url('data:font/ttf;charset=utf-8;base64,${regBase64}') format('truetype');
+        font-weight: normal;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Noto Sans Thai';
+        src: url('data:font/ttf;charset=utf-8;base64,${regBase64}') format('truetype');
+        font-weight: 300;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Noto Sans Thai';
+        src: url('data:font/ttf;charset=utf-8;base64,${regBase64}') format('truetype');
+        font-weight: 400;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Noto Sans Thai';
+        src: url('data:font/ttf;charset=utf-8;base64,${regBase64}') format('truetype');
+        font-weight: 500;
+        font-style: normal;
+      }
+    `
+    if (boldBase64) {
+      fontStyleBlock += `
+      @font-face {
+        font-family: 'Noto Sans Thai';
+        src: url('data:font/ttf;charset=utf-8;base64,${boldBase64}') format('truetype');
+        font-weight: bold;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Noto Sans Thai';
+        src: url('data:font/ttf;charset=utf-8;base64,${boldBase64}') format('truetype');
+        font-weight: 600;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Noto Sans Thai';
+        src: url('data:font/ttf;charset=utf-8;base64,${boldBase64}') format('truetype');
+        font-weight: 700;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Noto Sans Thai';
+        src: url('data:font/ttf;charset=utf-8;base64,${boldBase64}') format('truetype');
+        font-weight: 800;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Noto Sans Thai';
+        src: url('data:font/ttf;charset=utf-8;base64,${boldBase64}') format('truetype');
+        font-weight: 900;
+        font-style: normal;
+      }
+      `
+    }
+    fontStyleBlock += `
+      * {
+        font-family: 'Noto Sans Thai', sans-serif !important;
+        font-synthesis: none !important;
+      }
+    </style>
+    `
+  }
+
+  // 4. Inject Page 2 and Font Face styles
+  let finalHtml = ticketHtml
+    .replace(/<link[^>]*fonts\.googleapis\.com[^>]*>/g, '')
+    .replace(/<link[^>]*fonts\.gstatic\.com[^>]*>/g, '')
+
+  if (fontStyleBlock) {
+    const headCloseIdx = finalHtml.indexOf('</head>')
+    if (headCloseIdx !== -1) {
+      // Inject ฟอนต์ + CSS override เฉพาะ PDF ที่จะส่ง LINE
+      // ปัญหา: เอกสารที่มีสินค้าน้อย (1-3 รายการ) เนื้อหาจริงสั้น (~150mm) แต่หน้า A4 สูง 297mm
+      // โครงสร้าง flex มีแค่ .footer ที่ margin-top:auto → เกิดช่องว่างใหญ่ครึ่งหน้าระหว่าง
+      // .signatures กับ .footer (เพราะ .signatures ติดเนื้อหาด้านบน)
+      // แก้: (1) ดัน .signatures ไปติด .footer ด้านล่าง (2) ขยายระยะหายใจของแต่ละส่วนให้เต็มหน้า
+      const pdfOverrideCss = `
+    <style>
+      @page { size: A4 portrait; margin: 0; }
+      .page { width: auto; max-width: 210mm; min-height: 297mm; margin: 0; padding: 10mm 11mm; display: flex; flex-direction: column; }
+      body { background: white; }
+      /* ดันกล่องลงชื่อไปติดด้านล่างสุดของหน้า ไม่ว่าเนื้อหาจะน้อยแค่ไหน */
+      .signatures { margin-top: auto !important; }
+      /* ขยายระยะหายใจของเนื้อหาหลักเพื่อเติมพื้นที่หน้า A4 */
+      .accent { margin-bottom: 14px !important; }
+      .header { padding-bottom: 14px !important; }
+      .section-grid { margin-top: 14px !important; }
+      .panel { border-width: 1px !important; }
+      .panel-title { padding: 8px 11px !important; font-size: 12px !important; }
+      .panel-body { padding: 9px 11px !important; }
+      .field-value { font-size: 13px !important; }
+      .items { margin-top: 14px !important; font-size: 12px !important; }
+      .items th { padding: 7px 6px !important; font-size: 11.5px !important; }
+      .items td { padding: 8px 6px !important; }
+      .bottom-grid { margin-top: 14px !important; gap: 12px !important; }
+      .summary-card { padding: 8px !important; }
+      .summary-card .value { font-size: 12.5px !important; }
+      .note { min-height: 40px !important; }
+      /* signatures ปรับให้กระชับขึ้นเพื่อกันล้นไปหน้า 2 */
+      .signatures { gap: 16px !important; margin-top: 26px !important; }
+      .sig-line { margin-top: 22px !important; padding-top: 5px !important; }
+      .footer { display: none !important; }
+    </style>`
+      finalHtml = finalHtml.substring(0, headCloseIdx) + fontStyleBlock + pdfOverrideCss + finalHtml.substring(headCloseIdx)
+    }
+  }
+
+  if (photoAlbumHtml) {
+    const bodyCloseIdx = finalHtml.lastIndexOf('</body>')
+    if (bodyCloseIdx !== -1) {
+      finalHtml = finalHtml.substring(0, bodyCloseIdx) + photoAlbumHtml + finalHtml.substring(bodyCloseIdx)
+    }
+  }
+
+  // 5. Use Playwright to launch Chromium in headless mode and render HTML to PDF
+  // Chromium binary ต้องถูกติดตั้งตอน build และ copy ข้าม Docker multi-stage เข้าสู่ runtime image.
+  // ปัดทุกการ launch ผ่าน launchManagedChromium() จุดเดียว — เพื่อ:
+  //   - บังคับ set PLAYWRIGHT_BROWSERS_PATH ทุกครั้งก่อน launch (กัน env หายตอน runtime)
+  //   - log runtime fingerprint (pid/hostname/uptime/marker) เพื่อ detect warm worker
+  //   - ถ้า fallback ไป /root/.cache ทั้งที่ set env แล้ว → throw error ที่บอกต้นเหตุชัดเจน
+  const browser = await launchManagedChromium({
+    billNo: ticket.documentNo,
+  })
+  const context = await browser.newContext()
+  const page = await context.newPage()
+
+  // Emulate print media type
+  await page.emulateMedia({ media: 'print' })
+
+  if (process.env.NODE_ENV === 'development' || process.env.MOCK_PDF_UPLOAD === 'false') {
+    await writeFile(join(/*turbopackIgnore: true*/ process.cwd(), 'scratch/generated_test.html'), finalHtml, 'utf8').catch((err: any) => console.warn('Failed to save generated_test.html:', err))
+  }
+
+  await page.setContent(finalHtml, { waitUntil: 'load' })
+
+  // Wait for font faces to be ready
+  await page.evaluate(() => document.fonts.ready)
+
+  // Print page to PDF with standard A4 settings
+  // margin ใช้ 0mm เพราะ @page ใน CSS override (ฝั่ง PDF เท่านั้น) เป็นตัวกำหนดพื้นที่พิมพ์
+  // (ปุ่มพิมพ์ในเบราว์เซอร์ใช้ CSS หลัก @page margin:10mm อยู่แยกกัน)
+  const pdfBuffer = await page.pdf({
+    format: 'A4',
+    printBackground: true,
+    margin: {
+      top: '0mm',
+      bottom: '0mm',
+      left: '0mm',
+      right: '0mm'
+    }
+  })
+
+  // --- Generate Album screenshots ---
+  const albumImages: Array<{ pageIdx: number; buffer: Buffer }> = []
+  if (decodedImages.length > 0) {
+    const chunkSize = 8
+    const totalPages = Math.ceil(decodedImages.length / chunkSize)
+    const headerBgColor = isWti ? '#064e3b' : '#0c4a6e'
+
+    for (let pageIdx = 0; pageIdx < totalPages; pageIdx++) {
+      const chunk = decodedImages.slice(pageIdx * chunkSize, (pageIdx + 1) * chunkSize)
+      const tilesHtml = chunk.map((asset, rIdx) => {
+        const isOut = asset.fileName.toLowerCase().includes('out') ||
+                      asset.fileName.toLowerCase().includes('exit') ||
+                      asset.fileName.includes('ขาออก')
+        const badgeText = isOut ? 'ขาออก' : (isWti ? 'รับเข้า' : 'ขาออก')
+        const badgeColor = isOut ? '#10b981' : '#0ea5e9'
+        const photoTime = getPhotoTimestamp(asset.fileName, ticket.createdAt)
+        const displayIndex = pageIdx * chunkSize + rIdx + 1
+
+        const badgeHtml = showBadges
+          ? `<div class="badge-top-left" style="background: ${badgeColor};">${badgeText}</div>`
+          : ''
+
+        const timestampHtml = showTimestamps
+          ? `<span>🕒 ${photoTime}</span>`
+          : '<span></span>'
+
+        return `
+          <div class="tile">
+            <img src="${asset.url}" />
+            ${badgeHtml}
+            <div class="tile-footer">
+              ${timestampHtml}
+              <span>#${displayIndex}</span>
+            </div>
+          </div>
+        `
+      }).join('')
+
+      const albumCardHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            @font-face {
+              font-family: 'Noto Sans Thai';
+              src: url('data:font/ttf;charset=utf-8;base64,${regBase64}') format('truetype');
+              font-weight: normal;
+              font-style: normal;
+            }
+            @font-face {
+              font-family: 'Noto Sans Thai';
+              src: url('data:font/ttf;charset=utf-8;base64,${boldBase64}') format('truetype');
+              font-weight: bold;
+              font-style: normal;
+            }
+            * {
+              box-sizing: border-box;
+              font-family: 'Noto Sans Thai', sans-serif !important;
+              font-synthesis: none !important;
+            }
+            body {
+              margin: 0;
+              padding: 0;
+              background: transparent;
+            }
+            #album-card {
+              width: 600px;
+              background: #0f172a;
+              overflow: hidden;
+              display: flex;
+              flex-direction: column;
+            }
+            .header {
+              background-color: ${headerBgColor};
+              padding: 20px 24px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              color: white;
+            }
+            .header-left {
+              display: flex;
+              flex-direction: column;
+              gap: 4px;
+            }
+            .header-title {
+              font-size: 20px;
+              font-weight: bold;
+            }
+            .header-subtitle {
+              font-size: 13px;
+              color: #cbd5e1;
+            }
+            .header-right {
+              font-size: 13px;
+              color: #cbd5e1;
+              font-weight: 500;
+            }
+            .grid {
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              gap: 12px;
+              padding: 16px;
+              background: #0f172a;
+            }
+            .tile {
+              position: relative;
+              border-radius: 8px;
+              overflow: hidden;
+              aspect-ratio: 4/3;
+              background: #1e293b;
+            }
+            .tile img {
+              width: 100%;
+              height: 100%;
+              object-fit: cover;
+              display: block;
+            }
+            .badge-top-left {
+              position: absolute;
+              top: 10px;
+              left: 10px;
+              color: white;
+              font-size: 12px;
+              font-weight: bold;
+              padding: 3px 8px;
+              border-radius: 4px;
+            }
+            .tile-footer {
+              position: absolute;
+              bottom: 0;
+              left: 0;
+              right: 0;
+              background: rgba(15, 23, 42, 0.75);
+              color: white;
+              font-size: 12px;
+              padding: 6px 10px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            }
+          </style>
+        </head>
+        <body>
+          <div id="album-card">
+            <div class="header">
+              <div class="header-left">
+                <div class="header-title">${isWti ? '📥 รับสินค้า' : '📤 ส่งสินค้า'} &middot; ${pageIdx + 1}/${totalPages}</div>
+                <div class="header-subtitle">${ticket.partyName || '-'} &middot; ${ticket.documentNo}</div>
+              </div>
+              <div class="header-right">NS PRODUCTION</div>
+            </div>
+            <div class="grid">
+              ${tilesHtml}
+            </div>
+          </div>
+        </body>
+        </html>
+      `
+
+      const imgPage = await context.newPage()
+      await imgPage.setContent(albumCardHtml, { waitUntil: 'load' })
+      await imgPage.evaluate(() => document.fonts.ready)
+
+      const cardElement = imgPage.locator('#album-card')
+      const imgBuffer = await cardElement.screenshot({
+        type: 'jpeg',
+        quality: quality
+      })
+      await imgPage.close()
+
+      albumImages.push({
+        pageIdx,
+        buffer: Buffer.from(imgBuffer)
+      })
+    }
+  }
+
+  await browser.close()
+  return { pdfBuffer: Buffer.from(pdfBuffer), albumImages }
+}
 
 async function uploadPdf(ticket: WeightTicketRecord, pdfBuffer: Buffer, bucketName: string) {
   if (process.env.MOCK_PDF_UPLOAD === 'true') {
@@ -951,9 +1563,7 @@ export async function notifyWeightTicketLine(documentNo: string, options: Notify
     let pdfStorageKey: string | undefined
 
     try {
-      // ใช้ module ใหม่ react-pdf + @napi-rs/canvas (แทน Playwright)
-      // กำจัด dependency Chromium binary ออกจาก Docker image ทั้งหมด
-      const { pdfBuffer, albumImages } = await generateWeightTicketPdfReactPdf(loaded.record, profile as CompanyProfilePrintValues, {
+      const { pdfBuffer, albumImages } = await generateWeightTicketPdf(loaded.record, profile, {
         showBadges: configs.albumShowBadges,
         showTimestamps: configs.albumShowTimestamps,
         quality: configs.albumQuality,
