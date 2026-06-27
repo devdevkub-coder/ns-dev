@@ -112,9 +112,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     textAlignVertical: 'center',
   },
-  companyName: { fontSize: 14, fontWeight: 700, color: TEXT_DARK },
-  companyEn: { fontSize: 9, fontWeight: 700, color: TEXT_SECONDARY, marginTop: 1 },
-  companyInfo: { fontSize: 8, color: TEXT_SECONDARY, marginTop: 3 },
+  companyName: { fontSize: 13, fontWeight: 700, color: TEXT_DARK },
+  companyEn: { fontSize: 8.5, fontWeight: 700, color: TEXT_SECONDARY, marginTop: 1 },
+  companyInfo: { fontSize: 7.5, color: TEXT_SECONDARY, marginTop: 2.5 },
   docHead: { flex: 0.75, alignItems: 'flex-end' },
   docTitle: { fontSize: 14, fontWeight: 700, color: DOC_TITLE_GREEN },
 
