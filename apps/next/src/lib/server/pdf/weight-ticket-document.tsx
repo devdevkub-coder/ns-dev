@@ -253,11 +253,14 @@ const styles = StyleSheet.create({
 
   // Continued marker
   continued: {
-    marginTop: 20,
-    textAlign: 'center',
+    textAlign: 'right',
     fontSize: 9,
+    fontWeight: 700,
     color: TEXT_MUTED,
-    fontStyle: 'italic',
+    paddingTop: 12,
+  },
+  spacer: {
+    flexGrow: 1,
   },
 })
 
@@ -524,6 +527,9 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
               ))}
               {isLastPage ? <TableFooter ticket={ticket} isReceipt={isReceipt} /> : null}
             </View>
+
+            {/* Spacer to push signatures and footer to the bottom */}
+            <View style={styles.spacer} />
 
             {/* Bottom section (last page only) */}
             {isLastPage ? (
