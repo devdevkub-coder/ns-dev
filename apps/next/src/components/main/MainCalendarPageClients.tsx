@@ -80,6 +80,24 @@ function pct(value: number, max: number) {
   return Math.max(0, Math.min(100, (value / max) * 100))
 }
 
+function dateLabel(date: string) {
+  const [, month, day] = date.split('-')
+  return `${day}/${month}`
+}
+
+function compactMoney(value: number) {
+  const absolute = Math.abs(value)
+  if (absolute >= 1_000_000) return `${formatMoney(value / 1_000_000)}M`
+  if (absolute >= 1_000) return `${formatMoney(value / 1_000)}K`
+  return formatMoney(value)
+}
+
+function roundedAxisMax(value: number) {
+  if (value <= 0) return 1
+  const magnitude = 10 ** Math.max(0, Math.floor(Math.log10(value)) - 1)
+  return Math.ceil(value / magnitude) * magnitude
+}
+
 export function CashFlowCalendarPageClient() {
   const [month, setMonth] = useState(currentMonth())
   const [data, setData] = useState<CashPayload | null>(null)
@@ -97,7 +115,6 @@ export function CashFlowCalendarPageClient() {
     document.addEventListener('click', handleClick)
     return () => document.removeEventListener('click', handleClick)
   }, [])
-  const maxFlow = Math.max(1, ...(data?.days ?? []).flatMap((day) => [day.cashIn, day.cashOut]))
   const balances = data?.days.map((day) => day.ending) ?? []
   const minBalance = Math.min(0, ...balances)
   const maxBalance = Math.max(1, ...balances)
@@ -114,21 +131,12 @@ export function CashFlowCalendarPageClient() {
         <Metric label="Net Cash Flow" value={money((summary.totalIn ?? 0) - (summary.totalOut ?? 0))} tone={(summary.totalIn ?? 0) >= (summary.totalOut ?? 0) ? 'blue' : 'red'} />
         <Metric label="ยอดปลายเดือน" value={money(summary.endingCash)} tone="gradient" />
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Panel title="📈 เงินเข้า-ออกรายวัน">
-          <div className="mb-3 flex gap-4 text-xs"><Legend color="bg-emerald-500" text="เงินเข้า" /><Legend color="bg-red-500" text="เงินออก" /></div>
-          <div className="flex h-48 items-end gap-1 border-b border-l border-slate-200 px-2">
-            {(data?.days ?? []).map((day) => <div key={day.date} className="flex h-full flex-1 items-end justify-center gap-0.5"><span className="w-1.5 rounded-md-t bg-emerald-500" style={{ height: `${pct(day.cashIn, maxFlow)}%` }} /><span className="w-1.5 rounded-md-t bg-red-500" style={{ height: `${pct(day.cashOut, maxFlow)}%` }} /></div>)}
-          </div>
+          <DailyCashInOutChart days={data?.days ?? []} />
         </Panel>
         <Panel title="📈 ยอดเงินสะสม (Running Balance)">
-          <div className="mb-3 text-xs text-slate-500">เส้นประ = ระดับ 0 บาท · จุดแดง = ติดลบ</div>
-          <div className="relative h-48 overflow-hidden rounded-md bg-slate-50">
-            <div className="absolute left-0 right-0 border-t border-dashed border-slate-400" style={{ top: `${100 - pct(0 - minBalance, maxBalance - minBalance)}%` }} />
-            <div className="absolute inset-2 flex items-end gap-1">
-              {(data?.days ?? []).map((day) => <span key={day.date} className={`flex-1 rounded-md-t ${day.ending < 0 ? 'bg-red-500' : 'bg-blue-500'}`} style={{ height: `${pct(day.ending - minBalance, maxBalance - minBalance)}%` }} title={`${day.date} ${money(day.ending)}`} />)}
-            </div>
-          </div>
+          <RunningBalanceLineChart days={data?.days ?? []} maxBalance={maxBalance} minBalance={minBalance} />
         </Panel>
       </div>
       <div className="overflow-hidden rounded-md bg-white shadow">
@@ -139,6 +147,124 @@ export function CashFlowCalendarPageClient() {
       <Notice text={data?.sourceState.limitations[0]} />{error ? <ErrorBox text={error} /> : null}
       {selectedDay ? <CashDayModal day={selectedDay} onClose={() => setSelectedDayDate('')} /> : null}
     </section>
+  )
+}
+
+function RunningBalanceLineChart({ days, maxBalance, minBalance }: { days: CashDay[]; maxBalance: number; minBalance: number }) {
+  const width = 640
+  const height = 240
+  const padding = { bottom: 34, left: 74, right: 18, top: 20 }
+  const chartWidth = width - padding.left - padding.right
+  const chartHeight = height - padding.top - padding.bottom
+  const range = Math.max(1, maxBalance - minBalance)
+  const ticks = Array.from({ length: 5 }, (_, index) => maxBalance - (range / 4) * index)
+  const labelEvery = Math.max(1, Math.ceil(days.length / 6))
+  const xFor = (index: number) => padding.left + (days.length <= 1 ? chartWidth / 2 : (chartWidth / (days.length - 1)) * index)
+  const yFor = (value: number) => padding.top + chartHeight - ((value - minBalance) / range) * chartHeight
+  const points = days.map((day, index) => ({ day, x: xFor(index), y: yFor(day.ending) }))
+  const linePath = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')
+  const zeroY = yFor(0)
+
+  if (days.length === 0) {
+    return <div className="flex h-64 items-center justify-center rounded-md border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">ไม่มีข้อมูลยอดเงินสะสมในช่วงนี้</div>
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex gap-4">
+          <Legend color="bg-blue-500" text="ยอดเงินสะสม" />
+          <Legend color="bg-red-500" text="ยอดติดลบ" />
+        </div>
+        <div className="font-medium text-slate-500">เส้นประ = ระดับ 0 บาท</div>
+      </div>
+      <div className="rounded-md bg-white p-2">
+        <div className="grid grid-cols-[28px_minmax(0,1fr)] gap-2">
+          <div className="flex h-72 items-center justify-center text-xs font-bold text-slate-700 [writing-mode:vertical-rl] rotate-180">บาท</div>
+          <svg aria-label="กราฟเส้นยอดเงินสะสม" className="h-72 w-full overflow-visible" preserveAspectRatio="none" role="img" viewBox={`0 0 ${width} ${height}`}>
+            <rect fill="#f8fafc" height={chartHeight} rx="8" width={chartWidth} x={padding.left} y={padding.top} />
+            {ticks.map((tick, index) => (
+              <g key={`${tick}-${index}`}>
+                <line stroke="#e2e8f0" x1={padding.left} x2={padding.left + chartWidth} y1={yFor(tick)} y2={yFor(tick)} />
+                <text fill="#64748b" fontSize="11" textAnchor="end" x={padding.left - 10} y={yFor(tick) + 4}>
+                  {compactMoney(tick)}
+                </text>
+              </g>
+            ))}
+            <line stroke="#94a3b8" strokeDasharray="5 5" x1={padding.left} x2={padding.left + chartWidth} y1={zeroY} y2={zeroY} />
+            <text fill="#64748b" fontSize="11" textAnchor="end" x={padding.left + chartWidth - 8} y={zeroY - 6}>0 บาท</text>
+            <path d={linePath} fill="none" stroke="#2563eb" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" />
+            {points.map(({ day, x, y }, index) => (
+              <g key={day.date}>
+                <circle cx={x} cy={y} fill={day.ending < 0 ? '#ef4444' : '#2563eb'} r="4">
+                  <title>{`${dateLabel(day.date)} ยอดสะสม ${money(day.ending)}`}</title>
+                </circle>
+                {(days.length <= 8 || index % labelEvery === 0) ? (
+                  <text fill="#475569" fontSize="11" textAnchor="middle" x={x} y={height - 10}>
+                    {dateLabel(day.date)}
+                  </text>
+                ) : null}
+              </g>
+            ))}
+          </svg>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DailyCashInOutChart({ days }: { days: CashDay[] }) {
+  const visibleDays = days.filter((day) => day.cashIn > 0 || day.cashOut > 0)
+  const chartDays = visibleDays.length > 0 ? visibleDays : days
+  const axisMax = roundedAxisMax(Math.max(1, ...chartDays.flatMap((day) => [day.cashIn, day.cashOut])) * 1.1)
+  const ticks = Array.from({ length: 6 }, (_, index) => axisMax - (axisMax / 5) * index)
+  const labelEvery = Math.max(1, Math.ceil(chartDays.length / 8))
+
+  if (chartDays.length === 0) {
+    return <div className="flex h-64 items-center justify-center rounded-md border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">ไม่มีข้อมูลเงินเข้า/เงินออกในช่วงนี้</div>
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex gap-4 text-xs">
+          <Legend color="bg-emerald-500" text="เงินเข้า" />
+          <Legend color="bg-red-500" text="เงินออก" />
+        </div>
+        <div className="text-xs font-medium text-slate-500">แสดงเฉพาะวันที่มีเงินเข้า/เงินออก</div>
+      </div>
+      <div className="rounded-md bg-white p-2">
+        <div className="grid grid-cols-[28px_72px_minmax(0,1fr)] gap-2">
+          <div className="flex h-72 items-center justify-center text-xs font-bold text-slate-700 [writing-mode:vertical-rl] rotate-180">จำนวนเงิน (บาท)</div>
+          <div className="relative h-72 text-[11px] font-medium text-slate-500">
+            {ticks.map((tick, index) => (
+              <div key={`${tick}-${index}`} className="absolute right-0 -translate-y-1/2 text-right tabular-nums" style={{ top: `${pct(axisMax - tick, axisMax)}%` }}>
+                {compactMoney(tick)}
+              </div>
+            ))}
+          </div>
+          <div className="relative h-72 border-b border-l border-slate-300">
+            {ticks.map((tick, index) => (
+              <div key={`${tick}-${index}-line`} className="absolute inset-x-0 border-t border-slate-100" style={{ top: `${pct(axisMax - tick, axisMax)}%` }} />
+            ))}
+            <div className="absolute inset-x-3 bottom-0 top-5 flex items-end gap-2">
+              {chartDays.map((day, index) => {
+                const cashInHeight = pct(day.cashIn, axisMax)
+                const cashOutHeight = pct(day.cashOut, axisMax)
+                const showLabel = chartDays.length <= 10 || index % labelEvery === 0
+                return (
+                  <div key={day.date} className="group relative flex h-full min-w-0 flex-1 items-end justify-center gap-1" title={`${dateLabel(day.date)} เงินเข้า ${money(day.cashIn)} / เงินออก ${money(day.cashOut)}`}>
+                    <span className="w-full max-w-5 rounded-t-md bg-emerald-500 transition group-hover:bg-emerald-600" style={{ height: day.cashIn > 0 ? `${Math.max(2, cashInHeight)}%` : 0 }} />
+                    <span className="w-full max-w-5 rounded-t-md bg-red-500 transition group-hover:bg-red-600" style={{ height: day.cashOut > 0 ? `${Math.max(2, cashOutHeight)}%` : 0 }} />
+                    {showLabel ? <span className="absolute -bottom-7 left-1/2 -translate-x-1/2 whitespace-nowrap text-[11px] font-medium text-slate-600">{dateLabel(day.date)}</span> : null}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 

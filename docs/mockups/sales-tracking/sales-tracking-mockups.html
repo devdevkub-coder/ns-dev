@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sales Tracking Mockups</title>
+  <style>
+    :root {
+      --bg: #eef3f8;
+      --panel: #ffffff;
+      --line: #d9e3ee;
+      --ink: #172033;
+      --muted: #62718a;
+      --blue: #2563eb;
+      --green: #07855f;
+      --red: #cf1f42;
+      --orange: #c25700;
+      --navy: #0f172a;
+      --soft-blue: #eaf2ff;
+      --soft-green: #e9fbf2;
+      --soft-red: #fff0f2;
+      --soft-amber: #fff7dc;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Arial, "Helvetica Neue", sans-serif;
+      font-size: 14px;
+    }
+    .page {
+      width: 1920px;
+      min-height: 1240px;
+      padding-bottom: 32px;
+      background: var(--bg);
+    }
+    .topbar {
+      height: 82px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+    }
+    .title h1 {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1.1;
+      font-weight: 800;
+    }
+    .title p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .search {
+      width: 430px;
+      height: 48px;
+      border: 1px solid #cbd6e4;
+      border-radius: 8px;
+      background: #f9fbfe;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      color: #8ba0bb;
+      font-size: 17px;
+      font-weight: 600;
+    }
+    .crumb {
+      height: 48px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 28px;
+      color: #50617a;
+      background: #f8fafc;
+      border-bottom: 1px solid var(--line);
+      font-weight: 700;
+    }
+    .content { padding: 24px 28px; }
+    .toolbar {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 8px rgba(15,23,42,0.06);
+      margin-bottom: 18px;
+    }
+    .chips { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .label { font-weight: 800; color: #52627a; }
+    .chip, .select, .btn {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f8fbff;
+      padding: 10px 14px;
+      min-height: 38px;
+      font-weight: 800;
+      color: #334155;
+    }
+    .chip.active { background: #eaf2ff; color: var(--blue); border-color: #bfdbfe; }
+    .btn {
+      background: #667085;
+      color: #fff;
+      border-color: #667085;
+      font-size: 15px;
+      padding: 12px 20px;
+    }
+    .btn.primary { background: var(--blue); border-color: var(--blue); }
+    .btn.green { background: #059669; border-color: #059669; }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      box-shadow: 0 2px 8px rgba(15,23,42,0.06);
+    }
+    .metric {
+      min-height: 106px;
+      display: flex;
+      gap: 14px;
+      align-items: center;
+    }
+    .icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: #eef4ff;
+      display: grid;
+      place-items: center;
+      font-size: 24px;
+      flex: 0 0 auto;
+    }
+    .metric .k { color: var(--muted); font-weight: 800; }
+    .metric .v { margin-top: 6px; font-size: 24px; font-weight: 900; }
+    .green { color: var(--green); }
+    .red { color: var(--red); }
+    .blue { color: var(--blue); }
+    .orange { color: var(--orange); }
+    .sales-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .sales-card { padding: 0; overflow: hidden; }
+    .sales-head {
+      background: linear-gradient(90deg, #1d4ed8, #6d28d9);
+      color: white;
+      padding: 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .sales-head h2 { margin: 0; font-size: 22px; }
+    .pill {
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 900;
+      background: rgba(255,255,255,.2);
+    }
+    .sales-body {
+      padding: 16px;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+    .mini {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfdff;
+      padding: 12px;
+      min-height: 72px;
+    }
+    .mini .k { color: var(--muted); font-weight: 800; font-size: 12px; }
+    .mini .v { margin-top: 6px; font-size: 18px; font-weight: 900; }
+    .section-title {
+      background: var(--navy);
+      color: #fff;
+      border-radius: 8px 8px 0 0;
+      padding: 14px 18px;
+      font-size: 18px;
+      font-weight: 900;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .table-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(15,23,42,0.06);
+      margin-bottom: 18px;
+    }
+    .table-tools {
+      padding: 14px 18px;
+      display: flex;
+      gap: 12px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfdff;
+    }
+    .input {
+      border: 1px solid #cbd6e4;
+      border-radius: 8px;
+      height: 42px;
+      padding: 0 14px;
+      display: flex;
+      align-items: center;
+      color: #7d8da6;
+      font-weight: 800;
+      background: #fff;
+    }
+    .grow { flex: 1; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    th {
+      text-align: left;
+      background: #eef3f9;
+      color: #44546b;
+      font-size: 13px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      font-weight: 900;
+    }
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      font-weight: 700;
+      vertical-align: top;
+    }
+    tr.group td {
+      background: #f5f8fc;
+      font-weight: 900;
+      color: #0f172a;
+    }
+    tr.total td {
+      background: #eef6ff;
+      font-weight: 900;
+    }
+    .right { text-align: right; }
+    .center { text-align: center; }
+    .muted { color: var(--muted); }
+    .badge {
+      display: inline-block;
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .badge.green { background: var(--soft-green); color: var(--green); }
+    .badge.red { background: var(--soft-red); color: var(--red); }
+    .badge.amber { background: var(--soft-amber); color: var(--orange); }
+    .drill-header {
+      background: linear-gradient(90deg, #1d4ed8, #4f46e5);
+      color: #fff;
+      border-radius: 8px;
+      padding: 18px;
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 8px rgba(15,23,42,0.10);
+    }
+    .drill-header h2 { margin: 0; font-size: 26px; }
+    .drill-header p { margin: 6px 0 0; opacity: .85; font-weight: 700; }
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .note {
+      color: #64748b;
+      font-size: 12px;
+      font-weight: 700;
+      margin-top: 6px;
+    }
+    .page-break { height: 36px; }
+  </style>
+</head>
+<body>
+  <main id="overview" class="page">
+    <header class="topbar">
+      <div class="title">
+        <h1>Sales Tracking — ผลงานพนักงาน</h1>
+        <p>ดูผลงานซื้อของ Sales แยกตามสิทธิ์ค่าคอมมิชชั่นและหมวดสินค้า</p>
+      </div>
+      <div class="search">🔎 ค้นหาเมนู...</div>
+    </header>
+    <div class="crumb">Dashboard & Reports / <b>Sales Tracking Dashboard</b></div>
+    <section class="content">
+      <div class="toolbar">
+        <div class="chips">
+          <span class="label">📅 ช่วงเวลา:</span>
+          <span class="chip">วันนี้</span>
+          <span class="chip">7 วัน</span>
+          <span class="chip active">เดือนนี้</span>
+          <span class="chip">ปีนี้</span>
+          <span class="chip">01/06/2026</span>
+          <span>→</span>
+          <span class="chip">27/06/2026</span>
+          <span class="chip">บิลซื้อทั้งหมด: 86 บิล</span>
+        </div>
+        <button class="btn">📥 Export CSV</button>
+      </div>
+
+      <div class="metrics">
+        <div class="card metric"><div class="icon">⚖️</div><div><div class="k">จำนวนที่ซื้อ</div><div class="v blue">71,367.40 กก.</div></div></div>
+        <div class="card metric"><div class="icon">💰</div><div><div class="k">ยอดซื้อ</div><div class="v green">4,083,962.45</div></div></div>
+        <div class="card metric"><div class="icon">✅</div><div><div class="k">จำนวนที่ได้คอมมิชชั่น</div><div class="v green">52,193.80 กก.</div></div></div>
+        <div class="card metric"><div class="icon">🏦</div><div><div class="k">ยอดซื้อที่ได้คอมมิชชั่น</div><div class="v green">2,913,440.20</div></div></div>
+        <div class="card metric"><div class="icon">⛔</div><div><div class="k">จำนวนที่ไม่ได้คอมมิชชั่น</div><div class="v red">19,173.60 กก.</div></div></div>
+        <div class="card metric"><div class="icon">🧾</div><div><div class="k">ยอดซื้อที่ไม่ได้คอมมิชชั่น</div><div class="v red">1,170,522.25</div></div></div>
+        <div class="card metric"><div class="icon">📦</div><div><div class="k">จำนวนยอดซื้อทั้งปี</div><div class="v blue">1,279,484.88 กก.</div></div></div>
+        <div class="card metric"><div class="icon">📈</div><div><div class="k">ยอดซื้อทั้งปี</div><div class="v green">93,022,176.62</div></div></div>
+      </div>
+
+      <div class="sales-grid">
+        <article class="card sales-card">
+          <div class="sales-head"><div><h2>AOM</h2><div class="note" style="color:white">S02 · ได้ค่าคอม</div></div><span class="pill">Commission</span></div>
+          <div class="sales-body">
+            <div class="mini"><div class="k">บิล</div><div class="v">12</div></div>
+            <div class="mini"><div class="k">Supplier</div><div class="v">1,069</div></div>
+            <div class="mini"><div class="k">น้ำหนักซื้อรวม</div><div class="v">51,792.40 กก.</div></div>
+            <div class="mini"><div class="k">ยอดรับซื้อรวม</div><div class="v">2,647,756.45</div></div>
+            <div class="mini"><div class="k">น้ำหนักที่ได้ commission</div><div class="v green">38,420.00 กก.</div></div>
+            <div class="mini"><div class="k">ยอดซื้อที่ได้รับ commission</div><div class="v green">2,100,000.00</div></div>
+            <div class="mini" style="grid-column:1 / -1"><div class="k">ค่า commission เดือนนี้</div><div class="v orange">2,000.00</div></div>
+          </div>
+        </article>
+        <article class="card sales-card">
+          <div class="sales-head"><div><h2>พี่คิด</h2><div class="note" style="color:white">S03 · ได้ค่าคอม</div></div><span class="pill">Commission</span></div>
+          <div class="sales-body">
+            <div class="mini"><div class="k">บิล</div><div class="v">8</div></div>
+            <div class="mini"><div class="k">Supplier</div><div class="v">191</div></div>
+            <div class="mini"><div class="k">น้ำหนักซื้อรวม</div><div class="v">15,440.00 กก.</div></div>
+            <div class="mini"><div class="k">ยอดรับซื้อรวม</div><div class="v">1,064,056.00</div></div>
+            <div class="mini"><div class="k">น้ำหนักที่ได้ commission</div><div class="v green">14,000.00 กก.</div></div>
+            <div class="mini"><div class="k">ยอดซื้อที่ได้รับ commission</div><div class="v green">1,018,000.00</div></div>
+            <div class="mini" style="grid-column:1 / -1"><div class="k">ค่า commission เดือนนี้</div><div class="v orange">1,000.00</div></div>
+          </div>
+        </article>
+        <article class="card sales-card">
+          <div class="sales-head"><div><h2>NUI</h2><div class="note" style="color:white">S04 · ไม่ได้ค่าคอม</div></div><span class="pill">No Commission</span></div>
+          <div class="sales-body">
+            <div class="mini"><div class="k">บิล</div><div class="v">2</div></div>
+            <div class="mini"><div class="k">Supplier</div><div class="v">475</div></div>
+            <div class="mini"><div class="k">น้ำหนักซื้อรวม</div><div class="v">4,135.00 กก.</div></div>
+            <div class="mini"><div class="k">ยอดรับซื้อรวม</div><div class="v">372,150.00</div></div>
+            <div class="mini"><div class="k">น้ำหนักที่ได้ commission</div><div class="v muted">0.00 กก.</div></div>
+            <div class="mini"><div class="k">ยอดซื้อที่ได้รับ commission</div><div class="v muted">0.00</div></div>
+            <div class="mini" style="grid-column:1 / -1"><div class="k">ค่า commission เดือนนี้</div><div class="v muted">0.00</div></div>
+          </div>
+        </article>
+      </div>
+
+      <section class="table-card">
+        <div class="section-title">
+          <span>📊 Sales Summary / สรุปยอดซื้อราย Sales</span>
+          <span class="pill">Grouped by Sales → หมวดสินค้า</span>
+        </div>
+        <div class="table-tools">
+          <div class="input grow">🔎 ค้นหา Sales / หมวดสินค้า</div>
+          <div class="input">ทุก Sales ▾</div>
+          <div class="input">เรียง: ยอดซื้อมากไปน้อย ▾</div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:30%">Sales</th>
+              <th style="width:30%">ประเภท / หมวดสินค้า</th>
+              <th class="right">จำนวน KG</th>
+              <th class="right">มูลค่ารวม</th>
+              <th class="center">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="group"><td>▾ AOM</td><td></td><td class="right">51,792.40</td><td class="right">2,647,756.45</td><td class="center">เปิดรายละเอียด</td></tr>
+            <tr><td></td><td>ทองแดง</td><td class="right">24,675.49</td><td class="right">1,180,440.20</td><td></td></tr>
+            <tr><td></td><td>อลูมิเนียม</td><td class="right">10,665.72</td><td class="right">835,120.15</td><td></td></tr>
+            <tr><td></td><td>พลาสติก</td><td class="right">7,387.50</td><td class="right">80,194.24</td><td></td></tr>
+            <tr class="group"><td>▾ พี่คิด</td><td></td><td class="right">15,440.00</td><td class="right">1,064,056.00</td><td class="center">เปิดรายละเอียด</td></tr>
+            <tr><td></td><td>ทองเหลือง</td><td class="right">8,910.00</td><td class="right">683,100.00</td><td></td></tr>
+            <tr><td></td><td>อลูมิเนียม</td><td class="right">4,200.00</td><td class="right">274,456.00</td><td></td></tr>
+            <tr class="group"><td>▾ NUI</td><td></td><td class="right">4,135.00</td><td class="right">372,150.00</td><td class="center">เปิดรายละเอียด</td></tr>
+            <tr><td></td><td>ทองแดง</td><td class="right">4,135.00</td><td class="right">372,150.00</td><td></td></tr>
+            <tr class="total"><td>รวมทั้งหมด</td><td></td><td class="right">71,367.40</td><td class="right">4,083,962.45</td><td></td></tr>
+          </tbody>
+        </table>
+      </section>
+    </section>
+  </main>
+
+  <div class="page-break"></div>
+
+  <main id="drilldown" class="page">
+    <header class="topbar">
+      <div class="title">
+        <h1>Sales Tracking — รายละเอียดพนักงาน</h1>
+        <p>Drilldown ราย Sales พร้อมตาราง 4 ส่วนตาม requirement</p>
+      </div>
+      <div class="search">🔎 ค้นหาเมนู...</div>
+    </header>
+    <div class="crumb">Dashboard & Reports / Sales Tracking Dashboard / <b>AOM</b></div>
+    <section class="content">
+      <div class="drill-header">
+        <div>
+          <h2>← AOM <span class="pill">S02 · ได้ค่าคอม</span></h2>
+          <p>ช่วงวันที่ 01/06/2026 - 27/06/2026 · ใช้ข้อมูล transaction จริงจากบิลซื้อ</p>
+        </div>
+        <button class="btn">กลับหน้ารวม</button>
+      </div>
+
+      <div class="metrics">
+        <div class="card metric"><div class="icon">🧾</div><div><div class="k">บิล</div><div class="v">12</div></div></div>
+        <div class="card metric"><div class="icon">👥</div><div><div class="k">Supplier</div><div class="v">1,069</div></div></div>
+        <div class="card metric"><div class="icon">⚖️</div><div><div class="k">น้ำหนักซื้อรวม</div><div class="v blue">51,792.40 กก.</div></div></div>
+        <div class="card metric"><div class="icon">💰</div><div><div class="k">ยอดรับซื้อรวม</div><div class="v green">2,647,756.45</div></div></div>
+        <div class="card metric"><div class="icon">✅</div><div><div class="k">ยอดได้คอม</div><div class="v green">2,100,000.00</div></div></div>
+        <div class="card metric"><div class="icon">📈</div><div><div class="k">ค่า commission</div><div class="v orange">2,000.00</div></div></div>
+      </div>
+
+      <div class="two-col">
+        <section class="table-card">
+          <div class="section-title">1. ยอดซื้อรวมตามหมวดสินค้า</div>
+          <table>
+            <thead><tr><th>ประเภท / หมวดสินค้า</th><th class="right">จำนวน</th><th class="right">ยอดซื้อ</th></tr></thead>
+            <tbody>
+              <tr><td>ทองแดง</td><td class="right">24,675.49</td><td class="right">1,180,440.20</td></tr>
+              <tr><td>อลูมิเนียม</td><td class="right">10,665.72</td><td class="right">835,120.15</td></tr>
+              <tr><td>พลาสติก</td><td class="right">7,387.50</td><td class="right">80,194.24</td></tr>
+              <tr><td>เหล็ก</td><td class="right">3,120.00</td><td class="right">552,001.86</td></tr>
+              <tr class="total"><td>รวม</td><td class="right">51,792.40</td><td class="right">2,647,756.45</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="table-card">
+          <div class="section-title">2. ยอดซื้อที่ได้รับค่าคอมมิชชั่นตามหมวดสินค้า</div>
+          <table>
+            <thead><tr><th>ประเภท / หมวดสินค้า</th><th class="right">จำนวน</th><th class="right">ยอดซื้อ</th></tr></thead>
+            <tbody>
+              <tr><td>ทองแดง</td><td class="right">20,150.00</td><td class="right">1,020,000.00</td></tr>
+              <tr><td>อลูมิเนียม</td><td class="right">9,800.00</td><td class="right">780,000.00</td></tr>
+              <tr><td>พลาสติก</td><td class="right">6,100.00</td><td class="right">65,000.00</td></tr>
+              <tr><td>เหล็ก</td><td class="right">2,370.00</td><td class="right">235,000.00</td></tr>
+              <tr class="total"><td>รวมได้คอม</td><td class="right">38,420.00</td><td class="right">2,100,000.00</td></tr>
+            </tbody>
+          </table>
+        </section>
+      </div>
+
+      <section class="table-card">
+        <div class="section-title">3. Supplier ในความดูแล</div>
+        <div class="table-tools">
+          <div class="input grow">🔎 ค้นหา Supplier / เลขที่บิล</div>
+          <div class="input">01/06/2026</div>
+          <div class="input">27/06/2026</div>
+        </div>
+        <table>
+          <thead>
+            <tr><th>Supplier</th><th class="right">บิล</th><th class="right">น้ำหนัก</th><th class="right">ยอดรับซื้อ</th><th class="right">% ของ Total</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Fukugen Business</td><td class="right">4</td><td class="right">18,250.00</td><td class="right">1,040,500.00</td><td class="right">39.3%</td></tr>
+            <tr><td>บริษัท เมทัล คอปเปอร์</td><td class="right">3</td><td class="right">12,900.00</td><td class="right">782,640.20</td><td class="right">29.6%</td></tr>
+            <tr><td>นายประเสริฐ โลหะกิจ</td><td class="right">2</td><td class="right">9,100.00</td><td class="right">410,200.00</td><td class="right">15.5%</td></tr>
+            <tr class="total"><td>รวม</td><td class="right">12</td><td class="right">51,792.40</td><td class="right">2,647,756.45</td><td class="right">100.0%</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="table-card">
+        <div class="section-title">4. รายการสินค้าละเอียด</div>
+        <div class="table-tools">
+          <div class="input grow">🔎 ค้นหา วันที่ / เลขที่บิล / Supplier / สินค้า</div>
+          <div class="input">ทุก Supplier ▾</div>
+          <div class="input">ทุกสถานะคอม ▾</div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>วันที่</th><th>เลขที่บิล</th><th>Supplier</th><th>สินค้า</th>
+              <th class="right">น้ำหนัก</th><th class="right">ราคาซื้อ</th><th class="right">ราคาหน้าใบ</th>
+              <th class="right">ส่วนต่างกำไร</th><th class="right">ยอดรวม</th><th>สถานะ</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>25/06/2026</td><td>PB2606-0508</td><td>Fukugen Business</td><td>ทองแดงเบอร์ 1</td><td class="right">100.00</td><td class="right">410.00</td><td class="right">420.00</td><td class="right green">10.00</td><td class="right">41,000.00</td><td><span class="badge green">ได้คอม</span></td></tr>
+            <tr><td>25/06/2026</td><td>PB2606-0508</td><td>Fukugen Business</td><td>อลูมิเนียมกระป๋อง</td><td class="right">80.00</td><td class="right">90.00</td><td class="right">91.00</td><td class="right green">1.00</td><td class="right">7,200.00</td><td><span class="badge green">ได้คอม</span></td></tr>
+            <tr><td>22/06/2026</td><td>PB2606-0497</td><td>บริษัท เมทัล คอปเปอร์</td><td>ทองแดงเบอร์ 2</td><td class="right">120.00</td><td class="right">490.00</td><td class="right">485.00</td><td class="right red">-5.00</td><td class="right">58,800.00</td><td><span class="badge red">ไม่ได้คอม</span></td></tr>
+            <tr><td>22/06/2026</td><td>PB2606-0503</td><td>นายประเสริฐ โลหะกิจ</td><td>พลาสติก</td><td class="right">200.00</td><td class="right">12.00</td><td class="right">-</td><td class="right">-</td><td class="right">2,400.00</td><td><span class="badge red">ไม่ได้คอม</span></td></tr>
+            <tr><td>20/06/2026</td><td>PB2606-0488</td><td>Fukugen Business</td><td>เหล็ก</td><td class="right">300.00</td><td class="right">18.00</td><td class="right">20.00</td><td class="right green">2.00</td><td class="right">5,400.00</td><td><span class="badge green">ได้คอม</span></td></tr>
+            <tr class="total"><td colspan="4">รวมทั้งหน้า</td><td class="right">800.00</td><td></td><td></td><td></td><td class="right">114,800.00</td><td></td></tr>
+          </tbody>
+        </table>
+      </section>
+    </section>
+  </main>
+</body>
+</html>

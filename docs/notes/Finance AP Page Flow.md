@@ -12,7 +12,7 @@ tags:
   - page-flow
 status: draft
 created: 2026-06-11
-updated: 2026-06-11
+updated: 2026-06-26
 ---
 
 # Finance AP Page Flow / Flow หน้าเจ้าหนี้ AP
@@ -142,8 +142,97 @@ Response ควรรวม:
 - AP page ต้องไม่สร้างหรือแก้ `PMA/PMT`
 - ยอดจ่ายที่ cancelled ต้องไม่ลด AP balance
 - ถ้า PB ถูกยกเลิกหรือ supplier swap cancelled ต้องไม่แสดงเป็น payable active
+- Filter `to` ต้องรวมข้อมูลทั้งวันของวันที่ผู้ใช้เลือก ไม่ใช่หยุดที่เวลา `00:00:00`
 - Due date target ต้องรองรับ bill due date / supplier credit term ไม่ใช่ hardcode credit term 0 ระยะยาว
 - Aging ต้องหยุดนับเมื่อยอดค้างเป็น 0
+
+## Dev Verification Spec: AP Missing Same-Day Bills
+
+### Background
+
+พบเคสวันที่ 2026-06-26 ที่หน้า `/purchase/bills` มีบิลค้างจ่ายสถานะ workflow `รอจ่าย` แต่หน้า `/finance/ap` ไม่แสดงครบเมื่อเลือกช่วงวันที่ `2026-06-01` ถึง `2026-06-26`
+
+สาเหตุที่ต้องตรวจ: date range filter ของ AP ใช้ `to <= normalizeDate(to)` ซึ่งเท่ากับเที่ยงคืนต้นวัน ทำให้บิลที่สร้างระหว่างวันของ `to` ถูกตัดออก
+
+### Affected Routes
+
+| Area | Route/API | File |
+|---|---|---|
+| AP page | `/finance/ap` | `apps/next/src/components/purchase-flow/AccountsPayablePageClient.tsx` |
+| AP API | `GET /api/finance/ap` | `apps/next/src/app/api/finance/ap/route.ts` |
+| Purchase bills page | `/purchase/bills` | `apps/next/src/components/daily/TransactionBillsPageClient.tsx` |
+| Purchase bills API | `GET /api/purchase/bills` | `apps/next/src/app/api/purchase/bills/route.ts` |
+
+### Reproduction Data
+
+Use date range:
+
+- From: `2026-06-01`
+- To: `2026-06-26`
+
+Known same-day PB rows:
+
+| PB | Created time (BKK) | Supplier | Workflow | Total | Payable |
+|---|---:|---|---|---:|---:|
+| `PB012606-0014` | `2026-06-26 13:02` | `Fukugen Business` | `รอจ่าย` / active PMA | `43,000.00` | `43,000.00` |
+| `PB012606-0013` | `2026-06-26 13:02` | `Fukugen Business` | `รอจ่าย` / active PMA | `43,000.00` | `43,000.00` |
+
+### Expected Result
+
+For AP date range `2026-06-01` through `2026-06-26`, AP should include all unpaid PB rows created on 2026-06-26, including rows created after midnight.
+
+Expected AP summary for the known data set:
+
+| Metric | Expected |
+|---|---:|
+| AP bills | `11` |
+| AP suppliers | `9` |
+| AP total | `3,360,862.45` |
+
+The previous incorrect output was:
+
+| Metric | Incorrect |
+|---|---:|
+| AP bills | `9` |
+| AP suppliers | `8` |
+| AP total | `3,274,862.45` |
+
+Difference:
+
+- Missing bills: `PB012606-0014`, `PB012606-0013`
+- Missing amount: `86,000.00`
+
+### Acceptance Criteria
+
+- `GET /api/finance/ap?from=2026-06-01&to=2026-06-26` includes PB rows created any time on `2026-06-26`.
+- AP `summary.total` matches the sum of payable balances for active purchase bills in the selected date range.
+- AP `summary.bills` matches active PB count with payable balance greater than zero.
+- AP `summary.suppliers` counts distinct suppliers after grouping all active payable rows.
+- Rows with active PMA but no PMT remain visible in AP if `payable_balance > 0`.
+- Cancelled PB rows remain excluded.
+- Paid PB rows with `payable_balance <= 0.01` remain excluded.
+- XLSX export uses the same date filtering as JSON response.
+
+### Implementation Rule
+
+Use an exclusive upper bound for `to`:
+
+```ts
+date: {
+  gte: normalizeDate(from),
+  lt: new Date(normalizeDate(to).getTime() + 24 * 60 * 60 * 1000),
+}
+```
+
+Do not use `lte: normalizeDate(to)` for timestamp-backed document dates.
+
+### Regression Checks
+
+- Compare `/purchase/bills` and `/finance/ap` for the same date range.
+- In `/purchase/bills`, page size only controls visible rows per page; total rows may span multiple pages.
+- In `/finance/ap`, `pageSize` must not affect `summary`, `bySupplier`, or `byBucket`; it should affect only `rows`.
+- Test a same-day bill created after `12:00` and confirm it appears when `to` equals that date.
+- Test export `.xlsx` and confirm same rows as API JSON.
 
 ## Current Implementation / Gap
 

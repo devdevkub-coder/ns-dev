@@ -65,7 +65,7 @@ function billWhere(query: ApQuery, branchId: bigint | null, supplierId: bigint |
       ? {
           date: {
             ...(query.from ? { gte: normalizeDate(query.from) } : {}),
-            ...(query.to ? { lte: normalizeDate(query.to) } : {}),
+            ...(query.to ? { lt: new Date(normalizeDate(query.to).getTime() + 24 * 60 * 60 * 1000) } : {}),
           },
         }
       : {}),

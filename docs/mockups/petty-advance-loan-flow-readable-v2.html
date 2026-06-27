@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <title>เงินสำรองจ่าย / กู้กรรมการ Mockup</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #eef3f8;
+      color: #172033;
+      font-family: -apple-system, BlinkMacSystemFont, "Thonburi", "Helvetica Neue", Arial, sans-serif;
+      font-size: 30px;
+      line-height: 1.35;
+    }
+    .page {
+      width: 2200px;
+      min-height: 1500px;
+      padding: 42px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 28px;
+      margin-bottom: 26px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 58px;
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+    .subtitle {
+      margin-top: 10px;
+      color: #60708a;
+      font-size: 30px;
+      font-weight: 600;
+    }
+    .badge {
+      padding: 14px 24px;
+      border-radius: 14px;
+      background: #dbeafe;
+      color: #1d4ed8;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 22px;
+      margin-bottom: 28px;
+    }
+    .card, .panel, .flow {
+      background: #fff;
+      border: 2px solid #d7e0ec;
+      border-radius: 18px;
+      box-shadow: 0 8px 20px rgba(31, 44, 71, .08);
+    }
+    .card {
+      padding: 28px 30px;
+      min-height: 136px;
+    }
+    .label {
+      color: #65748c;
+      font-size: 26px;
+      font-weight: 800;
+    }
+    .value {
+      margin-top: 6px;
+      font-size: 44px;
+      font-weight: 900;
+      color: #0f172a;
+    }
+    .green { color: #047857; }
+    .red { color: #be123c; }
+    .orange { color: #c2410c; }
+    .blue { color: #1d4ed8; }
+    .panel {
+      padding: 28px 30px 30px;
+      margin-bottom: 28px;
+    }
+    .panel-title {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 36px;
+      font-weight: 900;
+      margin-bottom: 22px;
+    }
+    .tabs {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 22px;
+    }
+    .tab {
+      padding: 14px 22px;
+      border: 2px solid #cbd5e1;
+      border-radius: 14px;
+      color: #334155;
+      background: #f8fafc;
+      font-weight: 800;
+      font-size: 26px;
+    }
+    .tab.active {
+      color: #fff;
+      border-color: #0f172a;
+      background: #0f172a;
+    }
+    .filters {
+      display: grid;
+      grid-template-columns: 1.4fr 260px 260px 260px;
+      gap: 16px;
+      margin-bottom: 22px;
+    }
+    .input {
+      height: 64px;
+      padding: 0 22px;
+      border: 2px solid #cbd5e1;
+      border-radius: 12px;
+      color: #64748b;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      font-size: 25px;
+      font-weight: 700;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 12px;
+      font-size: 25px;
+    }
+    th {
+      background: #e8eef6;
+      color: #34425a;
+      text-align: left;
+      padding: 18px 20px;
+      font-size: 24px;
+    }
+    td {
+      border-top: 2px solid #dbe3ef;
+      padding: 18px 20px;
+      vertical-align: top;
+      font-weight: 700;
+    }
+    .status {
+      display: inline-block;
+      padding: 7px 14px;
+      border-radius: 999px;
+      background: #fff7ed;
+      color: #c2410c;
+      font-size: 22px;
+      font-weight: 900;
+    }
+    .flows {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 22px;
+    }
+    .flow {
+      padding: 28px;
+      min-height: 620px;
+      border-top-width: 10px;
+    }
+    .flow:nth-child(1) { border-top-color: #16a34a; }
+    .flow:nth-child(2) { border-top-color: #2563eb; }
+    .flow:nth-child(3) { border-top-color: #f97316; }
+    .flow-title {
+      font-size: 36px;
+      line-height: 1.2;
+      font-weight: 950;
+      margin-bottom: 8px;
+    }
+    .flow-subtitle {
+      min-height: 80px;
+      color: #64748b;
+      font-size: 25px;
+      font-weight: 700;
+      margin-bottom: 20px;
+    }
+    .section-title {
+      margin: 22px 0 10px;
+      padding-top: 18px;
+      border-top: 2px dashed #cbd5e1;
+      color: #0f172a;
+      font-size: 28px;
+      font-weight: 900;
+    }
+    ul {
+      margin: 0;
+      padding-left: 30px;
+    }
+    li {
+      margin: 10px 0;
+      font-size: 25px;
+      font-weight: 750;
+    }
+    .note {
+      margin-top: 28px;
+      padding: 22px 26px;
+      border-left: 8px solid #1d4ed8;
+      background: #eff6ff;
+      border-radius: 14px;
+      font-size: 27px;
+      font-weight: 800;
+      color: #1e3a8a;
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="header">
+      <div>
+        <h1>เงินสำรองจ่าย / กู้กรรมการ</h1>
+        <div class="subtitle">Mockup Flow ใหม่: แยกประเภทเอกสารให้ชัด และเปลี่ยน Field ตามประเภทที่เลือก</div>
+      </div>
+      <div class="badge">สำหรับส่งต่อ Dev</div>
+    </section>
+
+    <section class="summary">
+      <div class="card"><div class="label">รายการทั้งหมด</div><div class="value">12</div></div>
+      <div class="card"><div class="label">เงินเข้าบริษัท</div><div class="value green">1,250,000.00</div></div>
+      <div class="card"><div class="label">เงินออกบริษัท</div><div class="value red">320,000.00</div></div>
+      <div class="card"><div class="label">รอคืน / รอเคลียร์</div><div class="value orange">255,000.00</div></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">หน้ารายการหลัก</div>
+      <div class="tabs">
+        <div class="tab active">ทั้งหมด</div>
+        <div class="tab">กู้กรรมการ</div>
+        <div class="tab">เงินกู้ยืมค่าสินค้า</div>
+        <div class="tab">สำรองจ่ายพนักงาน</div>
+      </div>
+      <div class="filters">
+        <div class="input">ค้นหาเลขที่ / ผู้รับเงิน / หมายเหตุ</div>
+        <div class="input">วันที่เริ่ม</div>
+        <div class="input">วันที่สิ้นสุด</div>
+        <div class="input">สถานะ</div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>เลขที่</th>
+            <th>ประเภท</th>
+            <th>ผู้เกี่ยวข้อง</th>
+            <th>บัญชีบริษัท</th>
+            <th>จำนวนเงิน</th>
+            <th>สถานะ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>DIRL2606-0001</td>
+            <td>กู้กรรมการ</td>
+            <td>นายสมชาย</td>
+            <td>TTB - 2242710016</td>
+            <td class="green">+1,000,000.00</td>
+            <td><span class="status">รับเข้าแล้ว</span></td>
+          </tr>
+          <tr>
+            <td>LOAN2606-0002</td>
+            <td>เงินกู้ยืมค่าสินค้า</td>
+            <td>นายวิชัย</td>
+            <td>กสิกรไทย OD</td>
+            <td class="red">-250,000.00</td>
+            <td><span class="status">รอคืน</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="flows">
+      <div class="flow">
+        <div class="flow-title">1. กู้กรรมการ</div>
+        <div class="flow-subtitle">กรรมการโอนเงินเข้าบัญชีบริษัท เพื่อเพิ่มเงินสดหรือเงินฝากให้บริษัทใช้จ่าย</div>
+        <div class="section-title">Field ที่ต้องกรอก</div>
+        <ul>
+          <li>กรรมการผู้จ่าย</li>
+          <li>บัญชีบริษัทที่รับเงินเข้า</li>
+          <li>จำนวนเงิน</li>
+          <li>วันที่รับเงิน</li>
+          <li>หมายเหตุ</li>
+        </ul>
+        <div class="section-title">ผลลัพธ์ในระบบ</div>
+        <ul>
+          <li>เพิ่มเงินเข้าบัญชีบริษัท</li>
+          <li>สร้างรายการ Bank Statement ฝั่งเงินเข้า</li>
+          <li>สถานะ: รับเข้าแล้ว / ยกเลิก</li>
+        </ul>
+      </div>
+
+      <div class="flow">
+        <div class="flow-title">2. เงินกู้ยืมค่าสินค้า</div>
+        <div class="flow-subtitle">บริษัทโอนเงินให้กรรมการ เพื่อให้กรรมการนำไปใช้ซื้อสินค้าแทนบริษัท</div>
+        <div class="section-title">Field ที่ต้องกรอก</div>
+        <ul>
+          <li>บัญชีบริษัทที่โอนออก</li>
+          <li>บัญชีธนาคารกรรมการที่รับเงิน</li>
+          <li>วงเงินกรรมการคงเหลือ</li>
+          <li>จำนวนเงิน</li>
+          <li>วิธีคืนเงิน: คืนตรง / ไม่คืน</li>
+          <li>เหตุผล กรณีไม่คืน</li>
+        </ul>
+        <div class="section-title">ผลลัพธ์ในระบบ</div>
+        <ul>
+          <li>ส่งข้อมูลไปหน้าจ่ายเงิน</li>
+          <li>หักเงินจากบัญชีบริษัทเมื่อจ่ายจริง</li>
+          <li>ติดตามยอดค้างคืนของกรรมการ</li>
+        </ul>
+      </div>
+
+      <div class="flow">
+        <div class="flow-title">3. สำรองจ่ายพนักงาน</div>
+        <div class="flow-subtitle">บริษัทจ่ายเงินให้พนักงานล่วงหน้า เพื่อนำไปใช้จ่ายตามงานที่ได้รับมอบหมาย</div>
+        <div class="section-title">Field ที่ต้องกรอก</div>
+        <ul>
+          <li>พนักงานผู้รับเงิน</li>
+          <li>บัญชีพนักงาน</li>
+          <li>บัญชีบริษัทที่จ่ายออก</li>
+          <li>จำนวนเงิน</li>
+          <li>วัตถุประสงค์ / หมายเหตุ</li>
+        </ul>
+        <div class="section-title">ผลลัพธ์ในระบบ</div>
+        <ul>
+          <li>ส่งข้อมูลไปหน้าจ่ายเงิน</li>
+          <li>ติดตามยอดรอคืนหรือรอเคลียร์ค่าใช้จ่าย</li>
+          <li>สถานะ: รอคืน / คืนแล้ว / ยกเลิก</li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="note">
+      ข้อเสนอ UX: Label ของช่องค้นหาผู้เกี่ยวข้องต้องเปลี่ยนตามประเภท เช่น กู้กรรมการ = “กรรมการผู้จ่าย”, เงินกู้ยืมค่าสินค้า = “กรรมการผู้รับเงิน”, สำรองจ่าย = “พนักงานผู้รับเงิน”
+    </div>
+  </main>
+</body>
+</html>

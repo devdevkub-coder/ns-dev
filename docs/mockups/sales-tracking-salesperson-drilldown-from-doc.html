@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sales Tracking Drilldown Mockup</title>
+  <style>
+    :root {
+      --bg: #eef3f8;
+      --panel: #ffffff;
+      --line: #d8e1ec;
+      --text: #182338;
+      --muted: #6b7a90;
+      --blue: #2457f5;
+      --green: #059669;
+      --red: #c1121f;
+      --purple: #4b1558;
+      --navy: #164575;
+      --shadow: 0 2px 7px rgba(15, 23, 42, 0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, "Helvetica Neue", sans-serif;
+      font-size: 14px;
+    }
+    .page {
+      width: 1440px;
+      min-height: 1700px;
+      margin: 0 auto;
+      background: var(--bg);
+    }
+    .topbar {
+      height: 76px;
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 26px;
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+    .subtitle {
+      margin-top: 8px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .search {
+      width: 300px;
+      height: 42px;
+      border: 1px solid #cbd7e6;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      color: #8da0b6;
+      font-weight: 700;
+      background: #f8fafc;
+    }
+    .crumb {
+      height: 44px;
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      color: #5b6b82;
+      border-bottom: 1px solid var(--line);
+      background: #f7fafc;
+      font-weight: 700;
+    }
+    .content { padding: 20px 28px 34px; }
+    .hero {
+      background: linear-gradient(105deg, #2457f5, #6a35d9);
+      color: #fff;
+      border-radius: 8px;
+      padding: 22px 20px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 16px;
+      align-items: center;
+      box-shadow: var(--shadow);
+    }
+    .back {
+      background: rgba(255,255,255,.16);
+      border: 1px solid rgba(255,255,255,.22);
+      color: #fff;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-weight: 800;
+    }
+    .avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255,255,255,.16);
+      margin-right: 12px;
+      font-size: 22px;
+      vertical-align: middle;
+    }
+    .person {
+      display: flex;
+      align-items: center;
+    }
+    .person-name {
+      font-size: 28px;
+      font-weight: 900;
+      line-height: 1.1;
+    }
+    .person-code {
+      margin-top: 5px;
+      font-weight: 800;
+      opacity: .9;
+    }
+    .date-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .date-pill {
+      background: rgba(255,255,255,.18);
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 6px;
+      padding: 11px 16px;
+      font-weight: 900;
+      font-size: 16px;
+    }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px 16px;
+      box-shadow: var(--shadow);
+      min-height: 78px;
+    }
+    .card-label {
+      color: var(--muted);
+      font-weight: 800;
+      font-size: 13px;
+    }
+    .card-value {
+      margin-top: 8px;
+      font-size: 24px;
+      font-weight: 900;
+      color: var(--blue);
+    }
+    .card.green .card-value { color: var(--green); }
+    .card.red .card-value { color: var(--red); }
+    .filter {
+      margin-top: 16px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      box-shadow: var(--shadow);
+    }
+    .filter-row {
+      display: grid;
+      grid-template-columns: 1fr 170px 170px 170px 120px;
+      gap: 10px;
+      align-items: center;
+    }
+    .input, .select, .btn {
+      height: 38px;
+      border: 1px solid #cbd7e6;
+      border-radius: 6px;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      color: #6b7a90;
+      font-weight: 800;
+    }
+    .btn {
+      justify-content: center;
+      color: #102033;
+      background: #f8fafc;
+    }
+    .note {
+      margin-top: 10px;
+      background: #fff7dd;
+      border-left: 4px solid #f59e0b;
+      color: #92400e;
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-weight: 800;
+    }
+    .grid-two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 16px;
+    }
+    .section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .section-header {
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--line);
+      font-size: 18px;
+      font-weight: 900;
+    }
+    .badge {
+      font-size: 12px;
+      padding: 5px 9px;
+      border-radius: 6px;
+      background: #dcfce7;
+      color: #047857;
+      font-weight: 900;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #e3ebf5;
+      text-align: right;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    th:first-child, td:first-child { text-align: left; }
+    thead th {
+      background: #f4f7fb;
+      color: #33435a;
+      font-size: 13px;
+    }
+    .head-blue th { background: var(--navy); color: #fff; }
+    .head-purple th { background: var(--purple); color: #fff; }
+    .head-red th { background: #c1121f; color: #fff; }
+    tbody tr.total td {
+      background: #eaf2fb;
+      font-weight: 900;
+    }
+    .blue { color: var(--blue); }
+    .green { color: var(--green); }
+    .red { color: var(--red); }
+    .subsection {
+      margin-top: 16px;
+    }
+    .section-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #718199;
+      font-weight: 800;
+      font-size: 13px;
+    }
+    .small-input {
+      border: 1px solid #cbd7e6;
+      border-radius: 6px;
+      height: 34px;
+      padding: 0 10px;
+      display: flex;
+      align-items: center;
+      color: #718199;
+      min-width: 220px;
+      background: #fff;
+    }
+    .action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 78px;
+      height: 26px;
+      padding: 0 8px;
+      background: #dcfce7;
+      color: #047857;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .pagination {
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+      padding: 12px;
+      color: #52647d;
+      font-weight: 900;
+    }
+    .page-btn {
+      min-width: 30px;
+      height: 30px;
+      border: 1px solid #cbd7e6;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
+    }
+    .page-btn.active { background: #102033; color: #fff; }
+    .footnote {
+      padding: 12px;
+      color: #6b7a90;
+      font-weight: 800;
+      border-top: 1px dashed #cbd7e6;
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="topbar">
+      <div>
+        <h1>Sales Tracking — ผลงานพนักงาน</h1>
+        <div class="subtitle">Dashboard & Reports / Sales Tracking / Drilldown รายพนักงานขาย</div>
+      </div>
+      <div class="search">ค้นหาเมนู...</div>
+    </header>
+    <div class="crumb">Dashboard & Reports / Sales Tracking — ผลงานพนักงาน / AOM</div>
+
+    <section class="content">
+      <div class="hero">
+        <button class="back">← กลับ</button>
+        <div class="person">
+          <span class="avatar">👨‍💼</span>
+          <div>
+            <div class="person-name">AOM</div>
+            <div class="person-code">S02 · พนักงานขายที่เปิดสิทธิ์คอมมิชชั่น</div>
+          </div>
+        </div>
+        <div class="date-controls">
+          <div class="date-pill">01/06/2026</div>
+          <strong>→</strong>
+          <div class="date-pill">30/06/2026</div>
+          <div class="date-pill">เดือนนี้</div>
+        </div>
+      </div>
+
+      <div class="cards">
+        <div class="card"><div class="card-label">จำนวนที่ซื้อ</div><div class="card-value">300,174.06 กก.</div></div>
+        <div class="card"><div class="card-label">ยอดซื้อ</div><div class="card-value">25,944,901.66</div></div>
+        <div class="card green"><div class="card-label">จำนวนที่ได้คอมมิชชั่น</div><div class="card-value">272,771.16 กก.</div></div>
+        <div class="card green"><div class="card-label">ยอดซื้อที่ได้คอมมิชชั่น</div><div class="card-value">19,162,567.85</div></div>
+        <div class="card red"><div class="card-label">จำนวนที่ไม่ได้คอมมิชชั่น</div><div class="card-value">27,402.90 กก.</div></div>
+        <div class="card red"><div class="card-label">ยอดซื้อที่ไม่ได้คอมมิชชั่น</div><div class="card-value">6,782,333.81</div></div>
+      </div>
+
+      <div class="filter">
+        <div class="filter-row">
+          <div class="input">ค้นหาเลขที่บิล / Supplier / สินค้า</div>
+          <div class="select">ทุก Supplier</div>
+          <div class="select">ทุกหมวดสินค้า</div>
+          <div class="select">เฉพาะเดือนนี้</div>
+          <div class="btn">Export .xlsx</div>
+        </div>
+        <div class="note">เงื่อนไขค่าคอม: พนักงานขายต้องเปิดสิทธิ์ค่าคอม และราคาซื้อ/กก. ต้องมากกว่าราคาบริษัท/ราคาหน้าใบ</div>
+      </div>
+
+      <div class="grid-two">
+        <section class="section">
+          <div class="section-header">
+            <span>1. ยอดซื้อรวมตามหมวดสินค้า</span>
+            <span class="section-toolbar">รวมรายการซื้อทั้งหมด</span>
+          </div>
+          <table>
+            <thead class="head-blue">
+              <tr><th>ประเภท / หมวดสินค้า</th><th>จำนวน</th><th>ยอดซื้อ</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>อลูมิเนียม</td><td>112,951.57</td><td>10,665,712.86</td></tr>
+              <tr><td>เหล็ก</td><td>73,064.70</td><td>665,655.85</td></tr>
+              <tr><td>ขวดแก้ว</td><td>52,020.50</td><td>90,006.61</td></tr>
+              <tr><td>ทองแดง</td><td>24,675.49</td><td>8,468,061.06</td></tr>
+              <tr><td>ทองเหลือง</td><td>21,640.50</td><td>5,874,693.45</td></tr>
+              <tr><td>พลาสติก</td><td>7,387.50</td><td>80,194.24</td></tr>
+              <tr class="total"><td>ผลรวม</td><td>300,174.06</td><td>25,944,901.66</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <span>2. ยอดซื้อที่ได้รับค่าคอมมิชชั่นตามหมวดสินค้า</span>
+            <span class="badge">Commission Eligible</span>
+          </div>
+          <table>
+            <thead class="head-purple">
+              <tr><th>ประเภท / หมวดสินค้า</th><th>จำนวน</th><th>ยอดซื้อ</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>อลูมิเนียม</td><td>98,801.77</td><td>9,356,148.26</td></tr>
+              <tr><td>เหล็ก</td><td>73,064.70</td><td>665,655.85</td></tr>
+              <tr><td>ขวดแก้ว</td><td>52,010.70</td><td>89,985.05</td></tr>
+              <tr><td>ทองเหลือง</td><td>21,637.00</td><td>5,873,398.45</td></tr>
+              <tr><td>ทองแดง</td><td>11,720.69</td><td>2,999,504.91</td></tr>
+              <tr><td>พลาสติก</td><td>7,102.50</td><td>77,297.74</td></tr>
+              <tr class="total"><td>ผลรวม</td><td>272,771.16</td><td>19,162,567.85</td></tr>
+            </tbody>
+          </table>
+        </section>
+      </div>
+
+      <section class="section subsection">
+        <div class="section-header">
+          <span>3. Supplier ในความดูแล</span>
+          <span class="section-toolbar">
+            <span class="small-input">Filter วันที่ / เลขที่บิล / Supplier</span>
+            พบ 128 รายการ
+          </span>
+        </div>
+        <table>
+          <thead class="head-purple">
+            <tr><th>Supplier</th><th>บิล</th><th>น้ำหนัก</th><th>ยอดรับซื้อ</th><th>% ของ Total</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>นางธัญพร อรุโณรดี</td><td>3</td><td>4,185.50</td><td class="blue">7,383.08</td><td>0.03%</td><td><span class="action">ดูรายละเอียด</span></td></tr>
+            <tr><td>นางนงค์คราญ จักร์คำ</td><td>5</td><td>3,599.30</td><td class="blue">672,317.25</td><td>2.59%</td><td><span class="action">ดูรายละเอียด</span></td></tr>
+            <tr><td>นางสาวกมลรัฐ องอาจสันทกุท์</td><td>2</td><td>10,330.00</td><td class="blue">18,478.00</td><td>0.07%</td><td><span class="action">ดูรายละเอียด</span></td></tr>
+            <tr><td>นางสาวเกษราภรณ์ บุญอารีย์</td><td>4</td><td>11,421.00</td><td class="blue">1,318,121.00</td><td>5.08%</td><td><span class="action">ดูรายละเอียด</span></td></tr>
+            <tr><td>นางสาวจาริก โยธากุล</td><td>8</td><td>67,381.00</td><td class="blue">620,626.20</td><td>2.39%</td><td><span class="action">ดูรายละเอียด</span></td></tr>
+            <tr><td>นางสาววรรณรัตน์ ศรีพันธ์</td><td>2</td><td>813.80</td><td class="blue">82,980.15</td><td>0.32%</td><td><span class="action">ดูรายละเอียด</span></td></tr>
+            <tr class="total"><td>รวมหน้านี้</td><td>24</td><td>105,578.40</td><td>3,224,049.68</td><td>12.43%</td><td></td></tr>
+          </tbody>
+        </table>
+        <div class="pagination"><span class="page-btn active">1</span><span class="page-btn">2</span><span class="page-btn">3</span><span class="page-btn">ถัดไป</span></div>
+      </section>
+
+      <section class="section subsection">
+        <div class="section-header">
+          <span>4. รายการสินค้าละเอียด</span>
+          <span class="section-toolbar">
+            <span class="small-input">Filter วันที่ / เลขที่บิล / Supplier</span>
+            <span class="badge" style="background:#dbeafe;color:#1d4ed8;">All Sale Items</span>
+          </span>
+        </div>
+        <table>
+          <thead class="head-red">
+            <tr>
+              <th>วันที่</th>
+              <th>เลขที่บิล</th>
+              <th>Supplier</th>
+              <th>สินค้า</th>
+              <th>น้ำหนัก</th>
+              <th>ราคาซื้อ</th>
+              <th>ราคาหน้าใบ</th>
+              <th>ส่วนต่างกำไร</th>
+              <th>สถานะคอม</th>
+              <th>ยอดรวม</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>2026-06-25</td><td>PB2606-0508</td><td>นางนงค์คราญ จักร์คำ</td><td>ทองแดงเบอร์ 1</td><td>140.00</td><td>441.00</td><td>424.00</td><td class="red">-17.00</td><td><span class="badge" style="background:#fee2e2;color:#b91c1c;">ไม่ได้คอม</span></td><td>62,181.00</td></tr>
+            <tr><td>2026-06-25</td><td>PB2606-0508</td><td>นางนงค์คราญ จักร์คำ</td><td>ทองแดงเบอร์ 2</td><td>253.50</td><td>431.00</td><td>414.00</td><td class="red">-17.00</td><td><span class="badge" style="background:#fee2e2;color:#b91c1c;">ไม่ได้คอม</span></td><td>109,258.50</td></tr>
+            <tr><td>2026-06-25</td><td>PB2606-0508</td><td>นางนงค์คราญ จักร์คำ</td><td>ทองแดงเบอร์ 3</td><td>56.50</td><td>414.00</td><td>400.00</td><td class="red">-14.00</td><td><span class="badge" style="background:#fee2e2;color:#b91c1c;">ไม่ได้คอม</span></td><td>23,391.00</td></tr>
+            <tr><td>2026-06-24</td><td>PB2606-0497</td><td>นางสาวเกษราภรณ์ บุญอารีย์</td><td>อลูมิเนียมกระป๋องอัดก่อน</td><td>3,362.00</td><td>91.00</td><td>90.00</td><td class="red">-1.00</td><td><span class="badge" style="background:#fee2e2;color:#b91c1c;">ไม่ได้คอม</span></td><td>305,942.00</td></tr>
+            <tr><td>2026-06-23</td><td>PB2606-0489</td><td>นางสาวจาริก โยธากุล</td><td>อลูมิเนียมล้อแม็ก</td><td>2,060.00</td><td>106.00</td><td>105.00</td><td class="red">-1.00</td><td><span class="badge" style="background:#fee2e2;color:#b91c1c;">ไม่ได้คอม</span></td><td>218,360.00</td></tr>
+            <tr><td>2026-06-22</td><td>PB2606-0478</td><td>นางสาวแพรพรรณ ศรีพุทธานุสรณ์</td><td>ทองแดงเบอร์ 1</td><td>14.00</td><td>438.00</td><td>420.00</td><td class="red">-18.00</td><td><span class="badge" style="background:#fee2e2;color:#b91c1c;">ไม่ได้คอม</span></td><td>6,132.00</td></tr>
+            <tr><td>2026-06-21</td><td>PB2606-0465</td><td>นางสาววรรณรัตน์ ศรีพันธ์</td><td>ทองเหลือง</td><td>21,637.00</td><td>260.00</td><td>275.00</td><td class="green">15.00</td><td><span class="badge" style="background:#dcfce7;color:#047857;">ได้คอม</span></td><td>5,625,620.00</td></tr>
+            <tr class="total"><td colspan="9">ผลรวมทุกรายการของ Sale</td><td>25,944,901.66</td></tr>
+          </tbody>
+        </table>
+        <div class="footnote">Table 4 ต้องแสดงทุกรายการสินค้าของ Sale คนนั้น: 1 บรรทัด = 1 สินค้าในบิลเดียวกัน, ส่วนต่างกำไร = ราคาหน้าใบ - ราคาซื้อ</div>
+        <div class="pagination"><span class="page-btn active">1</span><span class="page-btn">2</span><span class="page-btn">ถัดไป</span></div>
+      </section>
+    </section>
+  </main>
+</body>
+</html>
