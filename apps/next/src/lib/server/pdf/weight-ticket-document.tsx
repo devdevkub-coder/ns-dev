@@ -475,8 +475,39 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
   const lotGrossWeight = lotLines.reduce((sum, line) => sum + line.grossWeightValue, 0)
   const lotContainerWeight = lotLines.reduce((sum, line) => sum + line.containerDeductionWeightValue, 0)
 
-  const companyInfoLines = [
-    missing(profile.address),
+  const companyNameText = missing(profile.name)
+  const renderCompanyName = () => {
+    const suffix = '(สำนักงานใหญ่)'
+    if (companyNameText.endsWith(suffix)) {
+      const base = companyNameText.slice(0, -suffix.length).trim()
+      return (
+        <>
+          <Text style={styles.companyName}>{nt(base)}</Text>
+          <Text style={styles.companyName}>{nt(suffix)}</Text>
+        </>
+      )
+    }
+    return <Text style={styles.companyName}>{nt(companyNameText)}</Text>
+  }
+
+  const rawAddress = missing(profile.address)
+  const renderAddress = () => {
+    const splitWord = 'จังหวัด'
+    const index = rawAddress.indexOf(splitWord)
+    if (index !== -1) {
+      const part1 = rawAddress.slice(0, index).trim()
+      const part2 = rawAddress.slice(index).trim()
+      return (
+        <>
+          <Text style={styles.companyInfo}>{nt(part1)}</Text>
+          <Text style={styles.companyInfo}>{nt(part2)}</Text>
+        </>
+      )
+    }
+    return <Text style={styles.companyInfo}>{nt(rawAddress)}</Text>
+  }
+
+  const otherInfoLines = [
     `โทร ${missing(profile.phone)}${profile.fax ? ` · แฟกซ์ ${profile.fax}` : ''}`,
     `เลขประจำตัวผู้เสียภาษี: ${missing(profile.taxId)}${branchLabel ? ` · ${branchLabel}` : ''}`,
     ...(profile.email ? [`Email: ${profile.email}`] : []),
@@ -503,9 +534,10 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
                   </View>
                 )}
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.companyName}>{nt(missing(profile.name))}</Text>
+                  {renderCompanyName()}
                   {profile.nameEn ? <Text style={styles.companyEn}>{nt(profile.nameEn)}</Text> : null}
-                  {companyInfoLines.map((line, i) => (
+                  {renderAddress()}
+                  {otherInfoLines.map((line, i) => (
                     <Text key={i} style={styles.companyInfo}>{nt(line)}</Text>
                   ))}
                 </View>
