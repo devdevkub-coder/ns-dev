@@ -304,7 +304,7 @@ function MiniHero({ label, tone, value }: { label: string; tone: 'blue' | 'emera
   const color = tone === 'emerald' ? 'text-emerald-600' : 'text-blue-600'
   return (
     <div>
-      <div className="text-[10px] text-slate-400 font-medium uppercase">{label}</div>
+      <div className="text-xs text-slate-400 font-medium uppercase">{label}</div>
       <div className={`text-base font-bold ${color}`}>{value}</div>
     </div>
   )
@@ -319,7 +319,7 @@ function Donut({ input, net, output }: { input: number; net: number; output: num
         <circle cx="100" cy="100" fill="none" r="70" stroke="#10b981" strokeDasharray={`${outputDash} 439.8`} strokeWidth="30" />
         <circle cx="100" cy="100" fill="none" r="70" stroke="#3b82f6" strokeDasharray={`${input / total * 439.8} 439.8`} strokeDashoffset={-outputDash} strokeWidth="30" />
       </g>
-      <text fill="#64748b" fontSize="9" textAnchor="middle" x="100" y="98">VAT Net</text>
+      <text fill="#64748b" fontSize="12" textAnchor="middle" x="100" y="98">VAT Net</text>
       <text fill={net >= 0 ? '#dc2626' : '#059669'} fontSize="13" fontWeight="bold" textAnchor="middle" x="100" y="115">{money(net)}</text>
     </svg>
   )
@@ -370,7 +370,7 @@ function StatCard({ label, sub, tone, value }: { label: string; sub?: string; to
       <div>
         <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</div>
         <div className={`text-base font-bold mt-0.5 ${toneStyles.text}`}>{value}</div>
-        {sub ? <div className="text-[10px] text-slate-400 font-medium mt-0.5">{sub}</div> : null}
+        {sub ? <div className="text-xs text-slate-400 font-medium mt-0.5">{sub}</div> : null}
       </div>
     </div>
   )
@@ -447,7 +447,7 @@ function TaxTable({ hasDoc = false, isLoading, rows, title, tone, valueKey, tabl
         <span>{title}</span>
         {columnResize.hasCustomWidths && (
           <button
-            className="inline-flex items-center gap-1 h-5 rounded bg-white border border-slate-200 px-1.5 text-[10px] text-slate-700 hover:bg-slate-50 font-normal transition outline-none"
+            className="inline-flex items-center gap-1 h-5 rounded bg-white border border-slate-200 px-1.5 text-xs text-slate-700 hover:bg-slate-50 font-normal transition outline-none"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
@@ -468,7 +468,7 @@ function TaxTable({ hasDoc = false, isLoading, rows, title, tone, valueKey, tabl
             <div className="flex justify-between text-slate-500">
               <span>วันที่: {item.date}</span>
               {hasDoc && (
-                <span className={`px-2 py-0.5 rounded-full text-[10px] ${item.hasDoc ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                <span className={`px-2 py-0.5 rounded-full text-xs ${item.hasDoc ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
                   {item.hasDoc ? '✓ มีเอกสาร' : '✗ ขาดเอกสาร'}
                 </span>
               )}

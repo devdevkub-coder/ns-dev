@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
+import { Button } from '@/components/ui/Button'
 import { SearchCombobox } from '@/components/ui/SearchCombobox'
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
@@ -284,11 +285,11 @@ export function AccountsReceivablePageClient() {
             <div className="text-xs opacity-90 mb-2">🌍 สรุปประเภทลูกหนี้</div>
             <div className="grid grid-cols-2 gap-2 text-xs opacity-95">
               <div>
-                <div className="text-[10px] opacity-75">🇹🇭 ในประเทศ</div>
+                <div className="text-xs opacity-75">🇹🇭 ในประเทศ</div>
                 <div className="text-sm font-bold text-white mt-0.5">{formatMoney(data?.summary.domestic ?? 0)}</div>
               </div>
               <div>
-                <div className="text-[10px] opacity-75">🌐 ต่างประเทศ</div>
+                <div className="text-xs opacity-75">🌐 ต่างประเทศ</div>
                 <div className="text-sm font-bold text-white mt-0.5">{formatMoney(data?.summary.overseas ?? 0)}</div>
               </div>
             </div>
@@ -501,11 +502,11 @@ export function AccountsReceivablePageClient() {
                 {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
               </select>
               <div className="grid grid-cols-2 gap-2">
-                <label className="text-[11px] text-slate-500">
+                <label className="text-xs text-slate-500">
                   จากวันที่
                   <DatePickerInput className="mt-1 w-full" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
                 </label>
-                <label className="text-[11px] text-slate-500">
+                <label className="text-xs text-slate-500">
                   ถึงวันที่
                   <DatePickerInput className="mt-1 w-full" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
                 </label>
@@ -532,6 +533,16 @@ export function AccountsReceivablePageClient() {
           onOpenDetail={setSelectedRow}
         />
       ) : null}
+      {tab === 'detail' && (
+        <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between mb-3">
+          <div>พบทั้งหมด {(data?.pagination.totalRows ?? 0).toLocaleString('th-TH')} รายการ</div>
+          <div className="flex items-center gap-2">
+            <Button disabled={page <= 1 || isLoading} size="xs" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
+            <span>หน้า {page} / {totalPages}</span>
+            <Button disabled={page >= totalPages || isLoading} size="xs" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
+          </div>
+        </div>
+      )}
       {tab === 'detail' ? <DetailTable isLoading={isLoading} onSort={changeSort} rows={data?.rows ?? []} selectedSort={sortKey} sortDirection={sortDirection} onOpen={setSelectedRow} /> : null}
 
       {/* Mobile Card list for Summary tab */}
@@ -550,7 +561,7 @@ export function AccountsReceivablePageClient() {
               <div key={row.customerName} className="rounded-md border border-slate-200 bg-white p-4 shadow-sm space-y-3">
                 <div className="flex justify-between items-start gap-2">
                   <span className="font-bold text-slate-900 text-[15px] leading-snug">{row.customerName}</span>
-                  <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold shrink-0 ${row.oldest > 30 ? 'bg-red-100 text-red-700' : row.oldest > 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'}`}>
+                  <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold shrink-0 ${row.oldest > 30 ? 'bg-red-100 text-red-700' : row.oldest > 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'}`}>
                     {row.oldest > 0 ? `เกินกำหนด ${row.oldest} วัน` : 'ยังไม่ถึงกำหนด'}
                   </span>
                 </div>
@@ -561,11 +572,11 @@ export function AccountsReceivablePageClient() {
                   </div>
                   <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 font-mono text-[13px]">
                     <div>
-                      <span className="text-slate-400 block text-[10px] font-semibold">ยอดค้างรับรวม:</span>
+                      <span className="text-slate-400 block text-xs font-semibold">ยอดค้างรับรวม:</span>
                       <span className="text-blue-700 font-bold tabular-nums">{formatMoney(row.total)}</span>
                     </div>
                     <div>
-                      <span className="text-slate-400 block text-[10px] font-semibold">Current:</span>
+                      <span className="text-slate-400 block text-xs font-semibold">Current:</span>
                       <span className="text-slate-600 tabular-nums">{formatMoney(row.current)}</span>
                     </div>
                   </div>
@@ -596,7 +607,7 @@ export function AccountsReceivablePageClient() {
                           {bills.map((bill) => {
                             const isOverseas = bill.marketScope === 'ต่างประเทศ'
                             return (
-                              <div key={bill.id} className="bg-white p-2.5 rounded-md border border-slate-200/50 text-[11px] space-y-1.5 shadow-sm">
+                              <div key={bill.id} className="bg-white p-2.5 rounded-md border border-slate-200/50 text-xs space-y-1.5 shadow-sm">
                                 <div className="flex justify-between items-center">
                                   <button
                                     type="button"
@@ -605,7 +616,7 @@ export function AccountsReceivablePageClient() {
                                   >
                                     {bill.docNo || '-'}
                                   </button>
-                                  <span className={`px-1.5 py-0.5 rounded font-semibold text-[9px] ${bill.aging > 30 ? 'bg-red-50 text-red-600' : bill.aging > 0 ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-600'}`}>
+                                  <span className={`px-1.5 py-0.5 rounded font-semibold text-xs ${bill.aging > 30 ? 'bg-red-50 text-red-600' : bill.aging > 0 ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-600'}`}>
                                     {bill.aging > 0 ? `เกินกำหนด ${bill.aging} วัน` : 'ยังไม่ถึงกำหนด'}
                                   </span>
                                 </div>
@@ -674,7 +685,7 @@ export function AccountsReceivablePageClient() {
             >
               <div className="flex justify-between items-start gap-2">
                 <span className="font-bold text-slate-900 text-[15px] line-clamp-2 leading-snug flex-1 pr-1">{row.customerName}</span>
-                <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold shrink-0 ${row.aging > 30 ? 'bg-red-100 text-red-700' : row.aging > 0 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold shrink-0 ${row.aging > 30 ? 'bg-red-100 text-red-700' : row.aging > 0 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
                   {row.aging > 0 ? `เกินกำหนด ${row.aging} วัน` : 'ยังไม่ถึงกำหนด'}
                 </span>
               </div>
@@ -685,25 +696,25 @@ export function AccountsReceivablePageClient() {
                 </div>
                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
                   <div>
-                    <span className="text-slate-400 block text-[10px] uppercase font-semibold">วันที่บิล:</span>
+                    <span className="text-slate-400 block text-xs uppercase font-semibold">วันที่บิล:</span>
                     <span className="text-slate-700 font-medium">{formatDateDisplay(row.date)}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[10px] uppercase font-semibold">ครบกำหนด:</span>
+                    <span className="text-slate-400 block text-xs uppercase font-semibold">ครบกำหนด:</span>
                     <span className="text-slate-700 font-medium">{formatDateDisplay(row.dueDate)}</span>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 font-mono text-[13px]">
                   <div>
-                    <span className="text-slate-400 block text-[10px] font-semibold">ยอดรวม:</span>
+                    <span className="text-slate-400 block text-xs font-semibold">ยอดรวม:</span>
                     <span className="text-slate-800 tabular-nums">{formatMoney(row.totalAmount)}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[10px] font-semibold">รับแล้ว:</span>
+                    <span className="text-slate-400 block text-xs font-semibold">รับแล้ว:</span>
                     <span className="text-emerald-700 tabular-nums">{formatMoney(row.receivedAmount)}</span>
                   </div>
                   <div>
-                    <span className="text-slate-500 block text-[10px] font-bold">ค้างรับ:</span>
+                    <span className="text-slate-500 block text-xs font-bold">ค้างรับ:</span>
                     <span className="text-amber-700 font-bold tabular-nums">{formatMoney(row.receivableBalance)}</span>
                   </div>
                 </div>
@@ -713,13 +724,7 @@ export function AccountsReceivablePageClient() {
         </div>
       )}
 
-      {tab === 'detail' && (
-        <div className="flex items-center justify-end gap-2">
-          <button className="rounded-md bg-slate-100 px-3 py-2 text-sm disabled:opacity-50" disabled={page <= 1 || isLoading} type="button" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</button>
-          <span className="text-sm text-slate-600">หน้า {page} / {totalPages}</span>
-          <button className="rounded-md bg-slate-100 px-3 py-2 text-sm disabled:opacity-50" disabled={page >= totalPages || isLoading} type="button" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</button>
-        </div>
-      )}
+
 
       {selectedRow ? <DetailModal row={selectedRow} onClose={() => setSelectedRow(null)} /> : null}
     </section>
@@ -772,7 +777,7 @@ function DetailTable({ isLoading, onOpen, onSort, rows, selectedSort, sortDirect
           {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={9}>กำลังโหลดข้อมูล</td></tr> : null}
           {!isLoading && rows.length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={9}>ไม่มีลูกหนี้คงค้าง</td></tr> : null}
           {!isLoading && rows.map((row) => (
-            <tr key={row.id} className={`border-t border-slate-100 ${row.aging > 30 ? 'bg-red-50/50' : row.aging > 0 ? 'bg-amber-50/30' : ''}`}>
+            <tr key={row.id} className={`border-t border-slate-100 hover:bg-slate-50/30 dark:hover:bg-slate-800/40 ${row.aging > 30 ? 'bg-red-50/15 dark:bg-red-50/10' : row.aging > 0 ? 'bg-amber-50/15 dark:bg-amber-50/10' : ''}`}>
               <td className="px-4 py-3.5">{row.customerName}</td>
               <td className="px-4 py-3.5"><button className="font-mono text-xs text-blue-600" type="button" onClick={() => onOpen(row)}>{row.docNo}</button></td>
               <td className="px-4 py-3.5">{formatDateDisplay(row.date)}</td>
@@ -884,11 +889,11 @@ function TraceLink({ amountLabel, amountValue, docNo, href, label }: { amountLab
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
       <div>
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</div>
+        <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</div>
         <a className="font-mono text-xs font-semibold text-blue-700 hover:underline" href={href}>{docNo}</a>
       </div>
       <div className="text-right">
-        <div className="text-[10px] text-slate-400">{amountLabel}</div>
+        <div className="text-xs text-slate-400">{amountLabel}</div>
         <div className="text-xs font-semibold text-slate-700">{amountValue}</div>
       </div>
     </div>
@@ -898,14 +903,14 @@ function TraceLink({ amountLabel, amountValue, docNo, href, label }: { amountLab
 function TraceList({ emptyText, rows, title }: { emptyText: string; rows: Array<{ amount: string; href: string; meta: string; title: string }>; title: string }) {
   return (
     <div>
-      <div className="mb-1 text-[11px] font-bold text-slate-500">{title}</div>
+      <div className="mb-1 text-xs font-bold text-slate-500">{title}</div>
       {rows.length === 0 ? <div className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-400">{emptyText}</div> : null}
       <div className="space-y-1">
         {rows.map((row) => (
           <div key={`${title}-${row.title}-${row.amount}`} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-100 px-3 py-2">
             <div>
               <a className="font-mono text-xs font-semibold text-blue-700 hover:underline" href={row.href}>{row.title}</a>
-              <div className="text-[11px] text-slate-400">{row.meta}</div>
+              <div className="text-xs text-slate-400">{row.meta}</div>
             </div>
             <div className="text-xs font-bold text-slate-800">{row.amount}</div>
           </div>
@@ -1002,7 +1007,7 @@ function SummaryTable({
 
             return (
               <Fragment key={row.customerName}>
-                <tr className={`border-t border-slate-100 hover:bg-blue-50/10 ${isExpanded ? 'bg-blue-50/20' : row.oldest > 30 ? 'bg-red-50/40' : row.oldest > 0 ? 'bg-amber-50/30' : ''}`}>
+                <tr className={`border-t border-slate-100 hover:bg-slate-50/30 dark:hover:bg-slate-800/40 ${isExpanded ? 'bg-blue-50/20' : row.oldest > 30 ? 'bg-red-50/15 dark:bg-red-50/10' : row.oldest > 0 ? 'bg-amber-50/15 dark:bg-amber-50/10' : ''}`}>
                   <td className="p-2 font-medium">
                     <div className="flex items-center gap-1.5 cursor-pointer select-none" onClick={() => onToggleExpand(row.customerId)}>
                       <span className="text-slate-400 text-xs w-4 text-center">

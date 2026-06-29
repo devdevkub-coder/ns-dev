@@ -327,7 +327,7 @@ function MatchStatusDonut({ fully, none, partial, total }: { fully: number; none
             <circle cx="100" cy="100" r="70" fill="none" stroke="#94a3b8" strokeDasharray={`${noneArc} ${circumference}`} strokeDashoffset={-(fullyArc + partialArc)} strokeWidth="40" transform="rotate(-90 100 100)" />
           </>
         ) : null}
-        <text x="100" y="95" fill="#64748b" fontSize="10" textAnchor="middle">{total} Deals</text>
+        <text x="100" y="95" fill="#64748b" fontSize="12" textAnchor="middle">{total} Deals</text>
         <text x="100" y="115" fill="#0f172a" fontSize="14" fontWeight="bold" textAnchor="middle">{fullyPct.toFixed(0)}%</text>
       </svg>
       <div className="mt-1 flex justify-center gap-2 text-xs">

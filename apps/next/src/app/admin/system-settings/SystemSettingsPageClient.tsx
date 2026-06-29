@@ -282,7 +282,7 @@ export function SystemSettingsPageClient() {
                           </div>
                         </TableCell>
                         <TableCell className="text-center">
-                          <span className={record.active ? 'text-sm font-semibold text-emerald-750' : 'text-sm text-slate-400 font-medium'}>
+                          <span className={record.active ? 'text-sm font-semibold text-emerald-700' : 'text-sm text-slate-400 font-medium'}>
                             {record.active ? 'ใช้งาน' : 'ปิดใช้'}
                           </span>
                         </TableCell>
@@ -315,17 +315,17 @@ export function SystemSettingsPageClient() {
                       <div>
                         <div className="font-bold text-slate-900 text-sm leading-snug">{record.name}</div>
                         {record.isDefault ? (
-                          <div className="mt-0.5 text-[10px] font-bold text-emerald-700">อัตราที่ใช้คำนวณปัจจุบัน</div>
+                          <div className="mt-0.5 text-xs font-bold text-emerald-700">อัตราที่ใช้คำนวณปัจจุบัน</div>
                         ) : null}
                       </div>
-                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${record.active ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-100 text-slate-400'}`}>
+                      <span className={`rounded px-1.5 py-0.5 text-xs font-bold ${record.active ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-100 text-slate-400'}`}>
                         {record.active ? 'ใช้งาน' : 'ปิดใช้'}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-2 pt-1.5 border-t border-slate-100">
                       <div className="flex-1">
-                        <span className="text-slate-400 block text-[9px] uppercase font-semibold mb-1">อัตรา %</span>
+                        <span className="text-slate-400 block text-xs uppercase font-semibold mb-1">อัตรา %</span>
                         <div className="flex max-w-[130px] items-center overflow-hidden rounded-md border border-slate-300 bg-white focus-within:border-slate-900 h-9">
                           <Input
                             aria-label={`${record.name} อัตราเปอร์เซ็นต์`}
@@ -381,11 +381,11 @@ export function SystemSettingsPageClient() {
               <div className="font-semibold text-slate-700">{pendingSave.label}</div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-lg border border-slate-100 bg-white p-3 shadow-sm">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ค่าเดิม</div>
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">ค่าเดิม</div>
                   <div className="mt-1 text-xl font-bold text-slate-700">{pendingSave.currentValue ?? '-'}%</div>
                 </div>
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 shadow-sm">
-                  <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">ค่าใหม่</div>
+                  <div className="text-xs font-bold text-amber-600 uppercase tracking-wider">ค่าใหม่</div>
                   <div className="mt-1 text-xl font-bold text-amber-800">{pendingSave.nextValue}%</div>
                 </div>
               </div>

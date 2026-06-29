@@ -265,7 +265,7 @@ export function ReportsIndexPageClient() {
         <div className="flex flex-wrap items-center gap-2">
           <DatePickerInput className="w-[130px] border-slate-100" onChange={setFromDate} value={fromDate} />
           <DatePickerInput className="w-[130px] border-slate-100" onChange={setToDate} value={toDate} />
-          <span className="text-xs font-medium text-slate-450">เว้นว่างเพื่อดูทุกช่วงเวลา</span>
+          <span className="text-xs font-medium text-slate-400">เว้นว่างเพื่อดูทุกช่วงเวลา</span>
           <button
             className="ml-auto rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition-colors disabled:cursor-not-allowed disabled:opacity-60 outline-none focus:outline-none"
             disabled={loading}
@@ -281,7 +281,7 @@ export function ReportsIndexPageClient() {
               className={`rounded-lg px-3.5 py-1.5 text-sm font-semibold border transition-all duration-150 outline-none focus:outline-none ${
                 legacyTab === item.k
                   ? 'bg-slate-900 border-slate-900 text-white shadow-sm'
-                  : 'bg-white border-slate-100 text-slate-755 hover:bg-slate-50/80'
+                  : 'bg-white border-slate-100 text-slate-800 hover:bg-slate-50/80'
               }`}
               key={item.k}
               onClick={() => setLegacyTab(item.k)}
@@ -413,7 +413,7 @@ export function ReportsIndexPageClient() {
               className={`rounded-lg px-3 py-1.5 text-xs font-semibold border transition-all duration-150 outline-none focus:outline-none ${
                 catalogTab === item.k
                   ? 'bg-slate-800 border-slate-800 text-white shadow-sm'
-                  : 'bg-white border-slate-100 text-slate-705 hover:bg-slate-50'
+                  : 'bg-white border-slate-100 text-slate-700 hover:bg-slate-50'
               }`}
               key={item.k}
               onClick={() => setCatalogTab(item.k)}
@@ -445,11 +445,11 @@ export function ReportsIndexPageClient() {
             <table className="w-full min-w-[760px] text-sm text-slate-700">
               <thead className="bg-slate-50/80">
                 <tr>
-                  <th className="p-3 text-left font-bold text-slate-650 border-b border-slate-100">รายงาน</th>
-                  <th className="p-3 text-left font-bold text-slate-650 border-b border-slate-100">หมวด</th>
-                  <th className="p-3 text-left font-bold text-slate-650 border-b border-slate-100">สถานะ</th>
-                  <th className="p-3 text-left font-bold text-slate-650 border-b border-slate-100">รายละเอียด</th>
-                  <th className="p-3 text-right font-bold text-slate-650 border-b border-slate-100">เปิด</th>
+                  <th className="p-3 text-left font-bold text-slate-600 border-b border-slate-100">รายงาน</th>
+                  <th className="p-3 text-left font-bold text-slate-600 border-b border-slate-100">หมวด</th>
+                  <th className="p-3 text-left font-bold text-slate-600 border-b border-slate-100">สถานะ</th>
+                  <th className="p-3 text-left font-bold text-slate-600 border-b border-slate-100">รายละเอียด</th>
+                  <th className="p-3 text-right font-bold text-slate-600 border-b border-slate-100">เปิด</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -461,11 +461,11 @@ export function ReportsIndexPageClient() {
                     </td>
                     <td className="p-3 text-slate-600 font-medium">{report.owner}</td>
                     <td className="p-3">
-                      <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold border ${statusClass(report.status)}`}>
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold border ${statusClass(report.status)}`}>
                         {report.status}
                       </span>
                     </td>
-                    <td className="p-3 text-slate-650 text-xs leading-relaxed">{report.summary}</td>
+                    <td className="p-3 text-slate-600 text-xs leading-relaxed">{report.summary}</td>
                     <td className="p-3 text-right">
                       <Link className="rounded-lg bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white transition-colors outline-none focus:outline-none" href={report.href} prefetch={false}>
                         เปิดรายงาน
@@ -489,11 +489,11 @@ export function ReportsIndexPageClient() {
                     <div className="font-bold text-slate-900 text-sm">{report.label}</div>
                     <div className="font-mono text-xs text-slate-400 mt-0.5">{report.href}</div>
                   </div>
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold border shrink-0 ${statusClass(report.status)}`}>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-bold border shrink-0 ${statusClass(report.status)}`}>
                     {report.status}
                   </span>
                 </div>
-                <div className="text-xs text-slate-650 mb-3 leading-relaxed">{report.summary}</div>
+                <div className="text-xs text-slate-600 mb-3 leading-relaxed">{report.summary}</div>
                 <div className="flex justify-between items-center text-xs">
                   <span className="font-semibold text-slate-500">หมวด: {report.owner}</span>
                   <Link className="rounded-lg bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white transition-colors outline-none focus:outline-none" href={report.href} prefetch={false}>
@@ -518,7 +518,7 @@ function MetricCard({ icon, label, tone, value }: { icon: string; label: string;
     emerald: { bg: 'bg-emerald-50 text-emerald-600', text: 'text-emerald-600' },
     purple: { bg: 'bg-purple-50 text-purple-600', text: 'text-purple-600' },
     amber: { bg: 'bg-amber-50 text-amber-600', text: 'text-amber-600' },
-    slate: { bg: 'bg-slate-50 text-slate-650', text: 'text-slate-900' }
+    slate: { bg: 'bg-slate-50 text-slate-600', text: 'text-slate-900' }
   }
   const config = toneMap[tone] ?? toneMap.slate
   return (

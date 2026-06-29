@@ -8,7 +8,7 @@ import { Input, type InputProps } from '@/components/ui/Input'
 import { cn } from '@/lib/utils'
 
 const inputGroupVariants = cva(
-  'group/input-group relative flex min-w-0 items-center overflow-hidden rounded-md border border-slate-300 bg-white transition-colors outline-none has-[[data-slot=input-group-control]:focus-visible]:border-blue-500 has-[[data-slot=input-group-control]:focus-visible]:ring-2 has-[[data-slot=input-group-control]:focus-visible]:ring-blue-100',
+  'group/input-group relative flex min-w-0 items-center overflow-hidden rounded-md border border-slate-300 bg-white transition-colors outline-none has-[[data-slot=input-group-control]:focus-visible]:border-blue-500 has-[[data-slot=input-group-control]:focus-visible]:ring-2 has-[[data-slot=input-group-control]:focus-visible]:ring-blue-100 dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dark-surface-soft)] dark:has-[[data-slot=input-group-control]:focus-visible]:[border-color:var(--ns-dark-border-strong)] dark:has-[[data-slot=input-group-control]:focus-visible]:ring-0',
   {
     variants: {
       size: {
@@ -81,7 +81,7 @@ function InputGroupButton({
   return (
     <Button
       data-slot="input-group-button"
-      className={cn('pointer-events-auto rounded-sm border-0 p-0 shadow-none hover:bg-transparent hover:text-slate-500 focus-visible:ring-2 focus-visible:ring-blue-100', className)}
+      className={cn('pointer-events-auto rounded-sm border-0 p-0 shadow-none hover:bg-transparent hover:text-slate-500 focus-visible:ring-2 focus-visible:ring-blue-100 dark:focus-visible:ring-0', className)}
       size={size}
       variant={variant}
       {...props}

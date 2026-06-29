@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/preserve-manual-memoization */
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -261,7 +262,12 @@ export function ReceiptVouchersPageClient() {
     setPrintingDocNo(row.docNo)
     try {
       printWindow = openReceiptVoucherPrintWindow()
-      await openReceiptVoucherPrint(row as unknown as ReceiptVoucherPrintDocument, printWindow)
+      const matchedSupplier = supplierOptions.find((s) => s.name === row.sellerName || s.taxId === row.sellerTaxId)
+      const docToPrint: ReceiptVoucherPrintDocument = {
+        ...row,
+        supplierBankAccounts: matchedSupplier?.bankAccounts ?? [],
+      }
+      await openReceiptVoucherPrint(docToPrint, printWindow)
     } catch (err) {
       printWindow?.close()
       alert(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการพิมพ์')
@@ -893,7 +899,7 @@ function ReceiptVoucherFormModal({
                   onClick={() => setShowSellerDetails(!showSellerDetails)}
                 >
                   <span>📋 {showSellerDetails ? 'ซ่อนรายละเอียดผู้รับเงิน' : 'ดูรายละเอียดผู้รับเงิน'}</span>
-                  <span className="text-[10px]">{showSellerDetails ? '▲' : '▼'}</span>
+                  <span className="text-xs">{showSellerDetails ? '▲' : '▼'}</span>
                 </button>
 
                 <div className={`${showSellerDetails ? 'grid' : 'hidden'} lg:grid mt-2 md:mt-3 grid-cols-1 gap-2 rounded-md border border-amber-200 bg-white/70 p-3 text-xs text-slate-700 md:grid-cols-2`}>
@@ -1002,7 +1008,7 @@ function ReceiptVoucherFormModal({
                 <div className="flex h-8 md:h-9 items-center rounded-md border border-slate-200 bg-slate-50 px-2.5 md:px-3 text-xs md:text-sm font-semibold text-slate-800">
                   รับเงินสด
                 </div>
-                <div className="mt-1 text-[10px] md:text-xs text-slate-500">
+                <div className="mt-1 text-xs md:text-xs text-slate-500">
                   {form.amountInWords || thaiBahtText(totals.amount) || '-'}
                 </div>
               </FormField>
@@ -1036,7 +1042,7 @@ function FormField({ children, className = '', label }: { children: ReactNode; c
 function ReadOnlyInfo({ label, value, wide = false }: { label: string; value?: string | null; wide?: boolean }) {
   return (
     <div className={wide ? 'md:col-span-2' : ''}>
-      <div className="text-[11px] font-medium text-slate-500">{label}</div>
+      <div className="text-xs font-medium text-slate-500">{label}</div>
       <div className="mt-0.5 min-h-5 font-semibold text-slate-800">{value || '-'}</div>
     </div>
   )
@@ -1188,7 +1194,7 @@ function ReceiptVoucherDetailModal({ onClose, onPrint, row }: { onClose: () => v
 function DetailField({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
   return (
     <div className={`flex flex-col py-1 ${wide ? 'md:col-span-2' : ''}`}>
-      <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{label}</div>
+      <div className="text-xs text-slate-400 font-medium uppercase tracking-wider">{label}</div>
       <div className="mt-0.5 text-xs sm:text-sm font-semibold text-slate-800 [overflow-wrap:anywhere]">{value}</div>
     </div>
   )

@@ -115,7 +115,7 @@ export function PlStatementPageClient() {
 
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
-            <span className="text-[10px] font-semibold text-slate-500 block">จาก</span>
+            <span className="text-xs font-semibold text-slate-500 block">จาก</span>
             <input
               type="date"
               className="w-full h-9 rounded-lg border border-slate-300 px-3 text-xs outline-none bg-white"
@@ -124,7 +124,7 @@ export function PlStatementPageClient() {
             />
           </div>
           <div className="space-y-1">
-            <span className="text-[10px] font-semibold text-slate-500 block">ถึง</span>
+            <span className="text-xs font-semibold text-slate-500 block">ถึง</span>
             <input
               type="date"
               className="w-full h-9 rounded-lg border border-slate-300 px-3 text-xs outline-none bg-white"
@@ -405,7 +405,7 @@ export function CashFlowStatementPageClient() {
 
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
-            <span className="text-[10px] font-semibold text-slate-500 block">จาก</span>
+            <span className="text-xs font-semibold text-slate-500 block">จาก</span>
             <input
               type="date"
               className="w-full h-9 rounded-lg border border-slate-300 px-3 text-xs outline-none bg-white text-slate-900"
@@ -414,7 +414,7 @@ export function CashFlowStatementPageClient() {
             />
           </div>
           <div className="space-y-1">
-            <span className="text-[10px] font-semibold text-slate-500 block">ถึง</span>
+            <span className="text-xs font-semibold text-slate-500 block">ถึง</span>
             <input
               type="date"
               className="w-full h-9 rounded-lg border border-slate-300 px-3 text-xs outline-none bg-white text-slate-900"
@@ -527,7 +527,7 @@ function BaselineNotice({ sourceState }: { sourceState?: SourceState }) {
     <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3.5 text-xs text-amber-900 shadow-sm">
       <span className="font-bold">⚠️ Management statement / read baseline</span>
       <span className="ml-2">รายงานเพื่อผู้บริหารจากข้อมูลธุรกรรม ยังไม่ใช่งบการเงินตามบัญชี GL</span>
-      {sourceState ? <div className="mt-1 text-[11px] text-amber-800">{sourceState.limitations[0]}</div> : null}
+      {sourceState ? <div className="mt-1 text-xs text-amber-800">{sourceState.limitations[0]}</div> : null}
     </div>
   )
 }
@@ -600,7 +600,7 @@ function StatCard({ label, tone, value }: { label: string; tone: 'blue' | 'cyan'
         {current.icon}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-[10px] sm:text-xs font-semibold text-slate-500 truncate">{label}</div>
+        <div className="text-xs sm:text-xs font-semibold text-slate-500 truncate">{label}</div>
         <div className="mt-0.5 text-sm sm:text-base font-bold text-slate-900 tracking-tight">{value}</div>
       </div>
     </div>
@@ -613,9 +613,9 @@ function SplitCard({ cogs, label, revenue, tone }: { cogs: number; label: string
     <div className={`rounded-xl border ${color} p-4 shadow-sm`}>
       <div className="text-xs font-bold">{label} Split</div>
       <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-        <div><div className="text-slate-400 text-[10px]">Revenue</div><b className="text-slate-800">{money(revenue)}</b></div>
-        <div><div className="text-slate-400 text-[10px]">COGS</div><b className="text-slate-800">{money(cogs)}</b></div>
-        <div><div className="text-slate-400 text-[10px]">Gross Profit</div><b className={tone === 'emerald' ? 'text-emerald-700' : 'text-purple-700'}>{money(revenue - cogs)}</b></div>
+        <div><div className="text-slate-400 text-xs">Revenue</div><b className="text-slate-800">{money(revenue)}</b></div>
+        <div><div className="text-slate-400 text-xs">COGS</div><b className="text-slate-800">{money(cogs)}</b></div>
+        <div><div className="text-slate-400 text-xs">Gross Profit</div><b className={tone === 'emerald' ? 'text-emerald-700' : 'text-purple-700'}>{money(revenue - cogs)}</b></div>
       </div>
     </div>
   )
@@ -689,7 +689,7 @@ function StatementTable({ isLoading, onDrill, rows, title = 'Statement' }: { isL
                     {line.label}
                   </div>
                   <div>
-                    <span className="rounded-md bg-slate-100/80 px-2 py-0.5 text-[10px] text-slate-500 font-medium">
+                    <span className="rounded-md bg-slate-100/80 px-2 py-0.5 text-xs text-slate-500 font-medium">
                       {line.section}
                     </span>
                   </div>

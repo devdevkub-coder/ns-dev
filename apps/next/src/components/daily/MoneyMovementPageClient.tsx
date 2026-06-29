@@ -426,13 +426,13 @@ function buildPaymentDailyReportHtml(rows: MoneyRow[], profile: CompanyProfilePr
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(reportTitle)}</title>
     <style>
       @page { size: A4 landscape; margin: 10mm; }
-      body { font-family: 'Noto Sans Thai', Arial, sans-serif; color: #0f172a; font-size: 11px; margin: 0; }
+      body { font-family: 'Noto Sans Thai', Arial, sans-serif; color: #0f172a; font-size: 12px; margin: 0; }
       .toolbar { background: #f1f5f9; border-bottom: 1px solid #cbd5e1; padding: 8px; text-align: center; }
       .toolbar button { background: #0f172a; border: 0; border-radius: 6px; color: white; cursor: pointer; font-size: 13px; margin: 0 4px; padding: 7px 14px; }
       .page { padding: 10px; }
       .header { display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 16px; border-bottom: 2px solid #0f172a; padding-bottom: 10px; }
       .logo { max-height: 52px; max-width: 180px; object-fit: contain; margin-bottom: 4px; }
-      .no-logo { display: flex; align-items: center; justify-content: center; width: 120px; height: 52px; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-size: 10px; font-weight: 800; text-align: center; }
+      .no-logo { display: flex; align-items: center; justify-content: center; width: 120px; height: 52px; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-size: 12px; font-weight: 800; text-align: center; }
       .co-name { font-size: 18px; font-weight: 800; }
       .co-info { color: #475569; line-height: 1.45; margin-top: 3px; }
       .doc-title { text-align: right; }
@@ -440,21 +440,21 @@ function buildPaymentDailyReportHtml(rows: MoneyRow[], profile: CompanyProfilePr
       .doc-title .range { color: #be123c; font-size: 15px; font-weight: 800; }
       .summary { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 12px 0; }
       .card { border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; background: #fff; }
-      .card .label { color: #64748b; font-size: 10px; }
+      .card .label { color: #64748b; font-size: 12px; }
       .card .value { font-size: 16px; font-weight: 800; margin-top: 2px; }
       .green { color: #047857; }
       .rose { color: #be123c; }
       table { width: 100%; border-collapse: collapse; }
-      th { background: #334155; color: #fff; font-size: 10px; padding: 6px; text-align: left; }
+      th { background: #334155; color: #fff; font-size: 12px; padding: 6px; text-align: left; }
       td { border-bottom: 1px solid #e2e8f0; padding: 6px; vertical-align: top; }
       tr.cancelled td { color: #64748b; }
       .r { text-align: right; }
       .c { text-align: center; }
       .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-      .small { font-size: 10px; }
+      .small { font-size: 12px; }
       .strong { font-weight: 800; }
       .empty { color: #64748b; padding: 24px; text-align: center; }
-      .footer { border-top: 1px dashed #cbd5e1; color: #64748b; font-size: 10px; margin-top: 12px; padding-top: 8px; }
+      .footer { border-top: 1px dashed #cbd5e1; color: #64748b; font-size: 12px; margin-top: 12px; padding-top: 8px; }
       @media print { .toolbar { display: none; } .page { padding: 0; } }
     </style>
   </head><body>
@@ -539,7 +539,7 @@ function buildCustomerReceiptPrintHtml(row: MoneyRow) {
       .header { border-bottom: 2px solid #0f172a; display: flex; justify-content: space-between; gap: 16px; padding-bottom: 12px; }
       .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 16px; margin: 14px 0; }
       .box { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; }
-      .label { color: #64748b; font-size: 10px; }
+      .label { color: #64748b; font-size: 12px; }
       .value { font-weight: 800; margin-top: 2px; }
       table { width: 100%; border-collapse: collapse; margin-top: 10px; }
       th { background: #334155; color: white; padding: 7px; text-align: left; }
@@ -654,7 +654,7 @@ function buildBatchReceiptPrintHtml(rows: MoneyRow[]) {
       .header { border-bottom: 2px solid #0f172a; display: flex; justify-content: space-between; gap: 16px; padding-bottom: 12px; }
       .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 16px; margin: 14px 0; }
       .box { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; }
-      .label { color: #64748b; font-size: 10px; }
+      .label { color: #64748b; font-size: 12px; }
       .value { font-weight: 800; margin-top: 2px; }
       table { width: 100%; border-collapse: collapse; margin-top: 10px; }
       th { background: #334155; color: white; padding: 7px; text-align: left; }
@@ -703,7 +703,7 @@ function buildReceivableBillPrintHtml(bill: Bill, customerName: string) {
       .header { border-bottom: 2px solid #0f172a; display: flex; justify-content: space-between; gap: 16px; padding-bottom: 12px; }
       .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 16px; margin: 14px 0; }
       .box { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; }
-      .label { color: #64748b; font-size: 10px; }
+      .label { color: #64748b; font-size: 12px; }
       .value { font-weight: 800; margin-top: 2px; }
       .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
       .green { color: #047857; }
@@ -2185,7 +2185,7 @@ export function MoneyMovementPageClient({
                   <div className="mb-2 flex items-start justify-between">
                     <div>
                       <div className="font-bold text-slate-800 text-sm">{receiptDocNo}</div>
-                      <div className="mt-0.5 text-[11px] text-slate-500">อ้างอิง {bill.docNo}</div>
+                      <div className="mt-0.5 text-xs text-slate-500">อ้างอิง {bill.docNo}</div>
                     </div>
                     <span className="text-xs text-slate-500">{formatDateDisplay(bill.date)}</span>
                   </div>
@@ -2194,15 +2194,15 @@ export function MoneyMovementPageClient({
                       <span className="font-semibold text-slate-500">ลูกค้า: </span>
                       <span className="text-slate-800">{partyMap.get(bill.customerId ?? '') ?? bill.customerId ?? '-'}</span>
                     </div>
-                    <div className="text-[11px] font-semibold text-amber-700">{receiptQueueStatusLabel(bill)}</div>
+                    <div className="text-xs font-semibold text-amber-700">{receiptQueueStatusLabel(bill)}</div>
                   </div>
                   <div className="flex items-end justify-between border-t border-slate-100 pt-2">
                     <div>
-                      <span className="text-[10px] text-slate-400 block">ค้างรับ</span>
+                      <span className="text-xs text-slate-400 block">ค้างรับ</span>
                       <span className="font-bold text-sm tabular-nums text-emerald-700">{formatMoney(balance)}</span>
                     </div>
                     <div className="text-right">
-                      <span className="text-[10px] text-slate-400 block">ยอดรวมบิล</span>
+                      <span className="text-xs text-slate-400 block">ยอดรวมบิล</span>
                       <span className="font-bold text-slate-900 text-sm tabular-nums">{formatMoney(bill.totalAmount)}</span>
                     </div>
                   </div>
@@ -2275,7 +2275,7 @@ export function MoneyMovementPageClient({
                     <TableRow key={bill.id} className="cursor-pointer hover:bg-slate-50" onClick={() => openReceivableBillDetail(bill)}>
                       <TableCell className="text-xs font-semibold text-slate-700">
                         <div>{receiptDocNo}</div>
-                        <div className="mt-1 text-[11px] font-normal text-amber-700">{receiptQueueStatusLabel(bill)}</div>
+                        <div className="mt-1 text-xs font-normal text-amber-700">{receiptQueueStatusLabel(bill)}</div>
                       </TableCell>
                       <TableCell className="text-xs font-semibold text-slate-700">{formatDateDisplay(bill.date)}</TableCell>
                       <TableCell className="max-w-72 truncate text-xs font-semibold text-slate-700">{partyMap.get(bill.customerId ?? '') ?? bill.customerId ?? '-'}</TableCell>
@@ -2402,7 +2402,7 @@ export function MoneyMovementPageClient({
                       <span className="text-slate-800">{partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'}</span>
                     </div>
                     {bankAccount ? (
-                      <div className="text-[11px] text-slate-500 flex items-center gap-1.5 flex-wrap">
+                      <div className="text-xs text-slate-500 flex items-center gap-1.5 flex-wrap">
                         <span>ธนาคาร: {bankAccount.bankName || '-'}</span>
                         <span className="text-slate-300">|</span>
                         <span>บัญชี: {formatAccountNoDisplay(bankAccount.accountNo) || bankAccount.accountNo}</span>
@@ -2419,17 +2419,17 @@ export function MoneyMovementPageClient({
                         </button>
                       </div>
                     ) : null}
-                    <div className="text-[11px] text-slate-500">
+                    <div className="text-xs text-slate-500">
                       อายุเอกสาร: {ageInDays(bill.date)} วัน
                     </div>
                   </div>
                   <div className="flex justify-between items-end pt-2 border-t border-slate-100">
                     <div>
-                      <span className="text-[10px] text-slate-400 block">ค้างชำระ</span>
+                      <span className="text-xs text-slate-400 block">ค้างชำระ</span>
                       <span className={`font-bold text-sm tabular-nums ${balance > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{formatMoney(balance)}</span>
                     </div>
                     <div className="text-right">
-                      <span className="text-[10px] text-slate-400 block">ยอดรวม</span>
+                      <span className="text-xs text-slate-400 block">ยอดรวม</span>
                       <span className="font-bold text-slate-900 text-sm tabular-nums">{formatMoney(bill.totalAmount)}</span>
                     </div>
                   </div>
@@ -2474,7 +2474,7 @@ export function MoneyMovementPageClient({
                       <TableRow key={`${bill.id}:${bill.approvalId ?? 'no-approval'}`} className="cursor-pointer hover:bg-slate-50" onClick={() => openFormForBill(bill)}>
                         <TableCell className="text-xs font-semibold text-slate-700">
                           <div>{bill.docNo}</div>
-                          {bill.sourceDocNo && bill.sourceDocNo !== bill.docNo ? <div className="mt-1 text-[11px] font-normal text-slate-500">อ้างอิง {bill.sourceDocNo}</div> : null}
+                          {bill.sourceDocNo && bill.sourceDocNo !== bill.docNo ? <div className="mt-1 text-xs font-normal text-slate-500">อ้างอิง {bill.sourceDocNo}</div> : null}
                         </TableCell>
                         <TableCell className="text-xs font-semibold text-slate-700">{formatDateDisplay(bill.date)}</TableCell>
                         <TableCell className="max-w-72 truncate text-xs font-semibold text-slate-700">{partyMap.get(bill.supplierId ?? '') ?? bill.supplierId ?? '-'}</TableCell>
@@ -2606,7 +2606,7 @@ export function MoneyMovementPageClient({
                   onStartMoneyInput={startMoneyInput}
                   onUpdatePaymentForm={updatePaymentForm}
                   onUpdatePaymentSplit={updatePaymentSplit}
-                  methodDisabled={Boolean(form.id)}
+                  methodDisabled={false}
                 />
 
                 <PaymentLinesSection
@@ -2885,7 +2885,7 @@ export function MoneyMovementPageClient({
                     paymentMethods={paymentMethods}
                     methodValue={form.method}
                     onMethodChange={(value) => updateReceiptForm({ method: value })}
-                    methodDisabled={Boolean(form.id)}
+                    methodDisabled={false}
                   />
                   <div>
                     <label className="block text-sm font-medium mt-4">
@@ -3126,14 +3126,14 @@ export function MoneyMovementPageClient({
                           <span className="font-semibold text-slate-500">{partyLabel}: </span>
                           <span className="text-slate-800">{row.partyName}</span>
                         </div>
-                        <div className="text-[11px] text-slate-500">
+                        <div className="text-xs text-slate-500">
                           อ้างอิง: {billDocNos.join(', ')}
                         </div>
-                        <div className="text-[11px] text-slate-500">
+                        <div className="text-xs text-slate-500">
                           บัญชี: {accountSummaries.join(', ')}
                         </div>
                         {row.notes ? (
-                          <div className="text-[11px] text-slate-400 italic truncate">
+                          <div className="text-xs text-slate-400 italic truncate">
                             หมายเหตุ: {row.notes}
                           </div>
                         ) : null}
@@ -3150,14 +3150,14 @@ export function MoneyMovementPageClient({
                                 <>
                                   <button
                                     type="button"
-                                    className="text-[11px] text-slate-700 hover:text-slate-900 hover:bg-slate-50 font-semibold px-2 py-0.5 rounded border border-slate-200 bg-white cursor-pointer"
+                                    className="text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-50 font-semibold px-2 py-0.5 rounded border border-slate-200 bg-white cursor-pointer"
                                     onClick={() => openFormForReceipt(row)}
                                   >
                                     แก้ไข
                                   </button>
                                   <button
                                     type="button"
-                                    className="text-[11px] text-red-600 hover:text-red-700 hover:bg-red-50 font-semibold px-2 py-0.5 rounded border border-red-200 bg-white cursor-pointer"
+                                    className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 font-semibold px-2 py-0.5 rounded border border-red-200 bg-white cursor-pointer"
                                     onClick={() => {
                                       setCancelReceiptTarget(row)
                                       setCancelReceiptReason('')
@@ -3170,14 +3170,14 @@ export function MoneyMovementPageClient({
                                 <>
                                   <button
                                     type="button"
-                                    className="text-[11px] text-slate-700 hover:text-slate-900 hover:bg-slate-50 font-semibold px-2 py-0.5 rounded border border-slate-200 bg-white cursor-pointer"
+                                    className="text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-50 font-semibold px-2 py-0.5 rounded border border-slate-200 bg-white cursor-pointer"
                                     onClick={() => openFormForPayment(row)}
                                   >
                                     แก้ไข
                                   </button>
                                   <button
                                     type="button"
-                                    className="text-[11px] text-red-600 hover:text-red-700 hover:bg-red-50 font-semibold px-2 py-0.5 rounded border border-red-200 bg-white cursor-pointer"
+                                    className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 font-semibold px-2 py-0.5 rounded border border-red-200 bg-white cursor-pointer"
                                     onClick={() => setCancelPaymentTarget(row)}
                                   >
                                     ยกเลิก
@@ -3188,7 +3188,7 @@ export function MoneyMovementPageClient({
                           )}
                         </div>
                         <div className="text-right">
-                          <span className="text-[10px] text-slate-400 block">ยอดสุทธิ</span>
+                          <span className="text-xs text-slate-400 block">ยอดสุทธิ</span>
                           <span className={`font-bold text-sm tabular-nums ${theme.strong}`}>{formatMoney(row.netAmount)}</span>
                         </div>
                       </div>
@@ -3278,7 +3278,7 @@ export function MoneyMovementPageClient({
                           <div className="space-y-1">
                             <CollapsedList items={billDocNos} />
                             {mode === 'payment' && row.approvalIds?.length ? (
-                              <div className="pt-1 text-[11px] text-slate-500">
+                              <div className="pt-1 text-xs text-slate-500">
                                 PMA: {row.approvalIds.map((approvalId, index) => (
                                   <span key={`${row.id}-approval-${approvalId}`}>
                                     {index > 0 ? ', ' : ''}
@@ -3445,7 +3445,7 @@ export function MoneyMovementPageClient({
             <div className="space-y-3 text-sm bg-slate-50 p-5">
               <div className="rounded-md border border-slate-200 bg-white p-3">
                 <div className="font-semibold text-slate-900">{cancelReceiptTarget.docNo}</div>
-                <div className="text-slate-650">{cancelReceiptTarget.partyName} · {formatMoney(cancelReceiptTarget.amount)}</div>
+                <div className="text-slate-600">{cancelReceiptTarget.partyName} · {formatMoney(cancelReceiptTarget.amount)}</div>
               </div>
               <label className="block">
                 <span className="mb-1 block text-xs text-slate-600">เหตุผลการยกเลิก</span>
@@ -3475,7 +3475,7 @@ export function MoneyMovementPageClient({
             <div className="space-y-3 text-sm bg-slate-50 p-5">
               <div className="rounded-md border border-slate-200 bg-white p-3">
                 <div className="font-semibold text-slate-900">{cancelPaymentTarget.docNo}</div>
-                <div className="text-slate-650">{cancelPaymentTarget.partyName} · {formatMoney(cancelPaymentTarget.amount)}</div>
+                <div className="text-slate-600">{cancelPaymentTarget.partyName} · {formatMoney(cancelPaymentTarget.amount)}</div>
               </div>
               <label className="block">
                 <span className="mb-1 block text-xs text-slate-600">เหตุผลการยกเลิก</span>
@@ -3506,7 +3506,7 @@ export function MoneyMovementPageClient({
               <DialogTitle className="font-bold text-white">ยกเลิกรายการรอจ่าย</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 px-5 py-4 text-sm bg-slate-50">
-              <div className="rounded-md border border-slate-200 bg-white p-3 text-slate-755">
+              <div className="rounded-md border border-slate-200 bg-white p-3 text-slate-800">
                 <div><span className="font-semibold">เลขที่รายการ:</span> {cancelApprovalTarget.docNo}</div>
                 {cancelApprovalTarget.sourceDocNo && cancelApprovalTarget.sourceDocNo !== cancelApprovalTarget.docNo ? (
                   <div><span className="font-semibold">เอกสารต้นทาง:</span> {cancelApprovalTarget.sourceDocNo}</div>
@@ -3723,7 +3723,7 @@ function PaymentHistoryDetailDialog({
                           <div key={`${event.title}-${event.at}-${index}`} className="grid grid-cols-[88px_1fr] gap-3 sm:grid-cols-[128px_1fr]">
                             <div className="pt-1 text-right text-xs text-slate-500">
                               <div>{formatTimelineDate(event.at)}</div>
-                              <div className="mt-1 truncate text-[11px]">{event.actor || '-'}</div>
+                              <div className="mt-1 truncate text-xs">{event.actor || '-'}</div>
                             </div>
                             <div className="relative border-l border-slate-200 pb-4 pl-4 last:pb-0">
                               <span className={`absolute -left-1.5 top-1 h-3 w-3 rounded-full border-2 border-white ${isLatest ? detailDotClass(event.tone) : 'bg-slate-300'}`} />

@@ -169,7 +169,7 @@ export default async function SalesBillDetailPage({ params }: PageProps) {
                   <div key={event.id} className="grid grid-cols-[96px_1fr] gap-3">
                     <div className="pt-1 text-right text-xs text-slate-500">
                       <div>{formatDateTime(event.createdAt)}</div>
-                      <div className="mt-1 truncate text-[11px]">{event.actor}</div>
+                      <div className="mt-1 truncate text-xs">{event.actor}</div>
                     </div>
                     <div className="relative border-l border-slate-100 pb-4 pl-4 last:pb-0">
                       <span className={`absolute -left-1.5 top-1 h-3 w-3 rounded-full border-2 border-white ${index === 0 ? 'bg-blue-500' : 'bg-slate-300'}`} />
@@ -211,12 +211,12 @@ export default async function SalesBillDetailPage({ params }: PageProps) {
                               <div className="font-medium text-slate-900">{fact.title}</div>
                               <div className="text-slate-500">{[fact.type, fact.productName !== '-' ? fact.productName : null, fact.lineNo ? `line ${fact.lineNo}` : null].filter(Boolean).join(' · ')}</div>
                             </td>
-                            <td className="px-3 py-2 align-top font-mono text-[11px] text-slate-700">{fact.docNo || '-'}</td>
+                            <td className="px-3 py-2 align-top font-mono text-xs text-slate-700">{fact.docNo || '-'}</td>
                             <td className="px-3 py-2 text-right align-top tabular-nums">{fact.qty ? `${formatMoney(fact.qty)} ${fact.unit}` : '-'}</td>
                             <td className="px-3 py-2 text-right align-top tabular-nums">{fact.amount ? formatMoney(fact.amount) : '-'}</td>
                             <td className="px-3 py-2 align-top">
-                              <span className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-medium ${fact.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{fact.status}</span>
-                              <div className="mt-1 text-[11px] text-slate-400">{formatDateTime(fact.createdAt)}</div>
+                              <span className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${fact.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{fact.status}</span>
+                              <div className="mt-1 text-xs text-slate-400">{formatDateTime(fact.createdAt)}</div>
                             </td>
                           </tr>
                         ))}

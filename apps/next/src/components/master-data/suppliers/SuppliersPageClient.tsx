@@ -950,7 +950,7 @@ export function SuppliersPageClient() {
                               <div key={accountKey} className="flex items-center justify-between gap-2 bg-slate-50 px-2.5 py-1.5 rounded-md border border-slate-100">
                                 <div className="truncate">
                                   <div className="font-semibold text-slate-700">{line.bankName}</div>
-                                  <div className="font-mono text-[11px] text-slate-500 mt-0.5">{line.accountNo}</div>
+                                  <div className="font-mono text-xs text-slate-500 mt-0.5">{line.accountNo}</div>
                                 </div>
                                 {line.rawAccountNo ? (
                                   <div onClick={(e) => e.stopPropagation()}>
@@ -1214,10 +1214,10 @@ function SupplierForm({ supplier, bankNames, branches, paymentMethods, districts
   }
 
   return (
-    <form className="overflow-hidden rounded-md bg-slate-900 shadow-xl flex flex-col w-full max-h-[90vh]" onSubmit={handleSubmit}>
-      <div className="flex flex-col gap-3 bg-slate-900 px-5 py-4 sm:flex-row sm:items-center sm:justify-between shrink-0">
-        <h3 className="text-lg font-bold text-slate-100">{form.id ? 'แก้ไขผู้ขาย' : 'เพิ่มผู้ขาย'}</h3>
-        <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-slate-200" onChange={(checked) => update('active', checked)} />
+    <form className="overflow-hidden rounded-md bg-slate-900 dark:bg-[#0f172a] shadow-xl flex flex-col w-full max-h-[90vh]" onSubmit={handleSubmit}>
+      <div className="flex flex-col gap-3 bg-slate-900 dark:bg-[#0f172a] px-5 py-4 sm:flex-row sm:items-center sm:justify-between shrink-0">
+        <h3 className="text-lg font-bold text-white">{form.id ? 'แก้ไขผู้ขาย' : 'เพิ่มผู้ขาย'}</h3>
+        <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-slate-200 dark:text-slate-800" onChange={(checked) => update('active', checked)} />
       </div>
 
       <div className="flex-1 space-y-5 overflow-y-auto bg-slate-50 px-5 py-5">
@@ -1475,5 +1475,5 @@ function MatchButton({ active, label, onClick, tone = 'dark' }: { active: boolea
     slate: 'border-slate-500 bg-slate-500 text-white',
   }[tone]
   const idleClass = tone === 'amber' ? 'border-slate-300 bg-white hover:bg-amber-50' : tone === 'emerald' ? 'border-slate-300 bg-white hover:bg-emerald-50' : tone === 'red' ? 'border-slate-300 bg-white hover:bg-red-50' : 'border-slate-300 bg-white hover:bg-slate-100'
-  return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
+  return <button className={`rounded-md border px-3.5 py-1.5 text-sm font-medium ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
 }

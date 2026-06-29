@@ -141,7 +141,7 @@ export function CashFlowCalendarPageClient() {
       </div>
       <div className="overflow-hidden rounded-xl bg-white shadow-sm border border-slate-100">
         <div className="grid grid-cols-7 bg-slate-50 border-b border-slate-100 text-center text-xs font-bold text-slate-600">{weekdays.map((day, index) => <div key={day} className={`p-2.5 ${index === 0 || index === 6 ? 'text-red-500' : ''}`}>{day}</div>)}</div>
-        {(data?.weeks ?? []).map((week, weekIndex) => <div key={weekIndex} className="grid grid-cols-7 border-t border-slate-100">{week.map((day, dayIndex) => day ? <button key={day.date} aria-label={`ดูรายการวันที่ ${day.date}`} className={`min-h-[110px] border-r border-slate-100 p-2 text-left text-xs transition hover:bg-slate-50/50 outline-none ${day.isNegative ? 'bg-red-50/30' : 'bg-white'} ${day.isToday ? 'ring-2 ring-amber-400 ring-inset' : ''}`} data-cash-day={day.date} type="button" onClick={() => setSelectedDayDate(day.date)} onPointerDown={() => setSelectedDayDate(day.date)}><div className="flex items-start justify-between"><span className={`font-bold ${day.weekday === 0 || day.weekday === 6 ? 'text-red-500' : 'text-slate-600'}`}>{day.day}</span>{day.entryCount ? <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-bold text-blue-700">{day.entryCount}</span> : null}</div><div className="mt-2 space-y-1 font-mono text-[11px]"><div className="text-emerald-700 font-semibold">↑ {money(day.cashIn)}</div><div className="text-red-700 font-semibold">↓ {money(day.cashOut)}</div><div className={`border-t border-slate-100 pt-1 font-bold ${day.ending < 0 ? 'text-red-600' : 'text-slate-700'}`}>{money(day.ending)}</div></div></button> : <div key={`empty-${weekIndex}-${dayIndex}`} className="min-h-[110px] border-r border-slate-100 bg-slate-50/50" />)}</div>)}
+        {(data?.weeks ?? []).map((week, weekIndex) => <div key={weekIndex} className="grid grid-cols-7 border-t border-slate-100">{week.map((day, dayIndex) => day ? <button key={day.date} aria-label={`ดูรายการวันที่ ${day.date}`} className={`min-h-[110px] border-r border-slate-100 p-2 text-left text-xs transition hover:bg-slate-50/50 outline-none ${day.isNegative ? 'bg-red-50/30' : 'bg-white'} ${day.isToday ? 'ring-2 ring-amber-400 ring-inset' : ''}`} data-cash-day={day.date} type="button" onClick={() => setSelectedDayDate(day.date)} onPointerDown={() => setSelectedDayDate(day.date)}><div className="flex items-start justify-between"><span className={`font-bold ${day.weekday === 0 || day.weekday === 6 ? 'text-red-500' : 'text-slate-600'}`}>{day.day}</span>{day.entryCount ? <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-xs font-bold text-blue-700">{day.entryCount}</span> : null}</div><div className="mt-2 space-y-1 font-mono text-xs"><div className="text-emerald-700 font-semibold">↑ {money(day.cashIn)}</div><div className="text-red-700 font-semibold">↓ {money(day.cashOut)}</div><div className={`border-t border-slate-100 pt-1 font-bold ${day.ending < 0 ? 'text-red-600' : 'text-slate-700'}`}>{money(day.ending)}</div></div></button> : <div key={`empty-${weekIndex}-${dayIndex}`} className="min-h-[110px] border-r border-slate-100 bg-slate-50/50" />)}</div>)}
       </div>
       <div className="flex flex-wrap gap-3 text-xs text-slate-500"><Legend color="bg-emerald-500" text="เงินเข้า" /><Legend color="bg-red-500" text="เงินออก" /><Legend color="bg-red-100" text="ยอดติดลบ" /><Legend color="bg-amber-300" text="วันนี้" /><span>คลิกแต่ละวันเพื่อดูรายการละเอียด</span></div>
       <Notice text={data?.sourceState.limitations[0]} />{error ? <ErrorBox text={error} /> : null}
@@ -186,13 +186,13 @@ function RunningBalanceLineChart({ days, maxBalance, minBalance }: { days: CashD
             {ticks.map((tick, index) => (
               <g key={`${tick}-${index}`}>
                 <line stroke="#e2e8f0" x1={padding.left} x2={padding.left + chartWidth} y1={yFor(tick)} y2={yFor(tick)} />
-                <text fill="#64748b" fontSize="11" textAnchor="end" x={padding.left - 10} y={yFor(tick) + 4}>
+                <text fill="#64748b" fontSize="12" textAnchor="end" x={padding.left - 10} y={yFor(tick) + 4}>
                   {compactMoney(tick)}
                 </text>
               </g>
             ))}
             <line stroke="#94a3b8" strokeDasharray="5 5" x1={padding.left} x2={padding.left + chartWidth} y1={zeroY} y2={zeroY} />
-            <text fill="#64748b" fontSize="11" textAnchor="end" x={padding.left + chartWidth - 8} y={zeroY - 6}>0 บาท</text>
+            <text fill="#64748b" fontSize="12" textAnchor="end" x={padding.left + chartWidth - 8} y={zeroY - 6}>0 บาท</text>
             <path d={linePath} fill="none" stroke="#2563eb" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" />
             {points.map(({ day, x, y }, index) => (
               <g key={day.date}>
@@ -200,7 +200,7 @@ function RunningBalanceLineChart({ days, maxBalance, minBalance }: { days: CashD
                   <title>{`${dateLabel(day.date)} ยอดสะสม ${money(day.ending)}`}</title>
                 </circle>
                 {(days.length <= 8 || index % labelEvery === 0) ? (
-                  <text fill="#475569" fontSize="11" textAnchor="middle" x={x} y={height - 10}>
+                  <text fill="#475569" fontSize="12" textAnchor="middle" x={x} y={height - 10}>
                     {dateLabel(day.date)}
                   </text>
                 ) : null}
@@ -236,7 +236,7 @@ function DailyCashInOutChart({ days }: { days: CashDay[] }) {
       <div className="rounded-md bg-white p-2">
         <div className="grid grid-cols-[28px_72px_minmax(0,1fr)] gap-2">
           <div className="flex h-72 items-center justify-center text-xs font-bold text-slate-700 [writing-mode:vertical-rl] rotate-180">จำนวนเงิน (บาท)</div>
-          <div className="relative h-72 text-[11px] font-medium text-slate-500">
+          <div className="relative h-72 text-xs font-medium text-slate-500">
             {ticks.map((tick, index) => (
               <div key={`${tick}-${index}`} className="absolute right-0 -translate-y-1/2 text-right tabular-nums" style={{ top: `${pct(axisMax - tick, axisMax)}%` }}>
                 {compactMoney(tick)}
@@ -256,7 +256,7 @@ function DailyCashInOutChart({ days }: { days: CashDay[] }) {
                   <div key={day.date} className="group relative flex h-full min-w-0 flex-1 items-end justify-center gap-1" title={`${dateLabel(day.date)} เงินเข้า ${money(day.cashIn)} / เงินออก ${money(day.cashOut)}`}>
                     <span className="w-full max-w-5 rounded-t-md bg-emerald-500 transition group-hover:bg-emerald-600" style={{ height: day.cashIn > 0 ? `${Math.max(2, cashInHeight)}%` : 0 }} />
                     <span className="w-full max-w-5 rounded-t-md bg-red-500 transition group-hover:bg-red-600" style={{ height: day.cashOut > 0 ? `${Math.max(2, cashOutHeight)}%` : 0 }} />
-                    {showLabel ? <span className="absolute -bottom-7 left-1/2 -translate-x-1/2 whitespace-nowrap text-[11px] font-medium text-slate-600">{dateLabel(day.date)}</span> : null}
+                    {showLabel ? <span className="absolute -bottom-7 left-1/2 -translate-x-1/2 whitespace-nowrap text-xs font-medium text-slate-600">{dateLabel(day.date)}</span> : null}
                   </div>
                 )
               })}
@@ -342,7 +342,7 @@ function BusinessCombinedTable({ days }: { days: BusinessDay[] }) {
             </tr>
           </thead>
           <tbody>
-            {days.map((day) => <tr key={day.date} className={`border-t border-slate-100 hover:bg-slate-50/50 ${day.isWeekend ? 'bg-red-50/20' : ''} ${day.purchaseAmount + day.saleAmount + day.expenseAmount + day.receiptAmount + day.paymentAmount === 0 ? 'opacity-55' : ''}`}><td className="p-2.5 text-left font-bold text-slate-700">{day.day} {day.isToday ? <span className="rounded bg-yellow-100 px-1 text-[9px] font-bold text-yellow-800">วันนี้</span> : null}</td><Amount value={day.purchaseAmount} /><Amount value={day.saleAmount} /><Amount value={day.cogs} /><Amount value={day.gp} signed /><Amount value={day.expenseAmount} /><Amount value={day.receiptAmount} /><Amount value={day.paymentAmount} /><Amount value={day.netCash} signed /><Amount value={day.arIncrease} /><Amount value={day.apIncrease} /></tr>)}
+            {days.map((day) => <tr key={day.date} className={`border-t border-slate-100 hover:bg-slate-50/50 ${day.isWeekend ? 'bg-red-50/20' : ''} ${day.purchaseAmount + day.saleAmount + day.expenseAmount + day.receiptAmount + day.paymentAmount === 0 ? 'opacity-55' : ''}`}><td className="p-2.5 text-left font-bold text-slate-700">{day.day} {day.isToday ? <span className="rounded bg-yellow-100 px-1 text-xs font-bold text-yellow-800">วันนี้</span> : null}</td><Amount value={day.purchaseAmount} /><Amount value={day.saleAmount} /><Amount value={day.cogs} /><Amount value={day.gp} signed /><Amount value={day.expenseAmount} /><Amount value={day.receiptAmount} /><Amount value={day.paymentAmount} /><Amount value={day.netCash} signed /><Amount value={day.arIncrease} /><Amount value={day.apIncrease} /></tr>)}
           </tbody>
         </table>
       </div>
@@ -353,19 +353,19 @@ function BusinessCombinedTable({ days }: { days: BusinessDay[] }) {
           <div key={day.date} className={`p-3 rounded-lg border mb-2 shadow-sm flex flex-col gap-1.5 text-xs bg-white ${day.isWeekend ? 'border-red-100 bg-red-50/20' : 'border-slate-100'} ${day.purchaseAmount + day.saleAmount + day.expenseAmount + day.receiptAmount + day.paymentAmount === 0 ? 'opacity-75' : ''}`}>
             <div className="flex justify-between items-center pb-1 border-b border-slate-50">
               <span className="font-bold text-slate-800">วันที่ {day.day}</span>
-              {day.isToday && <span className="rounded bg-yellow-100 px-1.5 py-0.5 text-[9px] font-bold text-yellow-800">วันนี้</span>}
+              {day.isToday && <span className="rounded bg-yellow-100 px-1.5 py-0.5 text-xs font-bold text-yellow-800">วันนี้</span>}
             </div>
-            <div className="grid grid-cols-2 gap-2 mt-1 text-[11px] font-mono text-slate-600">
+            <div className="grid grid-cols-2 gap-2 mt-1 text-xs font-mono text-slate-600">
               <div>📥 ซื้อ: <span className="font-bold text-slate-900">{money(day.purchaseAmount)}</span></div>
               <div>📤 ขาย: <span className="font-bold text-slate-900">{money(day.saleAmount)}</span></div>
-              <div>COGS: <span className="font-bold text-slate-650">{money(day.cogs)}</span></div>
-              <div>💎 GP: <span className={`font-bold ${day.gp >= 0 ? 'text-emerald-600' : 'text-red-650'}`}>{money(day.gp)}</span></div>
+              <div>COGS: <span className="font-bold text-slate-600">{money(day.cogs)}</span></div>
+              <div>💎 GP: <span className={`font-bold ${day.gp >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{money(day.gp)}</span></div>
               <div>💸 ค่าใช้จ่าย: <span className="font-bold text-red-600">{money(day.expenseAmount)}</span></div>
               <div>💰 รับ: <span className="font-bold text-emerald-600">{money(day.receiptAmount)}</span></div>
               <div>💸 จ่าย: <span className="font-bold text-red-600">{money(day.paymentAmount)}</span></div>
               <div>📊 Net Cash: <span className={`font-bold ${day.netCash >= 0 ? 'text-blue-600' : 'text-red-600'}`}>{money(day.netCash)}</span></div>
             </div>
-            <div className="flex justify-between text-[10px] text-slate-500 mt-1 pt-1.5 border-t border-slate-50">
+            <div className="flex justify-between text-xs text-slate-500 mt-1 pt-1.5 border-t border-slate-50">
               <span>AR เพิ่ม: {money(day.arIncrease)}</span>
               <span>AP เพิ่ม: {money(day.apIncrease)}</span>
             </div>
@@ -392,7 +392,7 @@ function BusinessModeTable({ days, mode }: { days: BusinessDay[]; mode: Exclude<
             <tr>{config.headers.map((header) => <th key={header} className="p-2 text-left font-semibold">{header}</th>)}</tr>
           </thead>
           <tbody>
-            {rows.map(({ day, doc }) => <tr key={`${mode}-${doc.id}`} className="border-t border-slate-100 hover:bg-slate-50/30"><td className="p-2">{day.date}</td><td className="p-2 font-mono text-slate-650">{doc.docNo}</td>{mode === 'expense' ? <><td className="p-2 text-slate-700">{doc.category ?? '-'}</td><td className="p-2 text-slate-700">{doc.payee ?? '-'}</td><td className="p-2 text-right font-mono font-bold text-red-600">{money(doc.amount)}</td></> : null}{mode === 'purchase' ? <><td className="p-2 text-right font-mono">{money(doc.qty)}</td><td className="p-2 text-right font-mono font-bold text-blue-600">{money(doc.amount)}</td></> : null}{mode === 'sales' ? <><td className="p-2 text-right font-mono">{money(doc.qty)}</td><td className="p-2 text-right font-mono font-bold text-emerald-600">{money(doc.amount)}</td><td className="p-2 text-right font-mono text-slate-600">{money(doc.cogs)}</td><td className="p-2 text-right font-mono font-bold text-purple-650">{money(doc.gp)}</td></> : null}</tr>)}
+            {rows.map(({ day, doc }) => <tr key={`${mode}-${doc.id}`} className="border-t border-slate-100 hover:bg-slate-50/30"><td className="p-2">{day.date}</td><td className="p-2 font-mono text-slate-600">{doc.docNo}</td>{mode === 'expense' ? <><td className="p-2 text-slate-700">{doc.category ?? '-'}</td><td className="p-2 text-slate-700">{doc.payee ?? '-'}</td><td className="p-2 text-right font-mono font-bold text-red-600">{money(doc.amount)}</td></> : null}{mode === 'purchase' ? <><td className="p-2 text-right font-mono">{money(doc.qty)}</td><td className="p-2 text-right font-mono font-bold text-blue-600">{money(doc.amount)}</td></> : null}{mode === 'sales' ? <><td className="p-2 text-right font-mono">{money(doc.qty)}</td><td className="p-2 text-right font-mono font-bold text-emerald-600">{money(doc.amount)}</td><td className="p-2 text-right font-mono text-slate-600">{money(doc.cogs)}</td><td className="p-2 text-right font-mono font-bold text-purple-600">{money(doc.gp)}</td></> : null}</tr>)}
             {rows.length === 0 ? <tr><td className="p-8 text-center text-slate-400 text-xs" colSpan={config.headers.length}>ไม่มีข้อมูล</td></tr> : null}
           </tbody>
         </table>
@@ -404,27 +404,27 @@ function BusinessModeTable({ days, mode }: { days: BusinessDay[]; mode: Exclude<
           <div key={`${mode}-${doc.id}`} className="p-3 bg-white rounded-lg border border-slate-100 mb-2 shadow-sm flex flex-col gap-1 text-xs">
             <div className="flex justify-between items-center">
               <span className="font-bold text-slate-800">{doc.docNo}</span>
-              <span className="text-slate-500 text-[10px]">{day.date}</span>
+              <span className="text-slate-500 text-xs">{day.date}</span>
             </div>
             {mode === 'expense' && (
-              <div className="grid grid-cols-2 gap-1 mt-1 text-[11px] text-slate-600">
+              <div className="grid grid-cols-2 gap-1 mt-1 text-xs text-slate-600">
                 <div>หมวด: {doc.category ?? '-'}</div>
                 <div>ผู้รับ: {doc.payee ?? '-'}</div>
                 <div className="col-span-2 text-right font-bold text-red-600 mt-1 text-sm font-mono">{money(doc.amount)}</div>
               </div>
             )}
             {mode === 'purchase' && (
-              <div className="flex justify-between items-center mt-1 text-[11px] text-slate-600">
+              <div className="flex justify-between items-center mt-1 text-xs text-slate-600">
                 <span>น้ำหนัก: {money(doc.qty)} กก.</span>
                 <span className="font-bold text-blue-600 font-mono text-sm">{money(doc.amount)}</span>
               </div>
             )}
             {mode === 'sales' && (
-              <div className="grid grid-cols-2 gap-1 mt-1 text-[11px] text-slate-600 font-mono">
+              <div className="grid grid-cols-2 gap-1 mt-1 text-xs text-slate-600 font-mono">
                 <div>น้ำหนัก: {money(doc.qty)} กก.</div>
                 <div className="text-right text-emerald-600 font-bold">ยอดขาย: {money(doc.amount)}</div>
                 <div>COGS: {money(doc.cogs)}</div>
-                <div className={`text-right font-bold ${doc.gp && doc.gp >= 0 ? 'text-purple-600' : 'text-red-650'}`}>GP: {money(doc.gp)}</div>
+                <div className={`text-right font-bold ${doc.gp && doc.gp >= 0 ? 'text-purple-600' : 'text-red-600'}`}>GP: {money(doc.gp)}</div>
               </div>
             )}
           </div>
@@ -459,7 +459,7 @@ function CashDayModal({ day, onClose }: { day: CashDay; onClose: () => void }) {
                 <tr>{['ประเภท', 'รายละเอียด', 'บัญชี', 'Ref', 'เข้า', 'ออก'].map((header) => <th key={header} className="p-2 text-left font-semibold">{header}</th>)}</tr>
               </thead>
               <tbody>
-                {day.entries.map((entry) => <tr key={entry.id} className="border-t border-slate-100 hover:bg-slate-50/30"><td className="p-2 text-slate-700">{entry.type}</td><td className="p-2 text-slate-700">{entry.description}</td><td className="p-2 text-slate-650">{entry.account}</td><td className="p-2 font-mono text-slate-550">{entry.refNo}</td><td className="p-2 text-right font-mono text-emerald-600 font-semibold">{money(entry.in)}</td><td className="p-2 text-right font-mono text-red-600 font-semibold">{money(entry.out)}</td></tr>)}
+                {day.entries.map((entry) => <tr key={entry.id} className="border-t border-slate-100 hover:bg-slate-50/30"><td className="p-2 text-slate-700">{entry.type}</td><td className="p-2 text-slate-700">{entry.description}</td><td className="p-2 text-slate-600">{entry.account}</td><td className="p-2 font-mono text-slate-500">{entry.refNo}</td><td className="p-2 text-right font-mono text-emerald-600 font-semibold">{money(entry.in)}</td><td className="p-2 text-right font-mono text-red-600 font-semibold">{money(entry.out)}</td></tr>)}
                 {day.entries.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={6}>ไม่มีรายการ</td></tr> : null}
               </tbody>
             </table>
@@ -471,10 +471,10 @@ function CashDayModal({ day, onClose }: { day: CashDay; onClose: () => void }) {
               <div key={entry.id} className="p-2.5 bg-white rounded-lg border border-slate-100 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
                 <div className="flex justify-between items-start">
                   <span className="font-bold text-slate-800">{entry.description || entry.type}</span>
-                  <span className="font-mono text-[10px] text-slate-400">{entry.refNo}</span>
+                  <span className="font-mono text-xs text-slate-400">{entry.refNo}</span>
                 </div>
-                <div className="text-slate-500 text-[11px]">บัญชี: {entry.account}</div>
-                <div className="flex justify-end gap-3 mt-1.5 font-mono text-[11px]">
+                <div className="text-slate-500 text-xs">บัญชี: {entry.account}</div>
+                <div className="flex justify-end gap-3 mt-1.5 font-mono text-xs">
                   {entry.in > 0 && <span className="text-emerald-600 font-bold">เข้า: +{money(entry.in)}</span>}
                   {entry.out > 0 && <span className="text-red-600 font-bold">ออก: -{money(entry.out)}</span>}
                 </div>
@@ -493,8 +493,8 @@ function Metric({ label, tone, value }: { label: string; tone: string; value: st
     emerald: { bg: 'bg-emerald-50/50 text-emerald-900 border-emerald-100', text: 'text-emerald-600' },
     red: { bg: 'bg-red-50/50 text-red-900 border-red-100', text: 'text-red-600' },
     purple: { bg: 'bg-purple-50/50 text-purple-900 border-purple-100', text: 'text-purple-600' },
-    slate: { bg: 'bg-slate-50/50 text-slate-900 border-slate-100', text: 'text-slate-650' },
-    gradient: { bg: 'bg-indigo-50/50 text-indigo-900 border-indigo-100', text: 'text-indigo-650 font-bold' },
+    slate: { bg: 'bg-slate-50/50 text-slate-900 border-slate-100', text: 'text-slate-600' },
+    gradient: { bg: 'bg-indigo-50/50 text-indigo-900 border-indigo-100', text: 'text-indigo-600 font-bold' },
   }
   const style = toneMap[tone] || toneMap.slate
   return (
@@ -522,15 +522,15 @@ function ModeButton({ active, mode, onClick }: { active: boolean; mode: Mode; on
   const label: Record<Mode, string> = { combined: 'Combined', expense: 'Expense', purchase: 'Purchase', sales: 'Sales' }
   const activeClass: Record<Mode, string> = {
     combined: 'bg-purple-600 border-purple-600 text-white',
-    expense: 'bg-red-650 border-red-650 text-white',
-    purchase: 'bg-blue-650 border-blue-650 text-white',
-    sales: 'bg-emerald-650 border-emerald-650 text-white'
+    expense: 'bg-red-600 border-red-600 text-white',
+    purchase: 'bg-blue-600 border-blue-600 text-white',
+    sales: 'bg-emerald-600 border-emerald-600 text-white'
   }
   return <button className={`rounded-lg border px-3 py-2 text-sm font-bold outline-none ${active ? activeClass[mode] : 'bg-white border-slate-100 text-slate-600 hover:bg-slate-50'}`} type="button" onClick={onClick} onPointerDown={onClick}>{label[mode]}</button>
 }
 
 function Amount({ signed = false, value }: { signed?: boolean; value: number }) {
-  const color = signed ? value >= 0 ? 'text-emerald-700 font-semibold' : 'text-red-650 font-semibold' : 'text-slate-700'
+  const color = signed ? value >= 0 ? 'text-emerald-700 font-semibold' : 'text-red-600 font-semibold' : 'text-slate-700'
   return <td className={`p-2 text-right font-mono ${color}`}>{money(value)}</td>
 }
 
@@ -539,5 +539,5 @@ function Notice({ text }: { text?: string }) {
 }
 
 function ErrorBox({ text }: { text: string }) {
-  return <div className="rounded-xl border border-red-150 bg-red-50/50 p-4 text-sm text-red-800">{text}</div>
+  return <div className="rounded-xl border border-red-100 bg-red-50/50 p-4 text-sm text-red-800">{text}</div>
 }

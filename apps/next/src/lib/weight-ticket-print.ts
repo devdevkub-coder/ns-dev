@@ -155,16 +155,40 @@ function sumPrintLines(lines: WeightTicketRecord['lines']) {
 
 export function buildPrintWeightRows(ticket: WeightTicketRecord, isReceipt: boolean): PrintWeightRow[] {
   if (!isReceipt) {
-    return ticket.lines.map((line, index) => ({
-      containerDeductionWeight: line.containerDeductionWeightValue,
-      deductionWeight: line.deductionWeight,
-      detail: line.note || '-',
-      grossWeight: line.grossWeightValue,
-      label: 'จากสินค้า',
-      netWeight: line.netWeight,
-      productName: line.productName,
-      rank: String(index + 1),
-    }))
+    const rows: PrintWeightRow[] = []
+    let lineIndex = 0
+    ticket.productSummaries.forEach((summary) => {
+      const productLines = ticket.lines.filter((line) => line.productId === summary.productId)
+      if (productLines.length === 0) return
+
+      productLines.forEach((line) => {
+        lineIndex++
+        rows.push({
+          containerDeductionWeight: line.containerDeductionWeightValue,
+          deductionWeight: line.deductionWeight,
+          detail: line.note || '-',
+          grossWeight: line.grossWeightValue,
+          label: 'จากสินค้า',
+          netWeight: line.netWeight,
+          productName: line.productName,
+          rank: String(lineIndex),
+        })
+      })
+
+      // Add subtotal row for this product group
+      rows.push({
+        className: 'product-total',
+        containerDeductionWeight: summary.containerDeductionWeight,
+        deductionWeight: summary.deductWeight,
+        detail: '',
+        grossWeight: summary.grossWeight,
+        label: '',
+        netWeight: summary.netWeight,
+        productName: `รวม ${summary.productName}`,
+        rank: '',
+      })
+    })
+    return rows
   }
 
   const rows: PrintWeightRow[] = []
@@ -286,7 +310,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
     .map((name) => {
       const match = /^([^|]+)\|(data:image\/[^|]+)$/.exec(name)
       if (!match) return null
-      return `<div style="border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;page-break-inside:avoid"><img src="${escapeHtml(match[2])}" style="width:100%;height:auto;display:block;max-height:8cm;object-fit:cover"><div style="padding:4px 8px;background:#f1f5f9;font-size:10px;color:#475569">${escapeHtml(match[1])}</div></div>`
+      return `<div style="border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;page-break-inside:avoid"><img src="${escapeHtml(match[2])}" style="width:100%;height:auto;display:block;max-height:8cm;object-fit:cover"><div style="padding:4px 8px;background:#f1f5f9;font-size: 12px;color:#475569">${escapeHtml(match[1])}</div></div>`
     })
     .filter(Boolean)
     .join('')
@@ -444,6 +468,16 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
         ${isLastPage ? `
           <section class="bottom-grid">
             <div class="panel">
+              <div class="panel-title">สรุปตามหมวดสินค้า</div>
+              <div class="panel-body two-col">
+                ${Array.from(ticket.productSummaries.reduce((map, summary) => {
+                  const cat = summary.categoryName || 'อื่นๆ'
+                  map.set(cat, (map.get(cat) || 0) + summary.netWeight)
+                  return map
+                }, new Map<string, number>()).entries()).map(([cat, weight]) => `<div><div class="field-label">${escapeHtml(cat)}</div><div class="field-value">${formatPrintableNumber(weight)} kg</div></div>`).join('')}
+              </div>
+            </div>
+            <div class="panel">
               <div class="panel-title">หมายเหตุ</div>
               <div class="panel-body"><div class="note">${escapeHtml(ticket.remark || '-')}</div></div>
             </div>
@@ -485,7 +519,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
     <style>
       @page { size: A4 portrait; margin: 10mm; }
       * { box-sizing: border-box; }
-      body { margin: 0; color: #0f172a; font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 11px; line-height: 1.35; background: #f8fafc; }
+      body { margin: 0; color: #0f172a; font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 12px; line-height: 1.35; background: #f8fafc; }
       .toolbar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; background: #0f172a; color: white; }
       .toolbar button { border: 0; border-radius: 6px; padding: 7px 14px; background: #15803d; color: white; font: inherit; cursor: pointer; }
       .toolbar button.secondary { background: #475569; }
@@ -495,15 +529,15 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .header { display: grid; grid-template-columns: 1fr .9fr; gap: 12px; align-items: start; border-bottom: 1px solid #cbd5e1; padding-bottom: 12px; flex: 0 0 auto; }
       .company { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: start; min-width: 0; }
       .logo, .logo-placeholder { width: 64px; height: 64px; object-fit: contain; border-radius: 8px; }
-      .logo-placeholder { display: flex; align-items: center; justify-content: center; border: 1px dashed #cbd5e1; background: #f8fafc; color: #64748b; font-size: 9px; font-weight: 700; text-align: center; }
+      .logo-placeholder { display: flex; align-items: center; justify-content: center; border: 1px dashed #cbd5e1; background: #f8fafc; color: #64748b; font-size: 12px; font-weight: 700; text-align: center; }
       .company-name { font-size: 16px; font-weight: 700; color: #0f172a; }
-      .company-en { font-size: 10px; font-weight: 700; color: #475569; margin-top: 1px; }
-      .company-info { margin-top: 4px; color: #475569; font-size: 10px; }
+      .company-en { font-size: 12px; font-weight: 700; color: #475569; margin-top: 1px; }
+      .company-info { margin-top: 4px; color: #475569; font-size: 12px; }
       .doc-head { text-align: right; }
       .doc-title { font-size: 22px; font-weight: 700; color: #14532d; letter-spacing: 0; }
       .doc-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; text-align: left; }
       .kv { border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 7px; background: #f8fafc; }
-      .kv .label, .field-label, .summary-card .label { color: #475569; font-size: 9.5px; font-weight: 500; }
+      .kv .label, .field-label, .summary-card .label { color: #475569; font-size: 12px; font-weight: 500; }
       .kv .value, .field-value { font-size: 12.5px; font-weight: 600; color: #0f172a; margin-top: 1px; overflow-wrap: anywhere; }
       .field-value.strong { font-size: 15.5px; color: #059669; font-weight: 700; }
       .section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; flex: 0 0 auto; }
@@ -512,7 +546,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .panel-body { padding: 8px 9px; }
       .two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 12px; }
       table { width: 100%; border-collapse: collapse; }
-      .items { margin-top: 12px; font-size: 11.5px; table-layout: fixed; flex: 0 0 auto; }
+      .items { margin-top: 12px; font-size: 12px; table-layout: fixed; flex: 0 0 auto; }
       .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 6px 5px; text-align: left; font-weight: 700; }
       .items td { border: 1px solid #dbe3ea; padding: 6px 5px; vertical-align: top; }
       .items .empty td { height: 24px; color: transparent; }
@@ -522,7 +556,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .items .purchase-row td { background: #eff6ff; }
       .items .product-total td { background: #ecfdf5; font-weight: 700; }
       .item-name { font-weight: 700; color: #0f172a; }
-      .muted { color: #64748b; font-size: 9px; margin-top: 1px; }
+      .muted { color: #64748b; font-size: 12px; margin-top: 1px; }
       .detail-line { margin-top: 1px; overflow-wrap: anywhere; }
       .source-row .detail-line:first-child,
       .purchase-row .detail-line:first-child { color: #334155; font-weight: 700; }
@@ -531,7 +565,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .r { text-align: right; }
       .c { text-align: center; }
       .strong { font-weight: 700; }
-      .bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; align-items: start; break-inside: avoid; page-break-inside: avoid; }
+      .bottom-grid { display: grid; grid-template-columns: 1.2fr 0.8fr 1fr; gap: 10px; margin-top: 12px; align-items: start; break-inside: avoid; page-break-inside: avoid; }
       .note { min-height: 42px; color: #334155; white-space: pre-wrap; }
       .summary-cards { display: grid; gap: 8px; }
       .summary-card { border: 1px solid #dbe3ea; border-radius: 8px; padding: 7px; background: #f8fafc; }
@@ -542,10 +576,10 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
       .sig { text-align: center; color: #475569; }
       .sig-line { border-top: 1px solid #94a3b8; padding-top: 5px; margin-top: 24px; font-weight: 700; color: #1e293b; }
       .continued { margin-top: auto; padding-top: 12px; text-align: right; color: #64748b; font-weight: 700; }
-      .footer { margin-top: auto; padding-top: 8px; display: flex; justify-content: space-between; gap: 12px; border-top: 1px dashed #cbd5e1; color: #64748b; font-size: 9px; flex: 0 0 auto; }
+      .footer { margin-top: auto; padding-top: 8px; display: flex; justify-content: space-between; gap: 12px; border-top: 1px dashed #cbd5e1; color: #64748b; font-size: 12px; flex: 0 0 auto; }
       @media print {
         @page { size: A4 portrait; margin: 8mm; }
-        body { background: white; font-size: 9.5px; line-height: 1.2; }
+        body { background: white; font-size: 12px; line-height: 1.2; }
         .toolbar { display: none; }
         .page { width: auto; min-height: 281mm; margin: 0; padding: 0; box-shadow: none; break-after: page; page-break-after: always; }
         .page:last-child { break-after: auto; page-break-after: auto; }
@@ -554,26 +588,26 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
         .company { grid-template-columns: 48px 1fr; gap: 8px; }
         .logo, .logo-placeholder { width: 48px; height: 48px; }
         .company-name { font-size: 14px; }
-        .company-info { font-size: 9px; line-height: 1.25; margin-top: 2px; }
+        .company-info { font-size: 12px; line-height: 1.25; margin-top: 2px; }
         .doc-title { font-size: 19px; }
         .doc-grid { gap: 6px 8px; }
         .kv { padding: 3px 5px; }
-        .kv .label, .field-label, .summary-card .label { font-size: 8px; }
-        .kv .value, .field-value { font-size: 10.5px; }
+        .kv .label, .field-label, .summary-card .label { font-size: 12px; }
+        .kv .value, .field-value { font-size: 12px; }
         .field-value.strong { font-size: 13.5px; }
         .section-grid { gap: 8px; margin-top: 7px; }
         .panel-title { padding: 4px 7px; }
         .panel-body { padding: 5px 7px; }
         .two-col { gap: 4px 8px; }
-        .items { font-size: 11.5px; margin-top: 7px; }
+        .items { font-size: 12px; margin-top: 7px; }
         .items th, .items td { padding: 3px; }
         .items .empty td { height: 18px; }
-        .muted { font-size: 8px; }
+        .muted { font-size: 12px; }
         .detail-line { margin-top: 0; line-height: 1.25; }
         .bottom-grid { gap: 8px; margin-top: 7px; }
         .note { min-height: 24px; }
         .summary-card { padding: 5px; }
-        .summary-card .value { font-size: 10px; }
+        .summary-card .value { font-size: 12px; }
         .signatures { gap: 14px; margin-top: 10px; }
         .sig-line { margin-top: 16px; padding-top: 3px; }
         .footer { padding-top: 4px; }
@@ -583,7 +617,7 @@ export function buildReceiptPrintHtml(ticket: WeightTicketRecord, profile: Compa
     <div class="toolbar">
       <button onclick="window.print()">พิมพ์ / Save as PDF</button>
       <button class="secondary" onclick="window.close()">ปิด</button>
-      <span style="font-size:11px;color:#cbd5e1">A4 portrait multi-page print</span>
+      <span style="font-size: 12px;color:#cbd5e1">A4 portrait multi-page print</span>
     </div>
     ${pageHtml}
   </body></html>`

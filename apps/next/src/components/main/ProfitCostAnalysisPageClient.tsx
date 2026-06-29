@@ -299,7 +299,7 @@ function Metric({ label, sub, tone, value }: { label: string; sub: string; tone:
     <div className="bg-white p-4 shadow-sm border border-slate-100 rounded-xl">
       <div className="text-xs font-semibold text-slate-500">{label}</div>
       <div className="mt-1 font-mono text-lg font-bold text-slate-900 truncate">{value}</div>
-      <div className="text-[10px] text-slate-400 mt-0.5">{sub}</div>
+      <div className="text-xs text-slate-400 mt-0.5">{sub}</div>
     </div>
   )
 }
@@ -316,7 +316,7 @@ function BigNumber({ label, value }: { label: string; value: string }) {
 function SmallStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-slate-100 bg-slate-50/30 p-3">
-      <div className="text-[10px] text-slate-500 font-semibold">{label}</div>
+      <div className="text-xs text-slate-500 font-semibold">{label}</div>
       <div className="font-mono text-base font-bold text-slate-800 mt-0.5">{value}</div>
     </div>
   )
@@ -390,24 +390,24 @@ function ProductTable({ onSelect, rows }: { onSelect: (row: ProductRow) => void;
           <div key={row.id} className="p-3 bg-white rounded-lg border border-slate-100 mb-2 shadow-sm flex flex-col gap-1.5 text-xs cursor-pointer" onClick={() => onSelect(row)}>
             <div className="flex justify-between items-start">
               <span className="font-bold text-slate-800">{row.name}</span>
-              <span className="font-mono text-[10px] text-slate-400">{row.code || '-'}</span>
+              <span className="font-mono text-xs text-slate-400">{row.code || '-'}</span>
             </div>
-            <div className="text-[11px] text-slate-500 font-medium">หมวด: {row.metalGroup || '-'}</div>
-            <div className="grid grid-cols-2 gap-2 mt-1 text-[11px]">
+            <div className="text-xs text-slate-500 font-medium">หมวด: {row.metalGroup || '-'}</div>
+            <div className="grid grid-cols-2 gap-2 mt-1 text-xs">
               <div className="bg-blue-50/50 p-2 rounded-lg text-blue-900">
-                <div className="font-semibold text-[10px] uppercase text-blue-700">📥 ซื้อ</div>
+                <div className="font-semibold text-xs uppercase text-blue-700">📥 ซื้อ</div>
                 <div className="font-mono mt-0.5">{money(row.buyQty)} กก.</div>
                 <div className="font-bold font-mono mt-0.5">{money(row.buyAmount)} ฿</div>
-                <div className="text-[10px] opacity-75 font-mono mt-0.5">เฉลี่ย {money(row.avgBuy)} ฿/กก.</div>
+                <div className="text-xs opacity-75 font-mono mt-0.5">เฉลี่ย {money(row.avgBuy)} ฿/กก.</div>
               </div>
               <div className="bg-emerald-50/50 p-2 rounded-lg text-emerald-900">
-                <div className="font-semibold text-[10px] uppercase text-emerald-700">📤 ขาย</div>
+                <div className="font-semibold text-xs uppercase text-emerald-700">📤 ขาย</div>
                 <div className="font-mono mt-0.5">{money(row.sellQty)} กก.</div>
                 <div className="font-bold font-mono mt-0.5">{money(row.revenue)} ฿</div>
-                <div className="text-[10px] opacity-75 font-mono mt-0.5">เฉลี่ย {money(row.avgSell)} ฿/กก.</div>
+                <div className="text-xs opacity-75 font-mono mt-0.5">เฉลี่ย {money(row.avgSell)} ฿/กก.</div>
               </div>
             </div>
-            <div className="flex justify-between items-center mt-1 pt-1.5 border-t border-slate-50 text-[11px]">
+            <div className="flex justify-between items-center mt-1 pt-1.5 border-t border-slate-50 text-xs">
               <span className="text-slate-500 font-medium">Stock: {money(row.stockQty)} กก. ({money(row.stockValue)} ฿)</span>
               <span className={`font-bold ${row.gp >= 0 ? 'text-purple-700' : 'text-red-600'}`}>GP: {money(row.gp)} ({pct(row.gpPct)}%)</span>
             </div>
@@ -451,7 +451,7 @@ function ProductModal({ onClose, product }: { onClose: () => void; product: Prod
             {lines.map((line) => (
               <div key={line[0]} className="py-2.5 flex flex-col gap-1 text-xs">
                 <div className="font-bold text-slate-800">{line[0]}</div>
-                <div className="grid grid-cols-2 gap-2 mt-1 font-mono text-[11px] text-slate-600">
+                <div className="grid grid-cols-2 gap-2 mt-1 font-mono text-xs text-slate-600">
                   <div>จำนวน: <span className="font-bold text-slate-800">{line[1]}</span></div>
                   <div>มูลค่า: <span className="font-bold text-slate-800">{line[2]}</span></div>
                   {line[3] !== '-' && <div>COGS: <span className="font-bold text-slate-800">{line[3]}</span></div>}

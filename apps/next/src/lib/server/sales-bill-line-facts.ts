@@ -43,6 +43,7 @@ export type SalesBillLineFactRow = {
   netWeight: number
   poSellDocNo: string
   productCode: string
+  productCategory: string
   productId: bigint | null
   productName: string
   qty: number
@@ -242,6 +243,7 @@ function salesBillLineFactRow(line: SalesBillLineWithFacts, matchedCogs: number,
     netWeight: toNumber(line.net_weight),
     poSellDocNo: poSell?.po_sell_doc_no ?? '',
     productCode: line.product_code_snapshot || line.products?.code || '',
+    productCategory: line.products?.type || line.products?.metal_group || 'ไม่ระบุหมวด',
     productId: line.product_id ?? null,
     productName: line.product_name_snapshot || line.products?.name || 'ไม่ระบุสินค้า',
     qty: toNumber(line.qty || line.net_weight),

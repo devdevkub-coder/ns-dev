@@ -176,7 +176,38 @@ export function MatchLogPageClient() {
         </div>
       </DualCostingFilterCard>
 
-      <DualCostingCountRow countValue={visibleRows.length} />
+      <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between mb-3">
+        <div>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
+        <div className="flex items-center gap-2">
+          <select
+            aria-label="จำนวนรายการต่อหน้า"
+            className="h-8 text-xs rounded-md border border-slate-300 px-2 bg-white text-slate-800"
+            value={pageSize}
+            onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}
+          >
+            {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
+          </select>
+          <Button
+            disabled={currentPage <= 1}
+            size="xs"
+            variant="outline"
+            type="button"
+            onClick={() => setPage((value) => Math.max(1, value - 1))}
+          >
+            ก่อนหน้า
+          </Button>
+          <span className="px-1">หน้า {currentPage} / {totalPages}</span>
+          <Button
+            disabled={currentPage >= totalPages}
+            size="xs"
+            variant="outline"
+            type="button"
+            onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+          >
+            ถัดไป
+          </Button>
+        </div>
+      </div>
 
       <Table className="[&_tbody_tr]:border-slate-100">
         <TableHeader>
@@ -202,19 +233,19 @@ export function MatchLogPageClient() {
           {!isLoading && visibleRows.length === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-400" colSpan={14}>ยังไม่มี Match Log ตามตัวกรอง</TableCell></TableRow> : null}
           {!isLoading && pagedRows.map((row) => (
             <TableRow key={row.id} className={`hover:bg-slate-50 ${row.status === 'reversed' ? 'opacity-50' : ''}`}>
-              <TableCell><span className={`rounded-md px-2 py-0.5 text-[10px] font-medium ${matchTypeClass(row.matchType)}`}>{matchTypeBadge(row.matchType)}</span></TableCell>
-              <TableCell><span className={`rounded-md px-2 py-0.5 text-[10px] ${costTypeClass(row.costType)}`}>{row.costType}</span></TableCell>
+              <TableCell><span className={`rounded-md px-2 py-0.5 text-xs font-medium ${matchTypeClass(row.matchType)}`}>{matchTypeBadge(row.matchType)}</span></TableCell>
+              <TableCell><span className={`rounded-md px-2 py-0.5 text-xs ${costTypeClass(row.costType)}`}>{row.costType}</span></TableCell>
               <TableCell className="font-mono text-xs">{row.matchId}</TableCell>
               <TableCell className="whitespace-nowrap text-xs">{formatDateDisplay(row.date)}</TableCell>
               <TableCell className="text-xs">{row.target}</TableCell>
-              <TableCell><span className={`rounded-md px-2 py-0.5 text-[10px] ${sourceTypeClass(row.sourceType)}`}>{row.sourceType}</span></TableCell>
+              <TableCell><span className={`rounded-md px-2 py-0.5 text-xs ${sourceTypeClass(row.sourceType)}`}>{row.sourceType}</span></TableCell>
               <TableCell className="font-mono text-xs">{row.sourceNo}</TableCell>
               <TableCell className="text-xs">{row.product}</TableCell>
               <TableCell className="text-right">{formatMoney(row.qtyUsed)}</TableCell>
               <TableCell className="text-right">{formatMoney(row.unitCost)}</TableCell>
               <TableCell className="text-right font-medium">{formatMoney(row.totalCost)}</TableCell>
               <TableCell className="text-center text-xs">{row.allocationMode}</TableCell>
-              <TableCell className="text-center"><span className={`rounded-md px-2 py-0.5 text-[10px] ${row.status === 'reversed' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>{statusLabel(row.status)}</span></TableCell>
+              <TableCell className="text-center"><span className={`rounded-md px-2 py-0.5 text-xs ${row.status === 'reversed' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>{statusLabel(row.status)}</span></TableCell>
               <TableCell className="text-right">
                 {row.status !== 'reversed' ? <button className="text-xs text-red-600 opacity-60" disabled title="Reverse ยังเป็น read-only shell" type="button">ย้อนกลับ</button> : null}
               </TableCell>
@@ -223,39 +254,7 @@ export function MatchLogPageClient() {
         </TableBody>
       </Table>
 
-      {/* Pagination Controls */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
-        <div>
-          พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            aria-label="จำนวนรายการต่อหน้า"
-            className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
-            value={pageSize}
-            onChange={(event) => setPageSize(Number(event.target.value))}
-          >
-            {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-          </select>
-          <button
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-            disabled={currentPage <= 1}
-            type="button"
-            onClick={() => setPage((value) => Math.max(1, value - 1))}
-          >
-            ก่อนหน้า
-          </button>
-          <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-          <button
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-            disabled={currentPage >= totalPages}
-            type="button"
-            onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
-          >
-            ถัดไป
-          </button>
-        </div>
-      </div>
+
     </DualCostingPageSection>
   )
 }

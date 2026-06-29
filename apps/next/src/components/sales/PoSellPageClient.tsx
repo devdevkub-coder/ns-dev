@@ -527,7 +527,7 @@ export function PoSellPageClient() {
       <div className="hidden lg:block mb-4 space-y-2 rounded-md bg-white p-3 shadow">
         <div className="flex flex-wrap items-center gap-2">
           <input autoComplete="off" className="min-w-[260px] flex-1 rounded-md border px-3 py-2 text-sm" placeholder="ค้นหาเลข PO / ชื่อ Customer / ชื่อสินค้า / หมายเหตุ..." type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <label className="text-xs text-slate-500">วันที่สร้างรายการ:</label>
+          <label className="text-sm text-slate-500">วันที่สร้างรายการ:</label>
           <DatePickerInput ariaLabel="จากวันที่" className="w-[130px]" title="จากวันที่" value={fromDate} onChange={setFromDate} />
           <span className="text-slate-400">→</span>
           <DatePickerInput ariaLabel="ถึงวันที่" className="w-[130px]" title="ถึงวันที่" value={toDate} onChange={setToDate} />
@@ -535,15 +535,15 @@ export function PoSellPageClient() {
           <a className="ml-auto rounded-md bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700" href={exportHref}>Export Excel</a>
           <button className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-60" disabled={isSaving} type="button" onClick={openCreateForm}>+ PO Sell ใหม่</button>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-slate-500">สถานะเอกสาร:</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm text-slate-500">สถานะเอกสาร:</span>
           <MatchButton active={documentStatus === 'all'} label="ทั้งหมด" onClick={() => setDocumentStatus('all')} />
           {(data?.filters.statuses ?? []).map((item) => (
             <MatchButton key={item.value} active={documentStatus === item.value} label={item.label} tone={documentStatusTone(item.value)} onClick={() => setDocumentStatus(item.value)} />
           ))}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-slate-500">สถานะ Match:</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm text-slate-500">สถานะ Match:</span>
           <MatchButton active={matchStatus === 'all'} label="ทั้งหมด" onClick={() => setMatchStatus('all')} />
           {(data?.filters.matchStatuses ?? []).map((item) => (
             <MatchButton key={item.value} active={matchStatus === item.value} label={item.label} onClick={() => setMatchStatus(item.value)} />
@@ -565,21 +565,22 @@ export function PoSellPageClient() {
         </div>
       </div>
 
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
+      <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between mb-3">
         <div>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2">
           {columnResize.hasCustomWidths ? (
-            <button
-              className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-50"
+            <UiButton
+              size="xs"
+              variant="outline"
               type="button"
               onClick={columnResize.resetColumnWidths}
             >
               คืนค่าเดิมตาราง
-            </button>
+            </UiButton>
           ) : null}
           <select
             aria-label="จำนวนรายการต่อหน้า"
-            className="rounded-md border border-slate-300 px-2 py-1"
+            className="h-8 text-xs rounded-md border border-slate-300 px-2 bg-white text-slate-800"
             value={pageSize}
             onChange={(event) => setPageSize(Number(event.target.value))}
           >
@@ -588,9 +589,9 @@ export function PoSellPageClient() {
             <option value={50}>50 / หน้า</option>
             <option value={100}>100 / หน้า</option>
           </select>
-          <button className="rounded-md border border-slate-300 px-3 py-1 disabled:opacity-50" disabled={currentPage <= 1} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</button>
+          <UiButton disabled={currentPage <= 1} size="xs" variant="outline" type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</UiButton>
           <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-          <button className="rounded-md border border-slate-300 px-3 py-1 disabled:opacity-50" disabled={currentPage >= totalPages} type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</button>
+          <UiButton disabled={currentPage >= totalPages} size="xs" variant="outline" type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</UiButton>
         </div>
       </div>
 
@@ -620,8 +621,8 @@ export function PoSellPageClient() {
               </div>
 
               <div>
-                <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะเอกสาร</span>
-                <div className="flex flex-wrap gap-2">
+                <span className="mb-1 block text-sm font-semibold text-slate-600">สถานะเอกสาร</span>
+                <div className="flex flex-wrap gap-3">
                   <MatchButton active={documentStatus === 'all'} label="ทั้งหมด" onClick={() => setDocumentStatus('all')} />
                   {(data?.filters.statuses ?? []).map((item) => (
                     <MatchButton key={item.value} active={documentStatus === item.value} label={item.label} tone={documentStatusTone(item.value)} onClick={() => setDocumentStatus(item.value)} />
@@ -630,8 +631,8 @@ export function PoSellPageClient() {
               </div>
 
               <div>
-                <span className="mb-1 block text-xs font-semibold text-slate-600">สถานะ Match Cost</span>
-                <div className="flex flex-wrap gap-2">
+                <span className="mb-1 block text-sm font-semibold text-slate-600">สถานะ Match Cost</span>
+                <div className="flex flex-wrap gap-3">
                   <MatchButton active={matchStatus === 'all'} label="ทั้งหมด" onClick={() => setMatchStatus('all')} />
                   {(data?.filters.matchStatuses ?? []).map((item) => (
                     <MatchButton key={item.value} active={matchStatus === item.value} label={item.label} onClick={() => setMatchStatus(item.value)} />
@@ -701,7 +702,7 @@ export function PoSellPageClient() {
                 <StatusPill label={row.matchStatusLabel} tone="match" />
               </div>
               <div className="text-right">
-                <span className="text-[10px] text-slate-400 block">จำนวนรวม / รายได้รวม</span>
+                <span className="text-xs text-slate-400 block">จำนวนรวม / รายได้รวม</span>
                 <span className="font-bold text-slate-900 text-sm tabular-nums">
                   {formatMoney(row.qty)} กก. / <span className="text-emerald-700">{formatMoney(row.totalAmount)}</span>
                 </span>
@@ -768,7 +769,7 @@ export function PoSellPageClient() {
               <TableCell className="text-center"><StatusPill label={row.matchStatusLabel} tone="match" /></TableCell>
               <TableCell className="w-32 whitespace-nowrap text-xs text-slate-600">
                 <div className="truncate font-semibold text-slate-700">{row.updatedBy || '-'}</div>
-                <div className="font-mono text-[10px] text-slate-400">{formatTimestampDisplay(row.updatedAt)}</div>
+                <div className="font-mono text-xs text-slate-400">{formatTimestampDisplay(row.updatedAt)}</div>
               </TableCell>
               <TableCell className="whitespace-nowrap text-right">
                 <div className="flex justify-end gap-1">
@@ -936,7 +937,7 @@ function Metric({
       <div className="flex-1 min-w-0">
         <div className="text-xs font-semibold text-slate-500">{label}</div>
         <div className="font-bold text-slate-900 mt-0.5">{value}</div>
-        {subLabel ? <div className="text-[10px] text-slate-400 mt-1 truncate">{subLabel}</div> : null}
+        {subLabel ? <div className="text-xs text-slate-400 mt-1 truncate">{subLabel}</div> : null}
       </div>
     </div>
   )
@@ -946,7 +947,7 @@ function MatchButton({ active, label, onClick, tone = 'dark' }: { active: boolea
   void tone
   const activeClass = 'border-slate-700 bg-slate-700 text-white'
   const idleClass = 'border-slate-300 bg-white hover:bg-slate-50'
-  return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
+  return <button className={`rounded-md border px-3.5 py-1.5 text-sm font-medium ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
 }
 
 function StatusPill({ label, tone = 'status' }: { label: string; tone?: 'cancelled' | 'closed' | 'match' | 'open' | 'partial' | 'status' }) {
@@ -1355,16 +1356,16 @@ function PoSellDetailModal({
     <Dialog open onOpenChange={(open) => {
       if (!open) onClose()
     }}>
-      <DialogContent aria-labelledby="po-sell-detail-title" className="max-h-[90vh] max-w-3xl rounded-2xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 shadow-2xl" hideClose>
-        <DialogHeader className="px-5 py-4 bg-slate-900 text-white flex flex-row items-center justify-between shrink-0 rounded-t-2xl">
+      <DialogContent aria-labelledby="po-sell-detail-title" className="max-h-[90vh] max-w-3xl rounded-2xl !p-0 overflow-hidden flex flex-col bg-slate-900 dark:bg-[#0f172a] border-0 shadow-2xl" hideClose>
+        <DialogHeader className="px-5 py-4 bg-slate-900 dark:bg-[#0f172a] text-white flex flex-row items-center justify-between shrink-0 rounded-t-2xl">
           <div>
             <DialogTitle id="po-sell-detail-title" className="text-white">รายละเอียด {row.docNo}</DialogTitle>
-            <DialogDescription className="text-slate-300">{row.customerName}</DialogDescription>
+            <DialogDescription className="text-slate-300 dark:text-slate-700">{row.customerName}</DialogDescription>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 p-1.5 transition-colors outline-none focus:outline-none focus:ring-0"
+            className="rounded-lg text-slate-400 hover:text-white hover:bg-[#1e293b] p-1.5 transition-colors outline-none focus:outline-none focus:ring-0"
             aria-label="Close"
           >
             <span className="text-xl leading-none">&times;</span>

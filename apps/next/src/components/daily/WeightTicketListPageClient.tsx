@@ -495,7 +495,7 @@ export function WeightTicketListPageClient() {
 
       {/* Bottom Sheet Filter for Mobile */}
       {showMobileFilters ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-955/40 md:hidden">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 md:hidden">
           <div className="w-full rounded-t-2xl bg-white p-4 shadow-xl border-t border-slate-200 max-h-[80vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
               <h4 className="font-bold text-slate-800">ตัวกรองใบรับ-ส่งของ</h4>
@@ -581,7 +581,7 @@ export function WeightTicketListPageClient() {
       <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
         <div>{summaryText}</div>
         <div className="flex items-center gap-2">
-          {columnResize.hasCustomWidths ? <Button size="xs" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>Set col to default</Button> : null}
+          {columnResize.hasCustomWidths ? <Button size="xs" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
           <Button disabled={safePage <= 1 || isLoading} size="xs" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
           <span>หน้า {safePage} / {totalPages}</span>
           <Button disabled={safePage >= totalPages || isLoading} size="xs" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
@@ -757,7 +757,7 @@ export function WeightTicketListPageClient() {
                     <td className="whitespace-nowrap px-3 py-3 text-slate-900">{ticket.documentNo}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-slate-600">
                       <div>{ticketDate}</div>
-                      {ticketTime ? <div className="text-[11px] text-slate-400 mt-0.5">{ticketTime}</div> : null}
+                      {ticketTime ? <div className="text-xs text-slate-400 mt-0.5">{ticketTime}</div> : null}
                     </td>
                     <td className="px-3 py-3 text-slate-900">{ticket.partyName}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-slate-600">{ticket.branchName}</td>
@@ -778,7 +778,7 @@ export function WeightTicketListPageClient() {
                     </td>
                     <td className="px-3 py-3 text-slate-600">
                       <div className="truncate">{ticket.updatedBy}</div>
-                      <div className="text-[11px] text-slate-400">{formatDateTime(ticket.updatedAt || ticket.createdAt)}</div>
+                      <div className="text-xs text-slate-400">{formatDateTime(ticket.updatedAt || ticket.createdAt)}</div>
                     </td>
                     <td className="whitespace-nowrap px-3 py-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">

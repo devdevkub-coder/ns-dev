@@ -146,7 +146,7 @@ export function CashPositionPageClient() {
           <div className="mb-2 text-sm font-bold text-slate-700">🥧 องค์ประกอบเงิน (Liquid)</div>
           <div className="mx-auto flex h-36 w-36 items-center justify-center rounded-full p-6" style={{ background: donut }}>
             <div className="flex h-full w-full flex-col items-center justify-center rounded-full bg-white text-center text-xs font-bold text-slate-700">
-              <span className="text-[10px] font-normal text-slate-500">รวม</span>
+              <span className="text-xs font-normal text-slate-500">รวม</span>
               <span>{formatMoney(liquidTotal)}</span>
             </div>
           </div>
@@ -218,7 +218,7 @@ export function CashPositionPageClient() {
           </div>
         </div>
         <div className="col-span-2 bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${apTotal === 0 ? 'bg-slate-100 text-slate-600' : 'bg-red-100 text-red-650'} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
+          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full ${apTotal === 0 ? 'bg-slate-100 text-slate-600' : 'bg-red-100 text-red-600'} flex items-center justify-center text-lg sm:text-xl shrink-0`}>
             📤
           </div>
           <div>
@@ -307,7 +307,7 @@ export function CashPositionPageClient() {
             <div key={row.id} className="py-2.5 border-b border-slate-100 last:border-b-0 space-y-1 text-xs">
               <div className="flex justify-between items-start">
                 <span className="font-bold text-slate-800 pr-2 line-clamp-1">{row.name}</span>
-                <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium shrink-0 ${typeClass(row.type)}`}>{row.type}</span>
+                <span className={`rounded px-1.5 py-0.5 text-xs font-medium shrink-0 ${typeClass(row.type)}`}>{row.type}</span>
               </div>
               <div className="flex justify-between text-slate-500">
                 <span className="truncate pr-2">{row.bankName || '-'} {row.accountNo ? `(${row.accountNo})` : ''}</span>

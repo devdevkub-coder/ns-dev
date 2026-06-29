@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/Dialog'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { Button } from '@/components/ui/Button'
 import { AlertTriangle, Download, RotateCcw, Search } from 'lucide-react'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
@@ -192,7 +193,7 @@ export function StockLedgerPageClient() {
       <div className="hidden lg:block mb-4 space-y-3 rounded-md bg-white p-3 shadow">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[200px] flex-1">
-            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-450" />
+            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input 
               className="h-9 w-full rounded-md border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm outline-none transition-colors focus:border-slate-400 focus:ring-0"
               placeholder="ค้นหาเลขเอกสาร / ผู้ขาย/ผู้ซื้อ / สาขา / คลัง..." 
@@ -392,16 +393,16 @@ export function StockLedgerPageClient() {
         </div>
       ) : null}
 
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
-        <span>พบทั้งหมด <span className="font-semibold text-slate-900">{data?.total ?? 0}</span> รายการ</span>
-        <div className="flex flex-wrap items-center gap-2">
-          {columnResize.hasCustomWidths ? <button className="hidden h-9 rounded-md border px-3 text-sm text-slate-700 hover:bg-slate-50 lg:inline-flex" type="button" onClick={columnResize.resetColumnWidths}>คืนค่าตาราง</button> : null}
-          <select aria-label="จำนวนรายการต่อหน้า" className="h-9 rounded-md border px-2 text-sm bg-white text-slate-800" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>
+      <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between mb-3">
+        <div>พบทั้งหมด <span className="font-semibold text-slate-900">{data?.total ?? 0}</span> รายการ</div>
+        <div className="flex items-center gap-2">
+          {columnResize.hasCustomWidths ? <Button size="xs" type="button" variant="outline" className="hidden lg:inline-flex" onClick={columnResize.resetColumnWidths}>คืนค่าตาราง</Button> : null}
+          <select aria-label="จำนวนรายการต่อหน้า" className="h-8 text-xs rounded-md border border-slate-300 px-2 bg-white text-slate-800" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>
             {stockLedgerPageSizes.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
           </select>
-          <button className="h-9 rounded-md border px-3 text-sm disabled:opacity-40 bg-white text-slate-700 hover:bg-slate-50" disabled={page <= 1} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</button>
-          <span className="px-1 text-sm font-medium">หน้า {page} / {totalPages}</span>
-          <button className="h-9 rounded-md border px-3 text-sm disabled:opacity-40 bg-white text-slate-700 hover:bg-slate-50" disabled={page >= totalPages} type="button" onClick={() => setPage((value) => value + 1)}>ถัดไป</button>
+          <Button disabled={page <= 1} size="xs" type="button" variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
+          <span className="px-1">หน้า {page} / {totalPages}</span>
+          <Button disabled={page >= totalPages} size="xs" type="button" variant="outline" onClick={() => setPage((value) => value + 1)}>ถัดไป</Button>
         </div>
       </div>
 
@@ -426,7 +427,7 @@ export function StockLedgerPageClient() {
               <div>
                 <span className="font-semibold text-slate-500">สินค้า: </span>
                 <span className="text-slate-800">{row.productCode ? `${row.productCode} · ` : ''}{row.productName}</span>
-                {row.lotNo && row.lotNo !== 'OPENING' ? <span className="ml-1 text-[11px] font-medium text-slate-400">[{row.lotNo}]</span> : null}
+                {row.lotNo && row.lotNo !== 'OPENING' ? <span className="ml-1 text-xs font-medium text-slate-400">[{row.lotNo}]</span> : null}
               </div>
               <div>
                 <span className="font-semibold text-slate-500">คลัง/สาขา: </span>
@@ -434,7 +435,7 @@ export function StockLedgerPageClient() {
               </div>
               <div>
                 <span className="font-semibold text-slate-500">ประเภทการโอน: </span>
-                <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${row.qtyIn > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${row.qtyIn > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
                   {stockMovementTypeLabel(row.movementType)}
                 </span>
               </div>
@@ -452,7 +453,7 @@ export function StockLedgerPageClient() {
                   </span>
                 </div>
               </div>
-              <div className="flex justify-between items-center text-[10px] text-slate-400 pt-1 border-t border-slate-100/60 mt-1">
+              <div className="flex justify-between items-center text-xs text-slate-400 pt-1 border-t border-slate-100/60 mt-1">
                 <span>ต้นทุน/น.: {formatMoney(row.runningBalanceByProduct < 0 ? 0 : row.unitCost)} บาท</span>
                 <span className="truncate max-w-[150px]">{row.counterpartyName && row.counterpartyName !== '-' ? row.counterpartyName : ''}</span>
               </div>
@@ -497,7 +498,7 @@ export function StockLedgerPageClient() {
             {!isLoading && rows.map((row) => (
               <tr
                 key={row.id}
-                className={row.runningBalanceByProduct < 0 ? 'cursor-pointer border-t border-red-200 bg-red-50/60 hover:bg-red-100/70 focus:bg-red-100/70 focus:outline-none' : 'cursor-pointer border-t hover:bg-slate-50 focus:bg-slate-50 focus:outline-none'}
+                className={row.runningBalanceByProduct < 0 ? 'cursor-pointer border-t border-red-200 bg-red-50/15 dark:bg-red-50/10 hover:bg-red-100/25 dark:hover:bg-red-50/25 focus:outline-none' : 'cursor-pointer border-t hover:bg-slate-50 dark:hover:bg-slate-800/40 focus:bg-slate-50 focus:outline-none'}
                 tabIndex={0}
                 onClick={() => setSelectedRow(row)}
                 onKeyDown={(event) => {
@@ -510,11 +511,11 @@ export function StockLedgerPageClient() {
                 <td className="whitespace-nowrap p-2 text-xs font-semibold text-slate-700 tabular-nums">{formatDateDisplay(row.date)}</td>
                 <td className="truncate whitespace-nowrap p-2 text-xs font-semibold text-slate-700 tabular-nums">{row.refNo || '-'}</td>
                 <td className="p-2"><Counterparty name={row.counterpartyName} refType={row.refType} /></td>
-                <td className="p-2 overflow-hidden max-w-[170px]"><span className={`inline-block truncate max-w-full rounded-md px-2 py-0.5 text-[11px] font-medium ${row.qtyIn > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`} title={stockMovementTypeLabel(row.movementType)}>{stockMovementTypeLabel(row.movementType)}</span></td>
-                <td className="truncate p-2 text-xs font-semibold text-slate-700"><span>{row.productCode ? `${row.productCode} · ` : ''}{row.productName}</span>{row.lotNo && row.lotNo !== 'OPENING' ? <span className="ml-1 text-[11px] font-medium text-slate-400">[{row.lotNo}]</span> : null}</td>
+                <td className="p-2 overflow-hidden max-w-[170px]"><span className={`inline-block truncate max-w-full rounded-md px-2 py-0.5 text-xs font-medium ${row.qtyIn > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`} title={stockMovementTypeLabel(row.movementType)}>{stockMovementTypeLabel(row.movementType)}</span></td>
+                <td className="truncate p-2 text-xs font-semibold text-slate-700"><span>{row.productCode ? `${row.productCode} · ` : ''}{row.productName}</span>{row.lotNo && row.lotNo !== 'OPENING' ? <span className="ml-1 text-xs font-medium text-slate-400">[{row.lotNo}]</span> : null}</td>
                 <td className="p-2 text-xs font-semibold text-slate-700">
                   <div className="truncate">{row.warehouseName || '-'}</div>
-                  <div className="truncate text-[11px] font-medium text-slate-500">{row.branchName || '-'}</div>
+                  <div className="truncate text-xs font-medium text-slate-500">{row.branchName || '-'}</div>
                 </td>
                 <td className="p-2 pr-4 text-right text-xs font-semibold text-emerald-600 tabular-nums">{row.qtyIn ? formatMoney(row.qtyIn) : '-'}</td>
                 <td className="p-2 pr-4 text-right text-xs font-semibold text-red-600 tabular-nums">{row.qtyOut ? formatMoney(row.qtyOut) : '-'}</td>
@@ -539,7 +540,7 @@ function Counterparty({ name, refType }: { name: string; refType: string }) {
     const isSupplier = refType === 'PB' || refType === 'PB-CANCEL'
     return (
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className={`whitespace-nowrap rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${isSupplier ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>{isSupplier ? 'ผู้ขาย' : 'ผู้ซื้อ'}</span>
+        <span className={`whitespace-nowrap rounded-md px-1.5 py-0.5 text-xs font-semibold ${isSupplier ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>{isSupplier ? 'ผู้ขาย' : 'ผู้ซื้อ'}</span>
         <span className={`truncate text-xs font-medium ${isSupplier ? 'text-emerald-800' : 'text-blue-800'}`}>{name}</span>
       </div>
     )
@@ -621,8 +622,8 @@ function StockLedgerDetailModal({ onClose, row }: { onClose: () => void; row: St
 
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="flex max-h-[90vh] max-w-5xl flex-col overflow-hidden rounded-md border-0 bg-slate-900 !p-0 animate-fade-in" hideClose>
-        <div className="shrink-0 rounded-t-md border-b border-slate-800 bg-slate-900 px-5 py-4 text-white">
+      <DialogContent className="flex max-h-[90vh] max-w-5xl flex-col overflow-hidden rounded-md border-0 bg-slate-900 dark:bg-[#0f172a] !p-0 animate-fade-in" hideClose>
+        <div className="shrink-0 rounded-t-md border-b border-slate-800 dark:border-slate-200 bg-slate-900 dark:bg-[#0f172a] px-5 py-4 text-white">
           <div>
             <DialogTitle className="text-lg font-bold text-white">รายละเอียด {row.refNo || 'Stock Ledger'}</DialogTitle>
             <DialogDescription className="mt-0.5 text-xs text-slate-400">

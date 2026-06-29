@@ -293,7 +293,7 @@ export function buildPoBuyPrintHtml(po: PoBuyPrintDocument, profile: CompanyProf
     <style>
       @page { size: A4 portrait; margin: 10mm; }
       * { box-sizing: border-box; }
-      body { margin: 0; color: #0f172a; font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 11px; line-height: 1.35; background: #f8fafc; }
+      body { margin: 0; color: #0f172a; font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 12px; line-height: 1.35; background: #f8fafc; }
       .toolbar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; background: #0f172a; color: white; }
       .toolbar button { border: 0; border-radius: 6px; padding: 7px 14px; background: #15803d; color: white; font: inherit; cursor: pointer; }
       .toolbar button.secondary { background: #475569; }
@@ -305,40 +305,40 @@ export function buildPoBuyPrintHtml(po: PoBuyPrintDocument, profile: CompanyProf
       .header { display: grid; grid-template-columns: 1fr .9fr; gap: 12px; align-items: start; border-bottom: 1px solid #cbd5e1; padding-bottom: 12px; }
       .company { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: start; min-width: 0; }
       .logo { width: 64px; height: 64px; object-fit: contain; }
-      .no-logo { display: flex; align-items: center; justify-content: center; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-size: 9px; font-weight: 800; text-align: center; }
+      .no-logo { display: flex; align-items: center; justify-content: center; border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; font-size: 12px; font-weight: 800; text-align: center; }
       .company-name { font-size: 16px; font-weight: 800; color: #0f172a; }
-      .company-en { font-size: 10px; font-weight: 700; color: #475569; margin-top: 1px; }
-      .company-info { margin-top: 4px; color: #475569; font-size: 10px; }
+      .company-en { font-size: 12px; font-weight: 700; color: #475569; margin-top: 1px; }
+      .company-info { margin-top: 4px; color: #475569; font-size: 12px; }
       .doc-head { text-align: right; }
       .doc-title { font-size: 22px; font-weight: 900; color: #14532d; letter-spacing: 0; }
       .doc-grid { margin-top: 8px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 8px; text-align: left; }
       .kv { border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 7px; background: #f8fafc; }
-      .kv .label { color: #64748b; font-size: 9px; }
+      .kv .label { color: #64748b; font-size: 12px; }
       .kv .value { font-weight: 800; color: #0f172a; margin-top: 1px; }
       .section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
-      .continuation-label { margin-top: 10px; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 6px 8px; color: #64748b; font-size: 10px; font-weight: 800; }
+      .continuation-label { margin-top: 10px; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 6px 8px; color: #64748b; font-size: 12px; font-weight: 800; }
       .panel { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
       .panel-title { padding: 6px 9px; background: #f1f5f9; color: #334155; font-weight: 900; }
       .panel-body { padding: 8px 9px; }
       .two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 12px; }
-      .field-label { color: #64748b; font-size: 9px; }
+      .field-label { color: #64748b; font-size: 12px; }
       .field-value { font-weight: 750; color: #0f172a; margin-top: 1px; overflow-wrap: anywhere; }
       table { width: 100%; border-collapse: collapse; }
-      .items { margin-top: 12px; font-size: 9px; break-inside: auto; page-break-inside: auto; table-layout: fixed; }
+      .items { margin-top: 12px; font-size: 12px; break-inside: auto; page-break-inside: auto; table-layout: fixed; }
       .items thead { display: table-header-group; }
       .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 6px 5px; text-align: left; font-weight: 900; }
       .items td { border: 1px solid #dbe3ea; padding: 6px 5px; vertical-align: top; }
       .items tr { break-inside: avoid; page-break-inside: avoid; }
       .items .empty td { height: 23px; color: transparent; }
       .item-name { font-weight: 850; color: #0f172a; }
-      .muted { color: #64748b; font-size: 9px; margin-top: 1px; }
+      .muted { color: #64748b; font-size: 12px; margin-top: 1px; }
       .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
       .center { text-align: center; }
       .rank-cell { padding-left: 2px !important; padding-right: 2px !important; }
       .strong { font-weight: 900; }
       .summary-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 8px; break-inside: avoid; page-break-inside: avoid; }
       .summary-card { border: 1px solid #dbe3ea; border-radius: 8px; padding: 7px; background: #f8fafc; }
-      .summary-card .label { color: #64748b; font-size: 9px; }
+      .summary-card .label { color: #64748b; font-size: 12px; }
       .summary-card .value { font-size: 12px; font-weight: 900; color: #0f172a; margin-top: 2px; }
       .bottom-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; align-items: start; break-inside: avoid; page-break-inside: avoid; }
       .note { min-height: 42px; color: #334155; white-space: pre-wrap; }
@@ -350,11 +350,11 @@ export function buildPoBuyPrintHtml(po: PoBuyPrintDocument, profile: CompanyProf
       .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 20px; break-inside: avoid; }
       .sig { text-align: center; color: #475569; }
       .sig-line { border-top: 1px solid #94a3b8; padding-top: 5px; margin-top: 28px; font-weight: 800; color: #1e293b; }
-      .footer { margin-top: 8px; text-align: center; color: #64748b; font-size: 9px; }
+      .footer { margin-top: 8px; text-align: center; color: #64748b; font-size: 12px; }
       .watermark { display: ${cancelled ? 'block' : 'none'}; position: absolute; top: 72mm; left: 54mm; transform: rotate(-18deg); color: rgba(100,116,139,.14); font-size: 54px; font-weight: 900; pointer-events: none; }
       @media print {
         @page { size: A4 portrait; margin: 8mm; }
-        body { background: white; font-size: 9.5px; line-height: 1.2; }
+        body { background: white; font-size: 12px; line-height: 1.2; }
         .toolbar { display: none; }
         .page { width: auto; min-height: 281mm; margin: 0; padding: 0; box-shadow: none; break-after: page; page-break-after: always; }
         .page:last-child { break-after: auto; page-break-after: auto; }
@@ -364,7 +364,7 @@ export function buildPoBuyPrintHtml(po: PoBuyPrintDocument, profile: CompanyProf
         .company { grid-template-columns: 48px 1fr; gap: 8px; }
         .logo { width: 48px; height: 48px; }
         .company-name { font-size: 14px; }
-        .company-info { font-size: 9px; line-height: 1.25; margin-top: 2px; }
+        .company-info { font-size: 12px; line-height: 1.25; margin-top: 2px; }
         .doc-title { font-size: 19px; }
         .doc-grid { gap: 3px 6px; margin-top: 5px; }
         .kv { padding: 3px 5px; }
@@ -373,18 +373,18 @@ export function buildPoBuyPrintHtml(po: PoBuyPrintDocument, profile: CompanyProf
         .panel-body { padding: 5px 7px; }
         .two-col { gap: 4px 8px; }
         .header, .section-grid { break-inside: avoid; page-break-inside: avoid; }
-        .continuation-label { margin-top: 7px; padding: 4px 6px; font-size: 8px; }
-        .items { font-size: 8px; margin-top: 7px; page-break-before: auto; }
+        .continuation-label { margin-top: 7px; padding: 4px 6px; font-size: 12px; }
+        .items { font-size: 12px; margin-top: 7px; page-break-before: auto; }
         .items th { padding: 3px; }
         .items td { padding: 3px; }
-        .muted { font-size: 8px; }
+        .muted { font-size: 12px; }
         .summary-cards { gap: 6px; margin-top: 6px; }
         .summary-card { padding: 5px; }
-        .summary-card .value { font-size: 10px; }
+        .summary-card .value { font-size: 12px; }
         .bottom-grid { gap: 8px; margin-top: 7px; break-before: auto; page-break-before: auto; }
         .note { min-height: 24px; }
         .total-row { padding: 3px 6px; }
-        .total-row.final { font-size: 11px; }
+        .total-row.final { font-size: 12px; }
         .signatures { gap: 18px; margin-top: 10px; }
         .sig-line { margin-top: 18px; padding-top: 3px; }
         .footer { margin-top: 4px; }
@@ -394,7 +394,7 @@ export function buildPoBuyPrintHtml(po: PoBuyPrintDocument, profile: CompanyProf
     <div class="toolbar">
       <button onclick="window.print()">พิมพ์ / Save as PDF</button>
       <button class="secondary" onclick="window.close()">ปิด</button>
-      <span style="font-size:11px;color:#cbd5e1">A4 portrait corporate print</span>
+      <span style="font-size: 12px;color:#cbd5e1">A4 portrait corporate print</span>
     </div>
     ${pagesHtml}
   </body></html>`

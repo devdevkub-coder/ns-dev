@@ -416,11 +416,11 @@ function ImportedTable({
             <div className="text-slate-700 font-medium">{row.desc || '-'}</div>
             <div className="flex justify-end gap-4 pt-2 border-t border-slate-100/60 text-right text-xs">
               <div>
-                <span className="text-[11px] text-slate-400 mr-1">เข้า:</span>
+                <span className="text-xs text-slate-400 mr-1">เข้า:</span>
                 <span className="text-emerald-700 font-bold tabular-nums text-sm">{row.in ? formatMoney(row.in) : '-'}</span>
               </div>
               <div>
-                <span className="text-[11px] text-slate-400 mr-1">ออก:</span>
+                <span className="text-xs text-slate-400 mr-1">ออก:</span>
                 <span className="text-rose-700 font-bold tabular-nums text-sm">{row.out ? formatMoney(row.out) : '-'}</span>
               </div>
             </div>
@@ -515,11 +515,11 @@ function ErpTable({
             <div className="font-mono text-xs text-blue-600 font-medium">Ref: {row.refNo}</div>
             <div className="flex justify-end gap-4 pt-2 border-t border-slate-100/60 text-right text-xs">
               <div>
-                <span className="text-[11px] text-slate-400 mr-1">เข้า:</span>
+                <span className="text-xs text-slate-400 mr-1">เข้า:</span>
                 <span className="text-emerald-700 font-bold tabular-nums text-sm">{row.in ? formatMoney(row.in) : '-'}</span>
               </div>
               <div>
-                <span className="text-[11px] text-slate-400 mr-1">ออก:</span>
+                <span className="text-xs text-slate-400 mr-1">ออก:</span>
                 <span className="text-rose-700 font-bold tabular-nums text-sm">{row.out ? formatMoney(row.out) : '-'}</span>
               </div>
             </div>

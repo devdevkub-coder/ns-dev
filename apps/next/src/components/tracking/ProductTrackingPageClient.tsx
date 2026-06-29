@@ -9,6 +9,8 @@ import { formatDateDisplay } from '@/lib/format'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 
+
+
 type ProductTrackingRow = {
   amount?: number
   allocationCogs?: number
@@ -45,6 +47,9 @@ type ProductTrackingRow = {
   sellQty?: number
   type?: string
   unit?: string
+  stock?: number
+  wac?: number
+  monthlyData?: Array<{ qty: number; buyAmount: number; sellQty: number; salesAmount: number }>
 }
 
 type ProductTrackingPayload = {
@@ -122,10 +127,14 @@ type ProductTrackingPageClientProps = {
   initialYear?: string
 }
 
+
+
 const trackingColumns: Array<ResizableColumnDefinition<string>> = [
   { key: 'code', defaultWidth: 80 },
   { key: 'product', defaultWidth: 200 },
   { key: 'metalGroup', defaultWidth: 100 },
+  { key: 'stock', defaultWidth: 100 },
+  { key: 'wac', defaultWidth: 100 },
   { key: 'buyQty', defaultWidth: 100 },
   { key: 'buyAmount', defaultWidth: 110 },
   { key: 'avgBuy', defaultWidth: 100 },
@@ -162,6 +171,12 @@ export function ProductTrackingPageClient({
   const [year, setYear] = useState(initialYear ?? String(new Date().getFullYear()))
   const [sortKey, setSortKey] = useState<string | undefined>(undefined)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  useEffect(() => {
+    if (view === 'yearCompare') {
+      setMonth('')
+    }
+  }, [view])
 
   const handleSort = (key: string) => {
     if (sortKey === key) {
@@ -287,8 +302,7 @@ export function ProductTrackingPageClient({
       label: customer.code ? `${customer.code} - ${customer.name}` : customer.name,
     }))
   }, [data?.filters?.customers])
-
-  const columnResize = useResizableColumns('tracking.product.main.v5', trackingColumns)
+  const columnResize = useResizableColumns('tracking.product.main.v7', trackingColumns)
   const exportHref = `/api/tracking/product?${queryString}&format=xlsx`
 
   return (
@@ -317,8 +331,9 @@ export function ProductTrackingPageClient({
               onChange={(event) => setYear(event.target.value)}
             />
             <select
-              className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-100"
+              className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-100 disabled:opacity-50"
               value={month}
+              disabled={view === 'yearCompare'}
               onChange={(event) => setMonth(event.target.value)}
             >
               <option value="">ทั้งปี</option>
@@ -372,7 +387,7 @@ export function ProductTrackingPageClient({
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
-            
+
             <a
               className="ml-auto inline-flex h-10 items-center justify-center rounded-md bg-orange-600 px-4 text-center text-sm font-bold text-white hover:bg-orange-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-100"
               href={exportHref}
@@ -412,7 +427,7 @@ export function ProductTrackingPageClient({
           {showMobileFilters && (
             <div className="grid grid-cols-1 gap-2.5 pt-2 border-t border-slate-100 animate-in slide-in-from-top-2 duration-100">
               <div className="grid grid-cols-2 gap-2">
-                <label className="text-[11px] text-slate-500 font-semibold">
+                <label className="text-xs text-slate-500 font-semibold">
                   ปี
                   <input
                     className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-100"
@@ -421,11 +436,12 @@ export function ProductTrackingPageClient({
                     onChange={(event) => setYear(event.target.value)}
                   />
                 </label>
-                <label className="text-[11px] text-slate-500 font-semibold">
+                <label className="text-xs text-slate-500 font-semibold">
                   เดือน
                   <select
-                    className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-100"
+                    className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-100 disabled:opacity-50"
                     value={month}
+                    disabled={view === 'yearCompare'}
                     onChange={(event) => setMonth(event.target.value)}
                   >
                     <option value="">ทั้งปี</option>
@@ -434,7 +450,7 @@ export function ProductTrackingPageClient({
                 </label>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <label className="text-[11px] text-slate-500 font-semibold">
+                <label className="text-xs text-slate-500 font-semibold">
                   หมวด
                   <select
                     className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-100"
@@ -445,7 +461,7 @@ export function ProductTrackingPageClient({
                     {(data?.filters?.metalGroups ?? []).map((group) => <option key={group} value={group}>{group}</option>)}
                   </select>
                 </label>
-                <label className="text-[11px] text-slate-500 font-semibold block">
+                <label className="text-xs text-slate-500 font-semibold block">
                   เลือกสินค้า
                   <div className="mt-1">
                     <SearchCombobox
@@ -460,7 +476,7 @@ export function ProductTrackingPageClient({
                   </div>
                 </label>
               </div>
-              <label className="text-[11px] text-slate-500 font-semibold block mt-1">
+              <label className="text-xs text-slate-500 font-semibold block mt-1">
                 เลือก Supplier
                 <div className="mt-1">
                   <SearchCombobox
@@ -474,7 +490,7 @@ export function ProductTrackingPageClient({
                   />
                 </div>
               </label>
-              <label className="text-[11px] text-slate-500 font-semibold block mt-1">
+              <label className="text-xs text-slate-500 font-semibold block mt-1">
                 เลือก Customer
                 <div className="mt-1">
                   <SearchCombobox
@@ -519,7 +535,7 @@ export function ProductTrackingPageClient({
               return (
                 <div key={item.month} className="flex min-h-40 flex-col items-center justify-end gap-1">
                   <div className="w-full rounded-t-md bg-gradient-to-t from-orange-400 to-orange-500" style={{ height: `${Math.max(4, (revenue / maxMonthRevenue) * 128)}px` }} />
-                  <div className="text-[10px] text-slate-500">{monthLabels[index]}</div>
+                  <div className="text-xs text-slate-500">{monthLabels[index]}</div>
                 </div>
               )
             })}
@@ -555,7 +571,7 @@ export function ProductTrackingPageClient({
         </div>
       ) : null}
 
-      {view === 'yearCompare' ? <YearCompare monthly={data?.monthly ?? []} /> : null}
+      {view === 'yearCompare' ? <YearCompare rows={rows} /> : null}
 
       {view === 'list' ? (
         <>
@@ -570,8 +586,9 @@ export function ProductTrackingPageClient({
                   <div className="font-mono text-xs text-slate-400 mt-0.5">{row.code || '-'} · {row.metalGroup || '-'}</div>
                 </div>
                 <span className={`rounded-md px-2 py-1 text-xs font-semibold shrink-0 ${(row.gp ?? 0) >= 0 ? 'bg-orange-50 text-orange-700' : 'bg-red-50 text-red-700'}`}>GP {formatMoney(row.gp ?? 0)}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2 border-t border-slate-100 pt-2 text-xs">
+              </div>              <div className="grid grid-cols-2 gap-x-4 gap-y-2 border-t border-slate-100 pt-2 text-xs">
+                <MiniLine label="Stock" value={`${formatMoney(row.stock ?? 0)} กก.`} />
+                <MiniLine label="WAC" value={`${formatMoney(row.wac ?? 0)} บาท`} />
                 <MiniLine label="ยอดขาย" tone="orange" value={formatMoney(row.revenue ?? row.salesAmount ?? 0)} />
                 <MiniLine label="ยอดซื้อ" value={formatMoney(row.buyAmount ?? row.purchaseAmount ?? 0)} />
                 <MiniLine label="ขาย" value={`${formatMoney(row.sellQty ?? row.salesQty ?? 0)} กก.`} />
@@ -594,6 +611,8 @@ export function ProductTrackingPageClient({
                 <ResizableTableHead activeSortKey={sortKey} align="left" direction={sortDirection} label="Code" resizeProps={columnResize.getResizeHandleProps('code', 'Code')} sortKey="code" onSort={handleSort} />
                 <ResizableTableHead activeSortKey={sortKey} align="left" direction={sortDirection} label="สินค้า" resizeProps={columnResize.getResizeHandleProps('product', 'สินค้า')} sortKey="product" onSort={handleSort} />
                 <ResizableTableHead activeSortKey={sortKey} align="left" direction={sortDirection} label="หมวด" resizeProps={columnResize.getResizeHandleProps('metalGroup', 'หมวด')} sortKey="metalGroup" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="Stock" resizeProps={columnResize.getResizeHandleProps('stock', 'Stock')} sortKey="stock" onSort={handleSort} />
+                <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="WAC" resizeProps={columnResize.getResizeHandleProps('wac', 'WAC')} sortKey="wac" onSort={handleSort} />
                 <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ซื้อ กก." resizeProps={columnResize.getResizeHandleProps('buyQty', 'ซื้อ กก.')} sortKey="buyQty" onSort={handleSort} />
                 <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="มูลค่าซื้อ" resizeProps={columnResize.getResizeHandleProps('buyAmount', 'มูลค่าซื้อ')} sortKey="buyAmount" onSort={handleSort} />
                 <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ซื้อเฉลี่ย" resizeProps={columnResize.getResizeHandleProps('avgBuy', 'ซื้อเฉลี่ย')} sortKey="avgBuy" onSort={handleSort} />
@@ -606,13 +625,15 @@ export function ProductTrackingPageClient({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={12}>กำลังโหลดข้อมูล</td></tr> : null}
-              {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={12}>ไม่มีข้อมูล Product Tracking</td></tr> : null}
+              {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={14}>กำลังโหลดข้อมูล</td></tr> : null}
+              {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={14}>ไม่มีข้อมูล Product Tracking</td></tr> : null}
               {!isLoading && sortedRows.map((row) => (
                 <tr key={row.id} className="cursor-pointer hover:bg-slate-50 transition-colors focus-visible:outline-none" onClick={() => void openDetail(row)}>
                   <td className="p-3 pl-4 font-mono text-xs text-slate-400 overflow-hidden truncate">{row.code || '-'}</td>
                   <td className="p-3 font-medium text-slate-800 overflow-hidden truncate">{row.name ?? row.productName}</td>
                   <td className="p-3 text-slate-700 overflow-hidden truncate">{row.metalGroup || '-'}</td>
+                  <td className="p-3 text-right font-mono text-slate-700 overflow-hidden truncate">{formatMoney(row.stock ?? 0)}</td>
+                  <td className="p-3 text-right font-mono text-slate-700 overflow-hidden truncate">{formatMoney(row.wac ?? 0)}</td>
                   <td className="p-3 text-right font-mono text-slate-700 overflow-hidden truncate">{formatMoney(row.buyQty ?? row.purchaseQty ?? 0)}</td>
                   <td className="p-3 text-right font-mono text-slate-700 overflow-hidden truncate">{formatMoney(row.buyAmount ?? row.purchaseAmount ?? 0)}</td>
                   <td className="p-3 text-right font-mono text-slate-700 overflow-hidden truncate">{formatMoney(row.avgBuy ?? 0)}</td>
@@ -717,7 +738,7 @@ function ProductDetailDialog({ detail, isLoading, onOpenChange }: { detail: Prod
 function DetailSection({ children, title }: { children: ReactNode; title: string }) {
   return (
     <section className="rounded-md border border-slate-100 bg-slate-50 overflow-hidden shadow">
-      <div className="border-b border-slate-100 bg-slate-100/60 px-4 py-2.5 text-sm font-bold text-slate-850">{title}</div>
+      <div className="border-b border-slate-100 bg-slate-100/60 px-4 py-2.5 text-sm font-bold text-slate-800">{title}</div>
       {children}
     </section>
   )
@@ -913,37 +934,133 @@ function TopPanel({ rows, suffix = '', title }: { rows: { label: string; value: 
   )
 }
 
-function YearCompare({ monthly }: { monthly: ProductTrackingPayload['monthly'] }) {
+function YearCompare({ rows }: { rows: ProductTrackingRow[] }) {
+  const [mode, setMode] = useState<'buyQty' | 'buyAmount' | 'sellQty' | 'salesAmount'>('buyQty')
+
+  // Calculate totals per month
+  const monthlyTotals = Array.from({ length: 12 }, (_, monthIdx) => {
+    return rows.reduce((sum, row) => {
+      const val = row.monthlyData?.[monthIdx]
+      return sum + (
+        mode === 'buyQty' ? (val?.qty ?? 0) :
+        mode === 'buyAmount' ? (val?.buyAmount ?? 0) :
+        mode === 'sellQty' ? (val?.sellQty ?? 0) :
+        (val?.salesAmount ?? 0)
+      )
+    }, 0)
+  })
+
+  const grandTotal = monthlyTotals.reduce((sum, val) => sum + val, 0)
+
   return (
-    <div className="overflow-x-auto rounded-md bg-white border border-slate-100 shadow">
-      <table className="w-full min-w-[860px] text-sm">
-        <thead className="bg-slate-50 border-b border-slate-100">
-          <tr>
-            <th className="p-3 pl-4 text-left font-semibold text-slate-600">เดือน</th>
-            <th className="p-3 text-right font-semibold text-slate-600">ขาย กก.</th>
-            <th className="p-3 text-right font-semibold text-slate-600">ยอดขาย</th>
-            <th className="p-3 text-right font-semibold text-slate-600">ซื้อ กก.</th>
-            <th className="p-3 text-right font-semibold text-slate-600">ยอดซื้อ</th>
-            <th className="p-3 pr-4 text-right font-semibold text-slate-600">GP</th>
-          </tr>
-        </thead>
-        <tbody>
-          {monthly.map((row, index) => (
-            <tr key={row.month} className="border-t border-slate-100 hover:bg-slate-50/40">
-              <td className="p-3 pl-4 font-medium text-slate-800">{monthLabels[index]}</td>
-              <td className="p-3 text-right font-mono text-slate-700">{formatMoney(row.sellQty ?? row.salesQty ?? 0)}</td>
-              <td className="p-3 text-right font-mono font-semibold text-orange-700">
-                {formatMoney(row.revenue ?? row.salesAmount ?? 0)}
-              </td>
-              <td className="p-3 text-right font-mono text-slate-700">{formatMoney(row.buyQty ?? row.purchaseQty ?? 0)}</td>
-              <td className="p-3 text-right font-mono text-slate-700">
-                {formatMoney(row.buyAmount ?? row.purchaseAmount ?? 0)}
-              </td>
-              <td className="p-3 pr-4 text-right font-mono font-semibold text-emerald-700">{formatMoney(row.gp ?? 0)}</td>
+    <div className="space-y-4">
+      {/* Mode Selector Toggle */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-semibold text-slate-500">แสดงผล:</span>
+        <div className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200/60 shadow-sm">
+          <button
+            className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none ${
+              mode === 'buyQty' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+            }`}
+            type="button"
+            onClick={() => setMode('buyQty')}
+          >
+            ⚖️ น้ำหนักซื้อ (กก.)
+          </button>
+          <button
+            className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none ${
+              mode === 'buyAmount' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+            }`}
+            type="button"
+            onClick={() => setMode('buyAmount')}
+          >
+            💰 ยอดซื้อ (บาท)
+          </button>
+          <button
+            className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none ${
+              mode === 'sellQty' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+            }`}
+            type="button"
+            onClick={() => setMode('sellQty')}
+          >
+            ⚖️ น้ำหนักขาย (กก.)
+          </button>
+          <button
+            className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none ${
+              mode === 'salesAmount' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+            }`}
+            type="button"
+            onClick={() => setMode('salesAmount')}
+          >
+            💰 ยอดขาย (บาท)
+          </button>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl bg-white border border-slate-200/60 shadow-sm">
+        <table className="w-full text-sm border-collapse text-left">
+          <thead className="bg-slate-100/75 text-slate-700 border-b border-slate-200">
+            <tr>
+              <th className="p-3 pl-4 font-semibold">สินค้า</th>
+              {monthLabels.map((lbl) => (
+                <th key={lbl} className="p-3 text-right font-semibold min-w-[90px]">{lbl}</th>
+              ))}
+              <th className="p-3 pr-4 text-right font-semibold min-w-[100px]">รวม</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-slate-100 text-slate-700">
+            {rows.map((row) => {
+              const rowSum = (row.monthlyData ?? []).reduce((sum, m) => {
+                return sum + (
+                  mode === 'buyQty' ? m.qty :
+                  mode === 'buyAmount' ? m.buyAmount :
+                  mode === 'sellQty' ? m.sellQty :
+                  m.salesAmount
+                )
+              }, 0)
+
+              return (
+                <tr key={row.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="p-3 pl-4 font-medium text-slate-800">
+                    <div>{row.name ?? row.productName}</div>
+                    <div className="text-xs text-slate-400 font-mono mt-0.5">{row.code}</div>
+                  </td>
+                  {Array.from({ length: 12 }).map((_, monthIdx) => {
+                    const mData = row.monthlyData?.[monthIdx]
+                    const val = (
+                      mode === 'buyQty' ? (mData?.qty ?? 0) :
+                      mode === 'buyAmount' ? (mData?.buyAmount ?? 0) :
+                      mode === 'sellQty' ? (mData?.sellQty ?? 0) :
+                      (mData?.salesAmount ?? 0)
+                    )
+                    return (
+                      <td key={monthIdx} className="p-3 text-right font-mono text-xs">
+                        {val > 0 ? formatMoney(val) : '-'}
+                      </td>
+                    )
+                  })}
+                  <td className="p-3 pr-4 text-right font-mono font-semibold text-xs text-slate-900">
+                    {rowSum > 0 ? formatMoney(rowSum) : '-'}
+                  </td>
+                </tr>
+              )
+            })}
+
+            {/* Totals Row */}
+            <tr className="bg-slate-50 font-bold border-t border-slate-200 text-slate-900">
+              <td className="p-3 pl-4 text-slate-800">ยอดรวมทั้งหมด</td>
+              {monthlyTotals.map((val, idx) => (
+                <td key={idx} className="p-3 text-right font-mono text-xs">
+                  {val > 0 ? formatMoney(val) : '-'}
+                </td>
+              ))}
+              <td className="p-3 pr-4 text-right font-mono text-xs text-slate-900">
+                {grandTotal > 0 ? formatMoney(grandTotal) : '-'}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

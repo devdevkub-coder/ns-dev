@@ -294,7 +294,7 @@ export function PaymentSplitsSection({
                           <input className={`mt-1 w-full bg-transparent p-0 text-right font-bold disabled:opacity-100 ${balanceAfter < 0 ? 'text-rose-600' : 'text-slate-600'}`} disabled type="text" value={formatMoney(balanceAfter)} />
                         </label>
                       </div>
-                      <div className={`text-[10px] font-medium ${splitAmount <= (splitAccount.availableToPay ?? 0) ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      <div className={`text-xs font-medium ${splitAmount <= (splitAccount.availableToPay ?? 0) ? 'text-emerald-600' : 'text-rose-600'}`}>
                         Validation: ยอดจ่าย {formatMoney(splitAmount)} &le; ยอดใช้ได้รวม {formatMoney(splitAccount.availableToPay ?? 0)} {splitAmount <= (splitAccount.availableToPay ?? 0) ? 'ผ่าน' : 'ไม่ผ่าน'}
                       </div>
                     </div>
@@ -489,7 +489,7 @@ export function PaymentLinesSection({
                     })}
                   </datalist>
                   {lineBill ? (
-                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500">
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
                       <span>เอกสารต้นทาง: <span className="font-medium text-slate-700">{lineBill.sourceDocNo || lineBill.docNo}</span></span>
                       <span>ช่องทางรับเงิน: <span className="font-medium text-slate-700">{approvalPaymentMethod}</span></span>
                       <span>บัญชีรับเงิน: <span className="font-medium text-slate-700">{destinationAccount}</span></span>

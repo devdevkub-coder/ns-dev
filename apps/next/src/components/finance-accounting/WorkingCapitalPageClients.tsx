@@ -393,15 +393,15 @@ export function StockFinancePageClient() {
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-xs font-semibold text-amber-600 uppercase">มูลค่า Stock รวม (WAC)</div>
-            <div className="mt-0.5 text-2xl font-extrabold text-slate-900 tracking-tight">{money(data?.summary.totalValue)} <span className="text-xs font-medium text-slate-550">({data?.summary.itemCount ?? 0} รายการ)</span></div>
-            <div className="mt-3 grid grid-cols-3 gap-2 text-[10px] pt-3 border-t border-slate-100">
+            <div className="mt-0.5 text-2xl font-extrabold text-slate-900 tracking-tight">{money(data?.summary.totalValue)} <span className="text-xs font-medium text-slate-500">({data?.summary.itemCount ?? 0} รายการ)</span></div>
+            <div className="mt-3 grid grid-cols-3 gap-2 text-xs pt-3 border-t border-slate-100">
               <Mini label="✓ จ่ายแล้ว (Paid)" value={money(data?.summary.paidValue)} />
               <Mini label="⚠ ยังไม่จ่าย (Unpaid)" value={money(data?.summary.unpaidValue)} />
               <Mini label="💰 Margin Potential" value={money(data?.summary.marginPotential)} />
             </div>
           </div>
         </div>
-        <Panel title="🥧 RM / WIP / FG"><Donut values={[data?.byStatus.RM ?? 0, data?.byStatus.WIP ?? 0, data?.byStatus.FG ?? 0]} colors={['#3b82f6', '#f59e0b', '#10b981']} total={total} /><div className="mt-1 grid grid-cols-2 gap-1 text-[10px]"><div>RM: {money(data?.byStatus.RM)}</div><div>WIP: {money(data?.byStatus.WIP)}</div><div>FG: {money(data?.byStatus.FG)}</div><div>อื่นๆ: {money(data?.byStatus.OTHER)}</div></div></Panel>
+        <Panel title="🥧 RM / WIP / FG"><Donut values={[data?.byStatus.RM ?? 0, data?.byStatus.WIP ?? 0, data?.byStatus.FG ?? 0]} colors={['#3b82f6', '#f59e0b', '#10b981']} total={total} /><div className="mt-1 grid grid-cols-2 gap-1 text-xs"><div>RM: {money(data?.byStatus.RM)}</div><div>WIP: {money(data?.byStatus.WIP)}</div><div>FG: {money(data?.byStatus.FG)}</div><div>อื่นๆ: {money(data?.byStatus.OTHER)}</div></div></Panel>
       </div>
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <Panel title="⏳ Stock Aging (มูลค่าตามอายุ)">{(data?.aging ?? []).map((row) => <AgingBar key={row.key} row={row} total={total} />)}</Panel>
@@ -449,11 +449,11 @@ export function ProfitLeakPageClient() {
         <div className="flex gap-2 items-center">
           <div className="flex-1 grid grid-cols-2 gap-2">
             <div className="flex items-center gap-1">
-              <span className="text-[10px] text-slate-500 font-semibold shrink-0">From</span>
+              <span className="text-xs text-slate-500 font-semibold shrink-0">From</span>
               <DatePickerInput className="w-full text-xs" value={from} onChange={setFrom} />
             </div>
             <div className="flex items-center gap-1">
-              <span className="text-[10px] text-slate-500 font-semibold shrink-0">To</span>
+              <span className="text-xs text-slate-500 font-semibold shrink-0">To</span>
               <DatePickerInput className="w-full text-xs" value={to} onChange={setTo} />
             </div>
           </div>
@@ -543,7 +543,7 @@ export function ProfitLeakPageClient() {
           <div className="min-w-0 flex-1">
             <div className="text-xs font-semibold text-red-600 uppercase">💔 รวมเงินที่รั่วไหล (Profit Leak)</div>
             <div className="mt-0.5 text-2xl font-extrabold text-red-700 tracking-tight">{money(data?.summary.totalLeak)}</div>
-            <div className="mt-3 space-y-1 text-[11px] pt-3 border-t border-slate-100">
+            <div className="mt-3 space-y-1 text-xs pt-3 border-t border-slate-100">
               <div className="flex justify-between text-slate-500"><span>📉 ขายต่ำกว่า WAC:</span> <b className="text-slate-800">{money(data?.summary.negTotal)}</b></div>
               <div className="flex justify-between text-slate-500"><span>⚠ ค่าใช้จ่ายผิดปกติ:</span> <b className="text-slate-800">{data?.summary.outlierCount ?? 0} รายการ</b></div>
               <div className="flex justify-between text-slate-500"><span>📦 Stock Loss:</span> <b className="text-slate-800">{money(data?.summary.stockLoss)}</b></div>
@@ -600,7 +600,7 @@ function BaselineNotice({ sourceState }: { sourceState?: SourceState }) {
     <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3.5 text-xs text-amber-900 shadow-sm">
       <span className="font-bold">⚠️ Finance analysis read baseline</span>
       <span className="ml-2">คำนวณจากข้อมูลธุรกรรม ยังไม่ใช่ GL/statutory report และไม่มี write action</span>
-      {sourceState ? <div className="mt-1 text-[11px] text-amber-800">{sourceState.limitations[0]}</div> : null}
+      {sourceState ? <div className="mt-1 text-xs text-amber-800">{sourceState.limitations[0]}</div> : null}
     </div>
   )
 }
@@ -641,7 +641,7 @@ function Gauge({ footer, kind, title, value }: { footer: string; kind: 'current'
   const color = value >= threshold[0] ? '#10b981' : value >= threshold[1] ? '#f59e0b' : '#ef4444'
   const text = value >= threshold[0] ? 'ดี' : value >= threshold[1] ? 'พอใช้' : '⚠ เสี่ยง'
   const dash = Math.min(220, value * (kind === 'current' ? 73 : 110))
-  return <Panel title={title}><svg viewBox="0 0 200 110" className="h-[100px] w-full"><path d="M 30 90 A 70 70 0 0 1 170 90" stroke="#e2e8f0" strokeLinecap="round" strokeWidth="14" fill="none" /><path d="M 30 90 A 70 70 0 0 1 170 90" stroke={color} strokeDasharray={`${dash} 220`} strokeLinecap="round" strokeWidth="14" fill="none" /><text fill={color} fontSize="28" fontWeight="bold" textAnchor="middle" x="100" y="80">{value.toFixed(2)}</text><text fill="#64748b" fontSize="10" textAnchor="middle" x="100" y="100">{text}</text></svg><div className="mt-1 text-center text-xs text-slate-500">{footer}</div></Panel>
+  return <Panel title={title}><svg viewBox="0 0 200 110" className="h-[100px] w-full"><path d="M 30 90 A 70 70 0 0 1 170 90" stroke="#e2e8f0" strokeLinecap="round" strokeWidth="14" fill="none" /><path d="M 30 90 A 70 70 0 0 1 170 90" stroke={color} strokeDasharray={`${dash} 220`} strokeLinecap="round" strokeWidth="14" fill="none" /><text fill={color} fontSize="28" fontWeight="bold" textAnchor="middle" x="100" y="80">{value.toFixed(2)}</text><text fill="#64748b" fontSize="12" textAnchor="middle" x="100" y="100">{text}</text></svg><div className="mt-1 text-center text-xs text-slate-500">{footer}</div></Panel>
 }
 
 function Kpi({ label, tone, value }: { label: string; tone: string; value: string }) {
@@ -660,7 +660,7 @@ function Kpi({ label, tone, value }: { label: string; tone: string; value: strin
   const cls = map[tone] ?? map.slate
   return (
     <div className={`rounded-xl border p-3 shadow-sm ${cls}`}>
-      <div className="text-[10px] text-slate-500 font-semibold uppercase">{label}</div>
+      <div className="text-xs text-slate-500 font-semibold uppercase">{label}</div>
       <div className="text-sm font-bold tracking-tight mt-0.5">{value}</div>
     </div>
   )
@@ -678,7 +678,7 @@ function Insight({ body, title, tone, value }: { body: string; title: string; to
     <div className={`rounded-xl border p-4 shadow-sm ${map[tone] ?? map.blue}`}>
       <h3 className="mb-1 text-xs font-bold text-slate-800">{title}</h3>
       <div className="mb-1 text-xl font-bold tracking-tight">{value}</div>
-      <div className="text-[11px] text-slate-500">{body}</div>
+      <div className="text-xs text-slate-500">{body}</div>
     </div>
   )
 }
@@ -783,7 +783,7 @@ function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: WorkingPay
 function Mini({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-[10px] text-slate-400 font-medium">{label}</div>
+      <div className="text-xs text-slate-400 font-medium">{label}</div>
       <div className="text-sm font-bold text-slate-800">{value}</div>
     </div>
   )
@@ -795,7 +795,7 @@ function Donut({ colors, total, values }: { colors: string[]; total: number; val
     const offset = acc.reduce((sum, row) => sum + row.dash, 0)
     return [...acc, { dash, offset, value }]
   }, [])
-  return <svg viewBox="0 0 200 200" className="mx-auto h-36 w-36 shrink-0">{segments.map((segment, index) => <circle key={`${index}-${segment.value}`} cx="100" cy="100" fill="none" r="70" stroke={colors[index % colors.length]} strokeDasharray={`${segment.dash} 440`} strokeDashoffset={-segment.offset} strokeWidth="36" transform="rotate(-90 100 100)" />)}<text x="100" y="98" textAnchor="middle" fontSize="10" fill="#64748b">รวม</text><text x="100" y="115" textAnchor="middle" fontSize="12" fontWeight="bold" fill="#1e293b">{money(total)}</text></svg>
+  return <svg viewBox="0 0 200 200" className="mx-auto h-36 w-36 shrink-0">{segments.map((segment, index) => <circle key={`${index}-${segment.value}`} cx="100" cy="100" fill="none" r="70" stroke={colors[index % colors.length]} strokeDasharray={`${segment.dash} 440`} strokeDashoffset={-segment.offset} strokeWidth="36" transform="rotate(-90 100 100)" />)}<text x="100" y="98" textAnchor="middle" fontSize="12" fill="#64748b">รวม</text><text x="100" y="115" textAnchor="middle" fontSize="12" fontWeight="bold" fill="#1e293b">{money(total)}</text></svg>
 }
 
 function AgingBar({ row, total }: { row: { count: number; key: string; value: number }; total: number }) {
@@ -804,8 +804,8 @@ function AgingBar({ row, total }: { row: { count: number; key: string; value: nu
       <div className="w-20 font-semibold text-slate-600">{row.key} วัน</div>
       <div className="relative h-5 flex-1 overflow-hidden rounded-full bg-slate-100">
         <div className="h-full rounded-full bg-amber-500" style={{ width: `${Math.max(row.value / total * 100, row.value > 0 ? 1 : 0)}%` }} />
-        <span className="absolute left-2 top-0.5 text-[9px] font-bold text-white">{row.count} รายการ</span>
-        <span className="absolute right-2 top-0.5 text-[9px] font-bold text-slate-700">{percent(row.value, total)}%</span>
+        <span className="absolute left-2 top-0.5 text-xs font-bold text-white">{row.count} รายการ</span>
+        <span className="absolute right-2 top-0.5 text-xs font-bold text-slate-700">{percent(row.value, total)}%</span>
       </div>
       <div className="w-24 text-right font-bold text-slate-700">{money(row.value)}</div>
     </div>
@@ -818,7 +818,7 @@ function TopProduct({ index, max, row }: { index: number; max: number; row: Stoc
       <span className="w-5 text-center font-bold text-amber-600 shrink-0">{index + 1}</span>
       <div className="min-w-0 flex-1">
         <div className="truncate font-semibold text-slate-800">{row.name}</div>
-        <div className="text-[10px] text-slate-400 font-medium">{money(row.qty)} kg · WAC {money(row.wac)} · {row.status}</div>
+        <div className="text-xs text-slate-400 font-medium">{money(row.qty)} kg · WAC {money(row.wac)} · {row.status}</div>
       </div>
       <div className="h-2 w-16 rounded-full bg-slate-100 shrink-0 overflow-hidden">
         <div className="h-full rounded-full bg-amber-500" style={{ width: `${Math.min(100, row.value / Math.max(1, max) * 100)}%` }} />
@@ -930,9 +930,9 @@ function ProductTable({ rows }: { rows: StockProduct[] }) {
                   <span className="font-mono text-amber-700 font-bold block">{row.code}</span>
                   <span className="font-bold text-slate-900 text-sm block">{row.name}</span>
                 </div>
-                <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">{row.metalGroup}</span>
+                <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{row.metalGroup}</span>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/50">
+              <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/50">
                 <div><span className="text-slate-400">จำนวน:</span> <span className="font-semibold text-slate-800">{money(row.qty)} kg</span></div>
                 <div><span className="text-slate-400">มูลค่า Stock:</span> <span className="font-bold text-slate-900">{money(row.value)}</span></div>
                 <div><span className="text-slate-400">WAC:</span> <span className="font-medium text-slate-600">{money(row.wac)}</span></div>
@@ -1049,15 +1049,15 @@ function NegativeMarginTable({ rows, total }: { rows: ProfitPayload['negMarginIt
               <div className="flex justify-between items-start">
                 <div>
                   <span className="font-mono text-slate-800 font-semibold block">{row.docNo}</span>
-                  <span className="text-slate-400 text-[10px] block">{row.date} · {row.customer}</span>
+                  <span className="text-slate-400 text-xs block">{row.date} · {row.customer}</span>
                 </div>
-                <span className="rounded bg-red-50 border border-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">ขาดทุน {money(row.loss)}</span>
+                <span className="rounded bg-red-50 border border-red-100 px-2 py-0.5 text-xs font-bold text-red-700">ขาดทุน {money(row.loss)}</span>
               </div>
               <div className="font-bold text-slate-900">{row.productName}</div>
-              <div className="grid grid-cols-3 gap-2 text-[11px] bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/50">
-                <div><span className="text-slate-400 block text-[10px]">จำนวน</span><span className="font-semibold text-slate-800">{money(row.qty)} kg</span></div>
-                <div><span className="text-slate-400 block text-[10px]">ราคาขาย</span><span className="font-semibold text-slate-800">{money(row.price)}</span></div>
-                <div><span className="text-slate-400 block text-[10px]">ต้นทุน WAC</span><span className="font-semibold text-slate-800">{money(row.unitCost)}</span></div>
+              <div className="grid grid-cols-3 gap-2 text-xs bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/50">
+                <div><span className="text-slate-400 block text-xs">จำนวน</span><span className="font-semibold text-slate-800">{money(row.qty)} kg</span></div>
+                <div><span className="text-slate-400 block text-xs">ราคาขาย</span><span className="font-semibold text-slate-800">{money(row.price)}</span></div>
+                <div><span className="text-slate-400 block text-xs">ต้นทุน WAC</span><span className="font-semibold text-slate-800">{money(row.unitCost)}</span></div>
               </div>
             </div>
           ))
@@ -1108,7 +1108,7 @@ function LowMarginTable({ rows, targetMargin }: { rows: ProfitPayload['lowMargin
         <span>⬇ บิลที่ GP &lt; {targetMargin}%</span>
         {columnResize.hasCustomWidths && (
           <button
-            className="inline-flex items-center gap-1 h-5 rounded bg-white border border-slate-200 px-1.5 text-[10px] text-slate-700 hover:bg-slate-50 font-normal transition outline-none"
+            className="inline-flex items-center gap-1 h-5 rounded bg-white border border-slate-200 px-1.5 text-xs text-slate-700 hover:bg-slate-50 font-normal transition outline-none"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
@@ -1158,7 +1158,7 @@ function LowMarginTable({ rows, targetMargin }: { rows: ProfitPayload['lowMargin
                 <span className="font-mono text-slate-800 font-semibold">{row.docNo}</span>
                 <span className="font-bold text-red-600">ขาด {money(row.shortfall)}</span>
               </div>
-              <div className="flex justify-between items-center text-[11px] text-slate-500">
+              <div className="flex justify-between items-center text-xs text-slate-500">
                 <span>{row.customer}</span>
                 <span>GP: <b className="text-slate-700">{row.gpPct.toFixed(1)}%</b></span>
               </div>
@@ -1211,7 +1211,7 @@ function LowCustomerTable({ rows }: { rows: ProfitPayload['lowCustomers'] }) {
         <span>👥 ลูกค้ากำไรต่ำ (Top 10)</span>
         {columnResize.hasCustomWidths && (
           <button
-            className="inline-flex items-center gap-1 h-5 rounded bg-white border border-slate-200 px-1.5 text-[10px] text-slate-700 hover:bg-slate-50 font-normal transition outline-none"
+            className="inline-flex items-center gap-1 h-5 rounded bg-white border border-slate-200 px-1.5 text-xs text-slate-700 hover:bg-slate-50 font-normal transition outline-none"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
@@ -1238,7 +1238,7 @@ function LowCustomerTable({ rows }: { rows: ProfitPayload['lowCustomers'] }) {
           <tbody>
             {sortedRows.map((row) => (
               <tr className="border-t border-slate-100 hover:bg-slate-50/50 transition" key={row.id}>
-                <Td className="font-semibold text-slate-850">{row.name}</Td>
+                <Td className="font-semibold text-slate-800">{row.name}</Td>
                 <Td align="right" className="font-bold text-slate-900">{money(row.revenue)}</Td>
                 <Td align="right" className="font-bold text-red-600">{row.gpPct.toFixed(1)}%</Td>
               </tr>
@@ -1256,8 +1256,8 @@ function LowCustomerTable({ rows }: { rows: ProfitPayload['lowCustomers'] }) {
           sortedRows.map((row) => (
             <div key={row.id} className="p-3 flex justify-between items-center text-xs">
               <div>
-                <span className="font-semibold text-slate-850">{row.name}</span>
-                <div className="text-[10px] text-slate-400">ยอดขาย: {money(row.revenue)}</div>
+                <span className="font-semibold text-slate-800">{row.name}</span>
+                <div className="text-xs text-slate-400">ยอดขาย: {money(row.revenue)}</div>
               </div>
               <span className="font-bold text-red-600">{row.gpPct.toFixed(1)}%</span>
             </div>
@@ -1317,7 +1317,7 @@ function HighSupplierTable({ rows }: { rows: ProfitPayload['highSuppliers'] }) {
         <span>🏭 Supplier ต้นทุนสูง (Top 10)</span>
         {columnResize.hasCustomWidths && (
           <button
-            className="inline-flex items-center gap-1 h-5 rounded bg-white border border-slate-200 px-1.5 text-[10px] text-slate-700 hover:bg-slate-50 font-normal transition outline-none"
+            className="inline-flex items-center gap-1 h-5 rounded bg-white border border-slate-200 px-1.5 text-xs text-slate-700 hover:bg-slate-50 font-normal transition outline-none"
             type="button"
             onClick={columnResize.resetColumnWidths}
           >
@@ -1345,7 +1345,7 @@ function HighSupplierTable({ rows }: { rows: ProfitPayload['highSuppliers'] }) {
           <tbody>
             {sortedRows.map((row) => (
               <tr className="border-t border-slate-100 hover:bg-slate-50/50 transition" key={row.id}>
-                <Td className="font-semibold text-slate-850">{row.supplierName}</Td>
+                <Td className="font-semibold text-slate-800">{row.supplierName}</Td>
                 <Td>{row.productName}</Td>
                 <Td align="right" className="font-semibold text-red-600">{row.premiumPct.toFixed(1)}%</Td>
                 <Td align="right" className="font-bold text-red-600">{money(row.premium * row.qty)}</Td>
@@ -1364,10 +1364,10 @@ function HighSupplierTable({ rows }: { rows: ProfitPayload['highSuppliers'] }) {
           sortedRows.map((row) => (
             <div key={row.id} className="p-3 space-y-1 text-xs">
               <div className="flex justify-between items-center">
-                <span className="font-semibold text-slate-850">{row.supplierName}</span>
+                <span className="font-semibold text-slate-800">{row.supplierName}</span>
                 <span className="font-bold text-red-600">+{row.premiumPct.toFixed(1)}%</span>
               </div>
-              <div className="flex justify-between items-center text-[11px] text-slate-500">
+              <div className="flex justify-between items-center text-xs text-slate-500">
                 <span>{row.productName}</span>
                 <span>ส่วนเกิน: <b className="text-slate-700">{money(row.premium * row.qty)}</b></span>
               </div>
@@ -1470,14 +1470,14 @@ function OutlierTable({ rows }: { rows: ProfitPayload['outliers'] }) {
                 <div className="flex justify-between items-start">
                   <div>
                     <span className="font-mono text-slate-800 font-semibold block">{row.docNo}</span>
-                    <span className="text-slate-400 text-[10px] block">{row.date} · {row.category}</span>
+                    <span className="text-slate-400 text-xs block">{row.date} · {row.category}</span>
                   </div>
-                  <span className="rounded bg-red-50 border border-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">เกินปกติ {money(row.over)}</span>
+                  <span className="rounded bg-red-50 border border-red-100 px-2 py-0.5 text-xs font-bold text-red-700">เกินปกติ {money(row.over)}</span>
                 </div>
                 <div className="text-slate-700"><span className="text-slate-400">ผู้รับ:</span> {row.payee}</div>
                 <div className="flex justify-between items-center pt-1 border-t border-slate-50">
                   <div><span className="text-slate-400">จำนวน:</span> <span className="font-bold text-slate-900">{money(row.amount)}</span></div>
-                  <div><span className="text-slate-400">ค่าเฉลี่ย:</span> <span className="text-slate-650">{money(row.mean)}</span></div>
+                  <div><span className="text-slate-400">ค่าเฉลี่ย:</span> <span className="text-slate-600">{money(row.mean)}</span></div>
                 </div>
               </div>
             ))

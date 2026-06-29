@@ -410,7 +410,7 @@ function PoBuyStatusTimeline({ row }: { row: PoBuyRow }) {
           <div key={event.id} className="grid grid-cols-[88px_1fr] gap-3 sm:grid-cols-[128px_1fr]">
             <div className="pt-1 text-right text-xs text-slate-500">
               <div>{formatDateTime(event.createdAt)}</div>
-              <div className="mt-1 truncate text-[11px]">{event.createdBy || '-'}</div>
+              <div className="mt-1 truncate text-xs">{event.createdBy || '-'}</div>
             </div>
             <div className="relative border-l border-slate-100 pb-4 pl-4 last:pb-0">
               <span className={`absolute -left-1.5 top-1 h-3 w-3 rounded-full border-2 border-white ${isLatest ? 'bg-slate-700' : 'bg-slate-300'}`} />
@@ -992,7 +992,7 @@ export function PoBuyPageClient() {
                 <span className="text-slate-800">{row.productName}</span>
               </div>
               {row.notes.trim() ? (
-                <div className="text-[11px] text-slate-400 truncate">
+                <div className="text-xs text-slate-400 truncate">
                   หมายเหตุ: {row.notes}
                 </div>
               ) : null}
@@ -1004,12 +1004,12 @@ export function PoBuyPageClient() {
                   <span className="size-1.5 rounded-full bg-current" />
                   {poBuyStatusLabel(row.status)}
                 </span>
-                <div className="mt-1 text-[11px] font-bold text-blue-700">
+                <div className="mt-1 text-xs font-bold text-blue-700">
                   {formatMoney(row.totalAmount)} บาท
                 </div>
               </div>
               <div className="text-right">
-                <span className="text-[10px] text-slate-400 block">จำนวนรวม / ยอดคงเหลือ</span>
+                <span className="text-xs text-slate-400 block">จำนวนรวม / ยอดคงเหลือ</span>
                 <span className="font-bold text-slate-900 text-sm tabular-nums">
                   {formatMoney(row.qty)} / <span className="text-amber-600">{formatMoney(row.remainingQty)}</span> กก.
                 </span>
@@ -1074,7 +1074,7 @@ export function PoBuyPageClient() {
                     {poBuyStatusLabel(row.status)}
                   </span>
                 </TableCell>
-                <TableCell className="w-28 whitespace-nowrap text-xs text-slate-600"><div className="truncate">{row.updatedBy || row.createdBy || '-'}</div><div className="font-mono text-[10px] text-slate-400">{formatDateTime(row.updatedAt || row.createdAt)}</div></TableCell>
+                <TableCell className="w-28 whitespace-nowrap text-xs text-slate-600"><div className="truncate">{row.updatedBy || row.createdBy || '-'}</div><div className="font-mono text-xs text-slate-400">{formatDateTime(row.updatedAt || row.createdAt)}</div></TableCell>
                 <TableCell className="whitespace-nowrap text-right">
                   {row.status === 'Open' && row.qty === row.remainingQty ? (
                     <>
@@ -1257,7 +1257,7 @@ function PoBuyNoteIndicator({ note, poNo }: { note: string; poNo: string }) {
         <TooltipTrigger asChild>
           <button
             aria-label={`ดูหมายเหตุ ${poNo}`}
-            className="inline-flex h-5 w-5 cursor-help items-center justify-center rounded-full border border-slate-300 bg-white text-[10px] font-semibold leading-none text-slate-600 hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200"
+            className="inline-flex h-5 w-5 cursor-help items-center justify-center rounded-full border border-slate-300 bg-white text-xs font-semibold leading-none text-slate-600 hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200"
             type="button"
             onClick={(event) => event.stopPropagation()}
           >
@@ -1351,20 +1351,20 @@ function PoBuyCancelModal({
           <button className="text-2xl text-white/80 hover:text-white outline-none" type="button" onClick={onClose}>✕</button>
         </DialogHeader>
         <div className="space-y-2 p-5 text-sm">
-          <label className="block text-xs font-medium text-slate-655" htmlFor="po-buy-cancel-note">หมายเหตุการยกเลิก *</label>
+          <label className="block text-xs font-medium text-slate-700" htmlFor="po-buy-cancel-note">หมายเหตุการยกเลิก *</label>
           <textarea
             id="po-buy-cancel-note"
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-750 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
+            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
             maxLength={500}
             rows={3}
             value={note}
             onChange={(event) => onChangeNote(event.target.value)}
           />
-          {error ? <div className="text-xs text-red-650">{error}</div> : null}
+          {error ? <div className="text-xs text-red-600">{error}</div> : null}
         </div>
         <DialogFooter className="bg-slate-50 border-t border-slate-100 px-5 py-3.5 flex justify-end gap-2">
           <UiButton className="font-normal" disabled={isSaving} type="button" variant="ghost" onClick={onClose}>ปิด</UiButton>
-          <UiButton className="bg-red-650 font-semibold hover:bg-red-750 text-white h-9 px-4 rounded-md transition-colors" disabled={isSaving} type="button" variant="default" onClick={onSubmit}>{isSaving ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}</UiButton>
+          <UiButton className="bg-red-600 font-semibold hover:bg-red-700 text-white h-9 px-4 rounded-md transition-colors" disabled={isSaving} type="button" variant="default" onClick={onSubmit}>{isSaving ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}</UiButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1401,16 +1401,16 @@ function PoBuyShortCloseModal({
           <button className="text-2xl text-white/80 hover:text-white outline-none" type="button" onClick={onClose}>✕</button>
         </DialogHeader>
         <div className="space-y-2 p-5 text-sm">
-          <label className="block text-xs font-medium text-slate-655" htmlFor="po-buy-short-close-note">เหตุผลการปิดรับไม่ครบ *</label>
+          <label className="block text-xs font-medium text-slate-700" htmlFor="po-buy-short-close-note">เหตุผลการปิดรับไม่ครบ *</label>
           <textarea
             id="po-buy-short-close-note"
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-750 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
+            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
             maxLength={500}
             rows={3}
             value={note}
             onChange={(event) => onChangeNote(event.target.value)}
           />
-          {error ? <div className="text-xs text-red-650">{error}</div> : null}
+          {error ? <div className="text-xs text-red-600">{error}</div> : null}
         </div>
         <DialogFooter className="bg-slate-50 border-t border-slate-100 px-5 py-3.5 flex justify-end gap-2">
           <UiButton className="font-normal" disabled={isSaving} type="button" variant="ghost" onClick={onClose}>ปิด</UiButton>
@@ -1815,11 +1815,11 @@ function PoBuyDetailModal({
     <Dialog open onOpenChange={(open) => {
       if (!open) onClose()
     }}>
-      <DialogContent aria-labelledby="po-buy-detail-title" className="max-h-[90vh] max-w-3xl rounded-2xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-0" hideClose>
-        <DialogHeader className="p-4 bg-slate-900 text-white shrink-0 flex flex-row items-start justify-between gap-3 rounded-t-2xl">
+      <DialogContent aria-labelledby="po-buy-detail-title" className="max-h-[90vh] max-w-3xl rounded-2xl !p-0 overflow-hidden flex flex-col bg-slate-900 dark:bg-[#0f172a] border-0" hideClose>
+        <DialogHeader className="p-4 bg-slate-900 dark:bg-[#0f172a] text-white shrink-0 flex flex-row items-start justify-between gap-3 rounded-t-2xl">
           <div>
             <DialogTitle id="po-buy-detail-title" className="text-white text-base font-bold">รายละเอียด {row.docNo}</DialogTitle>
-            <DialogDescription className="text-slate-300">{row.supplierName}</DialogDescription>
+            <DialogDescription className="text-slate-300 dark:text-slate-700">{row.supplierName}</DialogDescription>
           </div>
           <button className="text-2xl text-white/80 hover:text-white outline-none" type="button" onClick={onClose}>✕</button>
         </DialogHeader>

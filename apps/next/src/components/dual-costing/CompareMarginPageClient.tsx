@@ -200,7 +200,7 @@ function MarginCard({ label, tone, totals }: { label: string; tone: 'deal' | 'st
 function DiffCard({ goodWhenPositive = false, label, prominent = false, value }: { goodWhenPositive?: boolean; label: string; prominent?: boolean; value: number }) {
   const isZero = value === 0
   const good = goodWhenPositive ? value >= 0 : value <= 0
-  const colorClass = isZero ? 'text-slate-600' : good ? 'text-emerald-600' : 'text-red-650'
+  const colorClass = isZero ? 'text-slate-600' : good ? 'text-emerald-600' : 'text-red-600'
   return (
     <div className="rounded-xl border border-slate-200/60 bg-white p-4 shadow-sm">
       <div className="text-xs text-slate-500 font-semibold mb-1">{label}</div>

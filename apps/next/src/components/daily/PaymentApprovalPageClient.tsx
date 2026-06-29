@@ -218,7 +218,7 @@ function approvalSortValue(
 function DetailItem({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col py-1">
-      <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{label}</div>
+      <div className="text-xs text-slate-400 font-medium uppercase tracking-wider">{label}</div>
       <div className="mt-0.5 text-xs sm:text-sm font-semibold text-slate-800">{value}</div>
     </div>
   )
@@ -879,10 +879,10 @@ export function PaymentApprovalPageClient() {
                 <span className="font-semibold text-slate-500">ผู้ขาย: </span>
                 <span className="text-slate-800">{row.supplierName}</span>
               </div>
-              <div className="text-[11px] text-slate-500">
+              <div className="text-xs text-slate-500">
                 อ้างอิง: {row.sourceDocNo} ({row.sourceLabel})
               </div>
-              <div className="text-[11px] text-slate-500">
+              <div className="text-xs text-slate-500">
                 ช่องทางจ่าย: {row.approvalStatus === 'approved' ? row.destinationLabel : destinationSummaryLabel(row)}
               </div>
             </div>
@@ -895,7 +895,7 @@ export function PaymentApprovalPageClient() {
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-[10px] text-slate-400 block">คงเหลือ / อนุมัติ</span>
+                <span className="text-xs text-slate-400 block">คงเหลือ / อนุมัติ</span>
                 <span className="font-bold text-slate-900 text-sm tabular-nums">{formatMoney(row.payableBalance)}</span>
               </div>
             </div>
@@ -933,14 +933,14 @@ export function PaymentApprovalPageClient() {
                   <span className="font-semibold text-slate-500">{isPettyReturn ? 'ผู้คืนเงิน: ' : 'ผู้รับเงิน: '}</span>
                   <span className="text-slate-800">{row.payee}</span>
                 </div>
-                <div className="text-[11px] text-slate-500">
+                <div className="text-xs text-slate-500">
                   อ้างอิง: {row.sourceDocNo} ({isPettyReturn ? 'เงินสำรองจ่าย / กู้กรรมการ' : 'ค่าใช้จ่าย'})
                 </div>
-                <div className="text-[11px] text-slate-500">
+                <div className="text-xs text-slate-500">
                   {isPettyReturn ? 'หมายเหตุ: ' : 'รายละเอียด / อ้างอิง: '}{row.refDocNo || '-'}
                 </div>
                 {row.dueDate ? (
-                  <div className="text-[11px]">
+                  <div className="text-xs">
                     <span className="text-slate-500">ครบกำหนด: </span>
                     <span className={overdue ? 'text-red-600 font-semibold' : 'text-slate-700'}>
                       {formatDateDisplay(row.dueDate)}
@@ -958,7 +958,7 @@ export function PaymentApprovalPageClient() {
                   </span>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] text-slate-400 block">{isPettyReturn ? 'ยอดคืน' : 'ยอดรวม'}</span>
+                  <span className="text-xs text-slate-400 block">{isPettyReturn ? 'ยอดคืน' : 'ยอดรวม'}</span>
                   <span className="font-bold text-red-700 text-sm tabular-nums">{formatMoney(row.totalAmount)}</span>
                 </div>
               </div>
@@ -1034,11 +1034,11 @@ export function PaymentApprovalPageClient() {
                       </TableCell>
                       <TableCell className="text-xs font-semibold text-slate-700">
                         <div className="whitespace-nowrap">{row.docNo}</div>
-                        <div className="text-[11px] text-slate-500">{approvalRowKindLabel(row.approvalStatus)}</div>
+                        <div className="text-xs text-slate-500">{approvalRowKindLabel(row.approvalStatus)}</div>
                       </TableCell>
                       <TableCell className="text-xs font-semibold text-slate-700">
                         <div className="whitespace-nowrap">{row.sourceDocNo}</div>
-                        <div className="text-[11px] text-slate-500">{row.sourceLabel}</div>
+                        <div className="text-xs text-slate-500">{row.sourceLabel}</div>
                       </TableCell>
                       <TableCell className="text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</TableCell>
                       <TableCell className="text-xs font-semibold text-slate-700">{row.supplierName}</TableCell>
@@ -1134,7 +1134,7 @@ export function PaymentApprovalPageClient() {
                         <div className="whitespace-nowrap">{row.sourceDocNo}</div>
                         <div className="text-slate-500">{isPettyReturn ? 'คืนเงินสำรองจ่าย' : 'ค่าใช้จ่าย'}</div>
                       </TableCell>
-                      <TableCell className="text-xs font-semibold text-slate-700">{row.dueDate ? <span className={overdue ? 'text-red-600' : 'text-slate-700'}>{formatDateDisplay(row.dueDate)}{overdue ? <span className="block text-[10px] text-red-500">เลยกำหนด</span> : null}</span> : <span className="text-slate-300">-</span>}</TableCell>
+                      <TableCell className="text-xs font-semibold text-slate-700">{row.dueDate ? <span className={overdue ? 'text-red-600' : 'text-slate-700'}>{formatDateDisplay(row.dueDate)}{overdue ? <span className="block text-xs text-red-500">เลยกำหนด</span> : null}</span> : <span className="text-slate-300">-</span>}</TableCell>
                       <TableCell className="text-xs font-semibold text-slate-700">{row.payee}</TableCell>
                       <TableCell className="text-xs font-semibold text-slate-700">{row.refDocNo ? <div className="text-slate-700">{row.refDocNo}</div> : <span className="text-slate-300">-</span>}</TableCell>
                       <TableCell className="text-right pr-4 text-xs font-semibold text-red-700 tabular-nums">{formatMoney(row.totalAmount)}</TableCell>
@@ -1167,7 +1167,7 @@ export function PaymentApprovalPageClient() {
             <div className="space-y-4 px-6 pb-6 pt-2">
               {/* Reference Document Section */}
               <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลเอกสารอ้างอิง</div>
+                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลเอกสารอ้างอิง</div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                   <DetailItem label="เลขที่เอกสารอ้างอิง" value={detail.row.sourceDocNo} />
                   <DetailItem label="ประเภทเอกสารอ้างอิง" value={detail.row.sourceLabel} />
@@ -1178,7 +1178,7 @@ export function PaymentApprovalPageClient() {
 
               {/* Financial Section */}
               <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">รายละเอียดการเงิน</div>
+                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">รายละเอียดการเงิน</div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                   <DetailItem label="ยอดเต็ม" value={formatMoney(detail.row.totalAmount)} />
                   <DetailItem label="ชำระแล้ว" value={formatMoney(detail.row.paidAmount)} />
@@ -1189,7 +1189,7 @@ export function PaymentApprovalPageClient() {
 
               {detail.row.approvalStatus === 'pending' ? renderSplitApprovalSection(detail.row) : (
                 <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">รายละเอียดการอนุมัติ</div>
+                  <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">รายละเอียดการอนุมัติ</div>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                     <DetailItem label="เลขที่อนุมัติ" value={detail.row.approvalDisplayDocNo ?? detail.row.docNo} />
                     <DetailItem label="ช่องทางจ่าย / ปลายทาง" value={detail.row.destinationLabel || '-'} />
@@ -1205,7 +1205,7 @@ export function PaymentApprovalPageClient() {
             <div className="space-y-4 px-6 pb-6 pt-2">
               {/* Reference Document Section */}
               <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลเอกสารอ้างอิง</div>
+                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลเอกสารอ้างอิง</div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                   <DetailItem label="เลขที่อนุมัติ" value={detail.row.docNo} />
                   <DetailItem label="เลขที่เอกสารอ้างอิง" value={detail.row.sourceDocNo} />
@@ -1218,7 +1218,7 @@ export function PaymentApprovalPageClient() {
 
               {/* Financial Section */}
               <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">รายละเอียดการเงิน</div>
+                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">รายละเอียดการเงิน</div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                   <DetailItem label={detail.row.sourceType === 'petty_advance_return' ? 'บัญชีรับคืน' : 'ช่องทางจ่าย'} value={detail.row.destinationLabel || detail.row.accountName || '-'} />
                   <DetailItem label={detail.row.sourceType === 'petty_advance_return' ? 'ยอดคืน' : 'ยอดเต็ม'} value={formatMoney(detail.row.totalAmount)} />
@@ -1228,7 +1228,7 @@ export function PaymentApprovalPageClient() {
 
               {detail.row.approvalStatus === 'pending' ? renderSplitApprovalSection(detail.row) : (
                 <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">รายละเอียดการอนุมัติ</div>
+                  <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">รายละเอียดการอนุมัติ</div>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                     <DetailItem label="เลขที่อนุมัติ" value={detail.row.approvalDisplayDocNo ?? detail.row.docNo} />
                     <DetailItem label="ยอดอนุมัติ" value={formatMoney(detail.row.approvedAmount)} />

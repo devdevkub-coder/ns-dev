@@ -453,7 +453,7 @@ export function StockTransferPageClient() {
           พบทั้งหมด <span className="font-semibold text-slate-900">{data.summary.totalRows.toLocaleString('th-TH')}</span> รายการ
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {columnResize.hasCustomWidths ? <Button className="h-9" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>Set col to default</Button> : null}
+          {columnResize.hasCustomWidths ? <Button className="h-9" size="sm" type="button" variant="outline" onClick={columnResize.resetColumnWidths}>คืนค่าเดิมตาราง</Button> : null}
           <select
             aria-label="จำนวนรายการต่อหน้า"
             className="h-9 w-auto rounded-md border border-slate-300 px-2 py-1 text-sm"

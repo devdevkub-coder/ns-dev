@@ -93,11 +93,11 @@ export function CashFlowAnalysisPageClient() {
         <div className="flex gap-2 items-center">
           <div className="flex-1 grid grid-cols-2 gap-2">
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-slate-500 font-semibold shrink-0">From</span>
+              <span className="text-xs text-slate-500 font-semibold shrink-0">From</span>
               <DatePickerInput className="w-full text-xs" value={from} onChange={setFrom} />
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-slate-500 font-semibold shrink-0">To</span>
+              <span className="text-xs text-slate-500 font-semibold shrink-0">To</span>
               <DatePickerInput className="w-full text-xs" value={to} onChange={setTo} />
             </div>
           </div>
@@ -401,7 +401,7 @@ function DetailTable({ isLoading, rows }: { isLoading: boolean; rows: AnalysisPa
         {!isLoading && rows.map((row) => (
           <div key={row.label} className={`flex justify-between items-center p-3 text-xs ${row.tone === 'warn' ? 'bg-amber-50/50' : row.tone === 'bad' ? 'bg-red-50/50' : row.label.includes('Projected') ? 'bg-blue-50/50' : ''}`}>
             <span className="text-slate-700">{row.label}</span>
-            <span className={`font-bold ${row.tone === 'bad' ? 'text-red-750' : row.tone === 'good' ? 'text-emerald-700' : 'text-slate-900'}`}>
+            <span className={`font-bold ${row.tone === 'bad' ? 'text-red-700' : row.tone === 'good' ? 'text-emerald-700' : 'text-slate-900'}`}>
               {row.suffix === '%' ? row.value.toFixed(2) : money(row.value)}{row.suffix ?? ''}
             </span>
           </div>
@@ -419,7 +419,7 @@ function ForecastMega({ horizon, summary }: { horizon: number; summary?: Forecas
 function ProjectionSvg({ days }: { days: ProjectionDay[] }) {
   const maxAbs = Math.max(...days.map((day) => Math.abs(day.closing)), 1)
   const points = days.map((day, index) => `${40 + (index / Math.max(1, days.length - 1)) * 740},${100 - (day.closing / maxAbs) * 90}`).join(' ')
-  return <svg viewBox="0 0 800 200" className="h-[200px] w-full"><line stroke="#cbd5e1" strokeDasharray="3 3" x1="40" x2="780" y1="100" y2="100" /><text fill="#64748b" fontSize="9" textAnchor="end" x="35" y="103">0</text><polyline fill="none" points={points} stroke="#0284c7" strokeWidth="2" /><polygon fill="rgba(16,185,129,0.15)" points={`40,100 ${points} 780,100`} /><circle cx="40" cy="100" fill="#10b981" r="4" /><text fill="#0284c7" fontSize="9" fontWeight="bold" textAnchor="middle" x="40" y="195">วันนี้</text></svg>
+  return <svg viewBox="0 0 800 200" className="h-[200px] w-full"><line stroke="#cbd5e1" strokeDasharray="3 3" x1="40" x2="780" y1="100" y2="100" /><text fill="#64748b" fontSize="12" textAnchor="end" x="35" y="103">0</text><polyline fill="none" points={points} stroke="#0284c7" strokeWidth="2" /><polygon fill="rgba(16,185,129,0.15)" points={`40,100 ${points} 780,100`} /><circle cx="40" cy="100" fill="#10b981" r="4" /><text fill="#0284c7" fontSize="12" fontWeight="bold" textAnchor="middle" x="40" y="195">วันนี้</text></svg>
 }
 
 function Stat({ label, tone, value }: { label: string; tone: 'blue' | 'emerald' | 'red'; value: string }) {
@@ -447,7 +447,7 @@ function TopAr({ rows }: { rows: ForecastPayload['insights']['topAR'] }) {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50/50 transition-colors bg-red-50/30">
+            <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
               <Td>{row.customerName}</Td>
               <Td mono>{row.docNo}</Td>
               <Td align="right" strong>{money(row.receivableBalance)}</Td>
@@ -467,11 +467,11 @@ function TopAr({ rows }: { rows: ForecastPayload['insights']['topAR'] }) {
             <div key={row.id} className="p-3 space-y-1 text-xs hover:bg-slate-50/50 transition">
               <div className="flex justify-between items-center">
                 <span className="font-semibold text-slate-900">{row.customerName}</span>
-                <span className="font-mono text-blue-750 font-semibold">{row.docNo}</span>
+                <span className="font-mono text-blue-700 font-semibold">{row.docNo}</span>
               </div>
-              <div className="flex justify-between items-center text-[11px] text-slate-500">
+              <div className="flex justify-between items-center text-xs text-slate-500">
                 <span>ค้าง: <b className="text-slate-800">{money(row.receivableBalance)}</b></span>
-                <span>ค้างมาแล้ว: <b className="text-red-650 font-bold">{row.daysOverdue} วัน</b></span>
+                <span>ค้างมาแล้ว: <b className="text-red-600 font-bold">{row.daysOverdue} วัน</b></span>
               </div>
             </div>
           ))
@@ -500,7 +500,7 @@ function TopAp({ rows }: { rows: ForecastPayload['insights']['topAP'] }) {
               <Td>{row.supplierName}</Td>
               <Td mono>{row.docNo}</Td>
               <Td align="right" strong>{money(row.payableBalance)}</Td>
-              <Td align="right"><span className={row.daysToDue < 7 ? 'text-red-700' : 'text-slate-650'}>{row.daysToDue}</span></Td>
+              <Td align="right"><span className={row.daysToDue < 7 ? 'text-red-700' : 'text-slate-600'}>{row.daysToDue}</span></Td>
             </tr>
           ))}
           {!rows.length ? <tr><td className="py-4 text-center text-slate-400" colSpan={4}>ไม่มี AP คงเหลือ</td></tr> : null}
@@ -516,11 +516,11 @@ function TopAp({ rows }: { rows: ForecastPayload['insights']['topAP'] }) {
             <div key={row.id} className="p-3 space-y-1 text-xs hover:bg-slate-50/50 transition">
               <div className="flex justify-between items-center">
                 <span className="font-semibold text-slate-900">{row.supplierName}</span>
-                <span className="font-mono text-blue-755 font-semibold">{row.docNo}</span>
+                <span className="font-mono text-blue-700 font-semibold">{row.docNo}</span>
               </div>
-              <div className="flex justify-between items-center text-[11px] text-slate-500">
+              <div className="flex justify-between items-center text-xs text-slate-500">
                 <span>ยอด: <b className="text-slate-800">{money(row.payableBalance)}</b></span>
-                <span>ครบกำหนดใน: <b className={row.daysToDue < 7 ? 'text-red-700 font-bold' : 'text-slate-650 font-medium'}>{row.daysToDue} วัน</b></span>
+                <span>ครบกำหนดใน: <b className={row.daysToDue < 7 ? 'text-red-700 font-bold' : 'text-slate-600 font-medium'}>{row.daysToDue} วัน</b></span>
               </div>
             </div>
           ))
@@ -579,7 +579,7 @@ function DayModal({ day, onClose }: { day: ProjectionDay; onClose: () => void })
                   <div className="text-slate-600">{event.label}</div>
                   <div className="flex justify-between items-center pt-1.5 border-t border-slate-100/50">
                     <span className="text-slate-400">จำนวนเงิน</span>
-                    <span className={`font-bold ${event.inOut === 'IN' ? 'text-emerald-700' : 'text-red-750'}`}>
+                    <span className={`font-bold ${event.inOut === 'IN' ? 'text-emerald-700' : 'text-red-700'}`}>
                       {event.inOut === 'IN' ? '+' : '-'}{money(event.amount)}
                     </span>
                   </div>

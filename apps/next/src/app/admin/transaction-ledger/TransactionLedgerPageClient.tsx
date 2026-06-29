@@ -322,11 +322,11 @@ export function TransactionLedgerPageClient() {
           <DatePickerInput className="w-[130px]" value={dateFrom} onChange={setDateFrom} />
           <span className="text-slate-400">→</span>
           <DatePickerInput className="w-[130px]" value={dateTo} onChange={setDateTo} />
-          <select className="rounded-md border border-slate-300 px-3 text-sm h-9 bg-white text-slate-850" value={filterAccount} onChange={(event) => setFilterAccount(event.target.value)}>
+          <select className="rounded-md border border-slate-300 px-3 text-sm h-9 bg-white text-slate-800" value={filterAccount} onChange={(event) => setFilterAccount(event.target.value)}>
             <option value="">💳 ทุกบัญชี</option>
             {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
           </select>
-          <select className="rounded-md border border-slate-300 px-3 text-sm h-9 bg-white text-slate-850" value={filterRefType} onChange={(event) => setFilterRefType(event.target.value)}>
+          <select className="rounded-md border border-slate-300 px-3 text-sm h-9 bg-white text-slate-800" value={filterRefType} onChange={(event) => setFilterRefType(event.target.value)}>
             <option value="">📋 ทุกประเภท</option>
             {refTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
@@ -356,7 +356,7 @@ export function TransactionLedgerPageClient() {
           </button>
           <button className="h-9 rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60 shrink-0" disabled={ledger.length === 0 || isExporting} type="button" onClick={() => void exportExcel()}>{isExporting ? '..' : 'Excel'}</button>
         </div>
-        <div className="flex flex-wrap gap-1.5 text-[10px] text-slate-500 pt-1">
+        <div className="flex flex-wrap gap-1.5 text-xs text-slate-500 pt-1">
           <span className="rounded bg-emerald-50 px-1 py-0.5 text-emerald-700 font-medium">เข้า: {formatMoney(summary.totalIn)}</span>
           <span className="rounded bg-red-50 px-1 py-0.5 text-red-700 font-medium">ออก: {formatMoney(summary.totalOut)}</span>
           <span className="rounded bg-slate-50 px-1 py-0.5 text-slate-700">พบ: {summary.count} รายการ</span>
@@ -507,17 +507,17 @@ export function TransactionLedgerPageClient() {
             <div key={row.id} className="rounded-lg border border-slate-100 bg-white p-3.5 shadow-sm space-y-2.5 animate-fade-in">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <span className="inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-700">{row.refType}</span>
-                  <span className="ml-1.5 font-mono text-[11px] text-slate-500 bg-slate-50 px-1 py-0.5 rounded border border-slate-100">{row.refNo}</span>
+                  <span className="inline-block rounded bg-slate-100 px-1.5 py-0.5 text-xs font-bold text-slate-700">{row.refType}</span>
+                  <span className="ml-1.5 font-mono text-xs text-slate-500 bg-slate-50 px-1 py-0.5 rounded border border-slate-100">{row.refNo}</span>
                 </div>
-                <span className="text-[11px] font-medium text-slate-500">{row.date ? formatDateDisplay(row.date) : '-'}</span>
+                <span className="text-xs font-medium text-slate-500">{row.date ? formatDateDisplay(row.date) : '-'}</span>
               </div>
 
               <div className="text-xs">
                 <div className="font-semibold text-slate-800">{row.accountName}</div>
                 <div className="text-slate-500 mt-0.5 leading-snug">{row.description || row.note || '-'}</div>
                 {row.payee ? (
-                  <div className="text-[11px] text-slate-400 mt-1">
+                  <div className="text-xs text-slate-400 mt-1">
                     <span className="font-medium text-slate-500">ผู้รับ/ส่ง:</span> {row.payee}
                   </div>
                 ) : null}
@@ -526,7 +526,7 @@ export function TransactionLedgerPageClient() {
               {row.linkedBills.length > 0 ? (
                 <div className="flex flex-wrap gap-1 border-t border-slate-50 pt-2">
                   {row.linkedBills.map((bill) => (
-                    <span key={`${row.id}-${bill.type}-${bill.docNo}`} className="rounded bg-blue-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-blue-700">
+                    <span key={`${row.id}-${bill.type}-${bill.docNo}`} className="rounded bg-blue-50 px-1.5 py-0.5 font-mono text-xs font-semibold text-blue-700">
                       {bill.type}:{bill.docNo}
                     </span>
                   ))}
@@ -535,15 +535,15 @@ export function TransactionLedgerPageClient() {
 
               <div className="grid grid-cols-3 gap-2 border-t border-slate-100 pt-2.5 text-center text-xs">
                 <div>
-                  <span className="text-slate-400 block text-[9px] uppercase font-semibold">เงินเข้า</span>
+                  <span className="text-slate-400 block text-xs uppercase font-semibold">เงินเข้า</span>
                   <span className="font-bold tabular-nums text-emerald-700">{row.amountIn > 0 ? formatMoney(row.amountIn) : '-'}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-[9px] uppercase font-semibold">เงินออก</span>
+                  <span className="text-slate-400 block text-xs uppercase font-semibold">เงินออก</span>
                   <span className="font-bold tabular-nums text-red-600">{row.amountOut > 0 ? formatMoney(row.amountOut) : '-'}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-[9px] uppercase font-semibold">คงเหลือ</span>
+                  <span className="text-slate-400 block text-xs uppercase font-semibold">คงเหลือ</span>
                   <span className="font-semibold tabular-nums text-slate-600">{row.runningBalance === null ? '-' : formatMoney(row.runningBalance)}</span>
                 </div>
               </div>

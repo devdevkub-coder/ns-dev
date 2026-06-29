@@ -170,8 +170,8 @@ export function FcdLedgerPageClient() {
               className={`rounded-md border border-slate-100 bg-white p-4 shadow-sm space-y-2 text-xs ${isOpening ? 'bg-slate-50' : ''}`}
             >
               <div className="flex justify-between items-start">
-                <span className="font-mono text-slate-500 text-[10px]">{row.date}</span>
-                <span className={`rounded-md px-1.5 py-0.5 text-[9px] font-bold ${isOpening ? 'bg-slate-200 text-slate-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                <span className="font-mono text-slate-500 text-xs">{row.date}</span>
+                <span className={`rounded-md px-1.5 py-0.5 text-xs font-bold ${isOpening ? 'bg-slate-200 text-slate-700' : 'bg-indigo-100 text-indigo-700'}`}>
                   {row.type}
                 </span>
               </div>
@@ -187,7 +187,7 @@ export function FcdLedgerPageClient() {
 
               <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-2 border-t border-slate-100/60 mt-1">
                 <div>
-                  <div className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">ต่างประเทศ ({currency})</div>
+                  <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider">ต่างประเทศ ({currency})</div>
                   <div className="mt-0.5 space-y-0.5 font-mono">
                     <div className="flex justify-between"><span>เข้า:</span><span className="text-emerald-700">{row.foreignIn ? formatMoney(row.foreignIn) : '-'}</span></div>
                     <div className="flex justify-between"><span>ออก:</span><span className="text-red-600">{row.foreignOut ? formatMoney(row.foreignOut) : '-'}</span></div>
@@ -196,7 +196,7 @@ export function FcdLedgerPageClient() {
                 </div>
                 
                 <div>
-                  <div className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Equivalent (THB)</div>
+                  <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Equivalent (THB)</div>
                   <div className="mt-0.5 space-y-0.5 font-mono">
                     <div className="flex justify-between"><span>เข้า:</span><span className="text-emerald-700">{row.thbIn ? formatMoney(row.thbIn) : '-'}</span></div>
                     <div className="flex justify-between"><span>ออก:</span><span className="text-red-600">{row.thbOut ? formatMoney(row.thbOut) : '-'}</span></div>

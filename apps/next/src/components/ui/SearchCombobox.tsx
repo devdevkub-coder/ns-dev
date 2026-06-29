@@ -188,7 +188,7 @@ export function SearchCombobox({
 
   return (
     <div ref={containerRef} className="relative" data-error-key={errorKey}>
-      {!hideLabel ? <label className="mb-1 block text-xs font-medium text-slate-600" htmlFor={inputId}>{labelText}{hasInlineRequired ? <span className="ml-1 text-red-600">*</span> : null}</label> : null}
+      {!hideLabel ? <label className="mb-1 block text-xs font-semibold text-slate-600" htmlFor={inputId}>{labelText}{hasInlineRequired ? <span className="ml-1 text-red-600">*</span> : null}</label> : null}
       <Input
         ref={inputRef}
         aria-autocomplete="list"
@@ -199,7 +199,7 @@ export function SearchCombobox({
         aria-invalid={Boolean(error)}
         className={cn(
           'h-10 w-full rounded-md border px-3 py-2 text-base sm:text-sm',
-          error ? 'border-red-400 bg-red-50' : 'border-slate-300',
+          error ? 'border-red-400 bg-red-50 dark:border-red-500 dark:bg-red-950/20' : 'border-slate-300 dark:[border-color:var(--ns-dark-border-strong)]',
           inputClassName,
         )}
         disabled={disabled}
@@ -294,7 +294,7 @@ export function SearchCombobox({
         ? createPortal(
             <div
               id={`${inputId}-options`}
-              className={`${portalHost === document.body ? 'fixed' : 'absolute'} z-[80] max-h-64 overflow-y-auto rounded-md border border-slate-200 bg-white py-1 text-base shadow-xl sm:text-sm ${optionsPanelClassName ?? ''}`.trim()}
+              className={`${portalHost === document.body ? 'fixed' : 'absolute'} z-[80] max-h-64 overflow-y-auto rounded-md border border-slate-200 bg-white py-1 text-base shadow-xl sm:text-sm dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dark-surface)] ${optionsPanelClassName ?? ''}`.trim()}
               role="listbox"
               style={{ left: panelRect.left, top: panelRect.top, width: panelRect.width }}
             >
@@ -306,14 +306,14 @@ export function SearchCombobox({
                   }}
                   id={`${inputId}-option-${index}`}
                   aria-selected={option.id === value}
-                  className={`block w-full px-3 py-2 text-left hover:bg-blue-50 ${option.id === value ? 'bg-blue-100 text-blue-800' : highlightedIndex === index ? 'bg-slate-100 text-slate-900' : ''}`}
+                  className={`block w-full px-3 py-2 text-left text-slate-800 hover:bg-blue-50 dark:text-slate-100 dark:hover:bg-slate-700/70 ${option.id === value ? 'bg-blue-100 text-blue-800 dark:bg-slate-700 dark:text-white' : highlightedIndex === index ? 'bg-slate-100 text-slate-900 dark:bg-slate-700/70 dark:text-white' : ''}`}
                   role="option"
                   type="button"
-                  onMouseEnter={() => setHighlightedIndex(index)}
                   onMouseDownCapture={(event) => {
                     event.stopPropagation()
                     selectOption(option)
                   }}
+                  onMouseEnter={() => setHighlightedIndex(index)}
                   onTouchStartCapture={(event) => {
                     const touch = event.touches[0]
                     touchStartRef.current = { x: touch.clientX, y: touch.clientY }
@@ -341,9 +341,9 @@ export function SearchCombobox({
                   }}
                 >
                   <span className="block font-medium">{option.label}</span>
-                  {option.description ? <span className="block text-sm text-slate-500 sm:text-xs">{option.description}</span> : null}
+                  {option.description ? <span className="block text-sm text-slate-500 sm:text-xs dark:text-slate-400">{option.description}</span> : null}
                 </button>
-              )) : <div className="px-3 py-2 text-base text-slate-500 sm:text-sm">ไม่พบข้อมูลที่ตรงกับคำค้นหา</div>}
+              )) : <div className="px-3 py-2 text-base text-slate-500 sm:text-sm dark:text-slate-400">ไม่พบข้อมูลที่ตรงกับคำค้นหา</div>}
             </div>,
             portalHost,
           )

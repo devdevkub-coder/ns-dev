@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
-import type { Prisma } from '../../../../../generated/prisma/client'
+import { Prisma } from '../../../../../generated/prisma/client'
 import { parseInternalBigIntId, requireBusinessCode } from '@/lib/business-code'
 import { PURCHASE_BILL_CANCELLED_STATUSES } from '@/lib/purchase-bill-status'
 import { apiErrorResponse } from '@/lib/server/api-error'
@@ -333,6 +333,27 @@ export async function GET(request: Request) {
     const visibleCustomers = customers.filter((customer) => visibleCustomerIds.has(customer.id))
     const salesLines = await salesBillLineFactsForBills(salesBills.map((bill) => bill.id))
 
+    const stockMap = new Map<string, { qty: number; value: number }>()
+    const stockQuery = await prisma.$queryRaw<Array<{ code: string; qty: number | null; value: number | null }>>`
+      select
+        p.code,
+        sum(coalesce(sl.qty_in, 0) - coalesce(sl.qty_out, 0)) as qty,
+        sum(coalesce(sl.value_in, 0) - coalesce(sl.value_out, 0)) as value
+      from public.stock_ledger sl
+      join public.products p on p.id = sl.product_id
+      where 1=1
+        ${branch?.id != null ? Prisma.sql`and sl.branch_id = ${branch.id}` : Prisma.sql``}
+      group by p.code
+    `
+    stockQuery.forEach((row) => {
+      if (row.code) {
+        stockMap.set(row.code.trim().toUpperCase(), {
+          qty: toNumber(row.qty),
+          value: toNumber(row.value)
+        })
+      }
+    })
+
     const productsByKey = new Map<string, ProductRef>()
     products.forEach((product) => productLookupKeys(product).forEach((key) => productsByKey.set(key, product)))
 
@@ -413,42 +434,88 @@ export async function GET(request: Request) {
         row.allocationCogs += toNumber(fact.matched_cogs)
       })
 
+    const productMonthlyMap = new Map<string, Array<{ qty: number; buyAmount: number; sellQty: number; salesAmount: number }>>()
+    const getProductMonthly = (key: string) => {
+      let arr = productMonthlyMap.get(key)
+      if (!arr) {
+        arr = Array.from({ length: 12 }, () => ({ qty: 0, buyAmount: 0, sellQty: 0, salesAmount: 0 }))
+        productMonthlyMap.set(key, arr)
+      }
+      return arr
+    }
+
+    for (let mIdx = 0; mIdx < 12; mIdx++) {
+      const mKey = String(mIdx + 1).padStart(2, '0')
+
+      purchaseBills
+        .filter((bill) => inYearMonth(bill.date, year, mKey))
+        .forEach((bill) => {
+          purchaseBillItemRows(bill).forEach((item) => {
+            const product = itemLookupKeys(item).map((k) => productsByKey.get(k)).find(Boolean)
+            if (!product) return
+            const key = String(product.id)
+            const arr = getProductMonthly(key)
+            arr[mIdx].qty += itemQty(item)
+            arr[mIdx].buyAmount += itemAmount(item)
+          })
+        })
+
+      salesLines
+        .filter((line) => inYearMonth(line.date, year, mKey))
+        .forEach((line) => {
+          const product = lineLookupKeys(line).map((k) => productsByKey.get(k)).find(Boolean)
+          if (!product) return
+          const key = String(product.id)
+          const arr = getProductMonthly(key)
+          arr[mIdx].sellQty += line.qty
+          arr[mIdx].salesAmount += line.lineAmount
+        })
+    }
+
     const rows = Array.from(rowsByKey.values())
-      .map((row) => ({
-        avgBuy: row.buyQty > 0 ? row.buyAmount / row.buyQty : 0,
-        avgSell: row.sellQty > 0 ? row.revenue / row.sellQty : 0,
-        allocationCogs: row.allocationCogs,
-        allocationQty: row.allocationQty,
-        buyAmount: row.buyAmount,
-        buyBillCount: row.buyBills.size,
-        buyQty: row.buyQty,
-        code: row.code,
-        cogs: row.cogs,
-        gp: row.gp,
-        gpPct: row.revenue > 0 ? (row.gp / row.revenue) * 100 : 0,
-        id: row.id,
-        itemStatus: row.itemStatus,
-        matchKey: row.matchKey,
-        metalGroup: row.metalGroup,
-        name: row.name,
-        productName: row.name,
-        productionInputQty: row.productionInputQty,
-        productionLossPct: row.productionInputQty > 0 ? (row.productionLossQty / row.productionInputQty) * 100 : 0,
-        productionLossQty: row.productionLossQty,
-        productionOutputQty: row.productionOutputQty,
-        productionYieldPct: row.productionInputQty > 0 ? (row.productionOutputQty / row.productionInputQty) * 100 : 0,
-        purchaseAmount: row.buyAmount,
-        purchaseBillCount: row.buyBills.size,
-        purchaseQty: row.buyQty,
-        sellBillCount: row.sellBills.size,
-        sellQty: row.sellQty,
-        salesAmount: row.revenue,
-        salesBillCount: row.sellBills.size,
-        salesQty: row.sellQty,
-        type: row.type,
-        unit: row.unit,
-        revenue: row.revenue,
-      }))
+      .map((row) => {
+        const stockData = row.code ? stockMap.get(row.code.trim().toUpperCase()) : undefined
+        const stock = stockData?.qty ?? 0
+        const wac = stock > 0 ? (stockData?.value ?? 0) / stock : 0
+        return {
+          avgBuy: row.buyQty > 0 ? row.buyAmount / row.buyQty : 0,
+          avgSell: row.sellQty > 0 ? row.revenue / row.sellQty : 0,
+          allocationCogs: row.allocationCogs,
+          allocationQty: row.allocationQty,
+          buyAmount: row.buyAmount,
+          buyBillCount: row.buyBills.size,
+          buyQty: row.buyQty,
+          code: row.code,
+          cogs: row.cogs,
+          gp: row.gp,
+          gpPct: row.revenue > 0 ? (row.gp / row.revenue) * 100 : 0,
+          id: row.id,
+          itemStatus: row.itemStatus,
+          matchKey: row.matchKey,
+          metalGroup: row.metalGroup,
+          name: row.name,
+          productName: row.name,
+          productionInputQty: row.productionInputQty,
+          productionLossPct: row.productionInputQty > 0 ? (row.productionLossQty / row.productionInputQty) * 100 : 0,
+          productionLossQty: row.productionLossQty,
+          productionOutputQty: row.productionOutputQty,
+          productionYieldPct: row.productionInputQty > 0 ? (row.productionOutputQty / row.productionInputQty) * 100 : 0,
+          purchaseAmount: row.buyAmount,
+          purchaseBillCount: row.buyBills.size,
+          purchaseQty: row.buyQty,
+          sellBillCount: row.sellBills.size,
+          sellQty: row.sellQty,
+          salesAmount: row.revenue,
+          salesBillCount: row.sellBills.size,
+          salesQty: row.sellQty,
+          type: row.type,
+          unit: row.unit,
+          revenue: row.revenue,
+          stock,
+          wac,
+          monthlyData: productMonthlyMap.get(row.id) ?? Array.from({ length: 12 }, () => ({ qty: 0, buyAmount: 0, sellQty: 0, salesAmount: 0 })),
+        }
+      })
       .filter((row) => !search || `${row.code} ${row.name} ${row.metalGroup} ${row.itemStatus}`.toLowerCase().includes(search))
       .filter((row) => row.buyQty > 0 || row.sellQty > 0 || row.productionInputQty > 0 || row.productionOutputQty > 0 || row.productionLossQty > 0 || row.allocationQty > 0)
       .sort((left, right) => (right.revenue - left.revenue) || (right.buyAmount - left.buyAmount))
@@ -649,7 +716,6 @@ export async function GET(request: Request) {
         salesLines: detailSalesLines,
       }
     })() : null
-
     if (url.searchParams.get('format') === 'xlsx') {
       return xlsxResponse(buildWorkbook(rows.map((row) => ({
         AvgBuy: row.avgBuy,
@@ -664,6 +730,8 @@ export async function GET(request: Request) {
         Product: row.name,
         Revenue: row.revenue,
         SellQty: row.sellQty,
+        Stock: row.stock,
+        WAC: row.wac,
       }))), `tracking_product_${year}${month ? `_${month}` : ''}.xlsx`)
     }
 

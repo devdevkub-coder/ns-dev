@@ -101,7 +101,7 @@ const BG_PRODUCT_TOTAL = '#ecfdf5'
 const styles = StyleSheet.create({
   page: {
     fontFamily: PDF_FONT_FAMILY,
-    fontSize: 10,
+    fontSize: 12,
     paddingTop: 28,
     paddingBottom: 28,
     paddingLeft: 31,
@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
   companyName: { fontSize: 13, fontWeight: 700, color: TEXT_DARK, lineHeight: 1.2 },
-  companyEn: { fontSize: 8.5, fontWeight: 700, color: TEXT_SECONDARY, marginTop: 1, lineHeight: 1.2 },
+  companyEn: { fontSize: 12.5, fontWeight: 700, color: TEXT_SECONDARY, marginTop: 1, lineHeight: 1.2 },
   companyInfo: { fontSize: 7.5, color: TEXT_SECONDARY, marginTop: 1.2, lineHeight: 1.2 },
   docHead: { flex: 0.7, alignItems: 'flex-end' },
   docTitle: { fontSize: 14, fontWeight: 700, color: DOC_TITLE_GREEN },
@@ -157,12 +157,12 @@ const styles = StyleSheet.create({
     backgroundColor: BG_PANEL_TITLE,
     color: '#334155',
     fontWeight: 700,
-    fontSize: 9,
+    fontSize: 12,
   },
   panelBody: { padding: 6, flexDirection: 'row', flexWrap: 'wrap' },
   field: { width: '50%', marginBottom: 3, paddingRight: 6 },
-  fieldLabel: { fontSize: 8, color: TEXT_SECONDARY, fontWeight: 500 },
-  fieldValue: { fontSize: 10, fontWeight: 600, color: TEXT_DARK, marginTop: 1 },
+  fieldLabel: { fontSize: 12, color: TEXT_SECONDARY, fontWeight: 500 },
+  fieldValue: { fontSize: 12, fontWeight: 600, color: TEXT_DARK, marginTop: 1 },
   fieldValueStrong: { fontSize: 12, color: FINAL_WEIGHT_GREEN, fontWeight: 700, marginTop: 1 },
 
   // Items table (flex rows)
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
     paddingLeft: 5,
     paddingRight: 5,
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: 700,
     color: '#1e293b',
     borderRightWidth: 1,
@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
     paddingLeft: 5,
     paddingRight: 5,
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: 700,
     color: '#1e293b',
   },
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
     paddingLeft: 5,
     paddingRight: 5,
-    fontSize: 9,
+    fontSize: 12,
     borderRightWidth: 1,
     borderRightColor: BORDER_LIGHT,
   },
@@ -213,14 +213,14 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
     paddingLeft: 5,
     paddingRight: 5,
-    fontSize: 9,
+    fontSize: 12,
   },
   tableCellRight: {
     paddingTop: 6,
     paddingBottom: 6,
     paddingLeft: 5,
     paddingRight: 5,
-    fontSize: 9,
+    fontSize: 12,
     textAlign: 'right',
     borderRightWidth: 1,
     borderRightColor: BORDER_LIGHT,
@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
     paddingLeft: 5,
     paddingRight: 5,
-    fontSize: 9,
+    fontSize: 12,
     textAlign: 'right',
   },
   tableCellStrong: {
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
     paddingLeft: 5,
     paddingRight: 5,
-    fontSize: 9,
+    fontSize: 12,
     textAlign: 'right',
     fontWeight: 700,
     color: FINAL_WEIGHT_GREEN,
@@ -250,12 +250,12 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
     paddingLeft: 5,
     paddingRight: 5,
-    fontSize: 9,
+    fontSize: 12,
     textAlign: 'right',
     fontWeight: 700,
     color: FINAL_WEIGHT_GREEN,
   },
-  itemName: { fontWeight: 700, color: TEXT_DARK, fontSize: 9 },
+  itemName: { fontWeight: 700, color: TEXT_DARK, fontSize: 12 },
   muted: { color: TEXT_MUTED, fontSize: 7, marginTop: 1 },
 
   // Row backgrounds (by className)
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
 
   // Bottom section
   bottomGrid: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  noteText: { fontSize: 9, color: TEXT_DARK },
+  noteText: { fontSize: 12, color: TEXT_DARK },
 
   // Signatures
   signatures: { flexDirection: 'row', gap: 12, marginTop: 20 },
@@ -277,12 +277,12 @@ const styles = StyleSheet.create({
     borderTopColor: '#94a3b8',
     paddingTop: 4,
     marginTop: 24,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: 700,
     textAlign: 'center',
   },
   sigDate: {
-    fontSize: 8,
+    fontSize: 12,
     color: TEXT_MUTED,
     marginTop: 2,
     textAlign: 'center',
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
   // Continued marker
   continued: {
     textAlign: 'right',
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: 700,
     color: TEXT_MUTED,
     paddingTop: 12,
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
     lineHeight: 1.25,
   },
   albumSubtitle: {
-    fontSize: 8.5,
+    fontSize: 12.5,
     color: TEXT_SECONDARY,
     marginTop: 6,
     lineHeight: 1.25,
@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   albumPageText: {
-    fontSize: 8.5,
+    fontSize: 12.5,
     fontWeight: 700,
     color: TEXT_MUTED,
   },
@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   albumBadgeText: {
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: 700,
     color: '#ffffff',
   },
@@ -397,7 +397,7 @@ const styles = StyleSheet.create({
     height: 20,
   },
   albumFileName: {
-    fontSize: 8,
+    fontSize: 12,
     color: TEXT_SECONDARY,
     width: '60%',
     overflow: 'hidden',
@@ -550,7 +550,7 @@ function TableFooter({ ticket, isReceipt }: { ticket: WeightTicketRecord; isRece
         <Text>{formatPrintableNumber(ticket.totals.grossWeight)}</Text>
       </View>
       <View style={[styles.tableCellRight, { width: COL_CONTAINER }]}>
-        <Text>{formatPrintableNumber(ticket.totals.containerDeductionWeight)} kg</Text>
+        <Text>{formatPrintableNumber(ticket.totals.containerDeductionWeight)}{isReceipt ? ' kg' : ''}</Text>
       </View>
       {isReceipt ? (
         <>
@@ -693,7 +693,7 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
 
             {/* Section grid: party info + doc info */}
             <View style={styles.sectionGrid}>
-              <View style={styles.panel}>
+              <View style={[styles.panel, { flex: 1 }]}>
                 <Text style={styles.panelTitle}>{nt(partyLabel)}</Text>
                 <View style={styles.panelBody}>
                   <View style={styles.field}>
@@ -714,7 +714,7 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
                   </View>
                 </View>
               </View>
-              <View style={styles.panel}>
+              <View style={[styles.panel, { flex: 1 }]}>
                 <Text style={styles.panelTitle}>{nt('ข้อมูลเอกสาร / Document Info')}</Text>
                 <View style={styles.panelBody}>
                   <View style={styles.field}>
@@ -757,13 +757,28 @@ export function WeightTicketDocument({ ticket, profile }: WeightTicketDocumentPr
             {isLastPage ? (
               <>
                 <View style={styles.bottomGrid}>
-                  <View style={styles.panel}>
+                  <View style={[styles.panel, { flex: 1.2 }]}>
+                    <Text style={styles.panelTitle}>{nt('สรุปตามหมวดสินค้า')}</Text>
+                    <View style={styles.panelBody}>
+                      {Array.from(ticket.productSummaries.reduce((map, summary) => {
+                        const cat = summary.categoryName || 'อื่นๆ'
+                        map.set(cat, (map.get(cat) || 0) + summary.netWeight)
+                        return map
+                      }, new Map<string, number>()).entries()).map(([cat, weight], idx) => (
+                        <View key={`cat-${idx}`} style={styles.field}>
+                          <Text style={styles.fieldLabel}>{nt(cat)}</Text>
+                          <Text style={styles.fieldValue}>{formatPrintableNumber(weight)} kg</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                  <View style={[styles.panel, { flex: 0.8 }]}>
                     <Text style={styles.panelTitle}>{nt('หมายเหตุ')}</Text>
                     <View style={styles.panelBody}>
                       <Text style={styles.noteText}>{nt(ticket.remark || '-')}</Text>
                     </View>
                   </View>
-                  <View style={styles.panel}>
+                  <View style={[styles.panel, { flex: 1 }]}>
                     <Text style={styles.panelTitle}>{nt('ข้อมูลน้ำหนัก / Weight Info')}</Text>
                     <View style={styles.panelBody}>
                       <View style={styles.field}>

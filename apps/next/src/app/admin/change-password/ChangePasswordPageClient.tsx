@@ -184,7 +184,7 @@ export function ChangePasswordPageClient() {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] animate-fade-in">
         <form className="space-y-4 rounded-md bg-white p-5 shadow border border-slate-100" onSubmit={submit}>
           {user?.mustChangePassword ? (
-            <div className="rounded-md border border-amber-250 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 animate-pulse">
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 animate-pulse">
               รหัสผ่านของคุณยังเป็นค่าเริ่มต้น กรุณาเปลี่ยนก่อนใช้งานต่อ
             </div>
           ) : null}
@@ -226,7 +226,7 @@ export function ChangePasswordPageClient() {
             onChange={setConfirmPassword}
           />
 
-          <label className="inline-flex items-center gap-2 text-sm text-slate-650 cursor-pointer select-none">
+          <label className="inline-flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none">
             <input checked={showPassword} className="size-4 rounded border-slate-300 text-slate-900 focus:ring-blue-500 focus:border-blue-500" onChange={(event) => setShowPassword(event.target.checked)} type="checkbox" />
             {showPassword ? <EyeOff className="size-4 text-slate-500" /> : <Eye className="size-4 text-slate-500" />}
             แสดงรหัสผ่าน
@@ -254,12 +254,12 @@ export function ChangePasswordPageClient() {
                 <div className="truncate text-xs text-slate-500 mt-0.5">@{user?.username ?? '-'}</div>
               </div>
             </div>
-            <div className="mt-3 truncate rounded border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-650 font-medium">{user?.email || '-'}</div>
+            <div className="mt-3 truncate rounded border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-600 font-medium">{user?.email || '-'}</div>
           </div>
 
           <div className="rounded-md border border-slate-100 bg-slate-50 p-4 text-sm text-slate-700">
             <div className="font-bold text-slate-900 text-xs uppercase tracking-wide">คำแนะนำรหัสผ่าน</div>
-            <ul className="mt-2.5 list-disc space-y-1.5 pl-4 text-xs leading-relaxed text-slate-650">
+            <ul className="mt-2.5 list-disc space-y-1.5 pl-4 text-xs leading-relaxed text-slate-600">
               <li>ใช้ตัวอักษรใหญ่ ตัวอักษรเล็ก และตัวเลขร่วมกัน</li>
               <li>หลีกเลี่ยงรหัสผ่านเดียวกับระบบอื่น</li>
               <li>ระบบใช้ Supabase Auth เป็นแหล่งข้อมูลรหัสผ่าน ไม่บันทึกในตารางของแอป</li>
@@ -283,8 +283,8 @@ function PasswordField(props: {
 }) {
   return (
     <label className="block text-sm font-medium text-slate-700">
-      {props.label} <span className="text-red-650">*</span>
-      {props.description ? <span className="ml-1 text-[11px] font-normal text-slate-500">({props.description})</span> : null}
+      {props.label} <span className="text-red-600">*</span>
+      {props.description ? <span className="ml-1 text-xs font-normal text-slate-500">({props.description})</span> : null}
       <Input
         autoComplete={props.autoComplete}
         className={`mt-1.5 h-9 focus:ring-blue-500 focus:border-blue-500 ${props.error ? 'border-red-400 bg-red-50 focus:border-red-400' : ''}`}

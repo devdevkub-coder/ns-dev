@@ -468,7 +468,7 @@ function DashboardKpi({ icon, label, sub, tone, value }: { icon: string; label: 
       </div>
       <div className="min-w-0 flex-1">
         <div className="text-xs font-semibold text-slate-500">{label}</div>
-        {sub && <div className="text-[10px] text-slate-400 mt-0.5">{sub}</div>}
+        {sub && <div className="text-xs text-slate-400 mt-0.5">{sub}</div>}
         <div className="mt-0.5 font-mono text-lg font-bold text-slate-900 truncate">{value}</div>
       </div>
     </div>
@@ -612,7 +612,7 @@ function AnalyticsDashboardView({ data, rangeFrom, rangeMode, rangeTo, setRangeF
       <div className="mb-4 grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl bg-white p-4 shadow-sm border border-slate-200">
            <h3 className="mb-3 font-bold text-slate-700 text-sm">📈 ยอดซื้อ vs ขาย (รายวัน)</h3>
-           {(analytics?.dailyTrend ?? []).map((row) => <div key={row.label} className="mb-2.5 grid grid-cols-12 items-center gap-2 text-xs"><div className="col-span-3 font-mono text-slate-600">{row.label}</div><div className="col-span-4 rounded-full bg-slate-100 h-5 overflow-hidden"><div className="rounded-full bg-blue-500 h-full text-right text-white pr-2 font-bold text-[10px] flex items-center justify-end" style={{ width: `${Math.max(15, row.purchase / trendMax * 100)}%` }}>{money(row.purchase)}</div></div><div className="col-span-5 rounded-full bg-slate-100 h-5 overflow-hidden"><div className="rounded-full bg-emerald-500 h-full text-right text-white pr-2 font-bold text-[10px] flex items-center justify-end" style={{ width: `${Math.max(15, row.sales / trendMax * 100)}%` }}>{money(row.sales)}</div></div></div>)}
+           {(analytics?.dailyTrend ?? []).map((row) => <div key={row.label} className="mb-2.5 grid grid-cols-12 items-center gap-2 text-xs"><div className="col-span-3 font-mono text-slate-600">{row.label}</div><div className="col-span-4 rounded-full bg-slate-100 h-5 overflow-hidden"><div className="rounded-full bg-blue-500 h-full text-right text-white pr-2 font-bold text-xs flex items-center justify-end" style={{ width: `${Math.max(15, row.purchase / trendMax * 100)}%` }}>{money(row.purchase)}</div></div><div className="col-span-5 rounded-full bg-slate-100 h-5 overflow-hidden"><div className="rounded-full bg-emerald-500 h-full text-right text-white pr-2 font-bold text-xs flex items-center justify-end" style={{ width: `${Math.max(15, row.sales / trendMax * 100)}%` }}>{money(row.sales)}</div></div></div>)}
         </div>
         <TopSimpleTable rows={analytics?.groupSummary ?? []} title="🥧 มูลค่าตามหมวดสินค้า" />
       </div>
@@ -673,7 +673,7 @@ function LegacyKpi({ label, sub, tone, value }: { label: string; sub: string; to
       </div>
       <div className="min-w-0 flex-1">
         <div className="text-xs font-semibold text-slate-500">{cleanLabel}</div>
-        {sub && <div className="text-[10px] text-slate-400 mt-0.5">{sub}</div>}
+        {sub && <div className="text-xs text-slate-400 mt-0.5">{sub}</div>}
         <div className={`mt-0.5 font-mono text-lg font-bold truncate ${style.text}`}>{value}</div>
       </div>
     </div>
@@ -717,7 +717,7 @@ function Tile({ label, sub, tone, value, className }: { label: string; sub?: str
     <div className={`rounded-xl border p-3 text-center ${cls} ${className || ''}`}>
       <div className="text-xs font-semibold">{label}</div>
       <div className="font-mono text-lg font-bold mt-1">{value}</div>
-      {sub ? <div className="text-[10px] opacity-85 mt-0.5">{sub}</div> : null}
+      {sub ? <div className="text-xs opacity-85 mt-0.5">{sub}</div> : null}
     </div>
   )
 }
@@ -780,12 +780,12 @@ function OwnerDueTable({ rows, title, type }: { rows: Array<{ amount: number; da
               <span className="font-bold text-slate-800 line-clamp-1">{row.name}</span>
               <span className="font-bold text-slate-900">{money(row.amount)}</span>
             </div>
-            <div className="flex justify-between items-center text-slate-500 text-[11px]">
+            <div className="flex justify-between items-center text-slate-500 text-xs">
               <span>บิล: <span className="font-mono">{row.docNo}</span></span>
               <span>Due: {row.due}</span>
             </div>
             {type === 'ar' && row.daysOverdue ? (
-              <div className="text-right text-[11px] font-semibold text-red-600">
+              <div className="text-right text-xs font-semibold text-red-600">
                 เกินกำหนด: {row.daysOverdue} วัน
               </div>
             ) : null}
@@ -837,7 +837,7 @@ function OwnerSmallTable({ rows, title }: { rows: Array<{ amount: number; contra
               <span className="font-mono text-slate-600">{row.docNo ?? row.contractNo}</span>
               <span className="font-bold text-slate-900">{money(row.amount)}</span>
             </div>
-            <div className="text-slate-500 text-[11px]">
+            <div className="text-slate-500 text-xs">
               รายละเอียด: {row.name ?? row.installmentNo ?? '-'}
             </div>
           </div>
@@ -865,17 +865,17 @@ function DailyBigCard({ count, icon, label, sub, tone, value, weight }: { count:
       <div className="min-w-0 flex-1">
         <div className="flex justify-between items-center">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{label}</span>
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">{count} บิล</span>
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">{count} บิล</span>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-4">
           <div>
-            <div className="text-[10px] text-slate-400 font-semibold">น้ำหนักรวม</div>
+            <div className="text-xs text-slate-400 font-semibold">น้ำหนักรวม</div>
             <div className="font-mono text-xl font-bold text-slate-900 leading-none mt-1">{weight} <span className="text-xs font-normal text-slate-500">กก.</span></div>
           </div>
           <div>
-            <div className="text-[10px] text-slate-400 font-semibold">ยอดเงินรวม</div>
+            <div className="text-xs text-slate-400 font-semibold">ยอดเงินรวม</div>
             <div className="font-mono text-xl font-bold text-slate-900 leading-none mt-1">{value}</div>
-            <div className="text-[10px] text-slate-500 mt-1">{sub}</div>
+            <div className="text-xs text-slate-500 mt-1">{sub}</div>
           </div>
         </div>
       </div>
@@ -971,9 +971,9 @@ function GroupBreakdown({ expandedGroup, groups, setExpandedGroup }: { expandedG
                       <div key={`${row.productId}_${idx}`} className="p-2.5 bg-white rounded-lg border border-slate-100 mb-1.5 last:mb-0 shadow-sm flex flex-col gap-1 text-xs">
                         <div className="flex justify-between items-start">
                           <span className="font-bold text-slate-800">{row.productName}</span>
-                          <span className="font-mono text-[10px] text-slate-400">{row.productCode}</span>
+                          <span className="font-mono text-xs text-slate-400">{row.productCode}</span>
                         </div>
-                        <div className="grid grid-cols-2 gap-2 mt-1 text-[11px]">
+                        <div className="grid grid-cols-2 gap-2 mt-1 text-xs">
                           <div className="text-blue-700 bg-blue-50/50 p-1.5 rounded-lg">
                             <div className="font-semibold text-xs">📥 ซื้อ</div>
                             <div className="mt-0.5">{money(row.buyQty)} กก.</div>
@@ -986,7 +986,7 @@ function GroupBreakdown({ expandedGroup, groups, setExpandedGroup }: { expandedG
                           </div>
                         </div>
                         {row.sellQty && row.buyQty ? (
-                          <div className="text-right text-[11px] font-semibold text-purple-700 mt-1">
+                          <div className="text-right text-xs font-semibold text-purple-700 mt-1">
                             Spread: {money(row.sellAmt / row.sellQty - row.buyAmt / row.buyQty)} ฿/กก.
                           </div>
                         ) : null}
@@ -1053,7 +1053,7 @@ function DailyBillTable({ rows, title, tone, total }: { rows: { amount: number; 
               <span className="font-bold text-slate-800 line-clamp-1">{row.name}</span>
               <span className={`font-bold ${amountColor}`}>{money(row.amount)}</span>
             </div>
-            <div className="flex justify-between items-center text-slate-500 text-[11px]">
+            <div className="flex justify-between items-center text-slate-500 text-xs">
               <span>บิล: <span className="font-mono">{row.docNo}</span></span>
               <span>น้ำหนัก: {money(row.qty)} กก.</span>
             </div>
@@ -1132,7 +1132,7 @@ function CashMovement({ movement }: { movement?: MainPayload['dailyReport']['cas
             {(movement?.accounts ?? []).map((row) => (
               <tr key={row.name} className="border-t border-slate-100 hover:bg-slate-50/30">
                 <td className="p-2 text-slate-700">
-                  <b>{row.name}</b> <span className="text-[10px] text-slate-400">({row.type})</span>
+                  <b>{row.name}</b> <span className="text-xs text-slate-400">({row.type})</span>
                 </td>
                 <td className="p-2 text-right font-mono text-emerald-600">{row.cashIn > 0 ? money(row.cashIn) : '-'}</td>
                 <td className="p-2 text-right font-mono text-red-600">{row.cashOut > 0 ? money(row.cashOut) : '-'}</td>
@@ -1379,12 +1379,12 @@ function RankTable({ color, rows, title }: { color: 'blue' | 'emerald'; rows: Ra
               </span>
               <span className={`font-bold ${text}`}>{money(row.amount)}</span>
             </div>
-            <div className="flex justify-between items-center text-slate-500 text-[11px]">
+            <div className="flex justify-between items-center text-slate-500 text-xs">
               <span>จำนวนบิล: {row.bills} บิล</span>
               <span>น้ำหนัก: {money(row.qty)} กก.</span>
             </div>
             {color === 'emerald' && row.gp !== undefined && (
-              <div className="flex justify-between items-center text-slate-500 text-[11px] mt-0.5 pt-0.5 border-t border-slate-100">
+              <div className="flex justify-between items-center text-slate-500 text-xs mt-0.5 pt-0.5 border-t border-slate-100">
                 <span>กำไร (GP): <span className="font-semibold text-emerald-700">{money(row.gp)}</span></span>
                 <span>อัตรากำไร: <span className="font-semibold text-emerald-600">{row.gpPct?.toFixed(2)}%</span></span>
               </div>
@@ -1510,7 +1510,7 @@ function ProductRank({ rows, title, tone }: { rows: { amount: number; code: stri
               </span>
               <span className={`font-bold ${text}`}>{money(row.amount)}</span>
             </div>
-            <div className="flex justify-between items-center text-slate-500 text-[11px]">
+            <div className="flex justify-between items-center text-slate-500 text-xs">
               <span>Code: <span className="font-mono">{row.code}</span> ({row.group})</span>
               <span>น้ำหนัก: {money(row.qty)} กก.</span>
             </div>
@@ -1625,7 +1625,7 @@ function SalespersonTable({ rows }: { rows: { amount: number; bills: number; id:
               <span className="font-bold text-slate-800">{row.name}</span>
               <span className="font-bold text-blue-600">{money(row.amount)}</span>
             </div>
-            <div className="flex justify-between items-center text-slate-500 text-[11px]">
+            <div className="flex justify-between items-center text-slate-500 text-xs">
               <span>ผู้ขาย: {row.suppliers} ราย</span>
               <span>น้ำหนัก: {money(row.qty)} กก. ({row.bills} บิล)</span>
             </div>
@@ -1673,9 +1673,9 @@ function AnalyticsKpiCard({
         <div className="text-xs font-semibold text-slate-500">{label}</div>
         <div className="mt-1 flex items-baseline gap-1">
           <span className="font-mono text-xl font-bold text-slate-900 truncate">{value}</span>
-          {unit && <span className="text-[10px] text-slate-400 font-semibold">{unit}</span>}
+          {unit && <span className="text-xs text-slate-400 font-semibold">{unit}</span>}
         </div>
-        {subtext && <div className="text-[11px] text-slate-400 mt-0.5">{subtext}</div>}
+        {subtext && <div className="text-xs text-slate-400 mt-0.5">{subtext}</div>}
       </div>
     </div>
   )

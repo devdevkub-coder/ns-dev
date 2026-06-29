@@ -512,7 +512,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
         </div>
         {/* 3. ต้องเปลี่ยน Password */}
         <div className="col-span-2 md:col-span-1 bg-white p-3 sm:p-5 border border-slate-100 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 text-purple-750 flex items-center justify-center text-xl shrink-0">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xl shrink-0">
             🔑
           </div>
           <div className="flex-1 min-w-0">
@@ -550,7 +550,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     <input className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400" value={form.displayName} onChange={(event) => setForm((current) => ({ ...current, displayName: event.target.value }))} />
                   </label>
                   <div className="md:col-span-2 rounded-lg border border-slate-100 bg-white p-4">
-                    <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูล Profile</div>
+                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูล Profile</div>
                     <div className="grid gap-3 md:grid-cols-[120px_1fr_1fr]">
                       <label className="text-sm font-medium text-slate-700">
                         คำนำหน้า
@@ -571,7 +571,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                     </label>
                   </div>
                   <div className="md:col-span-2 rounded-lg border border-slate-100 bg-white p-4">
-                    <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">Contact</div>
+                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">Contact</div>
                     <div className="grid gap-3 md:grid-cols-2">
                       <label className="text-sm font-medium text-slate-700">
                         เบอร์ติดต่อ
@@ -589,7 +589,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                   </div>
 
                   <div className="rounded-lg border border-slate-100 bg-white p-4">
-                    <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">Roles *</div>
+                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">Roles *</div>
                     <div className="grid gap-2">
                       {data?.roles.filter((role) => role.active).map((role) => (
                         <label key={role.id} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
@@ -602,7 +602,7 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                   </div>
 
                   <div className="rounded-lg border border-slate-100 bg-white p-4">
-                    <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">สาขาที่เข้าถึง</div>
+                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">สาขาที่เข้าถึง</div>
                     <div className="grid gap-2">
                       {data?.branches.map((branch) => (
                         <label key={branch.id} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
@@ -750,25 +750,25 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
 
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="col-span-2">
-                      <span className="text-slate-400 block text-[9px] uppercase font-semibold">Email</span>
+                      <span className="text-slate-400 block text-xs uppercase font-semibold">Email</span>
                       <span className="text-slate-700 break-all">{user.email || '-'}</span>
                     </div>
                     <div className="col-span-2">
-                      <span className="text-slate-400 block text-[9px] uppercase font-semibold">Contact</span>
+                      <span className="text-slate-400 block text-xs uppercase font-semibold">Contact</span>
                       <span className="text-slate-700">{[user.contactPhone, user.contactLineId ? `LINE: ${user.contactLineId}` : null].filter(Boolean).join(' · ') || '-'}</span>
                     </div>
                     <div>
-                      <span className="text-slate-400 block text-[9px] uppercase font-semibold">Role</span>
+                      <span className="text-slate-400 block text-xs uppercase font-semibold">Role</span>
                       <span className="text-slate-700 font-semibold">{user.roles.map((role) => role.name).join(', ') || '-'}</span>
                     </div>
                     <div>
-                      <span className="text-slate-400 block text-[9px] uppercase font-semibold">สาขา</span>
+                      <span className="text-slate-400 block text-xs uppercase font-semibold">สาขา</span>
                       <span className="text-slate-700 font-semibold">{user.branches.length ? user.branches.map((branch) => branch.name).join(', ') : 'ทุกสาขา'}</span>
                     </div>
                     <div className="col-span-2 border-t border-slate-50 pt-2 flex items-center justify-between">
                       <div>
-                        <span className="text-slate-400 block text-[9px] uppercase">Login ล่าสุด</span>
-                        <span className="text-slate-600 text-[11px]">{formatDate(user.lastLoginAt)}</span>
+                        <span className="text-slate-400 block text-xs uppercase">Login ล่าสุด</span>
+                        <span className="text-slate-600 text-xs">{formatDate(user.lastLoginAt)}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <button
@@ -861,10 +861,10 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
                       <div className="font-mono text-xs text-slate-500 mt-0.5">{role.code}</div>
                     </div>
                     <div className="flex items-center gap-1">
-                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${role.isSystem ? 'bg-slate-100 text-slate-600' : 'bg-blue-50 text-blue-600 border border-blue-100'}`}>
+                      <span className={`rounded px-1.5 py-0.5 text-xs font-bold ${role.isSystem ? 'bg-slate-100 text-slate-600' : 'bg-blue-50 text-blue-600 border border-blue-100'}`}>
                         {role.isSystem ? 'SYSTEM' : 'CUSTOM'}
                       </span>
-                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${role.active ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-100 text-slate-500'}`}>
+                      <span className={`rounded px-1.5 py-0.5 text-xs font-bold ${role.active ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-100 text-slate-500'}`}>
                         {role.active ? 'ใช้งาน' : 'ปิด'}
                       </span>
                     </div>
@@ -874,16 +874,16 @@ export function AdminUsersPageClient({ mode }: AdminUsersPageClientProps) {
 
                   <div className="grid grid-cols-2 gap-2 text-xs border-t border-slate-50 pt-2">
                     <div>
-                      <span className="text-slate-400 block text-[9px] uppercase font-semibold">สาขา</span>
+                      <span className="text-slate-400 block text-xs uppercase font-semibold">สาขา</span>
                       <span className="text-slate-700 font-semibold">{branchScopeText(role.branchScope)}</span>
                     </div>
                     <div>
-                      <span className="text-slate-400 block text-[9px] uppercase font-semibold">จำนวนผู้ใช้</span>
+                      <span className="text-slate-400 block text-xs uppercase font-semibold">จำนวนผู้ใช้</span>
                       <span className="text-slate-700 font-bold">{roleUserCounts.get(role.id) ?? 0} คน</span>
                     </div>
                     
                     <div className="col-span-2 pt-1">
-                      <span className="text-slate-400 block text-[9px] uppercase font-semibold mb-1">สิทธิ์การเข้าถึงข้อมูลสำคัญ</span>
+                      <span className="text-slate-400 block text-xs uppercase font-semibold mb-1">สิทธิ์การเข้าถึงข้อมูลสำคัญ</span>
                       <div className="flex flex-wrap gap-1.5">
                         <Badge label="ต้นทุน" active={role.canSeeCost} />
                         <Badge label="กำไร" active={role.canSeeProfit} />
@@ -918,7 +918,7 @@ function RoleCheck({ enabled }: { enabled: boolean }) {
 
 function Badge({ active, label }: { active: boolean; label: string }) {
   return (
-    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${active ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-50 text-slate-300 border border-slate-100'}`}>
+    <span className={`px-2 py-0.5 rounded text-xs font-bold ${active ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-50 text-slate-300 border border-slate-100'}`}>
       {label}
     </span>
   )

@@ -9,7 +9,7 @@ import { getAllowedBranchIds } from '@/lib/server/branch-scope'
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { addToFinancialAgingBucketTotals, computeFinancialDueAging, emptyFinancialAgingBucketTotals, financialAgingBuckets } from '@/lib/server/document-aging'
 import { prisma } from '@/lib/server/prisma'
-import { purchaseBillItemRows } from '@/lib/server/purchase-bill-items'
+import { purchaseBillItemRows, purchaseBillItemQty } from '@/lib/server/purchase-bill-items'
 import { findActiveSupplierReferenceByCodeOrId } from '@/lib/server/supplier-reference'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 
@@ -128,6 +128,22 @@ function xlsxResponse(body: Buffer, filename: string) {
   })
 }
 
+function purchaseItemProductOptionKey(item: any) {
+  return item.product_code || item.product_name || (item.product_id ? String(item.product_id) : '')
+}
+
+function purchaseItemFilterMatches(item: any, productCategory: string | null, productId: string | null) {
+  if (productCategory && item.products?.metal_group !== productCategory) return false
+  if (productId && purchaseItemProductOptionKey(item) !== productId) return false
+  return true
+}
+
+function ticketSummaryFilterMatches(summary: any, productCategory: string | null, productId: string | null) {
+  if (productCategory && summary.products?.metal_group !== productCategory) return false
+  if (productId && (summary.product_id ? String(summary.product_id) : '') !== productId) return false
+  return true
+}
+
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
@@ -139,6 +155,8 @@ export async function GET(request: Request) {
     const month = url.searchParams.get('month')
     const supplierId = url.searchParams.get('supplierId')
     const detailId = url.searchParams.get('detailId')
+    const productCategory = url.searchParams.get('productCategory')?.trim() || null
+    const productId = url.searchParams.get('productId')?.trim() || null
     const search = url.searchParams.get('q')?.trim().toLowerCase()
     const supplier = supplierId ? await findActiveSupplierReferenceByCodeOrId(supplierId) : null
     const detailSupplier = detailId ? await findActiveSupplierReferenceByCodeOrId(detailId) : null
@@ -147,7 +165,19 @@ export async function GET(request: Request) {
     const [suppliers, bills, payments, weightTickets, gradeAdjustments] = await Promise.all([
       prisma.suppliers.findMany({ orderBy: [{ name: 'asc' }], where: { active: { not: false } } }),
       prisma.purchase_bills.findMany({
-        include: { purchase_bill_items: { orderBy: { line_no: 'asc' }, where: { item_status: 'active' } } },
+        include: {
+          purchase_bill_items: {
+            include: {
+              products: {
+                select: {
+                  metal_group: true,
+                },
+              },
+            },
+            orderBy: { line_no: 'asc' },
+            where: { item_status: 'active' },
+          },
+        },
         orderBy: [{ date: 'desc' }, { doc_no: 'desc' }],
         take: 10000,
         where: { ...branchScopedPurchaseBillWhere(allowedBranchIds), status: { notIn: [...PURCHASE_BILL_CANCELLED_STATUSES] }, ...(supplier ? { supplier_id: supplier.id } : {}) },
@@ -158,7 +188,18 @@ export async function GET(request: Request) {
         where: { ...branchScopedPaymentWhere(allowedBranchIds), NOT: { status: 'cancelled' }, ...(supplier ? { supplier_id: supplier.id } : {}) },
       }),
       prisma.weight_tickets.findMany({
-        include: { weight_ticket_lines: true, weight_ticket_product_summaries: true },
+        include: {
+          weight_ticket_lines: true,
+          weight_ticket_product_summaries: {
+            include: {
+              products: {
+                select: {
+                  metal_group: true,
+                },
+              },
+            },
+          },
+        },
         orderBy: [{ document_date: 'desc' }, { doc_no: 'desc' }],
         take: 10000,
         where: {
@@ -175,28 +216,93 @@ export async function GET(request: Request) {
         where: { ...branchScopedGradeAdjustmentWhere(allowedBranchIds), date: yearMonthDateWhere(year, month), reversed_at: null, status: { not: 'cancelled' } },
       }),
     ])
-    const visibleSupplierIds = new Set([...bills, ...payments, ...weightTickets].map((row) => row.supplier_id).filter((id): id is bigint => id != null))
+
+    // Build filter lists for categories & products
+    const filterCategorySet = new Set<string>()
+    const filterProductMap = new Map<string, { category: string; code: string; id: string; name: string }>()
+
+    bills.forEach((bill) => {
+      bill.purchase_bill_items.forEach((item) => {
+        const metalGroup = item.products?.metal_group
+        if (metalGroup) filterCategorySet.add(metalGroup)
+        const id = item.product_code || item.product_name || (item.product_id ? String(item.product_id) : '')
+        if (id && !filterProductMap.has(id)) {
+          filterProductMap.set(id, {
+            category: metalGroup ?? '',
+            code: item.product_code ?? '',
+            id,
+            name: item.product_name ?? '',
+          })
+        }
+      })
+    })
+
+    weightTickets.forEach((ticket) => {
+      ticket.weight_ticket_product_summaries.forEach((summary) => {
+        const metalGroup = summary.products?.metal_group
+        if (metalGroup) filterCategorySet.add(metalGroup)
+        const id = summary.product_id ? String(summary.product_id) : ''
+        if (id && !filterProductMap.has(id)) {
+          filterProductMap.set(id, {
+            category: metalGroup ?? '',
+            code: '',
+            id,
+            name: summary.product_name ?? '',
+          })
+        }
+      })
+    })
+
+    const productFilters = {
+      productCategories: Array.from(filterCategorySet).sort((left, right) => left.localeCompare(right, 'th')),
+      products: Array.from(filterProductMap.values()).sort((left, right) => left.name.localeCompare(right.name, 'th')),
+    }
+
+    const hasProductFilter = Boolean(productCategory || productId)
+
+    const scopedBills = bills.filter((bill) => {
+      const matchingItems = bill.purchase_bill_items.filter((item) => purchaseItemFilterMatches(item, productCategory, productId))
+      return !hasProductFilter || matchingItems.length > 0
+    })
+
+    const scopedWeightTickets = weightTickets.filter((ticket) => {
+      const matchingSummaries = ticket.weight_ticket_product_summaries.filter((summary) => ticketSummaryFilterMatches(summary, productCategory, productId))
+      return !hasProductFilter || matchingSummaries.length > 0
+    })
+
+    const visibleSupplierIds = new Set([
+      ...scopedBills.map((row) => row.supplier_id),
+      ...scopedWeightTickets.map((row) => row.supplier_id),
+      ...(hasProductFilter ? [] : payments.map((row) => row.supplier_id)),
+    ].filter((id): id is bigint => id != null))
     const visibleSuppliers = suppliers.filter((supplier) => visibleSupplierIds.has(supplier.id))
 
     const supplierRows = visibleSuppliers.map((supplier) => {
-      const supplierBills = bills.filter((bill) => bill.supplier_id === supplier.id && inYearMonth(bill.date, year, month))
+      const supplierBills = scopedBills.filter((bill) => bill.supplier_id === supplier.id && inYearMonth(bill.date, year, month))
       const supplierPayments = payments.filter((payment) => payment.supplier_id === supplier.id && inYearMonth(payment.date, year, month))
-      const supplierTickets = weightTickets.filter((ticket) => ticket.supplier_id === supplier.id && inYearMonth(ticket.document_date, year, month))
+      const supplierTickets = scopedWeightTickets.filter((ticket) => ticket.supplier_id === supplier.id && inYearMonth(ticket.document_date, year, month))
+      
       const ticketTotals = supplierTickets.reduce((sum, ticket) => {
-        const summaryNet = ticket.weight_ticket_product_summaries.reduce((total, summary) => total + toNumber(summary.net_weight), 0)
-        const summaryBilled = ticket.weight_ticket_product_summaries.reduce((total, summary) => total + toNumber(summary.billed_weight), 0)
+        const matchingSummaries = ticket.weight_ticket_product_summaries.filter((summary) => ticketSummaryFilterMatches(summary, productCategory, productId))
+        const summaryNet = matchingSummaries.reduce((total, summary) => total + toNumber(summary.net_weight), 0)
+        const summaryBilled = matchingSummaries.reduce((total, summary) => total + toNumber(summary.billed_weight), 0)
         return {
           billedWeight: sum.billedWeight + summaryBilled,
-          deductWeight: sum.deductWeight + toNumber(ticket.deduct_weight),
-          grossWeight: sum.grossWeight + toNumber(ticket.gross_weight),
-          netWeight: sum.netWeight + (summaryNet || toNumber(ticket.net_weight)),
+          deductWeight: sum.deductWeight + (hasProductFilter ? 0 : toNumber(ticket.deduct_weight)),
+          grossWeight: sum.grossWeight + (hasProductFilter ? 0 : toNumber(ticket.gross_weight)),
+          netWeight: sum.netWeight + (summaryNet || (hasProductFilter ? 0 : toNumber(ticket.net_weight))),
         }
       }, { billedWeight: 0, deductWeight: 0, grossWeight: 0, netWeight: 0 })
+
       const supplierProductIds = new Set(supplierTickets.flatMap((ticket) => ticket.weight_ticket_product_summaries.map((summary) => String(summary.product_id))))
       const gradeAdjustmentCount = gradeAdjustments.filter((row) => [row.product_id, row.source_product_id, row.target_product_id].some((id) => id != null && supplierProductIds.has(String(id)))).length
+      
       const purchase = supplierBills.reduce<{ agingBuckets: ReturnType<typeof emptyFinancialAgingBucketTotals>; amount: number; oldestApAgeDays: number; overdueApAmount: number; overdueApBillCount: number; payable: number; qty: number }>((sum, bill) => {
-        const item = itemTotals(purchaseBillItemRows(bill))
-        const amount = item.amount || toNumber(bill.subtotal) || toNumber(bill.total_amount)
+        const matchingItems = bill.purchase_bill_items.filter((item) => purchaseItemFilterMatches(item, productCategory, productId))
+        const itemQty = matchingItems.reduce((acc, item) => acc + toNumber(item.qty), 0)
+        const itemAmount = matchingItems.reduce((acc, item) => acc + toNumber(item.amount), 0)
+        const amount = hasProductFilter ? itemAmount : (itemAmount || toNumber(bill.subtotal) || toNumber(bill.total_amount))
+        const qty = hasProductFilter ? itemQty : (itemQty || purchaseBillItemQty(bill))
         const payable = toNumber(bill.payable_balance)
         const aging = computeFinancialDueAging({ asOfDate, documentDate: bill.date })
         if (payable > 0) addToFinancialAgingBucketTotals(sum.agingBuckets, aging.ageBucket, payable)
@@ -206,11 +312,30 @@ export async function GET(request: Request) {
           oldestApAgeDays: payable > 0 ? Math.max(sum.oldestApAgeDays, aging.ageDays) : sum.oldestApAgeDays,
           overdueApAmount: sum.overdueApAmount + (payable > 0 && aging.ageDays > 0 ? payable : 0),
           overdueApBillCount: sum.overdueApBillCount + (payable > 0 && aging.ageDays > 0 ? 1 : 0),
-          payable: sum.payable + payable,
-          qty: sum.qty + item.qty,
+          payable: sum.payable + (hasProductFilter ? 0 : payable),
+          qty: sum.qty + qty,
         }
       }, { agingBuckets: emptyFinancialAgingBucketTotals(), amount: 0, oldestApAgeDays: 0, overdueApAmount: 0, overdueApBillCount: 0, payable: 0, qty: 0 })
+      
       const paidAmount = supplierPayments.reduce((sum, payment) => sum + paymentSettlementAmount(payment), 0)
+
+      const supplierYearBills = scopedBills.filter((bill) => bill.supplier_id === supplier.id && inYearMonth(bill.date, year, null))
+      const monthlyData = Array.from({ length: 12 }, (_, index) => {
+        const monthKey = String(index + 1).padStart(2, '0')
+        const monthBills = supplierYearBills.filter((bill) => inYearMonth(bill.date, year, monthKey))
+        const qty = monthBills.reduce((sum, bill) => {
+          const matchingItems = bill.purchase_bill_items.filter((item) => purchaseItemFilterMatches(item, productCategory, productId))
+          const itemQty = matchingItems.reduce((acc, item) => acc + toNumber(item.qty), 0)
+          return sum + (hasProductFilter ? itemQty : (itemQty || purchaseBillItemQty(bill)))
+        }, 0)
+        const purchaseAmount = monthBills.reduce((sum, bill) => {
+          const matchingItems = bill.purchase_bill_items.filter((item) => purchaseItemFilterMatches(item, productCategory, productId))
+          const itemAmount = matchingItems.reduce((acc, item) => acc + toNumber(item.amount), 0)
+          return sum + (hasProductFilter ? itemAmount : (itemAmount || toNumber(bill.subtotal) || toNumber(bill.total_amount)))
+        }, 0)
+        return { qty, purchaseAmount }
+      })
+
 
       return {
         agingBuckets: financialAgingBuckets.map((bucket) => ({ amount: purchase.agingBuckets[bucket].amount, bucket, count: purchase.agingBuckets[bucket].count })),
@@ -232,8 +357,10 @@ export async function GET(request: Request) {
         qty: purchase.qty,
         supplierName: supplier.name,
         wtiCount: supplierTickets.length,
+        monthlyData,
       }
     }).filter((row) => row.billCount > 0 || row.qty > 0 || row.payable > 0 || row.wtiCount > 0 || row.gradeAdjustmentCount > 0)
+
       .filter((row) => !search || `${row.code} ${row.supplierName}`.toLowerCase().includes(search))
       .sort((left, right) => right.purchaseAmount - left.purchaseAmount)
 
@@ -442,10 +569,6 @@ export async function GET(request: Request) {
         AvgBuy: row.avgBuy,
         Bills: row.billCount,
         Code: row.code,
-        DeliveryCompletionPct: row.deliveryCompletionPct,
-        DeductionPct: row.deductionPct,
-        GradeAdjustments: row.gradeAdjustmentCount,
-        OldestApAgeDays: row.oldestApAgeDays,
         OverdueApAmount: row.overdueApAmount,
         OverdueApBills: row.overdueApBillCount,
         Paid: row.paidAmount,
@@ -454,7 +577,6 @@ export async function GET(request: Request) {
         PurchaseAmount: row.purchaseAmount,
         Qty: row.qty,
         Supplier: row.supplierName,
-        WTI: row.wtiCount,
       })), 'Supplier Tracking'), `tracking_supplier_${year}${month ? `_${month}` : ''}.xlsx`)
     }
 
@@ -463,6 +585,8 @@ export async function GET(request: Request) {
       detail,
       filters: {
         suppliers: visibleSuppliers.map((row) => ({ active: row.active, code: row.code, id: requireBusinessCode(row.code, `ผู้ขาย ${row.id}`), name: row.name })),
+        productCategories: productFilters.productCategories,
+        products: productFilters.products,
       },
       monthly,
       rows: supplierRows,

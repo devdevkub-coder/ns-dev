@@ -297,7 +297,7 @@ export function BillSwapHistoryPageClient({ tableKey = 'daily.bill-swap-history.
                 </div>
               </div>
               {row.reason?.trim() ? (
-                <div className="text-[11px] text-slate-400 pt-1 border-t border-slate-100/60 mt-1 truncate">
+                <div className="text-xs text-slate-400 pt-1 border-t border-slate-100/60 mt-1 truncate">
                   เหตุผล: {row.reason}
                 </div>
               ) : null}

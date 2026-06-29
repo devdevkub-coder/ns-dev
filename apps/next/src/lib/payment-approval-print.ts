@@ -316,7 +316,7 @@ export function buildPmaSummaryPrintHtml(rows: PrintPmaRow[], profile: CompanyPr
       
       .header-title { font-size: 20px; font-weight: 800; color: #0f172a; margin-bottom: 4px; }
       .sub-title { font-size: 16px; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 6px; margin-bottom: 6px; color: #1e40af; }
-      .meta-info { font-size: 11px; font-weight: 600; color: #475569; margin-bottom: 12px; }
+      .meta-info { font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 12px; }
       .meta-info .total { color: #dc2626; }
       
       .summary-table { width: 100%; border-collapse: collapse; margin-top: 10px; border: 1px solid #cbd5e1; }
@@ -334,7 +334,7 @@ export function buildPmaSummaryPrintHtml(rows: PrintPmaRow[], profile: CompanyPr
       .font-semibold { font-weight: 600; }
       .font-bold { font-weight: 800; }
       .font-medium { font-weight: 500; }
-      .text-xs { font-size: 11px; }
+      .text-xs { font-size: 12px; }
       
       @media print {
         @page { size: A4 landscape; margin: 10mm; }
@@ -384,7 +384,7 @@ export function buildPmaSummaryPrintHtml(rows: PrintPmaRow[], profile: CompanyPr
             <td colspan="8" class="num" style="font-size: 14px;">รวมทั้งสิ้น:</td>
             <td class="num" style="font-size: 13px; color: #000;">
               <div style="font-weight: 900; padding-bottom: 2px;">${money(totalAmountToPay)}</div>
-              <div style="font-size: 10px; font-weight: bold; color: #475569;">บาท</div>
+              <div style="font-size: 12px; font-weight: bold; color: #475569;">บาท</div>
             </td>
           </tr>
         </tfoot>

@@ -6,6 +6,7 @@ import { dailyFetchJson, formatMoney } from '@/lib/daily'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { formatDateDisplay } from '@/lib/format'
+import { Button } from '@/components/ui/Button'
 
 type Row = Record<string, string | number | boolean | null | undefined | Record<string, number>>
 type Payload = {
@@ -751,7 +752,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             <input
               type="text"
               placeholder="ค้นหาสินค้า"
-              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-350 h-[38px]"
+              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-300 h-[38px]"
               value={productSearch}
               onChange={(e) => setProductSearch(e.target.value)}
             />
@@ -844,7 +845,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                       {wipRows.map((row, index) => {
                         const ageDays = Math.max(0, Math.floor((new Date().getTime() - new Date(String(row.date ?? '')).getTime()) / (1000 * 60 * 60 * 24)))
                         return (
-                          <tr key={String(row.id ?? index)} className={`border-t border-slate-100 hover:bg-slate-50 ${wipAgeClass(ageDays)}`}>
+                          <tr key={String(row.id ?? index)} className={`border-t border-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800/40 ${wipAgeClass(ageDays)}`}>
                             <td className="p-2 font-mono text-xs text-slate-900">{String(row.docNo ?? '')}</td>
                             <td className="p-2 text-xs">{formatDateDisplay(String(row.date ?? ''))}</td>
                             <td className={`p-2 text-right text-xs ${cellTone(ageDays, { key: 'ageDays', label: 'อายุ (วัน)' }, 'wip')}`}>{ageDays}</td>
@@ -855,7 +856,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
                             <td className="p-2 text-right font-bold text-amber-700 text-xs">{formatMoney(Number(row.wipQty ?? 0))}</td>
                             <td className="p-2 text-right text-xs text-slate-700">{formatMoney(Number(row.wipValue ?? 0))}</td>
                             <td className="p-2 text-xs">
-                              <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${row.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
+                              <span className={`rounded-md px-1.5 py-0.5 text-xs font-bold ${row.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
                                 {String(row.status ?? '')}
                               </span>
                             </td>
@@ -976,6 +977,41 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
         </div>
       ) : null}
 
+      {mode !== 'yield' && (
+        <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between mb-3">
+          <div>พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ</div>
+          <div className="flex items-center gap-2">
+            <select
+              aria-label="จำนวนรายการต่อหน้า"
+              className="h-8 text-xs rounded-md border border-slate-300 px-2 bg-white text-slate-800"
+              value={pageSize}
+              onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}
+            >
+              {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
+            </select>
+            <Button
+              disabled={currentPage <= 1}
+              size="xs"
+              variant="outline"
+              type="button"
+              onClick={() => setPage((value) => Math.max(1, value - 1))}
+            >
+              ก่อนหน้า
+            </Button>
+            <span className="px-1">หน้า {currentPage} / {totalPages}</span>
+            <Button
+              disabled={currentPage >= totalPages}
+              size="xs"
+              variant="outline"
+              type="button"
+              onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+            >
+              ถัดไป
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Desktop view for other modes */}
       <div className="overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm hidden lg:block">
         <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-end">
@@ -1007,7 +1043,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
             <tbody>
               {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={config.columns.length}>กำลังโหลดข้อมูล</td></tr> : null}
               {!isLoading && pagedFilteredRows.map((row, index) => (
-                <tr key={String(row.id ?? index)} className={`border-t border-slate-100 hover:bg-slate-50 ${mode === 'wip' ? wipAgeClass(Number(row.ageDays ?? 0)) : ''}`}>
+                <tr key={String(row.id ?? index)} className={`border-t border-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800/40 ${mode === 'wip' ? wipAgeClass(Number(row.ageDays ?? 0)) : ''}`}>
                   {config.columns.map((column) => {
                     const isNumeric = column.type === 'number' || column.type === 'money' || column.type === 'percent'
                     return (
@@ -1074,39 +1110,7 @@ export function ProductionReportPageClient({ mode }: { mode: keyof typeof config
         ) : null}
       </div>
 
-      {/* Pagination Controls */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
-        <div>
-          พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            aria-label="จำนวนรายการต่อหน้า"
-            className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
-            value={pageSize}
-            onChange={(event) => setPageSize(Number(event.target.value))}
-          >
-            {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-          </select>
-          <button
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-            disabled={currentPage <= 1}
-            type="button"
-            onClick={() => setPage((value) => Math.max(1, value - 1))}
-          >
-            ก่อนหน้า
-          </button>
-          <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-          <button
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-            disabled={currentPage >= totalPages}
-            type="button"
-            onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
-          >
-            ถัดไป
-          </button>
-        </div>
-      </div>
+
     </section>
   )
 }
@@ -1272,7 +1276,7 @@ function ChartPanel({ rows, title, type }: { rows: Array<{ input: number; label:
             <div className="w-2 rounded-t bg-blue-500" style={{ height: `${Math.max(1, (row.input / max) * 85)}%` }} title={`Input ${formatMoney(row.input)}`} />
             <div className="w-2 rounded-t bg-emerald-500" style={{ height: `${Math.max(1, (row.output / max) * 85)}%` }} title={`Output ${formatMoney(row.output)}`} />
             {type === 'line' ? <div className="w-2 rounded-t bg-red-500" style={{ height: `${Math.max(1, (row.loss / max) * 85)}%` }} title={`Loss ${formatMoney(row.loss)}`} /> : null}
-            <span className="absolute -bottom-6 text-[10px] text-slate-400">{row.label}</span>
+            <span className="absolute -bottom-6 text-xs text-slate-400">{row.label}</span>
           </div>
         ))}
         {!rows.length ? <div className="w-full self-center text-center text-sm text-slate-400">ยังไม่มีข้อมูล</div> : null}
@@ -1360,7 +1364,7 @@ function cellTone(value: Row[string], column: Column, mode: string) {
 }
 
 function wipAgeClass(ageDays: number) {
-  if (ageDays > 30) return 'bg-red-50/50'
-  if (ageDays > 14) return 'bg-amber-50/30'
+  if (ageDays > 30) return 'bg-red-50/15 dark:bg-red-50/10'
+  if (ageDays > 14) return 'bg-amber-50/15 dark:bg-amber-50/10'
   return ''
 }

@@ -935,11 +935,11 @@ export function LineSettingsPageClient() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="px-2.5 py-1 rounded bg-[#0284c7] text-white font-bold text-[10px] uppercase select-none tracking-wider">
+          <span className="px-2.5 py-1 rounded bg-[#0284c7] text-white font-bold text-xs uppercase select-none tracking-wider">
             {process.env.NODE_ENV === 'development' ? 'Development' : 'Production'}
           </span>
           <span
-            className="px-2.5 py-1 rounded bg-slate-700 text-slate-300 font-mono text-[10px] select-none tracking-wider"
+            className="px-2.5 py-1 rounded bg-slate-700 text-slate-300 font-mono text-xs select-none tracking-wider"
             title={`Build: ${process.env.NEXT_PUBLIC_BUILD_TIME || '-'}`}
           >
             v{process.env.NEXT_PUBLIC_BUILD_VERSION || '0.0.0'} · {process.env.NEXT_PUBLIC_BUILD_COMMIT || 'unknown'}
@@ -1011,7 +1011,7 @@ export function LineSettingsPageClient() {
                   🔌
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold text-slate-450 uppercase tracking-wider leading-none">LINE Connection</div>
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider leading-none">LINE Connection</div>
                   <div className="text-sm font-bold text-slate-800 mt-1">{form.lineChannelAccessToken ? 'พร้อมเชื่อมต่อ' : 'ยังไม่ระบุ Token'}</div>
                 </div>
               </div>
@@ -1021,7 +1021,7 @@ export function LineSettingsPageClient() {
                   👥
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold text-slate-450 uppercase tracking-wider leading-none">LINE Targets</div>
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider leading-none">LINE Targets</div>
                   <div className="text-sm font-bold text-slate-800 mt-1">{targets.length} ช่องทาง</div>
                 </div>
               </div>
@@ -1031,7 +1031,7 @@ export function LineSettingsPageClient() {
                   ⏳
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold text-slate-450 uppercase tracking-wider leading-none">Pending Jobs</div>
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider leading-none">Pending Jobs</div>
                   <div className="text-sm font-bold text-slate-800 mt-1">{analytics?.today?.pending || 0} งานส่งคิว</div>
                 </div>
               </div>
@@ -1041,7 +1041,7 @@ export function LineSettingsPageClient() {
                   ❌
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold text-slate-450 uppercase tracking-wider leading-none">Failed Jobs</div>
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider leading-none">Failed Jobs</div>
                   <div className="text-sm font-bold text-slate-800 mt-1">{analytics?.today?.failed || 0} งานส่งพลาด</div>
                 </div>
               </div>
@@ -1063,11 +1063,11 @@ export function LineSettingsPageClient() {
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="text-[10px] font-bold text-slate-450 uppercase tracking-wider leading-none">บอทที่เชื่อมต่ออยู่</div>
+                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider leading-none">บอทที่เชื่อมต่ออยู่</div>
                     <div className="text-base font-bold text-slate-900 mt-1 truncate">{botInfo.botName}</div>
                     <div className="text-xs text-slate-400 font-mono mt-0.5 truncate select-all">{botInfo.basicId}</div>
                   </div>
-                  <span className="px-2 py-1 rounded bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase select-none tracking-wider flex-shrink-0">
+                  <span className="px-2 py-1 rounded bg-emerald-50 text-emerald-700 text-xs font-bold uppercase select-none tracking-wider flex-shrink-0">
                     เชื่อมต่อแล้ว
                   </span>
                 </div>
@@ -1088,7 +1088,7 @@ export function LineSettingsPageClient() {
                     <span className="text-base leading-none mt-0.5">{form.lineChannelAccessToken ? '✅' : '❌'}</span>
                     <div>
                       <div className="text-sm font-bold text-slate-800">Channel Access Token</div>
-                      <p className="text-xs text-slate-550 mt-0.5">ใช้เชื่อมต่อบริการยิงข้อมูล Flex Message จาก LINE Official Account ไปปลายทาง</p>
+                      <p className="text-xs text-slate-500 mt-0.5">ใช้เชื่อมต่อบริการยิงข้อมูล Flex Message จาก LINE Official Account ไปปลายทาง</p>
                     </div>
                   </div>
 
@@ -1096,7 +1096,7 @@ export function LineSettingsPageClient() {
                     <span className="text-base leading-none mt-0.5">{form.lineChannelSecret ? '✅' : '❌'}</span>
                     <div>
                       <div className="text-sm font-bold text-slate-800">Channel Secret</div>
-                      <p className="text-xs text-slate-550 mt-0.5">ใช้ตรวจสอบความปลอดภัยและยืนยันลายเซ็นบอทขารับ (Webhook Signature)</p>
+                      <p className="text-xs text-slate-500 mt-0.5">ใช้ตรวจสอบความปลอดภัยและยืนยันลายเซ็นบอทขารับ (Webhook Signature)</p>
                     </div>
                   </div>
 
@@ -1104,7 +1104,7 @@ export function LineSettingsPageClient() {
                     <span className="text-base leading-none mt-0.5">{targets.some(t => t.is_default) ? '✅' : '⚠️'}</span>
                     <div>
                       <div className="text-sm font-bold text-slate-800">Default Target (เป้าหมายดีฟอลต์)</div>
-                      <p className="text-xs text-slate-550 mt-0.5">ระบุเป้าหมายสำรองกรณีไม่มี Routing Rule ใดตรงเงื่อนไขของตั๋วชั่งนั้น</p>
+                      <p className="text-xs text-slate-500 mt-0.5">ระบุเป้าหมายสำรองกรณีไม่มี Routing Rule ใดตรงเงื่อนไขของตั๋วชั่งนั้น</p>
                     </div>
                   </div>
                 </div>
@@ -1114,7 +1114,7 @@ export function LineSettingsPageClient() {
                     <span className="text-base leading-none mt-0.5">✅</span>
                     <div>
                       <div className="text-sm font-bold text-slate-800">PDF Generator & Fonts Status</div>
-                      <p className="text-xs text-slate-550 mt-0.5">ฟอนต์ NotoSansThai พร้อมใช้งานในโหมด PDF Rendering</p>
+                      <p className="text-xs text-slate-500 mt-0.5">ฟอนต์ NotoSansThai พร้อมใช้งานในโหมด PDF Rendering</p>
                     </div>
                   </div>
 
@@ -1122,7 +1122,7 @@ export function LineSettingsPageClient() {
                     <span className="text-base leading-none mt-0.5">{form.pdfBucket ? '✅' : '❌'}</span>
                     <div>
                       <div className="text-sm font-bold text-slate-800">Storage Bucket</div>
-                      <p className="text-xs text-slate-550 mt-0.5">ชื่อบัคเก็ตเก็บไฟล์ PDF: <span className="font-mono bg-slate-50 px-1 py-0.5 text-slate-600 rounded">{form.pdfBucket}</span></p>
+                      <p className="text-xs text-slate-500 mt-0.5">ชื่อบัคเก็ตเก็บไฟล์ PDF: <span className="font-mono bg-slate-50 px-1 py-0.5 text-slate-600 rounded">{form.pdfBucket}</span></p>
                     </div>
                   </div>
                 </div>
@@ -1376,23 +1376,23 @@ export function LineSettingsPageClient() {
                                 <div className="font-semibold text-slate-800 flex items-center gap-1.5">
                                   <span className="truncate">{t.display_name}</span>
                                   {t.is_default && (
-                                    <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-bold uppercase select-none tracking-wider">Default</span>
+                                    <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-xs font-bold uppercase select-none tracking-wider">Default</span>
                                   )}
                                 </div>
-                                <div className="text-[10px] text-slate-400 font-mono mt-0.5 select-all truncate">{t.target_id}</div>
+                                <div className="text-xs text-slate-400 font-mono mt-0.5 select-all truncate">{t.target_id}</div>
                               </div>
                             </div>
                           </td>
-                          <td className="px-3 py-3 text-slate-650">
+                          <td className="px-3 py-3 text-slate-600">
                             {t.branch_code ? `สาขา ${t.branch_code}` : 'ทุกสาขา'}
                           </td>
                           <td className="px-3 py-3">
-                            <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${t.notify_wti ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-150 text-slate-400'}`}>
+                            <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${t.notify_wti ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
                               {t.notify_wti ? 'รับข่าวสาร' : 'ข้าม'}
                             </span>
                           </td>
                           <td className="px-3 py-3">
-                            <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${t.notify_wto ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-150 text-slate-400'}`}>
+                            <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${t.notify_wto ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
                               {t.notify_wto ? 'รับข่าวสาร' : 'ข้าม'}
                             </span>
                           </td>
@@ -1407,7 +1407,7 @@ export function LineSettingsPageClient() {
                                   : 'bg-emerald-50 text-emerald-700'
                               const label = isLeft ? 'บอทออกจากกลุ่ม' : isDisabled ? 'ปิดใช้งาน' : 'อยู่ในกลุ่ม'
                               return (
-                                <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${cls}`}>
+                                <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${cls}`}>
                                   {label}
                                 </span>
                               )
@@ -1482,7 +1482,7 @@ export function LineSettingsPageClient() {
                           <div className="font-bold text-slate-900 flex items-center gap-1.5">
                             {t.display_name}
                             {t.is_default && (
-                              <span className="px-1.5 py-0.5 text-[9px] bg-slate-900 text-white rounded font-bold uppercase tracking-wider">Default</span>
+                              <span className="px-1.5 py-0.5 text-xs bg-slate-900 text-white rounded font-bold uppercase tracking-wider">Default</span>
                             )}
                           </div>
                           <div className="text-xs text-slate-400 font-mono mt-0.5 truncate max-w-[200px]">{t.target_id}</div>
@@ -1490,16 +1490,16 @@ export function LineSettingsPageClient() {
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-xs border-t border-b border-slate-100 py-2.5">
                         <div>
-                          <span className="text-slate-450">ประเภท:</span> <span className="font-bold text-slate-800">{t.target_type.toUpperCase()}</span>
+                          <span className="text-slate-400">ประเภท:</span> <span className="font-bold text-slate-800">{t.target_type.toUpperCase()}</span>
                         </div>
                         <div>
-                          <span className="text-slate-450">สาขา:</span> <span className="font-bold text-slate-800">{t.branch_code || 'ทุกสาขา'}</span>
+                          <span className="text-slate-400">สาขา:</span> <span className="font-bold text-slate-800">{t.branch_code || 'ทุกสาขา'}</span>
                         </div>
                         <div>
-                          <span className="text-slate-450">ส่ง WTI:</span> <span className="font-bold text-slate-800">{t.notify_wti ? 'เปิด' : 'ปิด'}</span>
+                          <span className="text-slate-400">ส่ง WTI:</span> <span className="font-bold text-slate-800">{t.notify_wti ? 'เปิด' : 'ปิด'}</span>
                         </div>
                         <div>
-                          <span className="text-slate-450">ส่ง WTO:</span> <span className="font-bold text-slate-800">{t.notify_wto ? 'เปิด' : 'ปิด'}</span>
+                          <span className="text-slate-400">ส่ง WTO:</span> <span className="font-bold text-slate-800">{t.notify_wto ? 'เปิด' : 'ปิด'}</span>
                         </div>
                       </div>
                       <div className="flex items-center justify-between">
@@ -1513,7 +1513,7 @@ export function LineSettingsPageClient() {
                               : 'bg-emerald-50 text-emerald-700'
                           const label = isLeft ? 'บอทออกจากกลุ่ม' : isDisabled ? 'ปิดใช้งาน' : 'อยู่ในกลุ่ม'
                           return (
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${cls}`}>
+                            <span className={`px-2 py-0.5 rounded text-xs font-bold ${cls}`}>
                               {label}
                             </span>
                           )
@@ -1546,7 +1546,7 @@ export function LineSettingsPageClient() {
                           </button>
                           <button
                             type="button"
-                            className="px-2 py-1 text-xs border border-slate-200 rounded hover:bg-slate-50 text-red-650 h-8 flex items-center"
+                            className="px-2 py-1 text-xs border border-slate-200 rounded hover:bg-slate-50 text-red-600 h-8 flex items-center"
                             onClick={() => void handleDeleteTarget(t.id)}
                           >
                             ❌ ลบ
@@ -1628,21 +1628,21 @@ export function LineSettingsPageClient() {
                         const boundTarget = targets.find(t => t.target_id === r.target_id)
                         return (
                           <tr key={r.id} className="hover:bg-slate-50/50 transition-colors text-xs">
-                            <td className="px-3 py-3 font-semibold text-slate-650">
+                            <td className="px-3 py-3 font-semibold text-slate-600">
                               # {r.priority}
                             </td>
                             <td className="px-3 py-3">
                               <div>
                                 <span className="font-bold text-slate-800">{r.name}</span>
-                                {r.description && <p className="text-[10px] text-slate-400 mt-0.5">{r.description}</p>}
+                                {r.description && <p className="text-xs text-slate-400 mt-0.5">{r.description}</p>}
                               </div>
                             </td>
-                            <td className="px-3 py-3 text-slate-650">
+                            <td className="px-3 py-3 text-slate-600">
                               <div className="font-semibold text-slate-800">{boundTarget?.display_name || 'ไม่พบลายเชื่อมโยง'}</div>
-                              <div className="text-[10px] font-mono text-slate-400 mt-0.5 truncate">{r.target_id}</div>
+                              <div className="text-xs font-mono text-slate-400 mt-0.5 truncate">{r.target_id}</div>
                             </td>
                             <td className="px-3 py-3">
-                              <span className={`px-1.5 py-0.5 rounded font-semibold text-[10px] ${r.stop_after_match ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                              <span className={`px-1.5 py-0.5 rounded font-semibold text-xs ${r.stop_after_match ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
                                 {r.stop_after_match ? 'หยุดตรวจต่อ' : 'ตรวจต่อ'}
                               </span>
                             </td>
@@ -1698,24 +1698,24 @@ export function LineSettingsPageClient() {
                       <div key={r.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3 text-xs">
                         <div className="flex justify-between items-start">
                           <div>
-                            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-650 text-[10px] font-mono font-bold">Priority # {r.priority}</span>
+                            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-xs font-mono font-bold">Priority # {r.priority}</span>
                             <h4 className="font-bold text-slate-900 mt-1.5">{r.name}</h4>
                             {r.description && <p className="text-xs text-slate-400 mt-0.5">{r.description}</p>}
                           </div>
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${r.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                          <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${r.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
                             {r.is_active ? 'เปิดใช้งาน' : 'ปิด'}
                           </span>
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-xs border-t border-b border-slate-100 py-2.5">
                           <div className="col-span-2">
-                            <span className="text-slate-450">ปลายทาง:</span> <span className="font-bold text-slate-800">{boundTarget?.display_name || 'ไม่พบลายเชื่อมโยง'}</span>
+                            <span className="text-slate-400">ปลายทาง:</span> <span className="font-bold text-slate-800">{boundTarget?.display_name || 'ไม่พบลายเชื่อมโยง'}</span>
                           </div>
                           <div className="col-span-2">
-                            <span className="text-slate-450">เป้าหมาย ID:</span> <span className="font-mono text-slate-800 break-all select-all block mt-0.5">{r.target_id}</span>
+                            <span className="text-slate-400">เป้าหมาย ID:</span> <span className="font-mono text-slate-800 break-all select-all block mt-0.5">{r.target_id}</span>
                           </div>
                           <div className="col-span-2">
-                            <span className="text-slate-450">เมื่อตรงเงื่อนไข:</span>{' '}
-                            <span className={`px-1.5 py-0.5 rounded font-bold text-[10px] ${r.stop_after_match ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                            <span className="text-slate-400">เมื่อตรงเงื่อนไข:</span>{' '}
+                            <span className={`px-1.5 py-0.5 rounded font-bold text-xs ${r.stop_after_match ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
                               {r.stop_after_match ? 'หยุดตรวจต่อ' : 'ตรวจต่อ'}
                             </span>
                           </div>
@@ -1733,7 +1733,7 @@ export function LineSettingsPageClient() {
                           </button>
                           <button
                             type="button"
-                            className="px-2.5 py-1 text-xs border border-slate-200 rounded hover:bg-slate-50 text-red-650 h-8 flex items-center"
+                            className="px-2.5 py-1 text-xs border border-slate-200 rounded hover:bg-slate-50 text-red-600 h-8 flex items-center"
                             onClick={() => void handleDeleteRule(r.id)}
                           >
                             ❌ ลบ
@@ -1787,19 +1787,19 @@ export function LineSettingsPageClient() {
                       <div className="flex justify-between items-start">
                         <div>
                           <h4 className="font-bold text-slate-800 text-sm">{t.name}</h4>
-                          <span className="text-[10px] text-slate-400 font-mono mt-0.5">ID: {t.id}</span>
+                          <span className="text-xs text-slate-400 font-mono mt-0.5">ID: {t.id}</span>
                         </div>
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${t.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                        <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${t.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
                           {t.is_active ? 'ทำงานอยู่' : 'ปิด'}
                         </span>
                       </div>
 
                       <div className="flex gap-1.5 mt-3">
                         {t.is_default_wti && (
-                          <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 text-[10px] font-semibold">ดีฟอลต์ WTI</span>
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 text-xs font-semibold">ดีฟอลต์ WTI</span>
                         )}
                         {t.is_default_wto && (
-                          <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 text-[10px] font-semibold">ดีฟอลต์ WTO</span>
+                          <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 text-xs font-semibold">ดีฟอลต์ WTO</span>
                         )}
                       </div>
                     </div>
@@ -1807,7 +1807,7 @@ export function LineSettingsPageClient() {
                     <div className="pt-3 border-t border-slate-100 flex justify-end gap-2 text-xs">
                       <button
                         type="button"
-                        className="px-2.5 py-1 text-slate-650 hover:bg-slate-50 border border-slate-200 rounded-md transition focus:outline-none h-7 flex items-center"
+                        className="px-2.5 py-1 text-slate-600 hover:bg-slate-50 border border-slate-200 rounded-md transition focus:outline-none h-7 flex items-center"
                         onClick={() => {
                           setEditingTemplate(t)
                           setIsTemplateModalOpen(true)
@@ -1818,7 +1818,7 @@ export function LineSettingsPageClient() {
                       </button>
                       <button
                         type="button"
-                        className="px-2.5 py-1 text-red-650 hover:bg-slate-50 border border-slate-200 rounded-md transition focus:outline-none h-7 flex items-center"
+                        className="px-2.5 py-1 text-red-600 hover:bg-slate-50 border border-slate-200 rounded-md transition focus:outline-none h-7 flex items-center"
                         onClick={() => void handleDeleteTemplate(t.id)}
                       >
                         ❌ ลบ
@@ -1850,7 +1850,7 @@ export function LineSettingsPageClient() {
                       key={status}
                       className={`px-3 py-1.5 border rounded-lg transition focus:outline-none ${jobStatusFilter === status
                           ? 'bg-slate-900 border-slate-900 text-white font-bold'
-                          : 'bg-white border-slate-200 text-slate-650 hover:bg-slate-50'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                         }`}
                       onClick={() => {
                         setJobStatusFilter(status)
@@ -1928,27 +1928,27 @@ export function LineSettingsPageClient() {
                             <td className="px-3 py-3 font-semibold text-slate-900">
                               <div className="flex flex-col">
                                 <span>{job.document_no}</span>
-                                <span className="text-[9px] text-slate-450 uppercase font-bold tracking-wider">{job.document_type}</span>
+                                <span className="text-xs text-slate-400 uppercase font-bold tracking-wider">{job.document_type}</span>
                               </div>
                             </td>
-                            <td className="px-3 py-3 text-slate-650">
+                            <td className="px-3 py-3 text-slate-600">
                               <div className="font-semibold text-slate-800">{boundTarget?.display_name || 'ไม่ระบุกลุ่ม'}</div>
-                              <div className="text-[10px] text-slate-400 font-mono mt-0.5 truncate">{job.target_id}</div>
+                              <div className="text-xs text-slate-400 font-mono mt-0.5 truncate">{job.target_id}</div>
                             </td>
                             <td className="px-3 py-3">
-                              <span className={`px-2 py-0.5 rounded font-semibold text-[10px] ${job.status === 'sent' ? 'bg-emerald-50 text-emerald-700' :
+                              <span className={`px-2 py-0.5 rounded font-semibold text-xs ${job.status === 'sent' ? 'bg-emerald-50 text-emerald-700' :
                                   job.status === 'failed' ? 'bg-rose-50 text-rose-700' :
                                     job.status === 'processing' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-500'
                                 }`}>
                                 {job.status.toUpperCase()}
                               </span>
                               {job.last_error_message && (
-                                <p className="text-[9px] text-rose-600 block mt-1 truncate max-w-[150px]" title={job.last_error_message}>
+                                <p className="text-xs text-rose-600 block mt-1 truncate max-w-[150px]" title={job.last_error_message}>
                                   {job.last_error_message}
                                 </p>
                               )}
                             </td>
-                            <td className="px-3 py-3 font-bold text-slate-650">
+                            <td className="px-3 py-3 font-bold text-slate-600">
                               {job.attempt_count} / {job.max_attempts}
                             </td>
                             <td className="px-3 py-3 text-right">
@@ -2006,11 +2006,11 @@ export function LineSettingsPageClient() {
                       <div key={job.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3 text-xs">
                         <div className="flex justify-between items-start">
                           <div>
-                            <span className="text-[10px] text-slate-400 block">{dateStr}</span>
+                            <span className="text-xs text-slate-400 block">{dateStr}</span>
                             <h4 className="font-bold text-slate-900 mt-1">{job.document_no}</h4>
-                            <span className="text-[9px] text-slate-450 uppercase font-bold tracking-wider">{job.document_type}</span>
+                            <span className="text-xs text-slate-400 uppercase font-bold tracking-wider">{job.document_type}</span>
                           </div>
-                          <span className={`px-2 py-0.5 rounded font-semibold text-[10px] ${job.status === 'sent' ? 'bg-emerald-50 text-emerald-700' :
+                          <span className={`px-2 py-0.5 rounded font-semibold text-xs ${job.status === 'sent' ? 'bg-emerald-50 text-emerald-700' :
                               job.status === 'failed' ? 'bg-rose-50 text-rose-700' :
                                 job.status === 'processing' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-500'
                             }`}>
@@ -2019,15 +2019,15 @@ export function LineSettingsPageClient() {
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-xs border-t border-b border-slate-100 py-2.5">
                           <div className="col-span-2">
-                            <span className="text-slate-450">ผู้รับ:</span> <span className="font-bold text-slate-800">{boundTarget?.display_name || 'ไม่ระบุกลุ่ม'}</span>
-                            <span className="text-[10px] text-slate-400 font-mono block select-all mt-0.5">{job.target_id}</span>
+                            <span className="text-slate-400">ผู้รับ:</span> <span className="font-bold text-slate-800">{boundTarget?.display_name || 'ไม่ระบุกลุ่ม'}</span>
+                            <span className="text-xs text-slate-400 font-mono block select-all mt-0.5">{job.target_id}</span>
                           </div>
                           <div>
-                            <span className="text-slate-450">จำนวนพยายาม:</span> <span className="font-bold text-slate-800">{job.attempt_count} / {job.max_attempts}</span>
+                            <span className="text-slate-400">จำนวนพยายาม:</span> <span className="font-bold text-slate-800">{job.attempt_count} / {job.max_attempts}</span>
                           </div>
                         </div>
                         {job.last_error_message && (
-                          <p className="text-[10px] text-rose-600 font-semibold bg-rose-50/50 p-2 rounded border border-rose-100/50 break-words select-all">
+                          <p className="text-xs text-rose-600 font-semibold bg-rose-50/50 p-2 rounded border border-rose-100/50 break-words select-all">
                             ⚠️ {job.last_error_message}
                           </p>
                         )}
@@ -2050,7 +2050,7 @@ export function LineSettingsPageClient() {
                           {job.status === 'pending' && (
                             <button
                               type="button"
-                              className="px-2.5 py-1 text-xs border border-slate-200 rounded hover:bg-slate-50 text-rose-650 h-8 flex items-center"
+                              className="px-2.5 py-1 text-xs border border-slate-200 rounded hover:bg-slate-50 text-rose-600 h-8 flex items-center"
                               onClick={() => void handleCancelJob(job.id)}
                             >
                               🚫 ยกเลิก
@@ -2095,11 +2095,11 @@ export function LineSettingsPageClient() {
             {/* pure layout metric cards - no outer wrapper - AcexPOS design standard */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-emerald-55 text-emerald-600 flex items-center justify-center font-bold text-lg select-none">
+                <div className="h-10 w-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-lg select-none">
                   🚀
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold text-slate-450 uppercase tracking-wider leading-none">ความสำเร็จสะสม (30 วัน)</div>
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider leading-none">ความสำเร็จสะสม (30 วัน)</div>
                   <div className="text-base font-bold text-slate-800 mt-1">{analytics?.last30Days?.successRate || 0} %</div>
                 </div>
               </div>
@@ -2109,7 +2109,7 @@ export function LineSettingsPageClient() {
                   📊
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold text-slate-450 uppercase tracking-wider leading-none">จำนวนจัดส่ง (30 วัน)</div>
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider leading-none">จำนวนจัดส่ง (30 วัน)</div>
                   <div className="text-base font-bold text-slate-800 mt-1">{analytics?.last30Days?.total || 0} รายการ</div>
                 </div>
               </div>
@@ -2119,7 +2119,7 @@ export function LineSettingsPageClient() {
                   🕒
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold text-slate-450 uppercase tracking-wider leading-none">ดีเลย์ประมวลผลเฉลี่ย</div>
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider leading-none">ดีเลย์ประมวลผลเฉลี่ย</div>
                   <div className="text-base font-bold text-slate-800 mt-1">{analytics?.last30Days?.avgDurationMs ? `${(analytics.last30Days.avgDurationMs / 1000).toFixed(2)} วินาที` : '-'}</div>
                 </div>
               </div>
@@ -2129,7 +2129,7 @@ export function LineSettingsPageClient() {
                   ❌
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold text-slate-450 uppercase tracking-wider leading-none">จัดส่งล้มเหลว (30 วัน)</div>
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider leading-none">จัดส่งล้มเหลว (30 วัน)</div>
                   <div className="text-base font-bold text-slate-800 mt-1">{analytics?.last30Days?.failed || 0} รายการ</div>
                 </div>
               </div>
@@ -2147,7 +2147,7 @@ export function LineSettingsPageClient() {
                     <div key={idx} className="flex justify-between items-center text-xs text-slate-700 bg-slate-50/50 p-2.5 rounded-lg border border-slate-100">
                       <div>
                         <span className="font-bold text-slate-800 block">{t.displayName}</span>
-                        <span className="text-[10px] font-mono text-slate-400 mt-0.5 truncate block max-w-[200px] select-all">{t.targetId}</span>
+                        <span className="text-xs font-mono text-slate-400 mt-0.5 truncate block max-w-[200px] select-all">{t.targetId}</span>
                       </div>
                       <span className="font-bold text-slate-900 font-mono bg-slate-100 px-2 py-1 rounded">{t.count} ครั้ง</span>
                     </div>
@@ -2171,7 +2171,7 @@ export function LineSettingsPageClient() {
                     </div>
                   ))}
                   {(!analytics?.topErrors || analytics.topErrors.length === 0) && (
-                    <p className="text-xs text-slate-450 text-center py-6">สะอาดหมดจด! ไม่มีสถิติข้อมูลแจ้งเตือนล้มเหลว</p>
+                    <p className="text-xs text-slate-400 text-center py-6">สะอาดหมดจด! ไม่มีสถิติข้อมูลแจ้งเตือนล้มเหลว</p>
                   )}
                 </div>
               </div>
@@ -2241,7 +2241,7 @@ export function LineSettingsPageClient() {
                   value={editingTarget.target_id || ''}
                   onChange={(e) => setEditingTarget({ ...editingTarget, target_id: e.target.value })}
                 />
-                {targetWarning && <p className="text-[10px] text-amber-600 mt-1">{targetWarning}</p>}
+                {targetWarning && <p className="text-xs text-amber-600 mt-1">{targetWarning}</p>}
               </div>
 
               <div className="space-y-1">
@@ -2379,7 +2379,7 @@ export function LineSettingsPageClient() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <label className="block text-slate-650 font-medium">ประเภทบิล (เช่น WTI, WTO)</label>
+                    <label className="block text-slate-600 font-medium">ประเภทบิล (เช่น WTI, WTO)</label>
                     <input
                       type="text"
                       className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs"
@@ -2396,7 +2396,7 @@ export function LineSettingsPageClient() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="block text-slate-650 font-medium">สาขาที่เข้าเงื่อนไข (Branch Codes)</label>
+                    <label className="block text-slate-600 font-medium">สาขาที่เข้าเงื่อนไข (Branch Codes)</label>
                     <input
                       type="text"
                       className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs"
@@ -2413,7 +2413,7 @@ export function LineSettingsPageClient() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="block text-slate-650 font-medium">น้ำหนักสุทธิต่ำสุด (กก.)</label>
+                    <label className="block text-slate-600 font-medium">น้ำหนักสุทธิต่ำสุด (กก.)</label>
                     <input
                       type="number"
                       className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs"
@@ -2428,7 +2428,7 @@ export function LineSettingsPageClient() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="block text-slate-650 font-medium">สิ่งเจือปนต่ำสุด (กก.)</label>
+                    <label className="block text-slate-600 font-medium">สิ่งเจือปนต่ำสุด (กก.)</label>
                     <input
                       type="number"
                       className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs"
@@ -2443,7 +2443,7 @@ export function LineSettingsPageClient() {
                   </div>
                 </div>
 
-                <div className="flex gap-4 pt-1 font-semibold text-slate-650">
+                <div className="flex gap-4 pt-1 font-semibold text-slate-600">
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
                       type="checkbox"
@@ -2729,7 +2729,7 @@ export function LineSettingsPageClient() {
                   <div className="flex gap-2">
                     <input
                       type="text"
-                      className="w-full rounded border border-slate-700 bg-slate-850 px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                      className="w-full rounded border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs text-white focus:outline-none"
                       placeholder="เช่น WTI012606-0023"
                       value={previewDocNo}
                       onChange={(e) => setPreviewDocNo(e.target.value)}
@@ -2762,7 +2762,7 @@ export function LineSettingsPageClient() {
                 {templatePreviewJson ? (
                   <div className="w-full max-w-[270px] bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col font-sans select-none">
                     {/* Alt Header text from LINE */}
-                    <div className="bg-[#242424] text-slate-400 py-1.5 px-3 text-[10px] truncate border-b border-slate-900">
+                    <div className="bg-[#242424] text-slate-400 py-1.5 px-3 text-xs truncate border-b border-slate-900">
                       💬 LINE Flex Message Preview
                     </div>
                     {/* The Rendered card */}
@@ -2774,13 +2774,13 @@ export function LineSettingsPageClient() {
                           style={{ backgroundColor: templatePreviewJson.contents?.header?.backgroundColor || '#064e3b' }}
                         >
                           <h5 className="font-bold text-[13px]">{templatePreviewJson.contents?.header?.contents?.[0]?.text || 'ใบชั่งน้ำหนัก'}</h5>
-                          <span className="text-[10px] opacity-75">{templatePreviewJson.contents?.header?.contents?.[1]?.text || '-'}</span>
+                          <span className="text-xs opacity-75">{templatePreviewJson.contents?.header?.contents?.[1]?.text || '-'}</span>
                         </div>
                         {/* Body fields */}
                         <div className="p-3 space-y-1.5">
                           {templatePreviewJson.contents?.body?.contents?.map((c: any, i: number) => (
-                            <div key={i} className="flex leading-tight text-[11px]">
-                              <span className="text-slate-450 w-20 flex-shrink-0">{c.contents?.[0]?.text || ''}</span>
+                            <div key={i} className="flex leading-tight text-xs">
+                              <span className="text-slate-400 w-20 flex-shrink-0">{c.contents?.[0]?.text || ''}</span>
                               <span className="text-slate-900 font-bold break-words">{c.contents?.[1]?.text || ''}</span>
                             </div>
                           ))}
@@ -2793,7 +2793,7 @@ export function LineSettingsPageClient() {
                               href="#"
                               onClick={(e) => e.preventDefault()}
                               className={`w-full text-center py-1 rounded text-[10.5px] font-bold block ${btn.style === 'primary'
-                                  ? 'bg-slate-900 text-white hover:bg-slate-850'
+                                  ? 'bg-slate-900 text-white hover:bg-slate-800'
                                   : 'bg-white text-slate-800 border border-slate-200 hover:bg-slate-50'
                                 }`}
                             >
@@ -2831,7 +2831,7 @@ export function LineSettingsPageClient() {
 
             {/* Content */}
             <div className="p-5 overflow-y-auto space-y-4 text-xs">
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-150 grid grid-cols-2 gap-3">
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 grid grid-cols-2 gap-3">
                 <div>
                   <span className="text-slate-400 block">รหัสคิวงาน:</span>
                   <span className="font-mono font-bold text-slate-800">{selectedJob.id}</span>
@@ -2846,7 +2846,7 @@ export function LineSettingsPageClient() {
                 </div>
                 <div>
                   <span className="text-slate-400 block">สถานะปัจจุบัน:</span>
-                  <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${selectedJob.status === 'sent' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+                  <span className={`px-2 py-0.5 rounded font-bold text-xs ${selectedJob.status === 'sent' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
                     }`}>{selectedJob.status.toUpperCase()}</span>
                 </div>
               </div>
@@ -2859,9 +2859,9 @@ export function LineSettingsPageClient() {
                     <div key={attempt.id} className="bg-white rounded-lg border border-slate-200 p-3 leading-relaxed">
                       <div className="flex justify-between items-center pb-1.5 border-b border-slate-100">
                         <span className="font-bold text-slate-700">พยายามส่งครั้งที่ #{attempt.attempt_no}</span>
-                        <span className="text-[10px] text-slate-450">{new Date(attempt.created_at).toLocaleString('th-TH')}</span>
+                        <span className="text-xs text-slate-400">{new Date(attempt.created_at).toLocaleString('th-TH')}</span>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 mt-2 text-[11px] text-slate-600">
+                      <div className="grid grid-cols-2 gap-2 mt-2 text-xs text-slate-600">
                         <div>
                           <span>สถานะผลลัพธ์: </span>
                           <span className={`font-semibold ${attempt.status === 'success' ? 'text-emerald-600' : 'text-rose-600'}`}>
@@ -2893,7 +2893,7 @@ export function LineSettingsPageClient() {
             <div className="p-4 border-t border-slate-100 flex justify-end gap-2 bg-slate-50">
               <button
                 type="button"
-                className="px-4 py-2 text-xs font-semibold text-slate-650 bg-white hover:bg-slate-50 border border-slate-200 rounded-md transition focus:outline-none"
+                className="px-4 py-2 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 border border-slate-200 rounded-md transition focus:outline-none"
                 onClick={() => setSelectedJob(null)}
               >
                 ปิดหน้าต่างนี้

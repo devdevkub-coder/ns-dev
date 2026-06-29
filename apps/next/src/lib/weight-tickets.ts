@@ -50,6 +50,7 @@ export type WeightTicketProductSummary = {
   netWeight: number
   productId: string
   productName: string
+  categoryName: string
   remainingWeight: number
 }
 
@@ -381,6 +382,7 @@ const weightTicketProductSummarySchema = z.object({
   netWeight: z.number(),
   productId: z.string(),
   productName: z.string(),
+  categoryName: z.string(),
   remainingWeight: z.number(),
 })
 

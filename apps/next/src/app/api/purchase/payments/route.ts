@@ -489,25 +489,6 @@ export async function POST(request: Request) {
     const values = supplierPaymentFormSchema.parse(await request.json())
     const actor = currentActor(context)
 
-    if (values.id) {
-      const existingPayments = await prisma.payments.findMany({
-        where: { voucher_id: values.id },
-      })
-      if (existingPayments.length > 0) {
-        await prisma.$transaction(async (tx) => {
-          await tx.payments.updateMany({
-            data: {
-              notes: values.notes,
-              updated_at: new Date(),
-              updated_by: actor,
-            },
-            where: { voucher_id: values.id },
-          })
-        })
-        return NextResponse.json({ success: true })
-      }
-    }
-
     const voucherId = values.id ?? `PMT-${randomUUID()}`
     const paymentDate = normalizeDate(values.date)
     const paymentLines = (values.lines?.length ? values.lines : [{
@@ -560,6 +541,98 @@ export async function POST(request: Request) {
     const activePaymentMethods = await getActivePaymentMethods()
     const activePaymentMethod = activePaymentMethods.find((method) => normalizedPaymentMethod(method.name) === normalizedPaymentMethod(values.method))
     if (!activePaymentMethod) throw new Error('วิธีจ่ายไม่ถูกต้องหรือไม่ active')
+
+    if (values.id) {
+      const existingPayments = await prisma.payments.findMany({
+        where: { voucher_id: values.id },
+      })
+      if (existingPayments.length === 0) throw new Error('ไม่พบข้อมูลการจ่ายเงินที่ต้องการแก้ไข')
+      const docNo = existingPayments[0].doc_no
+      const paidAt = new Date()
+
+      await prisma.$transaction(async (tx) => {
+        await tx.payments.updateMany({
+          data: {
+            account_id: primaryAccount.id,
+            notes: values.notes,
+            method: values.method,
+            date: normalizeDate(values.date),
+            updated_at: new Date(),
+            updated_by: actor,
+          },
+          where: { voucher_id: values.id },
+        })
+
+        await tx.payment_account_splits.deleteMany({ where: { payment_voucher_id: values.id } })
+
+        await tx.bank_statement.deleteMany({ where: { ref_id: values.id, ref_type: 'PMT' } })
+        await tx.$executeRaw`select pg_advisory_xact_lock(hashtext('bank_statement.doc_no'))`
+        const statementDocNos = await nextBankStatementDocNos(values.date, paymentSplits.length, tx)
+
+        await tx.bank_statement.createMany({
+          data: paymentSplits.map((split, index) => ({
+            account_id: (splitAccountByCode.get(split.accountId)?.id as bigint),
+            amount_in: 0,
+            amount_out: split.amount,
+            created_by: actor,
+            date: normalizeDate(values.date),
+            description: `${values.id} - จ่ายผู้รับเงิน${paymentSplits.length > 1 ? ` (split ${index + 1}/${paymentSplits.length})` : ''}`,
+            doc_no: statementDocNos[index]!,
+            ref_id: values.id,
+            ref_no: docNo,
+            ref_type: 'PMT',
+            type: 'จ่ายเงินผู้รับเงิน',
+          })),
+        })
+
+        const createdStatements = await tx.bank_statement.findMany({
+          include: { accounts: true },
+          where: { doc_no: { in: statementDocNos } },
+        })
+        const statementByDocNo = new Map(createdStatements.map((statement) => [statement.doc_no, statement] as const))
+        const primaryPayment = existingPayments[0]!
+
+        await createPaymentAccountSplitFacts(tx, paymentSplits.map((split, index) => {
+          const accountReference = splitAccountByCode.get(split.accountId)
+          if (!accountReference) throw new Error('บัญชีจ่ายบางรายการไม่ถูกต้องหรือไม่ active')
+          const statementDocNo = statementDocNos[index]!
+          const statement = statementByDocNo.get(statementDocNo)
+          return {
+            accountCodeSnapshot: accountReference.code,
+            accountId: accountReference.id,
+            accountNameSnapshot: accountReference.name,
+            actor,
+            amount: toNumber(split.amount),
+            bankStatementDocNo: statementDocNo,
+            bankStatementId: statement?.id ?? null,
+            createdAt: paidAt,
+            paymentDocNo: docNo,
+            paymentId: primaryPayment.id,
+            paymentVoucherId: values.id,
+            splitKey: `PMTSPLIT-${docNo}-${statementDocNo}`,
+          }
+        }))
+
+        await appendPaymentStatusLog(tx, {
+          action: PAYMENT_STATUS_ACTION.POSTED,
+          actor,
+          amountSnapshot: totalAmount,
+          createdAt: paidAt,
+          fromStatus: 'active',
+          meta: {
+            note: 'แก้ไขข้อมูลบัญชี/ยอดจ่ายเงิน',
+            voucherId: values.id,
+          },
+          netAmountSnapshot: netAmount,
+          paymentDocNo: docNo,
+          paymentId: primaryPayment.id,
+          paymentVoucherId: values.id,
+          toStatus: 'active',
+        })
+      })
+
+      return NextResponse.json({ success: true })
+    }
 
     const result = await prisma.$transaction(async (tx) => {
       const txExt = tx as typeof tx & {
