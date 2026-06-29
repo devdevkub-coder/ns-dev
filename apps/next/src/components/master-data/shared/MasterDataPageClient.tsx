@@ -77,6 +77,7 @@ function recordToForm(record: MasterDataRecord, paymentMethods: MasterDataRecord
     odLimit: record.odLimit,
     branchId: record.branchId,
     address: record.address,
+    commissionEnabled: record.commissionEnabled,
     commissionPct: record.commissionPct,
     baseSalary: record.baseSalary,
     accountCurrency: record.accountCurrency,
@@ -853,12 +854,14 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
         key={field.key}
         error={errors[field.key]}
         field={field}
-        value={form[field.key]}
+        value={form[field.key] as string | number | boolean | null | undefined}
         onChange={(value) => {
-          const normalized = field.key === 'availableForSale'
+          const normalized = field.type === 'checkbox'
+            ? value === true || value === 'true'
+            : field.key === 'availableForSale'
             ? value === 'true'
             : field.type === 'number'
-              ? parseNumericFieldValue(value)
+              ? parseNumericFieldValue(String(value))
               : value || null
           update(field.key, normalized as never)
         }}
@@ -960,7 +963,7 @@ type FormFieldProps = {
   error?: string
   field: MasterDataField
   value: string | number | boolean | null | undefined
-  onChange: (value: string) => void
+  onChange: (value: string | boolean) => void
 }
 
 function FormField({ error, field, value, onChange }: FormFieldProps) {
@@ -985,6 +988,21 @@ function FormField({ error, field, value, onChange }: FormFieldProps) {
       >
         {field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </FormSelectField>
+    )
+  }
+
+  if (field.type === 'checkbox') {
+    return (
+      <label className="flex min-h-10 items-center gap-3 rounded-md border border-slate-200 bg-white px-3 py-2">
+        <input
+          checked={value === true}
+          className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+          type="checkbox"
+          onChange={(event) => onChange(event.target.checked)}
+        />
+        <span className="text-sm font-semibold text-slate-700">{field.label}</span>
+        {error ? <span className="ml-auto text-xs text-red-700">{error}</span> : null}
+      </label>
     )
   }
 
@@ -1070,5 +1088,4 @@ function MatchButton({ active, label, onClick, tone = 'dark' }: { active: boolea
   const idleClass = tone === 'amber' ? 'border-slate-300 bg-white hover:bg-amber-50' : tone === 'emerald' ? 'border-slate-300 bg-white hover:bg-emerald-50' : tone === 'red' ? 'border-slate-300 bg-white hover:bg-red-50' : 'border-slate-300 bg-white hover:bg-slate-100'
   return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
 }
-
 

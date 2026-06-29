@@ -107,6 +107,7 @@ export const masterDataRecordSchema = z.object({
   branchId: nullableString,
   branchName: nullableString,
   address: nullableString,
+  commissionEnabled: z.boolean().default(false),
   commissionPct: nullableNumber,
   baseSalary: nullableNumber,
   accountCurrency: nullableString,
@@ -166,6 +167,7 @@ export const masterDataFormSchema = masterDataRecordSchema
     odLimit: true,
     branchId: true,
     address: true,
+    commissionEnabled: true,
     commissionPct: true,
     baseSalary: true,
     accountCurrency: true,
@@ -215,6 +217,7 @@ export const masterDataFormSchema = masterDataRecordSchema
     odLimit: nonNegativeNumber('วงเงิน OD'),
     branchId: optionalCode('รหัสสาขา'),
     address: optionalGeneralText('ที่อยู่', 500),
+    commissionEnabled: z.boolean().default(false),
     commissionPct: z.number().min(0, 'ค่าคอมมิชชันต้องไม่ติดลบ').max(100, 'ค่าคอมมิชชันต้องไม่เกิน 100%').nullable().default(null),
     baseSalary: nonNegativeNumber('เงินเดือนฐาน'),
     accountCurrency: optionalCode('สกุลเงินบัญชี'),
@@ -244,7 +247,7 @@ export const accountMasterDataFormSchema = masterDataFormSchema.extend({
 
 export type MasterDataFormValues = z.infer<typeof masterDataFormSchema>
 
-export type MasterDataFieldType = 'text' | 'number' | 'select'
+export type MasterDataFieldType = 'text' | 'number' | 'select' | 'checkbox'
 export type MasterDataFieldInputFormat = 'money'
 
 export type MasterDataField = {
@@ -310,6 +313,7 @@ export const emptyMasterDataForm: MasterDataFormValues = {
   odLimit: null,
   branchId: null,
   address: null,
+  commissionEnabled: false,
   commissionPct: null,
   baseSalary: null,
   accountCurrency: null,

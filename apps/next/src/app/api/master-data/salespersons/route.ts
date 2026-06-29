@@ -29,6 +29,7 @@ function mapSalesperson(row: Awaited<ReturnType<typeof prisma.salespersons.findM
     branchId: null,
     branchName: null,
     address: null,
+    commissionEnabled: row.commission_eligible ?? false,
     commissionPct: null,
     baseSalary: null,
     createdAt: toIso(row.created_at),
@@ -101,6 +102,7 @@ export async function POST(request: Request) {
       phone: values.phone || null,
       email: values.email || null,
       active: values.active,
+      commission_eligible: values.commissionEnabled,
     }
     const row = existing
       ? await prisma.salespersons.update({

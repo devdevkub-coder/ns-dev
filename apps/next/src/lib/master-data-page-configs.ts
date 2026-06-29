@@ -11,12 +11,14 @@ export const salespersonsPageConfig: MasterDataPageConfig = {
     { key: 'name', label: 'ชื่อพนักงานขาย', required: true },
     { key: 'phone', label: 'โทรศัพท์' },
     { key: 'email', label: 'อีเมล' },
+    { key: 'commissionEnabled', label: 'คิดค่าคอมมิชชั่น', type: 'checkbox' },
   ],
   columns: [
     { key: 'code', label: 'รหัส' },
     { key: 'name', label: 'ชื่อ' },
     { key: 'phone', label: 'โทร' },
     { key: 'email', label: 'อีเมล' },
+    { key: 'commissionEnabled', label: 'คิดค่าคอม', align: 'center' },
     statusColumn,
   ],
 }
