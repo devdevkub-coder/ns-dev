@@ -40,7 +40,7 @@ export const salesLineItemSchema = z.object({
   netWeight: money('น้ำหนักสุทธิ').default(0),
   note: optionalGeneralText('หมายเหตุรายการ', 200),
   poSellId: optionalSafeId('PO Sell'),
-  price: positiveNumber('ราคา/หน่วย'),
+  price: positiveNumber('ราคาขาย/หน่วย'),
   productId: z.string().trim().min(1, 'เลือกสินค้า').max(80, 'รหัสสินค้ายาวเกินไป').regex(safeIdPattern, 'รหัสสินค้ามีรูปแบบไม่ถูกต้อง'),
   qty: positiveNumber('จำนวน'),
   tradingCostSourceId: optionalSafeId('Trading cost source'),

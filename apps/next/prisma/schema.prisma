@@ -3157,6 +3157,11 @@ model stock_holds {
   output_category        String?
   lot_no                 String?
   not_available_for_sale Boolean              @default(false)
+  unit_cost_snapshot     Decimal?             @db.Decimal
+  value_snapshot         Decimal?             @db.Decimal
+  cost_snapshot_at       DateTime?            @db.Timestamptz(6)
+  cost_snapshot_source   String?
+  cost_snapshot_note     String?
   branches               branches             @relation(fields: [branch_id], references: [id], onUpdate: NoAction)
   products               products             @relation(fields: [product_id], references: [id], onUpdate: NoAction)
   warehouses             warehouses           @relation(fields: [warehouse_id], references: [id], onUpdate: NoAction)

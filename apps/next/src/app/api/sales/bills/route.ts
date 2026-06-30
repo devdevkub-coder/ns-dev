@@ -47,25 +47,53 @@ type SalesBillRow = Prisma.sales_billsGetPayload<{
   }
 }>
 
-type DeliveryTicketOptionRow = Prisma.weight_ticketsGetPayload<{
-  include: {
-    branches: true
-    customers: true
-    weight_ticket_product_summaries: {
-      include: {
-        weight_ticket_product_summary_lines: true
-      }
-      orderBy: {
-        product_name: 'asc'
-      }
-    }
-    weight_ticket_lines: {
-      orderBy: {
-        line_no: 'asc'
-      }
-    }
-  }
-}>
+type DecimalLike = { toNumber: () => number } | number
+
+type DeliveryTicketOptionRow = {
+  branch_id: bigint
+  branches: { code: string | null; name: string | null } | null
+  cancelled_at: Date | null
+  customer_id: bigint | null
+  customers: { code: string | null } | null
+  doc_no: string
+  doc_type: string
+  document_date: Date
+  id: bigint
+  party_name: string
+  status: string
+  stock_holds: Array<{
+    product_id: bigint
+    qty: DecimalLike
+    status: string
+    unit_cost_snapshot: DecimalLike | null
+    value_snapshot: DecimalLike | null
+  }>
+  vehicle_no: string
+  weight_ticket_lines: Array<{
+    deduct_weight: DecimalLike
+    gross_weight: DecimalLike
+    id: bigint
+    line_no: number
+    net_weight: DecimalLike
+    note: string | null
+    product_id: bigint | null
+    product_name: string
+  }>
+  weight_ticket_product_summaries: Array<{
+    billed_weight: DecimalLike
+    deduct_weight: DecimalLike
+    gross_weight: DecimalLike
+    has_mixed_deduction_profiles: boolean | null
+    id: bigint
+    line_count: number | null
+    net_weight: DecimalLike
+    product_id: bigint | null
+    product_name: string
+    weight_ticket_product_summary_lines: Array<{
+      weight_ticket_line_id: bigint
+    }>
+  }>
+}
 
 type DeliverySummarySource = DeliveryTicketOptionRow['weight_ticket_product_summaries'][number]
 
@@ -475,6 +503,21 @@ function deliveryTicketOptionJson(
       usedQty: 0,
     }
   })
+  const activeCostByProductId = new Map<string, { missingCost: boolean; qty: number; value: number }>()
+  row.stock_holds.forEach((hold) => {
+    if (hold.status !== 'active') return
+    const key = String(hold.product_id)
+    const current = activeCostByProductId.get(key) ?? { missingCost: false, qty: 0, value: 0 }
+    const qty = toNumber(hold.qty)
+    const unitCost = hold.unit_cost_snapshot == null ? null : toNumber(hold.unit_cost_snapshot)
+    current.qty += qty
+    if (unitCost == null) {
+      current.missingCost = true
+    } else {
+      current.value += hold.value_snapshot == null ? qty * unitCost : toNumber(hold.value_snapshot)
+    }
+    activeCostByProductId.set(key, current)
+  })
 
   const productSummaries = row.weight_ticket_product_summaries.map((summary) => {
     const productCode = summary.product_id != null ? (productCodeById.get(summary.product_id) ?? '') : ''
@@ -482,6 +525,10 @@ function deliveryTicketOptionJson(
     const usedQty = usageMap.get(outwardSummaryId) ?? usageMap.get(deliverySummaryUsageKey(row.id, summary.id)) ?? 0
     const netWeight = toNumber(summary.net_weight)
     const remainingWeight = Math.max(0, netWeight - usedQty)
+    const activeCost = summary.product_id == null ? null : activeCostByProductId.get(String(summary.product_id))
+    const unitCostSnapshot = activeCost && activeCost.qty > 0 && !activeCost.missingCost
+      ? activeCost.value / activeCost.qty
+      : null
     return {
       billedWeight: toNumber(summary.billed_weight),
       deductWeight: toNumber(summary.deduct_weight),
@@ -497,6 +544,7 @@ function deliveryTicketOptionJson(
         const outwardLineId = outwardLineIdByInternalLineId.get(bridge.weight_ticket_line_id)
         return outwardLineId ? [outwardLineId] : []
       }),
+      unitCostSnapshot,
     }
   }).filter((summary) => summary.remainingWeight > 0.0001)
 
@@ -531,6 +579,16 @@ async function loadDeliveryAvailability(deliveryDocNo: string) {
         orderBy: { product_name: 'asc' },
       },
       weight_ticket_lines: { orderBy: { line_no: 'asc' } },
+      stock_holds: {
+        select: {
+          product_id: true,
+          qty: true,
+          status: true,
+          unit_cost_snapshot: true,
+          value_snapshot: true,
+        },
+        where: { status: 'active' },
+      },
     },
     where: {
       doc_no: deliveryDocNo,
@@ -828,6 +886,16 @@ async function salesOptionsPayload(scope: Awaited<ReturnType<typeof salesBranchS
           orderBy: { product_name: 'asc' },
         },
         weight_ticket_lines: { orderBy: { line_no: 'asc' } },
+        stock_holds: {
+          select: {
+            product_id: true,
+            qty: true,
+            status: true,
+            unit_cost_snapshot: true,
+            value_snapshot: true,
+          },
+          where: { status: 'active' },
+        },
       },
       orderBy: [{ document_date: 'desc' }, { doc_no: 'desc' }],
       take: 300,

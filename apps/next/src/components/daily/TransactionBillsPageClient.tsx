@@ -318,6 +318,7 @@ type DeliveryOption = {
     productName: string
     remainingWeight: number
     sourceLineIds: string[]
+    unitCostSnapshot?: number | null
     stockPreview?: {
       afterQty: number
       availableQty: number
@@ -3709,7 +3710,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                        </div>
 	                      ) : null}
 	                      <div className="overflow-x-auto rounded-md border border-slate-200/60">
-	                      <table className="w-full min-w-[1180px] text-sm">
+	                      <table className="w-full min-w-[1300px] text-sm">
                         <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
                           <tr>
                             <th className="p-2 text-left">สินค้า</th>
@@ -3718,7 +3719,8 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                             <th className="p-2 text-right">หักสิ่งเจือปน</th>
                             <th className="p-2 text-right">น้ำหนักขายสุทธิ</th>
                             <th className="p-2 text-left">อ้างอิง</th>
-	                            <th className="p-2 text-right">ราคา/หน่วย</th>
+	                            <th className="p-2 text-right">ราคาต้นทุนเฉลี่ย</th>
+	                            <th className="p-2 text-right">ราคาขาย/หน่วย</th>
 	                            <th className="p-2 text-right">ส่วนลด</th>
 	                            <th className="p-2 text-right">ยอดรวม</th>
 	                            <th className="p-2 text-right">จัดการ</th>
@@ -3784,6 +3786,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                   {poSellVariance ? <div className={`mt-1 text-[11px] font-semibold ${poSellVariance.className}`}>{poSellVariance.text}</div> : null}
                                 </td>
                                 <td className="p-2">
+                                  <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-2 text-right font-semibold tabular-nums text-slate-700">
+                                    {sourceSummary?.unitCostSnapshot == null ? '-' : formatMoney(sourceSummary.unitCostSnapshot)}
+                                  </div>
+                                </td>
+                                <td className="p-2">
                                   <InlineMoneyInput
                                     disabled={hasSelectedPoSell}
                                     error={salesFieldErrors[`items.${index}.price`]}
@@ -3829,6 +3836,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                            <td></td>
 	                            <td></td>
 	                            <td></td>
+	                            <td></td>
 	                            <td className="p-2 text-right tabular-nums text-blue-700">{formatMoney(salesSubtotal)}</td>
 	                            <td></td>
 	                          </tr>
@@ -3847,22 +3855,27 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                   </div>
                 ) : (
                   <div className="overflow-x-auto rounded-md border border-slate-200/60">
-                    <table className="w-full min-w-[1240px] text-sm">
+                    <table className="w-full min-w-[1360px] text-sm">
                       <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-medium text-xs">
                         <tr>
                           <th className="p-2 text-left">สินค้า</th>
                           <th className="p-2 text-left">แหล่งสินค้า</th>
                           <th className="p-2 text-left">อ้างอิง</th>
+                          <th className="p-2 text-right">ราคาต้นทุนเฉลี่ย</th>
                           <th className="p-2 text-right">น้ำหนักที่ขาย</th>
                           <th className="p-2 text-right">หัก</th>
                           <th className="p-2 text-right">น้ำหนักสุทธิขาย</th>
-                          <th className="p-2 text-right">ราคา/หน่วย</th>
+                          <th className="p-2 text-right">ราคาขาย/หน่วย</th>
                           <th className="p-2 text-right">ยอดรายการ</th>
                         </tr>
                       </thead>
                       <tbody>
                         {salesForm.items.map((item, index) => {
                           const isWtoLine = Boolean(item.deliveryTicketId)
+                          const wtoSummaryId = item.deliverySummaryId ?? item.deliveryLineId ?? null
+                          const wtoSourceSummary = isWtoLine && wtoSummaryId
+                            ? selectedDelivery?.productSummaries.find((summary) => summary.id === wtoSummaryId) ?? null
+                            : null
                           const itemPoSellOptions = activePoSells.filter((po) => {
                             if (po.product_id && po.product_id !== item.productId) return false
                             if (item.poSellId === po.id) return true
@@ -3895,6 +3908,11 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                     <div className="mt-1 text-[11px] text-slate-500">{item.productId}</div>
                                   </>
                                 )}
+                              </td>
+                              <td className="p-2">
+                                <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-2 text-right font-semibold tabular-nums text-slate-700">
+                                  {wtoSourceSummary?.unitCostSnapshot == null ? '-' : formatMoney(wtoSourceSummary.unitCostSnapshot)}
+                                </div>
                               </td>
                               <td className="p-2">
                                 {isSameSourceProductGroup ? <span className="sr-only">{sourceLabel}</span> : (
@@ -3946,7 +3964,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                       </tbody>
                       <tfoot className="border-t bg-emerald-50 font-bold">
                         <tr>
-                          <td className="p-2 text-right text-slate-700" colSpan={3}>รวม</td>
+                          <td className="p-2 text-right text-slate-700" colSpan={4}>รวม</td>
                           <td className="p-2 text-right tabular-nums text-slate-700">{formatMoney(salesForm.items.reduce((sum, item) => sum + item.grossWeight, 0))}</td>
                           <td className="p-2 text-right tabular-nums text-amber-700">{formatMoney(salesForm.items.reduce((sum, item) => sum + item.deductWeight, 0))}</td>
                           <td className="p-2 text-right tabular-nums text-emerald-700">{formatMoney(salesForm.items.reduce((sum, item) => sum + item.qty, 0))}</td>
@@ -4574,7 +4592,7 @@ function SalesBillDetailModal({
                       <th className="px-3 py-2 text-right font-medium">Gross</th>
                       <th className="px-3 py-2 text-right font-medium">หัก</th>
                       <th className="px-3 py-2 text-right font-medium">จำนวนสุทธิ</th>
-                      <th className="px-3 py-2 text-right font-medium">ราคา/หน่วย</th>
+                      <th className="px-3 py-2 text-right font-medium">ราคาขาย/หน่วย</th>
                       <th className="px-3 py-2 text-right font-medium">ส่วนลด</th>
                       <th className="px-3 py-2 text-right font-medium">ยอดรวม</th>
                     </tr>
