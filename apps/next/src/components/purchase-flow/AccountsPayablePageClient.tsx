@@ -235,20 +235,20 @@ export function AccountsPayablePageClient() {
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <div className="relative overflow-hidden rounded-md bg-gradient-to-br from-red-600 via-rose-700 to-pink-800 p-6 text-white shadow-lg">
-          <div className="absolute -right-10 -top-10 h-40 w-40 rounded-md-full bg-white/10" />
+        <div className="relative overflow-hidden rounded-md bg-gradient-to-br from-red-600 via-rose-700 to-pink-800 dark:from-rose-950/60 dark:via-slate-900 dark:to-slate-900 border border-transparent dark:border-rose-950/40 p-6 text-white dark:text-slate-100 shadow-lg">
+          <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 dark:bg-rose-500/5" />
           <div className="relative">
             <div className="text-sm uppercase tracking-wider opacity-80">💸 ค้างจ่าย Supplier รวม</div>
             <div className="mt-2 text-4xl font-bold">{formatMoney(totalAp)}</div>
             <div className="mt-1 text-sm opacity-90">{data?.summary.bills ?? 0} บิล · {data?.summary.suppliers ?? 0} Supplier</div>
             <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/20 pt-4">
               <div>
-                <div className="text-[10px] opacity-75">⚠ อายุหนี้แล้ว</div>
+                <div className="text-xs opacity-75">⚠ อายุหนี้แล้ว</div>
                 <div className="text-lg font-bold text-amber-200">{formatMoney(overdueAp)}</div>
-                <div className="text-[10px] opacity-75">{overduePercent}%</div>
+                <div className="text-xs opacity-75">{overduePercent}%</div>
               </div>
               <div>
-                <div className="text-[10px] opacity-75">⏰ อายุไม่เกิน 7 วัน</div>
+                <div className="text-xs opacity-75">⏰ อายุไม่เกิน 7 วัน</div>
                 <div className="text-lg font-bold text-yellow-200">{formatMoney(dueIn7)}</div>
               </div>
             </div>
@@ -263,10 +263,10 @@ export function AccountsPayablePageClient() {
                 <span className={`w-5 text-center font-bold ${index < 3 ? 'text-red-600' : 'text-slate-400'}`}>{index + 1}</span>
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-semibold text-slate-700">{supplier.supplierName}</div>
-                  <div className="text-[10px] text-slate-400">{supplier.bills} บิล · เกินสุด {supplier.oldest} วัน</div>
+                  <div className="text-xs text-slate-400">{supplier.bills} บิล · เกินสุด {supplier.oldest} วัน</div>
                 </div>
-                <div className="h-2.5 w-20 rounded-md-full bg-slate-100">
-                  <div className="h-2.5 rounded-md-full bg-red-500" style={{ width: percentage(supplier.total, topSuppliers[0]?.total ?? 0) }} />
+                <div className="h-2.5 w-20 rounded-full bg-slate-100 dark:bg-slate-950">
+                  <div className="h-2.5 rounded-full bg-red-500" style={{ width: percentage(supplier.total, topSuppliers[0]?.total ?? 0) }} />
                 </div>
                 <div className="w-24 text-right font-bold text-red-700">{formatMoney(supplier.total)}</div>
               </div>
@@ -292,7 +292,7 @@ export function AccountsPayablePageClient() {
             <div key={`card-${bucket.bucket}`} className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-sm text-center">
               <div className={`text-xs font-semibold ${textClass}`}>อายุ {bucketLongLabel(bucket.bucket)}</div>
               <div className="text-lg font-bold text-slate-900 mt-1 tabular-nums">{formatMoney(bucket.total)}</div>
-              <div className="mt-1 text-[10px] text-slate-400 font-medium">{bucket.bills} ใบ</div>
+              <div className="mt-1 text-xs text-slate-400 font-medium">{bucket.bills} ใบ</div>
             </div>
           )
         })}
@@ -463,11 +463,11 @@ export function AccountsPayablePageClient() {
                 {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
               </select>
               <div className="grid grid-cols-2 gap-2">
-                <label className="text-[11px] text-slate-500">
+                <label className="text-xs text-slate-500">
                   จากวันที่
                   <DatePickerInput className="mt-1 w-full" value={from} onChange={(value) => { setPage(1); setFrom(value) }} />
                 </label>
-                <label className="text-[11px] text-slate-500">
+                <label className="text-xs text-slate-500">
                   ถึงวันที่
                   <DatePickerInput className="mt-1 w-full" value={to} onChange={(value) => { setPage(1); setTo(value) }} />
                 </label>
@@ -482,6 +482,16 @@ export function AccountsPayablePageClient() {
       </div>
 
       {tab === 'summary' ? <SummaryTable buckets={bucketRows} rows={data?.bySupplier ?? []} summary={data?.summary} isLoading={isLoading} /> : null}
+      {tab === 'detail' && (
+        <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between mb-3">
+          <div>พบทั้งหมด {(data?.pagination.totalRows ?? 0).toLocaleString('th-TH')} รายการ</div>
+          <div className="flex items-center gap-2">
+            <Button disabled={page <= 1 || isLoading} size="xs" type="button" variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</Button>
+            <span>หน้า {page} / {totalPages}</span>
+            <Button disabled={page >= totalPages || isLoading} size="xs" type="button" variant="outline" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</Button>
+          </div>
+        </div>
+      )}
       {tab === 'detail' ? <DetailTable isLoading={isLoading} onSort={changeSort} rows={data?.rows ?? []} selectedSort={sortKey} sortDirection={sortDirection} summaryTotal={data?.summary.total ?? 0} onOpen={setSelectedRow} /> : null}
 
       {/* Mobile Card list for Summary tab */}
@@ -495,7 +505,7 @@ export function AccountsPayablePageClient() {
             <div key={row.supplierName} className="rounded-md border border-slate-200 bg-white p-4 shadow-sm space-y-3">
               <div className="flex justify-between items-start gap-2">
                 <span className="font-bold text-slate-900 text-[15px] leading-snug">{row.supplierName}</span>
-                <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold shrink-0 ${row.oldest > 30 ? 'bg-red-100 text-red-700' : row.oldest > 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'}`}>
+                <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold shrink-0 ${row.oldest > 30 ? 'bg-red-100 text-red-700' : row.oldest > 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'}`}>
                   {row.oldest > 0 ? `อายุหนี้ ${row.oldest} วัน` : 'วันนี้/อนาคต'}
                 </span>
               </div>
@@ -506,11 +516,11 @@ export function AccountsPayablePageClient() {
                 </div>
                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 font-mono text-[13px]">
                   <div>
-                    <span className="text-slate-400 block text-[10px] font-semibold">ยอดค้างจ่ายรวม:</span>
+                    <span className="text-slate-400 block text-xs font-semibold">ยอดค้างจ่ายรวม:</span>
                     <span className="text-red-700 font-bold tabular-nums">{formatMoney(row.total)}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[10px] font-semibold">Current:</span>
+                    <span className="text-slate-400 block text-xs font-semibold">Current:</span>
                     <span className="text-slate-600 tabular-nums">{formatMoney(row.current)}</span>
                   </div>
                 </div>
@@ -541,7 +551,7 @@ export function AccountsPayablePageClient() {
             >
               <div className="flex justify-between items-start gap-2">
                 <span className="font-bold text-slate-900 text-[15px] leading-snug text-blue-600">{row.docNo}</span>
-                <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold shrink-0 ${bucketClass(row.bucket)}`}>
+                <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold shrink-0 ${bucketClass(row.bucket)}`}>
                   {row.bucket} ({row.aging} วัน)
                 </span>
               </div>
@@ -553,25 +563,25 @@ export function AccountsPayablePageClient() {
                 </div>
                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
                   <div>
-                    <span className="text-slate-400 block text-[10px] uppercase font-semibold">วันที่บิล:</span>
+                    <span className="text-slate-400 block text-xs uppercase font-semibold">วันที่บิล:</span>
                     <span className="text-slate-700 font-medium">{formatDateDisplay(row.date)}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[10px] uppercase font-semibold">นับอายุจาก:</span>
+                    <span className="text-slate-400 block text-xs uppercase font-semibold">นับอายุจาก:</span>
                     <span className="text-slate-700 font-medium">{formatDateDisplay(row.dueDate)}</span>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 font-mono text-[13px]">
                   <div>
-                    <span className="text-slate-400 block text-[10px] font-semibold">ยอดรวม:</span>
+                    <span className="text-slate-400 block text-xs font-semibold">ยอดรวม:</span>
                     <span className="text-slate-800 tabular-nums">{formatMoney(row.totalAmount)}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[10px] font-semibold">จ่ายแล้ว:</span>
+                    <span className="text-slate-400 block text-xs font-semibold">จ่ายแล้ว:</span>
                     <span className="text-emerald-700 tabular-nums">{formatMoney(row.paidAmount)}</span>
                   </div>
                   <div>
-                    <span className="text-slate-500 block text-[10px] font-bold">ค้างจ่าย:</span>
+                    <span className="text-slate-500 block text-xs font-bold">ค้างจ่าย:</span>
                     <span className="text-red-700 font-bold tabular-nums">{formatMoney(row.payableBalance)}</span>
                   </div>
                 </div>
@@ -587,13 +597,7 @@ export function AccountsPayablePageClient() {
         </div>
       )}
 
-      {tab === 'detail' ? (
-        <div className="flex items-center justify-end gap-2 mt-4">
-          <button className="rounded-md bg-slate-100 px-3 py-2 text-sm disabled:opacity-50" disabled={page <= 1 || isLoading} type="button" onClick={() => setPage((current) => Math.max(1, current - 1))}>ก่อนหน้า</button>
-          <span className="text-sm text-slate-600">หน้า {page} / {totalPages}</span>
-          <button className="rounded-md bg-slate-100 px-3 py-2 text-sm disabled:opacity-50" disabled={page >= totalPages || isLoading} type="button" onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>ถัดไป</button>
-        </div>
-      ) : null}
+
       {selectedRow ? <DetailModal row={selectedRow} onClose={() => setSelectedRow(null)} /> : null}
     </section>
   )
@@ -720,7 +724,7 @@ function SummaryTable({
           {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={9}>กำลังโหลดข้อมูล</td></tr> : null}
           {!isLoading && rows.length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={9}>ไม่มีเจ้าหนี้คงค้าง</td></tr> : null}
           {!isLoading && rows.map((row) => (
-            <tr key={row.supplierName} className={`border-t border-slate-100 hover:bg-red-50/30 ${row.oldest > 30 ? 'bg-red-50/40' : row.oldest > 0 ? 'bg-amber-50/30' : ''}`}>
+            <tr key={row.supplierName} className={`border-t border-slate-100 hover:bg-slate-50/30 dark:hover:bg-slate-800/40 ${row.oldest > 30 ? 'bg-red-50/15 dark:bg-red-50/10' : row.oldest > 0 ? 'bg-amber-50/15 dark:bg-amber-50/10' : ''}`}>
               <td className="p-2 font-medium">{row.supplierName}</td>
               <td className="p-2 text-right">{row.bills}</td>
               <td className="p-2 text-right text-slate-600">{moneyOrDash(row.current)}</td>
@@ -813,7 +817,7 @@ function DetailTable({
           {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={8}>กำลังโหลดข้อมูล</td></tr> : null}
           {!isLoading && rows.length === 0 ? <tr><td className="p-6 text-center text-slate-400" colSpan={8}>ไม่มีเจ้าหนี้คงค้าง</td></tr> : null}
           {!isLoading && rows.map((row) => (
-            <tr key={row.id} className={`border-t border-slate-100 ${row.aging > 30 ? 'bg-red-50/50' : row.aging > 0 ? 'bg-amber-50/30' : ''}`}>
+            <tr key={row.id} className={`border-t border-slate-100 hover:bg-slate-50/30 dark:hover:bg-slate-800/40 ${row.aging > 30 ? 'bg-red-50/15 dark:bg-red-50/10' : row.aging > 0 ? 'bg-amber-50/15 dark:bg-amber-50/10' : ''}`}>
               <td className="p-2 overflow-hidden truncate">{row.supplierName}</td>
               <td className="p-2 overflow-hidden truncate"><button className="font-mono text-xs text-blue-600" type="button" onClick={() => onOpen(row)}>{row.docNo}</button></td>
               <td className="p-2 overflow-hidden truncate">{formatDateDisplay(row.date)}</td>
@@ -856,7 +860,7 @@ function DetailModal({ onClose, row }: { onClose: () => void; row: ApRow }) {
         <div className="flex-1 overflow-y-auto bg-slate-50 p-5 space-y-4 text-sm">
           {/* ข้อมูลเอกสาร */}
           <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูลเอกสาร</div>
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูลเอกสาร</div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
               <DetailItem label="วันที่บิล" value={formatDateDisplay(row.date)} />
               <DetailItem label="นับอายุจาก" value={formatDateDisplay(row.dueDate)} />
@@ -868,7 +872,7 @@ function DetailModal({ onClose, row }: { onClose: () => void; row: ApRow }) {
 
           {/* ข้อมูลการเงิน */}
           <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูลการเงิน</div>
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูลการเงิน</div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
               <DetailItem label="ยอดบิล" value={`${formatMoney(row.totalAmount)} บาท`} />
               <DetailItem label="จ่ายแล้ว" value={`${formatMoney(row.paidAmount)} บาท`} />
@@ -906,7 +910,7 @@ function TraceSection({
 }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">Drilldown / ที่มาของยอด</div>
+      <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">Drilldown / ที่มาของยอด</div>
       <div className="space-y-3">
         <TraceLink label="Purchase Bill" href={purchaseBill?.href ?? '#'} docNo={purchaseBill?.docNo ?? '-'} amountLabel="Source" amountValue={purchaseBill?.sourceOfTruth ?? '-'} />
         <TraceList
@@ -948,11 +952,11 @@ function TraceLink({ amountLabel, amountValue, docNo, href, label }: { amountLab
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
       <div>
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</div>
+        <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</div>
         <a className="font-mono text-xs font-semibold text-blue-700 hover:underline" href={href}>{docNo}</a>
       </div>
       <div className="text-right">
-        <div className="text-[10px] text-slate-400">{amountLabel}</div>
+        <div className="text-xs text-slate-400">{amountLabel}</div>
         <div className="text-xs font-semibold text-slate-700">{amountValue}</div>
       </div>
     </div>
@@ -962,14 +966,14 @@ function TraceLink({ amountLabel, amountValue, docNo, href, label }: { amountLab
 function TraceList({ emptyText, rows, title }: { emptyText: string; rows: Array<{ amount: string; href: string; meta: string; title: string }>; title: string }) {
   return (
     <div>
-      <div className="mb-1 text-[11px] font-bold text-slate-500">{title}</div>
+      <div className="mb-1 text-xs font-bold text-slate-500">{title}</div>
       {rows.length === 0 ? <div className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-400">{emptyText}</div> : null}
       <div className="space-y-1">
         {rows.map((row) => (
           <div key={`${title}-${row.title}-${row.amount}`} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-100 px-3 py-2">
             <div>
               <a className="font-mono text-xs font-semibold text-blue-700 hover:underline" href={row.href}>{row.title}</a>
-              <div className="text-[11px] text-slate-400">{row.meta}</div>
+              <div className="text-xs text-slate-400">{row.meta}</div>
             </div>
             <div className="text-xs font-bold text-slate-800">{row.amount}</div>
           </div>
@@ -982,7 +986,7 @@ function TraceList({ emptyText, rows, title }: { emptyText: string; rows: Array<
 function DetailItem({ className = '', label, value }: { className?: string; label: string; value: string }) {
   return (
     <div className={`flex flex-col py-1 ${className}`}>
-      <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{label}</div>
+      <div className="text-xs text-slate-400 font-medium uppercase tracking-wider">{label}</div>
       <div className="mt-0.5 text-xs sm:text-sm font-semibold text-slate-800">{value}</div>
     </div>
   )

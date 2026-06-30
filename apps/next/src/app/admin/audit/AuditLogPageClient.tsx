@@ -109,9 +109,9 @@ function eventGroup(eventType: string) {
 }
 
 function groupBadgeClass(group: string) {
-  if (group === 'Auth') return 'bg-sky-50 text-sky-705 border-sky-100'
-  if (group === 'Users') return 'bg-emerald-50 text-emerald-705 border-emerald-100'
-  if (group === 'Permissions') return 'bg-amber-50 text-amber-705 border-amber-100'
+  if (group === 'Auth') return 'bg-sky-50 text-sky-700 border-sky-100'
+  if (group === 'Users') return 'bg-emerald-50 text-emerald-700 border-emerald-100'
+  if (group === 'Permissions') return 'bg-amber-50 text-amber-700 border-amber-100'
   return 'bg-slate-100 text-slate-700 border-slate-100'
 }
 
@@ -347,7 +347,7 @@ export function AuditLogPageClient() {
           >
             <div className="text-xs font-semibold text-slate-500">{item.label}</div>
             <div className="mt-1 text-xl md:text-2xl font-bold text-slate-900">{summary.get(item.label) ?? 0}</div>
-            <div className="mt-1 text-[10px] text-slate-400">ในหน้าปัจจุบัน</div>
+            <div className="mt-1 text-xs text-slate-400">ในหน้าปัจจุบัน</div>
           </button>
         ))}
       </div>
@@ -476,23 +476,23 @@ export function AuditLogPageClient() {
                 <div key={row.id} className="p-4 bg-white space-y-3 animate-fade-in hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedRow(row)}>
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <span className={`inline-flex rounded border px-1.5 py-0.5 text-[10px] font-bold ${groupBadgeClass(groupLabel)}`}>{groupLabel}</span>
-                      <span className="ml-1.5 font-mono text-[11px] text-slate-500 bg-slate-50 px-1 py-0.5 rounded border border-slate-100">{row.eventType}</span>
+                      <span className={`inline-flex rounded border px-1.5 py-0.5 text-xs font-bold ${groupBadgeClass(groupLabel)}`}>{groupLabel}</span>
+                      <span className="ml-1.5 font-mono text-xs text-slate-500 bg-slate-50 px-1 py-0.5 rounded border border-slate-100">{row.eventType}</span>
                     </div>
-                    <span className="text-[11px] font-medium text-slate-500">{formatDate(row.createdAt)}</span>
+                    <span className="text-xs font-medium text-slate-500">{formatDate(row.createdAt)}</span>
                   </div>
 
                   <div className="text-xs">
                     <div className="font-bold text-slate-800 text-sm leading-snug">{eventTitle(row.eventType)}</div>
                     <div className="text-slate-600 mt-2 space-y-1.5">
-                      <div><span className="font-semibold text-slate-400 text-[10px] uppercase block">ผู้ทำรายการ</span> <span className="font-medium text-slate-800">{userLabel(row.actor)}</span></div>
+                      <div><span className="font-semibold text-slate-400 text-xs uppercase block">ผู้ทำรายการ</span> <span className="font-medium text-slate-800">{userLabel(row.actor)}</span></div>
                       {row.target ? (
-                        <div><span className="font-semibold text-slate-400 text-[10px] uppercase block">เป้าหมาย</span> <span className="font-medium text-slate-800">{userLabel(row.target)}</span></div>
+                        <div><span className="font-semibold text-slate-400 text-xs uppercase block">เป้าหมาย</span> <span className="font-medium text-slate-800">{userLabel(row.target)}</span></div>
                       ) : null}
                     </div>
                   </div>
                   
-                  <div className="text-[11px] text-slate-400 font-mono truncate max-w-full bg-slate-50 p-1.5 rounded border border-slate-100">
+                  <div className="text-xs text-slate-400 font-mono truncate max-w-full bg-slate-50 p-1.5 rounded border border-slate-100">
                     {metadataText(row.metadata)}
                   </div>
                 </div>
@@ -523,7 +523,7 @@ export function AuditLogPageClient() {
               <div className="grid gap-4 md:grid-cols-2">
                 {/* ข้อมูลเหตุการณ์ */}
                 <div className="rounded-lg border border-slate-100 bg-white p-4 shadow-sm">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูลเหตุการณ์</div>
+                  <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูลเหตุการณ์</div>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
                     <DetailItem label="กลุ่ม" value={eventGroup(selectedRow.eventType)} />
                     <DetailItem label="เวลา" value={formatDate(selectedRow.createdAt)} />
@@ -533,7 +533,7 @@ export function AuditLogPageClient() {
 
                 {/* ผู้ทำและเป้าหมาย */}
                 <div className="rounded-lg border border-slate-100 bg-white p-4 shadow-sm">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ผู้ทำและเป้าหมาย</div>
+                  <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ผู้ทำและเป้าหมาย</div>
                   <div className="grid grid-cols-1 gap-3">
                     <DetailItem label="ผู้ทำรายการ" value={userLabel(selectedRow.actor)} />
                     <DetailItem label="เป้าหมาย" value={userLabel(selectedRow.target)} />
@@ -543,12 +543,12 @@ export function AuditLogPageClient() {
 
               {/* ข้อมูลระบบและเมทาดาตา */}
               <div className="rounded-lg border border-slate-100 bg-white p-4 shadow-sm">
-                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูลระบบและเมทาดาตา</div>
+                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูลระบบและเมทาดาตา</div>
                 <div className="space-y-4">
                   <DetailItem label="User Agent" value={selectedRow.userAgent || '-'} />
                   <div>
-                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Metadata</div>
-                    <pre className="max-h-60 overflow-auto rounded bg-slate-950 p-3.5 font-mono text-[11px] leading-relaxed text-slate-200">{metadataText(selectedRow.metadata)}</pre>
+                    <div className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Metadata</div>
+                    <pre className="max-h-60 overflow-auto rounded bg-slate-950 p-3.5 font-mono text-xs leading-relaxed text-slate-200">{metadataText(selectedRow.metadata)}</pre>
                   </div>
                 </div>
               </div>
@@ -567,7 +567,7 @@ export function AuditLogPageClient() {
 function DetailItem({ className = '', label, value, mono = false }: { className?: string; label: string; value: string; mono?: boolean }) {
   return (
     <div className={`flex flex-col py-1 ${className}`}>
-      <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{label}</div>
+      <div className="text-xs text-slate-400 font-medium uppercase tracking-wider">{label}</div>
       <div className={`mt-0.5 text-xs sm:text-sm font-bold text-slate-800 ${mono ? 'font-mono' : ''}`}>{value}</div>
     </div>
   )

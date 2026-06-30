@@ -38,7 +38,7 @@ type DisplayBalanceRow = BalanceRow & {
 function SegmentedButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
     <button
-      className={`rounded-md border px-3 py-1 text-xs font-semibold ${
+      className={`rounded-md border px-3.5 py-1.5 text-sm font-semibold ${
         active ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
       } outline-none focus:outline-none`}
       type="button"
@@ -679,8 +679,8 @@ export function StockBalancePageClient() {
             </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
-            <span className="text-xs text-slate-500">หมวดสินค้า:</span>
+          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
+            <span className="text-sm text-slate-500">หมวดสินค้า:</span>
             <div className="min-w-[180px]">
               <SearchCombobox
                 hideLabel
@@ -699,15 +699,15 @@ export function StockBalancePageClient() {
               </button>
             ) : null}
 
-            <span className="ml-4 text-xs text-slate-500 mr-2">ประเภทคลัง:</span>
-            <div className="flex items-center gap-1.5">
+            <span className="ml-4 text-sm text-slate-500 mr-2">ประเภทคลัง:</span>
+            <div className="flex items-center gap-3">
               <SegmentedButton active={stockTypes.length === 0} label="ทั้งหมด" onClick={() => toggleStockType('')} />
               <SegmentedButton active={stockTypes.includes('RM')} label="📦 RM" onClick={() => toggleStockType('RM')} />
               <SegmentedButton active={stockTypes.includes('WIP')} label="⚙️ WIP" onClick={() => toggleStockType('WIP')} />
               <SegmentedButton active={stockTypes.includes('FG')} label="✅ FG" onClick={() => toggleStockType('FG')} />
             </div>
 
-            <span className="ml-4 text-xs text-slate-500">สาขา:</span>
+            <span className="ml-4 text-sm text-slate-500">สาขา:</span>
             <select className="h-9 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-sm text-slate-800 outline-none transition-colors focus:border-slate-400 focus:ring-0" value={branchId} onChange={(event) => setBranchId(event.target.value)}>
               <option value="">ทุกสาขา</option>
               {data?.reference.branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
@@ -853,9 +853,9 @@ export function StockBalancePageClient() {
       )}
 
       <Dialog open={!!detailRow} onOpenChange={(open) => { if (!open) setDetailRow(null) }}>
-        <DialogContent className="max-h-[90vh] w-[calc(100vw-1rem)] max-w-5xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 animate-fade-in sm:w-[calc(100vw-2rem)] lg:min-w-[900px]" hideClose>
-          <div className="flex items-center justify-between bg-slate-900 text-white px-5 py-3 shrink-0 border-b border-slate-800">
-            <h3 className="font-bold text-slate-100 text-[16px]">รายละเอียดสต๊อกคงเหลือ</h3>
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1rem)] max-w-5xl rounded-md !p-0 overflow-hidden flex flex-col bg-slate-900 dark:bg-[#0f172a] border-0 animate-fade-in sm:w-[calc(100vw-2rem)] lg:min-w-[900px]" hideClose>
+          <div className="flex items-center justify-between bg-slate-900 dark:bg-[#0f172a] text-white px-5 py-3 shrink-0 border-b border-slate-800 dark:border-slate-200">
+            <h3 className="font-bold text-white text-[16px]">รายละเอียดสต๊อกคงเหลือ</h3>
             <button className="text-2xl text-slate-400 hover:text-white transition-colors outline-none focus:outline-none focus:ring-0" type="button" onClick={() => setDetailRow(null)}>&times;</button>
           </div>
           
@@ -1060,7 +1060,7 @@ function MatchButton({ active, label, onClick, tone = 'dark' }: { active: boolea
     slate: 'border-slate-500 bg-slate-500 text-white',
   }[tone]
   const idleClass = tone === 'amber' ? 'border-slate-300 bg-white hover:bg-amber-50' : tone === 'emerald' ? 'border-slate-300 bg-white hover:bg-emerald-50' : tone === 'red' ? 'border-slate-300 bg-white hover:bg-red-50' : 'border-slate-300 bg-white hover:bg-slate-50 text-slate-700'
-  return <button className={`rounded-md border px-3 py-1 text-xs font-medium transition outline-none focus:ring-0 ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
+  return <button className={`rounded-md border px-3.5 py-1.5 text-sm font-medium transition outline-none focus:ring-0 ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
 }
 
 

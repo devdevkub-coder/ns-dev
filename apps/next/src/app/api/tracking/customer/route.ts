@@ -9,7 +9,7 @@ import { findActiveCustomerReferenceByCodeOrId } from '@/lib/server/customer-ref
 import { toDateOnly, toNumber } from '@/lib/server/daily'
 import { addToFinancialAgingBucketTotals, computeFinancialDueAging, emptyFinancialAgingBucketTotals, financialAgingBuckets } from '@/lib/server/document-aging'
 import { prisma } from '@/lib/server/prisma'
-import { salesBillLineFactsByBillId, salesBillLineFactTotals } from '@/lib/server/sales-bill-line-facts'
+import { salesBillLineFactsByBillId, salesBillLineFactTotals, type SalesBillLineFactRow } from '@/lib/server/sales-bill-line-facts'
 import { applyWorksheetTableLayout } from '@/lib/server/xlsx'
 
 export const runtime = 'nodejs'
@@ -60,6 +60,33 @@ function branchScopedReceiptWhere(allowedBranchIds: bigint[] | null): Prisma.rec
   }
 }
 
+function productOptionKey(line: SalesBillLineFactRow) {
+  return line.productId?.toString() || line.productCode || line.productName
+}
+
+function productFilterMatches(line: SalesBillLineFactRow, productCategory: string | null, productId: string | null) {
+  if (productCategory && line.productCategory !== productCategory) return false
+  if (productId && productOptionKey(line) !== productId) return false
+  return true
+}
+
+function buildProductFilters(lines: SalesBillLineFactRow[]) {
+  const categorySet = new Set<string>()
+  const productMap = new Map<string, { category: string; code: string; id: string; name: string }>()
+  for (const line of lines) {
+    if (line.productCategory) categorySet.add(line.productCategory)
+    const id = productOptionKey(line)
+    if (!id) continue
+    if (!productMap.has(id)) {
+      productMap.set(id, { category: line.productCategory, code: line.productCode, id, name: line.productName })
+    }
+  }
+  return {
+    productCategories: Array.from(categorySet).sort((left, right) => left.localeCompare(right, 'th')),
+    products: Array.from(productMap.values()).sort((left, right) => left.name.localeCompare(right.name, 'th')),
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const context = await getCurrentAuthContext()
@@ -71,6 +98,8 @@ export async function GET(request: Request) {
     const month = url.searchParams.get('month')
     const customerId = url.searchParams.get('customerId')
     const detailId = url.searchParams.get('detailId')
+    const productCategory = url.searchParams.get('productCategory')?.trim() || null
+    const productId = url.searchParams.get('productId')?.trim() || null
     const customer = customerId ? await findActiveCustomerReferenceByCodeOrId(customerId) : null
     const detailCustomer = detailId ? await findActiveCustomerReferenceByCodeOrId(detailId) : null
     const search = url.searchParams.get('q')?.trim().toLowerCase()
@@ -94,10 +123,22 @@ export async function GET(request: Request) {
         where: { ...branchScopedReceiptWhere(allowedBranchIds), NOT: { status: 'cancelled' }, ...(customer ? { customer_id: customer.id } : {}) },
       }),
     ])
-    const visibleCustomerIds = new Set([...bills, ...receipts].map((row) => row.customer_id).filter((id): id is bigint => id != null))
-    const visibleCustomers = customers.filter((customer) => visibleCustomerIds.has(customer.id))
     const linesByBillId = await salesBillLineFactsByBillId(bills.map((bill) => bill.id))
-    const billLineTotals = (billId: bigint) => salesBillLineFactTotals(linesByBillId.get(billId))
+    const allLines = Array.from(linesByBillId.values()).flat()
+    const productFilters = buildProductFilters(allLines)
+    const hasProductFilter = Boolean(productCategory || productId)
+    const filteredLinesByBillId = new Map<bigint, SalesBillLineFactRow[]>()
+    linesByBillId.forEach((lines, billId) => {
+      const filteredLines = lines.filter((line) => productFilterMatches(line, productCategory, productId))
+      if (!hasProductFilter || filteredLines.length > 0) filteredLinesByBillId.set(billId, filteredLines)
+    })
+    const scopedBills = hasProductFilter ? bills.filter((bill) => (filteredLinesByBillId.get(bill.id) ?? []).length > 0) : bills
+    const visibleCustomerIds = new Set([
+      ...scopedBills.map((row) => row.customer_id),
+      ...(hasProductFilter ? [] : receipts.map((row) => row.customer_id)),
+    ].filter((id): id is bigint => id != null))
+    const visibleCustomers = customers.filter((customer) => visibleCustomerIds.has(customer.id))
+    const billLineTotals = (billId: bigint) => salesBillLineFactTotals(filteredLinesByBillId.get(billId))
 
     const receivedByBill = new Map<bigint, number>()
     receipts.forEach((receipt) => {
@@ -107,7 +148,7 @@ export async function GET(request: Request) {
     })
 
     const rows = visibleCustomers.map((customer) => {
-      const customerBills = bills.filter((bill) => bill.customer_id === customer.id && inYearMonth(bill.date, year, month))
+      const customerBills = scopedBills.filter((bill) => bill.customer_id === customer.id && inYearMonth(bill.date, year, month))
       const customerReceipts = receipts.filter((receipt) => receipt.customer_id === customer.id && inYearMonth(receipt.date, year, month))
       const totals = customerBills.reduce((sum, bill) => {
         const lineTotals = billLineTotals(bill.id)
@@ -142,6 +183,16 @@ export async function GET(request: Request) {
       const receivedAmount = customerReceipts.reduce((sum, receipt) => sum + toNumber(receipt.amount) + toNumber(receipt.withholding_tax) + toNumber(receipt.discount), 0)
       const gp = totals.gp || totals.revenue - totals.cogs
       const creditLimit = toNumber(customer.credit_limit)
+
+      const customerYearBills = scopedBills.filter((bill) => bill.customer_id === customer.id && inYearMonth(bill.date, year, null))
+      const monthlyData = Array.from({ length: 12 }, (_, index) => {
+        const monthKey = String(index + 1).padStart(2, '0')
+        const monthBills = customerYearBills.filter((bill) => inYearMonth(bill.date, year, monthKey))
+        const qty = monthBills.reduce((sum, bill) => sum + billLineTotals(bill.id).qty, 0)
+        const revenue = monthBills.reduce((sum, bill) => sum + (billLineTotals(bill.id).amount || toNumber(bill.subtotal) || toNumber(bill.total_amount)), 0)
+        return { qty, revenue }
+      })
+
       return {
         agingBuckets: financialAgingBuckets.map((bucket) => ({ amount: totals.agingBuckets[bucket].amount, bucket, count: totals.agingBuckets[bucket].count })),
         avgSell: totals.qty > 0 ? totals.revenue / totals.qty : 0,
@@ -166,14 +217,16 @@ export async function GET(request: Request) {
         receiptCount: customerReceipts.length,
         receivedAmount,
         revenue: totals.revenue,
+        monthlyData,
       }
     }).filter((row) => row.billCount > 0 || row.revenue > 0 || row.receivable > 0)
+
       .filter((row) => !search || `${row.code} ${row.customerName}`.toLowerCase().includes(search))
       .sort((left, right) => right.revenue - left.revenue)
 
     const monthly = Array.from({ length: 12 }, (_, index) => {
       const monthKey = String(index + 1).padStart(2, '0')
-      const monthBills = bills.filter((bill) => inYearMonth(bill.date, year, monthKey))
+      const monthBills = scopedBills.filter((bill) => inYearMonth(bill.date, year, monthKey))
       return monthBills.reduce<{ gp: number; month: string; qty: number; revenue: number }>((sum, bill) => {
         const lineTotals = billLineTotals(bill.id)
         const revenue = lineTotals.amount || toNumber(bill.subtotal) || toNumber(bill.total_amount)
@@ -187,15 +240,15 @@ export async function GET(request: Request) {
     })
 
     const detail = detailCustomer && visibleCustomerIds.has(detailCustomer.id) ? (() => {
-      const detailBills = bills.filter((bill) => bill.customer_id === detailCustomer.id && inYearMonth(bill.date, year, month))
+      const detailBills = scopedBills.filter((bill) => bill.customer_id === detailCustomer.id && inYearMonth(bill.date, year, month))
       const detailReceipts = receipts.filter((receipt) => receipt.customer_id === detailCustomer.id && inYearMonth(receipt.date, year, month))
-      const detailYearBills = bills.filter((bill) => bill.customer_id === detailCustomer.id && inYearMonth(bill.date, year, null))
+      const detailYearBills = scopedBills.filter((bill) => bill.customer_id === detailCustomer.id && inYearMonth(bill.date, year, null))
       const detailYearReceipts = receipts.filter((receipt) => receipt.customer_id === detailCustomer.id && inYearMonth(receipt.date, year, null))
       const channelMap = new Map<string, { billCount: number; channelName: string; cogs: number; gp: number; qty: number; revenue: number }>()
       const productMap = new Map<string, { cogs: number; gp: number; productName: string; qty: number; revenue: number }>()
 
       detailBills.forEach((bill) => {
-        const lines = linesByBillId.get(bill.id) ?? []
+        const lines = filteredLinesByBillId.get(bill.id) ?? []
         const billItem = salesBillLineFactTotals(lines)
         const billRevenue = billItem.amount || toNumber(bill.subtotal) || toNumber(bill.total_amount)
         const billCogs = toNumber(bill.cogs_amount ?? bill.total_cost)
@@ -353,7 +406,6 @@ export async function GET(request: Request) {
         },
       }
     })() : null
-
     if (url.searchParams.get('format') === 'xlsx') {
       return xlsxResponse(buildWorkbook(rows.map((row) => ({
         AvgSell: row.avgSell,
@@ -361,16 +413,13 @@ export async function GET(request: Request) {
         COGS: row.cogs,
         Code: row.code,
         CreditLimit: row.creditLimit,
-        CreditUtilizationPct: row.creditUtilizationPct,
         Customer: row.customerName,
         GP: row.gp,
         GPPct: row.gpPct,
         LowMarginBills: row.lowMarginBillCount,
         NegativeMarginBills: row.negativeMarginBillCount,
-        OldestArAgeDays: row.oldestArAgeDays,
         OverdueArAmount: row.overdueArAmount,
         OverdueArBills: row.overdueArBillCount,
-        PendingArBills: row.pendingArBillCount,
         Qty: row.qty,
         Receivable: row.receivable,
         Received: row.receivedAmount,
@@ -384,6 +433,8 @@ export async function GET(request: Request) {
           const code = requireBusinessCode(customer.code, `ลูกค้า ${customer.id}`)
           return { active: customer.active, code, id: code, name: customer.name }
         }),
+        productCategories: productFilters.productCategories,
+        products: productFilters.products,
       },
       detail,
       monthly,

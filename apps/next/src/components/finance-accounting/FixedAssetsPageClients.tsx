@@ -375,7 +375,7 @@ export function AssetRegisterPageClient() {
           <div className="min-w-0 flex-1">
             <div className="text-xs font-semibold text-emerald-600 truncate">Net Book Value (มูลค่าคงเหลือสุทธิ)</div>
             <div className="mt-0.5 text-2xl font-extrabold text-slate-900 tracking-tight">{formatMoney(data?.summary.nbv)} ฿</div>
-            <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] pt-2 border-t border-slate-100">
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-100">
               <div><div className="text-slate-400">ต้นทุนสุทธิ</div><div className="font-bold text-slate-800 text-xs">{formatMoney(data?.summary.netAssetCost)}</div></div>
               <div><div className="text-slate-400">ค่าเสื่อมสะสม</div><div className="font-bold text-slate-500 text-xs">{formatMoney(data?.summary.accumDep)}</div></div>
             </div>
@@ -545,87 +545,8 @@ export function AssetRegisterPageClient() {
         </div>
       ) : null}
 
-      {/* Desktop View Table */}
-      <div className="hidden lg:block">
-        <TableShell>
-          <table className="w-full text-xs">
-            <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
-              <tr>
-                <Th>รหัส</Th>
-                <Th>ชื่อ + location</Th>
-                <Th>หมวด</Th>
-                <Th>สาขา</Th>
-                <Th>วันที่ซื้อ</Th>
-                <Th align="right">ต้นทุน/Net Cost</Th>
-                <Th align="right">ค่าเสื่อมสะสม</Th>
-                <Th align="right">NBV</Th>
-                <Th align="right">ค่าเสื่อม/เดือน</Th>
-                <Th align="center">สถานะ</Th>
-                <Th align="center">actions</Th>
-              </tr>
-            </thead>
-            <tbody>
-              <LoadingOrEmpty colSpan={11} isLoading={isLoading} rows={rows.length} />
-              {pagedRows.map((row) => (
-                <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50/50 transition-colors transition">
-                  <Td><span className="font-mono font-bold text-amber-700">{row.code}</span></Td>
-                  <Td><div className="font-semibold text-slate-900">{row.name}</div><div className="text-slate-400 text-[10px]">{row.location || '-'}</div></Td>
-                  <Td>{row.category}</Td><Td>{row.branchName}</Td><Td>{row.purchaseDate || '-'}</Td>
-                  <Td align="right" className="font-medium">{formatMoney(row.netAssetCost)}</Td><Td align="right" className="text-slate-500">{formatMoney(row.accumDep)}</Td><Td align="right" strong className="text-emerald-700">{formatMoney(row.nbv)}</Td><Td align="right" className="text-amber-700 font-medium">{formatMoney(row.monthlyDep)}</Td>
-                  <Td align="center"><StatusPill status={row.assetStatus} /></Td>
-                  <Td align="center">
-                    <div className="flex justify-center gap-1">
-                      <button className="rounded border border-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 transition outline-none" disabled={isSaving} onClick={() => openEdit(row)} type="button">แก้ไข</button>
-                      {!['Inactive', 'Sold', 'Disposed', 'Lost'].includes(row.assetStatus) ? (
-                        <button className="rounded border border-red-200 px-2 py-0.5 text-[10px] font-semibold text-red-600 hover:bg-red-50 transition outline-none" disabled={isSaving} onClick={() => deactivateAsset(row)} type="button">ปิดใช้งาน</button>
-                      ) : null}
-                    </div>
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableShell>
-      </div>
-
-      {/* Mobile View Card List */}
-      <div className="block lg:hidden space-y-3">
-        {isLoading ? (
-          <div className="bg-white rounded-xl p-6 text-center text-xs text-slate-400 shadow-sm border border-slate-100">กำลังโหลดข้อมูล...</div>
-        ) : rows.length === 0 ? (
-          <div className="bg-white rounded-xl p-6 text-center text-xs text-slate-400 shadow-sm border border-slate-100">ยังไม่มีข้อมูลทะเบียนทรัพย์สิน</div>
-        ) : (
-          pagedRows.map((row) => (
-            <div key={row.id} className="bg-white rounded-xl p-4 shadow-sm border border-slate-100 space-y-3 hover:bg-slate-50/50 transition">
-              <div className="flex justify-between items-start border-b border-slate-100 pb-2">
-                <div className="min-w-0 flex-1 pr-2">
-                  <span className="font-mono font-bold text-xs text-amber-700 block">{row.code}</span>
-                  <span className="font-bold text-slate-900 text-sm block truncate">{row.name}</span>
-                  <span className="text-slate-400 text-[10px] block truncate">{row.location || '-'}</span>
-                </div>
-                <StatusPill status={row.assetStatus} />
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-[11px] sm:text-xs">
-                <div><span className="text-slate-400 block text-[10px]">หมวดหมู่ / สาขา</span><span className="font-medium text-slate-700 block truncate">{row.category} / {row.branchName}</span></div>
-                <div><span className="text-slate-400 block text-[10px]">วันที่ซื้อ</span><span className="font-medium text-slate-700 block">{row.purchaseDate || '-'}</span></div>
-                <div><span className="text-slate-400 block text-[10px]">ต้นทุนสุทธิ</span><span className="font-bold text-slate-800 block">{formatMoney(row.netAssetCost)}</span></div>
-                <div><span className="text-slate-400 block text-[10px]">ค่าเสื่อมสะสม</span><span className="font-medium text-slate-500 block">{formatMoney(row.accumDep)}</span></div>
-                <div><span className="text-slate-400 block text-[10px]">มูลค่าคงเหลือ (NBV)</span><span className="font-extrabold text-emerald-700 text-xs sm:text-sm block">{formatMoney(row.nbv)}</span></div>
-                <div><span className="text-slate-400 block text-[10px]">ค่าเสื่อม/เดือน</span><span className="font-bold text-amber-700 block">{formatMoney(row.monthlyDep)}</span></div>
-              </div>
-              <div className="border-t border-slate-100 pt-2 flex justify-end gap-2">
-                <button className="rounded border border-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition outline-none focus:ring-0" disabled={isSaving} onClick={() => openEdit(row)} type="button">แก้ไข</button>
-                {!['Inactive', 'Sold', 'Disposed', 'Lost'].includes(row.assetStatus) ? (
-                  <button className="rounded border border-red-200 px-3 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 transition outline-none focus:ring-0" disabled={isSaving} onClick={() => deactivateAsset(row)} type="button">ปิดใช้งาน</button>
-                ) : null}
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
       {/* Pagination Controls */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 bg-white p-3 rounded-lg border border-slate-200 shadow-sm mb-4">
         <div>
           พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
         </div>
@@ -657,6 +578,87 @@ export function AssetRegisterPageClient() {
           </button>
         </div>
       </div>
+
+      {/* Desktop View Table */}
+      <div className="hidden lg:block">
+        <TableShell>
+          <table className="w-full text-xs">
+            <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
+              <tr>
+                <Th>รหัส</Th>
+                <Th>ชื่อ + location</Th>
+                <Th>หมวด</Th>
+                <Th>สาขา</Th>
+                <Th>วันที่ซื้อ</Th>
+                <Th align="right">ต้นทุน/Net Cost</Th>
+                <Th align="right">ค่าเสื่อมสะสม</Th>
+                <Th align="right">NBV</Th>
+                <Th align="right">ค่าเสื่อม/เดือน</Th>
+                <Th align="center">สถานะ</Th>
+                <Th align="center">actions</Th>
+              </tr>
+            </thead>
+            <tbody>
+              <LoadingOrEmpty colSpan={11} isLoading={isLoading} rows={rows.length} />
+              {pagedRows.map((row) => (
+                <tr key={row.id} className="border-t border-slate-100 hover:bg-slate-50/50 transition-colors transition">
+                  <Td><span className="font-mono font-bold text-amber-700">{row.code}</span></Td>
+                  <Td><div className="font-semibold text-slate-900">{row.name}</div><div className="text-slate-400 text-xs">{row.location || '-'}</div></Td>
+                  <Td>{row.category}</Td><Td>{row.branchName}</Td><Td>{row.purchaseDate || '-'}</Td>
+                  <Td align="right" className="font-medium">{formatMoney(row.netAssetCost)}</Td><Td align="right" className="text-slate-500">{formatMoney(row.accumDep)}</Td><Td align="right" strong className="text-emerald-700">{formatMoney(row.nbv)}</Td><Td align="right" className="text-amber-700 font-medium">{formatMoney(row.monthlyDep)}</Td>
+                  <Td align="center"><StatusPill status={row.assetStatus} /></Td>
+                  <Td align="center">
+                    <div className="flex justify-center gap-1">
+                      <button className="rounded border border-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition outline-none" disabled={isSaving} onClick={() => openEdit(row)} type="button">แก้ไข</button>
+                      {!['Inactive', 'Sold', 'Disposed', 'Lost'].includes(row.assetStatus) ? (
+                        <button className="rounded border border-red-200 px-2 py-0.5 text-xs font-semibold text-red-600 hover:bg-red-50 transition outline-none" disabled={isSaving} onClick={() => deactivateAsset(row)} type="button">ปิดใช้งาน</button>
+                      ) : null}
+                    </div>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableShell>
+      </div>
+
+      {/* Mobile View Card List */}
+      <div className="block lg:hidden space-y-3">
+        {isLoading ? (
+          <div className="bg-white rounded-xl p-6 text-center text-xs text-slate-400 shadow-sm border border-slate-100">กำลังโหลดข้อมูล...</div>
+        ) : rows.length === 0 ? (
+          <div className="bg-white rounded-xl p-6 text-center text-xs text-slate-400 shadow-sm border border-slate-100">ยังไม่มีข้อมูลทะเบียนทรัพย์สิน</div>
+        ) : (
+          pagedRows.map((row) => (
+            <div key={row.id} className="bg-white rounded-xl p-4 shadow-sm border border-slate-100 space-y-3 hover:bg-slate-50/50 transition">
+              <div className="flex justify-between items-start border-b border-slate-100 pb-2">
+                <div className="min-w-0 flex-1 pr-2">
+                  <span className="font-mono font-bold text-xs text-amber-700 block">{row.code}</span>
+                  <span className="font-bold text-slate-900 text-sm block truncate">{row.name}</span>
+                  <span className="text-slate-400 text-xs block truncate">{row.location || '-'}</span>
+                </div>
+                <StatusPill status={row.assetStatus} />
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs sm:text-xs">
+                <div><span className="text-slate-400 block text-xs">หมวดหมู่ / สาขา</span><span className="font-medium text-slate-700 block truncate">{row.category} / {row.branchName}</span></div>
+                <div><span className="text-slate-400 block text-xs">วันที่ซื้อ</span><span className="font-medium text-slate-700 block">{row.purchaseDate || '-'}</span></div>
+                <div><span className="text-slate-400 block text-xs">ต้นทุนสุทธิ</span><span className="font-bold text-slate-800 block">{formatMoney(row.netAssetCost)}</span></div>
+                <div><span className="text-slate-400 block text-xs">ค่าเสื่อมสะสม</span><span className="font-medium text-slate-500 block">{formatMoney(row.accumDep)}</span></div>
+                <div><span className="text-slate-400 block text-xs">มูลค่าคงเหลือ (NBV)</span><span className="font-extrabold text-emerald-700 text-xs sm:text-sm block">{formatMoney(row.nbv)}</span></div>
+                <div><span className="text-slate-400 block text-xs">ค่าเสื่อม/เดือน</span><span className="font-bold text-amber-700 block">{formatMoney(row.monthlyDep)}</span></div>
+              </div>
+              <div className="border-t border-slate-100 pt-2 flex justify-end gap-2">
+                <button className="rounded border border-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition outline-none focus:ring-0" disabled={isSaving} onClick={() => openEdit(row)} type="button">แก้ไข</button>
+                {!['Inactive', 'Sold', 'Disposed', 'Lost'].includes(row.assetStatus) ? (
+                  <button className="rounded border border-red-200 px-3 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 transition outline-none focus:ring-0" disabled={isSaving} onClick={() => deactivateAsset(row)} type="button">ปิดใช้งาน</button>
+                ) : null}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+
 
       {modal === 'asset' ? (
         <Modal title={form.id ? `แก้ไขทรัพย์สิน ${form.code}` : 'เพิ่มทรัพย์สิน'}>
@@ -1069,130 +1071,8 @@ export function DepreciationPageClient() {
       <Panel title="สินทรัพย์รอประมวลผลค่าเสื่อม">
         <MiniAssetTable isLoading={isLoading} rows={filteredPendingAssets} />
       </Panel>
-      <TableShell title="ประวัติการประมวลผลค่าเสื่อม (Depreciation History)">
-        {/* Desktop view */}
-        <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
-          <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
-              <tr>
-                <Th>DEP ID</Th>
-                <Th>งวด</Th>
-                <Th>สินทรัพย์</Th>
-                <Th align="right">ค่าเสื่อมสะสมก่อนหน้า</Th>
-                <Th align="right">ค่าเสื่อมงวดนี้</Th>
-                <Th align="right">ค่าเสื่อมสะสมหลังรัน</Th>
-                <Th align="right">NBV ก่อนหน้า</Th>
-                <Th align="right">NBV หลังรัน</Th>
-                <Th align="center">สถานะ</Th>
-                <Th align="center">จัดการ</Th>
-              </tr>
-            </thead>
-            <tbody>
-              <LoadingOrEmpty colSpan={10} isLoading={isLoading} rows={filteredRows.length} />
-              {pagedRows.map((row) => (
-                <tr key={row.id} className={`border-t border-slate-100 hover:bg-slate-50/50 transition ${row.status === 'reversed' ? 'bg-slate-50 opacity-70' : ''}`}>
-                  <Td><span className="font-mono font-bold text-red-700">{row.refNo}</span></Td>
-                  <Td>{row.period}</Td>
-                  <Td>
-                    <div className="font-semibold text-slate-800">{row.assetName}</div>
-                    <div className="text-[10px] text-slate-400 font-medium font-mono">{row.assetCode}</div>
-                  </Td>
-                  <Td align="right">{formatMoney(row.accumBefore)}</Td>
-                  <Td align="right" className="font-medium text-amber-700">{formatMoney(row.depreciationAmount)}</Td>
-                  <Td align="right">{formatMoney(row.accumAfter)}</Td>
-                  <Td align="right" className="text-slate-500">{formatMoney(row.nbvBefore)}</Td>
-                  <Td align="right" strong className="text-emerald-700">{formatMoney(row.nbvAfter)}</Td>
-                  <Td align="center">
-                    <StatusPill status={row.status} />
-                  </Td>
-                  <Td align="center">
-                    {row.status === 'reversed' ? (
-                      <span className="text-[11px] text-slate-400 font-medium">{row.reversalReason || '-'}</span>
-                    ) : (
-                      <button 
-                        className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-0 transition" 
-                        disabled={isSaving} 
-                        onClick={() => setReverseRow(row)} 
-                        type="button"
-                      >
-                        Reverse
-                      </button>
-                    )}
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile view */}
-        <div className="block lg:hidden divide-y divide-slate-100/60 max-h-[60vh] overflow-y-auto">
-          {isLoading ? (
-            <div className="py-8 text-center text-slate-400 text-xs">กำลังโหลดข้อมูล...</div>
-          ) : filteredRows.length === 0 ? (
-            <div className="py-8 text-center text-slate-400 text-xs">ยังไม่มีประวัติการประมวลผลค่าเสื่อม</div>
-          ) : (
-            pagedRows.map((row) => (
-              <div key={row.id} className={`p-4 space-y-2.5 text-xs ${row.status === 'reversed' ? 'opacity-70 bg-slate-50/50' : 'bg-white'}`}>
-                <div className="flex justify-between items-center">
-                  <span className="font-mono font-bold text-red-700">{row.refNo}</span>
-                  <span className="font-semibold text-slate-500 text-[11px]">{row.period}</span>
-                </div>
-                <div>
-                  <div className="font-bold text-slate-800">{row.assetCode}</div>
-                  <div className="text-[11px] text-slate-500 font-medium">{row.assetName}</div>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/50">
-                  <div>
-                    <span className="text-slate-400">ค่าเสื่อมงวดนี้:</span>{' '}
-                    <span className="font-bold text-red-600">{formatMoney(row.depreciationAmount)}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400">สถานะ:</span>{' '}
-                    <StatusPill status={row.status} />
-                  </div>
-                  <div>
-                    <span className="text-slate-400">NBV ก่อนรัน:</span>{' '}
-                    <span className="font-medium text-slate-600">{formatMoney(row.nbvBefore)}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400">NBV หลังรัน:</span>{' '}
-                    <span className="font-bold text-emerald-700">{formatMoney(row.nbvAfter)}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400">Acc ก่อนรัน:</span>{' '}
-                    <span className="font-medium text-slate-600">{formatMoney(row.accumBefore)}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400">Acc หลังรัน:</span>{' '}
-                    <span className="font-medium text-slate-600">{formatMoney(row.accumAfter)}</span>
-                  </div>
-                </div>
-                <div className="pt-2 flex justify-between items-center border-t border-slate-100/50">
-                  {row.status === 'reversed' ? (
-                    <span className="text-[11px] text-slate-400 italic font-medium">สาเหตุ: {row.reversalReason || '-'}</span>
-                  ) : (
-                    <>
-                      <span />
-                      <button 
-                        className="rounded-md border border-red-200 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-0 transition" 
-                        disabled={isSaving} 
-                        onClick={() => setReverseRow(row)} 
-                        type="button"
-                      >
-                        Reverse
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </TableShell>
-
       {/* Pagination Controls */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 bg-white p-3 rounded-lg border border-slate-200 shadow-sm mb-4">
         <div>
           พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
         </div>
@@ -1224,6 +1104,129 @@ export function DepreciationPageClient() {
           </button>
         </div>
       </div>
+
+      <TableShell title="ประวัติการประมวลผลค่าเสื่อม (Depreciation History)">
+        {/* Desktop view */}
+        <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
+          <table className="w-full text-xs">
+            <thead className="sticky top-0 bg-slate-50 border-b border-slate-100 text-slate-500 font-medium">
+              <tr>
+                <Th>DEP ID</Th>
+                <Th>งวด</Th>
+                <Th>สินทรัพย์</Th>
+                <Th align="right">ค่าเสื่อมสะสมก่อนหน้า</Th>
+                <Th align="right">ค่าเสื่อมงวดนี้</Th>
+                <Th align="right">ค่าเสื่อมสะสมหลังรัน</Th>
+                <Th align="right">NBV ก่อนหน้า</Th>
+                <Th align="right">NBV หลังรัน</Th>
+                <Th align="center">สถานะ</Th>
+                <Th align="center">จัดการ</Th>
+              </tr>
+            </thead>
+            <tbody>
+              <LoadingOrEmpty colSpan={10} isLoading={isLoading} rows={filteredRows.length} />
+              {pagedRows.map((row) => (
+                <tr key={row.id} className={`border-t border-slate-100 hover:bg-slate-50/50 transition ${row.status === 'reversed' ? 'bg-slate-50 opacity-70' : ''}`}>
+                  <Td><span className="font-mono font-bold text-red-700">{row.refNo}</span></Td>
+                  <Td>{row.period}</Td>
+                  <Td>
+                    <div className="font-semibold text-slate-800">{row.assetName}</div>
+                    <div className="text-xs text-slate-400 font-medium font-mono">{row.assetCode}</div>
+                  </Td>
+                  <Td align="right">{formatMoney(row.accumBefore)}</Td>
+                  <Td align="right" className="font-medium text-amber-700">{formatMoney(row.depreciationAmount)}</Td>
+                  <Td align="right">{formatMoney(row.accumAfter)}</Td>
+                  <Td align="right" className="text-slate-500">{formatMoney(row.nbvBefore)}</Td>
+                  <Td align="right" strong className="text-emerald-700">{formatMoney(row.nbvAfter)}</Td>
+                  <Td align="center">
+                    <StatusPill status={row.status} />
+                  </Td>
+                  <Td align="center">
+                    {row.status === 'reversed' ? (
+                      <span className="text-xs text-slate-400 font-medium">{row.reversalReason || '-'}</span>
+                    ) : (
+                      <button 
+                        className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-0 transition" 
+                        disabled={isSaving} 
+                        onClick={() => setReverseRow(row)} 
+                        type="button"
+                      >
+                        Reverse
+                      </button>
+                    )}
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile view */}
+        <div className="block lg:hidden divide-y divide-slate-100/60 max-h-[60vh] overflow-y-auto">
+          {isLoading ? (
+            <div className="py-8 text-center text-slate-400 text-xs">กำลังโหลดข้อมูล...</div>
+          ) : filteredRows.length === 0 ? (
+            <div className="py-8 text-center text-slate-400 text-xs">ยังไม่มีประวัติการประมวลผลค่าเสื่อม</div>
+          ) : (
+            pagedRows.map((row) => (
+              <div key={row.id} className={`p-4 space-y-2.5 text-xs ${row.status === 'reversed' ? 'opacity-70 bg-slate-50/50' : 'bg-white'}`}>
+                <div className="flex justify-between items-center">
+                  <span className="font-mono font-bold text-red-700">{row.refNo}</span>
+                  <span className="font-semibold text-slate-500 text-xs">{row.period}</span>
+                </div>
+                <div>
+                  <div className="font-bold text-slate-800">{row.assetCode}</div>
+                  <div className="text-xs text-slate-500 font-medium">{row.assetName}</div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/50">
+                  <div>
+                    <span className="text-slate-400">ค่าเสื่อมงวดนี้:</span>{' '}
+                    <span className="font-bold text-red-600">{formatMoney(row.depreciationAmount)}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">สถานะ:</span>{' '}
+                    <StatusPill status={row.status} />
+                  </div>
+                  <div>
+                    <span className="text-slate-400">NBV ก่อนรัน:</span>{' '}
+                    <span className="font-medium text-slate-600">{formatMoney(row.nbvBefore)}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">NBV หลังรัน:</span>{' '}
+                    <span className="font-bold text-emerald-700">{formatMoney(row.nbvAfter)}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Acc ก่อนรัน:</span>{' '}
+                    <span className="font-medium text-slate-600">{formatMoney(row.accumBefore)}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Acc หลังรัน:</span>{' '}
+                    <span className="font-medium text-slate-600">{formatMoney(row.accumAfter)}</span>
+                  </div>
+                </div>
+                <div className="pt-2 flex justify-between items-center border-t border-slate-100/50">
+                  {row.status === 'reversed' ? (
+                    <span className="text-xs text-slate-400 italic font-medium">สาเหตุ: {row.reversalReason || '-'}</span>
+                  ) : (
+                    <>
+                      <span />
+                      <button 
+                        className="rounded-md border border-red-200 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-0 transition" 
+                        disabled={isSaving} 
+                        onClick={() => setReverseRow(row)} 
+                        type="button"
+                      >
+                        Reverse
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </TableShell>
+
 
       {preview ? (
         <Modal title={`Preview ค่าเสื่อมงวด ${preview.periodKey}`}>
@@ -1397,15 +1400,15 @@ export function AssetDisposalPageClient() {
       <div className="mb-4 rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm lg:hidden">
         <div className="grid grid-cols-3 gap-2 text-center">
           <div className="rounded-lg bg-blue-50 border border-blue-100 p-1.5">
-            <div className="text-[10px] text-slate-500 font-semibold">จำหน่ายได้</div>
+            <div className="text-xs text-slate-500 font-semibold">จำหน่ายได้</div>
             <div className="text-xs font-bold text-blue-700">{data?.summary.activeAssets ?? 0}</div>
           </div>
           <div className="rounded-lg bg-emerald-50 border border-emerald-100 p-1.5">
-            <div className="text-[10px] text-slate-500 font-semibold">Approved</div>
+            <div className="text-xs text-slate-500 font-semibold">Approved</div>
             <div className="text-xs font-bold text-emerald-700">{data?.summary.disposedRows ?? 0}</div>
           </div>
           <div className="rounded-lg bg-amber-50 border border-amber-100 p-1.5">
-            <div className="text-[10px] text-slate-500 font-semibold">Reverse</div>
+            <div className="text-xs text-slate-500 font-semibold">Reverse</div>
             <div className="text-xs font-bold text-amber-700">{data?.summary.reversedRows ?? 0}</div>
           </div>
         </div>
@@ -1417,131 +1420,8 @@ export function AssetDisposalPageClient() {
           <StatCard label="สินทรัพย์พร้อมจำหน่าย" value={data?.summary.activeAssets ?? 0} tone="amber" icon="📦" />
         </div>
       </div>
-      <TableShell title="ประวัติการจำหน่ายสินทรัพย์ (Asset Disposal History)">
-        {/* Desktop view */}
-        <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
-          <table className="w-full text-xs">
-            <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
-              <tr>
-                <Th>DISP No.</Th>
-                <Th>วันที่</Th>
-                <Th>สินทรัพย์</Th>
-                <Th>ประเภท</Th>
-                <Th align="right">ราคาขาย</Th>
-                <Th align="right">NBV ณ วันจำหน่าย</Th>
-                <Th align="right">กำไร/(ขาดทุน)</Th>
-                <Th>เหตุผล</Th>
-                <Th align="center">สถานะ</Th>
-                <Th align="center">จัดการ</Th>
-              </tr>
-            </thead>
-            <tbody>
-              <LoadingOrEmpty colSpan={10} isLoading={isLoading} rows={rows.length} emptyText="ยังไม่มีรายการจำหน่ายทรัพย์สิน" />
-              {pagedRows.map((row) => (
-                <tr key={row.id} className={`border-t border-slate-100 hover:bg-slate-50/50 transition ${row.status === 'reversed' ? 'bg-slate-50 opacity-70' : ''}`}>
-                  <Td><span className="font-mono font-bold text-slate-700">{row.disposalNo}</span></Td>
-                  <Td>{row.date}</Td>
-                  <Td>
-                    <div className="font-semibold text-slate-800">{row.assetCode}</div>
-                    <div className="text-[10px] text-slate-400 font-medium">{row.assetName}</div>
-                  </Td>
-                  <Td className="font-medium text-slate-700">{row.disposalType}</Td>
-                  <Td align="right">{formatMoney(row.sellingPrice)}</Td>
-                  <Td align="right" className="text-slate-500">{formatMoney(row.nbv)}</Td>
-                  <Td align="right" strong className={(row.gainLoss ?? 0) >= 0 ? 'text-emerald-700' : 'text-red-700'}>{formatMoney(row.gainLoss)}</Td>
-                  <Td className="text-slate-500 truncate max-w-[150px]" title={row.reason}>{row.reason || '-'}</Td>
-                  <Td align="center">
-                    <StatusPill status={row.status} />
-                  </Td>
-                  <Td align="center">
-                    {row.status === 'reversed' ? (
-                      <span className="text-[11px] text-slate-400 font-medium">{row.reversalReason || '-'}</span>
-                    ) : (
-                      <button 
-                        className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-0 transition" 
-                        disabled={isSaving} 
-                        onClick={() => openReverse(row)} 
-                        type="button"
-                      >
-                        Reverse
-                      </button>
-                    )}
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile view */}
-        <div className="block lg:hidden divide-y divide-slate-100/60 max-h-[60vh] overflow-y-auto">
-          {isLoading ? (
-            <div className="py-8 text-center text-slate-400 text-xs">กำลังโหลดข้อมูล...</div>
-          ) : rows.length === 0 ? (
-            <div className="py-8 text-center text-slate-400 text-xs">ยังไม่มีรายการจำหน่ายทรัพย์สิน</div>
-          ) : (
-            pagedRows.map((row) => (
-              <div key={row.id} className={`p-4 space-y-2.5 text-xs ${row.status === 'reversed' ? 'opacity-70 bg-slate-50/50' : 'bg-white'}`}>
-                <div className="flex justify-between items-center">
-                  <span className="font-mono font-bold text-slate-700">{row.disposalNo}</span>
-                  <span className="font-semibold text-slate-500 text-[11px]">{row.date}</span>
-                </div>
-                <div>
-                  <div className="font-bold text-slate-800">{row.assetCode}</div>
-                  <div className="text-[11px] text-slate-500 font-medium">{row.assetName}</div>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/50">
-                  <div>
-                    <span className="text-slate-400">ประเภท:</span>{' '}
-                    <span className="font-semibold text-slate-700">{row.disposalType}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400">ราคาขาย:</span>{' '}
-                    <span className="font-bold text-slate-800">{formatMoney(row.sellingPrice)}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400">NBV ณ วันจำหน่าย:</span>{' '}
-                    <span className="font-medium text-slate-600">{formatMoney(row.nbv)}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400">กำไร/(ขาดทุน):</span>{' '}
-                    <span className={`font-bold ${(row.gainLoss ?? 0) >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(row.gainLoss)}</span>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="text-slate-400">สถานะ:</span>{' '}
-                    <StatusPill status={row.status} />
-                  </div>
-                </div>
-                {row.reason && (
-                  <div className="text-[11px] bg-slate-50 p-2 rounded border border-slate-100 text-slate-600">
-                    <span className="font-semibold text-slate-700">เหตุผล:</span> {row.reason}
-                  </div>
-                )}
-                <div className="pt-2 flex justify-between items-center border-t border-slate-100/50">
-                  {row.status === 'reversed' ? (
-                    <span className="text-[11px] text-slate-400 italic font-medium">สาเหตุ: {row.reversalReason || '-'}</span>
-                  ) : (
-                    <>
-                      <span />
-                      <button 
-                        className="rounded-md border border-red-200 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-0 transition" 
-                        disabled={isSaving} 
-                        onClick={() => openReverse(row)} 
-                        type="button"
-                      >
-                        Reverse
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </TableShell>
-
       {/* Pagination Controls */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 bg-white p-3 rounded-lg border border-slate-200 shadow-sm mb-4">
         <div>
           พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
         </div>
@@ -1573,6 +1453,130 @@ export function AssetDisposalPageClient() {
           </button>
         </div>
       </div>
+
+      <TableShell title="ประวัติการจำหน่ายสินทรัพย์ (Asset Disposal History)">
+        {/* Desktop view */}
+        <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
+          <table className="w-full text-xs">
+            <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100">
+              <tr>
+                <Th>DISP No.</Th>
+                <Th>วันที่</Th>
+                <Th>สินทรัพย์</Th>
+                <Th>ประเภท</Th>
+                <Th align="right">ราคาขาย</Th>
+                <Th align="right">NBV ณ วันจำหน่าย</Th>
+                <Th align="right">กำไร/(ขาดทุน)</Th>
+                <Th>เหตุผล</Th>
+                <Th align="center">สถานะ</Th>
+                <Th align="center">จัดการ</Th>
+              </tr>
+            </thead>
+            <tbody>
+              <LoadingOrEmpty colSpan={10} isLoading={isLoading} rows={rows.length} emptyText="ยังไม่มีรายการจำหน่ายทรัพย์สิน" />
+              {pagedRows.map((row) => (
+                <tr key={row.id} className={`border-t border-slate-100 hover:bg-slate-50/50 transition ${row.status === 'reversed' ? 'bg-slate-50 opacity-70' : ''}`}>
+                  <Td><span className="font-mono font-bold text-slate-700">{row.disposalNo}</span></Td>
+                  <Td>{row.date}</Td>
+                  <Td>
+                    <div className="font-semibold text-slate-800">{row.assetCode}</div>
+                    <div className="text-xs text-slate-400 font-medium">{row.assetName}</div>
+                  </Td>
+                  <Td className="font-medium text-slate-700">{row.disposalType}</Td>
+                  <Td align="right">{formatMoney(row.sellingPrice)}</Td>
+                  <Td align="right" className="text-slate-500">{formatMoney(row.nbv)}</Td>
+                  <Td align="right" strong className={(row.gainLoss ?? 0) >= 0 ? 'text-emerald-700' : 'text-red-700'}>{formatMoney(row.gainLoss)}</Td>
+                  <Td className="text-slate-500 truncate max-w-[150px]" title={row.reason}>{row.reason || '-'}</Td>
+                  <Td align="center">
+                    <StatusPill status={row.status} />
+                  </Td>
+                  <Td align="center">
+                    {row.status === 'reversed' ? (
+                      <span className="text-xs text-slate-400 font-medium">{row.reversalReason || '-'}</span>
+                    ) : (
+                      <button 
+                        className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-0 transition" 
+                        disabled={isSaving} 
+                        onClick={() => openReverse(row)} 
+                        type="button"
+                      >
+                        Reverse
+                      </button>
+                    )}
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile view */}
+        <div className="block lg:hidden divide-y divide-slate-100/60 max-h-[60vh] overflow-y-auto">
+          {isLoading ? (
+            <div className="py-8 text-center text-slate-400 text-xs">กำลังโหลดข้อมูล...</div>
+          ) : rows.length === 0 ? (
+            <div className="py-8 text-center text-slate-400 text-xs">ยังไม่มีรายการจำหน่ายทรัพย์สิน</div>
+          ) : (
+            pagedRows.map((row) => (
+              <div key={row.id} className={`p-4 space-y-2.5 text-xs ${row.status === 'reversed' ? 'opacity-70 bg-slate-50/50' : 'bg-white'}`}>
+                <div className="flex justify-between items-center">
+                  <span className="font-mono font-bold text-slate-700">{row.disposalNo}</span>
+                  <span className="font-semibold text-slate-500 text-xs">{row.date}</span>
+                </div>
+                <div>
+                  <div className="font-bold text-slate-800">{row.assetCode}</div>
+                  <div className="text-xs text-slate-500 font-medium">{row.assetName}</div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/50">
+                  <div>
+                    <span className="text-slate-400">ประเภท:</span>{' '}
+                    <span className="font-semibold text-slate-700">{row.disposalType}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">ราคาขาย:</span>{' '}
+                    <span className="font-bold text-slate-800">{formatMoney(row.sellingPrice)}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">NBV ณ วันจำหน่าย:</span>{' '}
+                    <span className="font-medium text-slate-600">{formatMoney(row.nbv)}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">กำไร/(ขาดทุน):</span>{' '}
+                    <span className={`font-bold ${(row.gainLoss ?? 0) >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(row.gainLoss)}</span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-slate-400">สถานะ:</span>{' '}
+                    <StatusPill status={row.status} />
+                  </div>
+                </div>
+                {row.reason && (
+                  <div className="text-xs bg-slate-50 p-2 rounded border border-slate-100 text-slate-600">
+                    <span className="font-semibold text-slate-700">เหตุผล:</span> {row.reason}
+                  </div>
+                )}
+                <div className="pt-2 flex justify-between items-center border-t border-slate-100/50">
+                  {row.status === 'reversed' ? (
+                    <span className="text-xs text-slate-400 italic font-medium">สาเหตุ: {row.reversalReason || '-'}</span>
+                  ) : (
+                    <>
+                      <span />
+                      <button 
+                        className="rounded-md border border-red-200 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-0 transition" 
+                        disabled={isSaving} 
+                        onClick={() => openReverse(row)} 
+                        type="button"
+                      >
+                        Reverse
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </TableShell>
+
 
       {modal === 'create' ? (
         <Modal title="Asset Disposal">
@@ -1857,7 +1861,7 @@ function StatCard({ label, tone, value, icon }: { label: string; tone?: 'amber' 
 function MiniStat({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-lg bg-slate-50 p-2 border border-slate-100">
-      <div className="text-[10px] text-slate-500">{label}</div>
+      <div className="text-xs text-slate-500">{label}</div>
       <div className="font-bold text-slate-900 text-xs">{value}</div>
     </div>
   )
@@ -1926,7 +1930,7 @@ function MiniAssetTable({ isLoading, rows }: { isLoading: boolean; rows: Depreci
                 <StatusPill status={row.assetStatus} />
               </div>
               <div className="text-xs font-semibold text-slate-800">{row.name}</div>
-              <div className="grid grid-cols-2 gap-2 text-[11px]">
+              <div className="grid grid-cols-2 gap-2 text-xs">
                 <div><span className="text-slate-400">ต้นทุนสุทธิ:</span> <span className="font-medium text-slate-700">{formatMoney(row.netAssetCost)}</span></div>
                 <div><span className="text-slate-400">ค่าเสื่อมสะสมเดิม:</span> <span className="font-medium text-slate-500">{formatMoney(row.accumDep)}</span></div>
                 <div><span className="text-slate-400">NBV:</span> <span className="font-bold text-emerald-700">{formatMoney(row.nbv)}</span></div>
@@ -1976,7 +1980,7 @@ function StatusPill({ status }: { status: string }) {
     text = 'ซ่อมบำรุง'
   }
   
-  return <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${color}`}>{text}</span>
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${color}`}>{text}</span>
 }
 
 function EmptyText({ children }: { children: ReactNode }) {

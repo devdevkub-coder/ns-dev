@@ -833,10 +833,10 @@ function ProductForm({ isSaving, product, productTypes, productUnits, onCancel, 
   }
 
   return (
-    <form className="overflow-hidden rounded-md bg-slate-900 shadow-xl flex flex-col w-full max-h-[90vh]" onSubmit={handleSubmit}>
-      <div className="flex flex-col gap-3 bg-slate-900 px-5 py-4 sm:flex-row sm:items-center sm:justify-between shrink-0">
-        <h3 className="text-lg font-bold text-slate-100">{form.id ? 'แก้ไขสินค้าสิ่งเจือปน' : 'เพิ่มสินค้าสิ่งเจือปน'}</h3>
-        <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-slate-200" onChange={(checked) => update('active', checked)} />
+    <form className="overflow-hidden rounded-md bg-slate-900 dark:bg-[#0f172a] shadow-xl flex flex-col w-full max-h-[90vh]" onSubmit={handleSubmit}>
+      <div className="flex flex-col gap-3 bg-slate-900 dark:bg-[#0f172a] px-5 py-4 sm:flex-row sm:items-center sm:justify-between shrink-0">
+        <h3 className="text-lg font-bold text-white">{form.id ? 'แก้ไขสินค้าสิ่งเจือปน' : 'เพิ่มสินค้าสิ่งเจือปน'}</h3>
+        <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-slate-200 dark:text-slate-800" onChange={(checked) => update('active', checked)} />
       </div>
 
       <div className="flex-1 space-y-5 overflow-y-auto bg-slate-50 px-5 py-5">
@@ -992,5 +992,5 @@ function MatchButton({ active, label, onClick, tone = 'dark' }: { active: boolea
     slate: 'border-slate-500 bg-slate-500 text-white',
   }[tone]
   const idleClass = tone === 'amber' ? 'border-slate-300 bg-white hover:bg-amber-50' : tone === 'emerald' ? 'border-slate-300 bg-white hover:bg-emerald-50' : tone === 'red' ? 'border-slate-300 bg-white hover:bg-red-50' : 'border-slate-300 bg-white hover:bg-slate-100'
-  return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
+  return <button className={`rounded-md border px-3.5 py-1.5 text-sm font-medium ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
 }

@@ -107,7 +107,7 @@ function TradingPendingBlock({ summary }: { summary: Record<string, number> }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="flex items-center gap-2 text-sm font-bold text-slate-850">
+        <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800">
           <span className="text-xl">🔄</span> Trading Pending รับเงิน — Trading ซื้อจ่ายแล้ว แต่ Sales ยังไม่เปิด
         </h3>
         <Link className="rounded-lg bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-bold text-white transition-colors outline-none focus:outline-none" href="/trading/matching">
@@ -130,9 +130,9 @@ function Mini({ label, tone, value }: { label: string; tone: string; value: stri
 
   const textToneMap: Record<string, string> = {
     amber: 'text-amber-700',
-    blue: 'text-blue-750',
+    blue: 'text-blue-700',
     emerald: 'text-emerald-700',
-    purple: 'text-purple-755',
+    purple: 'text-purple-700',
     purpleStrong: 'text-purple-800',
     red: 'text-red-700'
   }
@@ -158,7 +158,7 @@ function DonutPanel({ empty, items, title, total, tone }: { empty?: string; item
       <div className="mt-4 space-y-1.5 text-xs text-slate-600">
         {items.map((item) => (
           <div key={item.name} className="flex justify-between gap-2 items-center">
-            <span className="flex items-center gap-1.5 text-slate-650">
+            <span className="flex items-center gap-1.5 text-slate-600">
               <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: item.color }} />
               {item.name}
             </span>

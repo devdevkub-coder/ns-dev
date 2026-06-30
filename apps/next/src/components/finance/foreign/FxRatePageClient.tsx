@@ -201,7 +201,7 @@ export function FxRatePageClient() {
           <div key={rate.id} className="bg-white border border-slate-200 rounded-xl p-3.5 text-center shadow-sm hover:shadow-md transition-shadow">
             <div className="text-xs font-semibold text-slate-500">{rate.fromCurrency} &rarr; {rate.toCurrency}</div>
             <div className="text-2xl font-bold text-slate-900 mt-1">{formatRate(rate.rate)}</div>
-            <div className="mt-1.5 text-[10px] font-medium text-slate-400">{formatDateDisplay(rate.rateDate)}</div>
+            <div className="mt-1.5 text-xs font-medium text-slate-400">{formatDateDisplay(rate.rateDate)}</div>
           </div>
         ))}
         {!isLoading && (data?.latestRates.length ?? 0) === 0 ? <div className="col-span-full rounded-xl bg-white border border-slate-200 p-6 text-center text-sm text-slate-500 shadow-sm">ยังไม่มี FX Rate</div> : null}

@@ -256,16 +256,16 @@ export function CostPoolPageClient() {
           {showMobileFilters && (
             <div className="grid grid-cols-1 gap-2.5 pt-2 border-t border-slate-100 animate-in slide-in-from-top-2 duration-100">
               <div className="grid grid-cols-2 gap-2">
-                <label className="text-[11px] text-slate-500 font-semibold">
+                <label className="text-xs text-slate-500 font-semibold">
                   จากวันที่
                   <DatePickerInput className="mt-1 w-full" value={fromDate} onChange={setFromDate} />
                 </label>
-                <label className="text-[11px] text-slate-500 font-semibold">
+                <label className="text-xs text-slate-500 font-semibold">
                   ถึงวันที่
                   <DatePickerInput className="mt-1 w-full" value={toDate} onChange={setToDate} />
                 </label>
               </div>
-              <label className="text-[11px] text-slate-500 font-semibold">
+              <label className="text-xs text-slate-500 font-semibold">
                 เลือกสินค้า
                 <SearchCombobox
                   hideLabel
@@ -279,14 +279,14 @@ export function CostPoolPageClient() {
                 />
               </label>
               <div className="grid grid-cols-2 gap-2">
-                <label className="text-[11px] text-slate-500 font-semibold">
+                <label className="text-xs text-slate-500 font-semibold">
                   Cost Type
                   <Select aria-label="Cost Type" className="mt-1 w-full h-9 border-slate-300" value={costType} onChange={(event) => setCostType(event.target.value)}>
                     <option value="all">ทุก Cost Type</option>
                     {(data?.filters.costTypes ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
                   </Select>
                 </label>
-                <label className="text-[11px] text-slate-500 font-semibold">
+                <label className="text-xs text-slate-500 font-semibold">
                   Source
                   <Select aria-label="Source Type" className="mt-1 w-full h-9 border-slate-300" value={sourceType} onChange={(event) => setSourceType(event.target.value)}>
                     <option value="all">ทุก Source</option>
@@ -295,14 +295,14 @@ export function CostPoolPageClient() {
                 </label>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <label className="text-[11px] text-slate-500 font-semibold">
+                <label className="text-xs text-slate-500 font-semibold">
                   สถานะ
                   <Select aria-label="สถานะ" className="mt-1 w-full h-9 border-slate-300" value={status} onChange={(event) => setStatus(event.target.value)}>
                     <option value="all">ทุกสถานะ</option>
                     {(data?.filters.statuses ?? []).map((item) => <option key={item} value={item}>{statusLabel(item)}</option>)}
                   </Select>
                 </label>
-                <label className="text-[11px] text-slate-500 font-semibold">
+                <label className="text-xs text-slate-500 font-semibold">
                   เรียงลำดับ
                   <Select aria-label="เรียงลำดับ" className="mt-1 w-full h-9 border-slate-300" value={sort} onChange={(event) => setSort(event.target.value)}>
                     <option value="FIFO">FIFO</option>
@@ -324,9 +324,41 @@ export function CostPoolPageClient() {
         </div>
       </DualCostingFilterCard>
 
-      <DualCostingCountRow countValue={data?.rows.length ?? 0}>
-        <span className="text-xs text-slate-500">เรียงตาม {sort}</span>
-      </DualCostingCountRow>
+      <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between mb-3">
+        <div>
+          พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
+          <span className="ml-2 text-xs text-slate-500 font-normal">เรียงตาม {sort}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            aria-label="จำนวนรายการต่อหน้า"
+            className="h-8 text-xs rounded-md border border-slate-300 px-2 bg-white text-slate-800"
+            value={pageSize}
+            onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}
+          >
+            {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
+          </select>
+          <Button
+            disabled={currentPage <= 1}
+            size="xs"
+            variant="outline"
+            type="button"
+            onClick={() => setPage((value) => Math.max(1, value - 1))}
+          >
+            ก่อนหน้า
+          </Button>
+          <span className="px-1">หน้า {currentPage} / {totalPages}</span>
+          <Button
+            disabled={currentPage >= totalPages}
+            size="xs"
+            variant="outline"
+            type="button"
+            onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+          >
+            ถัดไป
+          </Button>
+        </div>
+      </div>
 
       <div className="overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm">
         <Table className="[&_tbody_tr]:border-slate-100 text-xs">
@@ -351,8 +383,8 @@ export function CostPoolPageClient() {
             {!isLoading && !error && (data?.rows.length ?? 0) === 0 ? <TableRow><TableCell className="p-8 text-center text-slate-400" colSpan={12}>Cost Pool ว่างตามตัวกรองปัจจุบัน</TableCell></TableRow> : null}
             {!isLoading && pagedRows.map((row) => (
               <TableRow key={row.costPoolId} className="hover:bg-slate-50/30 transition-colors border-t border-slate-100">
-                <TableCell className="p-3 pl-4"><span className={`rounded px-2 py-0.5 text-[10px] font-semibold tracking-wide ${costTypeBadgeClass(row.costType)}`}>{row.costType}</span></TableCell>
-                <TableCell className="p-3"><span className={`rounded px-2 py-0.5 text-[10px] font-medium ${sourceBadgeClass(row.sourceType)}`}>{row.sourceType}</span></TableCell>
+                <TableCell className="p-3 pl-4"><span className={`rounded px-2 py-0.5 text-xs font-semibold tracking-wide ${costTypeBadgeClass(row.costType)}`}>{row.costType}</span></TableCell>
+                <TableCell className="p-3"><span className={`rounded px-2 py-0.5 text-xs font-medium ${sourceBadgeClass(row.sourceType)}`}>{row.sourceType}</span></TableCell>
                 <TableCell className="p-3 font-mono text-xs text-slate-700">{row.sourceNo}</TableCell>
                 <TableCell className="p-3 whitespace-nowrap text-xs text-slate-600">{formatDateDisplay(row.date)}</TableCell>
                 <TableCell className="p-3 text-xs text-slate-800 font-medium">{row.counterparty}</TableCell>
@@ -369,39 +401,7 @@ export function CostPoolPageClient() {
         </Table>
       </div>
 
-      {/* Pagination Controls */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
-        <div>
-          พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            aria-label="จำนวนรายการต่อหน้า"
-            className="h-9 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
-            value={pageSize}
-            onChange={(event) => setPageSize(Number(event.target.value))}
-          >
-            {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-          </select>
-          <button
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-            disabled={currentPage <= 1}
-            type="button"
-            onClick={() => setPage((value) => Math.max(1, value - 1))}
-          >
-            ก่อนหน้า
-          </button>
-          <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-          <button
-            className="h-9 rounded-md border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-            disabled={currentPage >= totalPages}
-            type="button"
-            onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
-          >
-            ถัดไป
-          </button>
-        </div>
-      </div>
+
     </DualCostingPageSection>
   )
 }
@@ -461,7 +461,7 @@ function StatusIndicator({ status }: { status: string }) {
       : 'bg-slate-400'
 
   return (
-    <span className="inline-flex items-center gap-2 rounded-md px-2 py-0.5 text-[11px] text-slate-600 font-medium">
+    <span className="inline-flex items-center gap-2 rounded-md px-2 py-0.5 text-xs text-slate-600 font-medium">
       <span className={`h-2 w-2 rounded-full ${tones}`} />
       {status}
     </span>

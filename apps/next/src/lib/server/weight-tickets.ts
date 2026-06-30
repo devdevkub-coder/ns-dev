@@ -65,6 +65,7 @@ export type WeightTicketRow = Prisma.weight_ticketsGetPayload<{
           select: {
             code: true
             id: true
+            metal_group: true
           }
         }
       }
@@ -78,6 +79,7 @@ export type WeightTicketRow = Prisma.weight_ticketsGetPayload<{
           select: {
             code: true
             id: true
+            metal_group: true
           }
         }
         warehouses: {
@@ -767,6 +769,7 @@ export function mapWeightTicketRow(row: WeightTicketRow, usage: WeightTicketUsag
     netWeight: toNumber(summary.net_weight),
     productId: requireBusinessCode(summary.products.code, `สินค้า ${summary.products.id}`),
     productName: summary.product_name,
+    categoryName: summary.products.metal_group || '-',
     remainingWeight: toNumber(summary.remaining_weight),
   }))
 

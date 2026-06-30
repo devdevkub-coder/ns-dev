@@ -172,7 +172,7 @@ function DarkKpi({ danger = false, label, up = false, value }: { danger?: boolea
       <div>
         <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</div>
         <div className={`text-lg font-bold mt-0.5 ${toneStyles.text}`}>{money(value)}</div>
-        <div className="text-[10px] text-slate-400 font-medium mt-0.5">
+        <div className="text-xs text-slate-400 font-medium mt-0.5">
           {toneStyles.sub}
         </div>
       </div>
@@ -215,7 +215,7 @@ function Mini({ label, tone, value }: { label: string; tone: string; value: stri
   }
   return (
     <div className={`rounded-lg border p-3 ${map[tone] ?? map.blue}`}>
-      <div className="text-[10px] text-slate-500 font-semibold uppercase">{label}</div>
+      <div className="text-xs text-slate-500 font-semibold uppercase">{label}</div>
       <div className="break-words text-lg font-bold mt-1">{value}</div>
     </div>
   )
@@ -227,7 +227,7 @@ function DonutPanel({ empty, items, title, total, tone }: { empty?: string; item
     <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
       <h3 className={`mb-4 font-bold text-sm ${tone === 'red' ? 'text-red-700' : 'text-emerald-700'}`}>{title}</h3>
       <div className="mx-auto flex h-40 w-40 items-center justify-center rounded-full p-9 shadow-inner transition-transform" style={{ background: gradient }}>
-        <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-center text-[10px] font-bold text-slate-800 border border-slate-100 shadow-sm leading-tight">
+        <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-center text-xs font-bold text-slate-800 border border-slate-100 shadow-sm leading-tight">
           รวม<br />
           <span className="text-xs font-extrabold mt-0.5 text-slate-900">{money(total)}</span>
         </div>
@@ -304,7 +304,7 @@ function CashTable({ rows, total }: { rows: AnyRow[]; total: number }) {
                 <span className="font-bold text-slate-800">{text(row.name)}</span>
                 <span className="text-slate-500">{text(row.type)}</span>
               </div>
-              <div className="flex justify-between text-slate-500 font-mono text-[11px]">
+              <div className="flex justify-between text-slate-500 font-mono text-xs">
                 <span>สกุลเงิน: {text(row.currency)}</span>
                 <span>ยอดคงเหลือ: {money(row.balance)}</span>
               </div>

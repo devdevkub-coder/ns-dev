@@ -10,6 +10,12 @@
   --color-scrap-accent: #0f766e;
   --font-sans: "Noto Sans Thai", "Noto Sans", sans-serif;
   --font-mono: "Noto Sans Thai", "Noto Sans", sans-serif;
+  --text-xs: 13.5px;
+  --text-xs--line-height: 1.45;
+  --text-sm: 13.5px;
+  --text-sm--line-height: 1.45;
+  --text-base: 13.5px;
+  --text-base--line-height: 1.45;
 }
 
 :root {
@@ -36,31 +42,44 @@
   --color-slate-900: #f8fafc;
   --color-slate-950: #ffffff;
   
-  /* ponytail: map emerald colors to rose shades for dark mode (createspace-DESIGN.md Primary) */
-  --color-emerald-50: #fff1f2;
-  --color-emerald-100: #ffe4e6;
-  --color-emerald-200: #fecdd3;
-  --color-emerald-300: #fda4af;
-  --color-emerald-400: #fb7185;
-  --color-emerald-500: #f43f5e;
-  --color-emerald-600: #e11d48;
-  --color-emerald-700: #be123c;
-  --color-emerald-800: #9f1239;
-  --color-emerald-900: #881337;
-  --color-emerald-950: #4c0519;
+  /* ponytail: map emerald colors to inverted green shades for dark mode readability and consistency */
+  --color-emerald-50: #022c22;
+  --color-emerald-100: #064e3b;
+  --color-emerald-200: #065f46;
+  --color-emerald-300: #047857;
+  --color-emerald-400: #059669;
+  --color-emerald-500: #10b981;
+  --color-emerald-600: #34d399;
+  --color-emerald-700: #6ee7b7;
+  --color-emerald-800: #a7f3d0;
+  --color-emerald-900: #d1fae5;
+  --color-emerald-950: #ecfdf5;
 
-  /* ponytail: map amber colors to yellow shades for dark mode (createspace-DESIGN.md Tertiary) */
-  --color-amber-50: #fefce8;
-  --color-amber-100: #fef9c3;
-  --color-amber-200: #fef08a;
-  --color-amber-300: #fde047;
-  --color-amber-400: #facc15;
-  --color-amber-500: #eab308;
-  --color-amber-600: #ca8a04;
-  --color-amber-700: #a16207;
-  --color-amber-800: #854d0e;
-  --color-amber-900: #713f12;
-  --color-amber-950: #422006;
+  /* ponytail: map amber colors to inverted yellow/amber shades for dark mode readability and consistency */
+  --color-amber-50: #451a03;
+  --color-amber-100: #78350f;
+  --color-amber-200: #92400e;
+  --color-amber-300: #b45309;
+  --color-amber-400: #d97706;
+  --color-amber-500: #f59e0b;
+  --color-amber-600: #fbbf24;
+  --color-amber-700: #fde047;
+  --color-amber-800: #fde68a;
+  --color-amber-900: #fef3c7;
+  --color-amber-950: #fffbeb;
+
+  /* ponytail: map yellow colors to inverted yellow/brown shades for dark mode readability and consistency */
+  --color-yellow-50: #422006;
+  --color-yellow-100: #713f12;
+  --color-yellow-200: #854d0e;
+  --color-yellow-300: #a16207;
+  --color-yellow-400: #ca8a04;
+  --color-yellow-500: #eab308;
+  --color-yellow-600: #facc15;
+  --color-yellow-700: #fde047;
+  --color-yellow-800: #fef08a;
+  --color-yellow-900: #fef9c3;
+  --color-yellow-950: #fefce8;
 
   /* ponytail: map red colors to brighter shades for dark mode readability */
   --color-red-50: #450a0a;
@@ -107,6 +126,73 @@
   --color-scrap-line: #334155;
   --color-scrap-panel: #1e293b;
   --color-scrap-accent: #e11d48;
+}
+
+.dark select,
+.dark option,
+.dark optgroup {
+  color: #f8fafc;
+  background-color: #0f172a;
+}
+
+.dark select:disabled,
+.dark option:disabled {
+  color: #94a3b8;
+  background-color: #1e293b;
+}
+
+.dark input[type="date"],
+.dark input[type="time"],
+.dark input[type="datetime-local"],
+.dark input[type="month"],
+.dark input[type="week"] {
+  color-scheme: dark;
+}
+
+.dark input[type="date"]::-webkit-calendar-picker-indicator,
+.dark input[type="time"]::-webkit-calendar-picker-indicator,
+.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+.dark input[type="month"]::-webkit-calendar-picker-indicator,
+.dark input[type="week"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.4);
+  opacity: 0.85;
+}
+
+/* Fix Tailwind bg-slate-950 opacity overlays in dark mode since slate-950 is remapped to white */
+.dark .bg-slate-700\/40,
+.dark .bg-slate-700\/50,
+.dark .bg-slate-700\/60,
+.dark .bg-slate-700\/70,
+.dark .bg-slate-700\/80 {
+  background-color: rgba(51, 65, 85, 0.8) !important;
+}
+
+.dark .bg-slate-800\/30,
+.dark .bg-slate-800\/40,
+.dark .bg-slate-800\/50,
+.dark .bg-slate-800\/60,
+.dark .bg-slate-800\/70,
+.dark .bg-slate-800\/80,
+.dark .bg-slate-800\/90 {
+  background-color: rgba(30, 41, 59, 0.86) !important;
+}
+
+.dark .bg-slate-900\/30,
+.dark .bg-slate-900\/40,
+.dark .bg-slate-900\/50,
+.dark .bg-slate-900\/60,
+.dark .bg-slate-900\/70,
+.dark .bg-slate-900\/80,
+.dark .bg-slate-900\/90 {
+  background-color: rgba(15, 23, 42, 0.9) !important;
+}
+
+.dark .bg-slate-950\/30,
+.dark .bg-slate-950\/40,
+.dark .bg-slate-950\/50,
+.dark .bg-slate-950\/70 {
+  background-color: rgba(2, 6, 23, 0.7) !important;
+  backdrop-filter: blur(1px);
 }
 
 .dark aside {
@@ -207,6 +293,7 @@ body {
 body {
   margin: 0;
   min-height: 100vh;
+  font-size: 13.5px;
 }
 
 html,
@@ -219,6 +306,13 @@ input,
 select,
 textarea {
   font-family: "Noto Sans Thai", "Noto Sans", sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font-size: inherit;
 }
 
 .font-sans,
@@ -275,13 +369,13 @@ textarea.border:not([class*="bg-"]):read-only {
 /* LINE Settings readability override: keep this page at a consistent 14px baseline. */
 .line-settings-page,
 .line-settings-page * {
-  font-size: 14px !important;
+  font-size: 13.5px !important;
   line-height: 1.6 !important;
 }
 
 .line-settings-page :where(h1, h2, h3, h4, h5, h6),
 .line-settings-page :where(.font-bold, .font-semibold) {
-  font-size: 14px !important;
+  font-size: 13.5px !important;
   line-height: 1.45 !important;
 }
 
@@ -402,4 +496,295 @@ a:active,
 /* Ensure visited anchor links inside sidebar inherit parent text color */
 aside a:visited {
   color: inherit;
+}
+
+/* Dark theme normalization: keep ERP screens readable even when legacy pages use light-mode utility classes. */
+.dark {
+  --ns-dark-bg: #020617;
+  --ns-dark-surface: #1e293b;
+  --ns-dark-surface-soft: #0f172a;
+  --ns-dark-surface-hover: #263449;
+  --ns-dark-border: #334155;
+  --ns-dark-border-strong: #475569;
+  --ns-dark-text: #f8fafc;
+  --ns-dark-muted: #cbd5e1;
+  --ns-dark-subtle: #94a3b8;
+  --ns-dark-primary: #2563eb;
+  --ns-dark-danger: #7f1d1d;
+  --ns-dark-warning: #92400e;
+  --ns-dark-success: #065f46;
+}
+
+.dark body {
+  background: var(--ns-dark-bg);
+  color: var(--ns-dark-text);
+}
+
+.dark :where(.bg-white, [class*="bg-white/"]) {
+  background-color: var(--ns-dark-surface) !important;
+  color: var(--ns-dark-text);
+}
+
+.dark :where(.bg-slate-50, .bg-slate-100, [class*="bg-slate-50/"], [class*="bg-slate-100/"]) {
+  background-color: var(--ns-dark-surface-soft) !important;
+  color: var(--ns-dark-text);
+}
+
+.dark :where(.border-slate-50, .border-slate-100, .border-slate-200, .border-slate-300, .border-slate-400, [class*="border-slate-50"], [class*="border-slate-100"], [class*="border-slate-200"], [class*="border-slate-300"], [class*="border-slate-400"]) {
+  border-color: var(--ns-dark-border-strong) !important;
+}
+
+.dark :where(.divide-slate-50, .divide-slate-100, .divide-slate-200, .divide-slate-300, .divide-slate-400, [class*="divide-slate-50"], [class*="divide-slate-100"], [class*="divide-slate-200"], [class*="divide-slate-300"], [class*="divide-slate-400"]) > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--ns-dark-border-strong) !important;
+}
+
+.dark :where(.text-slate-900, .text-slate-800, .text-slate-700) {
+  color: var(--ns-dark-text) !important;
+}
+
+.dark :where(.text-slate-600, .text-slate-500) {
+  color: var(--ns-dark-muted) !important;
+}
+
+.dark :where(.text-slate-400, .text-slate-300) {
+  color: var(--ns-dark-subtle) !important;
+}
+
+.dark :where(.text-blue-300, .text-blue-400, .text-blue-500, .text-blue-600, .text-blue-700, .text-blue-800, .text-blue-900, .text-sky-300, .text-sky-400, .text-sky-500, .text-sky-600, .text-sky-700, .text-sky-800, .text-sky-900) {
+  color: #93c5fd !important;
+}
+
+.dark :where(.text-cyan-300, .text-cyan-400, .text-cyan-500, .text-cyan-600, .text-cyan-700, .text-cyan-800, .text-cyan-900, .text-teal-300, .text-teal-400, .text-teal-500, .text-teal-600, .text-teal-700, .text-teal-800, .text-teal-900) {
+  color: #67e8f9 !important;
+}
+
+.dark :where(.text-emerald-300, .text-emerald-400, .text-emerald-500, .text-emerald-600, .text-emerald-700, .text-emerald-800, .text-emerald-900, .text-green-300, .text-green-400, .text-green-500, .text-green-600, .text-green-700, .text-green-800, .text-green-900, .text-lime-300, .text-lime-400, .text-lime-500, .text-lime-600, .text-lime-700, .text-lime-800, .text-lime-900) {
+  color: #86efac !important;
+}
+
+.dark :where(.text-amber-200, .text-amber-300, .text-amber-400, .text-amber-500, .text-amber-600, .text-amber-700, .text-amber-800, .text-amber-900, .text-amber-950, .text-yellow-200, .text-yellow-300, .text-yellow-400, .text-yellow-500, .text-yellow-600, .text-yellow-700, .text-yellow-800, .text-yellow-900, .text-orange-300, .text-orange-400, .text-orange-500, .text-orange-600, .text-orange-700, .text-orange-800, .text-orange-900) {
+  color: #fde68a !important;
+}
+
+.dark :where(.text-red-200, .text-red-300, .text-red-400, .text-red-500, .text-red-600, .text-red-700, .text-red-800, .text-red-900, .text-rose-300, .text-rose-400, .text-rose-500, .text-rose-600, .text-rose-700, .text-rose-800, .text-rose-900, .text-pink-300, .text-pink-400, .text-pink-500, .text-pink-600, .text-pink-700, .text-pink-800, .text-pink-900) {
+  color: #fda4af !important;
+}
+
+.dark :where(.text-indigo-300, .text-indigo-400, .text-indigo-500, .text-indigo-600, .text-indigo-700, .text-indigo-800, .text-indigo-900, .text-violet-300, .text-violet-400, .text-violet-500, .text-violet-600, .text-violet-700, .text-violet-800, .text-violet-900, .text-purple-300, .text-purple-400, .text-purple-500, .text-purple-600, .text-purple-700, .text-purple-800, .text-purple-900, .text-fuchsia-300, .text-fuchsia-400, .text-fuchsia-500, .text-fuchsia-600, .text-fuchsia-700, .text-fuchsia-800, .text-fuchsia-900) {
+  color: #d8b4fe !important;
+}
+
+.dark :where([class*="hover:text-blue-"]:hover, [class*="hover:text-sky-"]:hover) {
+  color: #93c5fd !important;
+}
+
+.dark :where([class*="hover:text-cyan-"]:hover, [class*="hover:text-teal-"]:hover) {
+  color: #67e8f9 !important;
+}
+
+.dark :where([class*="hover:text-emerald-"]:hover, [class*="hover:text-green-"]:hover, [class*="hover:text-lime-"]:hover) {
+  color: #86efac !important;
+}
+
+.dark :where([class*="hover:text-amber-"]:hover, [class*="hover:text-yellow-"]:hover, [class*="hover:text-orange-"]:hover) {
+  color: #fde68a !important;
+}
+
+.dark :where([class*="hover:text-red-"]:hover, [class*="hover:text-rose-"]:hover, [class*="hover:text-pink-"]:hover) {
+  color: #fda4af !important;
+}
+
+.dark :where([class*="hover:text-indigo-"]:hover, [class*="hover:text-violet-"]:hover, [class*="hover:text-purple-"]:hover, [class*="hover:text-fuchsia-"]:hover) {
+  color: #d8b4fe !important;
+}
+
+.dark :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea, [role="combobox"]) {
+  background-color: var(--ns-dark-surface-soft) !important;
+  color: var(--ns-dark-text) !important;
+  border-color: var(--ns-dark-border-strong) !important;
+  box-shadow: none;
+}
+
+.dark :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea, [role="combobox"]):focus {
+  border-color: var(--ns-dark-border-strong) !important;
+  box-shadow: none !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: var(--ns-dark-subtle) !important;
+  opacity: 1;
+}
+
+.dark :where(input:disabled, select:disabled, textarea:disabled, input[readonly], textarea[readonly]) {
+  background-color: #1e293b !important;
+  color: var(--ns-dark-subtle) !important;
+  border-color: var(--ns-dark-border) !important;
+  opacity: 1;
+}
+
+.dark :where(option, optgroup) {
+  background-color: var(--ns-dark-surface-soft) !important;
+  color: var(--ns-dark-text) !important;
+}
+
+.dark :where(input[type="date"], input[type="time"], input[type="datetime-local"], input[type="month"], input[type="week"]) {
+  background-color: var(--ns-dark-surface-soft) !important;
+  color: var(--ns-dark-text) !important;
+  color-scheme: dark;
+}
+
+.dark :where(thead, thead tr, thead th) {
+  background-color: var(--ns-dark-surface-soft) !important;
+  color: var(--ns-dark-muted) !important;
+}
+
+.dark :where(tbody tr) {
+  background-color: var(--ns-dark-surface) !important;
+  color: var(--ns-dark-text);
+}
+
+.dark :where(tbody tr:hover) {
+  background-color: var(--ns-dark-surface-hover) !important;
+}
+
+.dark .expense-dashboard-heatmap :where(.expense-dashboard-total-cell, .expense-dashboard-average-cell) {
+  background-color: #12213a !important;
+  color: #bfdbfe !important;
+}
+
+.dark .expense-dashboard-heatmap :where(.expense-dashboard-total-cell) {
+  color: #ddd6fe !important;
+}
+
+.dark .expense-dashboard-heatmap :where(.expense-dashboard-amount) {
+  color: #e2e8f0 !important;
+}
+
+.dark .expense-dashboard-heatmap :where(.expense-dashboard-muted) {
+  color: #94a3b8 !important;
+}
+
+.dark .expense-dashboard-heatmap :where(.expense-dashboard-sticky) {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+}
+
+.dark :where(th, td) {
+  border-color: var(--ns-dark-border) !important;
+}
+
+.dark :where(button.border, a.border, [role="button"].border) {
+  background-color: #334155 !important;
+  border-color: var(--ns-dark-border-strong) !important;
+  color: var(--ns-dark-text) !important;
+}
+
+.dark :where(button.border:hover, a.border:hover, [role="button"].border:hover) {
+  background-color: #3f4d63 !important;
+}
+
+.dark :where(button.border[class*="text-red"], button.border[class*="text-rose"], a.border[class*="text-red"], a.border[class*="text-rose"]) {
+  background-color: var(--ns-dark-danger) !important;
+  border-color: #ef4444 !important;
+  color: #fecaca !important;
+}
+
+.dark :where(button.border[class*="text-blue"], button.border[class*="text-sky"], button.border[class*="text-cyan"], button.border[class*="text-teal"], a.border[class*="text-blue"], a.border[class*="text-sky"], a.border[class*="text-cyan"], a.border[class*="text-teal"]) {
+  background-color: #1d4ed8 !important;
+  border-color: #60a5fa !important;
+  color: #dbeafe !important;
+}
+
+.dark :where(button.border[class*="text-amber"], button.border[class*="text-yellow"], button.border[class*="text-orange"], a.border[class*="text-amber"], a.border[class*="text-yellow"], a.border[class*="text-orange"]) {
+  background-color: var(--ns-dark-warning) !important;
+  border-color: #f59e0b !important;
+  color: #fde68a !important;
+}
+
+.dark :where(button.border[class*="text-emerald"], button.border[class*="text-green"], button.border[class*="text-lime"], a.border[class*="text-emerald"], a.border[class*="text-green"], a.border[class*="text-lime"]) {
+  background-color: var(--ns-dark-success) !important;
+  border-color: #34d399 !important;
+  color: #bbf7d0 !important;
+}
+
+.dark :where(button.border[class*="text-indigo"], button.border[class*="text-violet"], button.border[class*="text-purple"], button.border[class*="text-fuchsia"], a.border[class*="text-indigo"], a.border[class*="text-violet"], a.border[class*="text-purple"], a.border[class*="text-fuchsia"]) {
+  background-color: #5b21b6 !important;
+  border-color: #c084fc !important;
+  color: #ede9fe !important;
+}
+
+.dark :where(button[class*="bg-blue-"], button[class*="bg-sky-"], button[class*="bg-cyan-"], button[class*="bg-teal-"], a[class*="bg-blue-"], a[class*="bg-sky-"], a[class*="bg-cyan-"], a[class*="bg-teal-"], [role="button"][class*="bg-blue-"], [role="button"][class*="bg-sky-"], [role="button"][class*="bg-cyan-"], [role="button"][class*="bg-teal-"]) {
+  background-color: var(--ns-dark-primary) !important;
+  border-color: #60a5fa !important;
+  color: #ffffff !important;
+}
+
+.dark :where(button[class*="bg-red-"], button[class*="bg-rose-"], button[class*="bg-pink-"], a[class*="bg-red-"], a[class*="bg-rose-"], a[class*="bg-pink-"], [role="button"][class*="bg-red-"], [role="button"][class*="bg-rose-"], [role="button"][class*="bg-pink-"]) {
+  background-color: #e11d48 !important;
+  border-color: #fb7185 !important;
+  color: #ffffff !important;
+}
+
+.dark :where(button[class*="bg-amber-"], button[class*="bg-yellow-"], button[class*="bg-orange-"], a[class*="bg-amber-"], a[class*="bg-yellow-"], a[class*="bg-orange-"], [role="button"][class*="bg-amber-"], [role="button"][class*="bg-yellow-"], [role="button"][class*="bg-orange-"]) {
+  background-color: #d97706 !important;
+  border-color: #fbbf24 !important;
+  color: #ffffff !important;
+}
+
+.dark :where(button[class*="bg-emerald-"], button[class*="bg-green-"], button[class*="bg-lime-"], a[class*="bg-emerald-"], a[class*="bg-green-"], a[class*="bg-lime-"], [role="button"][class*="bg-emerald-"], [role="button"][class*="bg-green-"], [role="button"][class*="bg-lime-"]) {
+  background-color: #059669 !important;
+  border-color: #34d399 !important;
+  color: #ffffff !important;
+}
+
+.dark :where(button[class*="bg-indigo-"], button[class*="bg-violet-"], button[class*="bg-purple-"], button[class*="bg-fuchsia-"], a[class*="bg-indigo-"], a[class*="bg-violet-"], a[class*="bg-purple-"], a[class*="bg-fuchsia-"], [role="button"][class*="bg-indigo-"], [role="button"][class*="bg-violet-"], [role="button"][class*="bg-purple-"], [role="button"][class*="bg-fuchsia-"]) {
+  background-color: #7e22ce !important;
+  border-color: #c084fc !important;
+  color: #ffffff !important;
+}
+
+.dark :where([class*="bg-red-50"]:not(tr):not(td):not(th), [class*="bg-rose-50"]:not(tr):not(td):not(th), [class*="bg-pink-50"]:not(tr):not(td):not(th), [class*="bg-red-100"]:not(tr):not(td):not(th), [class*="bg-rose-100"]:not(tr):not(td):not(th), [class*="bg-pink-100"]:not(tr):not(td):not(th)) {
+  background-color: rgba(127, 29, 29, 0.58) !important;
+  color: #fecaca !important;
+}
+
+.dark :where([class*="bg-amber-50"]:not(tr):not(td):not(th), [class*="bg-yellow-50"]:not(tr):not(td):not(th), [class*="bg-orange-50"]:not(tr):not(td):not(th), [class*="bg-amber-100"]:not(tr):not(td):not(th), [class*="bg-yellow-100"]:not(tr):not(td):not(th), [class*="bg-orange-100"]:not(tr):not(td):not(th)) {
+  background-color: rgba(146, 64, 14, 0.58) !important;
+  color: #fde68a !important;
+}
+
+.dark :where([class*="bg-emerald-50"]:not(tr):not(td):not(th), [class*="bg-green-50"]:not(tr):not(td):not(th), [class*="bg-lime-50"]:not(tr):not(td):not(th), [class*="bg-teal-50"]:not(tr):not(td):not(th), [class*="bg-emerald-100"]:not(tr):not(td):not(th), [class*="bg-green-100"]:not(tr):not(td):not(th), [class*="bg-lime-100"]:not(tr):not(td):not(th), [class*="bg-teal-100"]:not(tr):not(td):not(th)) {
+  background-color: rgba(6, 95, 70, 0.58) !important;
+  color: #bbf7d0 !important;
+}
+
+.dark :where([class*="bg-blue-50"]:not(tr):not(td):not(th), [class*="bg-sky-50"]:not(tr):not(td):not(th), [class*="bg-cyan-50"]:not(tr):not(td):not(th), [class*="bg-blue-100"]:not(tr):not(td):not(th), [class*="bg-sky-100"]:not(tr):not(td):not(th), [class*="bg-cyan-100"]:not(tr):not(td):not(th)) {
+  background-color: rgba(30, 64, 175, 0.58) !important;
+  color: #dbeafe !important;
+}
+
+.dark :where([class*="bg-indigo-50"]:not(tr):not(td):not(th), [class*="bg-violet-50"]:not(tr):not(td):not(th), [class*="bg-purple-50"]:not(tr):not(td):not(th), [class*="bg-fuchsia-50"]:not(tr):not(td):not(th), [class*="bg-indigo-100"]:not(tr):not(td):not(th), [class*="bg-violet-100"]:not(tr):not(td):not(th), [class*="bg-purple-100"]:not(tr):not(td):not(th), [class*="bg-fuchsia-100"]:not(tr):not(td):not(th)) {
+  background-color: rgba(91, 33, 182, 0.56) !important;
+  color: #ede9fe !important;
+}
+
+.dark :where(tr[class*="bg-red-50"], td[class*="bg-red-50"], th[class*="bg-red-50"], tr[class*="bg-rose-50"], td[class*="bg-rose-50"], th[class*="bg-rose-50"], tr[class*="bg-pink-50"], td[class*="bg-pink-50"], th[class*="bg-pink-50"]) {
+  background-color: rgba(127, 29, 29, 0.14) !important;
+}
+
+.dark :where(tr[class*="bg-amber-50"], td[class*="bg-amber-50"], th[class*="bg-amber-50"], tr[class*="bg-yellow-50"], td[class*="bg-yellow-50"], th[class*="bg-yellow-50"], tr[class*="bg-orange-50"], td[class*="bg-orange-50"], th[class*="bg-orange-50"]) {
+  background-color: rgba(146, 64, 14, 0.1) !important;
+}
+
+.dark :where(tr[class*="bg-emerald-50"], td[class*="bg-emerald-50"], th[class*="bg-emerald-50"], tr[class*="bg-green-50"], td[class*="bg-green-50"], th[class*="bg-green-50"], tr[class*="bg-lime-50"], td[class*="bg-lime-50"], th[class*="bg-lime-50"], tr[class*="bg-teal-50"], td[class*="bg-teal-50"], th[class*="bg-teal-50"]) {
+  background-color: rgba(6, 95, 70, 0.12) !important;
+}
+
+.dark :where(tr[class*="bg-blue-50"], td[class*="bg-blue-50"], th[class*="bg-blue-50"], tr[class*="bg-sky-50"], td[class*="bg-sky-50"], th[class*="bg-sky-50"], tr[class*="bg-cyan-50"], td[class*="bg-cyan-50"], th[class*="bg-cyan-50"]) {
+  background-color: rgba(30, 64, 175, 0.12) !important;
+}
+
+.dark :where(tr[class*="bg-indigo-50"], td[class*="bg-indigo-50"], th[class*="bg-indigo-50"], tr[class*="bg-violet-50"], td[class*="bg-violet-50"], th[class*="bg-violet-50"], tr[class*="bg-purple-50"], td[class*="bg-purple-50"], th[class*="bg-purple-50"], tr[class*="bg-fuchsia-50"], td[class*="bg-fuchsia-50"], th[class*="bg-fuchsia-50"]) {
+  background-color: rgba(91, 33, 182, 0.12) !important;
 }

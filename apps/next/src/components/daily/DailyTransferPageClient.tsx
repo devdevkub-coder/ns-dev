@@ -492,9 +492,9 @@ export function DailyTransferPageClient() {
       </div>
 
       {formOpen ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-4">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-[1px] p-4">
           <form noValidate className="mx-auto my-4 w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-xl animate-in fade-in zoom-in-95 duration-150" onSubmit={saveForm}>
-            <div className="sticky top-0 z-10 flex items-center justify-between bg-slate-900 px-5 py-4">
+            <div className="sticky top-0 z-10 flex items-center justify-between bg-slate-900 text-white px-5 py-4">
               <h3 className="font-bold text-white">{form.id ? 'แก้ไขรายการโอนเงิน' : 'โอนเงินระหว่างบัญชี'}</h3>
               <button className="text-2xl text-white/80 hover:text-white outline-none" type="button" onClick={() => setFormOpen(false)}>&times;</button>
             </div>
@@ -627,7 +627,7 @@ export function DailyTransferPageClient() {
               <span className="font-semibold text-emerald-700">{row.toAccountName}</span>
             </div>
             {row.notes ? (
-              <div className="mb-3 text-[11px] text-slate-600">
+              <div className="mb-3 text-xs text-slate-600">
                 <span className="font-medium text-slate-500">หมายเหตุ: </span>{row.notes}
               </div>
             ) : null}

@@ -81,6 +81,15 @@ export type PurchaseBillDetail = {
   warehouseName: string
   refNo: string
   salesName: string
+  supplierBankAccounts?: Array<{
+    accountName: string
+    accountNo: string
+    bankName: string
+    branchCode: string
+    code: string
+    isPrimary: boolean
+    paymentMethod: string
+  }>
 }
 
 type PurchaseBillDetailRow = Prisma.purchase_billsGetPayload<{
@@ -174,7 +183,19 @@ type PurchaseBillDetailRow = Prisma.purchase_billsGetPayload<{
         }
       }
     }
-    suppliers: true
+    suppliers: {
+      include: {
+        supplier_bank_accounts: {
+          include: {
+            bank_names: {
+              select: {
+                name: true
+              }
+            }
+          }
+        }
+      }
+    }
     warehouses: true
   }
 }>
@@ -387,7 +408,17 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
         orderBy: { line_no: 'asc' },
         where: { item_status: 'active' },
       },
-      suppliers: true,
+      suppliers: {
+        include: {
+          supplier_bank_accounts: {
+            include: {
+              bank_names: { select: { name: true } },
+            },
+            where: { active: true },
+            orderBy: [{ is_primary: 'desc' }, { code: 'asc' }],
+          },
+        },
+      },
       warehouses: true,
       supplier_advance_allocations: {
         include: {
@@ -580,5 +611,14 @@ export async function getPurchaseBillDetail(docNo: string): Promise<PurchaseBill
     warehouseName: bill.warehouses?.name ?? '-',
     refNo: bill.ref_no ?? '-',
     salesName: bill.supplier_sales_rep_snapshot ?? '-',
+    supplierBankAccounts: (bill.suppliers?.supplier_bank_accounts ?? []).map((account) => ({
+      accountName: account.account_name ?? '',
+      accountNo: account.account_no ?? '',
+      bankName: account.bank_names?.name ?? '',
+      branchCode: account.branch_code ?? '',
+      code: account.code,
+      isPrimary: Boolean(account.is_primary),
+      paymentMethod: account.payment_method ?? 'เงินโอน',
+    })),
   }
 }

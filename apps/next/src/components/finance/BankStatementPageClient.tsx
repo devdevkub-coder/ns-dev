@@ -240,7 +240,7 @@ export function BankStatementPageClient() {
           <div className="min-w-0 flex-1">
             <div className="text-xs text-slate-500">บัญชี</div>
             <div className="truncate text-lg font-bold text-slate-800">{selectedAccount?.name ?? 'กำลังโหลด'}</div>
-            <div className="text-[10px] text-slate-400 font-medium mt-0.5">{selectedAccount?.type ?? '-'}</div>
+            <div className="text-xs text-slate-400 font-medium mt-0.5">{selectedAccount?.type ?? '-'}</div>
           </div>
         </div>
         <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
@@ -250,7 +250,7 @@ export function BankStatementPageClient() {
           <div>
             <div className={`text-xs ${cashIn === 0 ? 'text-slate-500' : 'text-emerald-600'}`}>เงินเข้ารวม</div>
             <div className={`font-mono text-2xl font-bold ${cashIn === 0 ? 'text-slate-900' : 'text-emerald-700'}`}>{formatMoney(cashIn)}</div>
-            <div className="text-[10px] text-slate-400 font-medium mt-0.5">บาท</div>
+            <div className="text-xs text-slate-400 font-medium mt-0.5">บาท</div>
           </div>
         </div>
         <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
@@ -260,7 +260,7 @@ export function BankStatementPageClient() {
           <div>
             <div className={`text-xs ${cashOut === 0 ? 'text-slate-500' : 'text-rose-600'}`}>เงินออกรวม</div>
             <div className={`font-mono text-2xl font-bold ${cashOut === 0 ? 'text-slate-900' : 'text-rose-700'}`}>{formatMoney(cashOut)}</div>
-            <div className="text-[10px] text-slate-400 font-medium mt-0.5">บาท</div>
+            <div className="text-xs text-slate-400 font-medium mt-0.5">บาท</div>
           </div>
         </div>
         <div className="bg-white p-3 sm:p-5 border border-slate-200 rounded-xl shadow-sm flex items-center gap-2.5 sm:gap-4">
@@ -270,7 +270,7 @@ export function BankStatementPageClient() {
           <div>
             <div className={`text-xs ${closingBalance === 0 ? 'text-slate-500' : 'text-blue-600'}`}>ยอดคงเหลือ</div>
             <div className={`font-mono text-2xl font-bold ${closingBalance === 0 ? 'text-slate-900' : 'text-blue-700'}`}>{formatMoney(closingBalance)}</div>
-            <div className="text-[10px] text-slate-400 font-medium mt-0.5">บาท</div>
+            <div className="text-xs text-slate-400 font-medium mt-0.5">บาท</div>
           </div>
         </div>
       </div>
@@ -298,7 +298,7 @@ export function BankStatementPageClient() {
               </p>
             </div>
             {selectedAccount.subtype === 'current' && (selectedAccount.odLimit || 0) > 0 && (
-              <div className="mt-4 text-[11px] text-slate-400 leading-normal border-t border-slate-100 pt-3">
+              <div className="mt-4 text-xs text-slate-400 leading-normal border-t border-slate-100 pt-3">
                 * OD ไม่ใช่เงินสดจริง แต่เป็นวงเงินเสริมที่ใช้ได้เมื่อยอดบัญชีจริงติดลบ
               </div>
             )}
@@ -391,7 +391,7 @@ function ChartPanel({ rows, title, variant }: { rows: BankRow[]; title: string; 
           ? chartRows.map((row) => (
               <div key={`${row.id}-balance`} className="flex min-w-5 flex-1 flex-col items-center justify-end gap-1">
                 <div className={`w-full rounded-md-t ${row.runningBalance >= 0 ? 'bg-blue-500/80' : 'bg-red-500/80'}`} style={{ height: `${Math.max(6, Math.abs(row.runningBalance) / maxBalance * 220)}px` }} title={`${formatDateDisplay(row.date)}: ${formatMoney(row.runningBalance)}`} />
-                <span className="w-full truncate text-center text-[10px] text-slate-400">{row.date === '-' ? 'ยกมา' : formatDateDisplay(row.date).slice(0, 5)}</span>
+                <span className="w-full truncate text-center text-xs text-slate-400">{row.date === '-' ? 'ยกมา' : formatDateDisplay(row.date).slice(0, 5)}</span>
               </div>
             ))
           : chartRows.map((row) => (
@@ -400,7 +400,7 @@ function ChartPanel({ rows, title, variant }: { rows: BankRow[]; title: string; 
                   <div className="w-full rounded-md-t bg-emerald-500/80" style={{ height: `${row.amountIn > 0 ? Math.max(4, row.amountIn / maxFlow * 110) : 2}px` }} title={`เข้า ${formatMoney(row.amountIn)}`} />
                   <div className="w-full rounded-md-b bg-rose-500/80" style={{ height: `${row.amountOut > 0 ? Math.max(4, row.amountOut / maxFlow * 110) : 2}px` }} title={`ออก ${formatMoney(row.amountOut)}`} />
                 </div>
-                <span className="w-full truncate text-center text-[10px] text-slate-400">{row.date === '-' ? 'ยกมา' : formatDateDisplay(row.date).slice(0, 5)}</span>
+                <span className="w-full truncate text-center text-xs text-slate-400">{row.date === '-' ? 'ยกมา' : formatDateDisplay(row.date).slice(0, 5)}</span>
               </div>
             ))}
       </div>
@@ -486,14 +486,14 @@ function DetailTable({
               return (
                 <tr key={row.id} className={`border-t border-slate-100 transition hover:bg-yellow-50 ${isOpening ? 'bg-amber-50 font-bold' : ''}`}>
                   <td className="px-4 py-3.5 font-mono text-xs overflow-hidden truncate">{isOpening ? row.date : formatDateDisplay(row.date)}</td>
-                  <td className="px-4 py-3.5 text-xs overflow-hidden truncate"><span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${isOpening ? 'bg-amber-200 text-amber-800' : 'bg-slate-200 text-slate-700'}`}>{row.type || row.refType || '-'}</span></td>
+                  <td className="px-4 py-3.5 text-xs overflow-hidden truncate"><span className={`rounded-md px-2 py-0.5 text-xs font-bold ${isOpening ? 'bg-amber-200 text-amber-800' : 'bg-slate-200 text-slate-700'}`}>{row.type || row.refType || '-'}</span></td>
                   <td className="p-2 text-xs overflow-hidden truncate">{row.description || row.note || '-'}</td>
                   <td className="px-4 py-3.5 font-mono text-xs text-blue-600 overflow-hidden truncate">
                     {isOpening ? '-' : <button className="underline-offset-2 hover:underline" type="button" onClick={() => onOpen(row)}>{row.refNo || row.refType || '-'}</button>}
                   </td>
                   <td className={`bg-emerald-50/30 p-2 text-right font-mono overflow-hidden truncate ${row.amountIn > 0 ? 'font-bold text-emerald-700' : 'text-slate-300'}`}>{row.amountIn ? formatMoney(row.amountIn) : '-'}</td>
                   <td className={`bg-rose-50/30 p-2 text-right font-mono overflow-hidden truncate ${row.amountOut > 0 ? 'font-bold text-rose-700' : 'text-slate-300'}`}>{row.amountOut ? formatMoney(row.amountOut) : '-'}</td>
-                  <td className={`bg-blue-50/30 p-2 text-right font-mono font-bold overflow-hidden truncate ${runningBalance >= 0 ? 'text-blue-700' : 'text-red-650'}`}>{formatMoney(runningBalance)}</td>
+                  <td className={`bg-blue-50/30 p-2 text-right font-mono font-bold overflow-hidden truncate ${runningBalance >= 0 ? 'text-blue-700' : 'text-red-600'}`}>{formatMoney(runningBalance)}</td>
                   {hasOd && (
                     <>
                       <td className="bg-amber-50/30 p-2 text-right font-mono text-amber-700 font-semibold overflow-hidden truncate">{formatMoney(odUsed)}</td>
@@ -540,17 +540,17 @@ function DetailTable({
                 </div>
               )}
 
-              <div className={`grid ${hasOd ? 'grid-cols-5' : 'grid-cols-3'} gap-2 pt-2 border-t border-slate-100/60 mt-1 text-right text-[11px]`}>
+              <div className={`grid ${hasOd ? 'grid-cols-5' : 'grid-cols-3'} gap-2 pt-2 border-t border-slate-100/60 mt-1 text-right text-xs`}>
                 <div>
-                  <span className="block text-[10px] text-slate-400">เข้า:</span>
+                  <span className="block text-xs text-slate-400">เข้า:</span>
                   <span className="text-emerald-700 font-bold tabular-nums">{row.amountIn ? formatMoney(row.amountIn) : '-'}</span>
                 </div>
                 <div>
-                  <span className="block text-[10px] text-slate-400">ออก:</span>
+                  <span className="block text-xs text-slate-400">ออก:</span>
                   <span className="text-rose-700 font-bold tabular-nums">{row.amountOut ? formatMoney(row.amountOut) : '-'}</span>
                 </div>
                 <div>
-                  <span className="block text-[10px] text-slate-500">คงเหลือ:</span>
+                  <span className="block text-xs text-slate-500">คงเหลือ:</span>
                   <span className={`font-bold tabular-nums ${runningBalance >= 0 ? 'text-blue-700' : 'text-red-600'}`}>
                     {formatMoney(runningBalance)}
                   </span>
@@ -558,11 +558,11 @@ function DetailTable({
                 {hasOd && (
                   <>
                     <div>
-                      <span className="block text-[10px] text-amber-600">OD ใช้:</span>
+                      <span className="block text-xs text-amber-600">OD ใช้:</span>
                       <span className="text-amber-700 font-bold tabular-nums">{formatMoney(odUsed)}</span>
                     </div>
                     <div>
-                      <span className="block text-[10px] text-emerald-600">OD เหลือ:</span>
+                      <span className="block text-xs text-emerald-600">OD เหลือ:</span>
                       <span className="text-emerald-700 font-bold tabular-nums">{formatMoney(odRemaining)}</span>
                     </div>
                   </>

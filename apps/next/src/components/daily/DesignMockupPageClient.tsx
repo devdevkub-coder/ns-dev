@@ -251,7 +251,7 @@ export function DesignMockupPageClient() {
               <div className="bg-white p-4 border border-slate-200/60 rounded-2xl shadow-sm group">
                 <div className="relative">
                   <Input className="h-12 w-full border-slate-200 bg-slate-50/50 px-4 pt-4 pb-1 text-sm focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 transition-all rounded-xl" placeholder=" " defaultValue="บริษัท ตัวอย่าง" />
-                  <label className="absolute left-4 top-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider transition-all group-focus-within:text-indigo-500">ชื่อลูกค้า</label>
+                  <label className="absolute left-4 top-1.5 text-xs font-bold text-slate-400 uppercase tracking-wider transition-all group-focus-within:text-indigo-500">ชื่อลูกค้า</label>
                 </div>
               </div>
             </div>
@@ -582,17 +582,17 @@ export function DesignMockupPageClient() {
                 {/* Stepper */}
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-2 text-indigo-600">
-                    <div className="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center text-[10px] font-bold">✓</div>
+                    <div className="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-bold">✓</div>
                     <span className="text-xs font-bold">ข้อมูลหลัก</span>
                   </div>
                   <div className="h-px w-4 bg-indigo-200"></div>
                   <div className="flex items-center gap-2 text-slate-800">
-                    <div className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-bold shadow-sm shadow-indigo-600/30">2</div>
+                    <div className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold shadow-sm shadow-indigo-600/30">2</div>
                     <span className="text-xs font-bold">การชั่ง</span>
                   </div>
                   <div className="h-px w-4 bg-slate-200"></div>
                   <div className="flex items-center gap-2 text-slate-400">
-                    <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold">3</div>
+                    <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold">3</div>
                     <span className="text-xs font-medium">สรุปผล</span>
                   </div>
                 </div>
@@ -602,7 +602,7 @@ export function DesignMockupPageClient() {
                   <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 h-10 ring-2 ring-indigo-500/20 border-indigo-300">
                     <span className="text-slate-400 mr-2 text-sm">🔍</span>
                     <input className="bg-transparent flex-1 outline-none text-sm font-medium text-slate-900" defaultValue="สมช" />
-                    <span className="text-[10px] font-bold text-slate-400 bg-white border border-slate-200 px-1.5 py-0.5 rounded shadow-sm">⌘K</span>
+                    <span className="text-xs font-bold text-slate-400 bg-white border border-slate-200 px-1.5 py-0.5 rounded shadow-sm">⌘K</span>
                   </div>
                   <div className="absolute top-12 left-0 w-full bg-white border border-slate-100 shadow-xl shadow-slate-200/50 rounded-xl overflow-hidden z-20">
                     <div className="px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">ลูกค้าระบบ</div>
@@ -1350,7 +1350,7 @@ export function DesignMockupPageClient() {
                 <div className="flex justify-between items-end">
                   <div>
                     <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-                      ใบชั่งน้ำหนัก <span className="bg-indigo-100 text-indigo-700 text-[10px] px-2 py-0.5 rounded-full font-bold">24 รายการ</span>
+                      ใบชั่งน้ำหนัก <span className="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full font-bold">24 รายการ</span>
                     </h3>
                   </div>
                   <button className="h-10 bg-slate-900 text-white px-5 rounded-full text-sm font-bold shadow-lg shadow-slate-900/20 hover:bg-slate-800 hover:-translate-y-0.5 transition-all flex items-center gap-2">
@@ -1606,7 +1606,7 @@ export function DesignMockupPageClient() {
                     <div className="flex items-center gap-3">
                       <span className="text-lg opacity-50">✅</span> คิวอนุมัติ
                     </div>
-                    <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">3</span>
+                    <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">3</span>
                   </button>
                 </div>
 
@@ -1635,7 +1635,7 @@ export function DesignMockupPageClient() {
                 </div>
 
                 <div className="flex-1 overflow-y-auto py-4 px-4 space-y-1 relative">
-                  <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2 mb-3 mt-2">Main Menu</div>
+                  <div className="text-xs font-black text-slate-500 uppercase tracking-widest px-2 mb-3 mt-2">Main Menu</div>
 
                   <button className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-400 rounded-xl hover:text-white hover:bg-white/5 transition-all">
                     <span className="text-slate-500">⌂</span> หน้าแรก
@@ -1649,7 +1649,7 @@ export function DesignMockupPageClient() {
                     <div className="flex items-center gap-3">
                       <span className="text-slate-500">✓</span> คิวอนุมัติ
                     </div>
-                    <span className="bg-indigo-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg shadow-indigo-500/50">3</span>
+                    <span className="bg-indigo-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-lg shadow-indigo-500/50">3</span>
                   </button>
                 </div>
 
@@ -1762,7 +1762,7 @@ export function DesignMockupPageClient() {
                       <div className="text-xs text-slate-500 font-medium">รหัสรายการ</div>
                       <div className="font-bold text-indigo-600">WT-001</div>
                     </div>
-                    <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-[10px] font-bold">เสร็จสิ้น</span>
+                    <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-xs font-bold">เสร็จสิ้น</span>
                   </div>
                   <div className="h-px bg-slate-100 w-full my-2"></div>
                   <div className="flex justify-between items-center text-sm">
@@ -1808,7 +1808,7 @@ export function DesignMockupPageClient() {
                   <div>
                     <div className="flex justify-between items-end mb-1">
                       <label className="text-sm font-bold text-red-600">หมายเลขเอกสาร <span className="text-red-500">*</span></label>
-                      <span className="text-[10px] text-red-500 font-bold bg-red-50 px-1.5 py-0.5 rounded">จำเป็นต้องระบุ</span>
+                      <span className="text-xs text-red-500 font-bold bg-red-50 px-1.5 py-0.5 rounded">จำเป็นต้องระบุ</span>
                     </div>
                     <div className="relative">
                       <Input placeholder="" className="border-red-400 bg-red-50 text-red-900 focus-visible:ring-red-500 pr-8" defaultValue="INV-" />
@@ -1895,7 +1895,7 @@ export function DesignMockupPageClient() {
                     <td className="py-3 px-4 font-medium text-indigo-600">PO-2023-001</td>
                     <td className="py-3 px-4">บจก. สมชาย</td>
                     <td className="py-3 px-4 font-medium text-slate-900">฿45,000</td>
-                    <td className="py-3 px-4"><span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-full text-[10px] font-bold">รอตรวจสอบ</span></td>
+                    <td className="py-3 px-4"><span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-full text-xs font-bold">รอตรวจสอบ</span></td>
                   </tr>
                   <tr className="bg-indigo-50/30 hover:bg-slate-50 transition-colors">
                     <td className="py-3 px-4 sticky left-0 bg-white shadow-[1px_0_0_0_#e2e8f0] z-10">
@@ -1904,7 +1904,7 @@ export function DesignMockupPageClient() {
                     <td className="py-3 px-4 font-medium text-indigo-600">PO-2023-002</td>
                     <td className="py-3 px-4">ร้านสมเกียรติโลหะ</td>
                     <td className="py-3 px-4 font-medium text-slate-900">฿12,500</td>
-                    <td className="py-3 px-4"><span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-full text-[10px] font-bold">รอตรวจสอบ</span></td>
+                    <td className="py-3 px-4"><span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-full text-xs font-bold">รอตรวจสอบ</span></td>
                   </tr>
                   <tr className="hover:bg-slate-50 transition-colors">
                     <td className="py-3 px-4 sticky left-0 bg-white shadow-[1px_0_0_0_#e2e8f0] z-10">
@@ -1913,7 +1913,7 @@ export function DesignMockupPageClient() {
                     <td className="py-3 px-4 font-medium text-indigo-600">PO-2023-003</td>
                     <td className="py-3 px-4">บมจ. เหล็กไทย</td>
                     <td className="py-3 px-4 font-medium text-slate-900">฿150,000</td>
-                    <td className="py-3 px-4"><span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full text-[10px] font-bold">อนุมัติแล้ว</span></td>
+                    <td className="py-3 px-4"><span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full text-xs font-bold">อนุมัติแล้ว</span></td>
                   </tr>
                 </tbody>
               </table>
@@ -2044,7 +2044,7 @@ export function DesignMockupPageClient() {
                 <div className="w-[calc(100%-3rem)] md:w-[calc(50%-2.5rem)] bg-white p-3 rounded-lg border border-slate-200 shadow-sm ml-4 md:ml-0 md:mr-4 md:group-even:ml-4 md:group-even:mr-0">
                   <div className="flex justify-between items-start mb-1">
                     <div className="font-bold text-sm text-slate-800">อนุมัติจ่ายเงิน</div>
-                    <div className="text-[10px] text-slate-400">10:45</div>
+                    <div className="text-xs text-slate-400">10:45</div>
                   </div>
                   <div className="text-xs text-slate-500">โดย: คุณสุชาติ (ผู้จัดการ)</div>
                 </div>
@@ -2054,7 +2054,7 @@ export function DesignMockupPageClient() {
                 <div className="w-[calc(100%-3rem)] md:w-[calc(50%-2.5rem)] bg-white p-3 rounded-lg border border-slate-200 shadow-sm ml-4 md:ml-0 md:mr-4 md:group-even:ml-4 md:group-even:mr-0">
                   <div className="flex justify-between items-start mb-1">
                     <div className="font-bold text-sm text-slate-800">แก้ไขจำนวนเงิน</div>
-                    <div className="text-[10px] text-slate-400">09:12</div>
+                    <div className="text-xs text-slate-400">09:12</div>
                   </div>
                   <div className="text-xs text-slate-500">โดย: น้องสมปอง (บัญชี)</div>
                 </div>
@@ -2064,7 +2064,7 @@ export function DesignMockupPageClient() {
                 <div className="w-[calc(100%-3rem)] md:w-[calc(50%-2.5rem)] bg-white p-3 rounded-lg border border-slate-200 shadow-sm ml-4 md:ml-0 md:mr-4 md:group-even:ml-4 md:group-even:mr-0">
                   <div className="flex justify-between items-start mb-1">
                     <div className="font-bold text-sm text-slate-800">สร้างรายการ</div>
-                    <div className="text-[10px] text-slate-400">08:30</div>
+                    <div className="text-xs text-slate-400">08:30</div>
                   </div>
                   <div className="text-xs text-slate-500">โดย: ลานรับซื้อ 1</div>
                 </div>
@@ -2135,17 +2135,17 @@ export function DesignMockupPageClient() {
               <div className="flex items-center px-4 border-b border-slate-100 h-14">
                 <span className="text-slate-400 mr-3 text-lg">🔍</span>
                 <input className="flex-1 outline-none text-slate-900 placeholder:text-slate-400 bg-transparent" placeholder="พิมพ์เพื่อค้นหา (เช่น 'สมชาย', 'เบิกเงิน')..." defaultValue="สมช" />
-                <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold border border-slate-200">ESC</span>
+                <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold border border-slate-200">ESC</span>
               </div>
               <div className="max-h-[250px] overflow-y-auto py-2">
                 <div className="px-3 py-1.5 text-xs font-bold text-slate-400 uppercase tracking-wider">ลูกค้า (Customers)</div>
                 <div className="px-3 py-2 text-sm text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer flex items-center gap-2 border-l-2 border-indigo-500 bg-indigo-50/50">
-                  <span className="w-5 h-5 rounded-md bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px]">C</span>
+                  <span className="w-5 h-5 rounded-md bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs">C</span>
                   <span>บจก. <strong className="text-indigo-600">สมช</strong>ายกิจเจริญ</span>
-                  <span className="ml-auto text-[10px] text-slate-400">⏎</span>
+                  <span className="ml-auto text-xs text-slate-400">⏎</span>
                 </div>
                 <div className="px-3 py-2 text-sm text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer flex items-center gap-2 border-l-2 border-transparent">
-                  <span className="w-5 h-5 rounded-md bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px]">C</span>
+                  <span className="w-5 h-5 rounded-md bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs">C</span>
                   <span>นาย <strong className="text-indigo-600">สมช</strong>าญ ใจดี</span>
                 </div>
 
@@ -2221,7 +2221,7 @@ export function DesignMockupPageClient() {
                 <div className="flex flex-col gap-3 border-b border-indigo-950/20 bg-gradient-to-r from-[#0F172A] via-[#1E1B4B] to-[#0F172A] px-5 py-4 sm:flex-row sm:items-center sm:justify-between relative">
                   <h3 className="text-lg font-extrabold text-white tracking-tight flex items-center gap-2">
                     แก้ไขลูกค้า
-                    <span className="bg-indigo-500/20 text-indigo-300 text-[10px] px-2 py-0.5 rounded-full font-bold">MASTER</span>
+                    <span className="bg-indigo-500/20 text-indigo-300 text-xs px-2 py-0.5 rounded-full font-bold">MASTER</span>
                   </h3>
                   <div className="flex items-center gap-4">
                     <div className="inline-flex items-center gap-2 bg-white/5 px-2.5 py-1 rounded-full border border-white/10">

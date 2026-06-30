@@ -2805,12 +2805,12 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                 </div>
                 <div>
                   <span className="font-semibold text-slate-500">ประเภท: </span>
-                  <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${row.transactionMode === 'TRADING' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>
+                  <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-semibold ${row.transactionMode === 'TRADING' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>
                     {row.transactionMode ?? '-'}
                   </span>
                 </div>
                 {row.note?.trim() ? (
-                  <div className="text-[11px] text-slate-400 truncate">
+                  <div className="text-xs text-slate-400 truncate">
                     หมายเหตุ: {row.note}
                   </div>
                 ) : null}
@@ -2822,12 +2822,12 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     <span className="size-1.5 rounded-full bg-current" />
                     {mode === 'purchase' ? workflowStatusText(row.paymentWorkflowStatus ?? 'pending_approval') : statusText(row.status)}
                   </span>
-                  <div className="mt-1 text-[11px] font-bold text-blue-700">
+                  <div className="mt-1 text-xs font-bold text-blue-700">
                     {formatMoney(totalVal)} บาท
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] text-slate-400 block">ค้างจ่าย/ค้างรับ</span>
+                  <span className="text-xs text-slate-400 block">ค้างจ่าย/ค้างรับ</span>
                   <span className="font-bold text-amber-600 text-sm tabular-nums">
                     {formatMoney(subValue ?? 0)} บาท
                   </span>
@@ -2973,7 +2973,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                     )}
                   </td>
                 ) : null}
-                <td className="p-2 text-xs font-semibold text-slate-700"><div>{row.updatedBy || row.createdBy || '-'}</div><div className="text-[10px] font-normal text-slate-400">{formatDateTime(row.updatedAt || row.createdAt)}</div></td>
+                <td className="p-2 text-xs font-semibold text-slate-700"><div>{row.updatedBy || row.createdBy || '-'}</div><div className="text-xs font-normal text-slate-400">{formatDateTime(row.updatedAt || row.createdAt)}</div></td>
                 {mode === 'purchase' ? (
                   <td className="p-2 text-right">
                     <div className="flex justify-end gap-2">
@@ -3237,12 +3237,12 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                   {isFirstRowOfSummary ? (
                                     <>
                                       <div className="font-medium text-slate-900">{sourceSummary?.productName ?? activeProducts.find((product) => product.id === item.productId)?.name ?? item.productId}</div>
-                                      <div className="mt-1 text-[11px] text-slate-500">
+                                      <div className="mt-1 text-xs text-slate-500">
                                         WTI {selectedReceipt.documentNo}
                                         {sourceSummary ? ` · รวม ${sourceSummary.lineCount} เต๋า` : ''}
                                       </div>
                                       {sourceSummary && summaryVariance ? (
-                                        <div className={`mt-1 text-[11px] font-semibold ${summaryVariance.className}`}>
+                                        <div className={`mt-1 text-xs font-semibold ${summaryVariance.className}`}>
                                           {summaryVariance.text}
                                         </div>
                                       ) : null}
@@ -3268,7 +3268,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                     if (!item.poBuyId) return null
                                     if (rowPoCapacity === null || rowPoCapacity === undefined) return null
                                     const variance = poQtyVariance(rowPoCapacity, item.qty)
-                                    return <div className={`mt-1 text-[11px] font-semibold ${variance.className}`}>{variance.text}</div>
+                                    return <div className={`mt-1 text-xs font-semibold ${variance.className}`}>{variance.text}</div>
                                   })()}
                                 </td>
                                 <td className="p-2">
@@ -3337,7 +3337,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                 <input className="mt-1.5 w-full rounded-md border bg-yellow-50 px-2 py-1 text-xs" placeholder="ชื่อสำหรับโชว์ในบิล (ว่าง = ใช้ชื่อ Master)" value={item.displayName ?? ''} onChange={(event) => updateItem(index, 'displayName', event.target.value || null)} />
                               </td>
                               <td className="p-2" colSpan={3}>
-                                <div className="mb-1 text-[11px] font-semibold text-indigo-700">อ้างอิง PO</div>
+                                <div className="mb-1 text-xs font-semibold text-indigo-700">อ้างอิง PO</div>
                                 <select className="w-full rounded-md border bg-blue-50 px-2 py-2 text-xs" value={item.poBuyId ?? ''} onChange={(event) => updateItemPoBuy(index, event.target.value || null)}>
                                   <option value="">Spot Buy</option>
                                   {activePoBuys
@@ -3348,31 +3348,31 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                   const remainingQty = poOptionForProduct(item.poBuyId, item.productId)?.remainingQty
                                   if (remainingQty === null || remainingQty === undefined) return null
                                   const variance = poQtyVariance(remainingQty, item.qty)
-                                  return <div className={`mt-1 text-[11px] font-semibold ${variance.className}`}>{variance.text}</div>
+                                  return <div className={`mt-1 text-xs font-semibold ${variance.className}`}>{variance.text}</div>
                                 })()}
                               </td>
                               <td className="p-2 align-middle" rowSpan={2}><button className="rounded-md px-3 py-2 text-red-600 hover:bg-red-50 disabled:opacity-40" disabled={form.items.length <= 1} type="button" onClick={() => removeItem(index)}>ลบ</button></td>
                             </tr>
                             <tr className="border-t border-slate-100 align-top hover:bg-blue-50/30">
                               <td className="p-2">
-                                <div className="mb-1 text-[11px] font-semibold text-slate-500">Gross</div>
+                                <div className="mb-1 text-xs font-semibold text-slate-500">Gross</div>
                                 <input data-error-key={`items.${index}.grossWeight`} className={`w-full rounded-md border bg-slate-50 px-2 py-2 text-right tabular-nums ${fieldErrors[`items.${index}.grossWeight`] ? 'border-red-400 bg-red-50' : ''} ${numberInputClass}`} min="0" step="0.01" type="number" value={item.grossWeight || ''} onChange={(event) => updateItemWeights(index, 'grossWeight', Number(event.target.value || 0))} />
                               </td>
                               <td className="p-2">
-                                <div className="mb-1 text-[11px] font-semibold text-amber-700">หัก</div>
+                                <div className="mb-1 text-xs font-semibold text-amber-700">หัก</div>
                                 <input data-error-key={`items.${index}.deductWeight`} className={`w-full rounded-md border bg-amber-50 px-2 py-2 text-right tabular-nums ${fieldErrors[`items.${index}.deductWeight`] ? 'border-red-400 bg-red-50' : ''} ${numberInputClass}`} min="0" step="0.01" type="number" value={item.deductWeight || ''} onChange={(event) => updateItemWeights(index, 'deductWeight', Number(event.target.value || 0))} />
                               </td>
                               <td className="p-2">
-                                <div className="mb-1 text-[11px] font-semibold text-emerald-700">สุทธิ</div>
+                                <div className="mb-1 text-xs font-semibold text-emerald-700">สุทธิ</div>
                                 <input data-error-key={`items.${index}.qty`} className={`w-full rounded-md border bg-emerald-50 px-2 py-2 text-right font-bold tabular-nums text-emerald-700 ${fieldErrors[`items.${index}.qty`] ? 'border-red-400 bg-red-50 text-red-700' : ''} ${numberInputClass}`} min="0" step="0.01" type="number" value={item.qty || ''} onChange={(event) => updateItem(index, 'qty', Number(event.target.value || 0))} />
                               </td>
                               <td className="p-2">
-                                <div className="mb-1 text-[11px] font-semibold text-slate-500">ราคา/กก.</div>
+                                <div className="mb-1 text-xs font-semibold text-slate-500">ราคา/กก.</div>
                                 <input data-error-key={`items.${index}.price`} className={`w-full rounded-md border px-2 py-2 text-right tabular-nums ${fieldErrors[`items.${index}.price`] ? 'border-red-400 bg-red-50 text-red-700' : ''} ${numberInputClass}`} min="0" step="0.01" type="number" value={item.price || ''} onChange={(event) => updateItem(index, 'price', Number(event.target.value || 0))} />
                                 {fieldErrors[`items.${index}.price`] ? <div className="mt-1 text-xs text-red-600">{fieldErrors[`items.${index}.price`]}</div> : null}
                               </td>
                               <td className="p-2">
-                                <div className="mb-1 text-[11px] font-semibold text-purple-700">ราคาหน้าใบ</div>
+                                <div className="mb-1 text-xs font-semibold text-purple-700">ราคาหน้าใบ</div>
                                 <input
                                   className={`w-full rounded-md border px-2 py-2 text-right tabular-nums ${numberInputClass} ${salesPriceEditable ? 'bg-purple-50' : 'bg-slate-100 text-slate-500'}`}
                                   disabled={!salesPriceEditable}
@@ -3384,7 +3384,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                 />
                               </td>
                               <td className="p-2">
-                                <div className="mb-1 text-[11px] font-semibold text-blue-700">ยอดรวม</div>
+                                <div className="mb-1 text-xs font-semibold text-blue-700">ยอดรวม</div>
                                 <div className="rounded-md border border-blue-100 bg-blue-50 px-2 py-2 text-right font-bold tabular-nums text-blue-700">{formatMoney(Math.max(0, item.qty * item.price))}</div>
                               </td>
                             </tr>
@@ -3755,10 +3755,10 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
 	                                  {isFirstRowOfSummary ? (
 	                                    <>
 	                                      <div className="font-medium text-slate-900">{sourceSummary?.productName ?? productName}</div>
-	                                      <div className="mt-1 text-[11px] text-slate-500">{item.productId}</div>
-	                                      {sourceSummary ? <div className="mt-1 text-[11px] text-slate-500">รวม {sourceSummary.lineCount} เต๋า</div> : null}
+	                                      <div className="mt-1 text-xs text-slate-500">{item.productId}</div>
+	                                      {sourceSummary ? <div className="mt-1 text-xs text-slate-500">รวม {sourceSummary.lineCount} เต๋า</div> : null}
 	                                      {sourceSummary && summaryVariance ? (
-	                                        <div className={`mt-1 text-[11px] font-semibold ${summaryVariance.className}`}>
+	                                        <div className={`mt-1 text-xs font-semibold ${summaryVariance.className}`}>
 	                                          {summaryVariance.text}
 	                                        </div>
 	                                      ) : null}
@@ -3783,7 +3783,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                     <option value="">Spot Sale</option>
                                     {itemPoSellOptions.map((po) => <option key={`${po.id}-${po.line_id ?? po.product_id ?? 'all'}`} value={po.id}>{po.label ?? po.name}</option>)}
                                   </select>
-                                  {poSellVariance ? <div className={`mt-1 text-[11px] font-semibold ${poSellVariance.className}`}>{poSellVariance.text}</div> : null}
+                                  {poSellVariance ? <div className={`mt-1 text-xs font-semibold ${poSellVariance.className}`}>{poSellVariance.text}</div> : null}
                                 </td>
                                 <td className="p-2">
                                   <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-2 text-right font-semibold tabular-nums text-slate-700">
@@ -3905,7 +3905,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                 {isSameSourceProductGroup ? <span className="sr-only">{productName}</span> : (
                                   <>
                                     <div className="font-medium text-slate-900">{productName}</div>
-                                    <div className="mt-1 text-[11px] text-slate-500">{item.productId}</div>
+                                    <div className="mt-1 text-xs text-slate-500">{item.productId}</div>
                                   </>
                                 )}
                               </td>
@@ -3920,9 +3920,9 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                     <div className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold ${isWtoLine ? 'bg-emerald-50 text-emerald-700' : 'bg-purple-50 text-purple-700'}`}>
                                       {isWtoLine ? 'WTO / Stock' : 'บิลซื้อ Trading'}
                                     </div>
-                                    <div className="mt-1 text-[11px] text-slate-500">{sourceLabel}</div>
-                                    {tradingSourceWeightLabel ? <div className="mt-1 text-[11px] font-semibold text-slate-700">{tradingSourceWeightLabel}</div> : null}
-                                    {!isWtoLine && selectedTradingCostSource ? <div className="mt-1 text-[11px] text-slate-500">{selectedTradingCostSource.supplier_name ?? ''}</div> : null}
+                                    <div className="mt-1 text-xs text-slate-500">{sourceLabel}</div>
+                                    {tradingSourceWeightLabel ? <div className="mt-1 text-xs font-semibold text-slate-700">{tradingSourceWeightLabel}</div> : null}
+                                    {!isWtoLine && selectedTradingCostSource ? <div className="mt-1 text-xs text-slate-500">{selectedTradingCostSource.supplier_name ?? ''}</div> : null}
                                   </>
                                 )}
                               </td>
@@ -3931,7 +3931,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                                   <option value="">Spot Sale</option>
                                   {itemPoSellOptions.map((po) => <option key={`${po.id}-${po.line_id ?? po.product_id ?? 'all'}`} value={po.id}>{po.label ?? po.name}</option>)}
                                 </select>
-                                {poSellVariance ? <div className={`mt-1 text-[11px] font-semibold ${poSellVariance.className}`}>{poSellVariance.text}</div> : null}
+                                {poSellVariance ? <div className={`mt-1 text-xs font-semibold ${poSellVariance.className}`}>{poSellVariance.text}</div> : null}
                               </td>
                               <td className="p-2">
                                 <input data-error-key={`items.${index}.grossWeight`} className={`w-full rounded-md border bg-slate-50 px-2 py-2 text-right font-bold tabular-nums text-slate-700 ${salesFieldErrors[`items.${index}.grossWeight`] ? 'border-red-400 bg-red-50 text-red-700' : ''} ${numberInputClass}`} min="0" step="0.01" type="number" value={item.grossWeight || ''} onChange={(event) => updateSalesItemWeights(index, 'grossWeight', Number(event.target.value || 0))} />
@@ -3944,7 +3944,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
                               <td className="p-2">
                                 <div data-error-key={`items.${index}.qty`} className={`rounded-md border px-2 py-2 text-right font-bold tabular-nums ${salesFieldErrors[`items.${index}.qty`] ? 'border-red-400 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>{formatMoney(item.qty)}</div>
                                 {salesFieldErrors[`items.${index}.qty`] ? <div className="mt-1 text-xs text-red-600">{salesFieldErrors[`items.${index}.qty`]}</div> : null}
-                                {costSourceVariance ? <div className={`mt-1 text-[11px] font-semibold ${costSourceVariance.className}`}>{costSourceVariance.text}</div> : null}
+                                {costSourceVariance ? <div className={`mt-1 text-xs font-semibold ${costSourceVariance.className}`}>{costSourceVariance.text}</div> : null}
                               </td>
                               <td className="p-2">
                                 <InlineMoneyInput
@@ -4102,7 +4102,7 @@ export function TransactionBillsPageClient({ mode }: TransactionBillsPageClientP
             <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-2xl flex flex-row items-center justify-between shrink-0">
               <div>
                 <DialogTitle id={`${mode}-bill-cancel-title`} className="text-white">ยกเลิก{mode === 'sales' ? 'บิลขาย' : 'บิลรับซื้อ'} {cancelingBill.docNo}</DialogTitle>
-                <DialogDescription className="text-slate-350">{cancelDialogPartyName}</DialogDescription>
+                <DialogDescription className="text-slate-300">{cancelDialogPartyName}</DialogDescription>
               </div>
               <button
                 type="button"
@@ -4174,7 +4174,7 @@ function PurchaseBillDetailModal({
         <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-2xl flex flex-row items-center justify-between shrink-0">
           <div>
             <DialogTitle id="purchase-bill-detail-title" className="text-white">รายละเอียดบิลรับซื้อ</DialogTitle>
-            <DialogDescription className="font-mono text-xs text-slate-350">{detail?.docNo ?? docNo}</DialogDescription>
+            <DialogDescription className="font-mono text-xs text-slate-300">{detail?.docNo ?? docNo}</DialogDescription>
           </div>
           <button
             type="button"
@@ -4198,7 +4198,7 @@ function PurchaseBillDetailModal({
           <div className="space-y-4 p-4 text-sm">
             {/* ข้อมูลทั่วไป */}
             <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลเอกสาร</div>
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">ข้อมูลเอกสาร</div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
                 <DetailItem label="เลขที่บิล" value={detail.docNo} />
                 <DetailItem label="วันที่สร้างรายการ" value={formatDateDisplay(detail.date)} />
@@ -4212,10 +4212,10 @@ function PurchaseBillDetailModal({
 
             {/* สถานะและการชำระเงิน */}
             <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">สถานะและการชำระเงิน</div>
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100/80">สถานะและการชำระเงิน</div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
                 <div className="flex flex-col py-1">
-                  <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">สถานะบิล</div>
+                  <div className="text-xs text-slate-400 font-medium uppercase tracking-wider">สถานะบิล</div>
                   <div className="mt-1">
                     <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${workflowStatusBadgeClass(detail.status)}`}>
                       <span className="size-1.5 rounded-full bg-current" />
@@ -4234,7 +4234,7 @@ function PurchaseBillDetailModal({
 
             {/* สรุปต่อสินค้า */}
             <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">สรุปต่อสินค้า</div>
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">สรุปต่อสินค้า</div>
               <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
                 <table className="w-full min-w-[880px] text-sm">
                   <thead className="bg-slate-50 text-slate-600">
@@ -4270,7 +4270,7 @@ function PurchaseBillDetailModal({
 
             {/* รายละเอียด allocation */}
             <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">รายละเอียด allocation รายแถว</div>
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">รายละเอียด allocation รายแถว</div>
               <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
                 <table className="w-full min-w-[1100px] text-sm">
                   <thead className="bg-slate-50 text-slate-600">
@@ -4448,7 +4448,7 @@ function SalesBillDetailModal({
         <DialogHeader className="px-5 py-4 bg-slate-900 text-white rounded-t-2xl flex flex-row items-center justify-between shrink-0">
           <div>
             <DialogTitle id="sales-bill-detail-title" className="text-white">รายละเอียดบิลขาย</DialogTitle>
-            <DialogDescription className="font-mono text-xs text-slate-350">{detail?.docNo ?? docNo}</DialogDescription>
+            <DialogDescription className="font-mono text-xs text-slate-300">{detail?.docNo ?? docNo}</DialogDescription>
           </div>
           <button
             type="button"
@@ -4470,7 +4470,7 @@ function SalesBillDetailModal({
           ) : detail ? (
             <div className="space-y-4 p-4 text-sm">
             <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-              <div className="mb-3 border-b border-slate-100/80 pb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">ข้อมูลเอกสาร</div>
+              <div className="mb-3 border-b border-slate-100/80 pb-1 text-xs font-bold uppercase tracking-wider text-slate-500">ข้อมูลเอกสาร</div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
                 <DetailItem label="เลขที่บิล" value={detail.docNo} />
                 <DetailItem label="วันที่เอกสาร" value={formatDateDisplay(detail.date)} />
@@ -4487,10 +4487,10 @@ function SalesBillDetailModal({
             </div>
 
             <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-              <div className="mb-3 border-b border-slate-100/80 pb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">สถานะและการรับเงิน</div>
+              <div className="mb-3 border-b border-slate-100/80 pb-1 text-xs font-bold uppercase tracking-wider text-slate-500">สถานะและการรับเงิน</div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
                 <div className="flex flex-col py-1">
-                  <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">สถานะรับเงิน</div>
+                  <div className="text-xs font-medium uppercase tracking-wider text-slate-400">สถานะรับเงิน</div>
                   <div className="mt-1">
                     <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${statusBadgeClass(detail.status)}`}>
                       <span className="size-1.5 rounded-full bg-current" />
@@ -4515,7 +4515,7 @@ function SalesBillDetailModal({
 
             <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">รายการสินค้า / Source</div>
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-500">รายการสินค้า / Source</div>
                 {detail.transactionMode === 'TRADING' ? (
                   <Button className="h-8 px-3 text-xs font-normal" type="button" variant="outline" onClick={() => setShowCorrection((current) => !current)}>
                     {showCorrection ? 'ซ่อนแก้ allocation' : 'แก้ Trading allocation'}
@@ -4683,12 +4683,12 @@ function SalesBillDetailModal({
                               <div className="font-medium text-slate-900">{fact.title}</div>
                               <div className="text-slate-500">{[fact.type, fact.productName !== '-' ? fact.productName : null, fact.lineNo ? `line ${fact.lineNo}` : null].filter(Boolean).join(' · ')}</div>
                             </td>
-                            <td className="px-3 py-2 align-top font-mono text-[11px] text-slate-700">{fact.docNo || '-'}</td>
+                            <td className="px-3 py-2 align-top font-mono text-xs text-slate-700">{fact.docNo || '-'}</td>
                             <td className="px-3 py-2 text-right align-top tabular-nums">{fact.qty ? `${formatMoney(fact.qty)} ${fact.unit}` : '-'}</td>
                             <td className="px-3 py-2 text-right align-top tabular-nums">{fact.amount ? formatMoney(fact.amount) : '-'}</td>
                             <td className="px-3 py-2 align-top">
-                              <span className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-medium ${fact.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{fact.status}</span>
-                              <div className="mt-1 text-[11px] text-slate-400">{formatDateTime(fact.createdAt)}</div>
+                              <span className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${fact.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{fact.status}</span>
+                              <div className="mt-1 text-xs text-slate-400">{formatDateTime(fact.createdAt)}</div>
                             </td>
                           </tr>
                         ))}
@@ -4738,7 +4738,7 @@ function PurchaseBillDetailTimeline({ detail }: { detail: PurchaseBillDetail }) 
         <div key={event.id} className="grid grid-cols-[88px_1fr] gap-3 sm:grid-cols-[128px_1fr]">
           <div className="pt-1 text-right text-xs text-slate-500">
             <div>{formatDateTime(event.createdAt)}</div>
-            <div className="mt-1 truncate text-[11px]">{event.actor}</div>
+            <div className="mt-1 truncate text-xs">{event.actor}</div>
           </div>
           <div className="relative border-l border-slate-200 pb-4 pl-4 last:pb-0">
             <span className={`absolute -left-1.5 top-1 h-3 w-3 rounded-full border-2 border-white ${index === 0 ? purchaseBillTimelineDotClass(event.tone) : 'bg-slate-300'}`} />
@@ -4782,7 +4782,7 @@ function SalesBillDetailTimeline({ detail }: { detail: SalesBillDetail }) {
         <div key={event.id} className="grid grid-cols-[88px_1fr] gap-3 sm:grid-cols-[128px_1fr]">
           <div className="pt-1 text-right text-xs text-slate-500">
             <div>{formatDateTime(event.createdAt)}</div>
-            <div className="mt-1 truncate text-[11px]">{event.actor}</div>
+            <div className="mt-1 truncate text-xs">{event.actor}</div>
           </div>
           <div className="relative border-l border-slate-200 pb-4 pl-4 last:pb-0">
             <span className={`absolute -left-1.5 top-1 h-3 w-3 rounded-full border-2 border-white ${index === 0 ? purchaseBillTimelineDotClass(event.tone) : 'bg-slate-300'}`} />
@@ -4970,7 +4970,7 @@ function RadioCard({ active, disabled = false, label, note, onClick }: { active:
 function DetailItem({ className = '', label, value }: { className?: string; label: string; value: string }) {
   return (
     <div className={`flex flex-col py-1 ${className}`}>
-      <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{label}</div>
+      <div className="text-xs text-slate-400 font-medium uppercase tracking-wider">{label}</div>
       <div className="mt-0.5 text-xs sm:text-sm font-semibold text-slate-800">{value}</div>
     </div>
   )

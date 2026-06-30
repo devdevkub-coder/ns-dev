@@ -705,7 +705,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
         </div>
         {mode === 'adjust' ? (
           <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100">
-            <span className="text-[11px] text-slate-500">ประเภท:</span>
+            <span className="text-xs text-slate-500">ประเภท:</span>
             <SegmentedButton active={!adjustTypeFilter} label="ทั้งหมด" onClick={() => setAdjustTypeFilter('')} />
             <SegmentedButton active={adjustTypeFilter === 'LOSS'} label="นับขาด" onClick={() => setAdjustTypeFilter('LOSS')} />
             <SegmentedButton active={adjustTypeFilter === 'GAIN'} label="นับเกิน" onClick={() => setAdjustTypeFilter('GAIN')} />
@@ -713,7 +713,7 @@ export function StockOperationPageClient({ mode }: { mode: Mode }) {
         ) : null}
         {mode === 'status-convert' ? (
           <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 overflow-x-auto">
-            <span className="text-[11px] text-slate-500 shrink-0">เส้นทาง:</span>
+            <span className="text-xs text-slate-500 shrink-0">เส้นทาง:</span>
             <SegmentedButton active={!statusFlowFilter} label="ทั้งหมด" onClick={() => setStatusFlowFilter('')} />
             <SegmentedButton active={statusFlowFilter === 'RM-FG'} label="RM→FG" onClick={() => setStatusFlowFilter('RM-FG')} />
             <SegmentedButton active={statusFlowFilter === 'FG-RM'} label="FG→RM" onClick={() => setStatusFlowFilter('FG-RM')} />
@@ -1207,7 +1207,7 @@ function OperationTable({
                   <div>
                     <div className="text-slate-400">Loss / Cost Status</div>
                     <div className="font-semibold text-slate-800">
-                      {formatMoney(Number(row.lossQty ?? 0))} กก. / <span className={`inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${costStatusColor}`}>{costStatusLabel}</span>
+                      {formatMoney(Number(row.lossQty ?? 0))} กก. / <span className={`inline-flex rounded-full px-1.5 py-0.5 text-xs font-semibold ${costStatusColor}`}>{costStatusLabel}</span>
                     </div>
                   </div>
                 </div>
@@ -1248,9 +1248,9 @@ function OperationTable({
                   <div><span className="font-semibold">สาขา/คลัง:</span> {formatCell(row.branchName)} / {formatCell(row.warehouseName)} → {formatCell(row.targetWarehouseName)}</div>
                   <div>
                     <span className="font-semibold">การเปลี่ยนสถานะ:</span>{' '}
-                    <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700">{formatCell(row.statusFrom)}</span>
+                    <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700">{formatCell(row.statusFrom)}</span>
                     <span className="mx-1 text-amber-600">→</span>
-                    <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] text-emerald-700">{formatCell(row.statusTo)}</span>
+                    <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 text-xs text-emerald-700">{formatCell(row.statusTo)}</span>
                   </div>
                   {row.note ? <div><span className="font-semibold">เหตุผล:</span> {String(row.note)}</div> : null}
                 </div>
@@ -2505,7 +2505,7 @@ function ProductStockPreview({
             {stock.rows.map((row, index) => (
               <tr key={index} className="hover:bg-indigo-50/10">
                 <td className="p-2 font-medium text-slate-700">{stock.branchCode} / {row.warehouseCode || destinationWarehouseName}</td>
-                <td className="p-2 text-center"><span className="rounded bg-slate-100 px-1 py-0.5 text-[10px] font-bold text-slate-600">{row.status}</span></td>
+                <td className="p-2 text-center"><span className="rounded bg-slate-100 px-1 py-0.5 text-xs font-bold text-slate-600">{row.status}</span></td>
                 <td className="p-2 text-right font-bold text-slate-900 tabular-nums">{formatMoney(row.qty)}</td>
                 <td className="p-2 text-right text-slate-500 tabular-nums">{formatMoney(row.avgCost)}</td>
                 <td className="p-2 text-right font-bold text-indigo-700 tabular-nums">{formatMoney(row.value)}</td>
@@ -2528,19 +2528,19 @@ function ProductStockPreview({
           <div key={index} className="p-3 space-y-2 text-xs">
             <div className="flex justify-between items-center">
               <span className="font-semibold text-slate-700">{stock.branchCode} / {row.warehouseCode || destinationWarehouseName}</span>
-              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">{row.status}</span>
+              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-bold text-slate-600">{row.status}</span>
             </div>
             <div className="grid grid-cols-3 gap-2 text-center py-1.5 bg-indigo-50/30 rounded-md">
               <div>
-                <span className="text-[9px] text-slate-400 block">คงเหลือ (กก.)</span>
+                <span className="text-xs text-slate-400 block">คงเหลือ (กก.)</span>
                 <span className="font-bold text-slate-900 tabular-nums">{formatMoney(row.qty)}</span>
               </div>
               <div>
-                <span className="text-[9px] text-slate-400 block">เฉลี่ย/กก.</span>
+                <span className="text-xs text-slate-400 block">เฉลี่ย/กก.</span>
                 <span className="font-medium text-slate-500 tabular-nums">{formatMoney(row.avgCost)}</span>
               </div>
               <div>
-                <span className="text-[9px] text-slate-400 block">รวมมูลค่า</span>
+                <span className="text-xs text-slate-400 block">รวมมูลค่า</span>
                 <span className="font-bold text-indigo-700 tabular-nums">{formatMoney(row.value)}</span>
               </div>
             </div>

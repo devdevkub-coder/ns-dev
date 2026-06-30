@@ -67,7 +67,7 @@ function buildPreviewHtml(kind: PreviewKind, profile: CompanyProfileFormValues) 
   const rows = items.map((item, index) => `<tr>
     <td class="c">${index + 1}</td>
     <td>${escapeHtml(item.code)}</td>
-    <td>${escapeHtml(item.name)}<div style="font-size:10px;color:#777">ตัวอย่างเอกสาร</div></td>
+    <td>${escapeHtml(item.name)}<div style="font-size: 12px;color:#777">ตัวอย่างเอกสาร</div></td>
     <td class="r">${formatNumber(item.qty)}</td>
     <td class="c">${escapeHtml(item.unit)}</td>
     <td class="r">${formatNumber(item.price)}</td>
@@ -88,14 +88,14 @@ function buildPreviewHtml(kind: PreviewKind, profile: CompanyProfileFormValues) 
       body { font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 13px; color: #111; margin: 0; padding: 0; }
       .header { display: flex; justify-content: space-between; align-items: start; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 10px; }
       .co-name { font-size: 18px; font-weight: bold; }
-      .co-info { font-size: 11px; color: #444; line-height: 1.5; }
+      .co-info { font-size: 12px; color: #444; line-height: 1.5; }
       .doc-title { text-align: right; }
       .doc-title h1 { font-size: 18px; margin: 0 0 4px 0; }
       .doc-meta { font-size: 12px; }
       .doc-meta span { display: inline-block; min-width: 110px; }
       .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; font-size: 12px; }
       .info-box { border: 1px solid #999; padding: 6px 8px; border-radius: 4px; }
-      .info-box .label { font-weight: bold; color: #333; font-size: 11px; }
+      .info-box .label { font-weight: bold; color: #333; font-size: 12px; }
       table.items { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
       table.items th, table.items td { border: 1px solid #555; padding: 4px 6px; }
       table.items th { background: #e8e8e8; text-align: left; font-weight: bold; }
@@ -108,8 +108,8 @@ function buildPreviewHtml(kind: PreviewKind, profile: CompanyProfileFormValues) 
       .signatures { margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; font-size: 12px; }
       .sig { text-align: center; }
       .sig .line { border-top: 1px dotted #555; margin-top: 50px; padding-top: 4px; }
-      .footer-note { margin-top: 20px; text-align: center; font-size: 11px; color: #666; }
-      .doc-stamp { display: inline-block; padding: 2px 8px; border: 2px solid #444; font-weight: bold; font-size: 10px; }
+      .footer-note { margin-top: 20px; text-align: center; font-size: 12px; color: #666; }
+      .doc-stamp { display: inline-block; padding: 2px 8px; border: 2px solid #444; font-weight: bold; font-size: 12px; }
       .sample-badge { display:inline-block;padding:4px 12px;background:#10b981;color:white;font-weight:bold;border-radius:6px;font-size:13px;margin-top:4px; }
       @media print { .no-print { display: none; } }
       .toolbar { background: #f3f4f6; padding: 8px; text-align: center; border-bottom: 1px solid #ccc; }
@@ -145,12 +145,12 @@ function buildPreviewHtml(kind: PreviewKind, profile: CompanyProfileFormValues) 
         <div class="info-box" ${isReceipt ? 'style="margin-bottom:6px"' : ''}>
           <div class="label">${escapeHtml(partyLabel)}</div>
           <div style="font-weight:bold;font-size:14px">${escapeHtml(partyName)}</div>
-          <div style="font-size:11px;color:#555;margin-top:4px">📞 โทร: <b>000000000</b><br>🏢 ลูกค้าบริษัท</div>
+          <div style="font-size: 12px;color:#555;margin-top:4px">📞 โทร: <b>000000000</b><br>🏢 ลูกค้าบริษัท</div>
         </div>
         ${isReceipt ? '' : `<div class="info-box">
           <div class="label">ผู้ส่ง (บริษัทเรา)</div>
           <div style="font-weight:bold;font-size:13px">${escapeHtml(profile.name || '-')}</div>
-          <div style="font-size:11px;color:#555">${companyInfo}</div>
+          <div style="font-size: 12px;color:#555">${companyInfo}</div>
         </div>`}
       </div>
       <table class="items">
@@ -178,11 +178,11 @@ function buildPreviewHtml(kind: PreviewKind, profile: CompanyProfileFormValues) 
         <div style="color:#444;white-space:pre-wrap;min-height:20px">ตัวอย่างเอกสารสำหรับตรวจข้อมูลบริษัทก่อนพิมพ์จริง</div>
       </div>
       <div class="signatures">
-        <div class="sig"><div class="line">${isReceipt ? 'ผู้ส่งสินค้า' : 'ผู้ส่งของ'}</div><div style="font-size:10px;color:#888;margin-top:4px">วันที่ ____/____/____</div></div>
-        <div class="sig"><div class="line">ผู้ตรวจรับ / ตรวจนับ</div><div style="font-size:10px;color:#888;margin-top:4px">วันที่ ____/____/____</div></div>
-        <div class="sig"><div class="line">${isReceipt ? 'ผู้รับสินค้า' : 'ผู้รับของ'}</div><div style="font-size:10px;color:#888;margin-top:4px">วันที่ ____/____/____</div></div>
+        <div class="sig"><div class="line">${isReceipt ? 'ผู้ส่งสินค้า' : 'ผู้ส่งของ'}</div><div style="font-size: 12px;color:#888;margin-top:4px">วันที่ ____/____/____</div></div>
+        <div class="sig"><div class="line">ผู้ตรวจรับ / ตรวจนับ</div><div style="font-size: 12px;color:#888;margin-top:4px">วันที่ ____/____/____</div></div>
+        <div class="sig"><div class="line">${isReceipt ? 'ผู้รับสินค้า' : 'ผู้รับของ'}</div><div style="font-size: 12px;color:#888;margin-top:4px">วันที่ ____/____/____</div></div>
       </div>
-      <div style="margin-top:12px;font-size:10px;color:#777;border-top:1px dashed #ccc;padding-top:6px">👤 ผู้ทำบิล: <b>preview</b></div>
+      <div style="margin-top:12px;font-size: 12px;color:#777;border-top:1px dashed #ccc;padding-top:6px">👤 ผู้ทำบิล: <b>preview</b></div>
       <div class="footer-note">${escapeHtml(profile.footerNote || '')}</div>
     </div>
   </body></html>`
@@ -360,7 +360,7 @@ export function CompanyProfilePageClient() {
                 >
                   <span className="block text-sm font-bold">{branch.name}</span>
                   <span className="mt-0.5 block text-xs text-slate-500">รหัส {branch.code}</span>
-                  <span className={`mt-1 inline-flex rounded px-2 py-0.5 text-[11px] font-semibold ${branch.hasProfile ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                  <span className={`mt-1 inline-flex rounded px-2 py-0.5 text-xs font-semibold ${branch.hasProfile ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                     {branch.hasProfile ? 'ตั้งค่าแล้ว' : 'ยังไม่ได้ตั้งค่า'}
                   </span>
                 </button>
@@ -458,7 +458,7 @@ function TextField({
   return (
     <label className={className}>
       <span className="mb-1 block text-xs font-bold text-slate-700">{label}</span>
-      <input className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-750 focus:outline-none focus:ring-0" inputMode={inputMode} placeholder={placeholder} type={type} value={value} onBlur={onBlur} onChange={(event) => onChange(event.target.value)} />
+      <input className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-slate-700 focus:outline-none focus:ring-0" inputMode={inputMode} placeholder={placeholder} type={type} value={value} onBlur={onBlur} onChange={(event) => onChange(event.target.value)} />
       {error ? <span className="mt-1 block text-xs text-red-600">{error}</span> : null}
     </label>
   )

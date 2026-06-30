@@ -517,7 +517,7 @@ function WaitingAllocationsView() {
               <div>
                 <div className="text-sm font-bold text-slate-800">{row.customerName === '-' ? 'ภายในโรงงาน' : row.customerName}</div>
                 <div className="text-xs text-slate-600 mt-1">{row.productName}</div>
-                <div className="mt-1"><span className="rounded border border-amber-250 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">{row.metalGroup}</span></div>
+                <div className="mt-1"><span className="rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">{row.metalGroup}</span></div>
               </div>
               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs">
                 <div>
@@ -733,7 +733,7 @@ function AllocationLedgerView() {
                 <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(row.costPerKg)}</TableCell>
                 <TableCell className="p-3 text-right font-mono text-red-700">{formatMoney(row.totalCost)}</TableCell>
                 <TableCell className="p-3 text-right font-mono text-emerald-700">{formatMoney(row.allocatedRevenue)}</TableCell>
-                <TableCell className={`p-3 text-right font-mono font-bold ${row.grossProfit >= 0 ? 'text-emerald-700' : 'text-red-655'}`}>{formatMoney(row.grossProfit)}</TableCell>
+                <TableCell className={`p-3 text-right font-mono font-bold ${row.grossProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(row.grossProfit)}</TableCell>
                 <TableCell className="p-3 text-right font-mono text-xs text-slate-700">{row.gpPct.toFixed(2)}%</TableCell>
                 <TableCell className="p-3 text-xs text-slate-700">{row.allocatedBy}</TableCell>
                 <TableCell className="p-3 pr-4 text-center"><span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${row.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50' : 'bg-slate-100 text-slate-600 border border-slate-200/50'}`}>{row.status}</span></TableCell>
@@ -787,7 +787,7 @@ function AllocationLedgerView() {
               </div>
               <div className="text-right">
                 <span className="text-slate-500 block">GP (GP%)</span>
-                <span className={`font-mono font-bold ${row.grossProfit >= 0 ? 'text-emerald-700' : 'text-red-655'}`}>{formatMoney(row.grossProfit)} ({row.gpPct.toFixed(2)}%)</span>
+                <span className={`font-mono font-bold ${row.grossProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(row.grossProfit)} ({row.gpPct.toFixed(2)}%)</span>
               </div>
             </div>
             <div className="pt-1.5 border-t border-slate-100/50 flex justify-between text-xs text-slate-500">
@@ -870,11 +870,11 @@ function DualCostingReportView() {
                 <TableBody>
                   {(report?.byCategory ?? []).map((row) => (
                     <TableRow key={row.category} className="border-t border-slate-100 hover:bg-slate-50/30 transition-colors">
-                      <TableCell className="p-3 pl-4"><span className="rounded border border-emerald-250 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">{row.category}</span></TableCell>
+                      <TableCell className="p-3 pl-4"><span className="rounded border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">{row.category}</span></TableCell>
                       <TableCell className="p-3 text-right font-mono text-slate-700">{formatMoney(row.allocatedQty)}</TableCell>
                       <TableCell className="p-3 text-right font-mono text-blue-700 font-semibold">{formatMoney(row.revenue)}</TableCell>
                       <TableCell className="p-3 text-right font-mono text-red-600">{formatMoney(row.cost)}</TableCell>
-                      <TableCell className={`p-3 text-right font-mono font-bold ${row.gp >= 0 ? 'text-emerald-700' : 'text-red-655'}`}>{formatMoney(row.gp)}</TableCell>
+                      <TableCell className={`p-3 text-right font-mono font-bold ${row.gp >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(row.gp)}</TableCell>
                       <TableCell className="p-3 text-right font-mono text-slate-700">{row.gpPct.toFixed(2)}%</TableCell>
                       <TableCell className="p-3 text-right font-mono text-amber-700">{formatMoney(row.pendingQty)}</TableCell>
                       <TableCell className="p-3 pr-4 text-right font-mono text-amber-700 font-semibold">{formatMoney(row.pendingRevenue)}</TableCell>
@@ -889,7 +889,7 @@ function DualCostingReportView() {
               {(report?.byCategory ?? []).map((row) => (
                 <div key={row.category} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-2.5">
                   <div className="flex justify-between items-center">
-                    <span className="rounded border border-emerald-250 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">{row.category}</span>
+                    <span className="rounded border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">{row.category}</span>
                     <span className="text-xs text-slate-500 font-semibold">พบ {row.rows} รายการ</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs">
@@ -907,7 +907,7 @@ function DualCostingReportView() {
                     </div>
                     <div className="text-right">
                       <span className="text-slate-500 block">GP (GP%)</span>
-                      <span className={`font-mono font-bold ${row.gp >= 0 ? 'text-emerald-700' : 'text-red-655'}`}>{formatMoney(row.gp)} ({row.gpPct.toFixed(2)}%)</span>
+                      <span className={`font-mono font-bold ${row.gp >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatMoney(row.gp)} ({row.gpPct.toFixed(2)}%)</span>
                     </div>
                     <div className="pt-2 border-t border-slate-100 col-span-2 grid grid-cols-2 gap-2">
                       <div>

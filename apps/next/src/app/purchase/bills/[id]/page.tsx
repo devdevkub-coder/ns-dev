@@ -241,7 +241,7 @@ function PurchaseBillTimeline({ events, status, statusLabel }: { events: Purchas
         <div key={event.id} className="grid grid-cols-[88px_1fr] gap-3 sm:grid-cols-[128px_1fr]">
           <div className="pt-1 text-right text-xs text-slate-500">
             <div>{formatDateTime(event.createdAt)}</div>
-            <div className="mt-1 truncate text-[11px]">{event.actor}</div>
+            <div className="mt-1 truncate text-xs">{event.actor}</div>
           </div>
           <div className="relative border-l border-slate-100 pb-4 pl-4 last:pb-0">
             <span className={`absolute -left-1.5 top-1 h-3 w-3 rounded-full border-2 border-white ${index === 0 ? toneDotClass(event.tone) : 'bg-slate-300'}`} />

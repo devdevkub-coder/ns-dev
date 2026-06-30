@@ -183,7 +183,7 @@ export function AppNavigation({ compact = false, onNavigate }: AppNavigationProp
               onClick={() => toggleSection(section.key)}
             >
               <span className={compact ? 'lg:hidden' : ''}>{section.label}</span>
-              <span className={compact ? 'text-[10px] lg:hidden' : 'text-[10px]'}>{sectionExpanded ? '▾' : '▸'}</span>
+              <span className={compact ? 'text-xs lg:hidden' : 'text-xs'}>{sectionExpanded ? '▾' : '▸'}</span>
               {compact ? <span className="hidden size-1.5 rounded-full bg-slate-500 lg:block" /> : null}
             </button>
             {sectionExpanded ? items.map((item) => {

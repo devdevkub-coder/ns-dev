@@ -111,7 +111,7 @@ export function buildAdvancePaymentPrintHtml(doc: AdvancePaymentPrintDocument, p
   `).join('')
 
   const allocationsTable = (doc.allocations ?? []).length > 0 ? `
-    <h3 style="margin-top: 15px; font-size: 11px; color: #1e293b;">ประวัติการหักล้างมัดจำ (Allocation History)</h3>
+    <h3 style="margin-top: 15px; font-size: 12px; color: #1e293b;">ประวัติการหักล้างมัดจำ (Allocation History)</h3>
     <table class="items" style="margin-top: 5px;">
       <thead>
         <tr>
@@ -125,13 +125,13 @@ export function buildAdvancePaymentPrintHtml(doc: AdvancePaymentPrintDocument, p
         ${allocationsHtml}
       </tbody>
     </table>
-  ` : '<div style="margin-top:15px;font-style:italic;color:#64748b;font-size:10px">ยังไม่มีการนำไปหักล้างกับบิลซื้อ</div>'
+  ` : '<div style="margin-top:15px;font-style:italic;color:#64748b;font-size: 12px">ยังไม่มีการนำไปหักล้างกับบิลซื้อ</div>'
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)} ${escapeHtml(doc.docNo)}</title>
     <style>
       @page { size: A4 portrait; margin: 10mm; }
       * { box-sizing: border-box; }
-      body { margin: 0; color: #0f172a; font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 11px; line-height: 1.35; background: #f8fafc; }
+      body { margin: 0; color: #0f172a; font-family: 'Noto Sans Thai', Arial, sans-serif; font-size: 12px; line-height: 1.35; background: #f8fafc; }
       .toolbar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; background: #0f172a; color: white; }
       .toolbar button { border: 0; border-radius: 6px; padding: 7px 14px; background: #15803d; color: white; font: inherit; cursor: pointer; }
       .toolbar button.secondary { background: #475569; }
@@ -142,28 +142,28 @@ export function buildAdvancePaymentPrintHtml(doc: AdvancePaymentPrintDocument, p
       .company { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: start; min-width: 0; }
       .logo { width: 64px; height: 64px; object-fit: contain; }
       .company-name { font-size: 15px; font-weight: 800; color: #0f172a; }
-      .company-info { margin-top: 4px; color: #475569; font-size: 9.5px; }
+      .company-info { margin-top: 4px; color: #475569; font-size: 12px; }
       .doc-head { text-align: right; }
       .doc-title { font-size: 20px; font-weight: 900; color: #1e3a8a; }
       .doc-grid { margin-top: 8px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; text-align: left; }
       .kv { border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 7px; background: #f8fafc; }
-      .kv .label { color: #64748b; font-size: 9px; }
+      .kv .label { color: #64748b; font-size: 12px; }
       .kv .value { font-weight: 800; color: #0f172a; margin-top: 1px; }
       .section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
       .panel { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
       .panel-title { padding: 6px 9px; background: #f1f5f9; color: #334155; font-weight: 900; }
       .panel-body { padding: 8px 9px; }
       .two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 12px; }
-      .field-label { color: #64748b; font-size: 9px; }
+      .field-label { color: #64748b; font-size: 12px; }
       .field-value { font-weight: 750; color: #0f172a; margin-top: 1px; overflow-wrap: anywhere; }
       table { width: 100%; border-collapse: collapse; }
-      .items { margin-top: 12px; font-size: 9.5px; }
+      .items { margin-top: 12px; font-size: 12px; }
       .items th { background: #e2e8f0; border: 1px solid #cbd5e1; color: #1e293b; padding: 6px 5px; text-align: left; font-weight: 900; }
       .items td { border: 1px solid #dbe3ea; padding: 6px 5px; }
       .num { text-align: right; }
       .center { text-align: center; }
       .bottom-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 15px; align-items: start; }
-      .note { min-height: 42px; color: #334155; white-space: pre-wrap; font-size: 10px; }
+      .note { min-height: 42px; color: #334155; white-space: pre-wrap; font-size: 12px; }
       .totals { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
       .total-row { display: grid; grid-template-columns: minmax(0, 1fr) 35mm; gap: 8px; padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
       .total-row:last-child { border-bottom: 0; }
@@ -172,9 +172,9 @@ export function buildAdvancePaymentPrintHtml(doc: AdvancePaymentPrintDocument, p
       .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 25px; }
       .sig { text-align: center; color: #475569; }
       .sig-line { border-top: 1px solid #94a3b8; padding-top: 5px; margin-top: 32px; font-weight: 800; color: #1e293b; }
-      .footer { margin-top: 15px; text-align: center; color: #64748b; font-size: 9px; }
+      .footer { margin-top: 15px; text-align: center; color: #64748b; font-size: 12px; }
       @media print {
-        body { background: white; font-size: 9.5px; line-height: 1.2; }
+        body { background: white; font-size: 12px; line-height: 1.2; }
         .toolbar { display: none; }
         .page { width: auto; min-height: 281mm; margin: 0; padding: 0; box-shadow: none; }
       }
@@ -183,7 +183,7 @@ export function buildAdvancePaymentPrintHtml(doc: AdvancePaymentPrintDocument, p
     <div class="toolbar">
       <button onclick="window.print()">พิมพ์ / Save as PDF</button>
       <button class="secondary" onclick="window.close()">ปิด</button>
-      <span style="font-size:11px;color:#cbd5e1">A4 portrait corporate print</span>
+      <span style="font-size: 12px;color:#cbd5e1">A4 portrait corporate print</span>
     </div>
     <main class="page">
       <div class="page-content">
@@ -193,7 +193,7 @@ export function buildAdvancePaymentPrintHtml(doc: AdvancePaymentPrintDocument, p
             ${profile.logoUrl ? `<img class="logo" src="${escapeHtml(profile.logoUrl)}" alt="Company logo">` : '<div class="logo no-logo">ไม่มีข้อมูล</div>'}
             <div>
               <div class="company-name">${escapeHtml(missing(profile.name))}</div>
-              ${profile.nameEn ? `<div style="font-size:9px;font-weight:700;color:#475569">${escapeHtml(profile.nameEn)}</div>` : ''}
+              ${profile.nameEn ? `<div style="font-size: 12px;font-weight:700;color:#475569">${escapeHtml(profile.nameEn)}</div>` : ''}
               <div class="company-info">${companyInfo(profile, doc)}</div>
             </div>
           </div>

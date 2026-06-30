@@ -870,10 +870,10 @@ function MasterDataForm({ config, isSaving, paymentMethodRows, record, supportsA
   }
 
   return (
-    <form noValidate className="overflow-hidden rounded-md bg-slate-900 shadow-xl flex flex-col w-full" onSubmit={handleSubmit}>
-      <div className="flex flex-col gap-3 bg-slate-900 px-5 py-4 sm:flex-row sm:items-center sm:justify-between shrink-0">
-        <h3 className="text-lg font-bold text-slate-100">{form.id ? `แก้ไข${config.entityName}` : config.createLabel}</h3>
-        {supportsActive ? <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-slate-200" onChange={(checked) => update('active', checked)} /> : null}
+    <form noValidate className="overflow-hidden rounded-md bg-slate-900 dark:bg-[#0f172a] shadow-xl flex flex-col w-full" onSubmit={handleSubmit}>
+      <div className="flex flex-col gap-3 bg-slate-900 dark:bg-[#0f172a] px-5 py-4 sm:flex-row sm:items-center sm:justify-between shrink-0">
+        <h3 className="text-lg font-bold text-white">{form.id ? `แก้ไข${config.entityName}` : config.createLabel}</h3>
+        {supportsActive ? <ActiveToggle checked={form.active} labelClassName="text-sm font-medium text-slate-200 dark:text-slate-800" onChange={(checked) => update('active', checked)} /> : null}
       </div>
 
       <div className="max-h-[76vh] overflow-y-auto bg-slate-50 px-5 py-5 flex-1 space-y-5">

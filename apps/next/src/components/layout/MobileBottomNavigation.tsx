@@ -157,7 +157,7 @@ export function MobileBottomNavigation({ onOpenSidebar }: MobileBottomNavigation
                 className="flex flex-col items-center justify-center gap-1 w-16 h-full transition-all duration-200 outline-none text-slate-400 hover:text-slate-600"
               >
                 <Icon className="size-5 transition-transform stroke-[2px]" />
-                <span className="text-[10px] font-medium leading-none">
+                <span className="text-xs font-medium leading-none">
                   {tab.label}
                 </span>
               </button>
@@ -177,7 +177,7 @@ export function MobileBottomNavigation({ onOpenSidebar }: MobileBottomNavigation
               }`}
             >
               <Icon className={`size-5 transition-transform ${isActive ? 'stroke-[2.5px]' : 'stroke-[2px]'}`} />
-              <span className={`text-[10px] font-medium leading-none ${isActive ? 'font-bold' : ''}`}>
+              <span className={`text-xs font-medium leading-none ${isActive ? 'font-bold' : ''}`}>
                 {tab.label}
               </span>
             </Link>

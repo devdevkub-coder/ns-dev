@@ -732,11 +732,11 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
               const isLow = dashboard.vsAvg < -20;
               const icon = isHigh ? '📈' : isLow ? '📉' : '⚖️';
               const iconBg = isHigh
-                ? 'bg-red-50 text-red-650 border border-red-100/50'
+                ? 'bg-red-50 text-red-600 border border-red-100/50'
                 : isLow
                 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100/50'
                 : 'bg-slate-100 text-slate-600 border border-slate-200/50';
-              const valueClass = isHigh ? 'text-red-650' : isLow ? 'text-emerald-650' : 'text-slate-900';
+              const valueClass = isHigh ? 'text-red-600' : isLow ? 'text-emerald-600' : 'text-slate-900';
               const subLabel = isHigh ? 'สูงกว่าปกติ' : isLow ? 'ต่ำกว่าปกติ' : 'ใกล้เคียงปกติ';
               const subLabelClass = isHigh ? 'text-red-600' : isLow ? 'text-emerald-600' : 'text-slate-500';
               return (
@@ -795,11 +795,11 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                       <div key={item.id} className={`rounded-lg border p-3 transition-all duration-200 hover:shadow-sm ${border}`}>
                         <div className="flex items-start justify-between gap-3">
                           <div className="space-y-1">
-                            <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold tracking-wider ${isHigh ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-800'}`}>
+                            <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-bold tracking-wider ${isHigh ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-800'}`}>
                               {icon}
                             </span>
                             <div className="text-xs font-bold text-slate-800 mt-0.5">{item.name}</div>
-                            <div className="text-[10px] text-slate-500">
+                            <div className="text-xs text-slate-500">
                               เดือนนี้: <span className="font-semibold text-slate-900 tabular-nums">{formatMoney(item.latest)}</span> · 
                               เฉลี่ย: <span className="font-semibold text-slate-900 tabular-nums">{formatMoney(item.avg)}</span>
                             </div>
@@ -862,7 +862,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                 <span>🔍</span>
                 <span>ตัวกรอง</span>
                 {(categoryId || periodMonths !== 6) ? (
-                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[9px] font-bold text-white">
+                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-xs font-bold text-white">
                     {(categoryId ? 1 : 0) + (periodMonths !== 6 ? 1 : 0)}
                   </span>
                 ) : null}
@@ -909,7 +909,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
             </div>
 
             {/* 1. Desktop Layout (Large Heatmap Table) - Visible on lg screens */}
-            <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-200/60 bg-white shadow-sm">
+            <div className="expense-dashboard-heatmap hidden lg:block overflow-x-auto rounded-xl border border-slate-200/60 bg-white shadow-sm">
               <table className="w-full text-xs" style={{ minWidth: dashboardColumnResize.tableMinWidth, tableLayout: 'fixed' }}>
                 <colgroup>
                   {dashboardColumns.map((column) => {
@@ -941,7 +941,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                   ) : null}
                   {!isLoading && dashboard.heatmapRows.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="sticky left-0 bg-white/95 backdrop-blur-sm px-4 py-3 font-semibold text-slate-900 border-r border-slate-200/60 shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
+                      <td className="expense-dashboard-sticky sticky left-0 bg-white/95 backdrop-blur-sm px-4 py-3 font-semibold text-slate-900 border-r border-slate-200/60 shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
                         {item.name}
                       </td>
                       {dashboard.monthList.map((month) => {
@@ -952,7 +952,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                         return (
                           <td key={month} className="px-3 py-3 text-right tabular-nums">
                             {value > 0 ? (
-                              <span className={`inline-block px-1.5 py-0.5 rounded transition-colors ${
+                              <span className={`expense-dashboard-amount inline-block px-1.5 py-0.5 rounded transition-colors ${
                                 hot 
                                   ? 'bg-rose-50 text-rose-700 font-bold' 
                                   : low 
@@ -962,15 +962,15 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                                 {formatMoney(value)}
                               </span>
                             ) : (
-                              <span className="text-slate-300 font-light">-</span>
+                              <span className="expense-dashboard-muted text-slate-300 font-light">-</span>
                             )}
                           </td>
                         );
                       })}
-                      <td className="bg-blue-50/30 px-3 py-3 text-right text-blue-700 font-semibold tabular-nums">
+                      <td className="expense-dashboard-average-cell bg-blue-50/30 px-3 py-3 text-right text-blue-700 font-semibold tabular-nums">
                         {formatMoney(item.avg)}
                       </td>
-                      <td className="bg-violet-50/20 px-3 py-3 text-right font-bold text-violet-700 tabular-nums">
+                      <td className="expense-dashboard-total-cell bg-violet-50/20 px-3 py-3 text-right font-bold text-violet-700 tabular-nums">
                         {formatMoney(item.total)}
                       </td>
                       <td className="px-3 py-3 text-center">
@@ -1001,16 +1001,16 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                 {dashboard.heatmapRows.length > 0 ? (
                   <tfoot className="bg-slate-50/50 font-bold border-t border-slate-200/60">
                     <tr className="divide-y divide-slate-100">
-                      <td className="sticky left-0 bg-slate-50/90 backdrop-blur-sm px-4 py-3.5 text-slate-900 border-r border-slate-200/60 shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
+                      <td className="expense-dashboard-sticky sticky left-0 bg-slate-50/90 backdrop-blur-sm px-4 py-3.5 text-slate-900 border-r border-slate-200/60 shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
                         รวมทุกหมวด
                       </td>
                       {dashboard.monthList.map((month) => (
-                        <td key={month} className="px-3 py-3.5 text-right text-slate-900 tabular-nums">
+                        <td key={month} className="expense-dashboard-amount px-3 py-3.5 text-right text-slate-900 tabular-nums">
                           {formatMoney(dashboard.grandByMonth[month] ?? 0)}
                         </td>
                       ))}
-                      <td className="px-3 py-3.5 text-right text-blue-700 tabular-nums">{formatMoney(dashboard.avg)}</td>
-                      <td className="px-3 py-3.5 text-right text-violet-700 tabular-nums">{formatMoney(dashboard.total)}</td>
+                      <td className="expense-dashboard-average-cell px-3 py-3.5 text-right text-blue-700 tabular-nums">{formatMoney(dashboard.avg)}</td>
+                      <td className="expense-dashboard-total-cell px-3 py-3.5 text-right text-violet-700 tabular-nums">{formatMoney(dashboard.total)}</td>
                       <td />
                     </tr>
                   </tfoot>
@@ -1019,7 +1019,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
             </div>
 
             {/* 2. Tablet Layout (Simplified Table) - Visible on md & lg screens */}
-            <div className="hidden md:block lg:hidden overflow-x-auto rounded-xl border border-slate-200/60 bg-white shadow-sm">
+            <div className="expense-dashboard-heatmap hidden md:block lg:hidden overflow-x-auto rounded-xl border border-slate-200/60 bg-white shadow-sm">
               <table className="w-full text-xs">
                 <thead className="bg-slate-50/75 border-b border-slate-200/60">
                   <tr>
@@ -1042,23 +1042,23 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                       <td className="px-4 py-3 font-semibold text-slate-900">
                         {item.name}
                       </td>
-                      <td className="px-3 py-3 text-right tabular-nums font-medium text-slate-700">
+                      <td className="expense-dashboard-amount px-3 py-3 text-right tabular-nums font-medium text-slate-700">
                         {formatMoney(item.latest)}
                       </td>
-                      <td className="px-3 py-3 text-right font-semibold text-blue-700 tabular-nums">
+                      <td className="expense-dashboard-average-cell px-3 py-3 text-right font-semibold text-blue-700 tabular-nums">
                         {formatMoney(item.avg)}
                       </td>
                       <td className="px-3 py-3 text-center">
                         {item.anomaly === 'high' ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700 ring-1 ring-inset ring-rose-600/10">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-600/10">
                             <span className="h-1.5 w-1.5 rounded-full bg-rose-600" /> สูง
                           </span>
                         ) : item.anomaly === 'low' ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/10">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/10">
                             <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> ต่ำ
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/10">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/10">
                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> ปกติ
                           </span>
                         )}
@@ -1077,7 +1077,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
             </div>
 
             {/* 3. Mobile Layout (Expense Analytics Cards) - Visible on mobile < md */}
-            <div className="block md:hidden space-y-3">
+            <div className="expense-dashboard-heatmap block md:hidden space-y-3">
               {isLoading ? (
                 <div className="py-12 text-center text-slate-400">
                   <div className="flex flex-col items-center justify-center gap-2">
@@ -1099,15 +1099,15 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                       <span className="font-bold text-slate-900 text-sm">{item.name}</span>
                     </div>
                     {item.anomaly === 'high' ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 ring-1 ring-inset ring-rose-600/10">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-xs font-bold text-rose-700 ring-1 ring-inset ring-rose-600/10">
                         สูงผิดปกติ
                       </span>
                     ) : item.anomaly === 'low' ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 ring-1 ring-inset ring-amber-600/10">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700 ring-1 ring-inset ring-amber-600/10">
                         ต่ำผิดปกติ
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-600/10">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700 ring-1 ring-inset ring-emerald-600/10">
                         ปกติ
                       </span>
                     )}
@@ -1116,19 +1116,19 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                   <div className="space-y-1.5 pt-2 border-t border-slate-50 text-xs text-slate-600">
                     <div className="flex justify-between items-center">
                       <span className="text-slate-400">เดือนล่าสุด ({formatMonthLabelShort(dashboard.monthList[dashboard.monthList.length - 1])})</span>
-                      <span className="font-bold text-slate-800 tabular-nums">
+                      <span className="expense-dashboard-amount font-bold text-slate-800 tabular-nums">
                         {formatMoney(item.latest)} บาท
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-slate-400">เฉลี่ยรายเดือน</span>
-                      <span className="font-semibold text-blue-700 tabular-nums">
+                      <span className="expense-dashboard-average-cell rounded px-1.5 py-0.5 font-semibold text-blue-700 tabular-nums">
                         {formatMoney(item.avg)} บาท
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-slate-400">รวม {periodMonths} เดือน</span>
-                      <span className="font-semibold text-violet-700 tabular-nums">
+                      <span className="expense-dashboard-total-cell rounded px-1.5 py-0.5 font-semibold text-violet-700 tabular-nums">
                         {formatMoney(item.total)} บาท
                       </span>
                     </div>
@@ -1145,7 +1145,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
             {/* 4. Mobile Category Detail Bottom Sheet */}
             {selectedCategoryRow ? (
               <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 lg:hidden">
-                <div className="w-full rounded-t-2xl bg-white p-5 shadow-xl border-t border-slate-200 animate-slide-up max-h-[85vh] overflow-y-auto">
+                <div className="expense-dashboard-heatmap w-full rounded-t-2xl bg-white p-5 shadow-xl border-t border-slate-200 animate-slide-up max-h-[85vh] overflow-y-auto">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
                     <div className="flex items-center gap-2">
                       <span className="text-2xl">{getCategoryIcon(selectedCategoryRow.name)}</span>
@@ -1164,22 +1164,22 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                     {/* Summary section */}
                     <div className="space-y-3 bg-slate-50/70 rounded-xl p-4 border border-slate-100">
                       <div>
-                        <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">เดือนล่าสุด ({formatMonthLabelShort(dashboard.monthList[dashboard.monthList.length - 1])})</div>
+                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">เดือนล่าสุด ({formatMonthLabelShort(dashboard.monthList[dashboard.monthList.length - 1])})</div>
                         <div className="flex items-baseline gap-2 mt-1">
-                          <span className="text-2xl font-extrabold text-slate-900 tabular-nums">
+                          <span className="expense-dashboard-amount text-2xl font-extrabold text-slate-900 tabular-nums">
                             {formatMoney(selectedCategoryRow.latest)}
                           </span>
                           <span className="text-sm font-semibold text-slate-500">บาท</span>
                           {selectedCategoryRow.anomaly === 'high' ? (
-                            <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 ring-1 ring-inset ring-rose-600/10">
+                            <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-xs font-bold text-rose-700 ring-1 ring-inset ring-rose-600/10">
                               สูงผิดปกติ
                             </span>
                           ) : selectedCategoryRow.anomaly === 'low' ? (
-                            <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 ring-1 ring-inset ring-amber-600/10">
+                            <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700 ring-1 ring-inset ring-amber-600/10">
                               ต่ำผิดปกติ
                             </span>
                           ) : (
-                            <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-600/10">
+                            <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700 ring-1 ring-inset ring-emerald-600/10">
                               ปกติ
                             </span>
                           )}
@@ -1188,14 +1188,14 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
 
                       <div className="grid grid-cols-2 gap-4 pt-3 border-t border-slate-200/60">
                         <div>
-                          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">เฉลี่ยรายเดือน</div>
-                          <div className="mt-0.5 text-base font-extrabold text-blue-700 tabular-nums">
+                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">เฉลี่ยรายเดือน</div>
+                          <div className="expense-dashboard-average-cell mt-0.5 inline-block rounded px-2 py-1 text-base font-extrabold text-blue-700 tabular-nums">
                             {formatMoney(selectedCategoryRow.avg)} <span className="text-xs font-normal text-slate-400">บาท</span>
                           </div>
                         </div>
                         <div>
-                          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">ยอดรวม {periodMonths} เดือน</div>
-                          <div className="mt-0.5 text-base font-extrabold text-violet-700 tabular-nums">
+                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">ยอดรวม {periodMonths} เดือน</div>
+                          <div className="expense-dashboard-total-cell mt-0.5 inline-block rounded px-2 py-1 text-base font-extrabold text-violet-700 tabular-nums">
                             {formatMoney(selectedCategoryRow.total)} <span className="text-xs font-normal text-slate-400">บาท</span>
                           </div>
                         </div>
@@ -1220,7 +1220,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                               return (
                                 <div key={month} className="flex flex-col items-center flex-1 group relative">
                                   {/* Tooltip on hover */}
-                                  <div className="absolute bottom-full mb-1 hidden group-hover:block bg-slate-800 text-white text-[8px] rounded px-1 py-0.5 whitespace-nowrap z-10 tabular-nums">
+                                  <div className="absolute bottom-full mb-1 hidden group-hover:block bg-slate-800 text-white text-xs rounded px-1 py-0.5 whitespace-nowrap z-10 tabular-nums">
                                     {formatMoney(val)}
                                   </div>
                                   {/* The bar */}
@@ -1229,7 +1229,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                                     style={{ height: `${Math.max(heightPct, 2)}%` }} 
                                   />
                                   {/* Label */}
-                                  <span className="text-[8px] text-slate-400 mt-1 scale-90">
+                                  <span className="text-xs text-slate-400 mt-1 scale-90">
                                     {formatMonthLabelShort(month)}
                                   </span>
                                 </div>
@@ -1247,7 +1247,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                         <span className="text-sm">
                           {selectedCategoryRow.anomaly === 'high' ? '⚠️' : selectedCategoryRow.anomaly === 'low' ? 'ℹ️' : '✅'}
                         </span>
-                        <p className="text-[11px] text-slate-600 leading-normal">
+                        <p className="text-xs text-slate-600 leading-normal">
                           {selectedCategoryRow.anomaly === 'high' ? (
                             <>
                               ค่าใช้จ่ายในหมวด <b>{selectedCategoryRow.name}</b> ในเดือนล่าสุดมีปริมาณ
@@ -1927,7 +1927,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                   <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="หมวด" resizeProps={columnResize.getResizeHandleProps('category', 'หมวด')} sortKey="category" onSort={changeSort} />
                   <ResizableTableHead activeSortKey={sortKey} direction={sortDirection} label="บัญชี" resizeProps={columnResize.getResizeHandleProps('account', 'บัญชี')} sortKey="account" onSort={changeSort} />
                   <ResizableTableHead activeSortKey={sortKey} align="center" direction={sortDirection} label="สถานะ" resizeProps={columnResize.getResizeHandleProps('status', 'สถานะ')} sortKey="status" onSort={changeSort} />
-                  <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label={<span className="text-red-700">Net Pay<br /><span className="text-[10px] font-normal">ยอดจ่ายจริง</span></span>} resizeProps={columnResize.getResizeHandleProps('netAmount', 'Net Pay')} sortKey="netAmount" onSort={changeSort} />
+                  <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label={<span className="text-red-700">Net Pay<br /><span className="text-xs font-normal">ยอดจ่ายจริง</span></span>} resizeProps={columnResize.getResizeHandleProps('netAmount', 'Net Pay')} sortKey="netAmount" onSort={changeSort} />
                   <ResizableTableHead activeSortKey={sortKey} align="right" direction={sortDirection} label="ยอด/VAT/WHT" resizeProps={columnResize.getResizeHandleProps('amountSummary', 'ยอด/VAT/WHT')} sortKey="amountSummary" onSort={changeSort} />
                   <ResizableTableHead align="center" label="จัดการ" resizeProps={columnResize.getResizeHandleProps('action', 'การกระทำ')} />
                 </tr>
@@ -1951,7 +1951,7 @@ export function DailyExpensePageClient({ dashboardOnly = false }: { dashboardOnl
                     >
                       <td className="p-2 text-xs font-semibold text-slate-700">{row.docNo}</td>
                       <td className="p-2 text-xs font-semibold text-slate-700">{formatDateDisplay(row.date)}</td>
-                      <td className="p-2 text-xs font-semibold">{row.dueDate ? <span className={overdue ? 'text-red-600' : 'text-slate-700'}>{formatDateDisplay(row.dueDate)}{overdue ? <span className="block text-[10px] font-normal text-red-500">เลยกำหนด</span> : null}</span> : <span className="text-slate-300">-</span>}</td>
+                      <td className="p-2 text-xs font-semibold">{row.dueDate ? <span className={overdue ? 'text-red-600' : 'text-slate-700'}>{formatDateDisplay(row.dueDate)}{overdue ? <span className="block text-xs font-normal text-red-500">เลยกำหนด</span> : null}</span> : <span className="text-slate-300">-</span>}</td>
                       <td className="p-2 text-xs font-semibold text-slate-700">{row.refDocNo || '-'}</td>
                       <td className="p-2 text-xs font-semibold text-slate-700">{row.payee}</td>
                       <td className="p-2 text-xs font-semibold text-slate-700">{row.categoryName}</td>
@@ -2038,7 +2038,7 @@ function ExpenseDetailModal({ onClose, onEdit, row }: { onClose: () => void; onE
           <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
             {/* ข้อมูลเอกสาร */}
             <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูลเอกสาร</div>
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">ข้อมูลเอกสาร</div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
                 <DetailLine label="เลขที่เอกสาร" value={row.docNo} mono />
                 <DetailLine label="วันที่จ่าย" value={formatDateDisplay(row.date)} />
@@ -2053,7 +2053,7 @@ function ExpenseDetailModal({ onClose, onEdit, row }: { onClose: () => void; onE
 
             {/* สรุปยอด */}
             <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">สรุปยอด</div>
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">สรุปยอด</div>
               <div className="space-y-3 pt-1">
                 <SummaryRow label="ยอดก่อน VAT" value={formatMoney(row.amount)} />
                 <SummaryRow label="+ VAT" value={formatMoney(row.vat)} />
@@ -2067,7 +2067,7 @@ function ExpenseDetailModal({ onClose, onEdit, row }: { onClose: () => void; onE
 
           {/* รายการค่าใช้จ่าย */}
           <div className="rounded-lg border border-slate-100 bg-white shadow-sm overflow-hidden">
-            <div className="border-b border-slate-100 px-4 py-3 bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">รายการค่าใช้จ่าย</div>
+            <div className="border-b border-slate-100 px-4 py-3 bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider">รายการค่าใช้จ่าย</div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[820px] text-xs">
                 <thead className="bg-slate-50 text-slate-500 border-b border-slate-100">
@@ -2101,14 +2101,14 @@ function ExpenseDetailModal({ onClose, onEdit, row }: { onClose: () => void; onE
 
           {/* รายละเอียดรวมและหมายเหตุ */}
           <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">รายละเอียดเพิ่มเติมและหมายเหตุ</div>
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 pb-1 border-b border-slate-100">รายละเอียดเพิ่มเติมและหมายเหตุ</div>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1">รายละเอียดรวม</div>
+                <div className="text-xs text-slate-400 font-medium uppercase tracking-wider mb-1">รายละเอียดรวม</div>
                 <div className="whitespace-pre-wrap text-xs sm:text-sm text-slate-700 bg-slate-50 rounded-md border border-slate-100 p-3 min-h-[60px]">{row.description || '-'}</div>
               </div>
               <div>
-                <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1">หมายเหตุ</div>
+                <div className="text-xs text-slate-400 font-medium uppercase tracking-wider mb-1">หมายเหตุ</div>
                 <div className="whitespace-pre-wrap text-xs sm:text-sm text-slate-700 bg-slate-50 rounded-md border border-slate-100 p-3 min-h-[60px]">{row.notes || '-'}</div>
               </div>
             </div>
@@ -2121,7 +2121,7 @@ function ExpenseDetailModal({ onClose, onEdit, row }: { onClose: () => void; onE
             {isPrinting ? 'กำลังเตรียม...' : 'พิมพ์'}
           </Button>
           <Button className="h-9 font-normal border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors outline-none focus:ring-0 px-5 rounded-md" type="button" variant="outline" onClick={onClose}>ปิด</Button>
-          {canEdit ? <Button className="h-9 rounded-md bg-slate-900 hover:bg-slate-850 text-white font-medium transition-colors outline-none focus:ring-0 px-5" type="button" onClick={() => onEdit(row)}>แก้ไข</Button> : null}
+          {canEdit ? <Button className="h-9 rounded-md bg-slate-900 hover:bg-slate-800 text-white font-medium transition-colors outline-none focus:ring-0 px-5" type="button" onClick={() => onEdit(row)}>แก้ไข</Button> : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -2209,7 +2209,7 @@ function SummaryTile({ emphasize = false, label, value }: { emphasize?: boolean;
 
   return (
     <div className={`border p-3 sm:p-4 transition-all ${cardClass}`}>
-      <div className={`text-[11px] font-bold uppercase tracking-wider ${labelClass}`}>{label}</div>
+      <div className={`text-xs font-bold uppercase tracking-wider ${labelClass}`}>{label}</div>
       <div className={`mt-1 text-right text-sm sm:text-base font-semibold tabular-nums ${valueClass}`}>
         {value}
       </div>
@@ -2232,7 +2232,7 @@ function SummaryRow({ label, strong = false, tone = 'slate', value }: { label: s
 function DetailLine({ label, mono = false, value }: { label: string; mono?: boolean; value: string }) {
   return (
     <div className="flex flex-col py-1">
-      <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{label}</div>
+      <div className="text-xs text-slate-400 font-medium uppercase tracking-wider">{label}</div>
       <div className={`mt-0.5 text-xs sm:text-sm font-semibold text-slate-800 ${mono ? 'font-mono' : ''}`}>{value}</div>
     </div>
   )
@@ -2241,7 +2241,7 @@ function DetailLine({ label, mono = false, value }: { label: string; mono?: bool
 function DetailBlock({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-4">
-      <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{label}</div>
+      <div className="text-xs text-slate-400 font-medium uppercase tracking-wider">{label}</div>
       <div className="mt-2 whitespace-pre-wrap text-xs sm:text-sm text-slate-700">{value}</div>
     </div>
   )
@@ -2303,7 +2303,7 @@ function PayeeField(props: { error?: string; onChange: (value: string) => void; 
           <option key={`${option.source}-${option.code}-${option.name}`} label={`${option.sourceLabel} · ${option.code}`} value={option.name} />
         ))}
       </datalist>
-      <span className="mt-1 block text-[11px] text-slate-500">เลือกผู้รับเงินจาก Supplier master</span>
+      <span className="mt-1 block text-xs text-slate-500">เลือกผู้รับเงินจาก Supplier master</span>
       {props.error ? <span className="mt-1 block text-xs text-red-700">{props.error}</span> : null}
     </label>
   )
@@ -2562,10 +2562,10 @@ function ExpenseMetric({
         <div className="text-xs font-semibold text-slate-500 truncate mb-0.5">{label}</div>
         <div className="flex items-baseline gap-1">
           <span className={`text-lg sm:text-xl font-extrabold tracking-tight tabular-nums ${valueClass}`}>{value}</span>
-          {unit && <span className="text-[10px] text-slate-400 font-medium">{unit}</span>}
+          {unit && <span className="text-xs text-slate-400 font-medium">{unit}</span>}
         </div>
         {subLabel && (
-          <div className={`text-[10px] font-bold mt-0.5 ${subLabelClass}`}>{subLabel}</div>
+          <div className={`text-xs font-bold mt-0.5 ${subLabelClass}`}>{subLabel}</div>
         )}
       </div>
     </div>

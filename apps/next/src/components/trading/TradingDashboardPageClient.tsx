@@ -389,14 +389,14 @@ export function TradingDashboardPageClient() {
         <div className="grid gap-2 lg:grid-cols-[140px_140px_minmax(180px,1fr)_minmax(180px,1fr)_minmax(180px,1fr)_minmax(180px,1fr)_auto_auto]">
           <DatePickerInput ariaLabel="วันที่เริ่มต้น" className="h-10 text-sm" value={visibleFromDate} onChange={setFromDate} />
           <DatePickerInput ariaLabel="วันที่สิ้นสุด" className="h-10 text-sm" value={visibleToDate} onChange={setToDate} />
-          <SearchCombobox hideLabel inputClassName="h-10 text-sm border-slate-300 rounded-xl focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-750" inputId="trading-dashboard-supplier" label="Supplier" options={supplierOptions} placeholder="ค้นหา Supplier" value={supplierId} onChange={setSupplierId} />
-          <SearchCombobox hideLabel inputClassName="h-10 text-sm border-slate-300 rounded-xl focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-750" inputId="trading-dashboard-customer" label="Customer" options={customerOptions} placeholder="ค้นหา Customer" value={customerId} onChange={setCustomerId} />
+          <SearchCombobox hideLabel inputClassName="h-10 text-sm border-slate-300 rounded-xl focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-700" inputId="trading-dashboard-supplier" label="Supplier" options={supplierOptions} placeholder="ค้นหา Supplier" value={supplierId} onChange={setSupplierId} />
+          <SearchCombobox hideLabel inputClassName="h-10 text-sm border-slate-300 rounded-xl focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-700" inputId="trading-dashboard-customer" label="Customer" options={customerOptions} placeholder="ค้นหา Customer" value={customerId} onChange={setCustomerId} />
           {tab === 'product' ? (
-            <SearchCombobox hideLabel inputClassName="h-10 text-sm border-slate-300 rounded-xl focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-750" inputId="trading-dashboard-product" label="สินค้า" options={productOptions} placeholder="ค้นหาสินค้า" value={productId} onChange={setProductId} />
+            <SearchCombobox hideLabel inputClassName="h-10 text-sm border-slate-300 rounded-xl focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-700" inputId="trading-dashboard-product" label="สินค้า" options={productOptions} placeholder="ค้นหาสินค้า" value={productId} onChange={setProductId} />
           ) : <div className="hidden lg:block" />}
-          <input className="h-10 rounded-xl border border-slate-300 px-3 text-sm bg-white font-medium text-slate-750 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" placeholder="ค้นหาเลขบิล" value={billNo} onChange={(event) => setBillNo(event.target.value)} />
+          <input className="h-10 rounded-xl border border-slate-300 px-3 text-sm bg-white font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200" placeholder="ค้นหาเลขบิล" value={billNo} onChange={(event) => setBillNo(event.target.value)} />
           <button className="h-10 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer" type="button" onClick={() => void loadData()}>Refresh</button>
-          <button className="h-10 rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-650 hover:text-slate-800 hover:bg-slate-50 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer" type="button" onClick={clearFilters}>ล้าง</button>
+          <button className="h-10 rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-50 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer" type="button" onClick={clearFilters}>ล้าง</button>
         </div>
       </div>
 
@@ -421,15 +421,15 @@ export function TradingDashboardPageClient() {
           </div>
           <div className="flex gap-2 py-2">
             <button
-              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-250 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer"
               type="button"
               onClick={() => setIsSourceModalOpen(true)}
             >
               <Plus className="h-3.5 w-3.5" />
               Trading Cost Source
             </button>
-            <Link className="rounded-xl border border-purple-250 bg-purple-50 px-3 py-1.5 text-xs font-bold text-purple-700 hover:bg-purple-100 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs flex items-center gap-1" href="/trading/matching">Trading Matching</Link>
-            <Link className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-650 hover:text-slate-850 hover:bg-slate-50 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs flex items-center gap-1" href="/dual-costing/deal-margin">Deal Margin</Link>
+            <Link className="rounded-xl border border-purple-300 bg-purple-50 px-3 py-1.5 text-xs font-bold text-purple-700 hover:bg-purple-100 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs flex items-center gap-1" href="/trading/matching">Trading Matching</Link>
+            <Link className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-50 transition-colors outline-none focus:outline-none focus:ring-0 shadow-xs flex items-center gap-1" href="/dual-costing/deal-margin">Deal Margin</Link>
           </div>
         </div>
 
@@ -508,15 +508,15 @@ function CostSourceModal({
           </div>
         </DialogHeader>
         <div className="grid max-h-[calc(92vh-128px)] gap-4 overflow-y-auto bg-slate-50 p-4 grid-cols-2 lg:grid-cols-[360px_minmax(0,1fr)]">
-          <div className="rounded-xl border border-slate-150 bg-white p-4 col-span-2 lg:col-span-1">
+          <div className="rounded-xl border border-slate-100 bg-white p-4 col-span-2 lg:col-span-1">
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2 sm:col-span-1">
-                <label className="mb-1 block text-xs font-medium text-slate-655" htmlFor="trading-cost-source-date">วันที่</label>
+                <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor="trading-cost-source-date">วันที่</label>
                 <DatePickerInput ariaLabel="วันที่ Trading Cost Source" className="h-10 w-full text-sm" value={form.date} onChange={(value) => update('date', value)} />
               </div>
               <div className="col-span-2 sm:col-span-1">
                 <SearchCombobox
-                  inputClassName="h-10 text-sm border-slate-300 rounded-xl focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-750"
+                  inputClassName="h-10 text-sm border-slate-300 rounded-xl focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-700"
                   inputId="trading-cost-source-product"
                   label="สินค้า *"
                   options={productOptions}
@@ -527,7 +527,7 @@ function CostSourceModal({
               </div>
               <div className="col-span-2">
                 <SearchCombobox
-                  inputClassName="h-10 text-sm border-slate-300 rounded-xl focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-750"
+                  inputClassName="h-10 text-sm border-slate-300 rounded-xl focus:ring-1 focus:ring-slate-200 focus:border-slate-400 focus:outline-none bg-white font-medium text-slate-700"
                   inputId="trading-cost-source-supplier"
                   label="Supplier"
                   options={supplierOptions}
@@ -550,9 +550,9 @@ function CostSourceModal({
                 </div>
               </div>
               <div className="col-span-2">
-                <label className="mb-1 block text-xs font-medium text-slate-655" htmlFor="trading-cost-source-notes">หมายเหตุ</label>
+                <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor="trading-cost-source-notes">หมายเหตุ</label>
                 <textarea
-                  className="min-h-20 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white font-medium text-slate-750 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
+                  className="min-h-20 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
                   id="trading-cost-source-notes"
                   value={form.notes}
                   onChange={(event) => update('notes', event.target.value)}
@@ -575,7 +575,7 @@ function CostSourceModal({
                 <div className="text-sm font-bold text-slate-800">รายการ Cost Source ล่าสุด</div>
                 <div className="text-xs text-slate-500">แสดงเฉพาะรายการ active ที่ยังเป็นต้นทุน Trading ได้</div>
               </div>
-              <button className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-650 hover:bg-slate-50 hover:text-slate-850 outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer transition-colors" type="button" onClick={onRefresh}>
+              <button className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-800 outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer transition-colors" type="button" onClick={onRefresh}>
                 <RefreshCw className="h-3.5 w-3.5" />
                 Refresh
               </button>
@@ -623,7 +623,7 @@ function CostSourceModal({
           </div>
         </div>
         <DialogFooter className="bg-slate-50 border-t border-slate-200 px-6 py-3.5 flex justify-end gap-2">
-          <button className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-650 hover:text-slate-800 hover:bg-slate-50 transition-colors h-10 outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer flex items-center justify-center" type="button" onClick={onClose}>ปิด</button>
+          <button className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-50 transition-colors h-10 outline-none focus:outline-none focus:ring-0 shadow-xs cursor-pointer flex items-center justify-center" type="button" onClick={onClose}>ปิด</button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -633,9 +633,9 @@ function CostSourceModal({
 function NumberField({ id, label, onChange, value }: { id: string; label: string; onChange: (value: string) => void; value: string }) {
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-slate-655" htmlFor={id}>{label}</label>
+      <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor={id}>{label}</label>
       <input
-        className="h-10 w-full rounded-xl border border-slate-300 px-3 text-sm text-right bg-white font-medium text-slate-750 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
+        className="h-10 w-full rounded-xl border border-slate-300 px-3 text-sm text-right bg-white font-medium text-slate-700 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
         id={id}
         inputMode="decimal"
         min="0"
@@ -712,7 +712,7 @@ function ReadinessPanel({ isLoading, rows, summary }: { isLoading: boolean; rows
 
         {/* Mobile View Card List */}
         <div className="block lg:hidden space-y-3">
-          {isLoading ? <div className="p-6 text-center text-slate-450 bg-white rounded-xl border border-slate-200 shadow-sm font-semibold text-xs">กำลังโหลดข้อมูล</div> : null}
+          {isLoading ? <div className="p-6 text-center text-slate-400 bg-white rounded-xl border border-slate-200 shadow-sm font-semibold text-xs">กำลังโหลดข้อมูล</div> : null}
           {!isLoading && visibleRows.length === 0 ? <div className="p-6 text-center text-slate-400 bg-white rounded-xl border border-slate-200 shadow-sm font-semibold text-xs">ยังไม่มี readiness ตามเงื่อนไข</div> : null}
           {!isLoading && visibleRows.map((row) => (
             <div key={row.productId} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
@@ -723,7 +723,7 @@ function ReadinessPanel({ isLoading, rows, summary }: { isLoading: boolean; rows
               <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
                 <div>
                   <span className="text-slate-400 block mb-0.5 font-medium">Cost Source Qty</span>
-                  <span className="text-slate-750 font-bold">{formatMoney(row.costPoolQty)} {row.unit}</span>
+                  <span className="text-slate-700 font-bold">{formatMoney(row.costPoolQty)} {row.unit}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 block mb-0.5 font-medium">Cost Source Value</span>
@@ -731,14 +731,14 @@ function ReadinessPanel({ isLoading, rows, summary }: { isLoading: boolean; rows
                 </div>
                 <div>
                   <span className="text-slate-400 block mb-0.5 font-medium">PO Buy</span>
-                  <span className="text-blue-650 font-bold">{formatMoney(row.poBuyAmount)} ฿</span>
+                  <span className="text-blue-600 font-bold">{formatMoney(row.poBuyAmount)} ฿</span>
                 </div>
                 <div>
                   <span className="text-slate-400 block mb-0.5 font-medium">PO Sell</span>
                   <span className="text-amber-600 font-bold">{formatMoney(row.poSellAmount)} ฿</span>
                 </div>
                 <div className="col-span-2 border-t border-slate-50 pt-2 flex justify-between items-center">
-                  <span className="text-slate-455 text-[11px] font-medium font-semibold">Net Value:</span>
+                  <span className="text-slate-500 text-xs font-medium font-semibold">Net Value:</span>
                   <span className={`font-bold text-sm ${row.netValue >= 0 ? 'text-slate-800' : 'text-red-700'}`}>{formatMoney(row.netValue)} ฿</span>
                 </div>
               </div>
@@ -784,7 +784,7 @@ function ProductTable({ isLoading, rows, totals }: { isLoading: boolean; rows: D
       {/* Desktop view */}
       <div className="hidden lg:block overflow-x-auto">
         <table className="w-full min-w-[860px] table-fixed text-xs">
-          <thead className="bg-slate-50 border-b border-slate-200/60 text-slate-650">
+          <thead className="bg-slate-50 border-b border-slate-200/60 text-slate-600">
             <tr>
               <th className="p-2.5 text-left font-semibold">Product</th>
               <th className="w-28 p-2.5 text-right font-semibold">Qty</th>
@@ -804,7 +804,7 @@ function ProductTable({ isLoading, rows, totals }: { isLoading: boolean; rows: D
                 <td className="p-2.5 text-right text-emerald-700 font-semibold">{formatMoney(row.sales)}</td>
                 <td className="p-2.5 text-right text-red-700 font-semibold">{formatMoney(row.cost)}</td>
                 <td className={`p-2.5 text-right font-bold ${row.gp >= 0 ? 'text-purple-700' : 'text-red-700'}`}>{formatMoney(row.gp)}</td>
-                <td className="p-2.5 text-right font-medium text-slate-505">{row.gpPct.toFixed(2)}%</td>
+                <td className="p-2.5 text-right font-medium text-slate-500">{row.gpPct.toFixed(2)}%</td>
               </tr>
             ))}
           </tbody>
@@ -823,15 +823,15 @@ function ProductTable({ isLoading, rows, totals }: { isLoading: boolean; rows: D
 
       {/* Mobile view Card List */}
       <div className="block lg:hidden space-y-3">
-        {isLoading ? <div className="p-8 text-center text-slate-450 bg-white rounded-xl border border-slate-200 shadow-sm font-semibold text-xs">กำลังโหลดข้อมูล</div> : null}
+        {isLoading ? <div className="p-8 text-center text-slate-400 bg-white rounded-xl border border-slate-200 shadow-sm font-semibold text-xs">กำลังโหลดข้อมูล</div> : null}
         {!isLoading && rows.length === 0 ? <div className="p-8 text-center text-slate-400 bg-white rounded-xl border border-slate-200 shadow-sm font-semibold text-xs">ยังไม่มีข้อมูลตามเงื่อนไข</div> : null}
         {!isLoading && rows.map((row) => (
           <div key={row.productId} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
-            <div className="font-bold text-slate-905 text-sm border-b border-slate-100 pb-2">{row.productName}</div>
+            <div className="font-bold text-slate-900 text-sm border-b border-slate-100 pb-2">{row.productName}</div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
               <div>
                 <span className="text-slate-400 block mb-0.5 font-medium">Qty</span>
-                <span className="text-slate-750 font-bold">{formatMoney(row.qty)} {row.unit}</span>
+                <span className="text-slate-700 font-bold">{formatMoney(row.qty)} {row.unit}</span>
               </div>
               <div>
                 <span className="text-slate-400 block mb-0.5 font-medium">Sales</span>
@@ -839,14 +839,14 @@ function ProductTable({ isLoading, rows, totals }: { isLoading: boolean; rows: D
               </div>
               <div>
                 <span className="text-slate-400 block mb-0.5 font-medium">Matched COGS</span>
-                <span className="text-red-650 font-bold">{formatMoney(row.cost)} ฿</span>
+                <span className="text-red-600 font-bold">{formatMoney(row.cost)} ฿</span>
               </div>
               <div>
                 <span className="text-slate-400 block mb-0.5 font-medium">GP%</span>
                 <span className="text-slate-700 font-semibold">{row.gpPct.toFixed(2)}%</span>
               </div>
               <div className="col-span-2 border-t border-slate-50 pt-2 flex justify-between items-center">
-                <span className="text-slate-455 text-[11px] font-medium">GP:</span>
+                <span className="text-slate-500 text-xs font-medium">GP:</span>
                 <span className={`font-bold text-sm ${row.gp >= 0 ? 'text-purple-700' : 'text-red-700'}`}>{formatMoney(row.gp)} ฿</span>
               </div>
             </div>
@@ -876,7 +876,7 @@ function PurchaseTable({ isLoading, rows }: { isLoading: boolean; rows: Dashboar
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
             ))}
           </colgroup>
-          <thead className="bg-slate-50 border-b border-slate-200/60 text-slate-655 font-semibold">
+          <thead className="bg-slate-50 border-b border-slate-200/60 text-slate-700 font-semibold">
             <tr>
               <ResizableTableHead label="PB / Cost Source" resizeProps={columnResize.getResizeHandleProps('docNo', 'PB / Cost Source')} />
               <ResizableTableHead label="Date" resizeProps={columnResize.getResizeHandleProps('date', 'Date')} />
@@ -907,15 +907,15 @@ function PurchaseTable({ isLoading, rows }: { isLoading: boolean; rows: Dashboar
 
       {/* Mobile view Card List */}
       <div className="block lg:hidden space-y-3">
-        {isLoading ? <div className="p-8 text-center text-slate-450 bg-white rounded-xl border border-slate-200 shadow-sm font-semibold text-xs">กำลังโหลดข้อมูล</div> : null}
+        {isLoading ? <div className="p-8 text-center text-slate-400 bg-white rounded-xl border border-slate-200 shadow-sm font-semibold text-xs">กำลังโหลดข้อมูล</div> : null}
         {!isLoading && rows.length === 0 ? <div className="p-8 text-center text-slate-400 bg-white rounded-xl border border-slate-200 shadow-sm font-semibold text-xs">ยังไม่มีข้อมูลตามเงื่อนไข</div> : null}
         {!isLoading && rows.map((row) => (
           <div key={row.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
             <div className="flex justify-between items-start border-b border-slate-100 pb-2">
-              <div className="font-mono text-xs font-semibold text-purple-750">
+              <div className="font-mono text-xs font-semibold text-purple-700">
                 <Link className="hover:underline" href={row.sourceUrl}>{row.docNo}</Link>
               </div>
-              <span className="text-[10px] text-slate-400 font-semibold">{formatDateDisplay(row.date)}</span>
+              <span className="text-xs text-slate-400 font-semibold">{formatDateDisplay(row.date)}</span>
             </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
               <div className="col-span-2">
@@ -928,11 +928,11 @@ function PurchaseTable({ isLoading, rows }: { isLoading: boolean; rows: Dashboar
               </div>
               <div>
                 <span className="text-slate-400 block mb-0.5 font-medium">Matched Cost</span>
-                <span className="text-red-650 font-bold">{formatMoney(row.matchedAmount)} ฿</span>
+                <span className="text-red-600 font-bold">{formatMoney(row.matchedAmount)} ฿</span>
               </div>
               <div className="col-span-2 border-t border-slate-50 pt-2 flex justify-between items-center">
                 <div className="flex gap-2 items-center">
-                  <span className="text-slate-455 text-[11px] font-medium font-semibold">Remaining:</span>
+                  <span className="text-slate-500 text-xs font-medium font-semibold">Remaining:</span>
                   <span className="text-amber-700 font-bold">{formatMoney(row.remainingAmount)} ฿</span>
                 </div>
                 <StatusPill status={row.allocationStatus} />
@@ -964,7 +964,7 @@ function SalesTable({ isLoading, rows }: { isLoading: boolean; rows: DashboardPa
               <col key={col.key} style={columnResize.getColumnStyle(col.key)} />
             ))}
           </colgroup>
-          <thead className="bg-slate-50 border-b border-slate-200/60 text-slate-655 font-semibold">
+          <thead className="bg-slate-50 border-b border-slate-200/60 text-slate-700 font-semibold">
             <tr>
               <ResizableTableHead label="SB" resizeProps={columnResize.getResizeHandleProps('docNo', 'SB')} />
               <ResizableTableHead label="Date" resizeProps={columnResize.getResizeHandleProps('date', 'Date')} />
@@ -988,7 +988,7 @@ function SalesTable({ isLoading, rows }: { isLoading: boolean; rows: DashboardPa
                 <td className="p-2.5 text-right text-emerald-700 font-semibold overflow-hidden truncate">{formatMoney(row.totalAmount)}</td>
                 <td className="p-2.5 text-right text-red-700 font-semibold overflow-hidden truncate">{formatMoney(row.matchedCogs)}</td>
                 <td className={`p-2.5 text-right font-bold overflow-hidden truncate ${row.gp >= 0 ? 'text-purple-700' : 'text-red-700'}`}>{formatMoney(row.gp)}</td>
-                <td className="p-2.5 text-right font-medium text-slate-505 overflow-hidden truncate">{row.gpPct.toFixed(2)}%</td>
+                <td className="p-2.5 text-right font-medium text-slate-500 overflow-hidden truncate">{row.gpPct.toFixed(2)}%</td>
                 <td className="p-2.5 text-right font-semibold text-amber-700 overflow-hidden truncate">{formatMoney(row.pendingAmount)}</td>
                 <td className="p-2.5 text-center overflow-hidden truncate"><StatusPill status={row.allocationStatus} /></td>
               </tr>
@@ -999,15 +999,15 @@ function SalesTable({ isLoading, rows }: { isLoading: boolean; rows: DashboardPa
 
       {/* Mobile view Card List */}
       <div className="block lg:hidden space-y-3">
-        {isLoading ? <div className="p-8 text-center text-slate-450 bg-white rounded-xl border border-slate-200 shadow-sm font-semibold text-xs">กำลังโหลดข้อมูล</div> : null}
+        {isLoading ? <div className="p-8 text-center text-slate-400 bg-white rounded-xl border border-slate-200 shadow-sm font-semibold text-xs">กำลังโหลดข้อมูล</div> : null}
         {!isLoading && rows.length === 0 ? <div className="p-8 text-center text-slate-400 bg-white rounded-xl border border-slate-200 shadow-sm font-semibold text-xs">ยังไม่มีข้อมูลตามเงื่อนไข</div> : null}
         {!isLoading && rows.map((row) => (
           <div key={row.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
             <div className="flex justify-between items-start border-b border-slate-100 pb-2">
-              <div className="font-mono text-xs font-semibold text-purple-750">
+              <div className="font-mono text-xs font-semibold text-purple-700">
                 <Link className="hover:underline" href={row.sourceUrl}>{row.docNo}</Link>
               </div>
-              <span className="text-[10px] text-slate-400 font-semibold">{formatDateDisplay(row.date)}</span>
+              <span className="text-xs text-slate-400 font-semibold">{formatDateDisplay(row.date)}</span>
             </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
               <div className="col-span-2">
@@ -1032,7 +1032,7 @@ function SalesTable({ isLoading, rows }: { isLoading: boolean; rows: DashboardPa
               </div>
               <div className="col-span-2 border-t border-slate-50 pt-2 flex justify-between items-center">
                 <div className="flex gap-2 items-center">
-                  <span className="text-slate-455 text-[11px] font-medium font-semibold">GP:</span>
+                  <span className="text-slate-500 text-xs font-medium font-semibold">GP:</span>
                   <span className={`font-bold text-sm ${row.gp >= 0 ? 'text-purple-700' : 'text-red-700'}`}>{formatMoney(row.gp)} ฿</span>
                 </div>
                 <StatusPill status={row.allocationStatus} />
@@ -1048,8 +1048,8 @@ function SalesTable({ isLoading, rows }: { isLoading: boolean; rows: DashboardPa
 function Metric({ label, tone, value }: { label: string; tone: 'emerald' | 'purple' | 'red' | 'slate'; value: string }) {
   const tones = {
     emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', emoji: '📈' },
-    purple: { bg: 'bg-purple-50', text: 'text-purple-655', emoji: '💰' },
-    red: { bg: 'bg-red-50', text: 'text-red-650', emoji: '📉' },
+    purple: { bg: 'bg-purple-50', text: 'text-purple-600', emoji: '💰' },
+    red: { bg: 'bg-red-50', text: 'text-red-600', emoji: '📉' },
     slate: { bg: 'bg-slate-100', text: 'text-slate-600', emoji: '🏷️' }
   }
   const style = tones[tone] ?? tones.slate
@@ -1099,7 +1099,7 @@ function ReadinessStatusPill({ status }: { status: string }) {
 function AgingValue({ label, value }: { label: string; value: number }) {
   return (
     <div className="bg-white rounded-xl border border-slate-200/60 p-2.5 shadow-2xs">
-      <div className="text-[10px] text-slate-500 font-semibold mb-0.5">{label}</div>
+      <div className="text-xs text-slate-500 font-semibold mb-0.5">{label}</div>
       <div className="text-xs font-bold text-slate-800">{formatMoney(value)}</div>
     </div>
   )

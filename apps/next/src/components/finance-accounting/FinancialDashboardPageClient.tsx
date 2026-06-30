@@ -101,7 +101,7 @@ export function FinancialDashboardPageClient() {
                   x={105 + i * 90} 
                   y={220 - (Math.max(0, Math.abs(row.np)) / maxRevenue) * 180} 
                 />
-                <text fill="#64748b" fontSize="11" textAnchor="middle" x={88 + i * 90} y="235">{row.label}</text>
+                <text fill="#64748b" fontSize="12" textAnchor="middle" x={88 + i * 90} y="235">{row.label}</text>
               </g>
             ))}
           </svg>
@@ -263,7 +263,7 @@ function Donut({ rows, total }: { rows: Payload['assetComp']; total: number }) {
           transform="rotate(-90 100 100)" 
         />
       ))}
-      <text fill="#64748b" fontSize="10" textAnchor="middle" x="100" y="95">Total Assets</text>
+      <text fill="#64748b" fontSize="12" textAnchor="middle" x="100" y="95">Total Assets</text>
       <text fill="#0f172a" fontSize="12" fontWeight="bold" textAnchor="middle" x="100" y="115">{money(total)}</text>
     </svg>
   )
@@ -353,7 +353,7 @@ function Card({ label, note, tone, value }: { label: string; note?: string; tone
       <div className="flex-1 min-w-0">
         <div className="text-xs text-slate-500 font-medium truncate">{cleanLabel}</div>
         <div className="text-base md:text-lg font-mono font-bold text-slate-900 truncate mt-0.5">{value}</div>
-        {note ? <div className="text-[10px] text-slate-400 truncate mt-0.5" title={note}>{note}</div> : null}
+        {note ? <div className="text-xs text-slate-400 truncate mt-0.5" title={note}>{note}</div> : null}
       </div>
     </div>
   )
@@ -375,7 +375,7 @@ function WideRow({ label, note, tone, value }: { label: string; note: string; to
         </div>
         <div>
           <div className="text-xs text-slate-700 font-semibold">{cleanLabel}</div>
-          <div className="text-[10px] text-slate-400 mt-0.5">{note}</div>
+          <div className="text-xs text-slate-400 mt-0.5">{note}</div>
         </div>
       </div>
       <div className="text-xl font-bold font-mono text-slate-900">{value}</div>
@@ -403,7 +403,7 @@ function InsightCard({ insight }: { insight: Payload['insights'][number] }) {
       <div className="flex-1 min-w-0">
         <div className="text-xs text-slate-700 font-semibold truncate">{insight.title}</div>
         <div className="text-base font-bold font-mono text-slate-900 mt-0.5">{value}</div>
-        <div className="text-[10px] text-slate-400 mt-1 leading-normal">{insight.detail}</div>
+        <div className="text-xs text-slate-400 mt-1 leading-normal">{insight.detail}</div>
       </div>
     </div>
   )

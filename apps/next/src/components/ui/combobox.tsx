@@ -208,7 +208,7 @@ export function ComboboxInput({
   return (
     <div
       className={cn(
-        'group/input-group relative flex h-8 min-w-0 items-center overflow-hidden rounded-md border border-slate-300 bg-white transition-colors outline-none has-[[data-slot=input-group-control]:focus-visible]:border-blue-500 has-[[data-slot=input-group-control]:focus-visible]:ring-3 has-[[data-slot=input-group-control]:focus-visible]:ring-blue-100',
+        'group/input-group relative flex h-8 min-w-0 items-center overflow-hidden rounded-md border border-slate-300 bg-white transition-colors outline-none has-[[data-slot=input-group-control]:focus-visible]:border-blue-500 has-[[data-slot=input-group-control]:focus-visible]:ring-3 has-[[data-slot=input-group-control]:focus-visible]:ring-blue-100 dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dark-surface-soft)] dark:has-[[data-slot=input-group-control]:focus-visible]:[border-color:var(--ns-dark-border-strong)] dark:has-[[data-slot=input-group-control]:focus-visible]:ring-0',
         inputGroupClassName,
       )}
       data-slot="input-group"
@@ -219,7 +219,7 @@ export function ComboboxInput({
         aria-expanded={open}
         aria-haspopup="listbox"
         className={cn(
-          'absolute right-2 top-1/2 flex size-6 -translate-y-1/2 items-center justify-center rounded-md border-0 p-0 text-slate-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-50',
+          'absolute right-2 top-1/2 flex size-6 -translate-y-1/2 items-center justify-center rounded-md border-0 p-0 text-slate-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-50 dark:focus-visible:ring-0',
           buttonClassName,
         )}
         disabled={disabled}
@@ -248,13 +248,13 @@ function onValueChangeFallback(selectValue: (value: string) => void) {
 export function ComboboxContent({ children, className }: { children: React.ReactNode; className?: string }) {
   const { inputId, open } = useComboboxContext('ComboboxContent')
   if (!open) return null
-  return <div className={className ?? 'absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-slate-200 bg-white py-1 text-sm shadow-xl'} data-slot="combobox-content" id={inputId ? `${inputId}-options` : undefined} role="listbox">{children}</div>
+  return <div className={className ?? 'absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-slate-200 bg-white py-1 text-sm shadow-xl dark:[border-color:var(--ns-dark-border-strong)] dark:[background-color:var(--ns-dark-surface)]'} data-slot="combobox-content" id={inputId ? `${inputId}-options` : undefined} role="listbox">{children}</div>
 }
 
 export function ComboboxEmpty({ children }: { children: React.ReactNode }) {
   const { filteredItems } = useComboboxContext('ComboboxEmpty')
   if (filteredItems.length > 0) return null
-  return <div className="px-3 py-2 text-sm text-slate-500">{children}</div>
+  return <div className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">{children}</div>
 }
 
 export function ComboboxList({ children }: { children: (item: PrimitiveItem) => React.ReactNode }) {
@@ -276,7 +276,7 @@ export function ComboboxItem({
   return (
     <button
       aria-selected={active}
-      className={`block w-full px-3 py-2 text-left hover:bg-blue-50 ${active ? 'bg-blue-100 text-blue-800' : ''}`}
+      className={`block w-full px-3 py-2 text-left text-slate-800 hover:bg-blue-50 dark:text-slate-100 dark:hover:bg-slate-700/70 ${active ? 'bg-blue-100 text-blue-800 dark:bg-slate-700 dark:text-white' : ''}`}
       role="option"
       type="button"
       onMouseDown={(event) => {
@@ -285,7 +285,7 @@ export function ComboboxItem({
       }}
     >
       <span className="block font-medium">{children}</span>
-      {item?.description ? <span className="block text-xs text-slate-500">{item.description}</span> : null}
+      {item?.description ? <span className="block text-xs text-slate-500 dark:text-slate-400">{item.description}</span> : null}
     </button>
   )
 }

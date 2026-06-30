@@ -46,7 +46,7 @@ const ticketInclude = {
   weight_ticket_product_summaries: {
     include: {
       products: {
-        select: { code: true, id: true },
+        select: { code: true, id: true, metal_group: true },
       },
     },
     orderBy: { product_name: 'asc' },
@@ -54,7 +54,7 @@ const ticketInclude = {
   weight_ticket_lines: {
     include: {
       products: {
-        select: { code: true, id: true },
+        select: { code: true, id: true, metal_group: true },
       },
       warehouses: {
         select: { code: true, id: true, name: true, type: true },

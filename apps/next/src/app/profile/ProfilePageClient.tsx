@@ -272,12 +272,12 @@ export function ProfilePageClient() {
                     value={displayName}
                     onChange={(event) => setDisplayName(event.target.value)}
                   />
-                  {profileErrors.displayName ? <span className="mt-1 block text-xs text-red-650">{profileErrors.displayName}</span> : null}
+                  {profileErrors.displayName ? <span className="mt-1 block text-xs text-red-600">{profileErrors.displayName}</span> : null}
                 </label>
               </div>
 
-              {profileError ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-750">{profileError}</div> : null}
-              {profileSuccess ? <div className="rounded-md border border-emerald-250 bg-emerald-50 p-3 text-sm text-emerald-800">{profileSuccess}</div> : null}
+              {profileError ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{profileError}</div> : null}
+              {profileSuccess ? <div className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">{profileSuccess}</div> : null}
 
               <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
                 <Button className="w-full sm:w-auto font-semibold bg-slate-900 hover:bg-slate-800 text-white rounded-md h-9 outline-none" disabled={isFetchingUser || isSavingProfile} type="submit">
@@ -291,7 +291,7 @@ export function ProfilePageClient() {
           {activeTab === 'security' && (
             <form className="space-y-4 rounded-md bg-white p-5 shadow border border-slate-200/60 animate-fade-in" onSubmit={updatePassword}>
               {user?.mustChangePassword ? (
-                <div className="rounded-md border border-amber-250 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 animate-pulse">
+                <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 animate-pulse">
                   รหัสผ่านของคุณยังเป็นค่าเริ่มต้น กรุณาเปลี่ยนรหัสผ่านเพื่อความปลอดภัยของระบบ
                 </div>
               ) : null}
@@ -339,8 +339,8 @@ export function ProfilePageClient() {
                 แสดงรหัสผ่าน
               </label>
 
-              {securityError ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-750">{securityError}</div> : null}
-              {securitySuccess ? <div className="rounded-md border border-emerald-250 bg-emerald-50 p-3 text-sm text-emerald-800">{securitySuccess}</div> : null}
+              {securityError ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{securityError}</div> : null}
+              {securitySuccess ? <div className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">{securitySuccess}</div> : null}
 
               <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
                 <Button className="w-full sm:w-auto font-semibold bg-slate-900 hover:bg-slate-800 text-white rounded-md h-9 outline-none" disabled={isSavingPassword || isFetchingUser || !isSupabaseReady} type="submit">
@@ -388,7 +388,7 @@ export function ProfilePageClient() {
             </div>
           </div>
 
-          <div className="rounded-md border border-slate-200/60 bg-slate-50 p-4 text-xs text-slate-650 leading-relaxed space-y-2">
+          <div className="rounded-md border border-slate-200/60 bg-slate-50 p-4 text-xs text-slate-600 leading-relaxed space-y-2">
             <div className="font-bold text-slate-900 uppercase tracking-wider">ระบบความปลอดภัย</div>
             <p>ระบบนี้ใช้ระบบการยืนยันตัวตนและการเข้าถึงที่มีมาตรฐานความปลอดภัยระดับสูง ข้อมูลรหัสผ่านของคุณจะถูกจัดเก็บและดูแลโดยตรงผ่านระบบ Supabase Auth</p>
           </div>
@@ -411,7 +411,7 @@ function PasswordField(props: {
   return (
     <label className="block text-sm font-semibold text-slate-700">
       {props.label} <span className="text-red-500">*</span>
-      {props.description ? <span className="ml-1 text-[11px] font-normal text-slate-500">({props.description})</span> : null}
+      {props.description ? <span className="ml-1 text-xs font-normal text-slate-500">({props.description})</span> : null}
       <Input
         autoComplete={props.autoComplete}
         className={`mt-1.5 h-9 focus:ring-slate-400 focus:border-slate-400 outline-none ${props.error ? 'border-red-400 bg-red-50' : 'border-slate-300'}`}
@@ -420,7 +420,7 @@ function PasswordField(props: {
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}
       />
-      {props.error ? <span className="mt-1 block text-xs text-red-650">{props.error}</span> : null}
+      {props.error ? <span className="mt-1 block text-xs text-red-600">{props.error}</span> : null}
     </label>
   )
 }

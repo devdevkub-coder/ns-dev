@@ -244,7 +244,7 @@ export function CostAllocatorPageClient() {
                 className={
                   active
                     ? 'rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-slate-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300'
-                    : 'rounded-lg border border-slate-100 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-850 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-100'
+                    : 'rounded-lg border border-slate-100 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-100'
                 }
                 type="button"
                 onClick={() => {
@@ -321,7 +321,7 @@ export function CostAllocatorPageClient() {
                 <span>⚙️</span>
                 <span>Manual Mode – ตั้งราคาต้นทุนเป้าหมาย</span>
               </div>
-              <p className="text-[11px] leading-relaxed text-slate-500">
+              <p className="text-xs leading-relaxed text-slate-500">
                 ระบบจะเลือก lot ผลผลิต (หรือผัน inventory เก่า) และ/หรือ lot ซื้อล่าสุด ให้ weighted average ได้ ราคาเป้าหมายที่ตั้ง (หลีกเลี่ยงลอทเกินจำเป็น)
               </p>
               <div className="flex flex-wrap items-end gap-2.5">
@@ -346,11 +346,45 @@ export function CostAllocatorPageClient() {
                   ⚡ คำนวณ Match อัตโนมัติ
                 </Button>
               </div>
-              <div className="text-[11px] font-medium text-amber-800/80">
+              <div className="text-xs font-medium text-amber-800/80">
                 💡 Pool WAC ปัจจุบัน = {formatMoney(data?.summary.poolAvgCost ?? 0)} บาท/กก. · ช่วง {formatMoney(minUnitCost)} - {formatMoney(maxUnitCost)}
               </div>
             </div>
           )}
+
+          {/* Pagination Controls */}
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 bg-white p-3 rounded-lg border border-slate-200 shadow-sm mb-3">
+            <div>
+              พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                aria-label="จำนวนรายการต่อหน้า"
+                className="h-8 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                value={pageSize}
+                onChange={(event) => setPageSize(Number(event.target.value))}
+              >
+                {[5, 10, 25, 50].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
+              </select>
+              <button
+                className="h-8 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                disabled={currentPage <= 1}
+                type="button"
+                onClick={() => setPage((value) => Math.max(1, value - 1))}
+              >
+                ก่อนหน้า
+              </button>
+              <span className="px-1">หน้า {currentPage} / {totalPages}</span>
+              <button
+                className="h-8 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                disabled={currentPage >= totalPages}
+                type="button"
+                onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+              >
+                ถัดไป
+              </button>
+            </div>
+          </div>
 
           <div className="mt-4 overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm">
             <Table className="text-xs">
@@ -403,39 +437,7 @@ export function CostAllocatorPageClient() {
             </Table>
           </div>
 
-          {/* Pagination Controls */}
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
-            <div>
-              พบทั้งหมด <span className="font-semibold text-slate-900">{totalRows}</span> รายการ
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                aria-label="จำนวนรายการต่อหน้า"
-                className="h-8 w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                value={pageSize}
-                onChange={(event) => setPageSize(Number(event.target.value))}
-              >
-                {[5, 10, 25, 50].map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-              </select>
-              <button
-                className="h-8 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-                disabled={currentPage <= 1}
-                type="button"
-                onClick={() => setPage((value) => Math.max(1, value - 1))}
-              >
-                ก่อนหน้า
-              </button>
-              <span className="px-1">หน้า {currentPage} / {totalPages}</span>
-              <button
-                className="h-8 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-                disabled={currentPage >= totalPages}
-                type="button"
-                onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
-              >
-                ถัดไป
-              </button>
-            </div>
-          </div>
+
 
           {hasPoSell ? (
             <div className="grid grid-cols-2 gap-3 md:grid-cols-5 mt-3">
@@ -449,7 +451,7 @@ export function CostAllocatorPageClient() {
 
           {hasPoSell ? (
             <div className="mt-3 flex justify-end">
-              <Button type="button" className="rounded-lg h-10 px-4 text-sm font-semibold focus-visible:ring-emerald-150" onClick={() => setShowPreview(true)}>Preview Auto Match</Button>
+              <Button type="button" className="rounded-lg h-10 px-4 text-sm font-semibold focus-visible:ring-emerald-100" onClick={() => setShowPreview(true)}>Preview Auto Match</Button>
             </div>
           ) : null}
         </DualCostingPanel>
@@ -475,7 +477,7 @@ export function CostAllocatorPageClient() {
                 {!isLoading && (data?.pool.length ?? 0) === 0 ? <TableRow><TableCell className="py-6 text-center text-amber-700" colSpan={7}>ยังไม่มี Cost Pool lot สำหรับสินค้านี้</TableCell></TableRow> : null}
                 {(data?.pool ?? []).slice(0, 12).map((row) => (
                   <TableRow key={row.costPoolId} className="hover:bg-slate-50/30 transition-colors border-t border-slate-100">
-                    <TableCell className="p-3 pl-4"><span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${sourceBadgeClass(row.sourceType)}`}>{row.sourceType}</span></TableCell>
+                    <TableCell className="p-3 pl-4"><span className={`rounded border px-2 py-0.5 text-xs font-semibold ${sourceBadgeClass(row.sourceType)}`}>{row.sourceType}</span></TableCell>
                     <TableCell className="p-3 font-mono text-xs text-slate-700">{row.sourceNo}</TableCell>
                     <TableCell className="p-3 whitespace-nowrap text-xs text-slate-600">{row.date}</TableCell>
                     <TableCell className="p-3 text-xs text-slate-800 font-medium">{row.counterparty}</TableCell>
@@ -509,7 +511,7 @@ export function CostAllocatorPageClient() {
               <TableBody>
                 {(data?.candidates ?? []).map((row) => (
                   <TableRow key={row.costPoolId} className="hover:bg-slate-50/30 transition-colors border-t border-slate-100">
-                    <TableCell className="p-3 pl-4"><span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${sourceBadgeClass(row.sourceType)}`}>{row.sourceType}</span></TableCell>
+                    <TableCell className="p-3 pl-4"><span className={`rounded border px-2 py-0.5 text-xs font-semibold ${sourceBadgeClass(row.sourceType)}`}>{row.sourceType}</span></TableCell>
                     <TableCell className="p-3 font-mono text-xs text-slate-700">{row.sourceNo}</TableCell>
                     <TableCell className="p-3 text-slate-800 font-medium">{row.counterparty}</TableCell>
                     <TableCell className="p-3 text-right font-mono text-slate-600">{formatMoney(row.availableQty)}</TableCell>

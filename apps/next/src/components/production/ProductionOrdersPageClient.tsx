@@ -9,6 +9,7 @@ import { useResizableColumns, type ResizableColumnDefinition } from '@/component
 import { dailyFetchJson, formatMoney, todayDateInput } from '@/lib/daily'
 import { formatDateDisplay } from '@/lib/format'
 import { Plus } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
 
 type Category = { availableForSale: boolean; code: string; name: string; stockEffect: string }
 type ProductionMovementRow = {
@@ -119,7 +120,7 @@ function MatchButton({ active, label, onClick, tone = 'dark' }: { active: boolea
     slate: 'border-slate-500 bg-slate-500 text-white',
   }[tone]
   const idleClass = tone === 'amber' ? 'border-slate-300 bg-white hover:bg-amber-50' : tone === 'emerald' ? 'border-slate-300 bg-white hover:bg-emerald-50' : tone === 'red' ? 'border-slate-300 bg-white hover:bg-red-50' : 'border-slate-300 bg-white hover:bg-slate-100'
-  return <button className={`rounded-md border px-3 py-1 text-xs font-medium ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
+  return <button className={`rounded-md border px-3.5 py-1.5 text-sm font-medium ${active ? activeClass : idleClass}`} type="button" onClick={onClick}>{label}</button>
 }
 
 function formatDateLocal(d: Date) {
@@ -286,17 +287,17 @@ export function ProductionOrdersPageClient() {
           ) : null}
           <button className="ml-auto rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 h-9 flex items-center" type="button" onClick={() => setModalMode('create')}>+ ใบสั่งผลิตใหม่</button>
         </div>
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
           <div className="flex flex-wrap items-center gap-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-500 font-medium">ช่วงเวลา:</span>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm text-slate-500 font-medium">ช่วงเวลา:</span>
               <MatchButton active={isAllPeriod} label="ทั้งหมด" onClick={() => setPeriod('')} />
               <MatchButton active={isTodayPeriod} label="วันนี้" onClick={() => setPeriod('today')} />
               <MatchButton active={isWeekPeriod} label="7 วัน" onClick={() => setPeriod('week')} />
               <MatchButton active={isMonthPeriod} label="เดือนนี้" onClick={() => setPeriod('month')} />
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-500 font-medium">สถานะ:</span>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm text-slate-500 font-medium">สถานะ:</span>
               <MatchButton active={status === ''} label="ทุกสถานะ" onClick={() => { setStatus(''); setPage(1) }} tone="dark" />
               <MatchButton active={status === 'Open'} label="ยังไม่เริ่ม" onClick={() => { setStatus('Open'); setPage(1) }} tone="dark" />
               <MatchButton active={status === 'In Production'} label="กำลังผลิต" onClick={() => { setStatus('In Production'); setPage(1) }} tone="amber" />
@@ -470,6 +471,30 @@ export function ProductionOrdersPageClient() {
         </div>
       ) : null}
 
+      <div className="flex flex-col gap-3 px-1 py-1 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <span>รวมทั้งหมด <span className="font-semibold text-slate-900">{data?.summary.total ?? 0}</span> รายการ</span>
+          {columnResize.hasCustomWidths ? (
+            <Button
+              size="xs"
+              variant="outline"
+              type="button"
+              onClick={columnResize.resetColumnWidths}
+            >
+              คืนค่าเดิมตาราง
+            </Button>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-2">
+          <select className="h-8 text-xs rounded-md border border-slate-300 px-2 bg-white text-slate-800" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>
+            {pageSizeOptions.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
+          </select>
+          <Button disabled={page <= 1} size="xs" variant="outline" type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</Button>
+          <span className="px-1 text-sm font-medium">หน้า {data?.page ?? page} / {totalPages}</span>
+          <Button disabled={page >= totalPages} size="xs" variant="outline" type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</Button>
+        </div>
+      </div>
+
       {isLoading ? <div className="rounded-md bg-white p-10 text-center text-slate-500 shadow">กำลังโหลดข้อมูล</div> : null}
       {!isLoading && currentRows.length > 0 ? (
         <>
@@ -535,13 +560,13 @@ export function ProductionOrdersPageClient() {
                       <td className="p-3 truncate" title={row.branchName}>{row.branchName}</td>
                       <td className="p-3 min-w-0">
                         <div className="font-semibold text-slate-800 truncate" title={row.productName || 'ยังไม่ได้กำหนดสินค้า'}>{row.productName || 'ยังไม่ได้กำหนดสินค้า'}</div>
-                        <div className="text-[10px] text-slate-400 font-mono mt-0.5 truncate">{row.productCode || row.productId || '-'}</div>
+                        <div className="text-xs text-slate-400 font-mono mt-0.5 truncate">{row.productCode || row.productId || '-'}</div>
                       </td>
                       <td className="p-3 min-w-0">
                         {row.machineName ? (
                           <div className="truncate">
                             <span className="font-medium text-slate-800" title={row.machineName}>{row.machineName}</span>
-                            <div className="text-[10px] text-slate-400 mt-0.5 truncate">{row.machineType || '-'}</div>
+                            <div className="text-xs text-slate-400 mt-0.5 truncate">{row.machineType || '-'}</div>
                           </div>
                         ) : '-'}
                       </td>
@@ -584,29 +609,6 @@ export function ProductionOrdersPageClient() {
           <div>ยังไม่มีใบสั่งผลิต</div>
         </div>
       ) : null}
-
-      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
-        <div className="flex items-center gap-3">
-          <span>รวมทั้งหมด <span className="font-semibold text-slate-900">{data?.summary.total ?? 0}</span> รายการ</span>
-          {columnResize.hasCustomWidths ? (
-            <button
-              className="rounded-md border border-slate-300 px-2 py-0.5 bg-white text-slate-700 hover:bg-slate-50 text-xs"
-              type="button"
-              onClick={columnResize.resetColumnWidths}
-            >
-              คืนค่าเดิมตาราง
-            </button>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select className="rounded-md border border-slate-300 px-2 py-1 bg-white text-slate-800 text-sm" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>
-            {pageSizeOptions.map((size) => <option key={size} value={size}>{size} / หน้า</option>)}
-          </select>
-          <button className="rounded-md border border-slate-300 px-3 py-1 disabled:opacity-50 bg-white text-slate-700 hover:bg-slate-50 text-sm" disabled={page <= 1} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>ก่อนหน้า</button>
-          <span className="px-1 text-sm font-medium">หน้า {data?.page ?? page} / {totalPages}</span>
-          <button className="rounded-md border border-slate-300 px-3 py-1 disabled:opacity-50 bg-white text-slate-700 hover:bg-slate-50 text-sm" disabled={page >= totalPages} type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>ถัดไป</button>
-        </div>
-      </div>
 
       {/* Floating Action Button (FAB) for Mobile */}
       <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-6 z-40 lg:hidden">
@@ -1098,11 +1100,11 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
 
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) onClose(false) }}>
-      <DialogContent className="max-w-5xl !p-0 overflow-hidden flex flex-col bg-slate-900 border-0 max-h-[90vh] animate-fade-in" hideClose>
-        <div className="bg-slate-900 px-5 py-4 shrink-0 border-b border-slate-800">
+      <DialogContent className="max-w-5xl !p-0 overflow-hidden flex flex-col bg-slate-900 dark:bg-[#0f172a] border-0 max-h-[90vh] animate-fade-in" hideClose>
+        <div className="bg-slate-900 dark:bg-[#0f172a] px-5 py-4 shrink-0 border-b border-slate-800 dark:border-slate-200">
           <div className="flex items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-3">
-              <DialogTitle className="font-mono text-lg font-bold text-slate-100">{isCreate ? 'ใบสั่งผลิตใหม่' : row?.docNo ?? ''}</DialogTitle>
+              <DialogTitle className="font-mono text-lg font-bold text-white">{isCreate ? 'ใบสั่งผลิตใหม่' : row?.docNo ?? ''}</DialogTitle>
               <StatusBadge status={isCreate ? 'Open' : row?.status ?? '-'} />
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -1112,7 +1114,7 @@ function ProductionOrderModal({ mode, onClose, onRefreshRow, row }: { mode: 'cre
                   <button className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white disabled:bg-slate-800 hover:bg-red-700" disabled={isSaving || row.inputCount > 0 || row.outputCount > 0 || row.status === 'Cancelled'} type="button" onClick={() => void patchOrder('cancel')}>ยกเลิก</button>
                 </div>
               ) : null}
-              <button className="text-2xl text-slate-400 hover:text-slate-200 ml-1" type="button" onClick={() => onClose(false)}>&times;</button>
+              <button className="text-2xl text-slate-400 hover:text-white ml-1" type="button" onClick={() => onClose(false)}>&times;</button>
             </div>
           </div>
           {!isCreate && row ? (
@@ -1543,7 +1545,7 @@ function ProductStockPreview({
             {stock.rows.map((row, index) => (
               <tr key={index} className="hover:bg-indigo-50/10">
                 <td className="p-2 font-medium text-slate-700">{stock.branchCode} / {row.warehouseCode || destinationWarehouseName}</td>
-                <td className="p-2 text-center"><span className="rounded bg-slate-100 px-1 py-0.5 text-[10px] font-bold text-slate-600">{row.status}</span></td>
+                <td className="p-2 text-center"><span className="rounded bg-slate-100 px-1 py-0.5 text-xs font-bold text-slate-600">{row.status}</span></td>
                 <td className="p-2 text-right font-bold text-slate-900 tabular-nums">{formatMoney(row.qty)}</td>
                 <td className="p-2 text-right text-slate-500 tabular-nums">{formatMoney(row.avgCost)}</td>
                 <td className="p-2 text-right font-bold text-indigo-700 tabular-nums">{formatMoney(row.value)}</td>

@@ -9,6 +9,9 @@ import { formatDateDisplay } from '@/lib/format'
 import { useResizableColumns, type ResizableColumnDefinition } from '@/components/ui/useResizableColumns'
 import { ResizableTableHead } from '@/components/ui/ResizableTableHead'
 import { Download } from 'lucide-react'
+import { PageTitleOverride } from '@/components/layout/PageTitleOverride'
+
+
 
 type SupplierTrackingColumnKey =
   | 'code'
@@ -20,12 +23,7 @@ type SupplierTrackingColumnKey =
   | 'paidAmount'
   | 'payable'
   | 'overdueApAmount'
-  | 'oldestApDays'
   | 'paidPct'
-  | 'wtiCount'
-  | 'deliveryCompletionPct'
-  | 'deductionPct'
-  | 'grade'
 
 const trackingColumns: Array<ResizableColumnDefinition<SupplierTrackingColumnKey>> = [
   { key: 'code', defaultWidth: 90, minWidth: 80 },
@@ -37,12 +35,7 @@ const trackingColumns: Array<ResizableColumnDefinition<SupplierTrackingColumnKey
   { key: 'paidAmount', defaultWidth: 120, minWidth: 100 },
   { key: 'payable', defaultWidth: 120, minWidth: 100 },
   { key: 'overdueApAmount', defaultWidth: 110, minWidth: 90 },
-  { key: 'oldestApDays', defaultWidth: 90, minWidth: 80 },
   { key: 'paidPct', defaultWidth: 80, minWidth: 70 },
-  { key: 'wtiCount', defaultWidth: 80, minWidth: 70 },
-  { key: 'deliveryCompletionPct', defaultWidth: 90, minWidth: 80 },
-  { key: 'deductionPct', defaultWidth: 80, minWidth: 70 },
-  { key: 'grade', defaultWidth: 70, minWidth: 60 },
 ]
 
 type SupplierTrackingRow = {
@@ -65,12 +58,17 @@ type SupplierTrackingRow = {
   qty: number
   supplierName: string
   wtiCount: number
+  monthlyData?: Array<{ qty: number; purchaseAmount: number }>
 }
 
 type SupplierTrackingPayload = {
   byProduct: Array<{ amount: number; avgBuy: number; billCount: number; productName: string; qty: number; suppliers: number }>
   detail?: SupplierTrackingDetail | null
-  filters?: { suppliers: Array<{ active: boolean | null; code: string | null; id: string; name: string }> }
+  filters?: {
+    suppliers: Array<{ active: boolean | null; code: string | null; id: string; name: string }>
+    productCategories: string[]
+    products: Array<{ category: string | null; code: string | null; id: string; name: string }>
+  }
   monthly: Array<{ amount: number; month: string; qty: number }>
   rows: SupplierTrackingRow[]
   summary: { paidAmount: number; payable: number; purchaseAmount: number; qty: number; suppliers: number }
@@ -113,12 +111,20 @@ export function SupplierTrackingPageClient() {
   const [month, setMonth] = useState('')
   const [search, setSearch] = useState('')
   const [supplierId, setSupplierId] = useState('')
+  const [productCategory, setProductCategory] = useState('')
+  const [productId, setProductId] = useState('')
   const [view, setView] = useState<'list' | 'top10' | 'yearCompare'>('list')
   const [year, setYear] = useState(String(new Date().getFullYear()))
   const [sortKey, setSortKey] = useState<string | undefined>(undefined)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
-  const columnResize = useResizableColumns('tracking.supplier.main.v5', trackingColumns)
+  useEffect(() => {
+    if (view === 'yearCompare') {
+      setMonth('')
+    }
+  }, [view])
+
+  const columnResize = useResizableColumns('tracking.supplier.main.v6', trackingColumns)
 
   const handleSort = (key: string) => {
     if (sortKey === key) {
@@ -133,9 +139,11 @@ export function SupplierTrackingPageClient() {
     const params = new URLSearchParams({ year })
     if (month) params.set('month', month)
     if (supplierId) params.set('supplierId', supplierId)
+    if (productCategory) params.set('productCategory', productCategory)
+    if (productId) params.set('productId', productId)
     if (search.trim()) params.set('q', search.trim())
     return params.toString()
-  }, [month, search, supplierId, year])
+  }, [month, search, supplierId, productCategory, productId, year])
 
   const loadData = useCallback(async () => {
     setError(null)
@@ -225,30 +233,65 @@ export function SupplierTrackingPageClient() {
     }))
   }, [data?.filters?.suppliers])
 
+  const productSearchOptions = useMemo<SearchComboboxOption[]>(() => {
+    let list = data?.filters?.products ?? []
+    if (productCategory) {
+      list = list.filter((p) => p.category === productCategory)
+    }
+    return list.map((product) => ({
+      id: product.id,
+      label: product.code ? `${product.code} - ${product.name}` : product.name,
+    }))
+  }, [data?.filters?.products, productCategory])
+
   const exportHref = `/api/tracking/supplier?${queryString}&format=xlsx`
-  const paidAmount = rows.reduce((sum, row) => sum + row.paidAmount, 0)
-  const payable = rows.reduce((sum, row) => sum + row.payable, 0)
 
   return (
     <section className="space-y-4">
+      <PageTitleOverride
+        title="Supplier Tracking 360°"
+        subtitle="วิเคราะห์ผู้ขาย — เลือก ปี/เดือน/สินค้า/หมวด · รายปี สลับ น้ำหนัก/ยอดซื้อ"
+      />
+
       {error ? <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div> : null}
 
       <div className="grid grid-cols-2 gap-2.5 text-sm sm:gap-4 lg:grid-cols-5">
-        <SummaryCard icon="🏭" label="Supplier" tone="blue" value={`${data?.summary.suppliers ?? rows.length}`} />
-        <SummaryCard icon="⚖️" label="น้ำหนัก" tone="indigo" value={`${formatMoney(rows.reduce((sum, row) => sum + row.qty, 0))} กก.`} />
-        <SummaryCard icon="💰" label="ยอดซื้อ" tone="blue" value={formatMoney(rows.reduce((sum, row) => sum + row.purchaseAmount, 0))} />
-        <SummaryCard icon="✅" label="จ่ายแล้ว" tone="emerald" value={formatMoney(paidAmount)} />
-        <SummaryCard className="col-span-2 lg:col-span-1" icon="🏦" label="เจ้าหนี้ค้าง" tone="red" value={formatMoney(payable)} />
+        <SummaryCard icon="🏭" label="Supplier" tone="blue" value={`${data?.summary.suppliers ?? 0}`} />
+        <SummaryCard icon="⚖️" label="น้ำหนัก" tone="indigo" value={`${formatMoney(data?.summary.qty ?? 0)} กก.`} />
+        <SummaryCard icon="💰" label="ยอดซื้อ" tone="blue" value={formatMoney(data?.summary.purchaseAmount ?? 0)} />
+        <SummaryCard icon="✅" label="จ่ายแล้ว" tone="emerald" value={formatMoney(data?.summary.paidAmount ?? 0)} />
+        <SummaryCard className="col-span-2 lg:col-span-1" icon="🏦" label="เจ้าหนี้ค้าง" tone="red" value={formatMoney(data?.summary.payable ?? 0)} />
       </div>
 
       <div className="rounded-xl border border-slate-200/60 bg-white p-3 shadow-sm">
-        <div className="grid gap-2 lg:grid-cols-6">
+        <div className="grid gap-2 lg:grid-cols-7">
           <input className="h-9 rounded-md border border-slate-300 px-3 text-sm outline-none" type="number" value={year} onChange={(event) => setYear(event.target.value)} />
-          <select className="h-9 rounded-md border border-slate-300 px-3 text-sm outline-none" value={month} onChange={(event) => setMonth(event.target.value)}>
+          <select className="h-9 rounded-md border border-slate-300 px-3 text-sm outline-none disabled:opacity-50" value={month} disabled={view === 'yearCompare'} onChange={(event) => setMonth(event.target.value)}>
             <option value="">ทั้งปี</option>
             {months.map((value, index) => <option key={value} value={value}>{monthLabels[index]}</option>)}
           </select>
-          <div className="lg:col-span-2">
+          <select
+            className="h-9 rounded-md border border-slate-300 px-3 text-sm outline-none"
+            value={productCategory}
+            onChange={(event) => { setProductCategory(event.target.value); setProductId('') }}
+          >
+            <option value="">ทุกหมวด</option>
+            {(data?.filters?.productCategories ?? []).map((cat) => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
+          <div>
+            <SearchCombobox
+              inputId="product-filter-combobox"
+              label="สินค้า"
+              hideLabel
+              placeholder="สินค้าทั้งหมด"
+              options={productSearchOptions}
+              value={productId}
+              onChange={setProductId}
+            />
+          </div>
+          <div>
             <SearchCombobox
               inputId="supplier-filter-combobox"
               label="Supplier"
@@ -291,7 +334,7 @@ export function SupplierTrackingPageClient() {
         </div>
       ) : null}
 
-      {view === 'yearCompare' ? <YearCompare monthly={data?.monthly ?? []} /> : null}
+      {view === 'yearCompare' ? <YearCompare rows={rows} /> : null}
 
       {view === 'list' ? (
         <>
@@ -300,14 +343,14 @@ export function SupplierTrackingPageClient() {
             {isLoading ? (
               <div className="rounded-md bg-white p-8 text-center text-slate-500 shadow-sm border border-slate-100">กำลังโหลดข้อมูล</div>
             ) : null}
-            
+
             {!isLoading && sortedRows.map((row) => (
               <div key={row.id} className="rounded-md border border-slate-100 bg-white p-4 shadow-sm space-y-2" role="button" tabIndex={0} onClick={() => void openDetail(row)} onKeyDown={(event) => { if (event.key === 'Enter') void openDetail(row) }}>
                 <div className="flex justify-between items-start">
                   <span className="font-bold text-slate-800 text-sm">{row.supplierName}</span>
                   <span className="text-xs font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{row.code || '-'}</span>
                 </div>
-                
+
                 <div className="text-xs text-slate-600 space-y-1">
                   <div className="grid grid-cols-3 gap-2">
                     <div>
@@ -323,7 +366,7 @@ export function SupplierTrackingPageClient() {
                       <span className="text-slate-800">{formatMoney(row.avgBuy)} บาท</span>
                     </div>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100/60 mt-1">
                     <div>
                       <span className="font-semibold text-slate-400 block">ยอดซื้อ: </span>
@@ -334,20 +377,8 @@ export function SupplierTrackingPageClient() {
                       <span className="text-red-700 font-bold tabular-nums">{formatMoney(row.payable)} ({row.paidPct.toFixed(0)}% จ่าย)</span>
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-100/60 mt-1">
-                    <div>
-                      <span className="font-semibold text-slate-400 block">WTI: </span>
-                      <span className="text-slate-800">{row.wtiCount} ใบ</span>
-                    </div>
-                    <div>
-                      <span className="font-semibold text-slate-400 block">ส่งครบ: </span>
-                      <span className="text-emerald-700 font-semibold">{row.deliveryCompletionPct.toFixed(1)}%</span>
-                    </div>
-                    <div>
-                      <span className="font-semibold text-slate-400 block">หัก: </span>
-                      <span className="text-amber-700 font-semibold">{row.deductionPct.toFixed(1)}%</span>
-                    </div>
-                    <div className="col-span-3">
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100/60 mt-1">
+                    <div className="col-span-2">
                       <span className="font-semibold text-slate-400">เกินกำหนด: </span>
                       <span className="text-red-700 font-semibold">{formatMoney(row.overdueApAmount)}</span>
                     </div>
@@ -457,61 +488,16 @@ export function SupplierTrackingPageClient() {
                     activeSortKey={sortKey}
                     align="right"
                     direction={sortDirection}
-                    label="เก่าสุด"
-                    resizeProps={columnResize.getResizeHandleProps('oldestApDays', 'เก่าสุด')}
-                    sortKey="oldestApDays"
-                    onSort={handleSort}
-                  />
-                  <ResizableTableHead
-                    activeSortKey={sortKey}
-                    align="right"
-                    direction={sortDirection}
                     label="% จ่าย"
                     resizeProps={columnResize.getResizeHandleProps('paidPct', '% จ่าย')}
                     sortKey="paidPct"
                     onSort={handleSort}
                   />
-                  <ResizableTableHead
-                    activeSortKey={sortKey}
-                    align="right"
-                    direction={sortDirection}
-                    label="WTI"
-                    resizeProps={columnResize.getResizeHandleProps('wtiCount', 'WTI')}
-                    sortKey="wtiCount"
-                    onSort={handleSort}
-                  />
-                  <ResizableTableHead
-                    activeSortKey={sortKey}
-                    align="right"
-                    direction={sortDirection}
-                    label="ส่งครบ"
-                    resizeProps={columnResize.getResizeHandleProps('deliveryCompletionPct', 'ส่งครบ')}
-                    sortKey="deliveryCompletionPct"
-                    onSort={handleSort}
-                  />
-                  <ResizableTableHead
-                    activeSortKey={sortKey}
-                    align="right"
-                    direction={sortDirection}
-                    label="หัก%"
-                    resizeProps={columnResize.getResizeHandleProps('deductionPct', 'หัก%')}
-                    sortKey="deductionPct"
-                    onSort={handleSort}
-                  />
-                  <ResizableTableHead
-                    activeSortKey={sortKey}
-                    align="right"
-                    direction={sortDirection}
-                    label="Grade"
-                    resizeProps={columnResize.getResizeHandleProps('grade', 'Grade')}
-                    sortKey="grade"
-                    onSort={handleSort}
-                  />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={15}>กำลังโหลดข้อมูล</td></tr> : null}
-                {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={15}>ไม่มีข้อมูล Supplier Tracking</td></tr> : null}
+                {isLoading ? <tr><td className="p-6 text-center text-slate-500" colSpan={10}>กำลังโหลดข้อมูล</td></tr> : null}
+                {!isLoading && sortedRows.length === 0 ? <tr><td className="p-8 text-center text-slate-400" colSpan={10}>ไม่มีข้อมูล Supplier Tracking</td></tr> : null}
                 {!isLoading && sortedRows.map((row) => (
                   <tr key={row.id} className="cursor-pointer border-t hover:bg-slate-50/80 transition-colors" onClick={() => void openDetail(row)}>
                     <td className="p-2 font-mono text-xs text-slate-500 truncate">{row.code || '-'}</td>
@@ -523,12 +509,7 @@ export function SupplierTrackingPageClient() {
                     <td className="p-2 text-right tabular-nums">{formatMoney(row.paidAmount)}</td>
                     <td className="p-2 text-right text-red-700 tabular-nums">{formatMoney(row.payable)}</td>
                     <td className="p-2 text-right text-red-700 tabular-nums">{formatMoney(row.overdueApAmount)}</td>
-                    <td className={`p-2 text-right tabular-nums ${row.oldestApAgeDays > 30 ? 'font-semibold text-red-700' : ''}`}>{row.oldestApAgeDays}</td>
-                    <td className="p-2 text-right tabular-nums">{row.paidPct.toFixed(1)}%</td>
-                    <td className="p-2 text-right tabular-nums">{row.wtiCount}</td>
-                    <td className="p-2 text-right font-semibold text-emerald-700 tabular-nums">{row.deliveryCompletionPct.toFixed(1)}%</td>
-                    <td className="p-2 text-right text-amber-700 tabular-nums">{row.deductionPct.toFixed(1)}%</td>
-                    <td className="p-2 text-right tabular-nums">{row.gradeAdjustmentCount}</td>
+                    <td className="p-2 pr-4 text-right tabular-nums">{row.paidPct.toFixed(1)}%</td>
                   </tr>
                 ))}
               </tbody>
@@ -541,7 +522,7 @@ export function SupplierTrackingPageClient() {
             {(data?.byProduct ?? []).slice(0, 20).map((row) => (
               <div key={row.productName} className="rounded-md border border-slate-100 bg-white p-4 shadow-sm space-y-2">
                 <span className="font-bold text-slate-800 text-sm block">{row.productName}</span>
-                
+
                 <div className="text-xs text-slate-600 grid grid-cols-2 gap-2 pt-1">
                   <div>
                     <span className="font-semibold text-slate-500">คู่ค้า / บิล: </span>
@@ -675,7 +656,7 @@ function SupplierDetailDialog({ detail, isLoading, onOpenChange }: { detail: Sup
 function DetailSection({ children, title }: { children: ReactNode; title: string }) {
   return (
     <section className="rounded-xl border border-slate-200/60 bg-slate-50 overflow-hidden shadow-sm">
-      <div className="border-b border-slate-250 bg-slate-100 px-4 py-2.5 text-sm font-bold text-slate-800">{title}</div>
+      <div className="border-b border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-bold text-slate-800">{title}</div>
       {children}
     </section>
   )
@@ -689,7 +670,7 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: DetailCell[][
       {/* Desktop Table View */}
       <div className="hidden lg:block overflow-x-auto bg-white">
         <table className="w-full min-w-[760px] text-sm">
-          <thead className="bg-slate-50 border-b border-slate-150">
+          <thead className="bg-slate-50 border-b border-slate-100">
             <tr>
               {headers.map((header, idx) => (
                 <th key={header} className={`p-2.5 text-slate-600 font-semibold text-xs text-left ${idx === 0 ? 'pl-4' : idx === headers.length - 1 ? 'pr-4' : ''}`}>
@@ -822,37 +803,100 @@ function TopPanel({ rows, title }: { rows: { label: string; value: number }[]; t
   return <div className="overflow-hidden rounded-md bg-white shadow"><div className="border-b border-blue-100 bg-blue-50 p-3 font-bold text-blue-700">{title}</div><table className="w-full text-sm"><tbody>{rows.map((row, index) => <tr key={row.label} className="border-t"><td className="p-2 font-bold">{index + 1}</td><td className="p-2">{row.label}</td><td className="p-2 text-right font-semibold">{formatMoney(row.value)}</td></tr>)}</tbody></table></div>
 }
 
-function YearCompare({ monthly }: { monthly: SupplierTrackingPayload['monthly'] }) {
+function YearCompare({ rows }: { rows: SupplierTrackingRow[] }) {
+  const [mode, setMode] = useState<'weight' | 'purchase'>('weight')
+
+  // Calculate totals per month
+  const monthlyTotals = Array.from({ length: 12 }, (_, monthIdx) => {
+    return rows.reduce((sum, row) => {
+      const val = row.monthlyData?.[monthIdx]
+      return sum + (mode === 'weight' ? (val?.qty ?? 0) : (val?.purchaseAmount ?? 0))
+    }, 0)
+  })
+
+  const grandTotal = monthlyTotals.reduce((sum, val) => sum + val, 0)
+
   return (
-    <>
-      <div className="hidden lg:block overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
-        <table className="w-full min-w-[680px] text-sm">
-          <thead className="bg-slate-50 border-b border-slate-100 text-slate-500"><tr><th className="p-2 text-left">เดือน</th><th className="p-2 text-right">น้ำหนัก</th><th className="p-2 text-right">ยอดซื้อ</th><th className="p-2 text-right">ราคาเฉลี่ย</th></tr></thead>
-          <tbody>{monthly.map((row, index) => <tr key={row.month} className="border-t"><td className="p-2">{monthLabels[index]}</td><td className="p-2 text-right">{formatMoney(row.qty)}</td><td className="p-2 text-right font-semibold text-blue-700">{formatMoney(row.amount)}</td><td className="p-2 text-right">{formatMoney(row.qty > 0 ? row.amount / row.qty : 0)}</td></tr>)}</tbody>
-        </table>
+    <div className="space-y-4">
+      {/* Mode Selector Toggle */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-semibold text-slate-500">แสดงผล:</span>
+        <div className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200/60 shadow-sm">
+          <button
+            className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none ${
+              mode === 'weight' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+            }`}
+            type="button"
+            onClick={() => setMode('weight')}
+          >
+            ⚖️ น้ำหนัก (กก.)
+          </button>
+          <button
+            className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none ${
+              mode === 'purchase' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+            }`}
+            type="button"
+            onClick={() => setMode('purchase')}
+          >
+            💰 ยอดซื้อ (บาท)
+          </button>
+        </div>
       </div>
 
-      {/* Mobile Card list */}
-      <div className="block lg:hidden space-y-3">
-        {monthly.map((row, index) => (
-          <div key={row.month} className="rounded-md border border-slate-100 bg-white p-4 shadow-sm space-y-2">
-            <div className="flex justify-between items-center">
-              <span className="font-bold text-slate-800 text-sm">{monthLabels[index]}</span>
-              <span className="text-xs font-semibold text-blue-700 tabular-nums">{formatMoney(row.amount)} บาท</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
-              <div>
-                <span className="text-slate-400 font-medium">น้ำหนัก: </span>
-                <span className="font-semibold text-slate-700">{formatMoney(row.qty)} กก.</span>
-              </div>
-              <div>
-                <span className="text-slate-400 font-medium">ราคาเฉลี่ย: </span>
-                <span className="font-semibold text-slate-700">{formatMoney(row.qty > 0 ? row.amount / row.qty : 0)} บาท/กก.</span>
-              </div>
-            </div>
-          </div>
-        ))}
+      <div className="overflow-x-auto rounded-xl bg-white border border-slate-200/60 shadow-sm">
+        <table className="w-full text-sm border-collapse text-left">
+          <thead className="bg-slate-100/75 text-slate-700 border-b border-slate-200">
+            <tr>
+              <th className="p-3 pl-4 font-semibold">Supplier</th>
+              {monthLabels.map((lbl) => (
+                <th key={lbl} className="p-3 text-right font-semibold min-w-[90px]">{lbl}</th>
+              ))}
+              <th className="p-3 pr-4 text-right font-semibold min-w-[100px]">รวม</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 text-slate-700">
+            {rows.map((row) => {
+              const rowSum = (row.monthlyData ?? []).reduce((sum, m) => {
+                return sum + (mode === 'weight' ? m.qty : m.purchaseAmount)
+              }, 0)
+
+              return (
+                <tr key={row.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="p-3 pl-4 font-medium text-slate-800">
+                    <div>{row.supplierName}</div>
+                    <div className="text-xs text-slate-400 font-mono mt-0.5">{row.code}</div>
+                  </td>
+                  {Array.from({ length: 12 }).map((_, monthIdx) => {
+                    const mData = row.monthlyData?.[monthIdx]
+                    const val = mode === 'weight' ? (mData?.qty ?? 0) : (mData?.purchaseAmount ?? 0)
+                    return (
+                      <td key={monthIdx} className="p-3 text-right font-mono text-xs">
+                        {val > 0 ? formatMoney(val) : '-'}
+                      </td>
+                    )
+                  })}
+                  <td className="p-3 pr-4 text-right font-mono font-semibold text-xs text-slate-900">
+                    {rowSum > 0 ? formatMoney(rowSum) : '-'}
+                  </td>
+                </tr>
+              )
+            })}
+
+            {/* Totals Row */}
+            <tr className="bg-slate-50 font-bold border-t border-slate-200 text-slate-900">
+              <td className="p-3 pl-4 text-slate-800">ยอดรวมทั้งหมด</td>
+              {monthlyTotals.map((val, idx) => (
+                <td key={idx} className="p-3 text-right font-mono text-xs">
+                  {val > 0 ? formatMoney(val) : '-'}
+                </td>
+              ))}
+              <td className="p-3 pr-4 text-right font-mono text-xs text-slate-900">
+                {grandTotal > 0 ? formatMoney(grandTotal) : '-'}
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-    </>
+    </div>
   )
 }

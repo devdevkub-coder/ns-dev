@@ -223,7 +223,7 @@ export function ProductionReconciliationPageClient() {
             ตัวกรอง {issueFilter !== 'all' ? '(1)' : ''}
           </button>
         </div>
-        <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+        <div className="flex items-center gap-1.5 text-xs text-slate-500">
           {totalIssues === 0 ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> : <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />}
           <span className="truncate">{totalIssues === 0 ? 'ไม่พบปัญหา' : `พบ ${totalIssues} ปัญหา`}</span>
         </div>
@@ -312,7 +312,7 @@ export function ProductionReconciliationPageClient() {
                 <tr key={`${issue.issue}-${issue.refType}-${issue.docNo}-${index}`} className="hover:bg-slate-50">
                   <td className="px-3 py-2 align-top overflow-hidden truncate">
                     <div className="font-semibold text-slate-900">{issueLabel(issue.issue)}</div>
-                    <div className="mt-0.5 text-[11px] leading-4 text-slate-500">{issueNote(issue.issue)}</div>
+                    <div className="mt-0.5 text-xs leading-4 text-slate-500">{issueNote(issue.issue)}</div>
                   </td>
                   <td className="px-3 py-2 align-top font-semibold text-slate-700 overflow-hidden truncate">{issue.refType || '-'}</td>
                   <td className="px-3 py-2 align-top font-semibold text-slate-900 overflow-hidden truncate">{issue.orderDocNo || '-'}</td>
